@@ -851,6 +851,96 @@
   text-align: right;
   flex-shrink: 0;
   font-family: monospace;
+  transition: color 0.1s ease-out;
+}
+
+.viz-spectrum-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.viz-intensity-slider {
+  width: 60px;
+  height: 4px;
+  accent-color: #a78bfa;
+}
+
+.viz-track-name-section {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #374151;
+}
+
+.viz-track-name-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  transition: background 0.2s;
+}
+
+.viz-track-name-display:hover {
+  background: rgba(168, 85, 247, 0.1);
+}
+
+.viz-track-name-icon {
+  color: #a78bfa;
+}
+
+.viz-track-name-text {
+  font-size: 0.875rem;
+  color: #e2e8f0;
+  font-weight: 500;
+  flex: 1;
+}
+
+.viz-track-hint {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.viz-track-name-edit {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.viz-track-name-input {
+  flex: 1;
+  padding: 0.25rem 0.5rem;
+  background: #1f2937;
+  border: 1px solid #6366f1;
+  border-radius: 0.25rem;
+  color: white;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.viz-track-name-save {
+  padding: 0.25rem 0.75rem;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.viz-track-name-save:hover {
+  background: #7c3aed;
+}
+
+.viz-cuda-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #10b981;
+  color: white;
+  font-weight: 700;
+  margin-left: auto;
 }
 
 .viz-beat-indicator {

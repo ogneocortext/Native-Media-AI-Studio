@@ -318,6 +318,11 @@ async def list_uploaded_audio():
 @router.get("/file/{filename:path}")
 async def serve_audio_file(filename: str):
     """Serve an audio file by filename."""
+    import urllib.parse
+    
+    # Decode URL-encoded filename (handles spaces, special chars)
+    filename = urllib.parse.unquote(filename)
+    
     # Security: prevent directory traversal
     if ".." in filename or filename.startswith("/"):
         raise HTTPException(status_code=400, detail="Invalid filename")

@@ -13,19 +13,36 @@ interface SpectrumBarProps {
   label: string;
   value: number;
   color: string;
+  intensity: number;
 }
 
-function SpectrumBar({ label, value, color }: SpectrumBarProps) {
+function SpectrumBar({ label, value, color, intensity }: SpectrumBarProps) {
+  const scaledValue = Math.min(value * intensity, 1);
   return (
     <div className="spec-bar-row">
       <span className="spec-bar-label">{label}</span>
       <div className="spec-bar-track">
         <div
           className="spec-bar-fill"
-          style={{ width: `${Math.min(value * 100, 100)}%`, background: color }}
+          style={{
+            width: `${scaledValue * 100}%`,
+            background: `linear-gradient(90deg, ${color}, ${color}dd, ${color}88)`,
+            boxShadow: scaledValue > 0.7 ? `0 0 12px ${color}, 0 0 24px ${color}66` : `0 0 6px ${color}66`,
+            transition: "width 0.05s ease-out, box-shadow 0.1s ease-out",
+          }}
         />
+        {scaledValue > 0.8 && (
+          <div
+            className="spec-bar-glow"
+            style={{
+              background: `radial-gradient(circle, ${color}88 0%, transparent 70%)`,
+            }}
+          />
+        )}
       </div>
-      <span className="spec-bar-value">{Math.round(value * 100)}</span>
+      <span className="spec-bar-value" style={{ color: scaledValue > 0.8 ? color : "#6b7280" }}>
+        {Math.round(scaledValue * 100)}
+      </span>
     </div>
   );
 }
@@ -192,17 +209,23 @@ export function Visualizer() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [trackName, setTrackName] = useState<string>("");
+  const [editableTrackName, setEditableTrackName] = useState<string>("");
+  const [isEditingName, setIsEditingName] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [libraryFiles, setLibraryFiles] = useState<Array<{ filename: string; stored_path: string }>>([]);
   const [liveAudioData, setLiveAudioData] = useState<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false });
   const [showSpectrum, setShowSpectrum] = useState(true);
+  const [spectrumIntensity, setSpectrumIntensity] = useState(1);
+  const [cudaEnabled, setCudaEnabled] = useState(false);
+  const [cudaStatus, setCudaStatus] = useState<"unavailable" | "available" | "active">("unavailable");
 
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const trackNameInputRef = useRef<HTMLInputElement | null>(null);
 
   // Load available tracks from API on mount
   useEffect(() => {
@@ -279,12 +302,37 @@ export function Visualizer() {
     if (!filename) return;
     setError(null);
     setTrackName(filename);
+    setEditableTrackName(filename.replace(/^\w{8}_/, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, ""));
     setAudioFile(null);
     // Encode filename for URL (handles spaces, special chars)
     const encodedFilename = encodeURIComponent(filename);
     setAudioUrl(`/api/audio/file/${encodedFilename}`);
     setDemoEnabled(false);
   };
+
+  const handleSaveTrackName = () => {
+    if (editableTrackName.trim()) {
+      setTrackName(editableTrackName.trim());
+      setIsEditingName(false);
+    }
+  };
+
+  // Check CUDA availability on mount
+  useEffect(() => {
+    const checkCuda = async () => {
+      try {
+        const res = await fetch("/api/integrations");
+        if (res.ok) {
+          const data = await res.json();
+          const cudaAdapter = data.integrations?.find((i: any) => i.name.toLowerCase().includes("cuda"));
+          setCudaStatus(cudaAdapter?.status === "online" ? "available" : "unavailable");
+        }
+      } catch {
+        setCudaStatus("unavailable");
+      }
+    };
+    checkCuda();
+  }, []);
 
   return (
     <div className="viz-page">
@@ -327,23 +375,62 @@ export function Visualizer() {
               <div className="viz-spectrum-header">
                 <Waves size={16} className="viz-spectrum-icon" />
                 <span className="viz-spectrum-title">Live Frequency Spectrum</span>
-                <button
-                  className="viz-spectrum-toggle"
-                  onClick={() => setShowSpectrum(false)}
-                  title="Hide spectrum"
-                >
-                  <Maximize2 size={12} />
-                </button>
+                <div className="viz-spectrum-controls">
+                  <input
+                    type="range"
+                    min="1"
+                    max="2"
+                    step="0.1"
+                    value={spectrumIntensity}
+                    onChange={(e) => setSpectrumIntensity(parseFloat(e.target.value))}
+                    className="viz-intensity-slider"
+                    title="Spectrum Sensitivity"
+                  />
+                  <button
+                    className="viz-spectrum-toggle"
+                    onClick={() => setShowSpectrum(false)}
+                    title="Hide spectrum"
+                  >
+                    <Maximize2 size={12} />
+                  </button>
+                </div>
               </div>
+              {/* Editable Track Name */}
+              {trackName && (
+                <div className="viz-track-name-section">
+                  {isEditingName ? (
+                    <div className="viz-track-name-edit">
+                      <input
+                        ref={trackNameInputRef}
+                        type="text"
+                        value={editableTrackName}
+                        onChange={(e) => setEditableTrackName(e.target.value)}
+                        onBlur={handleSaveTrackName}
+                        onKeyDown={(e) => e.key === "Enter" && handleSaveTrackName()}
+                        className="viz-track-name-input"
+                        autoFocus
+                      />
+                      <button onClick={handleSaveTrackName} className="viz-track-name-save">Save</button>
+                    </div>
+                  ) : (
+                    <div className="viz-track-name-display" onClick={() => setIsEditingName(true)}>
+                      <Music size={14} className="viz-track-name-icon" />
+                      <span className="viz-track-name-text">{trackName}</span>
+                      <span className="viz-track-hint">(click to edit)</span>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="viz-spectrum-bars">
-                <SpectrumBar label="Bass" value={liveAudioData.bass} color="#6366f1" />
-                <SpectrumBar label="Mid" value={liveAudioData.mid} color="#a855f7" />
-                <SpectrumBar label="Treble" value={liveAudioData.treble} color="#ec4899" />
-                <SpectrumBar label="Overall" value={liveAudioData.overall} color="#06b6d4" />
+                <SpectrumBar label="Bass" value={liveAudioData.bass} color="#6366f1" intensity={spectrumIntensity} />
+                <SpectrumBar label="Mid" value={liveAudioData.mid} color="#a855f7" intensity={spectrumIntensity} />
+                <SpectrumBar label="Treble" value={liveAudioData.treble} color="#ec4899" intensity={spectrumIntensity} />
+                <SpectrumBar label="Overall" value={liveAudioData.overall} color="#06b6d4" intensity={spectrumIntensity} />
               </div>
               <div className="viz-beat-indicator">
                 <div className={`viz-beat-dot ${liveAudioData.beat ? "active" : ""}`} />
                 <span className="viz-beat-label">{liveAudioData.beat ? "BEAT" : "detecting..."}</span>
+                {cudaEnabled && <span className="viz-cuda-badge">CUDA</span>}
               </div>
             </Card>
           )}
