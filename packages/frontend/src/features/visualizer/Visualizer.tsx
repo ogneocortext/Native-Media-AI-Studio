@@ -725,7 +725,7 @@ export function Visualizer() {
                   />
                 </div>
               </div>
-            </Card>
+            </div>
           </Card>
 
           {/* Visualization Style Selector */}
