@@ -221,3 +221,132 @@ export function PulseViz({ audioData }: { audioData: React.MutableRefObject<Audi
     </group>
   );
 }
+
+// Storm Visualization - Intense lightning and energy discharges
+export function StormViz({ audioData }: { audioData: React.MutableRefObject<AudioData> }) {
+  const groupRef = useRef<THREE.Group>(null);
+  const lightningRef = useRef<THREE.Mesh[]>([]);
+  const cloudRef = useRef<THREE.Points>(null);
+  
+  // Storm clouds - dark turbulent particles
+  const cloudPositions = useMemo(() => {
+    const pos = new Float32Array(300 * 3);
+    for (let i = 0; i < 300; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * 12;
+      pos[i * 3 + 1] = Math.random() * 4 + 2;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * 12;
+    }
+    return pos;
+  }, []);
+  
+  useFrame((state) => {
+    if (!groupRef.current) return;
+    const time = state.clock.elapsedTime;
+    
+    // Rotate storm clouds
+    if (cloudRef.current) {
+      cloudRef.current.rotation.y = time * 0.05;
+      const material = cloudRef.current.material as THREE.PointsMaterial;
+      material.size = 0.15 + audioData.current.bass * 0.2;
+      material.opacity = 0.5 + audioData.current.overall * 0.3;
+    }
+    
+    // Lightning flashes on beats
+    lightningRef.current.forEach((lightning, i) => {
+      if (lightning) {
+        const isFlashing = audioData.current.beat && i === Math.floor(time * 4) % 3;
+        lightning.scale.setScalar(isFlashing ? 1 + audioData.current.bass * 2 : 0.1);
+        const material = lightning.material as THREE.MeshStandardMaterial;
+        material.emissiveIntensity = isFlashing ? 5 : 0.1;
+        material.opacity = isFlashing ? 1 : 0.2;
+      }
+    });
+    
+    groupRef.current.rotation.y = time * 0.02;
+  });
+  
+  return (
+    <group ref={groupRef}>
+      {/* Storm clouds */}
+      <points ref={cloudRef}>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[cloudPositions, 3]} />
+        </bufferGeometry>
+        <pointsMaterial size={0.15} color="#4a5568" transparent opacity={0.6} sizeAttenuation />
+      </points>
+      
+      {/* Lightning bolts */}
+      {[0, 1, 2].map((i) => (
+        <mesh 
+          key={i} 
+          ref={el => { if (el) lightningRef.current[i] = el; }}
+          position={[(i - 1) * 3, 0, 0]}
+          rotation={[0, 0, (i - 1) * 0.3]}
+        >
+          <cylinderGeometry args={[0.02, 0.02, 6, 8]} />
+          <meshStandardMaterial 
+            color="#ffffff" 
+            emissive="#00ffff" 
+            emissiveIntensity={0.1}
+            transparent 
+            opacity={0.3}
+          />
+        </mesh>
+      ))}
+      
+      {/* Central energy core */}
+      <mesh position={[0, 0, 0]}>
+        <dodecahedronGeometry args={[0.8, 0]} />
+        <meshStandardMaterial 
+          color="#1a1a2e" 
+          emissive="#ff6600" 
+          emissiveIntensity={0.5}
+          wireframe 
+        />
+      </mesh>
+    </group>
+  );
+}
+
+// Fractal Visualization - Self-similar patterns
+export function FractalViz({ audioData }: { audioData: React.MutableRefObject<AudioData> }) {
+  const groupRef = useRef<THREE.Group>(null);
+  const iterationCount = 5;
+  
+  useFrame((state) => {
+    if (!groupRef.current) return;
+    const time = state.clock.elapsedTime;
+    
+    groupRef.current.children.forEach((child, i) => {
+      const mesh = child as THREE.Mesh;
+      const scale = 1 + i * 0.5;
+      const audioInfluence = (audioData.current.bass + audioData.current.mid + audioData.current.treble) / 3;
+      mesh.scale.setScalar(scale * (1 + audioInfluence * 0.5));
+      mesh.rotation.x = time * (0.1 + i * 0.05) + i;
+      mesh.rotation.y = time * (0.15 + i * 0.03);
+      
+      const material = mesh.material as THREE.MeshStandardMaterial;
+      material.emissiveIntensity = audioData.current.bass * (1 + i * 0.2);
+    });
+    
+    groupRef.current.rotation.y = time * 0.1;
+  });
+  
+  return (
+    <group ref={groupRef}>
+      {Array.from({ length: iterationCount }).map((_, i) => (
+        <mesh key={i} position={[0, 0, 0]}>
+          <icosahedronGeometry args={[1 + i * 0.3, 0]} />
+          <meshStandardMaterial 
+            color={`hsl(${(i * 60 + 180) % 360}, 70%, 50%)`}
+            emissive={`hsl(${(i * 60 + 180) % 360}, 70%, 30%)`}
+            emissiveIntensity={0.3}
+            wireframe
+            transparent
+            opacity={0.7 - i * 0.1}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}

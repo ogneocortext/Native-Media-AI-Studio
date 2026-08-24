@@ -13,7 +13,7 @@ import {
   VisualizationStyle, 
   TrackConcept 
 } from "./trackConceptAnalyzer";
-import { WaveformViz, ParticleStormViz, NeuralViz, CosmicViz, PulseViz } from "./VisualizationStyles";
+import { WaveformViz, ParticleStormViz, NeuralViz, CosmicViz, PulseViz, StormViz, FractalViz } from "./VisualizationStyles";
 
 interface AudioData { bass: number; mid: number; treble: number; overall: number; beat: boolean; }
 
@@ -265,6 +265,10 @@ function VisualizerScene({
         return <CosmicViz audioData={audioData} />;
       case "pulse":
         return <PulseViz audioData={audioData} />;
+      case "storm":
+        return <StormViz audioData={audioData} />;
+      case "fractal":
+        return <FractalViz audioData={audioData} />;
       case "geometric":
       default:
         return (
@@ -654,6 +658,17 @@ export function Visualizer() {
             </div>
             <div className={`viz-beat-dot ${liveAudioData.beat ? "active" : ""}`} />
           </div>
+
+          {/* Persistent Audio Player - Outside panels to prevent interruption */}
+          {audioUrl && (
+            <div className="viz-audio-bar">
+              <audio ref={audioElRef} controls src={audioUrl} className="viz-audio" crossOrigin="anonymous"
+                onPlay={() => { setIsPlaying(true); audioCtxRef.current?.resume(); }}
+                onPause={() => setIsPlaying(false)}
+                onEnded={() => setIsPlaying(false)}
+              />
+            </div>
+          )}
         </div>
 
         {/* Right: Controls - Accordion Style */}
@@ -678,13 +693,6 @@ export function Visualizer() {
                   <Upload size={16} />
                   <span>Drop or click to upload</span>
                 </div>
-                {audioUrl && (
-                  <audio ref={audioElRef} controls src={audioUrl} className="viz-audio" crossOrigin="anonymous"
-                    onPlay={() => { setIsPlaying(true); audioCtxRef.current?.resume(); }}
-                    onPause={() => setIsPlaying(false)}
-                    onEnded={() => setIsPlaying(false)}
-                  />
-                )}
                 {error && <div className="viz-error"><AlertCircle size={14} /><span>{error}</span></div>}
               </div>
             )}
