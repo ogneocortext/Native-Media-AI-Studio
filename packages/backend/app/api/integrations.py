@@ -686,7 +686,7 @@ async def cuda_analyze_audio(request: dict) -> dict:
         import cupy as cp
         
         # Download audio data
-        import urllib.response
+        import urllib.request
         audio_data = urllib.request.urlopen(audio_url).read()
         
         # Convert to numpy array (simplified - real implementation would decode audio)

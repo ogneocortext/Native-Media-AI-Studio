@@ -185,6 +185,44 @@ Get ComfyUI server status.
 #### POST `/api/comfyui/generate`
 Submit a generation request.
 
+### CUDA Audio Analysis
+
+#### GET `/api/integrations/cuda/status`
+Get CUDA toolkit status and GPU information.
+
+**Response:**
+```json
+{
+  "available": true,
+  "gpu_name": "NVIDIA GeForce GTX 1070 Ti",
+  "cuda_version": "release 12.2",
+  "error": ""
+}
+```
+
+#### POST `/api/integrations/cuda/analyze`
+Perform CUDA-accelerated audio frequency analysis.
+
+**Request:**
+```json
+{
+  "audio_url": "http://localhost:5173/api/audio/file/song.mp3",
+  "sample_rate": 44100
+}
+```
+
+**Response:**
+```json
+{
+  "source": "cuda",
+  "bass": 0.75,
+  "mid": 0.62,
+  "treble": 0.45,
+  "overall": 0.68,
+  "gpu_used": true
+}
+```
+
 ---
 
 ### Video
