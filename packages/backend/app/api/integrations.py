@@ -682,8 +682,38 @@ async def analyze_track_with_ollama(request: TrackAnalysisRequest) -> dict:
     """
     Use Ollama to analyze track data and generate visualization parameters.
     Creates dynamic visuals synced with CSV track details for improved pattern matching.
+    Includes caching and VRAM-aware model selection.
     """
     import aiohttp
+    import hashlib
+    
+    # Generate track hash for caching
+    track_hash = hashlib.md5(f"{request.track_name}{request.prompt}".encode()).hexdigest()
+    
+    # Check for existing preset in database
+    from ..core.database import (
+        get_visualization_preset, find_similar_preset, save_visualization_preset,
+        get_available_ollama_models, get_latest_system_resources
+    )
+    
+    existing = get_visualization_preset(track_hash)
+    if existing:
+        return {
+            "success": True,
+            "source": "cache",
+            "params": existing["params"],
+            "cached": True,
+        }
+    
+    # Find similar preset to recycle
+    similar = find_similar_preset(request.track_name, [], [])
+    if similar and similar.get("usage_count", 0) > 2:
+        return {
+            "success": True,
+            "source": "similar",
+            "params": similar["params"],
+            "cached": True,
+        }
     
     # Build analysis prompt for Ollama
     analysis_prompt = f"""Analyze this music track and generate visualization parameters.
@@ -721,12 +751,29 @@ Based on the mood, genre, energy, and themes, provide visualization parameters a
 Respond with ONLY the JSON object, no explanation."""
     
     try:
+        # Get available models with sufficient VRAM
+        resources = get_latest_system_resources()
+        vram_free = resources.get("gpu_memory_free", 4000) if resources else 4000
+        
+        available_models = get_available_ollama_models(vram_free)
+        
+        if not available_models:
+            return {
+                "success": False,
+                "error": "No Ollama models available with sufficient VRAM",
+                "source": "fallback",
+                "vram_free": vram_free,
+            }
+        
+        # Prefer tool-capable models
+        model_name = available_models[0].get("model_name", "llama3.2:latest")
+        
         # Call Ollama API
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 "http://127.0.0.1:11434/api/generate",
                 json={
-                    "model": "llama3.2:latest",
+                    "model": model_name,
                     "prompt": analysis_prompt,
                     "stream": False,
                     "options": {"temperature": 0.7}
@@ -739,7 +786,6 @@ Respond with ONLY the JSON object, no explanation."""
                     
                     # Parse JSON from response
                     import json
-                    # Find JSON in response (handle markdown code blocks)
                     json_str = response_text
                     if "```json" in json_str:
                         json_str = json_str.split("```json")[1].split("```")[0]
@@ -747,10 +793,26 @@ Respond with ONLY the JSON object, no explanation."""
                         json_str = json_str.split("```")[1].split("```")[0]
                     
                     params = json.loads(json_str.strip())
+                    
+                    # Save to database for future reuse
+                    save_visualization_preset({
+                        "track_name": request.track_name,
+                        "track_hash": track_hash,
+                        "preset_name": f"{request.track_name} (AI)",
+                        "visualization_style": params.get("visualization_style", "geometric"),
+                        "params": params,
+                        "ollama_model": model_name,
+                        "prompt": request.prompt,
+                        "lyrics": request.lyrics,
+                        "bpm": request.bpm,
+                    })
+                    
                     return {
                         "success": True,
                         "source": "ollama",
-                        "params": params
+                        "params": params,
+                        "model_used": model_name,
+                        "cached": False,
                     }
                 else:
                     return {
@@ -766,7 +828,136 @@ Respond with ONLY the JSON object, no explanation."""
         }
 
 
-@router.post("/cuda/analyze")
+@router.get("/system-resources")
+async def get_system_resources() -> dict:
+    """Get current system resources including GPU, CPU, RAM, and Ollama status."""
+    import subprocess
+    import psutil
+    
+    resources = {
+        "gpu_name": "",
+        "gpu_memory_total": 0,
+        "gpu_memory_used": 0,
+        "gpu_memory_free": 0,
+        "gpu_utilization": 0,
+        "cpu_percent": 0,
+        "ram_total": 0,
+        "ram_used": 0,
+        "ram_free": 0,
+        "ollama_available": False,
+        "ollama_models": [],
+    }
+    
+    try:
+        # GPU info from nvidia-smi
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            parts = result.stdout.strip().split(", ")
+            resources["gpu_name"] = parts[0] if len(parts) > 0 else ""
+            resources["gpu_memory_total"] = int(parts[1]) if len(parts) > 1 else 0
+            resources["gpu_memory_used"] = int(parts[2]) if len(parts) > 2 else 0
+            resources["gpu_memory_free"] = int(parts[3]) if len(parts) > 3 else 0
+            resources["gpu_utilization"] = int(parts[4]) if len(parts) > 4 else 0
+    except Exception:
+        pass
+    
+    try:
+        # CPU and RAM
+        resources["cpu_percent"] = int(psutil.cpu_percent(interval=0.1))
+        ram = psutil.virtual_memory()
+        resources["ram_total"] = ram.total // (1024 * 1024)  # MB
+        resources["ram_used"] = ram.used // (1024 * 1024)
+        resources["ram_free"] = ram.available // (1024 * 1024)
+    except Exception:
+        pass
+    
+    try:
+        # Ollama status
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get("http://127.0.0.1:11434/api/tags", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    resources["ollama_available"] = True
+                    resources["ollama_models"] = [
+                        {
+                            "name": m.get("name", ""),
+                            "size": m.get("size", 0),
+                            "digest": m.get("digest", ""),
+                        }
+                        for m in data.get("models", [])
+                    ]
+    except Exception:
+        pass
+    
+    # Log to database
+    from ..core.database import log_system_resources
+    log_system_resources(resources)
+    
+    return resources
+
+
+@router.get("/ollama-models")
+async def get_ollama_models() -> dict:
+    """Get available Ollama models with capability info and VRAM requirements."""
+    import aiohttp
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get("http://127.0.0.1:11434/api/tags", timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    models = []
+                    for m in data.get("models", []):
+                        model_name = m.get("name", "")
+                        # Estimate VRAM requirements based on model name
+                        vram_estimate = 4000  # Default 4GB
+                        if "70b" in model_name.lower():
+                            vram_estimate = 40000
+                        elif "34b" in model_name.lower():
+                            vram_estimate = 20000
+                        elif "13b" in model_name.lower():
+                            vram_estimate = 8000
+                        elif "7b" in model_name.lower():
+                            vram_estimate = 5000
+                        elif "3b" in model_name.lower():
+                            vram_estimate = 3000
+                        elif "1.5b" in model_name.lower() or "1b" in model_name.lower():
+                            vram_estimate = 2000
+                        
+                        # Check if model supports tools
+                        is_tool_capable = any(k in model_name.lower() for k in ["llama3", "mistral", "command-r", "gemma2"])
+                        
+                        models.append({
+                            "id": model_name,
+                            "model_name": model_name,
+                            "model_size": m.get("size", 0),
+                            "model_digest": m.get("digest", ""),
+                            "is_tool_capable": is_tool_capable,
+                            "vram_required": vram_estimate,
+                            "is_available": True,
+                            "capabilities": ["chat", "tools"] if is_tool_capable else ["chat"],
+                        })
+                    
+                    # Save to database
+                    from ..core.database import save_ollama_model
+                    for model in models:
+                        save_ollama_model(model)
+                    
+                    return {"models": models, "count": len(models)}
+    except Exception as e:
+        return {"models": [], "count": 0, "error": str(e)}
+
+
+@router.get("/visualization-presets")
+async def get_visualization_presets() -> dict:
+    """Get all saved visualization presets."""
+    from ..core.database import get_all_visualization_presets
+    presets = get_all_visualization_presets()
+    return {"presets": presets, "count": len(presets)}
 async def cuda_analyze_audio(request: dict) -> dict:
     """
     Perform CUDA-accelerated audio frequency analysis.

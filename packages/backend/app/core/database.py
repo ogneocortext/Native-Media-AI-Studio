@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = PROJECT_ROOT / "storage" / "studio.db"
 
 # Database schema version for migrations
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def get_connection() -> sqlite3.Connection:
@@ -90,6 +90,8 @@ def init_db():
             _migrate_v3(conn)
         if current_version < 4:
             _migrate_v4(conn)
+        if current_version < 5:
+            _migrate_v5(conn)
 
         set_schema_version(conn, SCHEMA_VERSION)
         logger.info("Database initialized at version %d", SCHEMA_VERSION)
@@ -926,3 +928,293 @@ def _row_to_track(row: sqlite3.Row) -> dict[str, Any]:
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
+
+
+def _migrate_v5(conn: sqlite3.Connection):
+    """Add visualization presets and system resource tracking tables."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS visualization_presets (
+            id TEXT PRIMARY KEY,
+            track_name TEXT NOT NULL,
+            track_hash TEXT NOT NULL,
+            preset_name TEXT NOT NULL,
+            visualization_style TEXT NOT NULL,
+            params TEXT NOT NULL DEFAULT '{}',
+            ollama_model TEXT,
+            prompt TEXT,
+            lyrics TEXT,
+            mood_tags TEXT DEFAULT '[]',
+            genre_tags TEXT DEFAULT '[]',
+            bpm INTEGER DEFAULT 120,
+            energy_level TEXT DEFAULT 'medium',
+            is_unique BOOLEAN DEFAULT 1,
+            usage_count INTEGER DEFAULT 0,
+            last_used TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_viz_presets_track_hash ON visualization_presets(track_hash);
+        CREATE INDEX IF NOT EXISTS idx_viz_presets_style ON visualization_presets(visualization_style);
+        CREATE INDEX IF NOT EXISTS idx_viz_presets_unique ON visualization_presets(is_unique);
+
+        CREATE TABLE IF NOT EXISTS system_resources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+            gpu_name TEXT,
+            gpu_memory_total INTEGER,
+            gpu_memory_used INTEGER,
+            gpu_memory_free INTEGER,
+            gpu_utilization INTEGER,
+            cpu_percent INTEGER,
+            ram_total INTEGER,
+            ram_used INTEGER,
+            ram_free INTEGER,
+            ollama_available BOOLEAN DEFAULT 0,
+            ollama_models TEXT DEFAULT '[]'
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_sys_resources_timestamp ON system_resources(timestamp);
+
+        CREATE TABLE IF NOT EXISTS ollama_models (
+            id TEXT PRIMARY KEY,
+            model_name TEXT NOT NULL,
+            model_size INTEGER,
+            model_digest TEXT,
+            is_tool_capable BOOLEAN DEFAULT 0,
+            vram_required INTEGER,
+            last_checked TEXT,
+            is_available BOOLEAN DEFAULT 1,
+            capabilities TEXT DEFAULT '[]',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ollama_models_available ON ollama_models(is_available);
+    """)
+
+
+# Visualization Preset Functions
+
+def save_visualization_preset(preset: dict) -> str:
+    """Save a visualization preset to the database."""
+    import uuid
+    preset_id = preset.get("id", str(uuid.uuid4()))
+    
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO visualization_presets 
+            (id, track_name, track_hash, preset_name, visualization_style, params,
+             ollama_model, prompt, lyrics, mood_tags, genre_tags, bpm, energy_level,
+             is_unique, usage_count, last_used, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                preset_id,
+                preset.get("track_name", ""),
+                preset.get("track_hash", ""),
+                preset.get("preset_name", ""),
+                preset.get("visualization_style", "geometric"),
+                json.dumps(preset.get("params", {})),
+                preset.get("ollama_model"),
+                preset.get("prompt", ""),
+                preset.get("lyrics", ""),
+                json.dumps(preset.get("mood_tags", [])),
+                json.dumps(preset.get("genre_tags", [])),
+                preset.get("bpm", 120),
+                preset.get("energy_level", "medium"),
+                preset.get("is_unique", True),
+                preset.get("usage_count", 0),
+                preset.get("last_used"),
+                preset.get("created_at", datetime.now().isoformat()),
+                datetime.now().isoformat(),
+            ),
+        )
+    return preset_id
+
+
+def get_visualization_preset(track_hash: str) -> dict | None:
+    """Get a visualization preset by track hash."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM visualization_presets WHERE track_hash = ? AND is_unique = 1 ORDER BY usage_count DESC LIMIT 1",
+            (track_hash,),
+        ).fetchone()
+        
+        if row:
+            # Update usage count
+            conn.execute(
+                "UPDATE visualization_presets SET usage_count = usage_count + 1, last_used = ? WHERE id = ?",
+                (datetime.now().isoformat(), row["id"]),
+            )
+            return _row_to_viz_preset(row)
+    return None
+
+
+def get_all_visualization_presets() -> list[dict]:
+    """Get all visualization presets."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM visualization_presets ORDER BY usage_count DESC, created_at DESC"
+        ).fetchall()
+        return [_row_to_viz_preset(row) for row in rows]
+
+
+def find_similar_preset(track_name: str, mood_tags: list, genre_tags: list) -> dict | None:
+    """Find a similar preset based on track characteristics."""
+    with get_db() as conn:
+        # Simple matching based on mood and genre overlap
+        rows = conn.execute(
+            "SELECT * FROM visualization_presets WHERE is_unique = 1 ORDER BY usage_count DESC LIMIT 50"
+        ).fetchall()
+        
+        best_match = None
+        best_score = 0
+        
+        for row in row:
+            row_mood = json.loads(row["mood_tags"]) if row["mood_tags"] else []
+            row_genre = json.loads(row["genre_tags"]) if row["genre_tags"] else []
+            
+            mood_overlap = len(set(mood_tags) & set(row_mood))
+            genre_overlap = len(set(genre_tags) & set(row_genre))
+            score = mood_overlap + genre_overlap
+            
+            if score > best_score:
+                best_score = score
+                best_match = row
+        
+        if best_match and best_score >= 2:
+            return _row_to_viz_preset(best_match)
+    return None
+
+
+def _row_to_viz_preset(row: sqlite3.Row) -> dict:
+    """Convert a database row to a visualization preset dict."""
+    return {
+        "id": row["id"],
+        "track_name": row["track_name"],
+        "track_hash": row["track_hash"],
+        "preset_name": row["preset_name"],
+        "visualization_style": row["visualization_style"],
+        "params": json.loads(row["params"]) if row["params"] else {},
+        "ollama_model": row["ollama_model"],
+        "prompt": row["prompt"],
+        "lyrics": row["lyrics"],
+        "mood_tags": json.loads(row["mood_tags"]) if row["mood_tags"] else [],
+        "genre_tags": json.loads(row["genre_tags"]) if row["genre_tags"] else [],
+        "bpm": row["bpm"],
+        "energy_level": row["energy_level"],
+        "is_unique": row["is_unique"],
+        "usage_count": row["usage_count"],
+        "last_used": row["last_used"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+# System Resource Functions
+
+def log_system_resources(resources: dict) -> None:
+    """Log system resource snapshot."""
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO system_resources 
+            (gpu_name, gpu_memory_total, gpu_memory_used, gpu_memory_free,
+             gpu_utilization, cpu_percent, ram_total, ram_used, ram_free,
+             ollama_available, ollama_models)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                resources.get("gpu_name"),
+                resources.get("gpu_memory_total"),
+                resources.get("gpu_memory_used"),
+                resources.get("gpu_memory_free"),
+                resources.get("gpu_utilization"),
+                resources.get("cpu_percent"),
+                resources.get("ram_total"),
+                resources.get("ram_used"),
+                resources.get("ram_free"),
+                resources.get("ollama_available", False),
+                json.dumps(resources.get("ollama_models", [])),
+            ),
+        )
+
+
+def get_latest_system_resources() -> dict | None:
+    """Get the latest system resource snapshot."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM system_resources ORDER BY timestamp DESC LIMIT 1"
+        ).fetchone()
+        
+        if row:
+            return {
+                "timestamp": row["timestamp"],
+                "gpu_name": row["gpu_name"],
+                "gpu_memory_total": row["gpu_memory_total"],
+                "gpu_memory_used": row["gpu_memory_used"],
+                "gpu_memory_free": row["gpu_memory_free"],
+                "gpu_utilization": row["gpu_utilization"],
+                "cpu_percent": row["cpu_percent"],
+                "ram_total": row["ram_total"],
+                "ram_used": row["ram_used"],
+                "ram_free": row["ram_free"],
+                "ollama_available": row["ollama_available"],
+                "ollama_models": json.loads(row["ollama_models"]) if row["ollama_models"] else [],
+            }
+    return None
+
+
+# Ollama Model Functions
+
+def save_ollama_model(model: dict) -> None:
+    """Save or update Ollama model info."""
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO ollama_models 
+            (id, model_name, model_size, model_digest, is_tool_capable,
+             vram_required, last_checked, is_available, capabilities)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                model.get("id", model.get("model_name")),
+                model.get("model_name"),
+                model.get("model_size"),
+                model.get("model_digest"),
+                model.get("is_tool_capable", False),
+                model.get("vram_required"),
+                datetime.now().isoformat(),
+                model.get("is_available", True),
+                json.dumps(model.get("capabilities", [])),
+            ),
+        )
+
+
+def get_available_ollama_models(min_vram_free: int = 0) -> list[dict]:
+    """Get available Ollama models filtered by VRAM requirements."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM ollama_models 
+            WHERE is_available = 1 AND vram_required <= ?
+            ORDER BY is_tool_capable DESC, vram_required ASC
+            """,
+            (min_vram_free,),
+        ).fetchall()
+        
+        return [
+            {
+                "id": row["id"],
+                "model_name": row["model_name"],
+                "model_size": row["model_size"],
+                "model_digest": row["model_digest"],
+                "is_tool_capable": row["is_tool_capable"],
+                "vram_required": row["vram_required"],
+                "last_checked": row["last_checked"],
+                "is_available": row["is_available"],
+                "capabilities": json.loads(row["capabilities"]) if row["capabilities"] else [],
+            }
+            for row in rows
+        ]

@@ -1132,6 +1132,155 @@
   margin-left: 0.5rem;
 }
 
+.viz-model-selector {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 0.5rem;
+}
+
+.viz-model-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.viz-model-option:hover {
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.viz-model-option input[type="radio"] {
+  accent-color: #6366f1;
+}
+
+.viz-model-name {
+  font-size: 0.7rem;
+  color: #d1d5db;
+  flex: 1;
+}
+
+.viz-model-vram {
+  font-size: 0.65rem;
+  color: #6b7280;
+  font-family: monospace;
+}
+
+.viz-model-vram.low {
+  color: #10b981;
+}
+
+.viz-model-vram.medium {
+  color: #f59e0b;
+}
+
+.viz-model-vram.high {
+  color: #ef4444;
+}
+
+.viz-model-tools {
+  font-size: 0.6rem;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: #6366f1;
+  color: white;
+}
+
+.viz-preset-library {
+  margin-top: 0.5rem;
+}
+
+.viz-preset-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.viz-preset-item:hover {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.viz-preset-name {
+  font-size: 0.7rem;
+  color: #d1d5db;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viz-preset-usage {
+  font-size: 0.65rem;
+  color: #6b7280;
+  font-family: monospace;
+}
+
+.viz-preset-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.viz-preset-btn {
+  padding: 0.125rem 0.375rem;
+  background: #374151;
+  color: #d1d5db;
+  border: none;
+  border-radius: 0.25rem;
+  font-size: 0.6rem;
+  cursor: pointer;
+}
+
+.viz-preset-btn:hover {
+  background: #4b5563;
+}
+
+.viz-preset-btn.delete {
+  color: #ef4444;
+}
+
+.viz-system-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(55, 65, 81, 0.5);
+  border-radius: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.viz-status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.65rem;
+  color: #9ca3af;
+}
+
+.viz-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.viz-status-dot.online {
+  background: #10b981;
+}
+
+.viz-status-dot.offline {
+  background: #ef4444;
+}
+
+.viz-status-dot.warning {
+  background: #f59e0b;
+}
+
 .viz-concept-info {
   padding: 0.5rem;
   background: rgba(99, 102, 241, 0.1);
