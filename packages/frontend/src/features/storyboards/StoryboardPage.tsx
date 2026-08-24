@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { BookOpen, FileText, Search, ChevronRight } from "lucide-react";
-import { DS } from "../../styles/designSystem";
 
 interface StoryboardFile {
   name: string;
@@ -14,6 +13,145 @@ const STORYBOARDS: StoryboardFile[] = [
   { name: "mindful-layering", path: "/docs/MINDFUL_LAYERING_2026.md", title: "Mindful Layering 2026" },
   { name: "visual-storytelling", path: "/docs/VISUAL_STORYTELLING_2026.md", title: "Visual Storytelling 2026" },
 ];
+
+const styles = {
+  page: {
+    maxWidth: "72rem",
+    margin: "0 auto",
+    padding: "1.5rem",
+    background: "#0a0a0f",
+    minHeight: "100%",
+  },
+  header: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+    marginBottom: "1.5rem",
+  },
+  title: {
+    fontSize: "1.5rem",
+    fontWeight: "bold",
+    color: "#f1f5f9",
+  },
+  searchContainer: {
+    display: "flex",
+    gap: "0.5rem",
+    marginBottom: "1.5rem",
+  },
+  searchInput: {
+    flex: 1,
+    padding: "0.5rem 0.75rem",
+    background: "#1f2937",
+    border: "1px solid #374151",
+    borderRadius: "0.5rem",
+    color: "#f1f5f9",
+    outline: "none",
+  },
+  card: {
+    width: "100%",
+    textAlign: "left",
+    padding: "1rem",
+    background: "#1f2937",
+    border: "1px solid #374151",
+    borderRadius: "0.5rem",
+    marginBottom: "0.75rem",
+    cursor: "pointer",
+    transition: "border-color 0.2s",
+  },
+  cardContent: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  cardLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+  },
+  cardTitle: {
+    color: "#f1f5f9",
+    fontWeight: "500",
+  },
+  contentCard: {
+    background: "#1f2937",
+    borderRadius: "0.5rem",
+    padding: "1.5rem",
+    border: "1px solid #374151",
+  },
+  backButton: {
+    marginBottom: "1rem",
+    color: "#a78bfa",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    fontSize: "0.875rem",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.25rem",
+  },
+  heading1: {
+    fontSize: "1.5rem",
+    fontWeight: "bold",
+    color: "#f1f5f9",
+    marginTop: "1.5rem",
+    marginBottom: "0.75rem",
+  },
+  heading2: {
+    fontSize: "1.25rem",
+    fontWeight: "600",
+    color: "#f1f5f9",
+    marginTop: "1.25rem",
+    marginBottom: "0.5rem",
+  },
+  heading3: {
+    fontSize: "1.125rem",
+    fontWeight: "500",
+    color: "#e2e8f0",
+    marginTop: "1rem",
+    marginBottom: "0.5rem",
+  },
+  paragraph: {
+    color: "#94a3b8",
+    lineHeight: "1.6",
+  },
+  blockquote: {
+    borderLeft: "4px solid #a855f7",
+    paddingLeft: "1rem",
+    margin: "0.75rem 0",
+    color: "#cbd5e1",
+    fontStyle: "italic",
+  },
+  listItem: {
+    color: "#94a3b8",
+    marginLeft: "1rem",
+    listStyleType: "disc",
+  },
+  hr: {
+    border: "none",
+    borderTop: "1px solid #374151",
+    margin: "1rem 0",
+  },
+  table: {
+    width: "100%",
+    fontSize: "0.875rem",
+    borderCollapse: "collapse",
+    margin: "1rem 0",
+    overflowX: "auto",
+    display: "block",
+  },
+  th: {
+    textAlign: "left",
+    padding: "0.5rem 0.75rem",
+    color: "#cbd5e1",
+    fontWeight: "500",
+    borderBottom: "1px solid #4b5563",
+  },
+  td: {
+    padding: "0.5rem 0.75rem",
+    color: "#94a3b8",
+    borderBottom: "1px solid rgba(55, 65, 81, 0.5)",
+  },
+};
 
 export function StoryboardPage() {
   const [selected, setSelected] = useState<StoryboardFile | null>(null);
@@ -38,20 +176,20 @@ export function StoryboardPage() {
     const flushTable = () => {
       if (tableHeaders.length === 0) return;
       elements.push(
-        <div key={`table-${elements.length}`} className="overflow-x-auto my-4">
-          <table className="w-full text-sm border-collapse">
+        <div key={`table-${elements.length}`} style={{ overflowX: "auto", margin: "1rem 0" }}>
+          <table style={styles.table}>
             <thead>
-              <tr className="border-b border-gray-600">
+              <tr>
                 {tableHeaders.map((h, i) => (
-                  <th key={i} className="text-left py-2 px-3 text-gray-300 font-medium">{h.trim()}</th>
+                  <th key={i} style={styles.th}>{h.trim()}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {tableRows.map((row, ri) => (
-                <tr key={ri} className="border-b border-gray-700/50 hover:bg-gray-700/20">
+                <tr key={ri}>
                   {row.map((cell, ci) => (
-                    <td key={ci} className="py-2 px-3 text-gray-400">{cell.trim()}</td>
+                    <td key={ci} style={styles.td}>{cell.trim()}</td>
                   ))}
                 </tr>
               ))}
@@ -83,27 +221,27 @@ export function StoryboardPage() {
       }
 
       if (line.startsWith("# ")) {
-        elements.push(<h1 key={i} className="text-2xl font-bold text-white mt-6 mb-3">{line.slice(2)}</h1>);
+        elements.push(<h1 key={i} style={styles.heading1}>{line.slice(2)}</h1>);
       } else if (line.startsWith("## ")) {
-        elements.push(<h2 key={i} className="text-xl font-semibold text-white mt-5 mb-2">{line.slice(3)}</h2>);
+        elements.push(<h2 key={i} style={styles.heading2}>{line.slice(3)}</h2>);
       } else if (line.startsWith("### ")) {
-        elements.push(<h3 key={i} className="text-lg font-medium text-gray-200 mt-4 mb-2">{line.slice(4)}</h3>);
+        elements.push(<h3 key={i} style={styles.heading3}>{line.slice(4)}</h3>);
       } else if (line.startsWith("> ")) {
         elements.push(
-          <blockquote key={i} className="border-l-4 border-purple-500 pl-4 my-3 text-gray-300 italic">
+          <blockquote key={i} style={styles.blockquote}>
             {line.slice(2)}
           </blockquote>
         );
       } else if (line.startsWith("- ") || line.startsWith("* ")) {
         elements.push(
-          <li key={i} className="text-gray-400 ml-4 list-disc">{line.slice(2)}</li>
+          <li key={i} style={styles.listItem}>{line.slice(2)}</li>
         );
       } else if (line.trim() === "---") {
-        elements.push(<hr key={i} className="border-gray-700 my-4" />);
+        elements.push(<hr key={i} style={styles.hr} />);
       } else if (line.trim() === "") {
-        elements.push(<div key={i} className="h-2" />);
+        elements.push(<div key={i} style={{ height: "0.5rem" }} />);
       } else {
-        elements.push(<p key={i} className="text-gray-400 leading-relaxed">{line}</p>);
+        elements.push(<p key={i} style={styles.paragraph}>{line}</p>);
       }
     }
     flushTable();
@@ -115,52 +253,54 @@ export function StoryboardPage() {
   );
 
   return (
-    <div className={DS.page}>
-      <div className={DS.flexCenter}>
-        <BookOpen size={24} className="text-purple-400" />
-        <h1 className={DS.pageTitle}>Storyboards</h1>
+    <div style={styles.page}>
+      <div style={styles.header}>
+        <BookOpen size={24} color="#a78bfa" />
+        <h1 style={styles.title}>Storyboards</h1>
       </div>
 
       {!selected ? (
-        <div className={DS.section}>
-          <div className="flex gap-2 mb-6">
+        <div>
+          <div style={styles.searchContainer}>
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search storyboards..."
-              className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+              style={styles.searchInput}
             />
-            <Search size={20} className="text-gray-500 mt-2" />
+            <Search size={20} color="#6b7280" style={{ marginTop: "0.5rem" }} />
           </div>
 
-          <div className="grid gap-3">
+          <div>
             {filtered.map((s) => (
               <button
                 key={s.name}
                 onClick={() => setSelected(s)}
-                className="w-full text-left p-4 bg-gray-800 hover:bg-gray-700/80 border border-gray-700 hover:border-purple-500/50 rounded-lg transition-colors group"
+                style={styles.card}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(168, 85, 247, 0.5)")}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#374151")}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <FileText size={18} className="text-purple-400" />
-                    <span className="text-white font-medium">{s.title}</span>
+                <div style={styles.cardContent}>
+                  <div style={styles.cardLeft}>
+                    <FileText size={18} color="#a78bfa" />
+                    <span style={styles.cardTitle}>{s.title}</span>
                   </div>
-                  <ChevronRight size={16} className="text-gray-500 group-hover:text-purple-400 transition-colors" />
+                  <ChevronRight size={16} color="#6b7280" />
                 </div>
               </button>
             ))}
           </div>
         </div>
       ) : (
-        <div className={DS.section}>
+        <div>
           <button
             onClick={() => { setSelected(null); setContent(""); }}
-            className="mb-4 text-purple-400 hover:text-purple-300 text-sm flex items-center gap-1"
+            style={styles.backButton}
           >
             ← Back to storyboards
           </button>
-          <div className={DS.card}>
+          <div style={styles.contentCard}>
             {renderMarkdown(content)}
           </div>
         </div>

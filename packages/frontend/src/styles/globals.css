@@ -773,7 +773,7 @@ body::after {
 .gradient-text {
   background: linear-gradient(135deg, var(--color-primary), var(--color-accent), var(--color-cyan));
   -webkit-background-clip: text;
-  -text-fill-color: transparent;
+  -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 

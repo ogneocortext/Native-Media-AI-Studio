@@ -8,12 +8,9 @@ export function Layout({ children }: LayoutProps) {
   useEffect(() => { startAutoRefresh(); return stopAutoRefresh; }, []);
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div style={{ display: "flex", height: "100vh", width: "100vw", overflow: "hidden", background: "#0a0a0f" }}>
       <Sidebar />
-      {/* Main — on mobile leave room for hamburger (top-0) and allow full width */}
-      <main className="main-content flex-1 overflow-auto min-w-0 pt-0 lg:pt-0">
-        {/* Mobile spacer for hamburger button */}
-        <div className="h-14 lg:hidden shrink-0" aria-hidden />
+      <main style={{ flex: 1, overflow: "auto", minWidth: 0, height: "100%", background: "#0a0a0f" }}>
         {children}
       </main>
     </div>
