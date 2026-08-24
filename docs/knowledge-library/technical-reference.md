@@ -493,6 +493,73 @@ curl http://localhost:8188/system_stats | python -m json.tool
 
 ---
 
+## Vision Analysis (Ollama)
+
+### The Problem
+
+The `vision-mcp` tool fails with `Ollama API error: 400` when images are too large. This is a known limitation of Ollama's vision API — large base64 payloads get rejected before the model even processes them.
+
+### The Solution
+
+Use the custom `tools/vision_analyze.py` script which resizes images before sending to Ollama:
+
+```bash
+# Analyze a screenshot
+python tools/vision_analyze.py screenshot.png "Describe the UI"
+
+# Analyze with specific model
+python tools/vision_analyze.py screenshot.png "What errors are visible?" qwen3-vl:2b
+```
+
+### How It Works
+
+1. Resizes image to max 600px (width or height)
+2. Converts to JPEG at 60% quality
+3. Sends base64 to Ollama's `/api/chat` endpoint
+4. Returns the model's analysis
+
+### Available Vision Models
+
+| Model | Size | Speed | Quality |
+|-------|------|-------|---------|
+| `qwen3-vl:2b` | 2B | Fast | Good |
+| `qwen3-vl:4b` | 4B | Medium | Better |
+| `gemma4:e2b-it-qat` | 2B | Fast | Good |
+
+### Direct API Usage
+
+```python
+import base64, json, urllib.request
+from PIL import Image
+import io
+
+img = Image.open("screenshot.png")
+img.thumbnail((600, 600), Image.LANCZOS)
+buf = io.BytesIO()
+img.save(buf, format="JPEG", quality=60)
+b64 = base64.b64encode(buf.getvalue()).decode()
+
+body = json.dumps({
+    "model": "qwen3-vl:2b",
+    "messages": [{"role": "user", "content": "Describe this", "images": [b64]}],
+    "stream": False
+})
+
+req = urllib.request.Request("http://127.0.0.1:11434/api/chat", data=body.encode(), headers={"Content-Type": "application/json"})
+resp = urllib.request.urlopen(req, timeout=180)
+result = json.loads(resp.read())
+print(result["message"]["content"])
+```
+
+### Key Constraints
+
+- **Max image dimension**: 600px (larger = 400 error)
+- **Format**: JPEG (PNG also works but larger)
+- **Timeout**: 180s for large images
+- **Ollama must be running**: `ollama serve`
+
+---
+
 ## YouTube Publishing Checklist
 
 Before uploading any video to AI-generated music video to YouTube:
