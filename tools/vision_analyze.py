@@ -23,8 +23,8 @@ except ImportError:
 
 OLLAMA_HOST = "http://127.0.0.1:11434"
 DEFAULT_MODEL = "qwen3-vl:2b"
-MAX_DIMENSION = 600  # Max width/height for vision models (Ollama 400 error if larger)
-JPEG_QUALITY = 60
+MAX_DIMENSION = 1200  # Max width/height for vision models (balances detail vs reliability)
+JPEG_QUALITY = 70
 
 
 def resize_image(image_path: str) -> str:
@@ -64,9 +64,18 @@ def analyze(image_path: str, prompt: str, model: str = DEFAULT_MODEL) -> str:
         headers={"Content-Type": "application/json"}
     )
     
-    resp = urllib.request.urlopen(req, timeout=180)
-    result = json.loads(resp.read())
-    return result.get("message", {}).get("content", "NO CONTENT")
+    # Retry logic for intermittent failures
+    for attempt in range(3):
+        try:
+            resp = urllib.request.urlopen(req, timeout=180)
+            result = json.loads(resp.read())
+            return result.get("message", {}).get("content", "NO CONTENT")
+        except Exception as e:
+            if attempt < 2:
+                import time
+                time.sleep(2)
+                continue
+            raise
 
 
 def main():

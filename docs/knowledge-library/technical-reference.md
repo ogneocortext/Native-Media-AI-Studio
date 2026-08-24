@@ -553,9 +553,9 @@ print(result["message"]["content"])
 
 ### Key Constraints
 
-- **Max image dimension**: 600px (larger = 400 error)
-- **Format**: JPEG (PNG also works but larger)
-- **Timeout**: 180s for large images
+- **Max image dimension**: 1200px (larger works but diminishing returns)
+- **Format**: JPEG at 70% quality (PNG also works but larger)
+- **Timeout**: 180s per attempt, 3 retries
 - **Ollama must be running**: `ollama serve`
 
 ---
