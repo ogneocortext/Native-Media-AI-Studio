@@ -463,6 +463,36 @@
   background: #0a0a0f;
 }
 
+.layout-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.layout-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background: #0a0a0f;
+  border-top: 1px solid #1f2937;
+  flex-shrink: 0;
+}
+
+.layout-footer-version {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-family: monospace;
+}
+
+.layout-footer-copyright {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
 /* Storyboard Page */
 .sb-page {
   max-width: 72rem;
