@@ -110,9 +110,12 @@ function useRealAudio(analyserRef: React.MutableRefObject<AnalyserNode | null>, 
   return data;
 }
 
-interface AudioReactiveShapeProps { audioData: React.MutableRefObject<AudioData>; }
+interface AudioReactiveShapeProps { 
+  audioData: React.MutableRefObject<AudioData>;
+  vizParams: VizParams;
+}
 
-function AudioReactiveShape({ audioData }: AudioReactiveShapeProps) {
+function AudioReactiveShape({ audioData, vizParams }: AudioReactiveShapeProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   const targetScale = useRef(1.5);
@@ -122,36 +125,64 @@ function AudioReactiveShape({ audioData }: AudioReactiveShapeProps) {
   useFrame((_, delta) => {
     if (!meshRef.current || !materialRef.current) return;
     
-    // More responsive scaling with higher boost
-    const baseScale = 1.2;
-    const scaleBoost = audioData.current.bass * 1.5; // Increased from 0.7 to 1.5
+    // Use vizParams for real-time control
+    const baseScale = vizParams.scale;
+    const scaleBoost = audioData.current.bass * vizParams.scaleBoost;
     targetScale.current = baseScale + scaleBoost;
     
-    // Faster lerp for more responsive movement (0.18 -> 0.35)
+    // Use lerpSpeed from params for response speed
     const cur = meshRef.current.scale.x;
-    const next = THREE.MathUtils.lerp(cur, targetScale.current, 0.35);
+    const next = THREE.MathUtils.lerp(cur, targetScale.current, vizParams.lerpSpeed);
     meshRef.current.scale.set(next, next, next);
     
-    // More dynamic color shifts based on frequency intensity
+    // Color shift based on params
     const intensity = (audioData.current.bass + audioData.current.mid + audioData.current.treble) / 3;
-    targetHue.current = (audioData.current.mid * 0.4 + 0.55) % 1;
+    targetHue.current = (audioData.current.mid * vizParams.colorShift * 0.3 + 0.55) % 1;
     materialRef.current.color.setHSL(targetHue.current, 0.9, 0.5 + intensity * 0.2);
     
-    // Emissive glow on beats
-    if (audioData.current.beat) {
-      materialRef.current.emissive.setHSL(targetHue.current, 1, 0.4);
-    } else {
-      materialRef.current.emissive.lerp(new THREE.Color(0x000000), 0.1);
-    }
+    // Glow intensity from params
+    const glowLevel = vizParams.glowIntensity * (audioData.current.beat ? 1 : 0.2);
+    materialRef.current.emissive.setHSL(targetHue.current, 1, glowLevel * 0.4);
     
-    // More dynamic rotation based on treble and mid
-    meshRef.current.rotation.y += delta * (0.2 + audioData.current.treble * 4.0);
-    meshRef.current.rotation.x += delta * (0.1 + audioData.current.mid * 2.0);
-    meshRef.current.rotation.z += delta * audioData.current.bass * 0.5;
+    // Rotation speed from params
+    meshRef.current.rotation.y += delta * (0.2 + audioData.current.treble * vizParams.rotationSpeed * 2.0);
+    meshRef.current.rotation.x += delta * (0.1 + audioData.current.mid * vizParams.rotationSpeed);
+    meshRef.current.rotation.z += delta * audioData.current.bass * 0.5 * vizParams.rotationSpeed;
     
-    // Add subtle floating motion based on overall energy
+    // Floating motion
     meshRef.current.position.y = Math.sin(Date.now() * 0.002) * audioData.current.overall * 0.3;
     meshRef.current.position.x = Math.cos(Date.now() * 0.0015) * audioData.current.mid * 0.2;
+    
+    // Apply material settings from params
+    materialRef.current.wireframe = vizParams.wireframe;
+    materialRef.current.opacity = vizParams.opacity;
+    materialRef.current.transparent = vizParams.opacity < 1;
+    
+    // Apply material type
+    switch (vizParams.materialType) {
+      case "metallic":
+        materialRef.current.metalness = 0.9;
+        materialRef.current.roughness = 0.1;
+        break;
+      case "glass":
+        materialRef.current.metalness = 0.1;
+        materialRef.current.roughness = 0.05;
+        materialRef.current.transparent = true;
+        materialRef.current.opacity = Math.min(vizParams.opacity, 0.7);
+        break;
+      case "neon":
+        materialRef.current.metalness = 0.0;
+        materialRef.current.roughness = 1.0;
+        materialRef.current.emissiveIntensity = glowLevel;
+        break;
+      case "matte":
+        materialRef.current.metalness = 0.0;
+        materialRef.current.roughness = 1.0;
+        break;
+      default:
+        materialRef.current.metalness = 0.5;
+        materialRef.current.roughness = 0.2;
+    }
   });
   return (
     <mesh ref={meshRef}>
@@ -161,7 +192,7 @@ function AudioReactiveShape({ audioData }: AudioReactiveShapeProps) {
         color="#6366f1" 
         metalness={0.5} 
         roughness={0.2} 
-        wireframe={false}
+        wireframe={vizParams.wireframe}
         emissive="#000000"
         emissiveIntensity={0}
       />
@@ -169,43 +200,44 @@ function AudioReactiveShape({ audioData }: AudioReactiveShapeProps) {
   );
 }
 
-function ParticleField({ count = 200, audioData }: { count?: number; audioData: React.MutableRefObject<AudioData> }) {
+function ParticleField({ count = 200, audioData, vizParams }: { count?: number; audioData: React.MutableRefObject<AudioData>; vizParams: VizParams }) {
   const particlesRef = useRef<THREE.Points>(null);
+  const particleCount = vizParams.particleCount || count;
+  
   const positions = useMemo(() => {
-    const pos = new Float32Array(count * 3);
-    for (let i = 0; i < count * 3; i += 3) { pos[i] = (Math.random() - 0.5) * 15; pos[i + 1] = (Math.random() - 0.5) * 15; pos[i + 2] = (Math.random() - 0.5) * 15; }
+    const pos = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount * 3; i += 3) { pos[i] = (Math.random() - 0.5) * 15; pos[i + 1] = (Math.random() - 0.5) * 15; pos[i + 2] = (Math.random() - 0.5) * 15; }
     return pos;
-  }, [count]);
+  }, [particleCount]);
   
   const initialPositions = useMemo(() => positions.slice(), [positions]);
   
   useFrame((state) => {
-    if (particlesRef.current) {
-      // Rotate particles based on audio energy
-      const rotationSpeed = 0.02 + audioData.current.overall * 0.1;
-      particlesRef.current.rotation.y = state.clock.elapsedTime * rotationSpeed;
-      particlesRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
-      
-      // Pulse particle size on beats
-      const material = particlesRef.current.material as THREE.PointsMaterial;
-      material.size = 0.04 + audioData.current.bass * 0.08;
-      material.opacity = 0.4 + audioData.current.overall * 0.6;
-      
-      // Move particles outward on bass hits
-      const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
-      const bassBoost = audioData.current.bass * 0.5;
-      for (let i = 0; i < count * 3; i += 3) {
-        const x = initialPositions[i];
-        const y = initialPositions[i + 1];
-        const z = initialPositions[i + 2];
-        const dist = Math.sqrt(x * x + y * y + z * z);
-        const scale = 1 + bassBoost / dist;
-        positions[i] = x * scale;
-        positions[i + 1] = y * scale;
-        positions[i + 2] = z * scale;
-      }
-      particlesRef.current.geometry.attributes.position.needsUpdate = true;
+    if (!particlesRef.current) return;
+    // Rotate particles based on audio energy
+    const rotationSpeed = 0.02 + audioData.current.overall * 0.1 * vizParams.rotationSpeed;
+    particlesRef.current.rotation.y = state.clock.elapsedTime * rotationSpeed;
+    particlesRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
+    
+    // Pulse particle size on beats - use vizParams
+    const material = particlesRef.current.material as THREE.PointsMaterial;
+    material.size = vizParams.particleSize + audioData.current.bass * vizParams.particleSize * 2;
+    material.opacity = 0.4 + audioData.current.overall * 0.6;
+    
+    // Move particles outward on bass hits
+    const pos = particlesRef.current.geometry.attributes.position.array as Float32Array;
+    const bassBoost = audioData.current.bass * 0.5 * vizParams.scaleBoost;
+    for (let i = 0; i < particleCount * 3; i += 3) {
+      const x = initialPositions[i];
+      const y = initialPositions[i + 1];
+      const z = initialPositions[i + 2];
+      const dist = Math.sqrt(x * x + y * y + z * z);
+      const scale = 1 + bassBoost / dist;
+      pos[i] = x * scale;
+      pos[i + 1] = y * scale;
+      pos[i + 2] = z * scale;
     }
+    particlesRef.current.geometry.attributes.position.needsUpdate = true;
   });
   return (
     <points ref={particlesRef}>
@@ -231,6 +263,7 @@ function VisualizerScene({
   demoBpm,
   onAudioData,
   visualizationStyle,
+  vizParams,
 }: {
   analyserRef: React.MutableRefObject<AnalyserNode | null>;
   isPlaying: boolean;
@@ -238,6 +271,7 @@ function VisualizerScene({
   demoBpm: number;
   onAudioData?: (data: AudioData) => void;
   visualizationStyle: VisualizationStyle;
+  vizParams: VizParams;
 }) {
   const realData = useRealAudio(analyserRef, isPlaying);
   const demoData = useDemoAudio(demoEnabled && !isPlaying, demoBpm);
@@ -254,27 +288,28 @@ function VisualizerScene({
   }, [audioData, onAudioData]);
 
   const renderVisualization = () => {
+    const props = { audioData, vizParams };
     switch (visualizationStyle) {
       case "waveform":
-        return <WaveformViz audioData={audioData} />;
+        return <WaveformViz {...props} />;
       case "particles":
-        return <ParticleStormViz audioData={audioData} />;
+        return <ParticleStormViz {...props} />;
       case "neural":
-        return <NeuralViz audioData={audioData} />;
+        return <NeuralViz {...props} />;
       case "cosmic":
-        return <CosmicViz audioData={audioData} />;
+        return <CosmicViz {...props} />;
       case "pulse":
-        return <PulseViz audioData={audioData} />;
+        return <PulseViz {...props} />;
       case "storm":
-        return <StormViz audioData={audioData} />;
+        return <StormViz {...props} />;
       case "fractal":
-        return <FractalViz audioData={audioData} />;
+        return <FractalViz {...props} />;
       case "geometric":
       default:
         return (
           <>
-            <AudioReactiveShape audioData={audioData} />
-            <ParticleField count={250} audioData={audioData} />
+            <AudioReactiveShape {...props} />
+            <ParticleField count={250} {...props} />
           </>
         );
     }
@@ -282,9 +317,15 @@ function VisualizerScene({
 
   return (
     <>
-      <ambientLight intensity={0.4} />
-      <pointLight position={[10, 10, 10]} intensity={1.2} color="#fff" />
-      <pointLight position={[-5, -5, 5]} intensity={0.8} color="#818cf8" />
+      <ambientLight intensity={vizParams.lightIntensity * 0.4} />
+      <pointLight position={[10, 10, 10]} intensity={vizParams.lightIntensity} color="#fff" castShadow={vizParams.shadowEnabled} />
+      <pointLight position={[-5, -5, 5]} intensity={vizParams.lightIntensity * 0.6} color="#818cf8" />
+      {vizParams.showGround && <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3, 0]} receiveShadow={vizParams.shadowEnabled}><planeGeometry args={[20, 20]} /><meshStandardMaterial color="#111827" metalness={0.8} roughness={0.2} /></mesh>}
+      {renderVisualization()}
+      <OrbitControls enableZoom enablePan enableRotate minDistance={2} maxDistance={10} autoRotate={!isPlaying && !demoEnabled} autoRotateSpeed={0.3} />
+      <FPSCounter />
+    </>
+  );
       {renderVisualization()}
       <OrbitControls enableZoom enablePan enableRotate minDistance={2} maxDistance={10} autoRotate={!isPlaying && !demoEnabled} autoRotateSpeed={0.3} />
       <FPSCounter />
@@ -633,18 +674,16 @@ export function Visualizer() {
         <div className="viz-main">
           <div className="viz-canvas-container">
             <Canvas camera={{ position: [0, 0, 5], fov: 60 }} dpr={[1, 2]} gl={{ antialias: true, powerPreference: "high-performance" }} frameloop="always">
-              <Suspense fallback={null}>
-                <color attach="background" args={[bgColor]} />
-                <VisualizerScene
-                  analyserRef={analyserRef}
-                  isPlaying={isPlaying}
-                  demoEnabled={demoEnabled}
-                  demoBpm={demoBpm}
-                  onAudioData={setLiveAudioData}
-                  visualizationStyle={visualizationStyle}
-                  vizParams={vizParams}
-                />
-              </Suspense>
+              <color attach="background" args={[bgColor]} />
+              <VisualizerScene
+                analyserRef={analyserRef}
+                isPlaying={isPlaying}
+                demoEnabled={demoEnabled}
+                demoBpm={demoBpm}
+                onAudioData={setLiveAudioData}
+                visualizationStyle={visualizationStyle}
+                vizParams={vizParams}
+              />
             </Canvas>
             {liveAudioData.beat && <div className="viz-beat-flash" />}
           </div>

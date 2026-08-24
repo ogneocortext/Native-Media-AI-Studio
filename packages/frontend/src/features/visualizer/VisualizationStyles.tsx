@@ -1,10 +1,15 @@
 import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import type { AudioData } from "./Visualizer";
+import type { AudioData, VizParams } from "./Visualizer";
+
+interface VizProps {
+  audioData: React.MutableRefObject<AudioData>;
+  vizParams: VizParams;
+}
 
 // Waveform Visualization
-export function WaveformViz({ audioData }: { audioData: React.MutableRefObject<AudioData> }) {
+export function WaveformViz({ audioData, vizParams }: VizProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   
@@ -36,7 +41,7 @@ export function WaveformViz({ audioData }: { audioData: React.MutableRefObject<A
 }
 
 // Particle Storm Visualization
-export function ParticleStormViz({ audioData }: { audioData: React.MutableRefObject<AudioData> }) {
+export function ParticleStormViz({ audioData, vizParams }: VizProps) {
   const particlesRef = useRef<THREE.Points>(null);
   const count = 500;
   
@@ -96,7 +101,7 @@ export function ParticleStormViz({ audioData }: { audioData: React.MutableRefObj
 }
 
 // Neural Network Visualization
-export function NeuralViz({ audioData }: { audioData: React.MutableRefObject<AudioData> }) {
+export function NeuralViz({ audioData, vizParams }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const nodeCount = 50;
   
@@ -148,7 +153,7 @@ export function NeuralViz({ audioData }: { audioData: React.MutableRefObject<Aud
 }
 
 // Cosmic Dust Visualization
-export function CosmicViz({ audioData }: { audioData: React.MutableRefObject<AudioData> }) {
+export function CosmicViz({ audioData, vizParams }: VizProps) {
   const particlesRef = useRef<THREE.Points>(null);
   const count = 1000;
   
@@ -186,7 +191,7 @@ export function CosmicViz({ audioData }: { audioData: React.MutableRefObject<Aud
 }
 
 // Pulse Visualization
-export function PulseViz({ audioData }: { audioData: React.MutableRefObject<AudioData> }) {
+export function PulseViz({ audioData, vizParams }: VizProps) {
   const ringsRef = useRef<THREE.Group>(null);
   
   useFrame((state) => {
@@ -223,7 +228,7 @@ export function PulseViz({ audioData }: { audioData: React.MutableRefObject<Audi
 }
 
 // Storm Visualization - Intense lightning and energy discharges
-export function StormViz({ audioData }: { audioData: React.MutableRefObject<AudioData> }) {
+export function StormViz({ audioData, vizParams }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const lightningRef = useRef<THREE.Mesh[]>([]);
   const cloudRef = useRef<THREE.Points>(null);
@@ -309,7 +314,7 @@ export function StormViz({ audioData }: { audioData: React.MutableRefObject<Audi
 }
 
 // Fractal Visualization - Self-similar patterns
-export function FractalViz({ audioData }: { audioData: React.MutableRefObject<AudioData> }) {
+export function FractalViz({ audioData, vizParams }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const iterationCount = 5;
   
