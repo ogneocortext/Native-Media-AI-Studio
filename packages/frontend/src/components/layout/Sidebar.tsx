@@ -47,6 +47,7 @@ const manageNav: NavItem[] = [
   { path: "/music-video", label: "Music Video (Classic)", icon: <Film size={18} /> },
   { path: "/video-editor", label: "Video Editor", icon: <Film size={18} /> },
   { path: "/art-direction", label: "Art Direction", icon: <Palette size={18} /> },
+  { path: "/storyboards", label: "Storyboards", icon: <BookOpen size={18} /> },
   { path: "/queue", label: "Queue", icon: <ListOrdered size={18} /> },
   { path: "/library", label: "Media Library", icon: <FolderOpen size={18} /> },
 ];

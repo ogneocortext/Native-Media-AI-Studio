@@ -21,6 +21,7 @@ import { AIToolsPage } from "./features/ai-tools/AIToolsPage";
 import { VideoGenerationPage } from "./features/video-generation/VideoGenerationPage";
 import { Generation3DPage } from "./features/generate3d/Generation3DPage";
 import { DocsPage } from "./features/docs/DocsPage";
+import { StoryboardPage } from "./features/storyboards/StoryboardPage";
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
           <Route path="/generate-3d" element={<Generation3DPage />} />
           <Route path="/ai-tools" element={<AIToolsPage />} />
           <Route path="/docs" element={<DocsPage />} />
+          <Route path="/storyboards" element={<StoryboardPage />} />
           <Route path="/diagnostics" element={<SystemDiagnosticsPage />} />
           <Route path="/image-generation" element={<ImageGeneration />} />
           <Route path="/visualizer" element={<Visualizer />} />
