@@ -664,6 +664,7 @@ export function Visualizer() {
   const [ollamaProgress, setOllamaProgress] = useState("");
   const [generatedHtml, setGeneratedHtml] = useState<string>("");
   const [showPreview, setShowPreview] = useState(false);
+  const [activePanel, setActivePanel] = useState<string>("source");
 
   const togglePanel = (panel: string) => {
     setActivePanel(activePanel === panel ? "" : panel);
