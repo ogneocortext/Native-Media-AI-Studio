@@ -280,7 +280,9 @@ export function Visualizer() {
     setError(null);
     setTrackName(filename);
     setAudioFile(null);
-    setAudioUrl(`/api/audio/file/${filename}`);
+    // Encode filename for URL (handles spaces, special chars)
+    const encodedFilename = encodeURIComponent(filename);
+    setAudioUrl(`/api/audio/file/${encodedFilename}`);
     setDemoEnabled(false);
   };
 
@@ -429,6 +431,10 @@ export function Visualizer() {
                     }}
                     onPause={() => setIsPlaying(false)}
                     onEnded={() => setIsPlaying(false)}
+                    onError={(e) => {
+                      const audioEl = e.currentTarget;
+                      setError(`Audio loading failed (code ${audioEl.error?.code}): ${audioEl.error?.message || "Check if backend is running"}`);
+                    }}
                   />
                 </div>
               )}

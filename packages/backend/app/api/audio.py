@@ -313,3 +313,45 @@ async def list_uploaded_audio():
                     "path": str(f),
                 })
     return {"files": files}
+
+
+@router.get("/file/{filename:path}")
+async def serve_audio_file(filename: str):
+    """Serve an audio file by filename."""
+    # Security: prevent directory traversal
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    file_path = AUDIO_DIR / filename
+
+    # Check if file exists in AUDIO_DIR
+    if not file_path.exists() or not file_path.is_file():
+        # Also check output/audio directory as fallback
+        alt_path = PROJECT_ROOT / "output" / "audio" / filename
+        if alt_path.exists() and alt_path.is_file():
+            file_path = alt_path
+        else:
+            raise HTTPException(status_code=404, detail=f"Audio file not found: {filename}")
+
+    # Determine media type based on extension
+    ext = file_path.suffix.lower()
+    media_types = {
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".flac": "audio/flac",
+        ".ogg": "audio/ogg",
+        ".m4a": "audio/mp4",
+        ".wma": "audio/x-ms-wma",
+        ".aac": "audio/aac",
+    }
+    media_type = media_types.get(ext, "application/octet-stream")
+
+    return FileResponse(
+        str(file_path),
+        media_type=media_type,
+        filename=file_path.name,
+        headers={
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "public, max-age=3600",
+        },
+    )
