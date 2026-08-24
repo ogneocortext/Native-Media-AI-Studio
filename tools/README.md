@@ -142,4 +142,4 @@ python tools/analyze_and_sync.py <audio_file> [--output <json_file>] [--fps 24]
 - `demo_stage.png` — Demo stage overview
 
 ### Audio Analysis Output
-- `beat_data.json` — Beat data for "Take the Crown" by Nathaniel Smalley (152 BPM, 298 beats, 124s)
+- `beat_data.json` — Beat data for "Take the Crown" by NeoCortext (152 BPM, 298 beats, 124s)

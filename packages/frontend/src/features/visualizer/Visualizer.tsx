@@ -122,10 +122,10 @@ function VisualizerScene({ analyserRef, isPlaying, demoEnabled, demoBpm }: { ana
 }
 
 const PRESET_TRACKS = [
-  { name: "Take the Crown (Phonk)", filename: "85a406ef_Nathaniel Smalley - Take the Crown.mp3" },
-  { name: "The Signal Breaking Through (Trance)", filename: "e02f6ccf_Nathaniel Smalley - The Signal Breaking Through the Noise.mp3" },
-  { name: "Before the Fade (Garage)", filename: "8baaf391_Nathaniel Smalley - Before the Fade.mp3" },
-  { name: "Still I Rise (Electronic)", filename: "54360357_Nathaniel Smalley - Still I Rise.mp3" },
+  { name: "Take the Crown (Phonk)", filename: "85a406ef_NeoCortext - Take the Crown.mp3" },
+  { name: "The Signal Breaking Through (Trance)", filename: "e02f6ccf_NeoCortext - The Signal Breaking Through the Noise.mp3" },
+  { name: "Before the Fade (Garage)", filename: "8baaf391_NeoCortext - Before the Fade.mp3" },
+  { name: "Still I Rise (Electronic)", filename: "54360357_NeoCortext - Still I Rise.mp3" },
 ];
 
 export function Visualizer() {

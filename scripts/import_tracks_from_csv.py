@@ -57,7 +57,7 @@ def import_tracks():
                'Still I Rise' in track_name or 'Borrowed Flame' in track_name or \
                "Won't Ride" in track_name or 'Take the Crown' in track_name or \
                'Built by Fire' in track_name or 'System Override' in track_name:
-                artist = 'Nathaniel Smalley'
+                artist = 'NeoCortext'
             elif 'Learning How to Stay' in track_name:
                 artist = 'NeoCortext'
             

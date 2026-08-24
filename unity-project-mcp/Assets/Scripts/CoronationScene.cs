@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 
 /// <summary>
-/// Coronation scene generator for "Take the Crown" by Nathaniel Smalley.
+/// Coronation scene generator for "Take the Crown" by NeoCortext.
 /// Builds the full scene programmatically, animates to beat, renders frames.
 /// </summary>
 public class CoronationScene : MonoBehaviour

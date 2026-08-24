@@ -1,4 +1,4 @@
-# Storyboard — Still I Rise — Nathaniel Smalley
+# Storyboard — Still I Rise — NeoCortext
 *Lyric-mapped, research-backed, ready for shot planning*
 *Duration 234.12s (7024f @30fps) • 99.4 detected / ~132 intended BPM (future-garage swung) • Bb Maj • 2026-08-20 v4 critique → v5 nocturnal plan*
 *Files: `src/StillIRise.tsx` `public/blender-*.png` `docs/VISUAL_STORYTELLING_2026.md`*

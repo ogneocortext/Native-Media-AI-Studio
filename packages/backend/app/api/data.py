@@ -338,7 +338,7 @@ def import_tracks_from_csv(request: dict):
             if any(kw in track_name for kw in ["Signal", "Before the Fade", "Still I Rise",
                                                   "Borrowed Flame", "Won't Ride", "Take the Crown",
                                                   "Built by Fire", "System Override"]):
-                artist = "Nathaniel Smalley"
+                artist = "NeoCortext"
             elif "Learning How to Stay" in track_name:
                 artist = "NeoCortext"
 

@@ -97,10 +97,10 @@ const DEFAULT_OBJECTS: AnimObject[] = [
 ];
 
 const TRACK_PRESETS: Array<{ name: string; bpm: number; filename: string }> = [
-  { name: "Take the Crown", bpm: 150, filename: "85a406ef_Nathaniel Smalley - Take the Crown.mp3" },
-  { name: "The Signal Breaking Through", bpm: 136, filename: "e02f6ccf_Nathaniel Smalley - The Signal Breaking Through the Noise.mp3" },
-  { name: "Before the Fade", bpm: 130, filename: "8baaf391_Nathaniel Smalley - Before the Fade.mp3" },
-  { name: "Still I Rise", bpm: 130, filename: "54360357_Nathaniel Smalley - Still I Rise.mp3" },
+  { name: "Take the Crown", bpm: 150, filename: "85a406ef_NeoCortext - Take the Crown.mp3" },
+  { name: "The Signal Breaking Through", bpm: 136, filename: "e02f6ccf_NeoCortext - The Signal Breaking Through the Noise.mp3" },
+  { name: "Before the Fade", bpm: 130, filename: "8baaf391_NeoCortext - Before the Fade.mp3" },
+  { name: "Still I Rise", bpm: 130, filename: "54360357_NeoCortext - Still I Rise.mp3" },
   { name: "Learning How to Stay", bpm: 85, filename: "a19680f6_NeoCortext - Learning How to Stay.mp3" },
 ];
 
@@ -1047,6 +1047,4 @@ export function ThreeJSStudio() {
       </div>
     </div>
   );
-}
-
 }

@@ -151,7 +151,11 @@ export function AudioAnalysisPage() {
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
-            className={`${DS.uploadZone} ${dragOver ? DS.uploadZoneActive : DS.uploadZoneIdle}`}
+            onClick={() => {
+              const el = document.getElementById("audio-analysis-file-input") as HTMLInputElement;
+              el?.click();
+            }}
+            className={`relative cursor-pointer ${DS.uploadZone} ${dragOver ? DS.uploadZoneActive : DS.uploadZoneIdle}`}
           >
             <Upload size={40} className="mx-auto text-gray-500 mb-3" />
             {file ? (
@@ -166,14 +170,14 @@ export function AudioAnalysisPage() {
               </div>
             )}
             <input
+              id="audio-analysis-file-input"
               type="file"
               accept="audio/*"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) { setFile(f); setAnalysis(null); }
               }}
-              className="absolute inset-0 opacity-0 cursor-pointer"
-              style={{ position: "absolute", inset: 0 }}
+              className="hidden"
             />
           </div>
 

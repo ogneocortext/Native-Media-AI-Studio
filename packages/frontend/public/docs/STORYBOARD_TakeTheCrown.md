@@ -1,4 +1,4 @@
-# Storyboard — Take the Crown — Nathaniel Smalley
+# Storyboard — Take the Crown — NeoCortext
 *Lyric-mapped, research-backed, ready for shot planning*
 *Duration 124.0s (3720f @30fps) • 152 BPM • E Maj (0.755 conf) • -13.4 LUFS remastered (orig -14.0) • LRA 2.6 LU (orig 3.6) • 2026-08-20 v1 → v2 remaster 2026-08-20*
 *Files: `src/TakeTheCrown.tsx` `public/crown-cover.png` `public/crown-still-*.png` `renders/take-the-crown-v1.mp4` `renders/take-the-crown-v2-remastered.mp4` `public/take-the-crown-remastered.mp3` `public/stems/*.mp3`*
