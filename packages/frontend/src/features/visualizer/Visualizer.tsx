@@ -108,35 +108,97 @@ function AudioReactiveShape({ audioData }: AudioReactiveShapeProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   const targetScale = useRef(1.5);
+  const targetHue = useRef(0.6);
+  const velocity = useRef({ x: 0, y: 0, z: 0 });
+  
   useFrame((_, delta) => {
     if (!meshRef.current || !materialRef.current) return;
-    const baseScale = 1.5;
-    const scaleBoost = audioData.current.bass * 0.7;
+    
+    // More responsive scaling with higher boost
+    const baseScale = 1.2;
+    const scaleBoost = audioData.current.bass * 1.5; // Increased from 0.7 to 1.5
     targetScale.current = baseScale + scaleBoost;
+    
+    // Faster lerp for more responsive movement (0.18 -> 0.35)
     const cur = meshRef.current.scale.x;
-    const next = THREE.MathUtils.lerp(cur, targetScale.current, 0.18);
+    const next = THREE.MathUtils.lerp(cur, targetScale.current, 0.35);
     meshRef.current.scale.set(next, next, next);
-    const hue = (audioData.current.mid * 0.35 + 0.6) % 1;
-    materialRef.current.color.setHSL(hue, 0.85, 0.55);
-    meshRef.current.rotation.y += delta * (0.3 + audioData.current.treble * 2.0);
-    meshRef.current.rotation.x += delta * 0.15;
+    
+    // More dynamic color shifts based on frequency intensity
+    const intensity = (audioData.current.bass + audioData.current.mid + audioData.current.treble) / 3;
+    targetHue.current = (audioData.current.mid * 0.4 + 0.55) % 1;
+    materialRef.current.color.setHSL(targetHue.current, 0.9, 0.5 + intensity * 0.2);
+    
+    // Emissive glow on beats
+    if (audioData.current.beat) {
+      materialRef.current.emissive.setHSL(targetHue.current, 1, 0.4);
+    } else {
+      materialRef.current.emissive.lerp(new THREE.Color(0x000000), 0.1);
+    }
+    
+    // More dynamic rotation based on treble and mid
+    meshRef.current.rotation.y += delta * (0.2 + audioData.current.treble * 4.0);
+    meshRef.current.rotation.x += delta * (0.1 + audioData.current.mid * 2.0);
+    meshRef.current.rotation.z += delta * audioData.current.bass * 0.5;
+    
+    // Add subtle floating motion based on overall energy
+    meshRef.current.position.y = Math.sin(Date.now() * 0.002) * audioData.current.overall * 0.3;
+    meshRef.current.position.x = Math.cos(Date.now() * 0.0015) * audioData.current.mid * 0.2;
   });
   return (
     <mesh ref={meshRef}>
       <icosahedronGeometry args={[1, 2]} />
-      <meshStandardMaterial ref={materialRef} color="#6366f1" metalness={0.4} roughness={0.3} wireframe={false} />
+      <meshStandardMaterial 
+        ref={materialRef} 
+        color="#6366f1" 
+        metalness={0.5} 
+        roughness={0.2} 
+        wireframe={false}
+        emissive="#000000"
+        emissiveIntensity={0}
+      />
     </mesh>
   );
 }
 
-function ParticleField({ count = 200 }: { count?: number }) {
+function ParticleField({ count = 200, audioData }: { count?: number; audioData: React.MutableRefObject<AudioData> }) {
   const particlesRef = useRef<THREE.Points>(null);
   const positions = useMemo(() => {
     const pos = new Float32Array(count * 3);
     for (let i = 0; i < count * 3; i += 3) { pos[i] = (Math.random() - 0.5) * 15; pos[i + 1] = (Math.random() - 0.5) * 15; pos[i + 2] = (Math.random() - 0.5) * 15; }
     return pos;
   }, [count]);
-  useFrame((state) => { if (particlesRef.current) particlesRef.current.rotation.y = state.clock.elapsedTime * 0.05; });
+  
+  const initialPositions = useMemo(() => positions.slice(), [positions]);
+  
+  useFrame((state) => {
+    if (particlesRef.current) {
+      // Rotate particles based on audio energy
+      const rotationSpeed = 0.02 + audioData.current.overall * 0.1;
+      particlesRef.current.rotation.y = state.clock.elapsedTime * rotationSpeed;
+      particlesRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
+      
+      // Pulse particle size on beats
+      const material = particlesRef.current.material as THREE.PointsMaterial;
+      material.size = 0.04 + audioData.current.bass * 0.08;
+      material.opacity = 0.4 + audioData.current.overall * 0.6;
+      
+      // Move particles outward on bass hits
+      const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
+      const bassBoost = audioData.current.bass * 0.5;
+      for (let i = 0; i < count * 3; i += 3) {
+        const x = initialPositions[i];
+        const y = initialPositions[i + 1];
+        const z = initialPositions[i + 2];
+        const dist = Math.sqrt(x * x + y * y + z * z);
+        const scale = 1 + bassBoost / dist;
+        positions[i] = x * scale;
+        positions[i + 1] = y * scale;
+        positions[i + 2] = z * scale;
+      }
+      particlesRef.current.geometry.attributes.position.needsUpdate = true;
+    }
+  });
   return (
     <points ref={particlesRef}>
       <bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /></bufferGeometry>
@@ -187,7 +249,7 @@ function VisualizerScene({
       <pointLight position={[10, 10, 10]} intensity={1.2} color="#fff" />
       <pointLight position={[-5, -5, 5]} intensity={0.8} color="#818cf8" />
       <AudioReactiveShape audioData={audioData} />
-      <ParticleField count={250} />
+      <ParticleField count={250} audioData={audioData} />
       <OrbitControls enableZoom enablePan enableRotate minDistance={2} maxDistance={10} autoRotate={!isPlaying && !demoEnabled} autoRotateSpeed={0.3} />
       <FPSCounter />
     </>
@@ -262,8 +324,8 @@ export function Visualizer() {
         const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
         audioCtxRef.current = ctx;
         const analyser = ctx.createAnalyser();
-        analyser.fftSize = 512;
-        analyser.smoothingTimeConstant = 0.75;
+        analyser.fftSize = 1024; // Increased from 512 for better frequency resolution
+        analyser.smoothingTimeConstant = 0.4; // Reduced from 0.75 for more responsive animation
         analyserRef.current = analyser;
         const source = ctx.createMediaElementSource(el);
         sourceRef.current = source;
