@@ -326,11 +326,6 @@ function VisualizerScene({
       <FPSCounter />
     </>
   );
-      {renderVisualization()}
-      <OrbitControls enableZoom enablePan enableRotate minDistance={2} maxDistance={10} autoRotate={!isPlaying && !demoEnabled} autoRotateSpeed={0.3} />
-      <FPSCounter />
-    </>
-  );
 }
 
 const PRESET_TRACKS = [
