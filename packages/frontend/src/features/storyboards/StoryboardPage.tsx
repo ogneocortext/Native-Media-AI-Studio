@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { BookOpen, FileText, Search, ChevronRight } from "lucide-react";
+import { DS } from "../../styles/designSystem";
 
 interface StoryboardFile {
   name: string;
@@ -114,14 +115,14 @@ export function StoryboardPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="flex items-center gap-3 mb-6">
+    <div className={DS.page}>
+      <div className={DS.flexCenter}>
         <BookOpen size={24} className="text-purple-400" />
-        <h1 className="text-2xl font-bold text-white">Storyboards</h1>
+        <h1 className={DS.pageTitle}>Storyboards</h1>
       </div>
 
       {!selected ? (
-        <div className="space-y-4">
+        <div className={DS.section}>
           <div className="flex gap-2 mb-6">
             <input
               type="text"
@@ -138,7 +139,7 @@ export function StoryboardPage() {
               <button
                 key={s.name}
                 onClick={() => setSelected(s)}
-                className="w-full text-left p-4 bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-purple-500/50 rounded-lg transition-colors group"
+                className="w-full text-left p-4 bg-gray-800 hover:bg-gray-700/80 border border-gray-700 hover:border-purple-500/50 rounded-lg transition-colors group"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -152,14 +153,14 @@ export function StoryboardPage() {
           </div>
         </div>
       ) : (
-        <div>
+        <div className={DS.section}>
           <button
             onClick={() => { setSelected(null); setContent(""); }}
             className="mb-4 text-purple-400 hover:text-purple-300 text-sm flex items-center gap-1"
           >
             ← Back to storyboards
           </button>
-          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <div className={DS.card}>
             {renderMarkdown(content)}
           </div>
         </div>
