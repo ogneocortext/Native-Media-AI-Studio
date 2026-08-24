@@ -599,400 +599,167 @@ export function Visualizer() {
     checkOllama();
   }, []);
 
+  const [activePanel, setActivePanel] = useState<string>("source");
+
+  const togglePanel = (panel: string) => {
+    setActivePanel(activePanel === panel ? "" : panel);
+  };
+
   return (
     <div className="viz-page">
       <div className="viz-header">
         <div className="viz-title-row">
           <Music size={22} className="viz-icon" />
-          <h1 className="viz-title">3D Audio Visualizer — Real-time WebGL FFT</h1>
+          <h1 className="viz-title">3D Audio Visualizer</h1>
         </div>
         <p className="viz-subtitle">
-          Select any track from your library or drop an audio file → 3D mesh scales with <b>bass</b>, shifts color with <b>mids</b>, and rotates with <b>treble</b>.
+          Select a track → 3D mesh reacts to <b>bass</b>, <b>mids</b>, <b>treble</b>
         </p>
       </div>
 
       <div className="viz-layout">
+        {/* Left: Canvas + Spectrum */}
         <div className="viz-canvas-section">
-          <Card className="viz-card p-0 overflow-hidden" style={{ background: bgColor }}>
-            <div className="viz-canvas-container">
-              <Canvas camera={{ position: [0, 0, 5], fov: 60 }} dpr={[1, 2]} gl={{ antialias: true, powerPreference: "high-performance" }} frameloop="always">
-                <Suspense fallback={null}>
-                  <color attach="background" args={[bgColor]} />
-                  <VisualizerScene
-                    analyserRef={analyserRef}
-                    isPlaying={isPlaying}
-                    demoEnabled={demoEnabled}
-                    demoBpm={demoBpm}
-                    onAudioData={setLiveAudioData}
-                    visualizationStyle={visualizationStyle}
-                  />
-                </Suspense>
-              </Canvas>
-              {/* Beat indicator overlay */}
-              {liveAudioData.beat && (
-                <div className="viz-beat-flash" />
-              )}
-            </div>
-          </Card>
+          <div className="viz-canvas-container">
+            <Canvas camera={{ position: [0, 0, 5], fov: 60 }} dpr={[1, 2]} gl={{ antialias: true, powerPreference: "high-performance" }} frameloop="always">
+              <Suspense fallback={null}>
+                <color attach="background" args={[bgColor]} />
+                <VisualizerScene
+                  analyserRef={analyserRef}
+                  isPlaying={isPlaying}
+                  demoEnabled={demoEnabled}
+                  demoBpm={demoBpm}
+                  onAudioData={setLiveAudioData}
+                  visualizationStyle={visualizationStyle}
+                  vizParams={vizParams}
+                />
+              </Suspense>
+            </Canvas>
+            {liveAudioData.beat && <div className="viz-beat-flash" />}
+          </div>
 
-          {/* Frequency Spectrum Display */}
-          {showSpectrum && (
-            <Card className="viz-spectrum-card">
-              <div className="viz-spectrum-header">
-                <Waves size={16} className="viz-spectrum-icon" />
-                <span className="viz-spectrum-title">Live Frequency Spectrum</span>
-                <div className="viz-spectrum-controls">
-                  <input
-                    type="range"
-                    min="1"
-                    max="2"
-                    step="0.1"
-                    value={spectrumIntensity}
-                    onChange={(e) => setSpectrumIntensity(parseFloat(e.target.value))}
-                    className="viz-intensity-slider"
-                    title="Spectrum Sensitivity"
-                  />
-                  <button
-                    className="viz-spectrum-toggle"
-                    onClick={() => setShowSpectrum(false)}
-                    title="Hide spectrum"
-                  >
-                    <Maximize2 size={12} />
-                  </button>
-                </div>
-              </div>
-              {/* Editable Track Name */}
-              {trackName && (
-                <div className="viz-track-name-section">
-                  {isEditingName ? (
-                    <div className="viz-track-name-edit">
-                      <input
-                        ref={trackNameInputRef}
-                        type="text"
-                        value={editableTrackName}
-                        onChange={(e) => setEditableTrackName(e.target.value)}
-                        onBlur={handleSaveTrackName}
-                        onKeyDown={(e) => e.key === "Enter" && handleSaveTrackName()}
-                        className="viz-track-name-input"
-                        autoFocus
-                      />
-                      <button onClick={handleSaveTrackName} className="viz-track-name-save">Save</button>
-                    </div>
-                  ) : (
-                    <div className="viz-track-name-display" onClick={() => setIsEditingName(true)}>
-                      <Music size={14} className="viz-track-name-icon" />
-                      <span className="viz-track-name-text">{trackName}</span>
-                      <span className="viz-track-hint">(click to edit)</span>
-                    </div>
-                  )}
-                </div>
-              )}
-              <div className="viz-spectrum-bars">
-                <SpectrumBar label="Bass" value={liveAudioData.bass} color="#6366f1" intensity={spectrumIntensity} />
-                <SpectrumBar label="Mid" value={liveAudioData.mid} color="#a855f7" intensity={spectrumIntensity} />
-                <SpectrumBar label="Treble" value={liveAudioData.treble} color="#ec4899" intensity={spectrumIntensity} />
-                <SpectrumBar label="Overall" value={liveAudioData.overall} color="#06b6d4" intensity={spectrumIntensity} />
-              </div>
-              <div className="viz-beat-indicator">
-                <div className={`viz-beat-dot ${liveAudioData.beat ? "active" : ""}`} />
-                <span className="viz-beat-label">{liveAudioData.beat ? "BEAT" : "detecting..."}</span>
-                {cudaEnabled && <span className="viz-cuda-badge">CUDA</span>}
-              </div>
-            </Card>
-          )}
-          {!showSpectrum && (
-            <button
-              className="viz-spectrum-show"
-              onClick={() => setShowSpectrum(true)}
-            >
-              <Waves size={14} /> Show Spectrum
-            </button>
-          )}
+          {/* Spectrum - Compact */}
+          <div className="viz-spectrum-compact">
+            <div className="viz-spectrum-bars">
+              <SpectrumBar label="Bass" value={liveAudioData.bass} color="#6366f1" intensity={spectrumIntensity} />
+              <SpectrumBar label="Mid" value={liveAudioData.mid} color="#a855f7" intensity={spectrumIntensity} />
+              <SpectrumBar label="Treble" value={liveAudioData.treble} color="#ec4899" intensity={spectrumIntensity} />
+            </div>
+            <div className={`viz-beat-dot ${liveAudioData.beat ? "active" : ""}`} />
+          </div>
         </div>
 
+        {/* Right: Controls - Accordion Style */}
         <div className="viz-controls">
-          <Card title="Audio Track Source" className="viz-controls-card">
-            <div className="viz-controls-content">
-              {/* Media Library Quick Picker */}
-              <div className="viz-picker">
-                <div className="viz-picker-label">
-                  <FolderOpen size={14} className="viz-picker-icon" />
-                  <span>Choose from Media Library</span>
-                </div>
-                <select
-                  onChange={(e) => handleSelectLibraryTrack(e.target.value)}
-                  className="viz-select"
-                  defaultValue=""
-                >
-                  <option value="" disabled>Select track from library...</option>
-                  <optgroup label="Library Tracks">
-                    {PRESET_TRACKS.map((t) => (
-                      <option key={t.filename} value={t.filename}>{t.name}</option>
-                    ))}
-                    {libraryFiles.map((f) => (
-                      <option key={f.filename} value={f.filename}>{f.filename}</option>
-                    ))}
-                  </optgroup>
+          {/* Panel: Source */}
+          <div className={`viz-panel ${activePanel === "source" ? "open" : ""}`}>
+            <button className="viz-panel-header" onClick={() => togglePanel("source")}>
+              <FolderOpen size={14} />
+              <span>Audio Source</span>
+              <span className="viz-panel-chevron">{activePanel === "source" ? "−" : "+"}</span>
+            </button>
+            {activePanel === "source" && (
+              <div className="viz-panel-content">
+                <select onChange={(e) => handleSelectLibraryTrack(e.target.value)} className="viz-select" defaultValue="">
+                  <option value="" disabled>Select track...</option>
+                  {libraryFiles.map((f) => (
+                    <option key={f.filename} value={f.filename}>{f.filename.replace(/^\w{8}_/, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "")}</option>
+                  ))}
                 </select>
-              </div>
-
-              {/* Upload Drop Area */}
-              <div
-                className="viz-dropzone"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const f = e.dataTransfer.files[0];
-                  if (f) handleFile(f);
-                }}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleFile(f);
-                  }}
-                />
-                <Upload size={24} className="viz-dropzone-icon" />
-                {trackName ? (
-                  <p className="viz-dropzone-name">
-                    <Music size={13} className="viz-dropzone-music" />
-                    <span>{trackName}</span>
-                  </p>
-                ) : (
-                  <p className="viz-dropzone-text">Click or drop custom audio file (MP3/WAV/FLAC)</p>
-                )}
-                <p className="viz-dropzone-hint">Web Audio API AnalyserNode active</p>
-              </div>
-
-              {/* HTML5 Audio Player */}
-              {audioUrl && (
-                <div className="viz-player">
-                  <audio
-                    ref={audioElRef}
-                    controls
-                    src={audioUrl}
-                    className="viz-audio"
-                    crossOrigin="anonymous"
-                    onPlay={() => {
-                      setIsPlaying(true);
-                      audioCtxRef.current?.resume();
-                    }}
+                <div className="viz-dropzone" onClick={() => fileInputRef.current?.click()}>
+                  <input ref={fileInputRef} type="file" accept="audio/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+                  <Upload size={16} />
+                  <span>Drop or click to upload</span>
+                </div>
+                {audioUrl && (
+                  <audio ref={audioElRef} controls src={audioUrl} className="viz-audio" crossOrigin="anonymous"
+                    onPlay={() => { setIsPlaying(true); audioCtxRef.current?.resume(); }}
                     onPause={() => setIsPlaying(false)}
                     onEnded={() => setIsPlaying(false)}
-                    onError={(e) => {
-                      const audioEl = e.currentTarget;
-                      setError(`Audio loading failed (code ${audioEl.error?.code}): ${audioEl.error?.message || "Check if backend is running"}`);
-                    }}
                   />
-                </div>
-              )}
-
-              {error && (
-                <div className="viz-error">
-                  <AlertCircle size={14} className="viz-error-icon" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {/* Demo Mode Toggle */}
-              <label className="viz-demo-toggle">
-                <span className="viz-demo-label">
-                  <Music size={14} className="viz-demo-icon" /> Synthesized Demo Sine
-                </span>
-                <button
-                  className={`viz-demo-button ${demoEnabled ? "active" : ""}`}
-                  onClick={() => setDemoEnabled(!demoEnabled)}
-                >
-                  {demoEnabled ? "Demo ON" : "Demo OFF"}
-                </button>
-              </label>
-
-              {demoEnabled && !isPlaying && (
-                <div className="viz-bpm">
-                  <div className="viz-bpm-header">
-                    <span>Demo Tempo</span>
-                    <span className="viz-bpm-value">{demoBpm} BPM</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={60}
-                    max={180}
-                    value={demoBpm}
-                    onChange={(e) => setDemoBpm(Number(e.target.value))}
-                    className="viz-bpm-slider"
-                  />
-                </div>
-              )}
-
-              <div className="viz-mappings">
-                <p className="viz-mappings-title">Frequency Mappings:</p>
-                <ul className="viz-mappings-list">
-                  <li>• <b className="text-white">Bass (20–250 Hz)</b> → Geometry expansion & scale pulse</li>
-                  <li>• <b className="text-white">Mids (250 Hz–2 kHz)</b> → Chromatic HSL material shift</li>
-                  <li>• <b className="text-white">Treble (2 kHz+)</b> → Axial rotation & particle velocity</li>
-                </ul>
+                )}
+                {error && <div className="viz-error"><AlertCircle size={14} /><span>{error}</span></div>}
               </div>
-            </div>
-          </Card>
+            )}
+          </div>
 
-          <Card title="Visual Theme" className="viz-controls-card">
-            <div className="viz-controls-content">
-              <div>
-                <label className="viz-label">Background Color</label>
-                <div className="viz-color-row">
-                  <input
-                    type="color"
-                    value={bgColor}
-                    onChange={(e) => setBgColor(e.target.value)}
-                    className="viz-color-picker"
-                  />
-                  <input
-                    className="viz-color-input"
-                    value={bgColor}
-                    onChange={(e) => setBgColor(e.target.value)}
-                  />
+          {/* Panel: Visualization */}
+          <div className={`viz-panel ${activePanel === "viz" ? "open" : ""}`}>
+            <button className="viz-panel-header" onClick={() => togglePanel("viz")}>
+              <Sparkles size={14} />
+              <span>Visualization</span>
+              <span className="viz-panel-chevron">{activePanel === "viz" ? "−" : "+"}</span>
+            </button>
+            {activePanel === "viz" && (
+              <div className="viz-panel-content">
+                <div className="viz-style-grid">
+                  {VISUALIZATION_OPTIONS.map((viz) => (
+                    <button key={viz.id} className={`viz-style-btn ${visualizationStyle === viz.id ? "active" : ""}`} onClick={() => setVisualizationStyle(viz.id)}>
+                      {viz.name}
+                    </button>
+                  ))}
                 </div>
+                {trackConcept && (
+                  <div className="viz-concept-info">
+                    <span>{trackConcept.mood.join(", ")}</span>
+                    <span>{trackConcept.bpm} BPM</span>
+                  </div>
+                )}
               </div>
-              <div>
-                <label className="viz-label">Mesh Color</label>
-                <div className="viz-color-row">
-                  <input
-                    type="color"
-                    value={meshColor}
-                    onChange={(e) => setMeshColor(e.target.value)}
-                    className="viz-color-picker"
-                  />
-                  <input
-                    className="viz-color-input"
-                    value={meshColor}
-                    onChange={(e) => setMeshColor(e.target.value)}
-                  />
-                </div>
+            )}
+          </div>
+
+          {/* Panel: Match Track */}
+          <div className={`viz-panel ${activePanel === "match" ? "open" : ""}`}>
+            <button className="viz-panel-header" onClick={() => togglePanel("match")}>
+              <Waves size={14} />
+              <span>Match Track</span>
+              <span className="viz-panel-chevron">{activePanel === "match" ? "−" : "+"}</span>
+            </button>
+            {activePanel === "match" && (
+              <div className="viz-panel-content">
+                <label className="viz-toggle-label">
+                  <input type="checkbox" checked={vizParams.matchTrack} onChange={(e) => handleMatchTrackToggle(e.target.checked)} />
+                  <span>Auto-adjust from track analysis</span>
+                </label>
+                {vizParams.matchTrack && (
+                  <div className="viz-match-modes">
+                    <label className={`viz-match-mode ${!useOllamaMatch ? "active" : ""}`}>
+                      <input type="radio" name="matchMode" checked={!useOllamaMatch} onChange={() => setUseOllamaMatch(false)} />
+                      <span>Quick (Rule-based)</span>
+                    </label>
+                    <label className={`viz-match-mode ${useOllamaMatch ? "active" : ""}`}>
+                      <input type="radio" name="matchMode" checked={useOllamaMatch} onChange={() => setUseOllamaMatch(true)} disabled={!ollamaAvailable} />
+                      <span>AI (Ollama)</span>
+                      {ollamaAvailable && <span className="viz-ollama-badge">AI</span>}
+                    </label>
+                  </div>
+                )}
               </div>
-            </div>
-          </Card>
+            )}
+          </div>
 
-          {/* Visualization Style Selector */}
-          <Card title="Visualization Style" className="viz-controls-card">
-            <div className="viz-controls-content">
-              {trackConcept && (
-                <div className="viz-concept-info">
-                  <p className="viz-concept-label">Track Analysis:</p>
-                  <p className="viz-concept-moods">
-                    {trackConcept.mood.join(", ")} • {trackConcept.genre.join(", ")} • {trackConcept.bpm} BPM
-                  </p>
-                  <p className="viz-concept-recommended">
-                    Recommended: <span className="viz-concept-recommended-style">
-                      {VISUALIZATION_OPTIONS.find(v => v.id === trackConcept.recommendedViz)?.name}
-                    </span>
-                  </p>
+          {/* Panel: Parameters */}
+          <div className={`viz-panel ${activePanel === "params" ? "open" : ""}`}>
+            <button className="viz-panel-header" onClick={() => togglePanel("params")}>
+              <Palette size={14} />
+              <span>Parameters</span>
+              <span className="viz-panel-chevron">{activePanel === "params" ? "−" : "+"}</span>
+            </button>
+            {activePanel === "params" && (
+              <div className="viz-panel-content">
+                <div className="viz-param-group">
+                  <p className="viz-param-group-title">Motion</p>
+                  <div className="viz-param-row"><label>Scale</label><input type="range" min="0.5" max="3" step="0.1" value={vizParams.scale} onChange={(e) => setVizParams({...vizParams, scale: parseFloat(e.target.value)})} /><span>{vizParams.scale.toFixed(1)}</span></div>
+                  <div className="viz-param-row"><label>Boost</label><input type="range" min="0.5" max="3" step="0.1" value={vizParams.scaleBoost} onChange={(e) => setVizParams({...vizParams, scaleBoost: parseFloat(e.target.value)})} /><span>{vizParams.scaleBoost.toFixed(1)}</span></div>
+                  <div className="viz-param-row"><label>Rotation</label><input type="range" min="0.1" max="5" step="0.1" value={vizParams.rotationSpeed} onChange={(e) => setVizParams({...vizParams, rotationSpeed: parseFloat(e.target.value)})} /><span>{vizParams.rotationSpeed.toFixed(1)}</span></div>
+                  <div className="viz-param-row"><label>Response</label><input type="range" min="0.1" max="1" step="0.05" value={vizParams.lerpSpeed} onChange={(e) => setVizParams({...vizParams, lerpSpeed: parseFloat(e.target.value)})} /><span>{vizParams.lerpSpeed.toFixed(2)}</span></div>
                 </div>
-              )}
-              <div className="viz-style-grid">
-                {VISUALIZATION_OPTIONS.map((viz) => (
-                  <button
-                    key={viz.id}
-                    className={`viz-style-btn ${visualizationStyle === viz.id ? "active" : ""}`}
-                    onClick={() => setVisualizationStyle(viz.id)}
-                    title={viz.description}
-                  >
-                    <span className="viz-style-name">{viz.name}</span>
-                  </button>
-                ))}
-              </div>
-              <p className="viz-style-description">
-                {VISUALIZATION_OPTIONS.find(v => v.id === visualizationStyle)?.description}
-              </p>
-            </div>
-          </Card>
-
-          {/* Visualization Parameters */}
-          <Card 
-            title="Parameters" 
-            className="viz-controls-card"
-            headerAction={
-              <button 
-                className="viz-toggle-btn"
-                onClick={() => setShowParams(!showParams)}
-              >
-                {showParams ? "−" : "+"}
-              </button>
-            }
-          >
-            {showParams && (
-              <div className="viz-controls-content">
-                {/* Match Track Toggle */}
-                <div className="viz-match-track">
-                  <label className="viz-match-track-label">
-                    <input
-                      type="checkbox"
-                      checked={vizParams.matchTrack}
-                      onChange={(e) => handleMatchTrackToggle(e.target.checked)}
-                    />
-                    <span>Match Track</span>
-                  </label>
-                  {vizParams.matchTrack && (
-                    <div className="viz-match-options">
-                      <label className="viz-match-option">
-                        <input
-                          type="radio"
-                          name="matchMode"
-                          checked={!useOllamaMatch}
-                          onChange={() => setUseOllamaMatch(false)}
-                        />
-                        <span>Quick Match</span>
-                      </label>
-                      <label className="viz-match-option">
-                        <input
-                          type="radio"
-                          name="matchMode"
-                          checked={useOllamaMatch}
-                          onChange={() => setUseOllamaMatch(true)}
-                          disabled={!ollamaAvailable}
-                        />
-                        <span>AI Match</span>
-                        {ollamaAvailable && <span className="viz-ollama-badge">OLLAMA</span>}
-                      </label>
-                    </div>
-                  )}
-                </div>
-                  <div className="viz-param-row">
-                    <label>Scale Boost</label>
-                    <input type="range" min="0.5" max="3" step="0.1" value={vizParams.scaleBoost} onChange={(e) => setVizParams({...vizParams, scaleBoost: parseFloat(e.target.value)})} />
-                    <span className="viz-param-value">{vizParams.scaleBoost.toFixed(1)}</span>
-                  </div>
-                  <div className="viz-param-row">
-                    <label>Rotation Speed</label>
-                    <input type="range" min="0.1" max="5" step="0.1" value={vizParams.rotationSpeed} onChange={(e) => setVizParams({...vizParams, rotationSpeed: parseFloat(e.target.value)})} />
-                    <span className="viz-param-value">{vizParams.rotationSpeed.toFixed(1)}</span>
-                  </div>
-                  <div className="viz-param-row">
-                    <label>Color Shift</label>
-                    <input type="range" min="0" max="2" step="0.1" value={vizParams.colorShift} onChange={(e) => setVizParams({...vizParams, colorShift: parseFloat(e.target.value)})} />
-                    <span className="viz-param-value">{vizParams.colorShift.toFixed(1)}</span>
-                  </div>
-                  <div className="viz-param-row">
-                    <label>Glow Intensity</label>
-                    <input type="range" min="0" max="1" step="0.05" value={vizParams.glowIntensity} onChange={(e) => setVizParams({...vizParams, glowIntensity: parseFloat(e.target.value)})} />
-                    <span className="viz-param-value">{vizParams.glowIntensity.toFixed(2)}</span>
-                  </div>
-                  <div className="viz-param-row">
-                    <label>Response Speed</label>
-                    <input type="range" min="0.1" max="1" step="0.05" value={vizParams.lerpSpeed} onChange={(e) => setVizParams({...vizParams, lerpSpeed: parseFloat(e.target.value)})} />
-                    <span className="viz-param-value">{vizParams.lerpSpeed.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                {/* Material Section */}
-                <div className="viz-param-section">
-                  <p className="viz-param-section-title">Material</p>
-                  <div className="viz-param-row">
-                    <label>Type</label>
+                <div className="viz-param-group">
+                  <p className="viz-param-group-title">Appearance</p>
+                  <div className="viz-param-row"><label>Glow</label><input type="range" min="0" max="1" step="0.05" value={vizParams.glowIntensity} onChange={(e) => setVizParams({...vizParams, glowIntensity: parseFloat(e.target.value)})} /><span>{vizParams.glowIntensity.toFixed(2)}</span></div>
+                  <div className="viz-param-row"><label>Color Shift</label><input type="range" min="0" max="2" step="0.1" value={vizParams.colorShift} onChange={(e) => setVizParams({...vizParams, colorShift: parseFloat(e.target.value)})} /><span>{vizParams.colorShift.toFixed(1)}</span></div>
+                  <div className="viz-param-row"><label>Material</label>
                     <select value={vizParams.materialType} onChange={(e) => setVizParams({...vizParams, materialType: e.target.value as any})}>
                       <option value="standard">Standard</option>
                       <option value="metallic">Metallic</option>
@@ -1001,85 +768,36 @@ export function Visualizer() {
                       <option value="matte">Matte</option>
                     </select>
                   </div>
-                  <div className="viz-param-row">
-                    <label>Wireframe</label>
-                    <input type="checkbox" checked={vizParams.wireframe} onChange={(e) => setVizParams({...vizParams, wireframe: e.target.checked})} />
-                  </div>
-                  <div className="viz-param-row">
-                    <label>Opacity</label>
-                    <input type="range" min="0.1" max="1" step="0.05" value={vizParams.opacity} onChange={(e) => setVizParams({...vizParams, opacity: parseFloat(e.target.value)})} />
-                    <span className="viz-param-value">{vizParams.opacity.toFixed(2)}</span>
-                  </div>
+                  <div className="viz-param-row"><label>Wireframe</label><input type="checkbox" checked={vizParams.wireframe} onChange={(e) => setVizParams({...vizParams, wireframe: e.target.checked})} /></div>
                 </div>
-
-                {/* Scene Section */}
-                <div className="viz-param-section">
-                  <p className="viz-param-section-title">Scene</p>
-                  <div className="viz-param-row">
-                    <label>Shadows</label>
-                    <input type="checkbox" checked={vizParams.shadowEnabled} onChange={(e) => setVizParams({...vizParams, shadowEnabled: e.target.checked})} />
-                  </div>
-                  <div className="viz-param-row">
-                    <label>Reflections</label>
-                    <input type="checkbox" checked={vizParams.reflectionEnabled} onChange={(e) => setVizParams({...vizParams, reflectionEnabled: e.target.checked})} />
-                  </div>
-                  <div className="viz-param-row">
-                    <label>Particles</label>
-                    <input type="range" min="0" max="1000" step="50" value={vizParams.particleCount} onChange={(e) => setVizParams({...vizParams, particleCount: parseInt(e.target.value)})} />
-                    <span className="viz-param-value">{vizParams.particleCount}</span>
-                  </div>
-                  <div className="viz-param-row">
-                    <label>Particle Size</label>
-                    <input type="range" min="0.01" max="0.2" step="0.01" value={vizParams.particleSize} onChange={(e) => setVizParams({...vizParams, particleSize: parseFloat(e.target.value)})} />
-                    <span className="viz-param-value">{vizParams.particleSize.toFixed(2)}</span>
-                  </div>
+                <div className="viz-param-group">
+                  <p className="viz-param-group-title">Scene</p>
+                  <div className="viz-param-row"><label>Shadows</label><input type="checkbox" checked={vizParams.shadowEnabled} onChange={(e) => setVizParams({...vizParams, shadowEnabled: e.target.checked})} /></div>
+                  <div className="viz-param-row"><label>Reflections</label><input type="checkbox" checked={vizParams.reflectionEnabled} onChange={(e) => setVizParams({...vizParams, reflectionEnabled: e.target.checked})} /></div>
+                  <div className="viz-param-row"><label>Ground</label><input type="checkbox" checked={vizParams.showGround} onChange={(e) => setVizParams({...vizParams, showGround: e.target.checked})} /></div>
+                  <div className="viz-param-row"><label>Particles</label><input type="range" min="0" max="1000" step="50" value={vizParams.particleCount} onChange={(e) => setVizParams({...vizParams, particleCount: parseInt(e.target.value)})} /><span>{vizParams.particleCount}</span></div>
                 </div>
-
-                {/* Environment Section */}
-                <div className="viz-param-section">
-                  <p className="viz-param-section-title">Environment</p>
-                  <div className="viz-param-row">
-                    <label>Light Intensity</label>
-                    <input type="range" min="0.2" max="3" step="0.1" value={vizParams.lightIntensity} onChange={(e) => setVizParams({...vizParams, lightIntensity: parseFloat(e.target.value)})} />
-                    <span className="viz-param-value">{vizParams.lightIntensity.toFixed(1)}</span>
-                  </div>
-                  <div className="viz-param-row">
-                    <label>Fog</label>
-                    <input type="checkbox" checked={vizParams.fogEnabled} onChange={(e) => setVizParams({...vizParams, fogEnabled: e.target.checked})} />
-                  </div>
-                  {vizParams.fogEnabled && (
-                    <div className="viz-param-row">
-                      <label>Fog Density</label>
-                      <input type="range" min="0.01" max="0.1" step="0.01" value={vizParams.fogDensity} onChange={(e) => setVizParams({...vizParams, fogDensity: parseFloat(e.target.value)})} />
-                      <span className="viz-param-value">{vizParams.fogDensity.toFixed(2)}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Props Section */}
-                <div className="viz-param-section">
-                  <p className="viz-param-section-title">Scene Props</p>
-                  <div className="viz-param-row">
-                    <label>Ground</label>
-                    <input type="checkbox" checked={vizParams.showGround} onChange={(e) => setVizParams({...vizParams, showGround: e.target.checked})} />
-                  </div>
-                  <div className="viz-param-row">
-                    <label>Floating Shapes</label>
-                    <input type="checkbox" checked={vizParams.showFloatingShapes} onChange={(e) => setVizParams({...vizParams, showFloatingShapes: e.target.checked})} />
-                  </div>
-                  <div className="viz-param-row">
-                    <label>Light Rays</label>
-                    <input type="checkbox" checked={vizParams.showLightRays} onChange={(e) => setVizParams({...vizParams, showLightRays: e.target.checked})} />
-                  </div>
-                </div>
-
-                {/* Reset Button */}
-                <button className="viz-reset-btn" onClick={() => setVizParams(DEFAULT_VIZ_PARAMS)}>
-                  Reset to Defaults
-                </button>
+                <button className="viz-reset-btn" onClick={() => setVizParams(DEFAULT_VIZ_PARAMS)}>Reset All</button>
               </div>
             )}
-          </Card>
+          </div>
+
+          {/* Panel: Theme */}
+          <div className={`viz-panel ${activePanel === "theme" ? "open" : ""}`}>
+            <button className="viz-panel-header" onClick={() => togglePanel("theme")}>
+              <Palette size={14} />
+              <span>Theme</span>
+              <span className="viz-panel-chevron">{activePanel === "theme" ? "−" : "+"}</span>
+            </button>
+            {activePanel === "theme" && (
+              <div className="viz-panel-content">
+                <div className="viz-param-row"><label>Background</label><input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="viz-color-picker" /></div>
+                <div className="viz-param-row"><label>Mesh</label><input type="color" value={meshColor} onChange={(e) => setMeshColor(e.target.value)} className="viz-color-picker" /></div>
+                <div className="viz-param-row"><label>Light</label><input type="range" min="0.2" max="3" step="0.1" value={vizParams.lightIntensity} onChange={(e) => setVizParams({...vizParams, lightIntensity: parseFloat(e.target.value)})} /><span>{vizParams.lightIntensity.toFixed(1)}</span></div>
+                <div className="viz-param-row"><label>Fog</label><input type="checkbox" checked={vizParams.fogEnabled} onChange={(e) => setVizParams({...vizParams, fogEnabled: e.target.checked})} /></div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
