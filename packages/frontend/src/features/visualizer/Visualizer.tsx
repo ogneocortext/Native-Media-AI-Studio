@@ -619,7 +619,7 @@ export function Visualizer() {
 
       <div className="viz-layout">
         {/* Left: Canvas + Spectrum */}
-        <div className="viz-canvas-section">
+        <div className="viz-main">
           <div className="viz-canvas-container">
             <Canvas camera={{ position: [0, 0, 5], fov: 60 }} dpr={[1, 2]} gl={{ antialias: true, powerPreference: "high-performance" }} frameloop="always">
               <Suspense fallback={null}>
@@ -638,8 +638,8 @@ export function Visualizer() {
             {liveAudioData.beat && <div className="viz-beat-flash" />}
           </div>
 
-          {/* Spectrum - Compact */}
-          <div className="viz-spectrum-compact">
+          {/* Spectrum */}
+          <div className="viz-spectrum-card">
             <div className="viz-spectrum-bars">
               <SpectrumBar label="Bass" value={liveAudioData.bass} color="#6366f1" intensity={spectrumIntensity} />
               <SpectrumBar label="Mid" value={liveAudioData.mid} color="#a855f7" intensity={spectrumIntensity} />
@@ -720,17 +720,17 @@ export function Visualizer() {
               <div className="viz-panel-content">
                 <label className="viz-toggle-label">
                   <input type="checkbox" checked={vizParams.matchTrack} onChange={(e) => handleMatchTrackToggle(e.target.checked)} />
-                  <span>Auto-adjust from track analysis</span>
+                  <span>Auto-adjust from analysis</span>
                 </label>
                 {vizParams.matchTrack && (
                   <div className="viz-match-modes">
                     <label className={`viz-match-mode ${!useOllamaMatch ? "active" : ""}`}>
                       <input type="radio" name="matchMode" checked={!useOllamaMatch} onChange={() => setUseOllamaMatch(false)} />
-                      <span>Quick (Rule-based)</span>
+                      <span>Quick</span>
                     </label>
                     <label className={`viz-match-mode ${useOllamaMatch ? "active" : ""}`}>
                       <input type="radio" name="matchMode" checked={useOllamaMatch} onChange={() => setUseOllamaMatch(true)} disabled={!ollamaAvailable} />
-                      <span>AI (Ollama)</span>
+                      <span>AI</span>
                       {ollamaAvailable && <span className="viz-ollama-badge">AI</span>}
                     </label>
                   </div>
@@ -758,7 +758,6 @@ export function Visualizer() {
                 <div className="viz-param-group">
                   <p className="viz-param-group-title">Appearance</p>
                   <div className="viz-param-row"><label>Glow</label><input type="range" min="0" max="1" step="0.05" value={vizParams.glowIntensity} onChange={(e) => setVizParams({...vizParams, glowIntensity: parseFloat(e.target.value)})} /><span>{vizParams.glowIntensity.toFixed(2)}</span></div>
-                  <div className="viz-param-row"><label>Color Shift</label><input type="range" min="0" max="2" step="0.1" value={vizParams.colorShift} onChange={(e) => setVizParams({...vizParams, colorShift: parseFloat(e.target.value)})} /><span>{vizParams.colorShift.toFixed(1)}</span></div>
                   <div className="viz-param-row"><label>Material</label>
                     <select value={vizParams.materialType} onChange={(e) => setVizParams({...vizParams, materialType: e.target.value as any})}>
                       <option value="standard">Standard</option>

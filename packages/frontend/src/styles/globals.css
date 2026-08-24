@@ -1281,7 +1281,7 @@
   background: #f59e0b;
 }
 
-/* Accordion Panels */
+/* Accordion Panels - Matching App Theme */
 .viz-panel {
   background: #1f2937;
   border-radius: 0.75rem;
@@ -1296,9 +1296,9 @@
   gap: 0.5rem;
   width: 100%;
   padding: 0.75rem 1rem;
-  background: none;
+  background: #1f2937;
   border: none;
-  color: #e2e8f0;
+  color: #f1f5f9;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
@@ -1306,7 +1306,7 @@
 }
 
 .viz-panel-header:hover {
-  background: rgba(99, 102, 241, 0.1);
+  background: #374151;
 }
 
 .viz-panel-header span {
@@ -1316,15 +1316,25 @@
 
 .viz-panel-chevron {
   font-size: 1rem;
-  color: #6b7280;
+  color: #9ca3af;
 }
 
 .viz-panel-content {
   padding: 0 1rem 1rem;
+  background: #1f2937;
 }
 
 .viz-panel:not(.open) .viz-panel-content {
   display: none;
+}
+
+.viz-panel.open {
+  border-color: #6366f1;
+}
+
+.viz-panel.open .viz-panel-header {
+  background: #374151;
+  border-bottom: 1px solid #374151;
 }
 
 /* Compact Spectrum */
