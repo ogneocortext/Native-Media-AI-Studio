@@ -1132,6 +1132,35 @@
   margin-left: 0.5rem;
 }
 
+.viz-hint {
+  font-size: 0.7rem;
+  color: #9ca3af;
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
+.viz-match-info {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 0.5rem;
+}
+
+.viz-match-info span {
+  display: block;
+  font-size: 0.7rem;
+}
+
+.viz-match-info span:first-child {
+  color: #d1d5db;
+  font-weight: 500;
+}
+
+.viz-match-info span:last-child {
+  color: #9ca3af;
+  margin-top: 0.25rem;
+}
+
 .viz-model-selector {
   margin-top: 0.5rem;
   padding: 0.5rem;

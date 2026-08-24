@@ -584,6 +584,13 @@ export function Visualizer() {
     }
   };
 
+  // Apply match track when track is selected if toggle is on
+  useEffect(() => {
+    if (vizParams.matchTrack && trackConcept) {
+      applyTrackMatchParams(trackConcept, useOllamaMatch);
+    }
+  }, [trackConcept]);
+
   // Check Ollama availability on mount
   useEffect(() => {
     const checkOllama = async () => {
@@ -722,6 +729,15 @@ export function Visualizer() {
                   <input type="checkbox" checked={vizParams.matchTrack} onChange={(e) => handleMatchTrackToggle(e.target.checked)} />
                   <span>Auto-adjust from analysis</span>
                 </label>
+                {vizParams.matchTrack && !trackConcept && (
+                  <p className="viz-hint">Select a track to apply analysis</p>
+                )}
+                {vizParams.matchTrack && trackConcept && (
+                  <div className="viz-match-info">
+                    <span>{trackConcept.trackName}</span>
+                    <span>{trackConcept.bpm} BPM • {trackConcept.mood.join(", ")}</span>
+                  </div>
+                )}
                 {vizParams.matchTrack && (
                   <div className="viz-match-modes">
                     <label className={`viz-match-mode ${!useOllamaMatch ? "active" : ""}`}>
