@@ -4,23 +4,47 @@ import { OrbitControls, Icosahedron } from "@react-three/drei";
 import { Html } from "@react-three/drei";
 import { Card } from "../../components/common";
 import * as THREE from "three";
-import { Upload, Music, AlertCircle, Play, Pause, Volume2, FolderOpen } from "lucide-react";
+import { Upload, Music, AlertCircle, Play, Pause, Volume2, FolderOpen, Maximize2, Camera, Waves } from "lucide-react";
 import { listAudioFiles } from "../../services/api";
 
-interface AudioData { bass: number; mid: number; treble: number; overall: number; }
+interface AudioData { bass: number; mid: number; treble: number; overall: number; beat: boolean; }
+
+interface SpectrumBarProps {
+  label: string;
+  value: number;
+  color: string;
+}
+
+function SpectrumBar({ label, value, color }: SpectrumBarProps) {
+  return (
+    <div className="spec-bar-row">
+      <span className="spec-bar-label">{label}</span>
+      <div className="spec-bar-track">
+        <div
+          className="spec-bar-fill"
+          style={{ width: `${Math.min(value * 100, 100)}%`, background: color }}
+        />
+      </div>
+      <span className="spec-bar-value">{Math.round(value * 100)}</span>
+    </div>
+  );
+}
 
 // Demo fallback — clearly labeled, not silent mock
 function useDemoAudio(enabled: boolean, bpm: number) {
-  const data = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0 });
+  const data = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false });
   useFrame((state) => {
     if (!enabled) return;
     const t = state.clock.elapsedTime;
     const f = bpm / 120;
+    const beatPhase = (t * f * 2) % 1;
+    const isBeat = beatPhase < 0.1;
     data.current = {
       bass: (Math.sin(t * f * 2) + 1) / 2,
       mid: (Math.sin(t * f * 3.5) + 1) / 2,
       treble: (Math.sin(t * f * 5) + 1) / 2,
       overall: (Math.sin(t * f * 2) * 0.5 + 0.5),
+      beat: isBeat,
     };
   });
   return data;
@@ -28,8 +52,11 @@ function useDemoAudio(enabled: boolean, bpm: number) {
 
 // Real audio — reads from AnalyserNode when audio is playing
 function useRealAudio(analyserRef: React.MutableRefObject<AnalyserNode | null>, isPlaying: boolean) {
-  const data = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0 });
+  const data = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false });
   const freqArray = useRef<Uint8Array | null>(null);
+  const lastBass = useRef(0);
+  const beatThreshold = 0.7;
+  const beatCooldown = useRef(0);
 
   useFrame(() => {
     const analyser = analyserRef.current;
@@ -46,7 +73,14 @@ function useRealAudio(analyserRef: React.MutableRefObject<AnalyserNode | null>, 
     const mid = arr.slice(bassBins, midBins).reduce((a, b) => a + b, 0) / ((midBins - bassBins) * 255 || 1);
     const treble = arr.slice(midBins).reduce((a, b) => a + b, 0) / ((arr.length - midBins) * 255 || 1);
     const overall = (bass * 0.4 + mid * 0.35 + treble * 0.25);
-    data.current = { bass, mid, treble, overall };
+
+    // Simple beat detection: bass spike above threshold with cooldown
+    beatCooldown.current = Math.max(0, beatCooldown.current - 1);
+    const isBeat = bass > beatThreshold && bass > lastBass.current * 1.2 && beatCooldown.current === 0;
+    if (isBeat) beatCooldown.current = 10;
+    lastBass.current = bass;
+
+    data.current = { bass, mid, treble, overall, beat: isBeat };
   });
   return data;
 }
@@ -103,10 +137,32 @@ function FPSCounter() {
   return <Html position={[3, 3, 0]} style={{ color: fps.current >= 28 ? "#22c55e" : fps.current >= 20 ? "#eab308" : "#ef4444", fontSize: "12px", fontFamily: "monospace", textShadow: "0 1px 2px rgba(0,0,0,0.8)" }}>{fps.current} FPS</Html>;
 }
 
-function VisualizerScene({ analyserRef, isPlaying, demoEnabled, demoBpm }: { analyserRef: React.MutableRefObject<AnalyserNode | null>; isPlaying: boolean; demoEnabled: boolean; demoBpm: number }) {
+function VisualizerScene({
+  analyserRef,
+  isPlaying,
+  demoEnabled,
+  demoBpm,
+  onAudioData,
+}: {
+  analyserRef: React.MutableRefObject<AnalyserNode | null>;
+  isPlaying: boolean;
+  demoEnabled: boolean;
+  demoBpm: number;
+  onAudioData?: (data: AudioData) => void;
+}) {
   const realData = useRealAudio(analyserRef, isPlaying);
   const demoData = useDemoAudio(demoEnabled && !isPlaying, demoBpm);
   const audioData = isPlaying ? realData : demoData;
+
+  // Pass audio data to parent for spectrum display
+  useEffect(() => {
+    if (onAudioData) {
+      const interval = setInterval(() => {
+        onAudioData(audioData.current);
+      }, 50); // Update at 20fps for UI
+      return () => clearInterval(interval);
+    }
+  }, [audioData, onAudioData]);
 
   return (
     <>
@@ -139,6 +195,8 @@ export function Visualizer() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [libraryFiles, setLibraryFiles] = useState<Array<{ filename: string; stored_path: string }>>([]);
+  const [liveAudioData, setLiveAudioData] = useState<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false });
+  const [showSpectrum, setShowSpectrum] = useState(true);
 
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -214,40 +272,88 @@ export function Visualizer() {
   };
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Music size={22} className="text-violet-400" /> 3D Audio Visualizer — Real-time WebGL FFT
-        </h1>
-        <p className="text-muted mt-1">
+    <div className="viz-page">
+      <div className="viz-header">
+        <div className="viz-title-row">
+          <Music size={22} className="viz-icon" />
+          <h1 className="viz-title">3D Audio Visualizer — Real-time WebGL FFT</h1>
+        </div>
+        <p className="viz-subtitle">
           Select any track from your library or drop an audio file → 3D mesh scales with <b>bass</b>, shifts color with <b>mids</b>, and rotates with <b>treble</b>.
         </p>
       </div>
 
-      <div className="grid grid-2 gap-6">
-        <Card className="p-0 overflow-hidden" style={{ background: bgColor }}>
-          <div className="h-[460px]">
-            <Canvas camera={{ position: [0, 0, 5], fov: 60 }} dpr={[1, 2]} gl={{ antialias: true, powerPreference: "high-performance" }} frameloop="always">
-              <Suspense fallback={null}>
-                <color attach="background" args={[bgColor]} />
-                <VisualizerScene analyserRef={analyserRef} isPlaying={isPlaying} demoEnabled={demoEnabled} demoBpm={demoBpm} />
-              </Suspense>
-            </Canvas>
-          </div>
-        </Card>
+      <div className="viz-layout">
+        <div className="viz-canvas-section">
+          <Card className="viz-card p-0 overflow-hidden" style={{ background: bgColor }}>
+            <div className="viz-canvas-container">
+              <Canvas camera={{ position: [0, 0, 5], fov: 60 }} dpr={[1, 2]} gl={{ antialias: true, powerPreference: "high-performance" }} frameloop="always">
+                <Suspense fallback={null}>
+                  <color attach="background" args={[bgColor]} />
+                  <VisualizerScene
+                    analyserRef={analyserRef}
+                    isPlaying={isPlaying}
+                    demoEnabled={demoEnabled}
+                    demoBpm={demoBpm}
+                    onAudioData={setLiveAudioData}
+                  />
+                </Suspense>
+              </Canvas>
+              {/* Beat indicator overlay */}
+              {liveAudioData.beat && (
+                <div className="viz-beat-flash" />
+              )}
+            </div>
+          </Card>
 
-        <div className="space-y-4">
-          <Card title="Audio Track Source">
-            <div className="space-y-3">
+          {/* Frequency Spectrum Display */}
+          {showSpectrum && (
+            <Card className="viz-spectrum-card">
+              <div className="viz-spectrum-header">
+                <Waves size={16} className="viz-spectrum-icon" />
+                <span className="viz-spectrum-title">Live Frequency Spectrum</span>
+                <button
+                  className="viz-spectrum-toggle"
+                  onClick={() => setShowSpectrum(false)}
+                  title="Hide spectrum"
+                >
+                  <Maximize2 size={12} />
+                </button>
+              </div>
+              <div className="viz-spectrum-bars">
+                <SpectrumBar label="Bass" value={liveAudioData.bass} color="#6366f1" />
+                <SpectrumBar label="Mid" value={liveAudioData.mid} color="#a855f7" />
+                <SpectrumBar label="Treble" value={liveAudioData.treble} color="#ec4899" />
+                <SpectrumBar label="Overall" value={liveAudioData.overall} color="#06b6d4" />
+              </div>
+              <div className="viz-beat-indicator">
+                <div className={`viz-beat-dot ${liveAudioData.beat ? "active" : ""}`} />
+                <span className="viz-beat-label">{liveAudioData.beat ? "BEAT" : "detecting..."}</span>
+              </div>
+            </Card>
+          )}
+          {!showSpectrum && (
+            <button
+              className="viz-spectrum-show"
+              onClick={() => setShowSpectrum(true)}
+            >
+              <Waves size={14} /> Show Spectrum
+            </button>
+          )}
+        </div>
+
+        <div className="viz-controls">
+          <Card title="Audio Track Source" className="viz-controls-card">
+            <div className="viz-controls-content">
               {/* Media Library Quick Picker */}
-              <div className="p-3 bg-gray-900/60 rounded-xl border border-gray-800 space-y-2">
-                <div className="flex items-center gap-2 text-xs font-semibold text-gray-300">
-                  <FolderOpen size={14} className="text-violet-400" />
+              <div className="viz-picker">
+                <div className="viz-picker-label">
+                  <FolderOpen size={14} className="viz-picker-icon" />
                   <span>Choose from Media Library</span>
                 </div>
                 <select
                   onChange={(e) => handleSelectLibraryTrack(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500"
+                  className="viz-select"
                   defaultValue=""
                 >
                   <option value="" disabled>Select track from library...</option>
@@ -264,7 +370,7 @@ export function Visualizer() {
 
               {/* Upload Drop Area */}
               <div
-                className="relative border-2 border-dashed border-gray-700 rounded-xl p-4 text-center hover:border-violet-500/50 hover:bg-violet-500/5 cursor-pointer transition-colors"
+                className="viz-dropzone"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
@@ -283,26 +389,26 @@ export function Visualizer() {
                     if (f) handleFile(f);
                   }}
                 />
-                <Upload size={24} className="mx-auto text-gray-400 mb-1.5" />
+                <Upload size={24} className="viz-dropzone-icon" />
                 {trackName ? (
-                  <p className="text-xs font-medium text-white flex items-center justify-center gap-1.5 truncate">
-                    <Music size={13} className="text-violet-400 shrink-0" />
-                    <span className="truncate">{trackName}</span>
+                  <p className="viz-dropzone-name">
+                    <Music size={13} className="viz-dropzone-music" />
+                    <span>{trackName}</span>
                   </p>
                 ) : (
-                  <p className="text-xs text-gray-400">Click or drop custom audio file (MP3/WAV/FLAC)</p>
+                  <p className="viz-dropzone-text">Click or drop custom audio file (MP3/WAV/FLAC)</p>
                 )}
-                <p className="text-[11px] text-gray-500 mt-1">Web Audio API AnalyserNode active</p>
+                <p className="viz-dropzone-hint">Web Audio API AnalyserNode active</p>
               </div>
 
               {/* HTML5 Audio Player */}
               {audioUrl && (
-                <div className="bg-gray-900/80 p-2 rounded-lg border border-gray-800">
+                <div className="viz-player">
                   <audio
                     ref={audioElRef}
                     controls
                     src={audioUrl}
-                    className="w-full h-8"
+                    className="viz-audio"
                     crossOrigin="anonymous"
                     onPlay={() => {
                       setIsPlaying(true);
@@ -315,21 +421,19 @@ export function Visualizer() {
               )}
 
               {error && (
-                <div className="flex gap-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">
-                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                <div className="viz-error">
+                  <AlertCircle size={14} className="viz-error-icon" />
                   <span>{error}</span>
                 </div>
               )}
 
               {/* Demo Mode Toggle */}
-              <label className="flex items-center justify-between p-2.5 rounded-lg bg-gray-900/60 border border-gray-800">
-                <span className="text-xs flex items-center gap-2 text-gray-300">
-                  <Music size={14} className="text-violet-400" /> Synthesized Demo Sine
+              <label className="viz-demo-toggle">
+                <span className="viz-demo-label">
+                  <Music size={14} className="viz-demo-icon" /> Synthesized Demo Sine
                 </span>
                 <button
-                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                    demoEnabled ? "bg-violet-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                  }`}
+                  className={`viz-demo-button ${demoEnabled ? "active" : ""}`}
                   onClick={() => setDemoEnabled(!demoEnabled)}
                 >
                   {demoEnabled ? "Demo ON" : "Demo OFF"}
@@ -337,10 +441,10 @@ export function Visualizer() {
               </label>
 
               {demoEnabled && !isPlaying && (
-                <div>
-                  <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <div className="viz-bpm">
+                  <div className="viz-bpm-header">
                     <span>Demo Tempo</span>
-                    <span className="font-mono text-violet-400">{demoBpm} BPM</span>
+                    <span className="viz-bpm-value">{demoBpm} BPM</span>
                   </div>
                   <input
                     type="range"
@@ -348,14 +452,14 @@ export function Visualizer() {
                     max={180}
                     value={demoBpm}
                     onChange={(e) => setDemoBpm(Number(e.target.value))}
-                    className="w-full accent-violet-500"
+                    className="viz-bpm-slider"
                   />
                 </div>
               )}
 
-              <div className="p-2.5 bg-gray-900/60 rounded-lg text-xs text-gray-400 leading-relaxed border border-gray-800">
-                <p className="font-semibold text-gray-300 text-[11px] uppercase tracking-wider">Frequency Mappings:</p>
-                <ul className="mt-1 space-y-0.5 text-[11px]">
+              <div className="viz-mappings">
+                <p className="viz-mappings-title">Frequency Mappings:</p>
+                <ul className="viz-mappings-list">
                   <li>• <b className="text-white">Bass (20–250 Hz)</b> → Geometry expansion & scale pulse</li>
                   <li>• <b className="text-white">Mids (250 Hz–2 kHz)</b> → Chromatic HSL material shift</li>
                   <li>• <b className="text-white">Treble (2 kHz+)</b> → Axial rotation & particle velocity</li>
@@ -364,21 +468,37 @@ export function Visualizer() {
             </div>
           </Card>
 
-          <Card title="Visual Theme">
-            <div className="space-y-3">
+          <Card title="Visual Theme" className="viz-controls-card">
+            <div className="viz-controls-content">
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Background Color</label>
-                <div className="flex gap-2">
+                <label className="viz-label">Background Color</label>
+                <div className="viz-color-row">
                   <input
                     type="color"
                     value={bgColor}
                     onChange={(e) => setBgColor(e.target.value)}
-                    className="w-8 h-8 rounded cursor-pointer bg-transparent"
+                    className="viz-color-picker"
                   />
                   <input
-                    className="bg-gray-800 border border-gray-700 rounded px-2 text-xs text-white flex-1 font-mono"
+                    className="viz-color-input"
                     value={bgColor}
                     onChange={(e) => setBgColor(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="viz-label">Mesh Color</label>
+                <div className="viz-color-row">
+                  <input
+                    type="color"
+                    value={meshColor}
+                    onChange={(e) => setMeshColor(e.target.value)}
+                    className="viz-color-picker"
+                  />
+                  <input
+                    className="viz-color-input"
+                    value={meshColor}
+                    onChange={(e) => setMeshColor(e.target.value)}
                   />
                 </div>
               </div>

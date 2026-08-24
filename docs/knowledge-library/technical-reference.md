@@ -581,4 +581,61 @@ Before uploading any video to AI-generated music video to YouTube:
 
 ---
 
+## 3D Audio Visualizer
+
+### Overview
+
+The Visualizer page (`/visualizer`) is a real-time 3D audio visualizer built with Three.js (@react-three/fiber). It analyzes audio frequencies using the Web Audio API's AnalyserNode and maps them to 3D geometry transformations.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Visualizer Page                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌───────────────────────┐  ┌───────────────────────────┐  │
+│  │   3D Canvas (Three.js)│  │   Control Panel           │  │
+│  │   - AudioReactiveShape│  │   - Track selector        │  │
+│  │   - ParticleField     │  │   - File upload           │  │
+│  │   - OrbitControls     │  │   - Demo mode toggle      │  │
+│  │   - FPSCounter        │  │   - BPM slider            │  │
+│  └───────────────────────┘  │   - Background color      │  │
+│                             │   - Visual theme          │  │
+│  ┌───────────────────────┐  └───────────────────────────┘  │
+│  │   Frequency Spectrum   │                                  │
+│  │   - Bass/Mid/Treble   │                                  │
+│  │   - Beat detection    │                                  │
+│  └───────────────────────┘                                  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Frequency Mapping
+
+| Frequency Range | Target | Effect |
+|-----------------|--------|--------|
+| 20-250 Hz (Bass) | Icosahedron scale | Geometry expansion pulse |
+| 250 Hz-2 kHz (Mids) | Material color | Chromatic HSL shift |
+| 2 kHz+ (Treble) | Rotation speed | Axial rotation increase |
+
+### Components
+
+- **AudioReactiveShape**: Icosahedron mesh that scales with bass and shifts color with mids
+- **ParticleField**: 250 particles rotating slowly in the background
+- **FPSCounter**: Displays current FPS with color-coded performance indicator
+- **OrbitControls**: Mouse interaction for camera rotation/zoom
+
+### Audio Sources
+
+1. **Real Audio**: Upload MP3/WAV/FLAC/OGG/M4A or select from media library
+2. **Demo Mode**: Synthesized sine waves at configurable BPM (60-180)
+
+### API Integration
+
+- `listAudioFiles()`: Fetches available tracks from backend
+- Audio files served at `/api/audio/file/{filename}`
+
+---
+
 *This document is maintained for AI agent consumption. Update when architecture changes.*
