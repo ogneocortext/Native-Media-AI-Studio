@@ -295,6 +295,60 @@ const PRESET_TRACKS = [
   { name: "Still I Rise (Electronic)", filename: "54360357_NeoCortext - Still I Rise.mp3" },
 ];
 
+export interface VizParams {
+  // Model
+  scale: number;
+  scaleBoost: number;
+  rotationSpeed: number;
+  colorShift: number;
+  glowIntensity: number;
+  lerpSpeed: number;
+  // Material
+  materialType: "standard" | "metallic" | "glass" | "neon" | "matte";
+  wireframe: boolean;
+  opacity: number;
+  // Scene
+  shadowEnabled: boolean;
+  reflectionEnabled: boolean;
+  particleCount: number;
+  particleSize: number;
+  // Environment
+  lightIntensity: number;
+  ambientColor: string;
+  fogEnabled: boolean;
+  fogDensity: number;
+  // Props
+  showGround: boolean;
+  showFloatingShapes: boolean;
+  showLightRays: boolean;
+  // Match Track
+  matchTrack: boolean;
+}
+
+const DEFAULT_VIZ_PARAMS: VizParams = {
+  scale: 1.2,
+  scaleBoost: 1.5,
+  rotationSpeed: 1.0,
+  colorShift: 1.0,
+  glowIntensity: 0.5,
+  lerpSpeed: 0.35,
+  materialType: "standard",
+  wireframe: false,
+  opacity: 1.0,
+  shadowEnabled: true,
+  reflectionEnabled: true,
+  particleCount: 250,
+  particleSize: 0.04,
+  lightIntensity: 1.2,
+  ambientColor: "#1a1a2e",
+  fogEnabled: false,
+  fogDensity: 0.02,
+  showGround: true,
+  showFloatingShapes: true,
+  showLightRays: false,
+  matchTrack: false,
+};
+
 export function Visualizer() {
   const [bgColor, setBgColor] = useState("#050505");
   const [meshColor, setMeshColor] = useState("#6366f1");
@@ -317,6 +371,10 @@ export function Visualizer() {
   const [trackConcept, setTrackConcept] = useState<TrackConcept | null>(null);
   const [showVizSelector, setShowVizSelector] = useState(false);
   const [csvContent, setCsvContent] = useState<string>("");
+  const [vizParams, setVizParams] = useState<VizParams>(DEFAULT_VIZ_PARAMS);
+  const [showParams, setShowParams] = useState(true);
+  const [useOllamaMatch, setUseOllamaMatch] = useState(false);
+  const [ollamaAvailable, setOllamaAvailable] = useState(false);
 
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -422,8 +480,93 @@ export function Visualizer() {
       if (concept) {
         setTrackConcept(concept);
         setVisualizationStyle(concept.recommendedViz);
+        // Apply match track parameters if enabled
+        if (vizParams.matchTrack) {
+          applyTrackMatchParams(concept, useOllamaMatch);
+        }
       }
     }
+  };
+
+  const applyTrackMatchParams = async (concept: TrackConcept, useOllama: boolean = false) => {
+    // Try Ollama-powered analysis if selected and available
+    if (useOllama && ollamaAvailable) {
+      try {
+        const res = await fetch("/api/integrations/analyze-track", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            track_name: concept.trackName,
+            prompt: concept.prompt,
+            lyrics: concept.lyrics,
+            bpm: concept.bpm,
+          }),
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.params) {
+            const p = data.params;
+            const params = { ...vizParams };
+            
+            // Apply Ollama-generated parameters
+            if (p.visualization_style) {
+              setVisualizationStyle(p.visualization_style);
+            }
+            if (p.scale) params.scale = Math.max(0.5, Math.min(3.0, p.scale));
+            if (p.scale_boost) params.scaleBoost = Math.max(0.5, Math.min(3.0, p.scale_boost));
+            if (p.rotation_speed) params.rotationSpeed = Math.max(0.1, Math.min(5.0, p.rotation_speed));
+            if (p.color_shift) params.colorShift = Math.max(0, Math.min(2.0, p.color_shift));
+            if (p.glow_intensity) params.glowIntensity = Math.max(0, Math.min(1.0, p.glow_intensity));
+            if (p.lerp_speed) params.lerpSpeed = Math.max(0.1, Math.min(1.0, p.lerp_speed));
+            if (p.material_type) params.materialType = p.material_type;
+            if (p.wireframe !== undefined) params.wireframe = p.wireframe;
+            if (p.opacity) params.opacity = Math.max(0.1, Math.min(1.0, p.opacity));
+            if (p.shadow_enabled !== undefined) params.shadowEnabled = p.shadow_enabled;
+            if (p.reflection_enabled !== undefined) params.reflectionEnabled = p.reflection_enabled;
+            if (p.particle_count) params.particleCount = Math.max(0, Math.min(1000, p.particle_count));
+            if (p.particle_size) params.particleSize = Math.max(0.01, Math.min(0.2, p.particle_size));
+            if (p.light_intensity) params.lightIntensity = Math.max(0.2, Math.min(3.0, p.light_intensity));
+            if (p.fog_enabled !== undefined) params.fogEnabled = p.fog_enabled;
+            if (p.fog_density) params.fogDensity = Math.max(0.01, Math.min(0.1, p.fog_density));
+            if (p.show_ground !== undefined) params.showGround = p.show_ground;
+            if (p.show_floating_shapes !== undefined) params.showFloatingShapes = p.show_floating_shapes;
+            if (p.show_light_rays !== undefined) params.showLightRays = p.show_light_rays;
+            
+            setVizParams(params);
+            return;
+          }
+        }
+      } catch (e) {
+        console.log("Ollama analysis failed, using fallback");
+      }
+    }
+    
+    // Rule-based fallback (no VRAM usage)
+    const params = { ...vizParams };
+    params.rotationSpeed = Math.max(0.5, Math.min(3.0, concept.bpm / 60));
+    if (concept.energy === "high") {
+      params.glowIntensity = 1.0;
+      params.scaleBoost = 2.0;
+      params.lerpSpeed = 0.5;
+    } else if (concept.energy === "low") {
+      params.glowIntensity = 0.3;
+      params.scaleBoost = 1.0;
+      params.lerpSpeed = 0.2;
+    }
+    if (concept.mood.includes("aggressive") || concept.mood.includes("intense")) {
+      params.materialType = "neon";
+    } else if (concept.mood.includes("dreamy") || concept.mood.includes("ethereal")) {
+      params.materialType = "glass";
+      params.fogEnabled = true;
+    } else if (concept.mood.includes("melancholic") || concept.mood.includes("introspective")) {
+      params.materialType = "matte";
+      params.lightIntensity = 0.8;
+    } else if (concept.mood.includes("euphoric") || concept.mood.includes("energetic")) {
+      params.materialType = "metallic";
+      params.reflectionEnabled = true;
+    }
+    setVizParams(params);
   };
 
   const handleSaveTrackName = () => {
@@ -433,21 +576,27 @@ export function Visualizer() {
     }
   };
 
-  // Check CUDA availability on mount
+  // Apply match track when toggled
+  const handleMatchTrackToggle = (enabled: boolean) => {
+    setVizParams({ ...vizParams, matchTrack: enabled });
+    if (enabled && trackConcept) {
+      applyTrackMatchParams(trackConcept, useOllamaMatch);
+    }
+  };
+
+  // Check Ollama availability on mount
   useEffect(() => {
-    const checkCuda = async () => {
+    const checkOllama = async () => {
       try {
-        const res = await fetch("/api/integrations");
+        const res = await fetch("http://127.0.0.1:11434/api/tags");
         if (res.ok) {
-          const data = await res.json();
-          const cudaAdapter = data.integrations?.find((i: any) => i.name.toLowerCase().includes("cuda"));
-          setCudaStatus(cudaAdapter?.status === "online" ? "available" : "unavailable");
+          setOllamaAvailable(true);
         }
       } catch {
-        setCudaStatus("unavailable");
+        setOllamaAvailable(false);
       }
     };
-    checkCuda();
+    checkOllama();
   }, []);
 
   return (
@@ -760,6 +909,176 @@ export function Visualizer() {
                 {VISUALIZATION_OPTIONS.find(v => v.id === visualizationStyle)?.description}
               </p>
             </div>
+          </Card>
+
+          {/* Visualization Parameters */}
+          <Card 
+            title="Parameters" 
+            className="viz-controls-card"
+            headerAction={
+              <button 
+                className="viz-toggle-btn"
+                onClick={() => setShowParams(!showParams)}
+              >
+                {showParams ? "−" : "+"}
+              </button>
+            }
+          >
+            {showParams && (
+              <div className="viz-controls-content">
+                {/* Match Track Toggle */}
+                <div className="viz-match-track">
+                  <label className="viz-match-track-label">
+                    <input
+                      type="checkbox"
+                      checked={vizParams.matchTrack}
+                      onChange={(e) => handleMatchTrackToggle(e.target.checked)}
+                    />
+                    <span>Match Track</span>
+                  </label>
+                  {vizParams.matchTrack && (
+                    <div className="viz-match-options">
+                      <label className="viz-match-option">
+                        <input
+                          type="radio"
+                          name="matchMode"
+                          checked={!useOllamaMatch}
+                          onChange={() => setUseOllamaMatch(false)}
+                        />
+                        <span>Quick Match</span>
+                      </label>
+                      <label className="viz-match-option">
+                        <input
+                          type="radio"
+                          name="matchMode"
+                          checked={useOllamaMatch}
+                          onChange={() => setUseOllamaMatch(true)}
+                          disabled={!ollamaAvailable}
+                        />
+                        <span>AI Match</span>
+                        {ollamaAvailable && <span className="viz-ollama-badge">OLLAMA</span>}
+                      </label>
+                    </div>
+                  )}
+                </div>
+                  <div className="viz-param-row">
+                    <label>Scale Boost</label>
+                    <input type="range" min="0.5" max="3" step="0.1" value={vizParams.scaleBoost} onChange={(e) => setVizParams({...vizParams, scaleBoost: parseFloat(e.target.value)})} />
+                    <span className="viz-param-value">{vizParams.scaleBoost.toFixed(1)}</span>
+                  </div>
+                  <div className="viz-param-row">
+                    <label>Rotation Speed</label>
+                    <input type="range" min="0.1" max="5" step="0.1" value={vizParams.rotationSpeed} onChange={(e) => setVizParams({...vizParams, rotationSpeed: parseFloat(e.target.value)})} />
+                    <span className="viz-param-value">{vizParams.rotationSpeed.toFixed(1)}</span>
+                  </div>
+                  <div className="viz-param-row">
+                    <label>Color Shift</label>
+                    <input type="range" min="0" max="2" step="0.1" value={vizParams.colorShift} onChange={(e) => setVizParams({...vizParams, colorShift: parseFloat(e.target.value)})} />
+                    <span className="viz-param-value">{vizParams.colorShift.toFixed(1)}</span>
+                  </div>
+                  <div className="viz-param-row">
+                    <label>Glow Intensity</label>
+                    <input type="range" min="0" max="1" step="0.05" value={vizParams.glowIntensity} onChange={(e) => setVizParams({...vizParams, glowIntensity: parseFloat(e.target.value)})} />
+                    <span className="viz-param-value">{vizParams.glowIntensity.toFixed(2)}</span>
+                  </div>
+                  <div className="viz-param-row">
+                    <label>Response Speed</label>
+                    <input type="range" min="0.1" max="1" step="0.05" value={vizParams.lerpSpeed} onChange={(e) => setVizParams({...vizParams, lerpSpeed: parseFloat(e.target.value)})} />
+                    <span className="viz-param-value">{vizParams.lerpSpeed.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Material Section */}
+                <div className="viz-param-section">
+                  <p className="viz-param-section-title">Material</p>
+                  <div className="viz-param-row">
+                    <label>Type</label>
+                    <select value={vizParams.materialType} onChange={(e) => setVizParams({...vizParams, materialType: e.target.value as any})}>
+                      <option value="standard">Standard</option>
+                      <option value="metallic">Metallic</option>
+                      <option value="glass">Glass</option>
+                      <option value="neon">Neon</option>
+                      <option value="matte">Matte</option>
+                    </select>
+                  </div>
+                  <div className="viz-param-row">
+                    <label>Wireframe</label>
+                    <input type="checkbox" checked={vizParams.wireframe} onChange={(e) => setVizParams({...vizParams, wireframe: e.target.checked})} />
+                  </div>
+                  <div className="viz-param-row">
+                    <label>Opacity</label>
+                    <input type="range" min="0.1" max="1" step="0.05" value={vizParams.opacity} onChange={(e) => setVizParams({...vizParams, opacity: parseFloat(e.target.value)})} />
+                    <span className="viz-param-value">{vizParams.opacity.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Scene Section */}
+                <div className="viz-param-section">
+                  <p className="viz-param-section-title">Scene</p>
+                  <div className="viz-param-row">
+                    <label>Shadows</label>
+                    <input type="checkbox" checked={vizParams.shadowEnabled} onChange={(e) => setVizParams({...vizParams, shadowEnabled: e.target.checked})} />
+                  </div>
+                  <div className="viz-param-row">
+                    <label>Reflections</label>
+                    <input type="checkbox" checked={vizParams.reflectionEnabled} onChange={(e) => setVizParams({...vizParams, reflectionEnabled: e.target.checked})} />
+                  </div>
+                  <div className="viz-param-row">
+                    <label>Particles</label>
+                    <input type="range" min="0" max="1000" step="50" value={vizParams.particleCount} onChange={(e) => setVizParams({...vizParams, particleCount: parseInt(e.target.value)})} />
+                    <span className="viz-param-value">{vizParams.particleCount}</span>
+                  </div>
+                  <div className="viz-param-row">
+                    <label>Particle Size</label>
+                    <input type="range" min="0.01" max="0.2" step="0.01" value={vizParams.particleSize} onChange={(e) => setVizParams({...vizParams, particleSize: parseFloat(e.target.value)})} />
+                    <span className="viz-param-value">{vizParams.particleSize.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Environment Section */}
+                <div className="viz-param-section">
+                  <p className="viz-param-section-title">Environment</p>
+                  <div className="viz-param-row">
+                    <label>Light Intensity</label>
+                    <input type="range" min="0.2" max="3" step="0.1" value={vizParams.lightIntensity} onChange={(e) => setVizParams({...vizParams, lightIntensity: parseFloat(e.target.value)})} />
+                    <span className="viz-param-value">{vizParams.lightIntensity.toFixed(1)}</span>
+                  </div>
+                  <div className="viz-param-row">
+                    <label>Fog</label>
+                    <input type="checkbox" checked={vizParams.fogEnabled} onChange={(e) => setVizParams({...vizParams, fogEnabled: e.target.checked})} />
+                  </div>
+                  {vizParams.fogEnabled && (
+                    <div className="viz-param-row">
+                      <label>Fog Density</label>
+                      <input type="range" min="0.01" max="0.1" step="0.01" value={vizParams.fogDensity} onChange={(e) => setVizParams({...vizParams, fogDensity: parseFloat(e.target.value)})} />
+                      <span className="viz-param-value">{vizParams.fogDensity.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Props Section */}
+                <div className="viz-param-section">
+                  <p className="viz-param-section-title">Scene Props</p>
+                  <div className="viz-param-row">
+                    <label>Ground</label>
+                    <input type="checkbox" checked={vizParams.showGround} onChange={(e) => setVizParams({...vizParams, showGround: e.target.checked})} />
+                  </div>
+                  <div className="viz-param-row">
+                    <label>Floating Shapes</label>
+                    <input type="checkbox" checked={vizParams.showFloatingShapes} onChange={(e) => setVizParams({...vizParams, showFloatingShapes: e.target.checked})} />
+                  </div>
+                  <div className="viz-param-row">
+                    <label>Light Rays</label>
+                    <input type="checkbox" checked={vizParams.showLightRays} onChange={(e) => setVizParams({...vizParams, showLightRays: e.target.checked})} />
+                  </div>
+                </div>
+
+                {/* Reset Button */}
+                <button className="viz-reset-btn" onClick={() => setVizParams(DEFAULT_VIZ_PARAMS)}>
+                  Reset to Defaults
+                </button>
+              </div>
+            )}
           </Card>
         </div>
       </div>

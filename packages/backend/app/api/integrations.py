@@ -669,6 +669,103 @@ async def get_cuda_status() -> dict:
     }
 
 
+class TrackAnalysisRequest(BaseModel):
+    """Request for Ollama-powered track analysis"""
+    track_name: str
+    prompt: str
+    lyrics: str
+    bpm: int = 120
+
+
+@router.post("/analyze-track")
+async def analyze_track_with_ollama(request: TrackAnalysisRequest) -> dict:
+    """
+    Use Ollama to analyze track data and generate visualization parameters.
+    Creates dynamic visuals synced with CSV track details for improved pattern matching.
+    """
+    import aiohttp
+    
+    # Build analysis prompt for Ollama
+    analysis_prompt = f"""Analyze this music track and generate visualization parameters.
+Track: {request.track_name}
+BPM: {request.bpm}
+Prompt: {request.prompt}
+Lyrics theme: {request.lyrics}
+
+Based on the mood, genre, energy, and themes, provide visualization parameters as JSON:
+{{
+  "visualization_style": "geometric|waveform|particles|neural|cosmic|fractal|pulse|storm",
+  "scale": 0.5-3.0,
+  "scale_boost": 0.5-3.0,
+  "rotation_speed": 0.1-5.0,
+  "color_shift": 0.0-2.0,
+  "glow_intensity": 0.0-1.0,
+  "lerp_speed": 0.1-1.0,
+  "material_type": "standard|metallic|glass|neon|matte",
+  "wireframe": true|false,
+  "opacity": 0.1-1.0,
+  "shadow_enabled": true|false,
+  "reflection_enabled": true|false,
+  "particle_count": 0-1000,
+  "particle_size": 0.01-0.2,
+  "light_intensity": 0.2-3.0,
+  "fog_enabled": true|false,
+  "fog_density": 0.01-0.1,
+  "show_ground": true|false,
+  "show_floating_shapes": true|false,
+  "show_light_rays": true|false,
+  "mood_description": "brief description of detected mood",
+  "visual_concept": "description of the visual concept"
+}}
+
+Respond with ONLY the JSON object, no explanation."""
+    
+    try:
+        # Call Ollama API
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "http://127.0.0.1:11434/api/generate",
+                json={
+                    "model": "llama3.2:latest",
+                    "prompt": analysis_prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.7}
+                },
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                    response_text = result.get("response", "")
+                    
+                    # Parse JSON from response
+                    import json
+                    # Find JSON in response (handle markdown code blocks)
+                    json_str = response_text
+                    if "```json" in json_str:
+                        json_str = json_str.split("```json")[1].split("```")[0]
+                    elif "```" in json_str:
+                        json_str = json_str.split("```")[1].split("```")[0]
+                    
+                    params = json.loads(json_str.strip())
+                    return {
+                        "success": True,
+                        "source": "ollama",
+                        "params": params
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": f"Ollama returned status {resp.status}",
+                        "source": "fallback"
+                    }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "source": "fallback"
+        }
+
+
 @router.post("/cuda/analyze")
 async def cuda_analyze_audio(request: dict) -> dict:
     """
