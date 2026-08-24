@@ -1,0 +1,543 @@
+{
+  "api_version": "1.0.0",
+  "base_url": "/api",
+  "description": "Native Media AI Studio API Reference for AI Agents",
+  "last_updated": "2026-08-24",
+  "authentication": {
+    "type": "none",
+    "description": "No authentication required for local development"
+  },
+  "content_types": {
+    "request": "application/json",
+    "response": "application/json",
+    "file_upload": "multipart/form-data"
+  },
+  "endpoints": {
+    "health": {
+      "description": "System health and status monitoring",
+      "base_path": "/api/health",
+      "methods": {
+        "GET": {
+          "path": "/api/health",
+          "description": "Get overall system health status",
+          "parameters": [],
+          "response": {
+            "type": "object",
+            "properties": {
+              "status": { "type": "string", "enum": ["healthy", "degraded", "unhealthy"] },
+              "adapters": { "type": "object", "description": "Status of individual service adapters" },
+              "timestamp": { "type": "string", "format": "ISO 8601" }
+            }
+          },
+          "example_response": {
+            "status": "healthy",
+            "adapters": {
+              "backend": { "status": "online", "response_time_ms": 45 },
+              "comfyui": { "status": "online", "response_time_ms": 120 }
+            },
+            "timestamp": "2026-08-24T17:58:00Z"
+          }
+        }
+      }
+    },
+    "audio": {
+      "description": "Audio file management, upload, analysis, and streaming",
+      "base_path": "/api/audio",
+      "methods": {
+        "POST": {
+          "path": "/api/audio/upload",
+          "description": "Upload an audio file for music video creation",
+          "content_type": "multipart/form-data",
+          "parameters": [
+            { "name": "file", "type": "file", "required": true, "description": "Audio file (MP3, WAV, FLAC, OGG, M4A, WMA, AAC)" }
+          ],
+          "constraints": {
+            "max_file_size": "500 MB",
+            "allowed_extensions": [".mp3", ".wav", ".flac", ".ogg", ".m4a", ".wma", ".aac"]
+          },
+          "response": {
+            "type": "object",
+            "properties": {
+              "success": { "type": "boolean" },
+              "filename": { "type": "string" },
+              "stored_path": { "type": "string" },
+              "size_bytes": { "type": "integer" },
+              "message": { "type": "string" }
+            }
+          },
+          "example_response": {
+            "success": true,
+            "filename": "my_song.mp3",
+            "stored_path": "D:/.../output/audio/85a406ef_my_song.mp3",
+            "size_bytes": 5242880,
+            "message": "Audio file uploaded successfully (5120 KB)"
+          }
+        },
+        "POST": {
+          "path": "/api/audio/analyze",
+          "description": "Analyze audio file for tempo, beats, sections, and energy curve",
+          "content_type": "multipart/form-data",
+          "parameters": [
+            { "name": "file", "type": "file", "required": true, "description": "Audio file to analyze" }
+          ],
+          "response": {
+            "type": "object",
+            "properties": {
+              "tempo_bpm": { "type": "number", "description": "Detected tempo in beats per minute" },
+              "duration_seconds": { "type": "number", "description": "Total duration in seconds" },
+              "beat_count": { "type": "integer", "description": "Number of detected beats" },
+              "sections": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "enum": ["intro", "verse", "chorus", "bridge", "outro"] },
+                    "start": { "type": "number", "description": "Start time in seconds" },
+                    "end": { "type": "number", "description": "End time in seconds" },
+                    "energy": { "type": "number", "description": "Normalized energy level 0-1" }
+                  }
+                }
+              },
+              "beat_times": { "type": "array", "items": { "type": "number" }, "description": "Array of beat timestamps" },
+              "onset_times": { "type": "array", "items": { "type": "number" }, "description": "Array of onset timestamps" },
+              "energy_curve": { "type": "array", "items": { "type": "number" }, "description": "Normalized amplitude envelope" },
+              "confidence": { "type": "number", "description": "Analysis confidence 0-1" },
+              "job_id": { "type": "string", "description": "Unique analysis job identifier" }
+            }
+          }
+        },
+        "GET": {
+          "path": "/api/audio/files",
+          "description": "List all uploaded audio files",
+          "parameters": [],
+          "response": {
+            "type": "object",
+            "properties": {
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "filename": { "type": "string" },
+                    "size_bytes": { "type": "integer" },
+                    "modified": { "type": "number", "description": "Unix timestamp" },
+                    "path": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "GET": {
+          "path": "/api/audio/file/{filename}",
+          "description": "Serve an audio file by filename (supports streaming)",
+          "parameters": [
+            { "name": "filename", "type": "string", "required": true, "description": "Audio filename (URL-encoded)" }
+          ],
+          "response": {
+            "type": "file",
+            "media_types": {
+              ".mp3": "audio/mpeg",
+              ".wav": "audio/wav",
+              ".flac": "audio/flac",
+              ".ogg": "audio/ogg",
+              ".m4a": "audio/mp4"
+            }
+          },
+          "headers": {
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "public, max-age=3600"
+          }
+        },
+        "GET": {
+          "path": "/api/audio/analysis/{job_id}",
+          "description": "Get analysis result by job ID",
+          "parameters": [
+            { "name": "job_id", "type": "string", "required": true, "description": "Analysis job identifier" }
+          ],
+          "response": {
+            "type": "file",
+            "media_type": "application/json"
+          }
+        }
+      }
+    },
+    "jobs": {
+      "description": "Job management and monitoring",
+      "base_path": "/api/jobs",
+      "methods": {
+        "GET": {
+          "path": "/api/jobs",
+          "description": "List all jobs with optional filtering",
+          "parameters": [
+            { "name": "status", "type": "string", "required": false, "description": "Filter by status: pending, running, completed, failed" },
+            { "name": "limit", "type": "integer", "required": false, "description": "Maximum number of jobs to return" }
+          ],
+          "response": {
+            "type": "object",
+            "properties": {
+              "jobs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "status": { "type": "string", "enum": ["pending", "running", "completed", "failed"] },
+                    "type": { "type": "string" },
+                    "created_at": { "type": "string" },
+                    "updated_at": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "GET": {
+          "path": "/api/jobs/{job_id}",
+          "description": "Get job details by ID",
+          "parameters": [
+            { "name": "job_id", "type": "string", "required": true }
+          ],
+          "response": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "status": { "type": "string" },
+              "type": { "type": "string" },
+              "progress": { "type": "number" },
+              "result": { "type": "object" },
+              "error": { "type": "string" }
+            }
+          }
+        },
+        "DELETE": {
+          "path": "/api/jobs/{job_id}",
+          "description": "Cancel or delete a job",
+          "parameters": [
+            { "name": "job_id", "type": "string", "required": true }
+          ],
+          "response": {
+            "type": "object",
+            "properties": {
+              "success": { "type": "boolean" },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "outputs": {
+      "description": "Output file management (images, videos, audio)",
+      "base_path": "/api/outputs",
+      "methods": {
+        "GET": {
+          "path": "/api/outputs",
+          "description": "List all output files with optional filtering",
+          "parameters": [
+            { "name": "file_type", "type": "string", "required": false, "description": "Filter by type: image, video, audio" },
+            { "name": "limit", "type": "integer", "required": false }
+          ],
+          "response": {
+            "type": "object",
+            "properties": {
+              "outputs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "filename": { "type": "string" },
+                    "file_type": { "type": "string" },
+                    "size_bytes": { "type": "integer" },
+                    "created_at": { "type": "string" },
+                    "thumbnail_url": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "GET": {
+          "path": "/api/outputs/{filename}",
+          "description": "Serve an output file",
+          "parameters": [
+            { "name": "filename", "type": "string", "required": true }
+          ],
+          "response": {
+            "type": "file"
+          }
+        },
+        "DELETE": {
+          "path": "/api/outputs/{filename}",
+          "description": "Delete an output file",
+          "parameters": [
+            { "name": "filename", "type": "string", "required": true }
+          ],
+          "response": {
+            "type": "object",
+            "properties": {
+              "success": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "integrations": {
+      "description": "External service integrations status and control",
+      "base_path": "/api/integrations",
+      "methods": {
+        "GET": {
+          "path": "/api/integrations",
+          "description": "List all integration statuses",
+          "parameters": [],
+          "response": {
+            "type": "object",
+            "properties": {
+              "integrations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string" },
+                    "status": { "type": "string", "enum": ["online", "offline", "error"] },
+                    "version": { "type": "string" },
+                    "last_check": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "comfyui": {
+      "description": "ComfyUI workflow and generation management",
+      "base_path": "/api/comfyui",
+      "methods": {
+        "GET": {
+          "path": "/api/comfyui/status",
+          "description": "Get ComfyUI server status",
+          "parameters": [],
+          "response": {
+            "type": "object",
+            "properties": {
+              "status": { "type": "string" },
+              "queue_length": { "type": "integer" },
+              "current_job": { "type": "string" }
+            }
+          }
+        },
+        "POST": {
+          "path": "/api/comfyui/generate",
+          "description": "Submit a generation request",
+          "content_type": "application/json",
+          "parameters": [
+            { "name": "prompt", "type": "string", "required": true },
+            { "name": "negative_prompt", "type": "string", "required": false },
+            { "name": "width", "type": "integer", "required": false, "default": 1024 },
+            { "name": "height", "type": "integer", "required": false, "default": 1024 },
+            { "name": "steps", "type": "integer", "required": false, "default": 20 },
+            { "name": "cfg_scale", "type": "number", "required": false, "default": 7.0 }
+          ],
+          "response": {
+            "type": "object",
+            "properties": {
+              "job_id": { "type": "string" },
+              "status": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "data": {
+      "description": "Data access and query endpoints",
+      "base_path": "/api/data",
+      "methods": {
+        "GET": {
+          "path": "/api/data/prompts",
+          "description": "List saved prompts",
+          "parameters": [
+            { "name": "limit", "type": "integer", "required": false }
+          ],
+          "response": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "text": { "type": "string" },
+                "created_at": { "type": "string" }
+              }
+            }
+          }
+        },
+        "POST": {
+          "path": "/api/data/prompts",
+          "description": "Save a new prompt",
+          "parameters": [
+            { "name": "text", "type": "string", "required": true }
+          ],
+          "response": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "text": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "video": {
+      "description": "Video generation and management",
+      "base_path": "/api/video",
+      "methods": {
+        "POST": {
+          "path": "/api/video/generate-section",
+          "description": "Generate a video section",
+          "parameters": [
+            { "name": "audio_path", "type": "string", "required": true },
+            { "name": "section", "type": "object", "required": true },
+            { "name": "style", "type": "string", "required": false }
+          ],
+          "response": {
+            "type": "object",
+            "properties": {
+              "job_id": { "type": "string" },
+              "status": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "logs": {
+      "description": "System logs access",
+      "base_path": "/api/logs",
+      "methods": {
+        "GET": {
+          "path": "/api/logs",
+          "description": "Get system logs",
+          "parameters": [
+            { "name": "level", "type": "string", "required": false, "description": "Log level filter: debug, info, warning, error" },
+            { "name": "limit", "type": "integer", "required": false }
+          ],
+          "response": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "timestamp": { "type": "string" },
+                "level": { "type": "string" },
+                "message": { "type": "string" },
+                "source": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "docs": {
+      "description": "Documentation and knowledge base",
+      "base_path": "/api/docs",
+      "methods": {
+        "GET": {
+          "path": "/api/docs/structure",
+          "description": "Get documentation structure",
+          "parameters": [],
+          "response": {
+            "type": "object",
+            "properties": {
+              "sections": { "type": "array" }
+            }
+          }
+        },
+        "GET": {
+          "path": "/api/docs/bootstrap",
+          "description": "Get documentation bootstrap data",
+          "parameters": [],
+          "response": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  },
+  "websocket": {
+    "description": "Real-time WebSocket connection for live updates",
+    "path": "/ws",
+    "protocol": "WebSocket",
+    "events": {
+      "job_update": {
+        "description": "Job status updates",
+        "payload": {
+          "job_id": "string",
+          "status": "string",
+          "progress": "number"
+        }
+      },
+      "health_update": {
+        "description": "Health status changes",
+        "payload": {
+          "status": "string",
+          "adapters": "object"
+        }
+      },
+      "log_entry": {
+        "description": "New log entries",
+        "payload": {
+          "timestamp": "string",
+          "level": "string",
+          "message": "string"
+        }
+      }
+    }
+  },
+  "error_handling": {
+    "format": {
+      "type": "object",
+      "properties": {
+        "detail": { "type": "string", "description": "Error message" },
+        "status_code": { "type": "integer", "description": "HTTP status code" }
+      }
+    },
+    "common_errors": {
+      "400": "Bad Request - Invalid parameters or file type",
+      "404": "Not Found - Resource does not exist",
+      "413": "Payload Too Large - File exceeds size limit",
+      "500": "Internal Server Error - Processing failed",
+      "503": "Service Unavailable - Required dependency missing"
+    }
+  },
+  "usage_examples": {
+    "upload_audio": {
+      "description": "Upload an audio file",
+      "language": "javascript",
+      "code": "const formData = new FormData();\nformData.append('file', audioFile);\nconst res = await fetch('/api/audio/upload', {\n  method: 'POST',\n  body: formData\n});\nconst data = await res.json();"
+    },
+    "analyze_audio": {
+      "description": "Analyze an audio file",
+      "language": "javascript",
+      "code": "const formData = new FormData();\nformData.append('file', audioFile);\nconst res = await fetch('/api/audio/analyze', {\n  method: 'POST',\n  body: formData\n});\nconst analysis = await res.json();\n// analysis.tempo_bpm, analysis.beat_times, analysis.sections"
+    },
+    "get_audio_file_url": {
+      "description": "Get URL for streaming an audio file",
+      "language": "javascript",
+      "code": "const filename = encodeURIComponent('my_song.mp3');\nconst audioUrl = `/api/audio/file/${filename}`;\n// Use in <audio src={audioUrl} />"
+    },
+    "list_jobs": {
+      "description": "List all jobs",
+      "language": "javascript",
+      "code": "const res = await fetch('/api/jobs?status=running&limit=10');\nconst data = await res.json();"
+    }
+  },
+  "agent_guidelines": {
+    "description": "Guidelines for AI agents interacting with this API",
+    "best_practices": [
+      "Always URL-encode filenames when using them in API paths",
+      "Handle multipart/form-data for file uploads (don't set Content-Type header manually)",
+      "Check job status before attempting to retrieve results",
+      "Use WebSocket for real-time updates instead of polling when possible",
+      "Cache analysis results to avoid re-analyzing the same file"
+    ],
+    "rate_limiting": "No rate limiting for local development",
+    "retry_strategy": "Exponential backoff for 5xx errors, max 3 retries"
+  }
+}
