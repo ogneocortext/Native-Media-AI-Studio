@@ -201,6 +201,7 @@ export function Visualizer() {
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Load available tracks from API on mount
@@ -219,21 +220,30 @@ export function Visualizer() {
   // Setup Web Audio graph when audioUrl changes
   useEffect(() => {
     if (!audioUrl) return;
-    let ctx: AudioContext | null = null;
-    let analyser: AnalyserNode | null = null;
-    let source: MediaElementAudioSourceNode | null = null;
     const el = audioElRef.current;
     if (!el) return;
 
     const setup = async () => {
       try {
-        ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        // Disconnect previous source if exists to avoid "already connected" error
+        if (sourceRef.current) {
+          try { sourceRef.current.disconnect(); } catch { /* ignore */ }
+          sourceRef.current = null;
+        }
+        // Close previous context if exists
+        if (audioCtxRef.current) {
+          try { await audioCtxRef.current.close(); } catch { /* ignore */ }
+          audioCtxRef.current = null;
+        }
+
+        const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
         audioCtxRef.current = ctx;
-        analyser = ctx.createAnalyser();
+        const analyser = ctx.createAnalyser();
         analyser.fftSize = 512;
         analyser.smoothingTimeConstant = 0.75;
         analyserRef.current = analyser;
-        source = ctx.createMediaElementSource(el);
+        const source = ctx.createMediaElementSource(el);
+        sourceRef.current = source;
         source.connect(analyser);
         analyser.connect(ctx.destination);
         if (ctx.state === "suspended") await ctx.resume();
@@ -243,9 +253,12 @@ export function Visualizer() {
     };
     setup();
     return () => {
-      try { source?.disconnect(); analyser?.disconnect(); ctx?.close(); } catch { /* ignore */ }
+      try { sourceRef.current?.disconnect(); } catch { /* ignore */ }
+      try { analyserRef.current?.disconnect(); } catch { /* ignore */ }
+      try { audioCtxRef.current?.close(); } catch { /* ignore */ }
       analyserRef.current = null;
       audioCtxRef.current = null;
+      sourceRef.current = null;
     };
   }, [audioUrl]);
 
