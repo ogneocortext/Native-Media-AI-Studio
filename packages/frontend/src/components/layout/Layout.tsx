@@ -8,9 +8,9 @@ export function Layout({ children }: LayoutProps) {
   useEffect(() => { startAutoRefresh(); return stopAutoRefresh; }, []);
 
   return (
-    <div style={{ display: "flex", height: "100vh", width: "100vw", overflow: "hidden", background: "#0a0a0f" }}>
+    <div className="layout-root">
       <Sidebar />
-      <main style={{ flex: 1, overflow: "auto", minWidth: 0, height: "100%", background: "#0a0a0f" }}>
+      <main className="layout-main">
         {children}
       </main>
     </div>

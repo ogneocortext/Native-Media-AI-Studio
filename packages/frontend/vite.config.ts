@@ -77,6 +77,12 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss()],
+    css: {
+      transformer: 'postcss',
+    },
+    build: {
+      cssMinify: 'esbuild',
+    },
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
