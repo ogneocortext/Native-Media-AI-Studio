@@ -943,6 +943,75 @@
   margin-left: auto;
 }
 
+.viz-concept-info {
+  padding: 0.5rem;
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.viz-concept-label {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-bottom: 0.25rem;
+}
+
+.viz-concept-moods {
+  font-size: 0.75rem;
+  color: #d1d5db;
+  font-weight: 500;
+}
+
+.viz-concept-recommended {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: 0.25rem;
+}
+
+.viz-concept-recommended-style {
+  color: #a78bfa;
+  font-weight: 600;
+}
+
+.viz-style-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.viz-style-btn {
+  padding: 0.5rem 0.25rem;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 0.5rem;
+  color: #9ca3af;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.viz-style-btn:hover {
+  border-color: #6366f1;
+  color: white;
+}
+
+.viz-style-btn.active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: white;
+}
+
+.viz-style-name {
+  font-weight: 500;
+}
+
+.viz-style-description {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
 .viz-beat-indicator {
   display: flex;
   align-items: center;

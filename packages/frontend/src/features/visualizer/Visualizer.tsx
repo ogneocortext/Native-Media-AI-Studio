@@ -4,8 +4,16 @@ import { OrbitControls, Icosahedron } from "@react-three/drei";
 import { Html } from "@react-three/drei";
 import { Card } from "../../components/common";
 import * as THREE from "three";
-import { Upload, Music, AlertCircle, Play, Pause, Volume2, FolderOpen, Maximize2, Camera, Waves } from "lucide-react";
+import { Upload, Music, AlertCircle, Play, Pause, Volume2, FolderOpen, Maximize2, Camera, Waves, Palette, Sparkles } from "lucide-react";
 import { listAudioFiles } from "../../services/api";
+import { 
+  parseTrackCSV, 
+  getVisualizationForTrack, 
+  VISUALIZATION_OPTIONS, 
+  VisualizationStyle, 
+  TrackConcept 
+} from "./trackConceptAnalyzer";
+import { WaveformViz, ParticleStormViz, NeuralViz, CosmicViz, PulseViz } from "./VisualizationStyles";
 
 interface AudioData { bass: number; mid: number; treble: number; overall: number; beat: boolean; }
 
@@ -222,12 +230,14 @@ function VisualizerScene({
   demoEnabled,
   demoBpm,
   onAudioData,
+  visualizationStyle,
 }: {
   analyserRef: React.MutableRefObject<AnalyserNode | null>;
   isPlaying: boolean;
   demoEnabled: boolean;
   demoBpm: number;
   onAudioData?: (data: AudioData) => void;
+  visualizationStyle: VisualizationStyle;
 }) {
   const realData = useRealAudio(analyserRef, isPlaying);
   const demoData = useDemoAudio(demoEnabled && !isPlaying, demoBpm);
@@ -243,13 +253,35 @@ function VisualizerScene({
     }
   }, [audioData, onAudioData]);
 
+  const renderVisualization = () => {
+    switch (visualizationStyle) {
+      case "waveform":
+        return <WaveformViz audioData={audioData} />;
+      case "particles":
+        return <ParticleStormViz audioData={audioData} />;
+      case "neural":
+        return <NeuralViz audioData={audioData} />;
+      case "cosmic":
+        return <CosmicViz audioData={audioData} />;
+      case "pulse":
+        return <PulseViz audioData={audioData} />;
+      case "geometric":
+      default:
+        return (
+          <>
+            <AudioReactiveShape audioData={audioData} />
+            <ParticleField count={250} audioData={audioData} />
+          </>
+        );
+    }
+  };
+
   return (
     <>
       <ambientLight intensity={0.4} />
       <pointLight position={[10, 10, 10]} intensity={1.2} color="#fff" />
       <pointLight position={[-5, -5, 5]} intensity={0.8} color="#818cf8" />
-      <AudioReactiveShape audioData={audioData} />
-      <ParticleField count={250} audioData={audioData} />
+      {renderVisualization()}
       <OrbitControls enableZoom enablePan enableRotate minDistance={2} maxDistance={10} autoRotate={!isPlaying && !demoEnabled} autoRotateSpeed={0.3} />
       <FPSCounter />
     </>
@@ -281,6 +313,10 @@ export function Visualizer() {
   const [spectrumIntensity, setSpectrumIntensity] = useState(1);
   const [cudaEnabled, setCudaEnabled] = useState(false);
   const [cudaStatus, setCudaStatus] = useState<"unavailable" | "available" | "active">("unavailable");
+  const [visualizationStyle, setVisualizationStyle] = useState<VisualizationStyle>("geometric");
+  const [trackConcept, setTrackConcept] = useState<TrackConcept | null>(null);
+  const [showVizSelector, setShowVizSelector] = useState(false);
+  const [csvContent, setCsvContent] = useState<string>("");
 
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -288,6 +324,14 @@ export function Visualizer() {
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const trackNameInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Load CSV content on mount
+  useEffect(() => {
+    fetch("/-TrackName-Prompt-Lyricskeyexcerpttheme.csv")
+      .then((r) => r.text())
+      .then((content) => setCsvContent(content))
+      .catch(() => console.log("CSV not found"));
+  }, []);
 
   // Load available tracks from API on mount
   useEffect(() => {
@@ -370,6 +414,16 @@ export function Visualizer() {
     const encodedFilename = encodeURIComponent(filename);
     setAudioUrl(`/api/audio/file/${encodedFilename}`);
     setDemoEnabled(false);
+    
+    // Analyze track concept and recommend visualization
+    if (csvContent) {
+      const cleanName = filename.replace(/^\w{8}_/, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "");
+      const concept = getVisualizationForTrack(cleanName, csvContent);
+      if (concept) {
+        setTrackConcept(concept);
+        setVisualizationStyle(concept.recommendedViz);
+      }
+    }
   };
 
   const handleSaveTrackName = () => {
@@ -421,6 +475,7 @@ export function Visualizer() {
                     demoEnabled={demoEnabled}
                     demoBpm={demoBpm}
                     onAudioData={setLiveAudioData}
+                    visualizationStyle={visualizationStyle}
                   />
                 </Suspense>
               </Canvas>
@@ -670,6 +725,40 @@ export function Visualizer() {
                   />
                 </div>
               </div>
+            </Card>
+          </Card>
+
+          {/* Visualization Style Selector */}
+          <Card title="Visualization Style" className="viz-controls-card">
+            <div className="viz-controls-content">
+              {trackConcept && (
+                <div className="viz-concept-info">
+                  <p className="viz-concept-label">Track Analysis:</p>
+                  <p className="viz-concept-moods">
+                    {trackConcept.mood.join(", ")} • {trackConcept.genre.join(", ")} • {trackConcept.bpm} BPM
+                  </p>
+                  <p className="viz-concept-recommended">
+                    Recommended: <span className="viz-concept-recommended-style">
+                      {VISUALIZATION_OPTIONS.find(v => v.id === trackConcept.recommendedViz)?.name}
+                    </span>
+                  </p>
+                </div>
+              )}
+              <div className="viz-style-grid">
+                {VISUALIZATION_OPTIONS.map((viz) => (
+                  <button
+                    key={viz.id}
+                    className={`viz-style-btn ${visualizationStyle === viz.id ? "active" : ""}`}
+                    onClick={() => setVisualizationStyle(viz.id)}
+                    title={viz.description}
+                  >
+                    <span className="viz-style-name">{viz.name}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="viz-style-description">
+                {VISUALIZATION_OPTIONS.find(v => v.id === visualizationStyle)?.description}
+              </p>
             </div>
           </Card>
         </div>
