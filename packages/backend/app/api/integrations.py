@@ -677,7 +677,108 @@ class TrackAnalysisRequest(BaseModel):
     bpm: int = 120
 
 
-@router.post("/analyze-track")
+@router.post("/analyze-track-stream")
+async def analyze_track_stream(request: TrackAnalysisRequest):
+    """
+    Stream Ollama analysis in real-time with progress updates.
+    Generates visualization code that can be previewed.
+    """
+    import aiohttp
+    import hashlib
+    import json
+    
+    # Generate track hash for caching
+    track_hash = hashlib.md5(f"{request.track_name}{request.prompt}".encode()).hexdigest()
+    
+    # Check for existing preset
+    from ..core.database import (
+        get_visualization_preset, save_visualization_preset,
+        get_available_ollama_models, get_latest_system_resources
+    )
+    
+    existing = get_visualization_preset(track_hash)
+    if existing:
+        yield {"type": "cached", "params": existing["params"], "html": existing.get("html", "")}
+        return
+    
+    # Get available models
+    resources = get_latest_system_resources()
+    vram_free = resources.get("gpu_memory_free", 4000) if resources else 4000
+    available_models = get_available_ollama_models(vram_free)
+    
+    if not available_models:
+        yield {"type": "error", "message": "No Ollama models available with sufficient VRAM"}
+        return
+    
+    model_name = available_models[0].get("model_name", "llama3.2:latest")
+    
+    # Build prompt that generates HTML visualization code
+    analysis_prompt = f"""Create a complete standalone HTML visualization for this music track.
+Track: {request.track_name}
+BPM: {request.bpm}
+Prompt: {request.prompt}
+Lyrics theme: {request.lyrics}
+
+Generate a complete HTML file with embedded CSS and JavaScript that creates an audio-reactive visualization.
+Use Canvas API or Three.js from CDN. The visualization should:
+- React to audio frequencies (bass, mid, treble)
+- Match the mood and energy of the track
+- Be visually stunning and unique
+- Include animation loops and smooth transitions
+
+Respond with ONLY the complete HTML code, no explanation."""
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "http://127.0.0.1:11434/api/generate",
+                json={
+                    "model": model_name,
+                    "prompt": analysis_prompt,
+                    "stream": True,
+                    "options": {"temperature": 0.7}
+                },
+                timeout=aiohttp.ClientTimeout(total=120)
+            ) as resp:
+                if resp.status == 200:
+                    full_response = ""
+                    async for line in resp.content:
+                        line_str = line.decode("utf-8").strip()
+                        if line_str:
+                            try:
+                                data = json.loads(line_str)
+                                chunk = data.get("response", "")
+                                full_response += chunk
+                                yield {"type": "streaming", "chunk": chunk, "done": data.get("done", False)}
+                            except json.JSONDecodeError:
+                                pass
+                    
+                    # Extract HTML from response
+                    html_code = full_response
+                    if "```html" in html_code:
+                        html_code = html_code.split("```html")[1].split("```")[0]
+                    elif "```" in html_code:
+                        html_code = html_code.split("```")[1].split("```")[0]
+                    
+                    # Save to database
+                    save_visualization_preset({
+                        "track_name": request.track_name,
+                        "track_hash": track_hash,
+                        "preset_name": f"{request.track_name} (AI)",
+                        "visualization_style": "custom",
+                        "params": {},
+                        "ollama_model": model_name,
+                        "prompt": request.prompt,
+                        "lyrics": request.lyrics,
+                        "bpm": request.bpm,
+                        "html": html_code,
+                    })
+                    
+                    yield {"type": "complete", "html": html_code}
+                else:
+                    yield {"type": "error", "message": f"Ollama returned status {resp.status}"}
+    except Exception as e:
+        yield {"type": "error", "message": str(e)}
 async def analyze_track_with_ollama(request: TrackAnalysisRequest) -> dict:
     """
     Use Ollama to analyze track data and generate visualization parameters.

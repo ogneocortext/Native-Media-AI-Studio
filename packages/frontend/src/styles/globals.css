@@ -1457,6 +1457,65 @@
   accent-color: #6366f1;
 }
 
+/* Ollama Streaming */
+.viz-streaming {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 0.5rem;
+}
+
+.viz-streaming-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6366f1;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.viz-streaming span {
+  font-size: 0.7rem;
+  color: #a5b4fc;
+}
+
+/* HTML Preview */
+.viz-preview {
+  margin-top: 0.75rem;
+}
+
+.viz-preview-btn {
+  width: 100%;
+  padding: 0.5rem;
+  background: #374151;
+  color: #d1d5db;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.viz-preview-btn:hover {
+  background: #4b5563;
+}
+
+.viz-preview-iframe {
+  width: 100%;
+  height: 300px;
+  margin-top: 0.5rem;
+  border: 1px solid #374151;
+  border-radius: 0.5rem;
+  background: #000;
+}
+
 .viz-concept-info {
   padding: 0.5rem;
   background: rgba(99, 102, 241, 0.1);

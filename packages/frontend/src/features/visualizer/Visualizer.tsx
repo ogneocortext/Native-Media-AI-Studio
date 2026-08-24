@@ -537,7 +537,11 @@ export function Visualizer() {
     // Try Ollama-powered analysis if selected and available
     if (useOllama && ollamaAvailable) {
       try {
-        const res = await fetch("/api/integrations/analyze-track", {
+        setOllamaStreaming(true);
+        setOllamaProgress("Connecting to Ollama...");
+        setGeneratedHtml("");
+        
+        const res = await fetch("/api/integrations/analyze-track-stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -549,41 +553,46 @@ export function Visualizer() {
         });
         
         if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.params) {
-            const p = data.params;
-            const params = { ...vizParams };
-            
-            // Apply Ollama-generated parameters
-            if (p.visualization_style) {
-              setVisualizationStyle(p.visualization_style);
+          const reader = res.body?.getReader();
+          const decoder = new TextDecoder();
+          let fullHtml = "";
+          
+          if (reader) {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              
+              const chunk = decoder.decode(value);
+              const lines = chunk.split("\n").filter(line => line.trim());
+              
+              for (const line of lines) {
+                try {
+                  const data = JSON.parse(line);
+                  if (data.type === "streaming") {
+                    setOllamaProgress(`Generating: ${data.chunk.substring(0, 50)}...`);
+                    fullHtml += data.chunk;
+                  } else if (data.type === "complete") {
+                    setOllamaProgress("Complete!");
+                    setGeneratedHtml(data.html);
+                  } else if (data.type === "cached") {
+                    setOllamaProgress("Using cached result");
+                    if (data.html) setGeneratedHtml(data.html);
+                  } else if (data.type === "error") {
+                    setOllamaProgress(`Error: ${data.message}`);
+                  }
+                } catch (e) {
+                  // Ignore parse errors
+                }
+              }
             }
-            if (p.scale) params.scale = Math.max(0.5, Math.min(3.0, p.scale));
-            if (p.scale_boost) params.scaleBoost = Math.max(0.5, Math.min(3.0, p.scale_boost));
-            if (p.rotation_speed) params.rotationSpeed = Math.max(0.1, Math.min(5.0, p.rotation_speed));
-            if (p.color_shift) params.colorShift = Math.max(0, Math.min(2.0, p.color_shift));
-            if (p.glow_intensity) params.glowIntensity = Math.max(0, Math.min(1.0, p.glow_intensity));
-            if (p.lerp_speed) params.lerpSpeed = Math.max(0.1, Math.min(1.0, p.lerp_speed));
-            if (p.material_type) params.materialType = p.material_type;
-            if (p.wireframe !== undefined) params.wireframe = p.wireframe;
-            if (p.opacity) params.opacity = Math.max(0.1, Math.min(1.0, p.opacity));
-            if (p.shadow_enabled !== undefined) params.shadowEnabled = p.shadow_enabled;
-            if (p.reflection_enabled !== undefined) params.reflectionEnabled = p.reflection_enabled;
-            if (p.particle_count) params.particleCount = Math.max(0, Math.min(1000, p.particle_count));
-            if (p.particle_size) params.particleSize = Math.max(0.01, Math.min(0.2, p.particle_size));
-            if (p.light_intensity) params.lightIntensity = Math.max(0.2, Math.min(3.0, p.light_intensity));
-            if (p.fog_enabled !== undefined) params.fogEnabled = p.fog_enabled;
-            if (p.fog_density) params.fogDensity = Math.max(0.01, Math.min(0.1, p.fog_density));
-            if (p.show_ground !== undefined) params.showGround = p.show_ground;
-            if (p.show_floating_shapes !== undefined) params.showFloatingShapes = p.show_floating_shapes;
-            if (p.show_light_rays !== undefined) params.showLightRays = p.show_light_rays;
-            
-            setVizParams(params);
-            return;
           }
+          
+          setOllamaStreaming(false);
+          return;
         }
       } catch (e) {
         console.log("Ollama analysis failed, using fallback");
+        setOllamaStreaming(false);
       }
     }
     
@@ -651,7 +660,10 @@ export function Visualizer() {
     checkOllama();
   }, []);
 
-  const [activePanel, setActivePanel] = useState<string>("source");
+  const [ollamaStreaming, setOllamaStreaming] = useState(false);
+  const [ollamaProgress, setOllamaProgress] = useState("");
+  const [generatedHtml, setGeneratedHtml] = useState<string>("");
+  const [showPreview, setShowPreview] = useState(false);
 
   const togglePanel = (panel: string) => {
     setActivePanel(activePanel === panel ? "" : panel);
@@ -796,6 +808,29 @@ export function Visualizer() {
                       <span>AI</span>
                       {ollamaAvailable && <span className="viz-ollama-badge">AI</span>}
                     </label>
+                  </div>
+                )}
+                {/* Ollama Streaming Progress */}
+                {ollamaStreaming && (
+                  <div className="viz-streaming">
+                    <div className="viz-streaming-dot" />
+                    <span>{ollamaProgress}</span>
+                  </div>
+                )}
+                {/* Generated HTML Preview */}
+                {generatedHtml && !ollamaStreaming && (
+                  <div className="viz-preview">
+                    <button className="viz-preview-btn" onClick={() => setShowPreview(!showPreview)}>
+                      {showPreview ? "Hide Preview" : "Show Preview"}
+                    </button>
+                    {showPreview && (
+                      <iframe
+                        srcDoc={generatedHtml}
+                        className="viz-preview-iframe"
+                        title="Visualization Preview"
+                        sandbox="allow-scripts"
+                      />
+                    )}
                   </div>
                 )}
               </div>
