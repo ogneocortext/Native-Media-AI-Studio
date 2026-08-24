@@ -1,0 +1,81 @@
+/* nstudio-headers.css — editorial, engaging headings + in-doc TOC feel
+   Works standalone or with nstudio-pro.css.
+*/
+
+.markdown-preview-view h1 {
+  font-size: 2.05em;
+  font-weight: 850;
+  letter-spacing: -.035em;
+  line-height: 1.12;
+  margin: 1.5em 0 .55em;
+  padding-bottom: .35em;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  position: relative;
+}
+/* Gradient underline rail */
+.markdown-preview-view h1::after {
+  content: "";
+  position: absolute;
+  left: 0; bottom: -1px;
+  width: 64px; height: 3px;
+  background: linear-gradient(90deg, hsl(262 83% 58%), transparent);
+  border-radius: 2px;
+}
+/* Optional emoji in your titles gets a subtle lift */
+.markdown-preview-view h1 .emoji, .markdown-preview-view h1 span { vertical-align: middle; }
+
+.markdown-preview-view h2 {
+  font-size: 1.42em;
+  font-weight: 770;
+  letter-spacing: -.022em;
+  margin: 1.7em 0 .45em;
+  padding-left: 12px;
+  border-left: 3px solid hsl(262 83% 58%);
+  line-height: 1.28;
+}
+.markdown-preview-view h2 + p { margin-top: .4em; }
+
+.markdown-preview-view h3 {
+  font-size: 1.14em;
+  font-weight: 720;
+  letter-spacing: -.015em;
+  margin: 1.35em 0 .35em;
+  color: var(--text-normal);
+}
+.markdown-preview-view h3::after {
+  content: "";
+  display: block;
+  width: 28px; height: 2px; margin-top: 8px;
+  background: rgba(124,92,255,.45);
+  border-radius: 1px;
+}
+
+.markdown-preview-view h4 {
+  font-size: .92em;
+  font-weight: 740;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 1.4em 0 .35em;
+}
+
+/* Anchor hover — shows # without clutter */
+.markdown-preview-view h1:hover::before,
+.markdown-preview-view h2:hover::before,
+.markdown-preview-view h3:hover::before {
+  content: "#";
+  position: absolute;
+  left: -18px;
+  color: rgba(124,92,255,.35);
+  font-weight: 400;
+}
+.markdown-preview-view h1, .markdown-preview-view h2, .markdown-preview-view h3 { position: relative; }
+
+/* knowledge-index hero — gradient text for your vault landing */
+.knowledge-index h1 {
+  background: linear-gradient(90deg, #ffffff 0%, #ddd6fe 45%, #a78bfa 85%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  border-bottom: none;
+}
+.knowledge-index h1::after { display: none; }

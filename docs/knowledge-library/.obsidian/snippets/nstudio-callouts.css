@@ -1,0 +1,85 @@
+/* nstudio-callouts.css — professional, engaging callouts
+   Extends Obsidian callouts to feel like Linear / Stripe docs.
+   Requires nstudio-pro.css (shares tokens). Toggle independently if you
+   want only callouts without full theme.
+   Enable: Appearance → CSS Snippets → nstudio-callouts
+*/
+
+/* Base — card with left rail instead of full border */
+.callout {
+  --callout-radius: 14px;
+  --callout-shadow: 0 8px 28px rgba(0,0,0,.16), 0 1px 0 rgba(255,255,255,.05) inset;
+  border: 1px solid rgba(255,255,255,.07);
+  border-left-width: 4px;
+  border-radius: var(--callout-radius);
+  box-shadow: var(--callout-shadow);
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+  backdrop-filter: blur(2px);
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.callout:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 32px rgba(0,0,0,.22);
+}
+
+/* Title bar — subtle tinted header */
+.callout-title {
+  padding: 9px 14px 8px;
+  font-weight: 750;
+  letter-spacing: -.015em;
+  font-size: 0.92em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  background: linear-gradient(180deg, rgba(255,255,255,.05), transparent);
+}
+.callout-title .callout-icon { opacity: .95; }
+.callout-content {
+  padding: 10px 14px 12px;
+  font-size: 0.95em;
+  line-height: 1.65;
+  color: var(--text-normal);
+}
+.callout-content p { margin-block: .5em; }
+.callout-content ul, .callout-content ol { margin-block: .6em; }
+
+/* Vault-specific callout mapping — matches your [!info]/[!tip] usage */
+.callout[data-callout="info"]       { border-left-color: #38bdf8; }
+.callout[data-callout="info"] .callout-title    { background: linear-gradient(180deg, rgba(56,189,248,.14), transparent); color: #e0f2fe; }
+.callout[data-callout="tip"]        { border-left-color: #34d399; }
+.callout[data-callout="tip"] .callout-title     { background: linear-gradient(180deg, rgba(52,211,153,.14), transparent); color: #d1fae5; }
+.callout[data-callout="warning"]    { border-left-color: #f59e0b; }
+.callout[data-callout="warning"] .callout-title { background: linear-gradient(180deg, rgba(245,158,11,.16), transparent); color: #fef3c7; }
+.callout[data-callout="note"]       { border-left-color: #a78bfa; }
+.callout[data-callout="note"] .callout-title    { background: linear-gradient(180deg, rgba(167,139,250,.16), transparent); color: #ede9fe; }
+.callout[data-callout="example"]    { border-left-color: #f472b6; }
+.callout[data-callout="example"] .callout-title { background: linear-gradient(180deg, rgba(244,114,182,.14), transparent); color: #fce7f3; }
+.callout[data-callout="important"],
+.callout[data-callout="critical"]   { border-left-color: #ef4444; }
+.callout[data-callout="important"] .callout-title,
+.callout[data-callout="critical"] .callout-title { background: linear-gradient(180deg, rgba(239,68,68,.16), transparent); color: #fee2e2; }
+
+/* Collapsible callouts — chevron polish */
+.callout.is-collapsed .callout-title::after {
+  content: "▸";
+  margin-left: auto;
+  opacity: .5;
+  font-size: .85em;
+}
+.callout:not(.is-collapsed) .callout-title::after {
+  content: "▾";
+  margin-left: auto;
+  opacity: .45;
+  font-size: .85em;
+}
+
+/* Light theme tweaks */
+.theme-light .callout {
+  background: linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.75));
+  border-color: rgba(0,0,0,.06);
+}
+.theme-light .callout-title {
+  border-bottom-color: rgba(0,0,0,.06);
+}

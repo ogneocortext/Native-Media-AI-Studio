@@ -1,0 +1,28 @@
+{
+  "title": "Still I Rise — Nathaniel Smalley",
+  "duration": 234.12,
+  "fps": 30,
+  "bpm": 99.4,
+  "key": "Bb Major",
+  "sequences": [
+    { "id": "S01", "section": "INTRO", "start": 0, "end": 18, "lyrics": ["Midnight hums in shades of blue", "A map unwritten, waiting to be drawn anew"], "visual": "Wide empty horizon, starfield, map on ground faint", "camera": "Slow push 0.99→1.01, letterbox 18px", "palette": "220° slate 0.62", "blender": "scenery only", "typography": "Mono pill top only", "transition": "Light leak wipe blue" },
+    { "id": "S02", "section": "VERSE 01a", "start": 18, "end": 47, "lyrics": ["I walk where the streetlight loses its name", "Learning the language of a different rain", "Each wrong turn leaves a mark on my sleeve", "Proof of the roads I was scared to believe"], "visual": "Streetlight close, rain vertical streaks, sleeve fabric close", "camera": "Handheld 8px sin(t*0.14)", "palette": "198° sky", "blender": "props streetlight + character 560", "typography": "Bento glass 19px per-word stagger 0.16s" },
+    { "id": "S03", "section": "VERSE 01b", "start": 47, "end": 67, "lyrics": ["The horizon moves, so I move with it too", "Past all the rules that never came true", "I wear the unknown like a second skin", "Keeping one small match alive in the wind"], "visual": "Horizon parallax 12px, match flame emissive 11 as anchor", "camera": "Tilt up 2°, pan right", "palette": "198° →205° with bass", "blender": "scenery parallax + flame", "typography": "Collage ghost text layer 0.12" },
+    { "id": "S04", "section": "CHORUS 01", "start": 67, "end": 88, "lyrics": ["Still I rise before the fade", "Still I chase the light I made", "Out on the edge where tomorrow waits", "I'm becoming what tomorrow makes"], "visual": "Hero mantra, crystal bloom mirror ground, light leak 0.16", "camera": "Scale 1.02+bass*0.03, 10px pan", "palette": "258° violet", "blender": "character 620 hero + crystal reflective", "typography": "88px STILL/72px RISE split bounce sin(t*3.2)" },
+    { "id": "S05", "section": "VERSE 02a", "start": 97, "end": 115, "lyrics": ["Deep in the fog, I found a steadier hand", "Every river redrew where I stand", "I keep small hours like coins in my coat", "Warm from the crossing, enough to stay afloat"], "visual": "Fog 0.55 + depth haze, steadier reduced jitter", "camera": "Fog scale 1.02", "palette": "Warm tint reduced contrast", "blender": "map paper", "typography": "Bento stacked squircle" },
+    { "id": "S06", "section": "VERSE 02b", "start": 115, "end": 124, "lyrics": ["They watched from the shore while I learned to swim", "Now even the tide has changed its hymn", "Softer than thunder, clear as the glass", "I build what will stay when the old days pass"], "visual": "Shore flat, tide wave thicker 1.2px, glass clear", "camera": "Shore pan", "palette": "Softer", "blender": "shore prop", "typography": "Quick 4× stagger 19px" },
+    { "id": "S07", "section": "CHORUS 02", "start": 124, "end": 145, "lyrics": ["Still I rise before the fade", "Still I chase the light I made", "Out on the edge where tomorrow waits", "I'm becoming what tomorrow makes"], "visual": "Second rise wider lens 1.1×, crystal 1.35", "camera": "Wider 1.04", "palette": "258°", "blender": "character + crystal", "typography": "Same hero larger" },
+    { "id": "S08", "section": "BRIDGE 01", "start": 145, "end": 179, "lyrics": ["I thought the map had to tell me where", "But dawn found my footprints already there", "No finish line, no hand to hold", "Just my own fire against the cold"], "visual": "Intimate VHS desat 28°, grain 0.075, 16-dot spectrum", "camera": "Letterbox 18px static", "palette": "28° amber desat 0.78", "blender": "halo cloth only", "typography": "22px Bridge mono amber" },
+    { "id": "S09", "section": "BRIDGE 02", "start": 179, "end": 204, "lyrics": ["No finish line, no hand to hold", "Just my own fire against the cold", "I thought the map had to tell me where", "But dawn found my footprints already there"], "visual": "Reprise inverted warm↔cool", "camera": "Mirror Bridge 01", "palette": "Inverted", "blender": "footprints paper fiber", "typography": "Same" },
+    { "id": "S10", "section": "FINAL CHORUS", "start": 204, "end": 231, "lyrics": ["Still I rise before the fade", "Still I chase the light I made", "Out on the edge where tomorrow waits", "I'm becoming what tomorrow makes", "Still I rise — still I rise"], "visual": "Becoming loopable starfield", "camera": "Hold then fade", "palette": "258° → intro sky", "blender": "starfield loop", "typography": "Hero holds + ghost 0.3" }
+  ],
+  "transitions": [
+    { "at": 18, "type": "Blender wipe 0.9s light leak", "asset": "blender-transition.png" },
+    { "at": 67, "type": "Light leak wipe to chorus" },
+    { "at": 124, "type": "Wipe" },
+    { "at": 145, "type": "Wipe to bridge VHS" },
+    { "at": 204, "type": "Wipe to final" }
+  ],
+  "bento": { "cards": ["meta 280×140", "spectrum 420×140 32 bars"], "blur": "16-18px", "border": "1px rgba(255,255,255,0.08)" },
+  "previews": ["preview-intro.png:00:05", "preview-verse.png:00:30", "preview-chorus.png:01:10", "preview-bridge.png:02:30", "preview-010s.png", "preview-045s.png", "preview-075s.png", "preview-105s.png", "preview-135s.png", "preview-165s.png", "preview-195s.png", "preview-225s.png"]
+}

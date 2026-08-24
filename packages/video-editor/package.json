@@ -1,0 +1,43 @@
+{
+  "name": "video-editor",
+  "version": "1.0.0",
+  "description": "Remotion video editor for music-driven visualizations",
+  "repository": {},
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@react-three/drei": "^10.0.0",
+    "@react-three/fiber": "^9.0.0",
+    "@remotion/captions": "4.0.515",
+    "@remotion/cli": "4.0.515",
+    "@remotion/media": "4.0.515",
+    "@remotion/media-utils": "4.0.515",
+    "@remotion/noise": "4.0.515",
+    "@remotion/shapes": "4.0.515",
+    "@remotion/tailwind-v4": "4.0.515",
+    "@remotion/three": "4.0.515",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "remotion": "4.0.515",
+    "tailwindcss": "4.3.3",
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@remotion/eslint-config-flat": "4.0.515",
+    "@types/react": "19.2.18",
+    "@types/three": "0.185.4",
+    "@types/web": "0.0.354",
+    "eslint": "9.19.0",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3"
+  },
+  "scripts": {
+    "dev": "remotion studio",
+    "build": "remotion bundle",
+    "upgrade": "remotion upgrade",
+    "lint": "eslint src && tsc"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "name": "native-media-ai-studio",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "workspaces": [
+    "packages/frontend",
+    "packages/video-editor",
+    "shared"
+  ],
+  "scripts": {
+    "preinstall": "npx -y only-allow pnpm",
+    "dev": "pnpm --filter=frontend dev",
+    "dev:backend": "cd packages/backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000",
+    "dev:video": "pnpm --filter=video-editor dev",
+    "dev:comfyui": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\start_comfyui.ps1",
+    "start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\start-studio.ps1",
+    "start:all": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\start-studio.ps1 -VideoEditor",
+    "servers": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\manage-servers.ps1",
+    "build": "pnpm -r build",
+    "build:frontend": "pnpm --filter=frontend build",
+    "build:video": "pnpm --filter=video-editor build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "clean": "pnpm -r clean",
+    "db:migrate": "cd packages/backend && python -c \"from app.core.database import init_db; init_db()\""
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0"
+  }
+}

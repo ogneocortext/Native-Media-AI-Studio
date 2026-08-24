@@ -1,0 +1,38 @@
+{
+  "optimization_settings": {
+    "vram_management": {
+      "enabled": true,
+      "target_usage_percent": 70,
+      "auto_offload": true,
+      "cache_size_mb": 512
+    },
+    "performance": {
+      "batch_size": 1,
+      "resolution_limit": {
+        "width": 768,
+        "height": 768
+      },
+      "precision": "fp16",
+      "attention_slicing": true,
+      "memory_efficient_attention": true
+    },
+    "model_loading": {
+      "lazy_loading": true,
+      "model_cache": true,
+      "preload_popular_models": false
+    }
+  },
+  "gtx_1070_ti_specific": {
+    "recommended_batch_size": 1,
+    "max_resolution": {
+      "width": 768,
+      "height": 768
+    },
+    "vram_safety_margin_gb": 1.5,
+    "optimal_steps": 20,
+    "cfg_range": {
+      "min": 6.0,
+      "max": 8.0
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "remotion-documentation": {
+      "type": "local",
+      "command": ["npx", "-y", "@remotion/mcp@latest"],
+      "enabled": true
+    },
+    "blender": {
+      "type": "local",
+      "command": ["C:\\Users\\Aomega Imaging\\AppData\\Roaming\\Python\\Python314\\Scripts\\blender-mcp-server.exe"],
+      "enabled": true,
+      "environment": {
+        "BLENDER_EXECUTABLE": "C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe"
+      }
+    }
+  }
+}

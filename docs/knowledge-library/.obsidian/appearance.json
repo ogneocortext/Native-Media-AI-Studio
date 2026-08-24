@@ -1,0 +1,9 @@
+{
+  "accentColor": "hsl(262, 83%, 58%)",
+  "translucency": false,
+  "enabledCssSnippets": ["nstudio-pro", "nstudio-callouts", "nstudio-tables", "nstudio-headers", "nstudio-immersive"],
+  "theme": "obsidian",
+  "nativeMenus": false,
+  "showViewHeader": true,
+  "showInlineTitle": true
+}

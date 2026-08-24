@@ -1,0 +1,24 @@
+{
+  "name": "tools",
+  "version": "1.0.0",
+  "description": "MCP bridges and demo scripts for Native Media AI Studio",
+  "main": "unity-mcp-bridge.mjs",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "unity:bridge": "node unity-mcp-bridge.mjs"
+  },
+  "keywords": [
+    "mcp",
+    "unity",
+    "blender",
+    "comfyui",
+    "remotion",
+    "music-video",
+    "ai"
+  ],
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.4.3"
+  }
+}

@@ -1,0 +1,26 @@
+{
+	"nodes":[
+		{"id":"index","type":"text","text":"📚 Knowledge Library Index","x":400,"y":300,"width":200,"height":260,"color":"1"},
+		{"id":"prompt","type":"file","file":"prompt-engineering.md","x":650,"y":-20,"width":370,"height":610,"color":"6"},
+		{"id":"production","type":"file","file":"music-video-production.md","x":-320,"y":-620,"width":770,"height":800,"color":"3"},
+		{"id":"rendering","type":"file","file":"3d-rendering.md","x":40,"y":300,"width":320,"height":480,"color":"5"},
+		{"id":"comfyui","type":"file","file":"comfyui-workflows.md","x":500,"y":720,"width":250,"height":640,"color":"2"},
+		{"id":"technical","type":"file","file":"technical-reference.md","x":-240,"y":1080,"width":560,"height":600,"color":"2"},
+		{"id":"blender","type":"file","file":"blender-mcp.md","x":980,"y":740,"width":520,"height":1220,"color":"2"},
+		{"id":"youtube","type":"file","file":"youtube-optimization.md","x":1060,"y":-840,"width":390,"height":880,"color":"4"}
+	],
+	"edges":[
+		{"id":"e1","fromNode":"index","fromSide":"top","toNode":"production","toSide":"bottom","label":"production"},
+		{"id":"e2","fromNode":"index","fromSide":"top","toNode":"youtube","toSide":"bottom","label":"distribution"},
+		{"id":"e3","fromNode":"index","fromSide":"bottom","toNode":"technical","toSide":"top","label":"reference"},
+		{"id":"e4","fromNode":"production","fromSide":"bottom","toNode":"rendering","toSide":"top","label":"uses"},
+		{"id":"e5","fromNode":"production","fromSide":"right","toNode":"prompt","toSide":"left","label":"uses"},
+		{"id":"e6","fromNode":"production","fromSide":"right","toNode":"youtube","toSide":"left","label":"publishes to"},
+		{"id":"e7","fromNode":"technical","fromSide":"right","toNode":"comfyui","toSide":"left","label":"includes"},
+		{"id":"e8","fromNode":"technical","fromSide":"right","toNode":"blender","toSide":"left","label":"includes"},
+		{"id":"e9","fromNode":"rendering","fromSide":"bottom","toNode":"comfyui","toSide":"top","label":"generates"},
+		{"id":"e10","fromNode":"rendering","fromSide":"right","toNode":"blender","toSide":"left","label":"renders"},
+		{"id":"e11","fromNode":"prompt","fromSide":"bottom","toNode":"comfyui","toSide":"top","label":"guides"},
+		{"id":"e12","fromNode":"prompt","fromSide":"bottom","toNode":"blender","toSide":"top","label":"guides"}
+	]
+}

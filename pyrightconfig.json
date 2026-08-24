@@ -1,0 +1,23 @@
+{
+  "include": ["packages/backend/app"],
+  "exclude": ["**/venv/**", "**/__pycache__/**", "**/*.pyc", "third_party/**"],
+  "ignore": ["**/node_modules/**"],
+  "defineConstant": {
+    "DEBUG": true
+  },
+  "stubPath": "",
+  "pythonVersion": "3.11",
+  "pythonPlatform": "Windows",
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true,
+  "reportMissingImports": "warning",
+  "reportMissingTypeStubs": "none",
+  "reportUnusedImport": "warning",
+  "reportUnusedVariable": "warning",
+  "executionEnvironments": [
+    {
+      "root": "packages/backend/app",
+      "extraPaths": ["venv/Lib/site-packages"]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "plugins": [
+    "backlink",
+    "canvas",
+    "command-palette",
+    "file-explorer",
+    "global-search",
+    "graph-view",
+    "markdown-importer",
+    "outline",
+    "page-preview",
+    "properties-view",
+    "quick-switcher",
+    "random-note",
+    "slash-commands",
+    "status-bar",
+    "sync",
+    "tag-pane",
+    "word-count"
+  ]
+}

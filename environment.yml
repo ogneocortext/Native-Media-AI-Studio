@@ -1,0 +1,119 @@
+# Native Media AI Studio — Conda Environment
+# =============================================================================
+# This file defines a reproducible conda environment for the entire project,
+# including the FastAPI backend, ComfyUI, and all ML/CUDA dependencies.
+#
+# USAGE:
+#   1. Create environment:    conda env create -f environment.yml
+#   2. Activate:              conda activate nma-studio
+#   3. Update existing env:   conda env update -f environment.yml --prune
+#
+# HARDWARE TARGET:
+#   - GPU: GTX 1070 Ti (8GB VRAM)
+#   - CUDA: 12.1 (matching installed torch wheels)
+# =============================================================================
+
+name: nma-studio
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+
+dependencies:
+  # --- Core Python ----------------------------------------------------------------
+  - python=3.11
+  - pip>=24.0
+
+  # --- PyTorch Stack (conda-managed with CUDA) ------------------------------------
+  # Using conda packages ensures CUDA/cuDNN are environment-local, not system-wide.
+  # For GTX 1070 Ti (Pascal architecture), CUDA 12.1 is supported.
+  - pytorch>=2.4.0
+  - torchvision>=0.19.0
+  - torchaudio>=2.4.0
+  - pytorch-cuda=12.1 # CUDA toolkit pinned to match your current torch build
+
+  # --- Core Scientific / Image ----------------------------------------------------
+  - numpy>=1.26,<2.0 # Pin below 2.0 for torch 2.4 compatibility
+  - pillow>=10.0.0
+  - scipy
+  - scikit-image
+
+  # --- Audio Processing -----------------------------------------------------------
+  - librosa>=0.10.0 # Conda-forge has librosa + ffmpeg bindings
+  - soundfile>=0.12.0
+  - ffmpeg # Required by librosa/soundfile for format support
+
+  # --- System / Build Tools -------------------------------------------------------
+  - git # For ComfyUI custom nodes
+  - curl # For download scripts
+
+  # --- pip-only packages ----------------------------------------------------------
+  - pip:
+      # -- Backend Core --
+      - fastapi>=0.115.0
+      - uvicorn[standard]>=0.32.0
+      - pydantic>=2.9.0
+      - python-multipart>=0.0.17
+      - aiohttp>=3.11.0
+      - psutil>=6.1.0
+      - python-socketio>=5.11.0
+      - python-dotenv>=1.0.0
+
+      # -- Modern HTTP Client (replaces requests) --
+      - httpx>=0.27.0
+      # -- Compatibility pins for legacy dependencies (gpustat uses requests) --
+      - "urllib3>=2.0.0,<3.0"
+      - "charset-normalizer>=3.0.0,<4.0"
+
+      # -- GPU Monitoring --
+      - gpustat>=1.1.1
+
+      # -- ML / Diffusion --
+      - diffusers>=0.31.0
+      - transformers>=4.40.0
+      - accelerate>=0.30.0
+      - safetensors>=0.4.0
+      - huggingface-hub>=0.20.0
+      - omegaconf>=2.3.0
+      - einops>=0.7.0
+
+      # -- ComfyUI Core Dependencies (from third_party/ComfyUI/requirements.txt) --
+      # These ensure ComfyUI runs inside the same env as the backend.
+      - torchsde>=0.2.6
+      - torchdiffeq>=0.2.3
+      - kornia>=0.7.0
+      - spandrel>=0.3.0 # Image restoration models
+      - sentencepiece>=0.2.0
+      - tokenizers>=0.19.0
+      - protobuf>=4.0.0
+      - scipy # Duplicate of conda but ensures pip resolution
+      - numpy # Duplicate of conda but ensures pip resolution
+      - Pillow # Duplicate of conda but ensures pip resolution
+
+      # -- Optional: WAN Video / Advanced Models --
+      # Uncomment if you start using WAN 2.1 or other video models
+      # - imageio>=2.34.0
+      # - imageio-ffmpeg>=0.4.9
+      # - open-clip-torch>=2.24.0
+
+      # -- Development --
+      - pytest>=8.0.0
+      - pytest-asyncio>=0.23.0
+      - httpx>=0.26.0
+      - ruff>=0.3.0
+      - mypy>=1.8.0
+      - pre-commit>=3.7.0
+
+      # -- Install backend package in editable mode --
+      - -e ./backend
+
+# =============================================================================
+# NOTES FOR GTX 1070 Ti (Pascal / 8GB VRAM):
+# =============================================================================
+# - CUDA 12.1 supports Pascal GPUs (compute capability 6.1).
+# - torch.compile() is NOT supported on Pascal; ComfyUI will fall back to eager.
+# - Use --lowvram or --normalvram flags for ComfyUI to stay within 8GB.
+# - If you encounter CUDA OOM during video generation, reduce resolution to 512x512
+#   and frame count to 16.
+# =============================================================================

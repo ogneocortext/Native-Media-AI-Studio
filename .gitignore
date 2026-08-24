@@ -1,0 +1,170 @@
+# Dependencies
+node_modules/
+venv/
+.venvs/
+__pycache__/
+*.pyc
+
+# Lockfiles (project uses pnpm — exclude stale npm lockfiles)
+package-lock.json
+skills-lock.json
+
+# Build outputs
+dist/
+build/
+.next/
+
+# IDE
+.vscode/
+.idea/
+.agents/
+.zed/
+.kilo/
+.playwright-mcp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Runtime generated
+runtime/
+storage/
+storage/__pycache__/
+storage/backups/
+storage/temp/
+storage/queue/
+storage/unified/
+storage/logs/
+storage/docs/
+
+# Third-party dependencies (managed externally)
+third_party/
+
+# Temporary files
+temp/
+test-results/
+test.txt
+debug_output.txt
+*.bak
+
+# Scripts (selectively tracked)
+scripts/*.bat
+scripts/*.sh
+scripts/*.ps1
+scripts/*.vbs
+scripts/*.txt
+scripts/*.md
+scripts/*.yaml
+scripts/archive/
+!scripts/start.bat
+!scripts/start_dev.ps1
+!scripts/start-studio.ps1
+!scripts/start_comfyui.ps1
+!scripts/manage-servers.ps1
+
+# Test
+coverage/
+.nyc_output/
+
+# Environment
+.env
+.env.local
+.conda/
+envs/
+.venv-remaster/
+shared/python/
+
+# Test audio files (large)
+tests/audio/*
+!tests/audio/.gitkeep
+
+# Monorepo
+packages/*/node_modules/
+packages/*/dist/
+packages/*/build/
+packages/*/venv/
+
+# Turbo
+.turbo/
+
+# Cache
+.huggingface_cache/
+huggingface_cache/
+.cache/
+
+# Generated outputs (never commit)
+output/
+backend/output/
+packages/backend/output/
+
+# Model binaries (large files)
+stable-diffusion/models/
+text_encoder/
+text_encoder2/
+vae/
+hunyuan_vae/
+diffusion_models/
+*.safetensors
+*.ckpt
+*.bin
+*.pt
+
+# Media files (generated output)
+*.mp4
+*.webm
+*.wav
+*.mp3
+*.png
+*.jpg
+*.jpeg
+!packages/frontend/public/**/*
+!packages/frontend/public/preview/index.html
+
+# Unity (Library is regenerable cache — never commit)
+unity-project-mcp/Library/
+unity-project-mcp/Logs/
+unity-project-mcp/Temp/
+unity-project-mcp/obj/
+unity-project-mcp/%SystemDrive%/
+unity-project/Library/
+unity-project/Logs/
+unity-project/Temp/
+unity-project/obj/
+unity-project/UnityLibrary/
+unity-project/%SystemDrive%/
+**/Library/
+**/Logs/
+**/Temp/
+**/obj/
+
+# Unity generated frames (regenerable)
+unity-project-mcp/Assets/Textures/auto_frame_*.png
+unity-project-mcp/Assets/Textures/auto_frame_*.png.meta
+unity-project-mcp/Assets/Textures/frame_*.png
+unity-project-mcp/Assets/Textures/frame_*.png.meta
+unity-project-mcp/Assets/Textures/beat_*.png
+unity-project-mcp/Assets/Textures/beat_*.png.meta
+unity-project-mcp/Assets/Textures/anim_frame_*.png
+unity-project-mcp/Assets/Textures/anim_frame_*.png.meta
+unity-project-mcp/Assets/Textures/anim_seq_*.png
+unity-project-mcp/Assets/Textures/anim_seq_*.png.meta
+
+# Old frontend/backend (migrated to packages/)
+frontend/
+backend/
+!packages/frontend/
+!packages/backend/
+
+# Scattered test files (move to tests/)
+test_*.py
+backend/test_*.py
+
+# Hermes config (personal)
+hermes_config.yaml
+hermes_prompt.txt
+hermes_system_prompt.txt
+.hugo/

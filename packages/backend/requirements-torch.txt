@@ -1,0 +1,36 @@
+# GPU stack (PyTorch with CUDA) for Native Media AI Studio
+# =============================================================================
+# Hardware target: GTX 1070 Ti (Pascal, compute capability sm_61, 8GB VRAM)
+#
+# IMPORTANT: Pascal support requires the cu121 index. Newer torch builds
+# (cu124/cu126/cu128 on the default PyPI index) drop or risk dropping sm_61,
+# so install THIS file explicitly - do not add torch to requirements.txt:
+#
+#   ..\..\venv\Scripts\python.exe -m pip install -r requirements-torch.txt
+#
+# Installed version reference: torch 2.5.1+cu121 / torchvision 0.20.1+cu121 /
+# torchaudio 2.5.1+cu121 (~2.5 GB download; bundles its own CUDA runtime -
+# no conda, no system CUDA Toolkit, no cuDNN install required).
+#
+# -----------------------------------------------------------------------------
+# CUSTOM CUDA WORK (compiling kernels / torch extensions)
+#
+# System toolkits live in C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\
+# (v11.8 [partial, no nvcc], v12.4, v12.9, v13.x). For building torch CUDA
+# extensions against this cu121 build, use the v12.4 toolkit (closest minor
+# above 12.1; major-version match is what matters):
+#
+#   PowerShell:
+#     $env:CUDA_HOME = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
+#     $env:PATH      = "$env:CUDA_HOME\bin;$env:PATH"
+#     ..\..\venv\Scripts\python.exe setup.py build_ext   # or pip install <pkg>
+#
+#   Verified working: nvcc V12.4.99.
+#   Target arch for the GTX 1070 Ti is sm_61 (TORCH_CUDA_ARCH_LIST=6.1).
+#   Note: v13.x toolkits dropped Pascal support entirely - never use them
+#   to build kernels meant to run on this GPU.
+#
+--index-url https://download.pytorch.org/whl/cu121
+torch==2.5.1+cu121
+torchvision==0.20.1+cu121
+torchaudio==2.5.1+cu121

@@ -1,0 +1,7 @@
+{
+  "frontend_port": 5173,
+  "backend_port": 8000,
+  "ws_port": 8000,
+  "backend_url": "http://localhost:8000",
+  "ws_url": "ws://localhost:8000/ws"
+}

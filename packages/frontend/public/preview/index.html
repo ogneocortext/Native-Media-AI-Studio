@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Still I Rise + Take the Crown — Previews</title>
+<style>
+  body{margin:0;background:#070a13;color:#e6eef6;font-family:'Space Grotesk',system-ui,sans-serif}
+  .wrap{max-width:1120px;margin:0 auto;padding:24px}
+  h1{font-size:22px;margin:0 0 4px;font-weight:700;letter-spacing:-0.02em}
+  .sub{color:#8aa8ba;font:12px 'DM Mono',monospace;letter-spacing:0.14em;margin-bottom:16px}
+  video{width:100%;border-radius:16px;background:#000;box-shadow:0 20px 50px rgba(0,0,0,0.5)}
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:14px}
+  @media(max-width:700px){.grid{grid-template-columns:repeat(3,1fr)}}
+  .thumb{position:relative;overflow:hidden;border-radius:10px;border:1px solid rgba(255,255,255,0.08);cursor:pointer;background:#0e1422}
+  .thumb img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;transition:transform 0.18s}
+  .thumb:hover img{transform:scale(1.04)}
+  .thumb span{position:absolute;bottom:0;right:0;background:rgba(0,0,0,0.72);color:#fff;font:10px 'DM Mono',monospace;padding:2px 6px;border-top-left-radius:6px}
+  .meta{display:flex;justify-content:space-between;color:#8aa8ba;font:11px 'DM Mono',monospace;margin-top:10px}
+  .pill{display:inline-block;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.08);padding:6px 10px;border-radius:99px;font:11px 'DM Mono',monospace;letter-spacing:0.12em}
+  a{color:#8bd0ff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Still I Rise + Take the Crown — Previews <span style="font-weight:400;color:#8aa8ba;font-size:14px">/ 5s + 10s Silicon Dreams + 10s Crown</span></h1>
+  <div class="sub">GPU angle • 6C/12T • 1920×1080 • Remotion + Blender headless + Three.js + FFmpeg</div>
+
+  <h2 style="font-size:16px;margin:16px 0 6px;color:#e6eef6">5s Preview — Intro (0–5s) <span style="font-weight:400;color:#8aa8ba;font-size:12px">• 150f @30fps • Midnight hums…</span></h2>
+  <video id="preview" src="./still-rise-5s.mp4" controls muted loop playsinline></video>
+  <div class="meta"><span>15 thumbnails • 320×180 • 3 fps • click to seek</span><span><a href="./still-rise-5s.mp4" download>Download 5s (4.1 MB)</a></span></div>
+  <div class="grid" id="grid"></div>
+
+  <h2 style="font-size:16px;margin:28px 0 6px;color:#e6eef6">10s Silicon Dreams — 5–15s <span style="font-weight:400;color:#8aa8ba;font-size:12px">• 300f @30fps • A map unwritten…</span> <span style="background:#a8d8ff;color:#070a13;font:10px 'DM Mono',monospace;padding:3px 8px;border-radius:99px;vertical-align:middle">NEW • https://aesthetics.fandom.com/wiki/Silicon_Dreams</span></h2>
+  <p style="color:#c8d6e8;font:12px/1.5 'Space Grotesk',sans-serif;background:rgba(168,216,255,0.08);border:1px solid rgba(168,216,255,0.18);padding:10px 12px;border-radius:12px">Silicon Dreams = Early CGI / Bryce 3D / Trapper Keeper — sparse low-poly terrain, checker grid, big pastel planet, floating chrome torus/ico, hard shadows, faceted low-res, surreal dream. Applied to <i>A map unwritten</i> → map as unwritten low-poly terrain awaiting draw.</p>
+  <video id="sd-preview" src="./silicon-dreams-10s.mp4" controls muted loop playsinline></video>
+  <div class="meta"><span>20 thumbnails • 320×180 • 2 fps • 5.0–15.0s • click to seek</span><span><a href="./silicon-dreams-10s.mp4" download>Download 10s (8.4 MB)</a></span></div>
+  <div class="grid" id="sd-grid"></div>
+  <p style="color:#8aa8ba;font:11px 'DM Mono',monospace;margin-top:14px;text-align:center">5–15s Intro tail + Verse start — extrapolate chrome + checker + planet to full. Thumbnails are individual frames.</p>
+
+  <h2 style="font-size:16px;margin:28px 0 6px;color:#e6eef6">10s Take the Crown — Second Drop <span style="font-weight:400;color:#8aa8ba;font-size:12px">• 300f @30fps • 86.0–96.0s • Rising from the ash…</span> <span style="background:#ffd76a;color:#0a0706;font:10px 'DM Mono',monospace;padding:3px 8px;border-radius:99px;vertical-align:middle">NEW • 152 BPM • E Major</span></h2>
+  <p style="color:#c8d6e8;font:12px/1.5 'Space Grotesk',sans-serif;background:rgba(255,215,106,0.08);border:1px solid rgba(255,215,106,0.18);padding:10px 12px;border-radius:12px">Take the Crown — coronation anthem. Procedural Three.js gold crown (6 spikes + orb + glow torus), ember particles rising on the 152 BPM beat, kinetic "TAKE THE CROWN" split-letter hero in the drops. Full video 02:04 at 1920×1080.</p>
+  <video id="tc-preview" src="./take-crown-10s.mp4" controls muted loop playsinline></video>
+  <div class="meta"><span>6 thumbnails • 320×180 • 86–115s • click to seek</span><span><a href="./take-crown-10s.mp4" download>Download 10s (5.4 MB)</a></span></div>
+  <div class="grid" id="tc-grid"></div>
+  <p style="color:#8aa8ba;font:11px 'DM Mono',monospace;margin-top:14px;text-align:center">Second drop window — crown pulse + ember rise + per-word kinetics. Thumbnails are individual frames.</p>
+</div>
+<script>
+const grid=document.getElementById('grid');
+const video=document.getElementById('preview');
+for(let i=1;i<=15;i++){
+  const idx=String(i).padStart(3,'0');
+  const time=((i-1)*0.333).toFixed(2);
+  const btn=document.createElement('button');
+  btn.className='thumb';
+  btn.innerHTML=`<img src="../thumbnails/thumb-${idx}.jpg" alt="${time}s" loading="lazy"><span>${time}s</span>`;
+  btn.title=time+'s • frame '+Math.round(parseFloat(time)*30);
+  btn.onclick=()=>{ video.currentTime=parseFloat(time); video.play().catch(()=>{}); video.scrollIntoView({behavior:'smooth',block:'center'}); };
+  grid.appendChild(btn);
+}
+const sdGrid=document.getElementById('sd-grid');
+const sdVideo=document.getElementById('sd-preview');
+for(let i=1;i<=20;i++){
+  const idx=String(i).padStart(3,'0');
+  const time=(5 + (i-1)*0.5).toFixed(2);
+  const btn=document.createElement('button');
+  btn.className='thumb';
+  btn.innerHTML=`<img src="../thumbnails/sd-thumb-${idx}.jpg" alt="${time}s" loading="lazy"><span>${time}s</span>`;
+  btn.title=time+'s • frame '+Math.round(parseFloat(time)*30);
+  btn.onclick=()=>{ sdVideo.currentTime=parseFloat(time)-5; sdVideo.play().catch(()=>{}); sdVideo.scrollIntoView({behavior:'smooth',block:'center'}); };
+  sdGrid.appendChild(btn);
+}
+const tcGrid=document.getElementById('tc-grid');
+const tcVideo=document.getElementById('tc-preview');
+const tcTimes=['86','90','94','98','102','110'];
+for(let i=1;i<=tcTimes.length;i++){
+  const time=tcTimes[i-1];
+  const btn=document.createElement('button');
+  btn.className='thumb';
+  btn.innerHTML=`<img src="../thumbnails/tc-${String((parseInt(time))).padStart(3,'0')}.jpg" alt="${time}s" loading="lazy"><span>${time}s</span>`;
+  btn.title=time+'s • frame '+Math.round(parseFloat(time)*30);
+  btn.onclick=()=>{ tcVideo.currentTime=parseFloat(time)-86; tcVideo.play().catch(()=>{}); tcVideo.scrollIntoView({behavior:'smooth',block:'center'}); };
+  tcGrid.appendChild(btn);
+}
+</script>
+</body>
+</html>
