@@ -1,26 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Brain,
-  Send,
-  Loader2,
-  AlertCircle,
-  CheckCircle,
-  Sparkles,
-  Cpu,
-  MessageSquare,
-  Wrench,
-  Plus,
-  Trash2,
-  Settings,
-  Zap,
-  Wifi,
-  WifiOff,
-  Palette,
-  X,
+  Brain, Send, Loader2, AlertCircle, CheckCircle, Zap,
+  Wifi, WifiOff, Palette, X, Wrench,
 } from "lucide-react";
 import {
   getOllamaModels,
-  ollamaChat,
   ollamaChatStream,
   parseOllamaStream,
   type OllamaModel,
@@ -28,102 +12,9 @@ import {
 } from "../../services/api";
 import { DS } from "../../styles/designSystem";
 import { VisualizationCanvas } from "./VisualizationCanvas";
-
-interface Tool {
-  id: string;
-  name: string;
-  description: string;
-  parameters: {
-    type: string;
-    properties: Record<string, { type: string; description: string }>;
-    required?: string[];
-  };
-}
-
-const DEFAULT_TOOLS: Tool[] = [
-  {
-    id: "get_project_structure",
-    name: "get_project_structure",
-    description: "Get the project directory structure",
-    parameters: {
-      type: "object",
-      properties: {
-        depth: { type: "number", description: "Directory depth to traverse (default: 3)" },
-      },
-      required: [],
-    },
-  },
-  {
-    id: "search_docs",
-    name: "search_docs",
-    description: "Search the project documentation for relevant information",
-    parameters: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Search query" },
-        limit: { type: "number", description: "Maximum number of results (default: 5)" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    id: "get_system_health",
-    name: "get_system_health",
-    description: "Get current system health status including CPU, memory, GPU, and VRAM usage",
-    parameters: {
-      type: "object",
-      properties: {},
-      required: [],
-    },
-  },
-  {
-    id: "list_jobs",
-    name: "list_jobs",
-    description: "List jobs in the queue, optionally filtered by status",
-    parameters: {
-      type: "object",
-      properties: {
-        status: { type: "string", description: "Filter by status: queued, running, completed, failed" },
-      },
-      required: [],
-    },
-  },
-  {
-    id: "get_job_status",
-    name: "get_job_status",
-    description: "Get the status of a specific job by its ID",
-    parameters: {
-      type: "object",
-      properties: {
-        job_id: { type: "string", description: "The job ID to check" },
-      },
-      required: ["job_id"],
-    },
-  },
-  {
-    id: "generate_visualization",
-    name: "generate_visualization",
-    description: "Generate a dynamic visualization with specified style, colors, and intensity",
-    parameters: {
-      type: "object",
-      properties: {
-        style: { type: "string", description: "Visualization style: particles, waveform, or pulse" },
-        color_scheme: { type: "string", description: "Color scheme: neon, fire, ocean, forest, sunset, monochrome" },
-        intensity: { type: "number", description: "Visualization intensity from 0.0 to 1.0" },
-        bpm: { type: "integer", description: "Beats per minute for rhythm sync" },
-      },
-      required: [],
-    },
-  },
-];
-
-interface HistoryEntry {
-  prompt: string;
-  response: string;
-  model: string;
-  toolCalls?: number;
-  timestamp: Date;
-}
+import { Sidebar } from "./Sidebar";
+import { ToolEditor } from "./ToolEditor";
+import { DEFAULT_TOOLS, type Tool, type HistoryEntry } from "./types";
 
 export function AIToolsPage() {
   const [models, setModels] = useState<OllamaModel[]>([]);
@@ -212,99 +103,37 @@ export function AIToolsPage() {
             toolDetails.push(tc);
           }
           setToolCalls([...toolDetails]);
-        } else if (event.type === "done") {
-          const data = event.data as { content: string; tool_calls: number };
-          if (!fullResponse && data.content) fullResponse = data.content;
-          setResponse(fullResponse);
         }
       }
 
-      if (toolDetails.length > 0) {
-        for (const td of toolDetails) {
-          if (td.name === "generate_visualization") {
-            try {
-              const config = typeof td.arguments === "string"
-                ? JSON.parse(td.arguments)
-                : td.arguments;
-              if (config.type === "visualization") {
-                setVizConfig(config);
-              } else if (config.style) {
-                setVizConfig({
-                  type: "visualization",
-                  style: config.style,
-                  colorScheme: config.color_scheme || "neon",
-                  intensity: config.intensity ?? 0.7,
-                  bpm: config.bpm || 120,
-                  colors: config.colors || { primary: "#8b5cf6", secondary: "#06b6d4", accent: "#f59e0b" },
-                  params: config.params || { particleCount: 500, speed: 1, scale: 1, glow: true, rotation: true },
-                });
-              }
-            } catch {
-              // Not a valid visualization config
-            }
-          }
-        }
+      if (fullResponse) {
+        setHistory((prev) => [
+          { prompt, response: fullResponse, model: selectedModel, toolCalls: toolDetails.length, timestamp: new Date() },
+          ...prev.slice(0, 19),
+        ]);
       }
-
-      setHistory((prev) => [{
-        prompt,
-        response: fullResponse,
-        model: selectedModel,
-        toolCalls: toolDetails.length,
-        timestamp: new Date(),
-      }, ...prev.slice(0, 19)]);
-    } catch (err: unknown) {
-      if (controller.signal.aborted) return;
-      try {
-        const result = await ollamaChat(prompt, selectedModel, {
-          tools: activeTools,
-          think: true,
-          maxToolCalls: 5,
-        });
-        setResponse(result.response);
-        if (result.toolDetails && result.toolDetails.length > 0) {
-          setToolCalls(result.toolDetails);
-        }
-      } catch (fallbackErr) {
-        setError(err instanceof Error ? err.message : "Generation failed");
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name === "AbortError") {
+        setError("Generation cancelled");
+      } else {
+        setError(e instanceof Error ? e.message : "Failed to generate response");
       }
     } finally {
-      abortRef.current = null;
       setGenerating(false);
+      abortRef.current = null;
     }
   };
 
   const handleCancel = () => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setGenerating(false);
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
   };
 
   const formatSize = (bytes: number) => {
     if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
     if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
     return `${(bytes / 1e3).toFixed(0)} KB`;
-  };
-
-  const promptTemplates = [
-    { label: "Video Concept", text: "Generate a creative music video concept for a [genre] song about [theme]. Include visual style, color palette, and camera movements." },
-    { label: "Scene Description", text: "Describe a cinematic scene for a music video chorus section. Include lighting, mood, and visual elements." },
-    { label: "Color Palette", text: "Suggest a color palette for a music video with [mood] mood. Include hex codes and usage guidelines." },
-    { label: "Transition Ideas", text: "Suggest creative video transitions for a music video that sync to beat drops." },
-    { label: "Project Status", text: "What's the current system health and job queue status?" },
-    { label: "Visualization", text: "Use the generate_visualization tool to create a particles visualization with neon colors and high intensity" },
-  ];
-
-  const addTool = () => {
-    const newTool: Tool = {
-      id: `tool-${Date.now()}`,
-      name: "new_tool",
-      description: "A new tool",
-      parameters: { type: "object", properties: {}, required: [] },
-    };
-    setEditingTool(newTool);
-    setToolJsonValid(true);
-    setShowToolEditor(true);
   };
 
   const saveTool = (tool: Tool) => {
@@ -319,15 +148,6 @@ export function AIToolsPage() {
     setToolJsonValid(true);
   };
 
-  const deleteTool = (id: string) => {
-    setTools((prev) => prev.filter((t) => t.id !== id));
-    setEnabledTools((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  };
-
   const selectedModelData = models.find((m) => m.name === selectedModel);
 
   return (
@@ -339,15 +159,10 @@ export function AIToolsPage() {
             <Brain size={20} className="text-primary" />
           </div>
           <div>
-            <h1 className={DS.pageTitle}>
-              AI Tools
-            </h1>
-            <p className={DS.pageSubtitle}>
-              Generate creative ideas using local AI models with tool support.
-            </p>
+            <h1 className={DS.pageTitle}>AI Tools</h1>
+            <p className={DS.pageSubtitle}>Generate creative ideas using local AI models with tool support.</p>
           </div>
         </div>
-        {/* Connection Status */}
         <div className="flex items-center gap-2">
           {ollamaConnected ? (
             <span className="flex items-center gap-1 text-xs text-green-400">
@@ -419,12 +234,8 @@ export function AIToolsPage() {
               <span className={DS.textXs}>Ctrl+Enter to send</span>
               <div className="flex gap-2">
                 {generating && (
-                  <button
-                    onClick={handleCancel}
-                    className={DS.btnSecondary}
-                  >
-                    <X size={16} />
-                    Cancel
+                  <button onClick={handleCancel} className={DS.btnSecondary}>
+                    <X size={16} /> Cancel
                   </button>
                 )}
                 <button
@@ -477,6 +288,7 @@ export function AIToolsPage() {
               <div className={DS.flexCenter + " mb-3"}>
                 <Wrench size={16} className="text-amber-400" />
                 <span className={DS.textBold}>Tool Calls</span>
+                <span className={DS.textXs}>({toolCalls.length})</span>
               </div>
               <div className="space-y-2">
                 {toolCalls.map((tc, i) => (
@@ -499,188 +311,33 @@ export function AIToolsPage() {
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-4">
-          {/* Prompt Templates */}
-          <div className={DS.card}>
-            <h3 className={DS.sectionTitle}>
-              <Sparkles size={14} />
-              Templates
-            </h3>
-            <div className="space-y-2 mt-3">
-              {promptTemplates.map((t) => (
-                <button
-                  key={t.label}
-                  onClick={() => setPrompt(t.text)}
-                  className="w-full text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300"
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Tool Registry */}
-          <div className={DS.card}>
-            <div className={DS.flexBetween + " mb-3"}>
-              <h3 className={DS.sectionTitle}>
-                <Wrench size={14} />
-                Tool Registry
-              </h3>
-              <button onClick={addTool} className={DS.btnGhost}>
-                <Plus size={14} />
-              </button>
-            </div>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {tools.map((tool) => (
-                <div key={tool.id} className="flex items-center gap-2 p-2 bg-gray-700/30 rounded-lg">
-                  <input
-                    type="checkbox"
-                    checked={enabledTools.has(tool.id)}
-                    onChange={(e) => {
-                      setEnabledTools((prev) => {
-                        const next = new Set(prev);
-                        if (e.target.checked) next.add(tool.id);
-                        else next.delete(tool.id);
-                        return next;
-                      });
-                    }}
-                    className="accent-violet-500"
-                  />
-                  <span className="text-sm text-gray-300 flex-1 truncate">{tool.name}</span>
-                  <button onClick={() => { setEditingTool(tool); setToolJsonValid(true); setShowToolEditor(true); }} className="text-gray-500 hover:text-white">
-                    <Settings size={12} />
-                  </button>
-                  <button onClick={() => deleteTool(tool.id)} className="text-gray-500 hover:text-red-400">
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <p className={DS.textXs + " mt-2"}>
-              Enabled: {enabledTools.size} / {tools.length}
-            </p>
-          </div>
-
-          {/* Available Models */}
-          <div className={DS.card}>
-            <h3 className={DS.sectionTitle}>
-              <Cpu size={14} />
-              Models
-            </h3>
-            {models.length > 0 ? (
-              <div className="space-y-1 mt-3">
-                {models.map((m) => (
-                  <button
-                    key={m.name}
-                    onClick={() => setSelectedModel(m.name)}
-                    className={`w-full text-left px-2 py-1.5 rounded text-sm ${
-                      selectedModel === m.name ? "bg-violet-600/30 text-violet-300" : "text-gray-400 hover:bg-gray-700"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className={DS.truncate}>{m.name}</span>
-                      {m.supportsTools && <Wrench size={10} className={DS.accentGreen} />}
-                      {m.supportsVision && <span className={DS.accentSky}>👁</span>}
-                    </div>
-                    <div className={DS.textXs}>{formatSize(m.size)}</div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className={DS.textXs}>No models available</p>
-            )}
-          </div>
-
-          {/* History */}
-          {history.length > 0 && (
-            <div className={DS.card}>
-              <h3 className={DS.sectionTitle}>
-                <MessageSquare size={14} />
-                History
-              </h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto mt-3">
-                {history.map((h, i) => (
-                  <button
-                    key={i}
-                    onClick={() => { setPrompt(h.prompt); setResponse(h.response); }}
-                    className="w-full text-left px-2 py-1.5 bg-gray-700/50 rounded text-xs text-gray-400 truncate hover:bg-gray-700"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="truncate">{h.prompt}</span>
-                      {h.toolCalls ? (
-                        <span className="text-amber-400 ml-2">🔧{h.toolCalls}</span>
-                      ) : null}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <Sidebar
+          tools={tools}
+          enabledTools={enabledTools}
+          setEnabledTools={setEnabledTools}
+          setEditingTool={setEditingTool}
+          setToolJsonValid={setToolJsonValid}
+          setShowToolEditor={setShowToolEditor}
+          setTools={setTools}
+          setPrompt={setPrompt}
+          selectedModel={selectedModel}
+          setSelectedModel={setSelectedModel}
+          models={models}
+          history={history}
+          setResponse={setResponse}
+        />
       </div>
 
       {/* Tool Editor Modal */}
       {showToolEditor && editingTool && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700">
-            <h3 className="text-white font-semibold mb-4">Edit Tool</h3>
-            <div className="space-y-3">
-              <div>
-                <label className={DS.textSm + " block mb-1"}>Name</label>
-                <input
-                  type="text"
-                  value={editingTool.name}
-                  onChange={(e) => setEditingTool({ ...editingTool, name: e.target.value })}
-                  className={DS.input}
-                />
-              </div>
-              <div>
-                <label className={DS.textSm + " block mb-1"}>Description</label>
-                <textarea
-                  value={editingTool.description}
-                  onChange={(e) => setEditingTool({ ...editingTool, description: e.target.value })}
-                  className={DS.textarea}
-                  rows={2}
-                />
-              </div>
-              <div>
-                <label className={DS.textSm + " block mb-1"}>Parameters (JSON)</label>
-                <textarea
-                  value={JSON.stringify(editingTool.parameters, null, 2)}
-                  onChange={(e) => {
-                    try {
-                      const params = JSON.parse(e.target.value);
-                      setEditingTool({ ...editingTool, parameters: params });
-                      setToolJsonValid(true);
-                    } catch {
-                      setToolJsonValid(false);
-                    }
-                  }}
-                  className={DS.textarea + " " + DS.mono + (toolJsonValid ? "" : " border-red-500")}
-                  rows={6}
-                />
-                {!toolJsonValid && (
-                  <p className="text-red-400 text-xs mt-1">Invalid JSON</p>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={() => saveTool(editingTool)}
-                disabled={!toolJsonValid || !editingTool.name.trim()}
-                className={"flex-1 " + DS.btnPrimary + ((!toolJsonValid || !editingTool.name.trim()) ? " opacity-50 cursor-not-allowed" : "")}
-              >
-                Save
-              </button>
-              <button
-                onClick={() => { setShowToolEditor(false); setEditingTool(null); }}
-                className={"flex-1 " + DS.btnSecondary}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        <ToolEditor
+          editingTool={editingTool}
+          setEditingTool={setEditingTool}
+          toolJsonValid={toolJsonValid}
+          setToolJsonValid={setToolJsonValid}
+          onSave={saveTool}
+          onClose={() => { setShowToolEditor(false); setEditingTool(null); }}
+        />
       )}
     </div>
   );

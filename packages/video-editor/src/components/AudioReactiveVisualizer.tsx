@@ -39,7 +39,16 @@ export function AudioReactiveVisualizer({
   const audioData = useAudioData(audioSrc);
 
   if (!audioData) {
-    return null;
+    return (
+      <AbsoluteFill className={className} style={{ background: "linear-gradient(135deg, #1a1a2e 0%, #0a0a0f 100%)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>
+          <div style={{ textAlign: "center", color: "#6b7280" }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>🔊</div>
+            <div style={{ fontSize: 14 }}>Loading audio...</div>
+          </div>
+        </div>
+      </AbsoluteFill>
+    );
   }
 
   const visualization = visualizeAudio({
@@ -236,7 +245,33 @@ function renderVisualization(
       );
 
     default:
-      return null;
+      // Default to bars visualization for unknown styles
+      return (
+        <div style={{ position: "relative", width: "100%", height: "100%" }}>
+          {visualization.map((value: number, i: number) => {
+            const barWidth = (width / visualization.length) * 0.8;
+            const barHeight = value * height * sensitivity * 0.8;
+            const x = (i / visualization.length) * width;
+            const y = height - barHeight;
+            const color = colors[Math.floor((i / visualization.length) * colors.length)];
+            return (
+              <div
+                key={i}
+                style={{
+                  position: "absolute",
+                  left: x,
+                  top: y,
+                  width: barWidth,
+                  height: barHeight,
+                  backgroundColor: color,
+                  borderRadius: barWidth / 2,
+                  boxShadow: `0 0 ${10 * value}px ${color}`,
+                }}
+              />
+            );
+          })}
+        </div>
+      );
   }
 }
 

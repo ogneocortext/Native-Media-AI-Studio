@@ -42,7 +42,19 @@ Native-Media-AI-Studio/
 ├── docs/                   # All documentation
 ├── packages/               # Monorepo packages
 │   ├── frontend/           # React + Vite UI (port 5173)
+│   │   └── src/features/   # Feature-based modules
+│   │       ├── ai-tools/         # AI chat + tool registry
+│   │       ├── image-generation/ # ComfyUI image gen
+│   │       ├── music-video/      # Music video wizard (types + steps)
+│   │       ├── settings/         # App settings
+│   │       ├── video-generation/ # ComfyUI video gen
+│   │       └── visualizer/       # 3D audio visualizer (types + hooks + scene)
 │   ├── backend/            # FastAPI backend (port 8000)
+│   │   └── app/api/        # Modular API routes
+│   │       ├── integrations_config.py    # Config/settings endpoints
+│   │       ├── integrations_generation.py # ComfyUI/Ollama/VRAM/Audio
+│   │       ├── integrations_music_video.py # Music video endpoints
+│   │       └── integrations_misc.py      # CUDA/system/misc endpoints
 │   └── video-editor/       # Remotion video editor (port 3000)
 ├── scripts/                # Server management scripts
 ├── shared/                 # Shared TypeScript types

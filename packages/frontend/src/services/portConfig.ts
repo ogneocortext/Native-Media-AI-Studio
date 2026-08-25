@@ -123,3 +123,26 @@ export function getVideoEditorUrl(): string {
   const port = cachedConfig.video_editor_port ?? 3000;
   return `http://localhost:${port}`;
 }
+
+/**
+ * Get the ComfyUI server URL.
+ * Reads from config/ports.json comfyui_url, falls back to comfyui_port, then env var.
+ */
+export function getComfyuiUrl(): string {
+  if (!cachedConfig) {
+    return getEnvVar("VITE_COMFYUI_URL", "http://127.0.0.1:8188");
+  }
+  if (cachedConfig.comfyui_url) {
+    return cachedConfig.comfyui_url;
+  }
+  const port = cachedConfig.comfyui_port ?? 8188;
+  return `http://127.0.0.1:${port}`;
+}
+
+/**
+ * Get the ComfyUI WebSocket URL.
+ */
+export function getComfyuiWsUrl(): string {
+  const baseUrl = getComfyuiUrl();
+  return baseUrl.replace(/^http/, "ws") + "/ws";
+}

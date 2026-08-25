@@ -41,6 +41,23 @@ interface VideoModel {
   bestFor: string;
 }
 
+function getVideoModelInfo(modelName: string): VideoModel {
+  const base = modelName.toLowerCase();
+  if (base.includes("wan") && base.includes("ti2v")) {
+    return { name: modelName, description: "Wan 2.2 — text-to-video model generates video clips from text prompts", type: "Text-to-Video", bestFor: "Short video clips, animations, motion content" };
+  }
+  if (base.includes("kandinsky")) {
+    return { name: modelName, description: "Kandinsky 5 Lite — image-to-video model that animates a starting image", type: "Image-to-Video", bestFor: "Animating still images into video clips" };
+  }
+  if (base.includes("animate") || base.includes("mm_sd")) {
+    return { name: modelName, description: "AnimateDiff motion module — adds motion to Stable Diffusion generations", type: "Motion Module", bestFor: "Adding camera motion and animation to SD images" };
+  }
+  if (base.includes("wan")) {
+    return { name: modelName, description: "Wan video generation model", type: "Video", bestFor: "Video generation from text or image" };
+  }
+  return { name: modelName, description: `Video model: ${modelName}`, type: "Video", bestFor: "Video generation" };
+}
+
 interface JobProgress {
   job_id: string;
   status: string;
@@ -55,27 +72,6 @@ interface JobProgress {
   estimated_end_time: string;
   error: string | null;
 }
-
-const VIDEO_MODELS: VideoModel[] = [
-  {
-    name: "wan2.2_ti2v_5B_fp16.safetensors",
-    description: "Wan 2.2 — text-to-video model (5B params) generates video clips from text prompts",
-    type: "Text-to-Video",
-    bestFor: "Short video clips, animations, motion content",
-  },
-  {
-    name: "kandinsky5lite_i2v_5s.safetensors",
-    description: "Kandinsky 5 Lite — image-to-video model that animates a starting image",
-    type: "Image-to-Video",
-    bestFor: "Animating still images into 5-second video clips",
-  },
-  {
-    name: "mm_sd15_v3.safetensors",
-    description: "AnimateDiff motion module — adds motion to Stable Diffusion generations",
-    type: "Motion Module",
-    bestFor: "Adding camera motion and animation to SD images",
-  },
-];
 
 // Style gradient placeholders (instant visual feedback while preview generates)
 const STYLE_GRADIENTS: Record<string, string> = {
@@ -105,13 +101,14 @@ function generateStylePlaceholder(styleId: string, styleName: string): string {
 }
 
 export function VideoGenerationPage() {
-  const [prompt, setPrompt] = useState("cinematic music video, vibrant colors, professional lighting");
+  const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("blurry, low quality, distorted");
   const [steps, setSteps] = useState(20);
   const [cfgScale, setCfgScale] = useState(7.0);
   const [selectedStyle, setSelectedStyle] = useState<string>("");
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
-  const [selectedModel, setSelectedModel] = useState<string>(VIDEO_MODELS[0].name);
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [videoModels, setVideoModels] = useState<VideoModel[]>([]);
   const [duration, setDuration] = useState(10);
   const [verticalFirst, setVerticalFirst] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -128,6 +125,32 @@ export function VideoGenerationPage() {
 
   useEffect(() => {
     loadData();
+    // Fetch video models from ComfyUI
+    fetch("/api/integrations/comfyui/checkpoints")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.checkpoints?.length) {
+          const vModels = data.checkpoints
+            .filter((name: string) => {
+              const base = name.toLowerCase();
+              return base.includes("wan") || base.includes("kandinsky") || base.includes("animate") || base.includes("mm_sd") || base.includes("motion");
+            })
+            .map((name: string) => getVideoModelInfo(name));
+          if (vModels.length === 0) {
+            // Fallback: show all diffusion models if no specific video models found
+            const allDiff = data.checkpoints
+              .filter((name: string) => !name.toLowerCase().includes("sdxl") && !name.toLowerCase().includes("sd_v1"))
+              .map((name: string) => getVideoModelInfo(name));
+            setVideoModels(allDiff.slice(0, 6));
+          } else {
+            setVideoModels(vModels);
+          }
+          if (vModels.length > 0 && !selectedModel) {
+            setSelectedModel(vModels[0].name);
+          }
+        }
+      })
+      .catch(() => {});
     const retryTimer = setTimeout(() => {
       if (styles.length === 0 && templates.length === 0) {
         loadData();
@@ -511,7 +534,7 @@ export function VideoGenerationPage() {
               Video Models
             </h3>
             <div className="space-y-2">
-              {VIDEO_MODELS.map((model) => {
+              {videoModels.length > 0 ? videoModels.map((model) => {
                 const selected = selectedModel === model.name;
                 return (
                   <button
@@ -530,7 +553,9 @@ export function VideoGenerationPage() {
                     </div>
                   </button>
                 );
-              })}
+              }) : (
+                <p className="text-xs text-gray-500">No video models found. Install video models in ComfyUI diffusion_models folder.</p>
+              )}
             </div>
           </div>
 

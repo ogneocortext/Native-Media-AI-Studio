@@ -1,9 +1,9 @@
 /**
  * ComfyUI service for AI image/video generation.
- * Connects to the local ComfyUI instance at http://localhost:8188.
+ * Connects to the local ComfyUI instance via dynamic URL from ports.json/env.
  */
 
-const COMFYUI_URL = "http://127.0.0.1:8188";
+import { getComfyuiUrl, getComfyuiWsUrl } from "./portConfig";
 
 export interface ComfyUIProgress {
   value: number;
@@ -32,6 +32,7 @@ export interface ComfyUITaskStatus {
  * Queue a prompt for execution on ComfyUI.
  */
 export async function queuePrompt(workflow: Record<string, unknown>): Promise<{ prompt_id: string }> {
+  const COMFYUI_URL = getComfyuiUrl();
   const response = await fetch(`${COMFYUI_URL}/prompt`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -52,6 +53,7 @@ export async function getQueueStatus(): Promise<{
   queue_running: unknown[];
   queue_pending: unknown[];
 }> {
+  const COMFYUI_URL = getComfyuiUrl();
   const response = await fetch(`${COMFYUI_URL}/queue`);
   if (!response.ok) {
     throw new Error(`ComfyUI queue status failed: ${response.statusText}`);
@@ -73,6 +75,7 @@ export async function getSystemStats(): Promise<{
     torch_vram_free: number;
   }>;
 }> {
+  const COMFYUI_URL = getComfyuiUrl();
   const response = await fetch(`${COMFYUI_URL}/system_stats`);
   if (!response.ok) {
     throw new Error(`ComfyUI system stats failed: ${response.statusText}`);
@@ -85,6 +88,7 @@ export async function getSystemStats(): Promise<{
  */
 export async function isComfyUIAlive(): Promise<boolean> {
   try {
+    const COMFYUI_URL = getComfyuiUrl();
     const response = await fetch(`${COMFYUI_URL}/system_stats`, {
       signal: AbortSignal.timeout(3000),
     });
@@ -104,6 +108,7 @@ export async function getAvailableModels(): Promise<{
   diffusion_models: string[];
   text_encoders: string[];
 }> {
+  const COMFYUI_URL = getComfyuiUrl();
   const response = await fetch(`${COMFYUI_URL}/object_info/CheckpointLoaderSimple`);
   const data = await response.json();
 
@@ -135,6 +140,7 @@ export async function getAvailableModels(): Promise<{
 
   for (const { type, key } of modelTypes) {
     try {
+      const COMFYUI_URL = getComfyuiUrl();
       const res = await fetch(`${COMFYUI_URL}/object_info/${type}`);
       const info = await res.json();
       if (info?.[type]?.inputs) {
@@ -237,6 +243,7 @@ export async function getImage(
   subfolder = "",
   type = "output"
 ): Promise<string> {
+  const COMFYUI_URL = getComfyuiUrl();
   const params = new URLSearchParams({ filename, subfolder, type });
   const response = await fetch(`${COMFYUI_URL}/view?${params}`);
   if (!response.ok) {
@@ -250,7 +257,7 @@ export async function getImage(
  * Get WebSocket URL for real-time progress updates.
  */
 export function getWebSocketUrl(): string {
-  return `ws://127.0.0.1:8188/ws`;
+  return getComfyuiWsUrl();
 }
 
 export default {

@@ -1,28 +1,18 @@
-import React, { useRef, useState, useEffect, useMemo } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
-import { Html } from "@react-three/drei";
-import * as THREE from "three";
+import { useRef, useState, useEffect } from "react";
+import { Canvas } from "@react-three/fiber";
 import { Upload, Music, AlertCircle, Pause, FolderOpen, Waves, Palette, Sparkles } from "lucide-react";
 import { listAudioFiles } from "../../services/api";
-import { 
-  getVisualizationForTrack, 
-  VISUALIZATION_OPTIONS, 
-  VisualizationStyle, 
-  TrackConcept 
+import {
+  getVisualizationForTrack,
+  VISUALIZATION_OPTIONS,
+  VisualizationStyle,
+  TrackConcept,
 } from "./trackConceptAnalyzer";
-import { WaveformViz, ParticleStormViz, NeuralViz, CosmicViz, PulseViz, StormViz, FractalViz } from "./VisualizationStyles";
+import { VisualizerScene } from "./VisualizerScene";
+import type { VizParams, AudioData } from "./types";
+import { DEFAULT_VIZ_PARAMS } from "./types";
 
-export interface AudioData { bass: number; mid: number; treble: number; overall: number; beat: boolean; }
-
-interface SpectrumBarProps {
-  label: string;
-  value: number;
-  color: string;
-  intensity: number;
-}
-
-function SpectrumBar({ label, value, color, intensity }: SpectrumBarProps) {
+function SpectrumBar({ label, value, color, intensity }: { label: string; value: number; color: string; intensity: number }) {
   const scaledValue = Math.min(value * intensity, 1);
   return (
     <div className="spec-bar-row">
@@ -52,341 +42,6 @@ function SpectrumBar({ label, value, color, intensity }: SpectrumBarProps) {
     </div>
   );
 }
-
-// Demo fallback — clearly labeled, not silent mock
-function useDemoAudio(enabled: boolean, bpm: number) {
-  const data = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false });
-  useFrame((state) => {
-    if (!enabled) return;
-    const t = state.clock.elapsedTime;
-    const f = bpm / 120;
-    const beatPhase = (t * f * 2) % 1;
-    const isBeat = beatPhase < 0.1;
-    data.current = {
-      bass: (Math.sin(t * f * 2) + 1) / 2,
-      mid: (Math.sin(t * f * 3.5) + 1) / 2,
-      treble: (Math.sin(t * f * 5) + 1) / 2,
-      overall: (Math.sin(t * f * 2) * 0.5 + 0.5),
-      beat: isBeat,
-    };
-  });
-  return data;
-}
-
-// Real audio — reads from AnalyserNode when audio is playing
-function useRealAudio(analyserRef: React.MutableRefObject<AnalyserNode | null>, isPlaying: boolean, isPaused: boolean) {
-  const data = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false });
-  const freqArray = useRef<Uint8Array | null>(null);
-  const lastBass = useRef(0);
-  const beatThreshold = 0.7;
-  const beatCooldown = useRef(0);
-
-  useFrame(() => {
-    const analyser = analyserRef.current;
-    if (!analyser) return;
-    // Freeze visualization when paused — return zeros so mesh goes still
-    if (isPaused || !isPlaying) {
-      if (data.current.bass !== 0 || data.current.mid !== 0 || data.current.treble !== 0) {
-        data.current = { bass: 0, mid: 0, treble: 0, overall: 0, beat: false };
-      }
-      return;
-    }
-    if (!freqArray.current || freqArray.current.length !== analyser.frequencyBinCount) {
-      freqArray.current = new Uint8Array(analyser.frequencyBinCount) as Uint8Array;
-    }
-    analyser.getByteFrequencyData(freqArray.current as Uint8Array<ArrayBuffer>);
-    const arr = freqArray.current;
-    // Bin mapping: 0-~10% = bass (20-250Hz), 10-40% = mid, 40-100% = treble
-    const bassBins = Math.floor(arr.length * 0.08);
-    const midBins = Math.floor(arr.length * 0.35);
-    const bass = arr.slice(0, bassBins).reduce((a, b) => a + b, 0) / (bassBins * 255 || 1);
-    const mid = arr.slice(bassBins, midBins).reduce((a, b) => a + b, 0) / ((midBins - bassBins) * 255 || 1);
-    const treble = arr.slice(midBins).reduce((a, b) => a + b, 0) / ((arr.length - midBins) * 255 || 1);
-    const overall = (bass * 0.4 + mid * 0.35 + treble * 0.25);
-
-    // Simple beat detection: bass spike above threshold with cooldown
-    beatCooldown.current = Math.max(0, beatCooldown.current - 1);
-    const isBeat = bass > beatThreshold && bass > lastBass.current * 1.2 && beatCooldown.current === 0;
-    if (isBeat) beatCooldown.current = 10;
-    lastBass.current = bass;
-
-    data.current = { bass, mid, treble, overall, beat: isBeat };
-  });
-  return data;
-}
-
-interface AudioReactiveShapeProps { 
-  audioData: React.MutableRefObject<AudioData>;
-  vizParams: VizParams;
-}
-
-function AudioReactiveShape({ audioData, vizParams }: AudioReactiveShapeProps) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const materialRef = useRef<THREE.MeshStandardMaterial>(null);
-  const targetScale = useRef(1.5);
-  const targetHue = useRef(0.6);
-  
-  useFrame((_, delta) => {
-    if (!meshRef.current || !materialRef.current) return;
-    
-    // Use vizParams for real-time control
-    const baseScale = vizParams.scale;
-    const scaleBoost = audioData.current.bass * vizParams.scaleBoost;
-    targetScale.current = baseScale + scaleBoost;
-    
-    // Use lerpSpeed from params for response speed
-    const cur = meshRef.current.scale.x;
-    const next = THREE.MathUtils.lerp(cur, targetScale.current, vizParams.lerpSpeed);
-    meshRef.current.scale.set(next, next, next);
-    
-    // Color shift based on params
-    const intensity = (audioData.current.bass + audioData.current.mid + audioData.current.treble) / 3;
-    targetHue.current = (audioData.current.mid * vizParams.colorShift * 0.3 + 0.55) % 1;
-    materialRef.current.color.setHSL(targetHue.current, 0.9, 0.5 + intensity * 0.2);
-    
-    // Glow intensity from params
-    const glowLevel = vizParams.glowIntensity * (audioData.current.beat ? 1 : 0.2);
-    materialRef.current.emissive.setHSL(targetHue.current, 1, glowLevel * 0.4);
-    
-    // Rotation speed from params
-    meshRef.current.rotation.y += delta * (0.2 + audioData.current.treble * vizParams.rotationSpeed * 2.0);
-    meshRef.current.rotation.x += delta * (0.1 + audioData.current.mid * vizParams.rotationSpeed);
-    meshRef.current.rotation.z += delta * audioData.current.bass * 0.5 * vizParams.rotationSpeed;
-    
-    // Floating motion
-    meshRef.current.position.y = Math.sin(Date.now() * 0.002) * audioData.current.overall * 0.3;
-    meshRef.current.position.x = Math.cos(Date.now() * 0.0015) * audioData.current.mid * 0.2;
-    
-    // Apply material settings from params
-    materialRef.current.wireframe = vizParams.wireframe;
-    materialRef.current.opacity = vizParams.opacity;
-    materialRef.current.transparent = vizParams.opacity < 1;
-    
-    // Apply material type
-    switch (vizParams.materialType) {
-      case "metallic":
-        materialRef.current.metalness = 0.9;
-        materialRef.current.roughness = 0.1;
-        break;
-      case "glass":
-        materialRef.current.metalness = 0.1;
-        materialRef.current.roughness = 0.05;
-        materialRef.current.transparent = true;
-        materialRef.current.opacity = Math.min(vizParams.opacity, 0.7);
-        break;
-      case "neon":
-        materialRef.current.metalness = 0.0;
-        materialRef.current.roughness = 1.0;
-        materialRef.current.emissiveIntensity = glowLevel;
-        break;
-      case "matte":
-        materialRef.current.metalness = 0.0;
-        materialRef.current.roughness = 1.0;
-        break;
-      default:
-        materialRef.current.metalness = 0.5;
-        materialRef.current.roughness = 0.2;
-    }
-  });
-  return (
-    <mesh ref={meshRef}>
-      <icosahedronGeometry args={[1, 2]} />
-      <meshStandardMaterial 
-        ref={materialRef} 
-        color="#6366f1" 
-        metalness={0.5} 
-        roughness={0.2} 
-        wireframe={vizParams.wireframe}
-        emissive="#000000"
-        emissiveIntensity={0}
-      />
-    </mesh>
-  );
-}
-
-function ParticleField({ count = 200, audioData, vizParams }: { count?: number; audioData: React.MutableRefObject<AudioData>; vizParams: VizParams }) {
-  const particlesRef = useRef<THREE.Points>(null);
-  const particleCount = vizParams.particleCount || count;
-  
-  const positions = useMemo(() => {
-    const pos = new Float32Array(particleCount * 3);
-    for (let i = 0; i < particleCount * 3; i += 3) { pos[i] = (Math.random() - 0.5) * 15; pos[i + 1] = (Math.random() - 0.5) * 15; pos[i + 2] = (Math.random() - 0.5) * 15; }
-    return pos;
-  }, [particleCount]);
-  
-  const initialPositions = useMemo(() => positions.slice(), [positions]);
-  
-  useFrame((state) => {
-    if (!particlesRef.current) return;
-    // Rotate particles based on audio energy
-    const rotationSpeed = 0.02 + audioData.current.overall * 0.1 * vizParams.rotationSpeed;
-    particlesRef.current.rotation.y = state.clock.elapsedTime * rotationSpeed;
-    particlesRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
-    
-    // Pulse particle size on beats - use vizParams
-    const material = particlesRef.current.material as THREE.PointsMaterial;
-    material.size = vizParams.particleSize + audioData.current.bass * vizParams.particleSize * 2;
-    material.opacity = 0.4 + audioData.current.overall * 0.6;
-    
-    // Move particles outward on bass hits
-    const pos = particlesRef.current.geometry.attributes.position.array as Float32Array;
-    const bassBoost = audioData.current.bass * 0.5 * vizParams.scaleBoost;
-    for (let i = 0; i < particleCount * 3; i += 3) {
-      const x = initialPositions[i];
-      const y = initialPositions[i + 1];
-      const z = initialPositions[i + 2];
-      const dist = Math.sqrt(x * x + y * y + z * z);
-      const scale = 1 + bassBoost / dist;
-      pos[i] = x * scale;
-      pos[i + 1] = y * scale;
-      pos[i + 2] = z * scale;
-    }
-    particlesRef.current.geometry.attributes.position.needsUpdate = true;
-  });
-  return (
-    <points ref={particlesRef}>
-      <bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /></bufferGeometry>
-      <pointsMaterial size={0.04} color="#818cf8" transparent opacity={0.6} sizeAttenuation />
-    </points>
-  );
-}
-
-function FPSCounter() {
-  const fps = useRef(0); const frames = useRef(0); const last = useRef(performance.now());
-  useFrame(() => {
-    frames.current++; const now = performance.now();
-    if (now - last.current >= 1000) { fps.current = frames.current; frames.current = 0; last.current = now; }
-  });
-  return <Html position={[3, 3, 0]} style={{ color: fps.current >= 28 ? "#22c55e" : fps.current >= 20 ? "#eab308" : "#ef4444", fontSize: "12px", fontFamily: "monospace", textShadow: "0 1px 2px rgba(0,0,0,0.8)" }}>{fps.current} FPS</Html>;
-}
-
-function VisualizerScene({
-  analyserRef,
-  isPlaying,
-  isPaused,
-  demoEnabled,
-  demoBpm,
-  onAudioData,
-  visualizationStyle,
-  vizParams,
-}: {
-  analyserRef: React.MutableRefObject<AnalyserNode | null>;
-  isPlaying: boolean;
-  isPaused: boolean;
-  demoEnabled: boolean;
-  demoBpm: number;
-  onAudioData?: (data: AudioData) => void;
-  visualizationStyle: VisualizationStyle;
-  vizParams: VizParams;
-}) {
-  const realData = useRealAudio(analyserRef, isPlaying, isPaused);
-  const demoData = useDemoAudio(demoEnabled && !isPlaying && !isPaused, demoBpm);
-  const audioData = isPlaying ? realData : demoData;
-
-  // Pass audio data to parent for spectrum display
-  useEffect(() => {
-    if (onAudioData) {
-      const interval = setInterval(() => {
-        onAudioData(audioData.current);
-      }, 50); // Update at 20fps for UI
-      return () => clearInterval(interval);
-    }
-  }, [audioData, onAudioData]);
-
-  const renderVisualization = () => {
-    const props = { audioData, vizParams };
-    switch (visualizationStyle) {
-      case "waveform":
-        return <WaveformViz {...props} />;
-      case "particles":
-        return <ParticleStormViz {...props} />;
-      case "neural":
-        return <NeuralViz {...props} />;
-      case "cosmic":
-        return <CosmicViz {...props} />;
-      case "pulse":
-        return <PulseViz {...props} />;
-      case "storm":
-        return <StormViz {...props} />;
-      case "fractal":
-        return <FractalViz {...props} />;
-      case "geometric":
-      default:
-        return (
-          <>
-            <AudioReactiveShape {...props} />
-            <ParticleField count={250} {...props} />
-          </>
-        );
-    }
-  };
-
-  return (
-    <>
-      <ambientLight intensity={vizParams.lightIntensity * 0.4} />
-      <pointLight position={[10, 10, 10]} intensity={vizParams.lightIntensity} color="#fff" castShadow={vizParams.shadowEnabled} />
-      <pointLight position={[-5, -5, 5]} intensity={vizParams.lightIntensity * 0.6} color="#818cf8" />
-      {vizParams.showGround && <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3, 0]} receiveShadow={vizParams.shadowEnabled}><planeGeometry args={[20, 20]} /><meshStandardMaterial color="#111827" metalness={0.8} roughness={0.2} /></mesh>}
-      {renderVisualization()}
-      <OrbitControls enableZoom enablePan enableRotate minDistance={2} maxDistance={10} autoRotate={!isPlaying && !demoEnabled} autoRotateSpeed={0.3} />
-      <FPSCounter />
-    </>
-  );
-}
-
-export interface VizParams {
-  // Model
-  scale: number;
-  scaleBoost: number;
-  rotationSpeed: number;
-  colorShift: number;
-  glowIntensity: number;
-  lerpSpeed: number;
-  // Material
-  materialType: "standard" | "metallic" | "glass" | "neon" | "matte";
-  wireframe: boolean;
-  opacity: number;
-  // Scene
-  shadowEnabled: boolean;
-  reflectionEnabled: boolean;
-  particleCount: number;
-  particleSize: number;
-  // Environment
-  lightIntensity: number;
-  ambientColor: string;
-  fogEnabled: boolean;
-  fogDensity: number;
-  // Props
-  showGround: boolean;
-  showFloatingShapes: boolean;
-  showLightRays: boolean;
-  // Match Track
-  matchTrack: boolean;
-}
-
-const DEFAULT_VIZ_PARAMS: VizParams = {
-  scale: 1.2,
-  scaleBoost: 1.5,
-  rotationSpeed: 1.0,
-  colorShift: 1.0,
-  glowIntensity: 0.5,
-  lerpSpeed: 0.35,
-  materialType: "standard",
-  wireframe: false,
-  opacity: 1.0,
-  shadowEnabled: true,
-  reflectionEnabled: true,
-  particleCount: 250,
-  particleSize: 0.04,
-  lightIntensity: 1.2,
-  ambientColor: "#1a1a2e",
-  fogEnabled: false,
-  fogDensity: 0.02,
-  showGround: true,
-  showFloatingShapes: true,
-  showLightRays: false,
-  matchTrack: false,
-};
 
 export function Visualizer() {
   const [bgColor, setBgColor] = useState("#050505");
@@ -456,8 +111,8 @@ export function Visualizer() {
         const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
         audioCtxRef.current = ctx;
         const analyser = ctx.createAnalyser();
-        analyser.fftSize = 1024; // Increased from 512 for better frequency resolution
-        analyser.smoothingTimeConstant = 0.4; // Reduced from 0.75 for more responsive animation
+        analyser.fftSize = 1024;
+        analyser.smoothingTimeConstant = 0.4;
         analyserRef.current = analyser;
         const source = ctx.createMediaElementSource(el);
         sourceRef.current = source;
@@ -494,12 +149,11 @@ export function Visualizer() {
   const handleSelectLibraryTrack = (filename: string) => {
     if (!filename) return;
     setError(null);
-    // Encode filename for URL (handles spaces, special chars)
     const encodedFilename = encodeURIComponent(filename);
     setAudioUrl(`/api/audio/file/${encodedFilename}`);
     setDemoEnabled(false);
     setIsPaused(false);
-    
+
     // Analyze track concept and recommend visualization
     if (csvContent) {
       const cleanName = filename.replace(/^\w{8}_/, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "");
@@ -507,7 +161,6 @@ export function Visualizer() {
       if (concept) {
         setTrackConcept(concept);
         setVisualizationStyle(concept.recommendedViz);
-        // Apply match track parameters if enabled
         if (vizParams.matchTrack) {
           applyTrackMatchParams(concept, useOllamaMatch);
         }
@@ -522,7 +175,7 @@ export function Visualizer() {
         setOllamaStreaming(true);
         setOllamaProgress("Connecting to Ollama...");
         setGeneratedHtml("");
-        
+
         const res = await fetch("/api/integrations/analyze-track-stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -533,20 +186,20 @@ export function Visualizer() {
             bpm: concept.bpm,
           }),
         });
-        
+
         if (res.ok) {
           const reader = res.body?.getReader();
           const decoder = new TextDecoder();
           let fullHtml = "";
-          
+
           if (reader) {
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
-              
+
               const chunk = decoder.decode(value);
               const lines = chunk.split("\n").filter(line => line.trim());
-              
+
               for (const line of lines) {
                 try {
                   const data = JSON.parse(line);
@@ -568,7 +221,7 @@ export function Visualizer() {
               }
             }
           }
-          
+
           setOllamaStreaming(false);
           return;
         }
@@ -577,7 +230,7 @@ export function Visualizer() {
         setOllamaStreaming(false);
       }
     }
-    
+
     // Rule-based fallback (no VRAM usage)
     const params = { ...vizParams };
     params.rotationSpeed = Math.max(0.5, Math.min(3.0, concept.bpm / 60));
@@ -605,7 +258,6 @@ export function Visualizer() {
     setVizParams(params);
   };
 
-  // Apply match track when toggled
   const handleMatchTrackToggle = (enabled: boolean) => {
     setVizParams({ ...vizParams, matchTrack: enabled });
     if (enabled && trackConcept) {
@@ -613,14 +265,12 @@ export function Visualizer() {
     }
   };
 
-  // Apply match track when track is selected if toggle is on
   useEffect(() => {
     if (vizParams.matchTrack && trackConcept) {
       applyTrackMatchParams(trackConcept, useOllamaMatch);
     }
   }, [trackConcept]);
 
-  // Check Ollama availability on mount
   useEffect(() => {
     const checkOllama = async () => {
       try {
@@ -693,7 +343,7 @@ export function Visualizer() {
             <div className={`viz-beat-dot ${liveAudioData.beat ? "active" : ""}`} />
           </div>
 
-          {/* Persistent Audio Player - Outside panels to prevent interruption */}
+          {/* Persistent Audio Player */}
           {audioUrl && (
             <div className="viz-audio-bar">
               <audio ref={audioElRef} controls src={audioUrl} className="viz-audio" crossOrigin="anonymous"
@@ -793,14 +443,12 @@ export function Visualizer() {
                     </label>
                   </div>
                 )}
-                {/* Ollama Streaming Progress */}
                 {ollamaStreaming && (
                   <div className="viz-streaming">
                     <div className="viz-streaming-dot" />
                     <span>{ollamaProgress}</span>
                   </div>
                 )}
-                {/* Generated HTML Preview */}
                 {generatedHtml && !ollamaStreaming && (
                   <div className="viz-preview">
                     <button className="viz-preview-btn" onClick={() => setShowPreview(!showPreview)}>
@@ -840,7 +488,7 @@ export function Visualizer() {
                   <p className="viz-param-group-title">Appearance</p>
                   <div className="viz-param-row"><label>Glow</label><input type="range" min="0" max="1" step="0.05" value={vizParams.glowIntensity} onChange={(e) => setVizParams({...vizParams, glowIntensity: parseFloat(e.target.value)})} /><span>{vizParams.glowIntensity.toFixed(2)}</span></div>
                   <div className="viz-param-row"><label>Material</label>
-                    <select value={vizParams.materialType} onChange={(e) => setVizParams({...vizParams, materialType: e.target.value as any})}>
+                    <select value={vizParams.materialType} onChange={(e) => setVizParams({...vizParams, materialType: e.target.value as VizParams["materialType"]})}>
                       <option value="standard">Standard</option>
                       <option value="metallic">Metallic</option>
                       <option value="glass">Glass</option>

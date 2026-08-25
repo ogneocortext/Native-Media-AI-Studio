@@ -297,29 +297,111 @@ Generate 3-8 scenes based on the input theme or concept."""
         return "\n".join(lines[:100])  # Limit output
 
     async def _tool_search_docs(self, query: str, limit: int = 5) -> str:
-        """Search project documentation."""
-        # Simple documentation search
-        docs = [
-            "Art Direction: Configure visual style, colors, typography",
-            "Music Video: Upload audio and generate music videos",
-            "3D Studio: Generate 3D models with Hunyuan3D",
-            "Visualizer: Create audio visualizations",
-            "Queue: Manage generation jobs",
-        ]
-        results = [d for d in docs if query.lower() in d.lower()]
-        return "\n".join(results[:limit]) if results else f"No docs found for '{query}'"
+        """Search project documentation - scans real docs/ and markdown files."""
+        import os
+        import glob
+
+        root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        results: list[str] = []
+        query_lower = query.lower()
+
+        # Search through markdown files in the project
+        for pattern in ["**/*.md", "docs/**/*.md", "packages/**/README.md"]:
+            for filepath in glob.glob(os.path.join(root, pattern), recursive=True):
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    # Check if query appears in content
+                    if query_lower in content.lower():
+                        # Extract relevant section
+                        lines = content.split("\n")
+                        for i, line in enumerate(lines):
+                            if query_lower in line.lower():
+                                # Get surrounding context
+                                start = max(0, i - 1)
+                                end = min(len(lines), i + 3)
+                                snippet = "\n".join(lines[start:end])
+                                rel_path = os.path.relpath(filepath, root)
+                                results.append(f"[{rel_path}]:\n{snippet}")
+                                if len(results) >= limit:
+                                    return "\n\n".join(results)
+                                break
+                except (OSError, UnicodeDecodeError):
+                    continue
+
+        return "\n\n".join(results) if results else f"No docs found for '{query}'"
 
     async def _tool_get_system_health(self) -> str:
-        """Get system health status."""
-        return "System health: CPU 45%, Memory 82%, GPU 23%, VRAM 7.8GB/8GB"
+        """Get real system health status using psutil."""
+        try:
+            import psutil
+
+            cpu = psutil.cpu_percent(interval=0.5)
+            mem = psutil.virtual_memory()
+            disk = psutil.disk_usage("/")
+
+            health_parts = [
+                f"CPU: {cpu}%",
+                f"Memory: {mem.percent}% ({mem.used / (1024 ** 3):.1f}GB / {mem.total / (1024 ** 3):.1f}GB)",
+                f"Disk: {disk.percent}% ({disk.used / (1024 ** 3):.1f}GB / {disk.total / (1024 ** 3):.1f}GB)",
+            ]
+
+            # Add GPU info if available
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=utilization.memory,memory.used,memory.total", "--format=csv,noheader,nounits"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    parts = result.stdout.strip().split(",")
+                    if len(parts) >= 3:
+                        mem_pct = float(parts[0])
+                        mem_used = float(parts[1])
+                        mem_total = float(parts[2])
+                        health_parts.append(f"GPU VRAM: {mem_pct:.0f}% ({mem_used:.0f}MB / {mem_total:.0f}MB)")
+            except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+                pass
+
+            return "System health: " + ", ".join(health_parts)
+        except ImportError:
+            # psutil not available, return basic info
+            return "System health: psutil not installed. Run: pip install psutil"
 
     async def _tool_list_jobs(self, status: str | None = None) -> str:
-        """List jobs in the queue."""
-        return "Jobs: 2 queued, 1 running, 5 completed"
+        """List real jobs from the queue manager."""
+        try:
+            from ..queue.manager import queue_manager
+            jobs = queue_manager.get_all_jobs()
+            if status:
+                jobs = [j for j in jobs if j.get("status") == status]
+
+            status_counts: dict[str, int] = {}
+            for job in jobs:
+                s = job.get("status", "unknown")
+                status_counts[s] = status_counts.get(s, 0) + 1
+
+            parts = [f"{count} {st}" for st, count in sorted(status_counts.items())]
+            return f"Jobs: {', '.join(parts)}" if parts else "Jobs: none in queue"
+        except Exception as e:
+            logger.warning(f"Failed to list jobs: {e}")
+            return f"Jobs: queue unavailable ({e})"
 
     async def _tool_get_job_status(self, job_id: str) -> str:
-        """Get status of a specific job."""
-        return f"Job {job_id}: running, 45% complete"
+        """Get real status of a specific job."""
+        try:
+            from ..queue.manager import queue_manager
+            job = queue_manager.get_job(job_id)
+            if not job:
+                return f"Job {job_id}: not found"
+            status = job.get("status", "unknown")
+            progress = job.get("progress")
+            if progress is not None:
+                return f"Job {job_id}: {status}, {progress:.0%} complete"
+            return f"Job {job_id}: {status}"
+        except Exception as e:
+            logger.warning(f"Failed to get job status: {e}")
+            return f"Job {job_id}: error retrieving status ({e})"
 
     async def _tool_generate_visualization(
         self,

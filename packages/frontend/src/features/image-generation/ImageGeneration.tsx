@@ -19,18 +19,26 @@ interface ModelInfo {
   bestFor: string;
 }
 
-const MODEL_INFO: Record<string, ModelInfo> = {
-  "v1-5-pruned-emaonly": {
-    description: "Stable Diffusion 1.5 — versatile general-purpose image generation model",
-    type: "Image (SD 1.5)",
-    bestFor: "General images, portraits, landscapes, concept art",
-  },
-  "hunyuan3d-dit-v2-mini": {
-    description: "Hunyuan3D — generates 3D models from text prompts in mini/fast variant",
-    type: "3D Generation",
-    bestFor: "3D model creation, mesh generation, assets",
-  },
-};
+function getModelInfo(modelName: string): ModelInfo {
+  const baseName = modelName.replace(/\.(safetensors|ckpt|pt)$/i, "").toLowerCase();
+  if (baseName.includes("hunyuan3d") || baseName.includes("3d")) {
+    return { description: "3D model generation", type: "3D Generation", bestFor: "3D model creation, mesh generation, assets" };
+  }
+  if (baseName.includes("sdxl") || baseName.includes("xl")) {
+    return { description: "Stable Diffusion XL — high-resolution image generation", type: "Image (SDXL)", bestFor: "High-res images, detailed portraits, landscapes" };
+  }
+  if (baseName.includes("sd") || baseName.includes("v1-5") || baseName.includes("v15")) {
+    return { description: "Stable Diffusion 1.5 — versatile general-purpose image generation", type: "Image (SD 1.5)", bestFor: "General images, portraits, landscapes, concept art" };
+  }
+  if (baseName.includes("flux")) {
+    return { description: "Flux — high-quality image generation with fast inference", type: "Image (Flux)", bestFor: "High-quality images, creative concepts, artistic styles" };
+  }
+  if (baseName.includes("wan")) {
+    return { description: "Wan — video generation model", type: "Video", bestFor: "Video generation, motion synthesis" };
+  }
+  // Generic fallback for any model
+  return { description: `AI model: ${modelName}`, type: "Image/Video", bestFor: "Image and video generation" };
+}
 
 interface GenerationOptions {
   prompt: string;
@@ -85,10 +93,10 @@ export function ImageGeneration() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.checkpoints?.length) {
-          // Filter to only show image generation models
+          // Filter to show image and 3D generation models (exclude pure video models)
           const imageModels = data.checkpoints.filter((name: string) => {
-            const baseName = name.replace(/\.(safetensors|ckpt|pt)$/i, "");
-            return !!MODEL_INFO[baseName];
+            const baseName = name.toLowerCase();
+            return !baseName.includes("wan") && !baseName.includes("animate") && !baseName.includes("motion");
           });
           setModels(imageModels.map((name: string) => ({ name, filename: name, path: "", size: 0 })));
         }
@@ -343,8 +351,7 @@ export function ImageGeneration() {
               <div className="space-y-2">
                 {models.map((m) => {
                   const name = typeof m === "string" ? m : m.name || m.filename;
-                  const baseName = name.replace(/\.(safetensors|ckpt|pt)$/i, "");
-                  const info = MODEL_INFO[baseName];
+                  const info = getModelInfo(name);
                   const selected = options.model === name;
                   return (
                     <button

@@ -1,7 +1,7 @@
 import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import type { AudioData, VizParams } from "./Visualizer";
+import type { AudioData, VizParams } from "./types";
 
 interface VizProps {
   audioData: React.MutableRefObject<AudioData>;

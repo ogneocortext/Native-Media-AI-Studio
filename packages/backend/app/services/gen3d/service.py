@@ -21,11 +21,13 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Paths
+from ..core.config import config as app_config
+
+# Paths derived from app config (not hardcoded)
 COMFYUI_DIR = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI")
 COMFYUI_MODEL = COMFYUI_DIR / "models" / "diffusion_models" / "hunyuan3d-2mini"
-COMFYUI_URL = "http://127.0.0.1:8188"
-OUTPUT_DIR = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\output\generated_3d")
+COMFYUI_URL = app_config.comfyui_url
+OUTPUT_DIR = app_config.output_dir / "generated_3d"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 

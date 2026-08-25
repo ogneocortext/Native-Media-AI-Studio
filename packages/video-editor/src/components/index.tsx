@@ -195,7 +195,15 @@ export function TikTokCaptions({ captions, accentColor = "#6366f1", switchEveryM
 
   const currentPage = pages.find((p) => tMs >= p.startMs && tMs < p.startMs + p.durationMs) ?? pages[0];
 
-  if (!currentPage) return null;
+  if (!currentPage) {
+    return (
+      <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 120, pointerEvents: "none" }}>
+        <div style={{ textAlign: "center", color: "#6b7280", fontSize: 14 }}>
+          No captions for this timestamp
+        </div>
+      </AbsoluteFill>
+    );
+  }
 
   const words = currentPage.text.split(" ");
   const pageDurationSec = currentPage.durationMs / 1000;
@@ -332,7 +340,10 @@ export function SceneTransition({ times, color = "#6366f1" }: TransitionProps) {
     }
   }
 
-  if (activeTransition === -1) return null;
+  if (activeTransition === -1) {
+    // No active transition — render empty fill (no transition effect)
+    return <AbsoluteFill />;
+  }
 
   const wipeX = interpolate(wipeProgress, [0, 1], [-900, 2700], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: EASE_ENTER });
   const wipeOpacity = interpolate(wipeProgress, [0, 0.5, 1], [0, 0.22, 0]);
