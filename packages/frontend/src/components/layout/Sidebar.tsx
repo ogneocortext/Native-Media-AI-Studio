@@ -10,6 +10,7 @@ import {
   Image,
   LayoutDashboard,
   ListOrdered,
+  Loader2,
   Palette,
   Settings,
   Sparkles,
@@ -23,6 +24,7 @@ import {
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useHealthStore } from "../../state/healthStore";
+import { getApiBase } from "../../services/api";
 
 interface NavItem { path: string; label: string; icon: React.ReactNode; badge?: string; }
 
@@ -241,8 +243,12 @@ export function Sidebar() {
                     <span className={`adapter-status ${adapter.status}`}>{adapter.status}</span>
                   </div>
                 ))}
-                {adapterList.length > 3 && <p className="adapter-more">+{adapterList.length - 3} more</p>}
+                 {adapterList.length > 3 && <p className="adapter-more">+{adapterList.length - 3} more</p>}
               </div>
+
+              {/* ComfyUI Quick Control */}
+              <ComfyUIQuickControl collapsed={collapsed && !isMobile} />
+
               <Link to="/health" className="sidebar-diagnostics-link">
                 <Activity size={16} style={{ flexShrink: 0 }} />
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Diagnostics</span>
@@ -251,6 +257,7 @@ export function Sidebar() {
           ) : (
             <div className="sidebar-footer-collapsed">
               <div className={`health-dot ${overallStatus}`} />
+              <ComfyUIQuickControl collapsed={collapsed && !isMobile} />
               <Link to="/health" className="sidebar-footer-collapsed-inner">
                 <Activity size={14} />
               </Link>
@@ -259,5 +266,61 @@ export function Sidebar() {
         </div>
       </aside>
     </>
+  );
+}
+
+// ComfyUI Quick Control component for sidebar
+function ComfyUIQuickControl({ collapsed }: { collapsed: boolean }) {
+  const [comfyui, setComfyui] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchStatus = async () => {
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}/api/services/comfyui/status`);
+      if (res.ok) setComfyui(await res.json());
+    } catch { /* ignore */ }
+  };
+
+  useEffect(() => {
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleToggle = async () => {
+    if (!comfyui?.installed) return;
+    setLoading(true);
+    try {
+      const base = getApiBase();
+      const action = comfyui.running ? 'stop' : 'start';
+      await fetch(`${base}/api/services/comfyui/${action}`, { method: 'POST' });
+      await fetchStatus();
+    } catch { /* ignore */ }
+    setLoading(false);
+  };
+
+  if (!comfyui?.installed) return null;
+
+  return (
+    <div className={`comfyui-quick ${collapsed ? 'center' : ''}`}>
+      <button
+        onClick={handleToggle}
+        disabled={loading}
+        className={`comfyui-quick-btn ${comfyui.running ? 'running' : 'stopped'}`}
+        title={comfyui.running ? 'ComfyUI running - click to stop' : 'ComfyUI stopped - click to start'}
+      >
+        {loading ? (
+          <Loader2 size={12} className="animate-spin" />
+        ) : (
+          <Box size={12} />
+        )}
+        {!collapsed && (
+          <span className="comfyui-quick-text">
+            ComfyUI {comfyui.running ? 'ON' : 'OFF'}
+          </span>
+        )}
+      </button>
+    </div>
   );
 }

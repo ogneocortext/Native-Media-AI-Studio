@@ -54,6 +54,7 @@ export function HealthPage() {
   const [comfyui, setComfyui] = useState<ComfyUIStatusType | null>(null);
   const [comfyuiLoading, setComfyuiLoading] = useState(false);
   const [comfyuiAction, setComfyuiAction] = useState<string | null>(null);
+  const [vramStatus, setVramStatus] = useState<any>(null);
 
   // Fetch ComfyUI status
   const fetchComfyUIStatus = async () => {
@@ -65,9 +66,27 @@ export function HealthPage() {
     }
   };
 
+  // Fetch VRAM status
+  const fetchVRAMStatus = async () => {
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}/api/integrations/vram/status`);
+      if (res.ok) {
+        const data = await res.json();
+        setVramStatus(data);
+      }
+    } catch {
+      // Ignore errors
+    }
+  };
+
   useEffect(() => {
     fetchComfyUIStatus();
-    const interval = setInterval(fetchComfyUIStatus, 10000); // Refresh every 10s
+    fetchVRAMStatus();
+    const interval = setInterval(() => {
+      fetchComfyUIStatus();
+      fetchVRAMStatus();
+    }, 10000); // Refresh every 10s
     return () => clearInterval(interval);
   }, []);
 
@@ -78,9 +97,20 @@ export function HealthPage() {
       let result;
       switch (action) {
         case "start":
+          // Check VRAM before starting
+          await fetchVRAMStatus();
+          if (vramStatus?.vram?.percent > 80) {
+            const proceed = window.confirm(
+              `VRAM is at ${vramStatus.vram.percent}%. Starting ComfyUI may cause performance issues. Continue?`
+            );
+            if (!proceed) {
+              setComfyuiLoading(false);
+              setComfyuiAction(null);
+              return;
+            }
+          }
           result = await startComfyUI();
           if (!result.success && result.suggestion) {
-            // Show CUDA error with suggestion
             alert(`${result.message}\n\n${result.suggestion}`);
           }
           break;
@@ -93,6 +123,7 @@ export function HealthPage() {
       }
       // Refresh status after action
       await fetchComfyUIStatus();
+      await fetchVRAMStatus();
     } catch (err) {
       console.error(`ComfyUI ${action} failed:`, err);
     } finally {
@@ -264,13 +295,26 @@ export function HealthPage() {
             </div>
           )}
 
-          {/* Uptime */}
-          {comfyui.running && comfyui.uptime_seconds && (
-            <p className="text-xs text-muted mt-2">
-              Uptime: {Math.floor(comfyui.uptime_seconds / 60)}m {Math.floor(comfyui.uptime_seconds % 60)}s
-              {comfyui.pid && ` • PID: ${comfyui.pid}`}
-            </p>
-          )}
+          {/* Uptime & VRAM */}
+          <div className="flex items-center justify-between text-xs text-muted mt-2">
+            <div>
+              {comfyui.running && comfyui.uptime_seconds && (
+                <span>
+                  Uptime: {Math.floor(comfyui.uptime_seconds / 60)}m {Math.floor(comfyui.uptime_seconds % 60)}s
+                  {comfyui.pid && ` • PID: ${comfyui.pid}`}
+                </span>
+              )}
+            </div>
+            {vramStatus?.vram?.available && (
+              <span className="flex items-center gap-1">
+                <span className={`w-2 h-2 rounded-full ${
+                  vramStatus.vram.percent > 80 ? 'bg-red-400' :
+                  vramStatus.vram.percent > 60 ? 'bg-yellow-400' : 'bg-green-400'
+                }`} />
+                VRAM: {vramStatus.vram.percent}% ({Math.round(vramStatus.vram.free_mb / 1024)}GB free)
+              </span>
+            )}
+          </div>
         </Card>
       )}
 
