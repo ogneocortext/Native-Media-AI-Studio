@@ -23,6 +23,7 @@ import {
   Thermometer,
   Box,
   Zap,
+  Terminal,
 } from "lucide-react";
 import { Card, StatusBadge, LoadingSpinner } from "../../components/common";
 import { useHealth } from "../../hooks";
@@ -55,6 +56,16 @@ export function HealthPage() {
   const [comfyuiLoading, setComfyuiLoading] = useState(false);
   const [comfyuiAction, setComfyuiAction] = useState<string | null>(null);
   const [vramStatus, setVramStatus] = useState<any>(null);
+  const [actionLog, setActionLog] = useState<Array<{ time: string; message: string; type: string }>>([]);
+
+  // Add a log message
+  const addLog = (message: string, type: string = "info") => {
+    const time = new Date().toLocaleTimeString();
+    setActionLog((prev) => [...prev.slice(-49), { time, message, type }]);
+  };
+
+  // Clear logs
+  const clearLogs = () => setActionLog([]);
 
   // Fetch ComfyUI status
   const fetchComfyUIStatus = async () => {
@@ -93,38 +104,76 @@ export function HealthPage() {
   const handleComfyUIAction = async (action: "start" | "stop" | "update") => {
     setComfyuiLoading(true);
     setComfyuiAction(action);
+    addLog(`Starting ${action}...`, "info");
     try {
       let result;
       switch (action) {
         case "start":
-          // Check VRAM before starting
+          addLog("Checking VRAM availability...", "info");
           await fetchVRAMStatus();
           if (vramStatus?.vram?.percent > 80) {
+            addLog(`Warning: VRAM is at ${vramStatus.vram.percent}%`, "warning");
             const proceed = window.confirm(
               `VRAM is at ${vramStatus.vram.percent}%. Starting ComfyUI may cause performance issues. Continue?`
             );
             if (!proceed) {
+              addLog("Start cancelled by user", "warning");
               setComfyuiLoading(false);
               setComfyuiAction(null);
               return;
             }
           }
+          addLog("Starting ComfyUI...", "info");
           result = await startComfyUI();
-          if (!result.success && result.suggestion) {
-            alert(`${result.message}\n\n${result.suggestion}`);
+          if (result.success) {
+            addLog(`ComfyUI started: ${result.message}`, "success");
+          } else {
+            addLog(`Failed: ${result.message}`, "error");
+            if (result.suggestion) {
+              addLog(`Suggestion: ${result.suggestion}`, "warning");
+              alert(`${result.message}\n\n${result.suggestion}`);
+            }
           }
           break;
         case "stop":
+          addLog("Stopping ComfyUI...", "info");
           result = await stopComfyUI();
+          if (result.success) {
+            addLog(`ComfyUI stopped: ${result.message}`, "success");
+          } else {
+            addLog(`Failed: ${result.message}`, "error");
+          }
           break;
         case "update":
+          addLog("Starting ComfyUI update...", "info");
+          addLog("Running git pull...", "info");
           result = await updateComfyUI();
+          if (result.success) {
+            addLog(`Update successful: ${result.message}`, "success");
+            if (result.output) {
+              addLog(`Git output: ${result.output}`, "info");
+            }
+            if (result.was_running) {
+              addLog("Restarting ComfyUI...", "info");
+              if (result.restarted?.success) {
+                addLog("ComfyUI restarted successfully", "success");
+              } else {
+                addLog(`Restart failed: ${result.restarted?.message}`, "error");
+              }
+            }
+          } else {
+            addLog(`Update failed: ${result.message}`, "error");
+            if (result.errors) {
+              addLog(`Errors: ${result.errors}`, "error");
+            }
+          }
           break;
       }
       // Refresh status after action
       await fetchComfyUIStatus();
       await fetchVRAMStatus();
     } catch (err) {
+      addLog(`Error: ${err instanceof Error ? err.message : String(err)}`, "error");
       console.error(`ComfyUI ${action} failed:`, err);
     } finally {
       setComfyuiLoading(false);
@@ -314,6 +363,38 @@ export function HealthPage() {
                 VRAM: {vramStatus.vram.percent}% ({Math.round(vramStatus.vram.free_mb / 1024)}GB free)
               </span>
             )}
+          </div>
+        </Card>
+      )}
+
+      {/* Action Log Panel */}
+      {actionLog.length > 0 && (
+        <Card className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Terminal size={16} className="text-indigo-400" />
+              <h3 className="font-semibold text-sm">Action Log</h3>
+              <span className="text-xs text-muted">({actionLog.length} entries)</span>
+            </div>
+            <button
+              onClick={clearLogs}
+              className="text-xs text-muted hover:text-white transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="bg-gray-900 rounded-lg p-3 max-h-48 overflow-y-auto font-mono text-xs">
+            {actionLog.map((log, i) => (
+              <div key={i} className={`flex gap-2 ${
+                log.type === 'error' ? 'text-red-400' :
+                log.type === 'warning' ? 'text-yellow-400' :
+                log.type === 'success' ? 'text-green-400' :
+                'text-gray-400'
+              }`}>
+                <span className="text-gray-600 shrink-0">[{log.time}]</span>
+                <span>{log.message}</span>
+              </div>
+            ))}
           </div>
         </Card>
       )}
