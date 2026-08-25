@@ -77,6 +77,33 @@ const VIDEO_MODELS: VideoModel[] = [
   },
 ];
 
+// Style gradient placeholders (instant visual feedback while preview generates)
+const STYLE_GRADIENTS: Record<string, string> = {
+  cyberpunk_neon: "linear-gradient(135deg, #ff00ff 0%, #00ffff 50%, #ff00aa 100%)",
+  organic_flow: "linear-gradient(135deg, #4a7c59 0%, #8fbc8f 50%, #2d5016 100%)",
+  geometric_pulse: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
+  particle_dance: "linear-gradient(135deg, #ffd700 0%, #ff8c00 50%, #ff4500 100%)",
+  vinyl_retro: "linear-gradient(135deg, #8b4513 0%, #d2691e 50%, #cd853f 100%)",
+  waveform_classic: "linear-gradient(135deg, #00ff00 0%, #003300 50%, #001100 100%)",
+  fire_energy: "linear-gradient(135deg, #ff0000 0%, #ff4500 50%, #ff8c00 100%)",
+};
+
+// Generate a placeholder SVG for style previews (instant, no API call needed)
+function generateStylePlaceholder(styleId: string, styleName: string): string {
+  const colors = STYLE_GRADIENTS[styleId]?.match(/#[0-9a-f]{6}/gi) || ["#667eea", "#764ba2"];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="144" viewBox="0 0 256 144">
+    <defs>
+      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:${colors[0]}" />
+        <stop offset="100%" style="stop-color:${colors[1] || colors[0]}" />
+      </linearGradient>
+    </defs>
+    <rect width="256" height="144" fill="url(#g)" />
+    <text x="128" y="72" font-family="Arial" font-size="14" fill="white" text-anchor="middle" dominant-baseline="middle" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.5)">${styleName}</text>
+  </svg>`;
+  return `data:image/svg+xml;base64,${btoa(svg)}`;
+}
+
 export function VideoGenerationPage() {
   const [prompt, setPrompt] = useState("cinematic music video, vibrant colors, professional lighting");
   const [negativePrompt, setNegativePrompt] = useState("blurry, low quality, distorted");
@@ -190,17 +217,31 @@ export function VideoGenerationPage() {
   const generateStylePreview = async (styleId: string) => {
     setLoadingPreviews((prev) => ({ ...prev, [styleId]: true }));
     try {
+      // Try to get a cached preview from localStorage first
+      const cached = localStorage.getItem(`style-preview-${styleId}`);
+      if (cached) {
+        setStylePreviews((prev) => ({ ...prev, [styleId]: cached }));
+        setLoadingPreviews((prev) => ({ ...prev, [styleId]: false }));
+        return;
+      }
       const res = await fetch(`/api/integrations/music-video/style-preview?style_id=${styleId}`, {
         method: "POST",
       });
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.image) {
+          // Cache the preview for future visits
+          try {
+            localStorage.setItem(`style-preview-${styleId}`, data.image);
+          } catch {
+            // localStorage full — skip caching
+          }
           setStylePreviews((prev) => ({ ...prev, [styleId]: data.image }));
         }
       }
     } catch (e) {
       console.error("Preview generation failed:", e);
+      // Keep the SVG placeholder on failure
     } finally {
       setLoadingPreviews((prev) => ({ ...prev, [styleId]: false }));
     }
@@ -495,40 +536,62 @@ export function VideoGenerationPage() {
             </h3>
             {styles.length > 0 ? (
               <div className="space-y-2">
-                {styles.map((s: any) => (
-                  <div
-                    key={s.id || s.name}
-                    className={`rounded-lg border overflow-hidden transition-all duration-200 ${selectedStyle === (s.id || s.name) ? "border-purple-500" : "border-gray-600 hover:border-gray-500"}`}
-                  >
-                    {/* Preview Image */}
-                    {stylePreviews[s.id || s.name] && (
-                      <div className="aspect-video bg-gray-900 relative">
-                        <img
-                          src={`data:image/png;base64,${stylePreviews[s.id || s.name]}`}
-                          alt={s.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
-                    {loadingPreviews[s.id || s.name] && (
-                      <div className="aspect-video bg-gray-900 flex items-center justify-center">
-                        <Loader2 size={20} className="text-purple-400 animate-spin" />
-                      </div>
-                    )}
-                    <button
-                      onClick={() => {
-                        setSelectedStyle(s.id || s.name);
-                        if (!stylePreviews[s.id || s.name] && !loadingPreviews[s.id || s.name]) {
-                          generateStylePreview(s.id || s.name);
-                        }
-                      }}
-                      className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between ${selectedStyle === (s.id || s.name) ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-400 hover:bg-gray-600"}`}
+                {styles.map((s: any) => {
+                  const styleId = s.id || s.name;
+                  const hasPreview = !!stylePreviews[styleId];
+                  const isLoading = !!loadingPreviews[styleId];
+                  return (
+                    <div
+                      key={styleId}
+                      className={`rounded-lg border overflow-hidden transition-all duration-200 ${selectedStyle === styleId ? "border-purple-500 shadow-lg shadow-purple-500/20" : "border-gray-600 hover:border-gray-500"}`}
                     >
-                      <span>{s.name || s.id}</span>
-                      {selectedStyle === (s.id || s.name) && <span className="text-[10px] text-purple-300">Selected</span>}
-                    </button>
-                  </div>
-                ))}
+                      {/* Preview Image or Placeholder */}
+                      <div
+                        className="aspect-video bg-gray-900 relative cursor-pointer"
+                        onClick={() => {
+                          setSelectedStyle(styleId);
+                          if (!hasPreview && !isLoading) {
+                            // Show instant placeholder then lazy-load real preview
+                            setStylePreviews((prev) => ({ ...prev, [styleId]: generateStylePlaceholder(styleId, s.name) }));
+                            generateStylePreview(styleId);
+                          }
+                        }}
+                      >
+                        {hasPreview ? (
+                          <img
+                            src={stylePreviews[styleId].startsWith("data:") ? stylePreviews[styleId] : `data:image/png;base64,${stylePreviews[styleId]}`}
+                            alt={s.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : isLoading ? (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-800">
+                            <Loader2 size={20} className="text-purple-400 animate-spin" />
+                          </div>
+                        ) : (
+                          <div
+                            className="w-full h-full flex items-center justify-center"
+                            style={{ background: STYLE_GRADIENTS[styleId] || "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" }}
+                          >
+                            <span className="text-white text-sm font-medium" style={{ textShadow: "1px 1px 2px rgba(0,0,0,0.5)" }}>Click to preview</span>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedStyle(styleId);
+                          if (!hasPreview && !isLoading) {
+                            setStylePreviews((prev) => ({ ...prev, [styleId]: generateStylePlaceholder(styleId, s.name) }));
+                            generateStylePreview(styleId);
+                          }
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between transition-all duration-200 ${selectedStyle === styleId ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-400 hover:bg-gray-600"}`}
+                      >
+                        <span>{s.name || s.id}</span>
+                        {selectedStyle === styleId && <span className="text-[10px] text-purple-300">Selected</span>}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-gray-500 text-sm">No styles available</p>
@@ -547,12 +610,15 @@ export function VideoGenerationPage() {
                   <button
                     key={t.id || t.name}
                     onClick={() => setSelectedTemplate(t.id || "")}
-                    className={`w-full text-left px-3 py-2 rounded text-sm transition-all duration-200 ${
+                    className={`w-full text-left px-3 py-2 rounded text-sm transition-all duration-200 flex items-center justify-between ${
                       selectedTemplate === t.id ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-400 hover:bg-gray-600"
                     }`}
                   >
-                    <span>{t.name || t.id}</span>
-                    {t.sections && <span className="text-xs text-gray-500 ml-1">({t.sections.length})</span>}
+                    <span className="truncate">{t.name || t.id}</span>
+                    <span className="flex items-center gap-2 shrink-0">
+                      {t.sections && <span className="text-xs opacity-60">({t.sections.length})</span>}
+                      {selectedTemplate === t.id && <span className="text-[10px] text-purple-300">Selected</span>}
+                    </span>
                   </button>
                 ))}
               </div>
