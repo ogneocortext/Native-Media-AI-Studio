@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | `queue.log` | Queue processor events |
 | `comfyui.log` | ComfyUI adapter events |
 
+### Fixed - ComfyUI Update & Git Integration
+
+- Fixed ComfyUI update endpoint not working with uvicorn --reload
+- Added robust git detection with fallback paths for Windows
+- Added detailed error logging with tracebacks for debugging
+- Fixed subprocess PATH issues for git execution
+- Update action now shows real-time progress in Action Log
+
 ### Added - VRAM Management System
 
 - **VRAM Manager**: Coordinates GPU memory between Ollama and ComfyUI
