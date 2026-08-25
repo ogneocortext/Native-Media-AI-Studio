@@ -705,35 +705,35 @@ export function AudioAnalysisPage() {
                                     autoFocus
                                     value={currentEditName}
                                     onChange={(e) => setEditName(e.target.value)}
-                                    onBlur={async () => {
-                                      const newName = currentEditName.trim();
-                                      if (newName && newName !== f.filename) {
-                                        try {
-                                          const ext = f.filename.includes(".") ? f.filename.slice(f.filename.lastIndexOf(".")) : "";
-                                          const finalName = newName.includes(".") ? newName : newName + ext;
-                                          await renameAudioFile(f.filename, finalName);
-                                          await loadAudioFiles();
-                                        } catch { /* ignore */ }
-                                      }
-                                      setEditingFile(null);
+                                    onBlur={() => {
+                                      // Small delay to let onKeyDown handle Enter first
+                                      setTimeout(() => {
+                                        if (editingFile === f.path) {
+                                          setEditingFile(null);
+                                        }
+                                      }, 100);
                                     }}
                                     onKeyDown={(e) => {
                                       if (e.key === "Enter") {
                                         e.preventDefault();
-                                        const input = e.target as HTMLInputElement;
-                                        const newName = input.value.trim();
+                                        e.stopPropagation();
+                                        const newName = currentEditName.trim();
                                         if (newName && newName !== f.filename) {
                                           const ext = f.filename.includes(".") ? f.filename.slice(f.filename.lastIndexOf(".")) : "";
                                           const finalName = newName.includes(".") ? newName : newName + ext;
+                                          const oldName = f.filename;
                                           setEditingFile(null);
-                                          renameAudioFile(f.filename, finalName)
+                                          renameAudioFile(oldName, finalName)
                                             .then(() => loadAudioFiles())
-                                            .catch(() => {});
+                                            .catch((err) => console.error("Rename failed:", err));
                                         } else {
                                           setEditingFile(null);
                                         }
                                       }
-                                      if (e.key === "Escape") setEditingFile(null);
+                                      if (e.key === "Escape") {
+                                        e.preventDefault();
+                                        setEditingFile(null);
+                                      }
                                     }}
                                     onClick={(e) => e.stopPropagation()}
                                     className="ml-2 px-1 py-0.5 bg-gray-700 border border-violet-500 rounded text-sm text-white w-full focus:outline-none"
