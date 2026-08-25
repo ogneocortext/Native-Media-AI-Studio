@@ -64,6 +64,16 @@ class VRAMManager:
 
         # Minimum free VRAM needed for 3D generation (in MB)
         self.MIN_VRAM_FOR_3D = 4000  # 4GB for Hunyuan3D-2mini
+        
+        # Safety margins for system stability
+        # Don't offload to CPU if system RAM is below this threshold
+        self.MIN_SYSTEM_RAM_FOR_OFFLOAD = 4096  # 4GB free RAM required
+        # Maximum system RAM usage percentage for safe offload
+        self.MAX_SYSTEM_RAM_PERCENT = 75.0
+        # Wait up to this long for VRAM to free up naturally
+        self.VRAM_WAIT_TIMEOUT = 120  # 2 minutes
+        # Poll interval when waiting
+        self.VRAM_POLL_INTERVAL = 5  # 5 seconds
 
         self._init_gpu_monitoring()
 
@@ -170,7 +180,12 @@ class VRAMManager:
     async def begin_3d_generation(self) -> dict[str, Any]:
         """
         Signal that 3D generation is starting.
-        Offloads Ollama models if necessary to free VRAM.
+        
+        Strategy (in order of preference):
+        1. If enough VRAM free - proceed immediately
+        2. Wait for VRAM to free up naturally (timeout)
+        3. If system RAM is sufficient - offload Ollama to CPU
+        4. If neither is safe - return error with guidance
         
         Returns:
             Dict with status and actions taken
@@ -183,21 +198,101 @@ class VRAMManager:
             vram = await self.get_vram_status()
             actions = []
 
-            # Check if we need to offload Ollama
-            if self._ollama_loaded:
-                free_mb = vram.get("free_mb", 0)
-                if free_mb < self.MIN_VRAM_FOR_3D:
-                    logger.info("VRAM Manager: Freeing VRAM by offloading Ollama models "
-                                "(free=%dMB, need=%dMB)", free_mb, self.MIN_VRAM_FOR_3D)
-                    offload_result = await self._unload_ollama_models()
-                    actions.append(offload_result)
+            # Check if we have enough VRAM
+            free_mb = vram.get("free_mb", 0)
+            if free_mb >= self.MIN_VRAM_FOR_3D:
+                logger.info("VRAM Manager: Sufficient VRAM available (%dMB free)", free_mb)
+                return {
+                    "success": True,
+                    "vram_before": vram,
+                    "actions": actions,
+                    "ollama_loaded": self._ollama_loaded,
+                }
 
+            # Not enough VRAM - try waiting for natural cleanup
+            logger.info("VRAM Manager: Low VRAM (%dMB free), waiting for cleanup...", free_mb)
+            waited = await self._wait_for_vram()
+            if waited:
+                vram = await self.get_vram_status()
+                actions.append({"action": "wait_for_vram", "success": True})
+                return {
+                    "success": True,
+                    "vram_before": vram,
+                    "actions": actions,
+                    "ollama_loaded": self._ollama_loaded,
+                }
+
+            # Still not enough VRAM - check if we can safely offload to CPU
+            if self._ollama_loaded and self._can_safely_offload():
+                logger.info("VRAM Manager: Offloading Ollama to CPU (system RAM sufficient)")
+                offload_result = await self._unload_ollama_models()
+                actions.append(offload_result)
+                vram = await self.get_vram_status()
+                return {
+                    "success": True,
+                    "vram_before": vram,
+                    "actions": actions,
+                    "ollama_loaded": self._ollama_loaded,
+                }
+
+            # Cannot safely proceed
+            logger.warning("VRAM Manager: Cannot safely start 3D generation")
+            self._comfyui_busy = False
+            self._current_workload = GPUWorkload.IDLE
             return {
-                "success": True,
-                "vram_before": vram,
-                "actions": actions,
-                "ollama_loaded": self._ollama_loaded,
+                "success": False,
+                "error": "Insufficient VRAM and cannot safely offload Ollama",
+                "vram": vram,
+                "guidance": "Close other GPU applications or wait for current tasks to complete",
             }
+
+    async def _wait_for_vram(self) -> bool:
+        """
+        Wait for VRAM to free up naturally.
+        Returns True if enough VRAM became available, False if timeout.
+        """
+        import asyncio
+        start = asyncio.get_event_loop().time()
+        while (asyncio.get_event_loop().time() - start) < self.VRAM_WAIT_TIMEOUT:
+            await asyncio.sleep(self.VRAM_POLL_INTERVAL)
+            vram = await self.get_vram_status()
+            if vram.get("free_mb", 0) >= self.MIN_VRAM_FOR_3D:
+                logger.info("VRAM Manager: VRAM freed up naturally (%dMB free)",
+                            vram.get("free_mb", 0))
+                return True
+        logger.info("VRAM Manager: Timeout waiting for VRAM cleanup")
+        return False
+
+    def _can_safely_offload(self) -> bool:
+        """
+        Check if it's safe to offload Ollama models to CPU.
+        Considers system RAM availability to prevent system instability.
+        """
+        try:
+            import psutil
+            mem = psutil.virtual_memory()
+            free_mb = mem.available / (1024 * 1024)
+            used_percent = mem.percent
+
+            # Need enough free RAM for Ollama model (typically 3-7GB)
+            if free_mb < self.MIN_SYSTEM_RAM_FOR_OFFLOAD:
+                logger.info("VRAM Manager: Cannot offload - insufficient system RAM "
+                            "(free=%dMB, need=%dMB)", int(free_mb), self.MIN_SYSTEM_RAM_FOR_OFFLOAD)
+                return False
+
+            # Don't offload if system RAM is already heavily used
+            if used_percent > self.MAX_SYSTEM_RAM_PERCENT:
+                logger.info("VRAM Manager: Cannot offload - system RAM too high (%.1f%%)",
+                            used_percent)
+                return False
+
+            logger.info("VRAM Manager: Safe to offload (RAM free=%dMB, usage=%.1f%%)",
+                        int(free_mb), used_percent)
+            return True
+
+        except Exception as e:
+            logger.warning("VRAM Manager: Error checking system RAM: %s", e)
+            return False
 
     async def end_3d_generation(self) -> dict[str, Any]:
         """
@@ -318,14 +413,23 @@ class VRAMManager:
         state = vram.get("state", GPUState.AVAILABLE.value)
 
         if state == GPUState.CRITICAL.value and self._ollama_loaded:
-            # Critical VRAM - offload Ollama immediately
-            logger.warning("VRAM Manager: CRITICAL VRAM (%.1f%%) - emergency offload", percent)
-            result = await self._unload_ollama_models()
-            return {
-                "action": "emergency_offload",
-                "vram_percent": percent,
-                "result": result,
-            }
+            # Critical VRAM - only offload if system can handle it
+            if self._can_safely_offload():
+                logger.warning("VRAM Manager: CRITICAL VRAM (%.1f%%) - emergency offload", percent)
+                result = await self._unload_ollama_models()
+                return {
+                    "action": "emergency_offload",
+                    "vram_percent": percent,
+                    "result": result,
+                }
+            else:
+                logger.warning("VRAM Manager: CRITICAL VRAM (%.1f%%) but cannot safely offload "
+                               "(system RAM insufficient)", percent)
+                return {
+                    "action": "critical_vram_no_offload",
+                    "vram_percent": percent,
+                    "warning": "System RAM too low for safe offload. Close GPU apps manually.",
+                }
 
         return None
 
@@ -339,6 +443,11 @@ class VRAMManager:
             "gpustat_available": self._gpustat_available,
             "thresholds": self.thresholds,
             "min_vram_for_3d_mb": self.MIN_VRAM_FOR_3D,
+            "safety_thresholds": {
+                "min_system_ram_for_offload_mb": self.MIN_SYSTEM_RAM_FOR_OFFLOAD,
+                "max_system_ram_percent": self.MAX_SYSTEM_RAM_PERCENT,
+                "vram_wait_timeout": self.VRAM_WAIT_TIMEOUT,
+            },
         }
 
 
