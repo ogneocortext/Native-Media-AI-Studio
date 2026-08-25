@@ -11,6 +11,8 @@ import sys
 import time
 from pathlib import Path
 
+import aiohttp
+
 from ..core.config import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
@@ -440,6 +442,119 @@ class ComfyUIManager:
                 status["uptime_seconds"] = round(time.time() - self._start_time, 1)
 
         return status
+
+    async def generate_video(
+        self,
+        prompt: str,
+        width: int,
+        height: int,
+        duration: int,
+        section: str,
+        audio_path: str,
+    ) -> str | None:
+        """Generate video via ComfyUI HTTP API. Returns path to output video or None."""
+        import aiohttp
+
+        base_url = f"http://127.0.0.1:{self._port}"
+
+        # Check if ComfyUI is reachable
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{base_url}/system_stats", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status != 200:
+                        logger.warning("ComfyUI not reachable")
+                        return None
+        except Exception as e:
+            logger.warning(f"ComfyUI connection failed: {e}")
+            return None
+
+        # Build a simple text-to-video workflow using the /prompt endpoint
+        # Uses a basic KSampler with a text prompt
+        workflow = {
+            "3": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "seed": 42,
+                    "steps": 20,
+                    "cfg": 7.0,
+                    "sampler_name": "euler",
+                    "scheduler": "normal",
+                    "denoise": 1.0,
+                    "model": ["4", 0],
+                    "positive": ["6", 0],
+                    "negative": ["7", 0],
+                    "latent_image": ["5", 0],
+                },
+            },
+            "5": {
+                "class_type": "EmptyLatentImage",
+                "inputs": {"width": width, "height": height, "batch_size": 1, "length": duration * 24},
+            },
+            "6": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": prompt, "clip": ["4", 1]},
+            },
+            "7": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": "blurry, bad quality, distorted", "clip": ["4", 1]},
+            },
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Enqueue prompt
+                payload = {
+                    "prompt": workflow,
+                    "extra_data": {},
+                }
+                async with session.post(
+                    f"{base_url}/prompt",
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=30),
+                ) as resp:
+                    if resp.status != 200:
+                        logger.error(f"Failed to enqueue prompt: {resp.status}")
+                        return None
+                    result = await resp.json()
+                    prompt_id = result.get("prompt_id")
+                    if not prompt_id:
+                        logger.error("No prompt_id returned")
+                        return None
+
+                # Poll for completion
+                for _ in range(duration * 24 * 2):  # generous timeout
+                    await asyncio.sleep(5)
+                    async with session.get(
+                        f"{base_url}/history/{prompt_id}",
+                        timeout=aiohttp.ClientTimeout(total=10),
+                    ) as resp:
+                        if resp.status != 200:
+                            continue
+                        history = await resp.json()
+                        if prompt_id in history:
+                            outputs = history[prompt_id].get("outputs", {})
+                            for node_id, output in outputs.items():
+                                if "gifs" in output:
+                                    for gif in output["gifs"]:
+                                        video_path = gif.get("filename")
+                                        if video_path:
+                                            # Download the video
+                                            async with session.get(
+                                                f"{base_url}/view?filename={video_path}",
+                                                timeout=aiohttp.ClientTimeout(total=60),
+                                            ) as video_resp:
+                                                if video_resp.status == 200:
+                                                    data = await video_resp.read()
+                                                    output_path = PROJECT_ROOT / "output" / "video" / f"{section}_{prompt_id[:8]}.mp4"
+                                                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                                                    with open(output_path, "wb") as f:
+                                                        f.write(data)
+                                                    return str(output_path)
+                logger.error("ComfyUI generation timed out")
+                return None
+        except Exception as e:
+            logger.error(f"ComfyUI generation failed: {e}")
+            return None
 
 
 # Global instance

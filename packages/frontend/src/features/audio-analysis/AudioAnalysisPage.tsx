@@ -79,7 +79,34 @@ export function AudioAnalysisPage() {
   const [selectedSections, setSelectedSections] = useState<Set<number>>(new Set());
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [pendingGenerateSection, setPendingGenerateSection] = useState<{ type: string; start: number; end: number } | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [jobProgress, setJobProgress] = useState<{ progress: number; message: string } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Poll job progress
+  useEffect(() => {
+    if (!activeJobId) return;
+    const poll = async () => {
+      try {
+        const base = getApiBase();
+        const res = await fetch(`${base}/api/jobs/${activeJobId}`);
+        if (res.ok) {
+          const job = await res.json();
+          setJobProgress({ progress: job.progress ?? 0, message: job.message ?? "" });
+          if (job.is_terminal) {
+            setActiveJobId(null);
+            setGenerating(null);
+            if (job.has_error) {
+              setError(job.error || "Job failed");
+            }
+          }
+        }
+      } catch { /* ignore */ }
+    };
+    const interval = setInterval(poll, 2000);
+    poll();
+    return () => clearInterval(interval);
+  }, [activeJobId]);
 
   useEffect(() => {
     loadAudioFiles();
@@ -162,7 +189,8 @@ export function AudioAnalysisPage() {
         method,
       });
       if (result.success) {
-        setAnalysisStep(`Generating ${type} section via ${method === "comfyui" ? "ComfyUI" : "Visualization"}... (job: ${result.job_id})`);
+        setActiveJobId(result.job_id);
+        setJobProgress({ progress: 0, message: `Queued ${type} section via ${method === "comfyui" ? "ComfyUI" : "Visualization"}` });
       } else {
         setError(result.error || "Failed to generate video section");
       }
@@ -185,15 +213,16 @@ export function AudioAnalysisPage() {
           prompt: `Music video for ${section.type} section`,
           section: section.type,
           duration: section.end - section.start,
-          audio_path: analysis.stored_path,
-          audio_filename: file?.name || analysis.stored_path.split(/[/\\]/).pop() || "audio.mp3",
+          audio_path: analysis.stored_path ?? "",
+          audio_filename: file?.name || analysis.stored_path?.split(/[/\\]/).pop() || "audio.mp3",
         });
         if (!result.success) {
           setError(result.error || `Failed to generate ${section.type}`);
           break;
         }
+        setActiveJobId(result.job_id);
+        setJobProgress({ progress: 0, message: `Generating ${section.type} via Visualization` });
       }
-      setAnalysisStep(`Generated ${sections.length} sections`);
     } catch (err: any) {
       setError(err.message || "Failed to generate sections");
     } finally {
@@ -342,6 +371,19 @@ export function AudioAnalysisPage() {
               <div className={DS.flexCenter}>
                 <Loader2 size={16} className="animate-spin text-violet-400" />
                 <span className="text-sm text-violet-300">{analysisStep}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Job Progress */}
+          {jobProgress && !analyzing && (
+            <div className={DS.cardTight} style={{ background: "rgba(139, 92, 246, 0.08)", borderColor: "rgba(139, 92, 246, 0.2)" }}>
+              <div className={DS.flexCenter}>
+                <Loader2 size={16} className="animate-spin text-violet-400" />
+                <span className="text-sm text-violet-300">{jobProgress.message}</span>
+              </div>
+              <div className="mt-2 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                <div className="h-full bg-violet-500 rounded-full transition-all" style={{ width: `${(jobProgress.progress ?? 0) * 100}%` }} />
               </div>
             </div>
           )}
