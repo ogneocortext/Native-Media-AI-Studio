@@ -1123,8 +1123,8 @@ function GPUCard() {
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs text-muted">GPU Processes:</p>
               {gpu.memory_available === false && (
-                <p className="text-xs text-yellow-400" title="Run backend as administrator to enable per-process VRAM tracking">
-                  *Admin required for memory
+                <p className="text-xs text-yellow-400" title="GTX 1070 Ti does not support per-process VRAM tracking">
+                  *Not supported on this GPU
                 </p>
               )}
             </div>

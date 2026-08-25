@@ -380,6 +380,26 @@ class ResourceMonitor:
             except Exception:
                 pass
 
+        if not memory_available:
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ["nvidia-smi", "--query-compute-apps=pid,used_memory", "--format=csv,noheader"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    for line in result.stdout.strip().split("\n"):
+                        parts = [p.strip() for p in line.split(",")]
+                        if len(parts) >= 2 and parts[1] not in ("[N/A]", ""):
+                            try:
+                                int(parts[1].replace(" MiB", ""))
+                                memory_available = True
+                                break
+                            except ValueError:
+                                pass
+            except Exception:
+                pass
+
         return processes, memory_available
 
     async def _enrich_process_names(self, processes: list[dict[str, Any]]) -> list[dict[str, Any]]:
