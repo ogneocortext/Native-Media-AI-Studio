@@ -174,7 +174,7 @@ Generate 3-8 scenes based on the input theme or concept."""
         if options:
             payload["options"] = options
 
-        logger.debug("Ollama chat request: model=%s, stream=%s, tools=%d, think=%s",
+        logger.info("Ollama chat request: model=%s, stream=%s, tools=%d, think=%s",
                      model, stream, len(tools) if tools else 0, think)
 
         if stream:
@@ -184,7 +184,7 @@ Generate 3-8 scenes based on the input theme or concept."""
 
     async def _chat_request(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Non-streaming chat request."""
-        logger.debug("Starting Ollama non-stream request: model=%s", payload.get("model"))
+        logger.info("Starting Ollama non-stream request: model=%s", payload.get("model"))
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{self.base_url}/api/chat",
@@ -196,14 +196,14 @@ Generate 3-8 scenes based on the input theme or concept."""
                     logger.error("Ollama non-stream error: status=%d, error=%s", resp.status, error)
                     raise RuntimeError(f"Ollama error: {error}")
                 result = await resp.json()
-                logger.debug("Ollama non-stream complete: content_len=%d, tool_calls=%d",
+                logger.info("Ollama non-stream complete: content_len=%d, tool_calls=%d",
                              len(result.get("message", {}).get("content", "")),
                              len(result.get("message", {}).get("tool_calls", [])))
                 return result
 
     async def _stream_chat(self, payload: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:
         """Streaming chat request with tool call support."""
-        logger.debug("Starting Ollama stream request: model=%s", payload.get("model"))
+        logger.info("Starting Ollama stream request: model=%s", payload.get("model"))
         chunk_count = 0
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -222,10 +222,8 @@ Generate 3-8 scenes based on the input theme or concept."""
                         import json
                         chunk = json.loads(line)
                         chunk_count += 1
-                        if chunk_count % 50 == 0:
-                            logger.debug("Ollama stream: received %d chunks", chunk_count)
                         yield chunk
-        logger.debug("Ollama stream complete: %d chunks received", chunk_count)
+        logger.info("Ollama stream complete: %d chunks received", chunk_count)
 
     async def execute_tool_call(
         self,

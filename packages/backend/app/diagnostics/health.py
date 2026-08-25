@@ -2,6 +2,7 @@
 Health monitoring and diagnostics.
 """
 import asyncio
+import logging
 import platform
 import sys
 import time
@@ -10,6 +11,8 @@ from enum import Enum
 from typing import Any
 
 import psutil
+
+logger = logging.getLogger(__name__)
 
 
 def get_windows_version() -> str:
@@ -287,6 +290,9 @@ class HealthMonitor:
             "timestamp": now.isoformat()
         }
         self._last_check = now
+
+        logger.debug("Health check: status=%s, overall=%s, adapters=%s",
+                     status, overall, {k: v.get("status") for k, v in adapters_health.items()})
 
         return self._cached_health
 

@@ -3,10 +3,13 @@ Video generation API routes.
 Handles music video generation per section.
 """
 
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/video", tags=["Video"])
 

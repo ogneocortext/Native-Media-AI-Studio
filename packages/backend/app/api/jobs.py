@@ -2,10 +2,14 @@
 Job queue API routes.
 """
 
+import logging
+
 from fastapi import APIRouter, HTTPException, Query
 
 from ..models.job import Job, JobCreateRequest, JobStatus, JobType, QueueStats
 from ..queue.manager import queue_manager
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/jobs", tags=["Jobs"])
 
@@ -17,6 +21,7 @@ async def create_job(request: JobCreateRequest) -> Job:
     Creates the job with QUEUED status and broadcasts an SSE event
     (done inside queue_manager.enqueue).
     """
+    logger.info("Creating job: type=%s, name=%s", request.job_type, request.name)
     return await queue_manager.enqueue(request)
 
 

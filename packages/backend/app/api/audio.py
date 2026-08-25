@@ -4,6 +4,7 @@ Handles file uploads for music video creation and audio analysis.
 """
 
 import json
+import logging
 import uuid
 from pathlib import Path
 
@@ -12,6 +13,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..core.config import PROJECT_ROOT
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/audio", tags=["Audio"])
 
