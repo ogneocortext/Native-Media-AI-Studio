@@ -775,6 +775,30 @@
   100% { opacity: 0; }
 }
 
+.viz-paused-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(5, 5, 5, 0.6);
+  backdrop-filter: blur(4px);
+  color: #e2e8f0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  z-index: 10;
+  animation: viz-paused-fade 0.2s ease-out;
+}
+
+@keyframes viz-paused-fade {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
 .viz-spectrum-card {
   padding: 1rem;
 }

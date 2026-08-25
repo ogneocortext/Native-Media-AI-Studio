@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { BookOpen, FileText, Search, ChevronRight } from "lucide-react";
 
 interface StoryboardFile {
@@ -29,7 +29,7 @@ export function StoryboardPage() {
 
   const renderMarkdown = (md: string) => {
     const lines = md.split("\n");
-    const elements: JSX.Element[] = [];
+    const elements: React.ReactElement[] = [];
     let inTable = false;
     let tableRows: string[][] = [];
     let tableHeaders: string[] = [];

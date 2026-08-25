@@ -15,7 +15,7 @@ import {
 } from "./trackConceptAnalyzer";
 import { WaveformViz, ParticleStormViz, NeuralViz, CosmicViz, PulseViz, StormViz, FractalViz } from "./VisualizationStyles";
 
-interface AudioData { bass: number; mid: number; treble: number; overall: number; beat: boolean; }
+export interface AudioData { bass: number; mid: number; treble: number; overall: number; beat: boolean; }
 
 interface SpectrumBarProps {
   label: string;
@@ -76,7 +76,7 @@ function useDemoAudio(enabled: boolean, bpm: number) {
 }
 
 // Real audio — reads from AnalyserNode when audio is playing
-function useRealAudio(analyserRef: React.MutableRefObject<AnalyserNode | null>, isPlaying: boolean) {
+function useRealAudio(analyserRef: React.MutableRefObject<AnalyserNode | null>, isPlaying: boolean, isPaused: boolean) {
   const data = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false });
   const freqArray = useRef<Uint8Array | null>(null);
   const lastBass = useRef(0);
@@ -85,7 +85,14 @@ function useRealAudio(analyserRef: React.MutableRefObject<AnalyserNode | null>, 
 
   useFrame(() => {
     const analyser = analyserRef.current;
-    if (!analyser || !isPlaying) return;
+    if (!analyser) return;
+    // Freeze visualization when paused — return zeros so mesh goes still
+    if (isPaused || !isPlaying) {
+      if (data.current.bass !== 0 || data.current.mid !== 0 || data.current.treble !== 0) {
+        data.current = { bass: 0, mid: 0, treble: 0, overall: 0, beat: false };
+      }
+      return;
+    }
     if (!freqArray.current || freqArray.current.length !== analyser.frequencyBinCount) {
       freqArray.current = new Uint8Array(analyser.frequencyBinCount) as Uint8Array;
     }
@@ -259,6 +266,7 @@ function FPSCounter() {
 function VisualizerScene({
   analyserRef,
   isPlaying,
+  isPaused,
   demoEnabled,
   demoBpm,
   onAudioData,
@@ -267,14 +275,15 @@ function VisualizerScene({
 }: {
   analyserRef: React.MutableRefObject<AnalyserNode | null>;
   isPlaying: boolean;
+  isPaused: boolean;
   demoEnabled: boolean;
   demoBpm: number;
   onAudioData?: (data: AudioData) => void;
   visualizationStyle: VisualizationStyle;
   vizParams: VizParams;
 }) {
-  const realData = useRealAudio(analyserRef, isPlaying);
-  const demoData = useDemoAudio(demoEnabled && !isPlaying, demoBpm);
+  const realData = useRealAudio(analyserRef, isPlaying, isPaused);
+  const demoData = useDemoAudio(demoEnabled && !isPlaying && !isPaused, demoBpm);
   const audioData = isPlaying ? realData : demoData;
 
   // Pass audio data to parent for spectrum display
@@ -400,6 +409,7 @@ export function Visualizer() {
   const [editableTrackName, setEditableTrackName] = useState<string>("");
   const [isEditingName, setIsEditingName] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [libraryFiles, setLibraryFiles] = useState<Array<{ filename: string; stored_path: string }>>([]);
   const [liveAudioData, setLiveAudioData] = useState<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false });
@@ -500,6 +510,7 @@ export function Visualizer() {
     const url = URL.createObjectURL(f);
     setAudioUrl(url);
     setDemoEnabled(false);
+    setIsPaused(false);
   };
 
   const handleSelectLibraryTrack = (filename: string) => {
@@ -512,6 +523,7 @@ export function Visualizer() {
     const encodedFilename = encodeURIComponent(filename);
     setAudioUrl(`/api/audio/file/${encodedFilename}`);
     setDemoEnabled(false);
+    setIsPaused(false);
     
     // Analyze track concept and recommend visualization
     if (csvContent) {
@@ -686,6 +698,7 @@ export function Visualizer() {
               <VisualizerScene
                 analyserRef={analyserRef}
                 isPlaying={isPlaying}
+                isPaused={isPaused}
                 demoEnabled={demoEnabled}
                 demoBpm={demoBpm}
                 onAudioData={setLiveAudioData}
@@ -693,6 +706,12 @@ export function Visualizer() {
                 vizParams={vizParams}
               />
             </Canvas>
+            {isPaused && (
+              <div className="viz-paused-overlay">
+                <Pause size={48} />
+                <span>Paused</span>
+              </div>
+            )}
             {liveAudioData.beat && <div className="viz-beat-flash" />}
           </div>
 
@@ -710,9 +729,9 @@ export function Visualizer() {
           {audioUrl && (
             <div className="viz-audio-bar">
               <audio ref={audioElRef} controls src={audioUrl} className="viz-audio" crossOrigin="anonymous"
-                onPlay={() => { setIsPlaying(true); audioCtxRef.current?.resume(); }}
-                onPause={() => setIsPlaying(false)}
-                onEnded={() => setIsPlaying(false)}
+                onPlay={() => { setIsPlaying(true); setIsPaused(false); audioCtxRef.current?.resume(); }}
+                onPause={() => { setIsPlaying(false); setIsPaused(true); }}
+                onEnded={() => { setIsPlaying(false); setIsPaused(false); }}
               />
             </div>
           )}
