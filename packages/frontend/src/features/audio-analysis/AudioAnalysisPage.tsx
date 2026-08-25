@@ -177,7 +177,7 @@ export function AudioAnalysisPage() {
     try {
       const filename = storedPath.split(/[/\\]/).pop() || "audio.mp3";
       const base = getApiBase();
-      const response = await fetch(`${base}/api/audio/serve/${encodeURIComponent(filename)}`);
+      const response = await fetch(`${base}/api/audio/file/${filename}`);
       if (!response.ok) throw new Error("Failed to load audio file");
       const blob = await response.blob();
       const file = new File([blob], filename, { type: blob.type });
