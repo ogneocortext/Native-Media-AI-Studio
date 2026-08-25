@@ -22,6 +22,7 @@ import { VideoGenerationPage } from "./features/video-generation/VideoGeneration
 import { Generation3DPage } from "./features/generate3d/Generation3DPage";
 import { DocsPage } from "./features/docs/DocsPage";
 import { StoryboardPage } from "./features/storyboards/StoryboardPage";
+import { Preview } from "./features/preview/Preview";
 
 function App() {
   return (
@@ -49,6 +50,8 @@ function App() {
           <Route path="/video-editor" element={<VideoEditor />} />
           <Route path="/logs" element={<LogViewer />} />
           <Route path="/health" element={<HealthPage />} />
+          <Route path="/preview" element={<Preview />} />
+          <Route path="/preview/:clipId" element={<Preview />} />
         </Routes>
       </Layout>
     </BrowserRouter>
