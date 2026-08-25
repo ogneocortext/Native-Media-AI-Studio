@@ -100,7 +100,7 @@ async def gen3d_generate(request: dict) -> dict:
         seed: Random seed (default 42)
     """
     from ..services.gen3d import gen3d_service
-    return gen3d_service.generate_from_text(
+    return await gen3d_service.generate_from_text(
         prompt=request.get("prompt", ""),
         output_name=request.get("output_name"),
         steps=request.get("steps", 15),

@@ -67,6 +67,7 @@ Generate 3-8 scenes based on the input theme or concept."""
         super().__init__(base_url, "Ollama", mock_mode=mock_mode)
         self._available_models: list[str] = []
         self._default_model: str = "qwen2.5:3b"  # Default to smaller model for speed
+        self._last_model: str = self._default_model  # Track last used model for VRAM manager
         self._last_health_log: str | None = None
 
     async def health_check(self) -> bool:
@@ -174,6 +175,8 @@ Generate 3-8 scenes based on the input theme or concept."""
         if options:
             payload["options"] = options
 
+        # Track last used model for VRAM manager
+        self._last_model = model
         logger.info("Ollama chat request: model=%s, stream=%s, tools=%d, think=%s",
                      model, stream, len(tools) if tools else 0, think)
 

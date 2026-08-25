@@ -51,7 +51,7 @@ class Gen3DService:
         except Exception:
             return False
 
-    def generate_from_text(
+    async def generate_from_text(
         self,
         prompt: str,
         output_name: str | None = None,
@@ -98,7 +98,7 @@ class Gen3DService:
             await vram_manager.end_3d_generation()
             return {"success": False, "error": str(e)}
 
-    def generate_from_image(
+    async def generate_from_image(
         self,
         image_path: str,
         output_name: str | None = None,
