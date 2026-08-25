@@ -397,7 +397,7 @@ export function Visualizer() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [libraryFiles, setLibraryFiles] = useState<Array<{ filename: string; stored_path: string }>>([]);
+  const [libraryFiles, setLibraryFiles] = useState<Array<{ filename: string; path: string }>>([]);
   const [liveAudioData, setLiveAudioData] = useState<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false });
   const [spectrumIntensity] = useState(1);
   const [visualizationStyle, setVisualizationStyle] = useState<VisualizationStyle>("geometric");

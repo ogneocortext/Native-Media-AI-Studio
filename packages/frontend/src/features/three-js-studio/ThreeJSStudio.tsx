@@ -132,7 +132,7 @@ export function ThreeJSStudio() {
   const [bpm, setBpm] = useState(150);
   const [beatSync, setBeatSync] = useState(false);
   const [fps, setFps] = useState(24);
-  const [libraryTracks, setLibraryTracks] = useState<Array<{ filename: string; stored_path: string }>>([]);
+  const [libraryTracks, setLibraryTracks] = useState<Array<{ filename: string; path: string }>>([]);
   const [selectedTrack, setSelectedTrack] = useState<string>("");
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
 

@@ -605,7 +605,7 @@ export async function getAnalysisResult(jobId: string): Promise<AudioAnalysisRes
 }
 
 export async function listAudioFiles(): Promise<Array<{
-  filename: string; stored_path: string; size_bytes: number;
+  filename: string; path: string; size_bytes: number;
 }>> {
   const base = getApiBase();
   const res = await fetch(`${base}/api/audio/files`);

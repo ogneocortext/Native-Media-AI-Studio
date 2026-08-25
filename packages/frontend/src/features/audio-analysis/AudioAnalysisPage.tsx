@@ -21,6 +21,7 @@ import {
   analyzeAudio,
   generateVideoSection,
   listAudioFiles,
+  getApiBase,
   type AudioAnalysisResult,
 } from "../../services/api";
 import { SECTION_COLORS } from "../../styles/designSystem";
@@ -36,7 +37,7 @@ import {
 
 interface AudioFile {
   filename: string;
-  stored_path: string;
+  path: string;
   size_bytes: number;
 }
 
@@ -174,9 +175,11 @@ export function AudioAnalysisPage() {
     setAnalysis(null);
     setAnalysisStep("Loading audio file...");
     try {
-      const response = await fetch(storedPath);
+      const filename = storedPath.split(/[/\\]/).pop() || "audio.mp3";
+      const base = getApiBase();
+      const response = await fetch(`${base}/api/audio/serve/${encodeURIComponent(filename)}`);
+      if (!response.ok) throw new Error("Failed to load audio file");
       const blob = await response.blob();
-      const filename = storedPath.split("/").pop() || "audio.mp3";
       const file = new File([blob], filename, { type: blob.type });
       setAnalysisStep("Analyzing tempo and beats...");
       const result = await analyzeAudio(file);
@@ -504,8 +507,8 @@ export function AudioAnalysisPage() {
                   audioFiles.map((f, i) => (
                     <div
                       key={i}
-                      className={`aa-library-item ${selectedLibraryFile === f.stored_path ? "active" : ""}`}
-                      onClick={() => handleAnalyzeLibraryFile(f.stored_path)}
+                      className={`aa-library-item ${selectedLibraryFile === f.path ? "active" : ""}`}
+                      onClick={() => handleAnalyzeLibraryFile(f.path)}
                     >
                       <div className="aa-library-item-name">
                         <Music size={14} className="aa-icon" />
@@ -513,7 +516,7 @@ export function AudioAnalysisPage() {
                       </div>
                       <div className="aa-library-item-meta">
                         <span className="aa-library-item-size">{formatFileSize(f.size_bytes)}</span>
-                        {selectedLibraryFile === f.stored_path && analyzing ? (
+                        {selectedLibraryFile === f.path && analyzing ? (
                           <Loader2 size={12} className="animate-spin text-violet-400" />
                         ) : (
                           <Play size={12} className="aa-library-item-play" />
