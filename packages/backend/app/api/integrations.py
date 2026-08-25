@@ -274,6 +274,34 @@ async def get_ollama_models() -> list:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/vram/status")
+async def get_vram_status() -> dict:
+    """Get current VRAM status and GPU workload information"""
+    from ..services.vram_manager import vram_manager
+    vram = await vram_manager.get_vram_status()
+    status = vram_manager.get_status()
+    return {
+        "vram": vram,
+        "manager": status,
+    }
+
+
+@router.post("/vram/offload-ollama")
+async def offload_ollama() -> dict:
+    """Manually offload Ollama models from GPU to free VRAM"""
+    from ..services.vram_manager import vram_manager
+    result = await vram_manager._unload_ollama_models()
+    return result
+
+
+@router.post("/vram/reload-ollama")
+async def reload_ollama() -> dict:
+    """Manually reload Ollama models to GPU"""
+    from ..services.vram_manager import vram_manager
+    result = await vram_manager._reload_ollama_models()
+    return result
+
+
 @router.post("/ollama/chat")
 async def ollama_chat(request: dict) -> dict:
     """

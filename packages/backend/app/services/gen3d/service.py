@@ -76,12 +76,26 @@ class Gen3DService:
         output_path = OUTPUT_DIR / f"{output_name}.glb"
 
         try:
-            # Build workflow for text-to-3D via Kijai Wrapper
-            workflow = self._build_text23d_workflow(prompt, output_name, steps, seed)
-            result = self._submit_workflow(workflow, output_path)
-            return result
+            # VRAM Management: Offload Ollama before 3D generation
+            from ..services.vram_manager import vram_manager
+            vram_result = await vram_manager.begin_3d_generation()
+            logger.info("VRAM pre-3d generation: %s", vram_result)
+
+            try:
+                # Build workflow for text-to-3D via Kijai Wrapper
+                workflow = self._build_text23d_workflow(prompt, output_name, steps, seed)
+                result = self._submit_workflow(workflow, output_path)
+                return result
+            finally:
+                # VRAM Management: Reload Ollama after 3D generation
+                vram_cleanup = await vram_manager.end_3d_generation()
+                logger.info("VRAM post-3d generation: %s", vram_cleanup)
+
         except Exception as e:
             logger.error("3D generation failed: %s", e, exc_info=True)
+            # Ensure Ollama is reloaded even on error
+            from ..services.vram_manager import vram_manager
+            await vram_manager.end_3d_generation()
             return {"success": False, "error": str(e)}
 
     def generate_from_image(
@@ -107,12 +121,26 @@ class Gen3DService:
         output_path = OUTPUT_DIR / f"{output_name}.glb"
 
         try:
-            # Build workflow for image-to-3D via Kijai Wrapper
-            workflow = self._build_image23d_workflow(image_path, output_name, steps)
-            result = self._submit_workflow(workflow, output_path)
-            return result
+            # VRAM Management: Offload Ollama before 3D generation
+            from ..services.vram_manager import vram_manager
+            vram_result = await vram_manager.begin_3d_generation()
+            logger.info("VRAM pre-3d generation: %s", vram_result)
+
+            try:
+                # Build workflow for image-to-3D via Kijai Wrapper
+                workflow = self._build_image23d_workflow(image_path, output_name, steps)
+                result = self._submit_workflow(workflow, output_path)
+                return result
+            finally:
+                # VRAM Management: Reload Ollama after 3D generation
+                vram_cleanup = await vram_manager.end_3d_generation()
+                logger.info("VRAM post-3d generation: %s", vram_cleanup)
+
         except Exception as e:
             logger.error("Image-to-3D generation failed: %s", e, exc_info=True)
+            # Ensure Ollama is reloaded even on error
+            from ..services.vram_manager import vram_manager
+            await vram_manager.end_3d_generation()
             return {"success": False, "error": str(e)}
 
     def _build_text23d_workflow(

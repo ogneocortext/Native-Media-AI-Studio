@@ -423,6 +423,17 @@ class ResourceMonitor:
             )
             warnings.append(vram_warning)
 
+        # VRAM Manager: Check and prevent OOM
+        from ..services.vram_manager import vram_manager
+        oom_prevention = await vram_manager.check_and_prevent_oom()
+        if oom_prevention:
+            warnings.append({
+                "type": "vram",
+                "level": "critical",
+                "message": f"VRAM OOM prevention triggered: {oom_prevention['action']}",
+                "action": oom_prevention,
+            })
+
         return warnings
 
     async def broadcast_warnings(self, warnings: list[dict[str, Any]]):
