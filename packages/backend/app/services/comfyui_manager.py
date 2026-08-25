@@ -306,13 +306,17 @@ class ComfyUIManager:
         Returns:
             Dict with status and update details
         """
+        logger.info("ComfyUI update requested")
+        
         if not self.is_installed():
+            logger.warning("ComfyUI not installed at %s", COMFYUI_DIR)
             return {
                 "success": False,
                 "message": f"ComfyUI not installed at {COMFYUI_DIR}",
             }
 
         was_running = self.is_running()
+        logger.info("ComfyUI was_running=%s", was_running)
 
         # Stop if running
         if was_running:
@@ -394,6 +398,7 @@ class ComfyUIManager:
             }
 
         except FileNotFoundError as e:
+            logger.error("Git not found: %s", e, exc_info=True)
             return {
                 "success": False,
                 "message": "Git executable not found",
@@ -402,9 +407,13 @@ class ComfyUIManager:
             }
         except Exception as e:
             logger.error("Error updating ComfyUI: %s", e, exc_info=True)
+            import traceback
+            tb = traceback.format_exc()
             return {
                 "success": False,
                 "message": f"Error updating ComfyUI: {str(e)}",
+                "errors": str(e),
+                "traceback": tb,
                 "hint": "Check the logs for more details",
             }
 
