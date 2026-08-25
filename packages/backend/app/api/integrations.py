@@ -288,6 +288,9 @@ async def ollama_chat(request: dict) -> dict:
     - stream: Enable streaming (optional, default false)
     - max_tool_calls: Maximum tool call iterations (optional, default 5)
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     adapter = adapter_registry.get("ollama")
     if not adapter:
         raise HTTPException(status_code=404, detail="Ollama not available")
@@ -299,6 +302,9 @@ async def ollama_chat(request: dict) -> dict:
     think = request.get("think", None)
     stream = request.get("stream", False)
     max_tool_calls = request.get("max_tool_calls", 5)
+
+    logger.info("Ollama chat request: model=%s, stream=%s, tools=%d, message_len=%d",
+                model, stream, len(tools), len(message)))
 
     # Build messages array
     messages = []
@@ -312,6 +318,9 @@ async def ollama_chat(request: dict) -> dict:
             from sse_starlette.sse import EventSourceResponse
 
             async def event_generator():
+                # Send initial event to confirm connection
+                yield {"event": "connected", "data": json.dumps({"status": "streaming"})}
+
                 tool_call_count = 0
                 current_messages = messages[:]
 
@@ -323,14 +332,11 @@ async def ollama_chat(request: dict) -> dict:
                         stream=True,
                         think=think,
                     ):
-                        # Accumulate the full response
                         if chunk.get("done"):
-                            # Check for tool calls in the final message
                             msg = chunk.get("message", {})
                             tool_calls = msg.get("tool_calls", [])
 
                             if tool_calls and tool_call_count < max_tool_calls:
-                                # Execute tools and continue
                                 tool_call_count += 1
                                 yield {
                                     "event": "tool_calls",
@@ -339,14 +345,12 @@ async def ollama_chat(request: dict) -> dict:
                                     }),
                                 }
 
-                                # Add assistant message with tool calls
                                 current_messages.append({
                                     "role": "assistant",
                                     "content": msg.get("content", ""),
                                     "tool_calls": tool_calls,
                                 })
 
-                                # Execute each tool and add results
                                 for tc in tool_calls:
                                     result = await adapter.execute_tool_call(
                                         tc["function"]["name"],
@@ -358,9 +362,8 @@ async def ollama_chat(request: dict) -> dict:
                                         "tool_name": tc["function"]["name"],
                                         "content": result,
                                     })
-                                break  # Continue the outer loop
+                                break
                             else:
-                                # No tool calls, we're done
                                 yield {
                                     "event": "done",
                                     "data": json.dumps({
@@ -371,12 +374,12 @@ async def ollama_chat(request: dict) -> dict:
                                 }
                                 return
                         else:
-                            # Streaming content chunk
                             content = chunk.get("message", {}).get("content", "")
-                            if content:
+                            thinking = chunk.get("message", {}).get("thinking", "")
+                            if content or thinking:
                                 yield {
                                     "event": "content",
-                                    "data": json.dumps({"content": content}),
+                                    "data": json.dumps({"content": content, "thinking": thinking}),
                                 }
 
             return EventSourceResponse(event_generator())
@@ -439,6 +442,7 @@ async def ollama_chat(request: dict) -> dict:
             }
 
     except Exception as e:
+        logger.error("Ollama chat error: %s", str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

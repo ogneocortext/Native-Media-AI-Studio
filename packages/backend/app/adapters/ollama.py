@@ -174,6 +174,9 @@ Generate 3-8 scenes based on the input theme or concept."""
         if options:
             payload["options"] = options
 
+        logger.debug("Ollama chat request: model=%s, stream=%s, tools=%d, think=%s",
+                     model, stream, len(tools) if tools else 0, think)
+
         if stream:
             return self._stream_chat(payload)
         else:
@@ -181,6 +184,7 @@ Generate 3-8 scenes based on the input theme or concept."""
 
     async def _chat_request(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Non-streaming chat request."""
+        logger.debug("Starting Ollama non-stream request: model=%s", payload.get("model"))
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{self.base_url}/api/chat",
@@ -189,11 +193,18 @@ Generate 3-8 scenes based on the input theme or concept."""
             ) as resp:
                 if resp.status != 200:
                     error = await resp.text()
+                    logger.error("Ollama non-stream error: status=%d, error=%s", resp.status, error)
                     raise RuntimeError(f"Ollama error: {error}")
-                return await resp.json()
+                result = await resp.json()
+                logger.debug("Ollama non-stream complete: content_len=%d, tool_calls=%d",
+                             len(result.get("message", {}).get("content", "")),
+                             len(result.get("message", {}).get("tool_calls", [])))
+                return result
 
     async def _stream_chat(self, payload: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:
         """Streaming chat request with tool call support."""
+        logger.debug("Starting Ollama stream request: model=%s", payload.get("model"))
+        chunk_count = 0
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{self.base_url}/api/chat",
@@ -202,13 +213,19 @@ Generate 3-8 scenes based on the input theme or concept."""
             ) as resp:
                 if resp.status != 200:
                     error = await resp.text()
+                    logger.error("Ollama stream error: status=%d, error=%s", resp.status, error)
                     raise RuntimeError(f"Ollama error: {error}")
 
                 # Stream JSON lines
                 async for line in resp.content:
                     if line.strip():
                         import json
-                        yield json.loads(line)
+                        chunk = json.loads(line)
+                        chunk_count += 1
+                        if chunk_count % 50 == 0:
+                            logger.debug("Ollama stream: received %d chunks", chunk_count)
+                        yield chunk
+        logger.debug("Ollama stream complete: %d chunks received", chunk_count)
 
     async def execute_tool_call(
         self,

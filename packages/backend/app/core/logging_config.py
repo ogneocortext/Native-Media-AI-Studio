@@ -31,6 +31,7 @@ APP_LOG = LOG_DIR / "app.log"
 ERROR_LOG = LOG_DIR / "error.log"
 COMFYUI_LOG = LOG_DIR / "comfyui.log"
 QUEUE_LOG = LOG_DIR / "queue.log"
+OLLAMA_LOG = LOG_DIR / "ollama.log"
 
 # ComfyUI's own log directory (ComfyUI lives beside the repo root)
 COMFYUI_DIR = PROJECT_ROOT.parent / "ComfyUI"
@@ -162,6 +163,15 @@ def setup_logging(level: str = "INFO") -> None:
     comfyui_handler.setFormatter(app_fmt)
     comfyui_logger.addHandler(comfyui_handler)
 
+    # === Ollama-specific Logger ===
+    ollama_logger = logging.getLogger("app.adapters.ollama")
+    ollama_handler = logging.handlers.RotatingFileHandler(
+        OLLAMA_LOG, maxBytes=MAX_BYTES, backupCount=BACKUP_COUNT, encoding="utf-8"
+    )
+    ollama_handler.setLevel(logging.DEBUG)
+    ollama_handler.setFormatter(app_fmt)
+    ollama_logger.addHandler(ollama_handler)
+
     # === Quiet down noisy third-party loggers ===
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
@@ -182,6 +192,7 @@ def get_log_files() -> dict[str, Path]:
         "error": ERROR_LOG,
         "queue": QUEUE_LOG,
         "comfyui": COMFYUI_LOG,
+        "ollama": OLLAMA_LOG,
     }
     # Also find ComfyUI's own log file (from its user directory)
     if COMFYUI_USER_LOG_DIR.exists():

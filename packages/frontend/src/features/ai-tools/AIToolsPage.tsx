@@ -20,6 +20,8 @@ import {
 import {
   getOllamaModels,
   ollamaChat,
+  ollamaChatStream,
+  parseOllamaStream,
   type OllamaModel,
   type ChatMessage,
   type ToolDefinition,
@@ -184,20 +186,39 @@ export function AIToolsPage() {
     const activeTools = supportsTools ? convertToToolDefinitions() : [];
 
     try {
-      const result = await ollamaChat(prompt, selectedModel, {
+      // Use streaming for real-time display
+      const stream = await ollamaChatStream(prompt, selectedModel, {
         tools: activeTools,
         think: true,
         maxToolCalls: 5,
       });
 
-      setResponse(result.response);
+      // Parse SSE stream and update UI in real-time
+      let fullResponse = "";
+      const toolDetails: Array<{ name: string; arguments: Record<string, unknown>; result?: string }> = [];
+
+      for await (const event of parseOllamaStream(stream)) {
+        if (event.type === "content") {
+          const data = event.data as { content: string };
+          fullResponse += data.content;
+          setResponse(fullResponse);
+        } else if (event.type === "tool_calls") {
+          const data = event.data as { tool_calls: Array<{ name: string; arguments: Record<string, unknown> }> };
+          for (const tc of data.tool_calls) {
+            toolDetails.push(tc);
+          }
+          setToolCalls([...toolDetails]);
+        } else if (event.type === "done") {
+          const data = event.data as { content: string; tool_calls: number };
+          fullResponse = data.content;
+          setResponse(fullResponse);
+        }
+      }
 
       // Build tool calls display from the agent loop
-      if (result.toolDetails && result.toolDetails.length > 0) {
-        setToolCalls(result.toolDetails);
-
+      if (toolDetails.length > 0) {
         // Check for visualization tool output and render it
-        for (const td of result.toolDetails) {
+        for (const td of toolDetails) {
           if (td.name === "generate_visualization" && td.result) {
             try {
               const config = JSON.parse(td.result);
@@ -209,25 +230,30 @@ export function AIToolsPage() {
             }
           }
         }
-      } else if (result.toolCalls > 0) {
-        setToolCalls([{
-          name: "agent_loop",
-          arguments: { iterations: result.toolCalls },
-          result: `Agent executed ${result.toolCalls} tool call(s)`,
-        }]);
-      } else {
-        setToolCalls([]);
       }
 
       setHistory((prev) => [{
         prompt,
-        response: result.response,
+        response: fullResponse,
         model: selectedModel,
-        toolCalls: result.toolCalls,
+        toolCalls: toolDetails.length,
         timestamp: new Date(),
       }, ...prev.slice(0, 19)]);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Generation failed");
+      // Fallback to non-streaming if streaming fails
+      try {
+        const result = await ollamaChat(prompt, selectedModel, {
+          tools: activeTools,
+          think: true,
+          maxToolCalls: 5,
+        });
+        setResponse(result.response);
+        if (result.toolDetails && result.toolDetails.length > 0) {
+          setToolCalls(result.toolDetails);
+        }
+      } catch (fallbackErr) {
+        setError(err instanceof Error ? err.message : "Generation failed");
+      }
     } finally {
       setGenerating(false);
     }
