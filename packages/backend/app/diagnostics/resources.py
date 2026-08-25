@@ -463,9 +463,8 @@ class ResourceMonitor:
         vram_warning = await self.check_vram()
         if vram_warning:
             # Include process breakdown (with names) in warning details for visibility
-            vram_warning["details"]["processes"] = await self._enrich_process_names(
-                await self._get_gpu_processes()
-            )
+            processes, _ = await self._get_gpu_processes()
+            vram_warning["details"]["processes"] = await self._enrich_process_names(processes)
             warnings.append(vram_warning)
 
         # VRAM Manager: Check and prevent OOM
