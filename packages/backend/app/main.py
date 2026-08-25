@@ -48,6 +48,9 @@ async def health_broadcast_loop():
     while True:
         try:
             health_status = await health_monitor.get_aggregate_health()
+            # Map internal adapter statuses to API contract: healthy -> online, offline -> offline
+            for adapter in health_status.get("adapters", {}).values():
+                adapter["status"] = "online" if adapter.get("status") == "healthy" else "offline"
             await sse_manager.broadcast_health_status(health_status)
             consecutive_errors = 0  # Reset on success
             await asyncio.sleep(5)

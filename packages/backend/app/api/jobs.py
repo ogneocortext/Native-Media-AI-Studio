@@ -133,3 +133,10 @@ async def clear_completed_jobs() -> dict:
     """Clear all completed and cancelled jobs."""
     count = await queue_manager.clear_completed()
     return {"success": True, "deleted": count}
+
+
+@router.post("/clear-failed", response_model=dict)
+async def clear_failed_jobs() -> dict:
+    """Clear all failed jobs."""
+    count = await queue_manager.clear_failed()
+    return {"success": True, "deleted": count}

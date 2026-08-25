@@ -140,8 +140,16 @@ export function Sidebar() {
     switch (status) { case "online": return overall === "degraded" ? "Degraded" : "Online"; case "offline": return "Offline"; default: return "Unknown"; }
   };
 
+  const formatAdapterName = (key: string, fallbackName: string | undefined): string => {
+    if (fallbackName) return fallbackName;
+    // Handle known proper nouns
+    const properNouns: Record<string, string> = { comfyui: "ComfyUI", ollama: "Ollama" };
+    if (properNouns[key]) return properNouns[key];
+    return key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+  };
+
   const adapterList = Object.entries(adapters).map(([key, adapter]) => ({
-    name: adapter.name || key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+    name: formatAdapterName(key, adapter.name),
     status: adapter.status,
   }));
   const hasBackend = adapterList.some((a) => a.name.toLowerCase() === "backend");
@@ -186,12 +194,20 @@ export function Sidebar() {
               )}
             </Link>
             {!isMobile && (
-              <button onClick={() => setCollapsed(!collapsed)} className="sidebar-toggle">
+              <button
+                onClick={() => setCollapsed(!collapsed)}
+                className="sidebar-toggle"
+                aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
                 {collapsed ? <Menu size={12} /> : <X size={12} />}
               </button>
             )}
             {isMobile && (
-              <button onClick={() => setMobileOpen(false)} className="sidebar-toggle">
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="sidebar-toggle"
+                aria-label="Close navigation"
+              >
                 <X size={14} />
               </button>
             )}

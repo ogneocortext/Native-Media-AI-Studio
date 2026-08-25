@@ -111,9 +111,10 @@ interface EmptyStateProps {
     onClick: () => void;
     icon?: React.ReactNode;
   };
+  children?: React.ReactNode;
 }
 
-export function EmptyState({ title, description, icon, action }: EmptyStateProps) {
+export function EmptyState({ title, description, icon, action, children }: EmptyStateProps) {
   return (
     <div className="text-center py-12 animate-fade-in">
       {icon && <div className="mx-auto mb-4 text-muted/40 animate-float">{icon}</div>}
@@ -128,6 +129,7 @@ export function EmptyState({ title, description, icon, action }: EmptyStateProps
           {action.label}
         </button>
       )}
+      {children && <div className="mt-6">{children}</div>}
     </div>
   );
 }

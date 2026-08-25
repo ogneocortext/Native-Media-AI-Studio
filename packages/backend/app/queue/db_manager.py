@@ -113,6 +113,15 @@ class JobDatabaseManager:
             return cursor.rowcount
 
     @staticmethod
+    def clear_failed() -> int:
+        """Delete failed jobs."""
+        with get_db() as conn:
+            cursor = conn.execute(
+                "DELETE FROM jobs WHERE status = 'failed'"
+            )
+            return cursor.rowcount
+
+    @staticmethod
     def _row_to_job(row) -> Job:
         """Convert a database row to a Job model."""
         return Job(

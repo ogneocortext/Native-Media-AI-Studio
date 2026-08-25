@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   Play,
   Loader2,
@@ -53,6 +54,7 @@ export function Queue() {
     retryJob,
     deleteJob,
     clearCompleted,
+    clearFailed,
     connectSSE,
     disconnectSSE,
   } = useJobStore();
@@ -70,6 +72,7 @@ export function Queue() {
   }, [fetchJobs, connectSSE, disconnectSSE]);
 
   const handleCancel = async (id: string) => {
+    if (!confirm("Cancel this job?")) return;
     setActionLoading(id);
     try {
       await cancelJob(id);
@@ -92,6 +95,7 @@ export function Queue() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!confirm("Delete this job permanently?")) return;
     setActionLoading(id);
     try {
       await deleteJob(id);
@@ -103,10 +107,20 @@ export function Queue() {
   };
 
   const handleClearCompleted = async () => {
+    if (!confirm(`Clear ${stats?.completed || 0} completed jobs?`)) return;
     try {
       await clearCompleted();
     } catch (e) {
       console.error("Failed to clear completed:", e);
+    }
+  };
+
+  const handleClearFailed = async () => {
+    if (!confirm(`Clear ${stats?.failed || 0} failed jobs?`)) return;
+    try {
+      await clearFailed();
+    } catch (e) {
+      console.error("Failed to clear failed:", e);
     }
   };
 
@@ -155,6 +169,13 @@ export function Queue() {
             )}
           </div>
 
+          {stats && stats.failed > 0 && (
+            <button className="btn btn-secondary" onClick={handleClearFailed}>
+              <Trash2 size={16} className="inline mr-2" />
+              Clear Failed
+            </button>
+          )}
+
           {stats && stats.completed > 0 && (
             <button className="btn btn-secondary" onClick={handleClearCompleted}>
               <Trash2 size={16} className="inline mr-2" />
@@ -176,14 +197,14 @@ export function Queue() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-4 mb-6">
+      <div className="grid grid-6 mb-6">
         <Card className="text-center">
           <p className="text-2xl font-bold">{stats?.total_jobs || 0}</p>
           <p className="text-sm text-muted">Total</p>
         </Card>
         <Card className="text-center">
           <p className="text-2xl font-bold text-warning">
-            {(stats?.pending || 0) + (stats?.cancelled || 0)}
+            {(stats?.pending || 0) + (stats?.queued || 0)}
           </p>
           <p className="text-sm text-muted">Pending</p>
         </Card>
@@ -194,6 +215,14 @@ export function Queue() {
         <Card className="text-center">
           <p className="text-2xl font-bold text-success">{stats?.completed || 0}</p>
           <p className="text-sm text-muted">Completed</p>
+        </Card>
+        <Card className="text-center">
+          <p className="text-2xl font-bold text-error">{stats?.failed || 0}</p>
+          <p className="text-sm text-muted">Failed</p>
+        </Card>
+        <Card className="text-center">
+          <p className="text-2xl font-bold text-muted">{stats?.cancelled || 0}</p>
+          <p className="text-sm text-muted">Cancelled</p>
         </Card>
       </div>
 
@@ -297,7 +326,18 @@ export function Queue() {
           <EmptyState
             title="No jobs in queue"
             description="Create a job from one of the workspace pages"
-          />
+          >
+            <div className="flex items-center justify-center gap-3 mt-4">
+              <Link to="/music-video-wizard" className="btn btn-primary">
+                <Play size={16} className="inline mr-2" />
+                Music Video
+              </Link>
+              <Link to="/image-generation" className="btn btn-secondary">
+                <Play size={16} className="inline mr-2" />
+                Image Gen
+              </Link>
+            </div>
+          </EmptyState>
         )}
       </Card>
     </div>

@@ -89,6 +89,32 @@ async def gpu_processes() -> dict:
     return {"processes": processes, "count": len(processes)}
 
 
+@router.get("/ollama/models")
+async def ollama_models() -> dict:
+    """Get currently loaded Ollama models with VRAM usage."""
+    import urllib.request
+    import json
+    try:
+        req = urllib.request.Request("http://127.0.0.1:11434/api/ps")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+            models = data.get("models", [])
+            return {
+                "loaded": len(models) > 0,
+                "models": [
+                    {
+                        "name": m.get("name", "unknown"),
+                        "size_mb": (m.get("size", 0) or 0) // (1024 * 1024),
+                        "vram_mb": (m.get("size_vram", 0) or 0) // (1024 * 1024),
+                        "expires_at": m.get("expires_at", ""),
+                    }
+                    for m in models
+                ],
+            }
+    except Exception as e:
+        return {"loaded": False, "models": [], "error": str(e)}
+
+
 @router.get("/ffmpeg")
 async def ffmpeg_status() -> dict:
     """Check for running ffmpeg processes."""
@@ -152,6 +178,55 @@ async def check_services() -> dict:
 async def system_diagnostics() -> dict:
     """Get system diagnostics"""
     return await health_monitor.get_system_health()
+
+
+@router.get("/diagnostics/memory")
+async def memory_diagnostics() -> dict:
+    """Get detailed memory breakdown including top processes by RAM usage."""
+    import psutil
+
+    mem = psutil.virtual_memory()
+    total_mb = mem.total // (1024 * 1024)
+    used_mb = mem.used // (1024 * 1024)
+    available_mb = mem.available // (1024 * 1024)
+
+    # Get top processes by memory usage (limit to 50 for speed)
+    processes = []
+    try:
+        for proc in psutil.process_iter(['pid', 'name', 'memory_percent']):
+            try:
+                info = proc.info
+                if info.get('name') and info.get('memory_percent', 0) > 0.5:
+                    # Only get rss for processes using > 0.5% memory
+                    try:
+                        rss = proc.memory_info().rss
+                    except Exception:
+                        continue
+                    processes.append({
+                        "pid": info['pid'],
+                        "name": info['name'],
+                        "mem_mb": rss // (1024 * 1024),
+                        "mem_percent": round(info.get('memory_percent', 0) or 0, 1),
+                    })
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+    except Exception:
+        pass
+
+    # Sort by memory descending, take top 15
+    processes.sort(key=lambda p: p['mem_mb'], reverse=True)
+    top_processes = processes[:15]
+
+    return {
+        "memory": {
+            "total_mb": total_mb,
+            "used_mb": used_mb,
+            "available_mb": available_mb,
+            "percent": mem.percent,
+        },
+        "top_processes": top_processes,
+        "process_count": len(processes),
+    }
 
 
 # Note: /api/services/status is registered at root level in main.py

@@ -8,6 +8,7 @@ import {
   XCircle,
   Sparkles,
   Settings,
+  ImageIcon,
 } from "lucide-react";
 import {
   generateVideoSection,
@@ -32,6 +33,34 @@ interface Template {
   sections: string[];
 }
 
+interface VideoModel {
+  name: string;
+  description: string;
+  type: string;
+  bestFor: string;
+}
+
+const VIDEO_MODELS: VideoModel[] = [
+  {
+    name: "wan2.2_ti2v_5B_fp16.safetensors",
+    description: "Wan 2.2 — text-to-video model (5B params) generates video clips from text prompts",
+    type: "Text-to-Video",
+    bestFor: "Short video clips, animations, motion content",
+  },
+  {
+    name: "kandinsky5lite_i2v_5s.safetensors",
+    description: "Kandinsky 5 Lite — image-to-video model that animates a starting image",
+    type: "Image-to-Video",
+    bestFor: "Animating still images into 5-second video clips",
+  },
+  {
+    name: "mm_sd15_v3.safetensors",
+    description: "AnimateDiff motion module — adds motion to Stable Diffusion generations",
+    type: "Motion Module",
+    bestFor: "Adding camera motion and animation to SD images",
+  },
+];
+
 export function VideoGenerationPage() {
   const [prompt, setPrompt] = useState("cinematic music video, vibrant colors, professional lighting");
   const [negativePrompt, setNegativePrompt] = useState("blurry, low quality, distorted");
@@ -39,6 +68,7 @@ export function VideoGenerationPage() {
   const [cfgScale, setCfgScale] = useState(7.0);
   const [selectedStyle, setSelectedStyle] = useState<string>("");
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+  const [selectedModel, setSelectedModel] = useState<string>(VIDEO_MODELS[0].name);
   const [duration, setDuration] = useState(10);
   const [verticalFirst, setVerticalFirst] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -50,6 +80,13 @@ export function VideoGenerationPage() {
 
   useEffect(() => {
     loadData();
+    // Retry after 2 seconds in case backend wasn't ready on first load
+    const retryTimer = setTimeout(() => {
+      if (styles.length === 0 && templates.length === 0) {
+        loadData();
+      }
+    }, 2000);
+    return () => clearTimeout(retryTimer);
   }, []);
 
   const loadData = async () => {
@@ -59,12 +96,16 @@ export function VideoGenerationPage() {
         getWorkflowTemplates(),
         getJobTypes(),
       ]);
-      setStyles(Array.isArray(stylesData) ? stylesData : []);
-      setTemplates(Array.isArray(templatesData) ? templatesData : []);
+      setStyles(Array.isArray(stylesData) ? stylesData : (stylesData?.styles as Style[]) || []);
+      setTemplates(Array.isArray(templatesData) ? templatesData : (templatesData?.templates as Template[]) || []);
       setJobTypes(jobTypesData || {});
     } catch {
-      // Backend may not be running
+      // Backend may not be running — data will show as empty
     }
+  };
+
+  const handleRefreshData = () => {
+    loadData();
   };
 
   const handleGenerate = async () => {
@@ -87,6 +128,7 @@ export function VideoGenerationPage() {
           section,
           duration: duration / sections.length,
           vertical_first: verticalFirst,
+          model: selectedModel,
         };
         const result = await generateVideoSection(request);
         newResults.push(result);
@@ -116,14 +158,22 @@ export function VideoGenerationPage() {
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Film size={24} className="text-purple-400" />
-          Video Generation
-        </h1>
-        <p className="text-gray-400 mt-1">
-          Generate video sections for your music video with AI.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <Film size={24} className="text-purple-400" />
+            Video Generation
+          </h1>
+          <p className="text-gray-400 mt-1">
+            Generate video sections for your music video with AI.
+          </p>
+        </div>
+        <button
+          onClick={handleRefreshData}
+          className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm text-gray-300 flex items-center gap-1"
+        >
+          Refresh
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -302,6 +352,36 @@ export function VideoGenerationPage() {
             ) : (
               <p className="text-gray-500 text-sm">No templates available</p>
             )}
+          </div>
+
+          {/* Video Models */}
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h3 className="text-white font-medium mb-3 flex items-center gap-2">
+              <ImageIcon size={16} />
+              Video Models
+            </h3>
+            <div className="space-y-2">
+              {VIDEO_MODELS.map((model) => {
+                const selected = selectedModel === model.name;
+                return (
+                  <button
+                    key={model.name}
+                    onClick={() => setSelectedModel(model.name)}
+                    className={`w-full text-left p-3 rounded-lg border transition-all duration-200 ${selected ? "border-purple-500 bg-purple-500/10" : "border-gray-600 bg-gray-700 hover:border-gray-500"}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium truncate mr-2">{model.name.replace(".safetensors", "")}</span>
+                      {selected && <span className="text-[10px] text-purple-400 shrink-0">Selected</span>}
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">{model.description}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-400">{model.type}</span>
+                      <span className="text-[10px] text-gray-500">Best for: {model.bestFor}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Job Types */}

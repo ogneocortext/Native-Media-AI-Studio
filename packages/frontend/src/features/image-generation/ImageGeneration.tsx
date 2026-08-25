@@ -1,10 +1,36 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Image, Play, Clock, Settings2, Sparkles, Download, RefreshCw } from "lucide-react";
 import { Card, LoadingSpinner, EmptyState, StatusBadge } from "../../components/common";
 import * as api from "../../services/api";
 import { getLogger } from "../../services/logger";
 
 const logger = getLogger("image-generation");
+
+interface CheckpointModel {
+  name: string;
+  filename: string;
+  path: string;
+  size: number;
+}
+
+interface ModelInfo {
+  description: string;
+  type: string;
+  bestFor: string;
+}
+
+const MODEL_INFO: Record<string, ModelInfo> = {
+  "v1-5-pruned-emaonly": {
+    description: "Stable Diffusion 1.5 — versatile general-purpose image generation model",
+    type: "Image (SD 1.5)",
+    bestFor: "General images, portraits, landscapes, concept art",
+  },
+  "hunyuan3d-dit-v2-mini": {
+    description: "Hunyuan3D — generates 3D models from text prompts in mini/fast variant",
+    type: "3D Generation",
+    bestFor: "3D model creation, mesh generation, assets",
+  },
+};
 
 interface GenerationOptions {
   prompt: string;
@@ -15,6 +41,7 @@ interface GenerationOptions {
   height: number;
   seed: number;
   sampler: string;
+  model: string;
 }
 
 const defaultOptions: GenerationOptions = {
@@ -26,6 +53,7 @@ const defaultOptions: GenerationOptions = {
   height: 512,
   seed: -1,
   sampler: "Euler a",
+  model: "",
 };
 
 function getFriendlyError(err: unknown): string {
@@ -48,6 +76,34 @@ export function ImageGeneration() {
   const [result, setResult] = useState<{ output_path: string; seed: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+  const [models, setModels] = useState<CheckpointModel[]>([]);
+  const [loadingModels, setLoadingModels] = useState(true);
+
+  // Fetch available checkpoint models (filtered to image models only)
+  useEffect(() => {
+    fetch("/api/integrations/comfyui/checkpoints")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.checkpoints?.length) {
+          // Filter to only show image generation models
+          const imageModels = data.checkpoints.filter((name: string) => {
+            const baseName = name.replace(/\.(safetensors|ckpt|pt)$/i, "");
+            return !!MODEL_INFO[baseName];
+          });
+          setModels(imageModels.map((name: string) => ({ name, filename: name, path: "", size: 0 })));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingModels(false));
+  }, []);
+
+  // Auto-select first model
+  useEffect(() => {
+    if (models.length > 0 && !options.model) {
+      const firstName = typeof models[0] === "string" ? models[0] : models[0]?.name;
+      if (firstName) setOptions((prev) => ({ ...prev, model: firstName }));
+    }
+  }, [models, options.model]);
 
   const handleGenerate = useCallback(async () => {
     if (!options.prompt.trim()) {
@@ -75,6 +131,7 @@ export function ImageGeneration() {
         height: options.height,
         seed: options.seed,
         sampler: options.sampler,
+        model: options.model,
       });
       setProgress(100);
       setResult(res);
@@ -105,6 +162,7 @@ export function ImageGeneration() {
         height: options.height,
         seed: options.seed,
         sampler: options.sampler,
+        model: options.model,
       });
     } catch (e) {
       setError(getFriendlyError(e));
@@ -267,6 +325,52 @@ export function ImageGeneration() {
               </div>
             </Card>
           )}
+
+          {/* Model Selector */}
+          <Card>
+            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-accent/20 text-accent text-xs flex items-center justify-center font-bold">3</span>
+              Model
+            </h3>
+            {loadingModels ? (
+              <div className="flex items-center gap-2 text-sm text-muted py-2">
+                <LoadingSpinner size="sm" />
+                Loading models...
+              </div>
+            ) : models.length === 0 ? (
+              <div className="text-sm text-muted py-2">No models found in checkpoints folder</div>
+            ) : (
+              <div className="space-y-2">
+                {models.map((m) => {
+                  const name = typeof m === "string" ? m : m.name || m.filename;
+                  const baseName = name.replace(/\.(safetensors|ckpt|pt)$/i, "");
+                  const info = MODEL_INFO[baseName];
+                  const selected = options.model === name;
+                  return (
+                    <button
+                      key={name}
+                      className={`w-full text-left p-3 rounded-lg border transition-all duration-200 ${selected ? "border-accent bg-accent/10 shadow-sm" : "border-border bg-background hover:border-border/80 hover:bg-white/5"}`}
+                      onClick={() => setOptions({ ...options, model: name })}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium truncate mr-2">{name}</span>
+                        {selected && <span className="text-xs text-accent shrink-0">Selected</span>}
+                      </div>
+                      {info && (
+                        <div className="mt-1.5 space-y-1">
+                          <p className="text-xs text-muted">{info.description}</p>
+                          <div className="flex items-center gap-3 text-[10px]">
+                            <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">{info.type}</span>
+                            <span className="text-muted">Best for: {info.bestFor}</span>
+                          </div>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
 
           {/* Error */}
           {error && !generating && (

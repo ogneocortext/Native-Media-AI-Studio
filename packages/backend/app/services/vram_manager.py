@@ -344,24 +344,50 @@ class VRAMManager:
     async def _unload_ollama_models(self) -> dict[str, Any]:
         """
         Unload Ollama models from GPU to free VRAM.
-        This sends a request to Ollama to unload the model.
+        Queries Ollama API for loaded models, then sends keep_alive=0 to unload.
         """
         try:
             import urllib.request
-            # Ollama API: POST /api/generate with keep_alive=0 unloads the model
-            req = urllib.request.Request(
-                "http://127.0.0.1:11434/api/generate",
-                data=b'{"model":"","prompt":"","keep_alive":0}',
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            # Don't wait for response - just trigger unload
-            # Use a short timeout since we don't need the response
+            import json
+
+            # First, get the list of loaded models
+            loaded_models = []
             try:
-                with urllib.request.urlopen(req, timeout=5):
-                    pass
+                req = urllib.request.Request("http://127.0.0.1:11434/api/ps")
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    data = json.loads(resp.read())
+                    loaded_models = data.get("models", [])
             except Exception:
-                pass  # Timeout is expected since we're unloading
+                pass
+
+            if not loaded_models:
+                # Fallback: try the last known model
+                last_model = getattr(ollama_adapter, '_last_model', None)
+                if last_model:
+                    loaded_models = [{"name": last_model}]
+
+            # Unload each loaded model
+            for model_info in loaded_models:
+                model_name = model_info.get("name", "")
+                if not model_name:
+                    continue
+                try:
+                    data = json.dumps({
+                        "model": model_name,
+                        "prompt": " ",
+                        "keep_alive": 0,
+                    }).encode()
+                    req = urllib.request.Request(
+                        "http://127.0.0.1:11434/api/generate",
+                        data=data,
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(req, timeout=5):
+                        pass
+                    logger.info("VRAM Manager: Unloaded Ollama model: %s", model_name)
+                except Exception:
+                    pass  # Timeout is expected since we're unloading
 
             self._ollama_loaded = False
             logger.info("VRAM Manager: Ollama models offloaded from GPU")

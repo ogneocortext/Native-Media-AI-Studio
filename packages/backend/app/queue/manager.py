@@ -297,7 +297,7 @@ class QueueManager:
             return False
 
     async def clear_completed(self) -> int:
-        """Remove all completed jobs"""
+        """Remove all completed and cancelled jobs"""
         async with self._lock:
             completed_ids = [j.id for j in self._jobs.values()
                            if j.status in (JobStatus.COMPLETED, JobStatus.CANCELLED)]
@@ -305,6 +305,16 @@ class QueueManager:
                 del self._jobs[job_id]
             # Remove from SQLite
             count = JobDatabaseManager.clear_completed()
+            return count
+
+    async def clear_failed(self) -> int:
+        """Remove all failed jobs"""
+        async with self._lock:
+            failed_ids = [j.id for j in self._jobs.values()
+                         if j.status == JobStatus.FAILED]
+            for job_id in failed_ids:
+                del self._jobs[job_id]
+            count = JobDatabaseManager.clear_failed()
             return count
 
 

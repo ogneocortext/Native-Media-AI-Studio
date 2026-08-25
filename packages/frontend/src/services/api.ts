@@ -136,6 +136,14 @@ export async function clearCompletedJobs(): Promise<void> {
   if (!res.ok) throw new Error("Failed to clear completed jobs");
 }
 
+export async function clearFailedJobs(): Promise<void> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/jobs/clear-failed`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("Failed to clear failed jobs");
+}
+
 // Health API
 /** Ping the backend (liveness probe). */
 export async function ping(): Promise<{ status: string }> {
@@ -178,6 +186,7 @@ export async function generateImage(
     seed?: number;
     sampler?: string;
     backend?: string;
+    model?: string;
   } = {},
 ): Promise<{ success: boolean; output_path: string; seed: number }> {
   const base = getApiBase();
@@ -196,6 +205,7 @@ export async function generateImage(
         height: options.height || 512,
         seed: options.seed || -1,
         sampler: options.sampler || "Euler a",
+        ckpt_name: options.model || undefined,
       }),
     },
   );
@@ -670,6 +680,7 @@ export interface VideoGenerateRequest {
   audio_path?: string;
   audio_filename?: string;
   method?: "comfyui" | "visualization";
+  model?: string;
 }
 
 export interface VideoGenerateResponse {
@@ -784,6 +795,44 @@ export async function getSystemDiagnostics(): Promise<SystemHealth> {
   const base = getApiBase();
   const res = await fetch(`${base}/api/health/diagnostics/system`);
   if (!res.ok) throw new Error("Failed to get system diagnostics");
+  return res.json();
+}
+
+export interface MemoryDiagnostics {
+  memory: {
+    total_mb: number;
+    used_mb: number;
+    available_mb: number;
+    percent: number;
+  };
+  top_processes: { pid: number; name: string; mem_mb: number; mem_percent: number }[];
+  process_count: number;
+}
+
+export async function getMemoryDiagnostics(): Promise<MemoryDiagnostics> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/health/diagnostics/memory`);
+  if (!res.ok) throw new Error("Failed to get memory diagnostics");
+  return res.json();
+}
+
+export interface DiagnosticsModel {
+  name: string;
+  size_mb: number;
+  vram_mb: number;
+  expires_at: string;
+}
+
+export interface DiagnosticsModelsResponse {
+  loaded: boolean;
+  models: DiagnosticsModel[];
+  error?: string;
+}
+
+export async function getLoadedModels(): Promise<DiagnosticsModelsResponse> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/health/ollama/models`);
+  if (!res.ok) throw new Error("Failed to get loaded models");
   return res.json();
 }
 

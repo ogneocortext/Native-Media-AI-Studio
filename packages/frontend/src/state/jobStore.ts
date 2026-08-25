@@ -15,6 +15,7 @@ import {
   retryJob as apiRetryJob,
   deleteJob as apiDeleteJob,
   clearCompletedJobs as apiClearCompletedJobs,
+  clearFailedJobs as apiClearFailedJobs,
 } from "../services/api";
 import { JobStatus } from "@shared/types";
 import { sseService } from "../services/sseService";
@@ -47,6 +48,7 @@ interface JobState {
   retryJob: (jobId: string) => Promise<void>;
   deleteJob: (jobId: string) => Promise<void>;
   clearCompleted: () => Promise<void>;
+  clearFailed: () => Promise<void>;
   connectSSE: () => void;
   disconnectSSE: () => void;
 }
@@ -220,6 +222,26 @@ export const useJobStore = create<JobState>((set, get) => ({
     }
   },
 
+  clearFailed: async () => {
+    set({ isLoading: true, error: null });
+
+    try {
+      await apiClearFailedJobs();
+      // Refresh jobs and stats
+      await get().fetchJobs();
+    } catch (error) {
+      set({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to clear failed jobs",
+      });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
   connectSSE: () => {
     const unsubMessage = sseService.subscribe((message) => {
       handleSSEMessage(message, get, set);
@@ -360,6 +382,7 @@ export const useJobActions = () =>
     retryJob: state.retryJob,
     deleteJob: state.deleteJob,
     clearCompleted: state.clearCompleted,
+    clearFailed: state.clearFailed,
     connectSSE: state.connectSSE,
     disconnectSSE: state.disconnectSSE,
   }));

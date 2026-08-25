@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/integrations", tags=["Integrations"])
 
 
 class ImageGenerationRequest(BaseModel):
-    """Request for image generation"""
+    """Request for image generation via ComfyUI or other backends"""
 
     prompt: str
     negative_prompt: str = ""
@@ -28,6 +28,7 @@ class ImageGenerationRequest(BaseModel):
     seed: int = -1
     sampler: str = "Euler a"
     backend: str = "comfyui"
+    ckpt_name: str = ""
 
 
 class VideoGenerationRequest(BaseModel):
@@ -118,6 +119,27 @@ async def get_models_status() -> dict:
     }
 
 
+@router.get("/comfyui/checkpoints")
+async def list_comfyui_checkpoints() -> dict:
+    """List available checkpoint models from ComfyUI's checkpoints folder."""
+    # Look for ComfyUI installation
+    search_paths = [
+        PROJECT_ROOT.parent.parent / "ComfyUI" / "models" / "checkpoints",
+        Path("D:/Backup of Important Data for Windows 11 Upgrade/ComfyUI/models/checkpoints"),
+    ]
+
+    for ckpt_dir in search_paths:
+        if ckpt_dir.exists():
+            checkpoints = sorted([
+                f.name for f in ckpt_dir.iterdir()
+                if f.suffix in (".safetensors", ".ckpt")
+            ])
+            if checkpoints:
+                return {"checkpoints": checkpoints, "directory": str(ckpt_dir)}
+
+    return {"checkpoints": [], "directory": ""}
+
+
 @router.post("/{service_name}/generate")
 async def generate_image(service_name: str, request: ImageGenerationRequest) -> dict:
     """Generate an image using the specified backend"""
@@ -143,6 +165,8 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
             "seed": request.seed,
             "sampler_name": request.sampler,
         }
+        if request.ckpt_name:
+            params["ckpt_name"] = request.ckpt_name
         result = await adapter.generate(params)
 
         # Save image to output

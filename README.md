@@ -15,10 +15,12 @@ A full-stack AI-powered creative production environment for music-driven media g
 - **Responsive Sidebar** — Collapsible + mobile drawer (`<900px` or portrait) with backdrop, `min-h-0` scroll, health `max-h-[22vh]`
 - **Track Manager** — Table view for pairing prompts and lyrics to tracks with persistent storage
 - **AI Visual Generation** — ComfyUI integration with style previews, prompt transformation, and audio-reactive visualization
-- **Image Generation** — Text-to-image via ComfyUI with multiple style presets
+- **Image Generation** — Text-to-image via ComfyUI with model selector (SD 1.5, Hunyuan3D)
+- **Video Generation** — Text/image-to-video via ComfyUI with model selector (Wan 2.2, Kandinsky 5, AnimateDiff)
 - **Video Editor** — Remotion-powered studio for audio-reactive music videos
-- **Generation Estimator** — Frame count, time, VRAM, and output size estimates
-- **Queue System** — Job management with real-time WebSocket status tracking
+- **Log Viewer** — Centralized logs with analytics dashboard (pie charts, timelines, sparklines), system diagnostics (RAM gauge, per-process memory breakdown), and Ollama model VRAM monitor
+- **Queue System** — Job management with real-time SSE status, bulk clear for failed/completed jobs
+- **GPU Monitoring** — Real-time VRAM, utilization, temperature, per-process breakdown, and Ollama model tracker with one-click VRAM offload
 - **Database Persistence** — SQLite storage for prompts, audio metadata, AI visuals, and generation sessions
 - **GPU Monitoring** — Real-time VRAM, utilization, temperature, and per-process breakdown via `/api/health/gpu`
 - **Obsidian Vault** — `docs/knowledge-library/.obsidian/snippets/nstudio-*.css` (pro, immersive, callouts, tables, headers)
@@ -131,6 +133,12 @@ pnpm db:migrate          # Initialize SQLite database
 |----------|--------|-------------|
 | `/api/health` | GET | Service health status |
 | `/api/health/gpu` | GET | Real VRAM/util/temps (GTX 1070 Ti) |
+| `/api/health/diagnostics/memory` | GET | System memory breakdown + top RAM processes |
+| `/api/health/ollama/models` | GET | Currently loaded Ollama models with VRAM usage |
+| `/api/integrations/comfyui/checkpoints` | GET | List available checkpoint models |
+| `/api/integrations/music-video/styles` | GET | Music video visual styles |
+| `/api/integrations/music-video/templates` | GET | Video generation workflow templates |
+| `/api/integrations/vram/offload-ollama` | POST | Unload Ollama models to free VRAM |
 | `/api/audio/upload` | POST | Upload audio (500 MB, MP3/WAV/FLAC) → `stored_path` |
 | `/api/audio/analyze` | POST | Real `librosa` analyze → `tempo_bpm`, `beat_times[800]`, `energy_curve[100]`, `sections[8]` |
 | `/api/audio/files` | GET | List uploaded audio |
