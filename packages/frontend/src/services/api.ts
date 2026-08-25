@@ -9,7 +9,7 @@ import type { Job, QueueStats } from "@shared/types";
 export type { Job, QueueStats };
 
 // Get backend URL from config (reads ports.json or env vars)
-const getApiBase = (): string => getBackendUrl();
+export const getApiBase = (): string => getBackendUrl();
 
 export interface HealthStatus {
   status: string;
