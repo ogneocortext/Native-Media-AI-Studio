@@ -412,18 +412,21 @@ class ResourceMonitor:
         """Get per-process GPU memory usage via Windows Performance Counters.
 
         Works on Windows 10/11 with WDDM (GeForce) without admin privileges.
-        Returns list of {pid, name, mem_mb} sorted by memory descending."""
+        Returns list of {pid, name, mem_mb} sorted by memory descending.
+
+        Hybrid approach:
+        - Process names from CreateToolhelp32Snapshot (accurate for all processes)
+        - Per-process memory from Windows Performance Counters (best-effort)
+        - Ollama model size from Ollama API (accurate for llama-server.exe)
+        """
         processes = []
         try:
             import win32pdh
-            from ctypes import windll, wintypes, byref, Structure, WinError
 
-            # Query "Dedicated Usage" for all GPU processes
-            counter_path = r"\GPU Process Memory(*)\Dedicated Usage"
-
+            # Query all available counters for better accuracy
             hq = win32pdh.OpenQuery()
             try:
-                hc = win32pdh.AddCounter(hq, counter_path)
+                hc = win32pdh.AddCounter(hq, r"\GPU Process Memory(*)\Dedicated Usage")
                 try:
                     win32pdh.CollectQueryData(hq)
                     items = win32pdh.GetFormattedCounterArray(hc, win32pdh.PDH_FMT_LONG)
@@ -447,8 +450,38 @@ class ResourceMonitor:
         except Exception as e:
             logger.debug(f"GPU process counter query failed: {e}")
 
+        # Hybrid: Query Ollama API for actual model VRAM usage
+        ollama_vram = await self._get_ollama_vram_usage()
+        if ollama_vram > 0:
+            # Attribute Ollama model VRAM to llama-server.exe
+            for proc in processes:
+                if proc["name"] in ("llama-server.exe", "ollama.exe", "ollama"):
+                    proc["mem_mb"] = ollama_vram
+                    break
+            else:
+                # Ollama process not found in counter list, add it
+                processes.append({"pid": 0, "name": "ollama (model)", "mem_mb": ollama_vram})
+
         processes.sort(key=lambda p: p["mem_mb"], reverse=True)
         return processes
+
+    async def _get_ollama_vram_usage(self) -> int:
+        """Query Ollama API for loaded model size in MB. Returns 0 if unavailable."""
+        try:
+            import urllib.request
+            import json
+            base = "http://127.0.0.1:11434"
+            req = urllib.request.Request(f"{base}/api/ps")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read())
+                models = data.get("models", [])
+                if models:
+                    size_vram = models[0].get("size_vram", 0)
+                    if size_vram:
+                        return max(0, int(size_vram // (1024 * 1024)))
+        except Exception:
+            pass
+        return 0
 
     @staticmethod
     def _get_process_name(pid: int) -> str:
