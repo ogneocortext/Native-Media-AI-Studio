@@ -4,6 +4,7 @@ Handles starting, stopping, and updating ComfyUI headlessly.
 """
 
 import asyncio
+import logging
 import os
 import subprocess
 import sys
@@ -11,6 +12,8 @@ import time
 from pathlib import Path
 
 from ..core.config import PROJECT_ROOT
+
+logger = logging.getLogger(__name__)
 
 # ComfyUI lives beside the repo root (sibling directory), e.g.
 # "D:\\Backup of Important Data for Windows 11 Upgrade\\ComfyUI".
@@ -26,6 +29,37 @@ if not VENV_PYTHON.exists():
 
 # Extra args for compatibility with GTX 10-series GPUs
 EXTRA_ARGS = ["--disable-pinned-memory"]
+
+# Git executable path (Windows typically installs to C:\Program Files\Git\cmd\git.exe)
+GIT_EXECUTABLE = "git"
+# Common git locations on Windows
+_GIT_PATHS = [
+    r"C:\Program Files\Git\cmd\git.exe",
+    r"C:\Program Files (x86)\Git\cmd\git.exe",
+    r"C:\Git\cmd\git.exe",
+]
+
+
+def _find_git() -> str:
+    """Find the git executable on the system."""
+    # First try the PATH
+    try:
+        result = subprocess.run(
+            ["git", "--version"],
+            capture_output=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return "git"
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    # Try common locations
+    for path in _GIT_PATHS:
+        if os.path.isfile(path):
+            return path
+
+    return "git"  # Fallback to PATH
 
 
 class ComfyUIManager:
@@ -287,17 +321,23 @@ class ComfyUIManager:
             add_msg = ""
 
         try:
+            # Find git executable
+            git_exe = _find_git()
+            logger.info("Using git executable: %s", git_exe)
+
             # Check if git is available
             git_check = await asyncio.create_subprocess_exec(
-                "git", "--version",
+                git_exe, "--version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            await git_check.communicate()
+            stdout, stderr = await git_check.communicate()
             if git_check.returncode != 0:
+                error_msg = stderr.decode("utf-8", errors="replace").strip()
                 return {
                     "success": False,
                     "message": "Git is not available on this system",
+                    "errors": error_msg,
                     "hint": "Install Git to enable ComfyUI updates",
                 }
 
@@ -311,8 +351,9 @@ class ComfyUIManager:
                 }
 
             # Git pull
+            logger.info("Running git pull in %s", COMFYUI_DIR)
             pull_result = await asyncio.create_subprocess_exec(
-                "git", "pull",
+                git_exe, "pull",
                 cwd=str(COMFYUI_DIR),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -321,6 +362,8 @@ class ComfyUIManager:
 
             output = stdout.decode("utf-8", errors="replace").strip()
             errors = stderr.decode("utf-8", errors="replace").strip()
+
+            logger.info("Git pull result: returncode=%d, output=%s", pull_result.returncode, output[:200])
 
             if pull_result.returncode != 0:
                 return {
@@ -349,13 +392,15 @@ class ComfyUIManager:
                 "restarted": restart_result,
             }
 
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             return {
                 "success": False,
                 "message": "Git executable not found",
+                "errors": str(e),
                 "hint": "Install Git and ensure it's in your system PATH",
             }
         except Exception as e:
+            logger.error("Error updating ComfyUI: %s", e, exc_info=True)
             return {
                 "success": False,
                 "message": f"Error updating ComfyUI: {str(e)}",
