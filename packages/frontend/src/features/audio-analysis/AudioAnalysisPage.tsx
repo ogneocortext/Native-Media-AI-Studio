@@ -519,32 +519,53 @@ export function AudioAnalysisPage() {
                           return 0;
                         })
                         .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                        .map((f, i) => (
+                        .map((f, i) => {
+                          const isEditing = editingFile === f.path;
+                          const currentEditName = editName;
+                          return (
                           <div
                             key={i}
                             className={`p-2 rounded-lg cursor-pointer transition-colors ${selectedLibraryFile === f.path ? "bg-violet-500/20 border border-violet-500/30" : "hover:bg-gray-700"}`}
-                            onClick={() => { if (editingFile !== f.path) handleAnalyzeLibraryFile(f.path); }}
+                            onClick={() => { if (!isEditing) handleAnalyzeLibraryFile(f.path); }}
                           >
                             <div className={DS.flexBetween}>
                               <div className={DS.flexCenter} style={{ minWidth: 0, flex: 1 }}>
                                 <Music size={14} className="shrink-0" />
-                                {editingFile === f.path ? (
+                                {isEditing ? (
                                   <input
                                     autoFocus
-                                    value={editName}
+                                    value={currentEditName}
                                     onChange={(e) => setEditName(e.target.value)}
                                     onBlur={async () => {
-                                      if (editName.trim() && editName !== f.filename) {
+                                      const newName = currentEditName.trim();
+                                      if (newName && newName !== f.filename) {
                                         try {
                                           const ext = f.filename.includes(".") ? f.filename.slice(f.filename.lastIndexOf(".")) : "";
-                                          const newName = editName.includes(".") ? editName : editName + ext;
-                                          await renameAudioFile(f.filename, newName);
+                                          const finalName = newName.includes(".") ? newName : newName + ext;
+                                          await renameAudioFile(f.filename, finalName);
                                           await loadAudioFiles();
                                         } catch { /* ignore */ }
                                       }
                                       setEditingFile(null);
                                     }}
-                                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingFile(null); }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        const input = e.target as HTMLInputElement;
+                                        const newName = input.value.trim();
+                                        if (newName && newName !== f.filename) {
+                                          const ext = f.filename.includes(".") ? f.filename.slice(f.filename.lastIndexOf(".")) : "";
+                                          const finalName = newName.includes(".") ? newName : newName + ext;
+                                          setEditingFile(null);
+                                          renameAudioFile(f.filename, finalName)
+                                            .then(() => loadAudioFiles())
+                                            .catch(() => {});
+                                        } else {
+                                          setEditingFile(null);
+                                        }
+                                      }
+                                      if (e.key === "Escape") setEditingFile(null);
+                                    }}
                                     onClick={(e) => e.stopPropagation()}
                                     className="ml-2 px-1 py-0.5 bg-gray-700 border border-violet-500 rounded text-sm text-white w-full focus:outline-none"
                                   />
@@ -569,7 +590,8 @@ export function AudioAnalysisPage() {
                               </div>
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                     </div>
 
                     {/* Pagination */}
