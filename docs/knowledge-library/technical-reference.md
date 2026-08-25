@@ -493,6 +493,43 @@ curl http://localhost:8188/system_stats | python -m json.tool
 
 ---
 
+## GPU Per-Process Memory Monitoring
+
+### Backend Endpoint
+
+`GET /api/health/gpu/processes` returns per-process GPU memory usage via Windows Performance Counters (`win32pdh`).
+
+### Response Format
+
+```json
+{
+  "processes": [
+    {"pid": 7408, "name": "llama-server.exe", "mem_mb": 2047},
+    {"pid": 15440, "name": "wallpaper32.exe", "mem_mb": 1115},
+    ...
+  ],
+  "count": 30
+}
+```
+
+### How It Works
+
+1. Opens a PDH query to `\GPU Process Memory(*)\Dedicated Usage`
+2. Collects query data and iterates instances (`pid_<PID>_luid_...`)
+3. Extracts PID from instance name, filters out invalid/sentinel values
+4. Resolves process names from PIDs via `GetModuleFileNameExA`
+5. Returns list sorted by memory descending
+
+### Why Not NVML?
+
+NVML's `nvidia-smi --query-compute-apps=used_memory` requires accounting mode (`nvidia-smi -am 1`) which needs admin privileges and is only reliably supported on Quadro/Tesla GPUs. On GeForce with WDDM, it returns `[N/A]`.
+
+Windows Performance Counters work without admin on all WDDM GPUs (GeForce, Quadro, RTX).
+
+### Frontend Display
+
+The GPU card in System Health fetches from both `/api/health/gpu` (total VRAM, utilization, temperature) and `/api/health/gpu/processes` (per-process breakdown), then displays the top 8 processes by memory usage with human-readable formatting (MB/GB).
+
 ## Vision Analysis (Ollama)
 
 ### The Problem

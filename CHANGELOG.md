@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fixed**: Page title "Diagnostics" didn't match sidebar "Health" — renamed to "System Health"
 - **Added**: Reusable `ResourceCard` component for CPU/Memory/Disk
 
+### Added - Per-Process GPU Memory Monitoring
+- **Added**: `/api/health/gpu/processes` endpoint using Windows Performance Counters (`win32pdh`) for per-process VRAM tracking
+- Works on WDDM (GeForce) without admin privileges — replaces NVML-only approach that returned `N/A` on GTX 1070 Ti
+- Human-readable format: process names resolved from PIDs, memory in MB/GB, sorted by usage
+- Frontend GPU card now shows top 8 processes by VRAM usage
+
 ### Fixed - Vision Analysis Infrastructure
 - **Fixed**: `vision-mcp_vision_mcp` tool fails with large images — created `scripts/vision.mjs` standalone analyzer using sharp for resizing
 - **Added**: `scripts/vision.mjs` with `analyze`, `compare`, `diff` commands using sharp + Ollama gemma4:e2b-it-qat
