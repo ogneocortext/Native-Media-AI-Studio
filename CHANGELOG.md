@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - Comprehensive Backend Logging
+
+- **Dedicated Ollama log**: `logs/ollama.log` for Ollama adapter requests/responses
+- **SSE logging**: Connection/disconnect/broadcast events
+- **Health monitor logging**: Health check results with adapter status
+- **API endpoint logging**: Jobs, Video, Audio API request tracking
+- **Structured format**: Timestamp, level, module, function, message
+- **Log rotation**: 10MB per file, 5 backups
+
+**Log Files:**
+| File | Contents |
+|------|----------|
+| `app.log` | All application logs |
+| `error.log` | Errors only with tracebacks |
+| `ollama.log` | Ollama chat requests/streams/errors |
+| `queue.log` | Queue processor events |
+| `comfyui.log` | ComfyUI adapter events |
+
 ### Added - Ollama Tool Calling & Agent Loop
 
 #### Backend
