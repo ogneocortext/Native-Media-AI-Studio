@@ -332,7 +332,7 @@ async def ollama_chat(request: dict) -> dict:
     max_tool_calls = request.get("max_tool_calls", 5)
 
     logger.info("Ollama chat request: model=%s, stream=%s, tools=%d, message_len=%d",
-                model, stream, len(tools), len(message)))
+                model, stream, len(tools), len(message))
 
     # Build messages array
     messages = []
