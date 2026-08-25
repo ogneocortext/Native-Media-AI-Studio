@@ -15,7 +15,6 @@ import {
   Clock,
   TrendingUp,
   Music2,
-  ArrowRight,
 } from "lucide-react";
 import {
   analyzeAudio,
@@ -24,7 +23,7 @@ import {
   getApiBase,
   type AudioAnalysisResult,
 } from "../../services/api";
-import { SECTION_COLORS } from "../../styles/designSystem";
+import { DS, SECTION_COLORS } from "../../styles/designSystem";
 import {
   AreaChart,
   Area,
@@ -219,20 +218,18 @@ export function AudioAnalysisPage() {
   const getSectionColor = (type: string) => SECTION_COLORS[type] || SECTION_COLORS.full;
 
   return (
-    <div className="aa-page">
-      <div className="aa-header">
-        <div className="aa-title-row">
-          <Music size={22} className="aa-icon" />
-          <h1 className="aa-title">Audio Analysis</h1>
-        </div>
-        <p className="aa-subtitle">
-          Upload audio or select from library to detect tempo, beats, and song structure.
-        </p>
+    <div className={DS.page}>
+      <div className={DS.pageTitle}>
+        <Music size={22} />
+        Audio Analysis
       </div>
+      <p className={DS.pageSubtitle}>
+        Upload audio or select from library to detect tempo, beats, and song structure.
+      </p>
 
-      <div className="aa-layout">
+      <div className={DS.gridMainSidebar}>
         {/* Main Area */}
-        <div className="aa-main">
+        <div className={DS.section}>
           {/* Upload Area */}
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -242,18 +239,18 @@ export function AudioAnalysisPage() {
               const el = document.getElementById("audio-analysis-file-input") as HTMLInputElement;
               el?.click();
             }}
-            className={`aa-dropzone ${dragOver ? "border-violet-500 bg-violet-500/10" : ""}`}
+            className={`${DS.card} text-center cursor-pointer transition-colors ${dragOver ? "border-violet-500 bg-violet-500/10" : ""}`}
           >
-            <Upload size={40} className="aa-dropzone-icon" />
+            <Upload size={40} className="mx-auto mb-3 text-gray-500" />
             {file ? (
               <div>
-                <p className="aa-dropzone-filename">{file.name}</p>
-                <p className="aa-dropzone-filesize">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                <p className={DS.textBold}>{file.name}</p>
+                <p className={DS.textXs}>{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
               </div>
             ) : (
               <div>
-                <p className="aa-dropzone-text">Drop audio file here or click to browse</p>
-                <p className="aa-dropzone-hint">Supports MP3, WAV, FLAC, OGG</p>
+                <p className={DS.textSm}>Drop audio file here or click to browse</p>
+                <p className={DS.textXs}>Supports MP3, WAV, FLAC, OGG</p>
               </div>
             )}
             <input
@@ -273,7 +270,7 @@ export function AudioAnalysisPage() {
             <button
               onClick={handleAnalyze}
               disabled={analyzing}
-              className="aa-analyze-btn"
+              className={`${DS.btnPrimary} w-full`}
             >
               {analyzing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
               {analyzing ? "Analyzing..." : "Analyze Uploaded File"}
@@ -282,15 +279,17 @@ export function AudioAnalysisPage() {
 
           {/* Analysis Progress */}
           {analyzing && analysisStep && (
-            <div className="aa-card" style={{ display: "flex", alignItems: "center", gap: "0.75rem", background: "rgba(139, 92, 246, 0.08)", borderColor: "rgba(139, 92, 246, 0.2)" }}>
-              <Loader2 size={16} className="animate-spin text-violet-400" />
-              <span className="text-sm text-violet-300">{analysisStep}</span>
+            <div className={DS.cardTight} style={{ background: "rgba(139, 92, 246, 0.08)", borderColor: "rgba(139, 92, 246, 0.2)" }}>
+              <div className={DS.flexCenter}>
+                <Loader2 size={16} className="animate-spin text-violet-400" />
+                <span className="text-sm text-violet-300">{analysisStep}</span>
+              </div>
             </div>
           )}
 
           {/* Error */}
           {error && (
-            <div className="aa-card" style={{ display: "flex", gap: "0.5rem", color: "#fcd34d", background: "rgba(251, 191, 36, 0.1)", borderColor: "rgba(251, 191, 36, 0.2)" }}>
+            <div className={DS.cardError}>
               <AlertCircle size={20} />
               <span>{error}</span>
             </div>
@@ -298,161 +297,138 @@ export function AudioAnalysisPage() {
 
           {/* Results */}
           {analysis && (
-            <div className="aa-results">
+            <div className={DS.section}>
               {/* Key Metrics */}
-              <div className="aa-metrics-grid">
-                <div className="aa-card aa-metric">
-                  <div className="aa-metric-icon bg-violet-500/20">
-                    <Music2 size={18} className="text-violet-400" />
+              <div className={DS.grid4}>
+                <div className={DS.card}>
+                  <div className={DS.flexCenter}>
+                    <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center mr-2">
+                      <Music2 size={16} className="text-violet-400" />
+                    </div>
+                    <span className={DS.textBold}>{analysis.tempo_bpm.toFixed(0)}</span>
                   </div>
-                  <div className="aa-metric-value">{analysis.tempo_bpm.toFixed(0)}</div>
-                  <div className="aa-metric-label">BPM</div>
+                  <p className={DS.textXs}>BPM</p>
                 </div>
-                <div className="aa-card aa-metric">
-                  <div className="aa-metric-icon bg-blue-500/20">
-                    <Clock size={18} className="text-blue-400" />
+                <div className={DS.card}>
+                  <div className={DS.flexCenter}>
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center mr-2">
+                      <Clock size={16} className="text-blue-400" />
+                    </div>
+                    <span className={DS.textBold}>{formatTime(analysis.duration_seconds)}</span>
                   </div>
-                  <div className="aa-metric-value">{formatTime(analysis.duration_seconds)}</div>
-                  <div className="aa-metric-label">Duration</div>
+                  <p className={DS.textXs}>Duration</p>
                 </div>
-                <div className="aa-card aa-metric">
-                  <div className="aa-metric-icon bg-amber-500/20">
-                    <Zap size={18} className="text-amber-400" />
+                <div className={DS.card}>
+                  <div className={DS.flexCenter}>
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center mr-2">
+                      <Zap size={16} className="text-amber-400" />
+                    </div>
+                    <span className={DS.textBold}>{analysis.beat_count}</span>
                   </div>
-                  <div className="aa-metric-value">{analysis.beat_count}</div>
-                  <div className="aa-metric-label">Beats</div>
+                  <p className={DS.textXs}>Beats</p>
                 </div>
-                <div className="aa-card aa-metric">
-                  <div className="aa-metric-icon bg-emerald-500/20">
-                    <TrendingUp size={18} className="text-emerald-400" />
+                <div className={DS.card}>
+                  <div className={DS.flexCenter}>
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center mr-2">
+                      <TrendingUp size={16} className="text-emerald-400" />
+                    </div>
+                    <span className={DS.textBold}>{(analysis.confidence * 100).toFixed(0)}%</span>
                   </div>
-                  <div className="aa-metric-value">{(analysis.confidence * 100).toFixed(0)}%</div>
-                  <div className="aa-metric-label">Confidence</div>
+                  <p className={DS.textXs}>Confidence</p>
                 </div>
               </div>
 
               {/* Song Structure Bar */}
-              <div className="aa-card">
-                <h3 className="aa-section-title">
+              <div className={DS.card}>
+                <h3 className={DS.sectionTitle}>
                   <BarChart3 size={14} />
                   Song Structure
                 </h3>
-                <div className="aa-structure">
+                <div className="flex rounded-lg overflow-hidden h-8">
                   {analysis.sections.map((section, i) => {
                     const width = ((section.end - section.start) / analysis.duration_seconds) * 100;
                     return (
                       <div
                         key={i}
-                        className={`aa-structure-section ${getSectionColor(section.type)}`}
+                        className={`flex items-center justify-center ${getSectionColor(section.type)}`}
                         style={{ width: `${width}%` }}
                       >
-                        <span className="aa-structure-label">{section.type}</span>
+                        <span className="text-xs font-medium truncate px-1">{section.type}</span>
                       </div>
                     );
                   })}
                 </div>
-                <div className="aa-structure-time">
-                  <span>0:00</span>
-                  <span>{formatTime(analysis.duration_seconds)}</span>
+                <div className={DS.flexBetween}>
+                  <span className={DS.textXs}>0:00</span>
+                  <span className={DS.textXs}>{formatTime(analysis.duration_seconds)}</span>
                 </div>
               </div>
 
               {/* Energy Curve with Chart */}
               {analysis.energy_curve && analysis.energy_curve.length > 0 && (
-                <div className="aa-card">
-                  <h3 className="aa-section-title">
+                <div className={DS.card}>
+                  <h3 className={DS.sectionTitle}>
                     <Activity size={14} />
                     Energy Curve
                   </h3>
-                  <div className="aa-energy-chart">
+                  <div className="h-48">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart 
+                      <AreaChart
                         data={analysis.energy_curve.slice(0, 120).map((energy, i) => ({
                           time: formatTime((i / analysis.energy_curve!.length) * analysis.duration_seconds),
                           energy: energy * 100,
-                        }))} 
+                        }))}
                         margin={{ top: 5, right: 5, left: -20, bottom: 5 }}
                       >
                         <defs>
                           <linearGradient id="energyGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.6} />
                             <stop offset="50%" stopColor="#8b5cf6" stopOpacity={0.2} />
-                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
+                             <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
-                        <XAxis 
-                          dataKey="time" 
-                          tick={{ fontSize: 10, fill: '#9ca3af' }} 
-                          interval="preserveStartEnd"
-                          axisLine={{ stroke: '#374151' }}
-                          tickLine={false}
-                        />
-                        <YAxis 
-                          tick={{ fontSize: 10, fill: '#9ca3af' }} 
-                          domain={[0, 100]}
-                          axisLine={false}
-                          tickLine={false}
-                          tickFormatter={(v) => `${v}%`}
-                        />
+                        <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#9ca3af' }} interval="preserveStartEnd" axisLine={{ stroke: '#374151' }} tickLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} domain={[0, 100]} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
                         <Tooltip content={<EnergyTooltip />} />
-                        <Area 
-                          type="monotone" 
-                          dataKey="energy" 
-                          name="Energy"
-                          stroke="#8b5cf6" 
-                          strokeWidth={2} 
-                          fill="url(#energyGradient)"
-                          animationDuration={600}
-                          dot={false}
-                        />
+                        <Area type="monotone" dataKey="energy" name="Energy" stroke="#8b5cf6" strokeWidth={2} fill="url(#energyGradient)" animationDuration={600} dot={false} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
-                  {/* Canvas fallback for performance */}
-                  <canvas
-                    ref={canvasRef}
-                    width={800}
-                    height={80}
-                    className="aa-energy-canvas"
-                  />
                 </div>
               )}
 
               {/* Sections with Generate Buttons */}
-              <div className="aa-card">
-                <h3 className="aa-section-title">
+              <div className={DS.card}>
+                <h3 className={DS.sectionTitle}>
                   <Activity size={14} />
                   Detected Sections
-                  <span className="aa-section-count">{analysis.sections.length} sections</span>
+                  <span className={DS.textXs}>({analysis.sections.length})</span>
                 </h3>
-                <div className="aa-sections-list">
+                <div className="space-y-2">
                   {analysis.sections.map((section, i) => (
-                    <div key={i} className="aa-section-item">
-                      <span className={`aa-section-badge ${getSectionColor(section.type)}`}>
+                    <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-700 last:border-0">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${getSectionColor(section.type)}`}>
                         {section.type}
                       </span>
-                      <div className="aa-section-info">
-                        <div className="aa-section-time">
-                          <span>{formatTime(section.start)}</span>
-                          <ArrowRight size={10} />
-                          <span>{formatTime(section.end)}</span>
-                          <span className="aa-section-duration">({formatTime(section.end - section.start)})</span>
+                      <div className="flex-1">
+                        <div className={DS.textXs}>
+                          {formatTime(section.start)} → {formatTime(section.end)}
+                          <span className="ml-2 text-gray-500">({formatTime(section.end - section.start)})</span>
                         </div>
-                        <div className="aa-section-energy">
-                          <div className="aa-section-energy-bar">
-                            <div className={`aa-section-energy-fill ${getEnergyColor(section.energy)}`} style={{ width: `${section.energy * 100}%` }} />
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${getEnergyColor(section.energy)}`} style={{ width: `${section.energy * 100}%` }} />
                           </div>
-                          <span className="aa-section-energy-value">{(section.energy * 100).toFixed(0)}%</span>
+                          <span className={DS.textXs}>{(section.energy * 100).toFixed(0)}%</span>
                         </div>
                       </div>
                       <button
                         onClick={() => handleGenerateSection(section.type, section.start, section.end)}
                         disabled={generating === section.type || !analysis.stored_path}
-                        className="aa-generate-btn"
+                        className={DS.btnSecondary}
                       >
                         {generating === section.type ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
-                        Generate
                       </button>
                     </div>
                   ))}
@@ -461,20 +437,20 @@ export function AudioAnalysisPage() {
 
               {/* Beat Timeline */}
               {analysis.beat_times && analysis.beat_times.length > 0 && (
-                <div className="aa-card">
-                  <h3 className="aa-section-title">
+                <div className={DS.card}>
+                  <h3 className={DS.sectionTitle}>
                     <Zap size={14} />
                     Beat Timeline
-                    <span className="aa-section-count">{analysis.beat_times.length} beats</span>
+                    <span className={DS.textXs}>({analysis.beat_times.length} beats)</span>
                   </h3>
-                  <div className="aa-beat-timeline">
+                  <div className={DS.flexWrap}>
                     {analysis.beat_times.slice(0, 100).map((t, i) => (
-                      <span key={i} className="aa-beat-item">
+                      <span key={i} className={DS.textXs}>
                         {t.toFixed(2)}
                       </span>
                     ))}
                     {analysis.beat_times.length > 100 && (
-                      <span className="aa-beat-more">+{analysis.beat_times.length - 100} more</span>
+                      <span className={DS.textXs}>+{analysis.beat_times.length - 100} more</span>
                     )}
                   </div>
                 </div>
@@ -484,48 +460,50 @@ export function AudioAnalysisPage() {
         </div>
 
         {/* Sidebar - Audio Library */}
-        <div className="aa-sidebar">
-          <div className="aa-card">
+        <div className="space-y-4">
+          <div className={DS.card}>
             <div
               onClick={() => setShowLibrary(!showLibrary)}
-              className="aa-library-header"
+              className={DS.flexBetween}
             >
-              <span className="aa-library-title">
+              <span className={DS.sectionTitle}>
                 <Database size={14} />
                 Audio Library ({audioFiles.length})
               </span>
-              <span className="aa-library-actions">
-                <button onClick={(e) => { e.stopPropagation(); loadAudioFiles(); }} className="aa-library-refresh">
+              <div className="flex items-center gap-2">
+                <button onClick={(e) => { e.stopPropagation(); loadAudioFiles(); }} className={DS.btnSecondary}>
                   <RefreshCw size={14} />
                 </button>
                 {showLibrary ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              </span>
+              </div>
             </div>
             {showLibrary && (
-              <div className="aa-library-list">
+              <div className="mt-3 space-y-2">
                 {audioFiles.length > 0 ? (
                   audioFiles.map((f, i) => (
                     <div
                       key={i}
-                      className={`aa-library-item ${selectedLibraryFile === f.path ? "active" : ""}`}
+                      className={`p-2 rounded-lg cursor-pointer transition-colors ${selectedLibraryFile === f.path ? "bg-violet-500/20 border border-violet-500/30" : "hover:bg-gray-700"}`}
                       onClick={() => handleAnalyzeLibraryFile(f.path)}
                     >
-                      <div className="aa-library-item-name">
-                        <Music size={14} className="aa-icon" />
-                        <span className="aa-library-item-filename">{f.filename}</span>
-                      </div>
-                      <div className="aa-library-item-meta">
-                        <span className="aa-library-item-size">{formatFileSize(f.size_bytes)}</span>
-                        {selectedLibraryFile === f.path && analyzing ? (
-                          <Loader2 size={12} className="animate-spin text-violet-400" />
-                        ) : (
-                          <Play size={12} className="aa-library-item-play" />
-                        )}
+                      <div className={DS.flexBetween}>
+                        <div className={DS.flexCenter}>
+                          <Music size={14} />
+                          <span className="text-sm truncate">{f.filename}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={DS.textXs}>{formatFileSize(f.size_bytes)}</span>
+                          {selectedLibraryFile === f.path && analyzing ? (
+                            <Loader2 size={12} className="animate-spin text-violet-400" />
+                          ) : (
+                            <Play size={12} />
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <p className="aa-library-empty">
+                  <p className={DS.textXs}>
                     No audio files in library.<br />
                     Upload a file to add it.
                   </p>
@@ -534,9 +512,9 @@ export function AudioAnalysisPage() {
             )}
           </div>
 
-          <div className="aa-card">
-            <h3 className="aa-tips-title">Tips</h3>
-            <ul className="aa-tips-list">
+          <div className={DS.card}>
+            <h3 className={DS.sectionTitle}>Tips</h3>
+            <ul className={DS.textSm}>
               <li>• Click a library file to analyze it</li>
               <li>• Upload new files to add them to the library</li>
               <li>• Analysis detects tempo, beats & sections</li>
