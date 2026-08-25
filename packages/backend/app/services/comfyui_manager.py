@@ -357,6 +357,7 @@ class ComfyUIManager:
                 cwd=str(COMFYUI_DIR),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env={**os.environ, "PATH": os.environ.get("PATH", "") + r";C:\Program Files\Git\cmd;C:\Program Files\Git\mingw64\bin"}
             )
             stdout, stderr = await pull_result.communicate()
 
