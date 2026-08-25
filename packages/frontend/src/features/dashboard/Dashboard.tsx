@@ -95,7 +95,15 @@ export function Dashboard() {
             {recentOutputs.slice(0, 4).map(o => (
               <a key={o.path} href={getOutputUrl(o.relative_path)} target="_blank" rel="noreferrer" className="group rounded-xl overflow-hidden border border-white/5 bg-black/20 hover:border-violet-500/30 transition-colors">
                 <div className="aspect-video bg-white/5 flex items-center justify-center">
-                  {o.file_type === "image" ? <img src={getOutputUrl(o.relative_path)} alt={o.filename} className="w-full h-full object-cover" /> : <Film size={20} className="text-muted" />}
+                  {o.cover_image ? (
+                    <img src={getOutputUrl(o.cover_image)} alt={o.filename} className="w-full h-full object-cover" />
+                  ) : o.file_type === "image" ? (
+                    <img src={getOutputUrl(o.relative_path)} alt={o.filename} className="w-full h-full object-cover" />
+                  ) : o.file_type === "audio" ? (
+                    <Music2 size={24} className="text-violet-400" />
+                  ) : (
+                    <Film size={20} className="text-muted" />
+                  )}
                 </div>
                 <div className="p-2">
                   <p className="text-xs font-medium text-white truncate" title={o.filename}>{o.filename}</p>
