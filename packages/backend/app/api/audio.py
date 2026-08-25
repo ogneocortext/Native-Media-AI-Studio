@@ -205,6 +205,121 @@ async def analyze_audio(file: UploadFile = File(...)) -> AudioAnalysisResult:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
+@router.post("/analyze-cuda", response_model=AudioAnalysisResult)
+async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResult:
+    """Analyze audio file using GPU-accelerated CUDA when available, with CPU fallback."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided")
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Invalid file type")
+
+    unique_id = str(uuid.uuid4())[:8]
+    safe_name = f"{unique_id}_{file.filename}"
+    file_path = AUDIO_DIR / safe_name
+
+    try:
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+
+        from ..services.audio_analyzer import AudioAnalyzer, LIBROSA_AVAILABLE
+        if not LIBROSA_AVAILABLE:
+            raise HTTPException(status_code=503, detail="librosa not installed")
+
+        # Try CUDA first, fall back to CPU
+        try:
+            from ..services.audio_analyzer import analyze_with_cuda
+            cuda_result = analyze_with_cuda(str(file_path))
+        except Exception:
+            cuda_result = None
+
+        if cuda_result and cuda_result.get("computed_on") == "GPU":
+            # CUDA succeeded — use its spectral features + CPU beat tracking
+            analyzer = AudioAnalyzer()
+            y, sr = analyzer._load_audio(str(file_path))
+            tempo, beat_times, confidence = analyzer._detect_beats(y, sr)
+            sections = _generate_sections_from_analysis(
+                duration=cuda_result.get("duration_seconds", 0),
+                tempo=tempo,
+                beat_times=beat_times,
+                onset_times=cuda_result.get("onset_envelope", []),
+                rms_energy=cuda_result.get("rms_energy", []),
+                hop_length=analyzer.hop_length,
+                sample_rate=sr,
+            )
+
+            analysis_result = {
+                "tempo_bpm": round(float(tempo), 1),
+                "duration_seconds": round(float(cuda_result.get("duration_seconds", 0)), 2),
+                "beat_count": len(beat_times),
+                "sections": sections,
+                "beat_times": [round(float(t), 3) for t in beat_times[:800]],
+                "onset_times": [round(float(t), 3) for t in cuda_result.get("onset_envelope", [])[:800]],
+                "energy_curve": [round(float(v), 4) for v in cuda_result.get("amplitude_envelope", [])],
+                "confidence": round(float(confidence), 3),
+                "amplitude_envelope": [round(float(v), 4) for v in cuda_result.get("amplitude_envelope", [])],
+                "stored_path": str(file_path),
+                "job_id": unique_id,
+                "computed_on": "GPU",
+            }
+        else:
+            # CUDA unavailable — fall back to CPU
+            analyzer = AudioAnalyzer()
+            result = analyzer.analyze_file(str(file_path), job_id=unique_id)
+
+            tempo = result.beats.tempo_bpm if result.beats else 120.0
+            duration = result.waveform.duration_seconds if result.waveform else 0.0
+            beat_count = len(result.beats.beat_times) if result.beats else 0
+            beat_times = result.beats.beat_times if result.beats else []
+            onset_times = result.beats.onset_times if result.beats else []
+            confidence = result.beats.confidence if result.beats else 0.0
+            energy_curve = result.waveform.amplitude_envelope if result.waveform else []
+
+            sections = _generate_sections_from_analysis(
+                duration=duration,
+                tempo=tempo,
+                beat_times=beat_times,
+                onset_times=onset_times,
+                rms_energy=result.waveform.rms_energy if result.waveform else [],
+                hop_length=analyzer.hop_length,
+                sample_rate=result.waveform.sample_rate if result.waveform else 22050,
+            )
+
+            analysis_result = {
+                "tempo_bpm": round(float(tempo), 1),
+                "duration_seconds": round(float(duration), 2),
+                "beat_count": int(beat_count),
+                "sections": sections,
+                "beat_times": [round(float(t), 3) for t in beat_times[:800]],
+                "onset_times": [round(float(t), 3) for t in onset_times[:800]],
+                "energy_curve": [round(float(v), 4) for v in energy_curve],
+                "confidence": round(float(confidence), 3),
+                "amplitude_envelope": [round(float(v), 4) for v in energy_curve],
+                "stored_path": str(file_path),
+                "job_id": unique_id,
+                "computed_on": "CPU",
+            }
+
+        # Cache the analysis index
+        index = _load_analysis_index()
+        index[safe_name] = unique_id
+        _save_analysis_index(index)
+
+        # Save full analysis
+        analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
+        with open(analysis_file, "w") as f:
+            import json
+            json.dump(analysis_result, f, indent=2)
+
+        return AudioAnalysisResult(**analysis_result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
 def _generate_sections_from_analysis(
     duration: float,
     tempo: float,

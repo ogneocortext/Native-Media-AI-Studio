@@ -592,6 +592,13 @@ export async function getAnalysis(filename: string): Promise<any> {
   return res.json();
 }
 
+export async function getCudaStatus(): Promise<{ available: boolean; gpu_name?: string; error?: string }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/health/integrations/cuda/status`);
+  if (!res.ok) throw new Error("Failed to get CUDA status");
+  return res.json();
+}
+
 export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
   const base = getApiBase();
   const formData = new FormData();
@@ -600,7 +607,19 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
     method: "POST",
     body: formData,
   });
-  if (!res.ok) throw new Error("Failed to analyze audio");
+  if (!res.ok) throw new Error("Analysis failed");
+  return res.json();
+}
+
+export async function analyzeAudioCuda(file: File): Promise<AudioAnalysisResult> {
+  const base = getApiBase();
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${base}/api/audio/analyze-cuda`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error("CUDA analysis failed");
   return res.json();
 }
 

@@ -19,10 +19,12 @@ import {
 } from "lucide-react";
 import {
   analyzeAudio,
+  analyzeAudioCuda,
   generateVideoSection,
   listAudioFiles,
   renameAudioFile,
   getAnalysis,
+  getCudaStatus,
   getApiBase,
   type AudioAnalysisResult,
 } from "../../services/api";
@@ -82,7 +84,21 @@ export function AudioAnalysisPage() {
   const [pendingGenerateSection, setPendingGenerateSection] = useState<{ type: string; start: number; end: number } | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [jobProgress, setJobProgress] = useState<{ progress: number; message: string } | null>(null);
+  const [cudaAvailable, setCudaAvailable] = useState(false);
+  const [cudaGpuName, setCudaGpuName] = useState("");
+  const [useCuda, setUseCuda] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Check CUDA availability on mount
+  useEffect(() => {
+    getCudaStatus()
+      .then(status => {
+        setCudaAvailable(status.available ?? false);
+        setCudaGpuName(status.gpu_name ?? "");
+        if (!status.available) setUseCuda(false);
+      })
+      .catch(() => { setCudaAvailable(false); setUseCuda(false); });
+  }, []);
 
   // Poll job progress
   useEffect(() => {
@@ -241,8 +257,10 @@ export function AudioAnalysisPage() {
     setAnalysis(null);
     setAnalysisStep("Uploading audio file...");
     try {
-      setAnalysisStep("Analyzing tempo and beats...");
-      const result = await analyzeAudio(file);
+      setAnalysisStep(useCuda && cudaAvailable ? "Analyzing on GPU..." : "Analyzing tempo and beats...");
+      const result = useCuda && cudaAvailable
+        ? await analyzeAudioCuda(file)
+        : await analyzeAudio(file);
       setAnalysisStep("Detecting song structure...");
       setAnalysis(result);
       setAnalysisStep("");
@@ -329,6 +347,28 @@ export function AudioAnalysisPage() {
       <p className={DS.pageSubtitle}>
         Upload audio or select from library to detect tempo, beats, and song structure.
       </p>
+
+      {/* CUDA Toggle */}
+      {cudaAvailable && (
+        <div className={DS.cardTight}>
+          <div className={DS.flexBetween}>
+            <div className={DS.flexCenter}>
+              <Zap size={16} className="text-green-400" />
+              <span className="text-sm text-green-300 ml-2">CUDA Available</span>
+              <span className="text-xs text-gray-500 ml-2">{cudaGpuName}</span>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="text-xs text-gray-400">Use GPU</span>
+              <input
+                type="checkbox"
+                checked={useCuda}
+                onChange={(e) => setUseCuda(e.target.checked)}
+                className="rounded border-gray-600 bg-gray-700 text-green-500 focus:ring-green-500"
+              />
+            </label>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Area */}
