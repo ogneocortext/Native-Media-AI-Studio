@@ -134,18 +134,27 @@ export function AudioAnalysisPage() {
   };
 
   const handleGenerateSection = async (section: string, start: number, end: number) => {
-    if (!analysis?.stored_path) return;
+    if (!analysis?.stored_path) {
+      setError("No analyzed audio file available. Please analyze a file first.");
+      return;
+    }
     setGenerating(section);
+    setError(null);
     try {
-      await generateVideoSection({
+      const result = await generateVideoSection({
         prompt: `Music video for ${section} section`,
         section,
         duration: end - start,
         audio_path: analysis.stored_path,
-        audio_filename: file?.name,
+        audio_filename: file?.name || analysis.stored_path.split(/[/\\]/).pop() || "audio.mp3",
       });
-    } catch {
-      // ignore
+      if (result.success) {
+        setAnalysisStep(`Generating ${section} section... (job: ${result.job_id})`);
+      } else {
+        setError(result.error || "Failed to generate video section");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to generate video section");
     } finally {
       setGenerating(null);
     }
@@ -433,10 +442,11 @@ export function AudioAnalysisPage() {
                       </div>
                       <button
                         onClick={() => handleGenerateSection(section.type, section.start, section.end)}
-                        disabled={generating === section.type || !analysis.stored_path}
+                        disabled={generating === section.type || !analysis?.stored_path}
                         className={DS.btnSecondary}
                       >
                         {generating === section.type ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                        Generate
                       </button>
                     </div>
                   ))}
