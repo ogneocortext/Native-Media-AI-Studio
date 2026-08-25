@@ -143,36 +143,49 @@ export function AudioAnalysisPage() {
     }
   };
 
+  const [analysisStep, setAnalysisStep] = useState<string>("");
+
   const handleAnalyze = async () => {
     if (!file) return;
     setAnalyzing(true);
     setError(null);
     setAnalysis(null);
+    setAnalysisStep("Uploading audio file...");
     try {
+      setAnalysisStep("Analyzing tempo and beats...");
       const result = await analyzeAudio(file);
+      setAnalysisStep("Detecting song structure...");
       setAnalysis(result);
+      setAnalysisStep("");
       loadAudioFiles();
     } catch (err: any) {
       setError(err.message || "Analysis failed");
+      setAnalysisStep("");
     } finally {
       setAnalyzing(false);
     }
   };
 
   const handleAnalyzeLibraryFile = async (storedPath: string) => {
+    if (!storedPath) return;
     setSelectedLibraryFile(storedPath);
     setAnalyzing(true);
     setError(null);
     setAnalysis(null);
+    setAnalysisStep("Loading audio file...");
     try {
       const response = await fetch(storedPath);
       const blob = await response.blob();
       const filename = storedPath.split("/").pop() || "audio.mp3";
       const file = new File([blob], filename, { type: blob.type });
+      setAnalysisStep("Analyzing tempo and beats...");
       const result = await analyzeAudio(file);
+      setAnalysisStep("Detecting song structure...");
       setAnalysis(result);
+      setAnalysisStep("");
     } catch (err: any) {
       setError(err.message || "Analysis failed");
+      setAnalysisStep("");
     } finally {
       setAnalyzing(false);
       setSelectedLibraryFile(null);
@@ -262,6 +275,14 @@ export function AudioAnalysisPage() {
               {analyzing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
               {analyzing ? "Analyzing..." : "Analyze Uploaded File"}
             </button>
+          )}
+
+          {/* Analysis Progress */}
+          {analyzing && analysisStep && (
+            <div className="aa-card" style={{ display: "flex", alignItems: "center", gap: "0.75rem", background: "rgba(139, 92, 246, 0.08)", borderColor: "rgba(139, 92, 246, 0.2)" }}>
+              <Loader2 size={16} className="animate-spin text-violet-400" />
+              <span className="text-sm text-violet-300">{analysisStep}</span>
+            </div>
           )}
 
           {/* Error */}
@@ -462,7 +483,7 @@ export function AudioAnalysisPage() {
         {/* Sidebar - Audio Library */}
         <div className="aa-sidebar">
           <div className="aa-card">
-            <button
+            <div
               onClick={() => setShowLibrary(!showLibrary)}
               className="aa-library-header"
             >
@@ -476,7 +497,7 @@ export function AudioAnalysisPage() {
                 </button>
                 {showLibrary ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               </span>
-            </button>
+            </div>
             {showLibrary && (
               <div className="aa-library-list">
                 {audioFiles.length > 0 ? (
