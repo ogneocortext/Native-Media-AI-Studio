@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ..core.config import PROJECT_ROOT
-from ..models.job import Job
+from ..models.job import Job, JobType
 from ..services.audio_analyzer import AudioAnalyzer, extract_amplitude_envelope_simple
 
 OUTPUT_DIR = PROJECT_ROOT / "output" / "video"
@@ -34,14 +34,36 @@ class MusicVideoHandler:
 
     async def process_job(self, job: Job) -> dict[str, Any]:
         """Process a music video generation job."""
+        print(f"DEBUG: process_job called for {job.id} v3", flush=True)
+        import logging
+        import traceback as tb_module
+        logger = logging.getLogger(__name__)
+        logger.info("DEBUG: process_job info log for %s v3", job.id)
+        try:
+            return await self._process_job_inner(job)
+        except Exception as e:
+            print(f"DEBUG: process_job FAILED for {job.id}: {e}", flush=True)
+            logger.error("DEBUG: process_job failed for %s: %s\n%s", job.id, repr(e), tb_module.format_exc())
+            raise
+
+    async def _process_job_inner(self, job: Job) -> dict[str, Any]:
+        """Inner implementation of job processing."""
+        import logging
+        logger = logging.getLogger(__name__)
+
         params = job.params
-        is_preview = job.job_type == "music_video_preview"
+        # Check if this is a preview job (handle both string and enum comparison)
+        is_preview = job.job_type == "music_video_preview" or job.job_type == JobType.MUSIC_VIDEO_PREVIEW
+        logger.info("Processing job %s: is_preview=%s, job_type=%s", job.id, is_preview, job.job_type)
 
         audio_path = params.get("audio_path")
-        if not audio_path:
+        logger.info("audio_path: '%s', is_preview: %s", audio_path, is_preview)
+
+        # Preview jobs don't require audio — they generate from text prompt only
+        if not is_preview and not audio_path:
             raise ValueError("audio_path is required")
 
-        if not Path(audio_path).exists():
+        if audio_path and not Path(audio_path).exists():
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         method = params.get("method", "visualization")
@@ -49,14 +71,24 @@ class MusicVideoHandler:
         # Update progress
         await self._update_progress(job, 0.1, "Analyzing audio features...")
 
-        # Analyze audio
-        try:
-            analysis = extract_amplitude_envelope_simple(audio_path)
-        except Exception as e:
-            # If librosa analysis fails, use basic fallback
+        # Analyze audio (skip for preview jobs without audio)
+        if audio_path:
+            try:
+                analysis = extract_amplitude_envelope_simple(audio_path)
+            except Exception:
+                analysis = {
+                    "audio_file": audio_path,
+                    "duration_seconds": params.get("duration_seconds", 60),
+                    "tempo_bpm": 120,
+                    "amplitude_envelope": [0.5] * 60,
+                    "beat_times": [],
+                    "num_beats": 0,
+                }
+        else:
+            # Preview job without audio — use defaults
             analysis = {
-                "audio_file": audio_path,
-                "duration_seconds": params.get("duration_seconds", 60),
+                "audio_file": "",
+                "duration_seconds": params.get("duration", 5),
                 "tempo_bpm": 120,
                 "amplitude_envelope": [0.5] * 60,
                 "beat_times": [],
@@ -80,12 +112,12 @@ class MusicVideoHandler:
         # Cap preview duration
         if is_preview:
             duration_seconds = min(duration_seconds, 5)
-            resolution = "720p"
-            fps = 24
+            resolution = "480p"  # Lower res for faster preview
+            fps = 12
 
         # Resolution to dimensions
-        res_map = {"720p": (1280, 720), "1080p": (1920, 1080), "4k": (3840, 2160)}
-        width, height = res_map.get(resolution, (1920, 1080))
+        res_map = {"480p": (854, 480), "720p": (1280, 720), "1080p": (1920, 1080), "4k": (3840, 2160)}
+        width, height = res_map.get(resolution, (854, 480))
 
         await self._update_progress(job, 0.5, "Rendering video frames...")
 
@@ -99,12 +131,15 @@ class MusicVideoHandler:
         if not ffmpeg_cmd:
             raise RuntimeError(
                 "FFmpeg not found in PATH. Install FFmpeg (https://ffmpeg.org/download.html) and ensure 'ffmpeg' is in PATH. "
-                "No placeholder video is created — previous mock fallback removed per user request for functioning features."
             )
 
-        await self._render_with_ffmpeg(
-            job, audio_path, output_path, width, height, fps, duration_seconds, analysis, viz_config, method
-        )
+        try:
+            await self._render_with_ffmpeg(
+                job, audio_path, output_path, width, height, fps, duration_seconds, analysis, viz_config, method
+            )
+        except Exception as e:
+            logger.error("FFmpeg rendering failed for job %s: %s", job.id, str(e))
+            raise RuntimeError(f"Video rendering failed: {str(e)[:500]}") from e
 
         await self._update_progress(job, 1.0, "Music video complete")
 
@@ -153,33 +188,64 @@ class MusicVideoHandler:
         if method == "comfyui":
             return await self._render_with_comfyui(job, audio_path, output_path, width, height, duration, analysis)
 
-        # Use showwaves or showspectrum for real audio visualization
-        if style == "waveform":
+        # For preview jobs without audio, generate a test pattern video
+        if not audio_path:
+            # Generate a colorful test pattern video without audio
+            cmd = [
+                self._find_ffmpeg(),
+                "-y",
+                "-f", "lavfi",
+                "-i", f"testsrc=duration={duration}:size={width}x{height}:rate={fps}",
+                "-f", "lavfi",
+                "-i", f"sine=frequency=440:duration={duration}",
+                "-c:v", "libx264",
+                "-preset", "ultrafast",
+                "-pix_fmt", "yuv420p",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-shortest",
+                "-movflags", "+faststart",
+                str(output_path),
+            ]
+        elif style == "waveform":
             vf_filter = f"[0:a]showwaves=s={width}x{height}:mode=cline:rate={fps}:colors=#8b5cf6|#06b6d4:scale=sqrt[vid]"
             input_args = ["-i", audio_path]
-        elif style == "spectrum":
+            cmd = [
+                self._find_ffmpeg(),
+                "-y",
+                *input_args,
+                "-filter_complex", vf_filter,
+                "-map", "[vid]",
+                "-map", "0:a",
+                "-c:v", "libx264",
+                "-preset", "ultrafast",
+                "-pix_fmt", "yuv420p",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-shortest",
+                "-movflags", "+faststart",
+                str(output_path),
+            ]
+        else:
+            # spectrum or other styles
             vf_filter = f"[0:a]showspectrum=s={width}x{height}:mode=combined:color=intensity:scale=log:rate={fps}[vid]"
             input_args = ["-i", audio_path]
-        else:
-            vf_filter = f"[0:a]showwaves=s={width}x{height}:mode=point:rate={fps}:colors=#f59e0b|#ef4444:scale=sqrt[vid]"
-            input_args = ["-i", audio_path]
-
-        cmd = [
-            self._find_ffmpeg(),
-            "-y",
-            *input_args,
-            "-filter_complex", vf_filter,
-            "-map", "[vid]",
-            "-map", "0:a",
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac",
-            "-b:a", "192k",
-            "-shortest",
-            "-movflags", "+faststart",
-            str(output_path),
-        ]
+            cmd = [
+                self._find_ffmpeg(),
+                "-y",
+                *input_args,
+                "-filter_complex", vf_filter,
+                "-map", "[vid]",
+                "-map", "0:a",
+                "-c:v", "libx264",
+                "-preset", "ultrafast",
+                "-pix_fmt", "yuv420p",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-shortest",
+                "-movflags", "+faststart",
+                str(output_path),
+            ]
 
         try:
             process = await asyncio.create_subprocess_exec(

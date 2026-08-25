@@ -248,36 +248,42 @@ export function VideoGenerationPage() {
   };
 
   const handleGenerate = async () => {
+    console.log("[VideoGen] Starting generation...", { prompt, selectedModel, selectedStyle, steps, cfgScale, duration });
     setGenerating(true);
     setError(null);
     setResults([]);
 
     try {
+      const body = {
+        prompt,
+        negative_prompt: negativePrompt,
+        steps,
+        cfg_scale: cfgScale,
+        model: selectedModel,
+        duration,
+        style: selectedStyle,
+      };
+      console.log("[VideoGen] Sending request:", body);
       const res = await fetch(`/api/integrations/music-video/generate-preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          negative_prompt: negativePrompt,
-          steps,
-          cfg_scale: cfgScale,
-          model: selectedModel,
-          duration,
-          style: selectedStyle,
-        }),
+        body: JSON.stringify(body),
       });
-
+      console.log("[VideoGen] Response status:", res.status);
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "Generation failed");
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        console.error("[VideoGen] Error response:", err);
+        throw new Error(err.detail || `Generation failed (${res.status})`);
       }
 
       const data = await res.json();
+      console.log("[VideoGen] Success:", data);
       if (data.job_id) {
         setActiveJobId(data.job_id);
         startProgressPolling(data.job_id);
       }
     } catch (err: any) {
+      console.error("[VideoGen] Generation error:", err);
       setError(err.message || "Generation failed");
       setGenerating(false);
     }
