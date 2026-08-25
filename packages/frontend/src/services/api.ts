@@ -3,7 +3,7 @@
  * Per Guidelines section 6: "No hardcoded API URLs. Always read from ports.json or Vite env vars."
  */
 
-import { getBackendUrl, getWebSocketUrl } from "./portConfig";
+import { getBackendUrl } from "./portConfig";
 import type { Job, QueueStats } from "@shared/types";
 
 export type { Job, QueueStats };
@@ -247,11 +247,6 @@ export async function uploadAudioFile(file: File): Promise<AudioUploadResponse> 
     throw new Error(err.detail || "Failed to upload audio file");
   }
   return res.json();
-}
-
-// WebSocket connection - uses dynamic port config
-export function createWebSocket(): WebSocket {
-  return new WebSocket(getWebSocketUrl());
 }
 
 // ============================================================================
@@ -571,8 +566,6 @@ export async function setPreference(
   });
   if (!res.ok) throw new Error("Failed to set preference");
 }
-
-export { getWebSocketUrl };
 
 // =============================================================================
 // Audio Analysis API

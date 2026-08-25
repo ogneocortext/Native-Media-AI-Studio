@@ -14,7 +14,7 @@ from ..services.comfyui_workflow_handler import ComfyUIWorkflowHandler
 from ..services.image_generator import ImageGenerationHandler
 from ..services.music_video_handler import MusicVideoHandler, MusicVideoPreviewHandler
 from ..services.storyboard_generator import StoryboardGeneratorHandler
-from ..websocket.handler import connection_manager
+from ..sse.handler import sse_manager
 
 logger = logging.getLogger(__name__)
 
@@ -104,9 +104,9 @@ class JobProcessor:
                 await asyncio.sleep(1)
 
     async def _broadcast_progress(self, job: Job):
-        """Broadcast job progress to WebSocket clients"""
+        """Broadcast job progress to SSE clients"""
         try:
-            await connection_manager.broadcast(
+            await sse_manager.broadcast(
                 "job.progress", {"job": job.model_dump(mode="json")}
             )
         except Exception as e:

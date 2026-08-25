@@ -1,6 +1,6 @@
 /**
  * Zustand store for job queue management.
- * Provides centralized job state with WebSocket real-time updates.
+ * Provides centralized job state with SSE real-time updates.
  */
 
 import { create } from "zustand";
@@ -17,12 +17,12 @@ import {
   clearCompletedJobs as apiClearCompletedJobs,
 } from "../services/api";
 import { JobStatus } from "@shared/types";
-import { socketManager } from "../services/socketManager";
+import { sseService } from "../services/sseService";
 
 const AUTO_REFRESH_INTERVAL_MS = 5000;
 
-// Socket subscriptions installed by connectWebSocket (released on disconnect).
-let socketSubscriptions: {
+// SSE subscriptions installed by connectSSE (released on disconnect).
+let sseSubscriptions: {
   unsubMessage: () => void;
   unsubState: () => void;
 } | null = null;
@@ -33,7 +33,7 @@ interface JobState {
   currentJob: Job | null;
   isLoading: boolean;
   error: string | null;
-  wsConnected: boolean;
+  sseConnected: boolean;
 
   // Actions
   setJobs: (jobs: Job[]) => void;
@@ -47,8 +47,8 @@ interface JobState {
   retryJob: (jobId: string) => Promise<void>;
   deleteJob: (jobId: string) => Promise<void>;
   clearCompleted: () => Promise<void>;
-  connectWebSocket: () => void;
-  disconnectWebSocket: () => void;
+  connectSSE: () => void;
+  disconnectSSE: () => void;
 }
 
 export const useJobStore = create<JobState>((set, get) => ({
@@ -57,7 +57,7 @@ export const useJobStore = create<JobState>((set, get) => ({
   currentJob: null,
   isLoading: false,
   error: null,
-  wsConnected: false,
+  sseConnected: false,
 
   setJobs: (jobs: Job[]) => {
     // Find the currently running job
@@ -220,37 +220,37 @@ export const useJobStore = create<JobState>((set, get) => ({
     }
   },
 
-  connectWebSocket: () => {
-    const unsubMessage = socketManager.subscribe((message) => {
-      handleWebSocketMessage(message, get, set);
+  connectSSE: () => {
+    const unsubMessage = sseService.subscribe((message) => {
+      handleSSEMessage(message, get, set);
     });
-    const unsubState = socketManager.onStateChange((connected) => {
-      set({ wsConnected: connected, ...(connected ? { error: null } : {}) });
+    const unsubState = sseService.onStateChange((connected) => {
+      set({ sseConnected: connected, ...(connected ? { error: null } : {}) });
     });
 
     // Store the unsubscribe closures so disconnect can release them.
-    socketSubscriptions = { unsubMessage, unsubState };
-    socketManager.connect();
+    sseSubscriptions = { unsubMessage, unsubState };
+    sseService.connect();
 
     // Subscribe to job event channels
-    if (socketManager.connected) {
-      set({ wsConnected: true, error: null });
+    if (sseService.connected) {
+      set({ sseConnected: true, error: null });
     }
   },
 
-  disconnectWebSocket: () => {
-    socketSubscriptions?.unsubMessage();
-    socketSubscriptions?.unsubState();
-    socketSubscriptions = null;
-    socketManager.disconnect();
-    set({ wsConnected: false });
+  disconnectSSE: () => {
+    sseSubscriptions?.unsubMessage();
+    sseSubscriptions?.unsubState();
+    sseSubscriptions = null;
+    sseService.disconnect();
+    set({ sseConnected: false });
   },
 }));
 
 /**
- * Handle incoming WebSocket messages for job events.
+ * Handle incoming SSE messages for job events.
  */
-function handleWebSocketMessage(
+function handleSSEMessage(
   message: Record<string, unknown>,
   get: () => JobState,
   set: (state: Partial<JobState>) => void
@@ -348,8 +348,8 @@ export const useJobLoading = () => useJobStore((state) => state.isLoading);
 /** Subscribe to error state only */
 export const useJobError = () => useJobStore((state) => state.error);
 
-/** Subscribe to WebSocket connection state only */
-export const useJobWsConnected = () => useJobStore((state) => state.wsConnected);
+/** Subscribe to SSE connection state only */
+export const useJobSseConnected = () => useJobStore((state) => state.sseConnected);
 
 /** Subscribe to all job actions (stable reference, doesn't re-render on state change) */
 export const useJobActions = () =>
@@ -360,8 +360,8 @@ export const useJobActions = () =>
     retryJob: state.retryJob,
     deleteJob: state.deleteJob,
     clearCompleted: state.clearCompleted,
-    connectWebSocket: state.connectWebSocket,
-    disconnectWebSocket: state.disconnectWebSocket,
+    connectSSE: state.connectSSE,
+    disconnectSSE: state.disconnectSSE,
   }));
 
 /**
@@ -372,8 +372,8 @@ export function startAutoRefresh() {
 
   autoRefreshInterval = setInterval(() => {
     const state = useJobStore.getState();
-    // Only refresh if not currently loading and WebSocket is disconnected
-    if (!state.isLoading && !state.wsConnected) {
+    // Only refresh if not currently loading and SSE is disconnected
+    if (!state.isLoading && !state.sseConnected) {
       state.fetchJobs().catch(console.error);
     }
   }, AUTO_REFRESH_INTERVAL_MS);

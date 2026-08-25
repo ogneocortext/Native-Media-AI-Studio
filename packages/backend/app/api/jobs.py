@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/jobs", tags=["Jobs"])
 async def create_job(request: JobCreateRequest) -> Job:
     """Create a new job and add it to the queue.
     
-    Creates the job with QUEUED status and broadcasts a WebSocket event
+    Creates the job with QUEUED status and broadcasts an SSE event
     (done inside queue_manager.enqueue).
     """
     return await queue_manager.enqueue(request)

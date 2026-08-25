@@ -8,7 +8,7 @@ import {
 
 /**
  * Jobs + stats view model backed by the shared jobStore.
- * The store owns polling/WebSocket refresh; this hook simply subscribes.
+ * The store owns polling/SSE refresh; this hook simply subscribes.
  */
 export function useJobs() {
   const jobs = useJobStore((state) => state.jobs);

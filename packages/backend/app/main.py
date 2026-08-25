@@ -8,9 +8,10 @@ from datetime import datetime
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sse_starlette.sse import EventSourceResponse
 
 from .adapters.registry import adapter_registry
 from .core.config import PROJECT_ROOT, config
@@ -21,7 +22,7 @@ from .diagnostics.health import health_monitor
 from .diagnostics.resources import resource_monitoring_loop
 from .queue.manager import queue_manager
 from .queue.processor import processor
-from .websocket.handler import connection_manager
+from .sse.handler import sse_manager
 
 # Initialize logging before anything else
 setup_logging(config.log_level)
@@ -47,7 +48,7 @@ async def health_broadcast_loop():
     while True:
         try:
             health_status = await health_monitor.get_aggregate_health()
-            await connection_manager.broadcast_health_status(health_status)
+            await sse_manager.broadcast_health_status(health_status)
             consecutive_errors = 0  # Reset on success
             await asyncio.sleep(5)
         except asyncio.CancelledError:
@@ -99,14 +100,14 @@ async def lifespan(app: FastAPI):
         else:
             port_config = port_manager.get_resolved_config()
         logger.info(f"Backend port: {port_config['backend_port']}")
-        logger.info(f"WebSocket port: {port_config['ws_port']}")
+        logger.info(f"SSE port: {port_config['backend_port']}")
         logger.info(f"Frontend port: {port_config['frontend_port']}")
     except Exception as e:
         logger.error(f"Port configuration failed: {e}")
         raise
 
     # Subscribe to job updates
-    await queue_manager.subscribe(connection_manager.send_job_update)
+    await queue_manager.subscribe(sse_manager.send_job_update)
 
     # Start the processor
     try:
@@ -163,31 +164,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-  # Local-first app: allow the dev frontend origins explicitly. A wildcard origin
-  # combined with allow_credentials=True is rejected by browsers per the CORS spec.
-  # Allow localhost, loopback, and private LAN ranges to support local network access
-  # while blocking external internet connections.
-  _local_origins = {
-      f"http://localhost:{config.frontend_port}",
-      f"http://127.0.0.1:{config.frontend_port}",
-      "http://localhost:5173",
-      "http://127.0.0.1:5173",
-      "http://localhost:3000",
-      "http://127.0.0.1:3000",
-      f"http://localhost:{config.backend_port}",
-      f"http://127.0.0.1:{config.backend_port}",
-  }
-  # Add LAN origins for local network access (private IP ranges)
-  import socket
-  try:
-      hostname = socket.gethostname()
-      for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
-          ip = info[4][0]
-          if ip and not ip.startswith("127."):
-              _local_origins.add(f"http://{ip}:{config.frontend_port}")
-              _local_origins.add(f"http://{ip}:{config.backend_port}")
-  except socket.gaierror:
-      pass
+# Local-first app: allow the dev frontend origins explicitly. A wildcard origin
+# combined with allow_credentials=True is rejected by browsers per the CORS spec.
+_local_origins = {
+    f"http://localhost:{config.frontend_port}",
+    f"http://127.0.0.1:{config.frontend_port}",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    f"http://localhost:{config.backend_port}",
+    f"http://127.0.0.1:{config.backend_port}",
+}
 
 app.add_middleware(
     CORSMiddleware,
@@ -217,7 +205,7 @@ async def get_service_status() -> dict:
     return {
         "adapters": adapter_registry.get_status_all(),
         "adapter_details": adapter_registry.get_status_with_errors(),
-        "connections": connection_manager.connection_count(),
+        "connections": sse_manager.connection_count(),
     }
 
 @app.get("/api/render/health")
@@ -244,44 +232,56 @@ async def root():
     }
 
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    # Accept the WebSocket connection (CORS is handled at the ASGI level for WebSockets)
-    await connection_manager.connect(websocket)
-    try:
-        while True:
-            try:
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=30)
+@ app.get("/api/events")
+async def sse_endpoint(request: Request):
+    """SSE endpoint for real-time server-to-client updates.
+    
+    Provides health status, job progress, and resource warnings
+    via Server-Sent Events (SSE). The browser's EventSource API
+    handles automatic reconnection and event resumption.
+    """
+    queue = await sse_manager.connect()
+
+    async def event_generator():
+        try:
+            # Send initial connection event
+            yield {
+                "event": "connected",
+                "data": json.dumps({
+                    "type": "connected",
+                    "timestamp": datetime.now().isoformat(),
+                }),
+            }
+
+            while True:
+                # Check if client disconnected
+                if await request.is_disconnected():
+                    break
+
                 try:
-                    msg = json.loads(data)
-                    if msg.get("type") == "ping":
-                        await websocket.send_text(
-                            json.dumps(
-                                {"type": "pong", "timestamp": datetime.now().isoformat()}
-                            )
-                        )
-                except json.JSONDecodeError:
-                    logger.warning(f"Invalid JSON from WebSocket: {data[:100]}")
-            except asyncio.TimeoutError:
-                try:
-                    await websocket.send_text(
-                        json.dumps(
-                            {"type": "heartbeat", "timestamp": datetime.now().isoformat()}
-                        )
-                    )
-                except Exception:
-                    break  # Connection closed
-            except WebSocketDisconnect:
-                raise
-            except Exception as e:
-                logger.error(f"WebSocket message handling error: {e}")
-                await asyncio.sleep(1)  # Prevent tight error loop
-    except WebSocketDisconnect:
-        logger.debug("WebSocket client disconnected")
-    except Exception as e:
-        logger.error(f"WebSocket connection error: {e}")
-    finally:
-        await connection_manager.disconnect(websocket)
+                    # Wait for events from the queue (with timeout to send keepalive)
+                    event_data = await asyncio.wait_for(queue.get(), timeout=15)
+                    yield {
+                        "id": event_data["id"],
+                        "data": event_data["data"],
+                    }
+                except asyncio.TimeoutError:
+                    # Send keepalive comment to prevent connection timeout
+                    yield {
+                        "event": "keepalive",
+                        "data": json.dumps({
+                            "type": "keepalive",
+                            "timestamp": datetime.now().isoformat(),
+                        }),
+                    }
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.error(f"SSE connection error: {e}")
+        finally:
+            await sse_manager.disconnect(queue)
+
+    return EventSourceResponse(event_generator())
 
 
 def run():

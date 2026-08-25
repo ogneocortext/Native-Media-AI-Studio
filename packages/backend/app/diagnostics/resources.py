@@ -1,6 +1,6 @@
 """
 Resource monitoring and warning system.
-Monitors VRAM, system memory, and disk usage, broadcasting warnings via WebSocket.
+Monitors VRAM, system memory, and disk usage, broadcasting warnings via SSE.
 """
 
 import asyncio
@@ -11,7 +11,7 @@ from typing import Any
 
 import psutil
 
-from ..websocket.handler import connection_manager
+from ..sse.handler import sse_manager
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class ResourceThresholds:
 
 class ResourceMonitor:
     """
-    Monitors system resources and broadcasts warnings via WebSocket.
+    Monitors system resources and broadcasts warnings via SSE.
     Implements system.resource_warning per Guidelines.md section 3.2.
     """
 
@@ -426,7 +426,7 @@ class ResourceMonitor:
         return warnings
 
     async def broadcast_warnings(self, warnings: list[dict[str, Any]]):
-        """Broadcast resource warnings via WebSocket"""
+        """Broadcast resource warnings via SSE"""
         for warning in warnings:
             resource_type = warning["type"]
             level = warning["level"]
@@ -434,7 +434,7 @@ class ResourceMonitor:
             # Only broadcast if warning level changed or is critical
             last_level = self._last_warnings.get(resource_type)
             if last_level != level or level == WarningLevel.CRITICAL:
-                await connection_manager.broadcast("system.resource_warning", warning)
+                await sse_manager.broadcast("system.resource_warning", warning)
                 logger.warning(f"Resource warning broadcast: {warning['message']}")
                 self._last_warnings[resource_type] = level
 

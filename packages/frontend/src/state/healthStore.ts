@@ -1,6 +1,6 @@
 /**
  * Zustand store for health state management.
- * Provides real-time health updates via WebSocket.
+ * Provides real-time health updates via SSE (Server-Sent Events).
  */
 
 import { create } from "zustand";
@@ -14,7 +14,7 @@ import {
   SystemHealth,
   ServiceStatus,
 } from "../services/api";
-import { socketManager } from "../services/socketManager";
+import { sseService } from "../services/sseService";
 
 interface HealthState {
   backend: "online" | "offline";
@@ -25,18 +25,18 @@ interface HealthState {
   lastUpdated: Date | null;
   isLoading: boolean;
   error: string | null;
-  wsConnected: boolean;
+  sseConnected: boolean;
 
   // Actions
   setHealth: (health: AggregateHealth) => void;
   fetchHealth: () => Promise<void>;
   fetchSystemStatus: () => Promise<void>;
   refreshAll: () => Promise<void>;
-  connectWebSocket: () => void;
-  disconnectWebSocket: () => void;
+  connectSSE: () => void;
+  disconnectSSE: () => void;
 }
 
-// Socket subscriptions installed by connectWebSocket (released on disconnect).
+// SSE subscriptions installed by connectSSE (released on disconnect).
 let healthSubscriptions: {
   unsubMessage: () => void;
   unsubState: () => void;
@@ -51,7 +51,7 @@ export const useHealthStore = create<HealthState>((set, get) => ({
   lastUpdated: null,
   isLoading: false,
   error: null,
-  wsConnected: false,
+  sseConnected: false,
 
   setHealth: (health: AggregateHealth) => {
     set({
@@ -67,9 +67,7 @@ export const useHealthStore = create<HealthState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      // Initialize port config first (may use cached or fetch)
       await fetchPortConfig();
-
       const health = await healthCheck();
       get().setHealth(health);
     } catch (error) {
@@ -88,7 +86,6 @@ export const useHealthStore = create<HealthState>((set, get) => ({
 
     try {
       await fetchPortConfig();
-
       const [systemHealth, serviceStatus] = await Promise.all([
         getSystemHealth(),
         getServiceStatus(),
@@ -107,8 +104,8 @@ export const useHealthStore = create<HealthState>((set, get) => ({
     await Promise.all([get().fetchHealth(), get().fetchSystemStatus()]);
   },
 
-  connectWebSocket: () => {
-    const unsubMessage = socketManager.subscribe((message) => {
+  connectSSE: () => {
+    const unsubMessage = sseService.subscribe((message) => {
       // Handle health change events
       if (
         message.type === "system.health_changed" ||
@@ -116,7 +113,6 @@ export const useHealthStore = create<HealthState>((set, get) => ({
       ) {
         const healthData = (message.data || message) as Record<string, unknown>;
 
-        // Convert to AggregateHealth format if needed
         const health: AggregateHealth = {
           backend:
             (healthData.backend as "online" | "offline") ||
@@ -135,21 +131,21 @@ export const useHealthStore = create<HealthState>((set, get) => ({
         get().setHealth(health);
       }
     });
-    const unsubState = socketManager.onStateChange((connected) => {
-      set({ wsConnected: connected });
+    const unsubState = sseService.onStateChange((connected) => {
+      set({ sseConnected: connected });
     });
 
     healthSubscriptions = { unsubMessage, unsubState };
-    socketManager.connect();
-    set({ wsConnected: socketManager.connected });
+    sseService.connect();
+    set({ sseConnected: sseService.connected });
   },
 
-  disconnectWebSocket: () => {
+  disconnectSSE: () => {
     healthSubscriptions?.unsubMessage();
     healthSubscriptions?.unsubState();
     healthSubscriptions = null;
-    socketManager.disconnect();
-    set({ wsConnected: false });
+    sseService.disconnect();
+    set({ sseConnected: false });
   },
 }));
 
@@ -172,16 +168,16 @@ export const useHealthLoading = () => useHealthStore((state) => state.isLoading)
 /** Subscribe to health error only */
 export const useHealthError = () => useHealthStore((state) => state.error);
 
-/** Subscribe to WebSocket connection state only */
-export const useHealthWsConnected = () => useHealthStore((state) => state.wsConnected);
+/** Subscribe to SSE connection state only */
+export const useHealthSseConnected = () => useHealthStore((state) => state.sseConnected);
 
 /** Subscribe to health actions (stable reference) */
 export const useHealthActions = () =>
   useHealthStore((state) => ({
     fetchHealth: state.fetchHealth,
     refreshAll: state.refreshAll,
-    connectWebSocket: state.connectWebSocket,
-    disconnectWebSocket: state.disconnectWebSocket,
+    connectSSE: state.connectSSE,
+    disconnectSSE: state.disconnectSSE,
   }));
 
 /** Subscribe to extended system-health (CPU/memory/disk) data only */

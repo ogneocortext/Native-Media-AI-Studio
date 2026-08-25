@@ -1,18 +1,17 @@
 import { useHealthStore } from "../state/healthStore";
 
-interface WebSocketMessage {
+interface SSEMessage {
   type: string;
   data: unknown;
   timestamp: string;
 }
 
 /**
- * WebSocket connectivity view. The underlying socket is owned by the shared
- * `socketManager` singleton (driven wherever the Sidebar mounts), so this hook
- * must never open its own connection. The Dashboard previously opened a third
- * parallel socket; it now reads the shared connection state instead.
+ * SSE connectivity view. The underlying connection is owned by the shared
+ * `sseService` singleton (driven wherever the Sidebar mounts), so this hook
+ * must never open its own connection.
  */
-export function useWebSocket() {
-  const connected = useHealthStore((state) => state.wsConnected);
-  return { connected, lastMessage: null as WebSocketMessage | null };
+export function useSSE() {
+  const connected = useHealthStore((state) => state.sseConnected);
+  return { connected, lastMessage: null as SSEMessage | null };
 }

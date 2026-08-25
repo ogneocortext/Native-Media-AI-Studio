@@ -6,7 +6,7 @@ from datetime import datetime
 
 from ..core.config import PROJECT_ROOT
 from ..models.job import Job, JobCreateRequest, JobStatus, QueueStats
-from ..websocket.handler import connection_manager
+from ..sse.handler import sse_manager
 from .db_manager import JobDatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -105,9 +105,9 @@ class QueueManager:
             except Exception as e:
                 logger.error("Error notifying subscriber: %s", e)
     async def _broadcast_job_event(self, event_type: str, job: Job):
-        """Broadcast a job event to all WebSocket clients"""
+        """Broadcast a job event to all SSE clients"""
         try:
-            await connection_manager.broadcast(event_type, {
+            await sse_manager.broadcast(event_type, {
                 "job": job.model_dump(mode="json")
             })
         except Exception as e:

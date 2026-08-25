@@ -110,12 +110,12 @@ function NavSection({ title, items, location, collapsed }: { title: string; item
 
 export function Sidebar() {
   const location = useLocation();
-  const { overall, adapters, isLoading, wsConnected, fetchHealth, connectWebSocket, disconnectWebSocket } = useHealthStore();
+  const { overall, adapters, isLoading, sseConnected, fetchHealth, connectSSE, disconnectSSE } = useHealthStore();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  useEffect(() => { fetchHealth(); connectWebSocket(); return () => disconnectWebSocket(); }, [fetchHealth, connectWebSocket, disconnectWebSocket]);
+  useEffect(() => { fetchHealth(); connectSSE(); return () => disconnectSSE(); }, [fetchHealth, connectSSE, disconnectSSE]);
 
   useEffect(() => {
     const check = () => {

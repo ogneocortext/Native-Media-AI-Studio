@@ -48,27 +48,27 @@ export function Queue() {
     currentJob,
     isLoading,
     error,
-    wsConnected,
+    sseConnected,
     fetchJobs,
     cancelJob,
     retryJob,
     deleteJob,
     clearCompleted,
-    connectWebSocket,
-    disconnectWebSocket,
+    connectSSE,
+    disconnectSSE,
   } = useJobStore();
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Initial data fetch and WebSocket connection
+  // Initial data fetch and SSE connection
   useEffect(() => {
     fetchJobs();
-    connectWebSocket();
+    connectSSE();
 
     return () => {
-      disconnectWebSocket();
+      disconnectSSE();
     };
-  }, [fetchJobs, connectWebSocket, disconnectWebSocket]);
+  }, [fetchJobs, connectSSE, disconnectSSE]);
 
   const handleCancel = async (id: string) => {
     setActionLoading(id);
@@ -141,9 +141,9 @@ export function Queue() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* WebSocket Status Indicator */}
+          {/* SSE Status Indicator */}
           <div className="flex items-center gap-2">
-            {wsConnected ? (
+            {sseConnected ? (
               <>
                 <Wifi size={16} className="text-success" />
                 <span className="text-sm text-success">Live</span>
@@ -166,7 +166,7 @@ export function Queue() {
       </div>
 
       {/* Error Display - Only show meaningful errors, not transient network issues */}
-      {error && !error.includes("WebSocket") && !error.includes("Failed to fetch") && (
+      {error && !error.includes("SSE") && !error.includes("Failed to fetch") && (
         <div className="mb-4 p-4 bg-error/10 border border-error/20 rounded-xl flex items-start gap-3 animate-fade-in">
           <AlertCircle size={18} className="text-error mt-0.5 shrink-0" />
           <div>

@@ -103,17 +103,6 @@ export function getBackendUrl(): string {
 }
 
 /**
- * Get the WebSocket URL
- * Uses same-origin connection to go through Vite proxy (avoids CORS and connection issues)
- */
-export function getWebSocketUrl(): string {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  // Use same origin to go through Vite proxy - this avoids CORS issues
-  // and the "WebSocket closed before connection established" error
-  return `${protocol}//${window.location.host}/ws`;
-}
-
-/**
  * Get the API base URL (for proxy configuration)
  */
 export function getApiBaseUrl(): string {

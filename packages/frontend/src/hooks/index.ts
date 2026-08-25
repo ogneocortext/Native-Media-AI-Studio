@@ -4,7 +4,7 @@
  */
 
 export { useJobs, useHealth } from "./useJobs";
-export { useWebSocket } from "./useWebSocket";
+export { useSSE } from "./useWebSocket";
 
 // Re-export Zustand stores for convenience
 export { useJobStore, startAutoRefresh, stopAutoRefresh } from "../state/jobStore";
