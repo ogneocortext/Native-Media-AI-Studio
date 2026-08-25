@@ -3,7 +3,10 @@ Integrations API - for external service integration.
 """
 
 import os
+import time
+import logging
 from pathlib import Path
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -12,6 +15,8 @@ from ..adapters.registry import adapter_registry
 from ..core.config import PROJECT_ROOT
 from ..models.job import JobCreateRequest, JobType
 from ..queue.manager import queue_manager
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/integrations", tags=["Integrations"])
 
@@ -56,6 +61,87 @@ async def list_integrations() -> dict:
             {"name": "ollama", "type": "llm", "display": "Ollama"},
         ]
     }
+
+
+def estimate_generation_time(steps: int, width: int, height: int, num_frames: int, fps: int, model_name: str) -> dict:
+    """Estimate video generation time based on parameters."""
+    # Base seconds per frame for a 512x512 image at 20 steps on GTX 1070 Ti
+    base_sec_per_frame = 2.5
+    # Scale by resolution
+    resolution_factor = (width * height) / (512 * 512)
+    # Scale by steps
+    step_factor = steps / 20
+    # Scale by model size (larger models are slower)
+    model_factor = 1.0
+    if "wan" in model_name.lower():
+        model_factor = 3.0  # Wan 2.2 5B is ~3x slower
+    elif "kandinsky" in model_name.lower():
+        model_factor = 2.0
+    elif "sd" in model_name.lower() or "v1-5" in model_name.lower():
+        model_factor = 1.0
+    elif "hunyuan" in model_name.lower():
+        model_factor = 1.5
+
+    sec_per_frame = base_sec_per_frame * resolution_factor * step_factor * model_factor
+    total_frames = num_frames if num_frames > 0 else int(fps * 5)
+    estimated_seconds = sec_per_frame * total_frames
+
+    # Add overhead for loading model, saving, etc.
+    overhead_seconds = 10
+    estimated_seconds += overhead_seconds
+
+    return {
+        "estimated_seconds": round(estimated_seconds, 1),
+        "estimated_minutes": round(estimated_seconds / 60, 1),
+        "estimated_end_time": (datetime.utcnow() + timedelta(seconds=estimated_seconds)).isoformat() + "Z",
+        "sec_per_frame": round(sec_per_frame, 1),
+        "total_frames": total_frames,
+        "factors": {
+            "resolution_factor": round(resolution_factor, 2),
+            "step_factor": round(step_factor, 2),
+            "model_factor": model_factor,
+        }
+    }
+
+
+async def ensure_vram_available(required_mb: int = 4096) -> dict:
+    """Check VRAM availability and offload models if needed."""
+    try:
+        from ..services.vram_manager import vram_manager
+        snapshot = await vram_manager.get_snapshot()
+        free_mb = snapshot.get("memory_free_mb", 0)
+        total_mb = snapshot.get("memory_total_mb", 0)
+
+        result = {
+            "available": True,
+            "free_mb": free_mb,
+            "total_mb": total_mb,
+            "required_mb": required_mb,
+            "offloaded": False,
+            "message": f"VRAM OK: {free_mb}MB free of {total_mb}MB",
+        }
+
+        if free_mb < required_mb:
+            # Try to offload Ollama models first
+            offload_result = await vram_manager.offload_ollama_models()
+            if offload_result.get("success"):
+                result["offloaded"] = True
+                result["message"] = "Offloaded Ollama models to free VRAM"
+                # Re-check after offload
+                snapshot = await vram_manager.get_snapshot()
+                free_mb = snapshot.get("memory_free_mb", 0)
+                result["free_mb"] = free_mb
+                if free_mb < required_mb:
+                    result["available"] = False
+                    result["message"] = f"Insufficient VRAM: {free_mb}MB free, {required_mb}MB required"
+            else:
+                result["available"] = False
+                result["message"] = f"Insufficient VRAM: {free_mb}MB free, {required_mb}MB required"
+
+        return result
+    except Exception as e:
+        logger.warning(f"VRAM check failed: {e}")
+        return {"available": True, "free_mb": 0, "total_mb": 0, "required_mb": required_mb, "offloaded": False, "message": "VRAM check unavailable"}
 
 
 @router.get("/{service_name}")
@@ -708,8 +794,11 @@ async def generate_music_video(request: MusicVideoRequest):
     Generate a music video with beat-synced visuals using ComfyUI.
     Creates a video that reacts to audio beats and follows the specified visual style.
     """
+    logger.info("Video generation requested: style=%s, duration=%s, quality=%s", request.style.template_id, request.duration, request.quality)
+
     adapter = adapter_registry.get("comfyui")
     if not adapter:
+        logger.error("Video generation failed: ComfyUI adapter not available")
         raise HTTPException(status_code=503, detail="ComfyUI adapter not available")
 
     # Build prompt with beat reactivity hints
@@ -733,6 +822,20 @@ async def generate_music_video(request: MusicVideoRequest):
     # Adjust steps based on quality
     steps = {"draft": 10, "standard": 20, "high": 30}.get(request.quality, 20)
 
+    # Estimate generation time
+    num_frames = request.num_frames or int(target_duration * request.fps)
+    time_estimate = estimate_generation_time(steps, width, height, num_frames, request.fps, request.motion_module)
+    logger.info("Estimated generation time: %s seconds (%s min)", time_estimate["estimated_seconds"], time_estimate["estimated_minutes"])
+
+    # Check VRAM availability
+    vram_result = await ensure_vram_available(required_mb=4096)
+    if not vram_result["available"]:
+        logger.error("Video generation failed: insufficient VRAM - %s", vram_result["message"])
+        raise HTTPException(status_code=503, detail=f"Insufficient VRAM: {vram_result['message']}")
+
+    if vram_result.get("offloaded"):
+        logger.info("Offloaded models to free VRAM before video generation")
+
     # Queue the job
     job = await queue_manager.enqueue(
         JobCreateRequest(
@@ -750,18 +853,195 @@ async def generate_music_video(request: MusicVideoRequest):
                 "style_template": style.template_id,
                 "motion_strength": style.motion_strength,
                 "beat_reactivity": style.beat_reactivity,
-                "num_frames": request.num_frames,
+                "num_frames": num_frames,
                 "motion_module": request.motion_module,
+                "estimated_seconds": time_estimate["estimated_seconds"],
             },
             max_retries=3,
         )
     )
+
+    logger.info("Video generation job queued: job_id=%s, estimated=%ss", job.id, time_estimate["estimated_seconds"])
 
     return {
         "job_id": job.id,
         "status": job.status.value,
         "message": f"Music video job queued with {len(request.beat_markers)} beat markers",
         "estimated_duration": target_duration,
+        "estimated_seconds": time_estimate["estimated_seconds"],
+        "estimated_end_time": time_estimate["estimated_end_time"],
+        "vram_status": vram_result,
+    }
+
+
+@router.post("/music-video/style-preview")
+async def generate_style_preview(style_id: str) -> dict:
+    """
+    Generate a preview image for a video style using ComfyUI.
+    Uses low resolution and steps for fast preview generation.
+    """
+    logger.info("Style preview requested for: %s", style_id)
+
+    # Find the style definition
+    styles = (await list_music_video_styles())["styles"]
+    style_def = next((s for s in styles if s["id"] == style_id), None)
+    if not style_def:
+        raise HTTPException(status_code=404, detail=f"Style not found: {style_id}")
+
+    adapter = adapter_registry.get("comfyui")
+    if not adapter:
+        raise HTTPException(status_code=503, detail="ComfyUI adapter not available")
+
+    try:
+        # Check VRAM
+        vram_result = await ensure_vram_available(required_mb=2048)
+        if not vram_result["available"]:
+            logger.warning("Insufficient VRAM for style preview: %s", vram_result["message"])
+            raise HTTPException(status_code=503, detail=f"Insufficient VRAM: {vram_result['message']}")
+
+        # Generate preview image (low res, fast)
+        preview_params = {
+            "prompt": style_def["prompt"] + ", single frame, preview, thumbnail",
+            "negative_prompt": style_def.get("negative_prompt", "blurry, low quality"),
+            "steps": 10,
+            "cfg_scale": 7.0,
+            "width": 256,
+            "height": 256,
+            "seed": -1,
+            "sampler_name": "Euler a",
+        }
+
+        result = await adapter.generate(preview_params)
+
+        if result.get("success"):
+            logger.info("Style preview generated successfully for: %s", style_id)
+            return {
+                "success": True,
+                "style_id": style_id,
+                "output_path": result.get("output_path", ""),
+                "image": result.get("image", ""),
+            }
+        else:
+            logger.error("Style preview generation failed for: %s", style_id)
+            raise HTTPException(status_code=500, detail="Preview generation failed")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Style preview error for %s: %s", style_id, str(e))
+        raise HTTPException(status_code=500, detail=f"Preview generation error: {str(e)}")
+
+
+@router.get("/music-video/job/{job_id}/progress")
+async def get_job_progress(job_id: str) -> dict:
+    """Get real-time progress for a video generation job."""
+    try:
+        job = await queue_manager.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        # Calculate progress percentage
+        progress = job.progress or 0
+        estimated_seconds = job.params.get("estimated_seconds", 0)
+        elapsed = (datetime.utcnow() - job.created_at.replace(tzinfo=None)).total_seconds() if job.created_at else 0
+
+        remaining_seconds = max(0, estimated_seconds - elapsed) if estimated_seconds > 0 else 0
+        end_time = (datetime.utcnow() + timedelta(seconds=remaining_seconds)).isoformat() + "Z" if remaining_seconds > 0 else None
+
+        return {
+            "job_id": job_id,
+            "status": job.status.value,
+            "progress": progress,
+            "current_step": job.params.get("current_step", 0),
+            "total_steps": job.params.get("steps", 20),
+            "current_frame": job.params.get("current_frame", 0),
+            "total_frames": job.params.get("num_frames", 0),
+            "elapsed_seconds": round(elapsed, 1),
+            "estimated_seconds": estimated_seconds,
+            "remaining_seconds": round(remaining_seconds, 1),
+            "estimated_end_time": end_time,
+            "error": job.error,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error getting job progress: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class QuickVideoPreviewRequest(BaseModel):
+    """Quick preview request for testing video generation."""
+    prompt: string = ""
+    negative_prompt: str = "blurry, low quality"
+    steps: int = 10
+    cfg_scale: float = 7.0
+    model: str = ""
+    duration: int = 5
+    style: str = ""
+
+
+@router.post("/music-video/generate-preview")
+async def generate_video_preview(request: QuickVideoPreviewRequest) -> dict:
+    """Generate a quick video preview with real-time progress tracking."""
+    logger.info("Video preview requested: model=%s, style=%s", request.model, request.style)
+
+    # Find style info
+    style_prompt = ""
+    if request.style:
+        styles = (await list_music_video_styles())["styles"]
+        style_def = next((s for s in styles if s["id"] == request.style), None)
+        if style_def:
+            style_prompt = style_def.get("prompt", "")
+
+    full_prompt = f"{request.prompt}, {style_prompt}".strip(", ") or request.prompt
+
+    if not request.model:
+        return {"success": False, "error": "No model selected"}
+
+    # Check VRAM
+    vram_result = await ensure_vram_available(required_mb=4096)
+    if not vram_result["available"]:
+        return {"success": False, "error": vram_result["message"]}
+
+    # Calculate parameters
+    num_frames = request.duration * 8  # 8 fps
+    width, height = 426, 240  # 240p for speed
+
+    # Estimate time
+    time_estimate = estimate_generation_time(request.steps, width, height, num_frames, 8, request.model)
+
+    # Queue job
+    job = await queue_manager.enqueue(
+        JobCreateRequest(
+            job_type=JobType.MUSIC_VIDEO_PREVIEW,
+            params={
+                "prompt": full_prompt,
+                "negative_prompt": request.negative_prompt,
+                "width": width,
+                "height": height,
+                "steps": request.steps,
+                "cfg_scale": request.cfg_scale,
+                "fps": 8,
+                "duration": request.duration,
+                "num_frames": num_frames,
+                "model": request.model,
+                "ckpt_name": request.model,
+                "is_preview": True,
+                "estimated_seconds": time_estimate["estimated_seconds"],
+            },
+            max_retries=1,
+        )
+    )
+
+    logger.info("Video preview job queued: %s, estimated %ss", job.id, time_estimate["estimated_seconds"])
+
+    return {
+        "success": True,
+        "job_id": job.id,
+        "status": job.status.value,
+        "estimated_seconds": time_estimate["estimated_seconds"],
+        "estimated_end_time": time_estimate["estimated_end_time"],
+        "message": f"Preview job queued (est. {time_estimate['estimated_seconds']}s)",
     }
 
 

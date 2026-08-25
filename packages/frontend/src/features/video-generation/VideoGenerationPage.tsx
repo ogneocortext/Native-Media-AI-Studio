@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Film,
   Wand2,
@@ -9,13 +9,14 @@ import {
   Sparkles,
   Settings,
   ImageIcon,
+  Clock,
+  X,
+  Gauge,
 } from "lucide-react";
 import {
-  generateVideoSection,
   getMusicVideoStyles,
   getWorkflowTemplates,
   getJobTypes,
-  type VideoGenerateRequest,
   type VideoGenerateResponse,
 } from "../../services/api";
 
@@ -38,6 +39,21 @@ interface VideoModel {
   description: string;
   type: string;
   bestFor: string;
+}
+
+interface JobProgress {
+  job_id: string;
+  status: string;
+  progress: number;
+  current_step: number;
+  total_steps: number;
+  current_frame: number;
+  total_frames: number;
+  elapsed_seconds: number;
+  estimated_seconds: number;
+  remaining_seconds: number;
+  estimated_end_time: string;
+  error: string | null;
 }
 
 const VIDEO_MODELS: VideoModel[] = [
@@ -76,11 +92,15 @@ export function VideoGenerationPage() {
   const [error, setError] = useState<string | null>(null);
   const [styles, setStyles] = useState<Style[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [jobTypes, setJobTypes] = useState<Record<string, unknown>>({});
+  const [, setJobTypes] = useState<Record<string, unknown>>({});
+  const [stylePreviews, setStylePreviews] = useState<Record<string, string>>({});
+  const [loadingPreviews, setLoadingPreviews] = useState<Record<string, boolean>>({});
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [jobProgress, setJobProgress] = useState<JobProgress | null>(null);
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     loadData();
-    // Retry after 2 seconds in case backend wasn't ready on first load
     const retryTimer = setTimeout(() => {
       if (styles.length === 0 && templates.length === 0) {
         loadData();
@@ -96,7 +116,8 @@ export function VideoGenerationPage() {
         getWorkflowTemplates(),
         getJobTypes(),
       ]);
-      setStyles(Array.isArray(stylesData) ? stylesData : (stylesData?.styles as Style[]) || []);
+      const loadedStyles = Array.isArray(stylesData) ? stylesData : (stylesData?.styles as Style[]) || [];
+      setStyles(loadedStyles);
       setTemplates(Array.isArray(templatesData) ? templatesData : (templatesData?.templates as Template[]) || []);
       setJobTypes(jobTypesData || {});
     } catch {
@@ -108,37 +129,124 @@ export function VideoGenerationPage() {
     loadData();
   };
 
+  // Poll job progress
+  const startProgressPolling = useCallback((jobId: string) => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+
+    progressIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/integrations/music-video/job/${jobId}/progress`);
+        if (res.ok) {
+          const data: JobProgress = await res.json();
+          setJobProgress(data);
+          if (data.status === "completed" || data.status === "failed" || data.status === "cancelled") {
+            if (progressIntervalRef.current) {
+              clearInterval(progressIntervalRef.current);
+              progressIntervalRef.current = null;
+            }
+            setGenerating(false);
+            setActiveJobId(null);
+            if (data.status === "completed") {
+              setResults((prev) => [...prev, { success: true, job_id: jobId, output_path: "", section: "", error: null, message: "Completed" }]);
+            }
+            if (data.error) {
+              setError(data.error);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Progress poll error:", e);
+      }
+    }, 1000);
+  }, []);
+
+  const stopProgressPolling = useCallback(() => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => stopProgressPolling();
+  }, [stopProgressPolling]);
+
+  const handleCancelJob = async () => {
+    if (!activeJobId) return;
+    try {
+      await fetch(`/api/jobs/${activeJobId}/cancel`, { method: "POST" });
+      stopProgressPolling();
+      setGenerating(false);
+      setActiveJobId(null);
+      setJobProgress(null);
+    } catch (e) {
+      console.error("Cancel failed:", e);
+    }
+  };
+
+  const generateStylePreview = async (styleId: string) => {
+    setLoadingPreviews((prev) => ({ ...prev, [styleId]: true }));
+    try {
+      const res = await fetch(`/api/integrations/music-video/style-preview?style_id=${styleId}`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.image) {
+          setStylePreviews((prev) => ({ ...prev, [styleId]: data.image }));
+        }
+      }
+    } catch (e) {
+      console.error("Preview generation failed:", e);
+    } finally {
+      setLoadingPreviews((prev) => ({ ...prev, [styleId]: false }));
+    }
+  };
+
   const handleGenerate = async () => {
     setGenerating(true);
     setError(null);
-    const newResults: VideoGenerateResponse[] = [];
+    setResults([]);
 
     try {
-      const sections = selectedTemplate
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean) || ["full"];
-
-      for (const section of sections) {
-        const request: VideoGenerateRequest = {
+      const res = await fetch(`/api/integrations/music-video/generate-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           prompt,
           negative_prompt: negativePrompt,
           steps,
           cfg_scale: cfgScale,
-          section,
-          duration: duration / sections.length,
-          vertical_first: verticalFirst,
           model: selectedModel,
-        };
-        const result = await generateVideoSection(request);
-        newResults.push(result);
+          duration,
+          style: selectedStyle,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Generation failed");
       }
-      setResults(newResults);
+
+      const data = await res.json();
+      if (data.job_id) {
+        setActiveJobId(data.job_id);
+        startProgressPolling(data.job_id);
+      }
     } catch (err: any) {
       setError(err.message || "Generation failed");
-    } finally {
       setGenerating(false);
     }
+  };
+
+  const formatTime = (seconds: number): string => {
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.round(seconds % 60);
+    return `${mins}m ${secs}s`;
   };
 
   const promptSuggestions = [
@@ -157,7 +265,7 @@ export function VideoGenerationPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -175,6 +283,52 @@ export function VideoGenerationPage() {
           Refresh
         </button>
       </div>
+
+      {/* Real-time Progress Banner */}
+      {generating && jobProgress && (
+        <div className="bg-purple-900/30 border border-purple-500/50 rounded-lg p-4 animate-fade-in">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Loader2 size={16} className="text-purple-400 animate-spin" />
+              <span className="text-sm font-medium text-purple-300">Generating Video...</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-400">
+                Step {jobProgress.current_step}/{jobProgress.total_steps}
+              </span>
+              <span className="text-xs text-gray-400">
+                Frame {jobProgress.current_frame}/{jobProgress.total_frames}
+              </span>
+              <button
+                onClick={handleCancelJob}
+                className="px-2 py-1 bg-red-600/30 hover:bg-red-600/50 rounded text-xs text-red-300 flex items-center gap-1"
+              >
+                <X size={12} />
+                Cancel
+              </button>
+            </div>
+          </div>
+          <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden mb-2">
+            <div
+              className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
+              style={{ width: `${jobProgress.progress}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-xs text-gray-400">
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1">
+                <Clock size={12} />
+                Elapsed: {formatTime(jobProgress.elapsed_seconds)}
+              </span>
+              <span>Remaining: {formatTime(jobProgress.remaining_seconds)}</span>
+            </div>
+            <span className="flex items-center gap-1">
+              <Gauge size={12} />
+              ETA: {jobProgress.estimated_end_time ? new Date(jobProgress.estimated_end_time).toLocaleTimeString() : "Calculating..."}
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Controls */}
@@ -274,8 +428,8 @@ export function VideoGenerationPage() {
           </button>
 
           {/* Error */}
-          {error && (
-            <div className="p-4 bg-red-900/30 border border-red-700 rounded-lg flex items-center gap-3 text-red-300">
+          {error && !generating && (
+            <div className="p-4 bg-red-900/30 border border-red-700 rounded-lg flex items-center gap-3 text-red-300 animate-scale-in">
               <AlertCircle size={20} />
               <span>{error}</span>
             </div>
@@ -303,24 +457,76 @@ export function VideoGenerationPage() {
 
         {/* Sidebar */}
         <div className="space-y-4">
-          {/* Styles */}
+          {/* Video Models */}
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h3 className="text-white font-medium mb-3 flex items-center gap-2">
+              <ImageIcon size={16} />
+              Video Models
+            </h3>
+            <div className="space-y-2">
+              {VIDEO_MODELS.map((model) => {
+                const selected = selectedModel === model.name;
+                return (
+                  <button
+                    key={model.name}
+                    onClick={() => setSelectedModel(model.name)}
+                    className={`w-full text-left p-3 rounded-lg border transition-all duration-200 ${selected ? "border-purple-500 bg-purple-500/10" : "border-gray-600 bg-gray-700 hover:border-gray-500"}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium truncate mr-2">{model.name.replace(".safetensors", "")}</span>
+                      {selected && <span className="text-[10px] text-purple-400 shrink-0">Selected</span>}
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">{model.description}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-400">{model.type}</span>
+                      <span className="text-[10px] text-gray-500">Best for: {model.bestFor}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Styles with Previews */}
           <div className="bg-gray-800 rounded-lg p-4">
             <h3 className="text-white font-medium mb-3 flex items-center gap-2">
               <Sparkles size={16} />
               Styles
             </h3>
             {styles.length > 0 ? (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {styles.map((s: any) => (
-                  <button
+                  <div
                     key={s.id || s.name}
-                    onClick={() => setSelectedStyle(s.id || "")}
-                    className={`w-full text-left px-3 py-2 rounded text-sm ${
-                      selectedStyle === s.id ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-400 hover:bg-gray-600"
-                    }`}
+                    className={`rounded-lg border overflow-hidden transition-all duration-200 ${selectedStyle === (s.id || s.name) ? "border-purple-500" : "border-gray-600 hover:border-gray-500"}`}
                   >
-                    {s.name || s.id}
-                  </button>
+                    {/* Preview Image */}
+                    {stylePreviews[s.id || s.name] && (
+                      <div className="aspect-video bg-gray-900 relative">
+                        <img
+                          src={`data:image/png;base64,${stylePreviews[s.id || s.name]}`}
+                          alt={s.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    {loadingPreviews[s.id || s.name] && (
+                      <div className="aspect-video bg-gray-900 flex items-center justify-center">
+                        <Loader2 size={20} className="text-purple-400 animate-spin" />
+                      </div>
+                    )}
+                    <button
+                      onClick={() => {
+                        setSelectedStyle(s.id || s.name);
+                        if (!stylePreviews[s.id || s.name] && !loadingPreviews[s.id || s.name]) {
+                          generateStylePreview(s.id || s.name);
+                        }
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm ${selectedStyle === (s.id || s.name) ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-400 hover:bg-gray-600"}`}
+                    >
+                      <span>{s.name || s.id}</span>
+                    </button>
+                  </div>
                 ))}
               </div>
             ) : (
@@ -353,50 +559,6 @@ export function VideoGenerationPage() {
               <p className="text-gray-500 text-sm">No templates available</p>
             )}
           </div>
-
-          {/* Video Models */}
-          <div className="bg-gray-800 rounded-lg p-4">
-            <h3 className="text-white font-medium mb-3 flex items-center gap-2">
-              <ImageIcon size={16} />
-              Video Models
-            </h3>
-            <div className="space-y-2">
-              {VIDEO_MODELS.map((model) => {
-                const selected = selectedModel === model.name;
-                return (
-                  <button
-                    key={model.name}
-                    onClick={() => setSelectedModel(model.name)}
-                    className={`w-full text-left p-3 rounded-lg border transition-all duration-200 ${selected ? "border-purple-500 bg-purple-500/10" : "border-gray-600 bg-gray-700 hover:border-gray-500"}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium truncate mr-2">{model.name.replace(".safetensors", "")}</span>
-                      {selected && <span className="text-[10px] text-purple-400 shrink-0">Selected</span>}
-                    </div>
-                    <p className="text-[11px] text-gray-400 mt-1">{model.description}</p>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-400">{model.type}</span>
-                      <span className="text-[10px] text-gray-500">Best for: {model.bestFor}</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Job Types */}
-          {Object.keys(jobTypes).length > 0 && (
-            <div className="bg-gray-800 rounded-lg p-4">
-              <h3 className="text-white font-medium mb-3">Job Types</h3>
-              <div className="flex flex-wrap gap-1">
-                {Object.keys(jobTypes).map((type) => (
-                  <span key={type} className="px-2 py-0.5 bg-gray-700 rounded text-xs text-gray-400">
-                    {type}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
