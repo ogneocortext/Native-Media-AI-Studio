@@ -707,6 +707,13 @@ export async function getGPUProcesses(): Promise<{ processes: GPUProcessInfo[]; 
   return res.json();
 }
 
+export async function getFFmpegStatus(): Promise<{ running: boolean; count: number; processes: any[] }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/health/ffmpeg`);
+  if (!res.ok) throw new Error("Failed to get ffmpeg status");
+  return res.json();
+}
+
 export interface GPUProcessInfo {
   pid: number;
   name: string;

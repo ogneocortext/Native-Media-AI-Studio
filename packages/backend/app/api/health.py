@@ -89,6 +89,27 @@ async def gpu_processes() -> dict:
     return {"processes": processes, "count": len(processes)}
 
 
+@router.get("/ffmpeg")
+async def ffmpeg_status() -> dict:
+    """Check for running ffmpeg processes."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-Process -Name ffmpeg -ErrorAction SilentlyContinue | Select-Object Id, CPU, WorkingSet64 | ConvertTo-Json"],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            import json
+            processes = json.loads(result.stdout)
+            if not isinstance(processes, list):
+                processes = [processes]
+            return {"running": True, "count": len(processes), "processes": processes}
+    except Exception:
+        pass
+    return {"running": False, "count": 0, "processes": []}
+
+
 @router.get("/3d/status")
 async def gen3d_status() -> dict:
     """3D generation service status."""
