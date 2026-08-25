@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Health Page Layout
+- **Fixed**: GPU card orphaned in 3-column grid — changed to 2-column layout (CPU+Memory, Disk+GPU)
+- **Fixed**: ComfyUI card was heavy full-width before resource metrics — moved to sidebar column
+- **Fixed**: Service Checks crammed into 1/3 width — merged into equal 2-column layout with Performance History
+- **Fixed**: Action Log conditionally hidden — now always visible with empty state
+- **Fixed**: Page title "Diagnostics" didn't match sidebar "Health" — renamed to "System Health"
+- **Added**: Reusable `ResourceCard` component for CPU/Memory/Disk
+
+### Fixed - Vision Analysis Infrastructure
+- **Fixed**: `vision-mcp_vision_mcp` tool fails with large images — created `scripts/vision.mjs` standalone analyzer using sharp for resizing
+- **Added**: `scripts/vision.mjs` with `analyze`, `compare`, `diff` commands using sharp + Ollama gemma4:e2b-it-qat
+- **Added**: `vision-page-analysis` skill in `.kilo/skills/` for screenshot-to-analysis workflow
+- **Fixed**: npm arborist bug (`Cannot read properties of null`) blocking pnpm installs — updated npm to v12.0.3+
+
 ### Fixed - AI Tools Page Bug Fixes & Improvements
 
 #### Critical: SSE Stream Parsing

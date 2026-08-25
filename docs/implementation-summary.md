@@ -31,10 +31,11 @@
 - `GET /api/health/3d/status` - 3D service status
 
 ### 5. Vision Analysis Skill
-- Created `scripts/vision/analyze.mjs` for image analysis
-- Music-video-specific prompts for composition, lighting, color, energy
-- Supports modes: music-video, responsive, regression, compare, consistency
-- Works with local Ollama vision models (gemma4:e2b-it-qat)
+- Created `scripts/vision.mjs` — standalone screenshot analyzer using sharp + Ollama gemma4:e2b-it-qat
+- Supports `analyze`, `compare`, `diff` commands
+- Image resizing via sharp (40-50x faster than Jimp, better compression)
+- Music-video-specific prompts for composition, lighting, color, energy (in `.kilo/skills/music-video-vision/`)
+- Vision page analysis skill in `.kilo/skills/vision-page-analysis/`
 
 ### 6. GPU Stats Fix
 - Fixed backend to always initialize NVML

@@ -31,6 +31,7 @@
     "db:migrate": "cd packages/backend && python -c \"from app.core.database import init_db; init_db()\""
   },
   "devDependencies": {
+    "sharp": "^0.35.3",
     "turbo": "^2.0.0"
   }
 }

@@ -501,22 +501,30 @@ The `vision-mcp` tool fails with `Ollama API error: 400` when images are too lar
 
 ### The Solution
 
-Use the custom `tools/vision_analyze.py` script which resizes images before sending to Ollama:
+Use `scripts/vision.mjs` which resizes images via sharp before sending to Ollama:
 
 ```bash
 # Analyze a screenshot
-python tools/vision_analyze.py screenshot.png "Describe the UI"
+node scripts/vision.mjs analyze screenshot.png "Describe the UI"
 
 # Analyze with specific model
-python tools/vision_analyze.py screenshot.png "What errors are visible?" qwen3-vl:2b
+node scripts/vision.mjs analyze screenshot.png "What errors are visible?" --model qwen3-vl:2b
+
+# Compare two screenshots
+node scripts/vision.mjs compare before.png after.png
+
+# Diff two versions
+node scripts/vision.mjs diff old.png new.png
 ```
 
 ### How It Works
 
-1. Resizes image to max 600px (width or height)
-2. Converts to JPEG at 60% quality
-3. Sends base64 to Ollama's `/api/chat` endpoint
+1. Resizes image to max 1024px using sharp (or 640px with `--low` for text-dense UI)
+2. Converts to JPEG at 80% quality (~80KB output)
+3. Sends base64 to Ollama's `/api/generate` endpoint
 4. Returns the model's analysis
+
+Default model: `gemma4:e2b-it-qat`. Override with `--model` or `VISION_MODEL` env var.
 
 ### Available Vision Models
 
