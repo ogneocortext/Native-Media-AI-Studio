@@ -522,9 +522,10 @@ export function VideoGenerationPage() {
                           generateStylePreview(s.id || s.name);
                         }
                       }}
-                      className={`w-full text-left px-3 py-2 text-sm ${selectedStyle === (s.id || s.name) ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-400 hover:bg-gray-600"}`}
+                      className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between ${selectedStyle === (s.id || s.name) ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-400 hover:bg-gray-600"}`}
                     >
                       <span>{s.name || s.id}</span>
+                      {selectedStyle === (s.id || s.name) && <span className="text-[10px] text-purple-300">Selected</span>}
                     </button>
                   </div>
                 ))}
@@ -541,12 +542,12 @@ export function VideoGenerationPage() {
               Templates
             </h3>
             {templates.length > 0 ? (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {templates.map((t: any) => (
                   <button
                     key={t.id || t.name}
                     onClick={() => setSelectedTemplate(t.id || "")}
-                    className={`w-full text-left px-3 py-2 rounded text-sm ${
+                    className={`w-full text-left px-3 py-2 rounded text-sm transition-all duration-200 ${
                       selectedTemplate === t.id ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-400 hover:bg-gray-600"
                     }`}
                   >

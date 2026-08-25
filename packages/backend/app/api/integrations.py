@@ -108,9 +108,12 @@ async def ensure_vram_available(required_mb: int = 4096) -> dict:
     """Check VRAM availability and offload models if needed."""
     try:
         from ..services.vram_manager import vram_manager
-        snapshot = await vram_manager.get_snapshot()
-        free_mb = snapshot.get("memory_free_mb", 0)
-        total_mb = snapshot.get("memory_total_mb", 0)
+        status = await vram_manager.get_vram_status()
+        if not status.get("available"):
+            return {"available": True, "free_mb": 0, "total_mb": 0, "required_mb": required_mb, "offloaded": False, "message": "VRAM monitoring unavailable — proceeding"}
+
+        free_mb = status.get("memory_free_mb", 0)
+        total_mb = status.get("memory_total_mb", 0)
 
         result = {
             "available": True,
@@ -128,8 +131,8 @@ async def ensure_vram_available(required_mb: int = 4096) -> dict:
                 result["offloaded"] = True
                 result["message"] = "Offloaded Ollama models to free VRAM"
                 # Re-check after offload
-                snapshot = await vram_manager.get_snapshot()
-                free_mb = snapshot.get("memory_free_mb", 0)
+                status = await vram_manager.get_vram_status()
+                free_mb = status.get("memory_free_mb", 0)
                 result["free_mb"] = free_mb
                 if free_mb < required_mb:
                     result["available"] = False
@@ -141,7 +144,7 @@ async def ensure_vram_available(required_mb: int = 4096) -> dict:
         return result
     except Exception as e:
         logger.warning(f"VRAM check failed: {e}")
-        return {"available": True, "free_mb": 0, "total_mb": 0, "required_mb": required_mb, "offloaded": False, "message": "VRAM check unavailable"}
+        return {"available": True, "free_mb": 0, "total_mb": 0, "required_mb": required_mb, "offloaded": False, "message": "VRAM check unavailable — proceeding"}
 
 
 @router.get("/{service_name}")
@@ -971,7 +974,7 @@ async def get_job_progress(job_id: str) -> dict:
 
 class QuickVideoPreviewRequest(BaseModel):
     """Quick preview request for testing video generation."""
-    prompt: string = ""
+    prompt: str = ""
     negative_prompt: str = "blurry, low quality"
     steps: int = 10
     cfg_scale: float = 7.0
@@ -1026,6 +1029,7 @@ async def generate_video_preview(request: QuickVideoPreviewRequest) -> dict:
                 "num_frames": num_frames,
                 "model": request.model,
                 "ckpt_name": request.model,
+                "audio_path": "",  # Preview doesn't require audio
                 "is_preview": True,
                 "estimated_seconds": time_estimate["estimated_seconds"],
             },
@@ -1038,7 +1042,7 @@ async def generate_video_preview(request: QuickVideoPreviewRequest) -> dict:
     return {
         "success": True,
         "job_id": job.id,
-        "status": job.status.value,
+        "status": job.status.value if hasattr(job.status, "value") else str(job.status),
         "estimated_seconds": time_estimate["estimated_seconds"],
         "estimated_end_time": time_estimate["estimated_end_time"],
         "message": f"Preview job queued (est. {time_estimate['estimated_seconds']}s)",
