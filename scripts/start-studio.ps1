@@ -137,7 +137,7 @@ if (-not $NoBackend) {
 
     $backendLog = Join-Path $LogDir 'backend.log'
     $proc = Start-Process -FilePath $venvPython `
-        -ArgumentList '-m', 'app.main' `
+        -ArgumentList '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', "$BackendPort" `
         -WorkingDirectory $BackendDir `
         -WindowStyle Hidden `
         -RedirectStandardOutput $backendLog `

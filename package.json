@@ -14,7 +14,8 @@
   ],
   "scripts": {
     "preinstall": "npx -y only-allow pnpm",
-    "dev": "pnpm --filter=frontend dev",
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\start-studio.ps1",
+    "dev:frontend": "pnpm --filter=frontend dev",
     "dev:backend": "cd packages/backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000",
     "dev:video": "pnpm --filter=video-editor dev",
     "dev:comfyui": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\start_comfyui.ps1",
