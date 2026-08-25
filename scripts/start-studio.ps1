@@ -272,7 +272,11 @@ if (-not $NoFrontend -and -not $NoBrowser) {
 
 # --- Monitor until user quits ---
 Write-Host "Press 'q' (or Ctrl+C / close window) to stop everything..." -ForegroundColor Gray
+Write-Host "Auto-restart enabled for crashed services (max 3 restarts per service)" -ForegroundColor Gray
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
+$restartCounts = @{}  # Track restart counts per service
+$maxRestarts = 3
+
 while ($true) {
     if ($AutoQuitSeconds -gt 0 -and $sw.Elapsed.TotalSeconds -ge $AutoQuitSeconds) {
         Write-Host "`nAuto-quit after ${AutoQuitSeconds}s (test mode)" -ForegroundColor Gray
@@ -286,7 +290,73 @@ while ($true) {
 
     foreach ($s in $script:started) {
         if ($s.Process.HasExited) {
-            Write-Warn2 "$($s.Name) exited unexpectedly (code $($s.Process.ExitCode)). Check logs."
+            $name = $s.Name
+            $exitCode = $s.Process.ExitCode
+
+            if (-not $restartCounts.ContainsKey($name)) { $restartCounts[$name] = 0 }
+            $restartCounts[$name]++
+
+            if ($restartCounts[$name] -le $maxRestarts) {
+                Write-Warn2 "$name exited unexpectedly (code $exitCode). Restarting ($($restartCounts[$name])/$maxRestarts)..."
+                
+                # Restart the service based on its type
+                switch ($name) {
+                    "Backend" {
+                        $backendLog = Join-Path $LogDir 'backend.log'
+                        $s.Process = Start-Process -FilePath $venvPython `
+                            -ArgumentList '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', "$BackendPort" `
+                            -WorkingDirectory $BackendDir `
+                            -WindowStyle Hidden `
+                            -RedirectStandardOutput $backendLog `
+                            -RedirectStandardError (Join-Path $LogDir 'backend.err.log') `
+                            -PassThru
+                        Wait-ForPort -Port $BackendPort -Name 'Backend' | Out-Null
+                    }
+                    "Frontend" {
+                        $frontendLog = Join-Path $LogDir 'frontend.log'
+                        $npm = Resolve-Npm
+                        if ($npm) {
+                            $s.Process = Start-Process -FilePath 'cmd.exe' `
+                                -ArgumentList '/c', "`"$npm`" run dev" `
+                                -WorkingDirectory $FrontendDir `
+                                -WindowStyle Hidden `
+                                -RedirectStandardOutput $frontendLog `
+                                -RedirectStandardError (Join-Path $LogDir 'frontend.err.log') `
+                                -PassThru
+                        } else {
+                            $node = Resolve-NodeExe
+                            $viteJs = Join-Path $FrontendDir 'node_modules\vite\bin\vite.js'
+                            $s.Process = Start-Process -FilePath $node `
+                                -ArgumentList "`"$viteJs`"", '--port', "$FrontendPort" `
+                                -WorkingDirectory $FrontendDir `
+                                -WindowStyle Hidden `
+                                -RedirectStandardOutput $frontendLog `
+                                -RedirectStandardError (Join-Path $LogDir 'frontend.err.log') `
+                                -PassThru
+                        }
+                        Wait-ForPort -Port $FrontendPort -Name 'Frontend' | Out-Null
+                    }
+                    "ComfyUI" {
+                        $comfyuiLog = Join-Path $LogDir 'comfyui.log'
+                        $s.Process = Start-Process -FilePath $comfyuiPython `
+                            -ArgumentList 'main.py', '--port', "$ComfyUIPort", '--disable-pinned-memory' `
+                            -WorkingDirectory $comfyuiPath `
+                            -WindowStyle Hidden `
+                            -RedirectStandardOutput $comfyuiLog `
+                            -RedirectStandardError (Join-Path $LogDir 'comfyui.err.log') `
+                            -PassThru
+                        Wait-ForPort -Port $ComfyUIPort -Name 'ComfyUI' | Out-Null
+                    }
+                    default {
+                        Write-Warn2 "Cannot auto-restart $name - unknown service type"
+                    }
+                }
+                Write-Ok "$name restarted successfully"
+            } else {
+                Write-Warn2 "$name has crashed $maxRestarts times - not restarting. Check logs."
+                # Remove from monitoring list to prevent infinite loop
+                $script:started = @($script:started | Where-Object { $_.Name -ne $name })
+            }
         }
     }
     Start-Sleep -Milliseconds 500

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useOutputStore, OutputFile } from "../../state/outputStore";
 import { formatFileSize, formatDate, formatDateTime } from "../../utils/format";
 import { getOutputUrl } from "../../utils/url";
@@ -16,9 +16,8 @@ import {
   FileType,
   HardDrive,
   X,
-  ChevronDown,
-  ChevronRight,
   ChevronLeft,
+  ChevronRight,
   SlidersHorizontal,
   Clock,
   Tag,
@@ -30,7 +29,6 @@ import {
   CheckSquare,
   Square,
   Users,
-  Filter,
   Check,
   ArrowUpDown,
   Layers,

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - AI Tools Page Bug Fixes & Improvements
+
+#### Critical: SSE Stream Parsing
+- **Fixed**: `parseOllamaStream()` in `services/api.ts` — `event:` and `data:` lines are separate in SSE format but parser tried to extract event from the data line; stream was completely non-functional
+- **Fixed**: Visualization tool calls never triggered during streaming — `td.result` was never populated; now extracts config directly from tool call arguments
+- **Fixed**: `done` event overwrote accumulated `fullResponse` with only the last turn's text, losing prior turns
+
+#### Generation Control
+- **Added**: Cancel button with `AbortController` support — users can now stop ongoing generation
+- **Added**: `ollamaChatStream()` accepts `AbortSignal` parameter for proper request cancellation
+- **Fixed**: `vizConfig` not cleared on new generation — stale visualizations persisted
+
+#### Tool Editor
+- **Added**: JSON validation with visual feedback — red border + "Invalid JSON" message
+- **Added**: Save button disabled when JSON is invalid or tool name is empty
+
+#### Files Changed
+| Action | File |
+|--------|------|
+| Modified | `packages/frontend/src/services/api.ts` |
+| Modified | `packages/frontend/src/features/ai-tools/AIToolsPage.tsx` |
+
 ### Added - Comprehensive Backend Logging
 
 - **Dedicated Ollama log**: `logs/ollama.log` for Ollama adapter requests/responses

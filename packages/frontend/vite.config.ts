@@ -67,13 +67,10 @@ export default defineConfig(({ mode }) => {
     : new URL(backendUrlWithProtocol).hostname;
   
   const proxyTarget = `http://${backendHost}:${portConfig.backend_port}`;
-  
-  // WebSocket proxy target
-  const wsTarget = `ws://${backendHost}:${portConfig.ws_port}`;
 
   console.log(`[Vite] Starting with backend proxy: ${proxyTarget}`);
-  console.log(`[Vite] Starting with WS proxy: ${wsTarget}`);
   console.log(`[Vite] Frontend will serve on port: ${portConfig.frontend_port}`);
+  console.log(`[Vite] SSE events proxied via /api -> ${proxyTarget}`);
 
   return {
     plugins: [react(), tailwindcss()],
@@ -95,10 +92,6 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target: proxyTarget,
           changeOrigin: true,
-        },
-        "/ws": {
-          target: wsTarget,
-          ws: true,
         },
         "/output": {
           target: proxyTarget,

@@ -129,16 +129,29 @@ class VRAMManager:
             return {"available": False}
 
         gpu = stats.gpus[0]
-        total_mb = gpu.memory.total
-        used_mb = gpu.memory.used
-        free_mb = gpu.memory.free
+        # gpustat 1.x exposes memory_* as direct properties on GPUStat
+        # (not gpu.memory.total). Support both for compatibility.
+        if hasattr(gpu, "memory_total"):
+            total_mb = gpu.memory_total
+            used_mb = gpu.memory_used
+            free_mb = gpu.memory_free
+        elif hasattr(gpu, "memory") and hasattr(gpu.memory, "total"):
+            total_mb = gpu.memory.total
+            used_mb = gpu.memory.used
+            free_mb = gpu.memory.free
+        elif isinstance(getattr(gpu, "entry", None), dict):
+            total_mb = int(gpu.entry.get("memory.total", 0))
+            used_mb = int(gpu.entry.get("memory.used", 0))
+            free_mb = int(gpu.entry.get("memory.total", 0)) - used_mb
+        else:
+            return {"available": False}
         percent = (used_mb / total_mb) * 100 if total_mb > 0 else 0
 
         return {
             "available": True,
-            "total_mb": total_mb,
-            "used_mb": used_mb,
-            "free_mb": free_mb,
+            "total_mb": int(total_mb),
+            "used_mb": int(used_mb),
+            "free_mb": int(free_mb),
             "percent": round(percent, 1),
             "gpu_utilization": gpu.utilization,
             "temperature": gpu.temperature,

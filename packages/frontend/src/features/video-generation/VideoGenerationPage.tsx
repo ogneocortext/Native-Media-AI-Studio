@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Film,
   Wand2,
@@ -8,8 +8,6 @@ import {
   XCircle,
   Sparkles,
   Settings,
-  Play,
-  Download,
 } from "lucide-react";
 import {
   generateVideoSection,

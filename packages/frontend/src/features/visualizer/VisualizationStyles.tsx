@@ -9,7 +9,7 @@ interface VizProps {
 }
 
 // Waveform Visualization
-export function WaveformViz({ audioData, vizParams }: VizProps) {
+export function WaveformViz({ audioData }: VizProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   
@@ -41,7 +41,7 @@ export function WaveformViz({ audioData, vizParams }: VizProps) {
 }
 
 // Particle Storm Visualization
-export function ParticleStormViz({ audioData, vizParams }: VizProps) {
+export function ParticleStormViz({ audioData }: VizProps) {
   const particlesRef = useRef<THREE.Points>(null);
   const count = 500;
   
@@ -64,10 +64,9 @@ export function ParticleStormViz({ audioData, vizParams }: VizProps) {
     return { positions: pos, velocities: vel, colors: col };
   }, []);
   
-  useFrame((state) => {
+   useFrame((state) => {
     if (!particlesRef.current) return;
     const pos = particlesRef.current.geometry.attributes.position.array as Float32Array;
-    const dt = 0.016;
     
     for (let i = 0; i < count; i++) {
       const idx = i * 3;
@@ -101,11 +100,11 @@ export function ParticleStormViz({ audioData, vizParams }: VizProps) {
 }
 
 // Neural Network Visualization
-export function NeuralViz({ audioData, vizParams }: VizProps) {
+export function NeuralViz({ audioData }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const nodeCount = 50;
   
-  const { nodes, connections } = useMemo(() => {
+  const { nodes } = useMemo(() => {
     const n: { pos: THREE.Vector3; connections: number[] }[] = [];
     for (let i = 0; i < nodeCount; i++) {
       const connections: number[] = [];
@@ -125,12 +124,12 @@ export function NeuralViz({ audioData, vizParams }: VizProps) {
     return { nodes: n, connections: [] };
   }, []);
   
-  useFrame((state) => {
+   useFrame((state) => {
     if (!groupRef.current) return;
     groupRef.current.rotation.y = state.clock.elapsedTime * 0.1;
     groupRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.3) * 0.2;
     
-    groupRef.current.children.forEach((child, i) => {
+    groupRef.current.children.forEach((child, _i) => {
       if (child instanceof THREE.Mesh) {
         const scale = 0.5 + audioData.current.overall * 1.5;
         child.scale.setScalar(scale);
@@ -153,7 +152,7 @@ export function NeuralViz({ audioData, vizParams }: VizProps) {
 }
 
 // Cosmic Dust Visualization
-export function CosmicViz({ audioData, vizParams }: VizProps) {
+export function CosmicViz({ audioData }: VizProps) {
   const particlesRef = useRef<THREE.Points>(null);
   const count = 1000;
   
@@ -191,14 +190,14 @@ export function CosmicViz({ audioData, vizParams }: VizProps) {
 }
 
 // Pulse Visualization
-export function PulseViz({ audioData, vizParams }: VizProps) {
+export function PulseViz({ audioData }: VizProps) {
   const ringsRef = useRef<THREE.Group>(null);
   
   useFrame((state) => {
     if (!ringsRef.current) return;
-    ringsRef.current.children.forEach((ring, i) => {
+    ringsRef.current.children.forEach((ring, _i) => {
       const mesh = ring as THREE.Mesh;
-      const baseScale = 1 + i * 0.5;
+      const baseScale = 1 + _i * 0.5;
       const pulse = audioData.current.beat ? 1.5 : 1;
       const scale = baseScale * pulse * (1 + audioData.current.bass * 0.3);
       mesh.scale.setScalar(scale);
@@ -228,7 +227,7 @@ export function PulseViz({ audioData, vizParams }: VizProps) {
 }
 
 // Storm Visualization - Intense lightning and energy discharges
-export function StormViz({ audioData, vizParams }: VizProps) {
+export function StormViz({ audioData }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const lightningRef = useRef<THREE.Mesh[]>([]);
   const cloudRef = useRef<THREE.Points>(null);
@@ -314,7 +313,7 @@ export function StormViz({ audioData, vizParams }: VizProps) {
 }
 
 // Fractal Visualization - Self-similar patterns
-export function FractalViz({ audioData, vizParams }: VizProps) {
+export function FractalViz({ audioData }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const iterationCount = 5;
   

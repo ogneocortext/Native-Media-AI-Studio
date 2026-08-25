@@ -22,9 +22,6 @@ import {
 } from "../../services/comfyui";
 import {
   estimateImageGeneration,
-  estimateVideoGeneration,
-  formatDuration,
-  calculateFrameCount,
 } from "../../services/generationEstimator";
 
 interface GeneratedImage {

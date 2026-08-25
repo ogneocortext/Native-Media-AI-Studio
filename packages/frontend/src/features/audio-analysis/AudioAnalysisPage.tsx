@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Upload,
   Music,
@@ -7,15 +7,19 @@ import {
   Loader2,
   AlertCircle,
   BarChart3,
-  Waves,
   Database,
   RefreshCw,
   ChevronDown,
   ChevronRight,
   Activity,
+  Clock,
+  TrendingUp,
+  Music2,
+  ArrowRight,
 } from "lucide-react";
 import {
   analyzeAudio,
+  generateVideoSection,
   listAudioFiles,
   type AudioAnalysisResult,
 } from "../../services/api";
@@ -48,6 +52,12 @@ const EnergyTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+function getEnergyColor(energy: number): string {
+  if (energy < 0.3) return "bg-blue-500";
+  if (energy < 0.6) return "bg-amber-500";
+  return "bg-red-500";
+}
+
 export function AudioAnalysisPage() {
   const [file, setFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -57,10 +67,54 @@ export function AudioAnalysisPage() {
   const [dragOver, setDragOver] = useState(false);
   const [selectedLibraryFile, setSelectedLibraryFile] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(true);
+  const [generating, setGenerating] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     loadAudioFiles();
   }, []);
+
+  // Draw energy curve on canvas
+  useEffect(() => {
+    if (!analysis?.energy_curve?.length || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+    const data = analysis.energy_curve;
+    const barW = w / data.length;
+
+    ctx.clearRect(0, 0, w, h);
+    data.forEach((energy, i) => {
+      const barH = energy * h * 0.9;
+      const x = i * barW;
+      const y = h - barH;
+
+      const gradient = ctx.createLinearGradient(0, y, 0, h);
+      gradient.addColorStop(0, energy > 0.6 ? "#f59e0b" : energy > 0.3 ? "#3b82f6" : "#22c55e");
+      gradient.addColorStop(1, "rgba(0,0,0,0.3)");
+
+      ctx.fillStyle = gradient;
+      ctx.fillRect(x, y, barW - 1, barH);
+    });
+
+    // Draw section boundaries
+    if (analysis.sections) {
+      ctx.strokeStyle = "rgba(255,255,255,0.3)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      analysis.sections.forEach((s) => {
+        const x = (s.start / analysis.duration_seconds) * w;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      });
+      ctx.setLineDash([]);
+    }
+  }, [analysis]);
 
   const loadAudioFiles = async () => {
     try {
@@ -68,6 +122,24 @@ export function AudioAnalysisPage() {
       setAudioFiles(files);
     } catch {
       // Backend may not be running
+    }
+  };
+
+  const handleGenerateSection = async (section: string, start: number, end: number) => {
+    if (!analysis?.stored_path) return;
+    setGenerating(section);
+    try {
+      await generateVideoSection({
+        prompt: `Music video for ${section} section`,
+        section,
+        duration: end - start,
+        audio_path: analysis.stored_path,
+        audio_filename: file?.name,
+      });
+    } catch {
+      // ignore
+    } finally {
+      setGenerating(null);
     }
   };
 
@@ -203,29 +275,39 @@ export function AudioAnalysisPage() {
           {/* Results */}
           {analysis && (
             <div className="aa-results">
-              <div className="aa-stats">
-                <div className="aa-stat">
-                  <p className="aa-stat-label">Tempo</p>
-                  <p className="aa-stat-value">{analysis.tempo_bpm}</p>
-                  <p className="aa-stat-sub">BPM</p>
+              {/* Key Metrics */}
+              <div className="aa-metrics-grid">
+                <div className="aa-card aa-metric">
+                  <div className="aa-metric-icon bg-violet-500/20">
+                    <Music2 size={18} className="text-violet-400" />
+                  </div>
+                  <div className="aa-metric-value">{analysis.tempo_bpm.toFixed(0)}</div>
+                  <div className="aa-metric-label">BPM</div>
                 </div>
-                <div className="aa-stat">
-                  <p className="aa-stat-label">Duration</p>
-                  <p className="aa-stat-value">{formatTime(analysis.duration_seconds)}</p>
-                  <p className="aa-stat-sub">mm:ss</p>
+                <div className="aa-card aa-metric">
+                  <div className="aa-metric-icon bg-blue-500/20">
+                    <Clock size={18} className="text-blue-400" />
+                  </div>
+                  <div className="aa-metric-value">{formatTime(analysis.duration_seconds)}</div>
+                  <div className="aa-metric-label">Duration</div>
                 </div>
-                <div className="aa-stat">
-                  <p className="aa-stat-label">Beats</p>
-                  <p className="aa-stat-value">{analysis.beat_count}</p>
-                  <p className="aa-stat-sub">total</p>
+                <div className="aa-card aa-metric">
+                  <div className="aa-metric-icon bg-amber-500/20">
+                    <Zap size={18} className="text-amber-400" />
+                  </div>
+                  <div className="aa-metric-value">{analysis.beat_count}</div>
+                  <div className="aa-metric-label">Beats</div>
                 </div>
-                <div className="aa-stat">
-                  <p className="aa-stat-label">Sections</p>
-                  <p className="aa-stat-value">{analysis.sections.length}</p>
-                  <p className="aa-stat-sub">detected</p>
+                <div className="aa-card aa-metric">
+                  <div className="aa-metric-icon bg-emerald-500/20">
+                    <TrendingUp size={18} className="text-emerald-400" />
+                  </div>
+                  <div className="aa-metric-value">{(analysis.confidence * 100).toFixed(0)}%</div>
+                  <div className="aa-metric-label">Confidence</div>
                 </div>
               </div>
 
+              {/* Song Structure Bar */}
               <div className="aa-card">
                 <h3 className="aa-section-title">
                   <BarChart3 size={14} />
@@ -302,6 +384,74 @@ export function AudioAnalysisPage() {
                         />
                       </AreaChart>
                     </ResponsiveContainer>
+                  </div>
+                  {/* Canvas fallback for performance */}
+                  <canvas
+                    ref={canvasRef}
+                    width={800}
+                    height={80}
+                    className="aa-energy-canvas"
+                  />
+                </div>
+              )}
+
+              {/* Sections with Generate Buttons */}
+              <div className="aa-card">
+                <h3 className="aa-section-title">
+                  <Activity size={14} />
+                  Detected Sections
+                  <span className="aa-section-count">{analysis.sections.length} sections</span>
+                </h3>
+                <div className="aa-sections-list">
+                  {analysis.sections.map((section, i) => (
+                    <div key={i} className="aa-section-item">
+                      <span className={`aa-section-badge ${getSectionColor(section.type)}`}>
+                        {section.type}
+                      </span>
+                      <div className="aa-section-info">
+                        <div className="aa-section-time">
+                          <span>{formatTime(section.start)}</span>
+                          <ArrowRight size={10} />
+                          <span>{formatTime(section.end)}</span>
+                          <span className="aa-section-duration">({formatTime(section.end - section.start)})</span>
+                        </div>
+                        <div className="aa-section-energy">
+                          <div className="aa-section-energy-bar">
+                            <div className={`aa-section-energy-fill ${getEnergyColor(section.energy)}`} style={{ width: `${section.energy * 100}%` }} />
+                          </div>
+                          <span className="aa-section-energy-value">{(section.energy * 100).toFixed(0)}%</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleGenerateSection(section.type, section.start, section.end)}
+                        disabled={generating === section.type || !analysis.stored_path}
+                        className="aa-generate-btn"
+                      >
+                        {generating === section.type ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                        Generate
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Beat Timeline */}
+              {analysis.beat_times && analysis.beat_times.length > 0 && (
+                <div className="aa-card">
+                  <h3 className="aa-section-title">
+                    <Zap size={14} />
+                    Beat Timeline
+                    <span className="aa-section-count">{analysis.beat_times.length} beats</span>
+                  </h3>
+                  <div className="aa-beat-timeline">
+                    {analysis.beat_times.slice(0, 100).map((t, i) => (
+                      <span key={i} className="aa-beat-item">
+                        {t.toFixed(2)}
+                      </span>
+                    ))}
+                    {analysis.beat_times.length > 100 && (
+                      <span className="aa-beat-more">+{analysis.beat_times.length - 100} more</span>
+                    )}
                   </div>
                 </div>
               )}

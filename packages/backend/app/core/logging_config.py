@@ -178,6 +178,21 @@ def setup_logging(level: str = "INFO") -> None:
     logging.getLogger("websockets").setLevel(logging.WARNING)
     logging.getLogger("aiohttp").setLevel(logging.WARNING)
 
+    # Suppress benign Windows Proactor ConnectionResetError noise
+    # (asyncio pipes closed by remote - happens on every SSE disconnect)
+    class _WinResetFilter(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            msg = record.getMessage()
+            if "ConnectionResetError" in msg and "10054" in msg:
+                return False
+            if "_ProactorBasePipeTransport._call_connection_lost" in msg:
+                return False
+            return True
+
+    for name in ("asyncio", "root"):
+        lg = logging.getLogger(name)
+        lg.addFilter(_WinResetFilter())
+
     # === Capture print() calls ===
     std_capture = _StdCapture(logging.getLogger("app.stdout"), logging.INFO)
     std_capture.install()

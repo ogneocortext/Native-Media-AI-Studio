@@ -39,7 +39,7 @@ export function AudioVisualizer({
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const animationRef = useRef<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
+  const [, setAudioBuffer] = useState<AudioBuffer | null>(null);
   const [waveformData, setWaveformData] = useState<number[]>([]);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -247,7 +247,6 @@ export function AudioVisualizer({
         const threshold = average * 1.3;
 
         if (bassAverage > threshold && bassAverage > 150) {
-          const intensity = bassAverage > 200 ? "high" : bassAverage > 170 ? "medium" : "low";
           if (audioRef.current && onBeatDetected) {
             onBeatDetected(audioRef.current.currentTime, bassAverage / 255);
           }

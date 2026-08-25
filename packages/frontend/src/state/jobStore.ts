@@ -253,7 +253,7 @@ export const useJobStore = create<JobState>((set, get) => ({
 function handleSSEMessage(
   message: Record<string, unknown>,
   get: () => JobState,
-  set: (state: Partial<JobState>) => void
+  _set: (state: Partial<JobState>) => void
 ) {
   const eventType = message.type as string;
   const event = message.event as string;

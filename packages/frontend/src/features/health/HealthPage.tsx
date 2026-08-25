@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Activity,
   Server,
@@ -19,11 +19,12 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
-  Trash2,
   Thermometer,
-  Box,
-  Zap,
+  CpuIcon,
+  MemoryStick,
+  TrendingUp,
   Terminal,
+  Pause,
 } from "lucide-react";
 import { Card, StatusBadge, LoadingSpinner } from "../../components/common";
 import { useHealth } from "../../hooks";
@@ -33,10 +34,21 @@ import {
   stopComfyUI,
   updateComfyUI,
   getGPUSnapshot,
-  get3DStatus,
+  getSystemDiagnostics,
+  checkService,
+  getApiBase,
   type ComfyUIStatus as ComfyUIStatusType,
   type GPUSnapshot,
 } from "../../services/api";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 function getUsageColor(percent: number): string {
   if (percent < 50) return "#22c55e";
@@ -502,6 +514,17 @@ export function HealthPage() {
             </div>
           </div>
         </Card>
+
+        {/* GPU */}
+        <GPUCard />
+      </div>
+
+      {/* Performance History & Service Checks */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <PerformanceHistoryCard />
+        </div>
+        <ServiceChecksCard />
       </div>
 
       {/* Services Status */}
@@ -765,10 +788,10 @@ function LogsViewer() {
   const warnCount = logContent.filter((l) => l.includes("WARNING")).length;
 
   const logNames = [
-    { id: "app", label: "All Logs", icon: FileText, desc: "Everything" },
-    { id: "error", label: "Errors", icon: XCircle, desc: "Errors only" },
-    { id: "queue", label: "Queue", icon: Activity, desc: "Job processing" },
-    { id: "comfyui", label: "ComfyUI", icon: Server, desc: "Image generation" },
+    { id: "app", label: "All Logs", icon: FileText },
+    { id: "error", label: "Errors", icon: XCircle },
+    { id: "queue", label: "Queue", icon: Activity },
+    { id: "comfyui", label: "ComfyUI", icon: Server },
   ];
 
   return (
@@ -812,7 +835,7 @@ function LogsViewer() {
         <div className="mt-4 space-y-4">
           {/* Log file tabs */}
           <div className="flex gap-2 flex-wrap">
-            {logNames.map(({ id, label, icon: Icon, desc }) => {
+            {logNames.map(({ id, label, icon: Icon }) => {
               const isActive = activeLog === id;
               const fileSize = logInfo?.files[id]?.size_human;
               const hasContent = fileSize && fileSize !== "0.0 B";
@@ -1006,9 +1029,338 @@ function LogsViewer() {
                 </div>
               </div>
             )}
-          </div>
+           </div>
         </div>
       )}
+    </Card>
+  );
+}
+
+// ============================================================================
+// GPU Monitoring Card
+// ============================================================================
+
+function GPUCard() {
+  const [gpu, setGpu] = useState<GPUSnapshot | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchGPU = async () => {
+    setLoading(true);
+    try {
+      const data = await getGPUSnapshot();
+      setGpu(data);
+    } catch {
+      // GPU monitoring not available
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchGPU();
+    const interval = setInterval(fetchGPU, 5000); // Refresh every 5s
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!gpu?.available) {
+    return (
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+              <CpuIcon size={20} className="text-purple-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">GPU</h3>
+              <p className="text-xs text-muted">Not available</p>
+            </div>
+          </div>
+          <button onClick={fetchGPU} disabled={loading} className="text-xs text-muted hover:text-white">
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+          </button>
+        </div>
+        <p className="text-xs text-muted">GPU monitoring requires NVIDIA drivers with NVML support</p>
+      </Card>
+    );
+  }
+
+  const memPercent = gpu.memory_percent || 0;
+  const tempColor = gpu.temperature_c > 80 ? "#ef4444" : gpu.temperature_c > 70 ? "#f59e0b" : "#22c55e";
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+            <CpuIcon size={20} className="text-purple-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-sm">{gpu.name || "GPU"}</h3>
+            <p className="text-xs text-muted">
+              {gpu.memory_free_mb}MB free / {gpu.memory_total_mb}MB total
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs px-2 py-1 rounded-full font-medium" style={{
+            background: `${getUsageColor(memPercent)}20`,
+            color: getUsageColor(memPercent),
+          }}>
+            {memPercent.toFixed(0)}%
+          </span>
+          <button onClick={fetchGPU} disabled={loading} className="text-xs text-muted hover:text-white">
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+          </button>
+        </div>
+      </div>
+
+      {/* VRAM Usage */}
+      <div className="space-y-3">
+        <div>
+          <div className="flex justify-between text-sm mb-1">
+            <span className="text-muted flex items-center gap-1">
+              <MemoryStick size={12} /> VRAM
+            </span>
+            <span className="font-bold">{memPercent.toFixed(1)}%</span>
+          </div>
+          <div className="h-2.5 bg-background rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${memPercent}%`, background: getUsageColor(memPercent) }}
+            />
+          </div>
+        </div>
+
+        {/* GPU Utilization */}
+        <div>
+          <div className="flex justify-between text-sm mb-1">
+            <span className="text-muted flex items-center gap-1">
+              <Activity size={12} /> GPU Utilization
+            </span>
+            <span className="font-bold">{gpu.gpu_utilization}%</span>
+          </div>
+          <div className="h-2.5 bg-background rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${gpu.gpu_utilization}%`, background: getUsageColor(gpu.gpu_utilization) }}
+            />
+          </div>
+        </div>
+
+        {/* Temperature */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted flex items-center gap-1">
+            <Thermometer size={12} /> Temperature
+          </span>
+          <span className="font-bold" style={{ color: tempColor }}>
+            {gpu.temperature_c}°C
+          </span>
+        </div>
+
+        {/* Processes */}
+        {gpu.processes && gpu.processes.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-white/5">
+            <p className="text-xs text-muted mb-2">GPU Processes:</p>
+            <div className="space-y-1">
+              {gpu.processes.slice(0, 5).map((proc, i) => (
+                <div key={i} className="flex items-center justify-between text-xs">
+                  <span className="text-muted truncate flex-1">{proc.name}</span>
+                  <span className="text-white ml-2">{proc.used_mb ? `${proc.used_mb}MB` : "N/A"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ============================================================================
+// Performance History Card
+// ============================================================================
+
+interface DataPoint {
+  time: number;
+  label: string;
+  gpu?: number;
+  vram?: number;
+  cpu?: number;
+  memory?: number;
+  temp?: number;
+}
+
+const MAX_HISTORY_POINTS = 60;
+
+function PerformanceHistoryCard() {
+  const [history, setHistory] = useState<DataPoint[]>([]);
+  const [activeChart, setActiveChart] = useState<string>("gpu");
+  const [autoRefresh, setAutoRefresh] = useState(true);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [gpuData, sysData] = await Promise.all([
+        getGPUSnapshot().catch(() => null),
+        getSystemDiagnostics().catch(() => null),
+      ]);
+      const now = Date.now();
+      const timeLabel = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      setHistory((prev) => [
+        ...prev.slice(-MAX_HISTORY_POINTS),
+        {
+          time: now,
+          label: timeLabel,
+          gpu: gpuData?.gpu_utilization ?? 0,
+          vram: gpuData?.memory_percent ?? 0,
+          cpu: sysData?.cpu?.usage_percent ?? 0,
+          memory: sysData?.memory?.percent ?? 0,
+          temp: gpuData?.temperature_c ?? 0,
+        },
+      ]);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+    if (!autoRefresh) return;
+    const interval = setInterval(loadData, 5000);
+    return () => clearInterval(interval);
+  }, [loadData, autoRefresh]);
+
+  const metrics = [
+    { key: "gpu", label: "GPU", color: "#8b5cf6" },
+    { key: "vram", label: "VRAM", color: "#06b6d4" },
+    { key: "cpu", label: "CPU", color: "#10b981" },
+    { key: "memory", label: "Memory", color: "#f59e0b" },
+  ];
+  const activeMetric = metrics.find((m) => m.key === activeChart) || metrics[0];
+
+  return (
+    <Card
+      title="Performance History"
+      icon={<TrendingUp size={16} className="text-violet-400" />}
+      headerActions={
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className={`p-1.5 rounded-lg ${autoRefresh ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-700 text-gray-400"}`}
+            title={autoRefresh ? "Auto-refresh ON" : "Auto-refresh OFF"}
+          >
+            {autoRefresh ? <Play size={12} /> : <Pause size={12} />}
+          </button>
+        </div>
+      }
+    >
+      {history.length > 1 ? (
+        <>
+          <div className="flex items-center gap-1 mb-4">
+            {metrics.map((m) => (
+              <button
+                key={m.key}
+                onClick={() => setActiveChart(m.key)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                  activeChart === m.key ? "text-white" : "bg-gray-700/50 text-gray-400 hover:bg-gray-700"
+                }`}
+                style={activeChart === m.key ? { backgroundColor: m.color } : {}}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={history} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                <defs>
+                  <linearGradient id="perfGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={activeMetric.color} stopOpacity={0.5} />
+                    <stop offset="50%" stopColor={activeMetric.color} stopOpacity={0.15} />
+                    <stop offset="95%" stopColor={activeMetric.color} stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} interval="preserveStartEnd" axisLine={{ stroke: "#374151" }} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} domain={[0, 100]} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
+                <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "8px" }} labelStyle={{ color: "#9ca3af" }} />
+                <Area type="monotone" dataKey={activeChart} name={`${activeMetric.label} %`} stroke={activeMetric.color} strokeWidth={2} fill="url(#perfGradient)" animationDuration={400} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-white/5">
+            {metrics.map((m) => {
+              const last = history[history.length - 1]?.[m.key as keyof DataPoint] as number;
+              return (
+                <button key={m.key} onClick={() => setActiveChart(m.key)} className={`text-left p-2 rounded-lg ${activeChart === m.key ? "bg-white/5" : "hover:bg-white/5"}`}>
+                  <span className="text-[10px] text-gray-400 block">{m.label}</span>
+                  <span className="text-sm font-bold" style={{ color: m.color }}>{last?.toFixed(0) ?? "—"}%</span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <div className="h-48 flex items-center justify-center text-sm text-muted">Collecting data…</div>
+      )}
+    </Card>
+  );
+}
+
+// ============================================================================
+// Service Checks Card
+// ============================================================================
+
+interface ServiceCheck {
+  service: string;
+  status: "online" | "offline" | "checking";
+  lastChecked?: number;
+}
+
+function ServiceChecksCard() {
+  const [checks, setChecks] = useState<Record<string, ServiceCheck>>({});
+  const services = ["backend", "comfyui", "ollama", "blender", "unity"];
+
+  const handleCheck = async (service: string) => {
+    setChecks((prev) => ({ ...prev, [service]: { service, status: "checking" } }));
+    try {
+      await checkService(service);
+      setChecks((prev) => ({ ...prev, [service]: { service, status: "online", lastChecked: Date.now() } }));
+    } catch {
+      setChecks((prev) => ({ ...prev, [service]: { service, status: "offline", lastChecked: Date.now() } }));
+    }
+  };
+
+  return (
+    <Card title="Service Checks" icon={<Activity size={16} className="text-emerald-400" />}>
+      <div className="space-y-2">
+        {services.map((service) => {
+          const check = checks[service];
+          return (
+            <div key={service} className="flex items-center justify-between p-2 bg-white/[0.02] rounded-lg">
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  check?.status === "online" ? "bg-emerald-400" :
+                  check?.status === "offline" ? "bg-red-400" :
+                  check?.status === "checking" ? "bg-amber-400 animate-pulse" :
+                  "bg-gray-600"
+                }`} />
+                <span className="text-sm text-white capitalize">{service}</span>
+              </div>
+              {check?.status === "checking" ? (
+                <Loader2 size={14} className="animate-spin text-amber-400" />
+              ) : check?.status === "online" || check?.status === "offline" ? (
+                <span className={`flex items-center gap-1 text-xs ${check.status === "online" ? "text-emerald-400" : "text-red-400"}`}>
+                  {check.status === "online" ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                  {check.status}
+                </span>
+              ) : (
+                <button onClick={() => handleCheck(service)} className="text-xs px-2 py-0.5 rounded bg-violet-500/20 text-violet-300 hover:bg-violet-500/30">
+                  Check
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </Card>
   );
 }

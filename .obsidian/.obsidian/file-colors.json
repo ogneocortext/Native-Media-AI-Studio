@@ -1,0 +1,48 @@
+{
+  "default": {
+    "icon": "lucide-file",
+    "color": ""
+  },
+  "rules": [
+    {
+      "color": "#7c3aed",
+      "icon": "lucide-film",
+      "rule": {
+        "match": "nameContains",
+        "value": "video"
+      }
+    },
+    {
+      "color": "#2563eb",
+      "icon": "lucide-cpu",
+      "rule": {
+        "match": "nameContains",
+        "value": "rendering"
+      }
+    },
+    {
+      "color": "#059669",
+      "icon": "lucide-box",
+      "rule": {
+        "match": "nameContains",
+        "value": "3d"
+      }
+    },
+    {
+      "color": "#d97706",
+      "icon": "lucide-palette",
+      "rule": {
+        "match": "nameContains",
+        "value": "prompt"
+      }
+    },
+    {
+      "color": "#dc2626",
+      "icon": "lucide-play",
+      "rule": {
+        "match": "nameContains",
+        "value": "youtube"
+      }
+    }
+  ]
+}

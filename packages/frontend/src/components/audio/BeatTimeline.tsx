@@ -3,8 +3,8 @@
  * Allows users to add, edit, and delete beat markers on a timeline
  */
 
-import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Plus, Trash2, Edit2, Music, Zap, SkipForward, PauseCircle } from "lucide-react";
+import React, { useState, useCallback, useRef } from "react";
+import { Plus, Trash2, Music, Zap, SkipForward, PauseCircle } from "lucide-react";
 import { formatTime } from "../../utils/format";
 
 export interface BeatMarker {
@@ -43,15 +43,13 @@ export function BeatTimeline({
   const timelineRef = useRef<HTMLDivElement>(null);
   const [selectedMarker, setSelectedMarker] = useState<BeatMarker | null>(null);
   const [isAddingMarker, setIsAddingMarker] = useState(false);
-  const [newMarkerTime, setNewMarkerTime] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
 
   const totalWidth = Math.max(duration * zoom, 800);
 
   // Handle timeline click to add or move playhead
   const handleTimelineClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (isDragging || !timelineRef.current) return;
+      if (!timelineRef.current) return;
 
       const rect = timelineRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left + timelineRef.current.scrollLeft;
@@ -70,7 +68,7 @@ export function BeatTimeline({
         onTimeChange(Math.max(0, Math.min(time, duration)));
       }
     },
-    [isAddingMarker, isDragging, duration, markers, onMarkersChange, onTimeChange, zoom]
+    [isAddingMarker, duration, markers, onMarkersChange, onTimeChange, zoom]
   );
 
   // Delete marker
@@ -105,7 +103,6 @@ export function BeatTimeline({
       // Get the first channel's audio data
       const channelData = audioBuffer.getChannelData(0);
       const sampleRate = audioBuffer.sampleRate;
-      const duration = audioBuffer.duration;
 
       // Parameters for beat detection
       const bufferSize = 1024;

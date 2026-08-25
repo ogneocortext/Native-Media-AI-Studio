@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Brain,
   Send,
@@ -16,6 +16,7 @@ import {
   Wifi,
   WifiOff,
   Palette,
+  X,
 } from "lucide-react";
 import {
   getOllamaModels,
@@ -23,7 +24,6 @@ import {
   ollamaChatStream,
   parseOllamaStream,
   type OllamaModel,
-  type ChatMessage,
   type ToolDefinition,
 } from "../../services/api";
 import { DS } from "../../styles/designSystem";
@@ -137,10 +137,11 @@ export function AIToolsPage() {
   const [tools, setTools] = useState<Tool[]>(DEFAULT_TOOLS);
   const [showToolEditor, setShowToolEditor] = useState(false);
   const [editingTool, setEditingTool] = useState<Tool | null>(null);
+  const [toolJsonValid, setToolJsonValid] = useState(true);
   const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set(DEFAULT_TOOLS.map((t) => t.id)));
   const [ollamaConnected, setOllamaConnected] = useState(false);
-  const [streaming, setStreaming] = useState(false);
   const [vizConfig, setVizConfig] = useState<import("./VisualizationCanvas").VisualizationConfig | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     loadModels();
@@ -181,23 +182,26 @@ export function AIToolsPage() {
     setError(null);
     setResponse("");
     setToolCalls([]);
+    setVizConfig(null);
 
     const supportsTools = models.find((m) => m.name === selectedModel)?.supportsTools;
     const activeTools = supportsTools ? convertToToolDefinitions() : [];
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      // Use streaming for real-time display
       const stream = await ollamaChatStream(prompt, selectedModel, {
         tools: activeTools,
         think: true,
         maxToolCalls: 5,
-      });
+      }, controller.signal);
 
-      // Parse SSE stream and update UI in real-time
       let fullResponse = "";
       const toolDetails: Array<{ name: string; arguments: Record<string, unknown>; result?: string }> = [];
 
       for await (const event of parseOllamaStream(stream)) {
+        if (controller.signal.aborted) break;
         if (event.type === "content") {
           const data = event.data as { content: string };
           fullResponse += data.content;
@@ -210,20 +214,30 @@ export function AIToolsPage() {
           setToolCalls([...toolDetails]);
         } else if (event.type === "done") {
           const data = event.data as { content: string; tool_calls: number };
-          fullResponse = data.content;
+          if (!fullResponse && data.content) fullResponse = data.content;
           setResponse(fullResponse);
         }
       }
 
-      // Build tool calls display from the agent loop
       if (toolDetails.length > 0) {
-        // Check for visualization tool output and render it
         for (const td of toolDetails) {
-          if (td.name === "generate_visualization" && td.result) {
+          if (td.name === "generate_visualization") {
             try {
-              const config = JSON.parse(td.result);
+              const config = typeof td.arguments === "string"
+                ? JSON.parse(td.arguments)
+                : td.arguments;
               if (config.type === "visualization") {
                 setVizConfig(config);
+              } else if (config.style) {
+                setVizConfig({
+                  type: "visualization",
+                  style: config.style,
+                  colorScheme: config.color_scheme || "neon",
+                  intensity: config.intensity ?? 0.7,
+                  bpm: config.bpm || 120,
+                  colors: config.colors || { primary: "#8b5cf6", secondary: "#06b6d4", accent: "#f59e0b" },
+                  params: config.params || { particleCount: 500, speed: 1, scale: 1, glow: true, rotation: true },
+                });
               }
             } catch {
               // Not a valid visualization config
@@ -240,7 +254,7 @@ export function AIToolsPage() {
         timestamp: new Date(),
       }, ...prev.slice(0, 19)]);
     } catch (err: unknown) {
-      // Fallback to non-streaming if streaming fails
+      if (controller.signal.aborted) return;
       try {
         const result = await ollamaChat(prompt, selectedModel, {
           tools: activeTools,
@@ -255,8 +269,15 @@ export function AIToolsPage() {
         setError(err instanceof Error ? err.message : "Generation failed");
       }
     } finally {
+      abortRef.current = null;
       setGenerating(false);
     }
+  };
+
+  const handleCancel = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setGenerating(false);
   };
 
   const formatSize = (bytes: number) => {
@@ -282,6 +303,7 @@ export function AIToolsPage() {
       parameters: { type: "object", properties: {}, required: [] },
     };
     setEditingTool(newTool);
+    setToolJsonValid(true);
     setShowToolEditor(true);
   };
 
@@ -294,6 +316,7 @@ export function AIToolsPage() {
     setEnabledTools((prev) => new Set([...prev, tool.id]));
     setShowToolEditor(false);
     setEditingTool(null);
+    setToolJsonValid(true);
   };
 
   const deleteTool = (id: string) => {
@@ -394,14 +417,25 @@ export function AIToolsPage() {
             />
             <div className={DS.flexBetween + " mt-2"}>
               <span className={DS.textXs}>Ctrl+Enter to send</span>
-              <button
-                onClick={handleGenerate}
-                disabled={generating || !prompt.trim() || !selectedModel}
-                className={DS.btnPrimary + " " + DS.btnDisabled}
-              >
-                {generating ? <Loader2 size={16} className={DS.loading} /> : <Send size={16} />}
-                {generating ? "Generating..." : "Generate"}
-              </button>
+              <div className="flex gap-2">
+                {generating && (
+                  <button
+                    onClick={handleCancel}
+                    className={DS.btnSecondary}
+                  >
+                    <X size={16} />
+                    Cancel
+                  </button>
+                )}
+                <button
+                  onClick={handleGenerate}
+                  disabled={generating || !prompt.trim() || !selectedModel}
+                  className={DS.btnPrimary + " " + DS.btnDisabled}
+                >
+                  {generating ? <Loader2 size={16} className={DS.loading} /> : <Send size={16} />}
+                  {generating ? "Generating..." : "Generate"}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -513,7 +547,7 @@ export function AIToolsPage() {
                     className="accent-violet-500"
                   />
                   <span className="text-sm text-gray-300 flex-1 truncate">{tool.name}</span>
-                  <button onClick={() => { setEditingTool(tool); setShowToolEditor(true); }} className="text-gray-500 hover:text-white">
+                  <button onClick={() => { setEditingTool(tool); setToolJsonValid(true); setShowToolEditor(true); }} className="text-gray-500 hover:text-white">
                     <Settings size={12} />
                   </button>
                   <button onClick={() => deleteTool(tool.id)} className="text-gray-500 hover:text-red-400">
@@ -617,17 +651,24 @@ export function AIToolsPage() {
                     try {
                       const params = JSON.parse(e.target.value);
                       setEditingTool({ ...editingTool, parameters: params });
-                    } catch { /* Invalid JSON */ }
+                      setToolJsonValid(true);
+                    } catch {
+                      setToolJsonValid(false);
+                    }
                   }}
-                  className={DS.textarea + " " + DS.mono}
+                  className={DS.textarea + " " + DS.mono + (toolJsonValid ? "" : " border-red-500")}
                   rows={6}
                 />
+                {!toolJsonValid && (
+                  <p className="text-red-400 text-xs mt-1">Invalid JSON</p>
+                )}
               </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button
                 onClick={() => saveTool(editingTool)}
-                className={"flex-1 " + DS.btnPrimary}
+                disabled={!toolJsonValid || !editingTool.name.trim()}
+                className={"flex-1 " + DS.btnPrimary + ((!toolJsonValid || !editingTool.name.trim()) ? " opacity-50 cursor-not-allowed" : "")}
               >
                 Save
               </button>

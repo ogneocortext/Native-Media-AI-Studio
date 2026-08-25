@@ -695,6 +695,7 @@ export async function get3DStatus(): Promise<Record<string, unknown>> {
 export async function generate3D(request: {
   prompt: string;
   model?: string;
+  steps?: number;
 }): Promise<Record<string, unknown>> {
   const base = getApiBase();
   const res = await fetch(`${base}/api/health/3d/generate`, {
@@ -824,6 +825,7 @@ export async function ollamaChatStream(
     think?: boolean | string;
     maxToolCalls?: number;
   },
+  signal?: AbortSignal,
 ): Promise<ReadableStream<Uint8Array>> {
   const base = getApiBase();
   const res = await fetch(`${base}/api/integrations/ollama/chat`, {
@@ -838,6 +840,7 @@ export async function ollamaChatStream(
       stream: true,
       max_tool_calls: options?.maxToolCalls || 5,
     }),
+    signal,
   });
   if (!res.ok) throw new Error("Failed to chat with Ollama");
   return res.body!;
@@ -849,10 +852,11 @@ export async function ollamaChatStream(
  */
 export async function* parseOllamaStream(
   stream: ReadableStream<Uint8Array>,
-): AsyncGenerator<{ type: "content" | "tool_calls" | "done"; data: unknown }> {
+): AsyncGenerator<{ type: "content" | "tool_calls" | "done" | "connected"; data: unknown }> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let lastEvent = "";
 
   try {
     while (true) {
@@ -864,17 +868,20 @@ export async function* parseOllamaStream(
       buffer = lines.pop() || "";
 
       for (const line of lines) {
-        if (line.startsWith("data: ")) {
+        if (line.startsWith("event: ")) {
+          lastEvent = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
           try {
             const data = JSON.parse(line.slice(6));
-            const event = line.match(/^event: (.+)$/m)?.[1];
 
-            if (event === "content") {
-              yield { type: "content", data: JSON.parse(data) };
-            } else if (event === "tool_calls") {
-              yield { type: "tool_calls", data: JSON.parse(data) };
-            } else if (event === "done") {
-              yield { type: "done", data: JSON.parse(data) };
+            if (lastEvent === "content") {
+              yield { type: "content", data };
+            } else if (lastEvent === "tool_calls") {
+              yield { type: "tool_calls", data };
+            } else if (lastEvent === "done") {
+              yield { type: "done", data };
+            } else if (lastEvent === "connected") {
+              yield { type: "connected", data };
             }
           } catch {
             // Skip malformed JSON

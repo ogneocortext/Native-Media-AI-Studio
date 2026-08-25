@@ -3,8 +3,6 @@
  * Connects to the local ComfyUI instance at http://localhost:8188.
  */
 
-import { getBackendUrl } from "./portConfig";
-
 const COMFYUI_URL = "http://127.0.0.1:8188";
 
 export interface ComfyUIProgress {

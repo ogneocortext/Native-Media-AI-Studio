@@ -1,0 +1,25 @@
+{
+  "base": "highlighter",
+  "color": "",
+  "icon": "",
+  "alwaysUpdateLinks": true,
+  "useMarkdownLinks": true,
+  "newLinkFormat": "relativePath",
+  "attachmentFolderPath": "attachments",
+  "promptDelete": false,
+  "showLineNumber": true,
+  "strictLineBreaks": false,
+  "tabIndent": true,
+  "spellcheck": true,
+  "spellcheckLanguages": [
+    "en-US"
+  ],
+  "readableLineLength": true,
+  "showFrontmatter": true,
+  "autoPairBrackets": true,
+  "autoPairMarkdown": true,
+  "foldHeading": true,
+  "foldIndent": true,
+  "defaultViewMode": "source",
+  "showInlineTitle": true
+}

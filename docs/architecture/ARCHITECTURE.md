@@ -14,8 +14,9 @@
 │                    Zustand Stores + API Client                   │
 │                              │                                   │
 └──────────────────────────────┼───────────────────────────────────┘
-                               │ HTTP + WebSocket
+                               │ HTTP + SSE
                                │
+
 ┌──────────────────────────────┼───────────────────────────────────┐
 │                    Backend (FastAPI)                              │
 │                              │                                   │
@@ -29,7 +30,7 @@
 │  ┌───────────────────────────┴───────────────────────────────┐  │
 │  │                    Job Queue Manager                        │  │
 │  │  ┌─────────────────────────────────────────────────────┐  │  │
-│  │  │              Job Processor (Serial)                   │  │  │
+│  │  │              Job Processor (Threaded)                 │  │  │
 │  │  │  ┌─────────────┐ ┌──────────────┐ ┌──────────────┐ │  │  │
 │  │  │  │AudioAnalysis│ │ MusicVideo   │ │ ImageGen     │ │  │  │
 │  │  │  │  Handler    │ │  Handler     │ │  Handler     │ │  │  │
@@ -48,7 +49,7 @@
 │  ┌───────────────────────────────────────────────────────────┐  │
 │  │               External Adapters                            │  │
 │  │  ┌──────────┐ ┌──────────┐ ┌──────────┐                  │  │
-│  │  │ ComfyUI  │ │ Ollama   │ │ SD WebUI │                  │  │
+│  │  │ ComfyUI  │ │ Ollama   │ │ Unity    │                  │  │
 │  │  └──────────┘ └──────────┘ └──────────┘                  │  │
 │  └───────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
@@ -88,23 +89,24 @@ CREATED → QUEUED → RUNNING → COMPLETED
 1. **Frontend** uploads audio via `POST /api/audio/upload`
 2. **Backend** stores file, returns `stored_path`
 3. **Frontend** creates job via `POST /api/jobs` with `stored_path` in params
-4. **Queue Manager** enqueues job, broadcasts `job.queued` via WebSocket
+4. **Queue Manager** enqueues job, broadcasts `job.queued` via SSE
 5. **Job Processor** picks up job, calls appropriate handler
-6. **Handler** processes job, updates progress via WebSocket
+6. **Handler** processes job, updates progress via SSE
 7. **On completion**, output file is saved to `output/video/` or `output/previews/`
-8. **Frontend** receives `job.completed` with output path
+8. **Frontend** receives `job.completed` with output path via SSE
 
 ## Key Components
 
 ### Frontend Stores (Zustand)
-- `jobStore` — Job queue state, WebSocket connection
+- `jobStore` — Job queue state, SSE connection
 - `healthStore` — System health, adapter status
 - `outputStore` — Generated media files, filters
+- `gpuStore` — GPU snapshot polling
 
 ### Backend Services
 - `AudioAnalyzer` — Librosa-based feature extraction
 - `MusicVideoHandler` — FFmpeg video rendering with visualization filters
-- `ImageGenerationHandler` — ComfyUI/SD WebUI integration
+- `ImageGenerationHandler` — ComfyUI integration
 - `ComfyUIWorkflowHandler` — Custom workflow execution
 
 ### Database Schema (SQLite)

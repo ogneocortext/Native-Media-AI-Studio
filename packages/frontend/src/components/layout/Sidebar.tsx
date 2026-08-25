@@ -11,15 +11,14 @@ import {
   LayoutDashboard,
   ListOrdered,
   Loader2,
-  Palette,
-  Settings,
-  Sparkles,
-  Zap,
   Menu,
   X,
   BarChart3,
   Brain,
-  Cpu,
+  Settings,
+  Sparkles,
+  Zap,
+  Wand2,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
@@ -33,31 +32,29 @@ const primaryNav: NavItem[] = [
 ];
 
 const createNav: NavItem[] = [
-  { path: "/three-js-studio", label: "Three.js Studio", icon: <Sparkles size={18} /> },
-  { path: "/studio-3d", label: "3D Studio (ComfyUI)", icon: <Box size={18} /> },
-  { path: "/generate-3d", label: "Generate 3D", icon: <Box size={18} /> },
-  { path: "/image-generation", label: "Image Generation", icon: <Image size={18} /> },
-  { path: "/video-generation", label: "Video Generation", icon: <Film size={18} /> },
+  { path: "/music-video-wizard", label: "Music Video", icon: <Wand2 size={18} /> },
   { path: "/audio-analysis", label: "Audio Analysis", icon: <BarChart3 size={18} /> },
   { path: "/visualizer", label: "Visualizer", icon: <Zap size={18} /> },
   { path: "/ai-tools", label: "AI Tools", icon: <Brain size={18} /> },
 ];
 
+const generateNav: NavItem[] = [
+  { path: "/image-generation", label: "Image Gen", icon: <Image size={18} /> },
+  { path: "/video-generation", label: "Video Gen", icon: <Film size={18} /> },
+  { path: "/generate-3d", label: "3D Gen", icon: <Box size={18} /> },
+];
+
 const manageNav: NavItem[] = [
-  { path: "/music-video", label: "Music Video (Classic)", icon: <Film size={18} /> },
-  { path: "/video-editor", label: "Video Editor", icon: <Film size={18} /> },
-  { path: "/art-direction", label: "Art Direction", icon: <Palette size={18} /> },
-  { path: "/storyboards", label: "Storyboards", icon: <BookOpen size={18} /> },
-  { path: "/queue", label: "Queue", icon: <ListOrdered size={18} /> },
   { path: "/library", label: "Media Library", icon: <FolderOpen size={18} /> },
+  { path: "/queue", label: "Queue", icon: <ListOrdered size={18} /> },
+  { path: "/storyboards", label: "Storyboards", icon: <BookOpen size={18} /> },
 ];
 
 const systemNav: NavItem[] = [
   { path: "/health", label: "Health", icon: <Activity size={18} /> },
   { path: "/logs", label: "Logs", icon: <FileText size={18} /> },
-  { path: "/diagnostics", label: "Diagnostics", icon: <Cpu size={18} /> },
   { path: "/settings", label: "Settings", icon: <Settings size={18} /> },
-  { path: "/docs", label: "Documentation", icon: <BookOpen size={18} /> },
+  { path: "/docs", label: "Docs", icon: <BookOpen size={18} /> },
 ];
 
 function NavSection({ title, items, location, collapsed }: { title: string; items: NavItem[]; location: ReturnType<typeof useLocation>; collapsed?: boolean }) {
@@ -113,7 +110,7 @@ function NavSection({ title, items, location, collapsed }: { title: string; item
 
 export function Sidebar() {
   const location = useLocation();
-  const { overall, adapters, isLoading, sseConnected, fetchHealth, connectSSE, disconnectSSE } = useHealthStore();
+  const { overall, adapters, isLoading, fetchHealth, connectSSE, disconnectSSE } = useHealthStore();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -213,8 +210,9 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="sidebar-nav">
-          <NavSection title="Start here" items={primaryNav} location={location} collapsed={collapsed && !isMobile} />
+          <NavSection title="Start" items={primaryNav} location={location} collapsed={collapsed && !isMobile} />
           <NavSection title="Create" items={createNav} location={location} collapsed={collapsed && !isMobile} />
+          <NavSection title="Generate" items={generateNav} location={location} collapsed={collapsed && !isMobile} />
           <NavSection title="Manage" items={manageNav} location={location} collapsed={collapsed && !isMobile} />
           <NavSection title="System" items={systemNav} location={location} collapsed={collapsed && !isMobile} />
         </nav>

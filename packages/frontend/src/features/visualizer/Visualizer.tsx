@@ -1,13 +1,11 @@
 import React, { useRef, useState, useEffect, useMemo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Icosahedron } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import { Html } from "@react-three/drei";
-import { Card } from "../../components/common";
 import * as THREE from "three";
-import { Upload, Music, AlertCircle, Play, Pause, Volume2, FolderOpen, Maximize2, Camera, Waves, Palette, Sparkles } from "lucide-react";
+import { Upload, Music, AlertCircle, Pause, FolderOpen, Waves, Palette, Sparkles } from "lucide-react";
 import { listAudioFiles } from "../../services/api";
 import { 
-  parseTrackCSV, 
   getVisualizationForTrack, 
   VISUALIZATION_OPTIONS, 
   VisualizationStyle, 
@@ -127,7 +125,6 @@ function AudioReactiveShape({ audioData, vizParams }: AudioReactiveShapeProps) {
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   const targetScale = useRef(1.5);
   const targetHue = useRef(0.6);
-  const velocity = useRef({ x: 0, y: 0, z: 0 });
   
   useFrame((_, delta) => {
     if (!meshRef.current || !materialRef.current) return;
@@ -337,13 +334,6 @@ function VisualizerScene({
   );
 }
 
-const PRESET_TRACKS = [
-  { name: "Take the Crown (Phonk)", filename: "85a406ef_NeoCortext - Take the Crown.mp3" },
-  { name: "The Signal Breaking Through (Trance)", filename: "e02f6ccf_NeoCortext - The Signal Breaking Through the Noise.mp3" },
-  { name: "Before the Fade (Garage)", filename: "8baaf391_NeoCortext - Before the Fade.mp3" },
-  { name: "Still I Rise (Electronic)", filename: "54360357_NeoCortext - Still I Rise.mp3" },
-];
-
 export interface VizParams {
   // Model
   scale: number;
@@ -401,28 +391,19 @@ const DEFAULT_VIZ_PARAMS: VizParams = {
 export function Visualizer() {
   const [bgColor, setBgColor] = useState("#050505");
   const [meshColor, setMeshColor] = useState("#6366f1");
-  const [demoBpm, setDemoBpm] = useState(120);
+  const [demoBpm, _setDemoBpm] = useState(120);
   const [demoEnabled, setDemoEnabled] = useState(true);
-  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [trackName, setTrackName] = useState<string>("");
-  const [editableTrackName, setEditableTrackName] = useState<string>("");
-  const [isEditingName, setIsEditingName] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [libraryFiles, setLibraryFiles] = useState<Array<{ filename: string; stored_path: string }>>([]);
   const [liveAudioData, setLiveAudioData] = useState<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false });
-  const [showSpectrum, setShowSpectrum] = useState(true);
-  const [spectrumIntensity, setSpectrumIntensity] = useState(1);
-  const [cudaEnabled, setCudaEnabled] = useState(false);
-  const [cudaStatus, setCudaStatus] = useState<"unavailable" | "available" | "active">("unavailable");
+  const [spectrumIntensity] = useState(1);
   const [visualizationStyle, setVisualizationStyle] = useState<VisualizationStyle>("geometric");
   const [trackConcept, setTrackConcept] = useState<TrackConcept | null>(null);
-  const [showVizSelector, setShowVizSelector] = useState(false);
   const [csvContent, setCsvContent] = useState<string>("");
   const [vizParams, setVizParams] = useState<VizParams>(DEFAULT_VIZ_PARAMS);
-  const [showParams, setShowParams] = useState(true);
   const [useOllamaMatch, setUseOllamaMatch] = useState(false);
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
 
@@ -431,7 +412,6 @@ export function Visualizer() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const trackNameInputRef = useRef<HTMLInputElement | null>(null);
 
   // Load CSV content on mount
   useEffect(() => {
@@ -505,8 +485,6 @@ export function Visualizer() {
       return;
     }
     setError(null);
-    setAudioFile(f);
-    setTrackName(f.name);
     const url = URL.createObjectURL(f);
     setAudioUrl(url);
     setDemoEnabled(false);
@@ -516,9 +494,6 @@ export function Visualizer() {
   const handleSelectLibraryTrack = (filename: string) => {
     if (!filename) return;
     setError(null);
-    setTrackName(filename);
-    setEditableTrackName(filename.replace(/^\w{8}_/, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, ""));
-    setAudioFile(null);
     // Encode filename for URL (handles spaces, special chars)
     const encodedFilename = encodeURIComponent(filename);
     setAudioUrl(`/api/audio/file/${encodedFilename}`);
@@ -628,13 +603,6 @@ export function Visualizer() {
       params.reflectionEnabled = true;
     }
     setVizParams(params);
-  };
-
-  const handleSaveTrackName = () => {
-    if (editableTrackName.trim()) {
-      setTrackName(editableTrackName.trim());
-      setIsEditingName(false);
-    }
   };
 
   // Apply match track when toggled

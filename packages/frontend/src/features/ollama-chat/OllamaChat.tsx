@@ -1,12 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
-  MessageSquare,
   Send,
   Loader2,
-  RefreshCw,
   Bot,
   User,
-  Settings,
   ChevronDown,
 } from "lucide-react";
 import { Card } from "../../components/common";

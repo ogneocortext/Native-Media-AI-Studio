@@ -322,15 +322,21 @@ def extract_amplitude_envelope_simple(audio_path: str) -> dict[str, Any]:
     indices = np.linspace(0, len(rms_norm) - 1, target_points).astype(int)
     envelope = rms_norm[indices].tolist()
 
-    # Get beat times
+    # Get beat times — librosa 1.x returns tempo as ndarray (even for mono)
     tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=hop_length)
     beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=hop_length).tolist()
+    try:
+        tempo_val = float(tempo.item() if hasattr(tempo, "item") else tempo)
+    except Exception:
+        # tempo may be 0-d array or 1-d array; handle both
+        import numpy as _np
+        tempo_val = float(_np.asarray(tempo).flat[0]) if _np.asarray(tempo).size else 120.0
 
     return {
         "audio_file": str(audio_path),
         "sample_rate": sr,
         "duration_seconds": duration,
-        "tempo_bpm": float(tempo),
+        "tempo_bpm": tempo_val,
         "amplitude_envelope": envelope,
         "beat_times": beat_times,
         "num_beats": len(beat_times),

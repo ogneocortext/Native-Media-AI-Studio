@@ -6,9 +6,7 @@ import { useState, useCallback, useEffect } from "react";
 import {
   Music,
   FileText,
-  Sparkles,
   Trash2,
-  Edit3,
   Check,
   X,
   Play,
@@ -16,7 +14,6 @@ import {
   HardDrive,
   RefreshCw,
   Upload,
-  CheckCircle,
 } from "lucide-react";
 
 interface Track {

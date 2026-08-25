@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Play,
   Loader2,
@@ -45,7 +45,6 @@ export function Queue() {
   const {
     jobs,
     stats,
-    currentJob,
     isLoading,
     error,
     sseConnected,

@@ -107,7 +107,7 @@ function ParticleVisualization({ config }: { config: VisualizationConfig }) {
 function WaveformVisualization({ config }: { config: VisualizationConfig }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
-  const { primary, secondary } = config.colors;
+  const { primary } = config.colors;
 
   useFrame((state) => {
     if (!meshRef.current || !materialRef.current) return;

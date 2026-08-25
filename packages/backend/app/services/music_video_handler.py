@@ -182,7 +182,14 @@ class MusicVideoHandler:
                 process.communicate(), timeout=max(duration * 2, 60)
             )
             if process.returncode != 0:
-                raise RuntimeError(f"FFmpeg failed: {stderr.decode()[:500]}")
+                err_text = stderr.decode(errors="replace").strip()
+                # FFmpeg stderr is verbose (banner first); surface the last ~1500 chars
+                # where the actual error line lives, plus keep full tail for debugging
+                tail = err_text[-1500:] if len(err_text) > 1500 else err_text
+                # Also log full stderr at debug level
+                import logging as _logging
+                _logging.getLogger(__name__).error("FFmpeg full stderr:\n%s", err_text)
+                raise RuntimeError(f"FFmpeg failed: {tail}")
         except asyncio.TimeoutError:
             process.kill()
             raise RuntimeError("FFmpeg rendering timed out")

@@ -71,11 +71,12 @@ interface CardProps {
   icon?: React.ReactNode;
   style?: React.CSSProperties;
   glow?: boolean;
+  onClick?: () => void;
 }
 
-export function Card({ title, children, className = "", headerActions, icon, style, glow = false }: CardProps) {
+export function Card({ title, children, className = "", headerActions, icon, style, glow = false, onClick }: CardProps) {
   return (
-    <div className={`card ${glow ? "card-glow" : ""} ${className}`} style={style}>
+    <div className={`card ${glow ? "card-glow" : ""} ${onClick ? "cursor-pointer" : ""} ${className}`} style={style} onClick={onClick}>
       {title && (
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
@@ -130,3 +131,7 @@ export function EmptyState({ title, description, icon, action }: EmptyStateProps
     </div>
   );
 }
+
+// Re-export shared components
+export { FileUploadZone } from "./FileUploadZone";
+export { ResourceBar, ResourceGroup } from "./ResourceBar";

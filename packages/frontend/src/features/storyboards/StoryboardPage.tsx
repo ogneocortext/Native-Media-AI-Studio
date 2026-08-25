@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect } from "react";
 import { BookOpen, FileText, Search, ChevronRight } from "lucide-react";
 
 interface StoryboardFile {
