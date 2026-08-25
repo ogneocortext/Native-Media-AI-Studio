@@ -82,6 +82,13 @@ async def gpu_snapshot() -> dict:
     return await resource_monitor.get_gpu_snapshot()
 
 
+@router.get("/gpu/processes")
+async def gpu_processes() -> dict:
+    """Per-process GPU memory usage via Windows Performance Counters (WDDM)."""
+    processes = await resource_monitor.get_gpu_processes_human()
+    return {"processes": processes, "count": len(processes)}
+
+
 @router.get("/3d/status")
 async def gen3d_status() -> dict:
     """3D generation service status."""

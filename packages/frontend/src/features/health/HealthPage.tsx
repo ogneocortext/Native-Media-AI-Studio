@@ -34,10 +34,12 @@ import {
   stopComfyUI,
   updateComfyUI,
   getGPUSnapshot,
+  getGPUProcesses,
   getSystemDiagnostics,
   checkService,
   getApiBase,
   type ComfyUIStatus as ComfyUIStatusType,
+  type GPUProcessInfo,
   type GPUSnapshot,
 } from "../../services/api";
 import {
@@ -1003,13 +1005,18 @@ function ResourceCard({ icon: Icon, iconColor, label, cores, usage, subtext }: R
 
 function GPUCard() {
   const [gpu, setGpu] = useState<GPUSnapshot | null>(null);
+  const [processes, setProcesses] = useState<GPUProcessInfo[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchGPU = async () => {
     setLoading(true);
     try {
-      const data = await getGPUSnapshot();
-      setGpu(data);
+      const [snapshot, procs] = await Promise.all([
+        getGPUSnapshot(),
+        getGPUProcesses().catch(() => ({ processes: [] })),
+      ]);
+      setGpu(snapshot);
+      setProcesses(procs.processes || []);
     } catch {
       // GPU monitoring not available
     }
@@ -1117,23 +1124,22 @@ function GPUCard() {
           </span>
         </div>
 
-        {/* Processes */}
-        {gpu.processes && gpu.processes.length > 0 && (
+        {/* GPU Processes */}
+        {processes.length > 0 && (
           <div className="mt-3 pt-3 border-t border-white/5">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs text-muted">GPU Processes:</p>
-              {gpu.memory_available === false && (
-                <p className="text-xs text-yellow-400" title="GTX 1070 Ti does not support per-process VRAM tracking">
-                  *Not supported on this GPU
-                </p>
-              )}
+              <p className="text-xs text-muted">GPU Processes ({processes.length}):</p>
             </div>
             <div className="space-y-1">
-              {gpu.processes.slice(0, 5).map((proc, i) => (
+              {processes.slice(0, 8).map((proc, i) => (
                 <div key={i} className="flex items-center justify-between text-xs">
-                  <span className="text-muted truncate flex-1">{proc.name}</span>
-                  <span className="text-white ml-2">
-                    {proc.used_mb ? `${proc.used_mb}MB` : "N/A"}
+                  <span className="text-muted truncate flex-1" title={`PID: ${proc.pid}`}>
+                    {proc.name}
+                  </span>
+                  <span className={`ml-2 font-mono ${proc.mem_mb >= 1024 ? "text-yellow-400" : "text-white"}`}>
+                    {proc.mem_mb >= 1024
+                      ? `${(proc.mem_mb / 1024).toFixed(1)}GB`
+                      : `${proc.mem_mb}MB`}
                   </span>
                 </div>
               ))}

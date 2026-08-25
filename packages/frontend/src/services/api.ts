@@ -686,6 +686,19 @@ export async function getGPUSnapshot(): Promise<GPUSnapshot> {
   return res.json();
 }
 
+export async function getGPUProcesses(): Promise<{ processes: GPUProcessInfo[]; count: number }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/health/gpu/processes`);
+  if (!res.ok) throw new Error("Failed to get GPU processes");
+  return res.json();
+}
+
+export interface GPUProcessInfo {
+  pid: number;
+  name: string;
+  mem_mb: number;
+}
+
 export async function get3DStatus(): Promise<Record<string, unknown>> {
   const base = getApiBase();
   const res = await fetch(`${base}/api/health/3d/status`);

@@ -407,6 +407,70 @@ class ResourceMonitor:
         needs_names = any(p.get("name") in (None, "unknown") for p in processes)
         if not needs_names:
             return processes
+
+    async def get_gpu_processes_human(self) -> list[dict[str, Any]]:
+        """Get per-process GPU memory usage via Windows Performance Counters.
+
+        Works on Windows 10/11 with WDDM (GeForce) without admin privileges.
+        Returns list of {pid, name, mem_mb} sorted by memory descending."""
+        processes = []
+        try:
+            import win32pdh
+            from ctypes import windll, wintypes, byref, Structure, WinError
+
+            # Query "Dedicated Usage" for all GPU processes
+            counter_path = r"\GPU Process Memory(*)\Dedicated Usage"
+
+            hq = win32pdh.OpenQuery()
+            try:
+                hc = win32pdh.AddCounter(hq, counter_path)
+                try:
+                    win32pdh.CollectQueryData(hq)
+                    items = win32pdh.GetFormattedCounterArray(hc, win32pdh.PDH_FMT_LONG)
+                    for instance, mem_bytes in items.items():
+                        pid_str = instance.split("_")[1] if "_" in instance else None
+                        if not pid_str:
+                            continue
+                        try:
+                            pid = int(pid_str)
+                        except ValueError:
+                            continue
+                        if mem_bytes <= 0 or mem_bytes >= 2**31:
+                            continue
+                        mem_mb = max(0, mem_bytes // (1024 * 1024))
+                        name = self._get_process_name(pid)
+                        processes.append({"pid": pid, "name": name, "mem_mb": mem_mb})
+                finally:
+                    win32pdh.RemoveCounter(hc)
+            finally:
+                win32pdh.CloseQuery(hq)
+        except Exception as e:
+            logger.debug(f"GPU process counter query failed: {e}")
+
+        processes.sort(key=lambda p: p["mem_mb"], reverse=True)
+        return processes
+
+    @staticmethod
+    def _get_process_name(pid: int) -> str:
+        """Get process name from PID via OpenProcess + GetModuleFileNameEx."""
+        try:
+            from ctypes import windll, wintypes, byref, Structure, create_string_buffer, sizeof
+
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            hprocess = windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+            if not hprocess:
+                return f"PID {pid}"
+            try:
+                buf = create_string_buffer(512)
+                size = windll.psapi.GetModuleFileNameExA(hprocess, None, buf, 512)
+                if size:
+                    name = buf.value.decode("utf-8", errors="ignore")
+                    parts = name.replace("\\", "/").split("/")
+                    return parts[-1] if parts else f"PID {pid}"
+            finally:
+                windll.kernel32.CloseHandle(hprocess)
+        except Exception:
+            return f"PID {pid}"
         try:
             import subprocess
             result = subprocess.run(
