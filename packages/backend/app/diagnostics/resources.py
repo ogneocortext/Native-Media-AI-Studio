@@ -452,25 +452,37 @@ class ResourceMonitor:
 
     @staticmethod
     def _get_process_name(pid: int) -> str:
-        """Get process name from PID via OpenProcess + GetModuleFileNameEx."""
+        """Get process name from PID. Uses CreateToolhelp32Snapshot (works for protected processes)."""
         try:
-            from ctypes import windll, wintypes, byref, Structure, create_string_buffer, sizeof
+            import ctypes
+            from ctypes import wintypes
 
-            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-            hprocess = windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-            if not hprocess:
+            class PROCESSENTRY32(ctypes.Structure):
+                _fields_ = [("dwSize", ctypes.c_ulong), ("cntUsage", ctypes.c_ulong),
+                            ("th32ProcessID", ctypes.c_ulong), ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
+                            ("th32ModuleID", ctypes.c_ulong), ("cntThreads", ctypes.c_ulong),
+                            ("th32ParentProcessID", ctypes.c_ulong), ("pcPriClassBase", ctypes.c_long),
+                            ("dwFlags", ctypes.c_ulong), ("szExeFile", ctypes.c_char * 260)]
+
+            TH32CS_SNAPPROCESS = 0x00000002
+            hSnapshot = ctypes.windll.kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+            if hSnapshot == -1:
                 return f"PID {pid}"
             try:
-                buf = create_string_buffer(512)
-                size = windll.psapi.GetModuleFileNameExA(hprocess, None, buf, 512)
-                if size:
-                    name = buf.value.decode("utf-8", errors="ignore")
-                    parts = name.replace("\\", "/").split("/")
-                    return parts[-1] if parts else f"PID {pid}"
+                pe32 = PROCESSENTRY32()
+                pe32.dwSize = ctypes.sizeof(PROCESSENTRY32)
+                if ctypes.windll.kernel32.Process32First(hSnapshot, ctypes.byref(pe32)):
+                    while True:
+                        if pe32.th32ProcessID == pid:
+                            name = pe32.szExeFile.decode("utf-8", errors="ignore")
+                            return name
+                        if not ctypes.windll.kernel32.Process32Next(hSnapshot, ctypes.byref(pe32)):
+                            break
             finally:
-                windll.kernel32.CloseHandle(hprocess)
+                ctypes.windll.kernel32.CloseHandle(hSnapshot)
         except Exception:
-            return f"PID {pid}"
+            pass
+        return f"PID {pid}"
         try:
             import subprocess
             result = subprocess.run(
