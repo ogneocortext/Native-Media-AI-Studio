@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Music2, Wand2, ArrowRight, Sparkles, Check, Image, Film } from "lucide-react";
+import { Music2, Wand2, ArrowRight, Sparkles, Check, Image, Film, Trash2 } from "lucide-react";
 import { Card } from "../../components/common";
 import { useJobs } from "../../hooks";
 import { useOutputStore, formatFileSize, getOutputUrl } from "../../state/outputStore";
@@ -13,13 +13,29 @@ import { useOutputStore, formatFileSize, getOutputUrl } from "../../state/output
 export function Dashboard() {
   const navigate = useNavigate();
   const { jobs } = useJobs();
-  const { recentOutputs, fetchRecent } = useOutputStore();
+  const { recentOutputs, fetchRecent, deleteOutput } = useOutputStore();
   const [dragOver, setDragOver] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => { fetchRecent(4); }, [fetchRecent]);
 
   const hasOutputs = recentOutputs.length > 0;
   const hasJobs = jobs.length > 0;
+
+  const handleDelete = async (e: React.MouseEvent, output: typeof recentOutputs[0]) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (deleting) return;
+    setDeleting(output.relative_path);
+    try {
+      await deleteOutput(output.relative_path);
+    } catch (err) {
+      console.error("Failed to delete:", err);
+    } finally {
+      setDeleting(null);
+      fetchRecent(4);
+    }
+  };
 
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -93,23 +109,33 @@ export function Dashboard() {
         <Card title="Your recent videos" className="mt-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {recentOutputs.slice(0, 4).map(o => (
-              <a key={o.path} href={getOutputUrl(o.relative_path)} target="_blank" rel="noreferrer" className="group rounded-xl overflow-hidden border border-white/5 bg-black/20 hover:border-violet-500/30 transition-colors">
-                <div className="aspect-video bg-white/5 flex items-center justify-center">
-                  {o.cover_image ? (
-                    <img src={getOutputUrl(o.cover_image)} alt={o.filename} className="w-full h-full object-cover" />
-                  ) : o.file_type === "image" ? (
-                    <img src={getOutputUrl(o.relative_path)} alt={o.filename} className="w-full h-full object-cover" />
-                  ) : o.file_type === "audio" ? (
-                    <Music2 size={24} className="text-violet-400" />
-                  ) : (
-                    <Film size={20} className="text-muted" />
-                  )}
-                </div>
-                <div className="p-2">
-                  <p className="text-xs font-medium text-white truncate" title={o.filename}>{o.filename}</p>
-                  <p className="text-[11px] text-muted">{formatFileSize(o.size_bytes)}</p>
-                </div>
-              </a>
+              <div key={o.path} className="group relative rounded-xl overflow-hidden border border-white/5 bg-black/20 hover:border-violet-500/30 transition-colors">
+                <a href={getOutputUrl(o.relative_path)} target="_blank" rel="noreferrer" className="block">
+                  <div className="aspect-video bg-white/5 flex items-center justify-center">
+                    {o.cover_image ? (
+                      <img src={getOutputUrl(o.cover_image)} alt={o.filename} className="w-full h-full object-cover" />
+                    ) : o.file_type === "image" ? (
+                      <img src={getOutputUrl(o.relative_path)} alt={o.filename} className="w-full h-full object-cover" />
+                    ) : o.file_type === "audio" ? (
+                      <Music2 size={24} className="text-violet-400" />
+                    ) : (
+                      <Film size={20} className="text-muted" />
+                    )}
+                  </div>
+                  <div className="p-2">
+                    <p className="text-xs font-medium text-white truncate" title={o.filename}>{o.filename}</p>
+                    <p className="text-[11px] text-muted">{formatFileSize(o.size_bytes)}</p>
+                  </div>
+                </a>
+                <button
+                  onClick={(e) => handleDelete(e, o)}
+                  disabled={deleting === o.relative_path}
+                  className="absolute top-1 right-1 p-1.5 rounded-lg bg-black/60 backdrop-blur-sm text-white/70 hover:text-red-400 hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
+                  title="Delete"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             ))}
           </div>
         </Card>
