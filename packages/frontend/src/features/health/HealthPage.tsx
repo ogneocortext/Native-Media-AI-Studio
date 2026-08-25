@@ -23,8 +23,8 @@ import {
   CpuIcon,
   MemoryStick,
   TrendingUp,
-  Terminal,
   Pause,
+  Terminal,
 } from "lucide-react";
 import { Card, StatusBadge, LoadingSpinner } from "../../components/common";
 import { useHealth } from "../../hooks";
@@ -199,7 +199,7 @@ export function HealthPage() {
   if (loading) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-6">Diagnostics</h1>
+        <h1 className="text-2xl font-bold mb-6">System Health</h1>
         <Card>
           <div className="flex justify-center py-12">
             <LoadingSpinner />
@@ -212,7 +212,7 @@ export function HealthPage() {
   if (error) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-6">Diagnostics</h1>
+        <h1 className="text-2xl font-bold mb-6">System Health</h1>
         <Card>
           <div className="flex items-center gap-3 p-4 bg-error/10 border border-error/20 rounded-lg">
             <XCircle size={20} className="text-error" />
@@ -231,7 +231,7 @@ export function HealthPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Diagnostics</h1>
+        <h1 className="text-2xl font-bold">System Health</h1>
         <p className="text-muted mt-1">System health and service status</p>
       </div>
 
@@ -267,139 +267,154 @@ export function HealthPage() {
         </div>
       </Card>
 
-      {/* ComfyUI Management */}
-      {comfyui && comfyui.installed && (
-        <Card className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                comfyui.running ? "bg-green-500/20" : "bg-red-500/20"
-              }`}>
-                {comfyui.running ? (
-                  <Wifi size={20} className="text-green-400" />
+      {/* ComfyUI + Resources - 2 column layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        {/* ComfyUI Management - sidebar */}
+        {comfyui && comfyui.installed && (
+          <Card className="lg:col-span-1">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  comfyui.running ? "bg-green-500/20" : "bg-red-500/20"
+                }`}>
+                  {comfyui.running ? (
+                    <Wifi size={20} className="text-green-400" />
+                  ) : (
+                    <WifiOff size={20} className="text-red-400" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm">ComfyUI</h3>
+                  <p className="text-xs text-muted">
+                    {comfyui.running ? `Running on port ${comfyui.port}` : "Not running"}
+                    {comfyui.version?.version && ` • v${comfyui.version.version}`}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {!comfyui.running ? (
+                  <button
+                    onClick={() => handleComfyUIAction("start")}
+                    disabled={comfyuiLoading}
+                    className="btn btn-primary btn-sm flex items-center gap-2"
+                  >
+                    {comfyuiLoading && comfyuiAction === "start" ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Play size={14} />
+                    )}
+                    Start
+                  </button>
                 ) : (
-                  <WifiOff size={20} className="text-red-400" />
+                  <button
+                    onClick={() => handleComfyUIAction("stop")}
+                    disabled={comfyuiLoading}
+                    className="btn btn-secondary btn-sm flex items-center gap-2"
+                  >
+                    {comfyuiLoading && comfyuiAction === "stop" ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Square size={14} />
+                    )}
+                    Stop
+                  </button>
+                )}
+                <button
+                  onClick={() => handleComfyUIAction("update")}
+                  disabled={comfyuiLoading}
+                  className="btn btn-ghost btn-sm flex items-center gap-2"
+                  title="Update ComfyUI via git pull"
+                >
+                  {comfyuiLoading && comfyuiAction === "update" ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Download size={14} />
+                  )}
+                  Update
+                </button>
+              </div>
+            </div>
+
+            {comfyui.version && (
+              <div className="flex items-center justify-between text-xs text-muted pt-3 border-t border-border">
+                <div className="flex items-center gap-4">
+                  {comfyui.version.branch && (
+                    <span>Branch: {comfyui.version.branch}</span>
+                  )}
+                  {comfyui.version.commit && (
+                    <span className="font-mono">{comfyui.version.commit.split(" ")[0]}</span>
+                  )}
+                </div>
+                {comfyui.version.behind_remote !== undefined && comfyui.version.behind_remote > 0 && (
+                  <span className="text-yellow-400 flex items-center gap-1">
+                    <RefreshCw size={12} />
+                    {comfyui.version.behind_remote} update{comfyui.version.behind_remote > 1 ? "s" : ""} available
+                  </span>
+                )}
+                {comfyui.version.up_to_date && (
+                  <span className="text-green-400 flex items-center gap-1">
+                    <CheckCircle size={12} />
+                    Up to date
+                  </span>
                 )}
               </div>
+            )}
+
+            <div className="flex items-center justify-between text-xs text-muted mt-2">
               <div>
-                <h3 className="font-semibold text-sm">ComfyUI</h3>
-                <p className="text-xs text-muted">
-                  {comfyui.running ? `Running on port ${comfyui.port}` : "Not running"}
-                  {comfyui.version?.version && ` • v${comfyui.version.version}`}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {!comfyui.running ? (
-                <button
-                  onClick={() => handleComfyUIAction("start")}
-                  disabled={comfyuiLoading}
-                  className="btn btn-primary btn-sm flex items-center gap-2"
-                >
-                  {comfyuiLoading && comfyuiAction === "start" ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Play size={14} />
-                  )}
-                  Start
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleComfyUIAction("stop")}
-                  disabled={comfyuiLoading}
-                  className="btn btn-secondary btn-sm flex items-center gap-2"
-                >
-                  {comfyuiLoading && comfyuiAction === "stop" ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Square size={14} />
-                  )}
-                  Stop
-                </button>
-              )}
-              <button
-                onClick={() => handleComfyUIAction("update")}
-                disabled={comfyuiLoading}
-                className="btn btn-ghost btn-sm flex items-center gap-2"
-                title="Update ComfyUI via git pull"
-              >
-                {comfyuiLoading && comfyuiAction === "update" ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Download size={14} />
+                {comfyui.running && comfyui.uptime_seconds && (
+                  <span>
+                    Uptime: {Math.floor(comfyui.uptime_seconds / 60)}m {Math.floor(comfyui.uptime_seconds % 60)}s
+                    {comfyui.pid && ` • PID: ${comfyui.pid}`}
+                  </span>
                 )}
-                Update
-              </button>
+              </div>
+              {vramStatus?.vram?.available && (
+                <span className="flex items-center gap-1">
+                  <span className={`w-2 h-2 rounded-full ${
+                    vramStatus.vram.percent > 80 ? 'bg-red-400' :
+                    vramStatus.vram.percent > 60 ? 'bg-yellow-400' : 'bg-green-400'
+                  }`} />
+                  VRAM: {vramStatus.vram.percent}% ({Math.round(vramStatus.vram.free_mb / 1024)}GB free)
+                </span>
+              )}
             </div>
+          </Card>
+        )}
+
+        {/* Resource Usage - main area */}
+        <div className={`${comfyui?.installed ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
+          <div className="grid grid-cols-2 gap-4">
+            <ResourceCard icon={Cpu} iconColor="blue" label="CPU" cores={health?.cpu?.count} usage={cpuUsage} />
+            <ResourceCard icon={HardDrive} iconColor="purple" label="Memory" cores={undefined} usage={memUsage} subtext={`${health?.memory?.used_gb?.toFixed(1)}GB / ${health?.memory?.total_gb?.toFixed(1)}GB`} />
+            <ResourceCard icon={Database} iconColor="amber" label="Disk" cores={undefined} usage={diskUsage} subtext={`${health?.disk?.free_gb?.toFixed(1)}GB free`} />
+            <GPUCard />
           </div>
+        </div>
+       </div>
 
-          {/* Version & Update Info */}
-          {comfyui.version && (
-            <div className="flex items-center justify-between text-xs text-muted pt-3 border-t border-border">
-              <div className="flex items-center gap-4">
-                {comfyui.version.branch && (
-                  <span>Branch: {comfyui.version.branch}</span>
-                )}
-                {comfyui.version.commit && (
-                  <span className="font-mono">{comfyui.version.commit.split(" ")[0]}</span>
-                )}
-              </div>
-              {comfyui.version.behind_remote !== undefined && comfyui.version.behind_remote > 0 && (
-                <span className="text-yellow-400 flex items-center gap-1">
-                  <RefreshCw size={12} />
-                  {comfyui.version.behind_remote} update{comfyui.version.behind_remote > 1 ? "s" : ""} available
-                </span>
-              )}
-              {comfyui.version.up_to_date && (
-                <span className="text-green-400 flex items-center gap-1">
-                  <CheckCircle size={12} />
-                  Up to date
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Uptime & VRAM */}
-          <div className="flex items-center justify-between text-xs text-muted mt-2">
-            <div>
-              {comfyui.running && comfyui.uptime_seconds && (
-                <span>
-                  Uptime: {Math.floor(comfyui.uptime_seconds / 60)}m {Math.floor(comfyui.uptime_seconds % 60)}s
-                  {comfyui.pid && ` • PID: ${comfyui.pid}`}
-                </span>
-              )}
-            </div>
-            {vramStatus?.vram?.available && (
-              <span className="flex items-center gap-1">
-                <span className={`w-2 h-2 rounded-full ${
-                  vramStatus.vram.percent > 80 ? 'bg-red-400' :
-                  vramStatus.vram.percent > 60 ? 'bg-yellow-400' : 'bg-green-400'
-                }`} />
-                VRAM: {vramStatus.vram.percent}% ({Math.round(vramStatus.vram.free_mb / 1024)}GB free)
-              </span>
+      {/* Action Log */}
+      <Card className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Terminal size={16} className="text-indigo-400" />
+            <h3 className="font-semibold text-sm">Action Log</h3>
+            {actionLog.length > 0 && (
+              <span className="text-xs text-muted">({actionLog.length} entries)</span>
             )}
           </div>
-        </Card>
-      )}
-
-      {/* Action Log Panel */}
-      {actionLog.length > 0 && (
-        <Card className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Terminal size={16} className="text-indigo-400" />
-              <h3 className="font-semibold text-sm">Action Log</h3>
-              <span className="text-xs text-muted">({actionLog.length} entries)</span>
-            </div>
+          {actionLog.length > 0 && (
             <button
               onClick={clearLogs}
               className="text-xs text-muted hover:text-white transition-colors"
             >
               Clear
             </button>
-          </div>
-          <div className="bg-gray-900 rounded-lg p-3 max-h-48 overflow-y-auto font-mono text-xs">
-            {actionLog.map((log, i) => (
+          )}
+        </div>
+        <div className="bg-gray-900 rounded-lg p-3 max-h-48 overflow-y-auto font-mono text-xs">
+          {actionLog.length > 0 ? (
+            actionLog.map((log, i) => (
               <div key={i} className={`flex gap-2 ${
                 log.type === 'error' ? 'text-red-400' :
                 log.type === 'warning' ? 'text-yellow-400' :
@@ -409,121 +424,18 @@ export function HealthPage() {
                 <span className="text-gray-600 shrink-0">[{log.time}]</span>
                 <span>{log.message}</span>
               </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* Resource Usage */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {/* CPU */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <Cpu size={20} className="text-blue-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-sm">CPU</h3>
-                <p className="text-xs text-muted">{health?.cpu?.count} cores</p>
-              </div>
+            ))
+          ) : (
+            <div className="text-center py-4 text-muted text-xs">
+              No actions recorded. Start ComfyUI or perform other actions to see logs here.
             </div>
-            <span className="text-xs px-2 py-1 rounded-full font-medium" style={{
-              background: `${getUsageColor(cpuUsage)}20`,
-              color: getUsageColor(cpuUsage),
-            }}>
-              {getUsageLabel(cpuUsage)}
-            </span>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted">Usage</span>
-              <span className="font-bold">{cpuUsage.toFixed(1)}%</span>
-            </div>
-            <div className="h-2.5 bg-background rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${cpuUsage}%`, background: getUsageColor(cpuUsage) }}
-              />
-            </div>
-          </div>
-        </Card>
-
-        {/* Memory */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                <HardDrive size={20} className="text-purple-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-sm">Memory</h3>
-                <p className="text-xs text-muted">{health?.memory?.used_gb?.toFixed(1)}GB / {health?.memory?.total_gb?.toFixed(1)}GB</p>
-              </div>
-            </div>
-            <span className="text-xs px-2 py-1 rounded-full font-medium" style={{
-              background: `${getUsageColor(memUsage)}20`,
-              color: getUsageColor(memUsage),
-            }}>
-              {getUsageLabel(memUsage)}
-            </span>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted">Usage</span>
-              <span className="font-bold">{memUsage.toFixed(1)}%</span>
-            </div>
-            <div className="h-2.5 bg-background rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${memUsage}%`, background: getUsageColor(memUsage) }}
-              />
-            </div>
-          </div>
-        </Card>
-
-        {/* Disk */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                <Database size={20} className="text-amber-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-sm">Disk</h3>
-                <p className="text-xs text-muted">{health?.disk?.free_gb?.toFixed(1)}GB free</p>
-              </div>
-            </div>
-            <span className="text-xs px-2 py-1 rounded-full font-medium" style={{
-              background: `${getUsageColor(diskUsage)}20`,
-              color: getUsageColor(diskUsage),
-            }}>
-              {getUsageLabel(diskUsage)}
-            </span>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted">Usage</span>
-              <span className="font-bold">{diskUsage.toFixed(1)}%</span>
-            </div>
-            <div className="h-2.5 bg-background rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${diskUsage}%`, background: getUsageColor(diskUsage) }}
-              />
-            </div>
-          </div>
-        </Card>
-
-        {/* GPU */}
-        <GPUCard />
-      </div>
+          )}
+        </div>
+      </Card>
 
       {/* Performance History & Service Checks */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <PerformanceHistoryCard />
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <PerformanceHistoryCard />
         <ServiceChecksCard />
       </div>
 
@@ -1032,6 +944,55 @@ function LogsViewer() {
            </div>
         </div>
       )}
+    </Card>
+  );
+}
+
+// ============================================================================
+// Resource Card (CPU / Memory / Disk)
+// ============================================================================
+
+interface ResourceCardProps {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  iconColor: string;
+  label: string;
+  cores?: number;
+  usage: number;
+  subtext?: string;
+}
+
+function ResourceCard({ icon: Icon, iconColor, label, cores, usage, subtext }: ResourceCardProps) {
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2.5">
+          <div className={`w-9 h-9 rounded-lg bg-${iconColor}-500/20 flex items-center justify-center`}>
+            <Icon size={18} className={`text-${iconColor}-400`} />
+          </div>
+          <div>
+            <h3 className="font-semibold text-sm">{label}</h3>
+            <p className="text-xs text-muted">{cores ? `${cores} cores` : subtext}</p>
+          </div>
+        </div>
+        <span className="text-xs px-2 py-1 rounded-full font-medium" style={{
+          background: `${getUsageColor(usage)}20`,
+          color: getUsageColor(usage),
+        }}>
+          {getUsageLabel(usage)}
+        </span>
+      </div>
+      <div className="space-y-2">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted">Usage</span>
+          <span className="font-bold">{usage.toFixed(1)}%</span>
+        </div>
+        <div className="h-2 bg-background rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${usage}%`, background: getUsageColor(usage) }}
+          />
+        </div>
+      </div>
     </Card>
   );
 }
