@@ -166,6 +166,9 @@ export function HealthPage() {
             if (result.errors) {
               addLog(`Errors: ${result.errors}`, "error");
             }
+            if (result.hint) {
+              addLog(`Hint: ${result.hint}`, "warning");
+            }
           }
           break;
       }

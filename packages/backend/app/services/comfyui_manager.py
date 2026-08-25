@@ -266,6 +266,8 @@ class ComfyUIManager:
 
     async def update(self) -> dict:
         """Update ComfyUI via git pull.
+        
+        Uses ComfyUI's own git repository for updates.
 
         Returns:
             Dict with status and update details
@@ -280,11 +282,34 @@ class ComfyUIManager:
 
         # Stop if running
         if was_running:
-            stop_result = self.stop()
-            if not stop_result["success"]:
-                return stop_result
+            add_msg = " (was running, will restart)"
+        else:
+            add_msg = ""
 
         try:
+            # Check if git is available
+            git_check = await asyncio.create_subprocess_exec(
+                "git", "--version",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await git_check.communicate()
+            if git_check.returncode != 0:
+                return {
+                    "success": False,
+                    "message": "Git is not available on this system",
+                    "hint": "Install Git to enable ComfyUI updates",
+                }
+
+            # Check if this is a git repo
+            git_dir = COMFYUI_DIR / ".git"
+            if not git_dir.exists():
+                return {
+                    "success": False,
+                    "message": "ComfyUI is not a git repository",
+                    "hint": "Manual reinstallation required for updates",
+                }
+
             # Git pull
             pull_result = await asyncio.create_subprocess_exec(
                 "git", "pull",
@@ -303,6 +328,7 @@ class ComfyUIManager:
                     "message": "Git pull failed",
                     "output": output,
                     "errors": errors,
+                    "hint": "Try resolving merge conflicts or run 'git pull' manually in the ComfyUI directory",
                 }
 
             # Get new version info
@@ -316,17 +342,24 @@ class ComfyUIManager:
 
             return {
                 "success": True,
-                "message": "ComfyUI updated successfully",
+                "message": f"ComfyUI updated successfully{add_msg}",
                 "output": output,
                 "version": version,
                 "was_running": was_running,
                 "restarted": restart_result,
             }
 
+        except FileNotFoundError:
+            return {
+                "success": False,
+                "message": "Git executable not found",
+                "hint": "Install Git and ensure it's in your system PATH",
+            }
         except Exception as e:
             return {
                 "success": False,
                 "message": f"Error updating ComfyUI: {str(e)}",
+                "hint": "Check the logs for more details",
             }
 
     def get_status(self) -> dict:
