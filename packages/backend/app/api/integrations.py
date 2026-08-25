@@ -385,6 +385,7 @@ async def ollama_chat(request: dict) -> dict:
             tool_call_count = 0
             current_messages = messages[:]
             last_response = ""
+            tool_details = []
 
             while tool_call_count < max_tool_calls:
                 result = await adapter.chat(
@@ -416,6 +417,11 @@ async def ollama_chat(request: dict) -> dict:
                             tc["function"]["arguments"],
                             {},
                         )
+                        tool_details.append({
+                            "name": tc["function"]["name"],
+                            "arguments": tc["function"]["arguments"],
+                            "result": tool_result,
+                        })
                         current_messages.append({
                             "role": "tool",
                             "tool_name": tc["function"]["name"],
@@ -429,6 +435,7 @@ async def ollama_chat(request: dict) -> dict:
                 "response": last_response,
                 "model": model,
                 "tool_calls": tool_call_count,
+                "tool_details": tool_details,
             }
 
     except Exception as e:

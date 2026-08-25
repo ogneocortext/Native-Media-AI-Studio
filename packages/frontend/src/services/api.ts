@@ -796,7 +796,7 @@ export async function ollamaChat(
     think?: boolean | string;
     maxToolCalls?: number;
   },
-): Promise<{ response: string; model: string; toolCalls: number }> {
+): Promise<{ response: string; model: string; toolCalls: number; toolDetails?: Array<{ name: string; arguments: Record<string, unknown>; result: string }> }> {
   const base = getApiBase();
   const res = await fetch(`${base}/api/integrations/ollama/chat`, {
     method: "POST",

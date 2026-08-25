@@ -15,6 +15,7 @@ import {
   Zap,
   Wifi,
   WifiOff,
+  Palette,
 } from "lucide-react";
 import {
   getOllamaModels,
@@ -24,6 +25,7 @@ import {
   type ToolDefinition,
 } from "../../services/api";
 import { DS } from "../../styles/designSystem";
+import { VisualizationCanvas } from "./VisualizationCanvas";
 
 interface Tool {
   id: string;
@@ -96,6 +98,21 @@ const DEFAULT_TOOLS: Tool[] = [
       required: ["job_id"],
     },
   },
+  {
+    id: "generate_visualization",
+    name: "generate_visualization",
+    description: "Generate a dynamic visualization with specified style, colors, and intensity",
+    parameters: {
+      type: "object",
+      properties: {
+        style: { type: "string", description: "Visualization style: particles, waveform, or pulse" },
+        color_scheme: { type: "string", description: "Color scheme: neon, fire, ocean, forest, sunset, monochrome" },
+        intensity: { type: "number", description: "Visualization intensity from 0.0 to 1.0" },
+        bpm: { type: "integer", description: "Beats per minute for rhythm sync" },
+      },
+      required: [],
+    },
+  },
 ];
 
 interface HistoryEntry {
@@ -121,6 +138,7 @@ export function AIToolsPage() {
   const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set(DEFAULT_TOOLS.map((t) => t.id)));
   const [ollamaConnected, setOllamaConnected] = useState(false);
   const [streaming, setStreaming] = useState(false);
+  const [vizConfig, setVizConfig] = useState<import("./VisualizationCanvas").VisualizationConfig | null>(null);
 
   useEffect(() => {
     loadModels();
@@ -175,12 +193,30 @@ export function AIToolsPage() {
       setResponse(result.response);
 
       // Build tool calls display from the agent loop
-      if (result.toolCalls > 0) {
+      if (result.toolDetails && result.toolDetails.length > 0) {
+        setToolCalls(result.toolDetails);
+
+        // Check for visualization tool output and render it
+        for (const td of result.toolDetails) {
+          if (td.name === "generate_visualization" && td.result) {
+            try {
+              const config = JSON.parse(td.result);
+              if (config.type === "visualization") {
+                setVizConfig(config);
+              }
+            } catch {
+              // Not a valid visualization config
+            }
+          }
+        }
+      } else if (result.toolCalls > 0) {
         setToolCalls([{
           name: "agent_loop",
           arguments: { iterations: result.toolCalls },
           result: `Agent executed ${result.toolCalls} tool call(s)`,
         }]);
+      } else {
+        setToolCalls([]);
       }
 
       setHistory((prev) => [{
@@ -209,6 +245,7 @@ export function AIToolsPage() {
     { label: "Color Palette", text: "Suggest a color palette for a music video with [mood] mood. Include hex codes and usage guidelines." },
     { label: "Transition Ideas", text: "Suggest creative video transitions for a music video that sync to beat drops." },
     { label: "Project Status", text: "What's the current system health and job queue status?" },
+    { label: "Visualization", text: "Use the generate_visualization tool to create a particles visualization with neon colors and high intensity" },
   ];
 
   const addTool = () => {
@@ -359,6 +396,18 @@ export function AIToolsPage() {
                 <span className={DS.textXs}>({selectedModel})</span>
               </div>
               <div className={DS.textSm + " whitespace-pre-wrap"}>{response}</div>
+            </div>
+          )}
+
+          {/* Visualization Canvas */}
+          {vizConfig && (
+            <div className={DS.card}>
+              <div className={DS.flexCenter + " mb-3"}>
+                <Palette size={16} className="text-purple-400" />
+                <span className={DS.textBold}>Visualization</span>
+                <span className={DS.textXs}>({vizConfig.style})</span>
+              </div>
+              <VisualizationCanvas config={vizConfig} width={400} height={300} />
             </div>
           )}
 

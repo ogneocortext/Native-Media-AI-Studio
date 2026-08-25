@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - Ollama Tool Calling & Agent Loop
+
+#### Backend
+- **New API endpoint**: `POST /api/integrations/ollama/chat` — Chat with tool calling and agent loop
+- **Agent loop pattern**: Automatic tool execution up to `max_tool_calls` iterations
+- **Built-in tools**: `get_project_structure`, `search_docs`, `get_system_health`, `list_jobs`, `get_job_status`
+- **Streaming support**: SSE streaming with tool call handling
+- **Tool details response**: Returns `tool_details` array with name, arguments, and result for each tool call
+
+#### Frontend
+- **Updated AI Tools Page**: Connection status, tool registry, tool call display
+- **New API functions**: `ollamaChat()`, `ollamaChatStream()`, `parseOllamaStream()`
+- **Tool definition types**: `ToolDefinition`, `ChatMessage` interfaces
+
+#### Files Changed
+| Action | File |
+|--------|------|
+| Modified | `packages/backend/app/adapters/ollama.py` |
+| Modified | `packages/backend/app/api/integrations.py` |
+| Modified | `packages/frontend/src/features/ai-tools/AIToolsPage.tsx` |
+| Modified | `packages/frontend/src/services/api.ts` |
+
 ### Changed - WebSocket Replaced with SSE (Server-Sent Events)
 
 #### Why SSE over WebSocket

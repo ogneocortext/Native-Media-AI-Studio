@@ -248,6 +248,7 @@ Generate 3-8 scenes based on the input theme or concept."""
             "get_system_health": self._tool_get_system_health,
             "list_jobs": self._tool_list_jobs,
             "get_job_status": self._tool_get_job_status,
+            "generate_visualization": self._tool_generate_visualization,
         }
 
     async def _tool_get_project_structure(self, depth: int = 3) -> str:
@@ -301,6 +302,44 @@ Generate 3-8 scenes based on the input theme or concept."""
     async def _tool_get_job_status(self, job_id: str) -> str:
         """Get status of a specific job."""
         return f"Job {job_id}: running, 45% complete"
+
+    async def _tool_generate_visualization(
+        self,
+        style: str = "particles",
+        color_scheme: str = "neon",
+        intensity: float = 0.7,
+        bpm: int = 120,
+    ) -> str:
+        """Generate a visualization configuration for the canvas."""
+        import json
+        config = {
+            "type": "visualization",
+            "style": style,
+            "colorScheme": color_scheme,
+            "intensity": intensity,
+            "bpm": bpm,
+            "colors": self._get_color_palette(color_scheme),
+            "params": {
+                "particleCount": int(200 * intensity),
+                "speed": 0.5 + (bpm / 240),
+                "scale": 1.0 + (intensity * 0.5),
+                "glow": intensity > 0.6,
+                "rotation": True,
+            },
+        }
+        return json.dumps(config)
+
+    def _get_color_palette(self, scheme: str) -> dict[str, str]:
+        """Get color palette for visualization."""
+        palettes = {
+            "neon": {"primary": "#ff00ff", "secondary": "#00ffff", "accent": "#ffff00"},
+            "fire": {"primary": "#ff4500", "secondary": "#ff8c00", "accent": "#ffd700"},
+            "ocean": {"primary": "#006994", "secondary": "#40e0d0", "accent": "#7fffd4"},
+            "forest": {"primary": "#228b22", "secondary": "#32cd32", "accent": "#90ee90"},
+            "sunset": {"primary": "#ff6b6b", "secondary": "#feca57", "accent": "#ff9ff3"},
+            "monochrome": {"primary": "#ffffff", "secondary": "#888888", "accent": "#cccccc"},
+        }
+        return palettes.get(scheme, palettes["neon"])
 
     async def list_models(self) -> list[dict[str, Any]]:
         """List available models in Ollama"""
