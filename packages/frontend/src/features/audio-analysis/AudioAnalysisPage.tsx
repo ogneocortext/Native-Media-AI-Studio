@@ -68,6 +68,10 @@ export function AudioAnalysisPage() {
   const [selectedLibraryFile, setSelectedLibraryFile] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(true);
   const [generating, setGenerating] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"name" | "size" | "date">("date");
+  const [filterText, setFilterText] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -477,31 +481,87 @@ export function AudioAnalysisPage() {
                 {showLibrary ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               </div>
             </div>
-            {showLibrary && (
-              <div className="mt-3 space-y-2">
+             {showLibrary && (
+               <div className="mt-3">
+                {/* Sort & Filter Controls */}
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="text"
+                    placeholder="Filter files..."
+                    value={filterText}
+                    onChange={(e) => { setFilterText(e.target.value); setCurrentPage(1); }}
+                    className="flex-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500"
+                  />
+                  <select
+                    value={sortBy}
+                    onChange={(e) => { setSortBy(e.target.value as any); setCurrentPage(1); }}
+                    className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white focus:outline-none focus:border-violet-500"
+                  >
+                    <option value="date">Newest</option>
+                    <option value="name">Name</option>
+                    <option value="size">Size</option>
+                  </select>
+                </div>
+
+                {/* File List */}
                 {audioFiles.length > 0 ? (
-                  audioFiles.map((f, i) => (
-                    <div
-                      key={i}
-                      className={`p-2 rounded-lg cursor-pointer transition-colors ${selectedLibraryFile === f.path ? "bg-violet-500/20 border border-violet-500/30" : "hover:bg-gray-700"}`}
-                      onClick={() => handleAnalyzeLibraryFile(f.path)}
-                    >
-                      <div className={DS.flexBetween}>
-                        <div className={DS.flexCenter}>
-                          <Music size={14} />
-                          <span className="text-sm truncate">{f.filename}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={DS.textXs}>{formatFileSize(f.size_bytes)}</span>
-                          {selectedLibraryFile === f.path && analyzing ? (
-                            <Loader2 size={12} className="animate-spin text-violet-400" />
-                          ) : (
-                            <Play size={12} />
-                          )}
-                        </div>
-                      </div>
+                  <>
+                    <div className="space-y-1">
+                      {audioFiles
+                        .filter(f => !filterText || f.filename.toLowerCase().includes(filterText.toLowerCase()))
+                        .sort((a, b) => {
+                          if (sortBy === "name") return a.filename.localeCompare(b.filename);
+                          if (sortBy === "size") return b.size_bytes - a.size_bytes;
+                          return 0;
+                        })
+                        .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                        .map((f, i) => (
+                          <div
+                            key={i}
+                            className={`p-2 rounded-lg cursor-pointer transition-colors ${selectedLibraryFile === f.path ? "bg-violet-500/20 border border-violet-500/30" : "hover:bg-gray-700"}`}
+                            onClick={() => handleAnalyzeLibraryFile(f.path)}
+                          >
+                            <div className={DS.flexBetween}>
+                              <div className={DS.flexCenter}>
+                                <Music size={14} />
+                                <span className="text-sm truncate">{f.filename}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={DS.textXs}>{formatFileSize(f.size_bytes)}</span>
+                                {selectedLibraryFile === f.path && analyzing ? (
+                                  <Loader2 size={12} className="animate-spin text-violet-400" />
+                                ) : (
+                                  <Play size={12} />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                     </div>
-                  ))
+
+                    {/* Pagination */}
+                    {audioFiles.filter(f => !filterText || f.filename.toLowerCase().includes(filterText.toLowerCase())).length > pageSize && (
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-700">
+                        <button
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                          className={DS.btnSecondarySm}
+                        >
+                          Prev
+                        </button>
+                        <span className={DS.textXs}>
+                          Page {currentPage} of {Math.ceil(audioFiles.filter(f => !filterText || f.filename.toLowerCase().includes(filterText.toLowerCase())).length / pageSize)}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPage(p => p + 1)}
+                          disabled={currentPage >= Math.ceil(audioFiles.filter(f => !filterText || f.filename.toLowerCase().includes(filterText.toLowerCase())).length / pageSize)}
+                          className={DS.btnSecondarySm}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <p className={DS.textXs}>
                     No audio files in library.<br />
