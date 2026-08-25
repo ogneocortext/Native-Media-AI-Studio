@@ -1120,12 +1120,21 @@ function GPUCard() {
         {/* Processes */}
         {gpu.processes && gpu.processes.length > 0 && (
           <div className="mt-3 pt-3 border-t border-white/5">
-            <p className="text-xs text-muted mb-2">GPU Processes:</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-muted">GPU Processes:</p>
+              {gpu.memory_available === false && (
+                <p className="text-xs text-yellow-400" title="Run backend as administrator to enable per-process VRAM tracking">
+                  *Admin required for memory
+                </p>
+              )}
+            </div>
             <div className="space-y-1">
               {gpu.processes.slice(0, 5).map((proc, i) => (
                 <div key={i} className="flex items-center justify-between text-xs">
                   <span className="text-muted truncate flex-1">{proc.name}</span>
-                  <span className="text-white ml-2">{proc.used_mb ? `${proc.used_mb}MB` : "N/A"}</span>
+                  <span className="text-white ml-2">
+                    {proc.used_mb ? `${proc.used_mb}MB` : "N/A"}
+                  </span>
                 </div>
               ))}
             </div>

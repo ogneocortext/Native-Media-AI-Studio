@@ -671,6 +671,7 @@ export interface GPUSnapshot {
     used_mb: number | null;
     kind: string;
   }>;
+  memory_available?: boolean;
   vram_total_mb?: number;
   vram_used_mb?: number;
   vram_free_mb?: number;

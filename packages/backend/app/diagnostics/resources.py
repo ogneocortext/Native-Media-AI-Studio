@@ -300,52 +300,93 @@ class ResourceMonitor:
 
     async def _get_gpu_processes(self) -> list[dict[str, Any]]:
         """Get list of processes using the GPU with their memory usage.
-        Returns process names when available; per-process memory requires
-        elevated privileges or NVML accounting mode to be enabled."""
+        Uses nvidia-smi as primary source (works without admin).
+        Per-process memory requires NVML accounting mode (admin needed)."""
         processes = []
+        memory_available = False
 
-        if self._nvml_available:
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["nvidia-smi", "--query-compute-apps=pid,used_memory,process_name",
+                 "--format=csv,noheader"],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                for line in result.stdout.strip().split("\n"):
+                    parts = [p.strip() for p in line.split(",")]
+                    if len(parts) >= 3:
+                        try:
+                            pid = int(parts[0])
+                            mem_str = parts[1]
+                            name = parts[2] if parts[2] != "[Insufficient Permissions]" else None
+                            mem_mb = None
+                            if mem_str not in ("[N/A]", ""):
+                                try:
+                                    mem_mb = int(mem_str.replace(" MiB", "").strip())
+                                    memory_available = True
+                                except ValueError:
+                                    pass
+                            processes.append({
+                                "pid": pid,
+                                "used_mb": mem_mb,
+                                "name": name or "unknown",
+                                "kind": "compute",
+                            })
+                        except ValueError:
+                            pass
+        except Exception:
+            pass
+
+        if not processes and self._nvml_available:
             try:
                 import pynvml
                 handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-                # v2 returns actual memory; may be 0 if accounting mode disabled
-                procs = pynvml.nvmlDeviceGetComputeRunningProcesses_v2(handle)
-                for p in procs:
-                    mem = p.usedGpuMemory
-                    mem_mb = (mem // (1024 * 1024)) if mem and mem > 0 else None
-                    processes.append({
-                        "pid": p.pid,
-                        "used_mb": mem_mb,
-                        "kind": "compute",
-                    })
-                gfx = pynvml.nvmlDeviceGetGraphicsRunningProcesses_v2(handle)
-                for p in gfx:
-                    mem = p.usedGpuMemory
-                    mem_mb = (mem // (1024 * 1024)) if mem and mem > 0 else None
-                    # Avoid duplicating PIDs already in compute list
-                    if not any(existing["pid"] == p.pid for existing in processes):
+                try:
+                    procs = pynvml.nvmlDeviceGetComputeRunningProcesses_v2(handle)
+                    for p in procs:
+                        mem = p.usedGpuMemory
+                        mem_mb = (mem // (1024 * 1024)) if mem and mem > 0 else None
+                        if mem_mb and mem_mb > 0:
+                            memory_available = True
                         processes.append({
                             "pid": p.pid,
                             "used_mb": mem_mb,
-                            "kind": "graphics",
+                            "kind": "compute",
                         })
-            except (AttributeError, Exception):
-                # Fall back to v1 API
-                try:
-                    import pynvml
-                    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-                    for p in pynvml.nvmlDeviceGetComputeRunningProcesses(handle):
-                        processes.append({"pid": p.pid, "used_mb": None, "kind": "compute"})
-                    for p in pynvml.nvmlDeviceGetGraphicsRunningProcesses(handle):
+                    gfx = pynvml.nvmlDeviceGetGraphicsRunningProcesses_v2(handle)
+                    for p in gfx:
+                        mem = p.usedGpuMemory
+                        mem_mb = (mem // (1024 * 1024)) if mem and mem > 0 else None
+                        if mem_mb and mem_mb > 0:
+                            memory_available = True
                         if not any(existing["pid"] == p.pid for existing in processes):
-                            processes.append({"pid": p.pid, "used_mb": None, "kind": "graphics"})
-                except Exception:
-                    pass
+                            processes.append({
+                                "pid": p.pid,
+                                "used_mb": mem_mb,
+                                "kind": "graphics",
+                            })
+                except (AttributeError, Exception):
+                    try:
+                        import pynvml
+                        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+                        for p in pynvml.nvmlDeviceGetComputeRunningProcesses(handle):
+                            processes.append({"pid": p.pid, "used_mb": None, "kind": "compute"})
+                        for p in pynvml.nvmlDeviceGetGraphicsRunningProcesses(handle):
+                            if not any(existing["pid"] == p.pid for existing in processes):
+                                processes.append({"pid": p.pid, "used_mb": None, "kind": "graphics"})
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
-        return processes
+        return processes, memory_available
 
     async def _enrich_process_names(self, processes: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Add process names via nvidia-smi (works without admin for name lookup)."""
+        """Add process names via nvidia-smi if not already populated."""
+        needs_names = any(p.get("name") in (None, "unknown") for p in processes)
+        if not needs_names:
+            return processes
         try:
             import subprocess
             result = subprocess.run(
@@ -362,7 +403,8 @@ class ResourceMonitor:
                         except ValueError:
                             pass
                 for proc in processes:
-                    proc["name"] = name_map.get(proc["pid"], "unknown")
+                    if proc.get("name") in (None, "unknown"):
+                        proc["name"] = name_map.get(proc["pid"], "unknown")
         except Exception:
             pass
         return processes
@@ -383,6 +425,8 @@ class ResourceMonitor:
             util = pynvml.nvmlDeviceGetUtilizationRates(handle)
             temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
 
+            processes, memory_available = await self._get_gpu_processes()
+            processes = await self._enrich_process_names(processes)
             snapshot = {
                 "available": True,
                 "name": pynvml.nvmlDeviceGetName(handle),
@@ -393,7 +437,8 @@ class ResourceMonitor:
                 "gpu_utilization": util.gpu,
                 "memory_controller_utilization": util.memory,
                 "temperature_c": temp,
-                "processes": await self._enrich_process_names(await self._get_gpu_processes()),
+                "processes": processes,
+                "memory_available": memory_available,
             }
         except Exception as e:
             logger.warning(f"Failed to get GPU snapshot: {e}")
