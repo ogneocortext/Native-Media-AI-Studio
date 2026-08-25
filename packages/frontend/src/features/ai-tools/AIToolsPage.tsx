@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Brain,
   Send,
@@ -13,11 +13,15 @@ import {
   Trash2,
   Settings,
   Zap,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import {
   getOllamaModels,
-  ollamaGenerate,
+  ollamaChat,
   type OllamaModel,
+  type ChatMessage,
+  type ToolDefinition,
 } from "../../services/api";
 import { DS } from "../../styles/designSystem";
 
@@ -34,72 +38,89 @@ interface Tool {
 
 const DEFAULT_TOOLS: Tool[] = [
   {
-    id: "generate_image",
-    name: "generate_image",
-    description: "Generate an image using ComfyUI with the given prompt",
-    parameters: {
-      type: "object",
-      properties: {
-        prompt: { type: "string", description: "The image generation prompt" },
-        negative_prompt: { type: "string", description: "What to avoid in the image" },
-        width: { type: "number", description: "Image width in pixels" },
-        height: { type: "number", description: "Image height in pixels" },
-      },
-      required: ["prompt"],
-    },
-  },
-  {
-    id: "analyze_audio",
-    name: "analyze_audio",
-    description: "Analyze an audio file to detect tempo, beats, and song structure",
-    parameters: {
-      type: "object",
-      properties: {
-        file_path: { type: "string", description: "Path to the audio file" },
-      },
-      required: ["file_path"],
-    },
-  },
-  {
-    id: "search_docs",
-    name: "search_docs",
-    description: "Search the project documentation",
-    parameters: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Search query" },
-        limit: { type: "number", description: "Maximum number of results" },
-      },
-      required: ["query"],
-    },
-  },
-  {
     id: "get_project_structure",
     name: "get_project_structure",
     description: "Get the project directory structure",
     parameters: {
       type: "object",
       properties: {
-        depth: { type: "number", description: "Directory depth to traverse" },
+        depth: { type: "number", description: "Directory depth to traverse (default: 3)" },
       },
       required: [],
     },
   },
+  {
+    id: "search_docs",
+    name: "search_docs",
+    description: "Search the project documentation for relevant information",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search query" },
+        limit: { type: "number", description: "Maximum number of results (default: 5)" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    id: "get_system_health",
+    name: "get_system_health",
+    description: "Get current system health status including CPU, memory, GPU, and VRAM usage",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    id: "list_jobs",
+    name: "list_jobs",
+    description: "List jobs in the queue, optionally filtered by status",
+    parameters: {
+      type: "object",
+      properties: {
+        status: { type: "string", description: "Filter by status: queued, running, completed, failed" },
+      },
+      required: [],
+    },
+  },
+  {
+    id: "get_job_status",
+    name: "get_job_status",
+    description: "Get the status of a specific job by its ID",
+    parameters: {
+      type: "object",
+      properties: {
+        job_id: { type: "string", description: "The job ID to check" },
+      },
+      required: ["job_id"],
+    },
+  },
 ];
+
+interface HistoryEntry {
+  prompt: string;
+  response: string;
+  model: string;
+  toolCalls?: number;
+  timestamp: Date;
+}
 
 export function AIToolsPage() {
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [prompt, setPrompt] = useState("");
   const [response, setResponse] = useState<string>("");
-  const [toolCalls, setToolCalls] = useState<Array<{ name: string; arguments: Record<string, unknown> }>>([]);
+  const [toolCalls, setToolCalls] = useState<Array<{ name: string; arguments: Record<string, unknown>; result?: string }>>([]);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [history, setHistory] = useState<Array<{ prompt: string; response: string; model: string }>>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [tools, setTools] = useState<Tool[]>(DEFAULT_TOOLS);
   const [showToolEditor, setShowToolEditor] = useState(false);
   const [editingTool, setEditingTool] = useState<Tool | null>(null);
   const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set(DEFAULT_TOOLS.map((t) => t.id)));
+  const [ollamaConnected, setOllamaConnected] = useState(false);
+  const [streaming, setStreaming] = useState(false);
 
   useEffect(() => {
     loadModels();
@@ -114,13 +135,25 @@ export function AIToolsPage() {
         supportsVision: m.capabilities?.includes("vision") || m.name.includes("vl"),
       }));
       setModels(enhanced);
+      setOllamaConnected(true);
       if (enhanced.length > 0 && !selectedModel) {
         setSelectedModel(enhanced[0].name);
       }
     } catch {
-      // Ollama may not be running
+      setOllamaConnected(false);
     }
   };
+
+  const convertToToolDefinitions = useCallback((): ToolDefinition[] => {
+    return tools.filter((t) => enabledTools.has(t.id)).map((t) => ({
+      type: "function" as const,
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+      },
+    }));
+  }, [tools, enabledTools]);
 
   const handleGenerate = async () => {
     if (!prompt.trim() || !selectedModel) return;
@@ -129,27 +162,36 @@ export function AIToolsPage() {
     setResponse("");
     setToolCalls([]);
 
-    const activeTools = tools.filter((t) => enabledTools.has(t.id));
     const supportsTools = models.find((m) => m.name === selectedModel)?.supportsTools;
+    const activeTools = supportsTools ? convertToToolDefinitions() : [];
 
     try {
-      const result = await ollamaGenerate(prompt, selectedModel, {
-        tools: supportsTools ? activeTools.map((t) => ({
-          type: "function",
-          function: {
-            name: t.name,
-            description: t.description,
-            parameters: t.parameters,
-          },
-        })) : undefined,
+      const result = await ollamaChat(prompt, selectedModel, {
+        tools: activeTools,
+        think: true,
+        maxToolCalls: 5,
       });
+
       setResponse(result.response);
-      if (result.toolCalls) {
-        setToolCalls(result.toolCalls);
+
+      // Build tool calls display from the agent loop
+      if (result.toolCalls > 0) {
+        setToolCalls([{
+          name: "agent_loop",
+          arguments: { iterations: result.toolCalls },
+          result: `Agent executed ${result.toolCalls} tool call(s)`,
+        }]);
       }
-      setHistory((prev) => [{ prompt, response: result.response, model: selectedModel }, ...prev.slice(0, 9)]);
-    } catch (err: any) {
-      setError(err.message || "Generation failed");
+
+      setHistory((prev) => [{
+        prompt,
+        response: result.response,
+        model: selectedModel,
+        toolCalls: result.toolCalls,
+        timestamp: new Date(),
+      }, ...prev.slice(0, 19)]);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Generation failed");
     } finally {
       setGenerating(false);
     }
@@ -166,6 +208,7 @@ export function AIToolsPage() {
     { label: "Scene Description", text: "Describe a cinematic scene for a music video chorus section. Include lighting, mood, and visual elements." },
     { label: "Color Palette", text: "Suggest a color palette for a music video with [mood] mood. Include hex codes and usage guidelines." },
     { label: "Transition Ideas", text: "Suggest creative video transitions for a music video that sync to beat drops." },
+    { label: "Project Status", text: "What's the current system health and job queue status?" },
   ];
 
   const addTool = () => {
@@ -204,14 +247,32 @@ export function AIToolsPage() {
   return (
     <div className={DS.page}>
       {/* Header */}
-      <div>
-        <h1 className={DS.pageTitle}>
-          <Brain size={22} className={DS.accentViolet} />
-          AI Tools
-        </h1>
-        <p className={DS.pageSubtitle}>
-          Generate creative ideas using local AI models with tool support.
-        </p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+            <Brain size={20} className="text-primary" />
+          </div>
+          <div>
+            <h1 className={DS.pageTitle}>
+              AI Tools
+            </h1>
+            <p className={DS.pageSubtitle}>
+              Generate creative ideas using local AI models with tool support.
+            </p>
+          </div>
+        </div>
+        {/* Connection Status */}
+        <div className="flex items-center gap-2">
+          {ollamaConnected ? (
+            <span className="flex items-center gap-1 text-xs text-green-400">
+              <Wifi size={12} /> Connected
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-xs text-red-400">
+              <WifiOff size={12} /> Disconnected
+            </span>
+          )}
+        </div>
       </div>
 
       <div className={DS.gridChat}>
@@ -315,7 +376,10 @@ export function AIToolsPage() {
                       <Zap size={12} className="text-amber-400" />
                       <span className="text-amber-400 text-sm font-medium">{tc.name}</span>
                     </div>
-                    <pre className={DS.mono + " overflow-auto"}>
+                    {tc.result && (
+                      <p className="text-xs text-green-400 mt-1">{tc.result}</p>
+                    )}
+                    <pre className={DS.mono + " overflow-auto mt-1"}>
                       {JSON.stringify(tc.arguments, null, 2)}
                     </pre>
                   </div>
@@ -432,7 +496,12 @@ export function AIToolsPage() {
                     onClick={() => { setPrompt(h.prompt); setResponse(h.response); }}
                     className="w-full text-left px-2 py-1.5 bg-gray-700/50 rounded text-xs text-gray-400 truncate hover:bg-gray-700"
                   >
-                    {h.prompt}
+                    <div className="flex items-center justify-between">
+                      <span className="truncate">{h.prompt}</span>
+                      {h.toolCalls ? (
+                        <span className="text-amber-400 ml-2">🔧{h.toolCalls}</span>
+                      ) : null}
+                    </div>
                   </button>
                 ))}
               </div>

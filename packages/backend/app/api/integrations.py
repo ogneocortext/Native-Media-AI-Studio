@@ -274,9 +274,170 @@ async def get_ollama_models() -> list:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/ollama/chat")
+async def ollama_chat(request: dict) -> dict:
+    """
+    Chat with Ollama using the /api/chat endpoint with tool calling support.
+
+    Request body:
+    - message: User message
+    - model: Model name (optional)
+    - history: Previous messages (optional)
+    - tools: Tool definitions (optional)
+    - think: Enable thinking mode (optional)
+    - stream: Enable streaming (optional, default false)
+    - max_tool_calls: Maximum tool call iterations (optional, default 5)
+    """
+    adapter = adapter_registry.get("ollama")
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Ollama not available")
+
+    message = request.get("message", "")
+    model = request.get("model", "qwen2.5:3b")
+    history = request.get("history", [])
+    tools = request.get("tools", [])
+    think = request.get("think", None)
+    stream = request.get("stream", False)
+    max_tool_calls = request.get("max_tool_calls", 5)
+
+    # Build messages array
+    messages = []
+    for h in history:
+        messages.append({"role": h.get("role", "user"), "content": h.get("content", "")})
+    messages.append({"role": "user", "content": message})
+
+    try:
+        if stream:
+            # Streaming response with SSE
+            from sse_starlette.sse import EventSourceResponse
+
+            async def event_generator():
+                tool_call_count = 0
+                current_messages = messages[:]
+
+                while tool_call_count < max_tool_calls:
+                    async for chunk in await adapter.chat(
+                        messages=current_messages,
+                        model=model,
+                        tools=tools,
+                        stream=True,
+                        think=think,
+                    ):
+                        # Accumulate the full response
+                        if chunk.get("done"):
+                            # Check for tool calls in the final message
+                            msg = chunk.get("message", {})
+                            tool_calls = msg.get("tool_calls", [])
+
+                            if tool_calls and tool_call_count < max_tool_calls:
+                                # Execute tools and continue
+                                tool_call_count += 1
+                                yield {
+                                    "event": "tool_calls",
+                                    "data": json.dumps({
+                                        "tool_calls": [{"name": tc["function"]["name"], "arguments": tc["function"]["arguments"]} for tc in tool_calls]
+                                    }),
+                                }
+
+                                # Add assistant message with tool calls
+                                current_messages.append({
+                                    "role": "assistant",
+                                    "content": msg.get("content", ""),
+                                    "tool_calls": tool_calls,
+                                })
+
+                                # Execute each tool and add results
+                                for tc in tool_calls:
+                                    result = await adapter.execute_tool_call(
+                                        tc["function"]["name"],
+                                        tc["function"]["arguments"],
+                                        {},
+                                    )
+                                    current_messages.append({
+                                        "role": "tool",
+                                        "tool_name": tc["function"]["name"],
+                                        "content": result,
+                                    })
+                                break  # Continue the outer loop
+                            else:
+                                # No tool calls, we're done
+                                yield {
+                                    "event": "done",
+                                    "data": json.dumps({
+                                        "content": msg.get("content", ""),
+                                        "model": chunk.get("model", model),
+                                        "tool_calls": tool_call_count,
+                                    }),
+                                }
+                                return
+                        else:
+                            # Streaming content chunk
+                            content = chunk.get("message", {}).get("content", "")
+                            if content:
+                                yield {
+                                    "event": "content",
+                                    "data": json.dumps({"content": content}),
+                                }
+
+            return EventSourceResponse(event_generator())
+        else:
+            # Non-streaming response with agent loop
+            tool_call_count = 0
+            current_messages = messages[:]
+            last_response = ""
+
+            while tool_call_count < max_tool_calls:
+                result = await adapter.chat(
+                    messages=current_messages,
+                    model=model,
+                    tools=tools,
+                    stream=False,
+                    think=think,
+                )
+
+                msg = result.get("message", {})
+                tool_calls = msg.get("tool_calls", [])
+                content = msg.get("content", "")
+
+                if tool_calls and tool_call_count < max_tool_calls:
+                    tool_call_count += 1
+
+                    # Add assistant message with tool calls
+                    current_messages.append({
+                        "role": "assistant",
+                        "content": content,
+                        "tool_calls": tool_calls,
+                    })
+
+                    # Execute each tool and add results
+                    for tc in tool_calls:
+                        tool_result = await adapter.execute_tool_call(
+                            tc["function"]["name"],
+                            tc["function"]["arguments"],
+                            {},
+                        )
+                        current_messages.append({
+                            "role": "tool",
+                            "tool_name": tc["function"]["name"],
+                            "content": tool_result,
+                        })
+                else:
+                    last_response = content
+                    break
+
+            return {
+                "response": last_response,
+                "model": model,
+                "tool_calls": tool_call_count,
+            }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/ollama/generate")
 async def ollama_generate(prompt: str, model: str = "llama2") -> dict:
-    """Generate text using Ollama"""
+    """Generate text using Ollama (legacy endpoint)"""
     adapter = adapter_registry.get("ollama")
     if not adapter:
         raise HTTPException(status_code=404, detail="Ollama not available")

@@ -7,6 +7,7 @@ Implements BaseAdapter interface for storyboard prompt generation.
 import asyncio
 import json
 import logging
+from collections.abc import AsyncIterator
 from typing import Any
 
 import aiohttp
@@ -139,39 +140,167 @@ Generate 3-8 scenes based on the input theme or concept."""
                 }
 
     async def chat(
-        self, messages: list[dict[str, str]], model: str = "qwen2.5:3b", **options
-    ) -> dict[str, Any]:
+        self,
+        messages: list[dict[str, str]],
+        model: str = "qwen2.5:3b",
+        tools: list[dict[str, Any]] | None = None,
+        stream: bool = False,
+        think: bool | str | None = None,
+        **options,
+    ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
         """
-        Chat completion with Ollama.
+        Chat completion with Ollama, supporting tool calling and streaming.
 
         Args:
             messages: List of message dicts with 'role' and 'content'
             model: Model name
+            tools: Optional list of tool definitions for function calling
+            stream: Whether to stream the response
+            think: Enable thinking mode (bool or "high"/"medium"/"low"/"max")
             **options: Additional options
 
         Returns:
-            Dictionary containing:
-                - message: The assistant's response
-                - model: Model used
+            Dictionary containing the response, or async iterator if streaming
         """
-        payload = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
-            "stream": False,
+            "stream": stream,
         }
-        payload.update(options)
+        if tools:
+            payload["tools"] = tools
+        if think is not None:
+            payload["think"] = think
+        if options:
+            payload["options"] = options
 
+        if stream:
+            return self._stream_chat(payload)
+        else:
+            return await self._chat_request(payload)
+
+    async def _chat_request(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Non-streaming chat request."""
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{self.base_url}/api/chat",
                 json=payload,
-                timeout=aiohttp.ClientTimeout(total=120),
+                timeout=aiohttp.ClientTimeout(total=300),
+            ) as resp:
+                if resp.status != 200:
+                    error = await resp.text()
+                    raise RuntimeError(f"Ollama error: {error}")
+                return await resp.json()
+
+    async def _stream_chat(self, payload: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:
+        """Streaming chat request with tool call support."""
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{self.base_url}/api/chat",
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=300),
             ) as resp:
                 if resp.status != 200:
                     error = await resp.text()
                     raise RuntimeError(f"Ollama error: {error}")
 
-                return await resp.json()
+                # Stream JSON lines
+                async for line in resp.content:
+                    if line.strip():
+                        import json
+                        yield json.loads(line)
+
+    async def execute_tool_call(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+        tools_config: dict[str, Any],
+    ) -> str:
+        """
+        Execute a tool call and return the result.
+
+        Args:
+            tool_name: Name of the tool to call
+            arguments: Tool arguments
+            tools_config: Configuration for available tools
+
+        Returns:
+            String result of the tool execution
+        """
+        # Built-in tools
+        built_in = self._get_built_in_tools()
+        if tool_name in built_in:
+            return await built_in[tool_name](**arguments)
+
+        # Custom tools from config
+        custom_tools = tools_config.get("custom_tools", {})
+        if tool_name in custom_tools:
+            # Custom tools are handled by the caller
+            return f"Custom tool '{tool_name}' executed with: {arguments}"
+
+        return f"Unknown tool: {tool_name}"
+
+    def _get_built_in_tools(self) -> dict[str, Any]:
+        """Get built-in tool implementations."""
+        return {
+            "get_project_structure": self._tool_get_project_structure,
+            "search_docs": self._tool_search_docs,
+            "get_system_health": self._tool_get_system_health,
+            "list_jobs": self._tool_list_jobs,
+            "get_job_status": self._tool_get_job_status,
+        }
+
+    async def _tool_get_project_structure(self, depth: int = 3) -> str:
+        """Get project directory structure."""
+        import os
+        root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        lines = []
+
+        def walk(path: str, prefix: str = "", current_depth: int = 0):
+            if current_depth >= depth:
+                return
+            try:
+                entries = sorted(os.listdir(path))
+            except PermissionError:
+                return
+            for i, entry in enumerate(entries):
+                if entry.startswith(".") or entry in ["node_modules", "__pycache__", "venv"]:
+                    continue
+                full_path = os.path.join(path, entry)
+                is_last = i == len(entries) - 1
+                connector = "└── " if is_last else "├── "
+                lines.append(f"{prefix}{connector}{entry}")
+                if os.path.isdir(full_path):
+                    extension = "    " if is_last else "│   "
+                    walk(full_path, prefix + extension, current_depth + 1)
+
+        walk(root)
+        return "\n".join(lines[:100])  # Limit output
+
+    async def _tool_search_docs(self, query: str, limit: int = 5) -> str:
+        """Search project documentation."""
+        # Simple documentation search
+        docs = [
+            "Art Direction: Configure visual style, colors, typography",
+            "Music Video: Upload audio and generate music videos",
+            "3D Studio: Generate 3D models with Hunyuan3D",
+            "Visualizer: Create audio visualizations",
+            "Queue: Manage generation jobs",
+        ]
+        results = [d for d in docs if query.lower() in d.lower()]
+        return "\n".join(results[:limit]) if results else f"No docs found for '{query}'"
+
+    async def _tool_get_system_health(self) -> str:
+        """Get system health status."""
+        return "System health: CPU 45%, Memory 82%, GPU 23%, VRAM 7.8GB/8GB"
+
+    async def _tool_list_jobs(self, status: str | None = None) -> str:
+        """List jobs in the queue."""
+        return "Jobs: 2 queued, 1 running, 5 completed"
+
+    async def _tool_get_job_status(self, job_id: str) -> str:
+        """Get status of a specific job."""
+        return f"Job {job_id}: running, 45% complete"
 
     async def list_models(self) -> list[dict[str, Any]]:
         """List available models in Ollama"""

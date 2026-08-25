@@ -1,6 +1,6 @@
 {
   "title": "Agent Manifest — Pipeline, Styles & APIs",
-  "version": "2026-08-24",
+  "version": "2026-08-25",
   "vault": "docs/knowledge-library",
   "docs_api": "/api/docs",
   "description": "Machine-readable index for AI agents to create music videos of any style in 1-2 fetches. See prompts.json for copy-paste genre prompts.",
@@ -12,6 +12,15 @@
     "POST /api/audio/analyze with audio file → use beat_times + sections + energy_curve",
     "Pick style from styles[genre] → use prompt_template + render preset → POST /api/video/generate-section → poll GET /api/jobs/{id}"
   ],
+  "ollama_integration": {
+    "doc": "knowledge-library/integration-ollama.md",
+    "api": "POST /api/integrations/ollama/chat",
+    "models": "GET /api/integrations/ollama/models",
+    "tool_calling": true,
+    "streaming": true,
+    "think_mode": true,
+    "notes": "Always use /api/chat endpoint for tool calling. Enable think:true for Gemma 4. Use flat tool arguments for best results."
+  },
   "pipeline": [
     {
       "phase": 1,

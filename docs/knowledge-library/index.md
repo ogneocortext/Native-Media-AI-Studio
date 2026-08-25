@@ -33,6 +33,7 @@ date: 2026-08-24
 
 ### 🛠️ Technical References
 - [[technical-reference|⚙️ Technical Reference]] — System architecture, API reference, service management
+- [[integration-ollama|🤖 Ollama Integration]] — Local LLM inference, tool calling, agent loop patterns
 - [[comfyui-workflows|🎨 ComfyUI Workflows]] — Custom workflows for image/video generation
 - [[blender-mcp|🖥️ Blender MCP Integration]] — 3D scene building via MCP protocol
 - [[hunyuan3d-setup|🧊 Hunyuan3D-2mini Setup]] — ComfyUI 3D generation with Kijai wrapper
@@ -127,4 +128,4 @@ graph LR
 
 ---
 
-*Last updated: 2026-08-24*
+*Last updated: 2026-08-25*

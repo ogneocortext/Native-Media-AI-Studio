@@ -743,7 +743,7 @@ export async function getJobTypes(): Promise<Record<string, unknown>> {
 }
 
 // =============================================================================
-// Ollama API
+// Ollama Chat API with Tool Calling
 // =============================================================================
 
 export interface OllamaModel {
@@ -755,6 +755,31 @@ export interface OllamaModel {
   supportsVision?: boolean;
 }
 
+export interface ChatMessage {
+  role: "user" | "assistant" | "system" | "tool";
+  content: string;
+  tool_calls?: Array<{
+    function: {
+      name: string;
+      arguments: Record<string, unknown>;
+    };
+  }>;
+  tool_name?: string;
+}
+
+export interface ToolDefinition {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: string;
+      properties: Record<string, { type: string; description: string }>;
+      required?: string[];
+    };
+  };
+}
+
 export async function getOllamaModels(): Promise<OllamaModel[]> {
   const base = getApiBase();
   const res = await fetch(`${base}/api/integrations/ollama/models`);
@@ -762,29 +787,117 @@ export async function getOllamaModels(): Promise<OllamaModel[]> {
   return res.json();
 }
 
+export async function ollamaChat(
+  message: string,
+  model: string = "qwen2.5:3b",
+  options?: {
+    history?: ChatMessage[];
+    tools?: ToolDefinition[];
+    think?: boolean | string;
+    maxToolCalls?: number;
+  },
+): Promise<{ response: string; model: string; toolCalls: number }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/integrations/ollama/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      model,
+      history: options?.history || [],
+      tools: options?.tools || [],
+      think: options?.think,
+      stream: false,
+      max_tool_calls: options?.maxToolCalls || 5,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to chat with Ollama");
+  return res.json();
+}
+
+export async function ollamaChatStream(
+  message: string,
+  model: string = "qwen2.5:3b",
+  options?: {
+    history?: ChatMessage[];
+    tools?: ToolDefinition[];
+    think?: boolean | string;
+    maxToolCalls?: number;
+  },
+): Promise<ReadableStream<Uint8Array>> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/integrations/ollama/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      model,
+      history: options?.history || [],
+      tools: options?.tools || [],
+      think: options?.think,
+      stream: true,
+      max_tool_calls: options?.maxToolCalls || 5,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to chat with Ollama");
+  return res.body!;
+}
+
+/**
+ * Parse SSE stream from Ollama chat endpoint.
+ * Returns an async generator that yields chat events.
+ */
+export async function* parseOllamaStream(
+  stream: ReadableStream<Uint8Array>,
+): AsyncGenerator<{ type: "content" | "tool_calls" | "done"; data: unknown }> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            const event = line.match(/^event: (.+)$/m)?.[1];
+
+            if (event === "content") {
+              yield { type: "content", data: JSON.parse(data) };
+            } else if (event === "tool_calls") {
+              yield { type: "tool_calls", data: JSON.parse(data) };
+            } else if (event === "done") {
+              yield { type: "done", data: JSON.parse(data) };
+            }
+          } catch {
+            // Skip malformed JSON
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+/**
+ * Generate text using Ollama (legacy endpoint).
+ * Use ollamaChat for new code.
+ */
 export async function ollamaGenerate(
   prompt: string,
   model: string = "llama2",
-  options?: {
-    tools?: Array<{
-      type: string;
-      function: {
-        name: string;
-        description: string;
-        parameters: Record<string, unknown>;
-      };
-    }>;
-    stream?: boolean;
-  },
-): Promise<{ response: string; toolCalls?: Array<{ name: string; arguments: Record<string, unknown> }> }> {
+): Promise<{ response: string; model: string; done: boolean }> {
   const base = getApiBase();
   const res = await fetch(
     `${base}/api/integrations/ollama/generate?prompt=${encodeURIComponent(prompt)}&model=${model}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(options || {}),
-    },
   );
   if (!res.ok) throw new Error("Failed to generate via Ollama");
   return res.json();
