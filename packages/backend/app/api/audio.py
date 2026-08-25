@@ -318,6 +318,34 @@ async def list_uploaded_audio():
     return {"files": files}
 
 
+@router.post("/rename")
+async def rename_audio_file(body: dict):
+    """Rename an audio file."""
+    old_filename = body.get("old_filename", "")
+    new_filename = body.get("new_filename", "")
+
+    if not old_filename or not new_filename:
+        raise HTTPException(status_code=400, detail="Both old_filename and new_filename are required")
+
+    if ".." in old_filename or ".." in new_filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    old_path = AUDIO_DIR / old_filename
+    if not old_path.exists() or not old_path.is_file():
+        raise HTTPException(status_code=404, detail=f"Audio file not found: {old_filename}")
+
+    ext = old_path.suffix
+    new_filename_with_ext = new_filename if new_filename.endswith(ext) else new_filename + ext
+    new_path = AUDIO_DIR / new_filename_with_ext
+
+    if new_path.exists():
+        raise HTTPException(status_code=409, detail=f"A file with that name already exists: {new_filename_with_ext}")
+
+    old_path.rename(new_path)
+
+    return {"success": True, "old_filename": old_filename, "new_filename": new_filename_with_ext}
+
+
 @router.get("/file/{filename:path}")
 async def serve_audio_file(filename: str):
     """Serve an audio file by filename."""

@@ -614,6 +614,20 @@ export async function listAudioFiles(): Promise<Array<{
   return Array.isArray(data) ? data : (data?.files || []);
 }
 
+export async function renameAudioFile(oldFilename: string, newFilename: string): Promise<{ success: boolean; new_filename: string }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/audio/rename`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ old_filename: oldFilename, new_filename: newFilename }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to rename file");
+  }
+  return res.json();
+}
+
 // =============================================================================
 // Video Generation API
 // =============================================================================

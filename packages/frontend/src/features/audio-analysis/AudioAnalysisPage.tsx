@@ -15,11 +15,13 @@ import {
   Clock,
   TrendingUp,
   Music2,
+  Pencil,
 } from "lucide-react";
 import {
   analyzeAudio,
   generateVideoSection,
   listAudioFiles,
+  renameAudioFile,
   getApiBase,
   type AudioAnalysisResult,
 } from "../../services/api";
@@ -72,6 +74,8 @@ export function AudioAnalysisPage() {
   const [filterText, setFilterText] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
+  const [editingFile, setEditingFile] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -222,7 +226,7 @@ export function AudioAnalysisPage() {
   const getSectionColor = (type: string) => SECTION_COLORS[type] || SECTION_COLORS.full;
 
   return (
-    <div className={DS.page}>
+    <div className={DS.pageWide}>
       <div className={DS.pageTitle}>
         <Music size={22} />
         Audio Analysis
@@ -231,9 +235,9 @@ export function AudioAnalysisPage() {
         Upload audio or select from library to detect tempo, beats, and song structure.
       </p>
 
-      <div className={DS.gridMainSidebar}>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Area */}
-        <div className={DS.section}>
+        <div className="lg:col-span-2 space-y-4">
           {/* Upload Area */}
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -464,8 +468,8 @@ export function AudioAnalysisPage() {
         </div>
 
         {/* Sidebar - Audio Library */}
-        <div className="space-y-4">
-          <div className={DS.card}>
+        <div className="lg:col-span-1 space-y-4 min-w-0">
+          <div className={DS.card} style={{ overflow: "hidden" }}>
             <div
               onClick={() => setShowLibrary(!showLibrary)}
               className={DS.flexBetween}
@@ -519,15 +523,44 @@ export function AudioAnalysisPage() {
                           <div
                             key={i}
                             className={`p-2 rounded-lg cursor-pointer transition-colors ${selectedLibraryFile === f.path ? "bg-violet-500/20 border border-violet-500/30" : "hover:bg-gray-700"}`}
-                            onClick={() => handleAnalyzeLibraryFile(f.path)}
+                            onClick={() => { if (editingFile !== f.path) handleAnalyzeLibraryFile(f.path); }}
                           >
                             <div className={DS.flexBetween}>
-                              <div className={DS.flexCenter}>
-                                <Music size={14} />
-                                <span className="text-sm truncate">{f.filename}</span>
+                              <div className={DS.flexCenter} style={{ minWidth: 0, flex: 1 }}>
+                                <Music size={14} className="shrink-0" />
+                                {editingFile === f.path ? (
+                                  <input
+                                    autoFocus
+                                    value={editName}
+                                    onChange={(e) => setEditName(e.target.value)}
+                                    onBlur={async () => {
+                                      if (editName.trim() && editName !== f.filename) {
+                                        try {
+                                          const ext = f.filename.includes(".") ? f.filename.slice(f.filename.lastIndexOf(".")) : "";
+                                          const newName = editName.includes(".") ? editName : editName + ext;
+                                          await renameAudioFile(f.filename, newName);
+                                          await loadAudioFiles();
+                                        } catch { /* ignore */ }
+                                      }
+                                      setEditingFile(null);
+                                    }}
+                                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingFile(null); }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="ml-2 px-1 py-0.5 bg-gray-700 border border-violet-500 rounded text-sm text-white w-full focus:outline-none"
+                                  />
+                                ) : (
+                                  <span className="text-sm truncate">{f.filename}</span>
+                                )}
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className={DS.textXs}>{formatFileSize(f.size_bytes)}</span>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setEditingFile(f.path); setEditName(f.filename); }}
+                                  className={DS.btnSecondarySm}
+                                  title="Rename"
+                                >
+                                  <Pencil size={12} />
+                                </button>
                                 {selectedLibraryFile === f.path && analyzing ? (
                                   <Loader2 size={12} className="animate-spin text-violet-400" />
                                 ) : (
