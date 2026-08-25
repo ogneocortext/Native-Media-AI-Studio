@@ -25,6 +25,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | `queue.log` | Queue processor events |
 | `comfyui.log` | ComfyUI adapter events |
 
+### Added - VRAM Management System
+
+- **VRAM Manager**: Coordinates GPU memory between Ollama and ComfyUI
+- **Automatic Ollama Offload**: Unloads Ollama models when 3D generation starts
+- **Automatic Ollama Reload**: Reloads Ollama models when 3D generation completes
+- **OOM Prevention**: Emergency offload when VRAM exceeds critical threshold (92%)
+- **API Endpoints**:
+  - `GET /api/integrations/vram/status` - Current VRAM status
+  - `POST /api/integrations/vram/offload-ollama` - Manual offload
+  - `POST /api/integrations/vram/reload-ollama` - Manual reload
+- **Thresholds** (for GTX 1070 Ti 8GB):
+  - Warning: 85% VRAM usage
+  - Critical: 92% VRAM usage
+  - Minimum for 3D: 4GB free VRAM
+
 ### Added - Ollama Tool Calling & Agent Loop
 
 #### Backend
