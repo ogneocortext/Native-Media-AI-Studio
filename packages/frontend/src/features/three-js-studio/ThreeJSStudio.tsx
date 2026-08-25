@@ -402,13 +402,14 @@ export function ThreeJSStudio() {
         objectsMapRef.current.set(obj.id, mesh);
       }
 
-      clockRef.current = new THREE.Clock();
+      clockRef.current = new THREE.Timer();
 
       // Main Render / Animation Loop
       const animate = () => {
         animationRef.current = requestAnimationFrame(animate);
+        clockRef.current.update();
         const delta = clockRef.current.getDelta();
-        const elapsed = clockRef.current.getElapsedTime();
+        const elapsed = clockRef.current.getElapsed();
 
         controls.update();
 

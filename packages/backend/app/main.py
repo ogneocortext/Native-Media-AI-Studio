@@ -163,18 +163,31 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Local-first app: allow the dev frontend origins explicitly. A wildcard origin
-# combined with allow_credentials=True is rejected by browsers per the CORS spec.
-_local_origins = {
-    f"http://localhost:{config.frontend_port}",
-    f"http://127.0.0.1:{config.frontend_port}",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    f"http://localhost:{config.backend_port}",
-    f"http://127.0.0.1:{config.backend_port}",
-}
+  # Local-first app: allow the dev frontend origins explicitly. A wildcard origin
+  # combined with allow_credentials=True is rejected by browsers per the CORS spec.
+  # Allow localhost, loopback, and private LAN ranges to support local network access
+  # while blocking external internet connections.
+  _local_origins = {
+      f"http://localhost:{config.frontend_port}",
+      f"http://127.0.0.1:{config.frontend_port}",
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      f"http://localhost:{config.backend_port}",
+      f"http://127.0.0.1:{config.backend_port}",
+  }
+  # Add LAN origins for local network access (private IP ranges)
+  import socket
+  try:
+      hostname = socket.gethostname()
+      for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
+          ip = info[4][0]
+          if ip and not ip.startswith("127."):
+              _local_origins.add(f"http://{ip}:{config.frontend_port}")
+              _local_origins.add(f"http://{ip}:{config.backend_port}")
+  except socket.gaierror:
+      pass
 
 app.add_middleware(
     CORSMiddleware,

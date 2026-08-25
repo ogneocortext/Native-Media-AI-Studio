@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+const ws = new WebSocket('ws://localhost:8000/ws');
+ws.onopen = () => console.log('Connected!');
+ws.onerror = (e) => console.log('Error:', e);
+ws.onclose = (e) => console.log('Closed:', e.code, e.reason);
+</script>
+</body>
+</html>

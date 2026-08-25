@@ -104,33 +104,13 @@ export function getBackendUrl(): string {
 
 /**
  * Get the WebSocket URL
- * WebSocket runs on the same port as the HTTP backend API with /ws path
+ * Uses same-origin connection to go through Vite proxy (avoids CORS and connection issues)
  */
 export function getWebSocketUrl(): string {
-  if (!cachedConfig) {
-    // Sync fallback to env vars - use backend port with /ws path
-    const backendPort = getEnvVar("VITE_BACKEND_PORT", "8000");
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const hostname = window.location.hostname || "localhost";
-    return `${protocol}//${hostname}:${backendPort}/ws`;
-  }
-
-  // Use ws_url from config if available, otherwise construct from backend_port
-  if (cachedConfig.ws_url) {
-    // Replace localhost with current hostname for flexibility, but only if it's a local address
-    const hostname = window.location.hostname || "localhost";
-    const wsUrl = cachedConfig.ws_url;
-
-    // Only replace localhost/127.0.0.1 to avoid breaking external URLs
-    if (wsUrl.includes("localhost") || wsUrl.includes("127.0.0.1")) {
-      return wsUrl.replace(/localhost|127\.0\.0\.1/g, hostname);
-    }
-    return wsUrl;
-  }
-
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const hostname = window.location.hostname || "localhost";
-  return `${protocol}//${hostname}:${cachedConfig.backend_port}/ws`;
+  // Use same origin to go through Vite proxy - this avoids CORS issues
+  // and the "WebSocket closed before connection established" error
+  return `${protocol}//${window.location.host}/ws`;
 }
 
 /**

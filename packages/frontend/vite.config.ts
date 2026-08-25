@@ -99,7 +99,6 @@ export default defineConfig(({ mode }) => {
         "/ws": {
           target: wsTarget,
           ws: true,
-          changeOrigin: true,
         },
         "/output": {
           target: proxyTarget,
