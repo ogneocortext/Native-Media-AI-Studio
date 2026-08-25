@@ -23,6 +23,7 @@ import { Generation3DPage } from "./features/generate3d/Generation3DPage";
 import { DocsPage } from "./features/docs/DocsPage";
 import { StoryboardPage } from "./features/storyboards/StoryboardPage";
 import { Preview } from "./features/preview/Preview";
+import { NotFound } from "./features/not-found/NotFound";
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
           <Route path="/health" element={<HealthPage />} />
           <Route path="/preview" element={<Preview />} />
           <Route path="/preview/:clipId" element={<Preview />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Layout>
     </BrowserRouter>

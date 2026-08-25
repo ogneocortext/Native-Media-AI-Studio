@@ -51,6 +51,7 @@ const manageNav: NavItem[] = [
 ];
 
 const systemNav: NavItem[] = [
+  { path: "/health", label: "Health", icon: <Activity size={18} /> },
   { path: "/logs", label: "Logs", icon: <FileText size={18} /> },
   { path: "/diagnostics", label: "Diagnostics", icon: <Cpu size={18} /> },
   { path: "/settings", label: "Settings", icon: <Settings size={18} /> },
