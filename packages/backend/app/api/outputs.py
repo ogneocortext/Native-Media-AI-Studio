@@ -68,25 +68,109 @@ def load_sidecar_metadata(file_path: Path) -> dict | None:
     return None
 
 
-def find_cover_image(video_path: Path, relative_base: Path) -> str | None:
-    """Find cover/thumbnail image for a video file"""
-    possible_covers = [
-        video_path.with_suffix(".jpg"),
-        video_path.with_suffix(".jpeg"),
-        video_path.with_suffix(".png"),
-        video_path.with_suffix(".webp"),
-        video_path.with_name(video_path.stem + ".jpg"),
-        video_path.with_name(video_path.stem + ".jpeg"),
-        video_path.with_name(video_path.stem + ".png"),
-        video_path.with_name(video_path.stem + ".webp"),
-    ]
-    for cover_path in possible_covers:
-        if cover_path.exists() and cover_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}:
+def _is_video_corrupted(video_path: Path) -> bool:
+    """Check if a video file is corrupted/incomplete (missing moov atom, etc.)."""
+    import shutil
+    import subprocess
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return False
+
+    try:
+        probe = subprocess.run(
+            [ffmpeg, "-hide_banner", "-i", str(video_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        stderr = (probe.stderr or "") + (probe.stdout or "")
+        error_indicators = [
+            "moov atom not found",
+            "invalid data found",
+            "error reading header",
+            "invalid argument",
+            "end of file",
+        ]
+        return any(err in stderr.lower() for err in error_indicators)
+    except Exception:
+        return False
+
+
+def extract_video_thumbnail(video_path: Path, relative_base: Path) -> str | None:
+    """Extract a poster frame from a video file using FFmpeg.
+
+    Checks for existing {stem}.jpg first (cached). If missing, probes video duration
+    and extracts a frame at 10% of playback (or 1s, whichever is greater).
+    Saves as sidecar .jpg. Returns relative cover path if successful, else None.
+    """
+    import shutil
+    import subprocess
+
+    # 1) Check existing sidecar image
+    for ext in (".jpg", ".jpeg", ".png", ".webp"):
+        cand = video_path.with_suffix(ext)
+        if cand.exists():
             try:
-                rel_path = cover_path.relative_to(relative_base)
-                return rel_path.as_posix() if hasattr(rel_path, 'as_posix') else str(rel_path).replace('\\', '/')
+                return cand.relative_to(relative_base).as_posix()
             except ValueError:
                 continue
+        cand2 = video_path.with_name(video_path.stem + ext)
+        if cand2.exists():
+            try:
+                return cand2.relative_to(relative_base).as_posix()
+            except ValueError:
+                continue
+
+    # 2) Try FFmpeg frame extraction
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return None
+
+    cover_path = video_path.with_suffix(".jpg")
+
+    try:
+        # Probe duration first to pick a good frame time
+        probe = subprocess.run(
+            [ffmpeg, "-hide_banner", "-i", str(video_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        stderr = (probe.stderr or "") + (probe.stdout or "")
+
+        # Extract duration from FFmpeg output (e.g., "Duration: 00:05:23.45")
+        duration_sec = 0.0
+        if "Duration:" in stderr:
+            try:
+                dur_str = stderr.split("Duration:")[1].split(",")[0].strip()
+                parts = dur_str.split(":")
+                duration_sec = float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+            except (ValueError, IndexError):
+                duration_sec = 0.0
+
+        # Seek to 10% of duration or 1 second, whichever is greater
+        seek_time = max(1.0, duration_sec * 0.1) if duration_sec > 0 else 1.0
+
+        result = subprocess.run(
+            [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+             "-ss", f"{seek_time:.1f}",
+             "-i", str(video_path),
+             "-frames:v", "1",
+             "-q:v", "3",
+             "-vf", "scale=480:-2",
+             str(cover_path)],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode == 0 and cover_path.exists() and cover_path.stat().st_size > 1024:
+            try:
+                return cover_path.relative_to(relative_base).as_posix()
+            except ValueError:
+                return None
+        # Cleanup failed/empty file
+        if cover_path.exists() and cover_path.stat().st_size < 1024:
+            try:
+                cover_path.unlink()  # type: ignore
+            except Exception:
+                pass
+    except Exception:
+        pass
     return None
 
 
@@ -175,8 +259,8 @@ async def scan_output_directory(subdir: str, relative_base: Path) -> list[Output
         if file_path.suffix.lower() == ".json":
             continue
 
-        # Skip cover sidecars in audio folder (they are thumbnails, not standalone images)
-        if subdir == "audio" and file_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}:
+        # Skip cover sidecars in audio/video folders (they are thumbnails, not standalone images)
+        if subdir in ("audio", "video") and file_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}:
             continue
 
         # Get file stats
@@ -190,10 +274,14 @@ async def scan_output_directory(subdir: str, relative_base: Path) -> list[Output
         job_id = metadata.get("job_id") if metadata else None
         file_type = get_file_type(file_path.name)
 
-        # Find / extract cover image for videos and audio (embedded art)
+        # Find / extract cover image for videos and audio
         cover_image = None
+        is_corrupted = False
         if file_type == "video":
-            cover_image = find_cover_image(file_path, relative_base)
+            cover_image = extract_video_thumbnail(file_path, relative_base)
+            # Detect corrupted/invalid video files
+            if cover_image is None:
+                is_corrupted = _is_video_corrupted(file_path)
         elif file_type == "audio":
             cover_image = extract_audio_cover(file_path, relative_base)
 
@@ -210,7 +298,7 @@ async def scan_output_directory(subdir: str, relative_base: Path) -> list[Output
             created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
             modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
             cover_image=cover_image,
-            metadata=metadata,
+            metadata={**(metadata or {}), "corrupted": is_corrupted} if is_corrupted else metadata,
             job_id=job_id,
         )
         outputs.append(output_file)
@@ -557,3 +645,38 @@ async def rename_output(file_path: str, body: RenameRequest) -> dict:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Rename failed: {str(e)}")
+
+
+@router.post("/regenerate-thumbnails")
+async def regenerate_thumbnails() -> dict:
+    """Regenerate video thumbnails for all video files missing covers.
+
+    Scans output/video/ and runs FFmpeg frame extraction on any .mp4/.webm
+    that lacks a .jpg sidecar. Returns count of successful extractions.
+    """
+    output_base = Path(config.output_dir)
+    video_dir = output_base / "video"
+
+    if not video_dir.exists():
+        return {"success": True, "message": "No video directory", "generated": 0, "total": 0}
+
+    generated = 0
+    total = 0
+
+    for video_path in video_dir.iterdir():
+        if not video_path.is_file():
+            continue
+        if video_path.suffix.lower() not in {".mp4", ".webm", ".mov", ".mkv"}:
+            continue
+
+        total += 1
+        cover = extract_video_thumbnail(video_path, output_base)
+        if cover:
+            generated += 1
+
+    return {
+        "success": True,
+        "message": f"Generated {generated} thumbnail(s) from {total} video(s)",
+        "generated": generated,
+        "total": total,
+    }

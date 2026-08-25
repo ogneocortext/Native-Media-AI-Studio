@@ -639,6 +639,11 @@ export function MediaLibrary() {
                       className="w-full h-full object-cover"
                       loading="lazy"
                     />
+                  ) : output.file_type === "video" && output.metadata?.corrupted ? (
+                    <div className="flex flex-col items-center gap-2 text-red-400">
+                      <AlertTriangle className="w-10 h-10" />
+                      <span className="text-xs uppercase">Corrupted</span>
+                    </div>
                   ) : output.file_type === "video" ? (
                     <div className="flex flex-col items-center gap-2 text-muted">
                       <Video className="w-12 h-12" />
