@@ -7,7 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added - Agent-Facing Documentation System (Machine-Readable Registries)
+### Changed - WebSocket Replaced with SSE (Server-Sent Events)
+
+#### Why SSE over WebSocket
+- **Automatic reconnection** — Browser's EventSource API handles reconnection natively; no custom reconnect logic needed
+- **Event resumption** — `Last-Event-ID` header automatically replays missed events after reconnection
+- **Proxy/firewall friendly** — SSE uses plain HTTP, works through any proxy without special configuration
+- **Simpler implementation** — No heartbeats, no sticky sessions, no pub/sub backplane required
+- **Vite 8.x compatible** — Eliminates WebSocket proxy bugs present in Vite 8.2.2
+
+#### Backend Changes
+- **New SSE endpoint**: `GET /api/events` — streams health updates, job progress, and resource warnings
+- **New module**: `packages/backend/app/sse/handler.py` — `SSEManager` class manages client queues
+- **Dependency added**: `sse-starlette>=2.0.0` for SSE response handling
+- **Removed**: WebSocket endpoint (`/ws`), `websocket/handler.py` `ConnectionManager`, WebSocket-specific imports
+- **Updated**: `health_broadcast_loop()` and `resource_monitoring_loop()` now use `sse_manager`
+
+#### Frontend Changes
+- **New service**: `packages/frontend/src/services/sseService.ts` — `SSEService` class using native `EventSource` API
+- **Removed**: `socketManager.ts`, `createWebSocket()`, `getWebSocketUrl()`
+- **Updated stores**:
+  - `healthStore.ts` — `wsConnected` → `sseConnected`, `connectWebSocket` → `connectSSE`, `disconnectWebSocket` → `disconnectSSE`
+  - `jobStore.ts` — Same naming updates, SSE-based real-time updates
+- **Updated components**:
+  - `Sidebar.tsx` — Uses SSE for health monitoring
+  - `Queue.tsx` — Uses SSE for job progress updates
+- **Updated hooks**: `useWebSocket` → `useSSE` in `hooks/index.ts`
+- **Removed**: All WebSocket-related code and dependencies
+
+#### Files Changed
+| Action | File |
+|--------|------|
+| Added | `packages/backend/app/sse/__init__.py` |
+| Added | `packages/backend/app/sse/handler.py` |
+| Added | `packages/frontend/src/services/sseService.ts` |
+| Modified | `packages/backend/app/main.py` |
+| Modified | `packages/backend/app/diagnostics/resources.py` |
+| Modified | `packages/backend/app/queue/manager.py` |
+| Modified | `packages/backend/app/queue/processor.py` |
+| Modified | `packages/backend/app/api/jobs.py` |
+| Modified | `packages/backend/requirements.txt` |
+| Modified | `packages/frontend/src/state/healthStore.ts` |
+| Modified | `packages/frontend/src/state/jobStore.ts` |
+| Modified | `packages/frontend/src/components/layout/Sidebar.tsx` |
+| Modified | `packages/frontend/src/features/queue/Queue.tsx` |
+| Modified | `packages/frontend/src/services/api.ts` |
+| Modified | `packages/frontend/src/services/portConfig.ts` |
+| Modified | `packages/frontend/src/hooks/useWebSocket.ts` |
+| Modified | `packages/frontend/src/hooks/index.ts` |
+| Deleted | `packages/frontend/src/services/socketManager.ts` |
 
 #### New Vault Files (docs/knowledge-library/)
 - **`codebase.json`** — Machine-readable project structure: packages, tools, config, data flow pipelines. Maps every key file to its purpose so agents can navigate without reading source.
@@ -58,13 +106,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Research docs**: `docs/notes/GPU_UTILIZATION_RESEARCH.md` and `docs/notes/3D_MODELS_8GB_VRAM.md`
 - **GPU Pipeline Guide**: `docs/guides/GPU_PIPELINE.md` — full documentation for the 3D/GPU workflow
 
-### Changed - WebSocket & Dependency Upgrade
+### Changed - Real-Time Communication (SSE replaces WebSocket)
 
-- **WebSocket layer upgraded**: `websockets` 13.1 → 17.0.1 (latest); verified compatible with both uvicorn's legacy `websockets` and recommended `websockets-sansio` implementations
-- **Uvicorn ws implementation**: switched from deprecated legacy `websockets` to `websockets-sansio` in `app.main.run()` to remove deprecation warning
-- **Dependency minimums bumped**: `fastapi>=0.141.0`, `uvicorn[standard]>=0.52.0`, `websockets>=17.0` declared explicitly in `requirements.txt` and `pyproject.toml`
+- **Replaced WebSocket with SSE**: Server-Sent Events provide more reliable real-time updates with automatic reconnection and event resumption (see top of changelog for full details)
+- **Removed WebSocket dependencies**: `websockets` package no longer required; using `sse-starlette` instead
 - **GPU monitoring fix**: VRAM warning no longer falsely reports "critical" when GPU is idle. Now requires high VRAM **AND** high compute utilization (≥70%) **OR** high temperature (≥85°C) for critical level. Added `nvidia-ml-py` dependency for `pynvml`-based GPU stats (utilization + temperature)
-- **Compatibility verified**: ping/pong, heartbeat, invalid JSON handling, multiple messages, and graceful close all pass end-to-end tests
 
 ### Added - Server Management & Data Persistence (Session 6)
 
@@ -522,4 +568,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-*Last updated: 2026-08-22*
+*Last updated: 2026-08-25*
