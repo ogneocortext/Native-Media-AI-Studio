@@ -22,6 +22,7 @@ import {
   generateVideoSection,
   listAudioFiles,
   renameAudioFile,
+  getAnalysis,
   getApiBase,
   type AudioAnalysisResult,
 } from "../../services/api";
@@ -264,11 +265,25 @@ export function AudioAnalysisPage() {
     try {
       const filename = storedPath.split(/[/\\]/).pop() || "audio.mp3";
       const base = getApiBase();
+
+      // Check for cached analysis first
+      try {
+        const cached = await getAnalysis(filename);
+        setAnalysisStep("Retrieving cached analysis...");
+        setAnalysis(cached);
+        setAnalysisStep("");
+        setAnalyzing(false);
+        setSelectedLibraryFile(null);
+        return;
+      } catch {
+        // No cached analysis, proceed with fresh analysis
+      }
+
+      setAnalysisStep("Analyzing tempo and beats...");
       const response = await fetch(`${base}/api/audio/file/${filename}`);
       if (!response.ok) throw new Error("Failed to load audio file");
       const blob = await response.blob();
       const file = new File([blob], filename, { type: blob.type });
-      setAnalysisStep("Analyzing tempo and beats...");
       const result = await analyzeAudio(file);
       setAnalysisStep("Detecting song structure...");
       setAnalysis(result);

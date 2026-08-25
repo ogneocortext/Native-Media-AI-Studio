@@ -22,6 +22,29 @@ AUDIO_DIR = PROJECT_ROOT / "output" / "audio"
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 ANALYSIS_DIR = PROJECT_ROOT / "output" / "audio_analysis"
 ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
+ANALYSIS_INDEX = ANALYSIS_DIR / "index.json"
+
+
+def _load_analysis_index() -> dict:
+    """Load the analysis index mapping filenames to job IDs."""
+    if ANALYSIS_INDEX.exists():
+        try:
+            with open(ANALYSIS_INDEX, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_analysis_index(index: dict) -> None:
+    """Save the analysis index."""
+    with open(ANALYSIS_INDEX, "w", encoding="utf-8") as f:
+        json.dump(index, f, indent=2, ensure_ascii=False)
+
+
+def _get_analysis_path(job_id: str) -> Path:
+    """Get the path to an analysis JSON file."""
+    return ANALYSIS_DIR / f"{job_id}_analysis.json"
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".m4a", ".wma", ".aac"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
@@ -163,6 +186,11 @@ async def analyze_audio(file: UploadFile = File(...)) -> AudioAnalysisResult:
             "stored_path": str(file_path),
             "job_id": unique_id,
         }
+
+        # Cache the analysis index
+        index = _load_analysis_index()
+        index[safe_name] = unique_id
+        _save_analysis_index(index)
 
         # Save full analysis
         analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
@@ -387,7 +415,32 @@ async def serve_audio_file(filename: str):
         media_type=media_type,
         filename=file_path.name,
         headers={
-            "Accept-Ranges": "bytes",
-            "Cache-Control": "public, max-age=3600",
-        },
-    )
+             "Accept-Ranges": "bytes",
+             "Cache-Control": "public, max-age=3600",
+         },
+     )
+
+
+@router.get("/analysis/{filename}")
+async def get_analysis(filename: str):
+    """Get cached analysis for an audio file, if it exists."""
+    import urllib.parse
+    filename = urllib.parse.unquote(filename)
+
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    index = _load_analysis_index()
+
+    job_id = index.get(filename)
+    if not job_id:
+        raise HTTPException(status_code=404, detail="No cached analysis found for this file")
+
+    analysis_path = _get_analysis_path(job_id)
+    if not analysis_path.exists():
+        raise HTTPException(status_code=404, detail="Analysis file missing")
+
+    with open(analysis_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    return data

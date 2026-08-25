@@ -585,6 +585,13 @@ export interface AudioAnalysisResult {
   job_id: string | null;
 }
 
+export async function getAnalysis(filename: string): Promise<any> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/audio/analysis/${encodeURIComponent(filename)}`);
+  if (!res.ok) throw new Error("No cached analysis found");
+  return res.json();
+}
+
 export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
   const base = getApiBase();
   const formData = new FormData();
@@ -643,6 +650,7 @@ export interface VideoGenerateRequest {
   vertical_first?: boolean;
   audio_path?: string;
   audio_filename?: string;
+  method?: "comfyui" | "visualization";
 }
 
 export interface VideoGenerateResponse {
