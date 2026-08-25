@@ -76,6 +76,9 @@ export function AudioAnalysisPage() {
   const pageSize = 10;
   const [editingFile, setEditingFile] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [selectedSections, setSelectedSections] = useState<Set<number>>(new Set());
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [pendingGenerateSection, setPendingGenerateSection] = useState<{ type: string; start: number; end: number } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -133,23 +136,33 @@ export function AudioAnalysisPage() {
     }
   };
 
-  const handleGenerateSection = async (section: string, start: number, end: number) => {
+  const handleGenerateSection = (section: string, start: number, end: number) => {
     if (!analysis?.stored_path) {
       setError("No analyzed audio file available. Please analyze a file first.");
       return;
     }
-    setGenerating(section);
+    setPendingGenerateSection({ type: section, start, end });
+    setShowGenerateDialog(true);
+  };
+
+  const confirmGenerate = async (method: "comfyui" | "visualization") => {
+    if (!pendingGenerateSection) return;
+    const { type, start, end } = pendingGenerateSection;
+    setShowGenerateDialog(false);
+    setPendingGenerateSection(null);
+    setGenerating(type);
     setError(null);
     try {
       const result = await generateVideoSection({
-        prompt: `Music video for ${section} section`,
-        section,
+        prompt: `Music video for ${type} section`,
+        section: type,
         duration: end - start,
-        audio_path: analysis.stored_path,
-        audio_filename: file?.name || analysis.stored_path.split(/[/\\]/).pop() || "audio.mp3",
+        audio_path: analysis!.stored_path ?? "",
+        audio_filename: file?.name || analysis!.stored_path?.split(/[/\\]/).pop() || "audio.mp3",
+        method,
       });
       if (result.success) {
-        setAnalysisStep(`Generating ${section} section... (job: ${result.job_id})`);
+        setAnalysisStep(`Generating ${type} section via ${method === "comfyui" ? "ComfyUI" : "Visualization"}... (job: ${result.job_id})`);
       } else {
         setError(result.error || "Failed to generate video section");
       }
@@ -157,6 +170,35 @@ export function AudioAnalysisPage() {
       setError(err.message || "Failed to generate video section");
     } finally {
       setGenerating(null);
+    }
+  };
+
+  const handleGenerateSelected = async () => {
+    if (!analysis?.stored_path || selectedSections.size === 0) return;
+    const sections = analysis.sections.filter((_, i) => selectedSections.has(i));
+    setShowGenerateDialog(false);
+    setGenerating("selected");
+    setError(null);
+    try {
+      for (const section of sections) {
+        const result = await generateVideoSection({
+          prompt: `Music video for ${section.type} section`,
+          section: section.type,
+          duration: section.end - section.start,
+          audio_path: analysis.stored_path,
+          audio_filename: file?.name || analysis.stored_path.split(/[/\\]/).pop() || "audio.mp3",
+        });
+        if (!result.success) {
+          setError(result.error || `Failed to generate ${section.type}`);
+          break;
+        }
+      }
+      setAnalysisStep(`Generated ${sections.length} sections`);
+    } catch (err: any) {
+      setError(err.message || "Failed to generate sections");
+    } finally {
+      setGenerating(null);
+      setSelectedSections(new Set());
     }
   };
 
@@ -417,18 +459,38 @@ export function AudioAnalysisPage() {
 
               {/* Sections with Generate Buttons */}
               <div className={DS.card}>
-                <h3 className={DS.sectionTitle}>
-                  <Activity size={14} />
-                  Detected Sections
-                  <span className={DS.textXs}>({analysis.sections.length})</span>
-                </h3>
+                <div className={DS.flexBetween}>
+                  <h3 className={DS.sectionTitle}>
+                    <Activity size={14} />
+                    Detected Sections
+                    <span className={DS.textXs}>({analysis.sections.length})</span>
+                  </h3>
+                  {selectedSections.size > 0 && (
+                    <button
+                      onClick={() => { setPendingGenerateSection(null); setShowGenerateDialog(true); }}
+                      className={DS.btnPrimarySm}
+                    >
+                      Generate Selected ({selectedSections.size})
+                    </button>
+                  )}
+                </div>
                 <div className="space-y-2">
                   {analysis.sections.map((section, i) => (
-                    <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-700 last:border-0">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${getSectionColor(section.type)}`}>
+                    <div key={i} className={`flex items-center gap-3 py-2 border-b border-gray-700 last:border-0 ${selectedSections.has(i) ? "bg-violet-500/10 rounded px-2 -mx-2" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={selectedSections.has(i)}
+                        onChange={(e) => {
+                          const next = new Set(selectedSections);
+                          if (e.target.checked) next.add(i); else next.delete(i);
+                          setSelectedSections(next);
+                        }}
+                        className="rounded border-gray-600 bg-gray-700 text-violet-500 focus:ring-violet-500"
+                      />
+                      <span className={`px-2 py-1 rounded text-xs font-medium shrink-0 ${getSectionColor(section.type)}`}>
                         {section.type}
                       </span>
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <div className={DS.textXs}>
                           {formatTime(section.start)} → {formatTime(section.end)}
                           <span className="ml-2 text-gray-500">({formatTime(section.end - section.start)})</span>
@@ -444,9 +506,9 @@ export function AudioAnalysisPage() {
                         onClick={() => handleGenerateSection(section.type, section.start, section.end)}
                         disabled={generating === section.type || !analysis?.stored_path}
                         className={DS.btnSecondary}
+                        title="Generate video for this section"
                       >
                         {generating === section.type ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
-                        Generate
                       </button>
                     </div>
                   ))}
@@ -644,10 +706,48 @@ export function AudioAnalysisPage() {
               <li>• Upload new files to add them to the library</li>
               <li>• Analysis detects tempo, beats & sections</li>
               <li>• Use results to sync visuals to music</li>
-            </ul>
+             </ul>
+           </div>
+         </div>
+       </div>
+
+      {/* Confirmation Dialog */}
+      {showGenerateDialog && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className={DS.card} style={{ maxWidth: 480, width: "90%" }}>
+            <h3 className="text-lg font-bold text-white mb-2">Generate Video</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              {pendingGenerateSection
+                ? `Generate video for "${pendingGenerateSection.type}" section (${formatTime(pendingGenerateSection.end - pendingGenerateSection.start)})?`
+                : `Generate video for ${selectedSections.size} selected sections?`
+              }
+            </p>
+            <p className="text-xs text-gray-500 mb-6">
+              Choose a generation method. ComfyUI creates AI-generated video. Visualization creates an audio-reactive video with waveforms/spectrograms.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => pendingGenerateSection ? confirmGenerate("comfyui") : handleGenerateSelected()}
+                className={DS.btnPrimary}
+              >
+                ComfyUI
+              </button>
+              <button
+                onClick={() => pendingGenerateSection ? confirmGenerate("visualization") : handleGenerateSelected()}
+                className={DS.btnSecondary}
+              >
+                Visualization
+              </button>
+              <button
+                onClick={() => { setShowGenerateDialog(false); setPendingGenerateSection(null); }}
+                className={DS.btnSecondary}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

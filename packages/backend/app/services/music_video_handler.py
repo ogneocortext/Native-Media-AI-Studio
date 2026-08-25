@@ -44,6 +44,8 @@ class MusicVideoHandler:
         if not Path(audio_path).exists():
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
+        method = params.get("method", "visualization")
+
         # Update progress
         await self._update_progress(job, 0.1, "Analyzing audio features...")
 
@@ -101,7 +103,7 @@ class MusicVideoHandler:
             )
 
         await self._render_with_ffmpeg(
-            job, audio_path, output_path, width, height, fps, duration_seconds, analysis, viz_config
+            job, audio_path, output_path, width, height, fps, duration_seconds, analysis, viz_config, method
         )
 
         await self._update_progress(job, 1.0, "Music video complete")
@@ -143,27 +145,34 @@ class MusicVideoHandler:
         duration: float,
         analysis: dict,
         viz_config: dict,
+        method: str = "visualization",
     ):
         """Render video using FFmpeg with visualization filters."""
-        style = viz_config.get("style", "abstract")
+        style = viz_config.get("style", "waveform")
 
-        # Build visualization filter
-        vf_filter = self._build_visualization_filter(style, "", width, height)
+        if method == "comfyui":
+            return await self._render_with_comfyui(job, audio_path, output_path, width, height, duration, analysis)
 
-        # Use testsrc for reliable video generation with audio overlay
-        # testsrc generates a test pattern that works reliably across FFmpeg versions
+        # Use showwaves or showspectrum for real audio visualization
+        if style == "waveform":
+            vf_filter = f"[0:a]showwaves=s={width}x{height}:mode=cline:rate={fps}:colors=#8b5cf6|#06b6d4:scale=sqrt[vid]"
+            input_args = ["-i", audio_path]
+        elif style == "spectrum":
+            vf_filter = f"[0:a]showspectrum=s={width}x{height}:mode=combined:color=intensity:scale=log:rate={fps}[vid]"
+            input_args = ["-i", audio_path]
+        else:
+            vf_filter = f"[0:a]showwaves=s={width}x{height}:mode=point:rate={fps}:colors=#f59e0b|#ef4444:scale=sqrt[vid]"
+            input_args = ["-i", audio_path]
+
         cmd = [
             self._find_ffmpeg(),
-            "-y",  # Overwrite output
-            "-f", "lavfi",
-            "-i", f"testsrc=duration={duration}:size={width}x{height}:rate={fps}",
-            "-i", audio_path,
+            "-y",
+            *input_args,
             "-filter_complex", vf_filter,
-            "-map", "[outv]",
-            "-map", "1:a",
+            "-map", "[vid]",
+            "-map", "0:a",
             "-c:v", "libx264",
             "-preset", "ultrafast",
-            "-tune", "stillimage",
             "-pix_fmt", "yuv420p",
             "-c:a", "aac",
             "-b:a", "192k",
@@ -193,6 +202,36 @@ class MusicVideoHandler:
         except asyncio.TimeoutError:
             process.kill()
             raise RuntimeError("FFmpeg rendering timed out")
+
+    async def _render_with_comfyui(self, job: Job, audio_path: str, output_path: Path, width: int, height: int, duration: float, analysis: dict) -> None:
+        """Render video using ComfyUI for AI-generated content."""
+        await self._update_progress(job, 0.5, "Generating video with ComfyUI...")
+
+        try:
+            from ..services.comfyui_manager import ComfyUIManager
+            manager = ComfyUIManager()
+
+            prompt = job.params.get("prompt", "Music video visualization")
+            section = job.params.get("section", "full")
+
+            result = await manager.generate_video(
+                prompt=prompt,
+                width=width,
+                height=height,
+                duration=int(duration),
+                section=section,
+                audio_path=audio_path,
+            )
+
+            if result and Path(result).exists():
+                import shutil
+                shutil.move(str(result), str(output_path))
+            else:
+                raise RuntimeError("ComfyUI generation failed")
+        except ImportError:
+            raise RuntimeError("ComfyUI manager not available")
+        except Exception as e:
+            raise RuntimeError(f"ComfyUI generation failed: {e}")
 
     def _build_visualization_filter(self, style: str, color_scheme: str, width: int, height: int) -> str:
         """Build FFmpeg filter string for the visualization style."""

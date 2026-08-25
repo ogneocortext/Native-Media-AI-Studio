@@ -26,6 +26,7 @@ class VideoGenerateRequest(BaseModel):
     vertical_first: bool = False
     audio_path: str | None = None
     audio_filename: str | None = None
+    method: str = "visualization"
 
 
 class VideoGenerateResponse(BaseModel):
@@ -81,6 +82,7 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
                     "resolution": "1080p",
                     "fps": 30,
                 },
+                "method": request.method,
                 "vertical_first": request.vertical_first,
             },
             "max_retries": 1,
