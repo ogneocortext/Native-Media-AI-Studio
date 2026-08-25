@@ -739,17 +739,22 @@ export function AudioAnalysisPage() {
                                     className="ml-2 px-1 py-0.5 bg-gray-700 border border-violet-500 rounded text-sm text-white w-full focus:outline-none"
                                   />
                                 ) : (
-                                  <span className="text-sm truncate">{f.filename}</span>
+                                  <span
+                                  className="text-sm truncate cursor-pointer hover:text-violet-300"
+                                  onClick={(e) => { e.stopPropagation(); setEditingFile(f.path); setEditName(f.filename); }}
+                                  title="Click to rename"
+                                >{f.filename}</span>
                                 )}
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className={DS.textXs}>{formatFileSize(f.size_bytes)}</span>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setEditingFile(f.path); setEditName(f.filename); }}
-                                  className={DS.btnSecondarySm}
+                                  className={`${DS.btnSecondarySm} shrink-0`}
                                   title="Rename"
                                 >
                                   <Pencil size={12} />
+                                  <span className="text-xs ml-1">Rename</span>
                                 </button>
                                 {selectedLibraryFile === f.path && analyzing ? (
                                   <Loader2 size={12} className="animate-spin text-violet-400" />
