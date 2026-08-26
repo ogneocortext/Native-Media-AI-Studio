@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   Upload, Music, Zap, Play, Loader2, AlertCircle, BarChart3,
   Database, RefreshCw, ChevronDown, ChevronRight, Activity,
@@ -12,71 +12,84 @@ import {
 import { DS, SECTION_COLORS } from "../../styles/designSystem";
 import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
+  ReferenceLine, BarChart, Bar, Cell,
 } from "recharts";
 
-function BeatTimelineStrip({ beatTimes, duration }: { beatTimes: number[]; duration: number }) {
-  const [hoveredBeat, setHoveredBeat] = useState<{ index: number; time: number } | null>(null);
-
-  return (
-    <div className="relative">
-      {/* Beat ticks */}
-      <div className="relative" style={{ height: 40 }}>
-        <svg width="100%" height="40" className="overflow-visible" preserveAspectRatio="none">
-          {beatTimes.map((t, i) => {
-            const x = (t / duration) * 100;
-            const isHovered = hoveredBeat?.index === i;
-            return (
-              <rect
-                key={i}
-                x={`${x}%`}
-                y={isHovered ? 2 : 8}
-                width={isHovered ? 3 : 1.5}
-                height={isHovered ? 36 : 24}
-                rx={1}
-                fill="#8b5cf6"
-                opacity={isHovered ? 1 : 0.6}
-                className="transition-all duration-100"
-                onMouseEnter={() => setHoveredBeat({ index: i, time: t })}
-                onMouseLeave={() => setHoveredBeat(null)}
-              />
-            );
-          })}
-        </svg>
-
-        {/* Hover tooltip */}
-        {hoveredBeat && (
-          <div
-            className="absolute -top-7 px-2 py-0.5 bg-gray-900 border border-gray-600 rounded text-[10px] text-white whitespace-nowrap pointer-events-none shadow-lg"
-            style={{
-              left: `${Math.min(Math.max((hoveredBeat.time / duration) * 100, 5), 95)}%`,
-              transform: "translateX(-50%)",
-            }}
-          >
-            Beat #{hoveredBeat.index + 1} · {hoveredBeat.time.toFixed(2)}s
-          </div>
-        )}
-      </div>
-    </div>
-  );
+interface BeatDensityPoint {
+  bar: number;
+  time: number;
+  count: number;
+  section: string;
+  energy: number;
 }
+
+function buildBeatDensity(beatTimes: number[], sections: AudioAnalysisResult["sections"], energyCurve: number[], duration: number, tempoBpm: number): BeatDensityPoint[] {
+  if (!beatTimes.length) return [];
+  const beatInterval = 60 / tempoBpm;
+  const barInterval = beatInterval * 4;
+  const bars: Map<number, { count: number; beats: number[] }> = new Map();
+
+  for (const t of beatTimes) {
+    const barIdx = Math.floor(t / barInterval);
+    if (!bars.has(barIdx)) bars.set(barIdx, { count: 0, beats: [] });
+    const b = bars.get(barIdx)!;
+    b.count++;
+    b.beats.push(t);
+  }
+
+  const getSection = (t: number) => sections.find(s => t >= s.start && s.end)?.type ?? "full";
+
+  const energyAtTime = (t: number) => {
+    if (!energyCurve.length) return 0.5;
+    const idx = Math.min(Math.floor((t / duration) * energyCurve.length), energyCurve.length - 1);
+    return energyCurve[idx];
+  };
+
+  return Array.from(bars.entries()).map(([barIdx, { count, beats }]) => ({
+    bar: barIdx,
+    time: barIdx * barInterval,
+    count,
+    section: getSection(beats[0]),
+    energy: energyAtTime(beats[0]),
+  }));
+}
+
+const SECTION_HEX: Record<string, string> = {
+  intro: "#3b82f6", verse: "#22c55e", chorus: "#8b5cf6",
+  bridge: "#f97316", outro: "#ef4444", full: "#6b7280",
+};
+
+const BeatDensityTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const d = payload[0].payload;
+    return (
+      <div className={DS.cardTight}>
+        <p className="text-xs text-white font-medium capitalize">{d.section} · Bar {d.bar + 1}</p>
+        <p className={DS.textXs}>{d.time.toFixed(1)}s · {d.count} beats · {Math.round(d.energy * 100)}% energy</p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const EnergyBeatTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className={DS.cardTight}>
+        <p className="text-xs text-white font-medium">Energy: {payload[0]?.value?.toFixed(0)}%</p>
+        <p className={DS.textXs}>Time: {label}{payload[1] ? ` · Beat at ${payload[1].value.toFixed(1)}s` : ""}</p>
+      </div>
+    );
+  }
+  return null;
+};
+
 
 interface AudioFile {
   filename: string;
   path: string;
   size_bytes: number;
 }
-
-const EnergyTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className={DS.cardTight}>
-        <p className="text-xs text-white font-medium">Energy: {payload[0].value.toFixed(0)}%</p>
-        <p className={DS.textXs}>Time: {label}</p>
-      </div>
-    );
-  }
-  return null;
-};
 
 function getEnergyColor(energy: number): string {
   if (energy < 0.3) return "bg-blue-500";
@@ -109,7 +122,6 @@ export function AudioAnalysisPage() {
   const [cudaGpuName, setCudaGpuName] = useState("");
   const [useCuda, setUseCuda] = useState(true);
   const [analysisStep, setAnalysisStep] = useState<string>("");
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     getCudaStatus()
@@ -296,33 +308,69 @@ export function AudioAnalysisPage() {
                 <div className={DS.card}><div className={DS.flexCenter}><div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center mr-2"><TrendingUp size={16} className="text-emerald-400" /></div><span className={DS.textBold}>{(analysis.confidence * 100).toFixed(0)}%</span></div><p className={DS.textXs}>Confidence</p></div>
               </div>
 
+              {/* Energy + Beats combined chart */}
               <div className={DS.card}>
-                <h3 className={DS.sectionTitle}><BarChart3 size={14} />Song Structure</h3>
-                <div className="flex rounded-lg overflow-hidden h-8">
-                  {analysis.sections.map((s, i) => (<div key={i} className={`flex items-center justify-center ${SECTION_COLORS[s.type] || SECTION_COLORS.full}`} style={{ width: `${((s.end - s.start) / analysis.duration_seconds) * 100}%` }}><span className="text-xs font-medium truncate px-1">{s.type}</span></div>))}
+                <h3 className={DS.sectionTitle}><Activity size={14} />Energy &amp; Beats</h3>
+                <div className="h-52">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={analysis.energy_curve.slice(0, 120).map((e, i) => {
+                      const t = (i / analysis.energy_curve!.length) * analysis.duration_seconds;
+                      const nearbyBeat = analysis.beat_times.find(bt => Math.abs(bt - t) < (analysis.duration_seconds / analysis.energy_curve!.length));
+                      return { time: formatTime(t), energy: e * 100, beat: nearbyBeat ?? null };
+                    })} margin={{ top: 8, right: 5, left: -20, bottom: 5 }}>
+                      <defs><linearGradient id="energyGradient2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.6} /><stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} /></linearGradient></defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+                      <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={{ stroke: "#374151" }} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} domain={[0, 100]} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
+                      <Tooltip content={<EnergyBeatTooltip />} />
+                      {analysis.sections.map((s, i) => (
+                        <ReferenceLine key={i} x={formatTime((s.start + s.end) / 2)} stroke="#4b5563" strokeDasharray="3 3" strokeWidth={1} />
+                      ))}
+                      <Area type="monotone" dataKey="energy" stroke="#8b5cf6" strokeWidth={2} fill="url(#energyGradient2)" animationDuration={600} dot={false} />
+                      <Area type="monotone" dataKey="beat" stroke="none" fill="none" dot={{ r: 3, fill: "#fbbf24", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#fbbf24" }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
-                <div className={DS.flexBetween}><span className={DS.textXs}>0:00</span><span className={DS.textXs}>{formatTime(analysis.duration_seconds)}</span></div>
+                {/* Section labels */}
+                <div className="flex rounded-lg overflow-hidden h-6 mt-1">
+                  {analysis.sections.map((s, i) => (
+                    <div key={i} className={`${SECTION_COLORS[s.type] || SECTION_COLORS.full}`} style={{ width: `${((s.end - s.start) / analysis.duration_seconds) * 100}%` }}>
+                      <span className="text-[10px] font-medium truncate px-1 leading-6">{s.type}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className={DS.textXs}>0:00</span>
+                  <span className={DS.textXs}>Yellow dots = beats = dashed lines = section boundaries</span>
+                  <span className={DS.textXs}>{formatTime(analysis.duration_seconds)}</span>
+                </div>
               </div>
 
-              {analysis.energy_curve && analysis.energy_curve.length > 0 && (
-                <div className={DS.card}>
-                  <h3 className={DS.sectionTitle}><Activity size={14} />Energy Curve</h3>
-                  <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={analysis.energy_curve.slice(0, 120).map((e, i) => ({ time: formatTime((i / analysis.energy_curve!.length) * analysis.duration_seconds), energy: e * 100 }))} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                        <defs><linearGradient id="energyGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.6} /><stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} /></linearGradient></defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
-                        <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={{ stroke: '#374151' }} tickLine={false} />
-                        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} domain={[0, 100]} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-                        <Tooltip content={<EnergyTooltip />} />
-                        <Area type="monotone" dataKey="energy" stroke="#8b5cf6" strokeWidth={2} fill="url(#energyGradient)" animationDuration={600} dot={false} />
-                      </AreaChart>
-                    </ResponsiveContainer>
+              {/* Beat Density by Section */}
+              {analysis.beat_times.length > 0 && (() => {
+                const density = buildBeatDensity(analysis.beat_times, analysis.sections, analysis.energy_curve, analysis.duration_seconds, analysis.tempo_bpm);
+                return density.length > 0 ? (
+                  <div className={DS.card}>
+                    <h3 className={DS.sectionTitle}><BarChart3 size={14} />Beat Density<span className={DS.textXs}>(beats per bar, opacity = energy)</span></h3>
+                    <div className="h-28">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={density} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                          <XAxis dataKey="bar" tick={false} axisLine={{ stroke: "#374151" }} tickLine={false} />
+                          <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} width={30} />
+                          <Tooltip content={<BeatDensityTooltip />} cursor={{ fill: "rgba(139,92,246,0.1)" }} />
+                          <Bar dataKey="count" radius={[2, 2, 0, 0]} animationDuration={400}>
+                            {density.map((d, i) => (
+                              <Cell key={i} fill={SECTION_HEX[d.section] ?? "#6b7280"} opacity={0.5 + d.energy * 0.5} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
-                  <canvas ref={canvasRef} width={800} height={80} style={{ display: "none" }} />
-                </div>
-              )}
+                ) : null;
+              })()}
 
+              {/* Detected Sections */}
               <div className={DS.card}>
                 <div className={DS.flexBetween}>
                   <h3 className={DS.sectionTitle}><Activity size={14} />Detected Sections<span className={DS.textXs}>({analysis.sections.length})</span></h3>
@@ -344,18 +392,6 @@ export function AudioAnalysisPage() {
                   ))}
                 </div>
               </div>
-
-              {analysis.beat_times && analysis.beat_times.length > 0 && (
-                <div className={DS.card}>
-                  <h3 className={DS.sectionTitle}><Zap size={14} />Beat Timeline</h3>
-                  <BeatTimelineStrip beatTimes={analysis.beat_times} duration={analysis.duration_seconds} />
-                  <div className="flex justify-between mt-2">
-                    <span className={DS.textXs}>0:00</span>
-                    <span className={DS.textXs}>{analysis.beat_times.length} beats · {analysis.tempo_bpm.toFixed(0)} BPM</span>
-                    <span className={DS.textXs}>{formatTime(analysis.duration_seconds)}</span>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
