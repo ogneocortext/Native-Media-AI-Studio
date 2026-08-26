@@ -21,7 +21,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from ..core.config import config as app_config
+from ...core.config import config as app_config
 
 # Paths derived from app config (not hardcoded)
 COMFYUI_DIR = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI")
