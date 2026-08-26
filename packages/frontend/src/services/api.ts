@@ -604,7 +604,9 @@ export async function getAnalysis(filename: string): Promise<any> {
 
 export async function getCudaStatus(): Promise<{ available: boolean; gpu_name?: string; error?: string }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/health/integrations/cuda/status`);
+  // Try correct path first, fallback to legacy health path
+  let res = await fetch(`${base}/api/integrations/cuda/status`);
+  if (!res.ok) res = await fetch(`${base}/api/health/integrations/cuda/status`);
   if (!res.ok) throw new Error("Failed to get CUDA status");
   return res.json();
 }

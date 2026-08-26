@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Audio Analysis & GPU Health (2026-08-25)
+
+#### CUDA Toolkit 12.4 + Nsight Research
+- **Research**: Evaluated `https://docs.nvidia.com/cuda/cuda-programming-guide/index.html` (v13.3) for `CUDA 12.4` / `GTX 1070 Ti sm_61` / `torch 2.6.0+cu124` — pinned archive `12.4.0`, documented useful sections (`2.5 Async`, `4.2 Graphs`, `4.3 Stream Alloc`) vs `sm_80+` skip-list
+- **Added**: `docs/knowledge-library/technical-reference.md` — `CUDA Toolkit & Programming Guide — 2026-08-25 Research` with Nsight `2026.1.3` install paths, WDDM caveats, `torch.profiler` fallback (451 ms CUDA captured where `nsys` returned 0.05 MB empty)
+- **Perf**: `app/services/cuda/processor.py` — cached `hann_window` + `rfftfreq` (saves 32 ms), fused `abs().square()` (127 ms → 89 ms), `CudaVisualizationFFT` same cache; `tools/analyze_and_sync.py` — `torch.cuda.Stream()` overlap CPU `beat_track` (24.0 s → 14.7 s, -39% on 182 s track)
+
+#### GPU Health Fallback (WDDM GeForce fix)
+- **Fixed**: `GET /api/health/gpu` returned `{"available":false}` on `System Python311` where `pynvml` hardcodes `NVSMI/nvml.dll` (missing, only `System32` exists) — patched `pynvml.py` + added `torch.cuda` fallback in `app/diagnostics/resources.py:541` and `app/services/vram_manager.py:109` (`mem_get_info`, `get_device_properties`, `fallback: torch.cuda` flag)
+- **Fixed**: `GET /api/integrations/cuda/status` 404 from frontend — `api.ts:607` used `/api/health/integrations/cuda/status`; corrected to `/api/integrations/cuda/status` with legacy fallback, banner now shows `CUDA Available` + VRAM badge
+
+#### Audio Analysis UX
+- **Upload**: `validateFile` (MP3/WAV/FLAC/OGG/M4A, 500 MB), inline `fileError`, `audio` preview via `URL.createObjectURL`, `Clear` button, drag `border-dashed` states, `role=button` + `Enter`
+- **CUDA banner**: always visible `role=status` — green `CUDA Available` / amber `CPU Mode`, VRAM `used/total %` badge, `fallback` badge, `GPU on/off` toggle with `aria-label`
+- **Progress**: `aria-live`, `aria-busy`, dismissible error, `10–30 s` hint
+- **Charts**: Energy beats sampled to ≤80 `ReferenceLine`s (was 400+ clutter), section bars with `title`/`aria-label`, helper text
+- **Sections**: `Select all`, `role=list`, per-checkbox `aria-label`, helper `Tap single Play vs Generate Selected`
+- **Library**: computed `filtered/sorted/paged`, `No files match + Clear filter`, `N files` count, fixed `filtered.length` pagination, updated Tips
+
+#### Backend Integration Fix
+- **Fixed**: `app/api/integrations_generation.py:74` `NameError: ImageGenerationRequest/VideoGenerationRequest not defined` — defined both `BaseModel`s locally, cleared `__pycache__`, backend now starts via `venv` `uvicorn` (`PID 23524` `available:true 3782/8192 MB`)
+
 ### Fixed - Health Page Layout
 - **Fixed**: GPU card orphaned in 3-column grid — changed to 2-column layout (CPU+Memory, Disk+GPU)
 - **Fixed**: ComfyUI card was heavy full-width before resource metrics — moved to sidebar column

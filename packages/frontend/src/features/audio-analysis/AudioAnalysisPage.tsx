@@ -99,6 +99,8 @@ function getEnergyColor(energy: number): string {
 
 export function AudioAnalysisPage() {
   const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AudioAnalysisResult | null>(null);
   const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
@@ -120,14 +122,50 @@ export function AudioAnalysisPage() {
   const [jobProgress, setJobProgress] = useState<{ progress: number; message: string } | null>(null);
   const [cudaAvailable, setCudaAvailable] = useState(false);
   const [cudaGpuName, setCudaGpuName] = useState("");
+  const [cudaFallback, setCudaFallback] = useState(false);
   const [useCuda, setUseCuda] = useState(true);
   const [analysisStep, setAnalysisStep] = useState<string>("");
+  const [gpuVram, setGpuVram] = useState<{ used: number; total: number; percent: number } | null>(null);
 
   useEffect(() => {
     getCudaStatus()
-      .then(s => { setCudaAvailable(s.available ?? false); setCudaGpuName(s.gpu_name ?? ""); if (!s.available) setUseCuda(false); })
+      .then(s => {
+        setCudaAvailable(s.available ?? false);
+        setCudaGpuName(s.gpu_name ?? "");
+        setCudaFallback((s as any).fallback === "torch.cuda");
+        if (!s.available) setUseCuda(false);
+        // Fetch VRAM for banner when available
+        fetch(`${getApiBase()}/api/health/gpu`).then(r => r.json()).then(g => {
+          if (g.available) setGpuVram({ used: g.memory_used_mb ?? g.vram_used_mb ?? 0, total: g.memory_total_mb ?? g.vram_total_mb ?? 8192, percent: g.memory_percent ?? g.percent ?? 0 });
+        }).catch(() => {});
+      })
       .catch(() => { setCudaAvailable(false); setUseCuda(false); });
   }, []);
+
+  // Manage preview URL lifecycle
+  useEffect(() => {
+    if (!file) { setPreviewUrl(null); return; }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const validateFile = (f: File): string | null => {
+    const validTypes = ["audio/mpeg", "audio/wav", "audio/x-wav", "audio/flac", "audio/ogg", "audio/mp4", "audio/x-m4a"];
+    const extOk = /\.(mp3|wav|flac|ogg|m4a|mp4)$/i.test(f.name);
+    if (!validTypes.includes(f.type) && !extOk) return `Unsupported format: ${f.name.split(".").pop()}. Use MP3, WAV, FLAC, OGG, M4A.`;
+    if (f.size > 500 * 1024 * 1024) return `File too large (${(f.size / 1048576).toFixed(1)} MB). Max 500 MB.`;
+    if (f.size === 0) return `File is empty.`;
+    return null;
+  };
+
+  const handleFileSelect = (f: File) => {
+    const err = validateFile(f);
+    if (err) { setFileError(err); setFile(null); return; }
+    setFileError(null); setFile(f); setAnalysis(null); setError(null);
+  };
+
+  const clearFile = () => { setFile(null); setPreviewUrl(null); setFileError(null); setAnalysis(null); };
 
   useEffect(() => {
     if (!activeJobId) return;
@@ -154,10 +192,12 @@ export function AudioAnalysisPage() {
 
   const handleAnalyze = async () => {
     if (!file) return;
+    const vErr = validateFile(file);
+    if (vErr) { setFileError(vErr); return; }
     setAnalyzing(true); setError(null); setAnalysis(null);
     setAnalysisStep("Uploading audio file...");
     try {
-      setAnalysisStep(useCuda && cudaAvailable ? "Analyzing on GPU..." : "Analyzing tempo and beats...");
+      setAnalysisStep(useCuda && cudaAvailable ? `Analyzing on GPU${cudaFallback ? " (compat mode)" : ""}...` : "Analyzing tempo and beats...");
       const result = (useCuda && cudaAvailable) ? await analyzeAudioCuda(file) : await analyzeAudio(file);
       setAnalysisStep("Detecting song structure...");
       setAnalysis(result);
@@ -262,42 +302,68 @@ export function AudioAnalysisPage() {
       <div className={DS.pageTitle}><Music size={22} /> Audio Analysis</div>
       <p className={DS.pageSubtitle}>Upload audio or select from library to detect tempo, beats, and song structure.</p>
 
-      {cudaAvailable && (
-        <div className={DS.cardTight}>
-          <div className={DS.flexBetween}>
-            <div className={DS.flexCenter}><Zap size={16} className="text-green-400" /><span className="text-sm text-green-300 ml-2">CUDA Available</span><span className={DS.textXs + " ml-2"}>{cudaGpuName}</span></div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <span className={DS.textXs}>Use GPU</span>
-              <input type="checkbox" checked={useCuda} onChange={(e) => setUseCuda(e.target.checked)} className="rounded border-gray-600 bg-gray-700 text-green-500 focus:ring-green-500" />
-            </label>
+      {/* GPU status banner — always visible for clarity */}
+      <div className={`${DS.cardTight} ${cudaAvailable ? "border-green-500/30 bg-green-500/5" : "border-amber-500/20 bg-amber-500/5"}`} role="status" aria-live="polite">
+        <div className={DS.flexBetween}>
+          <div className={DS.flexCenter}>
+            <Zap size={16} className={cudaAvailable ? "text-green-400" : "text-amber-400"} />
+            <span className={`text-sm ml-2 ${cudaAvailable ? "text-green-300" : "text-amber-300"}`}>{cudaAvailable ? (cudaFallback ? "CUDA Available (compat)" : "CUDA Available") : "CPU Mode"}</span>
+            <span className={DS.textXs + " ml-2"}>{cudaAvailable ? cudaGpuName : "GPU not detected — using CPU fallback"}</span>
+            {cudaAvailable && gpuVram && <span className={DS.badge + " ml-2"}>{gpuVram.used}/{gpuVram.total} MB · {gpuVram.percent.toFixed(0)}%</span>}
+            {cudaAvailable && cudaFallback && <span className={DS.badgeBlue + " ml-2"} title="NVML unavailable, using torch.cuda fallback">fallback</span>}
           </div>
+          {cudaAvailable && (
+            <label className="flex items-center gap-2 cursor-pointer" title={useCuda ? "GPU acceleration on" : "CPU only"}>
+              <span className={DS.textXs}>{useCuda ? "GPU on" : "GPU off"}</span>
+              <input type="checkbox" checked={useCuda} onChange={(e) => setUseCuda(e.target.checked)} className="rounded border-gray-600 bg-gray-700 text-green-500 focus:ring-green-500" aria-label="Toggle GPU acceleration" />
+            </label>
+          )}
         </div>
-      )}
+        {!cudaAvailable && <p className={DS.textXs + " mt-1"}>CPU analysis is slower but works for any file. Check <code className="text-amber-300">/api/health/gpu</code> — now auto-falls back to torch.cuda.</p>}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
-          <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { setFile(f); setAnalysis(null); } }} onClick={() => (document.getElementById("audio-analysis-file-input") as HTMLInputElement)?.click()} className={`${DS.card} text-center cursor-pointer transition-colors ${dragOver ? "border-violet-500 bg-violet-500/10" : ""}`}>
+          <div
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFileSelect(f); setDragOver(false); }}
+            onClick={() => !file && (document.getElementById("audio-analysis-file-input") as HTMLInputElement)?.click()}
+            className={`${DS.card} text-center transition-colors ${file ? "border-violet-500/30 bg-violet-500/5" : dragOver ? "border-violet-500 bg-violet-500/10" : "border-dashed hover:border-gray-500 cursor-pointer"}`}
+            role="button" aria-label="Upload audio file" tabIndex={0}
+            onKeyDown={e => { if (e.key === "Enter" && !file) (document.getElementById("audio-analysis-file-input") as HTMLInputElement)?.click(); }}
+          >
             <Upload size={40} className="mx-auto mb-3 text-gray-500" />
-            {file ? (<div><p className={DS.textBold}>{file.name}</p><p className={DS.textXs}>{(file.size / 1048576).toFixed(2)} MB</p></div>) : (<div><p className={DS.textSm}>Drop audio file here or click to browse</p><p className={DS.textXs}>Supports MP3, WAV, FLAC, OGG</p></div>)}
-            <input id="audio-analysis-file-input" type="file" accept="audio/*" onChange={e => { const f = e.target.files?.[0]; if (f) { setFile(f); setAnalysis(null); } }} className="hidden" />
+            {file ? (
+              <div>
+                <p className={DS.textBold}>{file.name}</p>
+                <p className={DS.textXs}>{(file.size / 1048576).toFixed(2)} MB · {file.type || "audio/*"}</p>
+                {previewUrl && <audio controls src={previewUrl} className="w-full mt-3 rounded" aria-label={`Preview ${file.name}`} />}
+                <button onClick={e => { e.stopPropagation(); clearFile(); }} className={DS.btnSecondarySm + " mt-2 mx-auto"} aria-label="Clear selected file">Clear</button>
+              </div>
+            ) : (
+              <div><p className={DS.textSm}>Drop audio file here or click to browse</p><p className={DS.textXs}>Supports MP3, WAV, FLAC, OGG, M4A · Max 500 MB</p></div>
+            )}
+            <input id="audio-analysis-file-input" type="file" accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a" onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); }} className="hidden" />
           </div>
+          {fileError && <div className={DS.cardError} role="alert"><AlertCircle size={16} /><span className="text-sm">{fileError}</span></div>}
 
-          {file && <button onClick={handleAnalyze} disabled={analyzing} className={`${DS.btnPrimary} w-full`}>{analyzing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}{analyzing ? "Analyzing..." : "Analyze Uploaded File"}</button>}
+          {file && <button onClick={handleAnalyze} disabled={analyzing} className={`${DS.btnPrimary} w-full`} aria-busy={analyzing}>{analyzing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}{analyzing ? "Analyzing..." : `Analyze ${file.name}`}</button>}
 
           {analyzing && analysisStep && (
-            <div className={DS.cardTight} style={{ background: "rgba(139,92,246,0.08)", borderColor: "rgba(139,92,246,0.2)" }}>
-              <div className={DS.flexCenter}><Loader2 size={16} className="animate-spin text-violet-400" /><span className="text-sm text-violet-300">{analysisStep}</span></div>
+            <div className={DS.cardTight} style={{ background: "rgba(139,92,246,0.08)", borderColor: "rgba(139,92,246,0.2)" }} role="status" aria-live="polite">
+              <div className={DS.flexBetween}><div className={DS.flexCenter}><Loader2 size={16} className="animate-spin text-violet-400" /><span className="text-sm text-violet-300">{analysisStep}</span></div><span className={DS.textXs}>{analyzing ? "This may take 10–30s for long tracks" : ""}</span></div>
             </div>
           )}
 
           {jobProgress && !analyzing && (
-            <div className={DS.cardTight} style={{ background: "rgba(139,92,246,0.08)", borderColor: "rgba(139,92,246,0.2)" }}>
+            <div className={DS.cardTight} style={{ background: "rgba(139,92,246,0.08)", borderColor: "rgba(139,92,246,0.2)" }} role="status" aria-live="polite">
               <div className={DS.flexCenter}><Loader2 size={16} className="animate-spin text-violet-400" /><span className="text-sm text-violet-300">{jobProgress.message}</span></div>
-              <div className="mt-2 h-1.5 bg-gray-700 rounded-full overflow-hidden"><div className="h-full bg-violet-500 rounded-full transition-all" style={{ width: `${(jobProgress.progress ?? 0) * 100}%` }} /></div>
+              <div className="mt-2 h-1.5 bg-gray-700 rounded-full overflow-hidden" aria-label={`Progress ${Math.round((jobProgress.progress ?? 0) * 100)}%`}><div className="h-full bg-violet-500 rounded-full transition-all" style={{ width: `${(jobProgress.progress ?? 0) * 100}%` }} /></div>
             </div>
           )}
 
-          {error && <div className={DS.cardError}><AlertCircle size={20} /><span>{error}</span></div>}
+          {error && <div className={DS.cardError} role="alert"><AlertCircle size={20} /><div className="flex-1"><p className="text-sm font-medium">{error}</p><button onClick={() => setError(null)} className="text-xs underline mt-1">Dismiss</button></div></div>}
 
           {analysis && (
             <div className={DS.section}>
@@ -343,23 +409,24 @@ export function AudioAnalysisPage() {
                           energy: e * 100,
                         }))}
                       />
-                      {analysis.beat_times.map((bt, i) => (
-                        <ReferenceLine key={`b${i}`} x={bt} stroke="#fbbf24" strokeWidth={1} strokeOpacity={0.6} />
+                      {/* Sample beats to avoid 400+ lines clutter — show every Nth */}
+                      {analysis.beat_times.filter((_, i) => analysis.beat_times.length <= 80 || i % Math.ceil(analysis.beat_times.length / 80) === 0).map((bt, i) => (
+                        <ReferenceLine key={`b${i}`} x={bt} stroke="#fbbf24" strokeWidth={1} strokeOpacity={0.35} />
                       ))}
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
                 {/* Section labels */}
-                <div className="flex rounded-lg overflow-hidden h-6 mt-1">
+                <div className="flex rounded-lg overflow-hidden h-6 mt-1" role="img" aria-label="Song sections">
                   {analysis.sections.map((s, i) => (
-                    <div key={i} className={`${SECTION_COLORS[s.type] || SECTION_COLORS.full}`} style={{ width: `${((s.end - s.start) / analysis.duration_seconds) * 100}%` }}>
-                      <span className="text-[10px] font-medium truncate px-1 leading-6">{s.type}</span>
+                    <div key={i} className={`${SECTION_COLORS[s.type] || SECTION_COLORS.full} flex items-center justify-center`} style={{ width: `${((s.end - s.start) / analysis.duration_seconds) * 100}%` }} title={`${s.type}: ${formatTime(s.start)}–${formatTime(s.end)} ${Math.round(s.energy * 100)}%`}>
+                      <span className="text-[10px] font-medium truncate px-1 leading-6 text-white">{s.type}</span>
                     </div>
                   ))}
                 </div>
                 <div className="flex justify-between mt-1">
                   <span className={DS.textXs}>0:00</span>
-                  <span className={DS.textXs}>Purple = energy · Amber lines = beats · Dashed lines = section boundaries</span>
+                  <span className={DS.textXs}>Purple = energy · Amber = beats (sampled) · Dashed = sections</span>
                   <span className={DS.textXs}>{formatTime(analysis.duration_seconds)}</span>
                 </div>
               </div>
@@ -391,24 +458,28 @@ export function AudioAnalysisPage() {
               {/* Detected Sections */}
               <div className={DS.card}>
                 <div className={DS.flexBetween}>
-                  <h3 className={DS.sectionTitle}><Activity size={14} />Detected Sections<span className={DS.textXs}>({analysis.sections.length})</span></h3>
-                  {selectedSections.size > 0 && <button onClick={() => { setPendingGenerateSection(null); setShowGenerateDialog(true); }} className={DS.btnPrimarySm}>Generate Selected ({selectedSections.size})</button>}
+                  <h3 className={DS.sectionTitle}><Activity size={14} />Detected Sections<span className={DS.textXs}>({analysis.sections.length}) · check to batch-generate</span></h3>
+                  <div className="flex gap-2">
+                    {analysis.sections.length > 1 && <button onClick={() => setSelectedSections(new Set(analysis!.sections.map((_, i) => i)))} className={DS.btnSecondarySm}>Select all</button>}
+                    {selectedSections.size > 0 && <button onClick={() => { setPendingGenerateSection(null); setShowGenerateDialog(true); }} className={DS.btnPrimarySm}>Generate Selected ({selectedSections.size})</button>}
+                  </div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2" role="list" aria-label="Song sections">
                   {analysis.sections.map((section, i) => (
-                    <div key={i} className={`flex items-center gap-3 py-2 border-b border-gray-700 last:border-0 ${selectedSections.has(i) ? "bg-violet-500/10 rounded px-2 -mx-2" : ""}`}>
-                      <input type="checkbox" checked={selectedSections.has(i)} onChange={e => { const n = new Set(selectedSections); if (e.target.checked) n.add(i); else n.delete(i); setSelectedSections(n); }} className="rounded border-gray-600 bg-gray-700 text-violet-500 focus:ring-violet-500" />
+                    <div key={i} role="listitem" className={`flex items-center gap-3 py-2 border-b border-gray-700 last:border-0 ${selectedSections.has(i) ? "bg-violet-500/10 rounded px-2 -mx-2" : ""}`}>
+                      <input type="checkbox" checked={selectedSections.has(i)} onChange={e => { const n = new Set(selectedSections); if (e.target.checked) n.add(i); else n.delete(i); setSelectedSections(n); }} className="rounded border-gray-600 bg-gray-700 text-violet-500 focus:ring-violet-500" aria-label={`Select ${section.type} ${formatTime(section.start)} to ${formatTime(section.end)}`} />
                       <span className={`px-2 py-1 rounded text-xs font-medium shrink-0 ${SECTION_COLORS[section.type] || SECTION_COLORS.full}`}>{section.type}</span>
                       <div className="flex-1 min-w-0">
                         <div className={DS.textXs}>{formatTime(section.start)} → {formatTime(section.end)}<span className="ml-2 text-gray-500">({formatTime(section.end - section.start)})</span></div>
-                        <div className="flex items-center gap-2 mt-1"><div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden"><div className={`h-full rounded-full ${getEnergyColor(section.energy)}`} style={{ width: `${section.energy * 100}%` }} /></div><span className={DS.textXs}>{(section.energy * 100).toFixed(0)}%</span></div>
+                        <div className="flex items-center gap-2 mt-1" aria-label={`Energy ${Math.round(section.energy * 100)}%`}><div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden"><div className={`h-full rounded-full ${getEnergyColor(section.energy)}`} style={{ width: `${section.energy * 100}%` }} /></div><span className={DS.textXs}>{(section.energy * 100).toFixed(0)}%</span></div>
                       </div>
-                      <button onClick={() => handleGenerateSection(section.type, section.start, section.end)} disabled={generating === section.type || !analysis?.stored_path} className={DS.btnSecondary} title="Generate video">
+                      <button onClick={() => handleGenerateSection(section.type, section.start, section.end)} disabled={generating === section.type || !analysis?.stored_path} className={DS.btnSecondary} title={`Generate video for ${section.type}`} aria-label={`Generate ${section.type}`}>
                         {generating === section.type ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
                       </button>
                     </div>
                   ))}
                 </div>
+                <p className={DS.textXs + " mt-2"}>Tap a single <Play size={10} className="inline" /> to generate one section, or check multiple then “Generate Selected”.</p>
               </div>
             </div>
           )}
@@ -431,10 +502,16 @@ export function AudioAnalysisPage() {
                     <option value="date">Newest</option><option value="name">Name</option><option value="size">Size</option>
                   </select>
                 </div>
-                {audioFiles.length > 0 ? (
+                {(() => {
+                  const filtered = audioFiles.filter(f => !filterText || f.filename.toLowerCase().includes(filterText.toLowerCase()));
+                  const sorted = [...filtered].sort((a, b) => { if (sortBy === "name") return a.filename.localeCompare(b.filename); if (sortBy === "size") return b.size_bytes - a.size_bytes; return 0; });
+                  const paged = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+                  if (filtered.length === 0 && audioFiles.length > 0) return <p className={DS.cardWarning}>No files match “{filterText}”. <button onClick={() => setFilterText("")} className="underline">Clear filter</button></p>;
+                  return filtered.length > 0 ? (
                   <>
+                    <p className={DS.textXs + " mb-2"}>{filtered.length} file{filtered.length !== 1 ? "s" : ""} {filterText ? "matching filter" : "in library"}</p>
                     <div className="space-y-1">
-                      {audioFiles.filter(f => !filterText || f.filename.toLowerCase().includes(filterText.toLowerCase())).sort((a, b) => { if (sortBy === "name") return a.filename.localeCompare(b.filename); if (sortBy === "size") return b.size_bytes - a.size_bytes; return 0; }).slice((currentPage - 1) * pageSize, currentPage * pageSize).map((f, i) => (
+                      {paged.map((f, i) => (
                         <div key={i} className={`p-2 rounded-lg cursor-pointer transition-colors ${selectedLibraryFile === f.path && !editingFile ? "bg-violet-500/20 border border-violet-500/30" : "hover:bg-gray-700"}`} onClick={() => handleAnalyzeLibraryFile(f.path)}>
                           <div className={DS.flexBetween}>
                             <div className={DS.flexCenter} style={{ minWidth: 0, flex: 1 }}>
@@ -456,23 +533,29 @@ export function AudioAnalysisPage() {
                         </div>
                       ))}
                     </div>
-                    {audioFiles.filter(f => !filterText || f.filename.toLowerCase().includes(filterText.toLowerCase())).length > pageSize && (
+                    {filtered.length > pageSize && (
                       <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-700">
                         <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className={DS.btnSecondarySm}>Prev</button>
-                        <span className={DS.textXs}>Page {currentPage} of {Math.ceil(audioFiles.filter(f => !filterText || f.filename.toLowerCase().includes(filterText.toLowerCase())).length / pageSize)}</span>
-                        <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= Math.ceil(audioFiles.filter(f => !filterText || f.filename.toLowerCase().includes(filterText.toLowerCase())).length / pageSize)} className={DS.btnSecondarySm}>Next</button>
+                        <span className={DS.textXs}>Page {currentPage} of {Math.ceil(filtered.length / pageSize)}</span>
+                        <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= Math.ceil(filtered.length / pageSize)} className={DS.btnSecondarySm}>Next</button>
                       </div>
                     )}
                   </>
                 ) : (
                   <p className={DS.textXs}>No audio files in library.<br />Upload a file to add it.</p>
-                )}
+                ); })()}
               </div>
             )}
           </div>
           <div className={DS.card}>
             <h3 className={DS.sectionTitle}>Tips</h3>
-            <ul className={DS.textSm}><li>• Click a library file to analyze it</li><li>• Click filename or "Rename" to edit title</li><li>• Upload new files to add them to the library</li><li>• Analysis detects tempo, beats & sections</li></ul>
+            <ul className={DS.textSm}>
+              <li>• <strong>Preview first:</strong> select a file → use the audio player to confirm it's the right take before analyzing</li>
+              <li>• <strong>Drag & drop:</strong> drop MP3/WAV/FLAC/OGG/M4A (≤500 MB) anywhere on the upload zone</li>
+              <li>• <strong>GPU vs CPU:</strong> green badge = GPU (compat fallback if needed); amber = CPU. Toggle off for CPU-only if GPU is busy</li>
+              <li>• <strong>Beats sampled:</strong> chart shows ≤80 beat lines to stay readable — zoom sections for detail</li>
+              <li>• <strong>Batch generate:</strong> check multiple sections → “Generate Selected” vs single <Play size={10} className="inline" /> per row</li>
+            </ul>
           </div>
         </div>
       </div>

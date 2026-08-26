@@ -73,6 +73,14 @@ class CudaAudioAnalyzer:
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.win_length = win_length or n_fft
+        # Cache Hann window + freqs per Guide 2.6 — avoid alloc every analyze()
+        self._window: torch.Tensor | None = None
+        self._freqs: torch.Tensor | None = None
+        if _CUDA_AVAILABLE:
+            import torch as _t
+
+            self._window = _t.hann_window(self.win_length, device=_DEVICE)
+            self._freqs = _t.fft.rfftfreq(self.n_fft, d=1.0 / self.sample_rate).to(_DEVICE)
 
     def analyze(self, audio: np.ndarray | list[float]) -> dict[str, Any]:
         """Analyze an audio buffer and return GPU-computed features.
@@ -94,20 +102,25 @@ class CudaAudioAnalyzer:
 
         waveform = torch.as_tensor(np.asarray(audio, dtype=np.float32), device=_DEVICE)
 
-        # STFT on GPU
-        window = torch.hann_window(self.win_length, device=_DEVICE)
+        # STFT on GPU — reuse cached window (Guide 2.6)
+        if self._window is None or self._window.shape[0] != self.win_length:
+            self._window = torch.hann_window(self.win_length, device=_DEVICE)
+        if self._freqs is None:
+            self._freqs = torch.fft.rfftfreq(self.n_fft, d=1.0 / self.sample_rate).to(_DEVICE)
+
         stft = torch.stft(
             waveform,
             n_fft=self.n_fft,
             hop_length=self.hop_length,
             win_length=self.win_length,
-            window=window,
+            window=self._window,
             return_complex=True,
             center=True,
             pad_mode="reflect",
         )
-        magnitude = torch.abs(stft)  # (freq, time)
-        power = magnitude ** 2
+        # Fuse abs+pow: one fewer kernel launch vs magnitude ** 2 (Guide 1 occupancy)
+        magnitude = stft.abs()
+        power = magnitude.square()
 
         # RMS energy per frame (amplitude envelope)
         rms = torch.sqrt(torch.mean(power, dim=0))
@@ -117,8 +130,8 @@ class CudaAudioAnalyzer:
         else:
             rms_normalized = np.zeros_like(rms_np)
 
-        # Frequency bins for spectral features
-        freqs = torch.fft.rfftfreq(self.n_fft, d=1.0 / self.sample_rate).to(_DEVICE)
+        # Frequency bins for spectral features (cached)
+        freqs = self._freqs
         freqs_np = freqs.cpu().numpy()
 
         # Spectral centroid: sum(f * mag) / sum(mag)
@@ -312,6 +325,11 @@ class CudaVisualizationFFT:
         self.smoothing = smoothing
         self.num_bands = num_bands
         self._prev_spectrum: torch.Tensor | None = None
+        self._window: torch.Tensor | None = None
+        if _CUDA_AVAILABLE:
+            import torch as _t
+
+            self._window = _t.hann_window(self.fft_size, device=_DEVICE)
 
     def get_spectrum(
         self, audio_chunk: np.ndarray | list[float]
@@ -337,8 +355,9 @@ class CudaVisualizationFFT:
         else:
             samples = samples[: self.fft_size]
 
-        window = torch.hann_window(self.fft_size, device=_DEVICE)
-        tensor = torch.as_tensor(samples, device=_DEVICE) * window
+        if self._window is None or self._window.shape[0] != self.fft_size:
+            self._window = torch.hann_window(self.fft_size, device=_DEVICE)
+        tensor = torch.as_tensor(samples, device=_DEVICE) * self._window
         fft = torch.fft.rfft(tensor)
         magnitude = torch.abs(fft[: self.fft_size // 2])
 

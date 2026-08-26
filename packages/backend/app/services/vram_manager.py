@@ -108,16 +108,54 @@ class VRAMManager:
 
     async def get_vram_status(self) -> dict[str, Any]:
         """Get current VRAM usage statistics."""
-        if not self._gpustat_available and not self._nvml_available:
-            return {"available": False}
+        # Try gpustat / NVML first
+        if self._gpustat_available or self._nvml_available:
+            try:
+                if self._gpustat_available:
+                    return await self._get_vram_gpustat()
+                elif self._nvml_available:
+                    return await self._get_vram_nvml()
+            except Exception as e:
+                logger.warning("Failed to get VRAM status via gpustat/nvml: %s", e)
 
+        # Fallback: torch.cuda (works on WDDM/system python without NVSMI dll)
         try:
-            if self._gpustat_available:
-                return await self._get_vram_gpustat()
-            elif self._nvml_available:
-                return await self._get_vram_nvml()
+            import torch
+
+            if torch.cuda.is_available():
+                free, total = torch.cuda.mem_get_info(0)
+                used = total - free
+                percent = (used / total) * 100 if total else 0
+                props = torch.cuda.get_device_properties(0)
+                try:
+                    temp = 0
+                    util = 0
+                    import pynvml as _pynvml
+
+                    try:
+                        _pynvml.nvmlInit()
+                        h = _pynvml.nvmlDeviceGetHandleByIndex(0)
+                        temp = _pynvml.nvmlDeviceGetTemperature(h, _pynvml.NVML_TEMPERATURE_GPU)
+                        util = _pynvml.nvmlDeviceGetUtilizationRates(h).gpu
+                    except Exception:
+                        pass
+                except Exception:
+                    temp = 0
+                    util = 0
+                return {
+                    "available": True,
+                    "total_mb": int(total // (1024 * 1024)),
+                    "used_mb": int(used // (1024 * 1024)),
+                    "free_mb": int(free // (1024 * 1024)),
+                    "percent": round(percent, 1),
+                    "gpu_utilization": util,
+                    "temperature": temp,
+                    "state": self._determine_state(percent),
+                    "fallback": "torch.cuda",
+                    "name": props.name,
+                }
         except Exception as e:
-            logger.warning("Failed to get VRAM status: %s", e)
+            logger.debug(f"torch.cuda fallback failed: {e}")
 
         return {"available": False}
 

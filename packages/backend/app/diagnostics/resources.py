@@ -543,34 +543,60 @@ class ResourceMonitor:
         temperature, and per-process breakdown."""
         snapshot: dict[str, Any] = {"available": False}
 
-        if not self._nvml_available:
-            return snapshot
+        # Primary: NVML (pynvml/gpustat)
+        if self._nvml_available:
+            try:
+                import pynvml
+                handle = pynvml.nvmlDeviceGetHandleByIndex(0)
 
+                mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+
+                processes, memory_available = await self._get_gpu_processes()
+                processes = await self._enrich_process_names(processes)
+                snapshot = {
+                    "available": True,
+                    "name": pynvml.nvmlDeviceGetName(handle),
+                    "memory_used_mb": mem.used // (1024 * 1024),
+                    "memory_free_mb": mem.free // (1024 * 1024),
+                    "memory_total_mb": mem.total // (1024 * 1024),
+                    "memory_percent": round((mem.used / mem.total) * 100, 1) if mem.total else 0,
+                    "gpu_utilization": util.gpu,
+                    "memory_controller_utilization": util.memory,
+                    "temperature_c": temp,
+                    "processes": processes,
+                    "memory_available": memory_available,
+                }
+                return snapshot
+            except Exception as e:
+                logger.warning(f"Failed to get GPU snapshot via NVML: {e}")
+
+        # Fallback: torch.cuda (works even when pynvml fails on WDDM/system python)
         try:
-            import pynvml
-            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            import torch
 
-            mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
-            util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-            temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
-
-            processes, memory_available = await self._get_gpu_processes()
-            processes = await self._enrich_process_names(processes)
-            snapshot = {
-                "available": True,
-                "name": pynvml.nvmlDeviceGetName(handle),
-                "memory_used_mb": mem.used // (1024 * 1024),
-                "memory_free_mb": mem.free // (1024 * 1024),
-                "memory_total_mb": mem.total // (1024 * 1024),
-                "memory_percent": round((mem.used / mem.total) * 100, 1) if mem.total else 0,
-                "gpu_utilization": util.gpu,
-                "memory_controller_utilization": util.memory,
-                "temperature_c": temp,
-                "processes": processes,
-                "memory_available": memory_available,
-            }
+            if torch.cuda.is_available():
+                props = torch.cuda.get_device_properties(0)
+                free, total = torch.cuda.mem_get_info(0)
+                used = total - free
+                snapshot = {
+                    "available": True,
+                    "name": props.name,
+                    "memory_used_mb": used // (1024 * 1024),
+                    "memory_free_mb": free // (1024 * 1024),
+                    "memory_total_mb": total // (1024 * 1024),
+                    "memory_percent": round((used / total) * 100, 1) if total else 0,
+                    "gpu_utilization": 0,  # NVML unavailable
+                    "memory_controller_utilization": 0,
+                    "temperature_c": 0,
+                    "processes": [],
+                    "memory_available": True,
+                    "fallback": "torch.cuda",
+                }
+                return snapshot
         except Exception as e:
-            logger.warning(f"Failed to get GPU snapshot: {e}")
+            logger.debug(f"torch.cuda fallback failed: {e}")
 
         return snapshot
 

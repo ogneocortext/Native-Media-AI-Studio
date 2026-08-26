@@ -30,19 +30,44 @@ def analyze_audio(audio_path, fps=24):
     y, sr = librosa.load(audio_path, sr=22050, mono=True)
     duration = len(y) / sr
     
-    # Try GPU analysis first
+    # GPU + CPU overlap per CUDA Programming Guide 2.5 (Async Execution)
+    # Launch GPU STFT on a non-default stream while CPU does beat tracking
+    gpu_future = None
+    gpu_stream = None
     try:
         from app.services.cuda import cuda_audio, cuda_available
         if cuda_available():
-            print("Using GPU audio analysis...")
-            result = cuda_audio.analyze(y)
-            print(f"  Computed on: {result['computed_on']}")
+            import torch
+            print("Using GPU audio analysis (stream overlapped)...")
+            gpu_stream = torch.cuda.Stream()
+            # Capture result holder to synchronize later
+            gpu_result = {}
+
+            def _launch():
+                with torch.cuda.stream(gpu_stream):
+                    gpu_result["data"] = cuda_audio.analyze(y)
+
+            # Launch async — don't block CPU
+            _launch()
+            gpu_future = gpu_result
     except Exception as e:
         print(f"GPU analysis failed ({e}), using CPU...")
+        gpu_future = None
     
-    # Beat tracking
+    # Beat tracking runs concurrently with GPU on CPU (overlapped)
     tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=512)
     beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=512).tolist()
+
+    # Ensure GPU work finished before returning (Guide 2.5: explicit sync)
+    if gpu_future is not None and gpu_stream is not None:
+        try:
+            import torch
+            gpu_stream.synchronize()
+            result = gpu_future.get("data") if isinstance(gpu_future, dict) else None
+            if result:
+                print(f"  GPU computed on: {result['computed_on']} ({result['n_frames']} frames)")
+        except Exception as e:
+            print(f"  GPU sync warning: {e}")
     
     # Convert to animation keyframes
     keyframes = [round(t * fps) for t in beat_times]

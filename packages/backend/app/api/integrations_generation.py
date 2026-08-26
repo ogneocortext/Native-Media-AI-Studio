@@ -16,6 +16,37 @@ from ..core.config import PROJECT_ROOT, config
 from ..models.job import JobCreateRequest, JobType
 from ..queue.manager import queue_manager
 
+
+class ImageGenerationRequest(BaseModel):
+    """Request for image generation via ComfyUI or other backends"""
+
+    prompt: str
+    negative_prompt: str = ""
+    steps: int = 20
+    cfg_scale: float = 7.0
+    width: int = 512
+    height: int = 512
+    seed: int = -1
+    sampler: str = "Euler a"
+    backend: str = "comfyui"
+    ckpt_name: str = ""
+
+
+class VideoGenerationRequest(BaseModel):
+    """Request for video generation using AnimateDiff"""
+
+    prompt: str
+    negative_prompt: str = ""
+    steps: int = 20
+    cfg_scale: float = 7.0
+    width: int = 512
+    height: int = 512
+    seed: int = -1
+    sampler: str = "Euler a"
+    num_frames: int = 16
+    fps: int = 8
+    motion_module: str = "mm_sd_v15_v2.safetensors"
+
 logger = logging.getLogger(__name__)
 
 # Router without prefix - included by main integrations.py with prefix "/api/integrations"

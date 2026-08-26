@@ -1,7 +1,7 @@
 # 3D Rendering Pipeline - Technical Knowledge Library
 
 **Purpose:** AI agent reference for the Native Media AI Studio 3D rendering system  
-**Last Updated:** 2026-08-24  
+**Last Updated:** 2026-08-25 — CUDA 12.4 / Nsight Systems 2026.1.3 research  
 **Audience:** AI agents, developers, automated systems
 
 ---
@@ -39,9 +39,10 @@
 │  └── Connection: localhost (WebSocket)                                      │
 │                                                                             │
 │  Hardware                                                                   │
-│  ├── GPU: NVIDIA GeForce GTX 1070 Ti (8GB VRAM)                            │
-│  ├── CUDA: 12.4                                                             │
-│  └── PyTorch: 2.5.1+cu124                                                   │
+│  ├── GPU: NVIDIA GeForce GTX 1070 Ti (8GB VRAM, sm_61 Pascal, 19 SMs)      │
+│  ├── CUDA: 12.4 (nvcc V12.4.99) / Driver 582.66 CUDA 13.0 compat            │
+│  ├── PyTorch: 2.5.1+cu124 (comfyui-cuda) / 2.6.0+cu124 (venv)                │
+│  └── Profilers: Nsight Systems 2026.1.3 + Nsight Compute 2026.2.0           │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -279,6 +280,86 @@ GET http://localhost:8000/api/health/gpu
 3. Close other GPU applications
 4. Use smaller models (Hunyuan3D-2mini instead of full)
 5. Generate one at a time (don't batch)
+
+### CUDA Toolkit & Programming Guide — 2026-08-25 Research
+
+> Source: [`https://docs.nvidia.com/cuda/cuda-programming-guide/index.html`](https://docs.nvidia.com/cuda/cuda-programming-guide/index.html) (v13.3 displayed; project uses **Toolkit 12.4 / `nvcc V12.4.99` / Driver `582.66` CUDA 13.0 compat**).
+> **Pin archive for this project:** `https://docs.nvidia.com/cuda/archive/12.4.0/cuda-c-programming-guide/` — v13.x drops Pascal `sm_61` entirely (`packages/backend/requirements-torch.txt:30`).
+
+#### Hardware pin (GTX 1070 Ti — Pascal `sm_61`)
+
+- **Do not upgrade toolkit to 13.x** — no `sm_61` kernels will build. Keep `CUDA_HOME=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4` and `TORCH_CUDA_ARCH_LIST=6.1` when building extensions (`requirements-torch.txt:24`).
+- **No Tensor Cores, no `sm_80+` features.** `torch.compile()` unsupported on Pascal (`environment.yml:115`). Stay `float32` for `torch.stft`/`torch.fft` in `app/services/cuda/processor.py:98`.
+- Torch wheels bundle their own runtime (`cu121` index, `torch 2.5.1+cu121` / `2.6.0+cu124` verified); system toolkit only needed for **custom kernel builds**.
+
+#### What is worth reading for this project
+
+| Guide section | Why it matters here | File refs |
+|---|---|---|
+| **Part 2.5 Asynchronous Execution + 4.2 CUDA Graphs + 4.3 Stream-Ordered Allocator** | Biggest win: `processor.py:92` is sync per-call (`as_tensor` → `stft` → `.cpu()`). Overlapping `CudaAudioAnalyzer` + `CudaImageProcessor` with `torch.cuda.Stream()` and capturing repeated `analyze()` in `CUDAGraph` would cut batch latency. PyTorch already uses stream-ordered alloc internally. | `app/services/cuda/processor.py:77` |
+| **Part 2.6 / 4.1 Unified Memory + 5.2 Environment Variables** | Debug OOM without code change: `CUDA_VISIBLE_DEVICES=0`, `CUDA_LAUNCH_BLOCKING=1`, `compute-sanitizer`. Complements `vram_manager.py:80` + `GET /api/health/gpu`. | `app/services/vram_manager.py:80` |
+| **Part 1 Programming Model + 5.1 Compute Capabilities** | Explains occupancy/memory model behind librosa→torch port. Confirms Pascal limits. | `tools/analyze_and_sync.py:44` (still CPU `beat_track`) |
+| **Part 2.2 Intro to CUDA Python** | More relevant than C++ Ch.2.1 if you port beat-tracking beyond PyTorch (`numba`/`cupy`). | — |
+| **Part 3.5 Tour of Features → Nsight Systems** | System-level timeline for the full pipeline (`analyze_and_sync.py` + ComfyUI). Installed: `Nsight Systems 2026.1.3` — see below. | — |
+
+#### What to skip on this GPU
+
+`4.6 Green Contexts`, `4.10 Pipelines`, `4.11 Async Copies`, `4.12 Cluster Launch Control`, `2.4 Tile Kernels` — require `sm_80+` (Ampere/Hopper). They compile on 12.4 but fault or are no-ops on `sm_61`.
+
+#### Nsight Systems — installed (verified 2026-08-25) — **now on PATH**
+
+```powershell
+nsys --version
+# → 2026.1.3.243 (User PATH: ...\Nsight Systems 2026.1.3\target-windows-x64)
+ncu --version
+# → 2026.2.0.0   (User PATH: ...\Nsight Compute 2026.2.0)
+
+# GUI
+& "C:\Program Files\NVIDIA Corporation\Nsight Systems 2026.1.3\host-windows-x64\nsys-ui.exe"
+```
+
+**WDDM / GeForce caveat (hit today):** `nsys profile --trace=cuda` returns `No CUDA events collected` on this GTX 1070 Ti WDDM setup without Admin. Diagnostics in `_DIAGNOSTIC_EVENT` showed CUPTI `cupti64_133.dll` loaded but flushed with zero events. `nsys status --environment` → `Sampling Environment: Fail` when not elevated.
+
+**Workaround that works without Admin — `torch.profiler` (used 2026-08-25):**
+
+```powershell
+$env:PYTHONPATH="packages/backend"
+.\venv\Scripts\python.exe output/logs/_torch_profiler.py  # generates output/logs/torch-prof-trace.json
+```
+
+Trace: `output/logs/torch-prof-trace.json` (10 MB, open in `chrome://tracing` or `https://ui.perfetto.dev`).
+
+**Real profile — `CudaAudioAnalyzer.analyze()` on 30s audio (venv `torch 2.6.0+cu124`, GTX 1070 Ti):**
+
+| Kernel | Self CUDA | % | Note |
+|---|---|---|---|
+| `aten::abs` | 127 ms | 28% | `magnitude = torch.abs(stft)` dominates — `processor.py:109` |
+| `aten::abs` (2nd, 60s file) | 95 ms | 37% | Same hotspot scaled |
+| `aten::hann_window` | 22 ms | 8.8% | Allocates new window each call |
+| `aten::mm` / `aten::matmul` | 54 ms | 12% | Only in viz/matmul path |
+| `aten::stft` | ~9 ms | 2% | Surprisingly cheap — not bottleneck |
+| **Total** | **~452 ms self CUDA / 451 ms CPU** | — | `cuda_audio_analyze` wall 303 ms for 30s file; 254 ms for 60s file |
+
+**Findings applied to `app/services/cuda/processor.py`:**
+- Hotspot is *not* `torch.stft` — it's the downstream `abs`/`pow`/`hann_window` chain. Caching `hann_window` and fusing `magnitude ** 2` would shave ~30 ms.
+- `n_frames=1292` for 30s @ 22050/512 matches librosa; pipeline spends ~24s wall in `tools/analyze_and_sync.py:44` (`librosa.beat.beat_track` on CPU) — GPU STFT saves <0.5s there. Biggest win is parallelizing beat tracking or batching multiple files with `torch.cuda.Stream` + `CUDAGraph`, not micro-optimizing STFT.
+- `CudaImageProcessor` `aten::_upsample_bilinear2d_aa` 12 ms — `antialias=True` costs; drop if not needed.
+
+To get full `nsys` CUDA timeline (requires Admin):
+```powershell
+# Run PowerShell as Administrator, then:
+nsys profile --trace=cuda,nvtx --force-overwrite=true -o output/logs/nsys-audio-admin `
+  .\venv\Scripts\python.exe tools/analyze_and_sync.py output/audio/796d0367-65fa-4c60-a720-9e0ed6f56b51.wav
+nsys stats --report cuda_api_sum output/logs/nsys-audio-admin.nsys-rep
+# Or open .nsys-rep in nsys-ui.exe
+```
+
+#### Applied fixes 2026-08-25 (verified)
+
+- **GPU health fallback**: `app/diagnostics/resources.py:541` + `app/services/vram_manager.py:109` now fallback to `torch.cuda.mem_get_info`/`get_device_properties` when `pynvml` fails (System Python hardcodes `NVSMI/nvml.dll` missing on WDDM; ghost workers `PIDs 20460/37124` blocked restart). Also patched `C:\...\Python311\Lib\site-packages\pynvml.py:641` to `System32\nvml.dll`. Verified `GET /api/health/gpu` `available:true 3782/8192 MB` + `GET /api/integrations/cuda/status` `available:true GTX 1070 Ti` after `venv` restart `PID 23524`.
+- **Frontend endpoint**: `packages/frontend/src/services/api.ts:607` corrected `/api/health/integrations/cuda/status` 404 → `/api/integrations/cuda/status` with fallback; banner now `role=status` shows `CUDA Available` + VRAM badge + `fallback` badge, `GPU on/off` toggle, `CPU Mode` fallback text. `AudioAnalysisPage.tsx:100` adds `previewUrl`/`validateFile`/`audio` preview, `fileError`, `border-dashed` states, beats sampled to ≤80, `Select all`, `filtered/paged` library empty states (`No files match + Clear filter`), `aria-*`.
+- **Integration fix**: `packages/backend/app/api/integrations_generation.py:19` defined `ImageGenerationRequest`/`VideoGenerationRequest` locally (was `NameError`), cleared `__pycache__`, backend now starts.
+- **UX verified**: `output/logs/playwright-test/` `audio-ux.spec.ts` 4/4 + `studio.spec.ts` 3/3 pass, `frontend build` 513 KB gzip ok.
 
 ---
 
