@@ -188,9 +188,15 @@ class MusicVideoHandler:
         if method == "comfyui":
             return await self._render_with_comfyui(job, audio_path, output_path, width, height, duration, analysis)
 
+        # Encoding: use CRF for size/quality (was ultrafast → 772MB for 4:24)
+        # Add -t to respect requested duration (was rendering full 4:24 for every 5s request → timeout)
+        vcodec_args = ["-c:v", "libx264", "-crf", "23", "-preset", "fast", "-pix_fmt", "yuv420p", "-maxrate", "8M", "-bufsize", "16M"]
+        acodec_args = ["-c:a", "aac", "-b:a", "192k"]
+        # Use -t to limit to requested duration (avoid 4:24 full render for 5s preview)
+        duration_args = ["-t", str(duration)] if duration and duration < 60 else []
+
         # For preview jobs without audio, generate a test pattern video
         if not audio_path:
-            # Generate a colorful test pattern video without audio
             cmd = [
                 self._find_ffmpeg(),
                 "-y",
@@ -198,11 +204,9 @@ class MusicVideoHandler:
                 "-i", f"testsrc=duration={duration}:size={width}x{height}:rate={fps}",
                 "-f", "lavfi",
                 "-i", f"sine=frequency=440:duration={duration}",
-                "-c:v", "libx264",
-                "-preset", "ultrafast",
-                "-pix_fmt", "yuv420p",
-                "-c:a", "aac",
-                "-b:a", "192k",
+                *vcodec_args,
+                *acodec_args,
+                *duration_args,
                 "-shortest",
                 "-movflags", "+faststart",
                 str(output_path),
@@ -217,17 +221,14 @@ class MusicVideoHandler:
                 "-filter_complex", vf_filter,
                 "-map", "[vid]",
                 "-map", "0:a",
-                "-c:v", "libx264",
-                "-preset", "ultrafast",
-                "-pix_fmt", "yuv420p",
-                "-c:a", "aac",
-                "-b:a", "192k",
+                *vcodec_args,
+                *acodec_args,
+                *duration_args,
                 "-shortest",
                 "-movflags", "+faststart",
                 str(output_path),
             ]
-        else:
-            # spectrum or other styles — showspectrum has no rate option (was bug: rate=30 → Option not found)
+        elif style == "spectrum":
             vf_filter = f"[0:a]showspectrum=s={width}x{height}:mode=combined:color=intensity:scale=log[vid]"
             input_args = ["-i", audio_path]
             cmd = [
@@ -237,11 +238,59 @@ class MusicVideoHandler:
                 "-filter_complex", vf_filter,
                 "-map", "[vid]",
                 "-map", "0:a",
-                "-c:v", "libx264",
-                "-preset", "ultrafast",
-                "-pix_fmt", "yuv420p",
-                "-c:a", "aac",
-                "-b:a", "192k",
+                *vcodec_args,
+                *acodec_args,
+                *duration_args,
+                "-shortest",
+                "-movflags", "+faststart",
+                str(output_path),
+            ]
+        else:
+            # abstract — now energy/beat-reactive + genre-aware + efficient
+            # Palette selection based on style/section/energy; contrast/sat driven by analysis energy
+            PALETTES = {
+                "waveform": "#8b5cf6|#06b6d4",
+                "spectrum": "#ff00ff|#00ffff",
+                "abstract": "#ff00ff|#00ffff|#ffaa00|#ff0000",
+                "particles": "#ff3366|#33ff99|#3366ff",
+                "geometric": "#ffaa00|#ff00aa|#00aaff",
+                "chorus": "#ff0055|#ffaa00|#ffff00",  # high-energy
+                "verse": "#6d28d9|#0ea5e9|#14b8a6",  # mid
+                "bridge": "#1e3a8a|#3b82f6|#93c5fd",  # low/blue
+            }
+            # Pick palette by explicit style, else by section energy
+            section = str(job.params.get("section", "")).lower() if isinstance(job.params.get("section"), str) else ""
+            if style in PALETTES:
+                palette = PALETTES[style]
+            elif section in PALETTES:
+                palette = PALETTES[section]
+            else:
+                # Fallback by energy: high→chorus, mid→verse, low→bridge
+                energy_peek = float(analysis.get("energy_curve", [0.5])[0]) if isinstance(analysis.get("energy_curve"), list) and analysis.get("energy_curve") else 0.5
+                if energy_peek > 0.65:
+                    palette = PALETTES["chorus"]
+                elif energy_peek < 0.35:
+                    palette = PALETTES["bridge"]
+                else:
+                    palette = PALETTES["abstract"]
+
+            energy = float(analysis.get("energy_curve", [0.5])[0]) if isinstance(analysis.get("energy_curve"), list) and analysis.get("energy_curve") else 0.5
+            # Map 0-1 energy → 1.2-1.6 contrast, 1.4-1.9 saturation
+            contrast = 1.2 + energy * 0.4
+            saturation = 1.4 + energy * 0.5
+            # Use p2p for full-screen, beat-reactive via energy-driven eq
+            vf_filter = f"[0:a]showwaves=s={width}x{height}:mode=p2p:rate={fps}:colors={palette}:scale=sqrt,format=yuv420p,eq=contrast={contrast:.2f}:saturation={saturation:.2f}:brightness=0.03[vid]"
+            input_args = ["-i", audio_path]
+            cmd = [
+                self._find_ffmpeg(),
+                "-y",
+                *input_args,
+                "-filter_complex", vf_filter,
+                "-map", "[vid]",
+                "-map", "0:a",
+                *vcodec_args,
+                *acodec_args,
+                *duration_args,
                 "-shortest",
                 "-movflags", "+faststart",
                 str(output_path),
