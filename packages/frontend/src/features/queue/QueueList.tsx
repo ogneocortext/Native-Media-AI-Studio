@@ -14,9 +14,13 @@ import {
   Loader2,
   Trash2,
   RotateCcw,
+  Play,
+  Download,
+  ExternalLink,
 } from "lucide-react";
 import { StatusBadge } from "../../components/common";
 import type { Job } from "../../services/api";
+import { getApiBase } from "../../services/api";
 
 export const getStatusIcon = (status: string) => {
   switch (status) {
@@ -98,10 +102,65 @@ export function JobRow({
             </p>
           )}
           {job.output_path && (
-            <p className="text-xs text-muted mt-1">
-              Output: {job.output_path}
+            <p className="text-xs text-muted mt-1 truncate" title={job.output_path}>
+              Output: {job.output_path.split(/[\\/]/).pop()}
             </p>
           )}
+          {isCompleted && !!(job.output_path || (((job.result as Record<string, unknown> | null)?.output_path as string) || "")) && (() => {
+            const raw = (job.output_path || (((job.result as Record<string, unknown> | null)?.output_path as string) || "")) as string;
+            // Extract filename from absolute Windows path or relative
+            const filename = raw.split(/[\\/]/).pop() || "";
+            if (!filename) return null;
+            // Try to determine subfolder from path
+            const isPreview = raw.includes("previews") || filename.includes("preview");
+            const videoUrl = `${getApiBase()}/output/${isPreview ? "previews" : "video"}/${filename}`;
+            const isMp4 = filename.toLowerCase().endsWith(".mp4");
+            return (
+              <div className="mt-3">
+                {isMp4 ? (
+                  <video
+                    controls
+                    preload="metadata"
+                    className="w-full max-w-md rounded-lg border border-border bg-black"
+                    style={{ maxHeight: 240 }}
+                    src={videoUrl}
+                    aria-label={`Video for job ${job.id.slice(0,8)}`}
+                  />
+                ) : (
+                  <a
+                    href={videoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    <ExternalLink size={12} /> View output
+                  </a>
+                )}
+                <div className="flex gap-2 mt-2">
+                  <a
+                    href={videoUrl}
+                    download={filename}
+                    className="btn btn-secondary p-2 text-xs flex items-center gap-1"
+                    title="Download video"
+                  >
+                    <Download size={14} /> Download
+                  </a>
+                  <a
+                    href={videoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-secondary p-2 text-xs flex items-center gap-1"
+                    title="Open in new tab"
+                  >
+                    <ExternalLink size={14} /> Open
+                  </a>
+                  <span className="text-xs text-muted flex items-center gap-1">
+                    <Play size={12} /> {isPreview ? "Preview" : "Video"} · {filename}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

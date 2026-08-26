@@ -227,8 +227,8 @@ class MusicVideoHandler:
                 str(output_path),
             ]
         else:
-            # spectrum or other styles
-            vf_filter = f"[0:a]showspectrum=s={width}x{height}:mode=combined:color=intensity:scale=log:rate={fps}[vid]"
+            # spectrum or other styles — showspectrum has no rate option (was bug: rate=30 → Option not found)
+            vf_filter = f"[0:a]showspectrum=s={width}x{height}:mode=combined:color=intensity:scale=log[vid]"
             input_args = ["-i", audio_path]
             cmd = [
                 self._find_ffmpeg(),
