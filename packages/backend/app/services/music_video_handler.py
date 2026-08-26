@@ -297,26 +297,107 @@ class MusicVideoHandler:
             ]
 
         try:
+            # Stream FFmpeg stderr to parse frame progress and update job
+            import re
+
+            total_frames = int(duration * fps) if duration and fps else 0
+            # Use -progress pipe:1 for machine-readable, but we parse frame= lines from stderr
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=max(duration * 2, 60)
-            )
+
+            # Read stderr streaming (FFmpeg uses \r for progress, not \n) while process runs, update progress 0.5→1.0
+            stderr_chunks = []
+            frame_re = re.compile(r"frame=\s*(\d+)")
+            time_re = re.compile(r"time=\s*(\d+):(\d+):(\d+\.\d+)")
+
+            async def _read_stderr():
+                buffer = ""
+                while True:
+                    chunk = await process.stderr.read(1024)
+                    if not chunk:
+                        break
+                    text = chunk.decode(errors="replace")
+                    stderr_chunks.append(text)
+                    buffer += text
+                    # FFmpeg progress uses \r to overwrite line, so split on both \r and \n
+                    parts = re.split(r"[\r\n]+", buffer)
+                    # Keep last incomplete part in buffer
+                    buffer = parts[-1]
+                    for line in parts[:-1]:
+                        if not line.strip():
+                            continue
+                        # Parse frame for progress
+                        m = frame_re.search(line)
+                        if m and total_frames > 0:
+                            try:
+                                frame = int(m.group(1))
+                                frac = max(0.0, min(1.0, frame / max(1, total_frames)))
+                                prog = 0.5 + 0.5 * frac
+                                # Throttle updates: only every ~2% or 30 frames
+                                if not hasattr(_read_stderr, "_last_prog"):
+                                    _read_stderr._last_prog = 0.5  # type: ignore
+                                if prog - _read_stderr._last_prog >= 0.02 or frame % 30 == 0:  # type: ignore
+                                    _read_stderr._last_prog = prog  # type: ignore
+                                    await self._update_progress(job, prog, f"Rendering frame {frame}/{total_frames} ({int(frac*100)}%)")
+                            except Exception:
+                                pass
+                        else:
+                            # Fallback: parse time=
+                            tm = time_re.search(line)
+                            if tm and duration:
+                                try:
+                                    h, mm, ss = tm.groups()
+                                    secs = int(h) * 3600 + int(mm) * 60 + float(ss)
+                                    frac = max(0.0, min(1.0, secs / max(1.0, duration)))
+                                    prog = 0.5 + 0.5 * frac
+                                    if not hasattr(_read_stderr, "_last_prog_t"):
+                                        _read_stderr._last_prog_t = 0.5  # type: ignore
+                                    if prog - _read_stderr._last_prog_t >= 0.02:  # type: ignore
+                                        _read_stderr._last_prog_t = prog  # type: ignore
+                                        await self._update_progress(job, prog, f"Rendering {int(secs)}s / {int(duration)}s ({int(frac*100)}%)")
+                                except Exception:
+                                    pass
+
+            # Wait for process with timeout, concurrently reading stderr
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(_read_stderr(), process.wait()), timeout=max(duration * 3, 90)
+                )
+            except asyncio.TimeoutError:
+                try:
+                    process.kill()
+                except Exception:
+                    pass
+                raise RuntimeError(f"FFmpeg rendering timed out after {max(duration*3,90)}s")
+
+            # Collect remaining stderr
+            try:
+                # Ensure process terminated
+                await process.wait()
+            except Exception:
+                pass
+            # Also collect stdout (not needed)
+            try:
+                stdout = await process.stdout.read() if process.stdout else b""
+            except Exception:
+                stdout = b""
+            stderr_text = "".join(stderr_chunks)
             if process.returncode != 0:
-                err_text = stderr.decode(errors="replace").strip()
-                # FFmpeg stderr is verbose (banner first); surface the last ~1500 chars
-                # where the actual error line lives, plus keep full tail for debugging
-                tail = err_text[-1500:] if len(err_text) > 1500 else err_text
-                # Also log full stderr at debug level
+                tail = stderr_text[-1500:] if len(stderr_text) > 1500 else stderr_text
                 import logging as _logging
-                _logging.getLogger(__name__).error("FFmpeg full stderr:\n%s", err_text)
+
+                _logging.getLogger(__name__).error("FFmpeg full stderr:\n%s", stderr_text)
                 raise RuntimeError(f"FFmpeg failed: {tail}")
         except asyncio.TimeoutError:
-            process.kill()
-            raise RuntimeError("FFmpeg rendering timed out")
+            raise
+        except Exception as e:
+            # Surface any other error from streaming
+            if "FFmpeg failed" in str(e) or "timed out" in str(e):
+                raise
+            raise RuntimeError(f"FFmpeg failed: {e}") from e
 
     async def _render_with_comfyui(self, job: Job, audio_path: str, output_path: Path, width: int, height: int, duration: float, analysis: dict) -> None:
         """Render video using ComfyUI for AI-generated content."""
