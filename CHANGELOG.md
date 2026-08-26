@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Confidence Score (2026-08-25)
+- **Backend**: `audio_analyzer.py:224` windowed onset (`p85`, `±1` frame) + beat regularity (`CV`) + dynamic range → `0.28` → `0.85` on `182s 143BPM` (was `mean(onset/max)`, now `0.55*onset + 0.30*regularity + 0.15*dynamic` + `sqrt` boost)
+- **Verified**: `5` library files now `0.86-0.88` (was `0.27-0.35`), `POST /api/audio/analyze` `0.851`
+
+### Fixed - Video Rendering & Queue Preview (2026-08-25)
+- **Backend**: `music_video_handler.py:231` `showspectrum … scale=log:rate=30` → `Option not found` (was `772MB` bloat + `timeout`); fixed `scale=log[vid]`, `preset ultrafast` → `crf 23 preset fast maxrate 8M`
+- **Frontend**: `QueueList.tsx:109` now renders `<video controls preload=metadata>` via `/output/video/{filename}` + `Download`/`Open` (was text only, `output_path` ignored `result.output_path`)
+- **Verified**: `hasVideo true`, `GET /output/video/281baf85_music_video.mp4` `200 video/mp4`
+
+### Fixed - Generate-3D Page UX (2026-08-25)
+- **Backend**: `gen3d/service.py:24` `..core.config` → `...core.config` (`500` → `200` `{"available":true,"comfyui_running":true}`)
+- **Frontend**: auto-load `status`/`history` on mount, `elapsed` timer, word-count validation (`75` words, `500` chars)
+- **Model cards**: `VRAM`/`time` badges (`5GB 2-3min 8GB-safe` vs `9GB+ 6-8min`), selected `border-violet`, `steps` slider `5-50` with `fast/balanced/quality` + `~min` estimate
+- **Generate**: `elapsed/~est` + progress bar + `VRAM offload` note, catches `timeout`/`VRAM` → friendly `Retry`/`Dismiss`
+- **Result**: `model_path` filename + full path, `Download .glb` via `/output/generated_3d/{file}`, `Use in Music Video`, collapsible `Raw JSON`
+- **Sidebar**: live `● Ready`/`Offline` badge, formatted status, `Recent Models` list (`.glb` from `/api/outputs`)
+
+### Fixed - Queue Progress Bar (2026-08-25)
+- **Backend**: `music_video_handler.py:316` stream `stderr` via `read(1024)` split on `[\r\n]` for `frame=`/`time=` → `update_job(0.5→1.0, "Rendering frame X/Y (Z%)")`
+- **Was**: `communicate()` until FFmpeg exit → `50%` stuck until `100%`; now `50%` → `85% 125/180` → `97% 170/180` → `100%`
+
+### Fixed - Video Rendering Efficient (2026-08-25)
+- **Backend**: `crf 23 preset fast maxrate 8M` (was `ultrafast` → `772MB` for `4:24`), add `-t duration` (was full `4:24` for every `5s` → `timeout 60s`)
+- **Abstract**: `PALETTES` by `section`/`energy` (`chorus #ff0055|#ffaa00`, `verse`, `bridge`) + `contrast/saturation` driven by `energy_curve`
+- **Verified**: `5s 1080p` now `3.16MB 5.00s` (was `20MB` partial, `50MB` minimal, `772MB` bloated)
+
 ### Fixed - Audio Analysis & GPU Health (2026-08-25)
 
 #### CUDA Toolkit 12.4 + Nsight Research

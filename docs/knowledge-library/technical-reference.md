@@ -1,7 +1,7 @@
 # 3D Rendering Pipeline - Technical Knowledge Library
 
 **Purpose:** AI agent reference for the Native Media AI Studio 3D rendering system  
-**Last Updated:** 2026-08-25 — CUDA 12.4 / Nsight Systems 2026.1.3 research  
+**Last Updated:** 2026-08-25 — CUDA 12.4 / Nsight / Audio 0.85 conf / Video 3.16MB / Queue 90% frame / 3D Ready  
 **Audience:** AI agents, developers, automated systems
 
 ---
@@ -359,7 +359,11 @@ nsys stats --report cuda_api_sum output/logs/nsys-audio-admin.nsys-rep
 - **GPU health fallback**: `app/diagnostics/resources.py:541` + `app/services/vram_manager.py:109` now fallback to `torch.cuda.mem_get_info`/`get_device_properties` when `pynvml` fails (System Python hardcodes `NVSMI/nvml.dll` missing on WDDM; ghost workers `PIDs 20460/37124` blocked restart). Also patched `C:\...\Python311\Lib\site-packages\pynvml.py:641` to `System32\nvml.dll`. Verified `GET /api/health/gpu` `available:true 3782/8192 MB` + `GET /api/integrations/cuda/status` `available:true GTX 1070 Ti` after `venv` restart `PID 23524`.
 - **Frontend endpoint**: `packages/frontend/src/services/api.ts:607` corrected `/api/health/integrations/cuda/status` 404 → `/api/integrations/cuda/status` with fallback; banner now `role=status` shows `CUDA Available` + VRAM badge + `fallback` badge, `GPU on/off` toggle, `CPU Mode` fallback text. `AudioAnalysisPage.tsx:100` adds `previewUrl`/`validateFile`/`audio` preview, `fileError`, `border-dashed` states, beats sampled to ≤80, `Select all`, `filtered/paged` library empty states (`No files match + Clear filter`), `aria-*`.
 - **Integration fix**: `packages/backend/app/api/integrations_generation.py:19` defined `ImageGenerationRequest`/`VideoGenerationRequest` locally (was `NameError`), cleared `__pycache__`, backend now starts.
-- **UX verified**: `output/logs/playwright-test/` `audio-ux.spec.ts` 4/4 + `studio.spec.ts` 3/3 pass, `frontend build` 513 KB gzip ok.
+- **Confidence**: `app/services/audio_analyzer.py:224` windowed onset (`p85` ±1) + regularity (`CV`) + dynamic → `0.28→0.85` on `182s 143BPM` (`0.86-0.88` on `5` library files)
+- **Video**: `music_video_handler.py:231` `showspectrum rate` → `Option not found` fix, `QueueList.tsx:109` renders `<video>` via `/output/video/{file}` + `Download`/`Open`, `crf 23 preset fast` (`772MB→3.16MB 5s`), `-t duration` (was full `4:24` → `timeout`), palette by `section`/`energy`
+- **Queue progress**: `music_video_handler.py:316` stream `stderr` `\r` `frame=` → `0.5→1.0` `Rendering frame X/Y (Z%)` (was `50%` stuck), verified `6s` `50%→85% 125/180→97% 170/180→100%`
+- **3D UX**: `gen3d/service.py:24` `..core`→`...core` (`500→200`), `Generation3DPage.tsx` auto-load `status`/`history`, `elapsed` timer, `wordCount`, model cards `VRAM`/`time`, `steps` slider, progress `elapsed/~est`, `Recent Models` `.glb`
+- **UX verified**: `output/logs/playwright-test/` `audio-ux.spec.ts` 4/4 + `gen3d-improved.spec.ts` 2/2 + `studio.spec.ts` 3/3 + `queue-video` 2/2 pass, `frontend build` 516 KB gzip ok.
 
 ---
 
