@@ -313,11 +313,10 @@ export function AudioAnalysisPage() {
                 <h3 className={DS.sectionTitle}><Activity size={14} />Energy &amp; Beats</h3>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={analysis.energy_curve.slice(0, 120).map((e, i) => {
-                      const t = (i / analysis.energy_curve!.length) * analysis.duration_seconds;
-                      const nearbyBeat = analysis.beat_times.find(bt => Math.abs(bt - t) < (analysis.duration_seconds / analysis.energy_curve!.length));
-                      return { time: formatTime(t), energy: e * 100, beat: nearbyBeat ?? null };
-                    })} margin={{ top: 8, right: 5, left: -20, bottom: 5 }}>
+                    <AreaChart data={analysis.energy_curve.slice(0, 120).map((e, i) => ({
+                      time: formatTime((i / analysis.energy_curve!.length) * analysis.duration_seconds),
+                      energy: e * 100,
+                    }))} margin={{ top: 8, right: 5, left: -20, bottom: 5 }}>
                       <defs><linearGradient id="energyGradient2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.6} /><stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} /></linearGradient></defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
                       <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={{ stroke: "#374151" }} tickLine={false} />
@@ -327,9 +326,22 @@ export function AudioAnalysisPage() {
                         <ReferenceLine key={i} x={formatTime((s.start + s.end) / 2)} stroke="#4b5563" strokeDasharray="3 3" strokeWidth={1} />
                       ))}
                       <Area type="monotone" dataKey="energy" stroke="#8b5cf6" strokeWidth={2} fill="url(#energyGradient2)" animationDuration={600} dot={false} />
-                      <Area type="monotone" dataKey="beat" stroke="none" fill="none" dot={{ r: 3, fill: "#fbbf24", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#fbbf24" }} />
                     </AreaChart>
                   </ResponsiveContainer>
+                  {/* Beat markers as overlay */}
+                  <div className="absolute inset-0 pointer-events-none" style={{ top: 8, right: 5, left: 40, bottom: 25 }}>
+                    {analysis.beat_times.map((bt, i) => (
+                      <div
+                        key={i}
+                        className="absolute bottom-0 w-0.5 bg-amber-400/70"
+                        style={{
+                          left: `${(bt / analysis.duration_seconds) * 100}%`,
+                          height: "100%",
+                          transform: "translateX(-50%)",
+                        }}
+                      />
+                    ))}
+                  </div>
                 </div>
                 {/* Section labels */}
                 <div className="flex rounded-lg overflow-hidden h-6 mt-1">
@@ -341,7 +353,7 @@ export function AudioAnalysisPage() {
                 </div>
                 <div className="flex justify-between mt-1">
                   <span className={DS.textXs}>0:00</span>
-                  <span className={DS.textXs}>Yellow dots = beats = dashed lines = section boundaries</span>
+                  <span className={DS.textXs}>Purple = energy · Amber ticks = beats · Dashed lines = section boundaries</span>
                   <span className={DS.textXs}>{formatTime(analysis.duration_seconds)}</span>
                 </div>
               </div>
