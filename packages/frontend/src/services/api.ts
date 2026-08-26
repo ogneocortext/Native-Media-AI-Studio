@@ -818,6 +818,19 @@ export async function getMemoryDiagnostics(): Promise<MemoryDiagnostics> {
   return res.json();
 }
 
+export async function cleanupSystemMemory(): Promise<{
+  before_percent: number;
+  after_percent: number;
+  freed_percent: number;
+  actions: string[];
+  memory: { total_mb: number; used_mb: number; available_mb: number; percent: number };
+}> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/health/diagnostics/memory/cleanup`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to cleanup memory");
+  return res.json();
+}
+
 export interface DiagnosticsModel {
   name: string;
   size_mb: number;

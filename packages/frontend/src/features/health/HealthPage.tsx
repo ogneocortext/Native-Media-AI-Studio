@@ -392,10 +392,32 @@ export function HealthPage() {
         <div className={`${comfyui?.installed ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
           <div className="grid grid-cols-2 gap-4">
             <ResourceCard icon={Cpu} iconColor="blue" label="CPU" cores={health?.cpu?.count} usage={cpuUsage} />
-            <ResourceCard icon={HardDrive} iconColor="purple" label="Memory" cores={undefined} usage={memUsage} subtext={`${health?.memory?.used_gb?.toFixed(1)}GB / ${health?.memory?.total_gb?.toFixed(1)}GB`} />
+            <div className="relative">
+              <ResourceCard icon={HardDrive} iconColor="purple" label="Memory" cores={undefined} usage={memUsage} subtext={`${health?.memory?.used_gb?.toFixed(1)}GB / ${health?.memory?.total_gb?.toFixed(1)}GB`} />
+              {memUsage >= 80 && (
+                <button
+                  onClick={async () => {
+                    const { cleanupSystemMemory } = await import("../../services/api");
+                    addLog("Cleaning system memory...", "info");
+                    try {
+                      const res = await cleanupSystemMemory();
+                      addLog(`Cleaned: ${res.actions.join(", ") || "no actions"} — ${res.before_percent}% → ${res.after_percent}% (freed ${res.freed_percent}%)`, "success");
+                    } catch (e: unknown) {
+                      const msg = e instanceof Error ? e.message : String(e);
+                      addLog(`Cleanup failed: ${msg}`, "error");
+                    }
+                  }}
+                  className="absolute -top-2 -right-2 text-xs px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-full shadow"
+                  title="Free RAM: GC + torch cache + old files + Ollama offload if needed"
+                >
+                  Clean RAM
+                </button>
+              )}
+            </div>
             <ResourceCard icon={Database} iconColor="amber" label="Disk" cores={undefined} usage={diskUsage} subtext={`${health?.disk?.free_gb?.toFixed(1)}GB free`} />
             <GPUCard />
           </div>
+          {memUsage >= 80 && <p className="text-xs text-amber-400 mt-2">Memory high — queue will auto-clean before new jobs. Click Clean RAM for GC + Ollama offload.</p>}
         </div>
        </div>
 

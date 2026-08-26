@@ -600,13 +600,90 @@ class ResourceMonitor:
 
         return snapshot
 
+    async def cleanup_system_memory(self) -> dict[str, Any]:
+        """Attempt to free system RAM when critical. Returns actions taken."""
+        actions = []
+        try:
+            import gc
+
+            collected = gc.collect()
+            actions.append(f"gc.collect: {collected} objects")
+        except Exception as e:
+            actions.append(f"gc failed: {e}")
+
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+                actions.append("torch.cuda.empty_cache")
+        except Exception:
+            pass
+
+        # Clear old temp files and job sidecars older than 7 days
+        try:
+            from pathlib import Path
+            import time
+
+            for sub in ["output/video", "output/previews", "output/generated_3d", "output/audio_analysis"]:
+                p = Path(__file__).resolve().parents[3] / sub
+                if p.exists():
+                    for f in p.iterdir():
+                        try:
+                            if time.time() - f.stat().st_mtime > 7 * 86400 and f.is_file():
+                                # Keep at least 5 most recent
+                                files = sorted(p.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True)
+                                if f not in files[:5]:
+                                    f.unlink()
+                                    actions.append(f"removed old {f.name}")
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+        # Try to offload Ollama if still high
+        try:
+            import psutil
+
+            if psutil.virtual_memory().percent >= 85:
+                import urllib.request, json
+
+                try:
+                    req = urllib.request.Request("http://127.0.0.1:11434/api/ps")
+                    with urllib.request.urlopen(req, timeout=3) as resp:
+                        data = json.loads(resp.read())
+                        for m in data.get("models", [])[:1]:  # offload at least one
+                            name = m.get("name", "")
+                            if name:
+                                payload = json.dumps({"model": name, "keep_alive": 0}).encode()
+                                r = urllib.request.Request(
+                                    "http://127.0.0.1:11434/api/generate",
+                                    data=payload,
+                                    headers={"Content-Type": "application/json"},
+                                )
+                                with urllib.request.urlopen(r, timeout=5):
+                                    pass
+                                actions.append(f"offloaded ollama {name}")
+                                break
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        return {"actions": actions}
+
     async def check_all(self) -> list[dict[str, Any]]:
         """Check all resources and return list of warnings"""
         warnings = []
 
-        # Check memory
+        # Check memory — auto-cleanup on critical
         mem_warning = await self.check_memory()
         if mem_warning:
+            if mem_warning["level"] == WarningLevel.CRITICAL:
+                cleanup = await self.cleanup_system_memory()
+                mem_warning["cleanup"] = cleanup["actions"]
+                logger.warning(f"System RAM critical, cleanup: {cleanup['actions']}")
             warnings.append(mem_warning)
 
         # Check disk

@@ -115,7 +115,23 @@ class QueueManager:
 
 
     async def enqueue(self, request: JobCreateRequest) -> Job:
-        """Add a new job to the queue"""
+        """Add a new job to the queue — checks system RAM first and auto-cleans if critical."""
+        # System RAM guard: if >90% try cleanup, if still >92% warn
+        try:
+            import psutil
+
+            mem = psutil.virtual_memory()
+            if mem.percent >= 90:
+                from ..diagnostics.resources import resource_monitor
+
+                cleanup = await resource_monitor.cleanup_system_memory()
+                logger.warning(f"System RAM {mem.percent:.1f}% before enqueue, cleanup: {cleanup['actions']}")
+                mem2 = psutil.virtual_memory()
+                if mem2.percent >= 92:
+                    logger.warning(f"System RAM still {mem2.percent:.1f}% after cleanup — queueing anyway but may OOM")
+        except Exception as e:
+            logger.debug(f"RAM check before enqueue failed: {e}")
+
         async with self._lock:
             job = Job(
                 job_type=request.job_type,

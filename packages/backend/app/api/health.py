@@ -180,6 +180,30 @@ async def system_diagnostics() -> dict:
     return await health_monitor.get_system_health()
 
 
+@router.post("/diagnostics/memory/cleanup")
+async def cleanup_memory() -> dict:
+    """Trigger system RAM cleanup (GC, torch cache, old temp files, Ollama offload if needed)."""
+    from ..diagnostics.resources import resource_monitor
+    import psutil
+
+    before = psutil.virtual_memory().percent
+    result = await resource_monitor.cleanup_system_memory()
+    after = psutil.virtual_memory().percent
+    mem = psutil.virtual_memory()
+    return {
+        "before_percent": before,
+        "after_percent": after,
+        "freed_percent": round(before - after, 1),
+        "actions": result["actions"],
+        "memory": {
+            "total_mb": mem.total // (1024 * 1024),
+            "used_mb": mem.used // (1024 * 1024),
+            "available_mb": mem.available // (1024 * 1024),
+            "percent": mem.percent,
+        },
+    }
+
+
 @router.get("/diagnostics/memory")
 async def memory_diagnostics() -> dict:
     """Get detailed memory breakdown including top processes by RAM usage."""
