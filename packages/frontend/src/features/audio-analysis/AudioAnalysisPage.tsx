@@ -14,70 +14,29 @@ import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
 } from "recharts";
 
-interface BeatTimelineStripProps {
-  beatTimes: number[];
-  duration: number;
-  sections: Array<{ type: string; start: number; end: number; energy: number }>;
-}
-
-function BeatTimelineStrip({ beatTimes, duration, sections }: BeatTimelineStripProps) {
-  const [hoveredBeat, setHoveredBeat] = useState<{ index: number; time: number; section: string } | null>(null);
-
-  const getSectionForTime = (t: number): string => {
-    const sec = sections.find(s => t >= s.start && t < s.end);
-    return sec?.type ?? "full";
-  };
-
-  const getSectionColor = (type: string): string => {
-    const colorMap: Record<string, string> = {
-      intro: "#3b82f6", blue: "#3b82f6",
-      verse: "#22c55e", green: "#22c55e",
-      chorus: "#8b5cf6", violet: "#8b5cf6",
-      bridge: "#f97316", orange: "#f97316",
-      outro: "#ef4444", red: "#ef4444",
-      full: "#6b7280", gray: "#6b7280",
-    };
-    return colorMap[type] ?? "#6b7280";
-  };
+function BeatTimelineStrip({ beatTimes, duration }: { beatTimes: number[]; duration: number }) {
+  const [hoveredBeat, setHoveredBeat] = useState<{ index: number; time: number } | null>(null);
 
   return (
     <div className="relative">
-      {/* Section background bands */}
-      <div className="absolute inset-0 flex rounded-t-lg overflow-hidden pointer-events-none" style={{ height: 48 }}>
-        {sections.map((s, i) => (
-          <div
-            key={i}
-            className="h-full opacity-15"
-            style={{
-              left: `${(s.start / duration) * 100}%`,
-              width: `${((s.end - s.start) / duration) * 100}%`,
-              backgroundColor: getSectionColor(s.type),
-              position: "absolute",
-            }}
-          />
-        ))}
-      </div>
-
       {/* Beat ticks */}
-      <div className="relative" style={{ height: 48 }}>
-        <svg width="100%" height="48" className="overflow-visible" preserveAspectRatio="none">
+      <div className="relative" style={{ height: 40 }}>
+        <svg width="100%" height="40" className="overflow-visible" preserveAspectRatio="none">
           {beatTimes.map((t, i) => {
             const x = (t / duration) * 100;
-            const section = getSectionForTime(t);
-            const color = getSectionColor(section);
             const isHovered = hoveredBeat?.index === i;
             return (
               <rect
                 key={i}
                 x={`${x}%`}
-                y={isHovered ? 4 : 12}
+                y={isHovered ? 2 : 8}
                 width={isHovered ? 3 : 1.5}
-                height={isHovered ? 40 : 24}
+                height={isHovered ? 36 : 24}
                 rx={1}
-                fill={color}
-                opacity={isHovered ? 1 : 0.7}
+                fill="#8b5cf6"
+                opacity={isHovered ? 1 : 0.6}
                 className="transition-all duration-100"
-                onMouseEnter={() => setHoveredBeat({ index: i, time: t, section })}
+                onMouseEnter={() => setHoveredBeat({ index: i, time: t })}
                 onMouseLeave={() => setHoveredBeat(null)}
               />
             );
@@ -87,13 +46,13 @@ function BeatTimelineStrip({ beatTimes, duration, sections }: BeatTimelineStripP
         {/* Hover tooltip */}
         {hoveredBeat && (
           <div
-            className="absolute -top-8 px-2 py-1 bg-gray-900 border border-gray-600 rounded text-[10px] text-white whitespace-nowrap pointer-events-none shadow-lg"
+            className="absolute -top-7 px-2 py-0.5 bg-gray-900 border border-gray-600 rounded text-[10px] text-white whitespace-nowrap pointer-events-none shadow-lg"
             style={{
               left: `${Math.min(Math.max((hoveredBeat.time / duration) * 100, 5), 95)}%`,
               transform: "translateX(-50%)",
             }}
           >
-            #{hoveredBeat.index + 1} · {hoveredBeat.time.toFixed(2)}s · {hoveredBeat.section}
+            Beat #{hoveredBeat.index + 1} · {hoveredBeat.time.toFixed(2)}s
           </div>
         )}
       </div>
@@ -389,7 +348,7 @@ export function AudioAnalysisPage() {
               {analysis.beat_times && analysis.beat_times.length > 0 && (
                 <div className={DS.card}>
                   <h3 className={DS.sectionTitle}><Zap size={14} />Beat Timeline</h3>
-                  <BeatTimelineStrip beatTimes={analysis.beat_times} duration={analysis.duration_seconds} sections={analysis.sections} />
+                  <BeatTimelineStrip beatTimes={analysis.beat_times} duration={analysis.duration_seconds} />
                   <div className="flex justify-between mt-2">
                     <span className={DS.textXs}>0:00</span>
                     <span className={DS.textXs}>{analysis.beat_times.length} beats · {analysis.tempo_bpm.toFixed(0)} BPM</span>
