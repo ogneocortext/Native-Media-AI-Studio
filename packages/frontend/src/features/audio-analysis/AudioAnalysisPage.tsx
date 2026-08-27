@@ -59,25 +59,25 @@ const SECTION_HEX: Record<string, string> = {
   bridge: "#f97316", outro: "#ef4444", full: "#6b7280",
 };
 
-const BeatDensityTooltip = ({ active, payload }: any) => {
+const BeatDensityTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: BeatDensityPoint }> }) => {
   if (active && payload && payload.length) {
-    const d = payload[0].payload;
+    const d = payload[0].payload as BeatDensityPoint & Record<string, unknown>;
     return (
       <div className={DS.cardTight}>
-        <p className="text-xs text-white font-medium capitalize">{d.section} · Bar {d.bar + 1}</p>
-        <p className={DS.textXs}>{d.time.toFixed(1)}s · {d.count} beats · {Math.round(d.energy * 100)}% energy</p>
+        <p className="text-xs text-white font-medium capitalize">{String(d.section)} · Bar {Number(d.bar) + 1}</p>
+        <p className={DS.textXs}>{Number(d.time).toFixed(1)}s · {Number(d.count)} beats · {Math.round(Number(d.energy) * 100)}% energy</p>
       </div>
     );
   }
   return null;
 };
 
-const EnergyBeatTooltip = ({ active, payload, label }: any) => {
+const EnergyBeatTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value?: number }>; label?: string }) => {
   if (active && payload && payload.length) {
     return (
       <div className={DS.cardTight}>
         <p className="text-xs text-white font-medium">Energy: {payload[0]?.value?.toFixed(0)}%</p>
-        <p className={DS.textXs}>Time: {label}{payload[1] ? ` · Beat at ${payload[1].value.toFixed(1)}s` : ""}</p>
+        <p className={DS.textXs}>Time: {label}{payload[1] ? ` · Beat at ${payload[1].value?.toFixed(1)}s` : ""}</p>
       </div>
     );
   }
@@ -132,7 +132,7 @@ export function AudioAnalysisPage() {
       .then(s => {
         setCudaAvailable(s.available ?? false);
         setCudaGpuName(s.gpu_name ?? "");
-        setCudaFallback((s as any).fallback === "torch.cuda");
+        setCudaFallback((s as unknown as Record<string, unknown>).fallback === "torch.cuda");
         if (!s.available) setUseCuda(false);
         // Fetch VRAM for banner when available
         fetch(`${getApiBase()}/api/health/gpu`).then(r => r.json()).then(g => {
@@ -203,7 +203,7 @@ export function AudioAnalysisPage() {
       setAnalysis(result);
       setAnalysisStep("");
       loadAudioFiles();
-    } catch (err: any) { setError(err.message || "Analysis failed"); setAnalysisStep(""); }
+    } catch (err: unknown) { setError(err instanceof Error ? err.message : "Analysis failed"); setAnalysisStep(""); }
     finally { setAnalyzing(false); }
   };
 
@@ -231,7 +231,7 @@ export function AudioAnalysisPage() {
       setAnalysisStep("Detecting song structure...");
       setAnalysis(result);
       setAnalysisStep("");
-    } catch (err: any) { setError(err.message || "Analysis failed"); setAnalysisStep(""); }
+    } catch (err: unknown) { setError(err instanceof Error ? err.message : "Analysis failed"); setAnalysisStep(""); }
     finally { setAnalyzing(false); setSelectedLibraryFile(null); }
   };
 
@@ -272,7 +272,7 @@ export function AudioAnalysisPage() {
       });
       if (result.success) { setActiveJobId(result.job_id); setJobProgress({ progress: 0, message: `Queued ${type} via ${method === "comfyui" ? "ComfyUI" : "Visualization"}` }); }
       else setError(result.error || "Failed to generate");
-    } catch (err: any) { setError(err.message || "Failed to generate"); }
+    } catch (err: unknown) { setError(err instanceof Error ? err.message : "Failed to generate"); }
     finally { setGenerating(null); }
   };
 
@@ -290,7 +290,7 @@ export function AudioAnalysisPage() {
         if (!result.success) { setError(result.error || `Failed to generate ${section.type}`); break; }
         setActiveJobId(result.job_id); setJobProgress({ progress: 0, message: `Generating ${section.type}` });
       }
-    } catch (err: any) { setError(err.message || "Failed to generate"); }
+    } catch (err: unknown) { setError(err instanceof Error ? err.message : "Failed to generate"); }
     finally { setGenerating(null); setSelectedSections(new Set()); }
   };
 
@@ -498,7 +498,7 @@ export function AudioAnalysisPage() {
               <div className="mt-3">
                 <div className="flex gap-2 mb-3">
                   <input type="text" placeholder="Filter files..." value={filterText} onChange={e => { setFilterText(e.target.value); setCurrentPage(1); }} className="flex-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500" />
-                  <select value={sortBy} onChange={e => { setSortBy(e.target.value as any); setCurrentPage(1); }} className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white focus:outline-none focus:border-violet-500">
+                  <select value={sortBy} onChange={e => { setSortBy(e.target.value as "name" | "size" | "date"); setCurrentPage(1); }} className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white focus:outline-none focus:border-violet-500">
                     <option value="date">Newest</option><option value="name">Name</option><option value="size">Size</option>
                   </select>
                 </div>

@@ -188,7 +188,7 @@ export function VisualizationCanvas({ config, width = 400, height = 300 }: Visua
   return (
     <div className="viz-canvas" style={{ width, height }}>
       <Canvas camera={{ position: [0, 0, 5], fov: 60 }} dpr={[1, 2]}>
-        <color attach="background" args={["#0a0a0f"] as any} />
+        <color attach="background" args={["#0a0a0f"] as unknown as [string]} />
         <ambientLight intensity={0.4} />
         <pointLight position={[10, 10, 10]} intensity={1} color={config.colors.primary} />
         <pointLight position={[-5, -5, 5]} intensity={0.6} color={config.colors.secondary} />

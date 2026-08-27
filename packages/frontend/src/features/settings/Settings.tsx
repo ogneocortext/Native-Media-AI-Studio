@@ -41,7 +41,7 @@ export function Settings() {
           const data = await res.json();
           setSettings(prev => ({ ...prev, ...data }));
         }
-      } catch (e) {
+      } catch {
         setError("Failed to load settings from backend");
       } finally {
         setLoading(false);

@@ -33,6 +33,7 @@ const primaryNav: NavItem[] = [
 
 const createNav: NavItem[] = [
   { path: "/music-video-wizard", label: "Music Video", icon: <Wand2 size={18} /> },
+  { path: "/three-js-studio", label: "Three.js Studio", icon: <Sparkles size={18} /> },
   { path: "/audio-analysis", label: "Audio Analysis", icon: <BarChart3 size={18} /> },
   { path: "/visualizer", label: "Visualizer", icon: <Zap size={18} /> },
   { path: "/ai-tools", label: "AI Tools", icon: <Brain size={18} /> },
@@ -285,14 +286,14 @@ export function Sidebar() {
 
 // ComfyUI Quick Control component for sidebar
 function ComfyUIQuickControl({ collapsed }: { collapsed: boolean }) {
-  const [comfyui, setComfyui] = useState<any>(null);
+  const [comfyui, setComfyui] = useState<{ installed?: boolean; running?: boolean } | null>(null);
   const [loading, setLoading] = useState(false);
 
   const fetchStatus = async () => {
     try {
       const base = getApiBase();
       const res = await fetch(`${base}/api/services/comfyui/status`);
-      if (res.ok) setComfyui(await res.json());
+      if (res.ok) setComfyui((await res.json()) as { installed?: boolean; running?: boolean });
     } catch { /* ignore */ }
   };
 

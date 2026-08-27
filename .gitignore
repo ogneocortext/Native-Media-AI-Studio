@@ -186,3 +186,7 @@ packages/frontend/public/config/ports.json
 
 # Obsidian vault (any nesting)
 **/.obsidian/
+
+# Ad-hoc research CSVs (drop in repo root for analysis, not project code)
+Area-*.csv
+*-comparison.csv

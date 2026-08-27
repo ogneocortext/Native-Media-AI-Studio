@@ -81,7 +81,7 @@ const moduleTooltips: Record<ModuleId, string> = {
 
 export function ArtDirection() {
   const [modules, setModules] = useState<ModuleState[]>(defaultModules);
-  const [analysis, setAnalysis] = useState<any>(null);
+  const [analysis, setAnalysis] = useState<Record<string, unknown> | null>(null);
   const [activeDoc, setActiveDoc] = useState<string>("VISUAL_STORYTELLING_2026.md");
   const [docContent, setDocContent] = useState<string>("Loading...");
   const [song, setSong] = useState<SongId>("still-i-rise");
@@ -91,7 +91,7 @@ export function ArtDirection() {
   useEffect(() => {
     fetch(SONGS[song].analysis)
       .then((r) => r.json())
-      .then(setAnalysis)
+      .then((data) => setAnalysis(data as Record<string, unknown>))
       .catch(() => {});
     setActiveDoc(SONGS[song].docFiles[0]);
   }, [song]);
@@ -340,11 +340,11 @@ export function ArtDirection() {
                           <div className="grid grid-cols-2 gap-2">
                             <div className="p-2.5 bg-background rounded-lg">
                               <span className="text-xs text-muted">Key</span>
-                              <p className="font-mono font-medium text-sm">{analysis.estimated_key}</p>
+                              <p className="font-mono font-medium text-sm">{String((analysis as Record<string, unknown>).estimated_key ?? "")}</p>
                             </div>
                             <div className="p-2.5 bg-background rounded-lg">
                               <span className="text-xs text-muted">Loudness</span>
-                              <p className="font-mono font-medium text-sm">{analysis.rms_db} dB</p>
+                              <p className="font-mono font-medium text-sm">{String((analysis as Record<string, unknown>).rms_db ?? "")} dB</p>
                             </div>
                           </div>
                         )}

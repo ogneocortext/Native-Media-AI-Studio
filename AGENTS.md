@@ -57,6 +57,8 @@ All MCP servers are configured in `opencode.json`:
 4. High-quality 3D renders via Blender MCP
 5. Composite final video with Remotion
 
+For quick live-reactive 3D previews, the **Three.js Studio** at `/three-js-studio` ships 6 production-ready scene templates (Concert Stage, Cosmic Void, Equalizer Wall, Geometric City, Vinyl Spin, Pulse Orb) and a real-beat timeline that pulses the 3D scene to the song. See `docs/guides/MUSIC_VIDEO_GUIDE.md` for the Studio section.
+
 ### Code Style
 - Python: PEP 8, type hints, docstrings
 - TypeScript: Strict mode, explicit types

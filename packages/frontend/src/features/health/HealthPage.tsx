@@ -42,6 +42,7 @@ import {
   type ComfyUIStatus as ComfyUIStatusType,
   type GPUProcessInfo,
   type GPUSnapshot,
+  type LogInfo,
 } from "../../services/api";
 import {
   AreaChart,
@@ -70,7 +71,7 @@ export function HealthPage() {
   const [comfyui, setComfyui] = useState<ComfyUIStatusType | null>(null);
   const [comfyuiLoading, setComfyuiLoading] = useState(false);
   const [comfyuiAction, setComfyuiAction] = useState<string | null>(null);
-  const [vramStatus, setVramStatus] = useState<any>(null);
+  const [vramStatus, setVramStatus] = useState<Record<string, unknown> | null>(null);
   const [actionLog, setActionLog] = useState<Array<{ time: string; message: string; type: string }>>([]);
 
   // Add a log message
@@ -99,7 +100,7 @@ export function HealthPage() {
       const res = await fetch(`${base}/api/integrations/vram/status`);
       if (res.ok) {
         const data = await res.json();
-        setVramStatus(data);
+        setVramStatus(data as Record<string, unknown>);
       }
     } catch {
       // Ignore errors
@@ -126,17 +127,20 @@ export function HealthPage() {
         case "start":
           addLog("Checking VRAM availability...", "info");
           await fetchVRAMStatus();
-          if (vramStatus?.vram?.percent > 80) {
-            addLog(`Warning: VRAM is at ${vramStatus.vram.percent}%`, "warning");
-            const proceed = window.confirm(
-              `VRAM is at ${vramStatus.vram.percent}%. Starting ComfyUI may cause performance issues. Continue?`
-            );
+          {
+            const _vram = (vramStatus as unknown as { vram?: { percent: number } })?.vram;
+            if (_vram && _vram.percent > 80) {
+              addLog(`Warning: VRAM is at ${_vram.percent}%`, "warning");
+              const proceed = window.confirm(
+                `VRAM is at ${_vram.percent}%. Starting ComfyUI may cause performance issues. Continue?`
+              );
             if (!proceed) {
               addLog("Start cancelled by user", "warning");
               setComfyuiLoading(false);
               setComfyuiAction(null);
               return;
             }
+          }
           }
           addLog("Starting ComfyUI...", "info");
           result = await startComfyUI();
@@ -375,13 +379,13 @@ export function HealthPage() {
                   </span>
                 )}
               </div>
-              {vramStatus?.vram?.available && (
+              {((vramStatus as unknown as { vram?: { available?: boolean } })?.vram?.available) && (
                 <span className="flex items-center gap-1">
                   <span className={`w-2 h-2 rounded-full ${
-                    vramStatus.vram.percent > 80 ? 'bg-red-400' :
-                    vramStatus.vram.percent > 60 ? 'bg-yellow-400' : 'bg-green-400'
+                    ((vramStatus as unknown as { vram: { percent: number } }).vram.percent) > 80 ? 'bg-red-400' :
+                    ((vramStatus as unknown as { vram: { percent: number } }).vram.percent) > 60 ? 'bg-yellow-400' : 'bg-green-400'
                   }`} />
-                  VRAM: {vramStatus.vram.percent}% ({Math.round(vramStatus.vram.free_mb / 1024)}GB free)
+                  VRAM: {(vramStatus as unknown as { vram: { percent: number; free_mb: number } }).vram.percent}% ({Math.round((vramStatus as unknown as { vram: { free_mb: number } }).vram.free_mb / 1024)}GB free)
                 </span>
               )}
             </div>
@@ -645,7 +649,7 @@ function LogsViewer() {
   const [expanded, setExpanded] = useState(false);
   const [activeLog, setActiveLog] = useState<string>("app");
   const [logContent, setLogContent] = useState<string[]>([]);
-  const [logInfo, setLogInfo] = useState<any>(null);
+  const [logInfo, setLogInfo] = useState<LogInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
@@ -1030,7 +1034,7 @@ function ResourceCard({ icon: Icon, iconColor, label, cores, usage, subtext }: R
 // ============================================================================
 
 function FFmpegStatus() {
-  const [ffmpeg, setFfmpeg] = useState<{ running: boolean; count: number; processes: any[] }>({
+  const [ffmpeg, setFfmpeg] = useState<{ running: boolean; count: number; processes: Record<string, unknown>[] }>({
     running: false, count: 0, processes: []
   });
 
@@ -1069,10 +1073,10 @@ function FFmpegStatus() {
       </div>
       {ffmpeg.processes.length > 0 && (
         <div className="mt-3 pt-3 border-t border-white/5 space-y-1">
-          {ffmpeg.processes.map((p: any, i: number) => (
+          {ffmpeg.processes.map((p: Record<string, unknown>, i: number) => (
             <div key={i} className="flex items-center justify-between text-xs">
-              <span className="text-muted">PID {p.Id}</span>
-              <span className="text-white">{Math.round(p.CPU || 0)}s CPU</span>
+              <span className="text-muted">PID {String((p as { Id?: number }).Id ?? "")}</span>
+              <span className="text-white">{Math.round(Number((p as { CPU?: number }).CPU || 0))}s CPU</span>
             </div>
           ))}
         </div>

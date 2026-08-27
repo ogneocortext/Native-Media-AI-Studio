@@ -1,6 +1,6 @@
 # Music Video Studio Guide
 
-> **Last Updated:** August 2026 • **UI:** Dashboard `Drop your song` → Wizard `5 steps` (live)
+> **Last Updated:** August 2026 (Three.js Studio modernization) • **UI:** Dashboard `Drop your song` → Wizard `5 steps` (live)
 > **For Classic tabbed UI see `Docs → Guides & API → MUSIC_VIDEO_GUIDE (Classic)` in vault `music-video-production.md`**
 
 ## Overview (3 steps, not 6)
@@ -95,6 +95,93 @@ For 3+ tracks: switch to Classic `/music-video` → `Batch Queue` tab → `Add t
 | Job `failed: FFmpeg failed: No option name near` | Fixed in `handler.py:213` `geq:cb:cr` colon bug — pull latest and restart backend |
 | `409 Target already exists` on rename | Pick different name (`FILE_MANAGEMENT.md`) |
 
+## Three.js Studio (live reactive preview)
+
+The Three.js Studio is a **lightweight, browser-based, music-reactive 3D scene editor** at `/three-js-studio`. It is the fastest path from "I have a song" to "I have a music-video-style visual" — no Unity, no Blender render queue, no GPU-hours. It is a preview/composition tool, not a final renderer; for shipping quality use the Wizard above or the Unity → Blender → Remotion pipeline.
+
+### When to use
+
+- Quick concept exploration: load a track, try every scene template, see what fits the mood.
+- Album visualizer / YouTube loop: export PNG frames at 24/30/60 fps and stitch in Remotion.
+- 3D motion reference for downstream tools: drive Unity scene parameters from the beat timeline.
+- Live performance backdrop: fullscreen a second monitor and play the song.
+
+### Layout (compact + responsive)
+
+- **Header (single row):** Play/Pause · quick-add (Crown/Sphere/Box) · track selector (auto-fills BPM) · Export PNG · drawer toggle.
+- **Track info bar (only when a track is selected):** BPM input · Sync ON/OFF · live beat count · beat-punch slider.
+- **Canvas:** fills all available space; no side panels competing for room.
+- **Bottom drawer (3 tabs):** **Objects** · **Inspector** · **Scene**. Default closed so the canvas stays large.
+
+### Scene templates (one click → production-ready)
+
+Defined in `packages/frontend/src/features/three-js-studio/sceneTemplates.ts`. Each template bundles mesh layout, particles, camera, and tuned post-fx:
+
+| Template | What it is | Best for |
+|---|---|---|
+| 🎤 **Concert Stage** | Lit stage + hero + 3 orbital colored spotlights | Pop / EDM / hip-hop with a "performer" focal point |
+| 🌌 **Cosmic Void** | Planet + ring system + dust particles | Ambient / chill / synthwave |
+| 🎚️ **Equalizer Wall** | 32 bars, each Y-scale driven by live bass | Any genre with strong bass (trap, dubstep, dnb) |
+| 🏙️ **Geometric City** | 24 glowing pillars + skyline hero, dolly cam | Lo-fi / cyberpunk / vaporwave |
+| 💿 **Vinyl Spin** | Turntable + spinning record + tonearm | Soul / funk / classic hip-hop |
+| ✨ **Pulse Orb** | Single hero sphere, max beat punch | Minimalist intro/outro cards |
+
+Click any template to **replace** the current scene. After loading, every object is still editable in the Inspector tab — templates are starting points, not lock-ins.
+
+**Audio-driven primitives:** the **Equalizer Wall** and **Geometric City** templates set `audioDriven: "bars" | "pillars"`. The animation loop reads live Web Audio FFT (bass/treble) and modulates each object's Y-scale per frame — no timeline scrubbing needed, just play audio and it pulses.
+
+### Real beat timeline (no more sine waves)
+
+Previously the studio animated to `Math.sin(elapsed * beatPhase)`. The new `useBeatTimeline` hook (`packages/frontend/src/hooks/useBeatTimeline.ts`) reads real `beat_times[]` from the cached `librosa` analysis and exposes a per-frame `getCurrentBeat(elapsed)` API:
+
+- `isOnBeat` — 100 ms window after each onset
+- `timeSinceLastBeat` — for decay curves
+- `smoothedEnergy` — interpolated `amplitude_envelope` for sub-beat motion
+
+The animation loop prefers real-beat spikes over continuous sine. The HUD shows the loaded beat count (e.g. `Beats: 298 loaded`) when a track is selected and its cache is warm.
+
+> **If the HUD shows `Beats: error`:** the cache miss is by design — open **Audio Analysis** for that track first, then return. The cache endpoint is `/api/audio/analysis/<filename>`.
+
+### Post-FX chain (Scene tab)
+
+| Pass | Default | What it does |
+|---|---|---|
+| Selective Bloom | ON | Only objects flagged `Hero glow` glow; rest of scene stays neutral |
+| Chromatic Aberration | 0.0025 | Subtle RGB split, the music-video "lens" feel |
+| Film Grain | 0.12 | Light noise to break up the synthetic look |
+| Vignette | 0.55 darkness / 0.65 radius | Darkened corners, classic cinema framing |
+| Beat Punch | 0.18 | Discrete scale spike on each beat onset |
+
+All passes are code-split into their own chunks so the main bundle isn't bloated.
+
+### Image as background (ComfyUI + Media Library integration)
+
+The Scene tab exposes a **Background Image** field with a **Recent from library** thumbnail strip (12 covers, auto-loaded from `/api/outputs?file_type=audio|video|image` `cover_image` fields). Click any thumbnail to set it as the scene background — your album art, video thumbnails, or any AI-generated image from Image Gen.
+
+The image is loaded via `THREE.Texture`, assigned to `scene.background`, and gets the same post-FX chain applied so the background blends with the music-video aesthetic. Common flows:
+
+1. **Album art as background:** open Media Library, find a track cover, click it in the quick-pick.
+2. **AI-generated visual:** generate an image via Image Gen, copy the `/output/image/...` URL, paste into the field.
+3. **External image:** paste any HTTPS URL (e.g. from ComfyUI's `/view` endpoint).
+
+The field also has a "Show background image" toggle for A/B compare without reloading the texture.
+
+### When to use the Wizard vs Studio
+
+| Goal | Use |
+|---|---|
+| Final render at 1080p+ with audio sync | **Wizard** (per-section video generation) |
+| Quick concept preview, social loops, motion reference | **Studio** (frame export at 24/30/60 fps) |
+| Cinematic shot with volumetric lighting | **Unity + Blender pipeline** (vault `music-video-production.md`) |
+| Just need a visual for the song on Twitter/Discord | **Visualizer** page (`/visualizer`) — 7 styles, no editing |
+
+### File map (Studio-specific)
+
+- `packages/frontend/src/features/three-js-studio/ThreeJSStudio.tsx` — main editor + animation loop
+- `packages/frontend/src/features/three-js-studio/sceneTemplates.ts` — the 6 templates, add new ones here
+- `packages/frontend/src/features/three-js-studio/types.ts` — shared `AnimObject`/`SceneConfig`/`ParticleConfig` types
+- `packages/frontend/src/hooks/useBeatTimeline.ts` — real-beat timeline hook
+
 ## See Also (no duplication)
 
 - **File ops (covers, rename, duplicates):** `FILE_MANAGEMENT.md`
@@ -102,5 +189,6 @@ For 3+ tracks: switch to Classic `/music-video` → `Batch Queue` tab → `Add t
 - **YouTube titles, thumbnails, Shorts safe zones:** `youtube-optimization.md` (vault)
 - **Prompt formula `<75 words`:** `prompt-engineering.md`
 - **API:** `docs/api/API_REFERENCE.md` (`POST /audio/analyze`, `POST /video/generate-section` → `GET /jobs/{id}`)
+- **Live reactive 3D preview:** "Three.js Studio" section above
 
 *For Classic tabbed workflow details, open `knowledge-library/music-video-production.md` in Obsidian — this guide intentionally does not repeat it.*

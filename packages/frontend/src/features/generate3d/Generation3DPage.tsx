@@ -23,7 +23,6 @@ import {
 import {
   generate3D,
   get3DStatus,
-  getApiBase,
 } from "../../services/api";
 import { ModelPreview } from "./ModelPreview";
 
@@ -83,10 +82,11 @@ export function Generation3DPage() {
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
-      const base = getApiBase();
-      // Dedicated 3D endpoint — lists real .glb/.gltf files from the backend
-      // output dir (with a ComfyUI-output fallback). This is the reliable source.
-      const res = await fetch(`${base}/api/3d/models`);
+      // Use relative paths so requests go through the Vite dev proxy
+      // (same-origin). The full backend URL via getApiBase() hits CORS in
+      // dev because the backend on 127.0.0.1:8000 doesn't whitelist the
+      // Vite origin on localhost:5173+.
+      const res = await fetch(`/api/health/3d/models`);
       if (res.ok) {
         const models = await res.json();
         if (Array.isArray(models) && models.length > 0) {
@@ -104,7 +104,7 @@ export function Generation3DPage() {
         }
       }
       // Fallback: scan the generic outputs route for any .glb files.
-      const res2 = await fetch(`${base}/api/outputs`);
+      const res2 = await fetch(`/api/outputs`);
       if (res2.ok) {
         const d2 = await res2.json();
         const outs = d2.outputs || [];
@@ -182,8 +182,10 @@ export function Generation3DPage() {
   // Derive a servable URL for the freshly generated model (backend copies it to output/generated_3d).
   const resultModelPath = (result as { model_path?: string } | null)?.model_path;
   const glbFilename = resultModelPath ? String(resultModelPath).split(/[\\/]/).pop() : null;
+  // Relative URL — goes through the Vite dev proxy (same-origin) so we avoid
+  // the CORS block the backend imposes on cross-origin requests in dev.
   const glbUrl = glbFilename && (result as { success?: boolean } | null)?.success
-    ? `${getApiBase()}/output/generated_3d/${glbFilename}`
+    ? `/output/generated_3d/${glbFilename}`
     : null;
 
   return (
@@ -450,7 +452,7 @@ export function Generation3DPage() {
                   )}
                   <div className="flex gap-2">
                     <a
-                      href={`${getApiBase()}/output/generated_3d/${String((result as { model_path?: string }).model_path).split(/[\\/]/).pop()}`}
+                      href={`/output/generated_3d/${String((result as { model_path?: string }).model_path).split(/[\\/]/).pop()}`}
                       download
                       className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white text-sm flex items-center gap-2"
                     >
@@ -544,10 +546,31 @@ export function Generation3DPage() {
             ) : generatedList.length > 0 ? (
               <div className="space-y-2 max-h-64 overflow-auto">
                 {generatedList.map((f) => (
-                  <a key={f.path} href={f.servable_url ? `${getApiBase()}${f.servable_url}` : `${getApiBase()}/output/generated_3d/${f.filename}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 bg-gray-900 rounded-lg hover:bg-gray-700/50 transition-colors">
+                  <button
+                    key={f.path}
+                    type="button"
+                    onClick={() => {
+                      // Populate the result/preview pane with the chosen model
+                      // so the user can rotate it without re-running generation.
+                      setResult({ success: true, model_path: f.path, filename: f.filename });
+                    }}
+                    className="w-full text-left flex items-center justify-between p-2 bg-gray-900 rounded-lg hover:bg-gray-700/50 transition-colors"
+                  >
                     <span className="text-xs text-white truncate" title={f.filename}>{f.filename}</span>
-                    <span className="text-xs text-gray-500">{(f.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
-                  </a>
+                    <span className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-gray-500">{(f.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
+                      <a
+                        href={f.servable_url ?? `/output/generated_3d/${f.filename}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-gray-500 hover:text-violet-300"
+                        title="Download .glb"
+                      >
+                        <Download size={12} />
+                      </a>
+                    </span>
+                  </button>
                 ))}
               </div>
             ) : (

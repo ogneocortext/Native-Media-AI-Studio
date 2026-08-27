@@ -60,10 +60,10 @@ export function DocsPage() {
     }
   };
 
-  const parseStructure = (obj: any, name: string = "project"): TreeNode => {
+  const parseStructure = (obj: unknown, name: string = "project"): TreeNode => {
     if (typeof obj === "object" && obj !== null) {
       const children: TreeNode[] = [];
-      for (const [key, value] of Object.entries(obj)) {
+      for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
         if (typeof value === "object" && value !== null) {
           children.push(parseStructure(value, key));
         } else {
