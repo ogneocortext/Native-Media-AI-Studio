@@ -74,7 +74,7 @@ Native-Media-AI-Studio/
 - **Python 3.11+** (via Conda recommended for GPU support)
 - **Node.js 20+**
 - **pnpm 9+** (`npm install -g pnpm@9`)
-- **ComfyUI** installed at `D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI`
+- **ComfyUI** installed at `your location here`
 - **Conda environment** `comfyui-cuda` with PyTorch CUDA support
 
 ### Start All Services
