@@ -127,15 +127,18 @@ export function ImageGeneration() {
 
   // Poll for progress when promptId changes
   useEffect(() => {
+    console.log(`[ImageGen] useEffect triggered: promptId=${promptId}, generating=${generating}`);
     if (!promptId || !generating) return;
 
     let cancelled = false;
     
     const poll = async () => {
+      console.log(`[ImageGen] Polling progress for ${promptId}`);
       try {
         const res = await fetch(`/api/integrations/comfyui/progress/${promptId}`);
         if (res.ok && !cancelled) {
           const data = await res.json();
+          console.log(`[ImageGen] Progress data:`, data);
           setProgress(data.progress || 0);
           setCurrentStep(data.step || 0);
           setTotalSteps(data.total_steps || options.steps);
