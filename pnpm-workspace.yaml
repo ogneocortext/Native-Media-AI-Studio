@@ -9,7 +9,7 @@ packages:
 catalog:
   react: ^19.2.8
   react-dom: ^19.2.8
-  typescript: ^6.0.3
+  typescript: ^7.0.2
   vite: ^8.0.10
   tailwindcss: ^4.2.4
   eslint: ^10.2.1
@@ -21,3 +21,8 @@ shamefullyHoist: false
 preferOffline: true
 lockfile: true
 pmOnFail: download
+
+# Side-by-side TS 6 + TS 7 per https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0
+# - `typescript` (6.0.3 via @typescript/typescript6) is used by eslint/typescript-eslint (Go port has no JS API yet)
+# - `@typescript/native` (7.0.2) provides `tsc` 7 for fast builds; use `pnpm --filter frontend exec --package=@typescript/native tsc`
+#   or `pnpm -F frontend run build:ts7` for TS7 builds.
