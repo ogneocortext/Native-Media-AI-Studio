@@ -184,8 +184,12 @@ _local_origins = {
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
     f"http://localhost:{config.backend_port}",
     f"http://127.0.0.1:{config.backend_port}",
+    f"http://localhost:{config.frontend_port}",
+    f"http://127.0.0.1:{config.frontend_port}",
 }
 
 app.add_middleware(
