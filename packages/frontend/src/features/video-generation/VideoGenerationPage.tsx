@@ -39,21 +39,23 @@ interface VideoModel {
   description: string;
   type: string;
   bestFor: string;
+  path?: string;
+  size_mb?: number;
 }
 
 function getVideoModelInfo(modelName: string): VideoModel {
   const base = modelName.toLowerCase();
+  if (base.includes("mm_sd15") || base.includes("mm_sd_v15") || base.includes("mm-stabilized")) {
+    return { name: modelName, description: "AnimateDiff motion module — adds temporal consistency to SD 1.5", type: "Motion Module", bestFor: "Required for AnimateDiff video generation" };
+  }
+  if (base.includes("v2_lora") || base.includes("motion_lora")) {
+    return { name: modelName, description: "AnimateDiff motion LoRA — camera movements (zoom, pan)", type: "Motion LoRA", bestFor: "Camera motion effects" };
+  }
   if (base.includes("wan") && base.includes("ti2v")) {
-    return { name: modelName, description: "Wan 2.2 — text-to-video model generates video clips from text prompts", type: "Text-to-Video", bestFor: "Short video clips, animations, motion content" };
+    return { name: modelName, description: "Wan 2.2 — text-to-video model", type: "Text-to-Video", bestFor: "Short video clips from text" };
   }
   if (base.includes("kandinsky")) {
-    return { name: modelName, description: "Kandinsky 5 Lite — image-to-video model that animates a starting image", type: "Image-to-Video", bestFor: "Animating still images into video clips" };
-  }
-  if (base.includes("animate") || base.includes("mm_sd")) {
-    return { name: modelName, description: "AnimateDiff motion module — adds motion to Stable Diffusion generations", type: "Motion Module", bestFor: "Adding camera motion and animation to SD images" };
-  }
-  if (base.includes("wan")) {
-    return { name: modelName, description: "Wan video generation model", type: "Video", bestFor: "Video generation from text or image" };
+    return { name: modelName, description: "Kandinsky 5 Lite — image-to-video model", type: "Image-to-Video", bestFor: "Animating still images" };
   }
   return { name: modelName, description: `Video model: ${modelName}`, type: "Video", bestFor: "Video generation" };
 }
@@ -125,32 +127,43 @@ export function VideoGenerationPage() {
 
   useEffect(() => {
     loadData();
-    // Fetch video models from ComfyUI
-    fetch("/api/integrations/comfyui/checkpoints")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.checkpoints?.length) {
-          const vModels = data.checkpoints
-            .filter((name: string) => {
-              const base = name.toLowerCase();
-              return base.includes("wan") || base.includes("kandinsky") || base.includes("animate") || base.includes("mm_sd") || base.includes("motion");
-            })
-            .map((name: string) => getVideoModelInfo(name));
-          if (vModels.length === 0) {
-            // Fallback: show all diffusion models if no specific video models found
-            const allDiff = data.checkpoints
-              .filter((name: string) => !name.toLowerCase().includes("sdxl") && !name.toLowerCase().includes("sd_v1"))
-              .map((name: string) => getVideoModelInfo(name));
-            setVideoModels(allDiff.slice(0, 6));
-          } else {
-            setVideoModels(vModels);
-          }
-          if (vModels.length > 0 && !selectedModel) {
-            setSelectedModel(vModels[0].name);
+    // Fetch video models from ComfyUI (checkpoints + motion modules)
+    const fetchVideoModels = async () => {
+      try {
+        // Get motion modules and video-specific models
+        const vmRes = await fetch("/api/integrations/comfyui/video-models");
+        const vmData = await vmRes.json();
+        const motionModels = (vmData?.video_models || []).map((m: any) => ({
+          name: m.name,
+          description: `${m.type} — ${m.size_mb}MB`,
+          type: m.type === "motion_lora" ? "Motion LoRA" : "Motion Module",
+          bestFor: "AnimateDiff video generation",
+        }));
+
+        // Get checkpoints (standard diffusion models)
+        const ckptRes = await fetch("/api/integrations/comfyui/checkpoints");
+        const ckptData = await ckptRes.json();
+        const checkpointModels = (ckptData?.checkpoints || [])
+          .filter((name: string) => {
+            const base = name.toLowerCase();
+            return base.includes("wan") || base.includes("kandinsky") || base.includes("animate") || base.includes("mm_sd") || base.includes("motion");
+          })
+          .map((name: string) => getVideoModelInfo(name));
+
+        // Combine: motion modules first, then checkpoints
+        const allModels = [...motionModels, ...checkpointModels];
+
+        if (allModels.length > 0) {
+          setVideoModels(allModels);
+          if (!selectedModel) {
+            setSelectedModel(allModels[0].name);
           }
         }
-      })
-      .catch(() => {});
+      } catch (e) {
+        console.error("Failed to fetch video models:", e);
+      }
+    };
+    fetchVideoModels();
     const retryTimer = setTimeout(() => {
       if (styles.length === 0 && templates.length === 0) {
         loadData();
