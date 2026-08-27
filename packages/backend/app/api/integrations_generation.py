@@ -151,6 +151,141 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         logger.error(f"Generate endpoint error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.get("/{service_name}/result/{prompt_id}")
+async def get_result(service_name: str, prompt_id: str) -> dict:
+    """Get the final result of a generation."""
+    import urllib.request
+    import json
+
+    if service_name != "comfyui":
+        raise HTTPException(status_code=400, detail="Only ComfyUI is supported")
+
+    base_url = "http://127.0.0.1:8188"
+
+    try:
+        # Check history for the result
+        req = urllib.request.Request(f"{base_url}/history/{prompt_id}")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            history = json.loads(resp.read().decode())
+
+        if prompt_id in history:
+            entry = history[prompt_id]
+            outputs = entry.get("outputs", {})
+            
+            # Find the image output
+            for node_id, output in outputs.items():
+                if "images" in output:
+                    for img in output["images"]:
+                        filename = img.get("filename")
+                        subfolder = img.get("subfolder", "")
+                        if filename:
+                            # Download the image
+                            params = {"filename": filename}
+                            if subfolder:
+                                params["subfolder"] = subfolder
+                            
+                            query = "&".join(f"{k}={v}" for k, v in params.items())
+                            img_req = urllib.request.Request(f"{base_url}/view?{query}")
+                            with urllib.request.urlopen(img_req, timeout=30) as img_resp:
+                                img_data = img_resp.read()
+                                
+                                # Save to output directory
+                                from ..core.config import PROJECT_ROOT
+                                from datetime import datetime
+                                import uuid
+                                
+                                output_dir = PROJECT_ROOT / "output" / "images"
+                                output_dir.mkdir(parents=True, exist_ok=True)
+                                
+                                filepath = output_dir / filename
+                                with open(filepath, "wb") as f:
+                                    f.write(img_data)
+                                
+                                return {
+                                    "status": "completed",
+                                    "success": True,
+                                    "output_path": str(filepath),
+                                    "prompt_id": prompt_id,
+                                }
+
+            return {"status": "error", "error": "No images found in output", "prompt_id": prompt_id}
+        
+        return {"status": "pending", "prompt_id": prompt_id}
+
+    except Exception as e:
+        return {"status": "error", "error": str(e), "prompt_id": prompt_id}
+
+
+@router.get("/comfyui/progress/{prompt_id}")
+async def get_progress(prompt_id: str) -> dict:
+    """Get generation progress for a prompt."""
+    import urllib.request
+    import json
+
+    base_url = "http://127.0.0.1:8188"
+
+    try:
+        # Check queue for running status
+        req = urllib.request.Request(f"{base_url}/queue")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            queue_data = json.loads(resp.read().decode())
+
+        # Check if prompt is in running queue
+        for item in queue_data.get("queue_running", []):
+            if len(item) > 2 and item[1] == prompt_id:
+                prompt_data = item[2] if len(item) > 2 else {}
+                return {
+                    "status": "running",
+                    "prompt_id": prompt_id,
+                    "step": prompt_data.get("step", 0),
+                    "total_steps": prompt_data.get("steps", 20),
+                    "progress": prompt_data.get("progress", 0),
+                }
+
+        # Check if prompt is in pending queue
+        for item in queue_data.get("queue_pending", []):
+            if len(item) > 2 and item[1] == prompt_id:
+                return {
+                    "status": "pending",
+                    "prompt_id": prompt_id,
+                    "step": 0,
+                    "total_steps": 20,
+                    "progress": 0,
+                }
+
+        # Check history for completed
+        req = urllib.request.Request(f"{base_url}/history/{prompt_id}")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            history = json.loads(resp.read().decode())
+
+        if prompt_id in history:
+            return {
+                "status": "completed",
+                "prompt_id": prompt_id,
+                "step": 20,
+                "total_steps": 20,
+                "progress": 100,
+            }
+
+        return {
+            "status": "unknown",
+            "prompt_id": prompt_id,
+            "step": 0,
+            "total_steps": 20,
+            "progress": 0,
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "prompt_id": prompt_id,
+            "error": str(e),
+            "step": 0,
+            "total_steps": 20,
+            "progress": 0,
+        }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
