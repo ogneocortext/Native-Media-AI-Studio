@@ -124,6 +124,7 @@ class ComfyUIAdapter(BaseAdapter):
 
     async def submit_only(self, params: dict[str, Any]) -> str:
         """Submit a prompt to ComfyUI and return the prompt_id immediately."""
+        print(f"DEBUG: submit_only called with params={params}")
         prompt_text = params.get("prompt", "")
         negative_text = params.get("negative_prompt", "")
         steps = params.get("steps", 20)
@@ -151,11 +152,17 @@ class ComfyUIAdapter(BaseAdapter):
             width, height, actual_seed, comfy_sampler
         )
 
-        # Submit workflow and return prompt_id
-        prompt_id = await self._submit_prompt(workflow)
-        self._current_prompt_id = prompt_id
+        print(f"DEBUG: workflow built: {json.dumps(workflow)[:200]}")
 
-        return prompt_id
+        # Submit workflow and return prompt_id
+        try:
+            prompt_id = await self._submit_prompt(workflow)
+            self._current_prompt_id = prompt_id
+            print(f"DEBUG: prompt submitted: {prompt_id}")
+            return prompt_id
+        except Exception as e:
+            print(f"DEBUG: submit failed: {e}")
+            raise
 
     async def _generate_image(self, params: dict[str, Any]) -> dict[str, Any]:
         """Generate a still image using ComfyUI."""

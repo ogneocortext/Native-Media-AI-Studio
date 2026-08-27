@@ -105,8 +105,9 @@ async def list_comfyui_checkpoints() -> dict:
 @router.post("/{service_name}/generate")
 async def generate_image(service_name: str, request: ImageGenerationRequest) -> dict:
     """Generate an image using the specified backend"""
-    from ..core.database import get_db_conn
+    print(f"DEBUG: generate_image called with service_name={service_name}")
     adapter = adapter_registry.get(service_name)
+    print(f"DEBUG: adapter={adapter}")
     if not adapter:
         raise HTTPException(status_code=404, detail=f"Unknown service: {service_name}")
 
@@ -131,8 +132,12 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         if request.ckpt_name:
             params["ckpt_name"] = request.ckpt_name
         
+        print(f"DEBUG: calling adapter.submit_only with params={params}")
+        
         # Submit the prompt and get the prompt_id immediately
         prompt_id = await adapter.submit_only(params)
+        
+        print(f"DEBUG: prompt_id={prompt_id}")
 
         return {
             "success": True,
@@ -142,6 +147,8 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         }
 
     except Exception as e:
+        print(f"DEBUG: exception in generate_image: {e}")
+        logger.error(f"Generate endpoint error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
     except Exception as e:
