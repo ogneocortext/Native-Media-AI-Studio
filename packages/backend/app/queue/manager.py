@@ -29,6 +29,8 @@ class QueueManager:
         self._queue_dir.mkdir(parents=True, exist_ok=True)
         self._queue_file = self._queue_dir / "jobs.json"
         self._subscribers: list[Callable] = []
+        self._completed_count: int = 0  # Track completed jobs for auto-cleanup
+        self._max_completed_cache: int = 100  # Auto-cleanup after this many completed
         self._load_jobs()
 
     def _load_jobs(self):
@@ -196,6 +198,13 @@ class QueueManager:
                     job.started_at = datetime.now()
                 elif status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED):
                     job.completed_at = datetime.now()
+                    # Track completed jobs for auto-cleanup
+                    if status == JobStatus.COMPLETED:
+                        self._completed_count += 1
+                    # Auto-cleanup old completed/failed jobs when threshold exceeded
+                    if self._completed_count >= self._max_completed_cache:
+                        await self._auto_cleanup_unlocked()
+                        self._completed_count = 0
 
             if progress is not None:
                 job.progress = min(max(progress, 0.0), 1.0)
@@ -332,6 +341,33 @@ class QueueManager:
                 del self._jobs[job_id]
             count = JobDatabaseManager.clear_failed()
             return count
+
+    async def _auto_cleanup_unlocked(self) -> int:
+        """Auto-cleanup old completed/failed/cancelled jobs (must be called under lock).
+        
+        Keeps the most recent completed jobs and removes older ones to prevent
+        unbounded memory growth. Returns the number of jobs removed.
+        """
+        # Get terminal-state jobs sorted by completion time (oldest first)
+        terminal_jobs = [
+            j for j in self._jobs.values()
+            if j.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED)
+            and j.completed_at is not None
+        ]
+        terminal_jobs.sort(key=lambda j: j.completed_at)
+        
+        # Keep the most recent half, remove the rest
+        to_remove = terminal_jobs[:max(0, len(terminal_jobs) // 2)]
+        removed = 0
+        for job in to_remove:
+            if job.id in self._jobs:
+                del self._jobs[job.id]
+                JobDatabaseManager.delete_job(job.id)
+                removed += 1
+        
+        if removed:
+            logger.info("Auto-cleanup removed %d old completed jobs", removed)
+        return removed
 
 
 # Global queue instance

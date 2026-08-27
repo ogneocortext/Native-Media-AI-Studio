@@ -729,6 +729,12 @@ class ResourceMonitor:
             if level != WarningLevel.CRITICAL and resource_type in self._last_warnings:
                 del self._last_warnings[resource_type]
 
+        # Cleanup stale entries (resource types no longer being warned about)
+        # This prevents unbounded growth if resource types are added/removed
+        stale_keys = [k for k in self._last_warnings if k not in [w["type"] for w in warnings]]
+        for key in stale_keys:
+            del self._last_warnings[key]
+
 
 # Global resource monitor instance
 resource_monitor = ResourceMonitor()
