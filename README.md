@@ -19,7 +19,7 @@ A full-stack AI-powered creative production environment for music-driven media g
 - **Video Generation** — Text/image-to-video via ComfyUI with model selector (Wan 2.2, Kandinsky 5, AnimateDiff)
 - **Video Editor** — Remotion-powered studio for audio-reactive music videos
 - **Log Viewer** — Centralized logs with analytics dashboard (pie charts, timelines, sparklines), system diagnostics (RAM gauge, per-process memory breakdown), and Ollama model VRAM monitor
-- **Queue System** — Job management with real-time SSE status, bulk clear for failed/completed jobs
+- **Queue System** — Job management with real-time SSE status, bulk clear for failed/completed jobs, auto-cleanup of old completed jobs (keeps most recent 100)
 - **GPU Monitoring** — Real-time VRAM, utilization, temperature, per-process breakdown, and Ollama model tracker with one-click VRAM offload
 - **Database Persistence** — SQLite storage for prompts, audio metadata, AI visuals, and generation sessions
 - **GPU Monitoring** — Real-time VRAM, utilization, temperature, and per-process breakdown via `/api/health/gpu`
@@ -27,6 +27,7 @@ A full-stack AI-powered creative production environment for music-driven media g
 
 ## Recent Changes
 
+- **Memory Leak Fixes** — Queue manager auto-cleans completed/failed jobs (keeps most recent 100), resource monitor cleans stale warning entries
 - **Adapter Connection Reuse** — ComfyUI and Ollama adapters now reuse a single `aiohttp.ClientSession` per instance, eliminating a thread leak that caused health checks to time out
 - **Health Check Timeouts** — Added per-adapter (8s) and global (10s) timeouts to prevent health checks from hanging
 - **3D Generation Pipeline** — Added `Hy3DPostprocessMesh` and `Hy3DMeshUVWrap` nodes for smooth normals and decimated meshes (95% smaller GLBs)
