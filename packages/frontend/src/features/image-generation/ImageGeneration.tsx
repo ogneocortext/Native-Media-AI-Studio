@@ -134,47 +134,81 @@ export function ImageGeneration() {
     setTotalSteps(options.steps);
     setPromptId(null);
 
-    const progressInterval = setInterval(async () => {
-      if (!promptId) return;
-      try {
-        const res = await fetch(`/api/integrations/comfyui/progress/${promptId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setProgress(data.progress || 0);
-          setCurrentStep(data.step || 0);
-          setTotalSteps(data.total_steps || options.steps);
-          setProgressStatus(data.status || "running");
-        }
-      } catch {
-        // Silently ignore progress errors
-      }
-    }, 1000);
-
     try {
-      const res = await api.generateImage(options.prompt, {
-        negativePrompt: options.negativePrompt,
-        steps: options.steps,
-        cfgScale: options.cfgScale,
-        width: options.width,
-        height: options.height,
-        seed: options.seed,
-        sampler: options.sampler,
-        model: options.model,
+      // Submit the prompt and get prompt_id immediately
+      const submitRes = await fetch(`/api/integrations/comfyui/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: options.prompt,
+          negative_prompt: options.negativePrompt,
+          steps: options.steps,
+          cfg_scale: options.cfgScale,
+          width: options.width,
+          height: options.height,
+          seed: options.seed,
+          sampler: options.sampler,
+          ckpt_name: options.model || undefined,
+        }),
       });
-      setProgress(100);
-      setProgressStatus("Completed");
-      setCurrentStep(options.steps);
-      setResult(res);
-      // Store prompt ID for progress polling
-      if (res.prompt_id) {
-        setPromptId(res.prompt_id);
+
+      if (!submitRes.ok) {
+        const err = await submitRes.json().catch(() => ({ detail: "Failed to submit prompt" }));
+        throw new Error(err.detail || `Failed to submit prompt (${submitRes.status})`);
       }
-      logger.info("Image generated successfully", { seed: res.seed, output: res.output_path });
+
+      const submitData = await submitRes.json();
+      const newPromptId = submitData.prompt_id;
+      setPromptId(newPromptId);
+      setProgressStatus("Queued");
+
+      // Poll for progress
+      const progressInterval = setInterval(async () => {
+        if (!newPromptId) return;
+        try {
+          const res = await fetch(`/api/integrations/comfyui/progress/${newPromptId}`);
+          if (res.ok) {
+            const data = await res.json();
+            setProgress(data.progress || 0);
+            setCurrentStep(data.step || 0);
+            setTotalSteps(data.total_steps || options.steps);
+            setProgressStatus(data.status || "running");
+
+            if (data.status === "completed" || data.status === "error") {
+              clearInterval(progressInterval);
+              if (data.status === "completed") {
+                // Fetch the final result
+                const resultRes = await fetch(`/api/integrations/comfyui/result/${newPromptId}`);
+                if (resultRes.ok) {
+                  const resultData = await resultRes.json();
+                  setResult({
+                    output_path: resultData.output_path,
+                    seed: resultData.seed,
+                  });
+                  setProgress(100);
+                  setProgressStatus("Completed");
+                }
+              }
+              setGenerating(false);
+            }
+          }
+        } catch {
+          // Silently ignore progress errors
+        }
+      }, 1000);
+
+      // Safety timeout - stop polling after 5 minutes
+      setTimeout(() => {
+        clearInterval(progressInterval);
+        if (generating) {
+          setGenerating(false);
+          setProgressStatus("Timeout");
+        }
+      }, 300000);
+
     } catch (e) {
       setError(getFriendlyError(e));
       logger.error("Image generation failed", { error: e instanceof Error ? e.message : String(e) });
-    } finally {
-      clearInterval(progressInterval);
       setGenerating(false);
     }
   }, [options]);

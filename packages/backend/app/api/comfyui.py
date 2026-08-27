@@ -186,3 +186,67 @@ async def get_progress(prompt_id: str) -> dict:
             "total_steps": 20,
             "progress": 0,
         }
+
+
+@router.get("/result/{prompt_id}")
+async def get_result(prompt_id: str) -> dict:
+    """Get the final result of a generation."""
+    import urllib.request
+    import json
+    import base64
+
+    base_url = "http://127.0.0.1:8188"
+
+    try:
+        # Check history for the result
+        req = urllib.request.Request(f"{base_url}/history/{prompt_id}")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            history = json.loads(resp.read().decode())
+
+        if prompt_id in history:
+            entry = history[prompt_id]
+            outputs = entry.get("outputs", {})
+            
+            # Find the image output
+            for node_id, output in outputs.items():
+                if "images" in output:
+                    for img in output["images"]:
+                        filename = img.get("filename")
+                        subfolder = img.get("subfolder", "")
+                        if filename:
+                            # Download the image
+                            import os
+                            params = {"filename": filename}
+                            if subfolder:
+                                params["subfolder"] = subfolder
+                            
+                            query = "&".join(f"{k}={v}" for k, v in params.items())
+                            img_req = urllib.request.Request(f"{base_url}/view?{query}")
+                            with urllib.request.urlopen(img_req, timeout=30) as img_resp:
+                                img_data = img_resp.read()
+                                
+                                # Save to output directory
+                                from ..core.config import PROJECT_ROOT
+                                import uuid
+                                from datetime import datetime
+                                
+                                output_dir = PROJECT_ROOT / "output" / "images"
+                                output_dir.mkdir(parents=True, exist_ok=True)
+                                
+                                filepath = output_dir / filename
+                                with open(filepath, "wb") as f:
+                                    f.write(img_data)
+                                
+                                return {
+                                    "status": "completed",
+                                    "success": True,
+                                    "output_path": str(filepath),
+                                    "prompt_id": prompt_id,
+                                }
+
+            return {"status": "error", "error": "No images found in output", "prompt_id": prompt_id}
+        
+        return {"status": "pending", "prompt_id": prompt_id}
+
+    except Exception as e:
+        return {"status": "error", "error": str(e), "prompt_id": prompt_id}
