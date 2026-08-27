@@ -102,6 +102,61 @@ async def list_comfyui_checkpoints() -> dict:
     return {"checkpoints": [], "directory": ""}
 
 
+@router.get("/comfyui/video-models")
+async def get_video_models() -> dict:
+    """Get video generation models including motion modules and checkpoints."""
+    search_paths = [
+        PROJECT_ROOT.parent.parent / "ComfyUI" / "models",
+        Path("D:/Backup of Important Data for Windows 11 Upgrade/ComfyUI/models"),
+    ]
+
+    comfyui_models_dir = None
+    for base_path in search_paths:
+        if base_path.exists():
+            comfyui_models_dir = base_path
+            break
+
+    if not comfyui_models_dir:
+        return {"video_models": []}
+
+    video_models = []
+
+    # Scan animatediff directories
+    animatediff_dirs = [
+        "animatediff",
+        "animatediff_models",
+        "animatediff_motion_lora",
+    ]
+
+    for subdir in animatediff_dirs:
+        dir_path = comfyui_models_dir / subdir
+        if dir_path.exists():
+            for f in dir_path.rglob("*"):
+                if f.suffix in (".safetensors", ".ckpt") and f.stat().st_size > 1024:
+                    video_models.append({
+                        "name": f.name,
+                        "path": str(f.relative_to(comfyui_models_dir)),
+                        "type": "motion_lora" if "lora" in subdir else "motion_module",
+                        "size_mb": round(f.stat().st_size / (1024 * 1024), 1),
+                    })
+
+    # Also include diffusion_models that might be video-related
+    diffusion_dir = comfyui_models_dir / "diffusion_models"
+    if diffusion_dir.exists():
+        for f in diffusion_dir.rglob("*"):
+            if f.suffix in (".safetensors", ".ckpt") and f.stat().st_size > 1024 * 1024:
+                name_lower = f.name.lower()
+                if any(kw in name_lower for kw in ["wan", "video", "animate", "motion"]):
+                    video_models.append({
+                        "name": f.name,
+                        "path": str(f.relative_to(comfyui_models_dir)),
+                        "type": "diffusion_model",
+                        "size_mb": round(f.stat().st_size / (1024 * 1024), 1),
+                    })
+
+    return {"video_models": video_models}
+
+
 @router.post("/{service_name}/generate")
 async def generate_image(service_name: str, request: ImageGenerationRequest) -> dict:
     """Generate an image using the specified backend"""
