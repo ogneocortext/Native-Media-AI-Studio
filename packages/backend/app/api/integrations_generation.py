@@ -105,6 +105,7 @@ async def list_comfyui_checkpoints() -> dict:
 @router.post("/{service_name}/generate")
 async def generate_image(service_name: str, request: ImageGenerationRequest) -> dict:
     """Generate an image using the specified backend"""
+    from ..core.database import get_db_conn
     adapter = adapter_registry.get(service_name)
     if not adapter:
         raise HTTPException(status_code=404, detail=f"Unknown service: {service_name}")
@@ -129,33 +130,19 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         }
         if request.ckpt_name:
             params["ckpt_name"] = request.ckpt_name
-        result = await adapter.generate(params)
-
-        # Save image to output
-        output_dir = PROJECT_ROOT / "output" / "images"
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        import base64
-        import uuid
-        from datetime import datetime
-
-        filename = (
-            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.png"
-        )
-        filepath = output_dir / filename
-
-        # Decode and save image
-        if isinstance(result.get("image"), str):
-            img_data = base64.b64decode(result["image"])
-            with open(filepath, "wb") as f:
-                f.write(img_data)
+        
+        # Submit the prompt and get the prompt_id immediately
+        prompt_id = await adapter.submit_only(params)
 
         return {
             "success": True,
-            "output_path": str(filepath),
-            "seed": result.get("seed"),
-            "info": result.get("info", ""),
+            "prompt_id": prompt_id,
+            "status": "started",
+            "message": f"Generation started. Poll /api/integrations/comfyui/progress/{prompt_id} for progress.",
         }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

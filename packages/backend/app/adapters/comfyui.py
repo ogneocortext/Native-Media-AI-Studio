@@ -122,6 +122,41 @@ class ComfyUIAdapter(BaseAdapter):
             return await self._generate_video(params)
         return await self._generate_image(params)
 
+    async def submit_only(self, params: dict[str, Any]) -> str:
+        """Submit a prompt to ComfyUI and return the prompt_id immediately."""
+        prompt_text = params.get("prompt", "")
+        negative_text = params.get("negative_prompt", "")
+        steps = params.get("steps", 20)
+        cfg_scale = params.get("cfg_scale", 7.0)
+        width = params.get("width", 512)
+        height = params.get("height", 512)
+        seed = params.get("seed", -1)
+        sampler_name = params.get("sampler_name", "euler_ancestral")
+
+        # Map sampler names to ComfyUI equivalents
+        sampler_map = {
+            "Euler a": "euler_ancestral",
+            "Euler": "euler",
+            "DPM++ 2M": "dpmpp_2m",
+            "DPM++ SDE": "dpmpp_sde",
+        }
+        comfy_sampler = sampler_map.get(sampler_name, sampler_name.lower().replace(" ", "_"))
+
+        # Use a random seed if -1
+        actual_seed = seed if seed > 0 else int(uuid.uuid4().int % (2**32))
+
+        # Build workflow
+        workflow = self._build_workflow(
+            prompt_text, negative_text, steps, cfg_scale,
+            width, height, actual_seed, comfy_sampler
+        )
+
+        # Submit workflow and return prompt_id
+        prompt_id = await self._submit_prompt(workflow)
+        self._current_prompt_id = prompt_id
+
+        return prompt_id
+
     async def _generate_image(self, params: dict[str, Any]) -> dict[str, Any]:
         """Generate a still image using ComfyUI."""
         prompt_text = params.get("prompt", "")
@@ -162,6 +197,7 @@ class ComfyUIAdapter(BaseAdapter):
         return {
             "image": image_data,
             "seed": actual_seed,
+            "prompt_id": prompt_id,
             "info": f"Steps: {steps}, CFG: {cfg_scale}, Size: {width}x{height}, Sampler: {sampler_name}",
         }
 
@@ -303,7 +339,24 @@ class ComfyUIAdapter(BaseAdapter):
             data = await resp.json()
             return data["prompt_id"]
 
-    async def _wait_for_result(self, prompt_id: str, timeout: int = 120) -> str:
+    async def get_result(self, prompt_id: str) -> dict[str, Any]:
+        """Get the result of a completed prompt."""
+        # Check history
+        history = await self._get_history(prompt_id)
+        if prompt_id in history:
+            entry = history[prompt_id]
+            if "outputs" in entry:
+                for node_id, output in entry["outputs"].items():
+                    if "images" in output:
+                        for img in output["images"]:
+                            image_data = await self._fetch_image(img["filename"], img.get("subfolder", ""))
+                            return {
+                                "status": "completed",
+                                "image": image_data,
+                                "seed": 0,  # Seed is not stored in history
+                                "info": "Generation completed",
+                            }
+        return {"status": "pending"}
         """
         Wait for a prompt to complete and return the image data.
 

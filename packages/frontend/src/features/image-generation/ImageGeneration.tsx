@@ -84,6 +84,10 @@ export function ImageGeneration() {
   const [result, setResult] = useState<{ output_path: string; seed: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+  const [progressStatus, setProgressStatus] = useState<string>("");
+  const [currentStep, setCurrentStep] = useState(0);
+  const [totalSteps, setTotalSteps] = useState(20);
+  const [promptId, setPromptId] = useState<string | null>(null);
   const [models, setModels] = useState<CheckpointModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(true);
 
@@ -125,10 +129,26 @@ export function ImageGeneration() {
     setError(null);
     setResult(null);
     setProgress(0);
+    setProgressStatus("Starting...");
+    setCurrentStep(0);
+    setTotalSteps(options.steps);
+    setPromptId(null);
 
-    const progressInterval = setInterval(() => {
-      setProgress((p) => Math.min(p + Math.random() * 15, 90));
-    }, 500);
+    const progressInterval = setInterval(async () => {
+      if (!promptId) return;
+      try {
+        const res = await fetch(`/api/integrations/comfyui/progress/${promptId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setProgress(data.progress || 0);
+          setCurrentStep(data.step || 0);
+          setTotalSteps(data.total_steps || options.steps);
+          setProgressStatus(data.status || "running");
+        }
+      } catch {
+        // Silently ignore progress errors
+      }
+    }, 1000);
 
     try {
       const res = await api.generateImage(options.prompt, {
@@ -142,7 +162,13 @@ export function ImageGeneration() {
         model: options.model,
       });
       setProgress(100);
+      setProgressStatus("Completed");
+      setCurrentStep(options.steps);
       setResult(res);
+      // Store prompt ID for progress polling
+      if (res.prompt_id) {
+        setPromptId(res.prompt_id);
+      }
       logger.info("Image generated successfully", { seed: res.seed, output: res.output_path });
     } catch (e) {
       setError(getFriendlyError(e));
@@ -322,14 +348,18 @@ export function ImageGeneration() {
           {generating && (
             <Card>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Generating...</span>
+                <span className="text-sm font-medium">{progressStatus === "completed" ? "Complete!" : "Generating..."}</span>
                 <span className="text-sm text-muted">{Math.round(progress)}%</span>
               </div>
-              <div className="progress-bar h-2">
+              <div className="progress-bar h-2 mb-2">
                 <div
                   className="progress-fill progress-stripe"
                   style={{ width: `${progress}%` }}
                 />
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted">
+                <span>Step {currentStep} / {totalSteps}</span>
+                <span>{progressStatus}</span>
               </div>
             </Card>
           )}
