@@ -39,13 +39,14 @@ date: 2026-08-24
 | Model | Type | Path | VRAM Usage | Status |
 |-------|------|------|------------|--------|
 | hunyuan3D-2mini | 3D Diffusion | `models/diffusion_models/hunyuan3d-2mini/` | ~4 GB | ✅ Active (geometry) |
-| **Wan 2.2 5B** | Video T2V/I2V (MoE) | `models/diffusion_models/wan2.2_ti2v_5B/` | **6-8 GB ✅ Fits GTX 1070 Ti** | ⭐ Recommended Add |
+| ~~Wan 2.2 5B~~ | Video T2V/I2V (MoE) | ~~`models/diffusion_models/wan2.2_ti2v_5B/`~~ | **~16 GB ❌ Needs 16GB+ GPU** | ⚠️ Deleted — too large for 8GB |
 | Wan 2.2 14B | Video T2V/I2V MoE (dual: high+low noise) | `models/diffusion_models/wan2.2_t2v_14B/` | 24 GB+ (A6000/48GB) | Cloud option |
-| [AnimateDiff Evolved] | Stylized motion 2-16s | `custom_nodes/ComfyUI-AnimateDiff-Evolved/models/` | 12GB comfortable, 8GB limited | Optional |
+| [AnimateDiff Evolved] | Stylized motion 2-16s | `custom_nodes/ComfyUI-AnimateDiff-Evolved/models/` | 8GB with `--lowvram` | ✅ Active |
 | [SVD] | Image→Video 2-4s | `models/checkpoints/` | 12GB+ | Optional |
 | [Add your SD1.5/SDXL] | Checkpoint | `models/checkpoints/` | Varies | Add as needed |
 
-> [!tip] Wan 2.2 is the first open-weights video model that fits your 8GB rig. 5B runs at 480p 81 frames ~3-5 min on A6000 ($0.02-0.03/clip); expect longer on 1070 Ti but still usable. Use GGUF quant + offloading on 6GB. 14B requires cloud (ThunderCompute $0.35/hr A6000). See [[ai-video-trends-2026]].
+> [!warning] Wan 2.2 5B/14B models deleted — too large for 8GB GPU
+> The Wan 2.2 5B model (`wan2.2_ti2v_5B_fp16.safetensors`, 9.5GB), UMT5 XXL text encoder (`umt5_xxl_fp8_e4m3fn_scaled.safetensors`, 6.4GB), and associated text encoder (`model.safetensors`, 8.9GB) have been deleted. They require 16-24GB VRAM and will OOM on GTX 1070 Ti (8GB). **Do not re-download these models.** Use AnimateDiff Evolved for video generation instead — it works with your 8GB GPU using `--lowvram` mode.
 
 ### Model Management
 
@@ -149,24 +150,25 @@ POST /api/health/3d/generate
 | **FLF2V (First-Last-Frame)** | 2 images | `FLF2V` | Interp | Smooth continuous transforms; conservative on distant keyframes |
 | **ControlNet (WanFunControl)** | Video reference | `VideoX-Fun` node | — | Canny/Depth/OpenPose/MLSD drives motion, prompt drives appearance |
 
-**ComfyUI install (5B path):**
+**ComfyUI install (5B path) — ⚠️ NOT FOR 8GB GPUs:**
 ```bash
-# Update first: ComfyUI Manager → Update ComfyUI
-# Download to correct subfolders:
-# text_encoder/umt5_xxl_fp8_e4m3fn_scaled.safetensors
+# ⚠️ WARNING: These models require 16-24GB VRAM and will OOM on GTX 1070 Ti (8GB)
+# DO NOT DOWNLOAD — they have been deleted from this machine
+# text_encoder/umt5_xxl_fp8_e4m3fn_scaled.safetensors  (6.4GB - TOO LARGE)
+# text_encoder/model.safetensors  (8.9GB - TOO LARGE)
 # vae/wan2.2_vae.safetensors (5B) or vae/wan_2.1_vae.safetensors (14B)
-# diffusion_models/wan2.2_ti2v_5B_fp16.safetensors
+# diffusion_models/wan2.2_ti2v_5B_fp16.safetensors  (9.5GB - TOO LARGE)
 # or diffusion_models/wan2.2_t2v_high_noise_14B... + low_noise_14B...
-# Load official workflow JSON: docs.comfy.org/tutorials/video/wan/wan2_2 → drag onto canvas
 ```
+**For 8GB video generation:** Use AnimateDiff Evolved instead (see section 4c).
 
-**For 8GB rig:** Prefer 5B + GGUF + offloading; keep 480p (832×480) for production, 720p only if nothing else on GPU. 14B → use cloud (RTX A6000 48GB ~8-15 min/720p). More offloading = slower but feasible — on 6GB GPU it is a learning tool, not production.
+**For 8GB rig:** Wan 2.2 5B was previously listed as an option but has been removed — it requires ~16GB VRAM with all components. Use **AnimateDiff Evolved** for video generation on 8GB GPUs (works with `--lowvram`). For Wan 2.2, use cloud (RTX A6000 48GB ~8-15 min/720p). More offloading = slower but feasible — on 6GB GPU it is a learning tool, not production.
 
 ### 4c. Animation Alternatives — AnimateDiff & SVD (Stylized vs Realistic)
 
 | Method | Duration | Style | Input | VRAM Comfort | Use For |
 |--------|----------|-------|-------|--------------|---------|
-| **AnimateDiff Evolved** | 2-16s | Stylized artistic | Text/image + motion model `mm_sd_v15_v2` / `mm_sdxl_v10` | 12GB+ (8GB limited, reduce frames) | Character loops, motion graphics |
+| **AnimateDiff Evolved** | 2-16s | Stylized artistic | Text/image + motion model `mm_sd15_v3` / `mm_sd_v15_v2` | ✅ 8GB with `--lowvram` | Character loops, motion graphics — **primary video method for 8GB** |
 | **SVD** | 2-4s | Realistic natural | Static image | 12GB+ | Product/scene subtle motion |
 | **Frame-by-frame + FILM/RIFE interp** | Unlimited | Depends on base | Prompts + prev frames | Base model VRAM | Long-form precise control |
 
