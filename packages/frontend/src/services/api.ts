@@ -771,12 +771,15 @@ export async function generate3D(request: {
   prompt: string;
   model?: string;
   steps?: number;
+  cfg?: number;
+  seed?: number;
+  params?: Record<string, unknown>;
 }): Promise<Record<string, unknown>> {
   const base = getApiBase();
   const res = await fetch(`${base}/api/health/3d/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
+        body: JSON.stringify(request),
   });
   if (!res.ok) throw new Error("Failed to trigger 3D generation");
   return res.json();

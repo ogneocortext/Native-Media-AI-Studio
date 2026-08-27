@@ -331,7 +331,7 @@ async def list_outputs(
     all_outputs: list[OutputFile] = []
 
     output_base = Path(config.output_dir)
-    for subdir in ["images", "video", "audio"]:
+    for subdir in ["images", "video", "audio", "generated_3d"]:
         outputs = await scan_output_directory(subdir, output_base)
         all_outputs.extend(outputs)
 

@@ -100,7 +100,7 @@ export function ParticleStormViz({ audioData }: VizProps) {
 }
 
 // Neural Network Visualization
-export function NeuralViz({ audioData }: VizProps) {
+export function NeuralViz({ audioData, vizParams }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const nodeCount = 50;
   
@@ -134,11 +134,11 @@ export function NeuralViz({ audioData }: VizProps) {
         const scale = 0.5 + audioData.current.overall * 1.5;
         child.scale.setScalar(scale);
         const material = child.material as THREE.MeshStandardMaterial;
-        material.emissiveIntensity = audioData.current.bass * 2;
+        material.emissiveIntensity = audioData.current.bass * 2 * (0.4 + vizParams.glowIntensity);
       }
     });
   });
-  
+
   return (
     <group ref={groupRef}>
       {nodes.map((node, i) => (
@@ -313,7 +313,7 @@ export function StormViz({ audioData }: VizProps) {
 }
 
 // Fractal Visualization - Self-similar patterns
-export function FractalViz({ audioData }: VizProps) {
+export function FractalViz({ audioData, vizParams }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const iterationCount = 5;
   
@@ -330,7 +330,7 @@ export function FractalViz({ audioData }: VizProps) {
       mesh.rotation.y = time * (0.15 + i * 0.03);
       
       const material = mesh.material as THREE.MeshStandardMaterial;
-      material.emissiveIntensity = audioData.current.bass * (1 + i * 0.2);
+      material.emissiveIntensity = audioData.current.bass * (1 + i * 0.2) * (0.4 + vizParams.glowIntensity);
     });
     
     groupRef.current.rotation.y = time * 0.1;

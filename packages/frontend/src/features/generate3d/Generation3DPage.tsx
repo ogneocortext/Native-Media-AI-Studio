@@ -16,14 +16,16 @@ import {
   Clock,
   HardDrive,
   RefreshCw,
-  History,
+    History,
   FileBox,
+  Triangle,
 } from "lucide-react";
 import {
   generate3D,
   get3DStatus,
   getApiBase,
 } from "../../services/api";
+import { ModelPreview } from "./ModelPreview";
 
 const PROMPT_EXAMPLES = [
   { label: "Robot", prompt: "a futuristic robot, chrome metallic, highly detailed, standing pose", tag: "character" },
@@ -33,10 +35,10 @@ const PROMPT_EXAMPLES = [
 ];
 
 const PIPELINE_STEPS = [
-  { n: 1, t: "Upload Audio", c: "text-sky-400" },
-  { n: 2, t: "Analyze Beats", c: "text-sky-400" },
-  { n: 3, t: "Generate 3D Assets", c: "text-violet-400 font-bold" },
-  { n: 4, t: "Blender Scene", c: "text-orange-400" },
+  { n: 1, t: "Text Prompt", c: "text-sky-400" },
+  { n: 2, t: "ComfyUI (Hunyuan3D)", c: "text-violet-400 font-bold" },
+  { n: 3, t: "GLB Output", c: "text-emerald-400" },
+  { n: 4, t: "Blender Refine", c: "text-orange-400" },
   { n: 5, t: "Sync & Animate", c: "text-amber-400" },
   { n: 6, t: "Render & Export", c: "text-emerald-400" },
 ];
@@ -54,7 +56,17 @@ export function Generation3DPage() {
   const [showRenderGuide, setShowRenderGuide] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [generatedList, setGeneratedList] = useState<Array<{ filename: string; path: string; size_bytes: number; modified: number }>>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Advanced generation params — wired to the Advanced sliders and sent to backend
+  const [vizParams, setVizParams] = useState({
+    cfg: 7.0,
+    color: "#00ffff",
+    metalness: 0.6,
+    roughness: 0.4,
+    scale: 1.0,
+    resolution: 256,
+  });
 
   const loadStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -75,29 +87,30 @@ export function Generation3DPage() {
       const res = await fetch(`${base}/api/outputs?file_type=video`);
       if (res.ok) {
         const data = await res.json();
-        // Filter for generated_3d or .glb files
         const all = data.outputs || data.files || [];
         const glbs = all.filter((f: { filename: string }) => f.filename.endsWith(".glb"));
-        // Also try direct generated_3d listing via outputs with path
-        if (glbs.length === 0) {
-          const res2 = await fetch(`${base}/api/outputs?file_type=other`);
-          if (res2.ok) {
-            const d2 = await res2.json();
-            const all2 = d2.outputs || d2.files || [];
-            setGeneratedList(all2.filter((f: { filename: string }) => f.filename.endsWith(".glb")).slice(0, 10));
-          }
-        } else {
+        if (glbs.length > 0) {
           setGeneratedList(glbs.slice(0, 10));
+          return;
         }
       }
-      // Fallback: try listing via direct output path
-      if (generatedList.length === 0) {
-        const res3 = await fetch(`${base}/api/outputs`);
-        if (res3.ok) {
-          const d3 = await res3.json();
-          const outs = d3.outputs || [];
-          setGeneratedList(outs.filter((f: { filename: string }) => f.filename.endsWith(".glb")).slice(0, 10));
+      // Fallback: try other file type
+      const res2 = await fetch(`${base}/api/outputs?file_type=other`);
+      if (res2.ok) {
+        const d2 = await res2.json();
+        const all2 = d2.outputs || d2.files || [];
+        const glbs2 = all2.filter((f: { filename: string }) => f.filename.endsWith(".glb"));
+        if (glbs2.length > 0) {
+          setGeneratedList(glbs2.slice(0, 10));
+          return;
         }
+      }
+      // Last resort: fetch all outputs
+      const res3 = await fetch(`${base}/api/outputs`);
+      if (res3.ok) {
+        const d3 = await res3.json();
+        const outs = d3.outputs || [];
+        setGeneratedList(outs.filter((f: { filename: string }) => f.filename.endsWith(".glb")).slice(0, 10));
       }
     } catch {
       // ignore
@@ -133,7 +146,7 @@ export function Generation3DPage() {
     setResult(null);
     const start = Date.now();
     try {
-      const data = await generate3D({ prompt, model, steps });
+      const data = await generate3D({ prompt, model, steps, cfg: vizParams.cfg, params: vizParams });
       setResult(data);
       if ((data as { success?: boolean }).success === false) {
         setError((data as { error?: string }).error || "Generation failed — check ComfyUI and VRAM");
@@ -157,14 +170,21 @@ export function Generation3DPage() {
   };
 
   const models = [
-    { id: "hunyuan3d-2mini", name: "Hunyuan3D-2mini", vram: "5GB", time: "2-3 min", desc: "0.6B • Fast • 8GB-safe", color: "text-emerald-400" },
-    { id: "hunyuan3d-2", name: "Hunyuan3D-2", vram: "9GB+", time: "6-8 min", desc: "1.2B • Full • 24GB recommended", color: "text-amber-400" },
+    { id: "hunyuan3d-2mini", name: "Hunyuan3D-2mini", vram: "5GB", time: "3-5 min", desc: "0.6B • Installed & 8GB-safe", color: "text-emerald-400", available: true },
+    { id: "hunyuan3d-2", name: "Hunyuan3D-2", vram: "9GB+", time: "6-8 min", desc: "1.2B • Not installed on this system", color: "text-amber-400", available: false },
   ];
   const selectedModel = models.find((m) => m.id === model) ?? models[0];
   const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
   const isAvailable = (status3d.available as boolean) ?? false;
   const comfyRunning = (status3d.comfyui_running as boolean) ?? false;
   const estimatedSec = steps <= 10 ? 90 : steps <= 15 ? 150 : steps <= 20 ? 210 : 300;
+
+  // Derive a servable URL for the freshly generated model (backend copies it to output/generated_3d).
+  const resultModelPath = (result as { model_path?: string } | null)?.model_path;
+  const glbFilename = resultModelPath ? String(resultModelPath).split(/[\\/]/).pop() : null;
+  const glbUrl = glbFilename && (result as { success?: boolean } | null)?.success
+    ? `${getApiBase()}/output/generated_3d/${glbFilename}`
+    : null;
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
@@ -175,10 +195,11 @@ export function Generation3DPage() {
             <Box size={24} className="text-purple-400" />
             3D Model Generation
             <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/30 text-violet-300">8GB VRAM-safe</span>
-            {isAvailable ? (
-              <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Ready</span>
+                                    <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-gray-500/15 border border-gray-500/30 text-gray-300">Backend</span>
+            {comfyRunning ? (
+              <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Ready</span>
             ) : (
-              <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-300">Offline</span>
+              <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-300 flex items-center gap-1"><Triangle size={10} /> ComfyUI Offline</span>
             )}
           </h1>
           <p className="text-gray-400 mt-1">
@@ -217,9 +238,11 @@ export function Generation3DPage() {
               {models.map((m) => (
                 <button
                   key={m.id}
-                  onClick={() => setModel(m.id)}
+                  onClick={() => m.available && setModel(m.id)}
+                  disabled={!m.available}
+                  title={m.available ? m.desc : "Hunyuan3D-2 full is not installed — use Hunyuan3D-2mini"}
                   className={`text-left p-3 rounded-xl border-2 transition-all ${
-                    model === m.id ? "bg-violet-500/10 border-violet-500" : "bg-gray-900 border-gray-700 hover:border-gray-600"
+                    model === m.id ? "bg-violet-500/10 border-violet-500" : m.available ? "bg-gray-900 border-gray-700 hover:border-gray-600" : "bg-gray-900 border-gray-800 opacity-50 cursor-not-allowed"
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -251,10 +274,85 @@ export function Generation3DPage() {
               <div className="flex justify-between text-[10px] text-gray-500">
                 <span>5 (fast)</span><span>15 (balanced)</span><span>50 (max)</span>
               </div>
+                        </div>
+
+            {/* Advanced Params — only useful when ComfyUI is connected */}
+            <div className={`mt-3 space-y-3 ${!comfyRunning ? "opacity-50 pointer-events-none" : ""}`}>
+              <details className="group">
+                <summary className="text-xs text-gray-400 flex items-center justify-between cursor-pointer hover:text-gray-300">
+                  <span className="flex items-center gap-1"><Sliders size={12} /> Advanced Generation</span>
+                  <span className="text-gray-500 group-open:rotate-90 transition-transform">▸</span>
+                </summary>
+                <div className="mt-2 space-y-3 text-xs">
+                  <div>
+                    <label className="flex justify-between text-gray-400">
+                      <span>CFG Guidance: {vizParams.cfg.toFixed(1)}</span><span className="text-gray-500">1.0–20.0</span>
+                    </label>
+                    <input
+                      type="range" value={vizParams.cfg} min={1.0} max={20.0} step={0.1}
+                      onChange={(e) => setVizParams({...vizParams, cfg: Number(e.target.value)})}
+                      className="w-full mt-1 accent-violet-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="flex justify-between text-gray-400">
+                      <span>Color: {vizParams.color}</span>
+                    </label>
+                    <input
+                      type="color" value={vizParams.color}
+                      onChange={(e) => setVizParams({...vizParams, color: e.target.value})}
+                      className="w-full h-6 mt-1 rounded cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <label className="flex justify-between text-gray-400">
+                      <span>Metalness: {vizParams.metalness.toFixed(1)}</span><span className="text-gray-500">0–1</span>
+                    </label>
+                    <input
+                      type="range" value={vizParams.metalness} min={0} max={1} step={0.1}
+                      onChange={(e) => setVizParams({...vizParams, metalness: Number(e.target.value)})}
+                      className="w-full mt-1 accent-violet-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="flex justify-between text-gray-400">
+                      <span>Roughness: {vizParams.roughness.toFixed(1)}</span><span className="text-gray-500">0–1</span>
+                    </label>
+                    <input
+                      type="range" value={vizParams.roughness} min={0} max={1} step={0.1}
+                      onChange={(e) => setVizParams({...vizParams, roughness: Number(e.target.value)})}
+                      className="w-full mt-1 accent-violet-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="flex justify-between text-gray-400">
+                      <span>Scale: {vizParams.scale.toFixed(1)}</span><span className="text-gray-500">0.1–2.0</span>
+                    </label>
+                    <input
+                      type="range" value={vizParams.scale} min={0.1} max={2.0} step={0.1}
+                      onChange={(e) => setVizParams({...vizParams, scale: Number(e.target.value)})}
+                      className="w-full mt-1 accent-violet-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="flex justify-between text-gray-400">
+                      <span>Resolution: {vizParams.resolution}</span><span className="text-gray-500">128–512</span>
+                    </label>
+                    <input
+                      type="range" value={vizParams.resolution} min={128} max={512} step={64}
+                      onChange={(e) => setVizParams({...vizParams, resolution: Number(e.target.value)})}
+                      className="w-full mt-1 accent-violet-500"
+                    />
+                  </div>
+                  {!comfyRunning && (
+                    <p className="text-amber-300 text-[10px] flex items-center gap-1">
+                      <Triangle size={10} /> Advanced params require ComfyUI running
+                    </p>
+                  )}
+                </div>
+              </details>
             </div>
           </div>
-
-          {/* Prompt */}
           <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-gray-300">Prompt</label>
@@ -292,7 +390,7 @@ export function Generation3DPage() {
           {/* Generate Button with progress */}
           <button
             onClick={handleGenerate}
-            disabled={generating || !prompt.trim() || wordCount > 75}
+            disabled={generating || !prompt.trim() || wordCount > 75 || !comfyRunning}
             className="w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-gray-700 disabled:text-gray-400 text-white rounded-xl font-medium flex items-center justify-center gap-2"
           >
             {generating ? <Loader2 size={18} className="animate-spin" /> : <Wand2 size={18} />}
@@ -344,6 +442,12 @@ export function Generation3DPage() {
                     <p className="text-sm text-white font-mono truncate" title={String((result as { model_path?: string }).model_path)}>{String((result as { model_path?: string }).model_path).split(/[\\/]/).pop()}</p>
                     <p className="text-xs text-gray-500 mt-1">{String((result as { model_path?: string }).model_path)}</p>
                   </div>
+{glbUrl && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-gray-400 flex items-center gap-1"><Box size={12} className="text-violet-400" /> Live 3D preview</p>
+                      <ModelPreview url={glbUrl} />
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <a
                       href={`${getApiBase()}/output/generated_3d/${String((result as { model_path?: string }).model_path).split(/[\\/]/).pop()}`}

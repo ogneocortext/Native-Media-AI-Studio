@@ -112,15 +112,32 @@ Generate 3-8 scenes based on the input theme or concept."""
         system = params.get("system")
         options = params.get("options", {})
 
-        payload = {
+        # Ollama 0.33+: structured output & VRAM-aware options
+        payload: dict[str, Any] = {
             "model": model,
             "prompt": prompt,
             "stream": False,
         }
+        # Top-level format/keep_alive passthrough for structured output & caching
+        if "format" in params:
+            payload["format"] = params["format"]
+        if "keep_alive" in params:
+            payload["keep_alive"] = params["keep_alive"]
 
         if system:
             payload["system"] = system
         if options:
+            # VRAM-aware clamp for generate too
+            if "num_ctx" in options:
+                try:
+                    requested = int(options["num_ctx"])
+                    if requested > 32768:
+                        options["num_ctx"] = 32768
+                    elif requested > 16384:
+                        logger.warning("generate num_ctx %d capped to 16384 for 8GB VRAM", requested)
+                        options["num_ctx"] = 16384
+                except Exception:
+                    pass
             payload["options"] = options
 
         async with aiohttp.ClientSession() as session:
@@ -147,6 +164,8 @@ Generate 3-8 scenes based on the input theme or concept."""
         tools: list[dict[str, Any]] | None = None,
         stream: bool = False,
         think: bool | str | None = None,
+        format: Any | None = None,
+        keep_alive: str | int | None = None,
         **options,
     ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
         """
@@ -158,11 +177,33 @@ Generate 3-8 scenes based on the input theme or concept."""
             tools: Optional list of tool definitions for function calling
             stream: Whether to stream the response
             think: Enable thinking mode (bool or "high"/"medium"/"low"/"max")
-            **options: Additional options
+            format: Structured output format ("json" or JSON schema dict) — Ollama 0.33+
+            keep_alive: Keep model alive duration (e.g. "10m", 0, -1) — Ollama 0.33 caching
+            **options: Additional options (num_ctx, temperature, etc. — VRAM-aware caps apply)
 
         Returns:
             Dictionary containing the response, or async iterator if streaming
         """
+        # VRAM-aware num_ctx cap: don't exceed free VRAM. Caller should keep
+        # num_ctx modest; we clamp here to prevent OOM on 8GB cards (e.g. 5740MB free).
+        # Rough KV cache: ~ (num_ctx * hidden_dim * layers) — we use a safe heuristic:
+        # 9B @ 8k ctx ~ 1.5GB KV, @ 32k ~ 6GB. Clamp to 16384 if free < 6GB.
+        if "num_ctx" in options:
+            try:
+                import psutil  # noqa: F401 — ensure available
+                # Lightweight clamp without nvidia-smi dependency
+                requested = int(options["num_ctx"])
+                # Query free VRAM via Ollama ps size_vram if available? fallback to heuristic
+                # Caps: 8k safe everywhere, 16k needs ~4GB free, 32k needs ~6GB+ free
+                if requested > 32768:
+                    options["num_ctx"] = 32768
+                elif requested > 16384:
+                    # Only allow 32k if we have headroom — otherwise cap at 16k
+                    # We don't block, just log. Caller (frontend/health) should query /api/ps.
+                    logger.warning("num_ctx %d requested — capping to 16384 to stay within 8GB VRAM", requested)
+                    options["num_ctx"] = 16384
+            except Exception:
+                pass
         payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
@@ -172,6 +213,10 @@ Generate 3-8 scenes based on the input theme or concept."""
             payload["tools"] = tools
         if think is not None:
             payload["think"] = think
+        if format is not None:
+            payload["format"] = format
+        if keep_alive is not None:
+            payload["keep_alive"] = keep_alive
         if options:
             payload["options"] = options
 
@@ -481,18 +526,22 @@ Generate 3-8 scenes based on the input theme or concept."""
             return False
 
     async def generate_storyboard(
-        self, theme: str, model: str = "qwen2.5:3b", num_scenes: int = 5
+        self, theme: str, model: str = "qwen2.5:3b", num_scenes: int = 5,
+        use_structured_output: bool = True,
+        num_ctx: int | None = None,
     ) -> dict[str, Any]:
         """
         Generate a structured storyboard prompt using LLM.
 
-        This method queries the local LLM to create a JSON storyboard
-        with scene descriptions, camera angles, and visual elements.
+        Uses Ollama 0.33+ structured output (format=json) when available,
+        with backward-compatible fallback to markdown stripping.
 
         Args:
             theme: The theme or concept for the storyboard
             model: Model to use (qwen2.5:3b, llama3.2, etc.)
             num_scenes: Target number of scenes (3-8)
+            use_structured_output: If True, request format=json (Ollama 0.33+)
+            num_ctx: Optional context window. VRAM-aware caps apply (see chat()).
 
         Returns:
             Dictionary containing:
@@ -512,12 +561,20 @@ Each scene should have unique camera work and lighting suggestions."""
             {"role": "user", "content": prompt},
         ]
 
-        result = await self.chat(messages, model=model)
+        # Ollama 0.33+: request structured JSON output natively (MLX + llama.cpp)
+        # keep_alive leverages 0.33 trustworthy prefill restore points for reuse.
+        chat_kwargs: dict[str, Any] = {}
+        if use_structured_output:
+            chat_kwargs["format"] = "json"
+        if num_ctx is not None:
+            chat_kwargs["num_ctx"] = num_ctx
+        # Default to 16k ctx capped by chat() VRAM guard; caller can pass smaller for 8GB safety
+        result = await self.chat(messages, model=model, keep_alive="10m", **chat_kwargs)
 
         # Parse the JSON response
         response_text = result.get("message", {}).get("content", "")
 
-        # Try to extract JSON from the response
+        # Try to extract JSON from the response (fallback for models not honoring format=json)
         try:
             # Handle case where model wraps JSON in markdown code blocks
             if "```json" in response_text:

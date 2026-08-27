@@ -11,7 +11,7 @@ aliases:
   - Kijai Wrapper Guide
 cssclasses:
   - technical-guide
-date: 2026-08-24
+date: 2026-08-27
 ---
 
 # 🧊 Hunyuan3D-2mini ComfyUI Setup
@@ -255,6 +255,9 @@ Use `hunyuan3d-dit-v2-mv` instead of `hunyuan3d-dit-v2-mini`:
 | `ImportError: cannot import name 'Hunyuan3DDiTPipeline'` | Wrong pipeline class | Use Kijai wrapper nodes (Hy3DGenerateMesh) |
 | Black mesh | Bad input image | Use clean background, center subject |
 | Flat back (single-view) | AI guessing unseen geometry | Use multi-view workflow |
+| `Cannot handle this data type: (1, 1, 512), \|u1` | Tensor format mismatch in `prepare_image` | ✅ **FIXED:** Handle `[B,C,H,W]` → `[B,H,W,C]` and `[-1,1]` → `[0,1]` conversion |
+| `expected Tensor as element 0 in argument 0, but got str` | Dictionary unpacked as tuple | ✅ **FIXED:** Handle dict return from `image_processor` |
+| `cannot access local variable 'mask'` | Numpy array not handled in `load_image` | ✅ **FIXED:** Added numpy array branch |
 
 ### Bug Fixes Applied
 
@@ -300,12 +303,81 @@ def prepare_image(self, image):
     # ... rest of method
 ```
 
-#### Fix 3: Image shape mismatch
+#### Fix 4: Dictionary vs tuple unpacking in prepare_image
 **File:** `ComfyUI/custom_nodes/ComfyUI-Hunyuan3DWrapper/hy3dgen/shapegen/pipelines.py`
+
+**Error:** `expected Tensor as element 0 in argument 0, but got str`
+
+**Root cause:** `ImageProcessorV2.__call__` returns a dictionary `{'image': ..., 'mask': ...}`, but `prepare_image` unpacks it as a tuple. Unpacking a dictionary yields its keys (strings), not values.
+
+**Solution:** Handle both dictionary and tuple returns:
+```python
+result = self.image_processor(img, return_mask=True)
+if isinstance(result, dict):
+    image_pt, mask_pt = result['image'], result['mask']
+else:
+    image_pt, mask_pt = result
+```
+
+#### Fix 5: Numpy array handling in load_image
+**File:** `ComfyUI/custom_nodes/ComfyUI-Hunyuan3DWrapper/hy3dgen/shapegen/preprocessors.py`
+
+**Error:** `cannot access local variable 'mask' where it is not associated with a value`
+
+**Root cause:** `load_image` only handled `str` and `PIL.Image` inputs, not numpy arrays.
+
+**Solution:** Added numpy array handling:
+```python
+elif isinstance(image, np.ndarray):
+    if image.shape[-1] == 4:
+        mask = image[..., 3:4]
+        image = image[..., :3]
+    else:
+        mask = np.ones((*image.shape[:2], 1), dtype=image.dtype) * 255
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    image, mask = self.recenter(image, border_ratio=border_ratio)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+```
+
+#### Fix 6: Tensor format handling in prepare_image
+**File:** `ComfyUI/custom_nodes/ComfyUI-Hunyuan3DWrapper/hy3dgen\shapegen\pipelines.py`
 
 **Error:** `Cannot handle this data type: (1, 1, 512), |u1`
 
-**Solution:** Ensure the numpy array has shape `[H, W, 3]` before converting to PIL Image.
+**Root cause:** The `Hy3DGenerateMesh` node permutes images to `[B, C, H, W]` format with values in [-1, 1], but `prepare_image` expected `[B, H, W, C]` in [0, 1].
+
+**Solution:** Detect channels-first format and convert:
+```python
+if img_tensor.dim() == 4 and img_tensor.shape[1] in (1, 3, 4):
+    img_tensor = img_tensor.permute(0, 2, 3, 1)  # [B, H, W, C]
+# Handle [-1, 1] range
+img_min = img_tensor.min().item()
+if img_min < 0:
+    img_tensor = (img_tensor + 1) / 2  # [-1,1] -> [0,1]
+```
+
+### Backend Server: Uvicorn Child Process Issue
+
+> [!warning] Windows + Uvicorn + Virtual Environments
+> When using `uvicorn.run("app.main:app", ...)` with a string target, uvicorn spawns a child process on Windows. This child process inherits the system PATH and runs with the **system Python** instead of the venv Python, causing import failures and loading stale `.pyc` caches.
+
+**Fix in `packages/backend/app/main.py`:**
+```python
+# BEFORE (broken on Windows with venv):
+uvicorn.run("app.main:app", ...)
+
+# AFTER (runs in-process):
+uvicorn_config = uvicorn.Config(app, host=..., port=..., ...)
+server = uvicorn.Server(uvicorn_config)
+asyncio.run(server.serve())
+```
+
+**Debugging tip:** If you see `ModuleNotFoundError` for modules that exist, check which Python is running:
+```powershell
+Get-Process -Name "python" | Select-Object Id, @{N='Exe';E={$_.CommandLine.Split('"')[1]}}
+```
+
+Multiple Python processes = uvicorn spawned a child with the wrong interpreter.
 
 ### Model Path Issues
 
@@ -362,4 +434,4 @@ def prepare_image(self, image):
 
 ---
 
-*Last updated: 2026-08-24*
+*Last updated: 2026-08-27 — Added Fixes 4-6 for ComfyUI pipeline tensor format and dictionary unpacking issues*

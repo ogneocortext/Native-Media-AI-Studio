@@ -33,5 +33,8 @@
   "devDependencies": {
     "sharp": "^0.35.3",
     "turbo": "^2.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0"
   }
 }

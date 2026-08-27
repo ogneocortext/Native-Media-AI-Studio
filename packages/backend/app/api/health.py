@@ -139,7 +139,7 @@ async def ffmpeg_status() -> dict:
 @router.get("/3d/status")
 async def gen3d_status() -> dict:
     """3D generation service status."""
-    from ..services.gen3d import gen3d_service
+    from ..services.gen3d.gen3d_service import gen3d_service
     return gen3d_service.get_status()
 
 
@@ -153,12 +153,13 @@ async def gen3d_generate(request: dict) -> dict:
         steps: Diffusion steps (default 15)
         seed: Random seed (default 42)
     """
-    from ..services.gen3d import gen3d_service
+    from ..services.gen3d.gen3d_service import gen3d_service
     return await gen3d_service.generate_from_text(
         prompt=request.get("prompt", ""),
         output_name=request.get("output_name"),
         steps=request.get("steps", 15),
         seed=request.get("seed", 42),
+        cfg=request.get("cfg", 7.0),
     )
 
 

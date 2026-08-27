@@ -301,14 +301,15 @@ def run():
         logger.warning(f"Port pre-resolution failed, using default port {config.backend_port}: {e}")
         port = config.backend_port
 
-    uvicorn.run(
-        "app.main:app",
+    uvicorn_config = uvicorn.Config(
+        app,
         host=config.backend_host,
         port=port,
-        reload=False,
         log_level=config.log_level.lower(),
         ws="websockets-sansio",
     )
+    server = uvicorn.Server(uvicorn_config)
+    asyncio.run(server.serve())
 
 
 if __name__ == "__main__":

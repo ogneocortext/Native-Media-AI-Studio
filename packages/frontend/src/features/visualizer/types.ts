@@ -65,4 +65,6 @@ export interface VisualizerSceneProps {
   onAudioData?: (data: AudioData) => void;
   visualizationStyle: VisualizationStyle;
   vizParams: VizParams;
+  bgColor?: string;
+  meshColor?: string;
 }

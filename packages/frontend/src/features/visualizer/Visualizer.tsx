@@ -311,7 +311,7 @@ export function Visualizer() {
         {/* Left: Canvas + Spectrum */}
         <div className="viz-main">
           <div className="viz-canvas-container">
-            <Canvas camera={{ position: [0, 0, 5], fov: 60 }} dpr={[1, 2]} gl={{ antialias: true, powerPreference: "high-performance" }} frameloop="always">
+            <Canvas camera={{ position: [0, 0, 7], fov: 55 }} dpr={[1, 2]} gl={{ antialias: true, powerPreference: "high-performance" }} frameloop="always" shadows>
               <color attach="background" args={[bgColor]} />
               <VisualizerScene
                 analyserRef={analyserRef}
@@ -322,6 +322,8 @@ export function Visualizer() {
                 onAudioData={setLiveAudioData}
                 visualizationStyle={visualizationStyle}
                 vizParams={vizParams}
+                bgColor={bgColor}
+                meshColor={meshColor}
               />
             </Canvas>
             {isPaused && (
@@ -346,7 +348,10 @@ export function Visualizer() {
           {/* Persistent Audio Player */}
           {audioUrl && (
             <div className="viz-audio-bar">
-              <audio ref={audioElRef} controls src={audioUrl} className="viz-audio" crossOrigin="anonymous"
+              {/* key forces a fresh <audio> element per track: a media element can only be
+                  connected to ONE MediaElementSourceNode ever, so reusing the node across
+                  tracks would throw "already connected" on createMediaElementSource */}
+              <audio key={audioUrl} ref={audioElRef} controls src={audioUrl} className="viz-audio" crossOrigin="anonymous"
                 onPlay={() => { setIsPlaying(true); setIsPaused(false); audioCtxRef.current?.resume(); }}
                 onPause={() => { setIsPlaying(false); setIsPaused(true); }}
                 onEnded={() => { setIsPlaying(false); setIsPaused(false); }}
@@ -487,6 +492,9 @@ export function Visualizer() {
                 <div className="viz-param-group">
                   <p className="viz-param-group-title">Appearance</p>
                   <div className="viz-param-row"><label>Glow</label><input type="range" min="0" max="1" step="0.05" value={vizParams.glowIntensity} onChange={(e) => setVizParams({...vizParams, glowIntensity: parseFloat(e.target.value)})} /><span>{vizParams.glowIntensity.toFixed(2)}</span></div>
+                  <div className="viz-param-row"><label>Color Shift</label><input type="range" min="0" max="3" step="0.1" value={vizParams.colorShift} onChange={(e) => setVizParams({...vizParams, colorShift: parseFloat(e.target.value)})} /><span>{vizParams.colorShift.toFixed(1)}</span></div>
+                  <div className="viz-param-row"><label>Opacity</label><input type="range" min="0.2" max="1" step="0.05" value={vizParams.opacity} onChange={(e) => setVizParams({...vizParams, opacity: parseFloat(e.target.value)})} /><span>{vizParams.opacity.toFixed(2)}</span></div>
+                  <div className="viz-param-row"><label>P. Size</label><input type="range" min="0.01" max="0.2" step="0.01" value={vizParams.particleSize} onChange={(e) => setVizParams({...vizParams, particleSize: parseFloat(e.target.value)})} /><span>{vizParams.particleSize.toFixed(2)}</span></div>
                   <div className="viz-param-row"><label>Material</label>
                     <select value={vizParams.materialType} onChange={(e) => setVizParams({...vizParams, materialType: e.target.value as VizParams["materialType"]})}>
                       <option value="standard">Standard</option>
@@ -504,6 +512,8 @@ export function Visualizer() {
                   <div className="viz-param-row"><label>Reflections</label><input type="checkbox" checked={vizParams.reflectionEnabled} onChange={(e) => setVizParams({...vizParams, reflectionEnabled: e.target.checked})} /></div>
                   <div className="viz-param-row"><label>Ground</label><input type="checkbox" checked={vizParams.showGround} onChange={(e) => setVizParams({...vizParams, showGround: e.target.checked})} /></div>
                   <div className="viz-param-row"><label>Particles</label><input type="range" min="0" max="1000" step="50" value={vizParams.particleCount} onChange={(e) => setVizParams({...vizParams, particleCount: parseInt(e.target.value)})} /><span>{vizParams.particleCount}</span></div>
+                  <div className="viz-param-row"><label>Floating</label><input type="checkbox" checked={vizParams.showFloatingShapes} onChange={(e) => setVizParams({...vizParams, showFloatingShapes: e.target.checked})} /></div>
+                  <div className="viz-param-row"><label>Light Rays</label><input type="checkbox" checked={vizParams.showLightRays} onChange={(e) => setVizParams({...vizParams, showLightRays: e.target.checked})} /></div>
                 </div>
                 <button className="viz-reset-btn" onClick={() => setVizParams(DEFAULT_VIZ_PARAMS)}>Reset All</button>
               </div>
@@ -521,8 +531,10 @@ export function Visualizer() {
               <div className="viz-panel-content">
                 <div className="viz-param-row"><label>Background</label><input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="viz-color-picker" /></div>
                 <div className="viz-param-row"><label>Mesh</label><input type="color" value={meshColor} onChange={(e) => setMeshColor(e.target.value)} className="viz-color-picker" /></div>
+                <div className="viz-param-row"><label>Ambient</label><input type="color" value={vizParams.ambientColor} onChange={(e) => setVizParams({...vizParams, ambientColor: e.target.value})} className="viz-color-picker" /></div>
                 <div className="viz-param-row"><label>Light</label><input type="range" min="0.2" max="3" step="0.1" value={vizParams.lightIntensity} onChange={(e) => setVizParams({...vizParams, lightIntensity: parseFloat(e.target.value)})} /><span>{vizParams.lightIntensity.toFixed(1)}</span></div>
                 <div className="viz-param-row"><label>Fog</label><input type="checkbox" checked={vizParams.fogEnabled} onChange={(e) => setVizParams({...vizParams, fogEnabled: e.target.checked})} /></div>
+                <div className="viz-param-row"><label>Fog Dens.</label><input type="range" min="0" max="0.15" step="0.005" disabled={!vizParams.fogEnabled} value={vizParams.fogDensity} onChange={(e) => setVizParams({...vizParams, fogDensity: parseFloat(e.target.value)})} /><span>{vizParams.fogDensity.toFixed(3)}</span></div>
               </div>
             )}
           </div>

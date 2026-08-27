@@ -1,11 +1,17 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": ["AGENTS.md"],
+  "instructions": [
+    "AGENTS.md"
+  ],
   "snapshot": false,
   "mcp": {
     "remotion-documentation": {
       "type": "local",
-      "command": ["npx", "-y", "@remotion/mcp@latest"],
+      "command": [
+        "npx",
+        "-y",
+        "@remotion/mcp@latest"
+      ],
       "enabled": true
     },
     "comfyui": {
@@ -22,21 +28,25 @@
     },
     "blender": {
       "type": "local",
-      "command": ["uvx", "blender-mcp"],
+      "command": [
+        "uvx",
+        "blender-mcp"
+      ],
       "environment": {
         "BLENDER_EXECUTABLE": "C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe"
       },
-      "enabled": true,
-      "notes": "Update BLENDER_EXECUTABLE if Blender is installed elsewhere"
+      "enabled": true
     },
     "unity": {
       "type": "local",
-      "command": ["node", "tools/unity-mcp-bridge.mjs"],
+      "command": [
+        "node",
+        "tools/unity-mcp-bridge.mjs"
+      ],
       "environment": {
         "UNITY_PROJECT_PATH": "./unity-project-mcp"
       },
-      "enabled": true,
-      "notes": "UNITY_PROJECT_PATH is relative to project root"
+      "enabled": true
     }
   }
 }

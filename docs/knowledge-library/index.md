@@ -10,7 +10,7 @@ aliases:
   - Production Reference
 cssclasses:
   - knowledge-index
-date: 2026-08-25
+date: 2026-08-27
 ---
 
 # 📚 Knowledge Library Index
@@ -39,6 +39,7 @@ date: 2026-08-25
 - [[hunyuan3d-setup|🧊 Hunyuan3D-2mini Setup]] — ComfyUI 3D generation with Kijai wrapper
 - [[three-js-studio|🌐 Three.js Studio]] — Browser-based 3D scene builder with particles & reflections
 - [[ai-video-trends-2026|📈 AI Video Trends 2026]] — 5 industry shifts, model landscape, pipeline upgrades
+- [[kilo-code-subagent-orchestration|🤖 Kilo Code Subagent Orchestration]] — Subagent architecture, provider errors, optimization strategies
 
 ### 🎯 Specialized Guides
 - [[3d-rendering|🧊 3D Rendering]] — GPU rendering, Blender 5.2 EEVEE Next, optimization
@@ -61,6 +62,8 @@ date: 2026-08-25
 | `#comfyui` | ComfyUI workflows | 2 documents |
 | `#gpu` | GPU optimization | 3 documents |
 | `#prompt` | Prompt engineering | 1 document |
+| `#kilo-code` | Kilo Code tooling and orchestration | 1 document |
+| `#subagent` | Subagent architecture and errors | 1 document |
 
 ---
 
@@ -70,7 +73,7 @@ date: 2026-08-25
 - **🎬 Director** → [[music-video-production]] → [[youtube-optimization]]
 - **💻 Developer** → [[technical-reference]] → [[comfyui-workflows]] → [[blender-mcp]]
 - **🎨 Artist** → [[prompt-engineering]] → [[3d-rendering]] → [[music-video-production]]
-- **🤖 AI Agent** → [[technical-reference]] → [[music-video-production]] → [[prompt-engineering]]
+- **🤖 AI Agent** → [[kilo-code-subagent-orchestration]] → [[technical-reference]] → [[prompt-engineering]]
 
 ### By Pipeline Phase
 ```mermaid
@@ -121,11 +124,11 @@ graph LR
 
 | Metric | Count |
 |--------|-------|
-| Total Documents | 9 (+ ai-video-trends-2026) |
-| Total Tags | 9 (+ 2026/trends) |
-| Total Links | 50+ |
-| Last Updated | 2026-08-24 (expanded via web search) |
+| Total Documents | 10 (+ ai-video-trends-2026) |
+| Total Tags | 11 (+ 2026/trends) |
+| Total Links | 55+ |
+| Last Updated | 2026-08-27 (subagent orchestration analysis) |
 
 ---
 
-*Last updated: 2026-08-25*
+*Last updated: 2026-08-27*
