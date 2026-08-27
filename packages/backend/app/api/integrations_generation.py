@@ -199,24 +199,12 @@ async def generate_video(service_name: str, request: VideoGenerationRequest) -> 
         }
         result = await adapter.generate(params)
 
-        # Save video reference to output
-        output_dir = PROJECT_ROOT / "output" / "video"
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        import uuid
-        from datetime import datetime
-
-        filename = (
-            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.mp4"
-        )
-        filepath = output_dir / filename
-
         return {
             "success": True,
-            "output_path": str(filepath),
+            "output_path": result.get("video_path"),
             "seed": result.get("seed"),
             "prompt_id": result.get("prompt_id"),
-            "message": f"Video generation started. Frames: {request.num_frames}, FPS: {request.fps}",
+            "message": result.get("info", f"Video generated: {request.num_frames} frames @ {request.fps}fps"),
         }
 
     except Exception as e:

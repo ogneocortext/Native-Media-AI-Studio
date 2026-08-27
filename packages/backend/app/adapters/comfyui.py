@@ -112,11 +112,18 @@ class ComfyUIAdapter(BaseAdapter):
 
     async def generate(self, params: dict[str, Any]) -> dict[str, Any]:
         """
-        Generate an image using ComfyUI.
+        Generate an image or video using ComfyUI.
 
-        Builds a simple text-to-image workflow, submits it to ComfyUI,
-        waits for completion, and returns the generated image.
+        Builds a text-to-image or AnimateDiff video workflow based on params.
         """
+        is_video = params.get("video", False) or params.get("num_frames", 1) > 1
+
+        if is_video:
+            return await self._generate_video(params)
+        return await self._generate_image(params)
+
+    async def _generate_image(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Generate a still image using ComfyUI."""
         prompt_text = params.get("prompt", "")
         negative_text = params.get("negative_prompt", "")
         steps = params.get("steps", 20)
@@ -156,6 +163,50 @@ class ComfyUIAdapter(BaseAdapter):
             "image": image_data,
             "seed": actual_seed,
             "info": f"Steps: {steps}, CFG: {cfg_scale}, Size: {width}x{height}, Sampler: {sampler_name}",
+        }
+
+    async def _generate_video(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Generate a video using AnimateDiff via ComfyUI."""
+        prompt_text = params.get("prompt", "")
+        negative_text = params.get("negative_prompt", "blurry, bad quality, distorted, static")
+        steps = params.get("steps", 15)
+        cfg_scale = params.get("cfg_scale", 7.0)
+        width = params.get("width", 512)
+        height = params.get("height", 512)
+        seed = params.get("seed", -1)
+        sampler_name = params.get("sampler_name", "euler_ancestral")
+        num_frames = params.get("num_frames", 24)
+        fps = params.get("fps", 12)
+
+        # Map sampler names to ComfyUI equivalents
+        sampler_map = {
+            "Euler a": "euler_ancestral",
+            "Euler": "euler",
+            "DPM++ 2M": "dpmpp_2m",
+            "DPM++ SDE": "dpmpp_sde",
+        }
+        comfy_sampler = sampler_map.get(sampler_name, sampler_name.lower().replace(" ", "_"))
+
+        # Use a random seed if -1
+        actual_seed = seed if seed > 0 else int(uuid.uuid4().int % (2**32))
+
+        # Build AnimateDiff video workflow
+        workflow = self._build_video_workflow(
+            prompt_text, negative_text, steps, cfg_scale,
+            width, height, actual_seed, comfy_sampler, num_frames, fps
+        )
+
+        # Submit workflow to ComfyUI
+        prompt_id = await self._submit_prompt(workflow)
+        self._current_prompt_id = prompt_id
+
+        # Wait for video completion
+        video_path = await self._wait_for_video_result(prompt_id, timeout=num_frames * fps * 2)
+
+        return {
+            "video_path": video_path,
+            "seed": actual_seed,
+            "info": f"AnimateDiff: {steps} steps, {num_frames} frames @ {fps}fps, {width}x{height}",
         }
 
     async def _mock_generate(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -306,3 +357,185 @@ class ComfyUIAdapter(BaseAdapter):
 
     def get_current_prompt_id(self) -> str | None:
         return self._current_prompt_id
+
+    def _build_video_workflow(
+        self,
+        prompt: str,
+        negative_prompt: str,
+        steps: int,
+        cfg: float,
+        width: int,
+        height: int,
+        seed: int,
+        sampler: str,
+        num_frames: int,
+        fps: int,
+    ) -> dict[str, Any]:
+        """
+        Build an AnimateDiff video workflow for ComfyUI.
+
+        Uses the mm_sd15_v3 motion module and SD 1.5 checkpoint.
+        Outputs as GIF via VideoHelperSuite or native GIF node.
+        """
+        # Select checkpoint - prefer SD 1.5 for AnimateDiff
+        checkpoint = self._get_available_checkpoint()
+        motion_module = "mm_sd15_v3.safetensors"
+
+        # AnimateDiff workflow with context options for better quality
+        return {
+            "prompt": {
+                # Load checkpoint
+                "1": {
+                    "class_type": "CheckpointLoaderSimple",
+                    "inputs": {"ckpt_name": checkpoint},
+                },
+                # Load motion module (AnimateDiff)
+                "2": {
+                    "class_type": "ADE_AnimateDiffLoaderWithContext",
+                    "inputs": {
+                        "model_name": motion_module,
+                        "context_length": min(num_frames, 16),
+                        "context_stride": 1,
+                        "context_overlap": 4,
+                        "context_schedule": "uniform",
+                        "closed_loop": False,
+                        "beta_schedule": "sqrt_linear (AnimateDiff)",
+                        "model": ["1", 0],
+                    },
+                },
+                # Positive prompt
+                "3": {
+                    "class_type": "CLIPTextEncode",
+                    "inputs": {
+                        "text": prompt,
+                        "clip": ["1", 1],
+                    },
+                },
+                # Negative prompt
+                "4": {
+                    "class_type": "CLIPTextEncode",
+                    "inputs": {
+                        "text": negative_prompt,
+                        "clip": ["1", 1],
+                    },
+                },
+                # Empty latent video (batch_size = num_frames)
+                "5": {
+                    "class_type": "EmptyLatentImage",
+                    "inputs": {
+                        "width": width,
+                        "height": height,
+                        "batch_size": num_frames,
+                    },
+                },
+                # KSampler with AnimateDiff context
+                "6": {
+                    "class_type": "ADE_AnimateDiffUniformContextOptions",
+                    "inputs": {
+                        "context_length": min(num_frames, 16),
+                        "context_stride": 1,
+                        "context_overlap": 4,
+                        "context_schedule": "uniform",
+                        "closed_loop": False,
+                    },
+                },
+                # KSampler
+                "7": {
+                    "class_type": "KSampler",
+                    "inputs": {
+                        "seed": seed,
+                        "steps": steps,
+                        "cfg": cfg,
+                        "sampler_name": sampler,
+                        "scheduler": "normal",
+                        "denoise": 1.0,
+                        "model": ["2", 0],
+                        "positive": ["3", 0],
+                        "negative": ["4", 0],
+                        "latent_image": ["5", 0],
+                    },
+                },
+                # VAE Decode
+                "8": {
+                    "class_type": "VAEDecode",
+                    "inputs": {
+                        "samples": ["7", 0],
+                        "vae": ["1", 2],
+                    },
+                },
+                # Save as GIF (VideoHelperSuite or native)
+                "9": {
+                    "class_type": "VHS_VideoCombine",
+                    "inputs": {
+                        "images": ["8", 0],
+                        "frame_rate": fps,
+                        "loop_count": 0,
+                        "filename_prefix": "NativeMediaAI_Video",
+                        "format": "image/gif",
+                        "pingpong": False,
+                        "save_output": True,
+                    },
+                },
+            }
+        }
+
+    async def _wait_for_video_result(self, prompt_id: str, timeout: int = 300) -> str | None:
+        """
+        Wait for a video prompt to complete and return the video path.
+
+        Polls ComfyUI history until the prompt appears with video/gif output.
+        """
+        start = asyncio.get_event_loop().time()
+
+        while True:
+            if asyncio.get_event_loop().time() - start > timeout:
+                raise TimeoutError(f"ComfyUI video generation timed out after {timeout}s")
+
+            # Check history
+            history = await self._get_history(prompt_id)
+            if prompt_id in history:
+                entry = history[prompt_id]
+                if "outputs" in entry:
+                    for node_id, output in entry["outputs"].items():
+                        # Check for video/gif output (VideoHelperSuite)
+                        if "gifs" in output:
+                            for gif in output["gifs"]:
+                                filename = gif.get("filename")
+                                subfolder = gif.get("subfolder", "")
+                                if filename:
+                                    return await self._fetch_video(filename, subfolder)
+                        # Check for images (fallback - might be frame sequence)
+                        if "images" in output:
+                            for img in output["images"]:
+                                filename = img.get("filename")
+                                if filename and filename.endswith((".gif", ".mp4", ".webm")):
+                                    subfolder = img.get("subfolder", "")
+                                    return await self._fetch_video(filename, subfolder)
+
+            await asyncio.sleep(2)
+
+    async def _fetch_video(self, filename: str, subfolder: str = "") -> str:
+        """Fetch a video/gif from ComfyUI and return the local path."""
+        from ..core.config import PROJECT_ROOT
+        import os
+
+        params = {"filename": filename}
+        if subfolder:
+            params["subfolder"] = subfolder
+
+        session = await self._get_session()
+        async with session.get(
+            f"{self.base_url}/view",
+            params=params,
+            timeout=aiohttp.ClientTimeout(total=120),
+        ) as resp:
+            if resp.status == 200:
+                data = await resp.read()
+                # Save to output directory
+                output_dir = PROJECT_ROOT / "output" / "video"
+                output_dir.mkdir(parents=True, exist_ok=True)
+                output_path = output_dir / filename
+                with open(output_path, "wb") as f:
+                    f.write(data)
+                return str(output_path)
+            raise Exception(f"Failed to fetch video: {resp.status}")
