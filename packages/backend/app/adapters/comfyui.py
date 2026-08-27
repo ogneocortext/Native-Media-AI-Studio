@@ -71,19 +71,29 @@ class ComfyUIAdapter(BaseAdapter):
         return []
 
     def _get_available_checkpoint(self) -> str:
-        """Get the first available checkpoint or fallback to default"""
-        if self._available_checkpoints:
-            return self._available_checkpoints[0]
-        
-        # Common fallback checkpoints to try
-        fallback_checkpoints = [
+        """Get the best available checkpoint for image generation."""
+        # Prefer SD 1.5/SDXL models for image generation
+        preferred_checkpoints = [
+            "v1-5-pruned-emaonly.safetensors",
             "v1-5-pruned-emaonly.ckpt",
             "v1-5-pruned.ckpt",
             "sd_v1-5.ckpt",
             "sd_xl_base_1.0.safetensors",
         ]
         
-        return fallback_checkpoints[0]
+        # Check if any preferred checkpoint is available
+        if self._available_checkpoints:
+            for preferred in preferred_checkpoints:
+                if preferred in self._available_checkpoints:
+                    return preferred
+            # Return first available that's not a 3D/video model
+            for cp in self._available_checkpoints:
+                name_lower = cp.lower()
+                if not any(bad in name_lower for bad in ["hunyuan", "wan", "animate", "motion", "3d"]):
+                    return cp
+        
+        # Fallback to default
+        return preferred_checkpoints[0]
 
     async def health_check(self) -> bool:
         """Check if ComfyUI is available"""
