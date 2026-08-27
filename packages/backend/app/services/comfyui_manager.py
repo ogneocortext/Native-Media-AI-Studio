@@ -77,10 +77,19 @@ class ComfyUIManager:
         return COMFYUI_DIR.exists() and COMFYUI_MAIN.exists()
 
     def is_running(self) -> bool:
-        """Check if ComfyUI process is running."""
-        if self._process is None:
+        """Check if ComfyUI is running (either managed or external)."""
+        # Check if we started the process
+        if self._process is not None:
+            return self._process.poll() is None
+        
+        # Also check if ComfyUI is running on the port (external process)
+        try:
+            import urllib.request
+            req = urllib.request.Request(f"http://127.0.0.1:{self._port}/system_stats")
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                return resp.status == 200
+        except Exception:
             return False
-        return self._process.poll() is None
 
     def get_version(self) -> dict:
         """Get ComfyUI version info from git."""
