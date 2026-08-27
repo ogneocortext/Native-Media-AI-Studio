@@ -184,8 +184,15 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
             "seed": request.seed,
             "sampler_name": request.sampler,
         }
+        # Validate checkpoint - don't allow 3D/video models for image generation
         if request.ckpt_name:
-            params["ckpt_name"] = request.ckpt_name
+            name_lower = request.ckpt_name.lower()
+            invalid_keywords = ["hunyuan", "wan", "animate", "motion", "3d", "kandinsky"]
+            if any(kw in name_lower for kw in invalid_keywords):
+                logger.warning(f"Checkpoint '{request.ckpt_name}' is not suitable for image generation, ignoring")
+                request.ckpt_name = ""
+            else:
+                params["ckpt_name"] = request.ckpt_name
         
         print(f"DEBUG: calling adapter.submit_only with params={params}")
         
