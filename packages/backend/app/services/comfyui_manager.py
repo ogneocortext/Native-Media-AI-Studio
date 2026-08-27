@@ -78,16 +78,20 @@ class ComfyUIManager:
 
     def is_running(self) -> bool:
         """Check if ComfyUI is running (either managed or external)."""
+        import socket
+        
         # Check if we started the process
         if self._process is not None:
             return self._process.poll() is None
         
-        # Also check if ComfyUI is running on the port (external process)
+        # Also check if ComfyUI port is open (external process)
+        # Use a simple socket check to avoid async issues
         try:
-            import urllib.request
-            req = urllib.request.Request(f"http://127.0.0.1:{self._port}/system_stats")
-            with urllib.request.urlopen(req, timeout=2) as resp:
-                return resp.status == 200
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2)
+            result = sock.connect_ex(("127.0.0.1", self._port))
+            sock.close()
+            return result == 0
         except Exception:
             return False
 
