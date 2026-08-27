@@ -162,8 +162,8 @@ export function ImageGeneration() {
       setPromptId(newPromptId);
       setProgressStatus("Queued");
 
-      // Poll for progress
-      const progressInterval = setInterval(async () => {
+      // Poll for progress using recursive setTimeout (more reliable for async)
+      const pollProgress = async () => {
         if (!newPromptId) return;
         try {
           const res = await fetch(`/api/integrations/comfyui/progress/${newPromptId}`);
@@ -174,28 +174,52 @@ export function ImageGeneration() {
             setTotalSteps(data.total_steps || options.steps);
             setProgressStatus(data.status || "running");
 
-            if (data.status === "completed" || data.status === "error") {
-              clearInterval(progressInterval);
-              if (data.status === "completed") {
-                // Fetch the final result
+            if (data.status === "completed") {
+              // Fetch the final result
+              try {
                 const resultRes = await fetch(`/api/integrations/comfyui/result/${newPromptId}`);
                 if (resultRes.ok) {
                   const resultData = await resultRes.json();
-                  setResult({
-                    output_path: resultData.output_path,
-                    seed: resultData.seed,
-                  });
-                  setProgress(100);
-                  setProgressStatus("Completed");
+                  if (resultData.status === "completed" && resultData.output_path) {
+                    setResult({
+                      output_path: resultData.output_path,
+                      seed: resultData.seed || 0,
+                    });
+                    setProgress(100);
+                    setProgressStatus("Completed");
+                  } else {
+                    setError("Generation completed but no image was found");
+                  }
                 }
+              } catch {
+                setError("Failed to fetch result");
               }
               setGenerating(false);
+            } else if (data.status === "error") {
+              setError("Generation failed");
+              setGenerating(false);
+            } else {
+              // Continue polling
+              setTimeout(pollProgress, 1000);
             }
+          } else {
+            setTimeout(pollProgress, 1000);
           }
         } catch {
-          // Silently ignore progress errors
+          setTimeout(pollProgress, 1000);
         }
-      }, 1000);
+      };
+      
+      // Start polling
+      setTimeout(pollProgress, 1000);
+      
+      // Safety timeout - stop polling after 5 minutes
+      setTimeout(() => {
+        if (generating) {
+          setGenerating(false);
+          setProgressStatus("Timeout");
+        }
+      }, 300000);
 
       // Safety timeout - stop polling after 5 minutes
       setTimeout(() => {
