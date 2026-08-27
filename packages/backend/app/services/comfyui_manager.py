@@ -452,7 +452,8 @@ class ComfyUIManager:
         }
 
         if running:
-            status["pid"] = self._process.pid
+            if self._process:
+                status["pid"] = self._process.pid
             if self._start_time:
                 status["uptime_seconds"] = round(time.time() - self._start_time, 1)
 
