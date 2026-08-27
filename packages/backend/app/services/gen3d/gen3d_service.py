@@ -96,7 +96,7 @@ class Gen3DService:
             try:
                 # Build workflow for text-to-3D via Kijai Wrapper
                 workflow = self._build_text23d_workflow(prompt, output_name, steps, seed, cfg)
-                result = self._submit_workflow(workflow, output_path)
+                result = await self._submit_workflow(workflow, output_path)
                 return result
             finally:
                 # VRAM Management: Reload Ollama after 3D generation
@@ -141,7 +141,7 @@ class Gen3DService:
             try:
                 # Build workflow for image-to-3D via Kijai Wrapper
                 workflow = self._build_image23d_workflow(image_path, output_name, steps)
-                result = self._submit_workflow(workflow, output_path)
+                result = await self._submit_workflow(workflow, output_path)
                 return result
             finally:
                 # VRAM Management: Reload Ollama after 3D generation
@@ -160,6 +160,19 @@ class Gen3DService:
         import re
         return re.sub(r"[^A-Za-z0-9\-_]", "_", name)[:64] or "gen3d"
 
+    # Quality knobs for the 8GB GTX 1070 Ti. These mirror the "Standard Quality"
+    # profile in docs/knowledge-library/hunyuan3d-setup.md (the documented 8GB-safe
+    # tier below "Fast Preview"). The previous values sat on the Fast Preview tier
+    # (octree 256 / chunks 8000) which produces visibly voxelized, blocky meshes —
+    # the raw GLB also ships with 0 materials/images and only a POSITION attribute,
+    # so it renders as a flat gray chunk without any texture.
+    OCTREE_RESOLUTION = 384
+    NUM_CHUNKS = 10_000
+    # Target face count for the post-process decimate pass. Hy3DPostprocessMesh
+    # smooths normals and merges the tiny octree faces into larger patches, which
+    # is what makes the mesh stop looking blocky.
+    TARGET_FACES = 50_000
+
     def _build_text23d_workflow(
         self,
         prompt: str,
@@ -174,6 +187,10 @@ class Gen3DService:
         IMAGE input (verified against the live node schema). So for a text prompt we first
         render a 512x512 concept image with the local SD1.5 checkpoint, then feed that
         image into the Hunyuan3D wrapper chain.
+
+        After the VAE decode we run the documented post-process chain
+        (Hy3DPostprocessMesh -> Hy3DMeshUVWrap) so the exported GLB carries smooth
+        normals and UVs instead of being a raw, untextured octree voxel mesh.
         """
         proc_output_name = self._sanitize_name(output_name)
         return {
@@ -237,16 +254,38 @@ class Gen3DService:
                     "latents": ["8", 0],
                     "vae": ["1", 1],
                     "box_v": 1.01,
-                    "octree_resolution": 256,
-                    "num_chunks": 8000,
+                    "octree_resolution": self.OCTREE_RESOLUTION,
+                    "num_chunks": self.NUM_CHUNKS,
                     "mc_level": 0,
                     "mc_algo": "mc",
                 },
             },
-            "10": {
-                "class_type": "Hy3DExportMesh",
+            # --- Stage 3: post-process the raw octree mesh ---
+            # Hy3DPostprocessMesh removes orphan floaters, decimates to a sane
+            # face budget, and — crucially — smooths vertex normals. The raw
+            # Hy3DVAEDecode output is an unindexed octree voxel mesh that renders
+            # as a blocky gray chunk; smooth_normals is what turns it into a
+            # shaded surface. Hy3DMeshUVWrap then bakes UVs so the GLB carries
+            # enough for a downstream material / viewer to texture it.
+            "11": {
+                "class_type": "Hy3DPostprocessMesh",
                 "inputs": {
                     "trimesh": ["9", 0],
+                    "remove_floaters": True,
+                    "remove_degenerate_faces": True,
+                    "reduce_faces": True,
+                    "max_facenum": self.TARGET_FACES,
+                    "smooth_normals": True,
+                },
+            },
+            "12": {
+                "class_type": "Hy3DMeshUVWrap",
+                "inputs": {"trimesh": ["11", 0]},
+            },
+            "13": {
+                "class_type": "Hy3DExportMesh",
+                "inputs": {
+                    "trimesh": ["12", 0],
                     "filename_prefix": f"3d/{proc_output_name}",
                     "file_format": "glb",
                 },
@@ -261,6 +300,7 @@ class Gen3DService:
         """Build ComfyUI workflow JSON for image-to-3D using Kijai Wrapper nodes."""
         uploaded = self._upload_image(image_path)
         image_name = uploaded.get("name", Path(image_path).name)
+        proc_output_name = self._sanitize_name(output_name)
 
         return {
             "1": {
@@ -287,17 +327,32 @@ class Gen3DService:
                     "latents": ["3", 0],
                     "vae": ["1", 1],
                     "box_v": 1.01,
-                    "octree_resolution": 256,
-                    "num_chunks": 8000,
+                    "octree_resolution": self.OCTREE_RESOLUTION,
+                    "num_chunks": self.NUM_CHUNKS,
                     "mc_level": 0,
                     "mc_algo": "mc",
                 },
             },
             "5": {
-                "class_type": "Hy3DExportMesh",
+                "class_type": "Hy3DPostprocessMesh",
                 "inputs": {
                     "trimesh": ["4", 0],
-                    "filename_prefix": f"3d/{self._sanitize_name(output_name)}",
+                    "remove_floaters": True,
+                    "remove_degenerate_faces": True,
+                    "reduce_faces": True,
+                    "max_facenum": self.TARGET_FACES,
+                    "smooth_normals": True,
+                },
+            },
+            "6": {
+                "class_type": "Hy3DMeshUVWrap",
+                "inputs": {"trimesh": ["5", 0]},
+            },
+            "7": {
+                "class_type": "Hy3DExportMesh",
+                "inputs": {
+                    "trimesh": ["6", 0],
+                    "filename_prefix": f"3d/{proc_output_name}",
                     "file_format": "glb",
                 },
             },
@@ -337,6 +392,7 @@ class Gen3DService:
 
     def _finalize_output(self, glb_relative: str, prompt_id: str) -> dict[str, Any]:
         """Copy the ComfyUI-exported .glb into the backend output dir and return its path."""
+        logger.info("Finalizing output: %s", glb_relative)
         cand = Path(glb_relative)
         src = cand if cand.is_absolute() and cand.exists() else COMFYUI_OUTPUT_DIR / cand
         if not src.exists():
@@ -349,16 +405,26 @@ class Gen3DService:
             if not dst.exists():  # keep the first generated file's original name
                 try:
                     shutil.copy2(src, dst)
+                    logger.info("Copied .glb to: %s", dst)
                 except Exception as e:
                     logger.warning("Could not copy .glb into outputs: %s", e)
+            else:
+                logger.info("GLB already exists at: %s", dst)
             return {"success": True, "model_path": str(dst), "prompt_id": prompt_id}
         # Source file not found — surface what ComfyUI reported.
         logger.warning("Exported .glb not found at %s (source %s)", glb_relative, src)
         return {"success": True, "prompt_id": prompt_id, "model_path": str(OUTPUT_DIR / Path(glb_relative).name),
                 "warning": "Mesh exported but file could not be located in backend outputs."}
 
-    def _submit_workflow(self, workflow: dict[str, Any], output_path: Path) -> dict[str, Any]:
-        """Submit a workflow to ComfyUI and wait for completion."""
+    async def _submit_workflow(self, workflow: dict[str, Any], output_path: Path) -> dict[str, Any]:
+        """Submit a workflow to ComfyUI and wait for completion.
+
+        Uses async polling so the event loop stays responsive. The Hy3DExportMesh
+        node writes the GLB to disk but returns empty outputs in the history, so we
+        also poll the ComfyUI output directory for new .glb files matching the
+        expected filename prefix.
+        """
+        import asyncio
         import urllib.request
         import urllib.error
         import time
@@ -381,13 +447,20 @@ class Gen3DService:
         prompt_id = result["prompt_id"]
         logger.info("3D generation workflow submitted: %s", prompt_id)
 
-        # Poll for completion (with timeout). The Hy3DExportMesh node returns
-        # RETURN_NAMES=("glb_path",) so look for a ".glb" string in node outputs
-        # (the old code looked for a non-existent "meshes" key — that never matched).
+        # Determine the expected filename prefix from the workflow
+        expected_prefix = None
+        for node in workflow.values():
+            if node.get("class_type") == "Hy3DExportMesh":
+                expected_prefix = node.get("inputs", {}).get("filename_prefix", "")
+                break
+
         max_wait = 900  # 15 minutes (SD image stage + Hunyuan mesh + export)
         start = time.time()
+        last_log = 0
         while time.time() - start < max_wait:
+            elapsed = time.time() - start
             try:
+                # Check ComfyUI history for completion
                 req = urllib.request.Request(f"{COMFYUI_URL}/history/{prompt_id}")
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     history = json.loads(resp.read().decode())
@@ -416,10 +489,38 @@ class Gen3DService:
                     if messages.get("status_str") == "error":
                         return {"success": False, "error": str(messages.get("status") or messages)}
 
+                    # Check if execution completed (success but empty outputs)
+                    status = node_history.get("status", {})
+                    if status.get("completed"):
+                        # Hy3DExportMesh writes to disk but returns empty outputs
+                        # Poll the output directory for the GLB
+                        if expected_prefix:
+                            glb_name = f"{expected_prefix}_00001_.glb"
+                            glb_path = COMFYUI_OUTPUT_DIR / glb_name
+                            if glb_path.exists():
+                                logger.info("3D generation complete (file found): %s", glb_path)
+                                return self._finalize_output(str(glb_path), prompt_id)
+
+                        # Fallback: search for any new GLB in the output directory
+                        glb_files = sorted(
+                            COMFYUI_OUTPUT_DIR.rglob("*.glb"),
+                            key=lambda p: p.stat().st_mtime,
+                            reverse=True,
+                        )
+                        for glb_file in glb_files:
+                            if glb_file.stat().st_mtime > start:
+                                logger.info("3D generation complete (new file): %s", glb_file)
+                                return self._finalize_output(str(glb_file), prompt_id)
+
             except Exception as e:
                 logger.debug("Polling for completion: %s", e)
 
-            time.sleep(2)
+            # Log progress every 30 seconds
+            if elapsed - last_log >= 30:
+                logger.info("3D generation in progress: %.0fs elapsed", elapsed)
+                last_log = elapsed
+
+            await asyncio.sleep(2)
 
         return {"success": False, "error": "Timeout waiting for 3D generation"}
     def get_status(self) -> dict[str, Any]:

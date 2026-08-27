@@ -2,7 +2,7 @@
 *Lyric-mapped, research-backed, ready for shot planning*
 *Duration 124.0s (3720f @30fps) • 152 BPM • E Maj (0.755 conf) • -13.4 LUFS remastered (orig -14.0) • LRA 2.6 LU (orig 3.6) • 2026-08-20 v1 → v2 remaster 2026-08-20*
 *Files: `src/TakeTheCrown.tsx` `public/crown-cover.png` `public/crown-still-*.png` `renders/take-the-crown-v1.mp4` `renders/take-the-crown-v2-remastered.mp4` `public/take-the-crown-remastered.mp3` `public/stems/*.mp3`*
-*Env: `.conda/audio-remaster` (project-local, cloned from D:\conda-envs\space-analyzer-cuda) — torch 2.6.0+cu124 + demucs 4.1.0, CUDA GTX 1070 Ti*
+*Env: `.conda/audio-remaster` (project-local) — torch 2.6.0+cu124 + demucs 4.1.0, CUDA GTX 1070 Ti*
 *Prompt: `Coronation anthem, 152 BPM four-on-floor drive, E-major triumphant, gold-on-ash, embers rising, "take the crown" mantra.` — canonical lyrics from embedded `lyrics-und` + Whisper anchors.*
 
 > **Why this board works:** Same lesson as Still I Rise v5 — *act-specific treatment, not one locked composition*. This song is a 152 BPM coronation anthem: short (2:04), high-energy throughout (LRA 3.6 LU = very consistent loudness). Visuals must ramp from dark ash → burning embers → gold crown reveals, matching the *Step out the shadow → Rising from the ash → Take the crown* narrative. Six distinct acts, each with own ember density, crown scale, palette intensity, and typography.

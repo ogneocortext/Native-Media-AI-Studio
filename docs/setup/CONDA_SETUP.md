@@ -18,9 +18,7 @@
 
 ## Prerequisites
 
-- **Miniconda** or **Anaconda** installed
-  - Download: https://docs.conda.io/en/latest/miniconda.html
-  - Your current install: `C:\Users\Aomega Imaging\miniconda3` (conda 26.1.1) ✅
+- **Miniconda** or **Anaconda** installed at your location here
 - **Git** (for cloning custom nodes, included in the conda env)
 - **NVIDIA GPU drivers** already installed (you have GTX 1070 Ti)
 
@@ -107,7 +105,7 @@ Open **three terminals** (all with `nma-studio` activated):
 
 ```powershell
 # Terminal 1 — Backend
-cd "d:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio"
+cd "<your-project-root>"
 conda activate nma-studio
 cd backend
 uvicorn app.main:app --reload --port 8000
@@ -135,9 +133,9 @@ To make VS Code always use the conda environment:
    Add to your workspace `.vscode/settings.json`:
    ```json
    {
-     "python.defaultInterpreterPath": "C:/Users/Aomega Imaging/miniconda3/envs/nma-studio/python.exe",
+     "python.defaultInterpreterPath": "<your-miniconda-path>/envs/nma-studio/python.exe",
      "terminal.integrated.env.windows": {
-       "PATH": "C:/Users/Aomega Imaging/miniconda3/envs/nma-studio;C:/Users/Aomega Imaging/miniconda3/Scripts;${env:PATH}"
+       "PATH": "<your-miniconda-path>/envs/nma-studio;<your-miniconda-path>/Scripts;${env:PATH}"
      }
    }
    ```
@@ -211,7 +209,7 @@ After (conda): `nvidia::cuda-toolkit=12.1` is a conda package inside `nma-studio
 ```powershell
 .\add_conda_path.ps1
 # OR permanently:
-C:\Users\Aomega Imaging\miniconda3\Scripts\conda.exe init powershell
+<your-miniconda-path>\Scripts\conda.exe init powershell
 # Restart terminal
 ```
 
@@ -238,7 +236,7 @@ The backend is installed as an editable package (`-e ./backend` in `environment.
 
 ```powershell
 conda activate nma-studio
-cd "d:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio"
+cd "<your-project-root>"
 pip install -e ./backend
 ```
 

@@ -173,7 +173,8 @@ class HealthMonitor:
 
         start_time = time.perf_counter()
         try:
-            is_healthy = await adapter.health_check()
+            # Use asyncio.wait_for to enforce a per-adapter timeout
+            is_healthy = await asyncio.wait_for(adapter.health_check(), timeout=8.0)
             response_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
             error = None
             if hasattr(adapter, 'get_last_error'):
@@ -185,6 +186,16 @@ class HealthMonitor:
                 "adapter_name": adapter.name,
                 "response_time_ms": response_time_ms,
                 "error": error,
+            }
+        except asyncio.TimeoutError:
+            response_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            return {
+                "name": name,
+                "status": ServiceHealth.OFFLINE.value,
+                "url": adapter.base_url if adapter else url,
+                "adapter_name": adapter.name if adapter else None,
+                "error": "Health check timed out",
+                "response_time_ms": response_time_ms
             }
         except Exception as e:
             response_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
@@ -232,11 +243,27 @@ class HealthMonitor:
         adapters = adapter_registry.get_all_adapters()
         results = {}
 
-        # Check all adapters concurrently for better performance
+        # Check all adapters concurrently with a global timeout
         tasks = [self.check_service_with_timing(name) for name in adapters.keys()]
-        check_results = await asyncio.gather(*tasks)
+        try:
+            check_results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=10.0  # Global timeout for all adapter checks
+            )
+        except asyncio.TimeoutError:
+            # If global timeout fires, mark all as offline
+            for name in adapters.keys():
+                results[name] = {
+                    "status": ServiceHealth.OFFLINE.value,
+                    "url": adapters[name].base_url,
+                    "response_time_ms": 10000.0,
+                    "error": "Health check timed out"
+                }
+            return results
 
         for result in check_results:
+            if isinstance(result, Exception):
+                continue
             adapter_name = result["name"]
             # Map to simplified structure for health endpoint
             results[adapter_name] = {

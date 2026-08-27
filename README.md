@@ -25,6 +25,14 @@ A full-stack AI-powered creative production environment for music-driven media g
 - **GPU Monitoring** — Real-time VRAM, utilization, temperature, and per-process breakdown via `/api/health/gpu`
 - **Obsidian Vault** — `docs/knowledge-library/.obsidian/snippets/nstudio-*.css` (pro, immersive, callouts, tables, headers)
 
+## Recent Changes
+
+- **Adapter Connection Reuse** — ComfyUI and Ollama adapters now reuse a single `aiohttp.ClientSession` per instance, eliminating a thread leak that caused health checks to time out
+- **Health Check Timeouts** — Added per-adapter (8s) and global (10s) timeouts to prevent health checks from hanging
+- **3D Generation Pipeline** — Added `Hy3DPostprocessMesh` and `Hy3DMeshUVWrap` nodes for smooth normals and decimated meshes (95% smaller GLBs)
+- **Async 3D Workflow** — `_submit_workflow` is now async with filesystem polling for GLB detection
+- **Adapter Cleanup** — Proper session cleanup on backend shutdown
+
 ## Hardware Targets
 
 | Resource  | Specification                                 |
@@ -74,7 +82,7 @@ Native-Media-AI-Studio/
 - **Python 3.11+** (via Conda recommended for GPU support)
 - **Node.js 20+**
 - **pnpm 9+** (`npm install -g pnpm@9`)
-- **ComfyUI** installed at `your location here`
+- **ComfyUI** installed at your location here
 - **Conda environment** `comfyui-cuda` with PyTorch CUDA support
 
 ### Start All Services

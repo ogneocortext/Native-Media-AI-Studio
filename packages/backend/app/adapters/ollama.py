@@ -69,19 +69,35 @@ Generate 3-8 scenes based on the input theme or concept."""
         self._default_model: str = "qwen2.5:3b"  # Default to smaller model for speed
         self._last_model: str = self._default_model  # Track last used model for VRAM manager
         self._last_health_log: str | None = None
+        self._session: aiohttp.ClientSession | None = None
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create a shared aiohttp session for this adapter."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession(
+                connector=aiohttp.TCPConnector(limit=5, ttl_dns_cache=300),
+                timeout=aiohttp.ClientTimeout(total=30),
+            )
+        return self._session
+
+    async def close(self):
+        """Close the shared session."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+            self._session = None
 
     async def health_check(self) -> bool:
         """Check if Ollama is available"""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.base_url}/api/tags", timeout=aiohttp.ClientTimeout(total=5)
-                ) as resp:
-                    if resp.status == 200:
-                        if self._status != AdapterStatus.CONNECTED:
-                            logger.info("Ollama is now online")
-                        self.set_status(AdapterStatus.CONNECTED)
-                        return True
+            session = await self._get_session()
+            async with session.get(
+                f"{self.base_url}/api/tags", timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status == 200:
+                    if self._status != AdapterStatus.CONNECTED:
+                        logger.info("Ollama is now online")
+                    self.set_status(AdapterStatus.CONNECTED)
+                    return True
         except Exception as e:
             error_msg = str(e)
             if self._last_health_log != error_msg:
@@ -140,22 +156,22 @@ Generate 3-8 scenes based on the input theme or concept."""
                     pass
             payload["options"] = options
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.base_url}/api/generate",
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=120),
-            ) as resp:
-                if resp.status != 200:
-                    error = await resp.text()
-                    raise RuntimeError(f"Ollama error: {error}")
+        session = await self._get_session()
+        async with session.post(
+            f"{self.base_url}/api/generate",
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=120),
+        ) as resp:
+            if resp.status != 200:
+                error = await resp.text()
+                raise RuntimeError(f"Ollama error: {error}")
 
-                result = await resp.json()
-                return {
-                    "response": result.get("response", ""),
-                    "model": model,
-                    "done": result.get("done", True),
-                }
+            result = await resp.json()
+            return {
+                "response": result.get("response", ""),
+                "model": model,
+                "done": result.get("done", True),
+            }
 
     async def chat(
         self,
@@ -233,44 +249,44 @@ Generate 3-8 scenes based on the input theme or concept."""
     async def _chat_request(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Non-streaming chat request."""
         logger.info("Starting Ollama non-stream request: model=%s", payload.get("model"))
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.base_url}/api/chat",
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=300),
-            ) as resp:
-                if resp.status != 200:
-                    error = await resp.text()
-                    logger.error("Ollama non-stream error: status=%d, error=%s", resp.status, error)
-                    raise RuntimeError(f"Ollama error: {error}")
-                result = await resp.json()
-                logger.info("Ollama non-stream complete: content_len=%d, tool_calls=%d",
-                             len(result.get("message", {}).get("content", "")),
-                             len(result.get("message", {}).get("tool_calls", [])))
-                return result
+        session = await self._get_session()
+        async with session.post(
+            f"{self.base_url}/api/chat",
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=300),
+        ) as resp:
+            if resp.status != 200:
+                error = await resp.text()
+                logger.error("Ollama non-stream error: status=%d, error=%s", resp.status, error)
+                raise RuntimeError(f"Ollama error: {error}")
+            result = await resp.json()
+            logger.info("Ollama non-stream complete: content_len=%d, tool_calls=%d",
+                         len(result.get("message", {}).get("content", "")),
+                         len(result.get("message", {}).get("tool_calls", [])))
+            return result
 
     async def _stream_chat(self, payload: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:
         """Streaming chat request with tool call support."""
         logger.info("Starting Ollama stream request: model=%s", payload.get("model"))
         chunk_count = 0
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.base_url}/api/chat",
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=300),
-            ) as resp:
-                if resp.status != 200:
-                    error = await resp.text()
-                    logger.error("Ollama stream error: status=%d, error=%s", resp.status, error)
-                    raise RuntimeError(f"Ollama error: {error}")
+        session = await self._get_session()
+        async with session.post(
+            f"{self.base_url}/api/chat",
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=300),
+        ) as resp:
+            if resp.status != 200:
+                error = await resp.text()
+                logger.error("Ollama stream error: status=%d, error=%s", resp.status, error)
+                raise RuntimeError(f"Ollama error: {error}")
 
-                # Stream JSON lines
-                async for line in resp.content:
-                    if line.strip():
-                        import json
-                        chunk = json.loads(line)
-                        chunk_count += 1
-                        yield chunk
+            # Stream JSON lines
+            async for line in resp.content:
+                if line.strip():
+                    import json
+                    chunk = json.loads(line)
+                    chunk_count += 1
+                    yield chunk
         logger.info("Ollama stream complete: %d chunks received", chunk_count)
 
     async def execute_tool_call(
@@ -489,14 +505,14 @@ Generate 3-8 scenes based on the input theme or concept."""
     async def list_models(self) -> list[dict[str, Any]]:
         """List available models in Ollama"""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.base_url}/api/tags") as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        self._available_models = [
-                            m["name"] for m in data.get("models", [])
-                        ]
-                        return data.get("models", [])
+            session = await self._get_session()
+            async with session.get(f"{self.base_url}/api/tags") as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    self._available_models = [
+                        m["name"] for m in data.get("models", [])
+                    ]
+                    return data.get("models", [])
         except Exception as e:
             logger.warning(f"Failed to list models: {e}")
         return []
@@ -504,13 +520,13 @@ Generate 3-8 scenes based on the input theme or concept."""
     async def pull_model(self, name: str) -> bool:
         """Pull a model from Ollama registry"""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.base_url}/api/pull",
-                    json={"model": name},
-                    timeout=aiohttp.ClientTimeout(total=600),
-                ) as resp:
-                    return resp.status == 200
+            session = await self._get_session()
+            async with session.post(
+                f"{self.base_url}/api/pull",
+                json={"model": name},
+                timeout=aiohttp.ClientTimeout(total=600),
+            ) as resp:
+                return resp.status == 200
         except Exception:
             return False
 

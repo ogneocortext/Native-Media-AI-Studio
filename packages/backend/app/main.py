@@ -157,6 +157,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to close shared HTTP client: {e}")
 
+    # Close all adapter sessions
+    try:
+        from .adapters.registry import adapter_registry
+        await adapter_registry.close_all()
+        logger.info("Adapter sessions closed")
+    except Exception as e:
+        logger.warning(f"Failed to close adapter sessions: {e}")
+
     logger.info("Shutdown complete")
 
 

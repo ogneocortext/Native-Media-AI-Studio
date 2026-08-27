@@ -3,6 +3,7 @@ import { useOutputStore, OutputFile } from "../../state/outputStore";
 import { formatFileSize, formatDate, formatDateTime } from "../../utils/format";
 import { getOutputUrl } from "../../utils/url";
 import { StatCard } from "./MediaLibraryStats";
+import { ModelPreview } from "../generate3d/ModelPreview";
 import {
   Image,
   Video,
@@ -32,6 +33,7 @@ import {
   Check,
   ArrowUpDown,
   Layers,
+  Box,
 } from "lucide-react";
 
 const categoryConfig = [
@@ -247,7 +249,10 @@ export function MediaLibrary() {
     other: "",
   };
 
-  const renderFileIcon = (fileType: string, className = "w-6 h-6") => {
+  const renderFileIcon = (fileType: string, filename: string | null = null, className = "w-6 h-6") => {
+    if (is3DModelFile(filename || "")) {
+      return <Box className={className} />;
+    }
     switch (fileType) {
       case "image":
         return <Image className={className} />;
@@ -280,6 +285,9 @@ export function MediaLibrary() {
   };
 
   const currentCategory = categoryConfig.find((c) => c.key === filter.type) || categoryConfig[0];
+
+  const is3DModelFile = (filename: string) =>
+    /\.(glb|gltf|fbx|obj)$/i.test(filename || "");
 
   return (
     <div className="flex h-full">
@@ -664,7 +672,7 @@ export function MediaLibrary() {
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-2 text-muted">
-                      {renderFileIcon(output.file_type, "w-12 h-12")}
+                      {renderFileIcon(output.file_type, output.filename, "w-12 h-12")}
                       <span className="text-xs uppercase">{output.file_type}</span>
                     </div>
                   )}
@@ -708,6 +716,11 @@ export function MediaLibrary() {
                   <div className="absolute top-2 left-2">
                     {renderTypeBadge(output.file_type)}
                   </div>
+                  {is3DModelFile(output.filename) && (
+                    <div className="absolute top-2 left-20 z-10 w-6 h-6 rounded-md bg-violet-500/20 border border-violet-500/50 flex items-center justify-center" title="3D Model — click to preview in the modal">
+                      <Box size={12} className="text-violet-300" />
+                    </div>
+                  )}
                 </div>
 
                 {/* Info */}
@@ -767,7 +780,7 @@ export function MediaLibrary() {
                             <img src={getOutputUrl(output.cover_image)} alt={output.filename} className="w-full h-full object-cover" loading="lazy" />
                           ) : (
                             <div className="flex flex-col items-center gap-2 text-muted">
-                              {output.file_type === "video" ? <Video className="w-12 h-12" /> : output.file_type === "audio" ? <Music className="w-12 h-12" /> : renderFileIcon(output.file_type, "w-12 h-12")}
+                              {renderFileIcon(output.file_type, output.filename, "w-12 h-12")}
                               <span className="text-xs uppercase">{output.file_type}</span>
                             </div>
                           )}
@@ -861,7 +874,7 @@ export function MediaLibrary() {
                             />
                           </div>
                         ) : (
-                          renderFileIcon(output.file_type)
+                          renderFileIcon(output.file_type, output.filename)
                         )}
                         <div>
                           <p className="text-sm text-white">{output.filename}</p>
@@ -1006,10 +1019,12 @@ export function MediaLibrary() {
                         </div>
                       )}
                     </div>
+                  ) : is3DModelFile(selectedOutput.filename) ? (
+                    <ModelPreview url={getOutputUrl(selectedOutput.relative_path)} />
                   ) : (
                     <div className="h-64 flex items-center justify-center text-muted">
                       <div className="text-center">
-                        {renderFileIcon(selectedOutput.file_type, "w-16 h-16 mx-auto mb-2")}
+                        {renderFileIcon(selectedOutput.file_type, selectedOutput.filename, "w-16 h-16 mx-auto mb-2")}
                         <p>Preview not available</p>
                       </div>
                     </div>

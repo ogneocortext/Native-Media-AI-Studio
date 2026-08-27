@@ -53,25 +53,25 @@
 # Critical paths for AI agents
 PATHS = {
     # Project
-    "project_root": r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio",
-    "frontend": r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\packages\frontend",
-    "backend": r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\packages\backend",
+    "project_root": "<your-project-root>",
+    "frontend": "<your-project-root>/packages/frontend",
+    "backend": "<your-project-root>/packages/backend",
     
     # Python environments
-    "backend_venv": r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\venv\Scripts\python.exe",
-    "comfyui_conda": r"D:\conda-envs\comfyui-cuda\Scripts\python.exe",
+    "backend_venv": "<your-project-root>/venv/Scripts/python.exe",
+    "comfyui_conda": "<your-comfyui-conda-env>/Scripts/python.exe",
     
     # ComfyUI
-    "comfyui_root": r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI",
-    "hunyuan3d_model": r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI\models\diffusion_models\hunyuan3d-2mini",
+    "comfyui_root": "<your-comfyui-root>",
+    "hunyuan3d_model": "<your-comfyui-root>/models/diffusion_models/hunyuan3d-2mini",
     
     # Output
-    "output_dir": r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\output",
-    "generated_3d": r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\output\generated_3d",
-    "logs": r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\output\logs",
+    "output_dir": "<your-project-root>/output",
+    "generated_3d": "<your-project-root>/output/generated_3d",
+    "logs": "<your-project-root>/output/logs",
     
     # Blender
-    "blender_executable": r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe",
+    "blender_executable": "<your-blender-path>/blender.exe",
 }
 ```
 

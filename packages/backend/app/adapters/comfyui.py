@@ -35,21 +35,37 @@ class ComfyUIAdapter(BaseAdapter):
         self._current_prompt_id: str | None = None
         self._last_health_log: str | None = None
         self._available_checkpoints: list[str] = []
+        self._session: aiohttp.ClientSession | None = None
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create a shared aiohttp session for this adapter."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession(
+                connector=aiohttp.TCPConnector(limit=5, ttl_dns_cache=300),
+                timeout=aiohttp.ClientTimeout(total=30),
+            )
+        return self._session
+
+    async def close(self):
+        """Close the shared session."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+            self._session = None
 
     async def _fetch_available_checkpoints(self) -> list[str]:
         """Fetch available checkpoints from ComfyUI"""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.base_url}/object_info/CheckpointLoaderSimple",
-                    timeout=aiohttp.ClientTimeout(total=5),
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        if "CheckpointLoaderSimple" in data:
-                            input_info = data["CheckpointLoaderSimple"]["input"]["required"]
-                            if "ckpt_name" in input_info:
-                                return input_info["ckpt_name"][0]
+            session = await self._get_session()
+            async with session.get(
+                f"{self.base_url}/object_info/CheckpointLoaderSimple",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if "CheckpointLoaderSimple" in data:
+                        input_info = data["CheckpointLoaderSimple"]["input"]["required"]
+                        if "ckpt_name" in input_info:
+                            return input_info["ckpt_name"][0]
         except Exception as e:
             logger.warning(f"Failed to fetch available checkpoints: {e}")
         return []
@@ -72,20 +88,20 @@ class ComfyUIAdapter(BaseAdapter):
     async def health_check(self) -> bool:
         """Check if ComfyUI is available"""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.base_url}/system_stats",
-                    timeout=aiohttp.ClientTimeout(total=5),
-                ) as resp:
-                    if resp.status == 200:
-                        if self._status != AdapterStatus.CONNECTED:
-                            logger.info("ComfyUI is now online")
-                            # Fetch available checkpoints when connecting
-                            self._available_checkpoints = await self._fetch_available_checkpoints()
-                            if self._available_checkpoints:
-                                logger.info(f"Available checkpoints: {self._available_checkpoints[:3]}")
-                        self.set_status(AdapterStatus.CONNECTED)
-                        return True
+            session = await self._get_session()
+            async with session.get(
+                f"{self.base_url}/system_stats",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                if resp.status == 200:
+                    if self._status != AdapterStatus.CONNECTED:
+                        logger.info("ComfyUI is now online")
+                        # Fetch available checkpoints when connecting
+                        self._available_checkpoints = await self._fetch_available_checkpoints()
+                        if self._available_checkpoints:
+                            logger.info(f"Available checkpoints: {self._available_checkpoints[:3]}")
+                    self.set_status(AdapterStatus.CONNECTED)
+                    return True
         except Exception as e:
             error_msg = str(e)
             if self._last_health_log != error_msg:
@@ -224,17 +240,17 @@ class ComfyUIAdapter(BaseAdapter):
 
     async def _submit_prompt(self, workflow: dict[str, Any]) -> str:
         """Submit a workflow to ComfyUI and return the prompt ID"""
-        async with aiohttp.ClientSession() as session:
-            payload = {"prompt": workflow["prompt"]}
-            async with session.post(
-                f"{self.base_url}/prompt",
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=10),
-            ) as resp:
-                if resp.status != 200:
-                    raise Exception(f"Failed to submit prompt: {resp.status}")
-                data = await resp.json()
-                return data["prompt_id"]
+        session = await self._get_session()
+        payload = {"prompt": workflow["prompt"]}
+        async with session.post(
+            f"{self.base_url}/prompt",
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            if resp.status != 200:
+                raise Exception(f"Failed to submit prompt: {resp.status}")
+            data = await resp.json()
+            return data["prompt_id"]
 
     async def _wait_for_result(self, prompt_id: str, timeout: int = 120) -> str:
         """
@@ -262,14 +278,14 @@ class ComfyUIAdapter(BaseAdapter):
 
     async def _get_history(self, prompt_id: str) -> dict[str, Any]:
         """Get ComfyUI history for a prompt"""
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{self.base_url}/history/{prompt_id}",
-                timeout=aiohttp.ClientTimeout(total=5),
-            ) as resp:
-                if resp.status == 200:
-                    return await resp.json()
-                return {}
+        session = await self._get_session()
+        async with session.get(
+            f"{self.base_url}/history/{prompt_id}",
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as resp:
+            if resp.status == 200:
+                return await resp.json()
+            return {}
 
     async def _fetch_image(self, filename: str, subfolder: str = "") -> str:
         """Fetch an image from ComfyUI and return as base64"""
@@ -277,16 +293,16 @@ class ComfyUIAdapter(BaseAdapter):
         if subfolder:
             params["subfolder"] = subfolder
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{self.base_url}/view",
-                params=params,
-                timeout=aiohttp.ClientTimeout(total=30),
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.read()
-                    return base64.b64encode(data).decode("utf-8")
-                raise Exception(f"Failed to fetch image: {resp.status}")
+        session = await self._get_session()
+        async with session.get(
+            f"{self.base_url}/view",
+            params=params,
+            timeout=aiohttp.ClientTimeout(total=30),
+        ) as resp:
+            if resp.status == 200:
+                data = await resp.read()
+                return base64.b64encode(data).decode("utf-8")
+            raise Exception(f"Failed to fetch image: {resp.status}")
 
     def get_current_prompt_id(self) -> str | None:
         return self._current_prompt_id

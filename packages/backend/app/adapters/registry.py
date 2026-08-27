@@ -92,6 +92,14 @@ class AdapterRegistry:
                 health_status[name] = False
         return health_status
 
+    async def close_all(self):
+        """Close all adapter sessions (cleanup)."""
+        for adapter in self._adapters.values():
+            if hasattr(adapter, 'close'):
+                await adapter.close()
+        self._adapters.clear()
+        self._initialized = False
+
 
 # Global registry instance
 adapter_registry = AdapterRegistry()
