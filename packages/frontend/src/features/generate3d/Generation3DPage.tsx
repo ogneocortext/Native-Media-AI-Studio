@@ -544,8 +544,20 @@ export function Generation3DPage() {
             {historyLoading ? (
               <div className="text-xs text-gray-400 flex items-center gap-2"><Loader2 size={12} className="animate-spin" /> Loading...</div>
             ) : generatedList.length > 0 ? (
-              <div className="space-y-2 max-h-64 overflow-auto">
-                {generatedList.map((f) => (
+              <div className="divide-y divide-gray-800 max-h-72 overflow-auto rounded-lg border border-gray-800 bg-gray-900/30">
+                {generatedList.map((f) => {
+                  // Show a friendly date label from the modified timestamp
+                  // (seconds since epoch) so the user can see how recent
+                  // each model is without reading the full filename.
+                  const ageMs = f.modified ? Date.now() - f.modified * 1000 : 0;
+                  const ageLabel = ageMs < 60_000
+                    ? "just now"
+                    : ageMs < 3_600_000
+                      ? `${Math.round(ageMs / 60_000)}m ago`
+                      : ageMs < 86_400_000
+                        ? `${Math.round(ageMs / 3_600_000)}h ago`
+                        : `${Math.round(ageMs / 86_400_000)}d ago`;
+                  return (
                   <button
                     key={f.path}
                     type="button"
@@ -554,24 +566,26 @@ export function Generation3DPage() {
                       // so the user can rotate it without re-running generation.
                       setResult({ success: true, model_path: f.path, filename: f.filename });
                     }}
-                    className="w-full text-left flex items-center justify-between p-2 bg-gray-900 rounded-lg hover:bg-gray-700/50 transition-colors"
+                    className="w-full text-left flex items-center gap-2 px-2.5 py-2 hover:bg-gray-800/60 transition-colors group"
                   >
-                    <span className="text-xs text-white truncate" title={f.filename}>{f.filename}</span>
-                    <span className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-gray-500">{(f.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
-                      <a
-                        href={f.servable_url ?? `/output/generated_3d/${f.filename}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-gray-500 hover:text-violet-300"
-                        title="Download .glb"
-                      >
-                        <Download size={12} />
-                      </a>
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-white truncate font-mono" title={f.filename}>{f.filename}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">{ageLabel}</div>
+                    </div>
+                    <span className="text-xs text-gray-400 shrink-0 tabular-nums">{(f.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
+                    <a
+                      href={f.servable_url ?? `/output/generated_3d/${f.filename}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-gray-500 hover:text-violet-300 shrink-0"
+                      title="Download .glb"
+                    >
+                      <Download size={12} />
+                    </a>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-xs text-gray-500">No models yet. Generate one to see it here.</p>
