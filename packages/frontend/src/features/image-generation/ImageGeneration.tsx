@@ -97,12 +97,20 @@ export function ImageGeneration() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.checkpoints?.length) {
-          // Filter to show image and 3D generation models (exclude pure video models)
+          // Filter to show only image generation models
           const imageModels = data.checkpoints.filter((name: string) => {
             const baseName = name.toLowerCase();
-            return !baseName.includes("wan") && !baseName.includes("animate") && !baseName.includes("motion");
+            // Exclude video/3D/motion models
+            return !baseName.includes("wan") && 
+                   !baseName.includes("animate") && 
+                   !baseName.includes("motion") &&
+                   !baseName.includes("hunyuan") &&
+                   !baseName.includes("3d") &&
+                   !baseName.includes("kandinsky");  // Kandinsky is also not SD
           });
-          setModels(imageModels.map((name: string) => ({ name, filename: name, path: "", size: 0 })));
+          // If no models found, show all (fallback)
+          const finalModels = imageModels.length > 0 ? imageModels : data.checkpoints;
+          setModels(finalModels.map((name: string) => ({ name, filename: name, path: "", size: 0 })));
         }
       })
       .catch(() => {})
