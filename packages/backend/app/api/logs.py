@@ -80,7 +80,7 @@ async def receive_frontend_logs(body: dict) -> dict:
         source = entry.get("source", "unknown")
         message = entry.get("message", "")
         data = entry.get("data")
-        timestamp = entry.get("timestamp", "")
+        entry.get("timestamp", "")
 
         log_msg = f"[{source}] {message}"
         if data:

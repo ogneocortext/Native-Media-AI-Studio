@@ -21,6 +21,8 @@ build/
 .zed/
 .kilo/
 .playwright-mcp/
+.obsidian/
+.devin/
 
 # OS
 .DS_Store
@@ -95,6 +97,9 @@ packages/*/venv/
 .huggingface_cache/
 huggingface_cache/
 .cache/
+.ruff_cache/
+*.egg-info/
+__pycache__/
 
 # Generated outputs (never commit)
 output/
@@ -112,6 +117,8 @@ diffusion_models/
 *.ckpt
 *.bin
 *.pt
+*.blend
+*.blend1
 
 # Media files (generated output)
 *.mp4
@@ -162,9 +169,20 @@ backend/
 # Scattered test files (move to tests/)
 test_*.py
 backend/test_*.py
+# Generated demo outputs (regenerable)
+tools/beat_data.json
+tools/analyze_output.txt
 
 # Hermes config (personal)
 hermes_config.yaml
 hermes_prompt.txt
 hermes_system_prompt.txt
 .hugo/
+
+# Generated config duplicates (canonical is config/ports.json)
+packages/backend/config/ports.json
+packages/backend/config/settings.json
+packages/frontend/public/config/ports.json
+
+# Obsidian vault (any nesting)
+**/.obsidian/

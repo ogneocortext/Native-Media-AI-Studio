@@ -55,7 +55,7 @@ export function Generation3DPage() {
   const [error, setError] = useState<string | null>(null);
   const [showRenderGuide, setShowRenderGuide] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const [generatedList, setGeneratedList] = useState<Array<{ filename: string; path: string; size_bytes: number; modified: number }>>([]);
+  const [generatedList, setGeneratedList] = useState<Array<{ filename: string; path: string; servable_url?: string | null; size_bytes: number; modified: number }>>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
 
   // Advanced generation params — wired to the Advanced sliders and sent to backend
@@ -84,33 +84,33 @@ export function Generation3DPage() {
     setHistoryLoading(true);
     try {
       const base = getApiBase();
-      const res = await fetch(`${base}/api/outputs?file_type=video`);
+      // Dedicated 3D endpoint — lists real .glb/.gltf files from the backend
+      // output dir (with a ComfyUI-output fallback). This is the reliable source.
+      const res = await fetch(`${base}/api/3d/models`);
       if (res.ok) {
-        const data = await res.json();
-        const all = data.outputs || data.files || [];
-        const glbs = all.filter((f: { filename: string }) => f.filename.endsWith(".glb"));
-        if (glbs.length > 0) {
-          setGeneratedList(glbs.slice(0, 10));
+        const models = await res.json();
+        if (Array.isArray(models) && models.length > 0) {
+          const mapped = models
+            .slice(0, 10)
+            .map((m: { filename: string; path: string; size_bytes: number; servable_url?: string | null; modified?: number }) => ({
+              filename: m.filename,
+              path: m.path,
+              servable_url: m.servable_url ?? null,
+              size_bytes: m.size_bytes,
+              modified: m.modified ?? 0,
+            }));
+          setGeneratedList(mapped);
           return;
         }
       }
-      // Fallback: try other file type
-      const res2 = await fetch(`${base}/api/outputs?file_type=other`);
+      // Fallback: scan the generic outputs route for any .glb files.
+      const res2 = await fetch(`${base}/api/outputs`);
       if (res2.ok) {
         const d2 = await res2.json();
-        const all2 = d2.outputs || d2.files || [];
-        const glbs2 = all2.filter((f: { filename: string }) => f.filename.endsWith(".glb"));
-        if (glbs2.length > 0) {
-          setGeneratedList(glbs2.slice(0, 10));
-          return;
-        }
-      }
-      // Last resort: fetch all outputs
-      const res3 = await fetch(`${base}/api/outputs`);
-      if (res3.ok) {
-        const d3 = await res3.json();
-        const outs = d3.outputs || [];
-        setGeneratedList(outs.filter((f: { filename: string }) => f.filename.endsWith(".glb")).slice(0, 10));
+        const outs = d2.outputs || [];
+        setGeneratedList(
+          outs.filter((f: { filename: string }) => f.filename.endsWith(".glb")).slice(0, 10)
+        );
       }
     } catch {
       // ignore
@@ -544,7 +544,7 @@ export function Generation3DPage() {
             ) : generatedList.length > 0 ? (
               <div className="space-y-2 max-h-64 overflow-auto">
                 {generatedList.map((f) => (
-                  <a key={f.path} href={`${getApiBase()}/output/generated_3d/${f.filename}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 bg-gray-900 rounded-lg hover:bg-gray-700/50 transition-colors">
+                  <a key={f.path} href={f.servable_url ? `${getApiBase()}${f.servable_url}` : `${getApiBase()}/output/generated_3d/${f.filename}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 bg-gray-900 rounded-lg hover:bg-gray-700/50 transition-colors">
                     <span className="text-xs text-white truncate" title={f.filename}>{f.filename}</span>
                     <span className="text-xs text-gray-500">{(f.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
                   </a>

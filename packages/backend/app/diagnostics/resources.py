@@ -407,6 +407,27 @@ class ResourceMonitor:
         needs_names = any(p.get("name") in (None, "unknown") for p in processes)
         if not needs_names:
             return processes
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["nvidia-smi", "--query-compute-apps=pid,process_name", "--format=csv,noheader"],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                name_map = {}
+                for line in result.stdout.strip().split("\n"):
+                    if "," in line:
+                        pid_str, _, name = line.partition(",")
+                        try:
+                            name_map[int(pid_str.strip())] = name.strip()
+                        except ValueError:
+                            pass
+                for proc in processes:
+                    if proc.get("name") in (None, "unknown"):
+                        proc["name"] = name_map.get(proc["pid"], "unknown")
+        except Exception:
+            pass
+        return processes
 
     async def get_gpu_processes_human(self) -> list[dict[str, Any]]:
         """Get per-process GPU memory usage via Windows Performance Counters.
@@ -516,27 +537,6 @@ class ResourceMonitor:
         except Exception:
             pass
         return f"PID {pid}"
-        try:
-            import subprocess
-            result = subprocess.run(
-                ["nvidia-smi", "--query-compute-apps=pid,process_name", "--format=csv,noheader"],
-                capture_output=True, text=True, timeout=5
-            )
-            if result.returncode == 0:
-                name_map = {}
-                for line in result.stdout.strip().split("\n"):
-                    if "," in line:
-                        pid_str, _, name = line.partition(",")
-                        try:
-                            name_map[int(pid_str.strip())] = name.strip()
-                        except ValueError:
-                            pass
-                for proc in processes:
-                    if proc.get("name") in (None, "unknown"):
-                        proc["name"] = name_map.get(proc["pid"], "unknown")
-        except Exception:
-            pass
-        return processes
 
     async def get_gpu_snapshot(self) -> dict[str, Any]:
         """Get a full GPU snapshot for visibility: memory, utilization,

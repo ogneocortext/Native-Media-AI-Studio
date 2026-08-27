@@ -143,6 +143,13 @@ async def gen3d_status() -> dict:
     return gen3d_service.get_status()
 
 
+@router.get("/3d/models")
+async def gen3d_models() -> list[dict]:
+    """List generated 3D models (newest first) for the sidebar 'Recent Models' panel."""
+    from ..services.gen3d.gen3d_service import gen3d_service
+    return gen3d_service.list_models()
+
+
 @router.post("/3d/generate")
 async def gen3d_generate(request: dict) -> dict:
     """Generate a 3D model from text prompt.

@@ -270,7 +270,7 @@ class HealthMonitor:
 
         # Determine overall status based on adapter states
         adapter_statuses = [adapter["status"] for adapter in adapters_health.values()]
-        all_healthy = all(s == ServiceHealth.HEALTHY.value for s in adapter_statuses)
+        all(s == ServiceHealth.HEALTHY.value for s in adapter_statuses)
         any_offline = any(s == ServiceHealth.OFFLINE.value for s in adapter_statuses)
 
         # Overall: healthy if all adapters online, degraded if any offline

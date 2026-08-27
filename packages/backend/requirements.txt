@@ -20,3 +20,4 @@ nvidia-ml-py>=13.0  # pynvml for VRAM monitoring (required by gpustat)
 httpx>=0.25.0  # Async HTTP client
 python-dotenv>=1.0.0  # Environment variable management
 sse-starlette>=2.0.0
+pytest-asyncio>=0.24.0  # Async test support (required for tests/test_*.py)

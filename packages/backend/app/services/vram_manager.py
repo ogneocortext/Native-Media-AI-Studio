@@ -400,7 +400,11 @@ class VRAMManager:
 
             if not loaded_models:
                 # Fallback: try the last known model
-                last_model = getattr(ollama_adapter, '_last_model', None)
+                try:
+                    from ..adapters.ollama import ollama_adapter as _ollama_adapter
+                    last_model = getattr(_ollama_adapter, '_last_model', None)
+                except Exception:
+                    last_model = None
                 if last_model:
                     loaded_models = [{"name": last_model}]
 

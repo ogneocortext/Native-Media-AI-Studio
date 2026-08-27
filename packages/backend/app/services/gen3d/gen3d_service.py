@@ -20,9 +20,9 @@ import urllib.error
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from ...core.config import config as app_config  # noqa: E402 - must be after logger for import order
 
-from ...core.config import config as app_config
+logger = logging.getLogger(__name__)
 
 # Paths derived from app config (not hardcoded)
 COMFYUI_DIR = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI")
@@ -433,6 +433,76 @@ class Gen3DService:
             "output_dir": str(OUTPUT_DIR),
             "generated_count": len(list(OUTPUT_DIR.glob("*.glb"))),
         }
+
+    def list_models(self) -> list[dict[str, Any]]:
+        """List generated 3D models, newest first.
+
+        Models are served from the backend OUTPUT_DIR (generated_3d), which is the
+        only dir the web server actually mounts at /output. ComfyUI exports into its
+        own output/3d folder and the export->backend copy step can fail, leaving the
+        .glb orphaned there. We repatriate any orphaned .glb/.gltf into OUTPUT_DIR
+        (copy-if-missing) so they become servable, then list from OUTPUT_DIR.
+        """
+        models: list[dict[str, Any]] = []
+        seen: set[Path] = set()
+
+        # Repatriate orphaned exports from ComfyUI's output tree into the servable
+        # backend dir. Done before listing so the sidebar both shows AND loads them.
+        repatriated = self._repatriate_orphans()
+        if repatriated:
+            logger.info(
+                "Repatriated %d orphaned 3D model(s) from ComfyUI output into %s",
+                repatriated, OUTPUT_DIR,
+            )
+
+        try:
+            for p in sorted(OUTPUT_DIR.rglob("*"), key=lambda x: x.stat().st_mtime if x.exists() else 0, reverse=True):
+                if not p.is_file():
+                    continue
+                if p.suffix.lower() not in {".glb", ".gltf"}:
+                    continue
+                seen.add(p)
+                models.append({
+                    "filename": p.name,
+                    "path": str(p),
+                    "relative_path": p.relative_to(OUTPUT_DIR).as_posix(),
+                    "servable_url": f"/output/generated_3d/{p.name}",
+                    "size_bytes": p.stat().st_size,
+                    "modified": p.stat().st_mtime,
+                })
+        except Exception as e:
+            logger.warning("3D model scan failed for %s: %s", OUTPUT_DIR, e)
+
+        models.sort(key=lambda m: m["modified"], reverse=True)
+        logger.debug("3D model list returned %d model(s)", len(models))
+        return models
+
+    def _repatriate_orphans(self) -> int:
+        """Copy .glb/.gltf files found in ComfyUI's output tree into OUTPUT_DIR.
+
+        Returns the number of files copied (existing names are skipped so re-runs are
+        cheap). This recovers models whose export->backend copy step failed.
+        """
+        if not COMFYUI_OUTPUT_DIR.exists():
+            return 0
+        existing = {f.name for f in OUTPUT_DIR.glob("*") if f.is_file()}
+        copied = 0
+        try:
+            for src in COMFYUI_OUTPUT_DIR.rglob("*"):
+                if not src.is_file() or src.suffix.lower() not in {".glb", ".gltf"}:
+                    continue
+                if src.name in existing:
+                    continue
+                dst = OUTPUT_DIR / src.name
+                try:
+                    shutil.copy2(src, dst)
+                    existing.add(src.name)
+                    copied += 1
+                except Exception as e:
+                    logger.warning("Could not repatriate 3D model %s: %s", src, e)
+        except Exception as e:
+            logger.warning("Orphan 3D model scan failed for %s: %s", COMFYUI_OUTPUT_DIR, e)
+        return copied
 
 
 # Singleton

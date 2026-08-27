@@ -113,8 +113,8 @@ async def ensure_vram_available(required_mb: int = 4096) -> dict:
         if not status.get("available"):
             return {"available": True, "free_mb": 0, "total_mb": 0, "required_mb": required_mb, "offloaded": False, "message": "VRAM monitoring unavailable — proceeding"}
 
-        free_mb = status.get("memory_free_mb", 0)
-        total_mb = status.get("memory_total_mb", 0)
+        free_mb = status.get("free_mb", status.get("memory_free_mb", 0))
+        total_mb = status.get("total_mb", status.get("memory_total_mb", 0))
 
         result = {
             "available": True,
@@ -127,13 +127,13 @@ async def ensure_vram_available(required_mb: int = 4096) -> dict:
 
         if free_mb < required_mb:
             # Try to offload Ollama models first
-            offload_result = await vram_manager.offload_ollama_models()
+            offload_result = await vram_manager._unload_ollama_models()
             if offload_result.get("success"):
                 result["offloaded"] = True
                 result["message"] = "Offloaded Ollama models to free VRAM"
                 # Re-check after offload
                 status = await vram_manager.get_vram_status()
-                free_mb = status.get("memory_free_mb", 0)
+                free_mb = status.get("free_mb", status.get("memory_free_mb", 0))
                 result["free_mb"] = free_mb
                 if free_mb < required_mb:
                     result["available"] = False

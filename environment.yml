@@ -49,25 +49,29 @@ dependencies:
   - curl # For download scripts
 
   # --- pip-only packages ----------------------------------------------------------
-  - pip:
-      # -- Backend Core --
-      - fastapi>=0.115.0
-      - uvicorn[standard]>=0.32.0
-      - pydantic>=2.9.0
-      - python-multipart>=0.0.17
-      - aiohttp>=3.11.0
-      - psutil>=6.1.0
-      - python-socketio>=5.11.0
+   - pip:
+      # -- Backend Core (aligned with packages/backend/requirements.txt & pyproject.toml) --
+      - fastapi>=0.141.0
+      - uvicorn[standard]>=0.52.0
+      - pydantic>=2.13.3
+      - pydantic-settings>=2.0.0
+      - python-multipart>=0.0.20
+      - aiohttp>=3.13.5
+      - psutil>=7.2.2
+      - python-socketio>=5.16.1
       - python-dotenv>=1.0.0
+      - websockets>=17.0
+      - sse-starlette>=2.0.0
 
       # -- Modern HTTP Client (replaces requests) --
-      - httpx>=0.27.0
+      - httpx>=0.25.0
       # -- Compatibility pins for legacy dependencies (gpustat uses requests) --
       - "urllib3>=2.0.0,<3.0"
       - "charset-normalizer>=3.0.0,<4.0"
 
       # -- GPU Monitoring --
       - gpustat>=1.1.1
+      - nvidia-ml-py>=13.0
 
       # -- ML / Diffusion --
       - diffusers>=0.31.0
@@ -99,14 +103,14 @@ dependencies:
 
       # -- Development --
       - pytest>=8.0.0
-      - pytest-asyncio>=0.23.0
-      - httpx>=0.26.0
+      - pytest-asyncio>=0.24.0
+      - httpx>=0.25.0
       - ruff>=0.3.0
       - mypy>=1.8.0
       - pre-commit>=3.7.0
 
       # -- Install backend package in editable mode --
-      - -e ./backend
+      - -e ./packages/backend
 
 # =============================================================================
 # NOTES FOR GTX 1070 Ti (Pascal / 8GB VRAM):

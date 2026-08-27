@@ -15,6 +15,7 @@ from ..adapters.registry import adapter_registry
 from ..core.config import PROJECT_ROOT, config
 from ..models.job import JobCreateRequest, JobType
 from ..queue.manager import queue_manager
+from .integrations_config import ensure_vram_available, estimate_generation_time
 
 logger = logging.getLogger(__name__)
 

@@ -1071,7 +1071,7 @@ def find_similar_preset(track_name: str, mood_tags: list, genre_tags: list) -> d
         best_match = None
         best_score = 0
         
-        for row in row:
+        for row in rows:
             row_mood = json.loads(row["mood_tags"]) if row["mood_tags"] else []
             row_genre = json.loads(row["genre_tags"]) if row["genre_tags"] else []
             

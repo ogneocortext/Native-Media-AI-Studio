@@ -1,6 +1,0 @@
-Metadata-Version: 2.4
-Name: nma-backend
-Version: 1.0.0
-Summary: Native Media AI Studio FastAPI backend
-Requires-Python: >=3.10
-Description-Content-Type: text/markdown

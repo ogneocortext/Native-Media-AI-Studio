@@ -9,13 +9,12 @@
   },
   "workspaces": [
     "packages/frontend",
-    "packages/video-editor",
-    "shared"
+    "packages/video-editor"
   ],
   "scripts": {
     "preinstall": "npx -y only-allow pnpm",
     "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\start-studio.ps1",
-    "dev:frontend": "pnpm --filter=frontend dev",
+    "dev:frontend": "pnpm --filter=native-media-ai-studio-frontend dev",
     "dev:backend": "cd packages/backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000",
     "dev:video": "pnpm --filter=video-editor dev",
     "dev:comfyui": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\start_comfyui.ps1",
@@ -23,7 +22,7 @@
     "start:all": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\start-studio.ps1 -VideoEditor",
     "servers": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\manage-servers.ps1",
     "build": "pnpm -r build",
-    "build:frontend": "pnpm --filter=frontend build",
+    "build:frontend": "pnpm --filter=native-media-ai-studio-frontend build",
     "build:video": "pnpm --filter=video-editor build",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",

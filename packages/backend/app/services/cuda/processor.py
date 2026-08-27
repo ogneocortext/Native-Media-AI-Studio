@@ -132,7 +132,7 @@ class CudaAudioAnalyzer:
 
         # Frequency bins for spectral features (cached)
         freqs = self._freqs
-        freqs_np = freqs.cpu().numpy()
+        freqs.cpu().numpy()
 
         # Spectral centroid: sum(f * mag) / sum(mag)
         mag_sum = magnitude.sum(dim=0).clamp(min=1e-10)

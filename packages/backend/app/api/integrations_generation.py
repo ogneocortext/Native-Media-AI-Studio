@@ -2,6 +2,7 @@
 Integrations API - Generation routes (ComfyUI, Ollama, VRAM, Audio).
 """
 
+import json
 import os
 import time
 import logging

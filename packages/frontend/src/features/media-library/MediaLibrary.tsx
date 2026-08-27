@@ -215,7 +215,7 @@ export function MediaLibrary() {
       case "size-asc":
         sorted.sort((a, b) => a.size_bytes - b.size_bytes);
         break;
-      case "type":
+      case "type": {
         // Group by type: video first, audio second, image third, then by newest
         const order = { video: 0, audio: 1, image: 2, other: 3 } as const;
         sorted.sort((a, b) => {
@@ -225,6 +225,7 @@ export function MediaLibrary() {
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         });
         break;
+      }
     }
     return sorted;
   }, [outputs, sortBy]);

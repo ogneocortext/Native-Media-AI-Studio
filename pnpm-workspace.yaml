@@ -1,15 +1,14 @@
 packages:
   - packages/frontend
   - packages/video-editor
-  - shared
 
 # Shared workspace lockfile — single lockfile at root for all workspace packages
 # (default in pnpm 9+, explicit here for clarity)
 
 # Catalogue for shared dependency versions across workspace packages
 catalog:
-  react: ^19.2.5
-  react-dom: ^19.2.5
+  react: ^19.2.8
+  react-dom: ^19.2.8
   typescript: ^6.0.3
   vite: ^8.0.10
   tailwindcss: ^4.2.4

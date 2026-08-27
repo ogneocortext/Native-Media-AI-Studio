@@ -246,7 +246,7 @@ export function getRecommendedSettings(options: {
   let width = 1024;
   let height = 1024;
   let steps = 20;
-  let cfg = 7;
+  const cfg = 7;
   let keyframeInterval = 15;
   let fps = 30;
 

@@ -17,7 +17,7 @@
   "executionEnvironments": [
     {
       "root": "packages/backend/app",
-      "extraPaths": ["venv/Lib/site-packages"]
+      "extraPaths": ["../../../venv/Lib/site-packages"]
     }
   ]
 }

@@ -381,9 +381,9 @@ class MusicVideoHandler:
                 pass
             # Also collect stdout (not needed)
             try:
-                stdout = await process.stdout.read() if process.stdout else b""
+                await process.stdout.read() if process.stdout else b""
             except Exception:
-                stdout = b""
+                pass
             stderr_text = "".join(stderr_chunks)
             if process.returncode != 0:
                 tail = stderr_text[-1500:] if len(stderr_text) > 1500 else stderr_text
