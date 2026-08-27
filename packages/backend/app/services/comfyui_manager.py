@@ -358,12 +358,14 @@ class ComfyUIManager:
 
             # Git pull
             logger.info("Running git pull in %s", COMFYUI_DIR)
+            # Build PATH with common git locations for Windows
+            git_path_extra = r";C:\Program Files\Git\cmd;C:\Program Files\Git\mingw64\bin;C:\Program Files (x86)\Git\cmd"
             pull_result = await asyncio.create_subprocess_exec(
                 git_exe, "pull",
                 cwd=str(COMFYUI_DIR),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env={**os.environ, "PATH": os.environ.get("PATH", "") + r";C:\Program Files\Git\cmd;C:\Program Files\Git\mingw64\bin"}
+                env={**os.environ, "PATH": os.environ.get("PATH", "") + git_path_extra}
             )
             stdout, stderr = await pull_result.communicate()
 
@@ -453,55 +455,57 @@ class ComfyUIManager:
         audio_path: str,
     ) -> str | None:
         """Generate video via ComfyUI HTTP API. Returns path to output video or None."""
-        import aiohttp
-
         base_url = f"http://127.0.0.1:{self._port}"
 
-        # Check if ComfyUI is reachable
-        try:
-            async with aiohttp.ClientSession() as session:
+        # Use a single shared session for all requests in this method
+        async with aiohttp.ClientSession() as session:
+            # Check if ComfyUI is reachable
+            try:
                 async with session.get(f"{base_url}/system_stats", timeout=aiohttp.ClientTimeout(total=5)) as resp:
                     if resp.status != 200:
                         logger.warning("ComfyUI not reachable")
                         return None
-        except Exception as e:
-            logger.warning(f"ComfyUI connection failed: {e}")
-            return None
+            except Exception as e:
+                logger.warning(f"ComfyUI connection failed: {e}")
+                return None
 
-        # Build a simple text-to-video workflow using the /prompt endpoint
-        # Uses a basic KSampler with a text prompt
-        workflow = {
-            "3": {
-                "class_type": "KSampler",
-                "inputs": {
-                    "seed": 42,
-                    "steps": 20,
-                    "cfg": 7.0,
-                    "sampler_name": "euler",
-                    "scheduler": "normal",
-                    "denoise": 1.0,
-                    "model": ["4", 0],
-                    "positive": ["6", 0],
-                    "negative": ["7", 0],
-                    "latent_image": ["5", 0],
+            # Build a simple text-to-video workflow using the /prompt endpoint
+            # Uses a basic KSampler with a text prompt
+            workflow = {
+                "3": {
+                    "class_type": "KSampler",
+                    "inputs": {
+                        "seed": 42,
+                        "steps": 20,
+                        "cfg": 7.0,
+                        "sampler_name": "euler",
+                        "scheduler": "normal",
+                        "denoise": 1.0,
+                        "model": ["4", 0],
+                        "positive": ["6", 0],
+                        "negative": ["7", 0],
+                        "latent_image": ["5", 0],
+                    },
                 },
-            },
-            "5": {
-                "class_type": "EmptyLatentImage",
-                "inputs": {"width": width, "height": height, "batch_size": 1, "length": duration * 24},
-            },
-            "6": {
-                "class_type": "CLIPTextEncode",
-                "inputs": {"text": prompt, "clip": ["4", 1]},
-            },
-            "7": {
-                "class_type": "CLIPTextEncode",
-                "inputs": {"text": "blurry, bad quality, distorted", "clip": ["4", 1]},
-            },
-        }
+                "4": {
+                    "class_type": "CheckpointLoaderSimple",
+                    "inputs": {"ckpt_name": "model.safetensors"},
+                },
+                "5": {
+                    "class_type": "EmptyLatentImage",
+                    "inputs": {"width": width, "height": height, "batch_size": 1, "length": duration * 24},
+                },
+                "6": {
+                    "class_type": "CLIPTextEncode",
+                    "inputs": {"text": prompt, "clip": ["4", 1]},
+                },
+                "7": {
+                    "class_type": "CLIPTextEncode",
+                    "inputs": {"text": "blurry, bad quality, distorted", "clip": ["4", 1]},
+                },
+            }
 
-        try:
-            async with aiohttp.ClientSession() as session:
+            try:
                 # Enqueue prompt
                 payload = {
                     "prompt": workflow,
@@ -521,8 +525,9 @@ class ComfyUIManager:
                         logger.error("No prompt_id returned")
                         return None
 
-                # Poll for completion
-                for _ in range(duration * 24 * 2):  # generous timeout
+                # Poll for completion (max 10 minutes)
+                max_polls = 120  # 120 * 5s = 10 minutes
+                for _ in range(max_polls):
                     await asyncio.sleep(5)
                     async with session.get(
                         f"{base_url}/history/{prompt_id}",
@@ -552,9 +557,9 @@ class ComfyUIManager:
                                                     return str(output_path)
                 logger.error("ComfyUI generation timed out")
                 return None
-        except Exception as e:
-            logger.error(f"ComfyUI generation failed: {e}")
-            return None
+            except Exception as e:
+                logger.error(f"ComfyUI generation failed: {e}")
+                return None
 
 
 # Global instance
