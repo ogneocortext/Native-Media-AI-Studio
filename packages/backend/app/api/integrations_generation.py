@@ -656,6 +656,10 @@ async def ollama_chat(request: dict) -> dict:
         messages.append({"role": h.get("role", "user"), "content": h.get("content", "")})
     messages.append({"role": "user", "content": message})
 
+    # If tools is True, use adapter's built-in tool definitions
+    if tools is True:
+        tools = adapter.get_tool_definitions()
+
     try:
         if stream:
             # Streaming response with SSE
@@ -889,4 +893,31 @@ async def create_audio_analysis_job(request: AudioAnalysisJobRequest):
 
 
 # ============== Music Video Generation ==============
+
+
+@router.get("/ollama/scene-state")
+async def get_scene_state() -> dict:
+    """Get the current AI-generated scene state."""
+    adapter = adapter_registry.get("ollama")
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Ollama not available")
+    return adapter._scene_state
+
+
+@router.post("/ollama/scene-clear")
+async def clear_scene() -> dict:
+    """Clear the AI-generated scene state."""
+    adapter = adapter_registry.get("ollama")
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Ollama not available")
+    adapter._scene_state = {
+        "objects": [],
+        "lights": [],
+        "particles": {"count": 300, "color": "#8b5cf6", "speed": 0.5},
+        "camera": "orbit",
+        "bloom": 0.8,
+        "duration": 30,
+        "keyframes": [],
+    }
+    return {"status": "cleared"}
 

@@ -955,7 +955,7 @@ export async function ollamaChatStream(
   model: string = "qwen2.5:3b",
   options?: {
     history?: ChatMessage[];
-    tools?: ToolDefinition[];
+    tools?: ToolDefinition[] | boolean;
     think?: boolean | string;
     maxToolCalls?: number;
     system?: string;

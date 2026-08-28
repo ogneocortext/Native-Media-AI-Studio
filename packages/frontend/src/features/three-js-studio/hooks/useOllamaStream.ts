@@ -16,6 +16,7 @@ export function useOllamaStream() {
     model: string,
     systemPrompt?: string,
     onMessage?: (msg: StreamMessage) => void,
+    useTools?: boolean,
   ) => {
     setGenerating(true);
     setOutput("");
@@ -26,7 +27,7 @@ export function useOllamaStream() {
       const stream = await ollamaChatStream(
         prompt,
         model,
-        { system: systemPrompt, think: false },
+        { system: systemPrompt, think: false, tools: useTools },
         controller.signal,
       );
       const reader = stream.getReader();
@@ -97,5 +98,5 @@ export function useOllamaStream() {
     setGenerating(false);
   }, []);
 
-  return { generate, cancel, generating, output };
+  return { generate, cancel, generating, output, setOutput };
 }

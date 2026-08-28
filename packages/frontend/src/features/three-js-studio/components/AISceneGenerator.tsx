@@ -11,7 +11,7 @@ interface AISceneGeneratorProps {
 
 export function AISceneGenerator({ selectedTrack, onApplyCode }: AISceneGeneratorProps) {
   const { metadata, loading: metaLoading } = useTrackMetadata(selectedTrack || null);
-  const { generate, cancel, generating, output } = useOllamaStream();
+  const { generate, cancel, generating, output, setOutput } = useOllamaStream();
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState("");
   const [variations, setVariations] = useState<PromptVariation[]>(() => generatePromptVariations({
@@ -43,31 +43,26 @@ export function AISceneGenerator({ selectedTrack, onApplyCode }: AISceneGenerato
     await generate(
       variations[activeVariation].prompt,
       selectedModel,
-      `You are a Three.js scene designer. Create a JSON object describing a 3D scene with animation keyframes.
-Respond ONLY with valid JSON in this format:
-{
-  "objects": [
-    {"type": "sphere" | "box" | "cylinder" | "cone" | "torus" | "crown", "position": [x, y, z], "color": "#hex", "scale": [x, y, z], "metalness": 0-1, "roughness": 0-1, "emissive": 0-1}
-  ],
-  "lights": [
-    {"type": "point" | "spot" | "directional", "color": "#hex", "intensity": number, "position": [x, y, z]}
-  ],
-  "particles": {"count": number, "color": "#hex", "speed": number},
-  "camera": "orbit" | "dolly" | "handheld" | "static",
-  "bloom": 0-1.5,
-  "duration": 30,
-  "keyframes": [
-    {
-      "target": "object index (0-based)",
-      "keyframes": [
-        {"time": 0, "position": [x, y, z], "rotation": [x, y, z], "scale": [x, y, z]},
-        {"time": 5, "position": [x, y, z], "rotation": [x, y, z], "scale": [x, y, z]},
-        {"time": 10, "position": [x, y, z], "rotation": [x, y, z], "scale": [x, y, z]}
-      ]
-    }
-  ]
-}
-No explanations, no markdown, just JSON.`,
+      `You are a Three.js scene designer. Use the available tools to build a 3D scene.
+Call scene_clear first, then add objects with scene_add_object, lights with scene_add_light,
+set the camera with scene_set_camera, and add animation keyframes with scene_add_keyframe.
+When done, call scene_get_state to return the final scene.
+Track: ${metadata.bpm} BPM, ${metadata.duration}s, energy: ${metadata.energyCurve.length > 0 ? Math.round(metadata.energyCurve.reduce((a,b)=>a+b,0)/metadata.energyCurve.length*100) + '%' : 'unknown'}`,
+      (msg) => {
+        // When generation is done, fetch the scene state from backend
+        if (msg.type === "done") {
+          fetch("/api/integrations/ollama/scene-state")
+            .then((r) => r.json())
+            .then((state) => {
+              if (state && state.objects) {
+                setOutput(JSON.stringify(state, null, 2));
+                onApplyCode(JSON.stringify(state));
+              }
+            })
+            .catch(() => {});
+        }
+      },
+      true, // useTools
     );
   };
 

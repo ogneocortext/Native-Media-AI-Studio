@@ -70,6 +70,16 @@ Generate 3-8 scenes based on the input theme or concept."""
         self._last_model: str = self._default_model  # Track last used model for VRAM manager
         self._last_health_log: str | None = None
         self._session: aiohttp.ClientSession | None = None
+        # Scene state for AI tool-driven generation
+        self._scene_state: dict[str, Any] = {
+            "objects": [],
+            "lights": [],
+            "particles": {"count": 300, "color": "#8b5cf6", "speed": 0.5},
+            "camera": "orbit",
+            "bloom": 0.8,
+            "duration": 30,
+            "keyframes": [],
+        }
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create a shared aiohttp session for this adapter."""
@@ -85,6 +95,133 @@ Generate 3-8 scenes based on the input theme or concept."""
         if self._session and not self._session.closed:
             await self._session.close()
             self._session = None
+
+    def get_tool_definitions(self) -> list[dict[str, Any]]:
+        """Get JSON schema definitions for all built-in tools (OpenAI-compatible)."""
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "scene_add_object",
+                    "description": "Add a 3D object (sphere, box, cylinder, cone, torus, crown) to the scene.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "obj_type": {"type": "string", "enum": ["sphere", "box", "cylinder", "cone", "torus", "crown"]},
+                            "position": {"type": "array", "items": {"type": "number"}, "description": "[x, y, z] position"},
+                            "color": {"type": "string", "description": "Hex color like #ff0000"},
+                            "scale": {"type": "array", "items": {"type": "number"}, "description": "[x, y, z] scale"},
+                            "metalness": {"type": "number", "minimum": 0, "maximum": 1},
+                            "roughness": {"type": "number", "minimum": 0, "maximum": 1},
+                            "emissive": {"type": "number", "minimum": 0, "maximum": 2, "description": "Emissive glow intensity"},
+                        },
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "scene_add_light",
+                    "description": "Add a light (point, spot, directional) to the scene.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "light_type": {"type": "string", "enum": ["point", "spot", "directional"]},
+                            "color": {"type": "string"},
+                            "intensity": {"type": "number"},
+                            "position": {"type": "array", "items": {"type": "number"}},
+                        },
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "scene_set_camera",
+                    "description": "Set camera movement mode.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "mode": {"type": "string", "enum": ["orbit", "dolly", "handheld", "static"]},
+                        },
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "scene_set_particles",
+                    "description": "Configure particle effects (count, color, speed).",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "count": {"type": "integer", "minimum": 0, "maximum": 5000},
+                            "color": {"type": "string"},
+                            "speed": {"type": "number", "minimum": 0, "maximum": 5},
+                        },
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "scene_add_keyframe",
+                    "description": "Add an animation keyframe for an object at a specific time.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "object_index": {"type": "integer", "description": "Index of the object to animate"},
+                            "time": {"type": "number", "description": "Time in seconds"},
+                            "position": {"type": "array", "items": {"type": "number"}},
+                            "rotation": {"type": "array", "items": {"type": "number"}},
+                            "scale": {"type": "array", "items": {"type": "number"}},
+                        },
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "scene_clear",
+                    "description": "Clear all objects and keyframes from the scene.",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "scene_get_state",
+                    "description": "Get the current scene state as JSON.",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "scene_set_bloom",
+                    "description": "Set bloom post-processing strength (0-1.5).",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "strength": {"type": "number", "minimum": 0, "maximum": 1.5},
+                        },
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "scene_set_duration",
+                    "description": "Set the animation duration in seconds.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "seconds": {"type": "number", "minimum": 1, "maximum": 120},
+                        },
+                    },
+                },
+            },
+        ]
 
     async def health_check(self) -> bool:
         """Check if Ollama is available"""
@@ -328,7 +465,130 @@ Generate 3-8 scenes based on the input theme or concept."""
             "list_jobs": self._tool_list_jobs,
             "get_job_status": self._tool_get_job_status,
             "generate_visualization": self._tool_generate_visualization,
+            # Three.js scene tools
+            "scene_add_object": self._tool_scene_add_object,
+            "scene_add_light": self._tool_scene_add_light,
+            "scene_set_camera": self._tool_scene_set_camera,
+            "scene_set_particles": self._tool_scene_set_particles,
+            "scene_add_keyframe": self._tool_scene_add_keyframe,
+            "scene_clear": self._tool_scene_clear,
+            "scene_get_state": self._tool_scene_get_state,
+            "scene_set_bloom": self._tool_scene_set_bloom,
+            "scene_set_duration": self._tool_scene_set_duration,
         }
+
+    # ---- Three.js Scene Tools ----
+
+    async def _tool_scene_add_object(
+        self,
+        obj_type: str = "sphere",
+        position: list[float] | None = None,
+        color: str = "#ffffff",
+        scale: list[float] | None = None,
+        metalness: float = 0.6,
+        roughness: float = 0.3,
+        emissive: float = 0.1,
+    ) -> str:
+        """Add a 3D object to the scene."""
+        obj = {
+            "type": obj_type,
+            "position": position or [0, 0.5, 0],
+            "color": color,
+            "scale": scale or [1, 1, 1],
+            "metalness": metalness,
+            "roughness": roughness,
+            "emissive": emissive,
+        }
+        self._scene_state["objects"].append(obj)
+        return f"Added {obj_type} object. Scene now has {len(self._scene_state['objects'])} objects."
+
+    async def _tool_scene_add_light(
+        self,
+        light_type: str = "point",
+        color: str = "#ffffff",
+        intensity: float = 10.0,
+        position: list[float] | None = None,
+    ) -> str:
+        """Add a light to the scene."""
+        light = {
+            "type": light_type,
+            "color": color,
+            "intensity": intensity,
+            "position": position or [0, 5, 0],
+        }
+        self._scene_state["lights"].append(light)
+        return f"Added {light_type} light. Scene now has {len(self._scene_state['lights'])} lights."
+
+    async def _tool_scene_set_camera(self, mode: str = "orbit") -> str:
+        """Set the camera movement mode (orbit, dolly, handheld, static)."""
+        self._scene_state["camera"] = mode
+        return f"Camera mode set to '{mode}'."
+
+    async def _tool_scene_set_particles(
+        self,
+        count: int | None = None,
+        color: str | None = None,
+        speed: float | None = None,
+    ) -> str:
+        """Configure particle effects."""
+        if count is not None:
+            self._scene_state["particles"]["count"] = count
+        if color is not None:
+            self._scene_state["particles"]["color"] = color
+        if speed is not None:
+            self._scene_state["particles"]["speed"] = speed
+        return f"Particles: {self._scene_state['particles']}"
+
+    async def _tool_scene_add_keyframe(
+        self,
+        object_index: int = 0,
+        time: float = 0.0,
+        position: list[float] | None = None,
+        rotation: list[float] | None = None,
+        scale: list[float] | None = None,
+    ) -> str:
+        """Add an animation keyframe for an object."""
+        # Find or create track for this object
+        track = None
+        for t in self._scene_state["keyframes"]:
+            if t.get("target") == object_index:
+                track = t
+                break
+        if track is None:
+            track = {"target": object_index, "keyframes": []}
+            self._scene_state["keyframes"].append(track)
+        kf = {"time": time}
+        if position:
+            kf["position"] = position
+        if rotation:
+            kf["rotation"] = rotation
+        if scale:
+            kf["scale"] = scale
+        track["keyframes"].append(kf)
+        track["keyframes"].sort(key=lambda k: k["time"])
+        return f"Added keyframe at t={time}s for object {object_index}. Track has {len(track['keyframes'])} keyframes."
+
+    async def _tool_scene_clear(self) -> str:
+        """Clear all objects and keyframes from the scene."""
+        self._scene_state["objects"] = []
+        self._scene_state["lights"] = []
+        self._scene_state["keyframes"] = []
+        return "Scene cleared."
+
+    async def _tool_scene_get_state(self) -> str:
+        """Get the current scene state as JSON."""
+        import json
+        return json.dumps(self._scene_state, indent=2)
+
+    async def _tool_scene_set_bloom(self, strength: float = 0.8) -> str:
+        """Set bloom post-processing strength (0-1.5)."""
+        self._scene_state["bloom"] = max(0, min(1.5, strength))
+        return f"Bloom strength set to {self._scene_state['bloom']}."
+
+    async def _tool_scene_set_duration(self, seconds: float = 30.0) -> str:
+        """Set the animation duration in seconds."""
+        self._scene_state["duration"] = max(1, seconds)
+        return f"Animation duration set to {self._scene_state['duration']}s."
 
     async def _tool_get_project_structure(self, depth: int = 3) -> str:
         """Get project directory structure."""
