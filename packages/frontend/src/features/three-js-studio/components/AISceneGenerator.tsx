@@ -14,7 +14,9 @@ export function AISceneGenerator({ selectedTrack, onApplyCode }: AISceneGenerato
   const { generate, cancel, generating, output } = useOllamaStream();
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState("");
-  const [variations, setVariations] = useState<PromptVariation[]>([]);
+  const [variations, setVariations] = useState<PromptVariation[]>(() => generatePromptVariations({
+    filename: "default", bpm: 120, duration: 180, sections: [], energyCurve: [], confidence: 0,
+  }));
   const [activeVariation, setActiveVariation] = useState(0);
   const [copied, setCopied] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
@@ -30,10 +32,11 @@ export function AISceneGenerator({ selectedTrack, onApplyCode }: AISceneGenerato
   // Update variations when metadata changes
   useEffect(() => {
     if (metadata) {
-      setVariations(generatePromptVariations(metadata));
+      const vars = generatePromptVariations(metadata);
+      setVariations(vars);
       setActiveVariation(0);
     }
-  }, [metadata]);
+  }, [metadata, generatePromptVariations]);
 
   const handleGenerate = async () => {
     if (!selectedModel || !metadata) return;
