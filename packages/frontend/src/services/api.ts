@@ -914,7 +914,12 @@ export async function getOllamaModels(): Promise<OllamaModel[]> {
   const base = getApiBase();
   const res = await fetch(`${base}/api/integrations/ollama/models`);
   if (!res.ok) throw new Error("Failed to get Ollama models");
-  return res.json();
+  const models: OllamaModel[] = await res.json();
+  // Filter out embedding models (they can't generate text/code)
+  return models.filter((m) => {
+    const name = m.name.toLowerCase();
+    return !name.includes("embed") && !name.includes("nomic") && !name.includes("minigpt") && !name.includes("clip");
+  });
 }
 
 export async function ollamaChat(
@@ -953,6 +958,7 @@ export async function ollamaChatStream(
     tools?: ToolDefinition[];
     think?: boolean | string;
     maxToolCalls?: number;
+    system?: string;
   },
   signal?: AbortSignal,
 ): Promise<ReadableStream<Uint8Array>> {
@@ -968,6 +974,7 @@ export async function ollamaChatStream(
       think: options?.think,
       stream: true,
       max_tool_calls: options?.maxToolCalls || 5,
+      system: options?.system,
     }),
     signal,
   });
