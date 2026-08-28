@@ -94,6 +94,33 @@ export function StoryboardPage() {
     navigate(`/three-js-studio?${params.toString()}`);
   }, [navigate]);
 
+  const renderInline = (text: string): React.ReactNode[] => {
+    const parts: React.ReactNode[] = [];
+    const regex = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    let key = 0;
+
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      const token = match[0];
+      if (token.startsWith("`")) {
+        parts.push(<code key={key++} className="px-1.5 py-0.5 bg-gray-800 text-amber-300 rounded text-xs font-mono">{token.slice(1, -1)}</code>);
+      } else if (token.startsWith("**")) {
+        parts.push(<strong key={key++} className="font-semibold text-white">{token.slice(2, -2)}</strong>);
+      } else {
+        parts.push(<em key={key++} className="text-gray-400 italic">{token.slice(1, -1)}</em>);
+      }
+      lastIndex = match.index + token.length;
+    }
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+    return parts;
+  };
+
   const renderMarkdown = (md: string) => {
     const lines = md.split("\n");
     const elements: React.ReactElement[] = [];
@@ -104,20 +131,20 @@ export function StoryboardPage() {
     const flushTable = () => {
       if (tableHeaders.length === 0) return;
       elements.push(
-        <div key={`table-${elements.length}`} className="overflow-x-auto rounded-lg border border-gray-700">
+        <div key={`table-${elements.length}`} className="overflow-x-auto rounded-xl border border-gray-700/60 mb-2">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-800/80">
+              <tr className="bg-gray-800/90">
                 {tableHeaders.map((h, i) => (
-                  <th key={i} className="px-3 py-2 text-left text-xs font-semibold text-purple-300 uppercase tracking-wider">{h.trim()}</th>
+                  <th key={i} className="px-3 py-2.5 text-left text-[11px] font-bold text-purple-300 uppercase tracking-wider whitespace-nowrap">{h.trim()}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {tableRows.map((row, ri) => (
-                <tr key={ri} className="border-t border-gray-700/50 hover:bg-gray-800/40 transition-colors">
+                <tr key={ri} className={`border-t border-gray-700/40 transition-colors ${ri % 2 === 0 ? "bg-gray-900/30" : "bg-gray-900/10"} hover:bg-purple-900/10`}>
                   {row.map((cell, ci) => (
-                    <td key={ci} className="px-3 py-2 text-gray-300">{cell.trim()}</td>
+                    <td key={ci} className="px-3 py-2 text-gray-300 text-xs leading-relaxed">{renderInline(cell.trim())}</td>
                   ))}
                 </tr>
               ))}
@@ -138,14 +165,14 @@ export function StoryboardPage() {
         if (inTable) { tableRows.push(cells); continue; }
       } else if (inTable) { flushTable(); }
 
-      if (line.startsWith("# ")) elements.push(<h1 key={i} className="text-2xl font-bold text-white mt-6 mb-3">{line.slice(2)}</h1>);
-      else if (line.startsWith("## ")) elements.push(<h2 key={i} className="text-xl font-semibold text-purple-300 mt-6 mb-2 flex items-center gap-2"><Layers size={18} />{line.slice(3)}</h2>);
-      else if (line.startsWith("### ")) elements.push(<h3 key={i} className="text-lg font-medium text-gray-200 mt-4 mb-2">{line.slice(4)}</h3>);
-      else if (line.startsWith("> ")) elements.push(<blockquote key={i} className="border-l-4 border-purple-500 pl-4 py-1 my-3 text-gray-400 italic bg-purple-900/10 rounded-r">{line.slice(2)}</blockquote>);
-      else if (line.startsWith("- ") || line.startsWith("* ")) elements.push(<li key={i} className="ml-4 text-gray-300 list-disc">{line.slice(2)}</li>);
-      else if (line.trim() === "---") elements.push(<hr key={i} className="border-gray-700 my-4" />);
+      if (line.startsWith("# ")) elements.push(<h1 key={i} className="text-2xl font-bold text-white mt-6 mb-3">{renderInline(line.slice(2))}</h1>);
+      else if (line.startsWith("## ")) elements.push(<h2 key={i} className="text-xl font-semibold text-purple-300 mt-8 mb-3 flex items-center gap-2 pb-2 border-b border-gray-800"><Layers size={18} />{renderInline(line.slice(3))}</h2>);
+      else if (line.startsWith("### ")) elements.push(<h3 key={i} className="text-lg font-medium text-gray-200 mt-5 mb-2">{renderInline(line.slice(4))}</h3>);
+      else if (line.startsWith("> ")) elements.push(<blockquote key={i} className="border-l-4 border-purple-500/70 pl-4 py-2 my-3 text-gray-400 italic bg-purple-900/10 rounded-r-lg">{renderInline(line.slice(2))}</blockquote>);
+      else if (line.startsWith("- ") || line.startsWith("* ")) elements.push(<li key={i} className="ml-4 text-gray-300 list-disc leading-relaxed">{renderInline(line.slice(2))}</li>);
+      else if (line.trim() === "---") elements.push(<hr key={i} className="border-gray-700/50 my-5" />);
       else if (line.trim() === "") elements.push(<div key={i} className="h-2" />);
-      else elements.push(<p key={i} className="text-gray-300 leading-relaxed">{line}</p>);
+      else elements.push(<p key={i} className="text-gray-300 leading-relaxed">{renderInline(line)}</p>);
     }
     flushTable();
     return elements;
@@ -382,10 +409,13 @@ function StoryboardDetail({ storyboard, content, scenes, activeScene, onSelectSc
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Scenes</h3>
           </div>
           {scenes.map((scene, idx) => (
-            <button
+            <div
               key={idx}
+              role="button"
+              tabIndex={0}
               onClick={() => onSelectScene(activeScene === idx ? null : idx)}
-              className={`w-full text-left px-3 py-2.5 border-b border-gray-800/50 transition-colors ${
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectScene(activeScene === idx ? null : idx); }}
+              className={`w-full text-left px-3 py-2.5 border-b border-gray-800/50 transition-colors cursor-pointer ${
                 activeScene === idx ? "bg-purple-900/20 border-l-2 border-l-purple-500" : "hover:bg-gray-800/40"
               }`}
             >
@@ -404,7 +434,7 @@ function StoryboardDetail({ storyboard, content, scenes, activeScene, onSelectSc
                   </div>
                 </div>
               )}
-            </button>
+            </div>
           ))}
         </div>
       )}
