@@ -70,7 +70,7 @@ export function Visualizer() {
 
   // Load CSV content on mount
   useEffect(() => {
-    fetch("/-TrackName-Prompt-Lyricskeyexcerpttheme.csv")
+    fetch("/track-prompts-lyrics.csv")
       .then((r) => r.text())
       .then((content) => setCsvContent(content))
       .catch(() => console.log("CSV not found"));

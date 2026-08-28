@@ -4,7 +4,7 @@ import {
   Music, Clock, Zap, Layers, Quote,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getUniqueTracks, type TrackLyricsData } from "../../services/trackLyrics";
+import { fetchUniqueTracksFromAPI, type TrackLyricsData } from "../../services/trackLyrics";
 
 interface StoryboardFile {
   name: string;
@@ -40,7 +40,15 @@ export function StoryboardPage() {
   const [activeScene, setActiveScene] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"storyboards" | "tracks">("storyboards");
   const [selectedTrack, setSelectedTrack] = useState<TrackLyricsData | null>(null);
-  const trackLyricsData = getUniqueTracks();
+  const [trackLyricsData, setTrackLyricsData] = useState<TrackLyricsData[]>([]);
+  const [tracksLoading, setTracksLoading] = useState(true);
+
+  useEffect(() => {
+    fetchUniqueTracksFromAPI()
+      .then(setTrackLyricsData)
+      .catch(() => setTrackLyricsData([]))
+      .finally(() => setTracksLoading(false));
+  }, []);
 
   useEffect(() => {
     if (!selected) return;
@@ -180,6 +188,7 @@ export function StoryboardPage() {
         {activeTab === "tracks" ? (
           <TracksTab
             tracks={trackLyricsData}
+            loading={tracksLoading}
             selectedTrack={selectedTrack}
             onSelectTrack={setSelectedTrack}
             onGenerateScene={(track) => {
@@ -218,8 +227,9 @@ export function StoryboardPage() {
 
 /* ============ Sub-components ============ */
 
-function TracksTab({ tracks, selectedTrack, onSelectTrack, onGenerateScene }: {
+function TracksTab({ tracks, loading, selectedTrack, onSelectTrack, onGenerateScene }: {
   tracks: TrackLyricsData[];
+  loading: boolean;
   selectedTrack: TrackLyricsData | null;
   onSelectTrack: (t: TrackLyricsData) => void;
   onGenerateScene: (t: TrackLyricsData) => void;
@@ -230,7 +240,12 @@ function TracksTab({ tracks, selectedTrack, onSelectTrack, onGenerateScene }: {
         <div className="p-3 border-b border-gray-800">
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tracks ({tracks.length})</h3>
         </div>
-        {tracks.map((track) => (
+        {loading ? (
+          <div className="p-4 text-center text-gray-500 text-sm">Loading tracks...</div>
+        ) : tracks.length === 0 ? (
+          <div className="p-4 text-center text-gray-500 text-sm">No tracks found</div>
+        ) : (
+          tracks.map((track) => (
           <button
             key={track.id}
             onClick={() => onSelectTrack(track)}
@@ -241,7 +256,7 @@ function TracksTab({ tracks, selectedTrack, onSelectTrack, onGenerateScene }: {
             <div className="text-sm font-medium text-gray-200 truncate">{track.trackName}</div>
             <div className="text-[10px] text-gray-500 truncate mt-0.5">{track.prompt.slice(0, 60)}...</div>
           </button>
-        ))}
+        )))}
       </div>
       <div className="flex-1 overflow-y-auto">
         {selectedTrack ? (

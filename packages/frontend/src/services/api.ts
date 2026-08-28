@@ -1094,6 +1094,35 @@ export async function getProjectStructure(depth: number = 3): Promise<{
 }
 
 // =============================================================================
+// Tracks API
+// =============================================================================
+
+export interface APITrack {
+  id: string;
+  filename: string;
+  artist: string;
+  title: string;
+  duration_seconds: number | null;
+  size_mb: number | null;
+  source_path: string;
+  music_prompt: string;
+  lyrics: string;
+  visual_style: string;
+  visual_prompt: string;
+  status: string;
+  tags: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function fetchTracks(): Promise<APITrack[]> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/tracks/`);
+  if (!res.ok) throw new Error("Failed to fetch tracks");
+  return res.json();
+}
+
+// =============================================================================
 // Integrations API
 // =============================================================================
 

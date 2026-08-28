@@ -1,7 +1,9 @@
 /**
  * Track prompt and lyrics data from HappyShrimp CSV.
- * Parsed from docs/TrackName-Prompt-LyricsKeyExcerptTheme.csv
+ * Parsed from docs/track-prompts-lyrics.csv
  */
+
+import { fetchTracks, type APITrack } from "./api";
 
 export interface TrackLyricsData {
   id: number;
@@ -66,7 +68,24 @@ export function parseTrackLyricsCSV(csvText: string): TrackLyricsData[] {
   return data;
 }
 
-// Embedded CSV data (from docs/TrackName-Prompt-LyricsKeyExcerptTheme.csv)
+function mapAPITrackToLyricsData(track: APITrack, index: number): TrackLyricsData {
+  const trackName = track.title || track.filename;
+  const isVariation = trackName.includes("(variation)") || trackName.includes("(same prompt");
+  let baseTrack: string | undefined;
+  if (isVariation) {
+    baseTrack = trackName.replace(/\s*\([^)]+\)/g, "").trim();
+  }
+  return {
+    id: index + 1,
+    trackName,
+    prompt: track.music_prompt,
+    lyrics: track.lyrics,
+    isVariation,
+    baseTrack,
+  };
+}
+
+// Embedded CSV data (from docs/track-prompts-lyrics.csv)
 const CSV_DATA = `"#","Track Name","Prompt","Lyrics (key excerpt/theme)"
 "1","The Signal Breaking Through the Noise","A melancholic yet euphoric 136 BPM Progressive Trance song about surviving grief and silence and finding your own frequency — infinite dawn landscape, electric blue horizon. Smooth breathy female lead, whispered male vocal in breakdown, four-on-the-floor kick, supersaw chords, minor-key arpeggiator lead","Structure: Verse–Verse–Pre-Chorus–Chorus(""I am the signal breaking through the noise..."")–Breakdown–Build-Up–Verse–Final Chorus"
 "2","The Signal breaking through the Noise (variation)","Same prompt as #1","Same lyrics as #1"
@@ -84,8 +103,27 @@ export function getTrackLyricsData(): TrackLyricsData[] {
   return parseTrackLyricsCSV(CSV_DATA);
 }
 
+/** Fetch all track lyrics data from the backend API, falling back to embedded CSV */
+export async function fetchTrackLyricsFromAPI(): Promise<TrackLyricsData[]> {
+  try {
+    const tracks = await fetchTracks();
+    if (tracks.length > 0) {
+      return tracks.map(mapAPITrackToLyricsData);
+    }
+  } catch {
+    // Backend unavailable — fall through to embedded data
+  }
+  return getTrackLyricsData();
+}
+
 export function getUniqueTracks(): TrackLyricsData[] {
   return getTrackLyricsData().filter((t) => !t.isVariation);
+}
+
+/** Fetch unique (non-variation) tracks from the backend API, falling back to embedded CSV */
+export async function fetchUniqueTracksFromAPI(): Promise<TrackLyricsData[]> {
+  const all = await fetchTrackLyricsFromAPI();
+  return all.filter((t) => !t.isVariation);
 }
 
 export function getTrackByName(name: string): TrackLyricsData | undefined {

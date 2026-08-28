@@ -305,7 +305,7 @@ def import_tracks_from_csv(request: dict):
 
     csv_path = os.path.join(
         os.path.dirname(__file__), "..", "..", "..", "..",
-        "-TrackName-Prompt-Lyricskeyexcerpttheme.csv"
+        "docs", "track-prompts-lyrics.csv"
     )
 
     if not os.path.exists(csv_path):

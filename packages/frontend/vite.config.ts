@@ -77,9 +77,6 @@ export default defineConfig(({ mode }) => {
     css: {
       transformer: 'postcss',
     },
-    build: {
-      cssMinify: 'esbuild',
-    },
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
@@ -98,11 +95,24 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
         },
       },
+      // Stable file watching on Windows — native watcher crashes with large dirs
+      watch: {
+        usePolling: true,
+        interval: 1000,
+        ignored: [
+          "**/node_modules/**",
+          "**/dist/**",
+          "**/.git/**",
+          "**/public/docs/**",
+          "**/public/stems/**",
+          "**/public/renders/**",
+        ],
+      },
     },
     build: {
-      // Ensure assets are properly referenced
       outDir: "dist",
       sourcemap: mode !== "production",
+      cssMinify: 'esbuild',
     },
   };
 });

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:stable": "set NODE_OPTIONS=--max-old-space-size=4096 && vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint src",

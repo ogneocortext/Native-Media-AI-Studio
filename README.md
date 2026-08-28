@@ -14,6 +14,7 @@ A full-stack AI-powered creative production environment for music-driven media g
 - **GPU Audio Analysis** — CUDA-accelerated FFT via `app.services.cuda` with CPU librosa fallback
 - **Responsive Sidebar** — Collapsible + mobile drawer (`<900px` or portrait) with backdrop, `min-h-0` scroll, health `max-h-[22vh]`
 - **Track Manager** — Table view for pairing prompts and lyrics to tracks with persistent storage
+- **Storyboards** — Visual scene planning per track with prompts, lyrics, and 3D Studio integration (`/storyboards)
 - **AI Visual Generation** — ComfyUI integration with style previews, prompt transformation, and audio-reactive visualization
 - **Image Generation** — Text-to-image via ComfyUI with model selector (SD 1.5, Hunyuan3D)
 - **Video Generation** — Text/image-to-video via ComfyUI with model selector (Wan 2.2, Kandinsky 5, AnimateDiff)
@@ -185,6 +186,8 @@ pnpm db:migrate          # Initialize SQLite database
 SQLite database at `packages/backend/storage/studio.db` with tables:
 
 - **tracks** — Music library with prompts, lyrics, visual styles
+
+Track data is imported from `docs/track-prompts-lyrics.csv` via `POST /api/data/tracks/import-csv`. The frontend fetches tracks from the backend API at runtime, falling back to embedded CSV data if the backend is unavailable.
 - **prompts** — Reusable generation prompts with tags and categories
 - **audio_files** — Audio metadata (duration, BPM, key, genre)
 - **ai_visuals** — Generated image records with parameters

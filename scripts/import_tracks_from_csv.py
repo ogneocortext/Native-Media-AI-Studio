@@ -13,7 +13,7 @@ from app.core.database import (
 
 CSV_PATH = os.path.join(
     os.path.dirname(__file__), '..',
-    '-TrackName-Prompt-Lyricskeyexcerpttheme.csv'
+    'docs', 'track-prompts-lyrics.csv'
 )
 
 
