@@ -51,8 +51,8 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
     try {
       const m = await getOllamaModels();
       setModels(m);
-      // Prefer a fast model (qwen3.5:4b) over slower large models
-      const preferred = m.find((x) => x.name.includes("qwen3.5:4b")) || m.find((x) => x.name.includes("qwen3.5")) || m[0];
+      // Prefer qwen3.5:4b (fast, reliable Three.js generation)
+      const preferred = m.find((x) => x.name === "qwen3.5:4b (3389983735)") || m.find((x) => x.name.includes("qwen3.5:4b")) || m[0];
       if (m.length > 0 && !selectedModel) setSelectedModel(preferred?.name || m[0].name);
     } catch { /* ignore */ }
   }, [selectedModel]);
