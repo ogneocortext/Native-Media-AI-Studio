@@ -17,8 +17,8 @@ interface StoryboardFile {
 }
 
 const STORYBOARDS: StoryboardFile[] = [
-  { name: "take-the-crown", path: "/docs/STORYBOARD_TakeTheCrown.md", title: "Take the Crown", track: "Take the Crown", trackFile: "85a406ef_NeoCortext - Take the Crown.mp3", bpm: 152, duration: 124 },
-  { name: "still-i-rise", path: "/docs/STORYBOARD_StillIRise.md", title: "Still I Rise", track: "Still I Rise", trackFile: "f3a608e2_NeoCortext - Still I Rise.mp3", bpm: 130, duration: 180 },
+  { name: "take-the-crown", path: "/docs/STORYBOARD_TakeTheCrown.md", title: "Take the Crown", track: "Take the Crown", trackFile: "NeoCortext - Take the Crown.mp3", bpm: 152, duration: 124 },
+  { name: "still-i-rise", path: "/docs/STORYBOARD_StillIRise.md", title: "Still I Rise", track: "Still I Rise", trackFile: "NeoCortext - Still I Rise.mp3", bpm: 130, duration: 180 },
 ];
 
 interface SceneData {
@@ -234,6 +234,21 @@ function TracksTab({ tracks, loading, selectedTrack, onSelectTrack, onGenerateSc
   onSelectTrack: (t: TrackLyricsData) => void;
   onGenerateScene: (t: TrackLyricsData) => void;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback((track: TrackLyricsData) => {
+    const text = `${track.prompt}\n\n${track.lyrics}`;
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
+    navigator.clipboard.writeText(text).catch(() => {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    });
+  }, []);
   return (
     <div className="flex h-full overflow-hidden">
       <div className="w-80 bg-[#0e0e16] border-r border-gray-800 overflow-y-auto shrink-0">
@@ -282,10 +297,10 @@ function TracksTab({ tracks, loading, selectedTrack, onSelectTrack, onGenerateSc
                 <Box size={14} /> Generate 3D Scene
               </button>
               <button
-                onClick={() => navigator.clipboard.writeText(`${selectedTrack.prompt}\n\n${selectedTrack.lyrics}`)}
-                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs font-medium"
+                onClick={() => handleCopy(selectedTrack)}
+                className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${copied ? "bg-emerald-600 text-white" : "bg-gray-800 hover:bg-gray-700"}`}
               >
-                Copy Prompt + Lyrics
+                {copied ? "✓ Copied!" : "Copy Prompt + Lyrics"}
               </button>
             </div>
           </div>

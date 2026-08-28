@@ -1117,7 +1117,7 @@ export interface APITrack {
 
 export async function fetchTracks(): Promise<APITrack[]> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/tracks/`);
+  const res = await fetch(`${base}/api/data/tracks/`);
   if (!res.ok) throw new Error("Failed to fetch tracks");
   return res.json();
 }
