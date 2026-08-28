@@ -363,11 +363,26 @@ async def get_progress(prompt_id: str) -> dict:
             # Check if prompt is in running queue
             for item in queue_data.get("queue_running", []):
                 if item.get("prompt_id") == prompt_id:
+                    # Also check history for step info
+                    async with session.get(
+                        f"{base_url}/history/{prompt_id}",
+                        timeout=aiohttp.ClientTimeout(total=3),
+                    ) as hist_resp:
+                        step = 0
+                        total_steps = 0
+                        if hist_resp.status == 200:
+                            hist_data = await hist_resp.json()
+                            if prompt_id in hist_data:
+                                exec_meta = hist_data[prompt_id].get("execution_metadata", {})
+                                step = exec_meta.get("step", 0)
+                                total_steps = exec_meta.get("steps", 0)
                     return {
                         "status": "running",
                         "prompt_id": prompt_id,
                         "node_index": item.get("node_index", 0),
                         "total_nodes": item.get("total_nodes", 1),
+                        "step": step,
+                        "total_steps": total_steps,
                     }
 
             # Check if prompt is in pending queue
@@ -412,6 +427,81 @@ async def get_progress(prompt_id: str) -> dict:
             "prompt_id": prompt_id,
             "error": str(e),
         }
+
+
+@router.get("/comfyui/preview/{prompt_id}")
+async def get_preview(prompt_id: str) -> dict:
+    """Get the latest intermediate preview image for a running prompt."""
+    import aiohttp
+
+    base_url = config.comfyui_url
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{base_url}/history/{prompt_id}",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                if resp.status != 200:
+                    return {"error": "History not available"}
+                history = await resp.json()
+
+            if prompt_id not in history:
+                return {"error": "Prompt not found in history"}
+
+            entry = history[prompt_id]
+            outputs = entry.get("outputs", {})
+
+            # Find the latest preview image
+            for node_id, output in outputs.items():
+                if "images" in output:
+                    for img in output["images"]:
+                        filename = img.get("filename")
+                        if filename:
+                            return {
+                                "filename": filename,
+                                "subfolder": img.get("subfolder", ""),
+                                "node_id": node_id,
+                            }
+
+            return {"error": "No preview available"}
+
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.get("/comfyui/view/{prompt_id}/{filename}")
+async def view_preview(prompt_id: str, filename: str):
+    """Proxy endpoint to serve preview images from ComfyUI."""
+    import aiohttp
+    from fastapi.responses import StreamingResponse
+    from urllib.parse import unquote
+
+    base_url = config.comfyui_url
+    decoded_filename = unquote(filename)
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{base_url}/view",
+                params={"filename": decoded_filename},
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as resp:
+                if resp.status != 200:
+                    raise HTTPException(status_code=resp.status, detail="Image not found")
+
+                async def stream_generator():
+                    async for chunk in resp.content.iter_any():
+                        yield chunk
+
+                return StreamingResponse(
+                    stream_generator(),
+                    media_type=resp.content_type or "image/png",
+                )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch image: {e}")
 
 
 @router.post("/{service_name}/generate-video")

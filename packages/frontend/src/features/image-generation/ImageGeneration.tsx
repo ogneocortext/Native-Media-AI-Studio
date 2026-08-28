@@ -152,6 +152,7 @@ export function ImageGeneration() {
   const [activePreset, setActivePreset] = useState<string>("standard");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<{ output_path: string; seed: number } | null>(null);
+  const [livePreviewUrl, setLivePreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState<string>("");
@@ -195,20 +196,18 @@ export function ImageGeneration() {
     }
   }, [models, options.model]);
 
-  // Poll for progress when promptId changes
+  // Poll for progress and live preview when promptId changes
   useEffect(() => {
-    console.log(`[ImageGen] useEffect triggered: promptId=${promptId}, generating=${generating}`);
     if (!promptId || !generating) return;
 
     let cancelled = false;
-    
+    let lastPreviewFilename: string | null = null;
+
     const poll = async () => {
-      console.log(`[ImageGen] Polling progress for ${promptId}`);
       try {
         const res = await fetch(`/api/integrations/comfyui/progress/${promptId}`);
         if (res.ok && !cancelled) {
           const data = await res.json();
-          console.log(`[ImageGen] Progress data:`, data);
           setProgress(data.progress || 0);
           setCurrentStep(data.step || 0);
           setTotalSteps(data.total_steps || options.steps);
@@ -227,6 +226,7 @@ export function ImageGeneration() {
                   });
                   setProgress(100);
                   setProgressStatus("Completed");
+                  setLivePreviewUrl(null);
                 } else {
                   setError("Generation completed but no image was found");
                 }
@@ -239,15 +239,28 @@ export function ImageGeneration() {
             setError("Generation failed");
             setGenerating(false);
           } else {
+            // Fetch live preview from ComfyUI history
+            try {
+              const previewRes = await fetch(`/api/integrations/comfyui/preview/${promptId}`);
+              if (previewRes.ok) {
+                const previewData = await previewRes.json();
+                if (previewData.filename && previewData.filename !== lastPreviewFilename) {
+                  lastPreviewFilename = previewData.filename;
+                  setLivePreviewUrl(`/api/integrations/comfyui/view/${encodeURIComponent(promptId)}/${encodeURIComponent(previewData.filename)}?t=${Date.now()}`);
+                }
+              }
+            } catch {
+              // Preview not available yet, continue polling
+            }
             // Continue polling
-            setTimeout(poll, 1000);
+            setTimeout(poll, 1500);
           }
         } else if (!cancelled) {
-          setTimeout(poll, 1000);
+          setTimeout(poll, 1500);
         }
       } catch {
         if (!cancelled) {
-          setTimeout(poll, 1000);
+          setTimeout(poll, 1500);
         }
       }
     };
@@ -282,6 +295,7 @@ export function ImageGeneration() {
     setGenerating(true);
     setError(null);
     setResult(null);
+    setLivePreviewUrl(null);
     setProgress(0);
     setProgressStatus("Starting...");
     setCurrentStep(0);
@@ -349,6 +363,7 @@ export function ImageGeneration() {
     setOptions(defaultOptions);
     setActivePreset("standard");
     setResult(null);
+    setLivePreviewUrl(null);
     setError(null);
     setProgress(0);
   }, []);
@@ -633,8 +648,34 @@ export function ImageGeneration() {
 
         {/* Preview */}
         <div>
-          <Card title="Preview" className="h-full min-h-[500px]" glow={!!result}>
-            {result ? (
+          <Card title={generating ? "Live Preview" : "Preview"} className="h-full min-h-[500px]" glow={!!result || generating}>
+            {generating && livePreviewUrl ? (
+              <div className="space-y-4 animate-fade-in">
+                <div className="relative aspect-square bg-background rounded-lg overflow-hidden border border-border">
+                  <img
+                    src={livePreviewUrl}
+                    alt="Generating preview"
+                    className="w-full h-full object-contain"
+                  />
+                  <div className="absolute top-2 right-2 flex items-center gap-1.5 px-2 py-1 bg-black/70 rounded-full text-[10px] text-white font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    LIVE
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-muted">
+                    <span>Step {currentStep} / {totalSteps}</span>
+                    <span>{progressStatus}</span>
+                  </div>
+                  <div className="progress-bar h-2">
+                    <div
+                      className="progress-fill progress-stripe"
+                      style={{ width: `${Math.max(progress, 5)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : result ? (
               <div className="space-y-4 animate-scale-in">
                 <div className="aspect-square bg-background rounded-lg overflow-hidden border border-border">
                   <img
