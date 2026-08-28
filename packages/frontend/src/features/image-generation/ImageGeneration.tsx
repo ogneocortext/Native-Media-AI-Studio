@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { Image, Play, Clock, Settings2, Sparkles, Download, RefreshCw } from "lucide-react";
+import { Image, Play, Clock, Settings2, Sparkles, Download, RefreshCw, Zap, Square, Gem, RectangleVertical, RectangleHorizontal, Crown } from "lucide-react";
 import { Card, LoadingSpinner, EmptyState, StatusBadge } from "../../components/common";
 import * as api from "../../services/api";
 import { getLogger } from "../../services/logger";
@@ -64,6 +64,75 @@ const defaultOptions: GenerationOptions = {
   model: "",
 };
 
+interface GenerationPreset {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ReactNode;
+  settings: Pick<GenerationOptions, "steps" | "cfgScale" | "width" | "height" | "sampler">;
+  color: string;
+}
+
+const presets: GenerationPreset[] = [
+  {
+    id: "quick",
+    name: "Quick Preview",
+    description: "Fast iteration, low quality",
+    icon: <Zap size={16} />,
+    settings: { steps: 10, cfgScale: 7, width: 512, height: 512, sampler: "Euler a" },
+    color: "amber",
+  },
+  {
+    id: "standard",
+    name: "Standard",
+    description: "Balanced speed and quality",
+    icon: <Square size={16} />,
+    settings: { steps: 20, cfgScale: 7, width: 512, height: 512, sampler: "Euler a" },
+    color: "blue",
+  },
+  {
+    id: "quality",
+    name: "High Quality",
+    description: "Detailed, slower generation",
+    icon: <Gem size={16} />,
+    settings: { steps: 30, cfgScale: 7, width: 768, height: 768, sampler: "DPM++ 2M" },
+    color: "purple",
+  },
+  {
+    id: "portrait",
+    name: "Portrait",
+    description: "512 x 768 — vertical images",
+    icon: <RectangleVertical size={16} />,
+    settings: { steps: 25, cfgScale: 7, width: 512, height: 768, sampler: "Euler a" },
+    color: "pink",
+  },
+  {
+    id: "landscape",
+    name: "Landscape",
+    description: "768 x 512 — wide images",
+    icon: <RectangleHorizontal size={16} />,
+    settings: { steps: 25, cfgScale: 7, width: 768, height: 512, sampler: "Euler a" },
+    color: "emerald",
+  },
+  {
+    id: "maximum",
+    name: "Maximum",
+    description: "Best quality, very slow",
+    icon: <Crown size={16} />,
+    settings: { steps: 50, cfgScale: 7, width: 1024, height: 1024, sampler: "DPM++ 2M" },
+    color: "red",
+  },
+];
+
+const colorMap: Record<string, { bg: string; border: string; text: string; ring: string }> = {
+  amber: { bg: "bg-amber-500/10", border: "border-amber-500/30", text: "text-amber-400", ring: "ring-amber-500/20" },
+  blue: { bg: "bg-blue-500/10", border: "border-blue-500/30", text: "text-blue-400", ring: "ring-blue-500/20" },
+  purple: { bg: "bg-purple-500/10", border: "border-purple-500/30", text: "text-purple-400", ring: "ring-purple-500/20" },
+  pink: { bg: "bg-pink-500/10", border: "border-pink-500/30", text: "text-pink-400", ring: "ring-pink-500/20" },
+  emerald: { bg: "bg-emerald-500/10", border: "border-emerald-500/30", text: "text-emerald-400", ring: "ring-emerald-500/20" },
+  red: { bg: "bg-red-500/10", border: "border-red-500/30", text: "text-red-400", ring: "ring-red-500/20" },
+};
+
 function getFriendlyError(err: unknown): string {
   const msg = err instanceof Error ? err.message : "Failed to generate image";
   if (msg.includes("ECONNREFUSED") || msg.includes("Failed to fetch")) {
@@ -80,6 +149,7 @@ function getFriendlyError(err: unknown): string {
 
 export function ImageGeneration() {
   const [options, setOptions] = useState<GenerationOptions>(defaultOptions);
+  const [activePreset, setActivePreset] = useState<string>("standard");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<{ output_path: string; seed: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -277,9 +347,18 @@ export function ImageGeneration() {
 
   const handleReset = useCallback(() => {
     setOptions(defaultOptions);
+    setActivePreset("standard");
     setResult(null);
     setError(null);
     setProgress(0);
+  }, []);
+
+  const handleApplyPreset = useCallback((preset: GenerationPreset) => {
+    setActivePreset(preset.id);
+    setOptions((prev) => ({
+      ...prev,
+      ...preset.settings,
+    }));
   }, []);
 
   return (
@@ -334,7 +413,40 @@ export function ImageGeneration() {
             />
           </Card>
 
-          <Card title="Generation Settings" icon={<Settings2 size={18} />}>
+          <Card title="Quick Presets" icon={<Sparkles size={18} />}>
+            <p className="text-xs text-muted mb-3">Choose a starting point. You can still tweak individual settings below.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {presets.map((preset) => {
+                const colors = colorMap[preset.color] || colorMap.blue;
+                const isActive = activePreset === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    className={`relative p-3 rounded-lg border text-left transition-all duration-200 ${
+                      isActive
+                        ? `${colors.bg} ${colors.border} ring-2 ${colors.ring} shadow-sm`
+                        : "border-border bg-background hover:border-border/80 hover:bg-white/5"
+                    }`}
+                    onClick={() => handleApplyPreset(preset)}
+                  >
+                    <div className={`flex items-center gap-1.5 mb-1 ${isActive ? colors.text : "text-foreground"}`}
+                    >
+                      {preset.icon}
+                      <span className="text-xs font-semibold">{preset.name}</span>
+                    </div>
+                    <p className="text-[10px] text-muted leading-tight">{preset.description}</p>
+                    <div className="mt-1.5 flex items-center gap-1 text-[9px] text-muted/70">
+                      <span>{preset.settings.steps} steps</span>
+                      <span>·</span>
+                      <span>{preset.settings.width}×{preset.settings.height}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
+
+          <Card title="Fine-Tune Settings" icon={<Settings2 size={18} />}>
             <div className="grid grid-2 gap-4">
               <div>
                 <label className="label">Steps</label>
