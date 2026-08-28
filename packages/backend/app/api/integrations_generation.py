@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from ..adapters.registry import adapter_registry
 from ..core.config import PROJECT_ROOT, config
@@ -32,13 +32,34 @@ class ImageGenerationRequest(BaseModel):
     backend: str = "comfyui"
     ckpt_name: str = ""
 
+    @field_validator("steps")
+    @classmethod
+    def validate_steps(cls, v: int) -> int:
+        if v < 1 or v > 150:
+            raise ValueError("steps must be between 1 and 150")
+        return v
+
+    @field_validator("cfg_scale")
+    @classmethod
+    def validate_cfg(cls, v: float) -> float:
+        if v < 0.0 or v > 30.0:
+            raise ValueError("cfg_scale must be between 0.0 and 30.0")
+        return v
+
+    @field_validator("width", "height")
+    @classmethod
+    def validate_dimension(cls, v: int) -> int:
+        if v < 64 or v > 4096 or v % 8 != 0:
+            raise ValueError("dimensions must be between 64 and 4096 and divisible by 8")
+        return v
+
 
 class VideoGenerationRequest(BaseModel):
     """Request for video generation using AnimateDiff"""
 
     prompt: str
     negative_prompt: str = ""
-    steps: int = 20
+    steps: int = 15
     cfg_scale: float = 7.0
     width: int = 512
     height: int = 512
@@ -47,6 +68,41 @@ class VideoGenerationRequest(BaseModel):
     num_frames: int = 16
     fps: int = 8
     motion_module: str = "mm_sd_v15_v2.safetensors"
+
+    @field_validator("steps")
+    @classmethod
+    def validate_steps(cls, v: int) -> int:
+        if v < 1 or v > 150:
+            raise ValueError("steps must be between 1 and 150")
+        return v
+
+    @field_validator("cfg_scale")
+    @classmethod
+    def validate_cfg(cls, v: float) -> float:
+        if v < 0.0 or v > 30.0:
+            raise ValueError("cfg_scale must be between 0.0 and 30.0")
+        return v
+
+    @field_validator("width", "height")
+    @classmethod
+    def validate_dimension(cls, v: int) -> int:
+        if v < 64 or v > 4096 or v % 8 != 0:
+            raise ValueError("dimensions must be between 64 and 4096 and divisible by 8")
+        return v
+
+    @field_validator("num_frames")
+    @classmethod
+    def validate_frames(cls, v: int) -> int:
+        if v < 1 or v > 256:
+            raise ValueError("num_frames must be between 1 and 256")
+        return v
+
+    @field_validator("fps")
+    @classmethod
+    def validate_fps(cls, v: int) -> int:
+        if v < 1 or v > 60:
+            raise ValueError("fps must be between 1 and 60")
+        return v
 
 logger = logging.getLogger(__name__)
 
@@ -160,9 +216,9 @@ async def get_video_models() -> dict:
 @router.post("/{service_name}/generate")
 async def generate_image(service_name: str, request: ImageGenerationRequest) -> dict:
     """Generate an image using the specified backend"""
-    print(f"DEBUG: generate_image called with service_name={service_name}")
+    logger.debug("generate_image called with service_name=%s", service_name)
     adapter = adapter_registry.get(service_name)
-    print(f"DEBUG: adapter={adapter}")
+    logger.debug("adapter=%s", adapter)
     if not adapter:
         raise HTTPException(status_code=404, detail=f"Unknown service: {service_name}")
 
@@ -194,12 +250,12 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
             else:
                 params["ckpt_name"] = request.ckpt_name
         
-        print(f"DEBUG: calling adapter.submit_only with params={params}")
+        logger.debug("calling adapter.submit_only with params=%s", params)
         
         # Submit the prompt and get the prompt_id immediately
         prompt_id = await adapter.submit_only(params)
         
-        print(f"DEBUG: prompt_id={prompt_id}")
+        logger.debug("prompt_id=%s", prompt_id)
 
         return {
             "success": True,
@@ -209,71 +265,74 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         }
 
     except Exception as e:
-        print(f"DEBUG: exception in generate_image: {e}")
-        logger.error(f"Generate endpoint error: {e}", exc_info=True)
+        logger.debug("exception in generate_image: %s", e)
+        logger.error("Generate endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{service_name}/result/{prompt_id}")
 async def get_result(service_name: str, prompt_id: str) -> dict:
     """Get the final result of a generation."""
-    import urllib.request
-    import json
+    import aiohttp
 
     if service_name != "comfyui":
         raise HTTPException(status_code=400, detail="Only ComfyUI is supported")
 
-    base_url = "http://127.0.0.1:8188"
+    base_url = config.comfyui_url
 
     try:
-        # Check history for the result
-        req = urllib.request.Request(f"{base_url}/history/{prompt_id}")
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            history = json.loads(resp.read().decode())
+        async with aiohttp.ClientSession() as session:
+            # Check history for the result
+            async with session.get(
+                f"{base_url}/history/{prompt_id}",
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                if resp.status != 200:
+                    return {"status": "error", "error": f"History endpoint returned {resp.status}", "prompt_id": prompt_id}
+                history = await resp.json()
 
-        if prompt_id in history:
-            entry = history[prompt_id]
-            outputs = entry.get("outputs", {})
+            if prompt_id in history:
+                entry = history[prompt_id]
+                outputs = entry.get("outputs", {})
+                
+                # Find the image output
+                for node_id, output in outputs.items():
+                    if "images" in output:
+                        for img in output["images"]:
+                            filename = img.get("filename")
+                            subfolder = img.get("subfolder", "")
+                            if filename:
+                                # Download the image
+                                params = {"filename": filename}
+                                if subfolder:
+                                    params["subfolder"] = subfolder
+                                
+                                async with session.get(
+                                    f"{base_url}/view",
+                                    params=params,
+                                    timeout=aiohttp.ClientTimeout(total=30),
+                                ) as img_resp:
+                                    if img_resp.status == 200:
+                                        img_data = await img_resp.read()
+                                        
+                                        # Save to output directory
+                                        output_dir = PROJECT_ROOT / "output" / "images"
+                                        output_dir.mkdir(parents=True, exist_ok=True)
+                                        
+                                        filepath = output_dir / filename
+                                        with open(filepath, "wb") as f:
+                                            f.write(img_data)
+                                        
+                                        return {
+                                            "status": "completed",
+                                            "success": True,
+                                            "output_path": str(filepath),
+                                            "prompt_id": prompt_id,
+                                        }
+
+                return {"status": "error", "error": "No images found in output", "prompt_id": prompt_id}
             
-            # Find the image output
-            for node_id, output in outputs.items():
-                if "images" in output:
-                    for img in output["images"]:
-                        filename = img.get("filename")
-                        subfolder = img.get("subfolder", "")
-                        if filename:
-                            # Download the image
-                            params = {"filename": filename}
-                            if subfolder:
-                                params["subfolder"] = subfolder
-                            
-                            query = "&".join(f"{k}={v}" for k, v in params.items())
-                            img_req = urllib.request.Request(f"{base_url}/view?{query}")
-                            with urllib.request.urlopen(img_req, timeout=30) as img_resp:
-                                img_data = img_resp.read()
-                                
-                                # Save to output directory
-                                from ..core.config import PROJECT_ROOT
-                                from datetime import datetime
-                                import uuid
-                                
-                                output_dir = PROJECT_ROOT / "output" / "images"
-                                output_dir.mkdir(parents=True, exist_ok=True)
-                                
-                                filepath = output_dir / filename
-                                with open(filepath, "wb") as f:
-                                    f.write(img_data)
-                                
-                                return {
-                                    "status": "completed",
-                                    "success": True,
-                                    "output_path": str(filepath),
-                                    "prompt_id": prompt_id,
-                                }
-
-            return {"status": "error", "error": "No images found in output", "prompt_id": prompt_id}
-        
-        return {"status": "pending", "prompt_id": prompt_id}
+            return {"status": "pending", "prompt_id": prompt_id}
 
     except Exception as e:
         return {"status": "error", "error": str(e), "prompt_id": prompt_id}
@@ -282,74 +341,77 @@ async def get_result(service_name: str, prompt_id: str) -> dict:
 @router.get("/comfyui/progress/{prompt_id}")
 async def get_progress(prompt_id: str) -> dict:
     """Get generation progress for a prompt."""
-    import urllib.request
-    import json
+    import aiohttp
 
-    base_url = "http://127.0.0.1:8188"
+    base_url = config.comfyui_url
 
     try:
-        # Check queue for running status
-        req = urllib.request.Request(f"{base_url}/queue")
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            queue_data = json.loads(resp.read().decode())
+        async with aiohttp.ClientSession() as session:
+            # Check queue for running/pending status
+            async with session.get(
+                f"{base_url}/queue",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                if resp.status != 200:
+                    return {
+                        "status": "error",
+                        "prompt_id": prompt_id,
+                        "error": f"Queue endpoint returned {resp.status}",
+                    }
+                queue_data = await resp.json()
 
-        # Check if prompt is in running queue
-        for item in queue_data.get("queue_running", []):
-            if len(item) > 2 and item[1] == prompt_id:
-                prompt_data = item[2] if len(item) > 2 else {}
-                return {
-                    "status": "running",
-                    "prompt_id": prompt_id,
-                    "step": prompt_data.get("step", 0),
-                    "total_steps": prompt_data.get("steps", 20),
-                    "progress": prompt_data.get("progress", 0),
-                }
+            # Check if prompt is in running queue
+            for item in queue_data.get("queue_running", []):
+                if item.get("prompt_id") == prompt_id:
+                    return {
+                        "status": "running",
+                        "prompt_id": prompt_id,
+                        "node_index": item.get("node_index", 0),
+                        "total_nodes": item.get("total_nodes", 1),
+                    }
 
-        # Check if prompt is in pending queue
-        for item in queue_data.get("queue_pending", []):
-            if len(item) > 2 and item[1] == prompt_id:
-                return {
-                    "status": "pending",
-                    "prompt_id": prompt_id,
-                    "step": 0,
-                    "total_steps": 20,
-                    "progress": 0,
-                }
+            # Check if prompt is in pending queue
+            for item in queue_data.get("queue_pending", []):
+                if item.get("prompt_id") == prompt_id:
+                    return {
+                        "status": "pending",
+                        "prompt_id": prompt_id,
+                        "queue_position": item.get("queue_position", 0),
+                    }
 
-        # Check history for completed
-        req = urllib.request.Request(f"{base_url}/history/{prompt_id}")
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            history = json.loads(resp.read().decode())
+            # Check history for completed
+            async with session.get(
+                f"{base_url}/history/{prompt_id}",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                if resp.status == 200:
+                    history = await resp.json()
+                    if prompt_id in history:
+                        entry = history[prompt_id]
+                        status_info = entry.get("status", {})
+                        if status_info.get("status_str") == "error":
+                            return {
+                                "status": "error",
+                                "prompt_id": prompt_id,
+                                "error": status_info.get("message", "Unknown error"),
+                            }
+                        return {
+                            "status": "completed",
+                            "prompt_id": prompt_id,
+                            "outputs": list(entry.get("outputs", {}).keys()),
+                        }
 
-        if prompt_id in history:
             return {
-                "status": "completed",
+                "status": "unknown",
                 "prompt_id": prompt_id,
-                "step": 20,
-                "total_steps": 20,
-                "progress": 100,
             }
-
-        return {
-            "status": "unknown",
-            "prompt_id": prompt_id,
-            "step": 0,
-            "total_steps": 20,
-            "progress": 0,
-        }
 
     except Exception as e:
         return {
             "status": "error",
             "prompt_id": prompt_id,
             "error": str(e),
-            "step": 0,
-            "total_steps": 20,
-            "progress": 0,
         }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/{service_name}/generate-video")

@@ -281,6 +281,13 @@ class ComfyUIManager:
                 "message": "ComfyUI is not running",
             }
 
+        # If we didn't start the process, we can't stop it
+        if self._process is None:
+            return {
+                "success": False,
+                "message": "ComfyUI is running but was not started by this manager — stop it manually",
+            }
+
         try:
             pid = self._process.pid
             # Terminate the process
@@ -469,7 +476,8 @@ class ComfyUIManager:
         audio_path: str,
     ) -> str | None:
         """Generate video via ComfyUI HTTP API. Returns path to output video or None."""
-        base_url = f"http://127.0.0.1:{self._port}"
+        from ..core.config import config
+        base_url = config.comfyui_url
 
         # Use a single shared session for all requests in this method
         async with aiohttp.ClientSession() as session:

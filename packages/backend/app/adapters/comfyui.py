@@ -134,7 +134,7 @@ class ComfyUIAdapter(BaseAdapter):
 
     async def submit_only(self, params: dict[str, Any]) -> str:
         """Submit a prompt to ComfyUI and return the prompt_id immediately."""
-        print(f"DEBUG: submit_only called with params={params}")
+        logger.debug("submit_only called with params=%s", params)
         prompt_text = params.get("prompt", "")
         negative_text = params.get("negative_prompt", "")
         steps = params.get("steps", 20)
@@ -162,16 +162,16 @@ class ComfyUIAdapter(BaseAdapter):
             width, height, actual_seed, comfy_sampler
         )
 
-        print(f"DEBUG: workflow built: {json.dumps(workflow)[:200]}")
+        logger.debug("workflow built: %s", json.dumps(workflow)[:200])
 
         # Submit workflow and return prompt_id
         try:
             prompt_id = await self._submit_prompt(workflow)
             self._current_prompt_id = prompt_id
-            print(f"DEBUG: prompt submitted: {prompt_id}")
+            logger.debug("prompt submitted: %s", prompt_id)
             return prompt_id
         except Exception as e:
-            print(f"DEBUG: submit failed: {e}")
+            logger.debug("submit failed: %s", e)
             raise
 
     async def _generate_image(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -374,28 +374,6 @@ class ComfyUIAdapter(BaseAdapter):
                                 "info": "Generation completed",
                             }
         return {"status": "pending"}
-        """
-        Wait for a prompt to complete and return the image data.
-
-        Polls ComfyUI history until the prompt appears, then fetches the image.
-        """
-        start = asyncio.get_event_loop().time()
-
-        while True:
-            if asyncio.get_event_loop().time() - start > timeout:
-                raise TimeoutError("ComfyUI generation timed out")
-
-            # Check history
-            history = await self._get_history(prompt_id)
-            if prompt_id in history:
-                entry = history[prompt_id]
-                if "outputs" in entry:
-                    for node_id, output in entry["outputs"].items():
-                        if "images" in output:
-                            for img in output["images"]:
-                                return await self._fetch_image(img["filename"], img.get("subfolder", ""))
-
-            await asyncio.sleep(1)
 
     async def _get_history(self, prompt_id: str) -> dict[str, Any]:
         """Get ComfyUI history for a prompt"""

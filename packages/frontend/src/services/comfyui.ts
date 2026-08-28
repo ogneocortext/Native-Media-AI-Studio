@@ -5,6 +5,13 @@
 
 import { getComfyuiUrl, getComfyuiWsUrl } from "./portConfig";
 
+export class ComfyUIError extends Error {
+  constructor(message: string, public statusCode?: number) {
+    super(message);
+    this.name = "ComfyUIError";
+  }
+}
+
 export interface ComfyUIProgress {
   value: number;
   max: number;
@@ -28,6 +35,14 @@ export interface ComfyUITaskStatus {
   error?: string;
 }
 
+export interface AvailableModels {
+  checkpoints: string[];
+  vae: string[];
+  loras: string[];
+  diffusion_models: string[];
+  text_encoders: string[];
+}
+
 /**
  * Queue a prompt for execution on ComfyUI.
  */
@@ -40,10 +55,14 @@ export async function queuePrompt(workflow: Record<string, unknown>): Promise<{ 
   });
 
   if (!response.ok) {
-    throw new Error(`ComfyUI queue failed: ${response.statusText}`);
+    throw new ComfyUIError(`ComfyUI queue failed: ${response.statusText}`, response.status);
   }
 
-  return response.json();
+  const data = await response.json();
+  if (!data.prompt_id) {
+    throw new ComfyUIError("ComfyUI returned no prompt_id");
+  }
+  return data;
 }
 
 /**
@@ -56,7 +75,7 @@ export async function getQueueStatus(): Promise<{
   const COMFYUI_URL = getComfyuiUrl();
   const response = await fetch(`${COMFYUI_URL}/queue`);
   if (!response.ok) {
-    throw new Error(`ComfyUI queue status failed: ${response.statusText}`);
+    throw new ComfyUIError(`ComfyUI queue status failed: ${response.statusText}`, response.status);
   }
   return response.json();
 }
@@ -78,7 +97,7 @@ export async function getSystemStats(): Promise<{
   const COMFYUI_URL = getComfyuiUrl();
   const response = await fetch(`${COMFYUI_URL}/system_stats`);
   if (!response.ok) {
-    throw new Error(`ComfyUI system stats failed: ${response.statusText}`);
+    throw new ComfyUIError(`ComfyUI system stats failed: ${response.statusText}`, response.status);
   }
   return response.json();
 }
@@ -101,24 +120,10 @@ export async function isComfyUIAlive(): Promise<boolean> {
 /**
  * Get list of available checkpoints/models.
  */
-export async function getAvailableModels(): Promise<{
-  checkpoints: string[];
-  vae: string[];
-  loras: string[];
-  diffusion_models: string[];
-  text_encoders: string[];
-}> {
+export async function getAvailableModels(): Promise<AvailableModels> {
   const COMFYUI_URL = getComfyuiUrl();
-  const response = await fetch(`${COMFYUI_URL}/object_info/CheckpointLoaderSimple`);
-  const data = await response.json();
-
-  const models: {
-    checkpoints: string[];
-    vae: string[];
-    loras: string[];
-    diffusion_models: string[];
-    text_encoders: string[];
-  } = {
+  
+  const models: AvailableModels = {
     checkpoints: [],
     vae: [],
     loras: [],
@@ -126,8 +131,19 @@ export async function getAvailableModels(): Promise<{
     text_encoders: [],
   };
 
-  if (data?.CheckpointLoaderSimple?.inputs?.checkpoint_name?.[0]) {
-    models.checkpoints = data.CheckpointLoaderSimple.inputs.checkpoint_name[0];
+  // Fetch checkpoints with error handling
+  try {
+    const response = await fetch(`${COMFYUI_URL}/object_info/CheckpointLoaderSimple`);
+    if (!response.ok) {
+      throw new ComfyUIError(`Failed to fetch checkpoints: ${response.statusText}`, response.status);
+    }
+    const data = await response.json();
+
+    if (data?.CheckpointLoaderSimple?.inputs?.checkpoint_name?.[0]) {
+      models.checkpoints = data.CheckpointLoaderSimple.inputs.checkpoint_name[0];
+    }
+  } catch (e) {
+    console.warn("Failed to fetch checkpoints:", e);
   }
 
   // Fetch additional model types
@@ -140,8 +156,8 @@ export async function getAvailableModels(): Promise<{
 
   for (const { type, key } of modelTypes) {
     try {
-      const COMFYUI_URL = getComfyuiUrl();
       const res = await fetch(`${COMFYUI_URL}/object_info/${type}`);
+      if (!res.ok) continue;
       const info = await res.json();
       if (info?.[type]?.inputs) {
         const inputKeys = Object.keys(info[type].inputs);
@@ -186,8 +202,12 @@ export async function generateText2Image(options: {
     sampler = "euler",
     scheduler = "normal",
     seed = Math.floor(Math.random() * 2 ** 32),
-    checkpoint = "v1-5-pruned-emaonly.safetensors",
+    checkpoint,
   } = options;
+
+  // Validate dimensions are divisible by 8 (ComfyUI requirement)
+  const validWidth = Math.floor(width / 8) * 8;
+  const validHeight = Math.floor(height / 8) * 8;
 
   // Build a simple text-to-image workflow
   const workflow: Record<string, unknown> = {
@@ -208,11 +228,11 @@ export async function generateText2Image(options: {
     },
     "4": {
       class_type: "CheckpointLoaderSimple",
-      inputs: { ckpt_name: checkpoint },
+      inputs: { ckpt_name: checkpoint || "v1-5-pruned-emaonly.safetensors" },
     },
     "5": {
       class_type: "EmptyLatentImage",
-      inputs: { width, height, batch_size: 1 },
+      inputs: { width: validWidth, height: validHeight, batch_size: 1 },
     },
     "6": {
       class_type: "CLIPTextEncode",
@@ -247,7 +267,7 @@ export async function getImage(
   const params = new URLSearchParams({ filename, subfolder, type });
   const response = await fetch(`${COMFYUI_URL}/view?${params}`);
   if (!response.ok) {
-    throw new Error(`Failed to fetch image: ${response.statusText}`);
+    throw new ComfyUIError(`Failed to fetch image: ${response.statusText}`, response.status);
   }
   const blob = await response.blob();
   return URL.createObjectURL(blob);
@@ -269,4 +289,5 @@ export default {
   generateText2Image,
   getImage,
   getWebSocketUrl,
+  ComfyUIError,
 };

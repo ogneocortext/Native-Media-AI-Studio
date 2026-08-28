@@ -361,4 +361,65 @@ curl http://localhost:8188/models
 
 ---
 
-*Last updated: 2026-08-24*
+## Backend API Integration
+
+### Architecture
+
+The application interacts with ComfyUI through multiple layers:
+
+```
+Frontend (React) → Backend (FastAPI) → ComfyUI REST API (port 8188)
+                 ↘ Direct (browser) → ComfyUI REST API (port 8188)
+```
+
+**Frontend paths:**
+- `packages/frontend/src/services/comfyui.ts` — Direct ComfyUI calls (image generation, model listing)
+- `packages/frontend/src/services/api.ts` — Backend-proxied calls (job queue, progress)
+
+**Backend paths:**
+- `packages/backend/app/adapters/comfyui.py` — Core adapter (health, generation, workflow building)
+- `packages/backend/app/services/comfyui_manager.py` — Process lifecycle (start/stop/update)
+- `packages/backend/app/services/gen3d/gen3d_service.py` — 3D generation via Kijai Wrapper
+- `packages/backend/app/api/integrations_generation.py` — REST endpoints for generation
+- `packages/backend/app/api/comfyui.py` — REST endpoints for process management
+
+### REST API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/services/comfyui/status` | GET | Process status (installed, running, version) |
+| `/api/services/comfyui/start` | POST | Start ComfyUI headlessly |
+| `/api/services/comfyui/stop` | POST | Stop ComfyUI |
+| `/api/services/comfyui/restart` | POST | Restart ComfyUI |
+| `/api/services/comfyui/update` | POST | Git pull + restart |
+| `/api/services/comfyui/version` | GET | Git version info |
+| `/api/integrations/{service}/generate` | POST | Submit image generation job |
+| `/api/integrations/{service}/result/{prompt_id}` | GET | Get completed result |
+| `/api/integrations/comfyui/progress/{prompt_id}` | GET | Poll generation progress |
+| `/api/integrations/{service}/generate-video` | POST | Submit video generation job |
+| `/api/integrations/comfyui/checkpoints` | GET | List available checkpoints |
+| `/api/integrations/comfyui/video-models` | GET | List video motion modules |
+
+### Input Validation
+
+Generation requests are validated at the API layer:
+
+| Parameter | Range | Notes |
+|-----------|-------|-------|
+| steps | 1-150 | Sampler steps |
+| cfg_scale | 0.0-30.0 | Classifier-free guidance |
+| width, height | 64-4096, multiple of 8 | Image dimensions |
+| num_frames | 1-256 | Video frames |
+| fps | 1-60 | Video frame rate |
+
+### Error Handling
+
+- All ComfyUI API calls use `async`/`await` with proper timeout handling
+- Failed requests return structured error responses with `status: "error"`
+- The `ComfyUIError` class (frontend) provides typed error handling
+- Blocking I/O is avoided in async contexts
+- External ComfyUI processes (not started by manager) are detected and reported
+
+---
+
+*Last updated: 2026-08-28*
