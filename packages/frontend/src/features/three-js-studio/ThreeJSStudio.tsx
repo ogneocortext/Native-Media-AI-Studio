@@ -94,6 +94,8 @@ export function ThreeJSStudio() {
   const [animationTime, setAnimationTime] = useState(0);
   const [animationDuration, setAnimationDuration] = useState(30);
   const [keyframeTracks, setKeyframeTracks] = useState<any[]>([]);
+  void setAnimationDuration;
+  void setKeyframeTracks;
 
   const { analysis: beatAnalysis, loading: beatLoading, error: beatError, getCurrentBeat } = useBeatTimeline(selectedTrack || null);
 
@@ -165,6 +167,11 @@ export function ThreeJSStudio() {
     meshGroup.traverse((child: any) => { if (child.isMesh) child.layers.set(targetLayer); });
     return meshGroup;
   }, []);
+
+  // ---- Generated scene update function (controlled by playback) ----
+  const generatedSceneUpdateRef = useRef<((time: number, delta: number) => void) | null>(null);
+  const generatedSceneInitRef = useRef<(() => void) | null>(null);
+  const [renderPlaying, setRenderPlaying] = useState(false);
 
   // ---- Helper: apply generated code to scene ----
   const handleApplyCode = useCallback((code: string) => {
@@ -278,83 +285,46 @@ export function ThreeJSStudio() {
           }
         }
 
-        // Apply environment
-        if (sceneDesc.environment) {
-          const env = sceneDesc.environment;
-          if (env.color) scene.background = new THREE.Color(env.color);
-          if (env.fog && scene.fog) scene.fog.density = env.fog;
-        }
-
-        // Apply camera shot config
-        if (sceneDesc.camera && typeof sceneDesc.camera === "object") {
-          const cam = sceneDesc.camera;
-          if (cam.position && cameraRef.current) {
-            cameraRef.current.position.set(...(cam.position as [number, number, number]));
-          }
-          if (cam.fov && cameraRef.current) {
-            cameraRef.current.fov = cam.fov;
-            cameraRef.current.updateProjectionMatrix();
-          }
-          if (cam.movement) {
-            setCameraMode(cam.movement);
-          }
-        }
-
-        // Add lights from description
-        if (sceneDesc.lights) {
-          for (const lightDesc of sceneDesc.lights) {
-            let light: any;
-            switch (lightDesc.type) {
-              case "point": light = new THREE.PointLight(lightDesc.color, lightDesc.intensity, 12); break;
-              case "spot": light = new THREE.SpotLight(lightDesc.color, lightDesc.intensity); break;
-              case "directional": light = new THREE.DirectionalLight(lightDesc.color, lightDesc.intensity); break;
-              default: light = new THREE.PointLight(lightDesc.color, lightDesc.intensity);
-            }
-            const lpos = lightDesc.position as [number, number, number] || [0, 5, 0];
-            light.position.set(lpos[0], lpos[1], lpos[2]);
-            scene.add(light);
-          }
-        }
-
-        // Update particles
-        if (sceneDesc.particles && particlesRef.current) {
-          const pc = sceneDesc.particles;
-          if (pc.color) particlesRef.current.material.color.set(pc.color);
-          if (pc.speed) particleConfigRef.current = { ...particleConfigRef.current, speed: pc.speed };
-        }
-
-        // Update keyframe animations
-        if (sceneDesc.keyframes && Array.isArray(sceneDesc.keyframes)) {
-          setKeyframeTracks(sceneDesc.keyframes);
-          if (sceneDesc.duration) setAnimationDuration(sceneDesc.duration);
-        } else {
-          setKeyframeTracks([]);
-        }
-
-        // Update camera mode
-        if (sceneDesc.camera) {
-          setCameraMode(sceneDesc.camera);
-        }
-
-        // Update bloom
-        if (sceneDesc.bloom !== undefined && bloomPassRef.current) {
-          bloomPassRef.current.strength = sceneDesc.bloom;
-          setSceneConfig((prev) => ({ ...prev, bloomStrength: sceneDesc.bloom }));
-        }
       });
       return;
     } catch {
       // Not valid JSON - try as JavaScript
     }
 
-    // Fallback: try to execute as JavaScript
+    // Execute as JavaScript — wrap to extract update function for playback control
     try {
       if (!code.includes("function applyScene") && !code.includes("THREE.")) {
         console.warn("Response does not contain valid scene description or code");
         return;
       }
-      const fn = new Function("scene", "camera", "renderer", "THREE", code + "\nif(typeof applyScene === 'function') { applyScene(scene, camera, renderer); }");
+      // Wrap the generated code to capture the animate function
+      const wrappedCode = code + `
+        // Expose the animate loop internals for external control
+        if (typeof animate === 'function' && typeof time !== 'undefined') {
+          window.__sceneUpdate = (t, d) => {
+            time = t;
+            animate();
+          };
+          window.__sceneInit = () => {
+            if (typeof animateCamera === 'function') animateCamera(0, 0);
+            if (typeof updateLights === 'function') updateLights(0);
+          };
+        } else if (typeof applyScene === 'function') {
+          let __time = 0;
+          window.__sceneUpdate = (t, d) => { __time = t; applyScene(scene, camera, renderer); };
+          window.__sceneInit = () => { __time = 0; applyScene(scene, camera, renderer); };
+        }
+      `;
+      const fn = new Function("scene", "camera", "renderer", "THREE", wrappedCode);
       fn(sceneRef.current, cameraRef.current, rendererRef.current, (window as any).THREE);
+
+      // Capture the exposed update function
+      if ((window as any).__sceneUpdate) {
+        generatedSceneUpdateRef.current = (window as any).__sceneUpdate;
+        generatedSceneInitRef.current = (window as any).__sceneInit || null;
+        generatedSceneInitRef.current?.();
+        if (generatedSceneUpdateRef.current) generatedSceneUpdateRef.current(0, 0);
+      }
     } catch (err) {
       console.error("Failed to apply generated scene:", err);
     }
@@ -516,6 +486,14 @@ export function ThreeJSStudio() {
             const next = prev + delta;
             return next >= animationDuration ? 0 : next;
           });
+        }
+
+        // Call generated scene update (only when renderPlaying)
+        if (generatedSceneUpdateRef.current && renderPlaying) {
+          generatedSceneUpdateRef.current(elapsed, delta);
+        } else if (generatedSceneUpdateRef.current && !renderPlaying) {
+          // When paused, render the static frame at current animation time
+          generatedSceneUpdateRef.current(animationTime, 0);
         }
 
         // Apply keyframe animations
@@ -805,12 +783,29 @@ export function ThreeJSStudio() {
 
         {/* Animation Timeline Controls */}
         <div className="absolute bottom-10 left-2 right-2 bg-black/70 backdrop-blur rounded px-3 py-2 flex items-center gap-3 border border-white/10">
-          <button onClick={() => setIsPlaying(!isPlaying)} className="p-1.5 bg-purple-600 hover:bg-purple-700 rounded text-white" title={isPlaying ? "Pause" : "Play"}>
-            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-          </button>
-          <button onClick={() => { setIsPlaying(false); setAnimationTime(0); }} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-white" title="Stop">
-            <Square size={12} />
-          </button>
+          {/* Render Preview Controls */}
+          <div className="flex items-center gap-1.5 border-r border-gray-700 pr-3">
+            <span className="text-[10px] text-gray-500 uppercase tracking-wider">Render</span>
+            <button onClick={() => setRenderPlaying(!renderPlaying)} className={`p-1.5 rounded ${renderPlaying ? "bg-emerald-600 hover:bg-emerald-700" : "bg-gray-700 hover:bg-gray-600"}`} title={renderPlaying ? "Pause render" : "Play render"}>
+              {renderPlaying ? <Pause size={12} /> : <Play size={12} />}
+            </button>
+            <button onClick={() => { setRenderPlaying(false); setAnimationTime(0); }} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded" title="Reset">
+              <Square size={10} />
+            </button>
+          </div>
+
+          {/* Audio Sync Controls */}
+          <div className="flex items-center gap-1.5 border-r border-gray-700 pr-3">
+            <span className="text-[10px] text-gray-500 uppercase tracking-wider">Audio</span>
+            <button onClick={toggleAudio} className={`p-1.5 rounded ${isAudioPlaying ? "bg-purple-600 hover:bg-purple-700" : "bg-gray-700 hover:bg-gray-600"}`} title={isAudioPlaying ? "Pause audio" : "Play audio"}>
+              {isAudioPlaying ? <Volume2 size={12} /> : <VolumeX size={12} />}
+            </button>
+            <button onClick={() => { setIsAudioPlaying(false); setIsPlaying(false); setRenderPlaying(false); }} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded" title="Stop all">
+              <Square size={10} />
+            </button>
+          </div>
+
+          {/* Timeline Scrubber */}
           <span className="text-xs text-gray-400 font-mono w-12">{animationTime.toFixed(1)}s</span>
           <input
             type="range"
@@ -818,7 +813,7 @@ export function ThreeJSStudio() {
             max={animationDuration}
             step={0.1}
             value={animationTime}
-            onChange={(e) => setAnimationTime(Number(e.target.value))}
+            onChange={(e) => { setAnimationTime(Number(e.target.value)); setRenderPlaying(false); }}
             className="flex-1 accent-purple-500"
           />
           <span className="text-xs text-gray-400 font-mono w-12">{animationDuration.toFixed(0)}s</span>
