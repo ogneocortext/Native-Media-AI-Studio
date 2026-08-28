@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Box, Play, Pause, Sparkles, Download, Settings, Circle, Square,
-  ChevronDown, ChevronUp, Music, Zap, Volume2, VolumeX,
+  ChevronDown, ChevronUp, Music, Zap,
 } from "lucide-react";
 import { listAudioFiles } from "../../services/api";
 import { useBeatTimeline } from "../../hooks/useBeatTimeline";
@@ -773,43 +773,86 @@ export function ThreeJSStudio() {
           </a>
         )}
 
-        {/* Animation Timeline Controls */}
-        <div className="absolute bottom-10 left-2 right-2 bg-black/70 backdrop-blur rounded px-3 py-2 flex items-center gap-3 border border-white/10">
-          {/* Render Preview Controls */}
-          <div className="flex items-center gap-1.5 border-r border-gray-700 pr-3">
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider">Render</span>
-            <button onClick={() => setRenderPlaying(!renderPlaying)} className={`p-1.5 rounded ${renderPlaying ? "bg-emerald-600 hover:bg-emerald-700" : "bg-gray-700 hover:bg-gray-600"}`} title={renderPlaying ? "Pause render" : "Play render"}>
-              {renderPlaying ? <Pause size={12} /> : <Play size={12} />}
-            </button>
-            <button onClick={() => { setRenderPlaying(false); setAnimationTime(0); }} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded" title="Reset">
-              <Square size={10} />
-            </button>
-          </div>
+        {/* Playback Controls */}
+        <div className="absolute bottom-10 left-2 right-2 bg-[#12121a]/95 backdrop-blur-md rounded-xl border border-gray-700/60 shadow-2xl shadow-black/40">
+          {/* Main transport row */}
+          <div className="flex items-center gap-2 px-4 py-2.5">
+            {/* Render Transport */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setRenderPlaying(!renderPlaying)}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${renderPlaying ? "bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-900/40" : "bg-gray-700 hover:bg-gray-600"}`}
+                title={renderPlaying ? "Pause render" : "Play render"}
+              >
+                {renderPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
+              </button>
+              <button
+                onClick={() => { setRenderPlaying(false); setAnimationTime(0); }}
+                className="w-9 h-9 rounded-lg bg-gray-700 hover:bg-gray-600 flex items-center justify-center transition-colors"
+                title="Rewind to start"
+              >
+                <Square size={14} />
+              </button>
+              <div className="flex flex-col items-center">
+                <span className={`text-xs font-mono font-bold ${renderPlaying ? "text-emerald-400" : "text-gray-300"}`}>
+                  {Math.floor(animationTime / 60)}:{String(Math.floor(animationTime % 60)).padStart(2, "0")}
+                </span>
+                <span className="text-[9px] text-gray-500 uppercase tracking-wider">Render</span>
+              </div>
+            </div>
 
-          {/* Audio Sync Controls */}
-          <div className="flex items-center gap-1.5 border-r border-gray-700 pr-3">
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider">Audio</span>
-            <button onClick={toggleAudio} className={`p-1.5 rounded ${isAudioPlaying ? "bg-purple-600 hover:bg-purple-700" : "bg-gray-700 hover:bg-gray-600"}`} title={isAudioPlaying ? "Pause audio" : "Play audio"}>
-              {isAudioPlaying ? <Volume2 size={12} /> : <VolumeX size={12} />}
-            </button>
-            <button onClick={() => { setIsAudioPlaying(false); setIsPlaying(false); setRenderPlaying(false); }} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded" title="Stop all">
-              <Square size={10} />
-            </button>
-          </div>
+            {/* Divider */}
+            <div className="w-px h-8 bg-gray-700/60" />
 
-          {/* Timeline Scrubber */}
-          <span className="text-xs text-gray-400 font-mono w-12">{animationTime.toFixed(1)}s</span>
-          <input
-            type="range"
-            min={0}
-            max={animationDuration}
-            step={0.1}
-            value={animationTime}
-            onChange={(e) => { setAnimationTime(Number(e.target.value)); setRenderPlaying(false); }}
-            className="flex-1 accent-purple-500"
-          />
-          <span className="text-xs text-gray-400 font-mono w-12">{animationDuration.toFixed(0)}s</span>
-          {keyframeTracks.length > 0 && <span className="text-[10px] text-purple-400 bg-purple-900/30 px-1.5 py-0.5 rounded">{keyframeTracks.length} keyframes</span>}
+            {/* Audio Transport */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleAudio}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${isAudioPlaying ? "bg-purple-600 hover:bg-purple-500 shadow-lg shadow-purple-900/40" : "bg-gray-700 hover:bg-gray-600"}`}
+                title={isAudioPlaying ? "Pause audio" : "Play audio"}
+              >
+                {isAudioPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
+              </button>
+              <button
+                onClick={() => { setIsAudioPlaying(false); setIsPlaying(false); setRenderPlaying(false); }}
+                className="w-9 h-9 rounded-lg bg-gray-700 hover:bg-gray-600 flex items-center justify-center transition-colors"
+                title="Stop all"
+              >
+                <Square size={14} />
+              </button>
+              <div className="flex flex-col items-center">
+                <span className={`text-xs font-mono font-bold ${isAudioPlaying ? "text-purple-400" : "text-gray-300"}`}>
+                  {isAudioPlaying ? "LIVE" : "— : —"}
+                </span>
+                <span className="text-[9px] text-gray-500 uppercase tracking-wider">Audio</span>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="w-px h-8 bg-gray-700/60" />
+
+            {/* Timeline Scrubber */}
+            <div className="flex-1 flex items-center gap-2 px-2">
+              <span className="text-[10px] text-gray-500 font-mono">{animationTime.toFixed(1)}s</span>
+              <div className="flex-1 relative">
+                <input
+                  type="range"
+                  min={0}
+                  max={animationDuration}
+                  step={0.1}
+                  value={animationTime}
+                  onChange={(e) => { setAnimationTime(Number(e.target.value)); setRenderPlaying(false); }}
+                  className="w-full h-2 bg-gray-700 rounded-full appearance-none cursor-pointer accent-purple-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-400 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-purple-900/50"
+                />
+              </div>
+              <span className="text-[10px] text-gray-500 font-mono">{animationDuration.toFixed(0)}s</span>
+            </div>
+
+            {/* Keyframe indicator */}
+            {keyframeTracks.length > 0 && (
+              <span className="text-[10px] text-purple-400 bg-purple-900/30 px-2 py-1 rounded-md font-medium">{keyframeTracks.length} keyframes</span>
+            )}
+          </div>
         </div>
       </div>
 
