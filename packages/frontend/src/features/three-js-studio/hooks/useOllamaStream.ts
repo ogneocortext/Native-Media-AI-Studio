@@ -15,13 +15,23 @@ export function useOllamaStream() {
     prompt: string,
     model: string,
     systemPrompt?: string,
-    onMessage?: (msg: StreamMessage) => void,
-    useTools?: boolean,
+    onMessageOrUseTools?: ((msg: StreamMessage) => void) | boolean,
+    useToolsArg?: boolean,
   ) => {
     setGenerating(true);
     setOutput("");
     const controller = new AbortController();
     abortRef.current = controller;
+
+    // Handle overloaded signature: (prompt, model, systemPrompt, useTools) or (prompt, model, systemPrompt, onMessage, useTools)
+    let onMessage: ((msg: StreamMessage) => void) | undefined;
+    let useTools: boolean | undefined;
+    if (typeof onMessageOrUseTools === "function") {
+      onMessage = onMessageOrUseTools;
+      useTools = useToolsArg;
+    } else if (typeof onMessageOrUseTools === "boolean") {
+      useTools = onMessageOrUseTools;
+    }
 
     try {
       const stream = await ollamaChatStream(

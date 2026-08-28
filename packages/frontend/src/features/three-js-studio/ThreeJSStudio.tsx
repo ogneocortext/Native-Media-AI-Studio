@@ -190,14 +190,58 @@ export function ThreeJSStudio() {
         if (sceneDesc.objects) {
           for (const objDesc of sceneDesc.objects) {
             let geometry: any;
-            switch (objDesc.type) {
-              case "sphere": geometry = new THREE.SphereGeometry(0.8, 32, 32); break;
-              case "box": geometry = new THREE.BoxGeometry(1.2, 1.2, 1.2); break;
-              case "cylinder": geometry = new THREE.CylinderGeometry(0.6, 0.6, 1.4, 32); break;
-              case "cone": geometry = new THREE.ConeGeometry(0.8, 1.5, 32); break;
-              case "torus": geometry = new THREE.TorusGeometry(0.8, 0.25, 16, 32); break;
-              default: geometry = new THREE.BoxGeometry(1, 1, 1);
+            const t = objDesc.type;
+            // Storyboard-driven element types
+            if (t === "sphere") geometry = new THREE.SphereGeometry(0.8, 32, 32);
+            else if (t === "box") geometry = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+            else if (t === "cylinder") geometry = new THREE.CylinderGeometry(0.6, 0.6, 1.4, 32);
+            else if (t === "cone") geometry = new THREE.ConeGeometry(0.8, 1.5, 32);
+            else if (t === "torus") geometry = new THREE.TorusGeometry(0.8, 0.25, 16, 32);
+            else if (t === "crown") {
+              // Crown = torus band + spikes + gem
+              const group = new THREE.Group();
+              const band = new THREE.Mesh(new THREE.TorusGeometry(1, 0.15, 16, 32), new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.1 }));
+              group.add(band);
+              for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const spike = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.5, 8), new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.1 }));
+                spike.position.set(Math.cos(angle) * 0.85, 0.4, Math.sin(angle) * 0.85);
+                group.add(spike);
+              }
+              const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), new THREE.MeshStandardMaterial({ color: 0x8b5cf6, metalness: 0.5, roughness: 0, emissive: 0x8b5cf6, emissiveIntensity: 0.8 }));
+              gem.position.y = 0.3;
+              group.add(gem);
+              const gpos = objDesc.position as [number, number, number] || [0, 0.5, 0];
+              const gscl = objDesc.scale as [number, number, number] || [1, 1, 1];
+              group.position.set(gpos[0], gpos[1], gpos[2]);
+              group.scale.set(gscl[0], gscl[1], gscl[2]);
+              group.castShadow = true;
+              scene.add(group);
+              continue;
             }
+            else if (t === "orb") geometry = new THREE.SphereGeometry(1, 64, 64);
+            else if (t === "ring") geometry = new THREE.TorusGeometry(1.5, 0.05, 16, 64);
+            else if (t === "spiral") geometry = new THREE.TorusKnotGeometry(0.8, 0.2, 128, 16);
+            else if (t === "mountain") geometry = new THREE.ConeGeometry(2, 4, 6);
+            else if (t === "tree") geometry = new THREE.ConeGeometry(0.8, 3, 8);
+            else if (t === "city" || t === "skyline") geometry = new THREE.BoxGeometry(0.5, 3, 0.5);
+            else if (t === "stage") geometry = new THREE.BoxGeometry(8, 0.3, 5);
+            else if (t === "equalizer" || t === "bar") geometry = new THREE.BoxGeometry(0.12, 1, 0.12);
+            else if (t === "pillar") geometry = new THREE.CylinderGeometry(0.3, 0.3, 4, 16);
+            else if (t === "vinyl") geometry = new THREE.CylinderGeometry(1.5, 1.5, 0.05, 64);
+            else if (t === "wave") geometry = new THREE.TorusGeometry(2, 0.3, 16, 32);
+            else if (t === "galaxy") geometry = new THREE.TorusGeometry(3, 0.8, 16, 64);
+            else if (t === "neuron") geometry = new THREE.IcosahedronGeometry(0.5, 1);
+            else if (t === "fractal") geometry = new THREE.OctahedronGeometry(1, 2);
+            else if (t === "lightning") geometry = new THREE.ConeGeometry(0.1, 3, 4);
+            else if (t === "fire") geometry = new THREE.ConeGeometry(0.5, 2, 8);
+            else if (t === "snow" || t === "rain") geometry = new THREE.SphereGeometry(0.05, 8, 8);
+            else if (t === "text" || t === "particle_field" || t === "light_rays" || t === "lens_flare") {
+              // These are handled as special effects, skip geometry creation
+              continue;
+            }
+            else geometry = new THREE.BoxGeometry(1, 1, 1);
+
             const mat = new THREE.MeshStandardMaterial({
               color: new THREE.Color(objDesc.color || "#ffffff"),
               metalness: objDesc.metalness ?? 0.6,
@@ -210,9 +254,34 @@ export function ThreeJSStudio() {
             const scl = objDesc.scale as [number, number, number] || [1, 1, 1];
             mesh.position.set(pos[0], pos[1], pos[2]);
             mesh.scale.set(scl[0], scl[1], scl[2]);
+            if (objDesc.rotation) {
+              mesh.rotation.set(...(objDesc.rotation as [number, number, number]));
+            }
             mesh.castShadow = true;
             mesh.receiveShadow = true;
             scene.add(mesh);
+          }
+        }
+
+        // Apply environment
+        if (sceneDesc.environment) {
+          const env = sceneDesc.environment;
+          if (env.color) scene.background = new THREE.Color(env.color);
+          if (env.fog && scene.fog) scene.fog.density = env.fog;
+        }
+
+        // Apply camera shot config
+        if (sceneDesc.camera && typeof sceneDesc.camera === "object") {
+          const cam = sceneDesc.camera;
+          if (cam.position && cameraRef.current) {
+            cameraRef.current.position.set(...(cam.position as [number, number, number]));
+          }
+          if (cam.fov && cameraRef.current) {
+            cameraRef.current.fov = cam.fov;
+            cameraRef.current.updateProjectionMatrix();
+          }
+          if (cam.movement) {
+            setCameraMode(cam.movement);
           }
         }
 

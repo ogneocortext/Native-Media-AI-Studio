@@ -11,7 +11,7 @@ interface AISceneGeneratorProps {
 
 export function AISceneGenerator({ selectedTrack, onApplyCode }: AISceneGeneratorProps) {
   const { metadata, loading: metaLoading } = useTrackMetadata(selectedTrack || null);
-  const { generate, cancel, generating, output, setOutput } = useOllamaStream();
+  const { generate, cancel, generating, output } = useOllamaStream();
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState("");
   const [variations, setVariations] = useState<PromptVariation[]>(() => generatePromptVariations({
@@ -43,19 +43,30 @@ export function AISceneGenerator({ selectedTrack, onApplyCode }: AISceneGenerato
     await generate(
       variations[activeVariation].prompt,
       selectedModel,
-      `You are a Three.js scene designer. Use the available tools to build a 3D scene.
-Call scene_clear first, then add objects with scene_add_object, lights with scene_add_light,
-set the camera with scene_set_camera, and add animation keyframes with scene_add_keyframe.
-When done, call scene_get_state to return the final scene.
-Track: ${metadata.bpm} BPM, ${metadata.duration}s, energy: ${metadata.energyCurve.length > 0 ? Math.round(metadata.energyCurve.reduce((a,b)=>a+b,0)/metadata.energyCurve.length*100) + '%' : 'unknown'}`,
+      `You are a 3D scene designer for music video visualization. Use the available tools to build a scene that matches the storyboard.
+
+Available tools:
+- scene_clear: Reset the scene
+- scene_add_environment: Set mood (studio, city, void, sunset, neon, forest, space)
+- scene_add_storyboard_element: Add visual elements (crown, orb, ring, spiral, mountain, city, tree, stage, equalizer, vinyl, pillar, bar, wave, galaxy, neuron, fractal, lightning, fire, rain, snow, light_rays, lens_flare, particle_field)
+- scene_add_light: Add lights (point, spot, directional)
+- scene_set_camera_for_shot: Set camera (wide, close_up, macro, overhead, dolly, tracking, handheld, low_angle, birds_eye)
+- scene_add_text: Add 3D text for lyrics/titles
+- scene_add_keyframe: Add animation keyframes (time, position, rotation, scale)
+- scene_set_bloom: Set glow intensity (0-1.5)
+- scene_set_duration: Set animation length
+- scene_get_state: Return final scene JSON
+
+Track info: ${metadata.bpm} BPM, ${metadata.duration}s duration
+Sections: ${metadata.sections.map((s: any) => s.type).join(", ")}
+
+Start with scene_clear, then build the scene step by step. End with scene_get_state.`,
       (msg) => {
-        // When generation is done, fetch the scene state from backend
         if (msg.type === "done") {
           fetch("/api/integrations/ollama/scene-state")
             .then((r) => r.json())
             .then((state) => {
               if (state && state.objects) {
-                setOutput(JSON.stringify(state, null, 2));
                 onApplyCode(JSON.stringify(state));
               }
             })

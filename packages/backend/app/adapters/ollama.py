@@ -221,6 +221,88 @@ Generate 3-8 scenes based on the input theme or concept."""
                     },
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "scene_add_storyboard_element",
+                    "description": "Add a storyboard visual element (crown, skyline, orb, ring, spiral, mountain, city, tree, lightning, rain, snow, fire, wave, galaxy, neuron, fractal, text, particle_field, light_rays, lens_flare).",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "element_type": {"type": "string", "enum": ["crown", "skyline", "orb", "ring", "spiral", "mountain", "city", "tree", "lightning", "rain", "snow", "fire", "wave", "galaxy", "neuron", "fractal", "text", "particle_field", "light_rays", "lens_flare", "stage", "equalizer", "vinyl", "pillar", "bar"]},
+                            "position": {"type": "array", "items": {"type": "number"}},
+                            "color": {"type": "string"},
+                            "scale": {"type": "array", "items": {"type": "number"}},
+                            "rotation": {"type": "array", "items": {"type": "number"}},
+                            "metalness": {"type": "number", "minimum": 0, "maximum": 1},
+                            "roughness": {"type": "number", "minimum": 0, "maximum": 1},
+                            "emissive": {"type": "number", "minimum": 0, "maximum": 2},
+                            "storyboard_ref": {"type": "string", "description": "Reference to storyboard scene/section"},
+                        },
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "scene_set_camera_for_shot",
+                    "description": "Set camera based on storyboard shot type (wide, close_up, macro, overhead, dolly, tracking, handheld, low_angle, birds_eye).",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "shot_type": {"type": "string", "enum": ["wide", "close_up", "macro", "overhead", "dolly", "tracking", "handheld", "low_angle", "birds_eye"]},
+                            "target": {"type": "array", "items": {"type": "number"}},
+                            "fov": {"type": "number", "minimum": 10, "maximum": 120},
+                            "movement": {"type": "string", "enum": ["static", "orbit", "dolly", "tracking", "handheld"]},
+                        },
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "scene_add_text",
+                    "description": "Add 3D text element for lyrics, titles, or labels.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"type": "string"},
+                            "position": {"type": "array", "items": {"type": "number"}},
+                            "color": {"type": "string"},
+                            "size": {"type": "number", "minimum": 0.1, "maximum": 5},
+                        },
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "scene_add_environment",
+                    "description": "Set the environment/background mood (studio, city, void, sunset, neon, forest, space).",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "env_type": {"type": "string", "enum": ["studio", "city", "void", "sunset", "neon", "forest", "space"]},
+                            "color": {"type": "string"},
+                            "fog": {"type": "number", "minimum": 0, "maximum": 0.1},
+                        },
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "scene_link_to_storyboard",
+                    "description": "Link this scene to a storyboard document for reference.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "storyboard_path": {"type": "string"},
+                            "track_name": {"type": "string"},
+                        },
+                    },
+                },
+            },
         ]
 
     async def health_check(self) -> bool:
@@ -475,6 +557,12 @@ Generate 3-8 scenes based on the input theme or concept."""
             "scene_get_state": self._tool_scene_get_state,
             "scene_set_bloom": self._tool_scene_set_bloom,
             "scene_set_duration": self._tool_scene_set_duration,
+            # Storyboard-driven tools
+            "scene_add_storyboard_element": self._tool_scene_add_storyboard_element,
+            "scene_set_camera_for_shot": self._tool_scene_set_camera_for_shot,
+            "scene_add_text": self._tool_scene_add_text,
+            "scene_add_environment": self._tool_scene_add_environment,
+            "scene_link_to_storyboard": self._tool_scene_link_to_storyboard,
         }
 
     # ---- Three.js Scene Tools ----
@@ -589,6 +677,124 @@ Generate 3-8 scenes based on the input theme or concept."""
         """Set the animation duration in seconds."""
         self._scene_state["duration"] = max(1, seconds)
         return f"Animation duration set to {self._scene_state['duration']}s."
+
+    # ---- Storyboard-Driven Scene Tools ----
+
+    async def _tool_scene_add_storyboard_element(
+        self,
+        element_type: str = "crown",
+        position: list[float] | None = None,
+        color: str = "#ffd700",
+        scale: list[float] | None = None,
+        rotation: list[float] | None = None,
+        metalness: float = 0.9,
+        roughness: float = 0.1,
+        emissive: float = 0.2,
+        storyboard_ref: str = "",
+    ) -> str:
+        """Add a storyboard visual element (crown, skyline, orb, ring, text, particle_field, light_rays)."""
+        element = {
+            "type": element_type,
+            "position": position or [0, 0.5, 0],
+            "color": color,
+            "scale": scale or [1, 1, 1],
+            "rotation": rotation or [0, 0, 0],
+            "metalness": metalness,
+            "roughness": roughness,
+            "emissive": emissive,
+            "storyboard_ref": storyboard_ref,
+        }
+        self._scene_state["objects"].append(element)
+        idx = len(self._scene_state["objects"]) - 1
+        return f"Added storyboard element '{element_type}' at index {idx}" + (f" (ref: {storyboard_ref})" if storyboard_ref else "")
+
+    async def _tool_scene_set_camera_for_shot(
+        self,
+        shot_type: str = "wide",
+        target: list[float] | None = None,
+        fov: float = 50,
+        movement: str = "static",
+    ) -> str:
+        """Set camera based on storyboard shot type (wide, close_up, macro, overhead, dolly, tracking, handheld)."""
+        shot_configs = {
+            "wide": {"position": [0, 3, 10], "fov": 60, "movement": "orbit"},
+            "close_up": {"position": [0, 1, 4], "fov": 35, "movement": "static"},
+            "macro": {"position": [0, 0.5, 2], "fov": 25, "movement": "static"},
+            "overhead": {"position": [0, 10, 0.1], "fov": 50, "movement": "static"},
+            "dolly": {"position": [0, 3, 10], "fov": 50, "movement": "dolly"},
+            "tracking": {"position": [5, 2, 5], "fov": 45, "movement": "orbit"},
+            "handheld": {"position": [0, 3, 8], "fov": 50, "movement": "handheld"},
+            "low_angle": {"position": [0, -1, 6], "fov": 55, "movement": "static"},
+            "birds_eye": {"position": [0, 15, 0.1], "fov": 45, "movement": "orbit"},
+        }
+        config = shot_configs.get(shot_type, shot_configs["wide"])
+        if target:
+            config["target"] = target
+        config["fov"] = fov
+        if movement != "static":
+            config["movement"] = movement
+        self._scene_state["camera"] = config
+        return f"Camera set to '{shot_type}' shot: {config}"
+
+    async def _tool_scene_add_text(
+        self,
+        text: str = "Title",
+        position: list[float] | None = None,
+        color: str = "#ffffff",
+        size: float = 1.0,
+        font: str = "bold",
+    ) -> str:
+        """Add 3D text element (rendered as a plane with text texture)."""
+        element = {
+            "type": "text",
+            "text": text,
+            "position": position or [0, 2, 0],
+            "color": color,
+            "scale": [size * len(text) * 0.6, size, 0.1],
+            "rotation": [0, 0, 0],
+            "metalness": 0.1,
+            "roughness": 0.8,
+            "emissive": 0.0,
+            "storyboard_ref": "text",
+        }
+        self._scene_state["objects"].append(element)
+        return f"Added text '{text}' at position {element['position']}."
+
+    async def _tool_scene_add_environment(
+        self,
+        env_type: str = "studio",
+        color: str = "#0a0a0f",
+        fog: float = 0.015,
+    ) -> str:
+        """Set the environment/background (studio, city, void, sunset, neon, forest, space)."""
+        env_configs = {
+            "studio": {"color": "#0a0a0f", "fog": 0.015, "ambient": 0.4},
+            "city": {"color": "#1a1a2e", "fog": 0.02, "ambient": 0.3},
+            "void": {"color": "#000000", "fog": 0.005, "ambient": 0.1},
+            "sunset": {"color": "#ff6b35", "fog": 0.025, "ambient": 0.5},
+            "neon": {"color": "#0a0a1a", "fog": 0.02, "ambient": 0.2},
+            "forest": {"color": "#0a1a0a", "fog": 0.03, "ambient": 0.3},
+            "space": {"color": "#000005", "fog": 0.001, "ambient": 0.05},
+        }
+        config = env_configs.get(env_type, env_configs["studio"])
+        if color != "#0a0a0f":
+            config["color"] = color
+        if fog != 0.015:
+            config["fog"] = fog
+        self._scene_state["environment"] = config
+        return f"Environment set to '{env_type}': {config}"
+
+    async def _tool_scene_link_to_storyboard(
+        self,
+        storyboard_path: str = "",
+        track_name: str = "",
+    ) -> str:
+        """Link the scene to a storyboard document for reference."""
+        self._scene_state["storyboard"] = {
+            "path": storyboard_path,
+            "track": track_name,
+        }
+        return f"Linked to storyboard: {storyboard_path or track_name}"
 
     async def _tool_get_project_structure(self, depth: int = 3) -> str:
         """Get project directory structure."""
