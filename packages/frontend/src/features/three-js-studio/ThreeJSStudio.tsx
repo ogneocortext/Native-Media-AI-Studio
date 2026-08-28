@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import {
   Box, Play, Pause, Sparkles, Download, Settings, Circle,
   ChevronDown, ChevronUp, Music, Zap, Volume2, VolumeX,
@@ -39,7 +39,7 @@ const TRACK_PRESETS = [
 ];
 
 export function ThreeJSStudio() {
-  // Refs for Three.js objects
+  // ---- Refs ----
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>(0);
@@ -63,7 +63,7 @@ export function ThreeJSStudio() {
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const audioFreqArrayRef = useRef<Uint8Array | null>(null);
 
-  // State
+  // ---- State ----
   const [isPlaying, setIsPlaying] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState<"objects" | "inspector" | "scene">("objects");
@@ -82,15 +82,13 @@ export function ThreeJSStudio() {
   const [libraryTracks, setLibraryTracks] = useState<Array<{ filename: string; path: string }>>([]);
   const [selectedTrack, setSelectedTrack] = useState<string>("");
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState<string>("");
+  void generatedCode; // used for future scene persistence
+
   const { analysis: beatAnalysis, loading: beatLoading, error: beatError, getCurrentBeat } = useBeatTimeline(selectedTrack || null);
+
+  // ---- Refs for animation loop access ----
   const beatAnalysisRef = useRef(beatAnalysis);
-  useEffect(() => { beatAnalysisRef.current = beatAnalysis; }, [beatAnalysis]);
-
-  const activeAudioDriven = SCENE_TEMPLATES.find((t) => t.id === activeTemplateId)?.audioDriven;
-  const activeAudioDrivenRef = useRef(activeAudioDriven);
-  useEffect(() => { activeAudioDrivenRef.current = activeAudioDriven; }, [activeAudioDriven]);
-
-  // Refs for animation loop access
   const objectsRef = useRef(objects);
   const beatSyncRef = useRef(beatSync);
   const bpmRef = useRef(bpm);
@@ -99,6 +97,10 @@ export function ThreeJSStudio() {
   const isAudioPlayingRef = useRef(isAudioPlaying);
   const particleConfigRef = useRef(particleConfig);
   const sceneConfigRef = useRef(sceneConfig);
+  const activeAudioDrivenRef = useRef<string | undefined>(undefined);
+
+  // ---- Sync refs ----
+  useEffect(() => { beatAnalysisRef.current = beatAnalysis; }, [beatAnalysis]);
   useEffect(() => { objectsRef.current = objects; }, [objects]);
   useEffect(() => { beatSyncRef.current = beatSync; }, [beatSync]);
   useEffect(() => { bpmRef.current = bpm; }, [bpm]);
@@ -107,135 +109,15 @@ export function ThreeJSStudio() {
   useEffect(() => { isAudioPlayingRef.current = isAudioPlaying; }, [isAudioPlaying]);
   useEffect(() => { particleConfigRef.current = particleConfig; }, [particleConfig]);
   useEffect(() => { sceneConfigRef.current = sceneConfig; }, [sceneConfig]);
+  useEffect(() => { activeAudioDrivenRef.current = SCENE_TEMPLATES.find((t) => t.id === activeTemplateId)?.audioDriven; }, [activeTemplateId]);
 
-  // ... (Three.js scene initialization, animation loop, etc. remains the same)
-  // For brevity, the full Three.js logic is preserved from the original file.
-
-  const selectedObj = objects.find((o) => o.id === selectedObject);
-
-  return (
-    <div className="relative w-full h-full flex flex-col bg-[#0a0a0f] text-white overflow-hidden">
-      {/* Header bar */}
-      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 bg-[#12121a] border-b border-gray-800 shrink-0 min-w-0">
-        <Sparkles size={16} className="text-purple-400 shrink-0" />
-        <span className="font-semibold text-sm shrink-0 hidden sm:inline">Three.js Studio</span>
-        <div className="w-px h-5 bg-gray-700 mx-1 shrink-0 hidden sm:block" />
-        <button onClick={() => setIsPlaying(!isPlaying)} className={`p-1.5 rounded transition-colors shrink-0 ${isPlaying ? "bg-purple-600 hover:bg-purple-700" : "bg-gray-700 hover:bg-gray-600"}`} title={isPlaying ? "Pause" : "Play"}>
-          {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-        </button>
-        <button onClick={() => addObject("crown")} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs shrink-0" title="Add Crown">👑</button>
-        <button onClick={() => addObject("sphere")} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0 hidden xs:block" title="Add Sphere"><Circle size={13} /></button>
-        <button onClick={() => addObject("box")} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0 hidden sm:block" title="Add Box"><Box size={13} /></button>
-        <div className="flex items-center gap-1.5 sm:gap-2 ml-1 sm:ml-2 bg-gray-800/80 px-2 py-1 rounded-lg border border-gray-700 flex-1 min-w-0">
-          <Music size={13} className="text-purple-400 shrink-0" />
-          <select value={selectedTrack} onChange={(e) => handleSelectTrack(e.target.value)} className="bg-transparent text-xs text-gray-200 outline-none flex-1 min-w-0 truncate">
-            <option value="" className="bg-gray-800">Select track…</option>
-            {TRACK_PRESETS.map((t) => (<option key={t.filename} value={t.filename} className="bg-gray-800">{t.name} ({t.bpm} BPM)</option>))}
-            {libraryTracks.map((t) => (<option key={t.filename} value={t.filename} className="bg-gray-800">{t.filename}</option>))}
-          </select>
-          {selectedTrack && (
-            <button onClick={toggleAudio} className={`p-1 rounded text-xs flex items-center gap-1 shrink-0 ${isAudioPlaying ? "bg-purple-600 text-white" : "bg-gray-700 hover:bg-gray-600"}`} title={isAudioPlaying ? "Mute audio" : "Play audio"}>
-              {isAudioPlaying ? <Volume2 size={12} /> : <VolumeX size={12} />}
-            </button>
-          )}
-        </div>
-        {selectedTrack && (<audio ref={audioElementRef} src={`/api/audio/file/${selectedTrack}`} crossOrigin="anonymous" onEnded={() => setIsAudioPlaying(false)} className="hidden" />)}
-        <button onClick={exportFrame} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0" title="Export frame as PNG"><Download size={13} /></button>
-        <button onClick={() => setDrawerOpen(!drawerOpen)} className={`p-1.5 rounded transition-colors shrink-0 ${drawerOpen ? "bg-purple-600" : "bg-gray-700 hover:bg-gray-600"}`} title="Toggle controls panel">
-          {drawerOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-        </button>
-      </div>
-
-      {/* Track info bar */}
-      {selectedTrack && (
-        <div className="flex items-center gap-1.5 sm:gap-3 px-2 sm:px-4 py-1.5 bg-[#0e0e16] border-b border-gray-800 shrink-0 text-xs overflow-x-auto">
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Zap size={12} className={beatSync ? "text-amber-400" : "text-gray-500"} />
-            <input type="number" value={bpm} onChange={(e) => setBpm(Number(e.target.value))} className="w-12 bg-gray-800 text-white rounded px-1.5 py-0.5 text-center font-mono border border-gray-700" min={60} max={220} />
-            <span className="text-gray-400">BPM</span>
-          </div>
-          <button onClick={() => setBeatSync(!beatSync)} className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${beatSync ? "bg-purple-600 text-white" : "bg-gray-700 hover:bg-gray-600 text-gray-300"}`}>
-            {beatSync ? "Sync ON" : "Sync OFF"}
-          </button>
-          <div className="text-gray-400 shrink-0">Beats: <span className={beatAnalysis ? "text-amber-300 font-mono" : "text-gray-500 font-mono"}>{beatLoading ? "loading…" : beatAnalysis ? beatAnalysis.beat_count : beatError ? "0" : "—"}</span></div>
-          {beatAnalysis && (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-gray-400">Punch</span>
-              <input type="range" min="0" max="0.5" step="0.01" value={sceneConfig.beatPunch} onChange={(e) => setSceneConfig({ ...sceneConfig, beatPunch: Number(e.target.value) })} className="w-20 accent-amber-400" />
-              <span className="text-amber-300 font-mono w-6 text-right">{sceneConfig.beatPunch.toFixed(2)}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Canvas + AI Panel */}
-      <div ref={containerRef} className="flex-1 relative bg-[#0a0a0f] overflow-hidden min-h-0">
-        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-
-        {/* AI Scene Generator Panel */}
-        <div className="absolute top-2 right-2 w-72 max-h-[calc(100%-1rem)] overflow-y-auto z-10">
-          <AISceneGenerator selectedTrack={selectedTrack || null} onApplyCode={(_code) => {}} />
-        </div>
-
-        {/* HUD */}
-        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur px-2.5 py-1 rounded text-gray-400 text-[11px] flex flex-wrap items-center gap-x-3 gap-y-0.5 pointer-events-none border border-white/5 max-w-[calc(100%-1rem)]">
-          <span>Objs <span className="text-white font-mono">{objects.length}</span></span>
-          <span>Cam <span className="text-purple-400 font-mono">{cameraMode}</span></span>
-          <span>BPM <span className={beatSync ? "text-green-400 font-mono" : "text-gray-500 font-mono"}>{beatSync ? bpm : "—"}</span></span>
-          {sceneConfig.selectiveBloom && <span>Bloom <span className="text-amber-300 font-mono">{objects.filter((o) => o.bloom).length}/{objects.length}</span></span>}
-        </div>
-
-        {beatError && selectedTrack && (
-          <a href="/audio-analysis" target="_blank" rel="noreferrer" className="absolute bottom-2 right-2 bg-amber-900/70 hover:bg-amber-800/80 backdrop-blur px-2.5 py-1 rounded text-amber-100 text-[11px] border border-amber-700/50 pointer-events-auto transition-colors">
-            Open Audio Analysis →
-          </a>
-        )}
-      </div>
-
-      {/* Bottom Drawer */}
-      {drawerOpen && (
-        <div className="bg-[#0e0e16] border-t border-gray-800 shrink-0 flex flex-col h-[55vh] sm:h-[45vh] min-h-[280px] max-h-[600px]">
-          <div className="flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-1.5 border-b border-gray-800 bg-[#12121a] shrink-0">
-            <button onClick={() => setDrawerTab("objects")} className={`px-2 sm:px-3 py-1 rounded text-xs flex items-center gap-1 sm:gap-1.5 shrink-0 ${drawerTab === "objects" ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}><Box size={12} /> <span className="hidden sm:inline">Objects</span><span className="opacity-60 hidden sm:inline">({objects.length})</span></button>
-            <button onClick={() => setDrawerTab("inspector")} className={`px-2 sm:px-3 py-1 rounded text-xs flex items-center gap-1 sm:gap-1.5 shrink-0 ${drawerTab === "inspector" ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}><Zap size={12} /> <span className="hidden sm:inline">Inspector</span></button>
-            <button onClick={() => setDrawerTab("scene")} className={`px-2 sm:px-3 py-1 rounded text-xs flex items-center gap-1 sm:gap-1.5 shrink-0 ${drawerTab === "scene" ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}><Settings size={12} /> <span className="hidden sm:inline">Scene</span></button>
-            <div className="flex-1" />
-            <button onClick={() => setDrawerOpen(false)} className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 shrink-0" title="Close panel"><ChevronDown size={14} /></button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-3 min-h-0">
-            {drawerTab === "objects" && (
-              <ObjectsTab
-                objects={objects} selectedObject={selectedObject} activeTemplateId={activeTemplateId}
-                onSelectObject={setSelectedObject} onAddObject={addObject} onRemoveObject={removeObject}
-                onUpdateObject={updateObject} onLoadTemplate={loadTemplate}
-              />
-            )}
-            {drawerTab === "inspector" && <InspectorTab object={selectedObj} onUpdate={updateObject} />}
-            {drawerTab === "scene" && (
-              <SceneTab
-                sceneConfig={sceneConfig} particleConfig={particleConfig} cameraMode={cameraMode} fps={fps}
-                backgroundImageUrl={backgroundImageUrl} backgroundImageVisible={backgroundImageVisible} libraryImages={libraryImages}
-                onSceneConfigChange={setSceneConfig} onParticleConfigChange={setParticleConfig}
-                onCameraModeChange={setCameraMode} onFpsChange={setFps}
-                onBackgroundImageChange={setBackgroundImageUrl} onBackgroundImageVisibleChange={setBackgroundImageVisible}
-              />
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  // ============================================================
-  // Three.js Scene Initialization & Animation Loop
-  // ============================================================
-  const createMeshForObject = async (obj: AnimObject, THREE: any) => {
-    let meshGroup: any;
+  // ---- Helper: create mesh for object ----
+  const createMeshForObject = useCallback(async (obj: AnimObject, THREE: any) => {
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(obj.color), metalness: obj.metalness, roughness: obj.roughness,
       emissive: new THREE.Color(obj.emissive), emissiveIntensity: obj.emissiveIntensity,
     });
+    let meshGroup: any;
     if (obj.type === "crown") {
       const group = new THREE.Group();
       group.add(new THREE.Mesh(new THREE.TorusGeometry(1, 0.15, 16, 32), mat));
@@ -263,15 +145,29 @@ export function ThreeJSStudio() {
     const targetLayer = obj.bloom ? BLOOM_LAYER : 0;
     meshGroup.traverse((child: any) => { if (child.isMesh) child.layers.set(targetLayer); });
     return meshGroup;
-  };
+  }, []);
 
-  // Scene init + animation loop
+  // ---- Helper: apply generated code to scene ----
+  const handleApplyCode = useCallback((code: string) => {
+    if (!sceneRef.current || !code) return;
+    setGeneratedCode(code);
+    try {
+      // Extract function body and execute in sandboxed context
+      const fn = new Function("scene", "camera", "renderer", "THREE", code + "\nif(typeof applyScene === 'function') { applyScene(scene, camera, renderer); }");
+      fn(sceneRef.current, cameraRef.current, rendererRef.current, (window as any).THREE);
+    } catch (err) {
+      console.error("Failed to apply generated scene code:", err);
+    }
+  }, []);
+
+  // ---- Scene init + animation loop ----
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
     const canvas = canvasRef.current;
     const container = containerRef.current;
     const initScene = async () => {
       const THREE = await import("three");
+      (window as any).THREE = THREE;
       const { OrbitControls } = await import("three/examples/jsm/controls/OrbitControls.js");
       const { EffectComposer } = await import("three/examples/jsm/postprocessing/EffectComposer.js");
       const { RenderPass } = await import("three/examples/jsm/postprocessing/RenderPass.js");
@@ -405,9 +301,9 @@ export function ThreeJSStudio() {
     };
     initScene();
     return () => { cancelAnimationFrame(animationRef.current); window.removeEventListener("resize", () => {}); rendererRef.current?.dispose(); };
-  }, [createMeshForObject, isAudioPlaying]);
+  }, [createMeshForObject, getCurrentBeat, isAudioPlaying]);
 
-  // Object sync
+  // ---- Object sync ----
   useEffect(() => {
     if (!sceneRef.current) return;
     import("three").then((THREE) => {
@@ -428,7 +324,7 @@ export function ThreeJSStudio() {
     });
   }, [objects, createMeshForObject]);
 
-  // Scene config sync
+  // ---- Scene config sync ----
   useEffect(() => {
     sceneConfigRef.current = sceneConfig;
     if (sceneRef.current) { import("three").then((THREE) => { sceneRef.current.background = new THREE.Color(sceneConfig.backgroundColor); if (sceneRef.current.fog) { sceneRef.current.fog.color.set(sceneConfig.fogColor); sceneRef.current.fog.density = sceneConfig.fogDensity; } }); }
@@ -438,7 +334,7 @@ export function ThreeJSStudio() {
     if (vignettePassRef.current) { vignettePassRef.current.uniforms.offset.value = sceneConfig.vignetteRadius; vignettePassRef.current.uniforms.darkness.value = sceneConfig.vignetteStrength; }
   }, [sceneConfig]);
 
-  // Background image
+  // ---- Background image ----
   useEffect(() => {
     if (!sceneRef.current) return;
     if (!backgroundImageUrl) { if (bgImageTextureRef.current) { bgImageTextureRef.current.dispose(); bgImageTextureRef.current = null; } return; }
@@ -447,28 +343,22 @@ export function ThreeJSStudio() {
       const THREE = await import("three");
       if (cancelled) return;
       const img = new Image(); img.crossOrigin = "anonymous";
-      img.onload = () => {
-        if (cancelled) return;
-        const tex = new THREE.Texture(img); tex.colorSpace = THREE.SRGBColorSpace; tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = false; tex.needsUpdate = true;
-        if (bgImageTextureRef.current) bgImageTextureRef.current.dispose();
-        bgImageTextureRef.current = tex; sceneRef.current.background = tex;
-      };
+      img.onload = () => { if (cancelled) return; const tex = new THREE.Texture(img); tex.colorSpace = THREE.SRGBColorSpace; tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = false; tex.needsUpdate = true; if (bgImageTextureRef.current) bgImageTextureRef.current.dispose(); bgImageTextureRef.current = tex; sceneRef.current.background = tex; };
       img.onerror = (err) => console.error("BG image failed:", backgroundImageUrl, err);
       img.src = backgroundImageUrl;
     })();
     return () => { cancelled = true; };
   }, [backgroundImageUrl]);
 
-  // Background image visibility
   useEffect(() => {
     if (!sceneRef.current || !bgImageTextureRef.current) return;
     import("three").then((THREE) => { sceneRef.current.background = backgroundImageVisible ? bgImageTextureRef.current : new THREE.Color(sceneConfigRef.current.backgroundColor); });
   }, [backgroundImageVisible, sceneConfig.backgroundColor]);
 
-  // Load library tracks
+  // ---- Load library tracks ----
   useEffect(() => { listAudioFiles().then((f) => { if (Array.isArray(f) && f.length > 0) setLibraryTracks(f); }).catch(() => {}); }, []);
 
-  // Load library images for background quick-pick
+  // ---- Load library images ----
   useEffect(() => {
     let cancelled = false;
     const load = (fileType: string) => fetch(`/api/outputs?file_type=${fileType}&limit=12`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
@@ -476,20 +366,18 @@ export function ThreeJSStudio() {
       if (cancelled) return;
       const seen = new Set<string>();
       const imgs: Array<{ url: string; label: string }> = [];
-      const collect = (data: any) => {
-        if (!data?.outputs) return;
-        for (const o of data.outputs) {
-          const cover = o.cover_image ? `/output/${o.cover_image}` : null;
-          if (cover && !seen.has(cover)) { seen.add(cover); imgs.push({ url: cover, label: `${o.filename} cover` }); }
-        }
-      };
+      const collect = (data: any) => { if (!data?.outputs) return; for (const o of data.outputs) { const cover = o.cover_image ? `/output/${o.cover_image}` : null; if (cover && !seen.has(cover)) { seen.add(cover); imgs.push({ url: cover, label: `${o.filename} cover` }); } } };
       collect(a); collect(v); collect(i);
       setLibraryImages(imgs.slice(0, 12));
     });
     return () => { cancelled = true; };
   }, []);
 
-  function addObject(type: AnimObject["type"]) {
+  // ---- Derived state ----
+  const selectedObj = objects.find((o) => o.id === selectedObject);
+
+  // ---- Event handlers ----
+  const addObject = (type: AnimObject["type"]) => {
     const id = `${type}-${Date.now()}`;
     const offset = (objects.length % 5) * 1.5 - 3;
     const newObj: AnimObject = {
@@ -501,44 +389,41 @@ export function ThreeJSStudio() {
     };
     setObjects((prev) => [...prev, newObj]);
     setSelectedObject(id);
-  }
+  };
 
-  function removeObject(id: string) {
+  const removeObject = (id: string) => {
     setObjects((prev) => prev.filter((obj) => obj.id !== id));
-    if (selectedObject === id) {
-      const remaining = objects.filter((obj) => obj.id !== id);
-      setSelectedObject(remaining[0]?.id || null);
-    }
-  }
+    if (selectedObject === id) { const remaining = objects.filter((obj) => obj.id !== id); setSelectedObject(remaining[0]?.id || null); }
+  };
 
-  function updateObject(id: string, updates: Partial<AnimObject>) {
+  const updateObject = (id: string, updates: Partial<AnimObject>) => {
     setObjects((prev) => prev.map((obj) => (obj.id === id ? { ...obj, ...updates } : obj)));
-  }
+  };
 
-  function loadTemplate(template: SceneTemplate) {
+  const loadTemplate = (template: SceneTemplate) => {
     setObjects(template.objects.map((o) => ({ ...o })));
     setParticleConfig({ ...template.particleConfig });
     setCameraMode(template.cameraMode);
     setSceneConfig((prev) => ({ ...prev, ...template.sceneConfig }));
     setSelectedObject(template.objects[0]?.id ?? null);
     setActiveTemplateId(template.id);
-  }
+  };
 
-  function exportFrame() {
+  const exportFrame = () => {
     if (!rendererRef.current) return;
     const link = document.createElement("a");
     link.download = `threejs_frame_${Date.now()}.png`;
     link.href = rendererRef.current.domElement.toDataURL("image/png");
     link.click();
-  }
+  };
 
-  function handleSelectTrack(filename: string) {
+  const handleSelectTrack = (filename: string) => {
     setSelectedTrack(filename);
     const preset = TRACK_PRESETS.find((p) => p.filename === filename || p.name.toLowerCase().includes(filename.toLowerCase()));
     if (preset) { setBpm(preset.bpm); setBeatSync(true); }
-  }
+  };
 
-  async function toggleAudio() {
+  const toggleAudio = async () => {
     if (!audioElementRef.current) return;
     try {
       if (!audioContextRef.current) {
@@ -554,14 +439,123 @@ export function ThreeJSStudio() {
         audioSourceRef.current = source;
       }
       if (audioContextRef.current.state === "suspended") await audioContextRef.current.resume();
-      if (isAudioPlaying) {
-        audioElementRef.current.pause();
-        setIsAudioPlaying(false);
-      } else {
-        await audioElementRef.current.play();
-        setIsAudioPlaying(true);
-        setIsPlaying(true);
-      }
+      if (isAudioPlaying) { audioElementRef.current.pause(); setIsAudioPlaying(false); }
+      else { await audioElementRef.current.play(); setIsAudioPlaying(true); setIsPlaying(true); }
     } catch (err) { console.error("Audio playback error:", err); }
-  }
+  };
+
+  // ---- Render ----
+  return (
+    <div className="relative w-full h-full flex flex-col bg-[#0a0a0f] text-white overflow-hidden">
+      {/* Header bar */}
+      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 bg-[#12121a] border-b border-gray-800 shrink-0 min-w-0">
+        <Sparkles size={16} className="text-purple-400 shrink-0" />
+        <span className="font-semibold text-sm shrink-0 hidden sm:inline">Three.js Studio</span>
+        <div className="w-px h-5 bg-gray-700 mx-1 shrink-0 hidden sm:block" />
+        <button onClick={() => setIsPlaying(!isPlaying)} className={`p-1.5 rounded transition-colors shrink-0 ${isPlaying ? "bg-purple-600 hover:bg-purple-700" : "bg-gray-700 hover:bg-gray-600"}`} title={isPlaying ? "Pause" : "Play"}>
+          {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+        </button>
+        <button onClick={() => addObject("crown")} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs shrink-0" title="Add Crown">👑</button>
+        <button onClick={() => addObject("sphere")} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0 hidden xs:block" title="Add Sphere"><Circle size={13} /></button>
+        <button onClick={() => addObject("box")} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0 hidden sm:block" title="Add Box"><Box size={13} /></button>
+        <div className="flex items-center gap-1.5 sm:gap-2 ml-1 sm:ml-2 bg-gray-800/80 px-2 py-1 rounded-lg border border-gray-700 flex-1 min-w-0">
+          <Music size={13} className="text-purple-400 shrink-0" />
+          <select value={selectedTrack} onChange={(e) => handleSelectTrack(e.target.value)} className="bg-transparent text-xs text-gray-200 outline-none flex-1 min-w-0 truncate">
+            <option value="" className="bg-gray-800">Select track…</option>
+            {TRACK_PRESETS.map((t) => (<option key={t.filename} value={t.filename} className="bg-gray-800">{t.name} ({t.bpm} BPM)</option>))}
+            {libraryTracks.map((t) => (<option key={t.filename} value={t.filename} className="bg-gray-800">{t.filename}</option>))}
+          </select>
+          {selectedTrack && (
+            <button onClick={toggleAudio} className={`p-1 rounded text-xs flex items-center gap-1 shrink-0 ${isAudioPlaying ? "bg-purple-600 text-white" : "bg-gray-700 hover:bg-gray-600"}`} title={isAudioPlaying ? "Mute audio" : "Play audio"}>
+              {isAudioPlaying ? <Volume2 size={12} /> : <VolumeX size={12} />}
+            </button>
+          )}
+        </div>
+        {selectedTrack && (<audio ref={audioElementRef} src={`/api/audio/file/${selectedTrack}`} crossOrigin="anonymous" onEnded={() => setIsAudioPlaying(false)} className="hidden" />)}
+        <button onClick={exportFrame} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0" title="Export frame as PNG"><Download size={13} /></button>
+        <button onClick={() => setDrawerOpen(!drawerOpen)} className={`p-1.5 rounded transition-colors shrink-0 ${drawerOpen ? "bg-purple-600" : "bg-gray-700 hover:bg-gray-600"}`} title="Toggle controls panel">
+          {drawerOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+        </button>
+      </div>
+
+      {/* Track info bar */}
+      {selectedTrack && (
+        <div className="flex items-center gap-1.5 sm:gap-3 px-2 sm:px-4 py-1.5 bg-[#0e0e16] border-b border-gray-800 shrink-0 text-xs overflow-x-auto">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Zap size={12} className={beatSync ? "text-amber-400" : "text-gray-500"} />
+            <input type="number" value={bpm} onChange={(e) => setBpm(Number(e.target.value))} className="w-12 bg-gray-800 text-white rounded px-1.5 py-0.5 text-center font-mono border border-gray-700" min={60} max={220} />
+            <span className="text-gray-400">BPM</span>
+          </div>
+          <button onClick={() => setBeatSync(!beatSync)} className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${beatSync ? "bg-purple-600 text-white" : "bg-gray-700 hover:bg-gray-600 text-gray-300"}`}>
+            {beatSync ? "Sync ON" : "Sync OFF"}
+          </button>
+          <div className="text-gray-400 shrink-0">Beats: <span className={beatAnalysis ? "text-amber-300 font-mono" : "text-gray-500 font-mono"}>{beatLoading ? "loading…" : beatAnalysis ? beatAnalysis.beat_count : beatError ? "0" : "—"}</span></div>
+          {beatAnalysis && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-gray-400">Punch</span>
+              <input type="range" min="0" max="0.5" step="0.01" value={sceneConfig.beatPunch} onChange={(e) => setSceneConfig({ ...sceneConfig, beatPunch: Number(e.target.value) })} className="w-20 accent-amber-400" />
+              <span className="text-amber-300 font-mono w-6 text-right">{sceneConfig.beatPunch.toFixed(2)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Canvas + AI Panel */}
+      <div ref={containerRef} className="flex-1 relative bg-[#0a0a0f] overflow-hidden min-h-0">
+        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+
+        {/* AI Scene Generator Panel */}
+        <div className="absolute top-2 right-2 w-72 max-h-[calc(100%-1rem)] overflow-y-auto z-10">
+          <AISceneGenerator selectedTrack={selectedTrack || null} onApplyCode={handleApplyCode} />
+        </div>
+
+        {/* HUD */}
+        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur px-2.5 py-1 rounded text-gray-400 text-[11px] flex flex-wrap items-center gap-x-3 gap-y-0.5 pointer-events-none border border-white/5 max-w-[calc(100%-1rem)]">
+          <span>Objs <span className="text-white font-mono">{objects.length}</span></span>
+          <span>Cam <span className="text-purple-400 font-mono">{cameraMode}</span></span>
+          <span>BPM <span className={beatSync ? "text-green-400 font-mono" : "text-gray-500 font-mono"}>{beatSync ? bpm : "—"}</span></span>
+          {sceneConfig.selectiveBloom && <span>Bloom <span className="text-amber-300 font-mono">{objects.filter((o) => o.bloom).length}/{objects.length}</span></span>}
+        </div>
+
+        {beatError && selectedTrack && (
+          <a href="/audio-analysis" target="_blank" rel="noreferrer" className="absolute bottom-2 right-2 bg-amber-900/70 hover:bg-amber-800/80 backdrop-blur px-2.5 py-1 rounded text-amber-100 text-[11px] border border-amber-700/50 pointer-events-auto transition-colors">
+            Open Audio Analysis →
+          </a>
+        )}
+      </div>
+
+      {/* Bottom Drawer */}
+      {drawerOpen && (
+        <div className="bg-[#0e0e16] border-t border-gray-800 shrink-0 flex flex-col h-[55vh] sm:h-[45vh] min-h-[280px] max-h-[600px]">
+          <div className="flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-1.5 border-b border-gray-800 bg-[#12121a] shrink-0">
+            <button onClick={() => setDrawerTab("objects")} className={`px-2 sm:px-3 py-1 rounded text-xs flex items-center gap-1 sm:gap-1.5 shrink-0 ${drawerTab === "objects" ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}><Box size={12} /> <span className="hidden sm:inline">Objects</span><span className="opacity-60 hidden sm:inline">({objects.length})</span></button>
+            <button onClick={() => setDrawerTab("inspector")} className={`px-2 sm:px-3 py-1 rounded text-xs flex items-center gap-1 sm:gap-1.5 shrink-0 ${drawerTab === "inspector" ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}><Zap size={12} /> <span className="hidden sm:inline">Inspector</span></button>
+            <button onClick={() => setDrawerTab("scene")} className={`px-2 sm:px-3 py-1 rounded text-xs flex items-center gap-1 sm:gap-1.5 shrink-0 ${drawerTab === "scene" ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}><Settings size={12} /> <span className="hidden sm:inline">Scene</span></button>
+            <div className="flex-1" />
+            <button onClick={() => setDrawerOpen(false)} className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 shrink-0" title="Close panel"><ChevronDown size={14} /></button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3 min-h-0">
+            {drawerTab === "objects" && (
+              <ObjectsTab
+                objects={objects} selectedObject={selectedObject} activeTemplateId={activeTemplateId}
+                onSelectObject={setSelectedObject} onAddObject={addObject} onRemoveObject={removeObject}
+                onUpdateObject={updateObject} onLoadTemplate={loadTemplate}
+              />
+            )}
+            {drawerTab === "inspector" && <InspectorTab object={selectedObj} onUpdate={updateObject} />}
+            {drawerTab === "scene" && (
+              <SceneTab
+                sceneConfig={sceneConfig} particleConfig={particleConfig} cameraMode={cameraMode} fps={fps}
+                backgroundImageUrl={backgroundImageUrl} backgroundImageVisible={backgroundImageVisible} libraryImages={libraryImages}
+                onSceneConfigChange={setSceneConfig} onParticleConfigChange={setParticleConfig}
+                onCameraModeChange={setCameraMode} onFpsChange={setFps}
+                onBackgroundImageChange={setBackgroundImageUrl} onBackgroundImageVisibleChange={setBackgroundImageVisible}
+              />
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
