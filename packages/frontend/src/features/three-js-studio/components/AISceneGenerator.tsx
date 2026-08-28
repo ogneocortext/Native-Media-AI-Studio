@@ -54,6 +54,11 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
     } catch { /* ignore */ }
   }, [selectedModel]);
 
+  // Load models on mount
+  useEffect(() => {
+    loadModels();
+  }, [loadModels]);
+
   // Update variations when metadata changes
   useEffect(() => {
     if (metadata) {

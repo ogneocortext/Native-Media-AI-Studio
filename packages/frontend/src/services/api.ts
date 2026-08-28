@@ -3,13 +3,15 @@
  * Per Guidelines section 6: "No hardcoded API URLs. Always read from ports.json or Vite env vars."
  */
 
-import { getBackendUrl } from "./portConfig";
 import type { Job, QueueStats } from "@shared/types";
 
 export type { Job, QueueStats };
 
 // Get backend URL from config (reads ports.json or env vars)
-export const getApiBase = (): string => getBackendUrl();
+export const getApiBase = (): string => {
+  // Use relative URLs so requests go through Vite proxy (avoids CORS)
+  return "";
+};
 
 export interface HealthStatus {
   status: string;

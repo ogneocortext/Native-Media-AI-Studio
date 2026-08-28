@@ -642,10 +642,18 @@ async def ollama_chat(request: dict) -> dict:
     message = request.get("message", "")
     model = request.get("model", "qwen2.5:3b")
     history = request.get("history", [])
-    tools = request.get("tools", [])
     think = request.get("think", None)
     stream = request.get("stream", False)
     max_tool_calls = request.get("max_tool_calls", 5)
+
+    # Normalize tools: can be boolean (True/False) or list
+    tools_raw = request.get("tools", [])
+    if tools_raw is True:
+        tools = adapter.get_tool_definitions() if adapter else []
+    elif tools_raw is False or tools_raw is None:
+        tools = []
+    else:
+        tools = tools_raw
 
     logger.info("Ollama chat request: model=%s, stream=%s, tools=%d, message_len=%d",
                 model, stream, len(tools), len(message))
@@ -655,10 +663,6 @@ async def ollama_chat(request: dict) -> dict:
     for h in history:
         messages.append({"role": h.get("role", "user"), "content": h.get("content", "")})
     messages.append({"role": "user", "content": message})
-
-    # If tools is True, use adapter's built-in tool definitions
-    if tools is True:
-        tools = adapter.get_tool_definitions()
 
     try:
         if stream:
