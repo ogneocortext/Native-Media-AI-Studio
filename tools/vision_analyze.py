@@ -22,7 +22,7 @@ except ImportError:
     sys.exit(1)
 
 OLLAMA_HOST = "http://127.0.0.1:11434"
-DEFAULT_MODEL = "qwen3-vl:2b"
+DEFAULT_MODEL = "qwen3-vl:4b"
 MAX_DIMENSION = 1200  # Max width/height for vision models (balances detail vs reliability)
 JPEG_QUALITY = 70
 

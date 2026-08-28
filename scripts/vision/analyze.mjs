@@ -26,7 +26,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 
 // Configuration
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const VISION_MODEL = process.env.VISION_MODEL || 'gemma4:e2b-it-qat';
+const VISION_MODEL = process.env.VISION_MODEL || 'qwen3-vl:4b';
 const VISION_MAX_DIM = parseInt(process.env.VISION_MAX_DIM || '1024');
 const VISION_QUALITY = parseInt(process.env.VISION_QUALITY || '80');
 
@@ -69,9 +69,27 @@ function parseArgs(argv) {
   return args;
 }
 
-function encodeImage(imagePath) {
+async function encodeImage(imagePath) {
   const buffer = fs.readFileSync(imagePath);
-  return buffer.toString('base64');
+  // Small images can be sent directly
+  if (buffer.length < 50000) return buffer.toString('base64');
+  
+  // Resize large images to avoid Ollama 400 errors
+  let sharp;
+  try {
+    sharp = (await import('sharp')).default;
+  } catch {
+    // sharp not available — fallback: still send raw (may fail on very large images)
+    return buffer.toString('base64');
+  }
+  
+  const resized = await sharp(buffer)
+    .resize(VISION_MAX_DIM, VISION_MAX_DIM, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: VISION_QUALITY })
+    .toBuffer();
+  
+  console.error(`[vision] Resized ${imagePath}: ${buffer.length} -> ${resized.length} bytes`);
+  return resized.toString('base64');
 }
 
 function buildPrompt(args) {
@@ -112,8 +130,8 @@ function buildMetadata(args) {
 }
 
 async function analyzeWithOllama(images, prompt) {
-  const imageData = images.map(encodeImage);
-  
+  const imageData = await Promise.all(images.map(encodeImage));
+   
   const body = {
     model: VISION_MODEL,
     prompt: prompt,
