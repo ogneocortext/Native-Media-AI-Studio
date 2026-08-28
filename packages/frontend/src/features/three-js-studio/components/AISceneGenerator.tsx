@@ -43,18 +43,29 @@ export function AISceneGenerator({ selectedTrack, onApplyCode }: AISceneGenerato
     await generate(
       variations[activeVariation].prompt,
       selectedModel,
-      `You are a Three.js scene designer. Create a JSON object describing a 3D scene.
+      `You are a Three.js scene designer. Create a JSON object describing a 3D scene with animation keyframes.
 Respond ONLY with valid JSON in this format:
 {
   "objects": [
-    {"type": "sphere" | "box" | "cylinder" | "cone" | "torus" | "crown", "position": [x, y, z], "color": "#hex", "scale": [x, y, "metalness": 0-1, "roughness": 0-1, "emissive": 0-1}
+    {"type": "sphere" | "box" | "cylinder" | "cone" | "torus" | "crown", "position": [x, y, z], "color": "#hex", "scale": [x, y, z], "metalness": 0-1, "roughness": 0-1, "emissive": 0-1}
   ],
   "lights": [
     {"type": "point" | "spot" | "directional", "color": "#hex", "intensity": number, "position": [x, y, z]}
   ],
   "particles": {"count": number, "color": "#hex", "speed": number},
   "camera": "orbit" | "dolly" | "handheld" | "static",
-  "bloom": 0-1.5
+  "bloom": 0-1.5,
+  "duration": 30,
+  "keyframes": [
+    {
+      "target": "object index (0-based)",
+      "keyframes": [
+        {"time": 0, "position": [x, y, z], "rotation": [x, y, z], "scale": [x, y, z]},
+        {"time": 5, "position": [x, y, z], "rotation": [x, y, z], "scale": [x, y, z]},
+        {"time": 10, "position": [x, y, z], "rotation": [x, y, z], "scale": [x, y, z]}
+      ]
+    }
+  ]
 }
 No explanations, no markdown, just JSON.`,
     );

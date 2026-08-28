@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
-  Box, Play, Pause, Sparkles, Download, Settings, Circle,
+  Box, Play, Pause, Sparkles, Download, Settings, Circle, Square,
   ChevronDown, ChevronUp, Music, Zap, Volume2, VolumeX,
 } from "lucide-react";
 import { listAudioFiles } from "../../services/api";
@@ -85,6 +85,9 @@ export function ThreeJSStudio() {
   const [beatActive, setBeatActive] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string>("");
   void generatedCode; // stored for future scene persistence
+  const [animationTime, setAnimationTime] = useState(0);
+  const [animationDuration, setAnimationDuration] = useState(30);
+  const [keyframeTracks, setKeyframeTracks] = useState<any[]>([]);
 
   const { analysis: beatAnalysis, loading: beatLoading, error: beatError, getCurrentBeat } = useBeatTimeline(selectedTrack || null);
 
@@ -236,6 +239,14 @@ export function ThreeJSStudio() {
           if (pc.speed) particleConfigRef.current = { ...particleConfigRef.current, speed: pc.speed };
         }
 
+        // Update keyframe animations
+        if (sceneDesc.keyframes && Array.isArray(sceneDesc.keyframes)) {
+          setKeyframeTracks(sceneDesc.keyframes);
+          if (sceneDesc.duration) setAnimationDuration(sceneDesc.duration);
+        } else {
+          setKeyframeTracks([]);
+        }
+
         // Update camera mode
         if (sceneDesc.camera) {
           setCameraMode(sceneDesc.camera);
@@ -362,7 +373,8 @@ export function ThreeJSStudio() {
         const beatState = getCurrentBeat(elapsed);
         const beatPunchAmp = sceneConfigRef.current.beatPunch;
         let beatSpike = 0;
-        if (beatState.ready && beatState.isOnBeat) {
+        // Only apply beat sync when playing
+        if (isPlayingRef.current && beatState.ready && beatState.isOnBeat) {
           beatSpike = beatPunchAmp * (1 - beatState.timeSinceLastBeat / beatState.beatWindowSec);
           // Reduce shake intensity and make it decay faster
           if (beatState.timeSinceLastBeat < 0.016) {
@@ -373,24 +385,28 @@ export function ThreeJSStudio() {
           }
         } else {
           setBeatActive(false);
+          // Decay shake when not playing
+          shakeRef.current *= 0.9;
         }
-        // Faster shake decay for smoother visuals
         shakeRef.current *= 0.75;
+        const isPlay = isPlayingRef.current;
         objectsRef.current.forEach((obj) => {
           const mesh = objectsMapRef.current.get(obj.id);
           if (mesh && obj.visible) {
-            mesh.rotation.y += delta * (obj.rotateSpeed + audioTreble * 2);
-            mesh.position.x = obj.position[0]; mesh.position.z = obj.position[2];
-            mesh.position.y = obj.position[1] + Math.sin(elapsed * obj.bobSpeed) * obj.bobAmount;
+            // Only animate when playing
+            if (isPlay) {
+              mesh.rotation.y += delta * (obj.rotateSpeed + audioTreble * 2);
+              mesh.position.y = obj.position[1] + Math.sin(elapsed * obj.bobSpeed) * obj.bobAmount;
+            }
             let pulse = 1;
-            if (beatState.ready && beatSpike > 0) pulse = 1 + beatSpike;
-            else if (beatSyncRef.current) { const bi = 60 / bpmRef.current; pulse = (1 + Math.sin((elapsed % bi) / bi * Math.PI * 2) * 0.08) * (1 + audioBass * 0.35); }
-            else if (audioBass > 0) pulse = 1 + audioBass * 0.3;
+            if (isPlay && beatState.ready && beatSpike > 0) pulse = 1 + beatSpike;
+            else if (isPlay && beatSyncRef.current) { const bi = 60 / bpmRef.current; pulse = (1 + Math.sin((elapsed % bi) / bi * Math.PI * 2) * 0.08) * (1 + audioBass * 0.35); }
+            else if (isPlay && audioBass > 0) pulse = 1 + audioBass * 0.3;
             const s = obj.scale;
             mesh.scale.set(s[0] * pulse, s[1] * pulse, s[2] * pulse);
           }
         });
-        if (particlesRef.current && particleConfigRef.current.enabled) {
+        if (particlesRef.current && particleConfigRef.current.enabled && isPlay) {
           const pos = particlesRef.current.geometry.attributes.position.array;
           const spd = particleConfigRef.current.speed * (1 + audioBass * 2);
           for (let i = 0; i < pos.length; i += 3) { pos[i + 1] += delta * spd * 0.4; if (pos[i + 1] > particleConfigRef.current.spread) pos[i + 1] = 0; }
@@ -402,7 +418,6 @@ export function ThreeJSStudio() {
         if (cm === "orbit" && ir) { const a = elapsed * 0.25; camera.position.x = Math.sin(a) * 8 + sx; camera.position.z = Math.cos(a) * 8; camera.position.y = 3 + Math.sin(a * 0.5) * 0.6 + sy; camera.lookAt(0, 0.5, 0); }
         else if (cm === "dolly" && ir) { const t = (elapsed % 8) / 8; camera.position.z = 10 - t * 6; camera.position.y = 3 - t * 0.8 + sy; camera.lookAt(0, 0.5, 0); }
         else if (cm === "handheld" && ir) { camera.position.x += (Math.random() - 0.5) * 0.02; camera.position.y += (Math.random() - 0.5) * 0.02; camera.lookAt(0, 0.5, 0); }
-        if (!ir) { camera.position.x += sx; camera.position.y += sy; }
         if (sceneConfigRef.current.selectiveBloom && bloomComposerRef.current && finalComposerRef.current) {
           const pv: boolean[] = [];
           sceneRef.current.traverse((c: any) => { if (c.isMesh) { pv.push(c.visible); c.visible = pv[pv.length - 1] && ((c.layers.mask & (1 << BLOOM_LAYER)) !== 0); } });
@@ -410,6 +425,59 @@ export function ThreeJSStudio() {
           let i = 0; sceneRef.current.traverse((c: any) => { if (c.isMesh) c.visible = pv[i++]; });
           finalComposerRef.current.render();
         } else { composer.render(); }
+
+        // Update animation timeline
+        if (isPlayingRef.current) {
+          setAnimationTime((prev) => {
+            const next = prev + delta;
+            return next >= animationDuration ? 0 : next;
+          });
+        }
+
+        // Apply keyframe animations
+        if (keyframeTracks.length > 0 && isPlayingRef.current) {
+          keyframeTracks.forEach((track: any) => {
+            const mesh = objectsMapRef.current.get(track.target);
+            if (!mesh) return;
+            const time = animationTime;
+            const kfs = track.keyframes || [];
+            if (kfs.length < 2) return;
+            let prevKf = kfs[0];
+            let nextKf = kfs[kfs.length - 1];
+            for (let i = 0; i < kfs.length - 1; i++) {
+              if (time >= kfs[i].time && time <= kfs[i + 1].time) {
+                prevKf = kfs[i];
+                nextKf = kfs[i + 1];
+                break;
+              }
+            }
+            if (prevKf !== nextKf) {
+              const duration = nextKf.time - prevKf.time;
+              const t = duration > 0 ? (time - prevKf.time) / duration : 0;
+              if (prevKf.position && nextKf.position) {
+                mesh.position.set(
+                  prevKf.position[0] + (nextKf.position[0] - prevKf.position[0]) * t,
+                  prevKf.position[1] + (nextKf.position[1] - prevKf.position[1]) * t,
+                  prevKf.position[2] + (nextKf.position[2] - prevKf.position[2]) * t
+                );
+              }
+              if (prevKf.rotation && nextKf.rotation) {
+                mesh.rotation.set(
+                  prevKf.rotation[0] + (nextKf.rotation[0] - prevKf.rotation[0]) * t,
+                  prevKf.rotation[1] + (nextKf.rotation[1] - prevKf.rotation[1]) * t,
+                  prevKf.rotation[2] + (nextKf.rotation[2] - prevKf.rotation[2]) * t
+                );
+              }
+              if (prevKf.scale && nextKf.scale) {
+                mesh.scale.set(
+                  prevKf.scale[0] + (nextKf.scale[0] - prevKf.scale[0]) * t,
+                  prevKf.scale[1] + (nextKf.scale[1] - prevKf.scale[1]) * t,
+                  prevKf.scale[2] + (nextKf.scale[2] - prevKf.scale[2]) * t
+                );
+              }
+            }
+          });
+        }
       };
       animate();
       const onResize = () => { if (!containerRef.current) return; const w = containerRef.current.clientWidth, h = containerRef.current.clientHeight; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); composer.setSize(w, h); if (bloomComposerRef.current) bloomComposerRef.current.setSize(w, h); if (finalComposerRef.current) finalComposerRef.current.setSize(w, h); };
@@ -644,6 +712,28 @@ export function ThreeJSStudio() {
             Open Audio Analysis →
           </a>
         )}
+
+        {/* Animation Timeline Controls */}
+        <div className="absolute bottom-10 left-2 right-2 bg-black/70 backdrop-blur rounded px-3 py-2 flex items-center gap-3 border border-white/10">
+          <button onClick={() => setIsPlaying(!isPlaying)} className="p-1.5 bg-purple-600 hover:bg-purple-700 rounded text-white" title={isPlaying ? "Pause" : "Play"}>
+            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+          </button>
+          <button onClick={() => { setIsPlaying(false); setAnimationTime(0); }} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-white" title="Stop">
+            <Square size={12} />
+          </button>
+          <span className="text-xs text-gray-400 font-mono w-12">{animationTime.toFixed(1)}s</span>
+          <input
+            type="range"
+            min={0}
+            max={animationDuration}
+            step={0.1}
+            value={animationTime}
+            onChange={(e) => setAnimationTime(Number(e.target.value))}
+            className="flex-1 accent-purple-500"
+          />
+          <span className="text-xs text-gray-400 font-mono w-12">{animationDuration.toFixed(0)}s</span>
+          {keyframeTracks.length > 0 && <span className="text-[10px] text-purple-400 bg-purple-900/30 px-1.5 py-0.5 rounded">{keyframeTracks.length} keyframes</span>}
+        </div>
       </div>
 
       {/* Bottom Drawer */}
