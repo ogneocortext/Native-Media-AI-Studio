@@ -159,6 +159,38 @@ export function StoryboardPage() {
       inTable = false;
     };
 
+    // Detect production notes section for card-based rendering
+    let inProductionNotes = false;
+    const noteIcons: Record<string, string> = {
+      'Palette': '🎨',
+      'Three.js crown': '👑',
+      'Three.js': '⚡',
+      'Motion budget': '🎬',
+      'BPM': '🥁',
+      'Render': '📹',
+      'Remaster': '🔊',
+      'Preview': '👁️',
+      'Analysis': '📊',
+    };
+    const noteColors: Record<string, string> = {
+      'Palette': 'text-amber-400',
+      'Three.js crown': 'text-yellow-400',
+      'Three.js': 'text-yellow-400',
+      'Motion budget': 'text-blue-400',
+      'BPM': 'text-red-400',
+      'Render': 'text-emerald-400',
+      'Remaster': 'text-purple-400',
+      'Preview': 'text-cyan-400',
+      'Analysis': 'text-pink-400',
+    };
+
+    const getNoteStyle = (label: string) => {
+      for (const [key, icon] of Object.entries(noteIcons)) {
+        if (label.startsWith(key)) return { icon, color: noteColors[key] || 'text-gray-400' };
+      }
+      return { icon: '📝', color: 'text-gray-400' };
+    };
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (line.startsWith("|")) {
@@ -167,12 +199,40 @@ export function StoryboardPage() {
         if (inTable) { tableRows.push(cells); continue; }
       } else if (inTable) { flushTable(); }
 
+      // Detect Production Notes section
+      if (line.startsWith("## ") && line.includes("Production Notes")) {
+        inProductionNotes = true;
+        elements.push(<h2 key={i} className="text-xl font-semibold text-purple-300 mt-8 mb-4 flex items-center gap-2 pb-2 border-b border-gray-800"><Layers size={18} />{renderInline(line.slice(3))}</h2>);
+        continue;
+      }
+
+      // Render production notes as cards
+      if (inProductionNotes && (line.startsWith("- ") || line.startsWith("* "))) {
+        const content = line.slice(2);
+        const match = content.match(/^\*\*([^*]+):\*\*\s*(.*)$/);
+        if (match) {
+          const label = match[1];
+          const value = match[2];
+          const { icon, color } = getNoteStyle(label);
+          elements.push(
+            <div key={i} className="bg-[#0d0d15] border border-gray-800/60 rounded-xl p-4 mb-3 hover:border-gray-700/80 transition-colors">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base">{icon}</span>
+                <span className={`text-xs font-bold uppercase tracking-wider ${color}`}>{label}</span>
+              </div>
+              <div className="text-sm text-gray-300 leading-relaxed pl-6">{renderInline(value)}</div>
+            </div>
+          );
+          continue;
+        }
+      }
+
       if (line.startsWith("# ")) elements.push(<h1 key={i} className="text-2xl font-bold text-white mt-6 mb-3">{renderInline(line.slice(2))}</h1>);
       else if (line.startsWith("## ")) elements.push(<h2 key={i} className="text-xl font-semibold text-purple-300 mt-8 mb-3 flex items-center gap-2 pb-2 border-b border-gray-800"><Layers size={18} />{renderInline(line.slice(3))}</h2>);
       else if (line.startsWith("### ")) elements.push(<h3 key={i} className="text-lg font-medium text-gray-200 mt-5 mb-2">{renderInline(line.slice(4))}</h3>);
       else if (line.startsWith("> ")) elements.push(<blockquote key={i} className="border-l-4 border-purple-500/70 pl-4 py-3 my-4 text-gray-400 italic bg-purple-900/10 rounded-r-lg shadow-sm"><span className="text-purple-400 mr-1">"</span>{renderInline(line.slice(2))}<span className="text-purple-400 ml-1">"</span></blockquote>);
       else if (line.startsWith("- ") || line.startsWith("* ")) elements.push(<li key={i} className="ml-4 text-gray-300 list-disc leading-relaxed">{renderInline(line.slice(2))}</li>);
-      else if (line.trim() === "---") elements.push(<hr key={i} className="border-gray-700/50 my-5" />);
+      else if (line.trim() === "---") { inProductionNotes = false; elements.push(<hr key={i} className="border-gray-700/50 my-5" />); }
       else if (line.trim() === "") elements.push(<div key={i} className="h-2" />);
       else elements.push(<p key={i} className="text-gray-300 leading-relaxed">{renderInline(line)}</p>);
     }
