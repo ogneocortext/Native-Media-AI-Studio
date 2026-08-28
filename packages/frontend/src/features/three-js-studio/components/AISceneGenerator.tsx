@@ -22,6 +22,7 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
   }));
   const [activeVariation, setActiveVariation] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [savedFile, setSavedFile] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [storyboardContent, setStoryboardContent] = useState<string>("");
@@ -50,7 +51,9 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
     try {
       const m = await getOllamaModels();
       setModels(m);
-      if (m.length > 0 && !selectedModel) setSelectedModel(m[0].name);
+      // Prefer a fast model (qwen3.5:4b) over slower large models
+      const preferred = m.find((x) => x.name.includes("qwen3.5:4b")) || m.find((x) => x.name.includes("qwen3.5")) || m[0];
+      if (m.length > 0 && !selectedModel) setSelectedModel(preferred?.name || m[0].name);
     } catch { /* ignore */ }
   }, [selectedModel]);
 
@@ -103,24 +106,18 @@ ${scenes.map((s) => `- ${s.seq} ${s.section}: ${s.visual} (${s.timecode})`).join
     await generate(
       variations[activeVariation].prompt,
       selectedModel,
-      `You are a Three.js expert. Write a function \`applyScene(scene, camera, renderer, THREE)\` that builds a 3D scene using REAL Three.js APIs.
+      `You are a Three.js expert. Write a concise \`applyScene(scene, camera, renderer, THREE)\` function (max 50 lines) that builds a 3D scene.
 
 RULES:
-- Use ONLY real Three.js classes: THREE.Scene, THREE.Mesh, THREE.PointLight, THREE.SpotLight, THREE.DirectionalLight, THREE.BoxGeometry, THREE.SphereGeometry, THREE.CylinderGeometry, THREE.ConeGeometry, THREE.TorusGeometry, THREE.MeshStandardMaterial, THREE.Color, THREE.FogExp2, THREE.Group, THREE.Points, THREE.BufferGeometry, THREE.PointsMaterial
-- scene.add(object) to add meshes/lights
-- new THREE.Mesh(geometry, material) for objects
-- new THREE.PointLight(color, intensity, distance) for lights
-- camera.position.set(x, y, z) and camera.lookAt(x, y, z) for camera control
-- scene.background = new THREE.Color(hex) for background
-- Do NOT use custom methods like scene.add.environment(), scene.set_camera(), etc.
-- Do NOT use scene_add_light, scene_clear, etc. — those are not real APIs
+- Use real Three.js: THREE.Mesh, THREE.PointLight, THREE.BoxGeometry, THREE.SphereGeometry, THREE.CylinderGeometry, THREE.MeshStandardMaterial, THREE.Color, THREE.FogExp2, THREE.Group
+- scene.add(obj), new THREE.Mesh(geo, mat), new THREE.PointLight(color, intensity)
+- camera.position.set(x,y,z), scene.background = new THREE.Color(hex)
+- Keep it SHORT — max 50 lines. No verbose comments. No keyframe arrays.
+- Do NOT use custom methods like scene.add.environment() or scene.set_camera()
 
-Track info: ${metadata.bpm} BPM, ${metadata.duration}s duration
-Sections: ${metadata.sections.map((s: any) => s.type).join(", ")}
-${sceneContext}
-
-Write clean JavaScript. The function will be called as: applyScene(scene, camera, renderer, THREE)`,
-      false, // useTools
+Track: ${metadata.bpm} BPM, ${metadata.duration}s, sections: ${metadata.sections.map((s: any) => s.type).join(", ")}
+${sceneContext}`,
+      false,
     );
   };
 
@@ -149,11 +146,14 @@ Write clean JavaScript. The function will be called as: applyScene(scene, camera
 
   const handleSave = useCallback(async () => {
     if (!output) return;
+    setSaving(true);
     try {
       const result = await saveGeneratedScene(output, selectedTrack || "unknown", selectedModel || "unknown");
       setSavedFile(result.filename);
     } catch {
       // Silently fail — save is best-effort
+    } finally {
+      setSaving(false);
     }
   }, [output, selectedTrack, selectedModel]);
 
@@ -263,8 +263,8 @@ Write clean JavaScript. The function will be called as: applyScene(scene, camera
                   <button onClick={handleCopy} className="p-1 text-gray-400 hover:text-white" title="Copy">
                     {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
                   </button>
-                  <button onClick={handleSave} className="p-1 text-gray-400 hover:text-white" title="Save to file">
-                    <Save size={12} />
+                  <button onClick={handleSave} disabled={saving} className="p-1 text-gray-400 hover:text-white" title="Save to file">
+                    {saving ? <span className="inline-block w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" /> : <Save size={12} />}
                   </button>
                 </div>
               </div>
