@@ -924,6 +924,24 @@ export async function getOllamaModels(): Promise<OllamaModel[]> {
   });
 }
 
+export async function saveGeneratedScene(code: string, track: string, model: string): Promise<{ success: boolean; filename: string; path: string }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/data/saved-scenes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, track, model }),
+  });
+  if (!res.ok) throw new Error("Failed to save scene");
+  return res.json();
+}
+
+export async function listSavedScenes(): Promise<{ scenes: Array<{ filename: string; path: string; size: number; modified: string }> }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/data/saved-scenes`);
+  if (!res.ok) throw new Error("Failed to list saved scenes");
+  return res.json();
+}
+
 export async function ollamaChat(
   message: string,
   model: string = "qwen2.5:3b",

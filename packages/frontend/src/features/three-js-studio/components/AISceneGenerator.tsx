@@ -1,9 +1,8 @@
-import { useState, useCallback, useEffect } from "react";
-import { Sparkles, Play, Square, Copy, Check, ChevronDown, ChevronUp, Zap } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { Sparkles, Play, Square, Copy, Check, ChevronDown, ChevronUp, Zap, Save, FileCode } from "lucide-react";
 import { useTrackMetadata, generatePromptVariations, type PromptVariation } from "../hooks/useTrackMetadata";
 import { useOllamaStream } from "../hooks/useOllamaStream";
-import { getGuidelinesPrompt } from "../services/sceneGuidelines";
-import { getOllamaModels, type OllamaModel } from "../../../services/api";
+import { getOllamaModels, saveGeneratedScene, type OllamaModel } from "../../../services/api";
 
 interface AISceneGeneratorProps {
   selectedTrack: string | null;
@@ -23,6 +22,7 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
   }));
   const [activeVariation, setActiveVariation] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [savedFile, setSavedFile] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [storyboardContent, setStoryboardContent] = useState<string>("");
 
@@ -54,10 +54,16 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
     } catch { /* ignore */ }
   }, [selectedModel]);
 
-  // Load models on mount
+  // Auto-save generated code when output changes
+  const lastSavedRef = useRef<string>("");
   useEffect(() => {
-    loadModels();
-  }, [loadModels]);
+    if (output && output !== lastSavedRef.current && output.length > 50) {
+      lastSavedRef.current = output;
+      saveGeneratedScene(output, selectedTrack || "unknown", selectedModel || "unknown")
+        .then((result) => setSavedFile(result.filename))
+        .catch(() => {});
+    }
+  }, [output, selectedTrack, selectedModel]);
 
   // Update variations when metadata changes
   useEffect(() => {
@@ -97,39 +103,24 @@ ${scenes.map((s) => `- ${s.seq} ${s.section}: ${s.visual} (${s.timecode})`).join
     await generate(
       variations[activeVariation].prompt,
       selectedModel,
-      `You are a 3D scene designer for music video visualization. Use the available tools to build a scene that matches the storyboard.
+      `You are a Three.js expert. Write a function \`applyScene(scene, camera, renderer, THREE)\` that builds a 3D scene using REAL Three.js APIs.
 
-Available tools:
-- scene_clear: Reset the scene
-- scene_add_environment: Set mood (studio, city, void, sunset, neon, forest, space)
-- scene_add_storyboard_element: Add visual elements (crown, orb, ring, spiral, mountain, city, tree, stage, equalizer, vinyl, pillar, bar, wave, galaxy, neuron, fractal, lightning, fire, rain, snow, light_rays, lens_flare, particle_field)
-- scene_add_light: Add lights (point, spot, directional)
-- scene_set_camera_for_shot: Set camera (wide, close_up, macro, overhead, dolly, tracking, handheld, low_angle, birds_eye)
-- scene_add_text: Add 3D text for lyrics/titles
-- scene_add_keyframe: Add animation keyframes (time, position, rotation, scale)
-- scene_set_bloom: Set glow intensity (0-1.5)
-- scene_set_duration: Set animation length
-- scene_get_state: Return final scene JSON
+RULES:
+- Use ONLY real Three.js classes: THREE.Scene, THREE.Mesh, THREE.PointLight, THREE.SpotLight, THREE.DirectionalLight, THREE.BoxGeometry, THREE.SphereGeometry, THREE.CylinderGeometry, THREE.ConeGeometry, THREE.TorusGeometry, THREE.MeshStandardMaterial, THREE.Color, THREE.FogExp2, THREE.Group, THREE.Points, THREE.BufferGeometry, THREE.PointsMaterial
+- scene.add(object) to add meshes/lights
+- new THREE.Mesh(geometry, material) for objects
+- new THREE.PointLight(color, intensity, distance) for lights
+- camera.position.set(x, y, z) and camera.lookAt(x, y, z) for camera control
+- scene.background = new THREE.Color(hex) for background
+- Do NOT use custom methods like scene.add.environment(), scene.set_camera(), etc.
+- Do NOT use scene_add_light, scene_clear, etc. — those are not real APIs
 
 Track info: ${metadata.bpm} BPM, ${metadata.duration}s duration
 Sections: ${metadata.sections.map((s: any) => s.type).join(", ")}
 ${sceneContext}
-Start with scene_clear, then build the scene step by step. End with scene_get_state.
 
-${getGuidelinesPrompt()}`,
-      (msg) => {
-        if (msg.type === "done") {
-          fetch("/api/integrations/ollama/scene-state")
-            .then((r) => r.json())
-            .then((state) => {
-              if (state && state.objects) {
-                onApplyCode(JSON.stringify(state));
-              }
-            })
-            .catch(() => {});
-        }
-      },
-      true, // useTools
+Write clean JavaScript. The function will be called as: applyScene(scene, camera, renderer, THREE)`,
+      false, // useTools
     );
   };
 
@@ -155,6 +146,16 @@ ${getGuidelinesPrompt()}`,
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const handleSave = useCallback(async () => {
+    if (!output) return;
+    try {
+      const result = await saveGeneratedScene(output, selectedTrack || "unknown", selectedModel || "unknown");
+      setSavedFile(result.filename);
+    } catch {
+      // Silently fail — save is best-effort
+    }
+  }, [output, selectedTrack, selectedModel]);
 
   return (
     <div className="border border-purple-500/30 rounded-lg bg-[#0e0e16] overflow-hidden">
@@ -262,11 +263,20 @@ ${getGuidelinesPrompt()}`,
                   <button onClick={handleCopy} className="p-1 text-gray-400 hover:text-white" title="Copy">
                     {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
                   </button>
+                  <button onClick={handleSave} className="p-1 text-gray-400 hover:text-white" title="Save to file">
+                    <Save size={12} />
+                  </button>
                 </div>
               </div>
               <pre className="bg-gray-900 rounded p-2 text-[10px] text-green-300 max-h-48 overflow-y-auto font-mono whitespace-pre-wrap">
                 {output}
               </pre>
+              {savedFile && (
+                <div className="flex items-center gap-1 text-[10px] text-cyan-400">
+                  <FileCode size={10} />
+                  <span>Saved: {savedFile}</span>
+                </div>
+              )}
               <button
                 onClick={() => onApplyCode(output)}
                 className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded text-xs font-medium flex items-center justify-center gap-1.5"

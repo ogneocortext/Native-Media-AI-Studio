@@ -353,4 +353,57 @@ def import_tracks_from_csv(request: dict):
             )
             imported += 1
 
-    return {"imported": imported, "success": True}
+import json  # noqa: F401
+from datetime import datetime
+
+
+@router.post("/saved-scenes")
+def save_generated_scene(request: dict):
+    """Save generated scene code to a file for later retrieval."""
+    code = request.get("code", "")
+    track_name = request.get("track", "unknown")
+    model = request.get("model", "unknown")
+    if not code:
+        raise HTTPException(status_code=400, detail="No code provided")
+
+    # Create output directory
+    output_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "output", "generated-scenes")
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Generate filename with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_track = "".join(c if c.isalnum() or c in "-_" else "_" for c in track_name)[:50]
+    filename = f"{safe_track}_{timestamp}.js"
+    filepath = os.path.join(output_dir, filename)
+
+    # Save with metadata header
+    header = f"// Generated Scene — {track_name}\n"
+    header += f"// Model: {model}\n"
+    header += f"// Date: {datetime.now().isoformat()}\n"
+    header += f"// Track: {track_name}\n\n"
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(header + code)
+
+    return {"success": True, "filename": filename, "path": filepath}
+
+
+@router.get("/saved-scenes")
+def list_saved_scenes():
+    """List all saved generated scenes."""
+    output_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "output", "generated-scenes")
+    if not os.path.exists(output_dir):
+        return {"scenes": []}
+
+    scenes = []
+    for filename in sorted(os.listdir(output_dir), reverse=True):
+        if filename.endswith(".js"):
+            filepath = os.path.join(output_dir, filename)
+            stat = os.stat(filepath)
+            scenes.append({
+                "filename": filename,
+                "path": filepath,
+                "size": stat.st_size,
+                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            })
+    return {"scenes": scenes}
