@@ -131,20 +131,22 @@ export function StoryboardPage() {
     const flushTable = () => {
       if (tableHeaders.length === 0) return;
       elements.push(
-        <div key={`table-${elements.length}`} className="overflow-x-auto rounded-xl border border-gray-700/60 mb-2">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-800/90">
+        <div key={`table-${elements.length}`} className="overflow-x-auto rounded-xl border border-gray-700/60 mb-2 shadow-lg shadow-black/20">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-gray-800">
                 {tableHeaders.map((h, i) => (
-                  <th key={i} className="px-3 py-2.5 text-left text-[11px] font-bold text-purple-300 uppercase tracking-wider whitespace-nowrap">{h.trim()}</th>
+                  <th key={i} className="px-3 py-2.5 text-left text-[11px] font-bold text-purple-300 uppercase tracking-wider whitespace-nowrap bg-gray-800">{h.trim()}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {tableRows.map((row, ri) => (
-                <tr key={ri} className={`border-t border-gray-700/40 transition-colors ${ri % 2 === 0 ? "bg-gray-900/30" : "bg-gray-900/10"} hover:bg-purple-900/10`}>
+                <tr key={ri} className={`border-t border-gray-700/40 transition-colors ${ri % 2 === 0 ? "bg-gray-900/20" : "bg-gray-900/5"} hover:bg-purple-900/15`}>
                   {row.map((cell, ci) => (
-                    <td key={ci} className="px-3 py-2 text-gray-300 text-xs leading-relaxed">{renderInline(cell.trim())}</td>
+                    <td key={ci} className="px-3 py-2 text-gray-300 text-xs leading-relaxed max-w-[280px]">
+                      <div className="line-clamp-3">{renderInline(cell.trim())}</div>
+                    </td>
                   ))}
                 </tr>
               ))}
@@ -168,7 +170,7 @@ export function StoryboardPage() {
       if (line.startsWith("# ")) elements.push(<h1 key={i} className="text-2xl font-bold text-white mt-6 mb-3">{renderInline(line.slice(2))}</h1>);
       else if (line.startsWith("## ")) elements.push(<h2 key={i} className="text-xl font-semibold text-purple-300 mt-8 mb-3 flex items-center gap-2 pb-2 border-b border-gray-800"><Layers size={18} />{renderInline(line.slice(3))}</h2>);
       else if (line.startsWith("### ")) elements.push(<h3 key={i} className="text-lg font-medium text-gray-200 mt-5 mb-2">{renderInline(line.slice(4))}</h3>);
-      else if (line.startsWith("> ")) elements.push(<blockquote key={i} className="border-l-4 border-purple-500/70 pl-4 py-2 my-3 text-gray-400 italic bg-purple-900/10 rounded-r-lg">{renderInline(line.slice(2))}</blockquote>);
+      else if (line.startsWith("> ")) elements.push(<blockquote key={i} className="border-l-4 border-purple-500/70 pl-4 py-3 my-4 text-gray-400 italic bg-purple-900/10 rounded-r-lg shadow-sm"><span className="text-purple-400 mr-1">"</span>{renderInline(line.slice(2))}<span className="text-purple-400 ml-1">"</span></blockquote>);
       else if (line.startsWith("- ") || line.startsWith("* ")) elements.push(<li key={i} className="ml-4 text-gray-300 list-disc leading-relaxed">{renderInline(line.slice(2))}</li>);
       else if (line.trim() === "---") elements.push(<hr key={i} className="border-gray-700/50 my-5" />);
       else if (line.trim() === "") elements.push(<div key={i} className="h-2" />);
@@ -452,7 +454,11 @@ function StoryboardDetail({ storyboard, content, scenes, activeScene, onSelectSc
             <button onClick={() => onGenerateScene(activeScene || 0)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-xs font-medium flex items-center gap-1.5"><Sparkles size={12} /> Generate Scene</button>
           </div>
         </div>
-        <div className="p-6 max-w-4xl">{renderMarkdown(content)}</div>
+        <div className="p-6 max-w-4xl">
+          <div className="bg-[#0d0d15] rounded-2xl border border-gray-800/60 p-6 shadow-xl shadow-black/20">
+            {renderMarkdown(content)}
+          </div>
+        </div>
       </div>
     </div>
   );
