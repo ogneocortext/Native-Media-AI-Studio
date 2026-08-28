@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { Sparkles, Play, Square, Copy, Check, ChevronDown, ChevronUp, Zap, Save, FileCode } from "lucide-react";
 import { useTrackMetadata, generatePromptVariations, type PromptVariation } from "../hooks/useTrackMetadata";
 import { useOllamaStream } from "../hooks/useOllamaStream";
-import { getOllamaModels, saveGeneratedScene, type OllamaModel } from "../../../services/api";
+import { getOllamaModels, saveGeneratedScene, cleanupIncompleteScenes, type OllamaModel } from "../../../services/api";
 
 interface AISceneGeneratorProps {
   selectedTrack: string | null;
@@ -57,17 +57,18 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
     } catch { /* ignore */ }
   }, [selectedModel]);
 
-  // Auto-save generated code when output changes
-  const lastSavedRef = useRef<string>("");
+  // Auto-save only when generation completes (not during streaming)
+  const generationIdRef = useRef<string>("");
   useEffect(() => {
-    const code = getOutput();
-    if (code && code !== lastSavedRef.current && code.length > 50) {
-      lastSavedRef.current = code;
-      saveGeneratedScene(code, selectedTrack || "unknown", selectedModel || "unknown")
+    // Only save when we have complete code and generation just finished
+    if (!generating && output && output.length > 50 && savedFile !== output.substring(0, 40)) {
+      const id = `${selectedTrack}_${Date.now()}`;
+      generationIdRef.current = id;
+      saveGeneratedScene(output, selectedTrack || "unknown", selectedModel || "unknown")
         .then((result) => setSavedFile(result.filename))
         .catch(() => {});
     }
-  }, [output, getOutput, selectedTrack, selectedModel]);
+  }, [generating, output, selectedTrack, selectedModel, savedFile]);
 
   // Update variations when metadata changes
   useEffect(() => {
@@ -80,6 +81,10 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
 
   const handleGenerate = async () => {
     if (!selectedModel || !metadata) return;
+
+    // Reset saved file tracking and cleanup old incomplete files
+    setSavedFile(null);
+    cleanupIncompleteScenes(selectedTrack || "unknown", 3).catch(() => {});
 
     // Build scene context from storyboard if available
     let sceneContext = "";

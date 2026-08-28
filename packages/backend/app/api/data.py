@@ -407,3 +407,34 @@ def list_saved_scenes():
                 "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
             })
     return {"scenes": scenes}
+
+
+@router.post("/saved-scenes/cleanup")
+def cleanup_incomplete_scenes(request: dict):
+    """Remove incomplete scene files for a track, keeping only the largest (most complete) ones."""
+    track = request.get("track", "")
+    keep = request.get("keep", 3)  # Keep top N most complete files
+    output_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "output", "generated-scenes")
+    if not os.path.exists(output_dir):
+        return {"removed": 0}
+
+    # Find all files matching this track
+    safe_track = "".join(c if c.isalnum() or c in "-_" else "_" for c in track)[:50]
+    matching = []
+    for filename in os.listdir(output_dir):
+        if filename.endswith(".js") and filename.startswith(safe_track):
+            filepath = os.path.join(output_dir, filename)
+            stat = os.stat(filepath)
+            matching.append({"filename": filename, "path": filepath, "size": stat.st_size})
+
+    # Sort by size (largest first), keep top N, delete the rest
+    matching.sort(key=lambda x: x["size"], reverse=True)
+    removed = 0
+    for item in matching[keep:]:
+        try:
+            os.remove(item["path"])
+            removed += 1
+        except OSError:
+            pass
+
+    return {"removed": removed, "kept": min(keep, len(matching))}

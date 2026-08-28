@@ -935,6 +935,17 @@ export async function saveGeneratedScene(code: string, track: string, model: str
   return res.json();
 }
 
+export async function cleanupIncompleteScenes(track: string, keep = 3): Promise<{ removed: number; kept: number }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/data/saved-scenes/cleanup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ track, keep }),
+  });
+  if (!res.ok) throw new Error("Failed to cleanup scenes");
+  return res.json();
+}
+
 export async function listSavedScenes(): Promise<{ scenes: Array<{ filename: string; path: string; size: number; modified: string }> }> {
   const base = getApiBase();
   const res = await fetch(`${base}/api/data/saved-scenes`);
