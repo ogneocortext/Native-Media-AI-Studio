@@ -108,6 +108,10 @@ export default defineConfig(({ mode }) => {
           "**/public/renders/**",
         ],
       },
+      // Prevent HMR error overlay from crashing the dev server
+      hmr: {
+        overlay: false,
+      },
     },
     build: {
       outDir: "dist",
