@@ -698,9 +698,6 @@ export function ThreeJSStudio() {
         <Sparkles size={16} className="text-purple-400 shrink-0" />
         <span className="font-semibold text-sm shrink-0 hidden sm:inline">Three.js Studio</span>
         <div className="w-px h-5 bg-gray-700 mx-1 shrink-0 hidden sm:block" />
-        <button onClick={() => setIsPlaying(!isPlaying)} className={`p-1.5 rounded transition-colors shrink-0 ${isPlaying ? "bg-purple-600 hover:bg-purple-700" : "bg-gray-700 hover:bg-gray-600"}`} title={isPlaying ? "Pause" : "Play"}>
-          {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-        </button>
         <button onClick={() => addObject("crown")} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs shrink-0" title="Add Crown">👑</button>
         <button onClick={() => addObject("sphere")} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0 hidden xs:block" title="Add Sphere"><Circle size={13} /></button>
         <button onClick={() => addObject("box")} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0 hidden sm:block" title="Add Box"><Box size={13} /></button>
@@ -711,11 +708,6 @@ export function ThreeJSStudio() {
             {TRACK_PRESETS.map((t) => (<option key={t.filename} value={t.filename} className="bg-gray-800">{t.name} ({t.bpm} BPM)</option>))}
             {libraryTracks.map((t) => (<option key={t.filename} value={t.filename} className="bg-gray-800">{t.filename}</option>))}
           </select>
-          {selectedTrack && (
-            <button onClick={toggleAudio} className={`p-1 rounded text-xs flex items-center gap-1 shrink-0 ${isAudioPlaying ? "bg-purple-600 text-white" : "bg-gray-700 hover:bg-gray-600"}`} title={isAudioPlaying ? "Mute audio" : "Play audio"}>
-              {isAudioPlaying ? <Volume2 size={12} /> : <VolumeX size={12} />}
-            </button>
-          )}
         </div>
         {selectedTrack && (<audio ref={audioElementRef} src={`/api/audio/file/${selectedTrack}`} crossOrigin="anonymous" onEnded={() => setIsAudioPlaying(false)} className="hidden" />)}
         <button onClick={exportFrame} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0" title="Export frame as PNG"><Download size={13} /></button>
