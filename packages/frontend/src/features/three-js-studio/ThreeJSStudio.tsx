@@ -153,37 +153,115 @@ export function ThreeJSStudio() {
     if (!sceneRef.current || !code) return;
     setGeneratedCode(code);
 
-    // Check if the response contains actual JavaScript code
-    const hasFunction = code.includes("function applyScene");
-    const hasJS = code.includes("THREE.") || code.includes("scene.") || code.includes("const ") || code.includes("let ");
-    if (!hasFunction && !hasJS) {
-      console.warn("Response does not contain valid JavaScript code");
+    // Try to parse as JSON scene description
+    try {
+      let jsonStr = code;
+      // Extract JSON from markdown code fence if present
+      if (jsonStr.includes("```json")) {
+        const match = jsonStr.match(/```json\n([\s\S]*?)```/);
+        if (match) jsonStr = match[1];
+      } else if (jsonStr.includes("```")) {
+        const match = jsonStr.match(/```\n([\s\S]*?)```/);
+        if (match) jsonStr = match[1];
+      }
+      // Find first { to start of JSON
+      const startIdx = jsonStr.indexOf("{");
+      if (startIdx >= 0) jsonStr = jsonStr.substring(startIdx);
+
+      const sceneDesc = JSON.parse(jsonStr);
+
+      // Apply scene description
+      import("three").then((THREE) => {
+        const scene = sceneRef.current;
+
+        // Clear existing objects (keep lights and floor)
+        const toRemove: any[] = [];
+        scene.traverse((child: any) => {
+          if (child.isMesh && child.geometry && child.geometry.type !== "PlaneGeometry") {
+            toRemove.push(child);
+          }
+        });
+        toRemove.forEach((obj) => scene.remove(obj));
+
+        // Add objects from description
+        if (sceneDesc.objects) {
+          for (const objDesc of sceneDesc.objects) {
+            let geometry: any;
+            switch (objDesc.type) {
+              case "sphere": geometry = new THREE.SphereGeometry(0.8, 32, 32); break;
+              case "box": geometry = new THREE.BoxGeometry(1.2, 1.2, 1.2); break;
+              case "cylinder": geometry = new THREE.CylinderGeometry(0.6, 0.6, 1.4, 32); break;
+              case "cone": geometry = new THREE.ConeGeometry(0.8, 1.5, 32); break;
+              case "torus": geometry = new THREE.TorusGeometry(0.8, 0.25, 16, 32); break;
+              default: geometry = new THREE.BoxGeometry(1, 1, 1);
+            }
+            const mat = new THREE.MeshStandardMaterial({
+              color: new THREE.Color(objDesc.color || "#ffffff"),
+              metalness: objDesc.metalness ?? 0.6,
+              roughness: objDesc.roughness ?? 0.3,
+              emissive: new THREE.Color(objDesc.emissive || "#000000"),
+              emissiveIntensity: objDesc.emissiveIntensity ?? 0.1,
+            });
+            const mesh = new THREE.Mesh(geometry, mat);
+            const pos = objDesc.position as [number, number, number] || [0, 0.5, 0];
+            const scl = objDesc.scale as [number, number, number] || [1, 1, 1];
+            mesh.position.set(pos[0], pos[1], pos[2]);
+            mesh.scale.set(scl[0], scl[1], scl[2]);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            scene.add(mesh);
+          }
+        }
+
+        // Add lights from description
+        if (sceneDesc.lights) {
+          for (const lightDesc of sceneDesc.lights) {
+            let light: any;
+            switch (lightDesc.type) {
+              case "point": light = new THREE.PointLight(lightDesc.color, lightDesc.intensity, 12); break;
+              case "spot": light = new THREE.SpotLight(lightDesc.color, lightDesc.intensity); break;
+              case "directional": light = new THREE.DirectionalLight(lightDesc.color, lightDesc.intensity); break;
+              default: light = new THREE.PointLight(lightDesc.color, lightDesc.intensity);
+            }
+            const lpos = lightDesc.position as [number, number, number] || [0, 5, 0];
+            light.position.set(lpos[0], lpos[1], lpos[2]);
+            scene.add(light);
+          }
+        }
+
+        // Update particles
+        if (sceneDesc.particles && particlesRef.current) {
+          const pc = sceneDesc.particles;
+          if (pc.color) particlesRef.current.material.color.set(pc.color);
+          if (pc.speed) particleConfigRef.current = { ...particleConfigRef.current, speed: pc.speed };
+        }
+
+        // Update camera mode
+        if (sceneDesc.camera) {
+          setCameraMode(sceneDesc.camera);
+        }
+
+        // Update bloom
+        if (sceneDesc.bloom !== undefined && bloomPassRef.current) {
+          bloomPassRef.current.strength = sceneDesc.bloom;
+          setSceneConfig((prev) => ({ ...prev, bloomStrength: sceneDesc.bloom }));
+        }
+      });
       return;
+    } catch {
+      // Not valid JSON - try as JavaScript
     }
 
+    // Fallback: try to execute as JavaScript
     try {
-      // Try to extract just the code portion (remove any prompt text)
-      let codeToExecute = code;
-      if (code.includes("```javascript")) {
-        const match = code.match(/```javascript\n([\s\S]*?)```/);
-        if (match) codeToExecute = match[1];
-      } else if (code.includes("```")) {
-        const match = code.match(/```\n([\s\S]*?)```/);
-        if (match) codeToExecute = match[1];
+      if (!code.includes("function applyScene") && !code.includes("THREE.")) {
+        console.warn("Response does not contain valid scene description or code");
+        return;
       }
-
-      // Check for incomplete code and try to fix
-      const openBraces = (codeToExecute.match(/{/g) || []).length;
-      const closeBraces = (codeToExecute.match(/}/g) || []).length;
-      if (openBraces > closeBraces) {
-        codeToExecute = codeToExecute + "\n}".repeat(openBraces - closeBraces);
-      }
-
-      // Create a sandboxed function from the generated code
-      const fn = new Function("scene", "camera", "renderer", "THREE", codeToExecute + "\nif(typeof applyScene === 'function') { applyScene(scene, camera, renderer); }");
+      const fn = new Function("scene", "camera", "renderer", "THREE", code + "\nif(typeof applyScene === 'function') { applyScene(scene, camera, renderer); }");
       fn(sceneRef.current, cameraRef.current, rendererRef.current, (window as any).THREE);
     } catch (err) {
-      console.error("Failed to apply generated scene code:", err);
+      console.error("Failed to apply generated scene:", err);
     }
   }, []);
 

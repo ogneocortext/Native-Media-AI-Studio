@@ -361,8 +361,9 @@ async def get_progress(prompt_id: str) -> dict:
                 queue_data = await resp.json()
 
             # Check if prompt is in running queue
+            # ComfyUI queue items are lists: [number, prompt_id, prompt_data, ...]
             for item in queue_data.get("queue_running", []):
-                if item.get("prompt_id") == prompt_id:
+                if isinstance(item, list) and len(item) > 1 and item[1] == prompt_id:
                     # Also check history for step info
                     async with session.get(
                         f"{base_url}/history/{prompt_id}",
@@ -379,19 +380,17 @@ async def get_progress(prompt_id: str) -> dict:
                     return {
                         "status": "running",
                         "prompt_id": prompt_id,
-                        "node_index": item.get("node_index", 0),
-                        "total_nodes": item.get("total_nodes", 1),
                         "step": step,
                         "total_steps": total_steps,
                     }
 
             # Check if prompt is in pending queue
             for item in queue_data.get("queue_pending", []):
-                if item.get("prompt_id") == prompt_id:
+                if isinstance(item, list) and len(item) > 1 and item[1] == prompt_id:
                     return {
                         "status": "pending",
                         "prompt_id": prompt_id,
-                        "queue_position": item.get("queue_position", 0),
+                        "queue_position": item[0] if len(item) > 0 else 0,
                     }
 
             # Check history for completed
@@ -726,6 +725,9 @@ async def ollama_chat(request: dict) -> dict:
                                     "event": "content",
                                     "data": json.dumps({"content": content, "thinking": thinking}),
                                 }
+
+                # Send done event to properly close the stream
+                yield {"event": "done", "data": json.dumps({"status": "complete"})}
 
             return EventSourceResponse(event_generator())
         else:

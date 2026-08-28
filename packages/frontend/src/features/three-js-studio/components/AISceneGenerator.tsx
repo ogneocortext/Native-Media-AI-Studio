@@ -40,7 +40,20 @@ export function AISceneGenerator({ selectedTrack, onApplyCode }: AISceneGenerato
     await generate(
       variations[activeVariation].prompt,
       selectedModel,
-      "You are a Three.js scene designer. Respond ONLY with valid JavaScript code that defines a function: function applyScene(scene, camera, renderer) { ... }. This function receives the Three.js scene, camera, and renderer. Add objects, lights, and animations to the scene. Use the global THREE object. Do NOT include any explanation or markdown. Only the code.",
+      `You are a Three.js scene designer. Create a JSON object describing a 3D scene.
+Respond ONLY with valid JSON in this format:
+{
+  "objects": [
+    {"type": "sphere" | "box" | "cylinder" | "cone" | "torus" | "crown", "position": [x, y, z], "color": "#hex", "scale": [x, y, "metalness": 0-1, "roughness": 0-1, "emissive": 0-1}
+  ],
+  "lights": [
+    {"type": "point" | "spot" | "directional", "color": "#hex", "intensity": number, "position": [x, y, z]}
+  ],
+  "particles": {"count": number, "color": "#hex", "speed": number},
+  "camera": "orbit" | "dolly" | "handheld" | "static",
+  "bloom": 0-1.5
+}
+No explanations, no markdown, just JSON.`,
     );
   };
 

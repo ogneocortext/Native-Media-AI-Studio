@@ -59,6 +59,8 @@ export function useOllamaStream() {
                 }
               } else if (lastEvent === "done") {
                 msg = { type: "done", data };
+                onMessage?.(msg);
+                return; // Stream complete
               } else if (lastEvent === "tool_calls") {
                 msg = { type: "tool_calls", data };
               } else if (lastEvent === "connected") {
@@ -75,7 +77,13 @@ export function useOllamaStream() {
         }
       }
     } catch (err: any) {
-      if (err.name !== "AbortError") {
+      // Don't treat aborted or incomplete streams as fatal errors
+      if (err.name === "AbortError") {
+        // User cancelled - keep what we have
+      } else if (err.name === "TypeError" && err.message.includes("network")) {
+        // Network error mid-stream - we may have partial content
+        console.warn("Stream interrupted, using partial content");
+      } else if (err.name !== "AbortError") {
         setOutput((prev) => prev + `\n\nError: ${err.message}`);
       }
     } finally {
