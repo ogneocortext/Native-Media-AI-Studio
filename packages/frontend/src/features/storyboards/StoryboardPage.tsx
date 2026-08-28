@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   BookOpen, FileText, Search, ChevronRight, Box, Sparkles,
-  Music, Clock, Zap, Layers, Quote,
+  Music, Clock, Zap, Layers, Quote, Palette, Crown, Film,
+  Drum, Video, Headphones, Eye, BarChart3, FileMusic,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { fetchUniqueTracksFromAPI, type TrackLyricsData } from "../../services/trackLyrics";
@@ -161,34 +162,24 @@ export function StoryboardPage() {
 
     // Detect production notes section for card-based rendering
     let inProductionNotes = false;
-    const noteIcons: Record<string, string> = {
-      'Palette': '🎨',
-      'Three.js crown': '👑',
-      'Three.js': '⚡',
-      'Motion budget': '🎬',
-      'BPM': '🥁',
-      'Render': '📹',
-      'Remaster': '🔊',
-      'Preview': '👁️',
-      'Analysis': '📊',
+    const noteIcons: Record<string, { icon: React.ComponentType<{size?: number; className?: string}>; color: string }> = {
+      'Palette': { icon: Palette, color: 'text-amber-400' },
+      'Three.js crown': { icon: Crown, color: 'text-yellow-400' },
+      'Three.js': { icon: Crown, color: 'text-yellow-400' },
+      'Motion budget': { icon: Film, color: 'text-blue-400' },
+      'BPM': { icon: Drum, color: 'text-red-400' },
+      'Render': { icon: Video, color: 'text-emerald-400' },
+      'Remaster': { icon: Headphones, color: 'text-purple-400' },
+      'Preview': { icon: Eye, color: 'text-cyan-400' },
+      'Analysis': { icon: BarChart3, color: 'text-pink-400' },
     };
-    const noteColors: Record<string, string> = {
-      'Palette': 'text-amber-400',
-      'Three.js crown': 'text-yellow-400',
-      'Three.js': 'text-yellow-400',
-      'Motion budget': 'text-blue-400',
-      'BPM': 'text-red-400',
-      'Render': 'text-emerald-400',
-      'Remaster': 'text-purple-400',
-      'Preview': 'text-cyan-400',
-      'Analysis': 'text-pink-400',
-    };
+    const defaultNoteIcon = { icon: FileMusic, color: 'text-gray-400' };
 
     const getNoteStyle = (label: string) => {
-      for (const [key, icon] of Object.entries(noteIcons)) {
-        if (label.startsWith(key)) return { icon, color: noteColors[key] || 'text-gray-400' };
+      for (const [key, val] of Object.entries(noteIcons)) {
+        if (label.startsWith(key)) return val;
       }
-      return { icon: '📝', color: 'text-gray-400' };
+      return defaultNoteIcon;
     };
 
     for (let i = 0; i < lines.length; i++) {
@@ -213,11 +204,11 @@ export function StoryboardPage() {
         if (match) {
           const label = match[1];
           const value = match[2];
-          const { icon, color } = getNoteStyle(label);
+          const { icon: Icon, color } = getNoteStyle(label);
           elements.push(
             <div key={i} className="bg-[#0d0d15] border border-gray-800/60 rounded-xl p-4 mb-3 hover:border-gray-700/80 transition-colors">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-base">{icon}</span>
+                <Icon size={16} className={color} />
                 <span className={`text-xs font-bold uppercase tracking-wider ${color}`}>{label}</span>
               </div>
               <div className="text-sm text-gray-300 leading-relaxed pl-6">{renderInline(value)}</div>
