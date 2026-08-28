@@ -297,22 +297,41 @@ export function ThreeJSStudio() {
         console.warn("Response does not contain valid scene description or code");
         return;
       }
-      // Wrap the generated code to capture the animate function
-      const wrappedCode = code + `
-        // Expose the animate loop internals for external control
+      // Strip auto-animation (rAF loops) so we control playback externally
+      const strippedCode = code
+        .replace(/requestAnimationFrame\(animate\)/g, "/* rAF stripped */")
+        .replace(/\n\s*animate\(\)\s*;?/g, "\n");
+      // Wrap to expose controlled update function
+      const wrappedCode = strippedCode + `
         if (typeof animate === 'function' && typeof time !== 'undefined') {
           window.__sceneUpdate = (t, d) => {
             time = t;
-            animate();
+            if (typeof animateCamera === 'function') animateCamera(t, __intensity(t));
+            if (typeof updateLights === 'function') updateLights(__intensity(t));
+            if (typeof renderer !== 'undefined') renderer.render(scene, camera);
           };
           window.__sceneInit = () => {
             if (typeof animateCamera === 'function') animateCamera(0, 0);
             if (typeof updateLights === 'function') updateLights(0);
+            if (typeof renderer !== 'undefined') renderer.render(scene, camera);
           };
+          function __intensity(t) {
+            const s = (typeof config !== 'undefined' && config.sections) || ['intro','chorus'];
+            const tl = s.length * 40;
+            const sl = tl / s.length;
+            const i = Math.floor(t / sl);
+            const type = s[Math.min(i, s.length - 1)] || 'chorus';
+            switch(type) {
+              case 'intro': return 0.1 + Math.sin(t * 2) * 0.1;
+              case 'chorus': return 0.3 + Math.sin(t * 3) * 0.2;
+              case 'verse': return 0.4 + Math.sin(t * 2.5) * 0.15;
+              default: return 0.6 + Math.sin(t * 4) * 0.3;
+            }
+          }
         } else if (typeof applyScene === 'function') {
           let __time = 0;
-          window.__sceneUpdate = (t, d) => { __time = t; applyScene(scene, camera, renderer); };
-          window.__sceneInit = () => { __time = 0; applyScene(scene, camera, renderer); };
+          window.__sceneUpdate = (t, d) => { __time = t; applyScene(scene, camera, renderer, THREE); };
+          window.__sceneInit = () => { __time = 0; applyScene(scene, camera, renderer, THREE); };
         }
       `;
       const fn = new Function("scene", "camera", "renderer", "THREE", wrappedCode);
@@ -480,20 +499,21 @@ export function ThreeJSStudio() {
           finalComposerRef.current.render();
         } else { composer.render(); }
 
-        // Update animation timeline
-        if (isPlayingRef.current) {
+        // Update animation timeline (only when render is playing)
+        if (renderPlaying) {
           setAnimationTime((prev) => {
             const next = prev + delta;
             return next >= animationDuration ? 0 : next;
           });
         }
 
-        // Call generated scene update (only when renderPlaying)
-        if (generatedSceneUpdateRef.current && renderPlaying) {
-          generatedSceneUpdateRef.current(elapsed, delta);
-        } else if (generatedSceneUpdateRef.current && !renderPlaying) {
-          // When paused, render the static frame at current animation time
-          generatedSceneUpdateRef.current(animationTime, 0);
+        // Call generated scene update
+        if (generatedSceneUpdateRef.current) {
+          if (renderPlaying) {
+            // Animate with current animation time
+            generatedSceneUpdateRef.current(animationTime, delta);
+          }
+          // When paused, we don't call update — the last frame stays rendered
         }
 
         // Apply keyframe animations
