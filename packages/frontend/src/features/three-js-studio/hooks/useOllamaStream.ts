@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { ollamaChatStream } from "../../../services/api";
 
 export interface StreamMessage {
@@ -9,7 +9,19 @@ export interface StreamMessage {
 export function useOllamaStream() {
   const [generating, setGenerating] = useState(false);
   const [output, setOutput] = useState("");
+  const outputRef = useRef("");
   const abortRef = useRef<AbortController | null>(null);
+
+  // Sync ref to state frequently for display and apply
+  const syncTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    syncTimer.current = setInterval(() => {
+      setOutput(outputRef.current);
+    }, 50);
+    return () => {
+      if (syncTimer.current) clearInterval(syncTimer.current);
+    };
+  }, []);
 
   const generate = useCallback(async (
     prompt: string,
@@ -66,9 +78,11 @@ export function useOllamaStream() {
                 const content = data.content || "";
                 if (content) {
                   msg = { type: "content", data: content };
-                  setOutput((prev) => prev + content);
+                  outputRef.current += content;
                 }
               } else if (lastEvent === "done") {
+                // Final sync to state before completing
+                setOutput(outputRef.current);
                 msg = { type: "done", data };
                 onMessage?.(msg);
                 return; // Stream complete
@@ -108,5 +122,5 @@ export function useOllamaStream() {
     setGenerating(false);
   }, []);
 
-  return { generate, cancel, generating, output, setOutput };
+  return { generate, cancel, generating, output, getOutput: () => outputRef.current };
 }

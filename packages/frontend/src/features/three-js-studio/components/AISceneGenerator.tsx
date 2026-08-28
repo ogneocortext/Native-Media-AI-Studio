@@ -14,7 +14,7 @@ interface AISceneGeneratorProps {
 
 export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoGenerate, storyboardScene }: AISceneGeneratorProps) {
   const { metadata, loading: metaLoading } = useTrackMetadata(selectedTrack || null);
-  const { generate, cancel, generating, output } = useOllamaStream();
+   const { generate, cancel, generating, output, getOutput } = useOllamaStream();
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState("");
   const [variations, setVariations] = useState<PromptVariation[]>(() => generatePromptVariations({
@@ -60,13 +60,14 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
   // Auto-save generated code when output changes
   const lastSavedRef = useRef<string>("");
   useEffect(() => {
-    if (output && output !== lastSavedRef.current && output.length > 50) {
-      lastSavedRef.current = output;
-      saveGeneratedScene(output, selectedTrack || "unknown", selectedModel || "unknown")
+    const code = getOutput();
+    if (code && code !== lastSavedRef.current && code.length > 50) {
+      lastSavedRef.current = code;
+      saveGeneratedScene(code, selectedTrack || "unknown", selectedModel || "unknown")
         .then((result) => setSavedFile(result.filename))
         .catch(() => {});
     }
-  }, [output, selectedTrack, selectedModel]);
+  }, [output, getOutput, selectedTrack, selectedModel]);
 
   // Update variations when metadata changes
   useEffect(() => {
@@ -145,17 +146,18 @@ ${sceneContext}`,
   };
 
   const handleSave = useCallback(async () => {
-    if (!output) return;
+    const code = getOutput() || output;
+    if (!code) return;
     setSaving(true);
     try {
-      const result = await saveGeneratedScene(output, selectedTrack || "unknown", selectedModel || "unknown");
+      const result = await saveGeneratedScene(code, selectedTrack || "unknown", selectedModel || "unknown");
       setSavedFile(result.filename);
     } catch {
       // Silently fail — save is best-effort
     } finally {
       setSaving(false);
     }
-  }, [output, selectedTrack, selectedModel]);
+  }, [output, getOutput, selectedTrack, selectedModel]);
 
   return (
     <div className="border border-purple-500/30 rounded-lg bg-[#0e0e16] overflow-hidden">
@@ -278,7 +280,7 @@ ${sceneContext}`,
                 </div>
               )}
               <button
-                onClick={() => onApplyCode(output)}
+                onClick={() => onApplyCode(getOutput() || output)}
                 className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded text-xs font-medium flex items-center justify-center gap-1.5"
               >
                 <Zap size={12} /> Apply to Scene
