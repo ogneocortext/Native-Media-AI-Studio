@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { Sparkles, Play, Square, Copy, Check, ChevronDown, ChevronUp, Zap } from "lucide-react";
 import { useTrackMetadata, generatePromptVariations, type PromptVariation } from "../hooks/useTrackMetadata";
 import { useOllamaStream } from "../hooks/useOllamaStream";
+import { getGuidelinesPrompt } from "../services/sceneGuidelines";
 import { getOllamaModels, type OllamaModel } from "../../../services/api";
 
 interface AISceneGeneratorProps {
@@ -108,7 +109,9 @@ Available tools:
 Track info: ${metadata.bpm} BPM, ${metadata.duration}s duration
 Sections: ${metadata.sections.map((s: any) => s.type).join(", ")}
 ${sceneContext}
-Start with scene_clear, then build the scene step by step. End with scene_get_state.`,
+Start with scene_clear, then build the scene step by step. End with scene_get_state.
+
+${getGuidelinesPrompt()}`,
       (msg) => {
         if (msg.type === "done") {
           fetch("/api/integrations/ollama/scene-state")
@@ -159,6 +162,7 @@ Start with scene_clear, then build the scene step by step. End with scene_get_st
           <Sparkles size={14} className="text-purple-400" />
           <span className="text-sm font-semibold text-purple-300">AI Scene Generator</span>
           {metadata && <span className="text-[10px] text-green-400 bg-green-900/30 px-1.5 py-0.5 rounded">Track loaded</span>}
+          <span className="text-[10px] text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded" title="Scene design guidelines active">Guidelines</span>
         </div>
         {panelOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
