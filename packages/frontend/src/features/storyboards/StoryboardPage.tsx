@@ -1,31 +1,98 @@
-import { useState, useEffect } from "react";
-import { BookOpen, FileText, Search, ChevronRight } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  BookOpen, FileText, Search, ChevronRight, Box, Sparkles,
+  Music, Clock, Zap, Layers,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface StoryboardFile {
   name: string;
   path: string;
   title: string;
+  track?: string;
+  trackFile?: string;
+  bpm?: number;
+  duration?: number;
 }
 
 const STORYBOARDS: StoryboardFile[] = [
-  { name: "take-the-crown", path: "/docs/STORYBOARD_TakeTheCrown.md", title: "Take the Crown" },
-  { name: "still-i-rise", path: "/docs/STORYBOARD_StillIRise.md", title: "Still I Rise" },
-  { name: "mindful-layering", path: "/docs/MINDFUL_LAYERING_2026.md", title: "Mindful Layering 2026" },
-  { name: "visual-storytelling", path: "/docs/VISUAL_STORYTELLING_2026.md", title: "Visual Storytelling 2026" },
+  { name: "take-the-crown", path: "/docs/STORYBOARD_TakeTheCrown.md", title: "Take the Crown", track: "Take the Crown", trackFile: "85a406ef_NeoCortext - Take the Crown.mp3", bpm: 152, duration: 124 },
+  { name: "still-i-rise", path: "/docs/STORYBOARD_StillIRise.md", title: "Still I Rise", track: "Still I Rise", trackFile: "f3a608e2_NeoCortext - Still I Rise.mp3", bpm: 130, duration: 180 },
 ];
 
+interface SceneData {
+  seq: string;
+  section: string;
+  timecode: string;
+  duration: string;
+  lyric: string;
+  visual: string;
+  technique: string;
+}
+
 export function StoryboardPage() {
+  const navigate = useNavigate();
   const [selected, setSelected] = useState<StoryboardFile | null>(null);
   const [content, setContent] = useState<string>("");
   const [query, setQuery] = useState("");
+  const [scenes, setScenes] = useState<SceneData[]>([]);
+  const [activeScene, setActiveScene] = useState<number | null>(null);
 
   useEffect(() => {
     if (!selected) return;
     fetch(selected.path)
       .then((r) => r.text())
-      .then(setContent)
+      .then((text) => {
+        setContent(text);
+        // Parse overview map table to extract scenes
+        const parsed = parseScenes(text);
+        setScenes(parsed);
+      })
       .catch(() => setContent("# Error\nFailed to load storyboard."));
   }, [selected]);
+
+  const parseScenes = (md: string): SceneData[] => {
+    const lines = md.split("\n");
+    const result: SceneData[] = [];
+    let inOverview = false;
+
+    for (const line of lines) {
+      if (line.includes("## Overview Map")) { inOverview = true; continue; }
+      if (inOverview && line.startsWith("#")) { inOverview = false; continue; }
+      if (!inOverview || !line.startsWith("|")) continue;
+      if (line.includes("SEQ") || line.includes("---")) continue;
+
+      const cells = line.split("|").map((c) => c.trim()).filter(Boolean);
+      if (cells.length >= 7) {
+        result.push({
+          seq: cells[0],
+          section: cells[1],
+          timecode: cells[2],
+          duration: cells[3],
+          lyric: cells[4],
+          visual: cells[5],
+          technique: cells[6],
+        });
+      }
+    }
+    return result;
+  };
+
+  const handleOpenIn3DStudio = useCallback((storyboard: StoryboardFile) => {
+    const params = new URLSearchParams();
+    if (storyboard.trackFile) params.set("track", storyboard.trackFile);
+    params.set("storyboard", storyboard.name);
+    navigate(`/three-js-studio?${params.toString()}`);
+  }, [navigate]);
+
+  const handleGenerateScene = useCallback((storyboard: StoryboardFile, sceneIdx: number) => {
+    const params = new URLSearchParams();
+    if (storyboard.trackFile) params.set("track", storyboard.trackFile);
+    params.set("storyboard", storyboard.name);
+    params.set("scene", String(sceneIdx));
+    params.set("autogenerate", "true");
+    navigate(`/three-js-studio?${params.toString()}`);
+  }, [navigate]);
 
   const renderMarkdown = (md: string) => {
     const lines = md.split("\n");
@@ -37,20 +104,20 @@ export function StoryboardPage() {
     const flushTable = () => {
       if (tableHeaders.length === 0) return;
       elements.push(
-        <div key={`table-${elements.length}`} className="sb-table-wrapper">
-          <table className="sb-table">
+        <div key={`table-${elements.length}`} className="overflow-x-auto rounded-lg border border-gray-700">
+          <table className="w-full text-sm">
             <thead>
-              <tr>
+              <tr className="bg-gray-800/80">
                 {tableHeaders.map((h, i) => (
-                  <th key={i} className="sb-th">{h.trim()}</th>
+                  <th key={i} className="px-3 py-2 text-left text-xs font-semibold text-purple-300 uppercase tracking-wider">{h.trim()}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {tableRows.map((row, ri) => (
-                <tr key={ri} className="sb-tr">
+                <tr key={ri} className="border-t border-gray-700/50 hover:bg-gray-800/40 transition-colors">
                   {row.map((cell, ci) => (
-                    <td key={ci} className="sb-td">{cell.trim()}</td>
+                    <td key={ci} className="px-3 py-2 text-gray-300">{cell.trim()}</td>
                   ))}
                 </tr>
               ))}
@@ -65,105 +132,198 @@ export function StoryboardPage() {
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-
       if (line.startsWith("|")) {
         const cells = line.split("|").filter((c) => c.trim() !== "");
-        if (line.includes("---")) {
-          inTable = true;
-          tableHeaders = cells;
-          continue;
-        }
-        if (inTable) {
-          tableRows.push(cells);
-          continue;
-        }
-      } else if (inTable) {
-        flushTable();
-      }
+        if (line.includes("---")) { inTable = true; tableHeaders = cells; continue; }
+        if (inTable) { tableRows.push(cells); continue; }
+      } else if (inTable) { flushTable(); }
 
-      if (line.startsWith("# ")) {
-        elements.push(<h1 key={i} className="sb-h1">{line.slice(2)}</h1>);
-      } else if (line.startsWith("## ")) {
-        elements.push(<h2 key={i} className="sb-h2">{line.slice(3)}</h2>);
-      } else if (line.startsWith("### ")) {
-        elements.push(<h3 key={i} className="sb-h3">{line.slice(4)}</h3>);
-      } else if (line.startsWith("> ")) {
-        elements.push(
-          <blockquote key={i} className="sb-blockquote">
-            {line.slice(2)}
-          </blockquote>
-        );
-      } else if (line.startsWith("- ") || line.startsWith("* ")) {
-        elements.push(
-          <li key={i} className="sb-li">{line.slice(2)}</li>
-        );
-      } else if (line.trim() === "---") {
-        elements.push(<hr key={i} className="sb-hr" />);
-      } else if (line.trim() === "") {
-        elements.push(<div key={i} className="sb-spacer" />);
-      } else {
-        elements.push(<p key={i} className="sb-p">{line}</p>);
-      }
+      if (line.startsWith("# ")) elements.push(<h1 key={i} className="text-2xl font-bold text-white mt-6 mb-3">{line.slice(2)}</h1>);
+      else if (line.startsWith("## ")) elements.push(<h2 key={i} className="text-xl font-semibold text-purple-300 mt-6 mb-2 flex items-center gap-2"><Layers size={18} />{line.slice(3)}</h2>);
+      else if (line.startsWith("### ")) elements.push(<h3 key={i} className="text-lg font-medium text-gray-200 mt-4 mb-2">{line.slice(4)}</h3>);
+      else if (line.startsWith("> ")) elements.push(<blockquote key={i} className="border-l-4 border-purple-500 pl-4 py-1 my-3 text-gray-400 italic bg-purple-900/10 rounded-r">{line.slice(2)}</blockquote>);
+      else if (line.startsWith("- ") || line.startsWith("* ")) elements.push(<li key={i} className="ml-4 text-gray-300 list-disc">{line.slice(2)}</li>);
+      else if (line.trim() === "---") elements.push(<hr key={i} className="border-gray-700 my-4" />);
+      else if (line.trim() === "") elements.push(<div key={i} className="h-2" />);
+      else elements.push(<p key={i} className="text-gray-300 leading-relaxed">{line}</p>);
     }
     flushTable();
     return elements;
   };
 
   const filtered = STORYBOARDS.filter((s) =>
-    s.title.toLowerCase().includes(query.toLowerCase())
+    s.title.toLowerCase().includes(query.toLowerCase()) ||
+    s.track?.toLowerCase().includes(query.toLowerCase())
   );
 
   return (
-    <div className="sb-page">
-      <div className="sb-header">
-        <BookOpen size={24} className="sb-icon" />
-        <h1 className="sb-title">Storyboards</h1>
+    <div className="h-full flex flex-col bg-[#0a0a0f] text-white overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-4 bg-[#12121a] border-b border-gray-800 shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <BookOpen size={24} className="text-purple-400" />
+            <h1 className="text-xl font-bold">Storyboards</h1>
+            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">{STORYBOARDS.length} boards</span>
+          </div>
+          {!selected && (
+            <div className="relative">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by title or track..."
+                className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 pl-9 text-sm text-white placeholder-gray-500 w-64 focus:outline-none focus:border-purple-500"
+              />
+              <Search size={16} className="absolute left-3 top-2 text-gray-500" />
+            </div>
+          )}
+        </div>
       </div>
 
-      {!selected ? (
-        <div className="sb-content">
-          <div className="sb-search">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search storyboards..."
-              className="sb-search-input"
-            />
-            <Search size={20} className="sb-search-icon" />
-          </div>
-
-          <div className="sb-grid">
-            {filtered.map((s) => (
-              <button
-                key={s.name}
-                onClick={() => setSelected(s)}
-                className="sb-card"
-              >
-                <div className="sb-card-inner">
-                  <div className="sb-card-left">
-                    <FileText size={18} className="sb-card-icon" />
-                    <span className="sb-card-title">{s.title}</span>
+      <div className="flex-1 overflow-hidden flex">
+        {!selected ? (
+          /* Storyboard Grid */
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {filtered.map((s) => (
+                <div key={s.name} className="bg-[#12121a] border border-gray-800 rounded-xl p-5 hover:border-purple-500/50 transition-all group">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-purple-900/30 flex items-center justify-center">
+                        <FileText size={20} className="text-purple-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-white group-hover:text-purple-300 transition-colors">{s.title}</h3>
+                        {s.track && <p className="text-xs text-gray-500 flex items-center gap-1"><Music size={10} />{s.track}</p>}
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="text-gray-600 group-hover:text-purple-400 transition-colors" />
                   </div>
-                  <ChevronRight size={16} className="sb-card-arrow" />
+
+                  {/* Track metadata */}
+                  <div className="flex items-center gap-4 mb-4 text-xs text-gray-400">
+                    {s.bpm && <span className="flex items-center gap-1"><Zap size={10} className="text-amber-400" />{s.bpm} BPM</span>}
+                    {s.duration && <span className="flex items-center gap-1"><Clock size={10} />{s.duration}s</span>}
+                  </div>
+
+                  {/* Quick actions */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelected(s)}
+                      className="flex-1 px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <BookOpen size={12} /> View Board
+                    </button>
+                    <button
+                      onClick={() => handleOpenIn3DStudio(s)}
+                      className="flex-1 px-3 py-2 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
+                      title="Open in 3D Studio with this track"
+                    >
+                      <Box size={12} /> 3D Studio
+                    </button>
+                    <button
+                      onClick={() => handleGenerateScene(s, 0)}
+                      className="flex-1 px-3 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-300 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
+                      title="Generate AI scene from storyboard"
+                    >
+                      <Sparkles size={12} /> Generate
+                    </button>
+                  </div>
                 </div>
-              </button>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="sb-content">
-          <button
-            onClick={() => { setSelected(null); setContent(""); }}
-            className="sb-back"
-          >
-            ← Back to storyboards
-          </button>
-          <div className="sb-markdown">
-            {renderMarkdown(content)}
+        ) : (
+          /* Storyboard Detail */
+          <div className="flex-1 flex overflow-hidden">
+            {/* Scene Timeline Sidebar */}
+            {scenes.length > 0 && (
+              <div className="w-72 bg-[#0e0e16] border-r border-gray-800 overflow-y-auto shrink-0">
+                <div className="p-3 border-b border-gray-800">
+                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Scenes</h3>
+                </div>
+                {scenes.map((scene, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveScene(activeScene === idx ? null : idx)}
+                    className={`w-full text-left px-3 py-2.5 border-b border-gray-800/50 transition-colors ${
+                      activeScene === idx ? "bg-purple-900/20 border-l-2 border-l-purple-500" : "hover:bg-gray-800/40"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-mono text-purple-400">{scene.seq}</span>
+                      <span className="text-[10px] text-gray-500">{scene.duration}</span>
+                    </div>
+                    <div className="text-xs font-medium text-gray-200 truncate">{scene.section}</div>
+                    <div className="text-[10px] text-gray-500 truncate mt-0.5">{visualPreview(scene.visual)}</div>
+                    {activeScene === idx && (
+                      <div className="mt-2 pt-2 border-t border-gray-700/50">
+                        <p className="text-[10px] text-gray-400 mb-2 line-clamp-2">{scene.visual}</p>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleGenerateScene(selected, idx); }}
+                            className="flex-1 px-2 py-1 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-300 rounded text-[10px] font-medium flex items-center justify-center gap-1"
+                          >
+                            <Sparkles size={9} /> Gen Scene
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleOpenIn3DStudio(selected); }}
+                            className="flex-1 px-2 py-1 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 rounded text-[10px] font-medium flex items-center justify-center gap-1"
+                          >
+                            <Box size={9} /> 3D
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Main Content */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="sticky top-0 z-10 bg-[#0a0a0f]/95 backdrop-blur border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => { setSelected(null); setContent(""); setScenes([]); setActiveScene(null); }}
+                    className="text-gray-400 hover:text-white transition-colors text-sm flex items-center gap-1"
+                  >
+                    ← Back
+                  </button>
+                  <div>
+                    <h2 className="font-semibold text-white">{selected.title}</h2>
+                    {selected.track && <p className="text-xs text-gray-500">{selected.track} • {selected.bpm} BPM • {selected.duration}s</p>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleOpenIn3DStudio(selected)}
+                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                  >
+                    <Box size={12} /> Open in 3D Studio
+                  </button>
+                  <button
+                    onClick={() => handleGenerateScene(selected, activeScene || 0)}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                  >
+                    <Sparkles size={12} /> Generate Scene
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 max-w-4xl">
+                {renderMarkdown(content)}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
+
+  function visualPreview(visual: string): string {
+    if (visual.length <= 60) return visual;
+    return visual.slice(0, 57) + "...";
+  }
 }

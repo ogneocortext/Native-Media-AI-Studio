@@ -7,9 +7,12 @@ import { getOllamaModels, type OllamaModel } from "../../../services/api";
 interface AISceneGeneratorProps {
   selectedTrack: string | null;
   onApplyCode: (code: string) => void;
+  storyboard?: string | null;
+  autoGenerate?: boolean;
+  storyboardScene?: number | null;
 }
 
-export function AISceneGenerator({ selectedTrack, onApplyCode }: AISceneGeneratorProps) {
+export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoGenerate, storyboardScene }: AISceneGeneratorProps) {
   const { metadata, loading: metaLoading } = useTrackMetadata(selectedTrack || null);
   const { generate, cancel, generating, output } = useOllamaStream();
   const [models, setModels] = useState<OllamaModel[]>([]);
@@ -20,6 +23,27 @@ export function AISceneGenerator({ selectedTrack, onApplyCode }: AISceneGenerato
   const [activeVariation, setActiveVariation] = useState(0);
   const [copied, setCopied] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [storyboardContent, setStoryboardContent] = useState<string>("");
+
+  // Fetch storyboard content if specified
+  useEffect(() => {
+    if (!storyboard) return;
+    const storyboardPaths: Record<string, string> = {
+      "take-the-crown": "/docs/STORYBOARD_TakeTheCrown.md",
+      "still-i-rise": "/docs/STORYBOARD_StillIRise.md",
+    };
+    const path = storyboardPaths[storyboard];
+    if (path) {
+      fetch(path).then((r) => r.text()).then(setStoryboardContent).catch(() => {});
+    }
+  }, [storyboard]);
+
+  // Auto-generate when requested
+  useEffect(() => {
+    if (autoGenerate && selectedModel && metadata && !generating) {
+      handleGenerate();
+    }
+  }, [autoGenerate, selectedModel, metadata]);
 
   const loadModels = useCallback(async () => {
     try {
@@ -40,6 +64,30 @@ export function AISceneGenerator({ selectedTrack, onApplyCode }: AISceneGenerato
 
   const handleGenerate = async () => {
     if (!selectedModel || !metadata) return;
+
+    // Build scene context from storyboard if available
+    let sceneContext = "";
+    if (storyboard && storyboardContent) {
+      // Extract relevant scene if storyboardScene index specified
+      const scenes = parseStoryboardScenes(storyboardContent);
+      if (storyboardScene !== null && storyboardScene !== undefined && scenes[storyboardScene]) {
+        const scene = scenes[storyboardScene];
+        sceneContext = `
+Storyboard Scene ${scene.seq} (${scene.section}):
+- Time: ${scene.timecode} (${scene.duration})
+- Lyric: ${scene.lyric}
+- Visual: ${scene.visual}
+- Technique: ${scene.technique}
+`;
+      } else {
+        // Include full storyboard overview
+        sceneContext = `
+Storyboard Overview:
+${scenes.map((s) => `- ${s.seq} ${s.section}: ${s.visual} (${s.timecode})`).join("\n")}
+`;
+      }
+    }
+
     await generate(
       variations[activeVariation].prompt,
       selectedModel,
@@ -59,7 +107,7 @@ Available tools:
 
 Track info: ${metadata.bpm} BPM, ${metadata.duration}s duration
 Sections: ${metadata.sections.map((s: any) => s.type).join(", ")}
-
+${sceneContext}
 Start with scene_clear, then build the scene step by step. End with scene_get_state.`,
       (msg) => {
         if (msg.type === "done") {
@@ -75,6 +123,23 @@ Start with scene_clear, then build the scene step by step. End with scene_get_st
       },
       true, // useTools
     );
+  };
+
+  const parseStoryboardScenes = (md: string) => {
+    const lines = md.split("\n");
+    const result: any[] = [];
+    let inOverview = false;
+    for (const line of lines) {
+      if (line.includes("## Overview Map")) { inOverview = true; continue; }
+      if (inOverview && line.startsWith("#") && !line.includes("Overview")) { inOverview = false; continue; }
+      if (!inOverview || !line.startsWith("|")) continue;
+      if (line.includes("SEQ") || line.includes("---")) continue;
+      const cells = line.split("|").map((c) => c.trim()).filter(Boolean);
+      if (cells.length >= 7) {
+        result.push({ seq: cells[0], section: cells[1], timecode: cells[2], duration: cells[3], lyric: cells[4], visual: cells[5], technique: cells[6] });
+      }
+    }
+    return result;
   };
 
   const handleCopy = () => {

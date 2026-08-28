@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Box, Play, Pause, Sparkles, Download, Settings, Circle, Square,
   ChevronDown, ChevronUp, Music, Zap, Volume2, VolumeX,
@@ -39,6 +40,11 @@ const TRACK_PRESETS = [
 ];
 
 export function ThreeJSStudio() {
+  const [searchParams] = useSearchParams();
+  const storyboardParam = searchParams.get("storyboard");
+  const autoGenerateParam = searchParams.get("autogenerate");
+  const storyboardSceneParam = searchParams.get("scene");
+  const trackParam = searchParams.get("track");
   // ---- Refs ----
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -114,6 +120,15 @@ export function ThreeJSStudio() {
   useEffect(() => { particleConfigRef.current = particleConfig; }, [particleConfig]);
   useEffect(() => { sceneConfigRef.current = sceneConfig; }, [sceneConfig]);
   useEffect(() => { activeAudioDrivenRef.current = SCENE_TEMPLATES.find((t) => t.id === activeTemplateId)?.audioDriven; }, [activeTemplateId]);
+
+  // Auto-select track from URL param
+  useEffect(() => {
+    if (trackParam && trackParam !== selectedTrack) {
+      setSelectedTrack(trackParam);
+      const preset = TRACK_PRESETS.find((p) => p.filename === trackParam);
+      if (preset) { setBpm(preset.bpm); setBeatSync(true); }
+    }
+  }, [trackParam]);
 
   // ---- Helper: create mesh for object ----
   const createMeshForObject = useCallback(async (obj: AnimObject, THREE: any) => {
@@ -759,7 +774,13 @@ export function ThreeJSStudio() {
 
         {/* AI Scene Generator Panel */}
         <div className="absolute top-2 right-2 w-72 max-h-[calc(100%-1rem)] overflow-y-auto z-10">
-          <AISceneGenerator selectedTrack={selectedTrack || null} onApplyCode={handleApplyCode} />
+          <AISceneGenerator
+            selectedTrack={selectedTrack || null}
+            onApplyCode={handleApplyCode}
+            storyboard={storyboardParam}
+            autoGenerate={autoGenerateParam === "true"}
+            storyboardScene={storyboardSceneParam ? parseInt(storyboardSceneParam, 10) : null}
+          />
         </div>
 
         {/* HUD */}
