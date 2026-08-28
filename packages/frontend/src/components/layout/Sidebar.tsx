@@ -20,7 +20,7 @@ import {
   Zap,
   Wand2,
 } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useHealthStore } from "../../state/healthStore";
 import { getApiBase } from "../../services/api";
@@ -288,20 +288,21 @@ export function Sidebar() {
 function ComfyUIQuickControl({ collapsed }: { collapsed: boolean }) {
   const [comfyui, setComfyui] = useState<{ installed?: boolean; running?: boolean } | null>(null);
   const [loading, setLoading] = useState(false);
+  const { fetchHealth } = useHealthStore();
 
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     try {
       const base = getApiBase();
       const res = await fetch(`${base}/api/services/comfyui/status`);
       if (res.ok) setComfyui((await res.json()) as { installed?: boolean; running?: boolean });
     } catch { /* ignore */ }
-  };
+  }, []);
 
   useEffect(() => {
     fetchStatus();
     const interval = setInterval(fetchStatus, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchStatus]);
 
   const handleToggle = async () => {
     if (!comfyui?.installed) return;
@@ -311,6 +312,13 @@ function ComfyUIQuickControl({ collapsed }: { collapsed: boolean }) {
       const action = comfyui.running ? 'stop' : 'start';
       await fetch(`${base}/api/services/comfyui/${action}`, { method: 'POST' });
       await fetchStatus();
+      // Refresh global health store so "System Health" section updates
+      fetchHealth();
+      // Schedule a second refresh after delay to catch slow startup
+      setTimeout(() => {
+        fetchStatus();
+        fetchHealth();
+      }, 5000);
     } catch { /* ignore */ }
     setLoading(false);
   };
