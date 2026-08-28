@@ -82,8 +82,9 @@ export function ThreeJSStudio() {
   const [libraryTracks, setLibraryTracks] = useState<Array<{ filename: string; path: string }>>([]);
   const [selectedTrack, setSelectedTrack] = useState<string>("");
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [beatActive, setBeatActive] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string>("");
-  void generatedCode; // used for future scene persistence
+  void generatedCode; // stored for future scene persistence
 
   const { analysis: beatAnalysis, loading: beatLoading, error: beatError, getCurrentBeat } = useBeatTimeline(selectedTrack || null);
 
@@ -151,9 +152,35 @@ export function ThreeJSStudio() {
   const handleApplyCode = useCallback((code: string) => {
     if (!sceneRef.current || !code) return;
     setGeneratedCode(code);
+
+    // Check if the response contains actual JavaScript code
+    const hasFunction = code.includes("function applyScene");
+    const hasJS = code.includes("THREE.") || code.includes("scene.") || code.includes("const ") || code.includes("let ");
+    if (!hasFunction && !hasJS) {
+      console.warn("Response does not contain valid JavaScript code");
+      return;
+    }
+
     try {
-      // Extract function body and execute in sandboxed context
-      const fn = new Function("scene", "camera", "renderer", "THREE", code + "\nif(typeof applyScene === 'function') { applyScene(scene, camera, renderer); }");
+      // Try to extract just the code portion (remove any prompt text)
+      let codeToExecute = code;
+      if (code.includes("```javascript")) {
+        const match = code.match(/```javascript\n([\s\S]*?)```/);
+        if (match) codeToExecute = match[1];
+      } else if (code.includes("```")) {
+        const match = code.match(/```\n([\s\S]*?)```/);
+        if (match) codeToExecute = match[1];
+      }
+
+      // Check for incomplete code and try to fix
+      const openBraces = (codeToExecute.match(/{/g) || []).length;
+      const closeBraces = (codeToExecute.match(/}/g) || []).length;
+      if (openBraces > closeBraces) {
+        codeToExecute = codeToExecute + "\n}".repeat(openBraces - closeBraces);
+      }
+
+      // Create a sandboxed function from the generated code
+      const fn = new Function("scene", "camera", "renderer", "THREE", codeToExecute + "\nif(typeof applyScene === 'function') { applyScene(scene, camera, renderer); }");
       fn(sceneRef.current, cameraRef.current, rendererRef.current, (window as any).THREE);
     } catch (err) {
       console.error("Failed to apply generated scene code:", err);
@@ -257,9 +284,20 @@ export function ThreeJSStudio() {
         const beatState = getCurrentBeat(elapsed);
         const beatPunchAmp = sceneConfigRef.current.beatPunch;
         let beatSpike = 0;
-        if (beatState.ready && beatState.isOnBeat) beatSpike = beatPunchAmp * (1 - beatState.timeSinceLastBeat / beatState.beatWindowSec);
-        if (beatState.ready && beatState.isOnBeat && beatState.timeSinceLastBeat < 0.016) shakeRef.current = beatPunchAmp * 0.6;
-        shakeRef.current *= 0.85;
+        if (beatState.ready && beatState.isOnBeat) {
+          beatSpike = beatPunchAmp * (1 - beatState.timeSinceLastBeat / beatState.beatWindowSec);
+          // Reduce shake intensity and make it decay faster
+          if (beatState.timeSinceLastBeat < 0.016) {
+            shakeRef.current = Math.min(shakeRef.current + beatPunchAmp * 0.3, 0.15);
+            setBeatActive(true);
+          } else {
+            setBeatActive(false);
+          }
+        } else {
+          setBeatActive(false);
+        }
+        // Faster shake decay for smoother visuals
+        shakeRef.current *= 0.75;
         objectsRef.current.forEach((obj) => {
           const mesh = objectsMapRef.current.get(obj.id);
           if (mesh && obj.visible) {
@@ -515,6 +553,12 @@ export function ThreeJSStudio() {
           <span>Cam <span className="text-purple-400 font-mono">{cameraMode}</span></span>
           <span>BPM <span className={beatSync ? "text-green-400 font-mono" : "text-gray-500 font-mono"}>{beatSync ? bpm : "—"}</span></span>
           {sceneConfig.selectiveBloom && <span>Bloom <span className="text-amber-300 font-mono">{objects.filter((o) => o.bloom).length}/{objects.length}</span></span>}
+          {beatSync && (
+            <span className="flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full transition-all duration-75 ${beatActive ? "bg-green-400 scale-125" : "bg-gray-600 scale-100"}`} />
+              <span className={beatActive ? "text-green-400" : "text-gray-500"}>Beat</span>
+            </span>
+          )}
         </div>
 
         {beatError && selectedTrack && (
