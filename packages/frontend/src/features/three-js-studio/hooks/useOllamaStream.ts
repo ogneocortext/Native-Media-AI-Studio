@@ -32,31 +32,44 @@ export function useOllamaStream() {
       const reader = stream.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let lastEvent = "";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
 
-        // Parse SSE events from buffer
-        const events = buffer.split("\n\n");
-        buffer = events.pop() || "";
+        // Parse SSE events
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
 
-        for (const eventStr of events) {
-          if (!eventStr.trim()) continue;
-          const lines = eventStr.split("\n");
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const parsed = JSON.parse(line.slice(6));
-                const msg: StreamMessage = parseOllamaEvent(parsed);
-                onMessage?.(msg);
-                if (msg.type === "content") {
-                  setOutput((prev) => prev + msg.data);
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            lastEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              let msg: StreamMessage | null = null;
+
+              if (lastEvent === "content") {
+                const content = data.content || "";
+                if (content) {
+                  msg = { type: "content", data: content };
+                  setOutput((prev) => prev + content);
                 }
-              } catch {
-                // skip malformed events
+              } else if (lastEvent === "done") {
+                msg = { type: "done", data };
+              } else if (lastEvent === "tool_calls") {
+                msg = { type: "tool_calls", data };
+              } else if (lastEvent === "connected") {
+                msg = { type: "connected", data };
+              } else if (lastEvent === "error") {
+                msg = { type: "error", data };
               }
+
+              if (msg) onMessage?.(msg);
+            } catch {
+              // skip malformed events
             }
           }
         }
@@ -77,13 +90,4 @@ export function useOllamaStream() {
   }, []);
 
   return { generate, cancel, generating, output };
-}
-
-function parseOllamaEvent(parsed: any): StreamMessage {
-  if (parsed.response) return { type: "content", data: parsed.response };
-  if (parsed.message?.content) return { type: "content", data: parsed.message.content };
-  if (parsed.done) return { type: "done", data: null };
-  if (parsed.error) return { type: "error", data: parsed.error };
-  if (parsed.tool_calls) return { type: "tool_calls", data: parsed.tool_calls };
-  return { type: "content", data: "" };
 }
