@@ -115,6 +115,8 @@ RULES:
 - camera.position.set(x,y,z), scene.background = new THREE.Color(hex)
 - Keep it SHORT — max 50 lines. No verbose comments. No keyframe arrays.
 - Do NOT use custom methods like scene.add.environment() or scene.set_camera()
+- Do NOT use React hooks (useState, useEffect, useRef) — this is plain JavaScript, not React
+- Do NOT start animation loops or call requestAnimationFrame
 
 Track: ${metadata.bpm} BPM, ${metadata.duration}s, sections: ${metadata.sections.map((s: any) => s.type).join(", ")}
 ${sceneContext}`,
