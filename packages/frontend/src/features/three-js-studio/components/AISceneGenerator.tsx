@@ -57,6 +57,11 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
     } catch { /* ignore */ }
   }, [selectedModel]);
 
+  // Load models on mount
+  useEffect(() => {
+    loadModels();
+  }, [loadModels]);
+
   // Auto-save only when generation completes (not during streaming)
   const generationIdRef = useRef<string>("");
   useEffect(() => {

@@ -12,12 +12,12 @@ export function useOllamaStream() {
   const outputRef = useRef("");
   const abortRef = useRef<AbortController | null>(null);
 
-  // Sync ref to state frequently for display and apply
+  // Sync ref to state less frequently to reduce re-renders during streaming
   const syncTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     syncTimer.current = setInterval(() => {
       setOutput(outputRef.current);
-    }, 50);
+    }, 200);
     return () => {
       if (syncTimer.current) clearInterval(syncTimer.current);
     };

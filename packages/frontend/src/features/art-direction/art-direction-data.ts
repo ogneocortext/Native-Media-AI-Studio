@@ -6,40 +6,6 @@ interface ModuleState {
   variant: string;
 }
 
-type SongId = "still-i-rise" | "take-the-crown";
-
-export const SONGS: Record<
-  SongId,
-  { label: string; badge: string; analysis: string; docFiles: string[] }
-> = {
-  "still-i-rise": {
-    label: "Still I Rise",
-    badge: "234.12s \u2022 99.4 BPM \u2022 Bb Maj",
-    analysis: "/docs/still-i-rise-analysis.json",
-    docFiles: [
-      "VISUAL_STORYTELLING_2026.md",
-      "STORYBOARD_StillIRise.md",
-      "MINDFUL_LAYERING_2026.md",
-      "STORYBOARD_StillIRise.json",
-      "still-i-rise-analysis.json",
-      "still-i-rise-whisper.json",
-    ],
-  },
-  "take-the-crown": {
-    label: "Take the Crown",
-    badge: "124.0s \u2022 152 BPM \u2022 E Maj",
-    analysis: "/docs/take-the-crown-analysis.json",
-    docFiles: [
-      "VISUAL_STORYTELLING_2026.md",
-      "STORYBOARD_TakeTheCrown.md",
-      "take-the-crown-analysis.json",
-      "take-the-crown-whisper.json",
-      "STORYBOARD_StillIRise.md",
-      "MINDFUL_LAYERING_2026.md",
-    ],
-  },
-};
-
 export const defaultModules: ModuleState[] = [
   { id: "audio", enabled: true, variant: "99.4 detected" },
   { id: "palette", enabled: true, variant: "nocturnal" },
@@ -79,4 +45,4 @@ export const typographyVariants: Record<string, { name: string; desc: string }> 
   hero: { name: "Hero Always-On", desc: "88px STILL I RISE every frame \u2014 amateur trap" },
 };
 
-export type { ModuleId, ModuleState, SongId };
+export type { ModuleId, ModuleState };

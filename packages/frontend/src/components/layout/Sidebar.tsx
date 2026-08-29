@@ -23,6 +23,7 @@ import {
 import React, { useEffect, useState, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useHealthStore } from "../../state/healthStore";
+import { useUIStore } from "../../state/uiStore";
 import { getApiBase } from "../../services/api";
 
 interface NavItem { path: string; label: string; icon: React.ReactNode; badge?: string; }
@@ -112,6 +113,7 @@ function NavSection({ title, items, location, collapsed }: { title: string; item
 export function Sidebar() {
   const location = useLocation();
   const { overall, adapters, isLoading, fetchHealth, connectSSE, disconnectSSE } = useHealthStore();
+  const { focusMode } = useUIStore();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -175,7 +177,7 @@ export function Sidebar() {
       )}
 
       <aside
-        className={`sidebar-container ${collapsed && !isMobile ? "collapsed" : "expanded"} ${isMobile ? "sidebar-mobile" : ""} ${isMobile && mobileOpen ? "open" : ""}`}
+        className={`sidebar-container ${collapsed && !isMobile ? "collapsed" : "expanded"} ${isMobile ? "sidebar-mobile" : ""} ${isMobile && mobileOpen ? "open" : ""} ${focusMode ? "focus-mode-hidden" : ""}`}
       >
         {/* Header */}
         <div className="sidebar-header">

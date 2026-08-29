@@ -95,6 +95,20 @@ CREATED → QUEUED → RUNNING → COMPLETED
 7. **On completion**, output file is saved to `output/video/` or `output/previews/`
 8. **Frontend** receives `job.completed` with output path via SSE
 
+## Media Data Alignment Principle
+
+**Rule:** All media-derived data (track lists, filenames, BPM, duration, metadata) must come from the media library API (`/api/audio/files` and `/api/audio/analysis`). No hardcoded track lists, filenames, or metadata in frontend code.
+
+This ensures the frontend always reflects what's actually in the library, eliminates duplicate sources of truth, and removes stale hardcoded values.
+
+### Aligned Components
+- `features/three-js-studio/ThreeJSStudio.tsx` — Uses `listAudioFiles()` for track dropdown; BPM from analysis API
+- `features/visualizer/Visualizer.tsx` — Uses `listAudioFiles()` for track selection
+- `features/audio-analysis/AudioAnalysisPage.tsx` — Uses `listAudioFiles()` for track listing
+
+### Misaligned Components (Needs Refactor)
+_(None — all components now source media data from the library API)_
+
 ## Key Components
 
 ### Frontend Stores (Zustand)
@@ -102,6 +116,12 @@ CREATED → QUEUED → RUNNING → COMPLETED
 - `healthStore` — System health, adapter status
 - `outputStore` — Generated media files, filters
 - `gpuStore` — GPU snapshot polling
+- `uiStore` — Shared UI state (focus mode toggle)
+
+### Three.js Studio
+- **Paste Code Panel** — Insert AI-generated JavaScript or JSON directly into the 3D scene. Supports `function applyScene(scene, camera, renderer) { ... }` or JSON scene descriptions.
+- **Focus Mode** — Hides all UI (sidebar, header, panels, drawer, playback controls) for unobstructed canvas view. Toggle via header button or `Escape` key. Canvas auto-resizes to fill viewport.
+- **Media Data** — Track list sourced from `listAudioFiles()` API; BPM/duration from analysis API. No hardcoded track data.
 
 ### Backend Services
 - `AudioAnalyzer` — Librosa-based feature extraction

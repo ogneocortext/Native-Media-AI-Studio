@@ -6,21 +6,25 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { fetchUniqueTracksFromAPI, type TrackLyricsData } from "../../services/trackLyrics";
+import { listAudioFiles } from "../../services/api";
 
 interface StoryboardFile {
   name: string;
   path: string;
   title: string;
-  track?: string;
-  trackFile?: string;
-  bpm?: number;
-  duration?: number;
+  trackName: string; // used to match against media library filenames
 }
 
 const STORYBOARDS: StoryboardFile[] = [
-  { name: "take-the-crown", path: "/docs/STORYBOARD_TakeTheCrown.md", title: "Take the Crown", track: "Take the Crown", trackFile: "NeoCortext - Take the Crown.mp3", bpm: 152, duration: 124 },
-  { name: "still-i-rise", path: "/docs/STORYBOARD_StillIRise.md", title: "Still I Rise", track: "Still I Rise", trackFile: "NeoCortext - Still I Rise.mp3", bpm: 130, duration: 180 },
+  { name: "take-the-crown", path: "/docs/STORYBOARD_TakeTheCrown.md", title: "Take the Crown", trackName: "Take the Crown" },
+  { name: "still-i-rise", path: "/docs/STORYBOARD_StillIRise.md", title: "Still I Rise", trackName: "Still I Rise" },
 ];
+
+interface TrackMetadata {
+  filename: string;
+  bpm?: number;
+  duration?: number;
+}
 
 interface SceneData {
   seq: string;
@@ -43,6 +47,8 @@ export function StoryboardPage() {
   const [selectedTrack, setSelectedTrack] = useState<TrackLyricsData | null>(null);
   const [trackLyricsData, setTrackLyricsData] = useState<TrackLyricsData[]>([]);
   const [tracksLoading, setTracksLoading] = useState(true);
+  const [libraryTracks, setLibraryTracks] = useState<Array<{ filename: string }>>([]);
+  const [trackMetadata, setTrackMetadata] = useState<Record<string, TrackMetadata>>({});
 
   useEffect(() => {
     fetchUniqueTracksFromAPI()
@@ -50,6 +56,55 @@ export function StoryboardPage() {
       .catch(() => setTrackLyricsData([]))
       .finally(() => setTracksLoading(false));
   }, []);
+
+  // Load media library tracks on mount
+  useEffect(() => {
+    listAudioFiles()
+      .then((files) => {
+        if (Array.isArray(files) && files.length > 0) {
+          setLibraryTracks(files);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Match storyboards to library tracks and fetch their metadata
+  useEffect(() => {
+    if (libraryTracks.length === 0) return;
+    const metadata: Record<string, TrackMetadata> = {};
+    libraryTracks.forEach((t) => {
+      const cleanName = t.filename
+        .replace(/^[0-9a-f]{8}_[0-9a-f]{8}_/i, '')
+        .replace(/\.(mp3|wav|flac|ogg)$/i, '');
+      const match = STORYBOARDS.find((s) => cleanName.toLowerCase().includes(s.trackName.toLowerCase()));
+      if (match) {
+        metadata[match.name] = { filename: t.filename };
+      }
+    });
+    setTrackMetadata(metadata);
+  }, [libraryTracks]);
+
+  // Fetch BPM/duration from analysis for matched tracks
+  useEffect(() => {
+    Object.entries(trackMetadata).forEach(([storyboardName, meta]) => {
+      if (meta.bpm) return; // already fetched
+      fetch(`/api/audio/analysis/${encodeURIComponent(meta.filename)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: any) => {
+          if (data?.tempo_bpm) {
+            setTrackMetadata((prev) => ({
+              ...prev,
+              [storyboardName]: {
+                ...prev[storyboardName],
+                bpm: Math.round(data.tempo_bpm),
+                duration: data.duration_seconds ? Math.round(data.duration_seconds) : undefined,
+              },
+            }));
+          }
+        })
+        .catch(() => {});
+    });
+  }, [trackMetadata]);
 
   useEffect(() => {
     if (!selected) return;
@@ -81,19 +136,21 @@ export function StoryboardPage() {
 
   const handleOpenIn3DStudio = useCallback((storyboard: StoryboardFile) => {
     const params = new URLSearchParams();
-    if (storyboard.trackFile) params.set("track", storyboard.trackFile);
+    const meta = trackMetadata[storyboard.name];
+    if (meta?.filename) params.set("track", meta.filename);
     params.set("storyboard", storyboard.name);
     navigate(`/three-js-studio?${params.toString()}`);
-  }, [navigate]);
+  }, [navigate, trackMetadata]);
 
   const handleGenerateScene = useCallback((storyboard: StoryboardFile, sceneIdx: number) => {
     const params = new URLSearchParams();
-    if (storyboard.trackFile) params.set("track", storyboard.trackFile);
+    const meta = trackMetadata[storyboard.name];
+    if (meta?.filename) params.set("track", meta.filename);
     params.set("storyboard", storyboard.name);
     params.set("scene", String(sceneIdx));
     params.set("autogenerate", "true");
     navigate(`/three-js-studio?${params.toString()}`);
-  }, [navigate]);
+  }, [navigate, trackMetadata]);
 
   const renderInline = (text: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = [];
@@ -233,7 +290,7 @@ export function StoryboardPage() {
 
   const filtered = STORYBOARDS.filter((s) =>
     s.title.toLowerCase().includes(query.toLowerCase()) ||
-    s.track?.toLowerCase().includes(query.toLowerCase())
+    s.trackName.toLowerCase().includes(query.toLowerCase())
   );
 
   return (
@@ -281,6 +338,7 @@ export function StoryboardPage() {
         ) : selected ? (
           <StoryboardDetail
             storyboard={selected}
+            trackMetadata={trackMetadata[selected.name]}
             content={content}
             scenes={scenes}
             activeScene={activeScene}
@@ -291,8 +349,9 @@ export function StoryboardPage() {
             renderMarkdown={renderMarkdown}
           />
         ) : (
-          <StoryboardGrid
+           <StoryboardGrid
             storyboards={filtered}
+            trackMetadata={trackMetadata}
             query={query}
             onSearch={setQuery}
             onSelect={setSelected}
@@ -392,8 +451,9 @@ function TracksTab({ tracks, loading, selectedTrack, onSelectTrack, onGenerateSc
   );
 }
 
-function StoryboardGrid({ storyboards, query, onSearch, onSelect, onOpen3D, onGenerate }: {
+function StoryboardGrid({ storyboards, trackMetadata, query, onSearch, onSelect, onOpen3D, onGenerate }: {
   storyboards: StoryboardFile[];
+  trackMetadata: Record<string, TrackMetadata>;
   query: string;
   onSearch: (q: string) => void;
   onSelect: (s: StoryboardFile) => void;
@@ -413,36 +473,41 @@ function StoryboardGrid({ storyboards, query, onSearch, onSelect, onOpen3D, onGe
         <Search size={16} className="absolute left-3 top-2 text-gray-500" />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {storyboards.map((s) => (
+        {storyboards.map((s) => {
+          const meta = trackMetadata[s.name];
+          return (
           <div key={s.name} className="bg-[#12121a] border border-gray-800 rounded-xl p-5 hover:border-purple-500/50 transition-all group">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-purple-900/30 flex items-center justify-center"><FileText size={20} className="text-purple-400" /></div>
                 <div>
                   <h3 className="font-semibold text-white group-hover:text-purple-300 transition-colors">{s.title}</h3>
-                  {s.track && <p className="text-xs text-gray-500 flex items-center gap-1"><Music size={10} />{s.track}</p>}
+                  {s.trackName && <p className="text-xs text-gray-500 flex items-center gap-1"><Music size={10} />{s.trackName}</p>}
                 </div>
               </div>
               <ChevronRight size={18} className="text-gray-600 group-hover:text-purple-400 transition-colors" />
             </div>
             <div className="flex items-center gap-4 mb-4 text-xs text-gray-400">
-              {s.bpm && <span className="flex items-center gap-1"><Zap size={10} className="text-amber-400" />{s.bpm} BPM</span>}
-              {s.duration && <span className="flex items-center gap-1"><Clock size={10} />{s.duration}s</span>}
+              {meta?.bpm && <span className="flex items-center gap-1"><Zap size={10} className="text-amber-400" />{meta.bpm} BPM</span>}
+              {meta?.duration && <span className="flex items-center gap-1"><Clock size={10} />{meta.duration}s</span>}
+              {!meta?.filename && <span className="text-gray-600 italic">Track not in library</span>}
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => onSelect(s)} className="flex-1 px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5"><BookOpen size={12} /> View Board</button>
               <button onClick={() => onOpen3D(s)} className="flex-1 px-3 py-2 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5"><Box size={12} /> 3D Studio</button>
               <button onClick={() => onGenerate(s, 0)} className="flex-1 px-3 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-300 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5"><Sparkles size={12} /> Generate</button>
             </div>
-          </div>
-        ))}
+           </div>
+        );
+      })}
       </div>
     </div>
   );
 }
 
-function StoryboardDetail({ storyboard, content, scenes, activeScene, onSelectScene, onBack, onOpen3D, onGenerateScene, renderMarkdown }: {
+function StoryboardDetail({ storyboard, trackMetadata, content, scenes, activeScene, onSelectScene, onBack, onOpen3D, onGenerateScene, renderMarkdown }: {
   storyboard: StoryboardFile;
+  trackMetadata?: TrackMetadata;
   content: string;
   scenes: SceneData[];
   activeScene: number | null;
@@ -497,7 +562,14 @@ function StoryboardDetail({ storyboard, content, scenes, activeScene, onSelectSc
             <button onClick={onBack} className="text-gray-400 hover:text-white transition-colors text-sm">← Back</button>
             <div>
               <h2 className="font-semibold text-white">{storyboard.title}</h2>
-              {storyboard.track && <p className="text-xs text-gray-500">{storyboard.track} • {storyboard.bpm} BPM • {storyboard.duration}s</p>}
+              {storyboard.trackName && (
+                <p className="text-xs text-gray-500">
+                  {storyboard.trackName}
+                  {trackMetadata?.bpm && <span> • {trackMetadata.bpm} BPM</span>}
+                  {trackMetadata?.duration && <span> • {trackMetadata.duration}s</span>}
+                  {!trackMetadata?.filename && <span className="italic"> (not in library)</span>}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">

@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Box, Play, Pause, Sparkles, Download, Settings, Circle, Square,
-  ChevronDown, ChevronUp, Music, Zap,
+  ChevronDown, ChevronUp, Music, Zap, FileCode, Maximize2, Minimize2,
 } from "lucide-react";
 import { listAudioFiles } from "../../services/api";
+import { useUIStore } from "../../state/uiStore";
 import { useBeatTimeline } from "../../hooks/useBeatTimeline";
 import { SCENE_TEMPLATES, type SceneTemplate } from "./sceneTemplates";
 import type { AnimObject, ParticleConfig, SceneConfig, CameraMode } from "./types";
@@ -30,14 +31,6 @@ const DEFAULT_OBJECTS: AnimObject[] = [{
   scale: [1, 1, 1], color: "#ffd700", metalness: 0.9, roughness: 0.1, emissive: "#ff8c00",
   emissiveIntensity: 0.15, visible: true, bobSpeed: 1.5, bobAmount: 0.1, rotateSpeed: 0.3, bloom: true,
 }];
-
-const TRACK_PRESETS = [
-  { name: "Take the Crown", bpm: 150, filename: "85a406ef_NeoCortext - Take the Crown.mp3" },
-  { name: "The Signal Breaking Through", bpm: 136, filename: "e02f6ccf_NeoCortext - The Signal Breaking Through the Noise.mp3" },
-  { name: "Before the Fade", bpm: 130, filename: "8baaf391_NeoCortext - Before the Fade.mp3" },
-  { name: "Still I Rise", bpm: 130, filename: "54360357_NeoCortext - Still I Rise.mp3" },
-  { name: "Learning How to Stay", bpm: 85, filename: "a19680f6_NeoCortext - Learning How to Stay.mp3" },
-];
 
 export function ThreeJSStudio() {
   const [searchParams] = useSearchParams();
@@ -68,6 +61,7 @@ export function ThreeJSStudio() {
   const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const audioFreqArrayRef = useRef<Uint8Array | null>(null);
+  const threeRef = useRef<any>(null);
 
   // ---- State ----
   const [isPlaying, setIsPlaying] = useState(false);
@@ -89,15 +83,16 @@ export function ThreeJSStudio() {
   const [selectedTrack, setSelectedTrack] = useState<string>("");
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [beatActive, setBeatActive] = useState(false);
-  const [generatedCode, setGeneratedCode] = useState<string>("");
-  void generatedCode; // stored for future scene persistence
   const [animationTime, setAnimationTime] = useState(0);
-  const [animationDuration, setAnimationDuration] = useState(30);
-  const [keyframeTracks, setKeyframeTracks] = useState<any[]>([]);
-  void setAnimationDuration;
-  void setKeyframeTracks;
+  const [animationDuration, _setAnimationDuration] = useState(30);
+  const [keyframeTracks, _setKeyframeTracks] = useState<any[]>([]);
+  const [codePanelOpen, setCodePanelOpen] = useState(false);
+  const [pastedCode, setPastedCode] = useState("");
+  const { focusMode, toggleFocusMode } = useUIStore();
 
   const { analysis: beatAnalysis, loading: beatLoading, error: beatError, getCurrentBeat } = useBeatTimeline(selectedTrack || null);
+  const getCurrentBeatRef = useRef(getCurrentBeat);
+  useEffect(() => { getCurrentBeatRef.current = getCurrentBeat; }, [getCurrentBeat]);
 
   // ---- Refs for animation loop access ----
   const beatAnalysisRef = useRef(beatAnalysis);
@@ -110,6 +105,8 @@ export function ThreeJSStudio() {
   const particleConfigRef = useRef(particleConfig);
   const sceneConfigRef = useRef(sceneConfig);
   const activeAudioDrivenRef = useRef<string | undefined>(undefined);
+  const animationTimeRef = useRef(0);
+  const beatActiveRef = useRef(false);
 
   // ---- Sync refs ----
   useEffect(() => { beatAnalysisRef.current = beatAnalysis; }, [beatAnalysis]);
@@ -122,13 +119,43 @@ export function ThreeJSStudio() {
   useEffect(() => { particleConfigRef.current = particleConfig; }, [particleConfig]);
   useEffect(() => { sceneConfigRef.current = sceneConfig; }, [sceneConfig]);
   useEffect(() => { activeAudioDrivenRef.current = SCENE_TEMPLATES.find((t) => t.id === activeTemplateId)?.audioDriven; }, [activeTemplateId]);
+  useEffect(() => { animationTimeRef.current = animationTime; }, [animationTime]);
+
+  // Auto-close panels when entering focus mode
+  useEffect(() => {
+    if (focusMode) {
+      setDrawerOpen(false);
+      setCodePanelOpen(false);
+    }
+  }, [focusMode]);
+
+  // Escape key exits focus mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && focusMode) {
+        toggleFocusMode();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [focusMode, toggleFocusMode]);
+
+  // Trigger canvas resize after focus mode toggle (container size changes)
+  useEffect(() => {
+    if (focusMode) {
+      // Delay to allow DOM to update after hiding elements
+      const timer = setTimeout(() => {
+        window.dispatchEvent(new Event("resize"));
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [focusMode]);
 
   // Auto-select track from URL param
   useEffect(() => {
     if (trackParam && trackParam !== selectedTrack) {
       setSelectedTrack(trackParam);
-      const preset = TRACK_PRESETS.find((p) => p.filename === trackParam);
-      if (preset) { setBpm(preset.bpm); setBeatSync(true); }
+      setBeatSync(true);
     }
   }, [trackParam]);
 
@@ -156,6 +183,7 @@ export function ThreeJSStudio() {
     else if (obj.type === "cylinder") { meshGroup = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 1.4, 32), mat); }
     else if (obj.type === "cone") { meshGroup = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.5, 32), mat); }
     else if (obj.type === "torus") { meshGroup = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.25, 16, 32), mat); }
+    else if (obj.type === "bars") { meshGroup = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1, 0.12), mat); }
     else { meshGroup = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat); }
     meshGroup.position.set(...obj.position);
     meshGroup.rotation.set(...obj.rotation);
@@ -172,11 +200,12 @@ export function ThreeJSStudio() {
   const generatedSceneUpdateRef = useRef<((time: number, delta: number) => void) | null>(null);
   const generatedSceneInitRef = useRef<(() => void) | null>(null);
   const [renderPlaying, setRenderPlaying] = useState(false);
+  const [sceneLoading, setSceneLoading] = useState(true);
+  const renderPlayingRef = useRef(renderPlaying);
 
   // ---- Helper: apply generated code to scene ----
   const handleApplyCode = useCallback((code: string) => {
     if (!sceneRef.current || !code) return;
-    setGeneratedCode(code);
 
     // Try to parse as JSON scene description
     try {
@@ -357,6 +386,7 @@ export function ThreeJSStudio() {
     const initScene = async () => {
       const THREE = await import("three");
       (window as any).THREE = THREE;
+      threeRef.current = THREE;
       const { OrbitControls } = await import("three/examples/jsm/controls/OrbitControls.js");
       const { EffectComposer } = await import("three/examples/jsm/postprocessing/EffectComposer.js");
       const { RenderPass } = await import("three/examples/jsm/postprocessing/RenderPass.js");
@@ -433,40 +463,40 @@ export function ThreeJSStudio() {
         const delta = clockRef.current.getDelta();
         const elapsed = clockRef.current.getElapsed();
         controls.update();
-        let audioBass = 0, audioTreble = 0;
+        let audioBass = 0, audioTreble = 0, audioMid = 0;
         if (analyserRef.current && isAudioPlayingRef.current) {
           if (!audioFreqArrayRef.current || audioFreqArrayRef.current.length !== analyserRef.current.frequencyBinCount) audioFreqArrayRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
           analyserRef.current.getByteFrequencyData(audioFreqArrayRef.current as Uint8Array<ArrayBuffer>);
           const arr = audioFreqArrayRef.current;
           const bassBins = Math.floor(arr.length * 0.08);
           audioBass = arr.slice(0, bassBins).reduce((a, b) => a + b, 0) / (bassBins * 255 || 1);
+          const midBins = Math.floor(arr.length * 0.2);
+          audioMid = arr.slice(bassBins, midBins).reduce((a, b) => a + b, 0) / ((midBins - bassBins) * 255 || 1);
           const trebleBins = Math.floor(arr.length * 0.4);
           audioTreble = arr.slice(trebleBins).reduce((a, b) => a + b, 0) / ((arr.length - trebleBins) * 255 || 1);
         }
-        const beatState = getCurrentBeat(elapsed);
+        const beatState = getCurrentBeatRef.current(elapsed);
         const beatPunchAmp = sceneConfigRef.current.beatPunch;
         let beatSpike = 0;
-        // Only apply beat sync when playing
-        if (isPlayingRef.current && beatState.ready && beatState.isOnBeat) {
+        let newBeatActive = false;
+        if (renderPlayingRef.current && beatState.ready && beatState.isOnBeat) {
           beatSpike = beatPunchAmp * (1 - beatState.timeSinceLastBeat / beatState.beatWindowSec);
-          // Reduce shake intensity and make it decay faster
           if (beatState.timeSinceLastBeat < 0.016) {
             shakeRef.current = Math.min(shakeRef.current + beatPunchAmp * 0.3, 0.15);
-            setBeatActive(true);
-          } else {
-            setBeatActive(false);
+            newBeatActive = true;
           }
-        } else {
-          setBeatActive(false);
-          // Decay shake when not playing
-          shakeRef.current *= 0.9;
+        }
+        // Only update state when beat active changes (avoid per-frame re-renders)
+        if (newBeatActive !== beatActiveRef.current) {
+          beatActiveRef.current = newBeatActive;
+          setBeatActive(newBeatActive);
         }
         shakeRef.current *= 0.75;
         const isPlay = isPlayingRef.current;
+        const audioDrivenMode = activeAudioDrivenRef.current;
         objectsRef.current.forEach((obj) => {
           const mesh = objectsMapRef.current.get(obj.id);
           if (mesh && obj.visible) {
-            // Only animate when playing
             if (isPlay) {
               mesh.rotation.y += delta * (obj.rotateSpeed + audioTreble * 2);
               mesh.position.y = obj.position[1] + Math.sin(elapsed * obj.bobSpeed) * obj.bobAmount;
@@ -475,8 +505,22 @@ export function ThreeJSStudio() {
             if (isPlay && beatState.ready && beatSpike > 0) pulse = 1 + beatSpike;
             else if (isPlay && beatSyncRef.current) { const bi = 60 / bpmRef.current; pulse = (1 + Math.sin((elapsed % bi) / bi * Math.PI * 2) * 0.08) * (1 + audioBass * 0.35); }
             else if (isPlay && audioBass > 0) pulse = 1 + audioBass * 0.3;
-            const s = obj.scale;
-            mesh.scale.set(s[0] * pulse, s[1] * pulse, s[2] * pulse);
+            // Audio-driven modes for bars/pillars
+            if (isPlay && audioDrivenMode === "bars" && obj.type === "bars") {
+              const barIdx = parseInt(obj.id.replace("bar-", "")) || 0;
+              const freqSlice = Math.floor((barIdx / 32) * 256);
+              const freqVal = audioFreqArrayRef.current ? (audioFreqArrayRef.current[freqSlice] || 0) / 255 : audioMid;
+              const barPulse = 1 + freqVal * 3;
+              const s = obj.scale;
+              mesh.scale.set(s[0] * barPulse, s[1], s[2]);
+            } else if (isPlay && audioDrivenMode === "pillars" && obj.type === "box") {
+              const pillarPulse = 1 + audioBass * 1.5;
+              const s = obj.scale;
+              mesh.scale.set(s[0], s[1] * pillarPulse, s[2]);
+            } else {
+              const s = obj.scale;
+              mesh.scale.set(s[0] * pulse, s[1] * pulse, s[2] * pulse);
+            }
           }
         });
         if (particlesRef.current && particleConfigRef.current.enabled && isPlay) {
@@ -486,7 +530,7 @@ export function ThreeJSStudio() {
           particlesRef.current.geometry.attributes.position.needsUpdate = true;
           particlesRef.current.rotation.y += delta * 0.05;
         }
-        const cm = cameraModeRef.current; const ir = isPlayingRef.current;
+        const cm = cameraModeRef.current; const ir = renderPlayingRef.current;
         const sx = (Math.random() - 0.5) * shakeRef.current; const sy = (Math.random() - 0.5) * shakeRef.current;
         if (cm === "orbit" && ir) { const a = elapsed * 0.25; camera.position.x = Math.sin(a) * 8 + sx; camera.position.z = Math.cos(a) * 8; camera.position.y = 3 + Math.sin(a * 0.5) * 0.6 + sy; camera.lookAt(0, 0.5, 0); }
         else if (cm === "dolly" && ir) { const t = (elapsed % 8) / 8; camera.position.z = 10 - t * 6; camera.position.y = 3 - t * 0.8 + sy; camera.lookAt(0, 0.5, 0); }
@@ -500,28 +544,26 @@ export function ThreeJSStudio() {
         } else { composer.render(); }
 
         // Update animation timeline (only when render is playing)
-        if (renderPlaying) {
+        if (renderPlayingRef.current) {
           setAnimationTime((prev) => {
             const next = prev + delta;
             return next >= animationDuration ? 0 : next;
           });
         }
 
-        // Call generated scene update
+        // Call generated scene update using ref for current time
         if (generatedSceneUpdateRef.current) {
-          if (renderPlaying) {
-            // Animate with current animation time
-            generatedSceneUpdateRef.current(animationTime, delta);
+          if (renderPlayingRef.current) {
+            generatedSceneUpdateRef.current(animationTimeRef.current, delta);
           }
-          // When paused, we don't call update — the last frame stays rendered
         }
 
-        // Apply keyframe animations
-        if (keyframeTracks.length > 0 && isPlayingRef.current) {
+        // Apply keyframe animations (only when render is playing)
+        if (keyframeTracks.length > 0 && renderPlayingRef.current) {
           keyframeTracks.forEach((track: any) => {
             const mesh = objectsMapRef.current.get(track.target);
             if (!mesh) return;
-            const time = animationTime;
+            const time = animationTimeRef.current;
             const kfs = track.keyframes || [];
             if (kfs.length < 2) return;
             let prevKf = kfs[0];
@@ -564,30 +606,41 @@ export function ThreeJSStudio() {
       animate();
       const onResize = () => { if (!containerRef.current) return; const w = containerRef.current.clientWidth, h = containerRef.current.clientHeight; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); composer.setSize(w, h); if (bloomComposerRef.current) bloomComposerRef.current.setSize(w, h); if (finalComposerRef.current) finalComposerRef.current.setSize(w, h); };
       window.addEventListener("resize", onResize);
+      setSceneLoading(false);
     };
     initScene();
     return () => { cancelAnimationFrame(animationRef.current); window.removeEventListener("resize", () => {}); rendererRef.current?.dispose(); };
-  }, [createMeshForObject, getCurrentBeat, isAudioPlaying]);
+  }, [createMeshForObject]);
 
   // ---- Object sync ----
   useEffect(() => {
     if (!sceneRef.current) return;
+    let cancelled = false;
     import("three").then((THREE) => {
+      if (cancelled) return;
       const scene = sceneRef.current;
       const ids = new Set(objects.map((o) => o.id));
       objectsMapRef.current.forEach((mesh, id) => { if (!ids.has(id)) { scene.remove(mesh); objectsMapRef.current.delete(id); } });
-      objects.forEach(async (obj) => {
-        let mesh = objectsMapRef.current.get(obj.id);
-        if (!mesh) { mesh = await createMeshForObject(obj, THREE); scene.add(mesh); objectsMapRef.current.set(obj.id, mesh); }
-        else {
-          mesh.visible = obj.visible;
-          const um = (m: any) => { if (m.material) { if (m.material.color) m.material.color.set(obj.color); if (m.material.emissive) m.material.emissive.set(obj.emissive); m.material.metalness = obj.metalness; m.material.roughness = obj.roughness; m.material.emissiveIntensity = obj.emissiveIntensity; } };
-          if (mesh.isGroup) mesh.traverse(um); else um(mesh);
-          const tl = obj.bloom ? BLOOM_LAYER : 0;
-          mesh.traverse((c: any) => { if (c.isMesh) c.layers.set(tl); });
+      // Use sequential async iteration instead of forEach+async to avoid race conditions
+      (async () => {
+        for (const obj of objects) {
+          if (cancelled) break;
+          let mesh = objectsMapRef.current.get(obj.id);
+          if (!mesh) { mesh = await createMeshForObject(obj, THREE); if (!cancelled) { scene.add(mesh); objectsMapRef.current.set(obj.id, mesh); } }
+          else {
+            mesh.visible = obj.visible;
+            mesh.position.set(...obj.position);
+            mesh.rotation.set(...obj.rotation);
+            mesh.scale.set(...obj.scale);
+            const um = (m: any) => { if (m.material) { if (m.material.color) m.material.color.set(obj.color); if (m.material.emissive) m.material.emissive.set(obj.emissive); m.material.metalness = obj.metalness; m.material.roughness = obj.roughness; m.material.emissiveIntensity = obj.emissiveIntensity; } };
+            if (mesh.isGroup) mesh.traverse(um); else um(mesh);
+            const tl = obj.bloom ? BLOOM_LAYER : 0;
+            mesh.traverse((c: any) => { if (c.isMesh) c.layers.set(tl); });
+          }
         }
-      });
+      })();
     });
+    return () => { cancelled = true; };
   }, [objects, createMeshForObject]);
 
   // ---- Scene config sync ----
@@ -599,6 +652,35 @@ export function ThreeJSStudio() {
     if (grainPassRef.current) grainPassRef.current.uniforms.intensity.value = sceneConfig.filmGrain;
     if (vignettePassRef.current) { vignettePassRef.current.uniforms.offset.value = sceneConfig.vignetteRadius; vignettePassRef.current.uniforms.darkness.value = sceneConfig.vignetteStrength; }
   }, [sceneConfig]);
+
+  // ---- Particle config sync ----
+  useEffect(() => {
+    if (!sceneRef.current || !particlesRef.current || !threeRef.current) return;
+    const scene = sceneRef.current;
+    const THREE = threeRef.current;
+    const prevCount = particlesRef.current.geometry.attributes.position.count;
+    if (prevCount !== particleConfig.count) {
+      scene.remove(particlesRef.current);
+      particlesRef.current.geometry.dispose();
+      const pGeo = new THREE.BufferGeometry();
+      const pArr = new Float32Array(particleConfig.count * 3);
+      for (let i = 0; i < particleConfig.count * 3; i += 3) {
+        pArr[i] = (Math.random() - 0.5) * particleConfig.spread * 2;
+        pArr[i + 1] = Math.random() * particleConfig.spread;
+        pArr[i + 2] = (Math.random() - 0.5) * particleConfig.spread * 2;
+      }
+      pGeo.setAttribute("position", new THREE.BufferAttribute(pArr, 3));
+      particlesRef.current.geometry = pGeo;
+      scene.add(particlesRef.current);
+    }
+    const mat = particlesRef.current.material;
+    if (mat) {
+      mat.color.set(particleConfig.color);
+      mat.size = particleConfig.size;
+      mat.opacity = particleConfig.opacity;
+    }
+    particlesRef.current.visible = particleConfig.enabled;
+  }, [particleConfig]);
 
   // ---- Background image ----
   useEffect(() => {
@@ -685,9 +767,15 @@ export function ThreeJSStudio() {
 
   const handleSelectTrack = (filename: string) => {
     setSelectedTrack(filename);
-    const preset = TRACK_PRESETS.find((p) => p.filename === filename || p.name.toLowerCase().includes(filename.toLowerCase()));
-    if (preset) { setBpm(preset.bpm); setBeatSync(true); }
+    setBeatSync(true);
   };
+
+  // Auto-set BPM from analysis metadata when it loads
+  useEffect(() => {
+    if (beatAnalysis?.tempo_bpm) {
+      setBpm(Math.round(beatAnalysis.tempo_bpm));
+    }
+  }, [beatAnalysis]);
 
   const toggleAudio = async () => {
     if (!audioElementRef.current) return;
@@ -706,15 +794,15 @@ export function ThreeJSStudio() {
       }
       if (audioContextRef.current.state === "suspended") await audioContextRef.current.resume();
       if (isAudioPlaying) { audioElementRef.current.pause(); setIsAudioPlaying(false); }
-      else { await audioElementRef.current.play(); setIsAudioPlaying(true); setIsPlaying(true); }
+      else { await audioElementRef.current.play(); setIsAudioPlaying(true); setRenderPlaying(true); }
     } catch (err) { console.error("Audio playback error:", err); }
   };
 
   // ---- Render ----
   return (
-    <div className="relative w-full h-full flex flex-col bg-[#0a0a0f] text-white overflow-hidden">
+    <div className={`relative w-full h-full flex flex-col bg-[#0a0a0f] text-white overflow-hidden ${focusMode ? "focus-mode" : ""}`}>
       {/* Header bar */}
-      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 bg-[#12121a] border-b border-gray-800 shrink-0 min-w-0">
+      <div className={`header-bar flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 bg-[#12121a] border-b border-gray-800 shrink-0 min-w-0 ${focusMode ? "hidden" : ""}`}>
         <Sparkles size={16} className="text-purple-400 shrink-0" />
         <span className="font-semibold text-sm shrink-0 hidden sm:inline">Three.js Studio</span>
         <div className="w-px h-5 bg-gray-700 mx-1 shrink-0 hidden sm:block" />
@@ -725,12 +813,20 @@ export function ThreeJSStudio() {
           <Music size={13} className="text-purple-400 shrink-0" />
           <select value={selectedTrack} onChange={(e) => handleSelectTrack(e.target.value)} className="bg-transparent text-xs text-gray-200 outline-none flex-1 min-w-0 truncate">
             <option value="" className="bg-gray-800">Select track…</option>
-            {TRACK_PRESETS.map((t) => (<option key={t.filename} value={t.filename} className="bg-gray-800">{t.name} ({t.bpm} BPM)</option>))}
-            {libraryTracks.map((t) => (<option key={t.filename} value={t.filename} className="bg-gray-800">{t.filename}</option>))}
+            {libraryTracks.map((t) => {
+              const displayName = t.filename
+                .replace(/^[0-9a-f]{8}_[0-9a-f]{8}_/i, '')
+                .replace(/\.(mp3|wav|flac|ogg)$/i, '');
+              return (<option key={t.filename} value={t.filename} className="bg-gray-800">{displayName}</option>);
+            })}
           </select>
         </div>
         {selectedTrack && (<audio ref={audioElementRef} src={`/api/audio/file/${selectedTrack}`} crossOrigin="anonymous" onEnded={() => setIsAudioPlaying(false)} className="hidden" />)}
         <button onClick={exportFrame} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0" title="Export frame as PNG"><Download size={13} /></button>
+        <button onClick={() => setCodePanelOpen(!codePanelOpen)} className={`p-1.5 rounded transition-colors shrink-0 ${codePanelOpen ? "bg-emerald-600" : "bg-gray-700 hover:bg-gray-600"}`} title="Paste generated code"><FileCode size={13} /></button>
+        <button onClick={toggleFocusMode} className={`p-1.5 rounded transition-colors shrink-0 ${focusMode ? "bg-amber-600" : "bg-gray-700 hover:bg-gray-600"}`} title={focusMode ? "Exit focus mode" : "Focus mode (hide UI)"}>
+          {focusMode ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+        </button>
         <button onClick={() => setDrawerOpen(!drawerOpen)} className={`p-1.5 rounded transition-colors shrink-0 ${drawerOpen ? "bg-purple-600" : "bg-gray-700 hover:bg-gray-600"}`} title="Toggle controls panel">
           {drawerOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
         </button>
@@ -738,7 +834,7 @@ export function ThreeJSStudio() {
 
       {/* Track info bar */}
       {selectedTrack && (
-        <div className="flex items-center gap-1.5 sm:gap-3 px-2 sm:px-4 py-1.5 bg-[#0e0e16] border-b border-gray-800 shrink-0 text-xs overflow-x-auto">
+        <div className={`track-info-bar flex items-center gap-1.5 sm:gap-3 px-2 sm:px-4 py-1.5 bg-[#0e0e16] border-b border-gray-800 shrink-0 text-xs overflow-x-auto ${focusMode ? "hidden" : ""}`}>
           <div className="flex items-center gap-1.5 shrink-0">
             <Zap size={12} className={beatSync ? "text-amber-400" : "text-gray-500"} />
             <input type="number" value={bpm} onChange={(e) => setBpm(Number(e.target.value))} className="w-12 bg-gray-800 text-white rounded px-1.5 py-0.5 text-center font-mono border border-gray-700" min={60} max={220} />
@@ -762,8 +858,18 @@ export function ThreeJSStudio() {
       <div ref={containerRef} className="flex-1 relative bg-[#0a0a0f] overflow-hidden min-h-0">
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
 
+        {/* Scene loading overlay */}
+        {sceneLoading && (
+          <div className="absolute inset-0 bg-[#0a0a0f] flex items-center justify-center z-20">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-purple-300">Initializing 3D scene…</span>
+            </div>
+          </div>
+        )}
+
         {/* AI Scene Generator Panel */}
-        <div className="absolute top-2 right-2 w-72 max-h-[calc(100%-1rem)] overflow-y-auto z-10">
+        <div className={`ai-panel absolute top-2 right-2 w-72 max-h-[calc(100%-1rem)] overflow-y-auto z-10 ${focusMode ? "hidden" : ""}`}>
           <AISceneGenerator
             selectedTrack={selectedTrack || null}
             onApplyCode={handleApplyCode}
@@ -773,8 +879,44 @@ export function ThreeJSStudio() {
           />
         </div>
 
+        {/* Paste Code Panel */}
+        {codePanelOpen && (
+          <div className={`code-panel absolute top-2 left-2 w-80 max-h-[calc(100%-1rem)] z-10 flex flex-col gap-2 ${focusMode ? "hidden" : ""}`}>
+            <div className="bg-[#0e0e16] border border-emerald-500/30 rounded-lg overflow-hidden shadow-xl">
+              <div className="flex items-center justify-between px-3 py-2 bg-emerald-900/20 border-b border-emerald-500/20">
+                <div className="flex items-center gap-2">
+                  <FileCode size={14} className="text-emerald-400" />
+                  <span className="text-sm font-semibold text-emerald-300">Paste Code</span>
+                </div>
+                <button onClick={() => setCodePanelOpen(false)} className="text-gray-400 hover:text-white p-0.5">
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+              <div className="p-3 space-y-2">
+                <textarea
+                  value={pastedCode}
+                  onChange={(e) => setPastedCode(e.target.value)}
+                  placeholder={`// Available: scene, camera, renderer, THREE\n// Define: function applyScene(scene, camera, renderer) { ... }\n// Or return JSON: { "objects": [...] }`}
+                  spellCheck={false}
+                  className="w-full h-40 bg-gray-900 border border-gray-700 rounded p-2 text-xs font-mono text-green-300 placeholder-gray-600 resize-none focus:outline-none focus:border-emerald-500"
+                />
+                <button
+                  onClick={() => handleApplyCode(pastedCode)}
+                  disabled={!pastedCode.trim()}
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <Zap size={12} /> Apply to Scene
+                </button>
+                <p className="text-[10px] text-gray-500 leading-relaxed">
+                  Paste JavaScript or JSON from an AI agent. The code runs in the scene context with access to Three.js.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* HUD */}
-        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur px-2.5 py-1 rounded text-gray-400 text-[11px] flex flex-wrap items-center gap-x-3 gap-y-0.5 pointer-events-none border border-white/5 max-w-[calc(100%-1rem)]">
+        <div className={`hud absolute bottom-2 left-2 bg-black/60 backdrop-blur px-2.5 py-1 rounded text-gray-400 text-[11px] flex flex-wrap items-center gap-x-3 gap-y-0.5 pointer-events-none border border-white/5 max-w-[calc(100%-1rem)] ${focusMode ? "hidden" : ""}`}>
           <span>Objs <span className="text-white font-mono">{objects.length}</span></span>
           <span>Cam <span className="text-purple-400 font-mono">{cameraMode}</span></span>
           <span>BPM <span className={beatSync ? "text-green-400 font-mono" : "text-gray-500 font-mono"}>{beatSync ? bpm : "—"}</span></span>
@@ -793,8 +935,8 @@ export function ThreeJSStudio() {
           </a>
         )}
 
-        {/* Playback Controls */}
-        <div className="absolute bottom-10 left-2 right-2 bg-[#12121a]/95 backdrop-blur-md rounded-xl border border-gray-700/60 shadow-2xl shadow-black/40">
+         {/* Playback Controls */}
+         <div className={`playback-controls absolute bottom-10 left-2 right-2 bg-[#12121a]/95 backdrop-blur-md rounded-xl border border-gray-700/60 shadow-2xl shadow-black/40 ${focusMode ? "hidden" : ""}`}>
           {/* Main transport row */}
           <div className="flex items-center gap-2 px-4 py-2.5">
             {/* Render Transport */}
@@ -869,16 +1011,27 @@ export function ThreeJSStudio() {
             </div>
 
             {/* Keyframe indicator */}
-            {keyframeTracks.length > 0 && (
-              <span className="text-[10px] text-purple-400 bg-purple-900/30 px-2 py-1 rounded-md font-medium">{keyframeTracks.length} keyframes</span>
-            )}
+              {keyframeTracks.length > 0 && (
+                <span className="text-[10px] text-purple-400 bg-purple-900/30 px-2 py-1 rounded-md font-medium">{keyframeTracks.length} keyframes</span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+
+        {/* Exit focus mode button */}
+        {focusMode && (
+          <button
+            onClick={toggleFocusMode}
+            className="absolute top-2 left-2 z-20 p-2 bg-amber-600/80 hover:bg-amber-600 rounded-lg text-white shadow-lg backdrop-blur transition-colors"
+            title="Exit focus mode (Esc)"
+          >
+            <Minimize2 size={16} />
+          </button>
+        )}
 
       {/* Bottom Drawer */}
       {drawerOpen && (
-        <div className="bg-[#0e0e16] border-t border-gray-800 shrink-0 flex flex-col h-[55vh] sm:h-[45vh] min-h-[280px] max-h-[600px]">
+        <div className={`bottom-drawer bg-[#0e0e16] border-t border-gray-800 shrink-0 flex flex-col h-[55vh] sm:h-[45vh] min-h-[280px] max-h-[600px] ${focusMode ? "hidden" : ""}`}>
           <div className="flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-1.5 border-b border-gray-800 bg-[#12121a] shrink-0">
             <button onClick={() => setDrawerTab("objects")} className={`px-2 sm:px-3 py-1 rounded text-xs flex items-center gap-1 sm:gap-1.5 shrink-0 ${drawerTab === "objects" ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}><Box size={12} /> <span className="hidden sm:inline">Objects</span><span className="opacity-60 hidden sm:inline">({objects.length})</span></button>
             <button onClick={() => setDrawerTab("inspector")} className={`px-2 sm:px-3 py-1 rounded text-xs flex items-center gap-1 sm:gap-1.5 shrink-0 ${drawerTab === "inspector" ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}><Zap size={12} /> <span className="hidden sm:inline">Inspector</span></button>

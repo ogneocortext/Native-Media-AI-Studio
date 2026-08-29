@@ -25,11 +25,18 @@ import {
 } from "lucide-react";
 import {
   defaultModules,
-  SONGS,
   paletteVariants,
   typographyVariants,
 } from "./art-direction-data";
-import type { ModuleId, ModuleState, SongId } from "./art-direction-data";
+import type { ModuleId, ModuleState } from "./art-direction-data";
+import { listAudioFiles } from "../../services/api";
+
+const DOC_FILES = [
+  "VISUAL_STORYTELLING_2026.md",
+  "MINDFUL_LAYERING_2026.md",
+  "STORYBOARD_TakeTheCrown.md",
+  "STORYBOARD_StillIRise.md",
+];
 
 const moduleIcons: Record<ModuleId, React.ComponentType<{ size?: number; className?: string }>> = {
   audio: Music,
@@ -84,17 +91,41 @@ export function ArtDirection() {
   const [analysis, setAnalysis] = useState<Record<string, unknown> | null>(null);
   const [activeDoc, setActiveDoc] = useState<string>("VISUAL_STORYTELLING_2026.md");
   const [docContent, setDocContent] = useState<string>("Loading...");
-  const [song, setSong] = useState<SongId>("still-i-rise");
   const [expandedModule, setExpandedModule] = useState<ModuleId | null>(null);
   const [showDocs, setShowDocs] = useState(false);
+  const [libraryTracks, setLibraryTracks] = useState<Array<{ filename: string }>>([]);
+  const [selectedTrack, setSelectedTrack] = useState<string>("");
+  const [trackBadge, setTrackBadge] = useState<string>("");
 
+  // Load media library tracks on mount
   useEffect(() => {
-    fetch(SONGS[song].analysis)
-      .then((r) => r.json())
-      .then((data) => setAnalysis(data as Record<string, unknown>))
+    listAudioFiles()
+      .then((files) => {
+        if (Array.isArray(files) && files.length > 0) {
+          setLibraryTracks(files);
+          setSelectedTrack(files[0].filename);
+        }
+      })
       .catch(() => {});
-    setActiveDoc(SONGS[song].docFiles[0]);
-  }, [song]);
+  }, []);
+
+  // Fetch analysis and compute badge when track changes
+  useEffect(() => {
+    if (!selectedTrack) return;
+    setActiveDoc("VISUAL_STORYTELLING_2026.md");
+    fetch(`/api/audio/analysis/${encodeURIComponent(selectedTrack)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setAnalysis(data);
+        const bpm = data?.tempo_bpm ? `${Math.round(data.tempo_bpm)} BPM` : "";
+        const dur = data?.duration_seconds ? `${Math.round(data.duration_seconds)}s` : "";
+        setTrackBadge([dur, bpm].filter(Boolean).join(" • "));
+      })
+      .catch(() => {
+        setAnalysis(null);
+        setTrackBadge("");
+      });
+  }, [selectedTrack]);
 
   useEffect(() => {
     fetch(`/docs/${activeDoc}`)
@@ -123,23 +154,31 @@ export function ArtDirection() {
           <Palette size={24} className="text-primary" /> Art Direction
         </h1>
         <p className="text-muted mt-1">
-          Modular visual systems for {SONGS[song].label} — {enabledCount} active modules
+          Modular visual systems — {enabledCount} active modules
+          {trackBadge && <span className="ml-1">• {trackBadge}</span>}
         </p>
       </div>
 
       {/* Song Selector & Actions */}
       <div className="flex items-center gap-3 mb-6">
         <select
-          value={song}
-          onChange={(e) => setSong(e.target.value as SongId)}
+          value={selectedTrack}
+          onChange={(e) => setSelectedTrack(e.target.value)}
           className="select text-sm"
         >
-          <option value="still-i-rise">Still I Rise</option>
-          <option value="take-the-crown">Take the Crown</option>
+          {libraryTracks.length === 0 && <option value="">No tracks in library</option>}
+          {libraryTracks.map((t) => {
+            const displayName = t.filename
+              .replace(/^[0-9a-f]{8}_[0-9a-f]{8}_/i, '')
+              .replace(/\.(mp3|wav|flac|ogg)$/i, '');
+            return (<option key={t.filename} value={t.filename}>{displayName}</option>);
+          })}
         </select>
-        <span className="text-xs px-3 py-1.5 rounded-full bg-primary/15 border border-primary/20">
-          {SONGS[song].badge}
-        </span>
+        {trackBadge && (
+          <span className="text-xs px-3 py-1.5 rounded-full bg-primary/15 border border-primary/20">
+            {trackBadge}
+          </span>
+        )}
         <div className="flex-1" />
         <button
           onClick={() => setShowDocs(!showDocs)}
@@ -328,9 +367,9 @@ export function ArtDirection() {
                             onChange={(e) => setVariant("audio", e.target.value)}
                             className="select text-sm w-full"
                           >
-                            <option>{song === "take-the-crown" ? "152 BPM detected" : "99.4 BPM detected"}</option>
-                            <option>{song === "take-the-crown" ? "76 BPM half-time" : "132 BPM swung"}</option>
-                            <option>{song === "take-the-crown" ? "E major key" : "65 BPM half-time"}</option>
+                            <option>{trackBadge || "Analysis pending…"}</option>
+                            <option>Half-time</option>
+                            <option>Double-time</option>
                           </select>
                           <p className="text-xs text-muted mt-2">
                             Drives visual reactivity — faster BPM = more rapid visual changes
@@ -649,7 +688,7 @@ export function ArtDirection() {
             </div>
             <div className="flex items-center gap-2">
               <select value={activeDoc} onChange={(e) => setActiveDoc(e.target.value)} className="select text-sm">
-                {SONGS[song].docFiles.map((f) => (
+                {DOC_FILES.map((f) => (
                   <option key={f}>{f}</option>
                 ))}
               </select>
