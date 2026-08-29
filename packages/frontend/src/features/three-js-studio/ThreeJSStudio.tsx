@@ -79,15 +79,21 @@ export function ThreeJSStudio() {
   const [bpm, setBpm] = useState(150);
   const [beatSync, setBeatSync] = useState(false);
   const [fps, setFps] = useState(24);
-  const [libraryTracks, setLibraryTracks] = useState<Array<{ filename: string; path: string }>>([]);
+  const [libraryTracks, setLibraryTracks] = useState<Array<{ filename: string }>>([]);
+  const [tracksLoading, setTracksLoading] = useState(true);
+  const [tracksError, setTracksError] = useState<string | null>(null);
+  const [trackMetadata, setTrackMetadata] = useState<Record<string, { bpm?: number; duration?: number }>>({});
   const [selectedTrack, setSelectedTrack] = useState<string>("");
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [beatActive, setBeatActive] = useState(false);
   const [animationTime, setAnimationTime] = useState(0);
   const [animationDuration, _setAnimationDuration] = useState(30);
   const [keyframeTracks, _setKeyframeTracks] = useState<any[]>([]);
+  const keyframeTracksRef = useRef(keyframeTracks);
+  useEffect(() => { keyframeTracksRef.current = keyframeTracks; }, [keyframeTracks]);
   const [codePanelOpen, setCodePanelOpen] = useState(false);
   const [pastedCode, setPastedCode] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
   const { focusMode, toggleFocusMode } = useUIStore();
 
   const { analysis: beatAnalysis, loading: beatLoading, error: beatError, getCurrentBeat } = useBeatTimeline(selectedTrack || null);
@@ -203,121 +209,122 @@ export function ThreeJSStudio() {
   const [sceneLoading, setSceneLoading] = useState(true);
   const renderPlayingRef = useRef(renderPlaying);
 
+  // ---- Helper: create a single scene object from JSON description ----
+  const createSceneObject = useCallback((objDesc: any, THREE: any, scene: any) => {
+    let geometry: any;
+    const t = objDesc.type;
+    if (t === "sphere") geometry = new THREE.SphereGeometry(0.8, 32, 32);
+    else if (t === "box") geometry = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+    else if (t === "cylinder") geometry = new THREE.CylinderGeometry(0.6, 0.6, 1.4, 32);
+    else if (t === "cone") geometry = new THREE.ConeGeometry(0.8, 1.5, 32);
+    else if (t === "torus") geometry = new THREE.TorusGeometry(0.8, 0.25, 16, 32);
+    else if (t === "crown") {
+      const group = new THREE.Group();
+      const band = new THREE.Mesh(new THREE.TorusGeometry(1, 0.15, 16, 32), new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.1 }));
+      group.add(band);
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.5, 8), new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.1 }));
+        spike.position.set(Math.cos(angle) * 0.85, 0.4, Math.sin(angle) * 0.85);
+        group.add(spike);
+      }
+      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), new THREE.MeshStandardMaterial({ color: 0x8b5cf6, metalness: 0.5, roughness: 0, emissive: 0x8b5cf6, emissiveIntensity: 0.8 }));
+      gem.position.y = 0.3;
+      group.add(gem);
+      const gpos = objDesc.position as [number, number, number] || [0, 0.5, 0];
+      const gscl = objDesc.scale as [number, number, number] || [1, 1, 1];
+      group.position.set(gpos[0], gpos[1], gpos[2]);
+      group.scale.set(gscl[0], gscl[1], gscl[2]);
+      group.castShadow = true;
+      scene.add(group);
+      return;
+    }
+    else if (t === "orb") geometry = new THREE.SphereGeometry(1, 64, 64);
+    else if (t === "ring") geometry = new THREE.TorusGeometry(1.5, 0.05, 16, 64);
+    else if (t === "spiral") geometry = new THREE.TorusKnotGeometry(0.8, 0.2, 128, 16);
+    else if (t === "mountain") geometry = new THREE.ConeGeometry(2, 4, 6);
+    else if (t === "tree") geometry = new THREE.ConeGeometry(0.8, 3, 8);
+    else if (t === "city" || t === "skyline") geometry = new THREE.BoxGeometry(0.5, 3, 0.5);
+    else if (t === "stage") geometry = new THREE.BoxGeometry(8, 0.3, 5);
+    else if (t === "equalizer" || t === "bar") geometry = new THREE.BoxGeometry(0.12, 1, 0.12);
+    else if (t === "pillar") geometry = new THREE.CylinderGeometry(0.3, 0.3, 4, 16);
+    else if (t === "vinyl") geometry = new THREE.CylinderGeometry(1.5, 1.5, 0.05, 64);
+    else if (t === "wave") geometry = new THREE.TorusGeometry(2, 0.3, 16, 32);
+    else if (t === "galaxy") geometry = new THREE.TorusGeometry(3, 0.8, 16, 64);
+    else if (t === "neuron") geometry = new THREE.IcosahedronGeometry(0.5, 1);
+    else if (t === "fractal") geometry = new THREE.OctahedronGeometry(1, 2);
+    else if (t === "lightning") geometry = new THREE.ConeGeometry(0.1, 3, 4);
+    else if (t === "fire") geometry = new THREE.ConeGeometry(0.5, 2, 8);
+    else if (t === "snow" || t === "rain") geometry = new THREE.SphereGeometry(0.05, 8, 8);
+    else if (t === "text" || t === "particle_field" || t === "light_rays" || t === "lens_flare") {
+      return; // Special effects, skip geometry
+    }
+    else geometry = new THREE.BoxGeometry(1, 1, 1);
+
+    const mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(objDesc.color || "#ffffff"),
+      metalness: objDesc.metalness ?? 0.6,
+      roughness: objDesc.roughness ?? 0.3,
+      emissive: new THREE.Color(objDesc.emissive || "#000000"),
+      emissiveIntensity: objDesc.emissiveIntensity ?? 0.1,
+    });
+    const mesh = new THREE.Mesh(geometry, mat);
+    const pos = objDesc.position as [number, number, number] || [0, 0.5, 0];
+    const scl = objDesc.scale as [number, number, number] || [1, 1, 1];
+    mesh.position.set(pos[0], pos[1], pos[2]);
+    mesh.scale.set(scl[0], scl[1], scl[2]);
+    if (objDesc.rotation) mesh.rotation.set(...(objDesc.rotation as [number, number, number]));
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+  }, []);
+
   // ---- Helper: apply generated code to scene ----
   const handleApplyCode = useCallback((code: string) => {
     if (!sceneRef.current || !code) return;
+    setCodeError(null);
 
-    // Try to parse as JSON scene description
-    try {
-      let jsonStr = code;
-      // Extract JSON from markdown code fence if present
-      if (jsonStr.includes("```json")) {
-        const match = jsonStr.match(/```json\n([\s\S]*?)```/);
-        if (match) jsonStr = match[1];
-      } else if (jsonStr.includes("```")) {
-        const match = jsonStr.match(/```\n([\s\S]*?)```/);
-        if (match) jsonStr = match[1];
-      }
-      // Find first { to start of JSON
-      const startIdx = jsonStr.indexOf("{");
-      if (startIdx >= 0) jsonStr = jsonStr.substring(startIdx);
+    // Only try JSON if the code looks like JSON (starts with { or [ and has no function syntax)
+    const trimmed = code.trim();
+    const looksLikeJson = (trimmed.startsWith("{") || trimmed.startsWith("[")) && !trimmed.includes("function ") && !trimmed.includes("=>");
 
-      const sceneDesc = JSON.parse(jsonStr);
+    if (looksLikeJson) {
+      try {
+        let jsonStr = code;
+        // Extract JSON from markdown code fence if present
+        if (jsonStr.includes("```json")) {
+          const match = jsonStr.match(/```json\n([\s\S]*?)```/);
+          if (match) jsonStr = match[1];
+        } else if (jsonStr.includes("```")) {
+          const match = jsonStr.match(/```\n([\s\S]*?)```/);
+          if (match) jsonStr = match[1];
+        }
+        const startIdx = jsonStr.search(/[\[{]/);
+        if (startIdx >= 0) jsonStr = jsonStr.substring(startIdx);
 
-      // Apply scene description
-      import("three").then((THREE) => {
-        const scene = sceneRef.current;
+        const sceneDesc = JSON.parse(jsonStr);
 
-        // Clear existing objects (keep lights and floor)
-        const toRemove: any[] = [];
-        scene.traverse((child: any) => {
-          if (child.isMesh && child.geometry && child.geometry.type !== "PlaneGeometry") {
-            toRemove.push(child);
+        import("three").then((THREE) => {
+          const scene = sceneRef.current;
+          // Clear existing objects (keep lights and floor)
+          const toRemove: any[] = [];
+          scene.traverse((child: any) => {
+            if (child.isMesh && child.geometry && child.geometry.type !== "PlaneGeometry") {
+              toRemove.push(child);
+            }
+          });
+          toRemove.forEach((obj) => scene.remove(obj));
+          // Add objects from description
+          if (sceneDesc.objects) {
+            for (const objDesc of sceneDesc.objects) {
+              createSceneObject(objDesc, THREE, scene);
+            }
           }
         });
-        toRemove.forEach((obj) => scene.remove(obj));
-
-        // Add objects from description
-        if (sceneDesc.objects) {
-          for (const objDesc of sceneDesc.objects) {
-            let geometry: any;
-            const t = objDesc.type;
-            // Storyboard-driven element types
-            if (t === "sphere") geometry = new THREE.SphereGeometry(0.8, 32, 32);
-            else if (t === "box") geometry = new THREE.BoxGeometry(1.2, 1.2, 1.2);
-            else if (t === "cylinder") geometry = new THREE.CylinderGeometry(0.6, 0.6, 1.4, 32);
-            else if (t === "cone") geometry = new THREE.ConeGeometry(0.8, 1.5, 32);
-            else if (t === "torus") geometry = new THREE.TorusGeometry(0.8, 0.25, 16, 32);
-            else if (t === "crown") {
-              // Crown = torus band + spikes + gem
-              const group = new THREE.Group();
-              const band = new THREE.Mesh(new THREE.TorusGeometry(1, 0.15, 16, 32), new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.1 }));
-              group.add(band);
-              for (let i = 0; i < 8; i++) {
-                const angle = (i / 8) * Math.PI * 2;
-                const spike = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.5, 8), new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.1 }));
-                spike.position.set(Math.cos(angle) * 0.85, 0.4, Math.sin(angle) * 0.85);
-                group.add(spike);
-              }
-              const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), new THREE.MeshStandardMaterial({ color: 0x8b5cf6, metalness: 0.5, roughness: 0, emissive: 0x8b5cf6, emissiveIntensity: 0.8 }));
-              gem.position.y = 0.3;
-              group.add(gem);
-              const gpos = objDesc.position as [number, number, number] || [0, 0.5, 0];
-              const gscl = objDesc.scale as [number, number, number] || [1, 1, 1];
-              group.position.set(gpos[0], gpos[1], gpos[2]);
-              group.scale.set(gscl[0], gscl[1], gscl[2]);
-              group.castShadow = true;
-              scene.add(group);
-              continue;
-            }
-            else if (t === "orb") geometry = new THREE.SphereGeometry(1, 64, 64);
-            else if (t === "ring") geometry = new THREE.TorusGeometry(1.5, 0.05, 16, 64);
-            else if (t === "spiral") geometry = new THREE.TorusKnotGeometry(0.8, 0.2, 128, 16);
-            else if (t === "mountain") geometry = new THREE.ConeGeometry(2, 4, 6);
-            else if (t === "tree") geometry = new THREE.ConeGeometry(0.8, 3, 8);
-            else if (t === "city" || t === "skyline") geometry = new THREE.BoxGeometry(0.5, 3, 0.5);
-            else if (t === "stage") geometry = new THREE.BoxGeometry(8, 0.3, 5);
-            else if (t === "equalizer" || t === "bar") geometry = new THREE.BoxGeometry(0.12, 1, 0.12);
-            else if (t === "pillar") geometry = new THREE.CylinderGeometry(0.3, 0.3, 4, 16);
-            else if (t === "vinyl") geometry = new THREE.CylinderGeometry(1.5, 1.5, 0.05, 64);
-            else if (t === "wave") geometry = new THREE.TorusGeometry(2, 0.3, 16, 32);
-            else if (t === "galaxy") geometry = new THREE.TorusGeometry(3, 0.8, 16, 64);
-            else if (t === "neuron") geometry = new THREE.IcosahedronGeometry(0.5, 1);
-            else if (t === "fractal") geometry = new THREE.OctahedronGeometry(1, 2);
-            else if (t === "lightning") geometry = new THREE.ConeGeometry(0.1, 3, 4);
-            else if (t === "fire") geometry = new THREE.ConeGeometry(0.5, 2, 8);
-            else if (t === "snow" || t === "rain") geometry = new THREE.SphereGeometry(0.05, 8, 8);
-            else if (t === "text" || t === "particle_field" || t === "light_rays" || t === "lens_flare") {
-              // These are handled as special effects, skip geometry creation
-              continue;
-            }
-            else geometry = new THREE.BoxGeometry(1, 1, 1);
-
-            const mat = new THREE.MeshStandardMaterial({
-              color: new THREE.Color(objDesc.color || "#ffffff"),
-              metalness: objDesc.metalness ?? 0.6,
-              roughness: objDesc.roughness ?? 0.3,
-              emissive: new THREE.Color(objDesc.emissive || "#000000"),
-              emissiveIntensity: objDesc.emissiveIntensity ?? 0.1,
-            });
-            const mesh = new THREE.Mesh(geometry, mat);
-            const pos = objDesc.position as [number, number, number] || [0, 0.5, 0];
-            const scl = objDesc.scale as [number, number, number] || [1, 1, 1];
-            mesh.position.set(pos[0], pos[1], pos[2]);
-            mesh.scale.set(scl[0], scl[1], scl[2]);
-            if (objDesc.rotation) {
-              mesh.rotation.set(...(objDesc.rotation as [number, number, number]));
-            }
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            scene.add(mesh);
-          }
-        }
-
-      });
-      return;
-    } catch {
-      // Not valid JSON - try as JavaScript
+        return;
+      } catch {
+        // Not valid JSON - fall through to JavaScript
+      }
     }
 
     // Execute as JavaScript — wrap to extract update function for playback control
@@ -375,6 +382,7 @@ export function ThreeJSStudio() {
       }
     } catch (err) {
       console.error("Failed to apply generated scene:", err);
+      setCodeError(err instanceof Error ? err.message : String(err));
     }
   }, []);
 
@@ -559,8 +567,8 @@ export function ThreeJSStudio() {
         }
 
         // Apply keyframe animations (only when render is playing)
-        if (keyframeTracks.length > 0 && renderPlayingRef.current) {
-          keyframeTracks.forEach((track: any) => {
+        if (keyframeTracksRef.current.length > 0 && renderPlayingRef.current) {
+          keyframeTracksRef.current.forEach((track: any) => {
             const mesh = objectsMapRef.current.get(track.target);
             if (!mesh) return;
             const time = animationTimeRef.current;
@@ -704,7 +712,53 @@ export function ThreeJSStudio() {
   }, [backgroundImageVisible, sceneConfig.backgroundColor]);
 
   // ---- Load library tracks ----
-  useEffect(() => { listAudioFiles().then((f) => { if (Array.isArray(f) && f.length > 0) setLibraryTracks(f); }).catch(() => {}); }, []);
+  useEffect(() => {
+    setTracksLoading(true);
+    setTracksError(null);
+    listAudioFiles()
+      .then((f) => {
+        if (Array.isArray(f) && f.length > 0) {
+          setLibraryTracks(f);
+        } else {
+          setLibraryTracks([]);
+        }
+      })
+      .catch((err) => {
+        setTracksError(err.message || "Failed to load tracks");
+        setLibraryTracks([]);
+      })
+      .finally(() => setTracksLoading(false));
+  }, []);
+
+  // Validate selected track still exists in library
+  useEffect(() => {
+    if (selectedTrack && libraryTracks.length > 0 && !libraryTracks.some((t) => t.filename === selectedTrack)) {
+      setSelectedTrack("");
+      setIsAudioPlaying(false);
+    }
+  }, [libraryTracks, selectedTrack]);
+
+  // Fetch metadata (BPM/duration) for loaded tracks
+  useEffect(() => {
+    if (libraryTracks.length === 0) return;
+    const fetchMetadata = async () => {
+      const metadata: Record<string, { bpm?: number; duration?: number }> = {};
+      await Promise.all(libraryTracks.map(async (t) => {
+        try {
+          const res = await fetch(`/api/audio/analysis/${encodeURIComponent(t.filename)}`);
+          if (res.ok) {
+            const data: any = await res.json();
+            metadata[t.filename] = {
+              bpm: data.tempo_bpm ? Math.round(data.tempo_bpm) : undefined,
+              duration: data.duration_seconds ? Math.round(data.duration_seconds) : undefined,
+            };
+          }
+        } catch { /* ignore */ }
+      }));
+      setTrackMetadata(metadata);
+    };
+    fetchMetadata();
+  }, [libraryTracks]);
 
   // ---- Load library images ----
   useEffect(() => {
@@ -766,8 +820,17 @@ export function ThreeJSStudio() {
   };
 
   const handleSelectTrack = (filename: string) => {
+    const wasPlaying = isAudioPlaying;
     setSelectedTrack(filename);
     setBeatSync(true);
+    // If audio was playing, auto-switch to new track
+    if (wasPlaying && audioElementRef.current) {
+      setIsAudioPlaying(false);
+      // Small delay to allow state update before starting new track
+      setTimeout(() => {
+        audioElementRef.current?.play().catch(() => {});
+      }, 50);
+    }
   };
 
   // Auto-set BPM from analysis metadata when it loads
@@ -811,15 +874,36 @@ export function ThreeJSStudio() {
         <button onClick={() => addObject("box")} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0 hidden sm:block" title="Add Box"><Box size={13} /></button>
         <div className="flex items-center gap-1.5 sm:gap-2 ml-1 sm:ml-2 bg-gray-800/80 px-2 py-1 rounded-lg border border-gray-700 flex-1 min-w-0">
           <Music size={13} className="text-purple-400 shrink-0" />
-          <select value={selectedTrack} onChange={(e) => handleSelectTrack(e.target.value)} className="bg-transparent text-xs text-gray-200 outline-none flex-1 min-w-0 truncate">
-            <option value="" className="bg-gray-800">Select track…</option>
-            {libraryTracks.map((t) => {
+          <select
+            value={selectedTrack}
+            onChange={(e) => handleSelectTrack(e.target.value)}
+            className="bg-transparent text-xs text-gray-200 outline-none flex-1 min-w-0 truncate"
+            disabled={tracksLoading}
+          >
+            {tracksLoading && <option value="" className="bg-gray-800">Loading tracks…</option>}
+            {!tracksLoading && tracksError && <option value="" className="bg-gray-800">Error loading tracks</option>}
+            {!tracksLoading && !tracksError && libraryTracks.length === 0 && <option value="" className="bg-gray-800">No tracks in library</option>}
+            {!tracksLoading && !tracksError && libraryTracks.length > 0 && <option value="" className="bg-gray-800">Select track…</option>}
+            {!tracksLoading && !tracksError && libraryTracks.map((t) => {
               const displayName = t.filename
                 .replace(/^[0-9a-f]{8}_[0-9a-f]{8}_/i, '')
                 .replace(/\.(mp3|wav|flac|ogg)$/i, '');
-              return (<option key={t.filename} value={t.filename} className="bg-gray-800">{displayName}</option>);
+              const meta = trackMetadata[t.filename];
+              const metaStr = meta?.bpm && meta?.duration ? ` (${meta.bpm} BPM, ${meta.duration}s)` : '';
+              // If multiple files have the same display name, append hash to disambiguate
+              const sameNameCount = libraryTracks.filter((x) => {
+                const xName = x.filename.replace(/^[0-9a-f]{8}_[0-9a-f]{8}_/i, '').replace(/\.(mp3|wav|flac|ogg)$/i, '');
+                return xName === displayName;
+              }).length;
+              const needsDisambiguation = sameNameCount > 1;
+              const shortHash = t.filename.match(/^[0-9a-f]{8}/)?.[0] || '';
+              const label = needsDisambiguation && shortHash ? `${displayName} [${shortHash}]${metaStr}` : `${displayName}${metaStr}`;
+              return (<option key={t.filename} value={t.filename} className="bg-gray-800">{label}</option>);
             })}
           </select>
+          {!tracksLoading && selectedTrack && isAudioPlaying && (
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" title="Playing" />
+          )}
         </div>
         {selectedTrack && (<audio ref={audioElementRef} src={`/api/audio/file/${selectedTrack}`} crossOrigin="anonymous" onEnded={() => setIsAudioPlaying(false)} className="hidden" />)}
         <button onClick={exportFrame} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0" title="Export frame as PNG"><Download size={13} /></button>
@@ -907,6 +991,11 @@ export function ThreeJSStudio() {
                 >
                   <Zap size={12} /> Apply to Scene
                 </button>
+                {codeError && (
+                  <div className="text-[10px] text-red-400 bg-red-900/20 border border-red-500/30 rounded p-2">
+                    Error: {codeError}
+                  </div>
+                )}
                 <p className="text-[10px] text-gray-500 leading-relaxed">
                   Paste JavaScript or JSON from an AI agent. The code runs in the scene context with access to Three.js.
                 </p>

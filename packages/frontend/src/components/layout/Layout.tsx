@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { startAutoRefresh, stopAutoRefresh } from "../../state/jobStore";
+import { useUIStore } from "../../state/uiStore";
 
 interface LayoutProps { children: React.ReactNode; }
 
@@ -9,9 +10,10 @@ const COPYRIGHT = "InterGalactic Media Productions LLC";
 
 export function Layout({ children }: LayoutProps) {
   useEffect(() => { startAutoRefresh(); return stopAutoRefresh; }, []);
+  const { focusMode } = useUIStore();
 
   return (
-    <div className="layout-root">
+    <div className={`layout-root${focusMode ? " layout-focus-mode" : ""}`}>
       <Sidebar />
       <div className="layout-content">
         <main className="layout-main">

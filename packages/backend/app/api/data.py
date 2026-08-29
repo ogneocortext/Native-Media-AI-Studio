@@ -76,9 +76,14 @@ def delete_prompt(prompt_id: str):
 
 
 @router.get("/audio/")
-def list_audio_files(limit: int = 100):
-    """List stored audio file metadata."""
-    return database.get_audio_files(limit=limit)
+def list_audio_files(limit: int = 100, distinct: bool = True):
+    """List stored audio file metadata.
+
+    Args:
+        limit: Maximum number of files to return.
+        distinct: If True (default), deduplicate by filename (most recent only).
+    """
+    return database.get_audio_files(limit=limit, distinct=distinct)
 
 
 @router.get("/audio/{audio_id}")

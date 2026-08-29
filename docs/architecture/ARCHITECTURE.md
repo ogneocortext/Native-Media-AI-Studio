@@ -123,6 +123,19 @@ _(None — all components now source media data from the library API)_
 - **Focus Mode** — Hides all UI (sidebar, header, panels, drawer, playback controls) for unobstructed canvas view. Toggle via header button or `Escape` key. Canvas auto-resizes to fill viewport.
 - **Media Data** — Track list sourced from `listAudioFiles()` API; BPM/duration from analysis API. No hardcoded track data.
 
+### Visualizer
+- **Focus Mode** — Hides all UI with floating controls overlay (record, save, exit). Toggle via header button or `Escape` key.
+- **Video Recording** — Captures canvas via `MediaRecorder` API (VP9/VP8/WebM fallback). Saves to `.webm` file.
+- **Track Metadata** — Dropdown shows BPM and duration fetched from analysis API.
+- **Object URL Cleanup** — Properly revokes `URL.createObjectURL` to prevent memory leaks.
+
+### Backend API
+- `/api/audio/files` — Deduplicated file listing (by display name, strips hash prefix)
+- `/api/audio/analysis/by-filename/{filename}` — Cached analysis lookup by filename
+- `/api/audio/` — Database-backed listing with optional `distinct` parameter
+- `save_audio_file` — Prevents duplicate entries by checking existing filenames
+- `cleanup_old_system_resources` — Purges system snapshots older than 7 days
+
 ### Backend Services
 - `AudioAnalyzer` — Librosa-based feature extraction
 - `MusicVideoHandler` — FFmpeg video rendering with visualization filters

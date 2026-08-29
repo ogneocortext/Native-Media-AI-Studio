@@ -408,13 +408,24 @@ def save_audio_file(
     duration: float = 0.0,
     **kwargs,
 ) -> str:
-    """Save audio file metadata and return its ID."""
+    """Save audio file metadata and return its ID.
+
+    If a file with the same filename already exists, returns the existing ID
+    instead of creating a duplicate entry.
+    """
     import uuid
 
-    audio_id = str(uuid.uuid4())
-    now = datetime.now().isoformat()
-
     with get_db() as conn:
+        # Check for existing file with same filename to avoid duplicates
+        existing = conn.execute(
+            "SELECT id FROM audio_files WHERE filename = ?", (filename,)
+        ).fetchone()
+        if existing:
+            return existing["id"]
+
+        audio_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+
         conn.execute(
             """
             INSERT INTO audio_files
@@ -456,13 +467,34 @@ def get_audio_file(audio_id: str) -> dict[str, Any] | None:
     return None
 
 
-def get_audio_files(limit: int = 100) -> list[dict[str, Any]]:
-    """Get recent audio files."""
+def get_audio_files(limit: int = 100, distinct: bool = False) -> list[dict[str, Any]]:
+    """Get recent audio files.
+
+    Args:
+        limit: Maximum number of files to return.
+        distinct: If True, return only the most recent entry per filename
+                  (useful for deduplicating re-uploads).
+    """
     with get_db() as conn:
-        rows = conn.execute(
-            "SELECT * FROM audio_files ORDER BY created_at DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        if distinct:
+            # Return the most recent entry for each unique filename
+            rows = conn.execute(
+                """
+                SELECT a.* FROM audio_files a
+                INNER JOIN (
+                    SELECT filename, MAX(created_at) AS max_created
+                    FROM audio_files
+                    GROUP BY filename
+                ) b ON a.filename = b.filename AND a.created_at = b.max_created
+                ORDER BY a.created_at DESC LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM audio_files ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
         return [_row_to_audio(row) for row in rows]
 
 
@@ -999,7 +1031,8 @@ def save_visualization_preset(preset: dict) -> str:
     """Save a visualization preset to the database."""
     import uuid
     preset_id = preset.get("id", str(uuid.uuid4()))
-    
+    now = datetime.now().isoformat()
+
     with get_db() as conn:
         conn.execute(
             """
@@ -1026,8 +1059,8 @@ def save_visualization_preset(preset: dict) -> str:
                 preset.get("is_unique", True),
                 preset.get("usage_count", 0),
                 preset.get("last_used"),
-                preset.get("created_at", datetime.now().isoformat()),
-                datetime.now().isoformat(),
+                now,
+                now,
             ),
         )
     return preset_id
@@ -1147,7 +1180,7 @@ def get_latest_system_resources() -> dict | None:
         row = conn.execute(
             "SELECT * FROM system_resources ORDER BY timestamp DESC LIMIT 1"
         ).fetchone()
-        
+
         if row:
             return {
                 "timestamp": row["timestamp"],
@@ -1164,6 +1197,16 @@ def get_latest_system_resources() -> dict | None:
                 "ollama_models": json.loads(row["ollama_models"]) if row["ollama_models"] else [],
             }
     return None
+
+
+def cleanup_old_system_resources(keep_days: int = 7) -> int:
+    """Remove system resource snapshots older than keep_days. Returns count deleted."""
+    with get_db() as conn:
+        cursor = conn.execute(
+            "DELETE FROM system_resources WHERE timestamp < datetime('now', ?)",
+            (f"-{keep_days} days",),
+        )
+        return cursor.rowcount
 
 
 # Ollama Model Functions

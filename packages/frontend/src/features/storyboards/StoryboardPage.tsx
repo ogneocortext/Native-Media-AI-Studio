@@ -76,7 +76,12 @@ export function StoryboardPage() {
       const cleanName = t.filename
         .replace(/^[0-9a-f]{8}_[0-9a-f]{8}_/i, '')
         .replace(/\.(mp3|wav|flac|ogg)$/i, '');
-      const match = STORYBOARDS.find((s) => cleanName.toLowerCase().includes(s.trackName.toLowerCase()));
+      // Match if the filename contains the track name (handles variations like "Still I Rise (variation)")
+      const match = STORYBOARDS.find((s) => {
+        const nameLower = s.trackName.toLowerCase();
+        const cleanLower = cleanName.toLowerCase();
+        return cleanLower.includes(nameLower) || nameLower.includes(cleanLower);
+      });
       if (match) {
         metadata[match.name] = { filename: t.filename };
       }

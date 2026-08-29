@@ -431,9 +431,34 @@ def _generate_sections(duration: float, tempo: float, beat_count: int) -> list[d
     return _generate_sections_from_analysis(duration, tempo, [], [], [], 512, 22050)
 
 
+@router.get("/analysis/by-filename/{filename}")
+async def get_analysis_by_filename(filename: str):
+    """Get cached analysis for an audio file by filename."""
+    import urllib.parse
+    filename = urllib.parse.unquote(filename)
+
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    index = _load_analysis_index()
+
+    job_id = index.get(filename)
+    if not job_id:
+        raise HTTPException(status_code=404, detail="No cached analysis found for this file")
+
+    analysis_path = _get_analysis_path(job_id)
+    if not analysis_path.exists():
+        raise HTTPException(status_code=404, detail="Analysis file missing")
+
+    with open(analysis_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    return data
+
+
 @router.get("/analysis/{job_id}")
 async def get_analysis_result(job_id: str):
-    """Get the result of an audio analysis job."""
+    """Get the result of an audio analysis job by job ID."""
     if not ANALYSIS_DIR.exists():
         raise HTTPException(status_code=404, detail="No analysis results found")
 
@@ -446,11 +471,18 @@ async def get_analysis_result(job_id: str):
 
 @router.get("/files")
 async def list_uploaded_audio():
-    """List all uploaded audio files."""
+    """List all uploaded audio files, deduplicated by display name."""
     files = []
     if AUDIO_DIR.exists():
+        seen_names = set()
         for f in sorted(AUDIO_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
             if f.is_file() and f.suffix.lower() in ALLOWED_EXTENSIONS:
+                # Deduplicate by display name (strip hash prefix)
+                import re
+                display_name = re.sub(r'^[0-9a-f]{8}_', '', f.name)
+                if display_name in seen_names:
+                    continue
+                seen_names.add(display_name)
                 stat = f.stat()
                 files.append({
                     "filename": f.name,
@@ -535,27 +567,3 @@ async def serve_audio_file(filename: str):
          },
      )
 
-
-@router.get("/analysis/{filename}")
-async def get_analysis(filename: str):
-    """Get cached analysis for an audio file, if it exists."""
-    import urllib.parse
-    filename = urllib.parse.unquote(filename)
-
-    if ".." in filename or filename.startswith("/"):
-        raise HTTPException(status_code=400, detail="Invalid filename")
-
-    index = _load_analysis_index()
-
-    job_id = index.get(filename)
-    if not job_id:
-        raise HTTPException(status_code=404, detail="No cached analysis found for this file")
-
-    analysis_path = _get_analysis_path(job_id)
-    if not analysis_path.exists():
-        raise HTTPException(status_code=404, detail="Analysis file missing")
-
-    with open(analysis_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    return data

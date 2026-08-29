@@ -1,7 +1,8 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Upload, Music, AlertCircle, Pause, FolderOpen, Waves, Palette, Sparkles } from "lucide-react";
+import { Upload, Music, AlertCircle, Pause, FolderOpen, Waves, Palette, Sparkles, Maximize2, Minimize2, Video, Square, Download } from "lucide-react";
 import { listAudioFiles } from "../../services/api";
+import { useUIStore } from "../../state/uiStore";
 import {
   getVisualizationForTrack,
   VISUALIZATION_OPTIONS,
@@ -61,12 +62,29 @@ export function Visualizer() {
   const [vizParams, setVizParams] = useState<VizParams>(DEFAULT_VIZ_PARAMS);
   const [useOllamaMatch, setUseOllamaMatch] = useState(false);
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
+  const [ollamaStreaming, setOllamaStreaming] = useState(false);
+  const [ollamaProgress, setOllamaProgress] = useState("");
+  const [generatedHtml, setGeneratedHtml] = useState<string>("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [activePanel, setActivePanel] = useState<string>("source");
+  const [trackMetadata, setTrackMetadata] = useState<Record<string, { bpm?: number; duration?: number }>>({});
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+
+  const { focusMode, toggleFocusMode } = useUIStore();
 
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const objectUrlRef = useRef<string | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Load CSV content on mount
   useEffect(() => {
@@ -82,11 +100,38 @@ export function Visualizer() {
       .then((files) => {
         if (Array.isArray(files) && files.length > 0) {
           setLibraryFiles(files);
+          // Fetch metadata for each track
+          fetchTracksMetadata(files);
         }
       })
       .catch(() => {
         // Preset tracks remain available
       });
+  }, []);
+
+  const fetchTracksMetadata = async (files: Array<{ filename: string }>) => {
+    const metadata: Record<string, { bpm?: number; duration?: number }> = {};
+    await Promise.all(files.map(async (f) => {
+      try {
+        const res = await fetch(`/api/audio/analysis/${encodeURIComponent(f.filename)}`);
+        if (res.ok) {
+          const data: any = await res.json();
+          metadata[f.filename] = {
+            bpm: data.tempo_bpm ? Math.round(data.tempo_bpm) : undefined,
+            duration: data.duration_seconds ? Math.round(data.duration_seconds) : undefined,
+          };
+        }
+      } catch { /* ignore */ }
+    }));
+    setTrackMetadata(metadata);
+  };
+
+  // Capture canvas element after render
+  useEffect(() => {
+    if (containerRef.current) {
+      const canvas = containerRef.current.querySelector("canvas");
+      if (canvas) canvasRef.current = canvas;
+    }
   }, []);
 
   // Setup Web Audio graph when audioUrl changes
@@ -140,7 +185,12 @@ export function Visualizer() {
       return;
     }
     setError(null);
+    // Revoke previous object URL to prevent memory leak
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+    }
     const url = URL.createObjectURL(f);
+    objectUrlRef.current = url;
     setAudioUrl(url);
     setDemoEnabled(false);
     setIsPaused(false);
@@ -258,6 +308,99 @@ export function Visualizer() {
     setVizParams(params);
   };
 
+  // ---- Video Recording ----
+  const startRecording = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      setError("Canvas not ready for recording");
+      return;
+    }
+
+    try {
+      // Determine supported mimeType
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
+          ? "video/webm;codecs=vp8"
+          : "video/webm";
+
+      // Capture canvas stream at 60fps
+      const stream = canvas.captureStream(60);
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: 8000000, // 8 Mbps
+      });
+
+      recordedChunksRef.current = [];
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
+        setRecordedBlob(blob);
+        recordedChunksRef.current = [];
+      };
+
+      mediaRecorder.onerror = (e: Event) => {
+        console.error("MediaRecorder error:", e);
+        setError("Recording failed");
+        setIsRecording(false);
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
+      };
+
+      mediaRecorder.start(100); // Collect data every 100ms
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+      setRecordingTime(0);
+
+      // Start timer
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to start recording");
+    }
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  }, []);
+
+  const downloadRecording = useCallback(() => {
+    if (!recordedBlob) return;
+    const url = URL.createObjectURL(recordedBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `visualizer_recording_${Date.now()}.webm`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [recordedBlob]);
+
+  // Warn before leaving while recording
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isRecording) {
+        e.preventDefault();
+        e.returnValue = "Recording in progress. Are you sure you want to leave?";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isRecording]);
+
   const handleMatchTrackToggle = (enabled: boolean) => {
     setVizParams({ ...vizParams, matchTrack: enabled });
     if (enabled && trackConcept) {
@@ -285,22 +428,35 @@ export function Visualizer() {
     checkOllama();
   }, []);
 
-  const [ollamaStreaming, setOllamaStreaming] = useState(false);
-  const [ollamaProgress, setOllamaProgress] = useState("");
-  const [generatedHtml, setGeneratedHtml] = useState<string>("");
-  const [showPreview, setShowPreview] = useState(false);
-  const [activePanel, setActivePanel] = useState<string>("source");
-
   const togglePanel = (panel: string) => {
     setActivePanel(activePanel === panel ? "" : panel);
   };
 
   return (
-    <div className="viz-page">
+    <div className={`viz-page ${focusMode ? "viz-focus-mode" : ""}`}>
       <div className="viz-header">
         <div className="viz-title-row">
           <Music size={22} className="viz-icon" />
           <h1 className="viz-title">3D Audio Visualizer</h1>
+          <div className="viz-header-actions">
+            {isRecording && (
+              <span className="viz-recording-indicator">
+                <span className="viz-rec-dot" /> REC {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}
+              </span>
+            )}
+            {!isRecording && recordedBlob && (
+              <button className="viz-download-btn" onClick={downloadRecording} title="Download recording">
+                <Download size={14} /> Download
+              </button>
+            )}
+            <button className={`viz-record-btn ${isRecording ? "recording" : ""}`} onClick={isRecording ? stopRecording : startRecording} title={isRecording ? "Stop recording" : "Record video"}>
+              {isRecording ? <Square size={14} /> : <Video size={14} />}
+              {isRecording ? "Stop" : "Record"}
+            </button>
+            <button onClick={toggleFocusMode} className={`viz-focus-btn ${focusMode ? "active" : ""}`} title={focusMode ? "Exit focus mode" : "Focus mode"}>
+              {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </button>
+          </div>
         </div>
         <p className="viz-subtitle">
           Select a track → 3D mesh reacts to <b>bass</b>, <b>mids</b>, <b>treble</b>
@@ -310,7 +466,7 @@ export function Visualizer() {
       <div className="viz-layout">
         {/* Left: Canvas + Spectrum */}
         <div className="viz-main">
-          <div className="viz-canvas-container">
+          <div className="viz-canvas-container" ref={containerRef}>
             <Canvas camera={{ position: [0, 0, 7], fov: 55 }} dpr={[1, 2]} gl={{ antialias: true, powerPreference: "high-performance" }} frameloop="always" shadows>
               <color attach="background" args={[bgColor]} />
               <VisualizerScene
@@ -333,6 +489,29 @@ export function Visualizer() {
               </div>
             )}
             {liveAudioData.beat && <div className="viz-beat-flash" />}
+
+            {/* Focus mode floating controls */}
+            {focusMode && (
+              <div className="viz-focus-controls">
+                <button className={`viz-focus-record-btn ${isRecording ? "recording" : ""}`} onClick={isRecording ? stopRecording : startRecording}>
+                  {isRecording ? <Square size={16} /> : <Video size={16} />}
+                  {isRecording ? "Stop" : "Record"}
+                </button>
+                {isRecording && (
+                  <span className="viz-focus-rec-time">
+                    <span className="viz-rec-dot" /> {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}
+                  </span>
+                )}
+                {!isRecording && recordedBlob && (
+                  <button className="viz-focus-download-btn" onClick={downloadRecording}>
+                    <Download size={16} /> Save
+                  </button>
+                )}
+                <button className="viz-focus-exit-btn" onClick={toggleFocusMode} title="Exit focus mode (Esc)">
+                  <Minimize2 size={16} />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Spectrum */}
@@ -373,9 +552,12 @@ export function Visualizer() {
               <div className="viz-panel-content">
                 <select onChange={(e) => handleSelectLibraryTrack(e.target.value)} className="viz-select" defaultValue="">
                   <option value="" disabled>Select track...</option>
-                  {libraryFiles.map((f) => (
-                    <option key={f.filename} value={f.filename}>{f.filename.replace(/^\w{8}_/, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "")}</option>
-                  ))}
+                  {libraryFiles.map((f) => {
+                    const displayName = f.filename.replace(/^\w{8}_/, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "");
+                    const meta = trackMetadata[f.filename];
+                    const metaStr = meta?.bpm && meta?.duration ? ` (${meta.bpm} BPM, ${meta.duration}s)` : "";
+                    return (<option key={f.filename} value={f.filename}>{displayName}{metaStr}</option>);
+                  })}
                 </select>
                 <div className="viz-dropzone" onClick={() => fileInputRef.current?.click()}>
                   <input ref={fileInputRef} type="file" accept="audio/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
