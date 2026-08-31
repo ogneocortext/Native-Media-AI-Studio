@@ -318,21 +318,23 @@ export function OrbitalParticles({ audioData, vizParams, sceneFrozen }: VizProps
 }
 
 // =============================================================================
-// NEURAL — Network nodes with connection lines
+// NEURAL — Network nodes with connection lines, dramatic audio reactivity
 // =============================================================================
 export function FrequencyRings({ audioData, vizParams, sceneFrozen }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const nodeRefs = useRef<(THREE.Mesh | null)[]>([]);
   const lineRef = useRef<THREE.LineSegments>(null);
-  const nodeCount = 32;
+  const shockRef = useRef<THREE.Mesh>(null);
+  const nodeCount = 48;
   const rotRef = useRef(0);
+  const beatPulse = useRef(0);
 
   const nodePos = useMemo(() => {
     const arr: THREE.Vector3[] = [];
     for (let i = 0; i < nodeCount; i++) {
       const th = Math.random() * Math.PI * 2;
       const ph = Math.acos(2 * Math.random() - 1);
-      const r = 1.5 + Math.random() * 1.5;
+      const r = 1.2 + Math.random() * 2;
       arr.push(new THREE.Vector3(r*Math.sin(ph)*Math.cos(th), r*Math.sin(ph)*Math.sin(th), r*Math.cos(ph)));
     }
     return arr;
@@ -341,24 +343,41 @@ export function FrequencyRings({ audioData, vizParams, sceneFrozen }: VizProps) 
   useFrame((s) => {
     if (!groupRef.current) return;
     const t = s.clock.elapsedTime;
-    const { bass, mid, treble, peak } = audioData.current;
-    if (!sceneFrozen) rotRef.current += 0.003 * vizParams.rotationSpeed;
+    const { bass, mid, treble, peak, beat, energy } = audioData.current;
+
+    if (beat) beatPulse.current = 1.0;
+    beatPulse.current *= 0.88;
+    if (!sceneFrozen) rotRef.current += 0.004 * vizParams.rotationSpeed * (1 + energy * 2);
 
     nodeRefs.current.forEach((node, i) => {
       if (!node) return;
       const b = nodePos[i];
-      node.position.set(b.x + Math.sin(t*2+i*0.5)*mid*0.4, b.y + Math.cos(t*1.5+i)*bass*0.3, b.z + Math.sin(t+i)*treble*0.2);
-      node.scale.setScalar(0.05 + (audioData.current.beat ? peak * 0.1 : 0) + bass * 0.12);
+      // Dramatic position oscillation driven by frequency bands
+      const freq = i % 3 === 0 ? bass : i % 3 === 1 ? mid : treble;
+      const oscillation = 0.3 + freq * 1.2 + beatPulse.current * 0.5;
+      node.position.set(
+        b.x + Math.sin(t * 3 + i * 0.7) * oscillation,
+        b.y + Math.cos(t * 2.5 + i * 0.5) * oscillation,
+        b.z + Math.sin(t * 2 + i * 0.3) * oscillation
+      );
+      // Scale pulses dramatically on beats
+      const baseScale = 0.06 + freq * 0.15;
+      const beatScale = beatPulse.current * peak * 0.4;
+      node.scale.setScalar(baseScale + beatScale);
       const m = node.material as THREE.MeshStandardMaterial;
-      m.emissiveIntensity = 0.3 + (i%3===0?bass:i%3===1?mid:treble) * vizParams.glowIntensity * 1.5;
-      m.color.setHSL(0.55 + (i%3===0?bass:i%3===1?mid:treble) * 0.2, 0.8, 0.6);
+      // Emissive flashes on beat
+      m.emissiveIntensity = 0.3 + freq * vizParams.glowIntensity * 3 + beatPulse.current * 2;
+      // Color shifts through spectrum based on frequency
+      m.color.setHSL(0.55 + freq * 0.3 + beatPulse.current * 0.1, 0.9, 0.5 + peak * 0.2);
+      m.emissive.setHSL(0.6 + freq * 0.2, 1.0, 0.4 + beatPulse.current * 0.4);
     });
 
+    // Connection lines with dynamic opacity
     if (lineRef.current) {
       const pos: number[] = [];
       for (let i = 0; i < nodeCount; i++) {
         for (let j = i+1; j < nodeCount; j++) {
-          if (nodePos[i].distanceTo(nodePos[j]) < 2.5) {
+          if (nodePos[i].distanceTo(nodePos[j]) < 2.8) {
             const ni = nodeRefs.current[i], nj = nodeRefs.current[j];
             if (ni && nj) {
               pos.push(ni.position.x, ni.position.y, ni.position.z, nj.position.x, nj.position.y, nj.position.z);
@@ -369,15 +388,27 @@ export function FrequencyRings({ audioData, vizParams, sceneFrozen }: VizProps) 
       const geo = lineRef.current.geometry;
       geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       geo.attributes.position.needsUpdate = true;
-      (lineRef.current.material as THREE.LineBasicMaterial).opacity = 0.15 + peak * 0.3;
+      (lineRef.current.material as THREE.LineBasicMaterial).opacity = 0.1 + peak * 0.5 + beatPulse.current * 0.3;
     }
+
+    // Shockwave ring expands from center on beat
+    if (shockRef.current) {
+      const sScale = 0.3 + beatPulse.current * 4;
+      shockRef.current.scale.setScalar(sScale);
+      const sm = shockRef.current.material as THREE.MeshStandardMaterial;
+      sm.opacity = (1 - beatPulse.current) * 0.4;
+      sm.emissiveIntensity = (1 - beatPulse.current) * 3;
+    }
+
     groupRef.current.rotation.y = rotRef.current;
+    groupRef.current.rotation.x = Math.sin(t * 0.2) * 0.1 * mid;
   });
 
   return (
     <group ref={groupRef}>
-      <lineSegments ref={lineRef}><bufferGeometry /><lineBasicMaterial color="#818cf8" transparent opacity={0.2} /></lineSegments>
-      {nodePos.map((_, i) => <mesh key={i} ref={(el) => { nodeRefs.current[i] = el; }}><sphereGeometry args={[0.08, 16, 16]} /><meshStandardMaterial color="#06b6d4" emissive="#6366f1" emissiveIntensity={0.5} roughness={0.15} metalness={0.9} /></mesh>)}
+      <lineSegments ref={lineRef}><bufferGeometry /><lineBasicMaterial color="#818cf8" transparent opacity={0.25} /></lineSegments>
+      {nodePos.map((_, i) => <mesh key={i} ref={(el) => { nodeRefs.current[i] = el; }}><sphereGeometry args={[0.1, 16, 16]} /><meshStandardMaterial color="#06b6d4" emissive="#6366f1" emissiveIntensity={0.6} roughness={0.1} metalness={0.95} /></mesh>)}
+      <mesh ref={shockRef} rotation={[Math.PI / 2, 0, 0]}><ringGeometry args={[0.98, 1.0, 64]} /><meshStandardMaterial color="#a855f7" emissive="#7c3aed" emissiveIntensity={2} transparent opacity={0.3} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
     </group>
   );
 }
