@@ -1,6 +1,7 @@
 import { useMemo, useRef, useEffect } from "react";
 import type { LyricLine } from "./LyricOverlay";
 import { kineticPresets, selectPresetForTrack } from "./KineticPresets";
+import { getTrackFeatures } from "../trackFeatures";
 
 interface Props {
   lyrics: LyricLine[];
@@ -24,6 +25,9 @@ export function KineticLyricOverlay({ lyrics, elapsed, visible, presetId, beat }
 
   const preset = kineticPresets[presetId] || kineticPresets.cinematic;
 
+  // Get rich audio features for dynamic animations
+  const features = getTrackFeatures();
+
   // Animate on line change
   useEffect(() => {
     if (!currentLine || !containerRef.current) return;
@@ -34,17 +38,21 @@ export function KineticLyricOverlay({ lyrics, elapsed, visible, presetId, beat }
     }
   }, [currentLine, preset]);
 
-  // Beat animation
+  // Beat animation - now with energy intensity
   useEffect(() => {
     if (!beat || !containerRef.current) return;
     const el = containerRef.current.querySelector(".kinetic-active-line");
     if (el && preset.beatAnimation) {
+      // Scale animation intensity by energy
+      const intensity = 0.5 + features.energy * 0.5;
+      (el as HTMLElement).style.setProperty("--beat-intensity", String(intensity));
       preset.beatAnimation(el as HTMLElement);
     }
-  }, [beat, preset]);
+  }, [beat, preset, features.energy]);
 
   if (!visible || !currentLine) return null;
 
+  // Dynamic color based on section and energy
   const sectionColors: Record<string, string> = {
     INTRO: "#818cf8",
     VERSE: "#60a5fa",
@@ -52,12 +60,23 @@ export function KineticLyricOverlay({ lyrics, elapsed, visible, presetId, beat }
     BRIDGE: "#f59e0b",
     "FINAL CHORUS": "#f472b6",
   };
-  const color = sectionColors[currentLine.section] || "#a5b4fc";
+  const baseColor = sectionColors[currentLine.section] || "#a5b4fc";
+  
+  // Adjust brightness based on spectral features
+  const brightness = 0.7 + features.brightness * 0.3;
 
   return (
     <div className={`viz-lyrics ${preset.containerClass}`} ref={containerRef}>
-      <div className="viz-lyrics-section" style={{ color }}>{currentLine.section}</div>
-      <div className="kinetic-active-line" style={{ color }}>
+      <div className="viz-lyrics-section" style={{ color: baseColor, filter: `brightness(${brightness})` }}>{currentLine.section}</div>
+      <div
+        className="kinetic-active-line"
+        style={{
+          color: baseColor,
+          filter: `brightness(${brightness})`,
+          transform: `scale(${1 + features.onset * 0.1})`,
+          transition: "transform 0.1s ease-out",
+        }}
+      >
         {currentLine.text}
       </div>
       {nextLine && (
