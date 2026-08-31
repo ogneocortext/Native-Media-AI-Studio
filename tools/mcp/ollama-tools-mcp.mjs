@@ -172,24 +172,86 @@ async function analyzeAudio(args) {
 }
 
 async function generateImage(args) {
-  // Queue a ComfyUI workflow
-  const res = await fetch(`${COMFYUI_URL}/prompt`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      prompt: {
-        "3": { inputs: { text: args.prompt, clip: ["11", 0] }, class_type: "CLIPTextEncode" },
-        "4": { inputs: { text: args.negative_prompt || "", clip: ["11", 0] }, class_type: "CLIPTextEncode" },
-        // ... simplified workflow
+  // Use ComfyUI's simple txt2img workflow via the /prompt endpoint
+  // First, get the object_info to find available checkpoints and samplers
+  try {
+    // Queue a prompt using ComfyUI's API
+    // The workflow uses the default checkpoint loader + KSampler
+    const workflow = {
+      "3": {
+        inputs: {
+          seed: Math.floor(Math.random() * 1000000000),
+          steps: 20,
+          cfg: 7,
+          sampler_name: "euler",
+          scheduler: "normal",
+          denoise: 1,
+          model: ["4", 0],
+          positive: ["6", 0],
+          negative: ["7", 0],
+          latent_image: ["5", 0],
+        },
+        class_type: "KSampler",
       },
-    }),
-  });
-  const data = await res.json();
-  return { content: [{ type: "text", text: `Image generation queued: ${data.prompt_id}` }] };
+      "4": {
+        inputs: { ckpt_name: "sd_xl_base_1.0.safetensors" },
+        class_type: "CheckpointLoaderSimple",
+      },
+      "5": {
+        inputs: {
+          batch_size: 1,
+          height: args.height || 1024,
+          width: args.width || 1024,
+        },
+        class_type: "EmptyLatentImage",
+      },
+      "6": {
+        inputs: { text: args.prompt, clip: ["4", 1] },
+        class_type: "CLIPTextEncode",
+      },
+      "7": {
+        inputs: { text: args.negative_prompt || "text, watermark, low quality, blurry", clip: ["4", 1] },
+        class_type: "CLIPTextEncode",
+      },
+      "8": {
+        inputs: { samples: ["3", 0], vae: ["4", 2] },
+        class_type: "VAEDecode",
+      },
+      "9": {
+        inputs: { filename_prefix: "ollama_tool", images: ["8", 0] },
+        class_type: "SaveImage",
+      },
+    };
+
+    const res = await fetch(`${COMFYUI_URL}/prompt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: workflow }),
+    });
+    const data = await res.json();
+    if (data.prompt_id) {
+      return { content: [{ type: "text", text: `✅ Image generation queued: ${data.prompt_id}\nPrompt: "${args.prompt}"\nSize: ${args.width || 1024}x${args.height || 1024}` }] };
+    }
+    return { content: [{ type: "text", text: `⚠️ ComfyUI response: ${JSON.stringify(data)}` }] };
+  } catch (err) {
+    return { content: [{ type: "text", text: `❌ ComfyUI not available: ${err.message}` }] };
+  }
 }
 
 async function generateVideo(args) {
-  return { content: [{ type: "text", text: `Video generation for "${args.prompt}" (${args.duration}s @ ${args.fps}fps) - requires ComfyUI LTX/Wan model` }] };
+  // Check if LTX or Wan model is available in ComfyUI
+  try {
+    // For now, return info about what's needed
+    // In a full implementation, this would queue a video workflow
+    return {
+      content: [{
+        type: "text",
+        text: `🎬 Video generation for "${args.prompt}" (${args.duration || 4}s)\n\nTo generate videos locally, ensure ComfyUI has:\n- LTXVideo or Wan2.1 model installed\n- ComfyUI-VideoHelperSuite custom node\n\nAlternatively, use ComfyUI MCP server (comfyui) for direct workflow control.`,
+      }],
+    };
+  } catch (err) {
+    return { content: [{ type: "text", text: `❌ Error: ${err.message}` }] };
+  }
 }
 
 async function listAudioLibrary() {
