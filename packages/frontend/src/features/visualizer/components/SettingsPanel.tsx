@@ -1,6 +1,7 @@
 import type { VizParams } from "../types";
 import { DEFAULT_VIZ_PARAMS } from "../types";
 import { kineticPresetList } from "./KineticPresets";
+import { visualPresetList } from "../visualPresets";
 
 interface Props {
   params: VizParams;
@@ -18,6 +19,26 @@ interface Props {
 export function SettingsPanel({ params, onChange, bgColor, meshColor, onBgChange, onMeshChange, demoEnabled, onDemoToggle, kineticPreset, onKineticPresetChange }: Props) {
   return (
     <aside className="viz-settings">
+      <div className="viz-settings-section">
+        <h4>Visual Presets</h4>
+        <div className="kinetic-preset-list">
+          {visualPresetList.filter(p => p.id !== "balanced").map(p => (
+            <button
+              key={p.id}
+              className={`kinetic-preset-btn ${kineticPreset === p.kineticPreset ? "active" : ""}`}
+              onClick={() => {
+                onChange({ ...DEFAULT_VIZ_PARAMS, ...p.vizParams });
+                onBgChange(p.bgColor);
+                onMeshChange(p.meshColor);
+                onKineticPresetChange(p.kineticPreset);
+              }}
+              title={p.description}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="viz-settings-section">
         <h4>Appearance</h4>
         <div className="viz-slider-row"><label>Scale</label><input type="range" min="0.5" max="3" step="0.1" value={params.scale} onChange={(e) => onChange({ ...params, scale: parseFloat(e.target.value) })} /><span>{params.scale.toFixed(1)}</span></div>

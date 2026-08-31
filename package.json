@@ -2,10 +2,10 @@
   "name": "native-media-ai-studio",
   "version": "1.0.0",
   "private": true,
-  "packageManager": "pnpm@9.0.0",
+  "packageManager": "pnpm@11.24.0",
   "engines": {
-    "node": ">=20.0.0",
-    "pnpm": ">=9.0.0"
+    "node": ">=22.13.0",
+    "pnpm": ">=11.24.0"
   },
   "workspaces": [
     "packages/frontend",
@@ -30,8 +30,8 @@
     "db:migrate": "cd packages/backend && D:\\conda-envs\\comfyui-cuda\\Scripts\\python.exe -c \"from app.core.database import init_db; init_db()\""
   },
   "devDependencies": {
-    "sharp": "^0.35.3",
-    "turbo": "^2.0.0"
+    "sharp": "^0.35.4",
+    "turbo": "^2.10.12"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0"

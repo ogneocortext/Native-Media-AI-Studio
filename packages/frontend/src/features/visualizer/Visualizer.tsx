@@ -19,9 +19,11 @@ import type { LyricLine } from "./components/LyricOverlay";
 import { KineticLyricOverlay } from "./components/KineticLyricOverlay";
 import { selectPresetForTrack } from "./components/KineticPresets";
 import { AnimationDemo } from "./components/AnimationDemo";
+import { TheatreStudioPanel } from "./components/TheatreStudioPanel";
 import { parseLyricsFromCsv } from "./lyricsParser";
 import type { VisualPreset } from "./visualPreset";
 import { showToast } from "../../utils/toast";
+import { visualPresets, selectVisualPreset } from "./visualPresets";
 console.log("[Visualizer] imported showToast:", typeof showToast);
 
 const _originalWarn = console.warn;
@@ -60,6 +62,7 @@ export function Visualizer() {
   const [lyricsVisible, setLyricsVisible] = useState(true);
   const [kineticPreset, setKineticPreset] = useState("cinematic");
   const [showAnimDemo, setShowAnimDemo] = useState(false);
+  const [showTheatreStudio, setShowTheatreStudio] = useState(false);
   const [loadedPreset, setLoadedPreset] = useState<VisualPreset | null>(null);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [vizMode, setVizMode] = useState<"3d" | "shader">("shader"); // Default to shader mode
@@ -186,6 +189,17 @@ export function Visualizer() {
       : 0.5;
     const preset = selectPresetForTrack(cleanName, energy);
     setKineticPreset(preset);
+
+    // Auto-apply optimized visual preset based on track characteristics
+    const visualPresetId = selectVisualPreset(cleanName, undefined, energy, realBpm);
+    const visualPreset = visualPresets[visualPresetId];
+    if (visualPreset) {
+      setVizParams({ ...DEFAULT_VIZ_PARAMS, ...visualPreset.vizParams });
+      setBgColor(visualPreset.bgColor);
+      setMeshColor(visualPreset.meshColor);
+      setVisualizationStyle(visualPreset.visualizationStyle);
+      showToast(`Applied "${visualPreset.name}" preset`, "info");
+    }
   }, [csvContent, analysisData, trackMetadata, parseLyricsForTrack]);
 
   /** Select visualization style based on audio analysis data */
@@ -441,6 +455,11 @@ export function Visualizer() {
               {analyzing ? "Analyzing..." : "Analyze"}
             </button>
           )}
+          {currentFilename && visualPresets[kineticPreset] && (
+            <span className="viz-preset-badge" title={`Active preset: ${visualPresets[kineticPreset]?.name || kineticPreset}`}>
+              {visualPresets[kineticPreset]?.name || kineticPreset}
+            </span>
+          )}
         </div>
         <div className="viz-actions">
           <PresetFileUpload
@@ -449,27 +468,55 @@ export function Visualizer() {
             onClearPreset={handleClearPreset}
           />
           {isRecording && <span className="viz-rec"><span className="viz-rec-dot" /> {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}</span>}
-          <button onClick={isRecording ? stopRecording : startRecording} className={`viz-icon-btn ${isRecording ? "rec" : ""}`} aria-label={isRecording ? "Stop recording" : "Start recording"} title={isRecording ? "Stop recording" : "Start recording"}>{isRecording ? <Square size={14} /> : <Video size={14} />}</button>
-          {recordedBlob && !isRecording && <button onClick={downloadRecording} className="viz-icon-btn" aria-label="Download recording" title="Download recording"><Download size={14} /></button>}
-          <button onClick={() => setSceneFrozen(!sceneFrozen)} className={`viz-icon-btn ${sceneFrozen ? "active" : ""}`} aria-label={sceneFrozen ? "Unfreeze scene" : "Freeze scene"} title={sceneFrozen ? "Unfreeze scene" : "Freeze scene"}>
-            <Snowflake size={14} />
-          </button>
-          <button onClick={() => setShowSettings(!showSettings)} className={`viz-icon-btn ${showSettings ? "active" : ""}`} aria-label={showSettings ? "Close settings" : "Open settings"} title={showSettings ? "Close settings" : "Open settings"}><Settings size={14} /></button>
-          <button onClick={() => setShowAnimDemo(!showAnimDemo)} className={`viz-icon-btn ${showAnimDemo ? "active" : ""}`} aria-label="Animation demo" title="Animation demo">
-            <Play size={14} />
-          </button>
-          <button onClick={() => setShowAIPanel(!showAIPanel)} className={`viz-icon-btn viz-ai-toggle ${showAIPanel ? "active" : ""}`} aria-label="AI generate preset" title="AI generate preset"><Sparkles size={14} /></button>
-          <button onClick={() => setVizMode(vizMode === "3d" ? "shader" : "3d")} className={`viz-icon-btn ${vizMode === "shader" ? "active" : ""}`} title={`Mode: ${vizMode === "3d" ? "3D Scene" : "Shader"}`}>{vizMode === "3d" ? <span style={{ fontSize: 11 }}>3D</span> : <span style={{ fontSize: 11 }}>FX</span>}</button>
-          {lyrics.length > 0 && (
-            <button onClick={() => setLyricsVisible(!lyricsVisible)} className={`viz-icon-btn viz-lyrics-btn ${lyricsVisible ? "active" : ""}`} aria-label={lyricsVisible ? "Hide lyrics" : "Show lyrics"} title={lyricsVisible ? "Hide lyrics" : "Show lyrics"}>
-              <MessageSquare size={14} />
+          <div className="viz-btn-group">
+            <button
+              onClick={isRecording ? stopRecording : startRecording}
+              className={`viz-icon-btn ${isRecording ? "rec" : ""}`}
+              aria-label={isRecording ? "Stop recording" : "Start recording"}
+              title={isRecording ? "Stop recording" : "Start recording"}
+            >
+              {isRecording ? <Square size={14} /> : <Video size={14} />}
             </button>
-          )}
-          <button onClick={toggleFocusMode} className="viz-icon-btn" aria-label={focusMode ? "Exit focus mode" : "Enter focus mode"} title={focusMode ? "Exit focus mode" : "Enter focus mode"}>{focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
+            {recordedBlob && !isRecording && (
+              <button onClick={downloadRecording} className="viz-icon-btn" aria-label="Download recording" title="Download recording">
+                <Download size={14} />
+              </button>
+            )}
+          </div>
+          <div className="viz-btn-group">
+            <button onClick={() => setSceneFrozen(!sceneFrozen)} className={`viz-icon-btn ${sceneFrozen ? "active" : ""}`} aria-label={sceneFrozen ? "Unfreeze scene" : "Freeze scene"} title={sceneFrozen ? "Unfreeze scene" : "Freeze scene"}>
+              <Snowflake size={14} />
+            </button>
+            <button onClick={toggleFocusMode} className="viz-icon-btn" aria-label={focusMode ? "Exit focus mode" : "Enter focus mode"} title={focusMode ? "Exit focus mode" : "Enter focus mode"}>{focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
+          </div>
+          <div className="viz-btn-group">
+            <button onClick={() => setVizMode(vizMode === "3d" ? "shader" : "3d")} className={`viz-icon-btn ${vizMode === "shader" ? "active" : ""}`} title={`Mode: ${vizMode === "3d" ? "3D Scene" : "Shader"}`}>{vizMode === "3d" ? <span style={{ fontSize: 11 }}>3D</span> : <span style={{ fontSize: 11 }}>FX</span>}</button>
+            {lyrics.length > 0 && (
+              <button onClick={() => setLyricsVisible(!lyricsVisible)} className={`viz-icon-btn viz-lyrics-btn ${lyricsVisible ? "active" : ""}`} aria-label={lyricsVisible ? "Hide lyrics" : "Show lyrics"} title={lyricsVisible ? "Hide lyrics" : "Show lyrics"}>
+                <MessageSquare size={14} />
+              </button>
+            )}
+          </div>
+          <div className="viz-btn-group">
+            <button onClick={() => setShowSettings(!showSettings)} className={`viz-icon-btn ${showSettings ? "active" : ""}`} aria-label={showSettings ? "Close settings" : "Open settings"} title={showSettings ? "Close settings" : "Open settings"}><Settings size={14} /></button>
+            <button onClick={() => setShowAnimDemo(!showAnimDemo)} className={`viz-icon-btn ${showAnimDemo ? "active" : ""}`} aria-label="Animation demo" title="Animation demo">
+              <Play size={14} />
+            </button>
+            <button onClick={() => setShowTheatreStudio(!showTheatreStudio)} className={`viz-icon-btn ${showTheatreStudio ? "active" : ""}`} aria-label="Theatre.js Studio" title="Theatre.js Studio — Visual animation editor">
+              <Wand2 size={14} />
+            </button>
+            <button onClick={() => setShowAIPanel(!showAIPanel)} className={`viz-icon-btn viz-ai-toggle ${showAIPanel ? "active" : ""}`} aria-label="AI generate preset" title="AI generate preset"><Sparkles size={14} /></button>
+          </div>
         </div>
       </header>
 
       <AnimationDemo visible={showAnimDemo} onClose={() => setShowAnimDemo(false)} />
+      <TheatreStudioPanel
+        visible={showTheatreStudio}
+        onClose={() => setShowTheatreStudio(false)}
+        activePresetId={kineticPreset}
+        onPresetChange={setKineticPreset}
+      />
 
       <div className="viz-content">
         <div className="viz-canvas-wrap" ref={containerRef}>

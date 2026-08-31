@@ -31,7 +31,7 @@ export function useRealAudio(
   isPlaying: boolean,
   isPaused: boolean,
   analysisData?: AudioAnalysisData | null,
-  audioElapsed?: number,
+  audioElapsedRef?: React.MutableRefObject<number>,
 ) {
   const data = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0 });
   const freqArray = useRef<Uint8Array | null>(null);
@@ -44,9 +44,6 @@ export function useRealAudio(
   const smoothedTreble = useRef(0);
   const peakHold = useRef(0);
   const peakDecay = useRef(0);
-  // Store elapsed in a ref so useFrame always reads the latest value
-  const elapsedRef = useRef(audioElapsed ?? 0);
-  elapsedRef.current = audioElapsed ?? 0;
 
   useFrame(() => {
     const analyser = analyserRef.current;
@@ -116,19 +113,33 @@ export function useRealAudio(
 
     // Beat detection: use analyzed beat_times if available
     let isBeat = false;
-    const elapsed = elapsedRef.current;
+    const elapsed = audioElapsedRef?.current ?? 0;
     if (analysisData && analysisData.beat_times.length > 0 && elapsed > 0) {
-      // Wider window (120ms) for more reliable beat detection
-      const beatIdx = analysisData.beat_times.findIndex((bt, i) => {
-        if (i <= lastBeatIdx.current) return false;
-        return Math.abs(bt - elapsed) < 0.12;
-      });
-      if (beatIdx >= 0) {
+      // Find the closest beat using binary search (fast for large arrays)
+      const beats = analysisData.beat_times;
+      let lo = 0, hi = beats.length - 1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (beats[mid] < elapsed) lo = mid + 1;
+        else hi = mid - 1;
+      }
+      // Check neighbors for closest
+      let closestIdx = -1;
+      let closestDist = Infinity;
+      for (let i = Math.max(0, hi); i <= Math.min(beats.length - 1, lo); i++) {
+        const dist = Math.abs(beats[i] - elapsed);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestIdx = i;
+        }
+      }
+      // Only trigger if within window and we haven't triggered for this beat yet
+      if (closestIdx >= 0 && closestDist < 0.1 && closestIdx !== lastBeatIdx.current) {
         isBeat = true;
-        lastBeatIdx.current = beatIdx;
+        lastBeatIdx.current = closestIdx;
       }
       // Reset index if user seeks backwards
-      if (analysisData.beat_times.length > 0 && elapsed < analysisData.beat_times[Math.max(0, lastBeatIdx.current)]) {
+      if (beats.length > 0 && elapsed < beats[Math.max(0, lastBeatIdx.current)]) {
         lastBeatIdx.current = -1;
       }
     } else {

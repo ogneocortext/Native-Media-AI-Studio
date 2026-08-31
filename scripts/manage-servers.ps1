@@ -63,7 +63,7 @@ $ServiceConfig = @{
     }
     video = @{
         Name = 'Video Editor'
-        Port = 3000
+        Port = 8080
         WorkingDir = Join-Path $ProjectRoot 'packages\video-editor'
         LogFile = 'video.log'
         # Preferred: npm run dev
@@ -177,7 +177,8 @@ function Start-Service {
         # Node-based service. Try a working npm first, then fall back to
         # launching the package-local CLI directly (npm can be broken under fnm).
         $npm = Resolve-Npm
-        if ($npm) {
+        if ($npm -and $npm -notmatch '\s') {
+            # Only use npm if its path has no spaces (spaces break cmd.exe /c quoting)
             $argString = ($config.Args | ForEach-Object { "`"$_`"" }) -join ' '
             $proc = Start-Process -FilePath 'cmd.exe' `
                 -ArgumentList '/c', "`"$npm`" $argString" `
@@ -186,6 +187,38 @@ function Start-Service {
                 -RedirectStandardOutput $logFile `
                 -RedirectStandardError $errFile `
                 -PassThru
+        }
+        elseif ($npm -and $npm -match '\s') {
+            # npm path has spaces — use node directly with the package script
+            Write-Warn "npm path has spaces ($npm), using node fallback"
+            $node = Resolve-NodeExe
+            if ($config.LocalCmd -and (Test-Path $config.LocalCmd)) {
+                # e.g. video editor: node_modules\.bin\remotion.cmd studio
+                # Call the .cmd directly (not through cmd.exe /c) to handle spaces in path
+                $allArgs = @($config.LocalArgs | ForEach-Object { "$_" })
+                $proc = Start-Process -FilePath $config.LocalCmd `
+                    -ArgumentList $allArgs `
+                    -WorkingDirectory $config.WorkingDir `
+                    -WindowStyle Hidden `
+                    -RedirectStandardOutput $logFile `
+                    -RedirectStandardError $errFile `
+                    -PassThru
+            }
+            elseif ($node -and $config.NodeScript -and (Test-Path $config.NodeScript)) {
+                $nodeArgs = @("`"$($config.NodeScript)`"")
+                $nodeArgs += $config.NodeArgs
+                $proc = Start-Process -FilePath $node `
+                    -ArgumentList $nodeArgs `
+                    -WorkingDirectory $config.WorkingDir `
+                    -WindowStyle Hidden `
+                    -RedirectStandardOutput $logFile `
+                    -RedirectStandardError $errFile `
+                    -PassThru
+            }
+            else {
+                Write-Err "No node fallback available for $($config.Name) (npm path has spaces)"
+                return
+            }
         }
         elseif ($config.LocalCmd -and (Test-Path $config.LocalCmd)) {
             # e.g. video editor: node_modules\.bin\remotion.cmd studio

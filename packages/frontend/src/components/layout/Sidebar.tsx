@@ -49,6 +49,7 @@ const generateNav: NavItem[] = [
   { path: "/image-generation", label: "Image Gen", icon: <Image size={18} /> },
   { path: "/video-generation", label: "Video Gen", icon: <Film size={18} /> },
   { path: "/generate-3d", label: "3D Gen", icon: <Box size={18} /> },
+  { path: "http://localhost:3000", label: "Remotion Studio", icon: <Film size={18} /> },
 ];
 
 const manageNav: NavItem[] = [
@@ -65,21 +66,29 @@ const systemNav: NavItem[] = [
 ];
 
 function NavSection({ title, items, location, collapsed }: { title: string; items: NavItem[]; location: ReturnType<typeof useLocation>; collapsed?: boolean }) {
+  const isExternal = (path: string) => path.startsWith("http");
   if (collapsed) {
     return (
       <div className="nav-section">
         <ul>
           {items.map((item) => {
             const isActive = location.pathname === item.path;
+            const external = isExternal(item.path);
             return (
               <li key={item.path}>
-                <Link
-                  to={item.path}
-                  title={item.label}
-                  className={`nav-item collapsed ${isActive ? "active" : ""}`}
-                >
-                  {item.icon}
-                </Link>
+                {external ? (
+                  <a href={item.path} target="_blank" rel="noopener noreferrer" title={item.label} className="nav-item collapsed">
+                    {item.icon}
+                  </a>
+                ) : (
+                  <Link
+                    to={item.path}
+                    title={item.label}
+                    className={`nav-item collapsed ${isActive ? "active" : ""}`}
+                  >
+                    {item.icon}
+                  </Link>
+                )}
               </li>
             );
           })}
@@ -93,20 +102,29 @@ function NavSection({ title, items, location, collapsed }: { title: string; item
       <ul>
         {items.map((item) => {
           const isActive = location.pathname === item.path;
+          const external = isExternal(item.path);
           return (
             <li key={item.path}>
-              <Link
-                to={item.path}
-                className={`nav-item ${isActive ? "active" : ""}`}
-              >
-                <span className={`nav-item-icon ${isActive ? "active" : "inactive"}`}>{item.icon}</span>
-                <span className="nav-item-text">{item.label}</span>
-                {item.badge && (
-                  <span className={`nav-badge ${isActive ? "active" : "inactive"}`}>
-                    {item.badge}
-                  </span>
-                )}
-              </Link>
+              {external ? (
+                <a href={item.path} target="_blank" rel="noopener noreferrer" className="nav-item">
+                  <span className="nav-item-icon inactive">{item.icon}</span>
+                  <span className="nav-item-text">{item.label}</span>
+                  <span style={{ marginLeft: "auto", opacity: 0.5, fontSize: 10 }}>↗</span>
+                </a>
+              ) : (
+                <Link
+                  to={item.path}
+                  className={`nav-item ${isActive ? "active" : ""}`}
+                >
+                  <span className={`nav-item-icon ${isActive ? "active" : "inactive"}`}>{item.icon}</span>
+                  <span className="nav-item-text">{item.label}</span>
+                  {item.badge && (
+                    <span className={`nav-badge ${isActive ? "active" : "inactive"}`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              )}
             </li>
           );
         })}

@@ -49,6 +49,15 @@ All MCP servers are configured in `opencode.json`:
 | ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://localhost:8188` | 8188          | ✅ Running    |
 | Remotion MCP | `npx -y @remotion/mcp@latest`                         | stdio         | ✅ Configured |
 
+### Ollama Integration
+
+Local Ollama models are available for vision analysis and tool-assisted generation:
+
+- **Vision Models**: `gemma4:e2b-it-qat`, `qwen3-vl:4b`, `qwen3.5:9b`
+- **Tool Use**: Models support function calling for image generation, video creation, and music synthesis
+- **Recommended**: Use `qwen3-vl:4b` for vision tasks (fast, good accuracy)
+- **Vision Skill**: `/vision-feedback` skill for screenshot analysis with Ollama VLM
+
 ## Development Guidelines
 
 ### Server Management
@@ -66,6 +75,16 @@ All MCP servers are configured in `opencode.json`:
 5. Composite final video with Remotion
 
 For quick live-reactive 3D previews, the **Three.js Studio** at `/three-js-studio` ships 6 production-ready scene templates (Concert Stage, Cosmic Void, Equalizer Wall, Geometric City, Vinyl Spin, Pulse Orb) and a real-beat timeline that pulses the 3D scene to the song. See `docs/guides/MUSIC_VIDEO_GUIDE.md` for the Studio section.
+
+### Visualizer & Effects
+
+The Visualizer (`packages/frontend/src/features/visualizer/`) includes:
+
+- **Visual Presets**: Auto-applied based on track genre/energy/BPM. 8 optimized presets (Phonk Drift, Synthwave, Ambient Flow, West Coast G-Funk, UK Grime, Dubstep Impact, Lo-Fi Warmth, Cinematic)
+- **Theatre.js Studio**: Visual animation editor panel (wand icon in toolbar) for customizing kinetic typography animations with real-time preview
+- **Kinetic Typography**: 8 genre-specific lyric animation presets using anime.js
+- **Shader/3D Modes**: Toggle between shader and 3D visualization modes
+- **Recording**: Canvas recording to WebM with audio-reactive visualization
 
 ### Code Style
 

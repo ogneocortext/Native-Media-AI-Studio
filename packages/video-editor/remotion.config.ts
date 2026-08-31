@@ -19,3 +19,4 @@ Config.setChromiumHeadlessMode(true);
 Config.setCodec("h264");
 Config.setVideoBitrate("8000k");
 Config.setEnforceAudioTrack(true);
+Config.setPublicLicenseKey('free-license');

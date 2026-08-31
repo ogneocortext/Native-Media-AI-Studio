@@ -4,6 +4,7 @@ import { useWindowedAudioData, visualizeAudio, visualizeAudioWaveform, createSmo
 import { ThreeCanvas } from "@remotion/three";
 import * as THREE from "three";
 import React from "react";
+import { StudioBackButton } from "./components/StudioBackButton";
 
 const FPS = 30;
 const DURATION_SECONDS = 234.12;
@@ -70,6 +71,7 @@ export const StillIRiseComposition: React.FC = () => {
   return (
     <AbsoluteFill style={{ backgroundColor: "#070a13", fontFamily: "Space Grotesk, sans-serif", overflow: "hidden" }}>
       <Audio src={staticFile("still-i-rise.mp3")} />
+      <StudioBackButton />
       <AbsoluteFill style={{ transform: `scale(${camScale}) translate(${camX}px, ${camY}px)` }}>
         <Img src={staticFile("blender-scenery.png")} style={{ width: "100%", height: "100%", objectFit: "cover", filter: isBridge ? "brightness(0.72) contrast(1.08) saturate(0.78) blur(0.5px)" : isChorus ? `brightness(${0.92 + mid * 0.14}) saturate(1.08) contrast(1.06)` : `brightness(${0.86 + mid * 0.12}) contrast(1.04)`, opacity: isIntro ? 0.62 : 0.72 }} />
         <AbsoluteFill style={{ background: `linear-gradient(180deg, transparent 38%, hsla(240 30% 6% / 0.55) 88%), radial-gradient(900px 600px at 52% 38%, ${glowColor}14 0%, transparent 58%)` }} />

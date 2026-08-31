@@ -10,9 +10,9 @@ catalog:
   react: ^19.2.8
   react-dom: ^19.2.8
   typescript: ^7.0.2
-  vite: ^8.0.10
+  vite: ^8.2.2
   tailwindcss: ^4.2.4
-  eslint: ^10.2.1
+  eslint: ^10.9.1
 
 # pnpm settings (moved from .npmrc to avoid npm warnings)
 linkWorkspacePackages: true
@@ -21,6 +21,48 @@ shamefullyHoist: false
 preferOffline: true
 lockfile: true
 pmOnFail: download
+allowBuilds:
+  esbuild: true
+
+overrides:
+  typescript-eslint: 8.68.0
+
+minimumReleaseAgeExclude:
+  - '@remotion/bundler@4.0.519'
+  - '@remotion/canvas@4.0.519'
+  - '@remotion/captions@4.0.519'
+  - '@remotion/cli@4.0.519'
+  - '@remotion/compositor-darwin-arm64@4.0.519'
+  - '@remotion/compositor-darwin-x64@4.0.519'
+  - '@remotion/compositor-linux-arm64-gnu@4.0.519'
+  - '@remotion/compositor-linux-arm64-musl@4.0.519'
+  - '@remotion/compositor-linux-x64-gnu@4.0.519'
+  - '@remotion/compositor-linux-x64-musl@4.0.519'
+  - '@remotion/compositor-win32-x64-msvc@4.0.519'
+  - '@remotion/eslint-config-flat@4.0.519'
+  - '@remotion/licensing@4.0.519'
+  - '@remotion/media-parser@4.0.519'
+  - '@remotion/media-utils@4.0.519'
+  - '@remotion/media@4.0.519'
+  - '@remotion/noise@4.0.519'
+  - '@remotion/paths@4.0.519'
+  - '@remotion/player@4.0.519'
+  - '@remotion/renderer@4.0.519'
+  - '@remotion/shapes@4.0.519'
+  - '@remotion/streaming@4.0.519'
+  - '@remotion/studio-codemods@4.0.519'
+  - '@remotion/studio-protocol@4.0.519'
+  - '@remotion/studio-server@4.0.519'
+  - '@remotion/studio-shared@4.0.519'
+  - '@remotion/studio@4.0.519'
+  - '@remotion/tailwind-v4@4.0.519'
+  - '@remotion/three@4.0.519'
+  - '@remotion/timeline-utils@4.0.519'
+  - '@remotion/web-renderer@4.0.519'
+  - '@remotion/zod-types@4.0.519'
+  - remotion@4.0.519
+  - '@remotion/effects@4.0.519'
+  - '@remotion/transitions@4.0.519'
 
 # Side-by-side TS 6 + TS 7 per https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0
 # - `typescript` (6.0.3 via @typescript/typescript6) is used by eslint/typescript-eslint (Go port has no JS API yet)
