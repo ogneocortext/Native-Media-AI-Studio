@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { getProject, types } from "@theatre/core";
-import studio from "@theatre/studio";
 import { kineticPresets } from "./KineticPresets";
+import {
+  createTheatreProject,
+  createAnimationTracks,
+  readObjectValues,
+  writeObjectValues,
+} from "../services/theatreStudio";
 
 interface Props {
   visible: boolean;
@@ -44,63 +48,40 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
   });
   const rafRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
-  const projectRef = useRef<ReturnType<typeof getProject> | null>(null);
+  const objectsRef = useRef<Record<string, any>>({});
 
-  // Initialize Theatre.js studio once
+  // Initialize studio and create project when panel opens
   useEffect(() => {
     if (!visible) {
       setStudioReady(false);
+      objectsRef.current = {};
       return;
     }
+
     let cancelled = false;
-    const init = async () => {
+
+    (async () => {
       try {
-        await studio.initialize();
+        const { sheet } = await createTheatreProject(
+          `Kinetic Studio — ${activePresetId}/${phase}`
+        );
+        if (cancelled) return;
+
+        const objects = createAnimationTracks(sheet, TRACKS);
+        objectsRef.current = objects;
+
+        // Sync initial values
+        const initialValues = readObjectValues(objects);
+        setValues(initialValues);
       } catch {
-        // Studio already initialized
+        // Theatre.js not available - preview still works without it
       }
+
       if (!cancelled) setStudioReady(true);
-    };
-    init();
+    })();
+
     return () => { cancelled = true; };
-  }, [visible]);
-
-  // Create Theatre.js project/sheet/objects for visual editing (optional, non-blocking)
-  useEffect(() => {
-    if (!visible || !studioReady) return;
-    try {
-      const project = getProject(`Kinetic Studio — ${activePresetId}/${phase}`);
-      projectRef.current = project;
-      const sheet = project.sheet(`Scene`);
-      TRACKS.forEach(track => {
-        sheet.object(track.label, {
-          [track.prop]: types.number(0, { range: [track.min, track.max] }),
-        });
-      });
-    } catch {
-      // Theatre.js objects are optional for preview to work
-    }
-  }, [visible, studioReady, activePresetId, phase]);
-
-  // Read values from Theatre.js objects when they change (optional enhancement)
-  // const syncFromTheatre = useCallback(() => {
-  //   if (!projectRef.current) return;
-  //   try {
-  //     const sheet = projectRef.current.sheet(`Scene`);
-  //     const newValues: Record<string, number> = {};
-  //     TRACKS.forEach(track => {
-  //       try {
-  //         const obj = sheet.object(track.label, { [track.prop]: types.number(0, { range: [track.min, track.max] }) });
-  //         newValues[track.prop] = (obj.value as any)?.[track.prop] ?? 0;
-  //       } catch {
-  //         // ignore
-  //       }
-  //     });
-  //     setValues(prev => ({ ...prev, ...newValues }));
-  //   } catch {
-  //     // ignore
-  //   }
-  // }, []);
+  }, [visible, activePresetId, phase]);
 
   // Apply animation values to preview element
   const applyValues = useCallback((progress: number) => {
@@ -171,6 +152,18 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
   // Handle slider change
   const handleSliderChange = (prop: string, newValue: number) => {
     setValues(prev => ({ ...prev, [prop]: newValue }));
+    // Also write to Theatre.js objects
+    writeObjectValues(objectsRef.current, { [prop]: newValue });
+  };
+
+  // Reset all values to defaults
+  const resetAllValues = () => {
+    const defaults: Record<string, number> = {};
+    TRACKS.forEach(t => {
+      defaults[t.prop] = t.prop === "opacity" ? 1 : (t.prop === "scale" ? 1 : 0);
+    });
+    setValues(defaults);
+    writeObjectValues(objectsRef.current, defaults);
   };
 
   if (!visible) return null;
@@ -236,15 +229,7 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
               <button onClick={resetPreview} className="theatre-reset-btn">
                 ↺ Reset
               </button>
-              <button
-                onClick={() => {
-                  const reset: Record<string, number> = {};
-                  TRACKS.forEach(t => { reset[t.prop] = t.prop === "opacity" ? 1 : (t.prop === "scale" ? 1 : 0); });
-                  setValues(reset);
-                }}
-                className="theatre-reset-btn"
-                title="Reset all values to defaults"
-              >
+              <button onClick={resetAllValues} className="theatre-reset-btn" title="Reset all values to defaults">
                 ⟲ All
               </button>
               <div className="theatre-duration-control">
