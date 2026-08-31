@@ -2,11 +2,13 @@ import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { AudioData, VizParams, AudioAnalysisData } from "./types";
+import { getTrackFeatures } from "./trackFeatures";
 
 interface VizProps {
   audioData: React.MutableRefObject<AudioData>;
   vizParams: VizParams;
   analysisData?: AudioAnalysisData | null;
+  audioElapsedRef?: React.MutableRefObject<number>;
   sceneFrozen?: boolean;
 }
 
@@ -54,7 +56,7 @@ function getNoiseTex(): THREE.Texture {
 // =============================================================================
 // GEOMETRIC — Deep vortex with 7 distinct depth layers
 // =============================================================================
-export function GeometricViz({ audioData, vizParams, sceneFrozen }: VizProps) {
+export function GeometricViz({ audioData, vizParams, analysisData, audioElapsedRef, sceneFrozen }: VizProps) {
   const coreRef = useRef<THREE.Mesh>(null);
   const wireRef = useRef<THREE.Mesh>(null);
   const pointsRef = useRef<THREE.Points>(null);
@@ -114,10 +116,13 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen }: VizProps) {
     frameCount.current++;
     if (frameCount.current === 1) console.log("[GeometricViz] useFrame running, frame:", frameCount.current);
     const t = s.clock.elapsedTime;
-    const { bass, mid, treble, peak, beat, energy } = audioData.current;
-    if (!sceneFrozen) rotRef.current += 0.003 * vizParams.rotationSpeed * (1 + bass * 2);
+    const { bass, mid, treble, peak, beat } = audioData.current;
 
-    if (beat) {
+    // Get track-specific features
+    const elapsed = audioElapsedRef?.current ?? 0;
+    const features = getTrackFeatures(analysisData, elapsed);
+
+    if (beat || features.onset > 0.5) {
       beatPulse.current = 1.0;
       shockScale.current = 1.0;
     }
@@ -125,8 +130,11 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen }: VizProps) {
     shockScale.current *= 0.92;
     const pulseScale = 1 + beatPulse.current * 0.5;
 
-    hueRef.current += energy * 0.001;
+    // Hue cycles with energy + shifts with spectral brightness
+    hueRef.current += (features.energy * 0.002 + 0.0005);
     if (hueRef.current > 1.0) hueRef.current -= 1.0;
+
+    if (!sceneFrozen) rotRef.current += 0.003 * vizParams.rotationSpeed * (1 + bass * 2 + features.energy * 1.5);
 
     // Layer 0: Core (radius ~0.6)
     if (coreRef.current) {
@@ -135,9 +143,10 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen }: VizProps) {
       coreRef.current.rotation.y = rotRef.current;
       coreRef.current.rotation.x = Math.sin(t * 0.3) * 0.2;
       const m = coreRef.current.material as THREE.MeshStandardMaterial;
-      m.emissiveIntensity = 0.6 + bass * vizParams.glowIntensity * 3 + beatPulse.current * 2;
-      m.color.setHSL(hueRef.current, 0.9, 0.55 + bass * 0.15);
-      m.emissive.setHSL(hueRef.current + 0.1, 1.0, 0.5 + bass * 0.3);
+      m.emissiveIntensity = 0.6 + bass * vizParams.glowIntensity * 3 + beatPulse.current * 2 + features.onset * 3;
+      // Color shifts with spectral brightness from analysis
+      m.color.setHSL(hueRef.current + features.brightness * 0.2, 0.9, 0.55 + bass * 0.15);
+      m.emissive.setHSL(hueRef.current + 0.1 + features.brightness * 0.15, 1.0, 0.5 + bass * 0.3);
     }
     // Layer 1: Glow (radius ~1.2)
     if (glowRef.current) {
@@ -170,11 +179,11 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen }: VizProps) {
     }
     // Layer 4: Orbital spiral (radius 3.5-5)
     if (orbitRef.current) {
-      orbitRef.current.rotation.y = rotRef.current * 1.5 * (1 + energy * 2);
+      orbitRef.current.rotation.y = rotRef.current * 1.5 * (1 + features.energy * 2);
       orbitRef.current.rotation.x = Math.sin(t * 0.15) * 0.4 * mid;
       const om = orbitRef.current.material as THREE.PointsMaterial;
       om.size = 0.04 + treble * 0.05 + beatPulse.current * 0.03;
-      om.opacity = 0.5 + energy * 0.4;
+      om.opacity = 0.5 + features.energy * 0.4;
     }
     // Layer 5: Outer particles (radius 5-9)
     if (pointsRef.current) {
@@ -263,12 +272,13 @@ export function AudioReactiveCore({ audioData, vizParams, sceneFrozen }: VizProp
 // =============================================================================
 // PARTICLES — Galaxy spiral with differential rotation
 // =============================================================================
-export function OrbitalParticles({ audioData, vizParams, sceneFrozen }: VizProps) {
+export function OrbitalParticles({ audioData, vizParams, analysisData, audioElapsedRef, sceneFrozen }: VizProps) {
   const pointsRef = useRef<THREE.Points>(null);
   const shockRef = useRef<THREE.Mesh>(null);
   const count = 3000;
   const rotRef = useRef(0);
   const beatPulse = useRef(0);
+  const featuresRef = useRef({ energy: 0.5, onset: 0, brightness: 0.5, noisiness: 0.5, sectionProgress: 0 });
 
   const { g: geom, radii, angles } = useMemo(() => {
     const pos = new Float32Array(count * 3);
@@ -298,11 +308,16 @@ export function OrbitalParticles({ audioData, vizParams, sceneFrozen }: VizProps
   useFrame((s) => {
     if (!pointsRef.current) return;
     const t = s.clock.elapsedTime;
-    const { bass, mid, treble, beat, energy } = audioData.current;
+    const { bass, mid, treble, beat } = audioData.current;
 
-    if (beat) beatPulse.current = 1.0;
+    // Get track-specific features from CUDA analysis
+    const elapsed = audioElapsedRef?.current ?? 0;
+    const features = getTrackFeatures(analysisData, elapsed);
+    featuresRef.current = features;
+
+    if (beat || features.onset > 0.5) beatPulse.current = 1.0;
     beatPulse.current *= 0.9;
-    if (!sceneFrozen) rotRef.current += 0.004 * vizParams.rotationSpeed * (1 + bass * 2.5);
+    if (!sceneFrozen) rotRef.current += 0.004 * vizParams.rotationSpeed * (1 + bass * 2.5 + features.energy * 2);
 
     const arr = geom.attributes.position.array as Float32Array;
 
@@ -310,27 +325,30 @@ export function OrbitalParticles({ audioData, vizParams, sceneFrozen }: VizProps
       const idx = i * 3;
       const rad = radii[i];
       const angle = angles[i] + rotRef.current * (1 + 1.5 / (rad + 0.3));
-      // Dramatic pulse: bass expands, beat shockwave pushes outward
-      const pulse = 1 + bass * 0.4 + beatPulse.current * 0.6 * (1 / (rad + 0.2));
-      // Vertical movement driven by treble + mid
-      const vertical = Math.sin(t * 2 + i * 0.15) * treble * 0.8 + Math.cos(t + i * 0.08) * mid * 0.4;
+      // Pulse driven by bass + track energy + onset spikes
+      const pulse = 1 + bass * 0.3 + features.energy * 0.5 + beatPulse.current * 0.6 * (1 / (rad + 0.2)) + features.onset * 0.8;
+      // Vertical: treble + mid + brightness (spectral centroid)
+      const vertical = Math.sin(t * 2 + i * 0.15) * treble * 0.6 + Math.cos(t + i * 0.08) * mid * 0.3 + Math.sin(t * 3 + i * 0.2) * features.brightness * 0.5;
       arr[idx] = Math.cos(angle) * rad * pulse;
-      arr[idx+1] = vertical * (1 + energy);
+      arr[idx+1] = vertical * (1 + features.energy);
       arr[idx+2] = Math.sin(angle) * rad * pulse;
     }
     geom.attributes.position.needsUpdate = true;
 
     const mat = pointsRef.current.material as THREE.PointsMaterial;
-    mat.size = vizParams.particleSize * (1 + bass * 1.2 + beatPulse.current * 0.8);
-    mat.opacity = 0.5 + treble * 0.4 + beatPulse.current * 0.3;
+    mat.size = vizParams.particleSize * (1 + bass * 0.8 + features.energy * 0.8 + beatPulse.current * 0.6);
+    mat.opacity = 0.4 + treble * 0.3 + features.brightness * 0.3 + beatPulse.current * 0.2;
 
-    // Shockwave ring on beat
+    // Shockwave ring on beat or onset
     if (shockRef.current) {
       const sScale = 0.5 + beatPulse.current * 6;
       shockRef.current.scale.setScalar(sScale);
       const sm = shockRef.current.material as THREE.MeshStandardMaterial;
       sm.opacity = (1 - beatPulse.current) * 0.35;
       sm.emissiveIntensity = (1 - beatPulse.current) * 4;
+      // Color shifts with brightness
+      sm.color.setHSL(0.55 - features.brightness * 0.2, 0.9, 0.5);
+      sm.emissive.setHSL(0.6 - features.brightness * 0.2, 1.0, 0.4);
     }
   });
 
@@ -345,7 +363,7 @@ export function OrbitalParticles({ audioData, vizParams, sceneFrozen }: VizProps
 // =============================================================================
 // NEURAL — Network nodes with connection lines, dramatic audio reactivity
 // =============================================================================
-export function FrequencyRings({ audioData, vizParams, sceneFrozen }: VizProps) {
+export function FrequencyRings({ audioData, vizParams, analysisData, audioElapsedRef, sceneFrozen }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const nodeRefs = useRef<(THREE.Mesh | null)[]>([]);
   const lineRef = useRef<THREE.LineSegments>(null);
@@ -368,33 +386,37 @@ export function FrequencyRings({ audioData, vizParams, sceneFrozen }: VizProps) 
   useFrame((s) => {
     if (!groupRef.current) return;
     const t = s.clock.elapsedTime;
-    const { bass, mid, treble, peak, beat, energy } = audioData.current;
+    const { bass, mid, treble, beat } = audioData.current;
 
-    if (beat) beatPulse.current = 1.0;
+    // Get track-specific features
+    const elapsed = audioElapsedRef?.current ?? 0;
+    const features = getTrackFeatures(analysisData, elapsed);
+
+    if (beat || features.onset > 0.5) beatPulse.current = 1.0;
     beatPulse.current *= 0.88;
-    if (!sceneFrozen) rotRef.current += 0.004 * vizParams.rotationSpeed * (1 + energy * 2);
+    if (!sceneFrozen) rotRef.current += 0.004 * vizParams.rotationSpeed * (1 + features.energy * 2);
 
     nodeRefs.current.forEach((node, i) => {
       if (!node) return;
       const b = nodePos[i];
-      // Dramatic position oscillation driven by frequency bands
+      // Dramatic position oscillation driven by frequency bands + track energy
       const freq = i % 3 === 0 ? bass : i % 3 === 1 ? mid : treble;
-      const oscillation = 0.3 + freq * 1.2 + beatPulse.current * 0.5;
+      const oscillation = 0.3 + freq * 1.2 + beatPulse.current * 0.5 + features.energy * 0.4;
       node.position.set(
         b.x + Math.sin(t * 3 + i * 0.7) * oscillation,
         b.y + Math.cos(t * 2.5 + i * 0.5) * oscillation,
         b.z + Math.sin(t * 2 + i * 0.3) * oscillation
       );
-      // Scale pulses dramatically on beats
+      // Scale pulses dramatically on beats + onset
       const baseScale = 0.06 + freq * 0.15;
-      const beatScale = beatPulse.current * peak * 0.4;
+      const beatScale = beatPulse.current * 0.4 + features.onset * 0.3;
       node.scale.setScalar(baseScale + beatScale);
       const m = node.material as THREE.MeshStandardMaterial;
-      // Emissive flashes on beat
-      m.emissiveIntensity = 0.3 + freq * vizParams.glowIntensity * 3 + beatPulse.current * 2;
-      // Color shifts through spectrum based on frequency
-      m.color.setHSL(0.55 + freq * 0.3 + beatPulse.current * 0.1, 0.9, 0.5 + peak * 0.2);
-      m.emissive.setHSL(0.6 + freq * 0.2, 1.0, 0.4 + beatPulse.current * 0.4);
+      // Emissive flashes on beat + onset
+      m.emissiveIntensity = 0.3 + freq * vizParams.glowIntensity * 3 + beatPulse.current * 2 + features.onset * 2.5;
+      // Color shifts with spectral brightness from analysis
+      m.color.setHSL(0.55 + freq * 0.3 + beatPulse.current * 0.1 + features.brightness * 0.2, 0.9, 0.5 + features.brightness * 0.2);
+      m.emissive.setHSL(0.6 + freq * 0.2 + features.brightness * 0.15, 1.0, 0.4 + beatPulse.current * 0.4);
     });
 
     // Connection lines with dynamic opacity
@@ -413,7 +435,7 @@ export function FrequencyRings({ audioData, vizParams, sceneFrozen }: VizProps) 
       const geo = lineRef.current.geometry;
       geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       geo.attributes.position.needsUpdate = true;
-      (lineRef.current.material as THREE.LineBasicMaterial).opacity = 0.1 + peak * 0.5 + beatPulse.current * 0.3;
+      (lineRef.current.material as THREE.LineBasicMaterial).opacity = 0.1 + features.brightness * 0.5 + beatPulse.current * 0.3;
     }
 
     // Shockwave ring expands from center on beat
