@@ -44,6 +44,7 @@ All MCP servers are configured in `opencode.json`:
 
 | Server       | Command                                               | Port          | Status        |
 | ------------ | ----------------------------------------------------- | ------------- | ------------- |
+| Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`                | stdio         | ✅ Configured |
 | Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                | 7800 (REST)   | ✅ Running    |
 | Blender MCP  | `uvx blender-mcp`                                     | 9876 (socket) | ✅ Running    |
 | ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://localhost:8188` | 8188          | ✅ Running    |

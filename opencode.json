@@ -5,6 +5,19 @@
   ],
   "snapshot": false,
   "mcp": {
+    "ollama-tools": {
+      "type": "local",
+      "command": [
+        "node",
+        "tools/mcp/ollama-tools-mcp.mjs"
+      ],
+      "environment": {
+        "OLLAMA_URL": "http://127.0.0.1:11434",
+        "COMFYUI_URL": "http://127.0.0.1:8188",
+        "BACKEND_URL": "http://127.0.0.1:8000"
+      },
+      "enabled": true
+    },
     "remotion-documentation": {
       "type": "local",
       "command": [
