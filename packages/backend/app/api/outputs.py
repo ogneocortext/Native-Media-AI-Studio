@@ -4,15 +4,128 @@ Returns list of generated media and their JSON sidecar metadata.
 """
 
 import json
+import logging
+import shutil
+import subprocess
 from datetime import datetime
 from pathlib import Path
+from functools import lru_cache
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from ..core.config import config
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/outputs", tags=["Outputs"])
+
+# =============================================================================
+# In-memory cache for output directory listing
+# =============================================================================
+_output_cache: dict[str, any] = {
+    "files": [],
+    "mtime": 0,
+    "timestamp": 0,
+}
+CACHE_TTL_SECONDS = 30  # Refresh cache every 30 seconds max
+
+
+def _get_dir_mtime() -> float:
+    """Get the latest mtime across all output subdirectories."""
+    output_base = Path(config.output_dir)
+    latest = 0.0
+    for subdir in ["images", "video", "audio", "generated_3d"]:
+        dir_path = output_base / subdir
+        if dir_path.exists():
+            try:
+                mtime = dir_path.stat().st_mtime
+                latest = max(latest, mtime)
+                # Also check files inside
+                for f in dir_path.iterdir():
+                    if f.is_file():
+                        latest = max(latest, f.stat().st_mtime)
+            except OSError:
+                pass
+    return latest
+
+
+async def _scan_with_cache() -> list[dict]:
+    """Scan outputs with in-memory caching."""
+    import time
+
+    now = time.time()
+    current_mtime = _get_dir_mtime()
+
+    # Return cache if still valid
+    cache = _output_cache
+    if (
+        cache["files"]
+        and now - cache["timestamp"] < CACHE_TTL_SECONDS
+        and cache["mtime"] >= current_mtime
+    ):
+        return cache["files"]
+
+    # Cache miss - scan directory (without FFmpeg - fast metadata only)
+    all_outputs: list[OutputFile] = []
+    output_base = Path(config.output_dir)
+
+    for subdir in ["images", "video", "audio", "generated_3d"]:
+        dir_path = output_base / subdir
+        if not dir_path.exists():
+            continue
+
+        for file_path in dir_path.iterdir():
+            if not file_path.is_file():
+                continue
+            if file_path.suffix.lower() == ".json":
+                continue
+            # Skip cover sidecars in audio/video folders
+            if subdir in ("audio", "video") and file_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}:
+                continue
+
+            try:
+                stat = file_path.stat()
+            except OSError:
+                continue
+
+            # Fast metadata load (no FFmpeg)
+            metadata = load_sidecar_metadata(file_path)
+            file_type = get_file_type(file_path.name)
+            rel_path = file_path.relative_to(output_base).as_posix()
+
+            all_outputs.append(OutputFile(
+                filename=file_path.name,
+                path=str(file_path),
+                relative_path=rel_path,
+                file_type=file_type,
+                size_bytes=stat.st_size,
+                created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                cover_image=None,  # No FFmpeg extraction on list
+                has_cover=_has_cover_cached(file_path, subdir),
+                metadata=metadata,
+                job_id=metadata.get("job_id") if metadata else None,
+            ))
+
+    all_outputs.sort(key=lambda x: x.created_at, reverse=True)
+
+    # Update cache
+    _output_cache["files"] = all_outputs
+    _output_cache["mtime"] = current_mtime
+    _output_cache["timestamp"] = now
+
+    return all_outputs
+
+
+def _has_cover_cached(file_path: Path, subdir: str) -> bool:
+    """Check if a cover image exists (without FFmpeg)."""
+    for ext in (".jpg", ".jpeg", ".png", ".webp"):
+        if file_path.with_suffix(ext).exists():
+            return True
+        if file_path.with_name(file_path.stem + ext).exists():
+            return True
+    return False
 
 
 class OutputFile(BaseModel):
@@ -26,6 +139,7 @@ class OutputFile(BaseModel):
     created_at: str
     modified_at: str | None = None
     cover_image: str | None = None
+    has_cover: bool = False  # Whether a thumbnail/cover exists
     metadata: dict | None = None
     job_id: str | None = None
 
@@ -325,17 +439,11 @@ async def list_outputs(
 ) -> OutputsResponse:
     """List all output files with their metadata.
 
-    Reads the output/ directory and returns generated media files
-    along with their JSON sidecar metadata.
+    Uses in-memory caching with 30s TTL. No FFmpeg calls on list —
+    thumbnails are generated on-demand when opening a file.
     """
-    all_outputs: list[OutputFile] = []
-
-    output_base = Path(config.output_dir)
-    for subdir in ["images", "video", "audio", "generated_3d"]:
-        outputs = await scan_output_directory(subdir, output_base)
-        all_outputs.extend(outputs)
-
-    all_outputs.sort(key=lambda x: x.created_at, reverse=True)
+    # Fast cached scan (no FFmpeg)
+    all_outputs = await _scan_with_cache()
 
     if file_type:
         all_outputs = [o for o in all_outputs if o.file_type == file_type]
@@ -373,11 +481,12 @@ async def list_outputs(
         except ValueError:
             pass
 
+    total = len(all_outputs)
     images_count = len([o for o in all_outputs if o.file_type == "image"])
     videos_count = len([o for o in all_outputs if o.file_type == "video"])
     audio_count = len([o for o in all_outputs if o.file_type == "audio"])
 
-    total = len(all_outputs)
+    # Apply pagination
     paginated = all_outputs[offset : offset + limit]
 
     return OutputsResponse(
@@ -504,12 +613,10 @@ async def list_outputs_by_type(
             detail=f"Invalid file type. Must be one of: {list(valid_types.keys())}",
         )
 
-    output_base = Path(config.output_dir)
-    outputs = await scan_output_directory(file_type, output_base)
-
-    # Sort by creation time (newest first) and limit
-    outputs.sort(key=lambda x: x.created_at, reverse=True)
-    return outputs[:limit]
+    # Use cached scan
+    all_outputs = await _scan_with_cache()
+    filtered = [o for o in all_outputs if o.file_type == valid_types[file_type]]
+    return filtered[:limit]
 
 
 class BulkDeleteRequest(BaseModel):
