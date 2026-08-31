@@ -110,28 +110,39 @@ class AudioAnalyzer:
 
         job_id = job_id or str(uuid.uuid4())
 
-        # Load audio file
-        y, sr = librosa.load(audio_path, sr=None, mono=True)
+        # Validate audio file exists
+        if not Path(audio_path).exists():
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-        # Extract features
-        waveform = self._extract_waveform_features(y, sr)
-        beats = self._extract_beat_features(y, sr)
+        try:
+            # Load audio file
+            y, sr = librosa.load(audio_path, sr=None, mono=True)
+            
+            if len(y) == 0:
+                raise ValueError("Audio file is empty or could not be loaded")
 
-        # Build result
-        result = AudioAnalysisResult(
-            job_id=job_id,
-            audio_file=str(audio_path),
-            analysis_timestamp=datetime.now().isoformat(),
-            waveform=waveform,
-            beats=beats,
-            metadata={
-                "duration_samples": len(y),
-                "hop_length": self.hop_length,
-                "frame_length": self.frame_length,
-            },
-        )
+            # Extract features
+            waveform = self._extract_waveform_features(y, sr)
+            beats = self._extract_beat_features(y, sr)
 
-        return result
+            # Build result
+            result = AudioAnalysisResult(
+                job_id=job_id,
+                audio_file=str(audio_path),
+                analysis_timestamp=datetime.now().isoformat(),
+                waveform=waveform,
+                beats=beats,
+                metadata={
+                    "duration_samples": len(y),
+                    "hop_length": self.hop_length,
+                    "frame_length": self.frame_length,
+                },
+            )
+
+            return result
+        except Exception as e:
+            logger.error(f"Audio analysis failed for {audio_path}: {e}")
+            raise AudioAnalyzerError(f"Failed to analyze audio file: {e}")
 
     def _extract_waveform_features(self, y: np.ndarray, sr: int) -> WaveformFeatures:
         """
@@ -268,8 +279,15 @@ class AudioAnalyzer:
         else:
             confidence = 0.0
 
+        # Robust tempo extraction with type safety
+        try:
+            tempo_val = float(tempo.item() if hasattr(tempo, 'item') else tempo)
+        except (AttributeError, IndexError, ValueError):
+            # Fallback to numpy array conversion
+            tempo_val = float(np.asarray(tempo).flat[0]) if np.asarray(tempo).size > 0 else 120.0
+
         return BeatFeatures(
-            tempo_bpm=float(tempo.item() if hasattr(tempo, 'item') else tempo),
+            tempo_bpm=tempo_val,
             beat_frames=beats.tolist(),
             beat_times=beat_times.tolist(),
             onset_frames=onset_frames.tolist(),

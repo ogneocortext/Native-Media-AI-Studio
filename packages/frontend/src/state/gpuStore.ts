@@ -19,6 +19,7 @@ interface GPUState {
 }
 
 let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let pollingRefCount = 0;
 
 export const useGPUStore = create<GPUState>((set, get) => ({
   gpu: null,
@@ -40,7 +41,11 @@ export const useGPUStore = create<GPUState>((set, get) => ({
   },
 
   startPolling: (intervalMs = 5000) => {
-    if (pollingInterval) return;
+    if (pollingInterval) {
+      pollingRefCount++;
+      return;
+    }
+    pollingRefCount = 1;
     get().fetchGPU();
     pollingInterval = setInterval(() => {
       get().fetchGPU();
@@ -48,7 +53,8 @@ export const useGPUStore = create<GPUState>((set, get) => ({
   },
 
   stopPolling: () => {
-    if (pollingInterval) {
+    pollingRefCount = Math.max(0, pollingRefCount - 1);
+    if (pollingRefCount === 0 && pollingInterval) {
       clearInterval(pollingInterval);
       pollingInterval = null;
     }

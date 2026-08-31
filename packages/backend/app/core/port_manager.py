@@ -222,14 +222,19 @@ class PortManager:
         frontend_port = config.frontend_port
 
         # Build the resolved configuration
-        # WebSocket runs on same port as backend (with /ws path)
+        # Canonical realtime transport is SSE at /api/events (EventSource).
+        # WebSocket at /ws is a compatibility shim (same port as backend).
         ws_url = f"ws://localhost:{backend_port}/ws"
+        events_url = f"http://localhost:{backend_port}/api/events"
         self._resolved_config = {
             "frontend_port": frontend_port,
             "backend_port": backend_port,
-            "ws_port": backend_port,  # Same as backend port
-            "backend_url": f"http://localhost:{backend_port}",
-            "ws_url": ws_url
+            # Legacy alias — prefer `events_url` / `sse_url`
+            "ws_port": backend_port,
+            "ws_url": ws_url,
+            # Canonical
+            "events_url": events_url,
+            "sse_url": events_url,
         }
 
         # Write to config/ports.json for frontend consumption
@@ -280,12 +285,16 @@ class PortManager:
         """
         backend_port = config.backend_port
         ws_url = f"ws://localhost:{backend_port}/ws"
+        events_url = f"http://localhost:{backend_port}/api/events"
         self._resolved_config = {
             "frontend_port": config.frontend_port,
             "backend_port": backend_port,
-            "ws_port": backend_port,  # Same as backend port
-            "backend_url": f"http://localhost:{backend_port}",
+            # Legacy alias — prefer `events_url` / `sse_url`
+            "ws_port": backend_port,
             "ws_url": ws_url,
+            # Canonical
+            "events_url": events_url,
+            "sse_url": events_url,
         }
         self.write_ports_config()
         return self._resolved_config

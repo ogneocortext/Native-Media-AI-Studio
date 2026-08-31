@@ -4,21 +4,21 @@ import { resolve, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(__dirname, '..');
+const ROOT = resolve(__dirname, '..', '..');
 
 const IMAGE_EXT = /\.(png|jpe?g|webp|bmp)$/i;
-const DEFAULT_MODEL = 'qwen3-vl:4b';
+const DEFAULT_MODEL = 'qwen3-vl:2b';
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://127.0.0.1:11434';
 
-const DEFAULT_PROMPT = `Analyze this screenshot of a desktop application. Report concisely and factually:
-1. What screen/page is shown and its purpose.
-2. Any UI errors, crashes, blank/loading states, broken or missing layouts.
-3. Overlapping, cut-off, or unreadable elements; misaligned or inconsistent styling.
-4. Whether data/visualizations are rendered or empty.
-5. Concrete, actionable suggestions to improve clarity, usefulness, or correctness.`;
+const DEFAULT_PROMPT = `Analyze this audio visualization screenshot. Report concisely:
+1. What 3D objects/shapes are visible and their geometry complexity
+2. Color palette and lighting quality
+3. Any visual bugs, glitches, or rendering issues
+4. How well the visualization represents music/audio concepts
+5. Specific improvements for making it more dynamic and visually impressive`;
 
 function usage() {
-  process.stderr.write(`Usage: node scripts/vision.mjs <command> [options]
+  process.stderr.write(`Usage: node tools/mcp/vision.mjs <command> [options]
 
 Commands:
   analyze <img1> [img2...] ["prompt"]
@@ -36,10 +36,10 @@ Commands:
       Show visual differences between two images.
 
 Examples:
-  node scripts/vision.mjs analyze screenshot.png
-  node scripts/vision.mjs analyze screenshot.png "Check the health page layout"
-  node scripts/vision.mjs compare before.png after.png
-  node scripts/vision.mjs analyze shot.png --model qwen3-vl:2b --low
+  node tools/mcp/vision.mjs analyze screenshot.png
+  node tools/mcp/vision.mjs analyze screenshot.png "Check the health page layout"
+  node tools/mcp/vision.mjs compare before.png after.png
+  node tools/mcp/vision.mjs analyze shot.png --model qwen3-vl:2b --low
 `);
   process.exit(1);
 }
@@ -144,8 +144,8 @@ async function ollamaReady(timeoutMs = 10000) {
 async function cmdAnalyze(argv) {
   let prompt = null;
   let model = process.env.VISION_MODEL || DEFAULT_MODEL;
-  let maxDim = 1024;
-  let quality = 80;
+  let maxDim = 640;
+  let quality = 70;
   let raw = false;
   const images = [];
 
@@ -161,7 +161,7 @@ async function cmdAnalyze(argv) {
   }
 
   if (images.length === 0) {
-    process.stderr.write('Usage: node scripts/vision.mjs analyze <img1> [img2...] ["prompt"]\n');
+    process.stderr.write('Usage: node tools/mcp/vision.mjs analyze <img1> [img2...] ["prompt"]\n');
     process.exit(1);
   }
 
@@ -192,7 +192,7 @@ async function cmdAnalyze(argv) {
 
 async function cmdCompare(argv) {
   if (argv.length < 2) {
-    process.stderr.write('Usage: node scripts/vision.mjs compare <img1> <img2> ["prompt"]\n');
+    process.stderr.write('Usage: node tools/mcp/vision.mjs compare <img1> <img2> ["prompt"]\n');
     process.exit(1);
   }
 
@@ -226,7 +226,7 @@ async function cmdCompare(argv) {
 
 async function cmdDiff(argv) {
   if (argv.length < 2) {
-    process.stderr.write('Usage: node scripts/vision.mjs diff <img1> <img2> ["prompt"]\n');
+    process.stderr.write('Usage: node tools/mcp/vision.mjs diff <img1> <img2> ["prompt"]\n');
     process.exit(1);
   }
 

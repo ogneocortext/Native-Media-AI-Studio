@@ -623,20 +623,20 @@ The `vision-mcp` tool fails with `Ollama API error: 400` when images are too lar
 
 ### The Solution
 
-Use `scripts/vision.mjs` which resizes images via sharp before sending to Ollama:
+Use `tools/mcp/vision.mjs` which resizes images via sharp before sending to Ollama:
 
 ```bash
 # Analyze a screenshot
-node scripts/vision.mjs analyze screenshot.png "Describe the UI"
+node tools/mcp/vision.mjs analyze screenshot.png "Describe the UI"
 
 # Analyze with specific model
-node scripts/vision.mjs analyze screenshot.png "What errors are visible?" --model qwen3-vl:2b
+node tools/mcp/vision.mjs analyze screenshot.png "What errors are visible?" --model qwen3-vl:2b
 
 # Compare two screenshots
-node scripts/vision.mjs compare before.png after.png
+node tools/mcp/vision.mjs compare before.png after.png
 
 # Diff two versions
-node scripts/vision.mjs diff old.png new.png
+node tools/mcp/vision.mjs diff old.png new.png
 ```
 
 ### How It Works

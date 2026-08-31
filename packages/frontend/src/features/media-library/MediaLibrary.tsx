@@ -132,8 +132,6 @@ export function MediaLibrary() {
     if (!renameTarget || !renameValue.trim() || renameValue === renameTarget.filename) { setRenameTarget(null); return; }
     setIsRenaming(true);
     try {
-      // Use store's renameOutput via direct fetch to avoid stale closure
-      const { useOutputStore } = await import("../../state/outputStore");
       await useOutputStore.getState().renameOutput(renameTarget.relative_path, renameValue.trim());
       setRenameTarget(null);
       setRenameValue("");
@@ -156,7 +154,6 @@ export function MediaLibrary() {
     if (!confirm(`Delete ${selectedPaths.size} selected file(s)? This also removes sidecars (.jpg cover, .json) and cannot be undone.`)) return;
     setIsDeleting(true);
     try {
-      const { useOutputStore } = await import("../../state/outputStore");
       await useOutputStore.getState().bulkDelete(Array.from(selectedPaths));
       setSelectedPaths(new Set());
       setSelectedOutput(null);
@@ -168,7 +165,6 @@ export function MediaLibrary() {
     if (showDuplicates) { setShowDuplicates(false); return; }
     setIsFindingDupes(true);
     try {
-      const { useOutputStore } = await import("../../state/outputStore");
       const groups = await useOutputStore.getState().fetchDuplicates(true);
       setDuplicateGroups(groups);
       setShowDuplicates(true);
@@ -183,7 +179,6 @@ export function MediaLibrary() {
     if (!confirm(`Keep oldest "${group.files[0].filename}" and delete ${toDelete.length} duplicate(s)?`)) return;
     setIsDeleting(true);
     try {
-      const { useOutputStore } = await import("../../state/outputStore");
       await useOutputStore.getState().bulkDelete(toDelete);
       // Refresh duplicates
       const groups = await useOutputStore.getState().fetchDuplicates(true);

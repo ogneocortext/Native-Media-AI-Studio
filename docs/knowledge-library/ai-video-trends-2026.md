@@ -3,7 +3,6 @@ tags:
   - ai-generation
   - music-video
   - trends
-  - 2026
 aliases:
   - AI Video Trends 2026
   - Industry Trends

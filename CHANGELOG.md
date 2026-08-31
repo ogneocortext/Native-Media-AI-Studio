@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Server Startup & Monitoring (2026-08-31)
+- **Startup Script** (`scripts/start-studio.ps1`): Fixed log overwrite on restart (now appends), added exponential backoff (1s/2s/4s) for crashed services, added process validation after start, added crash diagnostics showing last 10 lines of error log, added VideoEditor to auto-restart switch
+- **Unity MCP Bridge** (`tools/mcp/unity-mcp-bridge.mjs`): Fixed wrong default project path — was resolving to `tools/unity-project-mcp` instead of repo-root `unity-project-mcp`
+- **File Organization**: Moved 30+ loose files into structured directories (`tools/mcp/`, `tools/demos/`, `tools/tests/`, `tools/output/`, `scripts/utility/`, `docs/scratch/`), updated all 64 broken path references across 15+ files
+
+### Fixed - Frontend Stability & Performance (2026-08-31)
+- **Error Boundaries**: Added reusable `ErrorBoundary` component, wrapped all 20 routes to prevent single-component crashes from killing the page
+- **Memory Leaks**: Fixed ThreeJSStudio resize listener never being removed (cleanup referenced wrong function), fixed healthStore SSE double-subscription leak
+- **Performance**: Throttled ThreeJSStudio `animationTime` state updates from 60fps to ~10fps, added `React.memo` to Visualizer sub-components (StylePicker, SpectrumBar), added ref-counted polling to gpuStore
+- **Audio**: Added guard against `createMediaElementSource` double-connection crash in ThreeJSStudio
+- **Accessibility**: Added `aria-label` to all 8 icon buttons in Visualizer, added keyboard support (Enter/Space) and `role="button"` to Dashboard drop zone
+- **Code Quality**: Extracted duplicated `formatElapsed` function to shared `utils/format.ts`, created reusable `usePolling` hook
+
+### Fixed - Visualizer Page (2026-08-31)
+- Fixed CSS class mismatch in loading indicator (`.viz-loading` → `.viz-loading-overlay`)
+- Added AnimationDemo toggle button to topbar (was unreachable)
+- Fixed SVG demo button active state
+- Added `sceneFrozen` support to AuroraRibbon and OceanWaves visualizations
+- Unified color scheme from blue (#007AFF) to indigo (#6366f1)
+- Enhanced all 13 visualizations with better colors, materials, and effects (more particles, higher segment counts, glow shells)
+
 ### Fixed - Confidence Score (2026-08-25)
 - **Backend**: `audio_analyzer.py:224` windowed onset (`p85`, `±1` frame) + beat regularity (`CV`) + dynamic range → `0.28` → `0.85` on `182s 143BPM` (was `mean(onset/max)`, now `0.55*onset + 0.30*regularity + 0.15*dynamic` + `sqrt` boost)
 - **Verified**: `5` library files now `0.86-0.88` (was `0.27-0.35`), `POST /api/audio/analyze` `0.851`
@@ -70,8 +91,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frontend GPU card now shows top 8 processes by VRAM usage
 
 ### Fixed - Vision Analysis Infrastructure
-- **Fixed**: `vision-mcp_vision_mcp` tool fails with large images — created `scripts/vision.mjs` standalone analyzer using sharp for resizing
-- **Added**: `scripts/vision.mjs` with `analyze`, `compare`, `diff` commands using sharp + Ollama gemma4:e2b-it-qat
+- **Fixed**: `vision-mcp_vision_mcp` tool fails with large images — created `tools/mcp/vision.mjs` standalone analyzer using sharp for resizing
+- **Added**: `tools/mcp/vision.mjs` with `analyze`, `compare`, `diff` commands using sharp + Ollama gemma4:e2b-it-qat
 - **Added**: `vision-page-analysis` skill in `.kilo/skills/` for screenshot-to-analysis workflow
 - **Fixed**: npm arborist bug (`Cannot read properties of null`) blocking pnpm installs — updated npm to v12.0.3+
 
@@ -241,7 +262,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added - Unity MCP Integration
 
-- **Unity MCP Bridge**: `tools/unity-mcp-bridge.mjs` — local MCP server wrapping Unity REST API
+- **Unity MCP Bridge**: `tools/mcp/unity-mcp-bridge.mjs` — local MCP server wrapping Unity REST API
 - **Unity MCP Skill**: `.kilo/skills/unity-mcp/SKILL.md` — full documentation for AI-driven Unity workflows
 - **Audio-to-Unity Sync**: `tools/analyze_and_sync.py` — analyze audio and generate beat-synced animation data
 - **Available Unity tools**: `create_scene`, `create_gameobject`, `add_component`, `capture_scene_view`, `capture_game_view`, `editor_status`, `create_animation_clip`, `create_animator_controller`, `add_animator_state`, `add_animator_transition`, `bake_lighting`, `build`, and 100+ more via `unity_command`
@@ -721,4 +742,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-*Last updated: 2026-08-25*
+*Last updated: 2026-08-31*

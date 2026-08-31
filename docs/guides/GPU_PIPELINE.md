@@ -107,7 +107,7 @@ Server: `localhost:9876` (MCP) — *not* ComfyUI `8188`.
 Render `PNG` → analyze with Ollama `gemma4`:
 
 ```bash
-# If scripts/vision.mjs exists, else use Ollama directly:
+# If tools/mcp/vision.mjs exists, else use Ollama directly:
 curl http://localhost:11434/api/generate -d '{"model":"gemma3:4b","prompt":"Describe this 3D scene","images":["base64png"]}'
 ```
 

@@ -11,6 +11,9 @@ export interface PortConfig {
   backend_url: string;
   backend_port: number;
   frontend_port: number;
+  // Canonical realtime endpoint (SSE). `ws_*` kept as deprecated alias for compat.
+  events_url?: string;
+  sse_url?: string;
   ws_port: number;
   ws_url?: string;
   video_editor_port?: number;
@@ -39,14 +42,19 @@ export async function fetchPortConfig(): Promise<PortConfig> {
     const response = await fetch("/config/ports.json");
     if (response.ok) {
       const config = await response.json();
+      const backendPort = config.backend_port || 8000;
       cachedConfig = {
         backend_url:
           config.backend_url ||
-          `http://localhost:${config.backend_port || 8000}`,
-        backend_port: config.backend_port || 8000,
+          `http://localhost:${backendPort}`,
+        backend_port: backendPort,
         frontend_port: config.frontend_port || 5173,
-        ws_port: config.ws_port || config.backend_port || 8000,
-        ws_url: config.ws_url,
+        // Canonical SSE endpoint; fall back to ws alias or synthesize from backend
+        events_url: config.events_url || config.sse_url || `http://localhost:${backendPort}/api/events`,
+        sse_url: config.sse_url || config.events_url || `http://localhost:${backendPort}/api/events`,
+        // Deprecated WS alias — still populated so old code doesn't break
+        ws_port: config.ws_port || backendPort,
+        ws_url: config.ws_url || `ws://localhost:${backendPort}/ws`,
         video_editor_port: config.video_editor_port,
         comfyui_port: config.comfyui_port,
         comfyui_url: config.comfyui_url,
@@ -68,17 +76,22 @@ export async function fetchPortConfig(): Promise<PortConfig> {
 export function getPortConfigFromEnv(): PortConfig {
   const backendPort = getEnvVar("VITE_BACKEND_PORT", "8000");
   const frontendPort = getEnvVar("VITE_FRONTEND_PORT", "5173");
-  const wsPort = getEnvVar("VITE_WS_PORT", "8000"); // WebSocket on same port as backend
+  const wsPort = getEnvVar("VITE_WS_PORT", "8000");
 
+  const backendPortInt = parseInt(backendPort, 10);
   cachedConfig = {
     backend_url: getEnvVar(
       "VITE_BACKEND_URL",
       `http://127.0.0.1:${backendPort}`,
     ),
-    backend_port: parseInt(backendPort, 10),
+    backend_port: backendPortInt,
     frontend_port: parseInt(frontendPort, 10),
+    // Canonical SSE endpoint
+    events_url: getEnvVar("VITE_EVENTS_URL", `http://127.0.0.1:${backendPortInt}/api/events`),
+    sse_url: getEnvVar("VITE_SSE_URL", getEnvVar("VITE_EVENTS_URL", `http://127.0.0.1:${backendPortInt}/api/events`)),
+    // Deprecated WS alias — retained for compatibility
     ws_port: parseInt(wsPort, 10),
-    ws_url: `ws://127.0.0.1:${wsPort}/ws`,
+    ws_url: getEnvVar("VITE_WS_URL", `ws://127.0.0.1:${wsPort}/ws`),
   };
 
   return cachedConfig;
@@ -137,6 +150,24 @@ export function getComfyuiUrl(): string {
   }
   const port = cachedConfig.comfyui_port ?? 8188;
   return `http://127.0.0.1:${port}`;
+}
+
+/**
+ * Get the canonical SSE events URL (preferred realtime transport).
+ */
+export function getEventsUrl(): string {
+  if (cachedConfig?.events_url) return cachedConfig.events_url;
+  if (cachedConfig?.sse_url) return cachedConfig.sse_url;
+  // Fallback derives from backend_url when config not yet loaded
+  const base = getBackendUrl();
+  return `${base.replace(/\/$/, "")}/api/events`;
+}
+
+/** @deprecated Use getEventsUrl() — ws:// shim kept for compat */
+export function getWsUrl(): string {
+  if (cachedConfig?.ws_url) return cachedConfig.ws_url;
+  const base = getBackendUrl();
+  return base.replace(/^http/, "ws") + "/ws";
 }
 
 /**

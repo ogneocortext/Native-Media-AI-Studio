@@ -51,3 +51,17 @@ export function formatDateTime(dateString: string): string {
 }
 
 export { formatBytes as formatFileSize };
+
+/** Format seconds as "42s", "5m 23s", or "2h 15m" for elapsed time display. */
+export function formatElapsed(seconds: number): string {
+  const total = Math.floor(seconds);
+  if (total < 60) return `${total}s`;
+  if (total < 3600) {
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return s === 0 ? `${m}m` : `${m}m ${s}s`;
+  }
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}

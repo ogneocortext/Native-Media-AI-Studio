@@ -9,7 +9,7 @@ import {
   listAudioFiles, renameAudioFile, getAnalysis, getCudaStatus,
   getApiBase, type AudioAnalysisResult,
 } from "../../services/api";
-import { DS, SECTION_COLORS } from "../../styles/designSystem";
+import { DS } from "../../styles/designSystem";
 import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
   ReferenceLine, BarChart, Bar, Cell,
@@ -92,9 +92,9 @@ interface AudioFile {
 }
 
 function getEnergyColor(energy: number): string {
-  if (energy < 0.3) return "bg-blue-500";
-  if (energy < 0.6) return "bg-amber-500";
-  return "bg-red-500";
+  if (energy < 0.3) return "#3b82f6";
+  if (energy < 0.6) return "#f59e0b";
+  return "#ef4444";
 }
 
 export function AudioAnalysisPage() {
@@ -136,7 +136,7 @@ export function AudioAnalysisPage() {
         if (!s.available) setUseCuda(false);
         // Fetch VRAM for banner when available
         fetch(`${getApiBase()}/api/health/gpu`).then(r => r.json()).then(g => {
-          if (g.available) setGpuVram({ used: g.memory_used_mb ?? g.vram_used_mb ?? 0, total: g.memory_total_mb ?? g.vram_total_mb ?? 8192, percent: g.memory_percent ?? g.percent ?? 0 });
+          if (g.available) setGpuVram({ used: g.memory_used_mb ?? 0, total: g.memory_total_mb ?? 8192, percent: g.memory_percent ?? 0 });
         }).catch(() => {});
       })
       .catch(() => { setCudaAvailable(false); setUseCuda(false); });
@@ -404,10 +404,16 @@ export function AudioAnalysisPage() {
                         fill="url(#energyGradient2)"
                         animationDuration={600}
                         dot={false}
-                        data={analysis.energy_curve.slice(0, 120).map((e, i) => ({
-                          time: (i / analysis.energy_curve!.length) * analysis.duration_seconds,
-                          energy: e * 100,
-                        }))}
+                        data={(() => {
+                          const curve = analysis.energy_curve;
+                          const maxPts = 120;
+                          const step = Math.max(1, Math.floor(curve.length / maxPts));
+                          const sampled = curve.filter((_, i) => i % step === 0);
+                          return sampled.map((e, i) => ({
+                            time: (i / sampled.length) * analysis.duration_seconds,
+                            energy: e * 100,
+                          }));
+                        })()}
                       />
                       {/* Sample beats to avoid 400+ lines clutter — show every Nth */}
                       {analysis.beat_times.filter((_, i) => analysis.beat_times.length <= 80 || i % Math.ceil(analysis.beat_times.length / 80) === 0).map((bt, i) => (
@@ -419,7 +425,7 @@ export function AudioAnalysisPage() {
                 {/* Section labels */}
                 <div className="flex rounded-lg overflow-hidden h-6 mt-1" role="img" aria-label="Song sections">
                   {analysis.sections.map((s, i) => (
-                    <div key={i} className={`${SECTION_COLORS[s.type] || SECTION_COLORS.full} flex items-center justify-center`} style={{ width: `${((s.end - s.start) / analysis.duration_seconds) * 100}%` }} title={`${s.type}: ${formatTime(s.start)}–${formatTime(s.end)} ${Math.round(s.energy * 100)}%`}>
+                    <div key={i} className="flex items-center justify-center" style={{ width: `${((s.end - s.start) / analysis.duration_seconds) * 100}%`, backgroundColor: SECTION_HEX[s.type] || SECTION_HEX.full }} title={`${s.type}: ${formatTime(s.start)}–${formatTime(s.end)} ${Math.round(s.energy * 100)}%`}>
                       <span className="text-[10px] font-medium truncate px-1 leading-6 text-white">{s.type}</span>
                     </div>
                   ))}
@@ -468,10 +474,10 @@ export function AudioAnalysisPage() {
                   {analysis.sections.map((section, i) => (
                     <div key={i} role="listitem" className={`flex items-center gap-3 py-2 border-b border-gray-700 last:border-0 ${selectedSections.has(i) ? "bg-violet-500/10 rounded px-2 -mx-2" : ""}`}>
                       <input type="checkbox" checked={selectedSections.has(i)} onChange={e => { const n = new Set(selectedSections); if (e.target.checked) n.add(i); else n.delete(i); setSelectedSections(n); }} className="rounded border-gray-600 bg-gray-700 text-violet-500 focus:ring-violet-500" aria-label={`Select ${section.type} ${formatTime(section.start)} to ${formatTime(section.end)}`} />
-                      <span className={`px-2 py-1 rounded text-xs font-medium shrink-0 ${SECTION_COLORS[section.type] || SECTION_COLORS.full}`}>{section.type}</span>
+                      <span className="px-2 py-1 rounded text-xs font-medium shrink-0 text-white" style={{ backgroundColor: SECTION_HEX[section.type] || SECTION_HEX.full }}>{section.type}</span>
                       <div className="flex-1 min-w-0">
                         <div className={DS.textXs}>{formatTime(section.start)} → {formatTime(section.end)}<span className="ml-2 text-gray-500">({formatTime(section.end - section.start)})</span></div>
-                        <div className="flex items-center gap-2 mt-1" aria-label={`Energy ${Math.round(section.energy * 100)}%`}><div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden"><div className={`h-full rounded-full ${getEnergyColor(section.energy)}`} style={{ width: `${section.energy * 100}%` }} /></div><span className={DS.textXs}>{(section.energy * 100).toFixed(0)}%</span></div>
+                        <div className="flex items-center gap-2 mt-1" aria-label={`Energy ${Math.round(section.energy * 100)}%`}><div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${section.energy * 100}%`, backgroundColor: getEnergyColor(section.energy) }} /></div><span className={DS.textXs}>{(section.energy * 100).toFixed(0)}%</span></div>
                       </div>
                       <button onClick={() => handleGenerateSection(section.type, section.start, section.end)} disabled={generating === section.type || !analysis?.stored_path} className={DS.btnSecondary} title={`Generate video for ${section.type}`} aria-label={`Generate ${section.type}`}>
                         {generating === section.type ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}

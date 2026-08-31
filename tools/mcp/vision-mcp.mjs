@@ -10,8 +10,8 @@
  *  - vision_ui_audit  — structured UI audit (positions, text, errors)
  *
  * Depends only on:
- *  - scripts/vision/analyze.mjs (existing, repo-local)
- *  - tools/vision_analyze.py (fallback, repo-local)
+ *  - tools/mcp/vision.mjs (primary, has sharp resize)
+ *  - tools/tests/vision_analyze.py (fallback, repo-local)
  *  - Ollama at http://127.0.0.1:11434 (models: gemma4:e2b-it-qat, qwen3-vl:4b/2b)
  */
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -26,10 +26,10 @@ import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, "..");
+const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 const ANALYZE_MJS = path.join(PROJECT_ROOT, "scripts", "vision", "analyze.mjs");
-const VISION_MJS = path.join(PROJECT_ROOT, "scripts", "vision.mjs");
-const ANALYZE_PY = path.join(PROJECT_ROOT, "tools", "vision_analyze.py");
+const VISION_MJS = path.join(PROJECT_ROOT, "tools", "mcp", "vision.mjs");
+const ANALYZE_PY = path.join(PROJECT_ROOT, "tools", "tests", "vision_analyze.py");
 
 function runNode(script, args) {
   return new Promise((resolve, reject) => {

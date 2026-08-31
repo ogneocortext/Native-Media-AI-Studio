@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, field_validator
 
 from ..adapters.registry import adapter_registry
@@ -470,7 +470,7 @@ async def get_preview(prompt_id: str) -> dict:
 
 
 @router.get("/comfyui/view/{prompt_id}/{filename}")
-async def view_preview(prompt_id: str, filename: str):
+async def view_preview(request: Request, prompt_id: str, filename: str):
     """Proxy endpoint to serve preview images from ComfyUI."""
     import aiohttp
     from fastapi.responses import StreamingResponse
@@ -489,6 +489,8 @@ async def view_preview(prompt_id: str, filename: str):
                 if resp.status != 200:
                     raise HTTPException(status_code=resp.status, detail="Image not found")
 
+                origin = request.headers.get("origin", "*")
+
                 async def stream_generator():
                     async for chunk in resp.content.iter_any():
                         yield chunk
@@ -496,6 +498,7 @@ async def view_preview(prompt_id: str, filename: str):
                 return StreamingResponse(
                     stream_generator(),
                     media_type=resp.content_type or "image/png",
+                    headers={"Access-Control-Allow-Origin": origin},
                 )
     except HTTPException:
         raise
@@ -579,13 +582,84 @@ async def queue_image_job(service_name: str, request: ImageGenerationRequest) ->
 
 @router.get("/ollama/models")
 async def get_ollama_models() -> list:
-    """Get available Ollama models"""
+    """Get available Ollama models, enriched with benchmark scores if available."""
     adapter = adapter_registry.get("ollama")
     if not adapter:
         raise HTTPException(status_code=404, detail="Ollama not available")
 
     try:
-        return await adapter.list_models()
+        models = await adapter.list_models()
+        # Enrich with benchmark data if present
+        try:
+            from ..services.ollama_benchmark import get_all_results
+
+            bench = get_all_results()
+            bench_map = bench.get("results", {}) if bench else {}
+            for m in models:
+                name = m.get("name")
+                if name in bench_map:
+                    r = bench_map[name]
+                    m["benchmark"] = {
+                        "score": r.get("validation", {}).get("score", 0),
+                        "latency_ms": r.get("latency_ms"),
+                        "success": r.get("success"),
+                        "timestamp": r.get("timestamp"),
+                    }
+        except Exception:
+            pass
+        return models
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ollama/benchmark/results")
+async def get_benchmark_results() -> dict:
+    """Get stored Three.js benchmark results."""
+    try:
+        from ..services.ollama_benchmark import get_all_results
+
+        return get_all_results()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ollama/benchmark/run")
+async def run_benchmark(request: dict = None) -> dict:
+    """Run Three.js generation benchmark against Ollama models.
+
+    Body: { "models": ["qwen2.5:3b", ...] } or {} to benchmark all.
+    """
+    adapter = adapter_registry.get("ollama")
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Ollama not available")
+    if not await adapter.health_check():
+        raise HTTPException(status_code=503, detail="Ollama is not available")
+
+    body = request or {}
+    models = body.get("models") if isinstance(body, dict) else None
+    max_models = body.get("max_models", 8) if isinstance(body, dict) else 8
+
+    try:
+        from ..services.ollama_benchmark import run_benchmark
+
+        result = await run_benchmark(models, adapter, max_models=max_models)
+        return result
+    except Exception as e:
+        logger.error(f"Benchmark run failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ollama/benchmark/best")
+async def get_best_benchmark_model() -> dict:
+    """Get the best model according to benchmark scores."""
+    try:
+        from ..services.ollama_benchmark import get_best_model, get_all_results
+
+        best = get_best_model()
+        all_results = get_all_results()
+        if not best:
+            return {"best": None, "results": all_results}
+        return {"best": best, "result": all_results.get("results", {}).get(best), "results": all_results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -645,6 +719,12 @@ async def ollama_chat(request: dict) -> dict:
     think = request.get("think", None)
     stream = request.get("stream", False)
     max_tool_calls = request.get("max_tool_calls", 5)
+    ollama_options = request.get("options", {}) or {}
+    # Also allow system to be passed via request
+    system_prompt = request.get("system")
+
+    # Track activity for this model
+    adapter.set_activity(model, "chat", message[:80])
 
     # Normalize tools: can be boolean (True/False) or list
     tools_raw = request.get("tools", [])
@@ -655,13 +735,19 @@ async def ollama_chat(request: dict) -> dict:
     else:
         tools = tools_raw
 
-    logger.info("Ollama chat request: model=%s, stream=%s, tools=%d, message_len=%d",
-                model, stream, len(tools), len(message))
+    logger.info("Ollama chat request: model=%s, stream=%s, tools=%d, message_len=%d, system_len=%d, options=%s",
+                model, stream, len(tools), len(message), len(system_prompt or ""), ollama_options)
 
-    # Build messages array
+    # Build messages array (system first, then history, then user)
     messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
     for h in history:
-        messages.append({"role": h.get("role", "user"), "content": h.get("content", "")})
+        # Support system role in history as well
+        role = h.get("role", "user")
+        if role not in ("user", "assistant", "system", "tool"):
+            role = "user"
+        messages.append({"role": role, "content": h.get("content", "")})
     messages.append({"role": "user", "content": message})
 
     try:
@@ -670,72 +756,76 @@ async def ollama_chat(request: dict) -> dict:
             from sse_starlette.sse import EventSourceResponse
 
             async def event_generator():
-                # Send initial event to confirm connection
-                yield {"event": "connected", "data": json.dumps({"status": "streaming"})}
+                try:
+                    # Send initial event to confirm connection
+                    yield {"event": "connected", "data": json.dumps({"status": "streaming"})}
 
-                tool_call_count = 0
-                current_messages = messages[:]
+                    tool_call_count = 0
+                    current_messages = messages[:]
 
-                while tool_call_count < max_tool_calls:
-                    async for chunk in await adapter.chat(
-                        messages=current_messages,
-                        model=model,
-                        tools=tools,
-                        stream=True,
-                        think=think,
-                    ):
-                        if chunk.get("done"):
-                            msg = chunk.get("message", {})
-                            tool_calls = msg.get("tool_calls", [])
+                    while tool_call_count < max_tool_calls:
+                        async for chunk in await adapter.chat(
+                            messages=current_messages,
+                            model=model,
+                            tools=tools,
+                            stream=True,
+                            think=think,
+                            **ollama_options,
+                        ):
+                            if chunk.get("done"):
+                                msg = chunk.get("message", {})
+                                tool_calls = msg.get("tool_calls", [])
 
-                            if tool_calls and tool_call_count < max_tool_calls:
-                                tool_call_count += 1
-                                yield {
-                                    "event": "tool_calls",
-                                    "data": json.dumps({
-                                        "tool_calls": [{"name": tc["function"]["name"], "arguments": tc["function"]["arguments"]} for tc in tool_calls]
-                                    }),
-                                }
+                                if tool_calls and tool_call_count < max_tool_calls:
+                                    tool_call_count += 1
+                                    yield {
+                                        "event": "tool_calls",
+                                        "data": json.dumps({
+                                            "tool_calls": [{"name": tc["function"]["name"], "arguments": tc["function"]["arguments"]} for tc in tool_calls]
+                                        }),
+                                    }
 
-                                current_messages.append({
-                                    "role": "assistant",
-                                    "content": msg.get("content", ""),
-                                    "tool_calls": tool_calls,
-                                })
-
-                                for tc in tool_calls:
-                                    result = await adapter.execute_tool_call(
-                                        tc["function"]["name"],
-                                        tc["function"]["arguments"],
-                                        {},
-                                    )
                                     current_messages.append({
-                                        "role": "tool",
-                                        "tool_name": tc["function"]["name"],
-                                        "content": result,
-                                    })
-                                break
-                            else:
-                                yield {
-                                    "event": "done",
-                                    "data": json.dumps({
+                                        "role": "assistant",
                                         "content": msg.get("content", ""),
-                                        "model": chunk.get("model", model),
-                                        "tool_calls": tool_call_count,
-                                    }),
-                                }
-                                return
-                        else:
-                            content = chunk.get("message", {}).get("content", "")
-                            thinking = chunk.get("message", {}).get("thinking", "")
-                            if content or thinking:
-                                yield {
-                                    "event": "content",
-                                    "data": json.dumps({"content": content, "thinking": thinking}),
-                                }
+                                        "tool_calls": tool_calls,
+                                    })
 
-                # Send done event to properly close the stream
-                yield {"event": "done", "data": json.dumps({"status": "complete"})}
+                                    for tc in tool_calls:
+                                        result = await adapter.execute_tool_call(
+                                            tc["function"]["name"],
+                                            tc["function"]["arguments"],
+                                            {},
+                                        )
+                                        current_messages.append({
+                                            "role": "tool",
+                                            "tool_name": tc["function"]["name"],
+                                            "content": result,
+                                        })
+                                    break
+                                else:
+                                    yield {
+                                        "event": "done",
+                                        "data": json.dumps({
+                                            "content": msg.get("content", ""),
+                                            "model": chunk.get("model", model),
+                                            "tool_calls": tool_call_count,
+                                        }),
+                                    }
+                                    return
+                            else:
+                                content = chunk.get("message", {}).get("content", "")
+                                thinking = chunk.get("message", {}).get("thinking", "")
+                                if content or thinking:
+                                    yield {
+                                        "event": "content",
+                                        "data": json.dumps({"content": content, "thinking": thinking}),
+                                    }
+
+                    # Send done event to properly close the stream
+                    yield {"event": "done", "data": json.dumps({"status": "complete"})}
+                finally:
+                    adapter.clear_activity(model)
 
             return EventSourceResponse(event_generator())
         else:
@@ -752,6 +842,7 @@ async def ollama_chat(request: dict) -> dict:
                     tools=tools,
                     stream=False,
                     think=think,
+                    **ollama_options,
                 )
 
                 msg = result.get("message", {})
@@ -784,11 +875,12 @@ async def ollama_chat(request: dict) -> dict:
                             "role": "tool",
                             "tool_name": tc["function"]["name"],
                             "content": tool_result,
-                        })
+                         })
                 else:
                     last_response = content
                     break
 
+            adapter.clear_activity(model)
             return {
                 "response": last_response,
                 "model": model,
@@ -797,6 +889,7 @@ async def ollama_chat(request: dict) -> dict:
             }
 
     except Exception as e:
+        adapter.clear_activity(model)
         logger.error("Ollama chat error: %s", str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -924,4 +1017,194 @@ async def clear_scene() -> dict:
         "keyframes": [],
     }
     return {"status": "cleared"}
+
+
+# ============== AI Visualizer Preset Generation ==============
+
+VISUALIZER_PRESET_SCHEMA = {
+    "version": "1.0",
+    "id": "string - unique preset id (kebab-case)",
+    "name": "string - short display name",
+    "description": "string - one sentence describing the look",
+    "tags": ["string - mood/genre tags"],
+    "theme": {
+        "primary": "hex color - main mesh/particle color",
+        "secondary": "hex color - accent color",
+        "accent": "hex color - highlight color",
+        "background": "hex color - scene background",
+        "text": "hex color - lyric text color",
+        "glow": "hex color - glow/emissive color"
+    },
+    "visualizer": {
+        "style": "one of: particles, waveform, pulse, bars, galaxy, terrain",
+        "colors": "one of: neon, fire, ocean, forest, sunset, monochrome, custom",
+        "intensity": "number 0-1 - overall effect intensity",
+        "particleCount": "number 0-2000 - particle count",
+        "speed": "number 0-3 - animation speed multiplier",
+        "scale": "number 0.1-3 - base scale",
+        "glow": "boolean - enable glow effects",
+        "rotation": "boolean - enable auto-rotation"
+    },
+    "camera": {
+        "keyframes": [{"at": "number - seconds", "position": [0, 0, 0], "target": [0, 0, 0], "easing": "linear|easeIn|easeOut|easeInOut"}],
+        "mode": "orbit|fixed|flythrough|handheld",
+        "fov": "number 30-90 - field of view"
+    },
+    "postfx": {
+        "bloom": "number 0-3 - bloom intensity",
+        "bloomRadius": "number 0-1",
+        "bloomThreshold": "number 0-1",
+        "chromaticAberration": "number 0-0.01",
+        "filmGrain": "number 0-1",
+        "vignetteRadius": "number 0-3",
+        "vignetteStrength": "number 0-1",
+        "glitch": "number 0-1",
+        "sharpen": "number 0-1"
+    },
+    "lyrics": {
+        "style": "kinetic|fade|typewriter|glitch|neon|bounce",
+        "glowIntensity": "number 0-1",
+        "fontSize": "number 24-96",
+        "fontWeight": "number 100-900",
+        "letterSpacing": "number 0-0.2",
+        "beatReact": "boolean",
+        "enterAnimation": "string",
+        "exitAnimation": "string"
+    },
+    "audioReactivity": {
+        "bass": "none|scale|glow|shake|pulse|zoom",
+        "mid": "none|scale|glow|shake|pulse|zoom",
+        "treble": "none|scale|glow|shake|pulse|zoom",
+        "beat": "none|pulse|shake|flash|zoom",
+        "beatDecay": "number 0-1",
+        "smoothing": "number 0-1"
+    }
+}
+
+VISUALIZER_SYSTEM_PROMPT = """You are a music visualizer preset generator. Given a natural language description of a visual style, generate a JSON preset for a 3D audio-reactive visualizer.
+
+RULES:
+- Output ONLY valid JSON matching the schema below
+- All hex colors must be 6-digit format like #ff0040
+- Choose visualization styles that match the mood described
+- For dark/moody: use particles, waveform, cosmic with low intensity
+- For energetic/aggressive: use bars, pulse, galaxy with high intensity
+- For calm/peaceful: use waveform, terrain with low speed
+- Match audio reactivity to the described energy level
+
+SCHEMA:
+{schema}
+
+Respond with ONLY the JSON object, no markdown fences, no explanation."""
+
+
+@router.post("/ollama/visualizer")
+async def generate_visualizer_preset(request: dict) -> dict:
+    """Generate a visualizer preset from a natural language description using Ollama."""
+    adapter = adapter_registry.get("ollama")
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Ollama not available")
+
+    description = request.get("description", "").strip()
+    if not description:
+        raise HTTPException(status_code=400, detail="Description is required")
+
+    model = request.get("model", "qwen3.5:9b")
+    temperature = request.get("temperature", 0.7)
+    # Optional track metadata for alignment
+    track_meta = request.get("track") or {}
+    bpm = track_meta.get("bpm")
+    energy = track_meta.get("energy")
+    duration = track_meta.get("duration_seconds")
+    genre = track_meta.get("genre", "")
+
+    # Track activity
+    adapter.set_activity(model, "visualizer", description[:80])
+
+    # Build track context for the prompt
+    track_context = ""
+    if bpm or energy or duration or genre:
+        parts = []
+        if genre:
+            parts.append(f"genre: {genre}")
+        if bpm:
+            parts.append(f"tempo: {bpm} BPM")
+        if energy is not None:
+            energy_label = "high" if energy > 0.6 else "low" if energy < 0.35 else "medium"
+            parts.append(f"energy: {energy_label} ({energy:.2f})")
+        if duration:
+            parts.append(f"duration: {duration:.0f}s")
+        track_context = "\n\nTRACK CONTEXT (adapt the preset to match this music):\n" + "\n".join(f"- {p}" for p in parts)
+        track_context += "\n\n- Scale animation speed to the BPM (faster tempo → quicker transitions)"
+        track_context += "\n- Match intensity to the energy level (high energy → more particles, faster motion)"
+        track_context += "\n- Set camera keyframe 'at' times to fit within the track duration"
+        if energy is not None:
+            if energy > 0.6:
+                track_context += "\n- Use high-intensity audio reactivity (shake, flash, zoom on beat)"
+            elif energy < 0.35:
+                track_context += "\n- Use gentle reactivity (slow pulse, glow, no shake)"
+
+    system_prompt = VISUALIZER_SYSTEM_PROMPT.format(
+        schema=json.dumps(VISUALIZER_PRESET_SCHEMA, indent=2)
+    )
+
+    logger.info("Generating visualizer preset: model=%s, desc_len=%d, track=%s",
+                model, len(description), bool(track_context))
+
+    try:
+        result = await adapter.generate({
+            "prompt": f"Generate a visualizer preset for: {description}{track_context}",
+            "model": model,
+            "system": system_prompt,
+            "format": "json",
+            "options": {
+                "temperature": temperature,
+                "num_ctx": 8192,
+            },
+        })
+
+        response_text = result.get("response", "")
+        if not response_text:
+            raise HTTPException(status_code=502, detail="Ollama returned empty response")
+
+        # Parse the JSON response
+        try:
+            preset = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            # Try to extract JSON from markdown fences if present
+            cleaned = response_text.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
+                if cleaned.endswith("```"):
+                    cleaned = cleaned[:-3]
+                cleaned = cleaned.strip()
+                # Remove language identifier
+                if cleaned.startswith("json"):
+                    cleaned = cleaned[4:].strip()
+            preset = json.loads(cleaned)
+
+        # Ensure required top-level fields exist
+        preset.setdefault("version", "1.0")
+        if not preset.get("id"):
+            preset["id"] = "ai-generated"
+        if not preset.get("name"):
+            preset["name"] = "AI Generated"
+        preset.setdefault("tags", [])
+        preset.setdefault("description", description)
+
+        return {
+            "success": True,
+            "preset": preset,
+            "model": result.get("model", model),
+        }
+    except json.JSONDecodeError as e:
+        logger.error("Failed to parse Ollama JSON response: %s (raw: %s)", e, response_text[:200])
+        raise HTTPException(status_code=502, detail=f"Model returned invalid JSON: {e}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Visualizer preset generation failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        adapter.clear_activity(model)
 

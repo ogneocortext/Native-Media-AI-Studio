@@ -137,3 +137,4 @@ export function EmptyState({ title, description, icon, action, children }: Empty
 // Re-export shared components
 export { FileUploadZone } from "./FileUploadZone";
 export { ResourceBar, ResourceGroup } from "./ResourceBar";
+export { ErrorBoundary } from "./ErrorBoundary";

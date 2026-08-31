@@ -24,7 +24,7 @@ Configured automatically via `opencode.json`:
   "mcp": {
     "unity": {
       "type": "local",
-      "command": ["node", "tools/unity-mcp-bridge.mjs"],
+      "command": ["node", "tools/mcp/unity-mcp-bridge.mjs"],
       "environment": {
         "UNITY_PROJECT_PATH": "D:\\path\\to\\unity-project"
       }
@@ -55,7 +55,7 @@ This directory contains MCP bridge servers and demo scripts for AI-driven music 
 
 | Server | Command | Port | Status |
 |--------|---------|------|--------|
-| **Unity MCP** | `node tools/unity-mcp-bridge.mjs` | 7800 (REST) | Running (Unity 6000.5.1f1) |
+| **Unity MCP** | `node tools/mcp/unity-mcp-bridge.mjs` | 7800 (REST) | Running (Unity 6000.5.1f1) |
 | **Blender MCP** | `uvx blender-mcp` | 9876 (socket) | Running (Blender 5.2) |
 | **ComfyUI MCP** | `npx comfyui-mcp --comfyui-url http://localhost:8188` | 8188 | Running |
 | **Remotion MCP** | `npx -y @remotion/mcp@latest` | stdio | Configured |
@@ -110,8 +110,8 @@ npx -y @remotion/mcp@latest
 ### Scripts
 - `analyze_and_sync.py` — Analyze audio and generate Unity beat-synced animation data (JSON with tempo, beat_times, keyframes)
 - `analyze_happyshrimp.py` — GPU-accelerated analysis demo using CUDA
-- `demo_all_features.py` — Full feature demonstration
-- `demo_audio_analysis.py` — Audio analysis demo
+- `demos/demo_all_features.py` — Full feature demonstration
+- `demos/demo_audio_analysis.py` — Audio analysis demo
 
 ### Usage
 ```bash
@@ -122,8 +122,8 @@ python tools/analyze_and_sync.py <audio_file> [--output <json_file>] [--fps 24]
 
 ## Testing
 
-- `test_mcp.py` — Test MCP server via HTTP (port 9876)
-- `test_mcp_stdio.py` — Test Blender MCP via stdio
+- `tests/test_mcp.py` — Test MCP server via HTTP (port 9876)
+- `tests/test_mcp_stdio.py` — Test Blender MCP via stdio
 
 ---
 
@@ -137,9 +137,9 @@ python tools/analyze_and_sync.py <audio_file> [--output <json_file>] [--fps 24]
 - `unity_scene_setup.png` — Scene setup overview
 
 ### Blender Renders
-- `blender_render.png` through `blender_render4.png` — Render iterations
-- `architects_ghost_stage.png` — Stage preview
-- `demo_stage.png` — Demo stage overview
+- `output/blender_render.png` through `output/blender_render4.png` — Render iterations
+- `output/architects_ghost_stage.png` — Stage preview
+- `output/demo_stage.png` — Demo stage overview
 
 ### Audio Analysis Output
-- `beat_data.json` — Beat data for "Take the Crown" by NeoCortext (152 BPM, 298 beats, 124s)
+- `output/beat_data.json` — Beat data for "Take the Crown" by NeoCortext (152 BPM, 298 beats, 124s)

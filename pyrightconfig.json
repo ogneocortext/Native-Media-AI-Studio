@@ -6,7 +6,7 @@
     "DEBUG": true
   },
   "stubPath": "",
-  "pythonVersion": "3.11",
+  "pythonVersion": "3.12",
   "pythonPlatform": "Windows",
   "typeCheckingMode": "basic",
   "useLibraryCodeForTypes": true,
@@ -17,7 +17,7 @@
   "executionEnvironments": [
     {
       "root": "packages/backend/app",
-      "extraPaths": ["../../../venv/Lib/site-packages"]
+      "python": "D:/conda-envs/comfyui-cuda/Scripts/python.exe"
     }
   ]
 }

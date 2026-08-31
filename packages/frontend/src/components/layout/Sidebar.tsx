@@ -3,6 +3,7 @@ import {
   BookOpen,
   Box,
   Circle,
+  Cpu,
   Film,
   FileText,
   FolderOpen,
@@ -19,12 +20,15 @@ import {
   Sparkles,
   Zap,
   Wand2,
+  Type,
 } from "lucide-react";
 import React, { useEffect, useState, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useHealthStore } from "../../state/healthStore";
 import { useUIStore } from "../../state/uiStore";
-import { getApiBase } from "../../services/api";
+import { getApiBase, getLoadedModels } from "../../services/api";
+import type { DiagnosticsModelsResponse } from "../../services/api";
+import { formatElapsed } from "../../utils/format";
 
 interface NavItem { path: string; label: string; icon: React.ReactNode; badge?: string; }
 
@@ -37,6 +41,7 @@ const createNav: NavItem[] = [
   { path: "/three-js-studio", label: "Three.js Studio", icon: <Sparkles size={18} /> },
   { path: "/audio-analysis", label: "Audio Analysis", icon: <BarChart3 size={18} /> },
   { path: "/visualizer", label: "Visualizer", icon: <Zap size={18} /> },
+  { path: "/kinetic-typography", label: "Kinetic Type", icon: <Type size={18} /> },
   { path: "/ai-tools", label: "AI Tools", icon: <Brain size={18} /> },
 ];
 
@@ -156,7 +161,10 @@ export function Sidebar() {
     status: adapter.status,
   }));
   const hasBackend = adapterList.some((a) => a.name.toLowerCase() === "backend");
-  if (!hasBackend) adapterList.unshift({ name: "Backend", status: overall !== "unhealthy" ? "online" : "offline" });
+  if (!hasBackend) {
+    const backendStatus = isLoading && Object.keys(adapters).length === 0 ? "unknown" : (overall !== "unhealthy" ? "online" as const : "offline" as const);
+    adapterList.unshift({ name: "Backend", status: backendStatus });
+  }
   const overallStatus = getOverallStatus();
   const showText = !collapsed || isMobile;
 
@@ -266,6 +274,9 @@ export function Sidebar() {
               {/* ComfyUI Quick Control */}
               <ComfyUIQuickControl collapsed={collapsed && !isMobile} />
 
+              {/* Loaded Ollama Models */}
+              <LoadedModels collapsed={collapsed && !isMobile} />
+
               <Link to="/health" className="sidebar-diagnostics-link">
                 <Activity size={16} style={{ flexShrink: 0 }} />
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Diagnostics</span>
@@ -283,6 +294,106 @@ export function Sidebar() {
         </div>
       </aside>
     </>
+  );
+}
+
+// Loaded Ollama Models component for sidebar
+
+function LoadedModels({ collapsed }: { collapsed: boolean }) {
+  const [data, setData] = useState<DiagnosticsModelsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(Date.now());
+
+  const fetchModels = useCallback(async () => {
+    try {
+      const result = await getLoadedModels();
+      setData(result);
+    } catch {
+      setData({ loaded: false, models: [], activity: {} });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchModels();
+    const interval = setInterval(fetchModels, 5000);
+    const clock = setInterval(() => setNow(Date.now()), 1000);
+    return () => { clearInterval(interval); clearInterval(clock); };
+  }, [fetchModels]);
+
+  const models = data?.models || [];
+  const activity = data?.activity || {};
+
+  if (loading && models.length === 0) {
+    return collapsed ? null : (
+      <div className="sidebar-loaded-models">
+        <Cpu size={12} className="loaded-models-icon" />
+        <span className="loaded-models-label">Checking models…</span>
+      </div>
+    );
+  }
+
+  if (models.length === 0) {
+    return collapsed ? null : (
+      <div className="sidebar-loaded-models empty">
+        <Cpu size={12} className="loaded-models-icon" />
+        <span className="loaded-models-label">No model loaded</span>
+      </div>
+    );
+  }
+
+  const hasActive = models.some(m => activity[m.name]);
+
+  return (
+    <div className={`sidebar-loaded-models ${collapsed ? "collapsed" : ""}`}>
+      {!collapsed && (
+        <div className="loaded-models-header">
+          <Cpu size={12} className="loaded-models-icon" />
+          <span className="loaded-models-title">Loaded in VRAM</span>
+          {hasActive && (
+            <button
+              className="loaded-models-clear-btn"
+              onClick={async () => {
+                try {
+                  await fetch(`${getApiBase()}/api/health/ollama/clear-activity`, { method: "POST" });
+                } catch { /* ignore */ }
+              }}
+              title="Clear stuck activity"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+      {models.map((m) => {
+        const active = activity[m.name];
+        return (
+          <div key={m.name} className={`loaded-model-item ${active ? "active" : ""}`} title={`${m.name} — ${m.vram_mb}MB VRAM${active ? ` — ${active.task}: ${active.description}` : ""}`}>
+            <div className="loaded-model-info">
+              <div className={`loaded-model-status-dot ${active ? "busy" : ""}`} />
+              {collapsed ? (
+                <span className="loaded-model-name-collapsed">{m.name.split(":")[0]}</span>
+              ) : (
+                <>
+                  <span className="loaded-model-name">{m.name}</span>
+                  <span className="loaded-model-vram">{m.vram_mb}MB</span>
+                </>
+              )}
+            </div>
+            {active && !collapsed && (
+              <div className="loaded-model-activity">
+                <span className="loaded-model-activity-task">{active.task}</span>
+                {active.description && <span className="loaded-model-activity-desc">{active.description}</span>}
+                {active && active.started_at && (
+                  <span className="loaded-model-activity-time">{formatElapsed(Math.floor((now / 1000) - active.started_at))}</span>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

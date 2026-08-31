@@ -19,7 +19,18 @@ logger = logging.getLogger(__name__)
 DB_PATH = PROJECT_ROOT / "storage" / "studio.db"
 
 # Database schema version for migrations
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 7
+
+
+def _safe_json_loads(val: str | None, default: Any = None) -> Any:
+    """Safely parse JSON string, returning default on error."""
+    if not val:
+        return default if default is not None else {}
+    try:
+        return json.loads(val)
+    except (json.JSONDecodeError, TypeError) as e:
+        logger.warning("JSON parse error: %s", e)
+        return default if default is not None else {}
 
 
 def get_connection() -> sqlite3.Connection:
@@ -92,6 +103,10 @@ def init_db():
             _migrate_v4(conn)
         if current_version < 5:
             _migrate_v5(conn)
+        if current_version < 6:
+            _migrate_v6(conn)
+        if current_version < 7:
+            _migrate_v7(conn)
 
         set_schema_version(conn, SCHEMA_VERSION)
         logger.info("Database initialized at version %d", SCHEMA_VERSION)
@@ -514,7 +529,7 @@ def _row_to_audio(row: sqlite3.Row) -> dict[str, Any]:
         "key": row["key"],
         "genre": row["genre"],
         "music_prompt_id": row["music_prompt_id"],
-        "analysis_result": json.loads(row["analysis_result"]) if row["analysis_result"] else {},
+        "analysis_result": _safe_json_loads(row["analysis_result"], {}),
         "created_at": row["created_at"],
     }
 
@@ -954,8 +969,8 @@ def _row_to_track(row: sqlite3.Row) -> dict[str, Any]:
         "visual_style": row["visual_style"],
         "visual_prompt": row["visual_prompt"],
         "status": row["status"],
-        "tags": json.loads(row["tags"]) if row["tags"] else [],
-        "comfyui_visual_ids": json.loads(row["comfyui_visual_ids"]) if row["comfyui_visual_ids"] else [],
+        "tags": _safe_json_loads(row["tags"], []),
+        "comfyui_visual_ids": _safe_json_loads(row["comfyui_visual_ids"], []),
         "output_path": row["output_path"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
@@ -1023,6 +1038,74 @@ def _migrate_v5(conn: sqlite3.Connection):
 
         CREATE INDEX IF NOT EXISTS idx_ollama_models_available ON ollama_models(is_available);
     """)
+    conn.execute("PRAGMA user_version = 5")
+
+
+def _migrate_v6(conn: sqlite3.Connection):
+    """Add ollama_analysis_responses table for saving AI analysis results."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS ollama_analysis_responses (
+            id TEXT PRIMARY KEY,
+            track_name TEXT NOT NULL,
+            track_filename TEXT DEFAULT '',
+            model_name TEXT DEFAULT '',
+            prompt TEXT DEFAULT '',
+            lyrics TEXT DEFAULT '',
+            bpm INTEGER DEFAULT 0,
+            html_response TEXT DEFAULT '',
+            raw_response TEXT DEFAULT '',
+            status TEXT DEFAULT 'completed',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ollama_analysis_track ON ollama_analysis_responses(track_name);
+        CREATE INDEX IF NOT EXISTS idx_ollama_analysis_created ON ollama_analysis_responses(created_at);
+    """)
+
+
+def _migrate_v7(conn: sqlite3.Connection):
+    """Add lyrics_lines table for timed lyric storage, word-level sync, and animation data."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS lyrics_lines (
+            id TEXT PRIMARY KEY,
+            track_id TEXT NOT NULL,
+            start_time REAL NOT NULL,
+            end_time REAL NOT NULL,
+            text TEXT NOT NULL DEFAULT '',
+            section TEXT DEFAULT '',
+            sort_order INTEGER DEFAULT 0,
+            data TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_lyrics_lines_track_id ON lyrics_lines(track_id);
+        CREATE INDEX IF NOT EXISTS idx_lyrics_lines_start_time ON lyrics_lines(start_time);
+        CREATE INDEX IF NOT EXISTS idx_lyrics_lines_sort_order ON lyrics_lines(sort_order);
+
+        -- Table for individual word timestamps within a lyric line
+        CREATE TABLE IF NOT EXISTS lyrics_words (
+            id TEXT PRIMARY KEY,
+            line_id TEXT NOT NULL,
+            word TEXT NOT NULL DEFAULT '',
+            start_time REAL NOT NULL,
+            end_time REAL NOT NULL,
+            sort_order INTEGER DEFAULT 0,
+            FOREIGN KEY (line_id) REFERENCES lyrics_lines(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_lyrics_words_line_id ON lyrics_words(line_id);
+    """)
+    # Add data column if it doesn't exist (for existing tables created before v7)
+    try:
+        conn.execute("SELECT data FROM lyrics_lines LIMIT 0")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE lyrics_lines ADD COLUMN data TEXT DEFAULT '{}'")
+
+
+# =============================================================================
+# Ollama Analysis Response Repository
 
 
 # Visualization Preset Functions
@@ -1034,6 +1117,13 @@ def save_visualization_preset(preset: dict) -> str:
     now = datetime.now().isoformat()
 
     with get_db() as conn:
+        # Check if preset already exists to preserve created_at
+        existing = conn.execute(
+            "SELECT created_at FROM visualization_presets WHERE id = ?",
+            (preset_id,),
+        ).fetchone()
+        created_at = existing["created_at"] if existing else now
+
         conn.execute(
             """
             INSERT OR REPLACE INTO visualization_presets 
@@ -1059,7 +1149,7 @@ def save_visualization_preset(preset: dict) -> str:
                 preset.get("is_unique", True),
                 preset.get("usage_count", 0),
                 preset.get("last_used"),
-                now,
+                created_at,
                 now,
             ),
         )
@@ -1088,36 +1178,41 @@ def get_all_visualization_presets() -> list[dict]:
     """Get all visualization presets."""
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM visualization_presets ORDER BY usage_count DESC, created_at DESC"
+            "SELECT * FROM visualization_presets ORDER BY usage_count DESC, created_at DESC LIMIT 500"
         ).fetchall()
         return [_row_to_viz_preset(row) for row in rows]
 
 
 def find_similar_preset(track_name: str, mood_tags: list, genre_tags: list) -> dict | None:
     """Find a similar preset based on track characteristics."""
+    if not mood_tags and not genre_tags:
+        return None
+
     with get_db() as conn:
-        # Simple matching based on mood and genre overlap
-        rows = conn.execute(
-            "SELECT * FROM visualization_presets WHERE is_unique = 1 ORDER BY usage_count DESC LIMIT 50"
-        ).fetchall()
-        
-        best_match = None
-        best_score = 0
-        
-        for row in rows:
-            row_mood = json.loads(row["mood_tags"]) if row["mood_tags"] else []
-            row_genre = json.loads(row["genre_tags"]) if row["genre_tags"] else []
-            
-            mood_overlap = len(set(mood_tags) & set(row_mood))
-            genre_overlap = len(set(genre_tags) & set(row_genre))
-            score = mood_overlap + genre_overlap
-            
-            if score > best_score:
-                best_score = score
-                best_match = row
-        
-        if best_match and best_score >= 2:
-            return _row_to_viz_preset(best_match)
+        # Use SQL LIKE for simple matching instead of loading all rows
+        conditions = []
+        params = []
+
+        for tag in mood_tags:
+            conditions.append("mood_tags LIKE ?")
+            params.append(f"%{tag}%")
+        for tag in genre_tags:
+            conditions.append("genre_tags LIKE ?")
+            params.append(f"%{tag}%")
+
+        if not conditions:
+            return None
+
+        query = f"""
+            SELECT * FROM visualization_presets
+            WHERE is_unique = 1 AND ({" OR ".join(conditions)})
+            ORDER BY usage_count DESC
+            LIMIT 1
+        """
+        row = conn.execute(query, params).fetchone()
+
+        if row:
+            return _row_to_viz_preset(row)
     return None
 
 
@@ -1129,12 +1224,12 @@ def _row_to_viz_preset(row: sqlite3.Row) -> dict:
         "track_hash": row["track_hash"],
         "preset_name": row["preset_name"],
         "visualization_style": row["visualization_style"],
-        "params": json.loads(row["params"]) if row["params"] else {},
+        "params": _safe_json_loads(row["params"], {}),
         "ollama_model": row["ollama_model"],
         "prompt": row["prompt"],
         "lyrics": row["lyrics"],
-        "mood_tags": json.loads(row["mood_tags"]) if row["mood_tags"] else [],
-        "genre_tags": json.loads(row["genre_tags"]) if row["genre_tags"] else [],
+        "mood_tags": _safe_json_loads(row["mood_tags"], []),
+        "genre_tags": _safe_json_loads(row["genre_tags"], []),
         "bpm": row["bpm"],
         "energy_level": row["energy_level"],
         "is_unique": row["is_unique"],
@@ -1194,7 +1289,7 @@ def get_latest_system_resources() -> dict | None:
                 "ram_used": row["ram_used"],
                 "ram_free": row["ram_free"],
                 "ollama_available": row["ollama_available"],
-                "ollama_models": json.loads(row["ollama_models"]) if row["ollama_models"] else [],
+                "ollama_models": _safe_json_loads(row["ollama_models"], []),
             }
     return None
 
@@ -1261,3 +1356,124 @@ def get_available_ollama_models(min_vram_free: int = 0) -> list[dict]:
             }
             for row in rows
         ]
+
+
+# Ollama Analysis Response Repository
+
+def save_ollama_analysis_response(
+    track_name: str,
+    html_response: str,
+    raw_response: str = "",
+    track_filename: str = "",
+    model_name: str = "",
+    prompt: str = "",
+    lyrics: str = "",
+    bpm: int = 0,
+    status: str = "completed",
+) -> str:
+    """Save an Ollama analysis response and return its ID."""
+    import uuid
+
+    response_id = str(uuid.uuid4())
+    now = datetime.now().isoformat()
+
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO ollama_analysis_responses
+            (id, track_name, track_filename, model_name, prompt, lyrics, bpm,
+             html_response, raw_response, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                response_id,
+                track_name,
+                track_filename,
+                model_name,
+                prompt,
+                lyrics,
+                bpm,
+                html_response,
+                raw_response,
+                status,
+                now,
+            ),
+        )
+
+    return response_id
+
+
+def get_ollama_analysis_responses(
+    track_name: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Get Ollama analysis responses, optionally filtered by track name."""
+    with get_db() as conn:
+        if track_name:
+            rows = conn.execute(
+                """
+                SELECT * FROM ollama_analysis_responses
+                WHERE track_name = ?
+                ORDER BY created_at DESC LIMIT ?
+                """,
+                (track_name, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT * FROM ollama_analysis_responses
+                ORDER BY created_at DESC LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+
+        return [
+            {
+                "id": row["id"],
+                "track_name": row["track_name"],
+                "track_filename": row["track_filename"],
+                "model_name": row["model_name"],
+                "prompt": row["prompt"],
+                "lyrics": row["lyrics"],
+                "bpm": row["bpm"],
+                "html_response": row["html_response"],
+                "raw_response": row["raw_response"],
+                "status": row["status"],
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
+
+def get_ollama_analysis_response(response_id: str) -> dict[str, Any] | None:
+    """Get a single Ollama analysis response by ID."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM ollama_analysis_responses WHERE id = ?",
+            (response_id,),
+        ).fetchone()
+        if row:
+            return {
+                "id": row["id"],
+                "track_name": row["track_name"],
+                "track_filename": row["track_filename"],
+                "model_name": row["model_name"],
+                "prompt": row["prompt"],
+                "lyrics": row["lyrics"],
+                "bpm": row["bpm"],
+                "html_response": row["html_response"],
+                "raw_response": row["raw_response"],
+                "status": row["status"],
+                "created_at": row["created_at"],
+            }
+    return None
+
+
+def delete_ollama_analysis_response(response_id: str) -> bool:
+    """Delete an Ollama analysis response. Returns True if deleted."""
+    with get_db() as conn:
+        cursor = conn.execute(
+            "DELETE FROM ollama_analysis_responses WHERE id = ?",
+            (response_id,),
+        )
+        return cursor.rowcount > 0

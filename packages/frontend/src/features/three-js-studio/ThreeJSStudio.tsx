@@ -4,6 +4,16 @@ import {
   Box, Play, Pause, Sparkles, Download, Settings, Circle, Square,
   ChevronDown, ChevronUp, Music, Zap, FileCode, Maximize2, Minimize2,
 } from "lucide-react";
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { RGBShiftShader } from "three/examples/jsm/shaders/RGBShiftShader.js";
+import { FilmShader } from "three/examples/jsm/shaders/FilmShader.js";
+import { VignetteShader } from "three/examples/jsm/shaders/VignetteShader.js";
 import { listAudioFiles } from "../../services/api";
 import { useUIStore } from "../../state/uiStore";
 import { useBeatTimeline } from "../../hooks/useBeatTimeline";
@@ -51,6 +61,7 @@ export function ThreeJSStudio() {
   const bloomPassRef = useRef<any>(null);
   const bloomComposerRef = useRef<any>(null);
   const finalComposerRef = useRef<any>(null);
+  const composerRef = useRef<any>(null);
   const caPassRef = useRef<any>(null);
   const grainPassRef = useRef<any>(null);
   const vignettePassRef = useRef<any>(null);
@@ -62,6 +73,7 @@ export function ThreeJSStudio() {
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const audioFreqArrayRef = useRef<Uint8Array | null>(null);
   const threeRef = useRef<any>(null);
+  const lastUiUpdateRef = useRef(0);
 
   // ---- State ----
   const [isPlaying, setIsPlaying] = useState(false);
@@ -284,29 +296,38 @@ export function ThreeJSStudio() {
     if (!sceneRef.current || !code) return;
     setCodeError(null);
 
-    // Only try JSON if the code looks like JSON (starts with { or [ and has no function syntax)
-    const trimmed = code.trim();
-    const looksLikeJson = (trimmed.startsWith("{") || trimmed.startsWith("[")) && !trimmed.includes("function ") && !trimmed.includes("=>");
+    // Sanitize: strip markdown fences that LLMs often wrap around code
+    const stripFences = (s: string) => {
+      // Remove ```javascript ... ``` or ``` ... ``` blocks, keep inner code
+      const fenceRe = /```(?:javascript|js|json)?\s*\n([\s\S]*?)```/gi;
+      let out = s;
+      let m: RegExpExecArray | null;
+      let last: string | null = null;
+      // If multiple fenced blocks (corrupted file with 2x applyScene), keep the LAST one
+      while ((m = fenceRe.exec(s)) !== null) last = m[1];
+      if (last !== null) out = last;
+      // Also strip stray fence markers left at start/end
+      out = out.replace(/^```[a-z]*\s*\n?/i, "").replace(/```\s*$/i, "");
+      return out.trim();
+    };
 
-    if (looksLikeJson) {
+    const looksLikeJson = (s: string) => {
+      const t = s.trim();
+      return (t.startsWith("{") || t.startsWith("[")) && !t.includes("function ") && !t.includes("=>") && !t.includes("THREE.");
+    };
+
+    const rawTrimmed = code.trim();
+    // Try JSON path first (for pure JSON scene descriptions)
+    if (looksLikeJson(rawTrimmed) || looksLikeJson(stripFences(code))) {
       try {
-        let jsonStr = code;
-        // Extract JSON from markdown code fence if present
-        if (jsonStr.includes("```json")) {
-          const match = jsonStr.match(/```json\n([\s\S]*?)```/);
-          if (match) jsonStr = match[1];
-        } else if (jsonStr.includes("```")) {
-          const match = jsonStr.match(/```\n([\s\S]*?)```/);
-          if (match) jsonStr = match[1];
-        }
+        let jsonStr = stripFences(code);
+        // Fallback to raw if strip produced empty
+        if (!jsonStr) jsonStr = code;
         const startIdx = jsonStr.search(/[\[{]/);
         if (startIdx >= 0) jsonStr = jsonStr.substring(startIdx);
-
         const sceneDesc = JSON.parse(jsonStr);
-
-        import("three").then((THREE) => {
+        {
           const scene = sceneRef.current;
-          // Clear existing objects (keep lights and floor)
           const toRemove: any[] = [];
           scene.traverse((child: any) => {
             if (child.isMesh && child.geometry && child.geometry.type !== "PlaneGeometry") {
@@ -314,96 +335,149 @@ export function ThreeJSStudio() {
             }
           });
           toRemove.forEach((obj) => scene.remove(obj));
-          // Add objects from description
           if (sceneDesc.objects) {
             for (const objDesc of sceneDesc.objects) {
               createSceneObject(objDesc, THREE, scene);
             }
           }
-        });
+        }
+        // Clear any previous AI-update loop
+        generatedSceneUpdateRef.current = null;
+        generatedSceneInitRef.current = null;
+        (window as any).__sceneUpdate = null;
+        (window as any).__sceneInit = null;
         return;
       } catch {
-        // Not valid JSON - fall through to JavaScript
+        // fall through to JS path — not valid JSON
       }
     }
 
-    // Execute as JavaScript — wrap to extract update function for playback control
+    // ---- JS path: sanitize and execute applyScene once ----
     try {
-      if (!code.includes("function applyScene") && !code.includes("THREE.")) {
-        console.warn("Response does not contain valid scene description or code");
+      let jsCode = stripFences(code);
+      if (!jsCode) jsCode = code;
+
+      // If file contains two concatenated applyScene definitions (corrupted generation),
+      // keep only the LAST one — the first is incomplete/buggy and would be shadowed.
+      const applyIdx = jsCode.lastIndexOf("function applyScene");
+      if (applyIdx > 0) {
+        // Check if there's an earlier applyScene — slice from last
+        const firstIdx = jsCode.indexOf("function applyScene");
+        if (firstIdx !== applyIdx) {
+          jsCode = jsCode.slice(applyIdx);
+        }
+      }
+
+      if (!jsCode.includes("function applyScene") && !jsCode.includes("THREE.")) {
+        setCodeError("No applyScene(scene,camera,renderer,THREE) found in code.");
+        console.warn("handleApplyCode: no applyScene or THREE usage detected");
         return;
       }
-      // Strip auto-animation (rAF loops) so we control playback externally
-      const strippedCode = code
-        .replace(/requestAnimationFrame\(animate\)/g, "/* rAF stripped */")
-        .replace(/\n\s*animate\(\)\s*;?/g, "\n");
-      // Wrap to expose controlled update function
-      const wrappedCode = strippedCode + `
-        if (typeof animate === 'function' && typeof time !== 'undefined') {
-          window.__sceneUpdate = (t, d) => {
-            time = t;
-            if (typeof animateCamera === 'function') animateCamera(t, __intensity(t));
-            if (typeof updateLights === 'function') updateLights(__intensity(t));
-            if (typeof renderer !== 'undefined') renderer.render(scene, camera);
-          };
-          window.__sceneInit = () => {
-            if (typeof animateCamera === 'function') animateCamera(0, 0);
-            if (typeof updateLights === 'function') updateLights(0);
-            if (typeof renderer !== 'undefined') renderer.render(scene, camera);
-          };
-          function __intensity(t) {
-            const s = (typeof config !== 'undefined' && config.sections) || ['intro','chorus'];
-            const tl = s.length * 40;
-            const sl = tl / s.length;
-            const i = Math.floor(t / sl);
-            const type = s[Math.min(i, s.length - 1)] || 'chorus';
-            switch(type) {
-              case 'intro': return 0.1 + Math.sin(t * 2) * 0.1;
-              case 'chorus': return 0.3 + Math.sin(t * 3) * 0.2;
-              case 'verse': return 0.4 + Math.sin(t * 2.5) * 0.15;
-              default: return 0.6 + Math.sin(t * 4) * 0.3;
-            }
+
+      // Clean up previous AI artefacts before running new code
+      const disposeGroup = (g: any) => {
+        if (!g) return;
+        g.traverse((c: any) => {
+          if (c.geometry) { try { c.geometry.dispose(); } catch {} }
+          if (c.material) {
+            const mats = Array.isArray(c.material) ? c.material : [c.material];
+            mats.forEach((m: any) => { try { m.dispose(); } catch {} });
           }
-        } else if (typeof applyScene === 'function') {
-          let __time = 0;
-          window.__sceneUpdate = (t, d) => { __time = t; applyScene(scene, camera, renderer, THREE); };
-          window.__sceneInit = () => { __time = 0; applyScene(scene, camera, renderer, THREE); };
+        });
+      };
+      const oldGroup = sceneRef.current.getObjectByName("__aiGenerated");
+      if (oldGroup) { disposeGroup(oldGroup); sceneRef.current.remove(oldGroup); }
+      // Also remove legacy tagged objects/lights from older runs
+      sceneRef.current.children.slice().forEach((c: any) => {
+        if (c.userData && c.userData.__ai) {
+          disposeGroup(c);
+          sceneRef.current.remove(c);
+        }
+      });
+      // Reset previous update hooks
+      (window as any).__sceneUpdate = null;
+      (window as any).__sceneInit = null;
+      generatedSceneUpdateRef.current = null;
+      generatedSceneInitRef.current = null;
+
+      // Defensive sanitization: prevent the AI code from hijacking the render loop
+      // or resizing the renderer to window size (studio owns the canvas size).
+      const sanitized = jsCode
+        // Remove rAF loops — studio drives frames
+        .replace(/requestAnimationFrame\s*\([^)]+\)\s*;?/g, "/* rAF stripped — studio drives loop */")
+        // Remove direct renderer.setSize(window.innerWidth ...) calls
+        .replace(/renderer\s*\.\s*setSize\s*\(\s*window\.innerWidth[^)]+\)\s*;?/g, "/* renderer.setSize stripped */")
+        .replace(/renderer\s*\.\s*setPixelRatio\s*\([^)]+\)\s*;?/g, "/* setPixelRatio stripped */")
+        // Remove window resize listeners that leak
+        .replace(/window\s*\.\s*addEventListener\s*\(\s*['\"]resize['\"][^)]+\)\s*;?/g, "/* resize listener stripped */")
+        // Remove standalone animate() invocations at top-level (not method calls)
+        .replace(/^\s*animate\s*\(\s*[^)]*\)\s*;?\s*$/gm, "/* animate() stripped */")
+        // Neutralize direct THREE import assumptions — scene already provides globals
+        .replace(/document\.getElementById\s*\(\s*['\"]three-container['\"]\s*\)/g, "null");
+
+      // Wrap: execute once, capture returned update function if provided,
+      // otherwise fall back to window.__sceneUpdate that the code may have set.
+      const wrapped = sanitized + `
+        // --- capture contract ---
+        // If applyScene returns a function, treat it as the per-frame update.
+        // Otherwise check for window.__sceneUpdate set by the cleaned file.
+        let __ret = null;
+        if (typeof applyScene === 'function') {
+          __ret = applyScene(scene, camera, renderer, THREE);
+          if (typeof __ret === 'function') {
+            window.__sceneUpdate = __ret;
+            window.__sceneInit = () => __ret(0, 0);
+          }
+        }
+        // Legacy fallback: code that sets window.__sceneUpdate itself
+        // or code that defines update/animate helpers
+        if (!window.__sceneUpdate && typeof update === 'function') {
+          window.__sceneUpdate = update;
+        }
+        if (!window.__sceneInit && typeof init === 'function') {
+          window.__sceneInit = init;
         }
       `;
-      const fn = new Function("scene", "camera", "renderer", "THREE", wrappedCode);
+
+      const fn = new Function("scene", "camera", "renderer", "THREE", wrapped);
       fn(sceneRef.current, cameraRef.current, rendererRef.current, (window as any).THREE);
 
-      // Capture the exposed update function
-      if ((window as any).__sceneUpdate) {
-        generatedSceneUpdateRef.current = (window as any).__sceneUpdate;
-        generatedSceneInitRef.current = (window as any).__sceneInit || null;
-        generatedSceneInitRef.current?.();
-        if (generatedSceneUpdateRef.current) generatedSceneUpdateRef.current(0, 0);
+      const upd = (window as any).__sceneUpdate;
+      const init = (window as any).__sceneInit;
+      if (typeof upd === "function") {
+        generatedSceneUpdateRef.current = upd;
+        generatedSceneInitRef.current = typeof init === "function" ? init : null;
+        try { generatedSceneInitRef.current?.(); } catch (e) { console.warn("sceneInit error", e); }
+        try { upd(0, 0); } catch (e) { console.warn("sceneUpdate(0) error", e); }
+      } else {
+        // No update hook — static scene, just force one render via studio loop
+        // The addition is already in the scene graph, it will appear next frame
+        console.info("Applied static AI scene (no per-frame update)");
       }
     } catch (err) {
       console.error("Failed to apply generated scene:", err);
       setCodeError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [createSceneObject]);
 
   // ---- Scene init + animation loop ----
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
     const canvas = canvasRef.current;
     const container = containerRef.current;
+    const onResize = () => {
+      if (!containerRef.current || !cameraRef.current || !rendererRef.current) return;
+      const w = containerRef.current.clientWidth, h = containerRef.current.clientHeight;
+      cameraRef.current.aspect = w / h;
+      cameraRef.current.updateProjectionMatrix();
+      rendererRef.current.setSize(w, h);
+      if (composerRef.current) composerRef.current.setSize(w, h);
+      if (bloomComposerRef.current) bloomComposerRef.current.setSize(w, h);
+      if (finalComposerRef.current) finalComposerRef.current.setSize(w, h);
+    };
     const initScene = async () => {
-      const THREE = await import("three");
       (window as any).THREE = THREE;
       threeRef.current = THREE;
-      const { OrbitControls } = await import("three/examples/jsm/controls/OrbitControls.js");
-      const { EffectComposer } = await import("three/examples/jsm/postprocessing/EffectComposer.js");
-      const { RenderPass } = await import("three/examples/jsm/postprocessing/RenderPass.js");
-      const { UnrealBloomPass } = await import("three/examples/jsm/postprocessing/UnrealBloomPass.js");
-      const { ShaderPass } = await import("three/examples/jsm/postprocessing/ShaderPass.js");
-      const { OutputPass } = await import("three/examples/jsm/postprocessing/OutputPass.js");
-      const { RGBShiftShader } = await import("three/examples/jsm/shaders/RGBShiftShader.js");
-      const { FilmShader } = await import("three/examples/jsm/shaders/FilmShader.js");
-      const { VignetteShader } = await import("three/examples/jsm/shaders/VignetteShader.js");
 
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(sceneConfigRef.current.backgroundColor);
@@ -420,6 +494,7 @@ export function ThreeJSStudio() {
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true; controls.dampingFactor = 0.05; controls.minDistance = 2; controls.maxDistance = 20;
       const composer = new EffectComposer(renderer);
+      composerRef.current = composer;
       composer.addPass(new RenderPass(scene, camera));
       const bloomPass = new UnrealBloomPass(new THREE.Vector2(container.clientWidth, container.clientHeight), sceneConfigRef.current.bloomStrength, 0.4, 0.85);
       composer.addPass(bloomPass); bloomPassRef.current = bloomPass;
@@ -552,11 +627,15 @@ export function ThreeJSStudio() {
         } else { composer.render(); }
 
         // Update animation timeline (only when render is playing)
+        // Throttle state updates to ~10fps to avoid excessive re-renders
         if (renderPlayingRef.current) {
-          setAnimationTime((prev) => {
-            const next = prev + delta;
-            return next >= animationDuration ? 0 : next;
-          });
+          const nextTime = animationTimeRef.current + delta;
+          animationTimeRef.current = nextTime >= animationDuration ? 0 : nextTime;
+          const now = performance.now();
+          if (now - lastUiUpdateRef.current > 100) {
+            lastUiUpdateRef.current = now;
+            setAnimationTime(animationTimeRef.current);
+          }
         }
 
         // Call generated scene update using ref for current time
@@ -611,20 +690,19 @@ export function ThreeJSStudio() {
           });
         }
       };
-      animate();
-      const onResize = () => { if (!containerRef.current) return; const w = containerRef.current.clientWidth, h = containerRef.current.clientHeight; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); composer.setSize(w, h); if (bloomComposerRef.current) bloomComposerRef.current.setSize(w, h); if (finalComposerRef.current) finalComposerRef.current.setSize(w, h); };
-      window.addEventListener("resize", onResize);
-      setSceneLoading(false);
-    };
-    initScene();
-    return () => { cancelAnimationFrame(animationRef.current); window.removeEventListener("resize", () => {}); rendererRef.current?.dispose(); };
+    animate();
+    window.addEventListener("resize", onResize);
+    setSceneLoading(false);
+  };
+  initScene();
+  return () => { cancelAnimationFrame(animationRef.current); window.removeEventListener("resize", onResize); rendererRef.current?.dispose(); };
   }, [createMeshForObject]);
 
   // ---- Object sync ----
   useEffect(() => {
     if (!sceneRef.current) return;
     let cancelled = false;
-    import("three").then((THREE) => {
+    {
       if (cancelled) return;
       const scene = sceneRef.current;
       const ids = new Set(objects.map((o) => o.id));
@@ -647,14 +725,20 @@ export function ThreeJSStudio() {
           }
         }
       })();
-    });
+    }
     return () => { cancelled = true; };
   }, [objects, createMeshForObject]);
 
   // ---- Scene config sync ----
   useEffect(() => {
     sceneConfigRef.current = sceneConfig;
-    if (sceneRef.current) { import("three").then((THREE) => { sceneRef.current.background = new THREE.Color(sceneConfig.backgroundColor); if (sceneRef.current.fog) { sceneRef.current.fog.color.set(sceneConfig.fogColor); sceneRef.current.fog.density = sceneConfig.fogDensity; } }); }
+    if (sceneRef.current) {
+      sceneRef.current.background = new THREE.Color(sceneConfig.backgroundColor);
+      if (sceneRef.current.fog) {
+        sceneRef.current.fog.color.set(sceneConfig.fogColor);
+        sceneRef.current.fog.density = sceneConfig.fogDensity;
+      }
+    }
     if (bloomPassRef.current) bloomPassRef.current.strength = sceneConfig.bloomStrength;
     if (caPassRef.current) caPassRef.current.uniforms.amount.value = sceneConfig.chromaticAberration;
     if (grainPassRef.current) grainPassRef.current.uniforms.intensity.value = sceneConfig.filmGrain;
@@ -696,7 +780,6 @@ export function ThreeJSStudio() {
     if (!backgroundImageUrl) { if (bgImageTextureRef.current) { bgImageTextureRef.current.dispose(); bgImageTextureRef.current = null; } return; }
     let cancelled = false;
     (async () => {
-      const THREE = await import("three");
       if (cancelled) return;
       const img = new Image(); img.crossOrigin = "anonymous";
       img.onload = () => { if (cancelled) return; const tex = new THREE.Texture(img); tex.colorSpace = THREE.SRGBColorSpace; tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = false; tex.needsUpdate = true; if (bgImageTextureRef.current) bgImageTextureRef.current.dispose(); bgImageTextureRef.current = tex; sceneRef.current.background = tex; };
@@ -708,7 +791,7 @@ export function ThreeJSStudio() {
 
   useEffect(() => {
     if (!sceneRef.current || !bgImageTextureRef.current) return;
-    import("three").then((THREE) => { sceneRef.current.background = backgroundImageVisible ? bgImageTextureRef.current : new THREE.Color(sceneConfigRef.current.backgroundColor); });
+    sceneRef.current.background = backgroundImageVisible ? bgImageTextureRef.current : new THREE.Color(sceneConfigRef.current.backgroundColor);
   }, [backgroundImageVisible, sceneConfig.backgroundColor]);
 
   // ---- Load library tracks ----
@@ -850,10 +933,13 @@ export function ThreeJSStudio() {
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
         analyserRef.current = analyser;
-        const source = ctx.createMediaElementSource(audioElementRef.current);
-        source.connect(analyser);
-        analyser.connect(ctx.destination);
-        audioSourceRef.current = source;
+        // Guard: createMediaElementSource throws if called twice on same element
+        if (!audioSourceRef.current) {
+          const source = ctx.createMediaElementSource(audioElementRef.current);
+          source.connect(analyser);
+          analyser.connect(ctx.destination);
+          audioSourceRef.current = source;
+        }
       }
       if (audioContextRef.current.state === "suspended") await audioContextRef.current.resume();
       if (isAudioPlaying) { audioElementRef.current.pause(); setIsAudioPlaying(false); }

@@ -32,7 +32,7 @@ def analyze_audio(audio_path, fps=24):
     
     # GPU + CPU overlap per CUDA Programming Guide 2.5 (Async Execution)
     # Launch GPU STFT on a non-default stream while CPU does beat tracking
-    gpu_future = None
+    gpu_result_data = None
     gpu_stream = None
     try:
         from app.services.cuda import cuda_audio, cuda_available
@@ -40,34 +40,34 @@ def analyze_audio(audio_path, fps=24):
             import torch
             print("Using GPU audio analysis (stream overlapped)...")
             gpu_stream = torch.cuda.Stream()
-            # Capture result holder to synchronize later
-            gpu_result = {}
-
-            def _launch():
+            
+            # Proper async launch - use threading for true async execution
+            import threading
+            result_holder = {}
+            
+            def _gpu_worker():
                 with torch.cuda.stream(gpu_stream):
-                    gpu_result["data"] = cuda_audio.analyze(y)
-
-            # Launch async — don't block CPU
-            _launch()
-            gpu_future = gpu_result
+                    result_holder["data"] = cuda_audio.analyze(y)
+            
+            gpu_thread = threading.Thread(target=_gpu_worker)
+            gpu_thread.start()
+            
+            # Beat tracking runs concurrently with GPU on CPU (overlapped)
+            tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=512)
+            beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=512).tolist()
+            
+            # Ensure GPU work finished before returning (Guide 2.5: explicit sync)
+            gpu_thread.join()
+            gpu_stream.synchronize()
+            gpu_result_data = result_holder.get("data")
+            if gpu_result_data:
+                print(f"  GPU computed on: {gpu_result_data['computed_on']} ({gpu_result_data['n_frames']} frames)")
     except Exception as e:
         print(f"GPU analysis failed ({e}), using CPU...")
-        gpu_future = None
-    
-    # Beat tracking runs concurrently with GPU on CPU (overlapped)
-    tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=512)
-    beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=512).tolist()
-
-    # Ensure GPU work finished before returning (Guide 2.5: explicit sync)
-    if gpu_future is not None and gpu_stream is not None:
-        try:
-            import torch
-            gpu_stream.synchronize()
-            result = gpu_future.get("data") if isinstance(gpu_future, dict) else None
-            if result:
-                print(f"  GPU computed on: {result['computed_on']} ({result['n_frames']} frames)")
-        except Exception as e:
-            print(f"  GPU sync warning: {e}")
+        gpu_result_data = None
+        # Beat tracking runs on CPU
+        tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=512)
+        beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=512).tolist()
     
     # Convert to animation keyframes
     keyframes = [round(t * fps) for t in beat_times]
@@ -107,7 +107,7 @@ def main():
     
     # Save to JSON
     output_path = args.output or os.path.join(
-        os.path.dirname(__file__), "beat_data.json"
+        os.path.dirname(__file__), "..", "output", "beat_data.json"
     )
     with open(output_path, "w") as f:
         json.dump(data, f, indent=2)

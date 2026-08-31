@@ -89,7 +89,7 @@ def _scan_docs() -> list[DocEntry]:
 
     # Walk docs, but skip hidden, node_modules, .obsidian internals
     seen: set[str] = set()
-    for p in list(DOCS_ROOT.rglob("*.md")) + list(VAULT_ROOT.glob("*.json")):
+    for p in list(DOCS_ROOT.rglob("*.md")) + list(VAULT_ROOT.glob("*.json")) + list(VAULT_ROOT.glob("*.canvas")):
         if ".obsidian" in p.parts:
             continue
         if "node_modules" in p.parts:
@@ -105,13 +105,18 @@ def _scan_docs() -> list[DocEntry]:
             # Quick frontmatter read for title/tags
             try:
                 text = p.read_text(encoding="utf-8", errors="ignore")
-                # JSON files: extract title from JSON content
-                if p.suffix.lower() == ".json":
+                # JSON / canvas files: extract title from JSON content
+                if p.suffix.lower() in (".json", ".canvas"):
                     import json
                     data = json.loads(text)
-                    title = data.get("title") or data.get("name") or _title_from_path(p)
-                    tags = []
-                    aliases = []
+                    if p.suffix.lower() == ".canvas":
+                        title = data.get("title") or "Knowledge Graph"
+                        tags = ["canvas", "knowledge-graph"]
+                        aliases = []
+                    else:
+                        title = data.get("title") or data.get("name") or _title_from_path(p)
+                        tags = []
+                        aliases = []
                 else:
                     meta, _ = _parse_frontmatter(text)
                     title = meta.get("title") or _title_from_path(p)
@@ -173,8 +178,8 @@ async def get_doc_file(path: str = Query(..., description="Relative path from do
 
     if not full.exists() or not full.is_file():
         raise HTTPException(status_code=404, detail=f"Doc not found: {clean}")
-    if full.suffix.lower() not in (".md", ".json"):
-        raise HTTPException(status_code=400, detail="Only .md and .json are served")
+    if full.suffix.lower() not in (".md", ".json", ".canvas"):
+        raise HTTPException(status_code=400, detail="Only .md, .json and .canvas are served")
 
     try:
         text = full.read_text(encoding="utf-8", errors="ignore")

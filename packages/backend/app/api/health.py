@@ -91,14 +91,22 @@ async def gpu_processes() -> dict:
 
 @router.get("/ollama/models")
 async def ollama_models() -> dict:
-    """Get currently loaded Ollama models with VRAM usage."""
+    """Get currently loaded Ollama models with VRAM usage and active tasks."""
     import urllib.request
     import json
+    from ..adapters.registry import adapter_registry
     try:
         req = urllib.request.Request("http://127.0.0.1:11434/api/ps")
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read())
             models = data.get("models", [])
+
+            # Get activity tracking from adapter
+            activity = {}
+            adapter = adapter_registry.get("ollama")
+            if adapter and hasattr(adapter, "get_activity"):
+                activity = adapter.get_activity()
+
             return {
                 "loaded": len(models) > 0,
                 "models": [
@@ -107,12 +115,25 @@ async def ollama_models() -> dict:
                         "size_mb": (m.get("size", 0) or 0) // (1024 * 1024),
                         "vram_mb": (m.get("size_vram", 0) or 0) // (1024 * 1024),
                         "expires_at": m.get("expires_at", ""),
+                        "activity": activity.get(m.get("name", "")),
                     }
                     for m in models
                 ],
+                "activity": activity,
             }
     except Exception as e:
-        return {"loaded": False, "models": [], "error": str(e)}
+        return {"loaded": False, "models": [], "activity": {}, "error": str(e)}
+
+
+@router.post("/ollama/clear-activity")
+async def clear_ollama_activity() -> dict:
+    """Manually clear all Ollama activity tracking (for stuck tasks)."""
+    from ..adapters.registry import adapter_registry
+    adapter = adapter_registry.get("ollama")
+    if not adapter:
+        return {"status": "error", "detail": "Ollama not available"}
+    adapter._active_tasks.clear()
+    return {"status": "cleared"}
 
 
 @router.get("/ffmpeg")

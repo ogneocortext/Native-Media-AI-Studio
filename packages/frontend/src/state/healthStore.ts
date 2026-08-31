@@ -105,6 +105,8 @@ export const useHealthStore = create<HealthState>((set, get) => ({
   },
 
   connectSSE: () => {
+    // Guard: prevent double-subscription if called multiple times
+    if (healthSubscriptions) return;
     const unsubMessage = sseService.subscribe((message) => {
       // Handle health change events
       if (

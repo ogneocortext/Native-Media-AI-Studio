@@ -70,6 +70,8 @@ Generate 3-8 scenes based on the input theme or concept."""
         self._last_model: str = self._default_model  # Track last used model for VRAM manager
         self._last_health_log: str | None = None
         self._session: aiohttp.ClientSession | None = None
+        # Activity tracking: model name -> {task, description, started_at}
+        self._active_tasks: dict[str, dict[str, Any]] = {}
         # Scene state for AI tool-driven generation
         self._scene_state: dict[str, Any] = {
             "objects": [],
@@ -89,6 +91,43 @@ Generate 3-8 scenes based on the input theme or concept."""
                 timeout=aiohttp.ClientTimeout(total=30),
             )
         return self._session
+
+    def set_activity(self, model: str, task: str = "generate", description: str = "", timeout: float = 180) -> None:
+        """Register that a model is actively processing a task.
+
+        Args:
+            timeout: Max seconds before this task is considered stale (default 10 min).
+        """
+        import time
+        self._active_tasks[model] = {
+            "task": task,
+            "description": description[:120],
+            "started_at": time.time(),
+            "timeout": timeout,
+        }
+
+    def clear_activity(self, model: str) -> None:
+        """Mark a model's current task as complete."""
+        self._active_tasks.pop(model, None)
+
+    def get_activity(self) -> dict[str, dict[str, Any]]:
+        """Get all currently active tasks, purging any that exceeded their timeout."""
+        import time
+        now = time.time()
+        result = {}
+        stale = []
+        for model, info in self._active_tasks.items():
+            elapsed = now - info["started_at"]
+            if elapsed > info.get("timeout", 600):
+                stale.append(model)
+                continue
+            result[model] = {
+                **info,
+                "elapsed_seconds": round(elapsed, 1),
+            }
+        for model in stale:
+            self._active_tasks.pop(model, None)
+        return result
 
     async def close(self):
         """Close the shared session."""
@@ -347,50 +386,57 @@ Generate 3-8 scenes based on the input theme or concept."""
         system = params.get("system")
         options = params.get("options", {})
 
-        # Ollama 0.33+: structured output & VRAM-aware options
-        payload: dict[str, Any] = {
-            "model": model,
-            "prompt": prompt,
-            "stream": False,
-        }
-        # Top-level format/keep_alive passthrough for structured output & caching
-        if "format" in params:
-            payload["format"] = params["format"]
-        if "keep_alive" in params:
-            payload["keep_alive"] = params["keep_alive"]
+        # Track activity
+        task_desc = (system or prompt)[:80]
+        self.set_activity(model, "generate", task_desc)
 
-        if system:
-            payload["system"] = system
-        if options:
-            # VRAM-aware clamp for generate too
-            if "num_ctx" in options:
-                try:
-                    requested = int(options["num_ctx"])
-                    if requested > 32768:
-                        options["num_ctx"] = 32768
-                    elif requested > 16384:
-                        logger.warning("generate num_ctx %d capped to 16384 for 8GB VRAM", requested)
-                        options["num_ctx"] = 16384
-                except Exception:
-                    pass
-            payload["options"] = options
-
-        session = await self._get_session()
-        async with session.post(
-            f"{self.base_url}/api/generate",
-            json=payload,
-            timeout=aiohttp.ClientTimeout(total=120),
-        ) as resp:
-            if resp.status != 200:
-                error = await resp.text()
-                raise RuntimeError(f"Ollama error: {error}")
-
-            result = await resp.json()
-            return {
-                "response": result.get("response", ""),
+        try:
+            # Ollama 0.33+: structured output & VRAM-aware options
+            payload: dict[str, Any] = {
                 "model": model,
-                "done": result.get("done", True),
+                "prompt": prompt,
+                "stream": False,
             }
+            # Top-level format/keep_alive passthrough for structured output & caching
+            if "format" in params:
+                payload["format"] = params["format"]
+            if "keep_alive" in params:
+                payload["keep_alive"] = params["keep_alive"]
+
+            if system:
+                payload["system"] = system
+            if options:
+                # VRAM-aware clamp for generate too
+                if "num_ctx" in options:
+                    try:
+                        requested = int(options["num_ctx"])
+                        if requested > 32768:
+                            options["num_ctx"] = 32768
+                        elif requested > 16384:
+                            logger.warning("generate num_ctx %d capped to 16384 for 8GB VRAM", requested)
+                            options["num_ctx"] = 16384
+                    except Exception:
+                        pass
+                payload["options"] = options
+
+            session = await self._get_session()
+            async with session.post(
+                f"{self.base_url}/api/generate",
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=120),
+            ) as resp:
+                if resp.status != 200:
+                    error = await resp.text()
+                    raise RuntimeError(f"Ollama error: {error}")
+
+                result = await resp.json()
+                return {
+                    "response": result.get("response", ""),
+                    "model": model,
+                    "done": result.get("done", True),
+                }
+        finally:
+            self.clear_activity(model)
 
     async def chat(
         self,

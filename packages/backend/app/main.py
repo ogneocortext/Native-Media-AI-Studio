@@ -8,8 +8,9 @@ from datetime import datetime
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 
@@ -23,6 +24,7 @@ from .diagnostics.resources import resource_monitoring_loop
 from .queue.manager import queue_manager
 from .queue.processor import processor
 from .sse.handler import sse_manager
+from .websocket.handler import connection_manager
 
 # Initialize logging before anything else
 setup_logging(config.log_level)
@@ -41,7 +43,7 @@ _background_tasks: list[asyncio.Task] = []
 
 
 async def health_broadcast_loop():
-    """Background loop that broadcasts health status every 5 seconds."""
+    """Background loop that broadcasts health status every 5 seconds to both SSE and WS."""
     consecutive_errors = 0
     max_backoff = 30  # Max seconds to wait between retries
 
@@ -52,6 +54,11 @@ async def health_broadcast_loop():
             for adapter in health_status.get("adapters", {}).values():
                 adapter["status"] = "online" if adapter.get("status") == "healthy" else "offline"
             await sse_manager.broadcast_health_status(health_status)
+            # Mirror to legacy WS clients
+            try:
+                await connection_manager.broadcast_health_status(health_status)
+            except Exception:
+                pass
             consecutive_errors = 0  # Reset on success
             await asyncio.sleep(5)
         except asyncio.CancelledError:
@@ -109,8 +116,14 @@ async def lifespan(app: FastAPI):
         logger.error(f"Port configuration failed: {e}")
         raise
 
-    # Subscribe to job updates
-    await queue_manager.subscribe(sse_manager.send_job_update)
+    # Subscribe to job updates — fan-out to both SSE and legacy WS
+    async def _fanout_job_update(job):
+        await sse_manager.send_job_update(job)
+        try:
+            await connection_manager.send_job_update(job)
+        except Exception:
+            pass
+    await queue_manager.subscribe(_fanout_job_update)
 
     # Start the processor
     try:
@@ -184,12 +197,8 @@ _local_origins = {
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
     f"http://localhost:{config.backend_port}",
     f"http://127.0.0.1:{config.backend_port}",
-    f"http://localhost:{config.frontend_port}",
-    f"http://127.0.0.1:{config.frontend_port}",
 }
 
 app.add_middleware(
@@ -200,13 +209,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from .api import audio, comfyui, data, docs, health, integrations, jobs, logs, outputs, video  # noqa: E402
+from .api import audio, comfyui, data, docs, health, integrations, jobs, logs, lyrics, outputs, transcription, video  # noqa: E402
 
 app.include_router(jobs.router)
 app.include_router(health.router)
 app.include_router(integrations.router)
 app.include_router(outputs.router)
 app.include_router(audio.router)
+app.include_router(transcription.router)
+app.include_router(lyrics.router)
 app.include_router(comfyui.router)
 app.include_router(logs.router)
 app.include_router(data.router)
@@ -247,7 +258,52 @@ async def root():
     }
 
 
-@ app.get("/api/events")
+# ---------------------------------------------------------------------------
+# Legacy WebSocket endpoint — kept for backward compatibility.
+# New clients should use SSE at /api/events (see sseService.ts).
+# Returns 426 for plain HTTP GET with a JSON hint.
+# ---------------------------------------------------------------------------
+@app.get("/ws")
+async def ws_http_fallback():
+    return JSONResponse(
+        status_code=426,
+        content={
+            "error": "Upgrade Required",
+            "message": "This endpoint requires a WebSocket upgrade. Connect via ws://host:8000/ws or prefer SSE at /api/events.",
+            "sse_endpoint": "/api/events",
+            "ws_endpoint": "/ws",
+        },
+    )
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket shim that mirrors SSE broadcasts for legacy clients."""
+    await connection_manager.connect(websocket)
+    try:
+        # Send initial hello so legacy clients know the protocol
+        await websocket.send_text(json.dumps({
+            "type": "connected",
+            "data": {"message": "Connected to Native Media AI Studio (WS compat layer). Prefer SSE at /api/events."},
+            "timestamp": datetime.now().isoformat(),
+        }))
+        # Keep connection alive — echo any client message and forward keepalives
+        while True:
+            try:
+                msg = await asyncio.wait_for(websocket.receive_text(), timeout=30)
+                # Echo back for diagnostics; ignore unknown payloads
+                await websocket.send_text(json.dumps({"type": "echo", "data": {"received": msg[:500]}, "timestamp": datetime.now().isoformat()}))
+            except asyncio.TimeoutError:
+                await websocket.send_text(json.dumps({"type": "keepalive", "timestamp": datetime.now().isoformat()}))
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        logger.debug(f"WS connection ended: {e}")
+    finally:
+        await connection_manager.disconnect(websocket)
+
+
+@app.get("/api/events")
 async def sse_endpoint(request: Request):
     """SSE endpoint for real-time server-to-client updates.
     

@@ -27,6 +27,7 @@ export function useOllamaStream() {
     prompt: string,
     model: string,
     systemPrompt?: string,
+    ollamaOptionsOrUseTools?: Record<string, unknown> | ((msg: StreamMessage) => void) | boolean,
     onMessageOrUseTools?: ((msg: StreamMessage) => void) | boolean,
     useToolsArg?: boolean,
   ) => {
@@ -35,21 +36,53 @@ export function useOllamaStream() {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    // Handle overloaded signature: (prompt, model, systemPrompt, useTools) or (prompt, model, systemPrompt, onMessage, useTools)
+    // Handle overloaded signatures:
+    // 1) generate(prompt, model, system, useTools)
+    // 2) generate(prompt, model, system, ollamaOptions, useTools)
+    // 3) generate(prompt, model, system, ollamaOptions, onMessage, useTools)
+    // 4) generate(prompt, model, system, onMessage, useTools)
+    let ollamaOptions: Record<string, unknown> | undefined;
     let onMessage: ((msg: StreamMessage) => void) | undefined;
     let useTools: boolean | undefined;
-    if (typeof onMessageOrUseTools === "function") {
-      onMessage = onMessageOrUseTools;
-      useTools = useToolsArg;
-    } else if (typeof onMessageOrUseTools === "boolean") {
-      useTools = onMessageOrUseTools;
+
+    const isOllamaOptions = (v: unknown): boolean => {
+      if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+      const keys = ["temperature", "top_p", "top_k", "num_predict", "repeat_penalty", "num_ctx", "seed", "stop"];
+      return keys.some((k) => k in (v as Record<string, unknown>));
+    };
+
+    if (isOllamaOptions(ollamaOptionsOrUseTools)) {
+      ollamaOptions = ollamaOptionsOrUseTools as Record<string, unknown>;
+      if (typeof onMessageOrUseTools === "function") {
+        onMessage = onMessageOrUseTools;
+        useTools = useToolsArg;
+      } else if (typeof onMessageOrUseTools === "boolean") {
+        useTools = onMessageOrUseTools;
+      }
+    } else if (typeof ollamaOptionsOrUseTools === "function") {
+      onMessage = ollamaOptionsOrUseTools;
+      useTools = onMessageOrUseTools as boolean | undefined;
+    } else if (typeof ollamaOptionsOrUseTools === "boolean") {
+      useTools = ollamaOptionsOrUseTools;
+    } else if (ollamaOptionsOrUseTools && typeof ollamaOptionsOrUseTools === "object") {
+      // fallback: treat any plain object as options if not matched above but looks like options
+      // avoid misclassifying; only if next arg is function/boolean
+      if (typeof onMessageOrUseTools === "function" || typeof onMessageOrUseTools === "boolean" || onMessageOrUseTools === undefined) {
+        ollamaOptions = ollamaOptionsOrUseTools as Record<string, unknown>;
+        if (typeof onMessageOrUseTools === "function") {
+          onMessage = onMessageOrUseTools;
+          useTools = useToolsArg;
+        } else if (typeof onMessageOrUseTools === "boolean") {
+          useTools = onMessageOrUseTools;
+        }
+      }
     }
 
     try {
       const stream = await ollamaChatStream(
         prompt,
         model,
-        { system: systemPrompt, think: false, tools: useTools },
+        { system: systemPrompt, think: false, tools: useTools, ...(ollamaOptions || {}) },
         controller.signal,
       );
       const reader = stream.getReader();

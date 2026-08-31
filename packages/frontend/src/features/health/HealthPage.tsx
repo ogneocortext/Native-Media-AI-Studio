@@ -39,10 +39,15 @@ import {
   getSystemDiagnostics,
   checkService,
   getApiBase,
+  cleanupSystemMemory,
+  getLogInfo,
+  getLogContent,
+  getLoadedModels,
   type ComfyUIStatus as ComfyUIStatusType,
   type GPUProcessInfo,
   type GPUSnapshot,
   type LogInfo,
+  type DiagnosticsModelsResponse,
 } from "../../services/api";
 import {
   AreaChart,
@@ -53,6 +58,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { formatElapsed } from "../../utils/format";
 
 function getUsageColor(percent: number): string {
   if (percent < 50) return "#22c55e";
@@ -64,6 +70,13 @@ function getUsageLabel(percent: number): string {
   if (percent < 50) return "Good";
   if (percent < 75) return "Moderate";
   return "High";
+}
+
+/** Extract VRAM info from the raw status response with safe defaults */
+function parseVRAMStatus(vramStatus: Record<string, unknown> | null): { percent: number; free_mb: number } | null {
+  const vram = (vramStatus as unknown as { vram?: { percent?: number; free_mb?: number } })?.vram;
+  if (!vram || typeof vram.percent !== "number") return null;
+  return { percent: vram.percent, free_mb: vram.free_mb || 0 };
 }
 
 export function HealthPage() {
@@ -93,19 +106,21 @@ export function HealthPage() {
     }
   };
 
-  // Fetch VRAM status
-  const fetchVRAMStatus = async () => {
+  // Fetch VRAM status — returns the data directly so callers don't rely on stale state
+  const fetchVRAMStatus = useCallback(async () => {
     try {
       const base = getApiBase();
       const res = await fetch(`${base}/api/integrations/vram/status`);
       if (res.ok) {
         const data = await res.json();
         setVramStatus(data as Record<string, unknown>);
+        return data as Record<string, unknown>;
       }
     } catch {
       // Ignore errors
     }
-  };
+    return null;
+  }, []);
 
   useEffect(() => {
     fetchComfyUIStatus();
@@ -126,21 +141,21 @@ export function HealthPage() {
       switch (action) {
         case "start":
           addLog("Checking VRAM availability...", "info");
-          await fetchVRAMStatus();
           {
-            const _vram = (vramStatus as unknown as { vram?: { percent: number } })?.vram;
+            const vramData = await fetchVRAMStatus();
+            const _vram = (vramData as unknown as { vram?: { percent: number } })?.vram;
             if (_vram && _vram.percent > 80) {
               addLog(`Warning: VRAM is at ${_vram.percent}%`, "warning");
               const proceed = window.confirm(
                 `VRAM is at ${_vram.percent}%. Starting ComfyUI may cause performance issues. Continue?`
               );
-            if (!proceed) {
-              addLog("Start cancelled by user", "warning");
-              setComfyuiLoading(false);
-              setComfyuiAction(null);
-              return;
+              if (!proceed) {
+                addLog("Start cancelled by user", "warning");
+                setComfyuiLoading(false);
+                setComfyuiAction(null);
+                return;
+              }
             }
-          }
           }
           addLog("Starting ComfyUI...", "info");
           result = await startComfyUI();
@@ -370,25 +385,31 @@ export function HealthPage() {
               </div>
             )}
 
-            <div className="flex items-center justify-between text-xs text-muted mt-2">
-              <div>
-                {comfyui.running && comfyui.uptime_seconds && (
-                  <span>
-                    Uptime: {Math.floor(comfyui.uptime_seconds / 60)}m {Math.floor(comfyui.uptime_seconds % 60)}s
-                    {comfyui.pid && ` • PID: ${comfyui.pid}`}
-                  </span>
-                )}
-              </div>
-              {((vramStatus as unknown as { vram?: { available?: boolean } })?.vram?.available) && (
-                <span className="flex items-center gap-1">
-                  <span className={`w-2 h-2 rounded-full ${
-                    ((vramStatus as unknown as { vram: { percent: number } }).vram.percent) > 80 ? 'bg-red-400' :
-                    ((vramStatus as unknown as { vram: { percent: number } }).vram.percent) > 60 ? 'bg-yellow-400' : 'bg-green-400'
-                  }`} />
-                  VRAM: {(vramStatus as unknown as { vram: { percent: number; free_mb: number } }).vram.percent}% ({Math.round((vramStatus as unknown as { vram: { free_mb: number } }).vram.free_mb / 1024)}GB free)
-                </span>
-              )}
-            </div>
+            {/* VRAM + uptime row */}
+            {(() => {
+              const vram = parseVRAMStatus(vramStatus);
+              return (
+                <div className="flex items-center justify-between text-xs text-muted mt-2">
+                  <div>
+                    {comfyui.running && comfyui.uptime_seconds && (
+                      <span>
+                        Uptime: {Math.floor(comfyui.uptime_seconds / 60)}m {Math.floor(comfyui.uptime_seconds % 60)}s
+                        {comfyui.pid && ` • PID: ${comfyui.pid}`}
+                      </span>
+                    )}
+                  </div>
+                  {vram && (
+                    <span className="flex items-center gap-1">
+                      <span className={`w-2 h-2 rounded-full ${
+                        vram.percent > 80 ? 'bg-red-400' :
+                        vram.percent > 60 ? 'bg-yellow-400' : 'bg-green-400'
+                      }`} />
+                      VRAM: {vram.percent}% ({Math.round(vram.free_mb / 1024)}GB free)
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
           </Card>
         )}
 
@@ -401,7 +422,6 @@ export function HealthPage() {
               {memUsage >= 80 && (
                 <button
                   onClick={async () => {
-                    const { cleanupSystemMemory } = await import("../../services/api");
                     addLog("Cleaning system memory...", "info");
                     try {
                       const res = await cleanupSystemMemory();
@@ -548,9 +568,78 @@ export function HealthPage() {
         )}
       </Card>
 
+      {/* Ollama Models */}
+      <OllamaModelsCard />
+
       {/* Logs Viewer */}
       <LogsViewer />
     </div>
+  );
+}
+
+// ============================================================================
+// Ollama Models Card (loaded + active tasks)
+// ============================================================================
+
+function OllamaModelsCard() {
+  const [data, setData] = useState<DiagnosticsModelsResponse | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  const fetchData = useCallback(async () => {
+    try {
+      const result = await getLoadedModels();
+      setData(result);
+    } catch {
+      setData({ loaded: false, models: [], activity: {} });
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 5000);
+    const clock = setInterval(() => setNow(Date.now()), 1000);
+    return () => { clearInterval(interval); clearInterval(clock); };
+  }, [fetchData]);
+
+  const models = data?.models || [];
+  const activity = data?.activity || {};
+
+  return (
+    <Card className="mb-6" title="Ollama Models" icon={<Cpu size={16} className="text-violet-400" />}>
+      {models.length === 0 ? (
+        <div className="text-center py-6">
+          <Cpu size={28} className="mx-auto mb-3 opacity-30 text-violet-400" />
+          <p className="text-sm text-muted">No model currently loaded in VRAM</p>
+          <p className="text-xs text-muted mt-1">A model loads on first request and may persist for a while</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {models.map((m) => {
+            const active = activity[m.name];
+            const elapsed = active?.started_at ? Math.floor((now / 1000) - active.started_at) : null;
+            return (
+              <div key={m.name} className={`p-3 rounded-lg border ${active ? "border-yellow-500/30 bg-yellow-500/5" : "border-white/5 bg-white/[0.02]"}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2.5 h-2.5 rounded-full ${active ? "bg-yellow-400 animate-pulse" : "bg-emerald-400"}`} />
+                    <span className="text-sm font-medium">{m.name}</span>
+                  </div>
+                  <span className="text-xs text-muted">{m.vram_mb}MB VRAM</span>
+                </div>
+                {active && (
+                  <div className="mt-2 pl-4 flex items-center gap-2">
+                    <Loader2 size={12} className="animate-spin text-yellow-400" />
+                    <span className="text-xs text-yellow-300 capitalize">{active.task}</span>
+                    {active.description && <span className="text-xs text-muted truncate flex-1">— {active.description}</span>}
+                    {elapsed != null && <span className="text-xs text-yellow-400/70 font-mono">{formatElapsed(elapsed)}</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -657,7 +746,6 @@ function LogsViewer() {
 
   const fetchLogInfo = async () => {
     try {
-      const { getLogInfo } = await import("../../services/api");
       const info = await getLogInfo();
       setLogInfo(info);
     } catch {
@@ -668,7 +756,6 @@ function LogsViewer() {
   const fetchLogContent = async (logName: string = activeLog) => {
     setLoading(true);
     try {
-      const { getLogContent } = await import("../../services/api");
       const content = await getLogContent(logName, 500);
       setLogContent(content.content);
     } catch {
@@ -680,7 +767,6 @@ function LogsViewer() {
 
   const handleStartComfyUI = async () => {
     try {
-      const { startComfyUI } = await import("../../services/api");
       await startComfyUI();
       // Switch to comfyui log tab and refresh
       setActiveLog("comfyui");
@@ -994,12 +1080,20 @@ interface ResourceCardProps {
 }
 
 function ResourceCard({ icon: Icon, iconColor, label, cores, usage, subtext }: ResourceCardProps) {
+  // Static class map to avoid Tailwind purging dynamic classes
+  const colorMap: Record<string, { bg: string; text: string }> = {
+    blue: { bg: "bg-blue-500/20", text: "text-blue-400" },
+    purple: { bg: "bg-purple-500/20", text: "text-purple-400" },
+    amber: { bg: "bg-amber-500/20", text: "text-amber-400" },
+  };
+  const colors = colorMap[iconColor] || colorMap.blue;
+
   return (
     <Card>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2.5">
-          <div className={`w-9 h-9 rounded-lg bg-${iconColor}-500/20 flex items-center justify-center`}>
-            <Icon size={18} className={`text-${iconColor}-400`} />
+          <div className={`w-9 h-9 rounded-lg ${colors.bg} flex items-center justify-center`}>
+            <Icon size={18} className={colors.text} />
           </div>
           <div>
             <h3 className="font-semibold text-sm">{label}</h3>

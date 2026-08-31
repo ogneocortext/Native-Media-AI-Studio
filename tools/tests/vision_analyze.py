@@ -5,8 +5,8 @@ The vision-mcp tool fails with "Ollama API error: 400" when images are too large
 This script resizes images before sending to Ollama's vision API.
 
 Usage:
-    python tools/vision_analyze.py <image_path> "Your question here"
-    python tools/vision_analyze.py screenshot.png "Describe the UI"
+    python tools/tests/vision_analyze.py <image_path> "Your question here"
+    python tools/tests/vision_analyze.py screenshot.png "Describe the UI"
 """
 
 import base64

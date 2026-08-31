@@ -64,6 +64,9 @@ export function Dashboard() {
 
       {/* ONE drop zone — the whole action */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Drop audio file here or click to browse"
         onDragOver={e => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
@@ -72,6 +75,15 @@ export function Dashboard() {
           input.type = "file"; input.accept = "audio/*,.mp3,.wav,.flac,.ogg,.m4a";
           input.onchange = () => handleFiles(input.files);
           input.click();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            const input = document.createElement("input");
+            input.type = "file"; input.accept = "audio/*,.mp3,.wav,.flac,.ogg,.m4a";
+            input.onchange = () => handleFiles(input.files);
+            input.click();
+          }
         }}
         className={`group relative rounded-2xl border-2 border-dashed p-10 text-center cursor-pointer transition-all ${dragOver ? "border-violet-500 bg-violet-500/10" : "border-white/10 bg-white/[0.02] hover:border-violet-500/40 hover:bg-violet-500/5"}`}
       >

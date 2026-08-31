@@ -599,8 +599,26 @@ export interface AudioAnalysisResult {
 
 export async function getAnalysis(filename: string): Promise<any> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/audio/analysis/${encodeURIComponent(filename)}`);
-  if (!res.ok) throw new Error("No cached analysis found");
+  const res = await fetch(`${base}/api/audio/analysis/by-filename/${encodeURIComponent(filename)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "No cached analysis found");
+  }
+  return res.json();
+}
+
+/** Ensure analysis exists for a file — runs analysis if not cached */
+export async function ensureAnalysis(filename: string): Promise<{ status: string; analysis: any }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/audio/ensure-analysis`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to ensure analysis");
+  }
   return res.json();
 }
 
@@ -652,6 +670,130 @@ export async function listAudioFiles(): Promise<Array<{
   if (!res.ok) throw new Error("Failed to list audio files");
   const data = await res.json();
   return Array.isArray(data) ? data : (data?.files || []);
+}
+
+// ---------------------------------------------------------------------------
+// Transcription API
+// ---------------------------------------------------------------------------
+
+export interface LyricLine {
+  start: number;
+  end: number;
+  text: string;
+  section?: string;
+  words?: Array<{
+    word: string;
+    start: number;
+    end: number;
+  }>;
+}
+
+export interface TranscriptionResult {
+  filename: string;
+  language: string;
+  duration: number;
+  segments: LyricLine[];
+}
+
+export async function transcribeAudio(filename: string, language?: string, modelSize?: string): Promise<TranscriptionResult> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/audio/transcribe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename, language, model_size: modelSize }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Transcription failed");
+  }
+  return res.json();
+}
+
+export async function getTranscription(filename: string): Promise<TranscriptionResult> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/audio/transcript/${encodeURIComponent(filename)}`);
+  if (!res.ok) throw new Error("No transcription found");
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Lyrics API (database-stored)
+// ---------------------------------------------------------------------------
+
+export async function getLyricsForTrack(trackId: string): Promise<{
+  track_id: string;
+  title: string;
+  artist: string;
+  lines: LyricLine[];
+  total_lines: number;
+}> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/lyrics/track/${trackId}`);
+  if (!res.ok) throw new Error("No lyrics found");
+  return res.json();
+}
+
+export async function saveLyricsForTrack(trackId: string, lines: LyricLine[]): Promise<{ status: string }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/lyrics/track/${trackId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lines }),
+  });
+  if (!res.ok) throw new Error("Failed to save lyrics");
+  return res.json();
+}
+
+export async function deleteLyricsForTrack(trackId: string): Promise<{ status: string }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/lyrics/track/${trackId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete lyrics");
+  return res.json();
+}
+
+export async function importLRC(trackId: string, lrcContent: string): Promise<{ status: string; lines_count: number }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/lyrics/import-lrc`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ track_id: trackId, lrc_content: lrcContent }),
+  });
+  if (!res.ok) throw new Error("Failed to import LRC");
+  return res.json();
+}
+
+export async function exportLRC(trackId: string): Promise<{ lrc: string; format: string }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/lyrics/track/${trackId}/lrc`);
+  if (!res.ok) throw new Error("Failed to export LRC");
+  return res.json();
+}
+
+export async function getTracksWithLyrics(): Promise<Array<{
+  id: string;
+  title: string;
+  artist: string;
+  filename: string;
+  duration_seconds: number;
+  lyric_count: number;
+}>> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/lyrics/tracks-with-lyrics`);
+  if (!res.ok) throw new Error("Failed to get tracks");
+  return res.json();
+}
+
+export async function getLyricsByFilename(filename: string): Promise<{
+  track_id: string;
+  title: string;
+  artist: string;
+  lines: LyricLine[];
+  total_lines: number;
+}> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/lyrics/by-filename/${encodeURIComponent(filename)}`);
+  if (!res.ok) throw new Error("No lyrics found");
+  return res.json();
 }
 
 export async function renameAudioFile(oldFilename: string, newFilename: string): Promise<{ success: boolean; new_filename: string }> {
@@ -846,6 +988,7 @@ export interface DiagnosticsModel {
 export interface DiagnosticsModelsResponse {
   loaded: boolean;
   models: DiagnosticsModel[];
+  activity?: Record<string, { task: string; description: string; started_at: number; elapsed_seconds?: number }>;
   error?: string;
 }
 
@@ -885,6 +1028,7 @@ export interface OllamaModel {
   capabilities?: string[];
   supportsTools?: boolean;
   supportsVision?: boolean;
+  benchmark?: { score: number; latency_ms: number; success: boolean; timestamp: string };
 }
 
 export interface ChatMessage {
@@ -922,6 +1066,54 @@ export async function getOllamaModels(): Promise<OllamaModel[]> {
     const name = m.name.toLowerCase();
     return !name.includes("embed") && !name.includes("nomic") && !name.includes("minigpt") && !name.includes("clip");
   });
+}
+
+export interface OllamaBenchmarkResult {
+  model: string;
+  success: boolean;
+  latency_ms: number;
+  chars: number;
+  lines: number;
+  validation: {
+    score: number;
+    raw_score: number;
+    max_score: number;
+    passed_rules: number;
+    total_rules: number;
+    details: Array<{ rule: string; description: string; weight: number; passed: boolean }>;
+    metrics: { lines: number; chars: number; balanced_braces: boolean; node_valid: boolean | null; node_error: string | null };
+  };
+  preview: string;
+  error: string | null;
+  timestamp: string;
+}
+
+export async function getBenchmarkResults(): Promise<{ updated_at: string | null; results: Record<string, OllamaBenchmarkResult> }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/integrations/ollama/benchmark/results`);
+  if (!res.ok) throw new Error("Failed to get benchmark results");
+  return res.json();
+}
+
+export async function runBenchmark(models?: string[], max_models = 8): Promise<{ updated_at: string | null; results: Record<string, OllamaBenchmarkResult> }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/integrations/ollama/benchmark/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ models: models || null, max_models }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Benchmark failed" }));
+    throw new Error(err.detail || "Benchmark failed");
+  }
+  return res.json();
+}
+
+export async function getBestBenchmarkModel(): Promise<{ best: string | null; result?: OllamaBenchmarkResult; results: { updated_at: string | null; results: Record<string, OllamaBenchmarkResult> } }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/integrations/ollama/benchmark/best`);
+  if (!res.ok) throw new Error("Failed to get best benchmark model");
+  return res.json();
 }
 
 export async function saveGeneratedScene(code: string, track: string, model: string): Promise<{ success: boolean; filename: string; path: string }> {
@@ -990,10 +1182,25 @@ export async function ollamaChatStream(
     think?: boolean | string;
     maxToolCalls?: number;
     system?: string;
+    ollamaOptions?: Record<string, unknown>;
+    // also allow direct spread for convenience
+    temperature?: number;
+    top_p?: number;
+    top_k?: number;
+    num_predict?: number;
+    repeat_penalty?: number;
+    num_ctx?: number;
   },
   signal?: AbortSignal,
 ): Promise<ReadableStream<Uint8Array>> {
   const base = getApiBase();
+  const ollamaOpts: Record<string, unknown> = {
+    ...(options?.ollamaOptions || {}),
+  };
+  // Collect known Ollama generation options if passed flat
+  for (const k of ["temperature", "top_p", "top_k", "num_predict", "repeat_penalty", "num_ctx", "seed", "stop"]) {
+    if ((options as any)?.[k] !== undefined) (ollamaOpts as any)[k] = (options as any)[k];
+  }
   const res = await fetch(`${base}/api/integrations/ollama/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1006,6 +1213,7 @@ export async function ollamaChatStream(
       stream: true,
       max_tool_calls: options?.maxToolCalls || 5,
       system: options?.system,
+      ...(Object.keys(ollamaOpts).length ? { options: ollamaOpts } : {}),
     }),
     signal,
   });
@@ -1074,6 +1282,79 @@ export async function ollamaGenerate(
     `${base}/api/integrations/ollama/generate?prompt=${encodeURIComponent(prompt)}&model=${model}`,
   );
   if (!res.ok) throw new Error("Failed to generate via Ollama");
+  return res.json();
+}
+
+// =============================================================================
+// AI Visualizer Preset Generation
+// =============================================================================
+
+export interface AIGeneratedPreset {
+  version: string;
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  theme: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    background: string;
+    text: string;
+    glow: string;
+  };
+  visualizer: {
+    style: string;
+    colors: string;
+    intensity: number;
+    particleCount: number;
+    speed: number;
+    scale: number;
+    glow: boolean;
+    rotation: boolean;
+  };
+  camera: {
+    keyframes: Array<{ at: number; position: [number, number, number]; target: [number, number, number]; easing?: string }>;
+    mode: string;
+    fov: number;
+  };
+  postfx: Record<string, number>;
+  lyrics: {
+    style: string;
+    glowIntensity: number;
+    fontSize: number;
+    fontWeight: number;
+    letterSpacing: number;
+    beatReact: boolean;
+    enterAnimation: string;
+    exitAnimation: string;
+  };
+  audioReactivity: {
+    bass: string;
+    mid: string;
+    treble: string;
+    beat: string;
+    beatDecay: number;
+    smoothing: number;
+  };
+}
+
+export async function generateVisualizerPreset(
+  description: string,
+  model: string = "qwen3.5:9b",
+  temperature: number = 0.7,
+  track?: { bpm?: number; energy?: number; duration_seconds?: number; genre?: string },
+): Promise<{ success: boolean; preset: AIGeneratedPreset; model: string }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/integrations/ollama/visualizer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ description, model, temperature, track }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to generate visualizer preset");
+  }
   return res.json();
 }
 

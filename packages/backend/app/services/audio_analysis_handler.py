@@ -1,11 +1,14 @@
 """Audio analysis job handler for processing audio files and extracting features."""
 
+import logging
 from pathlib import Path
 from typing import Any
 
 from ..core.config import PROJECT_ROOT
 from ..models.job import Job
 from ..services.audio_analyzer import AudioAnalyzer, AudioAnalyzerError
+
+logger = logging.getLogger(__name__)
 
 OUTPUT_DIR = PROJECT_ROOT / "output" / "audio_analysis"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -64,22 +67,29 @@ class AudioAnalysisHandler:
         if not Path(audio_path).exists():
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-        # Perform analysis
-        result, json_path = self.analyzer.analyze_and_save(
-            str(audio_path), job_id=job.id
-        )
+        try:
+            # Perform analysis
+            result, json_path = self.analyzer.analyze_and_save(
+                str(audio_path), job_id=job.id
+            )
 
-        return {
-            "analysis_path": json_path,
-            "audio_file": str(audio_path),
-            "duration_seconds": result.waveform.duration_seconds,
-            "sample_rate": result.waveform.sample_rate,
-            "tempo_bpm": result.beats.tempo_bpm,
-            "num_beats": len(result.beats.beat_times),
-            "num_onsets": len(result.beats.onset_times),
-            "beat_confidence": result.beats.confidence,
-            "amplitude_points": len(result.waveform.amplitude_envelope),
-        }
+            return {
+                "analysis_path": json_path,
+                "audio_file": str(audio_path),
+                "duration_seconds": result.waveform.duration_seconds,
+                "sample_rate": result.waveform.sample_rate,
+                "tempo_bpm": result.beats.tempo_bpm,
+                "num_beats": len(result.beats.beat_times),
+                "num_onsets": len(result.beats.onset_times),
+                "beat_confidence": result.beats.confidence,
+                "amplitude_points": len(result.waveform.amplitude_envelope),
+            }
+        except AudioAnalyzerError as e:
+            logger.error(f"Audio analysis job failed: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error processing audio analysis job: {e}")
+            raise AudioAnalyzerError(f"Job processing failed: {e}")
 
     def save_analysis(
         self, job: Job, result: Any, output_path: str | None = None

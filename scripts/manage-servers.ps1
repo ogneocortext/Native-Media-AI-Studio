@@ -25,11 +25,18 @@ $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 
 # Service configuration
+# Use CUDA-enabled conda environment for GPU features
+$condaPython = 'D:\conda-envs\comfyui-cuda\Scripts\python.exe'
+$venvPython = Join-Path $ProjectRoot 'venv\Scripts\python.exe'
+
+# Prefer conda environment if available (CUDA support)
+$backendPython = if (Test-Path $condaPython) { $condaPython } else { $venvPython }
+
 $ServiceConfig = @{
     backend = @{
         Name = 'Backend'
         Port = 8000
-        Python = Join-Path $ProjectRoot 'venv\Scripts\python.exe'
+        Python = $backendPython
         WorkingDir = Join-Path $ProjectRoot 'packages\backend'
         Args = @('-m', 'app.main')
         LogFile = 'backend.log'

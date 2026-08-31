@@ -24,7 +24,7 @@ PORT = 9876
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(TOOLS_DIR)
-BEAT_DATA_PATH = os.path.join(TOOLS_DIR, "beat_data.json")
+BEAT_DATA_PATH = os.path.join(TOOLS_DIR, "..", "output", "beat_data.json")
 OUTPUT_DIR = os.path.join(PROJECT_DIR, "output", "take-the-crown-mv")
 FRAMES_DIR = os.path.join(OUTPUT_DIR, "frames")
 PROGRESS_PATH = os.path.join(OUTPUT_DIR, "render_progress.json")

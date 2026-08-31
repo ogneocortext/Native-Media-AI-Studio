@@ -1,34 +1,52 @@
 import type { VisualizationStyle } from "./trackConceptAnalyzer";
 
-export interface AudioData { bass: number; mid: number; treble: number; overall: number; beat: boolean; }
+export interface AudioData {
+  bass: number;
+  mid: number;
+  treble: number;
+  overall: number;
+  beat: boolean;
+  peak: number;
+  energy: number;
+}
+
+export interface AudioAnalysisData {
+  tempo_bpm: number;
+  beat_count: number;
+  beat_times: number[];
+  onset_times: number[];
+  energy_curve: number[];
+  amplitude_envelope: number[];
+  sections: Array<{ type: string; start: number; end: number; energy: number }>;
+  confidence: number;
+  duration_seconds: number;
+  spectral_centroid?: number[];
+  spectral_rolloff?: number[];
+  spectral_bandwidth?: number[];
+  zero_crossing_rate?: number[];
+}
 
 export interface VizParams {
-  // Model
   scale: number;
   scaleBoost: number;
   rotationSpeed: number;
   colorShift: number;
   glowIntensity: number;
   lerpSpeed: number;
-  // Material
-  materialType: "standard" | "metallic" | "glass" | "neon" | "matte";
+  materialType: "standard" | "metallic" | "glass" | "neon" | "matte" | "chrome" | "holographic";
   wireframe: boolean;
   opacity: number;
-  // Scene
   shadowEnabled: boolean;
   reflectionEnabled: boolean;
   particleCount: number;
   particleSize: number;
-  // Environment
   lightIntensity: number;
   ambientColor: string;
   fogEnabled: boolean;
   fogDensity: number;
-  // Props
   showGround: boolean;
   showFloatingShapes: boolean;
   showLightRays: boolean;
-  // Match Track
   matchTrack: boolean;
 }
 
@@ -42,8 +60,8 @@ export const DEFAULT_VIZ_PARAMS: VizParams = {
   materialType: "standard",
   wireframe: false,
   opacity: 1.0,
-  shadowEnabled: true,
-  reflectionEnabled: true,
+  shadowEnabled: false,
+  reflectionEnabled: false,
   particleCount: 250,
   particleSize: 0.04,
   lightIntensity: 1.2,
@@ -67,4 +85,7 @@ export interface VisualizerSceneProps {
   vizParams: VizParams;
   bgColor?: string;
   meshColor?: string;
+  analysisData?: AudioAnalysisData | null;
+  audioElapsedRef?: React.MutableRefObject<number>;
+  sceneFrozen: boolean;
 }

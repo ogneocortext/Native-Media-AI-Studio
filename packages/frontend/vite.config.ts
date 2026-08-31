@@ -13,7 +13,9 @@ interface PortConfig {
   backend_url: string;
   backend_port: number;
   frontend_port: number;
-  ws_port: number;
+  ws_port: number; // deprecated alias — canonical is events at /api/events
+  events_url?: string;
+  sse_url?: string;
 }
 
 /**
@@ -94,6 +96,11 @@ export default defineConfig(({ mode }) => {
           target: proxyTarget,
           changeOrigin: true,
         },
+        "/ws": {
+          target: proxyTarget,
+          changeOrigin: true,
+          ws: true,
+        },
       },
       // Stable file watching on Windows — native watcher crashes with large dirs
       watch: {
@@ -117,6 +124,7 @@ export default defineConfig(({ mode }) => {
       outDir: "dist",
       sourcemap: mode !== "production",
       cssMinify: 'esbuild',
+      chunkSizeWarningLimit: 1000,
     },
   };
 });

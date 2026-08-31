@@ -1,54 +1,66 @@
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import { Layout } from "./components/layout/Layout";
 import { Dashboard } from "./features/dashboard/Dashboard";
-import { HealthPage } from "./features/health/HealthPage";
-import { ImageGeneration } from "./features/image-generation/ImageGeneration";
-import { MediaLibrary } from "./features/media-library/MediaLibrary";
-import { MusicVideoWizard } from "./features/music-video/MusicVideoWizard";
 import { Queue } from "./features/queue/Queue";
 import { Settings } from "./features/settings/Settings";
-import { ThreeJSStudio } from "./features/three-js-studio/ThreeJSStudio";
-import { Visualizer } from "./features/visualizer/Visualizer";
 import { LogViewer } from "./features/logs/LogViewer";
-import { AudioAnalysisPage } from "./features/audio-analysis/AudioAnalysisPage";
-import { AIToolsPage } from "./features/ai-tools/AIToolsPage";
-import { VideoGenerationPage } from "./features/video-generation/VideoGenerationPage";
-import { Generation3DPage } from "./features/generate3d/Generation3DPage";
-import { DocsPage } from "./features/docs/DocsPage";
-import { StoryboardPage } from "./features/storyboards/StoryboardPage";
-import { Preview } from "./features/preview/Preview";
 import { NotFound } from "./features/not-found/NotFound";
+import { ErrorBoundary } from "./components/common";
+
+// Helper for lazy loading modules with named exports
+const lazyNamed = (modulePromise: Promise<{ [key: string]: any }>, name: string) =>
+  lazy(() => modulePromise.then(m => ({ default: m[name] as any })));
+
+// Heavy pages loaded on-demand
+const HealthPage = lazyNamed(import("./features/health/HealthPage"), "HealthPage");
+const ImageGeneration = lazyNamed(import("./features/image-generation/ImageGeneration"), "ImageGeneration");
+const MediaLibrary = lazyNamed(import("./features/media-library/MediaLibrary"), "MediaLibrary");
+const MusicVideoWizard = lazyNamed(import("./features/music-video/MusicVideoWizard"), "MusicVideoWizard");
+const ThreeJSStudio = lazyNamed(import("./features/three-js-studio/ThreeJSStudio"), "ThreeJSStudio");
+const Visualizer = lazyNamed(import("./features/visualizer/Visualizer"), "Visualizer");
+const AudioAnalysisPage = lazyNamed(import("./features/audio-analysis/AudioAnalysisPage"), "AudioAnalysisPage");
+const AIToolsPage = lazyNamed(import("./features/ai-tools/AIToolsPage"), "AIToolsPage");
+const VideoGenerationPage = lazyNamed(import("./features/video-generation/VideoGenerationPage"), "VideoGenerationPage");
+const Generation3DPage = lazyNamed(import("./features/generate3d/Generation3DPage"), "Generation3DPage");
+const DocsPage = lazyNamed(import("./features/docs/DocsPage"), "DocsPage");
+const StoryboardPage = lazyNamed(import("./features/storyboards/StoryboardPage"), "StoryboardPage");
+const KineticTypographyPage = lazyNamed(import("./features/kinetic-typography/KineticTypographyPage"), "KineticTypographyPage");
+const Preview = lazyNamed(import("./features/preview/Preview"), "Preview");
 
 function App() {
   return (
     <BrowserRouter>
       <Layout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/queue" element={<Queue />} />
-          <Route path="/music-video-wizard" element={<MusicVideoWizard />} />
-          <Route path="/three-js-studio" element={<ThreeJSStudio />} />
-          <Route path="/audio-analysis" element={<AudioAnalysisPage />} />
-          <Route path="/video-generation" element={<VideoGenerationPage />} />
-          <Route path="/generate-3d" element={<Generation3DPage />} />
-          <Route path="/ai-tools" element={<AIToolsPage />} />
-          <Route path="/docs" element={<DocsPage />} />
-          <Route path="/storyboards" element={<StoryboardPage />} />
-          <Route path="/image-generation" element={<ImageGeneration />} />
-          <Route path="/visualizer" element={<Visualizer />} />
-          <Route path="/library" element={<MediaLibrary />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/logs" element={<LogViewer />} />
-          <Route path="/health" element={<HealthPage />} />
-          <Route path="/preview" element={<Preview />} />
-          <Route path="/preview/:clipId" element={<Preview />} />
+        <Suspense fallback={null}>
+          <Routes>
+          <Route path="/" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
+          <Route path="/queue" element={<ErrorBoundary><Queue /></ErrorBoundary>} />
+          <Route path="/music-video-wizard" element={<ErrorBoundary><MusicVideoWizard /></ErrorBoundary>} />
+          <Route path="/three-js-studio" element={<ErrorBoundary><ThreeJSStudio /></ErrorBoundary>} />
+          <Route path="/audio-analysis" element={<ErrorBoundary><AudioAnalysisPage /></ErrorBoundary>} />
+          <Route path="/video-generation" element={<ErrorBoundary><VideoGenerationPage /></ErrorBoundary>} />
+          <Route path="/generate-3d" element={<ErrorBoundary><Generation3DPage /></ErrorBoundary>} />
+          <Route path="/ai-tools" element={<ErrorBoundary><AIToolsPage /></ErrorBoundary>} />
+          <Route path="/docs" element={<ErrorBoundary><DocsPage /></ErrorBoundary>} />
+          <Route path="/storyboards" element={<ErrorBoundary><StoryboardPage /></ErrorBoundary>} />
+          <Route path="/image-generation" element={<ErrorBoundary><ImageGeneration /></ErrorBoundary>} />
+          <Route path="/visualizer" element={<ErrorBoundary><Visualizer /></ErrorBoundary>} />
+          <Route path="/library" element={<ErrorBoundary><MediaLibrary /></ErrorBoundary>} />
+          <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
+          <Route path="/logs" element={<ErrorBoundary><LogViewer /></ErrorBoundary>} />
+          <Route path="/health" element={<ErrorBoundary><HealthPage /></ErrorBoundary>} />
+          <Route path="/kinetic-typography" element={<ErrorBoundary><KineticTypographyPage /></ErrorBoundary>} />
+          <Route path="/preview" element={<ErrorBoundary><Preview /></ErrorBoundary>} />
+          <Route path="/preview/:clipId" element={<ErrorBoundary><Preview /></ErrorBoundary>} />
           {/* Redirects for removed/merged routes */}
           <Route path="/music-video" element={<Navigate to="/music-video-wizard" replace />} />
           <Route path="/studio-3d" element={<Navigate to="/generate-3d" replace />} />
           <Route path="/video-editor" element={<Navigate to="/video-generation" replace />} />
           <Route path="/diagnostics" element={<Navigate to="/health" replace />} />
           <Route path="*" element={<NotFound />} />
-        </Routes>
+          </Routes>
+        </Suspense>
       </Layout>
     </BrowserRouter>
   );

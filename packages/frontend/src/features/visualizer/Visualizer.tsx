@@ -1,727 +1,451 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Upload, Music, AlertCircle, Pause, FolderOpen, Waves, Palette, Sparkles, Maximize2, Minimize2, Video, Square, Download } from "lucide-react";
-import { listAudioFiles } from "../../services/api";
-import { useUIStore } from "../../state/uiStore";
-import {
-  getVisualizationForTrack,
-  VISUALIZATION_OPTIONS,
-  VisualizationStyle,
-  TrackConcept,
-} from "./trackConceptAnalyzer";
-import { VisualizerScene } from "./VisualizerScene";
-import type { VizParams, AudioData } from "./types";
+import { Music, AlertCircle, Maximize2, Minimize2, Video, Square, Download, Settings, Snowflake, MessageSquare, Sparkles, Play } from "lucide-react";
+import { listAudioFiles, getAnalysis, ensureAnalysis } from "../../services/api";
+import type { AudioAnalysisData, AudioData, VizParams } from "./types";
 import { DEFAULT_VIZ_PARAMS } from "./types";
+import { useUIStore } from "../../state/uiStore";
+import { getVisualizationForTrack, VisualizationStyle } from "./trackConceptAnalyzer";
+import { VisualizerScene } from "./VisualizerScene";
+import { WebGLRenderer } from "three";
+import { SpectrumBar } from "./components/SpectrumBar";
+import { StylePicker } from "./components/StylePicker";
+import { SettingsPanel } from "./components/SettingsPanel";
+import { UploadPrompt } from "./components/UploadPrompt";
+import { PresetFileUpload } from "./components/PresetFileUpload";
+import { AIVisualizerPrompt } from "./components/AIVisualizerPrompt";
+import type { LyricLine } from "./components/LyricOverlay";
+import { KineticLyricOverlay } from "./components/KineticLyricOverlay";
+import { selectPresetForTrack } from "./components/KineticPresets";
+import { AnimationDemo } from "./components/AnimationDemo";
+import { parseLyricsFromCsv } from "./lyricsParser";
+import type { VisualPreset } from "./visualPreset";
 
-function SpectrumBar({ label, value, color, intensity }: { label: string; value: number; color: string; intensity: number }) {
-  const scaledValue = Math.min(value * intensity, 1);
-  return (
-    <div className="spec-bar-row">
-      <span className="spec-bar-label">{label}</span>
-      <div className="spec-bar-track">
-        <div
-          className="spec-bar-fill"
-          style={{
-            width: `${scaledValue * 100}%`,
-            background: `linear-gradient(90deg, ${color}, ${color}dd, ${color}88)`,
-            boxShadow: scaledValue > 0.7 ? `0 0 12px ${color}, 0 0 24px ${color}66` : `0 0 6px ${color}66`,
-            transition: "width 0.05s ease-out, box-shadow 0.1s ease-out",
-          }}
-        />
-        {scaledValue > 0.8 && (
-          <div
-            className="spec-bar-glow"
-            style={{
-              background: `radial-gradient(circle, ${color}88 0%, transparent 70%)`,
-            }}
-          />
-        )}
-      </div>
-      <span className="spec-bar-value" style={{ color: scaledValue > 0.8 ? color : "#6b7280" }}>
-        {Math.round(scaledValue * 100)}
-      </span>
-    </div>
-  );
-}
+const _originalWarn = console.warn;
+console.warn = (...args: unknown[]) => {
+  const msg = String(args[0] ?? "");
+  if (msg.includes("THREE.Clock") || msg.includes("PCFSoftShadowMap")) return;
+  _originalWarn(...args);
+};
 
 export function Visualizer() {
   const [bgColor, setBgColor] = useState("#050505");
   const [meshColor, setMeshColor] = useState("#6366f1");
-  const [demoBpm, _setDemoBpm] = useState(120);
+  const [demoBpm] = useState(120);
   const [demoEnabled, setDemoEnabled] = useState(true);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [libraryFiles, setLibraryFiles] = useState<Array<{ filename: string; path: string }>>([]);
-  const [liveAudioData, setLiveAudioData] = useState<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false });
-  const [spectrumIntensity] = useState(1);
+  const [liveAudioData, setLiveAudioData] = useState<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0 });
   const [visualizationStyle, setVisualizationStyle] = useState<VisualizationStyle>("geometric");
-  const [trackConcept, setTrackConcept] = useState<TrackConcept | null>(null);
   const [csvContent, setCsvContent] = useState<string>("");
   const [vizParams, setVizParams] = useState<VizParams>(DEFAULT_VIZ_PARAMS);
-  const [useOllamaMatch, setUseOllamaMatch] = useState(false);
-  const [ollamaAvailable, setOllamaAvailable] = useState(false);
-  const [ollamaStreaming, setOllamaStreaming] = useState(false);
-  const [ollamaProgress, setOllamaProgress] = useState("");
-  const [generatedHtml, setGeneratedHtml] = useState<string>("");
-  const [showPreview, setShowPreview] = useState(false);
-  const [activePanel, setActivePanel] = useState<string>("source");
   const [trackMetadata, setTrackMetadata] = useState<Record<string, { bpm?: number; duration?: number }>>({});
+  const [analysisData, setAnalysisData] = useState<Record<string, AudioAnalysisData>>({});
+  const [analyzing, setAnalyzing] = useState(false);
+  const [sceneFrozen, setSceneFrozen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [rendererReady, setRendererReady] = useState(false);
+  const [rendererBackend, setRendererBackend] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [lyrics, setLyrics] = useState<LyricLine[]>([]);
+  const [lyricsVisible, setLyricsVisible] = useState(true);
+  const [kineticPreset, setKineticPreset] = useState("cinematic");
+  const [showAnimDemo, setShowAnimDemo] = useState(false);
+  const [loadedPreset, setLoadedPreset] = useState<VisualPreset | null>(null);
+  const [showAIPanel, setShowAIPanel] = useState(false);
 
   const { focusMode, toggleFocusMode } = useUIStore();
 
+  const currentFilename = libraryFiles.find(f => `/api/audio/file/${encodeURIComponent(f.filename)}` === audioUrl)?.filename;
+  const currentAnalysisData = currentFilename ? analysisData[currentFilename] ?? null : null;
+
+  const audioElapsedRef = useRef(0);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const objectUrlRef = useRef<string | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const connectedElements = useRef<WeakSet<HTMLMediaElement>>(new WeakSet());
 
-  // Load CSV content on mount
+  // Load CSV and library
+  useEffect(() => { fetch("/track-prompts-lyrics.csv").then(r => r.text()).then(setCsvContent).catch(() => {}); }, []);
+  useEffect(() => { listAudioFiles().then(files => { if (Array.isArray(files) && files.length > 0) setLibraryFiles(files); }).catch(() => {}); }, []);
+
+  // Parse lyrics from CSV into timed lines (uses shared parser)
+  const parseLyricsForTrack = useCallback((trackName: string, duration: number): LyricLine[] => {
+    return parseLyricsFromCsv(csvContent, trackName, duration);
+  }, [csvContent]);
+
+  // Audio elapsed tracking
   useEffect(() => {
-    fetch("/track-prompts-lyrics.csv")
-      .then((r) => r.text())
-      .then((content) => setCsvContent(content))
-      .catch(() => console.log("CSV not found"));
-  }, []);
-
-  // Load available tracks from API on mount
-  useEffect(() => {
-    listAudioFiles()
-      .then((files) => {
-        if (Array.isArray(files) && files.length > 0) {
-          setLibraryFiles(files);
-          // Fetch metadata for each track
-          fetchTracksMetadata(files);
-        }
-      })
-      .catch(() => {
-        // Preset tracks remain available
-      });
-  }, []);
-
-  const fetchTracksMetadata = async (files: Array<{ filename: string }>) => {
-    const metadata: Record<string, { bpm?: number; duration?: number }> = {};
-    await Promise.all(files.map(async (f) => {
-      try {
-        const res = await fetch(`/api/audio/analysis/${encodeURIComponent(f.filename)}`);
-        if (res.ok) {
-          const data: any = await res.json();
-          metadata[f.filename] = {
-            bpm: data.tempo_bpm ? Math.round(data.tempo_bpm) : undefined,
-            duration: data.duration_seconds ? Math.round(data.duration_seconds) : undefined,
-          };
-        }
-      } catch { /* ignore */ }
-    }));
-    setTrackMetadata(metadata);
-  };
-
-  // Capture canvas element after render
-  useEffect(() => {
-    if (containerRef.current) {
-      const canvas = containerRef.current.querySelector("canvas");
-      if (canvas) canvasRef.current = canvas;
-    }
-  }, []);
-
-  // Setup Web Audio graph when audioUrl changes
-  useEffect(() => {
-    if (!audioUrl) return;
     const el = audioElRef.current;
     if (!el) return;
-
-    const setup = async () => {
-      try {
-        // Disconnect previous source if exists to avoid "already connected" error
-        if (sourceRef.current) {
-          try { sourceRef.current.disconnect(); } catch { /* ignore */ }
-          sourceRef.current = null;
-        }
-        // Close previous context if exists
-        if (audioCtxRef.current) {
-          try { await audioCtxRef.current.close(); } catch { /* ignore */ }
-          audioCtxRef.current = null;
-        }
-
-        const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-        audioCtxRef.current = ctx;
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 1024;
-        analyser.smoothingTimeConstant = 0.4;
-        analyserRef.current = analyser;
-        const source = ctx.createMediaElementSource(el);
-        sourceRef.current = source;
-        source.connect(analyser);
-        analyser.connect(ctx.destination);
-        if (ctx.state === "suspended") await ctx.resume();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Web Audio setup failed");
-      }
-    };
-    setup();
-    return () => {
-      try { sourceRef.current?.disconnect(); } catch { /* ignore */ }
-      try { analyserRef.current?.disconnect(); } catch { /* ignore */ }
-      try { audioCtxRef.current?.close(); } catch { /* ignore */ }
-      analyserRef.current = null;
-      audioCtxRef.current = null;
-      sourceRef.current = null;
-    };
+    const handler = () => { audioElapsedRef.current = el.currentTime; };
+    el.addEventListener("timeupdate", handler);
+    return () => el.removeEventListener("timeupdate", handler);
   }, [audioUrl]);
 
-  const handleFile = (f: File) => {
-    if (!f.type.startsWith("audio/") && !f.name.match(/\.(mp3|wav|flac|ogg|m4a)$/i)) {
-      setError("Please upload MP3/WAV/FLAC/OGG/M4A");
-      return;
-    }
+  const setupAudio = useCallback(async (el: HTMLMediaElement) => {
+    try {
+      // Skip if this element was already connected (prevents "already connected" error)
+      if (connectedElements.current.has(el)) return;
+      connectedElements.current.add(el);
+
+      // Close previous context if switching elements
+      if (sourceRef.current) { try { sourceRef.current.disconnect(); } catch {} sourceRef.current = null; }
+      if (audioCtxRef.current) { try { await audioCtxRef.current.close(); } catch {} audioCtxRef.current = null; }
+
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioCtxRef.current = ctx;
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.8;
+      analyserRef.current = analyser;
+      const source = ctx.createMediaElementSource(el);
+      sourceRef.current = source;
+      source.connect(analyser);
+      analyser.connect(ctx.destination);
+      if (ctx.state === "suspended") await ctx.resume();
+    } catch (e) { setError(e instanceof Error ? e.message : "Web Audio setup failed"); }
+  }, []);
+
+  const handleFile = useCallback((file: File) => {
     setError(null);
-    // Revoke previous object URL to prevent memory leak
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-    }
-    const url = URL.createObjectURL(f);
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    const url = URL.createObjectURL(file);
     objectUrlRef.current = url;
     setAudioUrl(url);
     setDemoEnabled(false);
     setIsPaused(false);
-  };
+  }, []);
 
-  const handleSelectLibraryTrack = (filename: string) => {
+  const handleSelectLibraryTrack = useCallback(async (filename: string) => {
     if (!filename) return;
     setError(null);
-    const encodedFilename = encodeURIComponent(filename);
-    setAudioUrl(`/api/audio/file/${encodedFilename}`);
+    setAudioUrl(`/api/audio/file/${encodeURIComponent(filename)}`);
     setDemoEnabled(false);
     setIsPaused(false);
-
-    // Analyze track concept and recommend visualization
+    const cleanName = filename.replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "");
+    let analysis: AudioAnalysisData | null = analysisData[filename] ?? null;
+    let realBpm = trackMetadata[filename]?.bpm;
+    if (!analysis) {
+      try {
+        analysis = await getAnalysis(filename);
+        if (analysis) {
+          setAnalysisData(prev => ({ ...prev, [filename]: analysis as AudioAnalysisData }));
+          realBpm = analysis.tempo_bpm ? Math.round(analysis.tempo_bpm) : undefined;
+          if (realBpm) setTrackMetadata(prev => ({ ...prev, [filename]: { bpm: realBpm } }));
+        }
+      } catch { /* fallback */ }
+    }
     if (csvContent) {
-      const cleanName = filename.replace(/^\w{8}_/, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "");
       const concept = getVisualizationForTrack(cleanName, csvContent);
       if (concept) {
-        setTrackConcept(concept);
+        if (realBpm) concept.bpm = realBpm;
         setVisualizationStyle(concept.recommendedViz);
-        if (vizParams.matchTrack) {
-          applyTrackMatchParams(concept, useOllamaMatch);
-        }
-      }
-    }
-  };
-
-  const applyTrackMatchParams = async (concept: TrackConcept, useOllama: boolean = false) => {
-    // Try Ollama-powered analysis if selected and available
-    if (useOllama && ollamaAvailable) {
-      try {
-        setOllamaStreaming(true);
-        setOllamaProgress("Connecting to Ollama...");
-        setGeneratedHtml("");
-
-        const res = await fetch("/api/integrations/analyze-track-stream", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            track_name: concept.trackName,
-            prompt: concept.prompt,
-            lyrics: concept.lyrics,
-            bpm: concept.bpm,
-          }),
-        });
-
-        if (res.ok) {
-          const reader = res.body?.getReader();
-          const decoder = new TextDecoder();
-          let fullHtml = "";
-
-          if (reader) {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-
-              const chunk = decoder.decode(value);
-              const lines = chunk.split("\n").filter(line => line.trim());
-
-              for (const line of lines) {
-                try {
-                  const data = JSON.parse(line);
-                  if (data.type === "streaming") {
-                    setOllamaProgress(`Generating: ${data.chunk.substring(0, 50)}...`);
-                    fullHtml += data.chunk;
-                  } else if (data.type === "complete") {
-                    setOllamaProgress("Complete!");
-                    setGeneratedHtml(data.html);
-                  } else if (data.type === "cached") {
-                    setOllamaProgress("Using cached result");
-                    if (data.html) setGeneratedHtml(data.html);
-                  } else if (data.type === "error") {
-                    setOllamaProgress(`Error: ${data.message}`);
-                  }
-                } catch (e) {
-                  // Ignore parse errors
-                }
-              }
-            }
-          }
-
-          setOllamaStreaming(false);
-          return;
-        }
-      } catch (e) {
-        console.log("Ollama analysis failed, using fallback");
-        setOllamaStreaming(false);
       }
     }
 
-    // Rule-based fallback (no VRAM usage)
-    const params = { ...vizParams };
-    params.rotationSpeed = Math.max(0.5, Math.min(3.0, concept.bpm / 60));
-    if (concept.energy === "high") {
-      params.glowIntensity = 1.0;
-      params.scaleBoost = 2.0;
-      params.lerpSpeed = 0.5;
-    } else if (concept.energy === "low") {
-      params.glowIntensity = 0.3;
-      params.scaleBoost = 1.0;
-      params.lerpSpeed = 0.2;
+    // Auto-select visualization based on analysis data
+    if (analysis) {
+      const viz = selectVisualizationForTrack(analysis);
+      if (viz) setVisualizationStyle(viz);
     }
-    if (concept.mood.includes("aggressive") || concept.mood.includes("intense")) {
-      params.materialType = "neon";
-    } else if (concept.mood.includes("dreamy") || concept.mood.includes("ethereal")) {
-      params.materialType = "glass";
-      params.fogEnabled = true;
-    } else if (concept.mood.includes("melancholic") || concept.mood.includes("introspective")) {
-      params.materialType = "matte";
-      params.lightIntensity = 0.8;
-    } else if (concept.mood.includes("euphoric") || concept.mood.includes("energetic")) {
-      params.materialType = "metallic";
-      params.reflectionEnabled = true;
-    }
-    setVizParams(params);
+
+    // Load lyrics for this track
+    const duration = analysis?.duration_seconds || 240;
+    const trackLyrics = parseLyricsForTrack(cleanName, duration);
+    setLyrics(trackLyrics);
+    setLyricsVisible(trackLyrics.length > 0);
+
+    // Auto-select kinetic preset based on track genre
+    const energy = analysis?.energy_curve?.length
+      ? analysis.energy_curve.reduce((a, b) => a + b, 0) / analysis.energy_curve.length
+      : 0.5;
+    const preset = selectPresetForTrack(cleanName, energy);
+    setKineticPreset(preset);
+  }, [csvContent, analysisData, trackMetadata, parseLyricsForTrack]);
+
+  /** Select visualization style based on audio analysis data */
+  const selectVisualizationForTrack = (analysis: AudioAnalysisData): VisualizationStyle | null => {
+    const bpm = analysis.tempo_bpm;
+    const energyAvg = analysis.energy_curve?.length
+      ? analysis.energy_curve.reduce((a, b) => a + b, 0) / analysis.energy_curve.length
+      : 0.5;
+    const sectionCount = analysis.sections?.length || 0;
+    const hasChorus = analysis.sections?.some(s => s.type === "chorus") || false;
+
+    // High energy + fast tempo → Geometric (vortex) or Pulse
+    if (energyAvg > 0.6 && bpm > 130) return "geometric";
+    // High energy + slower → Storm (reuse geometric)
+    if (energyAvg > 0.6 && bpm <= 130) return "pulse";
+    // Medium energy + fast → Particles (galaxy)
+    if (energyAvg > 0.4 && bpm > 120) return "particles";
+    // Low energy + slow → Aurora (dreamy) or Ocean
+    if (energyAvg < 0.4 && bpm < 100) return Math.random() > 0.5 ? "aurora" : "ocean";
+    // Many sections → Neural (network)
+    if (sectionCount > 6) return "neural";
+    // Has chorus with high energy → Synthwave (spectrum)
+    if (hasChorus && energyAvg > 0.5) return "synthwave";
+    // Low energy → Cosmic (nebula)
+    if (energyAvg < 0.35) return "cosmic";
+    // Default based on tempo
+    if (bpm > 140) return "pulse";
+    if (bpm < 90) return "aurora";
+    return "geometric";
   };
 
-  // ---- Video Recording ----
-  const startRecording = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) {
-      setError("Canvas not ready for recording");
-      return;
+  /** Extract track metadata for AI prompt context */
+  const deriveTrackMeta = useCallback((analysis: AudioAnalysisData | null) => {
+    if (!analysis) return null;
+    const energyAvg = analysis.energy_curve?.length
+      ? analysis.energy_curve.reduce((a, b) => a + b, 0) / analysis.energy_curve.length
+      : undefined;
+    return {
+      bpm: analysis.tempo_bpm ? Math.round(analysis.tempo_bpm) : undefined,
+      energy: energyAvg,
+      duration_seconds: analysis.duration_seconds || undefined,
+    };
+  }, []);
+
+  /** Map a VisualPreset to visualization state and apply it, aligned to track if available */
+  const applyPreset = useCallback((preset: VisualPreset, trackAnalysis?: AudioAnalysisData | null) => {
+    setLoadedPreset(preset);
+
+    // Map visualizer style → VisualizationStyle
+    const styleMap: Record<string, VisualizationStyle> = {
+      particles: "particles",
+      waveform: "waveform",
+      pulse: "pulse",
+      bars: "synthwave",
+      galaxy: "cosmic",
+      terrain: "ocean",
+    };
+    if (preset.visualizer?.style && styleMap[preset.visualizer.style]) {
+      setVisualizationStyle(styleMap[preset.visualizer.style]);
     }
 
-    try {
-      // Determine supported mimeType
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9"
-        : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
-          ? "video/webm;codecs=vp8"
-          : "video/webm";
+    // Apply theme colors
+    if (preset.theme?.background) setBgColor(preset.theme.background);
+    if (preset.theme?.primary) setMeshColor(preset.theme.primary);
 
-      // Capture canvas stream at 60fps
-      const stream = canvas.captureStream(60);
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType,
-        videoBitsPerSecond: 8000000, // 8 Mbps
-      });
+    // Compute track-aware multipliers
+    const bpm = trackAnalysis?.tempo_bpm ?? 120;
+    const energyAvg = trackAnalysis?.energy_curve?.length
+      ? trackAnalysis.energy_curve.reduce((a, b) => a + b, 0) / trackAnalysis.energy_curve.length
+      : 0.5;
+    const duration = trackAnalysis?.duration_seconds ?? 240;
+    const bpmFactor = bpm / 120; // normalize to 120 BPM baseline
+    const energyFactor = 0.5 + energyAvg; // 0.5–1.5x range
 
-      recordedChunksRef.current = [];
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          recordedChunksRef.current.push(event.data);
-        }
+    // Apply visualizer params with track alignment
+    setVizParams(prev => ({
+      ...prev,
+      particleCount: Math.round((preset.visualizer?.particleCount ?? prev.particleCount) * energyFactor),
+      scale: preset.visualizer?.scale ?? prev.scale,
+      glowIntensity: preset.visualizer?.glow ? Math.min(1.0, 0.8 * energyFactor) : 0.2,
+      rotationSpeed: (preset.visualizer?.rotation ? 1.0 : 0.0) * bpmFactor,
+      colorShift: preset.visualizer?.intensity ?? prev.colorShift,
+      lerpSpeed: Math.max(0.1, 0.35 / bpmFactor), // faster tracks → snappier lerp
+      matchTrack: !!trackAnalysis,
+    }));
+
+    // Map lyric animation style → kinetic preset
+    const kineticMap: Record<string, string> = {
+      glitch: "phonk",
+      neon: "synthwave",
+      fade: "ambient",
+      bounce: "dubstep",
+      typewriter: "grime",
+      kinetic: "cinematic",
+    };
+    if (preset.lyrics?.style && kineticMap[preset.lyrics.style]) {
+      setKineticPreset(kineticMap[preset.lyrics.style]);
+    }
+
+    // Store track-aligned metadata on the preset for the scene to consume
+    if (trackAnalysis) {
+      (preset as any)._trackAlignment = {
+        bpm,
+        energyAvg,
+        duration,
+        beatTimes: trackAnalysis.beat_times,
+        onsetTimes: trackAnalysis.onset_times,
+        sections: trackAnalysis.sections,
       };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
-        setRecordedBlob(blob);
-        recordedChunksRef.current = [];
-      };
-
-      mediaRecorder.onerror = (e: Event) => {
-        console.error("MediaRecorder error:", e);
-        setError("Recording failed");
-        setIsRecording(false);
-        if (recordingTimerRef.current) {
-          clearInterval(recordingTimerRef.current);
-          recordingTimerRef.current = null;
-        }
-      };
-
-      mediaRecorder.start(100); // Collect data every 100ms
-      mediaRecorderRef.current = mediaRecorder;
-      setIsRecording(true);
-      setRecordingTime(0);
-
-      // Start timer
-      recordingTimerRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
-      }, 1000);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to start recording");
     }
   }, []);
 
+  const handlePresetLoaded = useCallback((preset: VisualPreset) => {
+    // Pass current track analysis so preset aligns to loaded track
+    applyPreset(preset, currentAnalysisData);
+  }, [applyPreset, currentAnalysisData]);
+
+  const handleClearPreset = useCallback(() => {
+    setLoadedPreset(null);
+    setVizParams(DEFAULT_VIZ_PARAMS);
+    setBgColor("#050505");
+    setMeshColor("#6366f1");
+    setKineticPreset("cinematic");
+  }, []);
+
+  const handleAnalyzeTrack = useCallback(async (filename: string) => {
+    if (!filename || analyzing) return;
+    setAnalyzing(true);
+    try {
+      const result = await ensureAnalysis(filename);
+      setAnalysisData(prev => ({ ...prev, [filename]: result.analysis }));
+      setTrackMetadata(prev => ({ ...prev, [filename]: { bpm: Math.round(result.analysis.tempo_bpm), duration: Math.round(result.analysis.duration_seconds) } }));
+    } catch { /* ignore */ }
+    setAnalyzing(false);
+  }, [analyzing]);
+
+  const startRecording = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    try {
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
+      const mediaRecorder = new MediaRecorder(canvas.captureStream(60), { mimeType, videoBitsPerSecond: 8000000 });
+      recordedChunksRef.current = [];
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
+      mediaRecorder.onstop = () => { setRecordedBlob(new Blob(recordedChunksRef.current, { type: "video/webm" })); };
+      mediaRecorder.start(100);
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+      recordingTimerRef.current = setInterval(() => setRecordingTime(p => p + 1), 1000);
+    } catch { setError("Recording failed"); }
+  }, []);
+
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
-    }
+    mediaRecorderRef.current?.stop();
     setIsRecording(false);
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
-    }
+    if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
   }, []);
 
   const downloadRecording = useCallback(() => {
     if (!recordedBlob) return;
-    const url = URL.createObjectURL(recordedBlob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `visualizer_recording_${Date.now()}.webm`;
+    a.href = URL.createObjectURL(recordedBlob);
+    a.download = `visualizer_${Date.now()}.webm`;
     a.click();
-    URL.revokeObjectURL(url);
   }, [recordedBlob]);
-
-  // Warn before leaving while recording
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isRecording) {
-        e.preventDefault();
-        e.returnValue = "Recording in progress. Are you sure you want to leave?";
-      }
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isRecording]);
-
-  const handleMatchTrackToggle = (enabled: boolean) => {
-    setVizParams({ ...vizParams, matchTrack: enabled });
-    if (enabled && trackConcept) {
-      applyTrackMatchParams(trackConcept, useOllamaMatch);
-    }
-  };
-
-  useEffect(() => {
-    if (vizParams.matchTrack && trackConcept) {
-      applyTrackMatchParams(trackConcept, useOllamaMatch);
-    }
-  }, [trackConcept]);
-
-  useEffect(() => {
-    const checkOllama = async () => {
-      try {
-        const res = await fetch("http://127.0.0.1:11434/api/tags");
-        if (res.ok) {
-          setOllamaAvailable(true);
-        }
-      } catch {
-        setOllamaAvailable(false);
-      }
-    };
-    checkOllama();
-  }, []);
-
-  const togglePanel = (panel: string) => {
-    setActivePanel(activePanel === panel ? "" : panel);
-  };
 
   return (
     <div className={`viz-page ${focusMode ? "viz-focus-mode" : ""}`}>
-      <div className="viz-header">
-        <div className="viz-title-row">
-          <Music size={22} className="viz-icon" />
-          <h1 className="viz-title">3D Audio Visualizer</h1>
-          <div className="viz-header-actions">
-            {isRecording && (
-              <span className="viz-recording-indicator">
-                <span className="viz-rec-dot" /> REC {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}
-              </span>
-            )}
-            {!isRecording && recordedBlob && (
-              <button className="viz-download-btn" onClick={downloadRecording} title="Download recording">
-                <Download size={14} /> Download
-              </button>
-            )}
-            <button className={`viz-record-btn ${isRecording ? "recording" : ""}`} onClick={isRecording ? stopRecording : startRecording} title={isRecording ? "Stop recording" : "Record video"}>
-              {isRecording ? <Square size={14} /> : <Video size={14} />}
-              {isRecording ? "Stop" : "Record"}
+      <header className="viz-topbar">
+        <div className="viz-brand"><Music size={20} /><span>Visualizer</span></div>
+        <div className="viz-track-selector">
+          <select onChange={(e) => handleSelectLibraryTrack(e.target.value)} value={currentFilename || ""} className="viz-track-select">
+            <option value="" disabled>Select a track...</option>
+            {libraryFiles.map((f) => {
+              const name = f.filename.replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "");
+              const meta = trackMetadata[f.filename];
+              const badge = analysisData[f.filename] ? " ✓" : "";
+              const metaStr = meta?.bpm ? ` (${meta.bpm} BPM)` : "";
+              return <option key={f.filename} value={f.filename}>{name}{metaStr}{badge}</option>;
+            })}
+          </select>
+          {currentFilename && !currentAnalysisData && (
+            <button className="viz-analyze-btn" onClick={() => handleAnalyzeTrack(currentFilename)} disabled={analyzing}>
+              {analyzing ? "Analyzing..." : "Analyze"}
             </button>
-            <button onClick={toggleFocusMode} className={`viz-focus-btn ${focusMode ? "active" : ""}`} title={focusMode ? "Exit focus mode" : "Focus mode"}>
-              {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-            </button>
-          </div>
-        </div>
-        <p className="viz-subtitle">
-          Select a track → 3D mesh reacts to <b>bass</b>, <b>mids</b>, <b>treble</b>
-        </p>
-      </div>
-
-      <div className="viz-layout">
-        {/* Left: Canvas + Spectrum */}
-        <div className="viz-main">
-          <div className="viz-canvas-container" ref={containerRef}>
-            <Canvas camera={{ position: [0, 0, 7], fov: 55 }} dpr={[1, 2]} gl={{ antialias: true, powerPreference: "high-performance" }} frameloop="always" shadows>
-              <color attach="background" args={[bgColor]} />
-              <VisualizerScene
-                analyserRef={analyserRef}
-                isPlaying={isPlaying}
-                isPaused={isPaused}
-                demoEnabled={demoEnabled}
-                demoBpm={demoBpm}
-                onAudioData={setLiveAudioData}
-                visualizationStyle={visualizationStyle}
-                vizParams={vizParams}
-                bgColor={bgColor}
-                meshColor={meshColor}
-              />
-            </Canvas>
-            {isPaused && (
-              <div className="viz-paused-overlay">
-                <Pause size={48} />
-                <span>Paused</span>
-              </div>
-            )}
-            {liveAudioData.beat && <div className="viz-beat-flash" />}
-
-            {/* Focus mode floating controls */}
-            {focusMode && (
-              <div className="viz-focus-controls">
-                <button className={`viz-focus-record-btn ${isRecording ? "recording" : ""}`} onClick={isRecording ? stopRecording : startRecording}>
-                  {isRecording ? <Square size={16} /> : <Video size={16} />}
-                  {isRecording ? "Stop" : "Record"}
-                </button>
-                {isRecording && (
-                  <span className="viz-focus-rec-time">
-                    <span className="viz-rec-dot" /> {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}
-                  </span>
-                )}
-                {!isRecording && recordedBlob && (
-                  <button className="viz-focus-download-btn" onClick={downloadRecording}>
-                    <Download size={16} /> Save
-                  </button>
-                )}
-                <button className="viz-focus-exit-btn" onClick={toggleFocusMode} title="Exit focus mode (Esc)">
-                  <Minimize2 size={16} />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Spectrum */}
-          <div className="viz-spectrum-card">
-            <div className="viz-spectrum-bars">
-              <SpectrumBar label="Bass" value={liveAudioData.bass} color="#6366f1" intensity={spectrumIntensity} />
-              <SpectrumBar label="Mid" value={liveAudioData.mid} color="#a855f7" intensity={spectrumIntensity} />
-              <SpectrumBar label="Treble" value={liveAudioData.treble} color="#ec4899" intensity={spectrumIntensity} />
-            </div>
-            <div className={`viz-beat-dot ${liveAudioData.beat ? "active" : ""}`} />
-          </div>
-
-          {/* Persistent Audio Player */}
-          {audioUrl && (
-            <div className="viz-audio-bar">
-              {/* key forces a fresh <audio> element per track: a media element can only be
-                  connected to ONE MediaElementSourceNode ever, so reusing the node across
-                  tracks would throw "already connected" on createMediaElementSource */}
-              <audio key={audioUrl} ref={audioElRef} controls src={audioUrl} className="viz-audio" crossOrigin="anonymous"
-                onPlay={() => { setIsPlaying(true); setIsPaused(false); audioCtxRef.current?.resume(); }}
-                onPause={() => { setIsPlaying(false); setIsPaused(true); }}
-                onEnded={() => { setIsPlaying(false); setIsPaused(false); }}
-              />
-            </div>
           )}
         </div>
-
-        {/* Right: Controls - Accordion Style */}
-        <div className="viz-controls">
-          {/* Panel: Source */}
-          <div className={`viz-panel ${activePanel === "source" ? "open" : ""}`}>
-            <button className="viz-panel-header" onClick={() => togglePanel("source")}>
-              <FolderOpen size={14} />
-              <span>Audio Source</span>
-              <span className="viz-panel-chevron">{activePanel === "source" ? "−" : "+"}</span>
+        <div className="viz-actions">
+          <PresetFileUpload
+            onPresetLoaded={handlePresetLoaded}
+            loadedPresetName={loadedPreset?.name ?? null}
+            onClearPreset={handleClearPreset}
+          />
+          {isRecording && <span className="viz-rec"><span className="viz-rec-dot" /> {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}</span>}
+          <button onClick={isRecording ? stopRecording : startRecording} className={`viz-icon-btn ${isRecording ? "rec" : ""}`} aria-label={isRecording ? "Stop recording" : "Start recording"} title={isRecording ? "Stop recording" : "Start recording"}>{isRecording ? <Square size={14} /> : <Video size={14} />}</button>
+          {recordedBlob && !isRecording && <button onClick={downloadRecording} className="viz-icon-btn" aria-label="Download recording" title="Download recording"><Download size={14} /></button>}
+          <button onClick={() => setSceneFrozen(!sceneFrozen)} className={`viz-icon-btn ${sceneFrozen ? "active" : ""}`} aria-label={sceneFrozen ? "Unfreeze scene" : "Freeze scene"} title={sceneFrozen ? "Unfreeze scene" : "Freeze scene"}>
+            <Snowflake size={14} />
+          </button>
+          <button onClick={() => setShowSettings(!showSettings)} className={`viz-icon-btn ${showSettings ? "active" : ""}`} aria-label={showSettings ? "Close settings" : "Open settings"} title={showSettings ? "Close settings" : "Open settings"}><Settings size={14} /></button>
+          <button onClick={() => setShowAnimDemo(!showAnimDemo)} className={`viz-icon-btn ${showAnimDemo ? "active" : ""}`} aria-label="Animation demo" title="Animation demo">
+            <Play size={14} />
+          </button>
+          <button onClick={() => setShowAIPanel(!showAIPanel)} className={`viz-icon-btn viz-ai-toggle ${showAIPanel ? "active" : ""}`} aria-label="AI generate preset" title="AI generate preset"><Sparkles size={14} /></button>
+          {lyrics.length > 0 && (
+            <button onClick={() => setLyricsVisible(!lyricsVisible)} className={`viz-icon-btn viz-lyrics-btn ${lyricsVisible ? "active" : ""}`} aria-label={lyricsVisible ? "Hide lyrics" : "Show lyrics"} title={lyricsVisible ? "Hide lyrics" : "Show lyrics"}>
+              <MessageSquare size={14} />
             </button>
-            {activePanel === "source" && (
-              <div className="viz-panel-content">
-                <select onChange={(e) => handleSelectLibraryTrack(e.target.value)} className="viz-select" defaultValue="">
-                  <option value="" disabled>Select track...</option>
-                  {libraryFiles.map((f) => {
-                    const displayName = f.filename.replace(/^\w{8}_/, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "");
-                    const meta = trackMetadata[f.filename];
-                    const metaStr = meta?.bpm && meta?.duration ? ` (${meta.bpm} BPM, ${meta.duration}s)` : "";
-                    return (<option key={f.filename} value={f.filename}>{displayName}{metaStr}</option>);
-                  })}
-                </select>
-                <div className="viz-dropzone" onClick={() => fileInputRef.current?.click()}>
-                  <input ref={fileInputRef} type="file" accept="audio/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
-                  <Upload size={16} />
-                  <span>Drop or click to upload</span>
-                </div>
-                {error && <div className="viz-error"><AlertCircle size={14} /><span>{error}</span></div>}
-              </div>
-            )}
-          </div>
-
-          {/* Panel: Visualization */}
-          <div className={`viz-panel ${activePanel === "viz" ? "open" : ""}`}>
-            <button className="viz-panel-header" onClick={() => togglePanel("viz")}>
-              <Sparkles size={14} />
-              <span>Visualization</span>
-              <span className="viz-panel-chevron">{activePanel === "viz" ? "−" : "+"}</span>
-            </button>
-            {activePanel === "viz" && (
-              <div className="viz-panel-content">
-                <div className="viz-style-grid">
-                  {VISUALIZATION_OPTIONS.map((viz) => (
-                    <button key={viz.id} className={`viz-style-btn ${visualizationStyle === viz.id ? "active" : ""}`} onClick={() => setVisualizationStyle(viz.id)}>
-                      {viz.name}
-                    </button>
-                  ))}
-                </div>
-                {trackConcept && (
-                  <div className="viz-concept-info">
-                    <span>{trackConcept.mood.join(", ")}</span>
-                    <span>{trackConcept.bpm} BPM</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Panel: Match Track */}
-          <div className={`viz-panel ${activePanel === "match" ? "open" : ""}`}>
-            <button className="viz-panel-header" onClick={() => togglePanel("match")}>
-              <Waves size={14} />
-              <span>Match Track</span>
-              <span className="viz-panel-chevron">{activePanel === "match" ? "−" : "+"}</span>
-            </button>
-            {activePanel === "match" && (
-              <div className="viz-panel-content">
-                <label className="viz-toggle-label">
-                  <input type="checkbox" checked={vizParams.matchTrack} onChange={(e) => handleMatchTrackToggle(e.target.checked)} />
-                  <span>Auto-adjust from analysis</span>
-                </label>
-                {vizParams.matchTrack && !trackConcept && (
-                  <p className="viz-hint">Select a track to apply analysis</p>
-                )}
-                {vizParams.matchTrack && trackConcept && (
-                  <div className="viz-match-info">
-                    <span>{trackConcept.trackName}</span>
-                    <span>{trackConcept.bpm} BPM • {trackConcept.mood.join(", ")}</span>
-                  </div>
-                )}
-                {vizParams.matchTrack && (
-                  <div className="viz-match-modes">
-                    <label className={`viz-match-mode ${!useOllamaMatch ? "active" : ""}`}>
-                      <input type="radio" name="matchMode" checked={!useOllamaMatch} onChange={() => setUseOllamaMatch(false)} />
-                      <span>Quick</span>
-                    </label>
-                    <label className={`viz-match-mode ${useOllamaMatch ? "active" : ""}`}>
-                      <input type="radio" name="matchMode" checked={useOllamaMatch} onChange={() => setUseOllamaMatch(true)} disabled={!ollamaAvailable} />
-                      <span>AI</span>
-                      {ollamaAvailable && <span className="viz-ollama-badge">AI</span>}
-                    </label>
-                  </div>
-                )}
-                {ollamaStreaming && (
-                  <div className="viz-streaming">
-                    <div className="viz-streaming-dot" />
-                    <span>{ollamaProgress}</span>
-                  </div>
-                )}
-                {generatedHtml && !ollamaStreaming && (
-                  <div className="viz-preview">
-                    <button className="viz-preview-btn" onClick={() => setShowPreview(!showPreview)}>
-                      {showPreview ? "Hide Preview" : "Show Preview"}
-                    </button>
-                    {showPreview && (
-                      <iframe
-                        srcDoc={generatedHtml}
-                        className="viz-preview-iframe"
-                        title="Visualization Preview"
-                        sandbox="allow-scripts"
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Panel: Parameters */}
-          <div className={`viz-panel ${activePanel === "params" ? "open" : ""}`}>
-            <button className="viz-panel-header" onClick={() => togglePanel("params")}>
-              <Palette size={14} />
-              <span>Parameters</span>
-              <span className="viz-panel-chevron">{activePanel === "params" ? "−" : "+"}</span>
-            </button>
-            {activePanel === "params" && (
-              <div className="viz-panel-content">
-                <div className="viz-param-group">
-                  <p className="viz-param-group-title">Motion</p>
-                  <div className="viz-param-row"><label>Scale</label><input type="range" min="0.5" max="3" step="0.1" value={vizParams.scale} onChange={(e) => setVizParams({...vizParams, scale: parseFloat(e.target.value)})} /><span>{vizParams.scale.toFixed(1)}</span></div>
-                  <div className="viz-param-row"><label>Boost</label><input type="range" min="0.5" max="3" step="0.1" value={vizParams.scaleBoost} onChange={(e) => setVizParams({...vizParams, scaleBoost: parseFloat(e.target.value)})} /><span>{vizParams.scaleBoost.toFixed(1)}</span></div>
-                  <div className="viz-param-row"><label>Rotation</label><input type="range" min="0.1" max="5" step="0.1" value={vizParams.rotationSpeed} onChange={(e) => setVizParams({...vizParams, rotationSpeed: parseFloat(e.target.value)})} /><span>{vizParams.rotationSpeed.toFixed(1)}</span></div>
-                  <div className="viz-param-row"><label>Response</label><input type="range" min="0.1" max="1" step="0.05" value={vizParams.lerpSpeed} onChange={(e) => setVizParams({...vizParams, lerpSpeed: parseFloat(e.target.value)})} /><span>{vizParams.lerpSpeed.toFixed(2)}</span></div>
-                </div>
-                <div className="viz-param-group">
-                  <p className="viz-param-group-title">Appearance</p>
-                  <div className="viz-param-row"><label>Glow</label><input type="range" min="0" max="1" step="0.05" value={vizParams.glowIntensity} onChange={(e) => setVizParams({...vizParams, glowIntensity: parseFloat(e.target.value)})} /><span>{vizParams.glowIntensity.toFixed(2)}</span></div>
-                  <div className="viz-param-row"><label>Color Shift</label><input type="range" min="0" max="3" step="0.1" value={vizParams.colorShift} onChange={(e) => setVizParams({...vizParams, colorShift: parseFloat(e.target.value)})} /><span>{vizParams.colorShift.toFixed(1)}</span></div>
-                  <div className="viz-param-row"><label>Opacity</label><input type="range" min="0.2" max="1" step="0.05" value={vizParams.opacity} onChange={(e) => setVizParams({...vizParams, opacity: parseFloat(e.target.value)})} /><span>{vizParams.opacity.toFixed(2)}</span></div>
-                  <div className="viz-param-row"><label>P. Size</label><input type="range" min="0.01" max="0.2" step="0.01" value={vizParams.particleSize} onChange={(e) => setVizParams({...vizParams, particleSize: parseFloat(e.target.value)})} /><span>{vizParams.particleSize.toFixed(2)}</span></div>
-                  <div className="viz-param-row"><label>Material</label>
-                    <select value={vizParams.materialType} onChange={(e) => setVizParams({...vizParams, materialType: e.target.value as VizParams["materialType"]})}>
-                      <option value="standard">Standard</option>
-                      <option value="metallic">Metallic</option>
-                      <option value="glass">Glass</option>
-                      <option value="neon">Neon</option>
-                      <option value="matte">Matte</option>
-                    </select>
-                  </div>
-                  <div className="viz-param-row"><label>Wireframe</label><input type="checkbox" checked={vizParams.wireframe} onChange={(e) => setVizParams({...vizParams, wireframe: e.target.checked})} /></div>
-                </div>
-                <div className="viz-param-group">
-                  <p className="viz-param-group-title">Scene</p>
-                  <div className="viz-param-row"><label>Shadows</label><input type="checkbox" checked={vizParams.shadowEnabled} onChange={(e) => setVizParams({...vizParams, shadowEnabled: e.target.checked})} /></div>
-                  <div className="viz-param-row"><label>Reflections</label><input type="checkbox" checked={vizParams.reflectionEnabled} onChange={(e) => setVizParams({...vizParams, reflectionEnabled: e.target.checked})} /></div>
-                  <div className="viz-param-row"><label>Ground</label><input type="checkbox" checked={vizParams.showGround} onChange={(e) => setVizParams({...vizParams, showGround: e.target.checked})} /></div>
-                  <div className="viz-param-row"><label>Particles</label><input type="range" min="0" max="1000" step="50" value={vizParams.particleCount} onChange={(e) => setVizParams({...vizParams, particleCount: parseInt(e.target.value)})} /><span>{vizParams.particleCount}</span></div>
-                  <div className="viz-param-row"><label>Floating</label><input type="checkbox" checked={vizParams.showFloatingShapes} onChange={(e) => setVizParams({...vizParams, showFloatingShapes: e.target.checked})} /></div>
-                  <div className="viz-param-row"><label>Light Rays</label><input type="checkbox" checked={vizParams.showLightRays} onChange={(e) => setVizParams({...vizParams, showLightRays: e.target.checked})} /></div>
-                </div>
-                <button className="viz-reset-btn" onClick={() => setVizParams(DEFAULT_VIZ_PARAMS)}>Reset All</button>
-              </div>
-            )}
-          </div>
-
-          {/* Panel: Theme */}
-          <div className={`viz-panel ${activePanel === "theme" ? "open" : ""}`}>
-            <button className="viz-panel-header" onClick={() => togglePanel("theme")}>
-              <Palette size={14} />
-              <span>Theme</span>
-              <span className="viz-panel-chevron">{activePanel === "theme" ? "−" : "+"}</span>
-            </button>
-            {activePanel === "theme" && (
-              <div className="viz-panel-content">
-                <div className="viz-param-row"><label>Background</label><input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="viz-color-picker" /></div>
-                <div className="viz-param-row"><label>Mesh</label><input type="color" value={meshColor} onChange={(e) => setMeshColor(e.target.value)} className="viz-color-picker" /></div>
-                <div className="viz-param-row"><label>Ambient</label><input type="color" value={vizParams.ambientColor} onChange={(e) => setVizParams({...vizParams, ambientColor: e.target.value})} className="viz-color-picker" /></div>
-                <div className="viz-param-row"><label>Light</label><input type="range" min="0.2" max="3" step="0.1" value={vizParams.lightIntensity} onChange={(e) => setVizParams({...vizParams, lightIntensity: parseFloat(e.target.value)})} /><span>{vizParams.lightIntensity.toFixed(1)}</span></div>
-                <div className="viz-param-row"><label>Fog</label><input type="checkbox" checked={vizParams.fogEnabled} onChange={(e) => setVizParams({...vizParams, fogEnabled: e.target.checked})} /></div>
-                <div className="viz-param-row"><label>Fog Dens.</label><input type="range" min="0" max="0.15" step="0.005" disabled={!vizParams.fogEnabled} value={vizParams.fogDensity} onChange={(e) => setVizParams({...vizParams, fogDensity: parseFloat(e.target.value)})} /><span>{vizParams.fogDensity.toFixed(3)}</span></div>
-              </div>
-            )}
-          </div>
+          )}
+          <button onClick={toggleFocusMode} className="viz-icon-btn" aria-label={focusMode ? "Exit focus mode" : "Enter focus mode"} title={focusMode ? "Exit focus mode" : "Enter focus mode"}>{focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
         </div>
+      </header>
+
+      <AnimationDemo visible={showAnimDemo} onClose={() => setShowAnimDemo(false)} />
+
+      <div className="viz-content">
+        <div className="viz-canvas-wrap" ref={containerRef}>
+          <Canvas camera={{ position: [0, 0, 7], fov: 55 }} dpr={[1, 1.5]} frameloop={rendererReady ? "always" : "never"}
+            gl={async (props) => {
+              // Force WebGL2 — WebGPU doesn't support CanvasTexture which visualizations need
+              const r = new WebGLRenderer({ ...props, antialias: true });
+              setRendererBackend("WebGL2");
+              setRendererReady(true);
+              return r;
+            }}
+          >
+            <color attach="background" args={[bgColor]} />
+            <VisualizerScene
+              analyserRef={analyserRef}
+              isPlaying={isPlaying}
+              isPaused={isPaused}
+              demoEnabled={demoEnabled}
+              demoBpm={demoBpm}
+              onAudioData={setLiveAudioData}
+              visualizationStyle={visualizationStyle}
+              vizParams={vizParams}
+              bgColor={bgColor}
+              meshColor={meshColor}
+              analysisData={currentAnalysisData}
+              audioElapsedRef={audioElapsedRef}
+              sceneFrozen={sceneFrozen}
+            />
+          </Canvas>
+          {!rendererReady && <div className="viz-loading-overlay"><div className="viz-loading-spinner" /><span>Initializing {rendererBackend || "renderer"}...</span></div>}
+          {rendererReady && <div className="viz-backend-badge">{rendererBackend}</div>}
+          <StylePicker active={visualizationStyle} onChange={setVisualizationStyle} />
+          <KineticLyricOverlay lyrics={lyrics} elapsed={audioElapsedRef.current} visible={lyricsVisible} presetId={kineticPreset} beat={liveAudioData.beat} />
+        </div>
+        {showSettings && <SettingsPanel params={vizParams} onChange={setVizParams} bgColor={bgColor} meshColor={meshColor} onBgChange={setBgColor} onMeshChange={setMeshColor} demoEnabled={demoEnabled} onDemoToggle={setDemoEnabled} kineticPreset={kineticPreset} onKineticPresetChange={setKineticPreset} />}
+        {showAIPanel && <AIVisualizerPrompt onApplyPreset={handlePresetLoaded} trackMeta={deriveTrackMeta(currentAnalysisData)} trackName={currentFilename} />}
       </div>
+
+      <footer className="viz-bottombar">
+        <div className="viz-spectrum">
+          <SpectrumBar label="Bass" value={liveAudioData.bass} color="#6366f1" />
+          <SpectrumBar label="Mid" value={liveAudioData.mid} color="#a855f7" />
+          <SpectrumBar label="Treble" value={liveAudioData.treble} color="#ec4899" />
+        </div>
+        <div className="viz-beat"><div className={`viz-beat-dot ${liveAudioData.beat ? "active" : ""}`} /></div>
+      </footer>
+
+      {audioUrl && (
+        <div className="viz-audio-player">
+          <audio key={audioUrl} ref={audioElRef} controls src={audioUrl} className="viz-audio" crossOrigin="anonymous"
+            onPlay={() => { setIsPlaying(true); setIsPaused(false); setupAudio(audioElRef.current!); }}
+            onPause={() => { setIsPlaying(false); setIsPaused(true); }}
+          />
+        </div>
+      )}
+
+      {!demoEnabled && <UploadPrompt hasAudio={!!audioUrl} onFile={handleFile} />}
+      {error && <div className="viz-error-bar"><AlertCircle size={14} /><span>{error}</span></div>}
     </div>
   );
 }

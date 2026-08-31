@@ -14,6 +14,9 @@ class SSEService {
   private stateListeners = new Set<(connected: boolean) => void>();
   private wantsConnection = false;
   private subscriberCount = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectDelay = 1000;
+  private maxReconnectDelay = 30000;
 
   /** Subscribe to SSE messages. Returns an unsubscribe fn. */
   subscribe(listener: MessageListener): () => void {
@@ -49,11 +52,27 @@ class SSEService {
     if (this.subscriberCount > 0) return;
 
     this.wantsConnection = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
     }
     this.emitState(false);
+  }
+
+  private scheduleReconnect(): void {
+    if (!this.wantsConnection || this.reconnectTimer) return;
+    const delay = this.reconnectDelay;
+    this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, this.maxReconnectDelay);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.wantsConnection && !this.eventSource) {
+        this.open();
+      }
+    }, delay);
   }
 
   private open(): void {
@@ -65,6 +84,11 @@ class SSEService {
     this.eventSource = new EventSource(sseUrl);
 
     this.eventSource.onopen = () => {
+      this.reconnectDelay = 1000;
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
       this.emitState(true);
     };
 
@@ -100,9 +124,13 @@ class SSEService {
     });
 
     this.eventSource.onerror = () => {
-      // EventSource handles reconnection automatically
-      // Just update the connection state
       this.emitState(false);
+      // EventSource auto-reconnects, but if it closed we schedule manual reconnect
+      if (this.eventSource?.readyState === EventSource.CLOSED) {
+        this.eventSource.close();
+        this.eventSource = null;
+        this.scheduleReconnect();
+      }
     };
   }
 

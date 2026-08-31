@@ -4,7 +4,7 @@
   "description": "MCP server tool inventories with call signatures for AI agents. Each server is configured in opencode.json.",
   "servers": {
     "unity": {
-      "command": "node tools/unity-mcp-bridge.mjs",
+      "command": "node tools/mcp/unity-mcp-bridge.mjs",
       "port": 7800,
       "protocol": "stdio → REST",
       "project_path": "unity-project-mcp",

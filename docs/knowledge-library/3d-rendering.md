@@ -5,13 +5,15 @@ tags:
   - optimization
   - blender
   - comfyui
+  - webgpu
+  - visualization
 aliases:
   - 3D Rendering Guide
   - GPU Rendering
   - Rendering Optimization
 cssclasses:
   - technical-guide
-date: 2026-08-24
+date: 2026-08-29
 ---
 
 # 🧊 3D Rendering
@@ -236,14 +238,65 @@ bpy.context.scene.render.ffmpeg.ffmpeg_preset = 'GOOD'
 
 ---
 
+## WebGPU & Modern Web Rendering — 2026 Update
+
+> [!info] New companion: [[visualization-effects|✨ Visualization Effects]] covers the full shader/particle/post-processing library. This section summarizes the browser-side pipeline for `three-js-studio`.
+
+### WebGPURenderer (Three.js r185)
+
+- **Import path**: `import * as THREE from 'three/webgpu'` + `await renderer.init()` — WebGPU is async; `setAnimationLoop` awaits automatically, custom RAF must await manually. Fallback to WebGL2 is automatic (`forceWebGL:true` only for debug).
+- **TSL**: Replaces GLSL `ShaderMaterial`/`onBeforeCompile` — write `Fn()` nodes once, compiled to WGSL or GLSL. Never mix `from 'three'` + `from 'three/webgpu'` (bundles 2× renderer).
+- **Post-processing**: `EffectComposer` → `RenderPipeline` node graph — built-in MRT, new **SSGI/SSS/DoF** exclusive to WebGPU, 2× faster merge. Bloom now via `RenderPipeline` node, not `UnrealBloomPass`.
+- **Compressed textures**: `KTX2Loader.detectSupport(renderer)` must run *after* `renderer.init()` — before = silent black meshes.
+
+### Compute Particles — Why 1M is Now Possible
+
+WebGL copied CPU positions every frame (~50k ceiling). WebGPU keeps `StorageBufferAttribute` in VRAM + `renderer.compute()` — **100k in <2ms, 1M+ with tuning** (workgroup 256–512). See [[visualization-effects#4. Particle Systems|Visualization Effects §4]] for full recipe.
+
+### Clustered Lighting
+
+WebGPU adds **Forward+ clustered shading** — hundreds of dynamic lights without the forward-renderer cliff. Critical for concert-stage scenes with many spot/point lights.
+
+### Performance Checklist (Utsubo 100 Tips distilled)
+
+- Draw calls <100, 60fps locked, profile `renderer.info` + `stats-gl`
+- `InstancedMesh` for repeats, Draco+KTX2 via `gltf-transform`, DPR capped 1.5–2.0
+- Proper dispose traversal on removal (`geometry/material.dispose()`)
+- Keep audio updates outside React (`useFrame` + refs, reuse `Float32Array`)
+
+---
+
+## Blender 5.2 LTS — Expanded Notes (Aug 2026)
+
+Supplement to [[visualization-effects#6. Blender 5.2 LTS|Visualization Effects §6]]:
+
+- **2× instancing perf** for CPU-bottlenecked scenes (HandleRange PR, Vulkan+GL)
+- **Screen-tracing overhaul**: `Backface` slider to cut GI light leaks, removed `Far Thickness` (halo fix), energy-conserving darker look may need thickness tweak
+- **Fast GI**: faster + less noise at `precision <1`, fixed AO leakage/pixelation/1-frame reproject lag
+- **Raycast Node**: precise intersections, no false positives toward camera
+- **Shadow budget**: 1.5/2 GB options — tune per-light shadow maps (1024→4096), not globally
+- **Hybrid workflow**: lookdev in EEVEE Next (raytracing ON) → finals in Cycles (OptiX denoise) → comp via AOVs. If scene has no glass/caustics/off-screen mirrors, EEVEE *is* final.
+
+---
+
+## Gaussian Splatting & NeRF (3DGS)
+
+- **What**: Photoreal scans as splat clouds — import via `@mkkellogg/gaussian-splats-3d` in Three.js, native support emerging in Blender 5.x
+- **When to use**: Real environments/objects scanned with phone, not modeled; far cheaper than manual geometry for music-video B-roll
+- **Cost**: VRAM-heavy (each splat = position+scale+rotation+SH), but rasterized fast on WebGPU; no compute needed
+
+---
+
 ## See Also
 
+- [[visualization-effects|✨ Visualization Effects & 3D Rendering Techniques]] — Full 2026 effects library (shaders, particles, post, volumetrics, audio mapping, 8 engines)
 - [[music-video-production]] — Full production workflow
 - [[blender-mcp]] — Blender MCP integration
 - [[comfyui-workflows]] — ComfyUI for image/video generation
+- [[three-js-studio]] — Browser studio implementation
 - [[technical-reference]] — System architecture
 - [[prompt-engineering]] — Better prompts for 3D assets
 
 ---
 
-*Last updated: 2026-08-24*
+*Last updated: 2026-08-29 — expanded with WebGPU/TSL compute path, Blender 5.2 LTS, 3DGS, and link to new Visualization Effects library*

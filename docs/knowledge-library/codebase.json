@@ -81,7 +81,9 @@
   },
   "tools": {
     "mcp_bridges": {
-      "unity-mcp-bridge.mjs": "Node.js MCP server for Unity editor (stdio → REST)",
+      "mcp/unity-mcp-bridge.mjs": "Node.js MCP server for Unity editor (stdio → REST)",
+      "mcp/vision-mcp.mjs": "Vision MCP (Ollama VLM)",
+      "mcp/vision.mjs": "Standalone vision analyzer",
       "blender_mcp_addon.py": "Blender addon for MCP protocol (v1.5, port 9876)",
       "analyze_and_sync.py": "GPU audio analysis → beat-synced JSON for Unity",
       "analyze_happyshrimp.py": "GPU-accelerated audio analysis demo"

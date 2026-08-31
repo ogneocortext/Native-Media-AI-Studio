@@ -443,3 +443,47 @@ def cleanup_incomplete_scenes(request: dict):
             pass
 
     return {"removed": removed, "kept": min(keep, len(matching))}
+
+
+# Ollama Analysis Response Endpoints
+
+@router.post("/ollama-analysis")
+def save_ollama_analysis(request: dict):
+    """Save an Ollama analysis response."""
+    response_id = database.save_ollama_analysis_response(
+        track_name=request.get("track_name", ""),
+        html_response=request.get("html_response", ""),
+        raw_response=request.get("raw_response", ""),
+        track_filename=request.get("track_filename", ""),
+        model_name=request.get("model_name", ""),
+        prompt=request.get("prompt", ""),
+        lyrics=request.get("lyrics", ""),
+        bpm=request.get("bpm", 0),
+        status=request.get("status", "completed"),
+    )
+    return {"success": True, "id": response_id}
+
+
+@router.get("/ollama-analysis")
+def list_ollama_analysis(track_name: str | None = None, limit: int = 50):
+    """List Ollama analysis responses, optionally filtered by track."""
+    responses = database.get_ollama_analysis_responses(track_name=track_name, limit=limit)
+    return {"responses": responses}
+
+
+@router.get("/ollama-analysis/{response_id}")
+def get_ollama_analysis(response_id: str):
+    """Get a single Ollama analysis response."""
+    response = database.get_ollama_analysis_response(response_id)
+    if not response:
+        raise HTTPException(status_code=404, detail="Response not found")
+    return response
+
+
+@router.delete("/ollama-analysis/{response_id}")
+def delete_ollama_analysis(response_id: str):
+    """Delete an Ollama analysis response."""
+    deleted = database.delete_ollama_analysis_response(response_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Response not found")
+    return {"success": True}

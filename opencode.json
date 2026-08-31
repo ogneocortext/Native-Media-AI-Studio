@@ -41,7 +41,7 @@
       "type": "local",
       "command": [
         "node",
-        "tools/unity-mcp-bridge.mjs"
+        "tools/mcp/unity-mcp-bridge.mjs"
       ],
       "environment": {
         "UNITY_PROJECT_PATH": "./unity-project-mcp"

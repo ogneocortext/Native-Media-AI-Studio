@@ -21,8 +21,9 @@ class AppConfig(BaseModel):
     backend_host: str = "127.0.0.1"
     backend_port: int = 8000
     frontend_port: int = 5173
-    # WebSocket shares the backend HTTP port (path /ws) - keep in sync with
-    # port_manager.resolve_all_ports() and config/ports.json.
+    # Canonical realtime transport is SSE at /api/events; WebSocket at /ws
+    # is a compat shim on the same port. `ws_port` is deprecated — use
+    # backend_port. Kept for config/ports.json compat.
     ws_port: int = 8000
     comfyui_url: str = "http://127.0.0.1:8188"
     ollama_url: str = "http://127.0.0.1:11434"

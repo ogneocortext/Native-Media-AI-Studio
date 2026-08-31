@@ -8,7 +8,7 @@ import logging
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -238,16 +238,18 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
         if cuda_result and cuda_result.get("computed_on") == "GPU":
             # CUDA succeeded — use its spectral features + CPU beat tracking
             analyzer = AudioAnalyzer()
-            y, sr = analyzer._load_audio(str(file_path))
-            tempo, beat_times, confidence = analyzer._detect_beats(y, sr)
+            result = analyzer.analyze_file(str(file_path), job_id=unique_id)
+            tempo = result.beats.tempo_bpm
+            beat_times = result.beats.beat_times
+            confidence = result.beats.confidence
             sections = _generate_sections_from_analysis(
                 duration=cuda_result.get("duration_seconds", 0),
                 tempo=tempo,
                 beat_times=beat_times,
-                onset_times=cuda_result.get("onset_envelope", []),
+                onset_times=result.beats.onset_times,
                 rms_energy=cuda_result.get("rms_energy", []),
                 hop_length=analyzer.hop_length,
-                sample_rate=sr,
+                sample_rate=result.waveform.sample_rate,
             )
 
             analysis_result = {
@@ -256,7 +258,7 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
                 "beat_count": len(beat_times),
                 "sections": sections,
                 "beat_times": [round(float(t), 3) for t in beat_times[:800]],
-                "onset_times": [round(float(t), 3) for t in cuda_result.get("onset_envelope", [])[:800]],
+                "onset_times": [round(float(t), 3) for t in result.beats.onset_times[:800]],
                 "energy_curve": [round(float(v), 4) for v in cuda_result.get("amplitude_envelope", [])],
                 "confidence": round(float(confidence), 3),
                 "amplitude_envelope": [round(float(v), 4) for v in cuda_result.get("amplitude_envelope", [])],
@@ -442,13 +444,41 @@ async def get_analysis_by_filename(filename: str):
 
     index = _load_analysis_index()
 
+    # Try exact match first
     job_id = index.get(filename)
+
+    # Fallback: try matching by display name (strip hash prefixes)
     if not job_id:
+        import re
+        display_name = re.sub(r'^([0-9a-f]{8}_)+', '', filename, flags=re.IGNORECASE)
+        for key, val in index.items():
+            key_display = re.sub(r'^([0-9a-f]{8}_)+', '', key, flags=re.IGNORECASE)
+            if key_display == display_name:
+                job_id = val
+                logger.info(f"Analysis fallback match: '{filename}' -> '{key}'")
+                break
+
+    # Fallback 2: try partial match (filename without extension)
+    if not job_id:
+        stem = Path(filename).stem
+        for key, val in index.items():
+            if stem in key or key.startswith(stem[:20]):
+                job_id = val
+                logger.info(f"Analysis partial match: '{filename}' -> '{key}'")
+                break
+
+    if not job_id:
+        logger.warning(f"No cached analysis for '{filename}'. Index keys: {list(index.keys())[:5]}...")
         raise HTTPException(status_code=404, detail="No cached analysis found for this file")
 
     analysis_path = _get_analysis_path(job_id)
     if not analysis_path.exists():
-        raise HTTPException(status_code=404, detail="Analysis file missing")
+        # Try finding by glob pattern
+        matches = list(ANALYSIS_DIR.glob(f"{job_id[:8]}*_analysis.json"))
+        if matches:
+            analysis_path = matches[0]
+        else:
+            raise HTTPException(status_code=404, detail="Analysis file missing")
 
     with open(analysis_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -457,14 +487,16 @@ async def get_analysis_by_filename(filename: str):
 
 
 @router.get("/analysis/{job_id}")
-async def get_analysis_result(job_id: str):
+async def get_analysis_result(request: Request, job_id: str):
     """Get the result of an audio analysis job by job ID."""
     if not ANALYSIS_DIR.exists():
         raise HTTPException(status_code=404, detail="No analysis results found")
 
     for json_file in ANALYSIS_DIR.glob("*_analysis.json"):
         if job_id[:8] in json_file.name:
-            return FileResponse(str(json_file), media_type="application/json")
+            origin = request.headers.get("origin", "*")
+            return FileResponse(str(json_file), media_type="application/json",
+                                headers={"Access-Control-Allow-Origin": origin})
 
     raise HTTPException(status_code=404, detail="Analysis result not found")
 
@@ -477,9 +509,9 @@ async def list_uploaded_audio():
         seen_names = set()
         for f in sorted(AUDIO_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
             if f.is_file() and f.suffix.lower() in ALLOWED_EXTENSIONS:
-                # Deduplicate by display name (strip hash prefix)
+                # Deduplicate by display name — strip ALL 8-hex hash prefixes (files may have 2-3)
                 import re
-                display_name = re.sub(r'^[0-9a-f]{8}_', '', f.name)
+                display_name = re.sub(r'^([0-9a-f]{8}_)+', '', f.name, flags=re.IGNORECASE)
                 if display_name in seen_names:
                     continue
                 seen_names.add(display_name)
@@ -493,7 +525,87 @@ async def list_uploaded_audio():
     return {"files": files}
 
 
-@router.post("/rename")
+@router.post("/ensure-analysis")
+async def ensure_analysis(body: dict):
+    """Ensure analysis exists for a file — run analysis if not cached.
+    Used by frontend features that depend on analysis data."""
+    filename = body.get("filename", "")
+    if not filename:
+        raise HTTPException(status_code=400, detail="filename required")
+
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    # Check if already cached
+    index = _load_analysis_index()
+    job_id = index.get(filename)
+    if job_id:
+        analysis_path = _get_analysis_path(job_id)
+        if analysis_path.exists():
+            with open(analysis_path, "r", encoding="utf-8") as f:
+                return {"status": "cached", "analysis": json.load(f)}
+
+    # Find the audio file
+    file_path = AUDIO_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"Audio file not found: {filename}")
+
+    # Run analysis
+    from ..services.audio_analyzer import AudioAnalyzer, LIBROSA_AVAILABLE
+    if not LIBROSA_AVAILABLE:
+        raise HTTPException(status_code=503, detail="librosa not installed")
+
+    try:
+        unique_id = str(uuid.uuid4())[:8]
+        analyzer = AudioAnalyzer()
+        result = analyzer.analyze_file(str(file_path), job_id=unique_id)
+
+        tempo = result.beats.tempo_bpm if result.beats else 120.0
+        duration = result.waveform.duration_seconds if result.waveform else 0.0
+        beat_count = len(result.beats.beat_times) if result.beats else 0
+        beat_times = result.beats.beat_times if result.beats else []
+        onset_times = result.beats.onset_times if result.beats else []
+        confidence = result.beats.confidence if result.beats else 0.0
+        energy_curve = result.waveform.amplitude_envelope if result.waveform else []
+        rms = result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []
+
+        sections = _generate_sections_from_analysis(
+            duration=duration,
+            tempo=tempo,
+            beat_times=beat_times,
+            onset_times=onset_times,
+            rms_energy=rms,
+            hop_length=analyzer.hop_length,
+            sample_rate=result.waveform.sample_rate if result.waveform else 22050,
+        )
+
+        analysis_result = {
+            "tempo_bpm": round(float(tempo), 1),
+            "duration_seconds": round(float(duration), 2),
+            "beat_count": int(beat_count),
+            "sections": sections,
+            "beat_times": [round(float(t), 3) for t in beat_times[:800]],
+            "onset_times": [round(float(t), 3) for t in onset_times[:800]],
+            "energy_curve": [round(float(v), 4) for v in energy_curve],
+            "confidence": round(float(confidence), 3),
+            "amplitude_envelope": [round(float(v), 4) for v in energy_curve],
+            "stored_path": str(file_path),
+            "job_id": unique_id,
+        }
+
+        # Save to index and file
+        index[filename] = unique_id
+        _save_analysis_index(index)
+
+        analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
+        with open(analysis_file, "w") as f:
+            json.dump(analysis_result, f, indent=2)
+
+        logger.info(f"Analysis completed for '{filename}': {tempo:.1f} BPM, {beat_count} beats")
+        return {"status": "analyzed", "analysis": analysis_result}
+    except Exception as e:
+        logger.error(f"Analysis failed for '{filename}': {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 async def rename_audio_file(body: dict):
     """Rename an audio file."""
     old_filename = body.get("old_filename", "")
@@ -522,7 +634,7 @@ async def rename_audio_file(body: dict):
 
 
 @router.get("/file/{filename:path}")
-async def serve_audio_file(filename: str):
+async def serve_audio_file(request: Request, filename: str):
     """Serve an audio file by filename."""
     import urllib.parse
     
@@ -557,6 +669,8 @@ async def serve_audio_file(filename: str):
     }
     media_type = media_types.get(ext, "application/octet-stream")
 
+    # Echo back the requesting origin for CORS (works with credentials)
+    origin = request.headers.get("origin", "*")
     return FileResponse(
         str(file_path),
         media_type=media_type,
@@ -564,6 +678,7 @@ async def serve_audio_file(filename: str):
         headers={
              "Accept-Ranges": "bytes",
              "Cache-Control": "public, max-age=3600",
-         },
+             "Access-Control-Allow-Origin": origin,
+        },
      )
 

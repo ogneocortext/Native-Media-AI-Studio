@@ -43,6 +43,7 @@ date: 2026-08-27
 
 ### 🎯 Specialized Guides
 - [[3d-rendering|🧊 3D Rendering]] — GPU rendering, Blender 5.2 EEVEE Next, optimization
+- [[visualization-effects|✨ Visualization Effects]] — WebGPU/TSL, particles, shaders, post-processing, volumetrics (NEW 2026-08-29)
 - [[prompt-engineering|✍️ Prompt Engineering]] — Effective prompts + repair/versioning workflow
 
 ### 📊 Research & Audit
@@ -55,7 +56,9 @@ date: 2026-08-27
 | Tag | Description | Documents |
 |-----|-------------|-----------|
 | `#music-video` | Music video production | 5 documents |
-| `#3d-rendering` | 3D rendering and optimization | 2 documents |
+| `#3d-rendering` | 3D rendering and optimization | 3 documents |
+| `#visualization` | Visualization effects, shaders, particles | 1 document |
+| `#webgpu` | WebGPU / TSL / compute | 2 documents |
 | `#ai-generation` | AI image/video generation | 4 documents |
 | `#youtube` | YouTube platform optimization | 1 document |
 | `#blender` | Blender 3D integration | 2 documents |
@@ -124,11 +127,11 @@ graph LR
 
 | Metric | Count |
 |--------|-------|
-| Total Documents | 10 (+ ai-video-trends-2026) |
-| Total Tags | 11 (+ 2026/trends) |
-| Total Links | 55+ |
-| Last Updated | 2026-08-27 (subagent orchestration analysis) |
+| Total Documents | 11 (+ ai-video-trends-2026, visualization-effects) |
+| Total Tags | 14 (+ visualization/webgpu) |
+| Total Links | 70+ |
+| Last Updated | 2026-08-29 (visualization-effects expanded, 3d-rendering updated) |
 
 ---
 
-*Last updated: 2026-08-27*
+*Last updated: 2026-08-29*
