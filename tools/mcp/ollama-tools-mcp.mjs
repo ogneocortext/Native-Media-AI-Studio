@@ -195,7 +195,7 @@ async function generateVideo(args) {
 async function listAudioLibrary() {
   const res = await fetch(`${BACKEND_URL}/api/audio/files`);
   const data = await res.json();
-  const files = data.files.map((f: any) => f.filename).join("\n");
+  const files = data.files.map((f) => f.filename).join("\n");
   return { content: [{ type: "text", text: `Available tracks:\n${files}` }] };
 }
 
@@ -209,7 +209,7 @@ async function createMusicVideoPlan(args) {
     duration: analysis.duration_seconds,
     energy: analysis.energy_curve,
     recommended_style: analysis.tempo_bpm > 120 ? "high-energy" : "chiral",
-    scenes: analysis.sections?.map((s: any) => ({
+    scenes: analysis.sections?.map((s) => ({
       start: s.start,
       end: s.end,
       type: s.type,
