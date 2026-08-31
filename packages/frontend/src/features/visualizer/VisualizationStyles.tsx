@@ -56,7 +56,7 @@ function getNoiseTex(): THREE.Texture {
 // =============================================================================
 // GEOMETRIC — Deep vortex with 7 distinct depth layers
 // =============================================================================
-export function GeometricViz({ audioData, vizParams, analysisData, audioElapsedRef, sceneFrozen }: VizProps) {
+export function GeometricViz({ audioData, vizParams, sceneFrozen }: VizProps) {
   const coreRef = useRef<THREE.Mesh>(null);
   const wireRef = useRef<THREE.Mesh>(null);
   const pointsRef = useRef<THREE.Points>(null);
@@ -118,9 +118,8 @@ export function GeometricViz({ audioData, vizParams, analysisData, audioElapsedR
     const t = s.clock.elapsedTime;
     const { bass, mid, treble, peak, beat } = audioData.current;
 
-    // Get track-specific features
-    const elapsed = audioElapsedRef?.current ?? 0;
-    const features = getTrackFeatures(analysisData, elapsed);
+    // Get track features (computed once per frame, shared across all visualizations)
+    const features = getTrackFeatures();
 
     if (beat || features.onset > 0.5) {
       beatPulse.current = 1.0;
@@ -272,7 +271,7 @@ export function AudioReactiveCore({ audioData, vizParams, sceneFrozen }: VizProp
 // =============================================================================
 // PARTICLES — Galaxy spiral with differential rotation
 // =============================================================================
-export function OrbitalParticles({ audioData, vizParams, analysisData, audioElapsedRef, sceneFrozen }: VizProps) {
+export function OrbitalParticles({ audioData, vizParams, sceneFrozen }: VizProps) {
   const pointsRef = useRef<THREE.Points>(null);
   const shockRef = useRef<THREE.Mesh>(null);
   const count = 3000;
@@ -310,9 +309,8 @@ export function OrbitalParticles({ audioData, vizParams, analysisData, audioElap
     const t = s.clock.elapsedTime;
     const { bass, mid, treble, beat } = audioData.current;
 
-    // Get track-specific features from CUDA analysis
-    const elapsed = audioElapsedRef?.current ?? 0;
-    const features = getTrackFeatures(analysisData, elapsed);
+    // Get track features (computed once per frame, shared across all visualizations)
+    const features = getTrackFeatures();
     featuresRef.current = features;
 
     if (beat || features.onset > 0.5) beatPulse.current = 1.0;
@@ -363,7 +361,7 @@ export function OrbitalParticles({ audioData, vizParams, analysisData, audioElap
 // =============================================================================
 // NEURAL — Network nodes with connection lines, dramatic audio reactivity
 // =============================================================================
-export function FrequencyRings({ audioData, vizParams, analysisData, audioElapsedRef, sceneFrozen }: VizProps) {
+export function FrequencyRings({ audioData, vizParams, sceneFrozen }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const nodeRefs = useRef<(THREE.Mesh | null)[]>([]);
   const lineRef = useRef<THREE.LineSegments>(null);
@@ -388,9 +386,8 @@ export function FrequencyRings({ audioData, vizParams, analysisData, audioElapse
     const t = s.clock.elapsedTime;
     const { bass, mid, treble, beat } = audioData.current;
 
-    // Get track-specific features
-    const elapsed = audioElapsedRef?.current ?? 0;
-    const features = getTrackFeatures(analysisData, elapsed);
+    // Get track features (computed once per frame, shared across all visualizations)
+    const features = getTrackFeatures();
 
     if (beat || features.onset > 0.5) beatPulse.current = 1.0;
     beatPulse.current *= 0.88;

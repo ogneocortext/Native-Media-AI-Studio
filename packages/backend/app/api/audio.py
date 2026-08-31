@@ -7,6 +7,11 @@ import json
 import logging
 import uuid
 from pathlib import Path
+from functools import lru_cache
+
+# In-memory cache for analysis data (avoids DB hits on every frontend poll)
+_analysis_cache: dict[str, dict] = {}
+_cache_max_size = 200  # Max files to cache in memory
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
@@ -442,10 +447,16 @@ async def get_analysis_by_filename(filename: str):
     if ".." in filename or filename.startswith("/"):
         raise HTTPException(status_code=400, detail="Invalid filename")
 
-    # Check database first (persistent across restarts)
+    # Check in-memory cache first (fastest)
+    if filename in _analysis_cache:
+        return _analysis_cache[filename]
+
+    # Check database second
     from ..core import database
     db_analysis = database.get_audio_analysis(filename)
     if db_analysis:
+        # Populate cache
+        _analysis_cache[filename] = db_analysis
         return db_analysis
 
     # Fallback to JSON file index
@@ -622,7 +633,9 @@ async def ensure_analysis(body: dict):
         # Save to database for persistence between server restarts
         from ..core import database
         database.update_audio_analysis(filename, analysis_result)
-        
+        # Populate in-memory cache
+        _analysis_cache[filename] = analysis_result
+
         return {"status": "analyzed", "analysis": analysis_result}
     except Exception as e:
         logger.error(f"Analysis failed for '{filename}': {e}")

@@ -1,5 +1,6 @@
 import { useRef, useEffect } from "react";
 import { OrbitControls } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
 import {
   AudioReactiveCore,
   OrbitalParticles,
@@ -13,6 +14,7 @@ import {
   OceanWaves,
 } from "./VisualizationStyles";
 import { useRealAudio, useDemoAudio } from "./audioHooks";
+import { updateTrackFeatures } from "./trackFeatures";
 import type { VisualizerSceneProps } from "./types";
 
 export function VisualizerScene({
@@ -34,6 +36,11 @@ export function VisualizerScene({
   const realData = useRealAudio(analyserRef, isPlaying, isPaused, analysisData, audioElapsedRef);
   const demoData = useDemoAudio(demoEnabled && !isPlaying && !isPaused, demoBpm);
   const audioData = isPlaying ? realData : demoData;
+
+  // Update track features once per frame (shared across all visualizations)
+  useFrame(() => {
+    updateTrackFeatures(analysisData, audioElapsedRef?.current ?? 0);
+  });
 
   // Pass audio data to parent for spectrum display
   const onAudioDataRef = useRef(onAudioData);
