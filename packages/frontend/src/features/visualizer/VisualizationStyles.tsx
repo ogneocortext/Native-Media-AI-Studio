@@ -52,22 +52,29 @@ function getNoiseTex(): THREE.Texture {
 }
 
 // =============================================================================
-// GEOMETRIC — Vortex: core (bass) + wireframe (mid) + particles (treble)
+// GEOMETRIC — Deep vortex with 7 distinct depth layers
 // =============================================================================
 export function GeometricViz({ audioData, vizParams, sceneFrozen }: VizProps) {
   const coreRef = useRef<THREE.Mesh>(null);
   const wireRef = useRef<THREE.Mesh>(null);
   const pointsRef = useRef<THREE.Points>(null);
   const glowRef = useRef<THREE.Mesh>(null);
+  const orbitRef = useRef<THREE.Points>(null);
+  const shockRef = useRef<THREE.Mesh>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
   const rotRef = useRef(0);
   const frameCount = useRef(0);
+  const beatPulse = useRef(0);
+  const shockScale = useRef(0);
+  const hueRef = useRef(0.6);
 
+  // Layer 5: Outer particle sphere (radius 5-9)
   const geom = useMemo(() => {
-    const n = 800;
+    const n = 1500;
     const pos = new Float32Array(n * 3);
     const col = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
-      const r = 2 + Math.random() * 3;
+      const r = 5 + Math.random() * 4;
       const t = Math.random() * Math.PI * 2;
       const ph = Math.acos(2 * Math.random() - 1);
       pos[i*3] = r * Math.sin(ph) * Math.cos(t);
@@ -82,39 +89,97 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen }: VizProps) {
     return { g, pos, n };
   }, []);
 
+  // Layer 4: Orbital particles (radius 3.5-5)
+  const orbitGeom = useMemo(() => {
+    const n = 600;
+    const pos = new Float32Array(n * 3);
+    const col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const angle = (i / n) * Math.PI * 12;
+      const radius = 3.5 + Math.random() * 1.5;
+      const height = (Math.random() - 0.5) * 2.0;
+      pos[i*3] = Math.cos(angle) * radius;
+      pos[i*3+1] = height;
+      pos[i*3+2] = Math.sin(angle) * radius;
+      const c = new THREE.Color().setHSL(0.5 + Math.random() * 0.3, 1.0, 0.6 + Math.random() * 0.3);
+      col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    return { g, pos, n };
+  }, []);
+
   useFrame((s) => {
     frameCount.current++;
     if (frameCount.current === 1) console.log("[GeometricViz] useFrame running, frame:", frameCount.current);
     const t = s.clock.elapsedTime;
-    const { bass, mid, treble, peak } = audioData.current;
-    if (!sceneFrozen) rotRef.current += 0.005 * vizParams.rotationSpeed * (1 + bass * 2);
+    const { bass, mid, treble, peak, beat, energy } = audioData.current;
+    if (!sceneFrozen) rotRef.current += 0.003 * vizParams.rotationSpeed * (1 + bass * 2);
 
+    if (beat) {
+      beatPulse.current = 1.0;
+      shockScale.current = 1.0;
+    }
+    beatPulse.current *= 0.9;
+    shockScale.current *= 0.92;
+    const pulseScale = 1 + beatPulse.current * 0.5;
+
+    hueRef.current += energy * 0.001;
+    if (hueRef.current > 1.0) hueRef.current -= 1.0;
+
+    // Layer 0: Core (radius ~0.6)
     if (coreRef.current) {
-      coreRef.current.scale.setScalar(vizParams.scale * (1 + bass * vizParams.scaleBoost * 0.4));
+      const s = vizParams.scale * 0.6 * (1 + bass * vizParams.scaleBoost * 0.4) * pulseScale;
+      coreRef.current.scale.setScalar(s);
       coreRef.current.rotation.y = rotRef.current;
-      coreRef.current.rotation.z = Math.sin(t * 0.5) * 0.15;
+      coreRef.current.rotation.x = Math.sin(t * 0.3) * 0.2;
       const m = coreRef.current.material as THREE.MeshStandardMaterial;
-      m.emissiveIntensity = 0.4 + bass * vizParams.glowIntensity * 2;
-      m.color.setHSL(0.6 - bass * 0.1, 0.9, 0.5 + bass * 0.2);
+      m.emissiveIntensity = 0.6 + bass * vizParams.glowIntensity * 3 + beatPulse.current * 2;
+      m.color.setHSL(hueRef.current, 0.9, 0.55 + bass * 0.15);
+      m.emissive.setHSL(hueRef.current + 0.1, 1.0, 0.5 + bass * 0.3);
     }
-    if (wireRef.current) {
-      wireRef.current.scale.setScalar(1.8 + mid * 0.7);
-      wireRef.current.rotation.y = -rotRef.current * 0.7;
-      wireRef.current.rotation.x = Math.sin(t * 0.3) * mid * 0.4;
-      const m = wireRef.current.material as THREE.MeshStandardMaterial;
-      m.emissiveIntensity = 0.2 + mid * vizParams.glowIntensity * 1.2;
-      m.opacity = 0.3 + mid * 0.4;
-    }
+    // Layer 1: Glow (radius ~1.2)
     if (glowRef.current) {
-      glowRef.current.scale.setScalar(vizParams.scale * (1.1 + bass * 0.5));
+      const s = vizParams.scale * 1.2 * (1 + bass * 0.5 + beatPulse.current * 0.3);
+      glowRef.current.scale.setScalar(s);
       glowRef.current.rotation.y = rotRef.current * 0.5;
       const m = glowRef.current.material as THREE.MeshStandardMaterial;
-      m.opacity = 0.15 + bass * 0.2;
-      m.emissiveIntensity = 0.3 + bass * vizParams.glowIntensity;
+      m.opacity = 0.08 + bass * 0.15 + beatPulse.current * 0.1;
+      m.emissiveIntensity = 0.5 + bass * vizParams.glowIntensity * 2;
     }
+    // Layer 2: Wireframe (radius ~2.5)
+    if (wireRef.current) {
+      const s = 2.5 + mid * 0.8 + beatPulse.current * 0.4;
+      wireRef.current.scale.setScalar(s);
+      wireRef.current.rotation.y = -rotRef.current * 0.6;
+      wireRef.current.rotation.x = Math.sin(t * 0.25) * mid * 0.4;
+      const m = wireRef.current.material as THREE.MeshStandardMaterial;
+      m.emissiveIntensity = 0.4 + mid * vizParams.glowIntensity * 1.5;
+      m.opacity = 0.2 + mid * 0.4 + beatPulse.current * 0.15;
+      m.color.setHSL(hueRef.current + 0.15, 0.8, 0.6);
+    }
+    // Layer 3: Shockwave (expands from 2.5 to 12)
+    if (shockRef.current) {
+      const sScale = 2.5 + shockScale.current * 10;
+      shockRef.current.scale.setScalar(sScale);
+      const sm = shockRef.current.material as THREE.MeshStandardMaterial;
+      sm.opacity = (1 - shockScale.current) * 0.35;
+      sm.emissiveIntensity = (1 - shockScale.current) * 3;
+      sm.color.setHSL(hueRef.current, 0.9, 0.6);
+    }
+    // Layer 4: Orbital spiral (radius 3.5-5)
+    if (orbitRef.current) {
+      orbitRef.current.rotation.y = rotRef.current * 1.5 * (1 + energy * 2);
+      orbitRef.current.rotation.x = Math.sin(t * 0.15) * 0.4 * mid;
+      const om = orbitRef.current.material as THREE.PointsMaterial;
+      om.size = 0.04 + treble * 0.05 + beatPulse.current * 0.03;
+      om.opacity = 0.5 + energy * 0.4;
+    }
+    // Layer 5: Outer particles (radius 5-9)
     if (pointsRef.current) {
       const pp = geom.pos;
-      const d = 1 + treble * 0.6 + (audioData.current.beat ? peak * 0.4 : 0);
+      const d = 1 + treble * 0.6 + (beat ? peak * 0.5 : 0);
       const base = geom.g.attributes.position.array as Float32Array;
       for (let i = 0; i < geom.n; i++) {
         base[i*3] = pp[i*3] * d;
@@ -122,17 +187,37 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen }: VizProps) {
         base[i*3+2] = pp[i*3+2] * d;
       }
       geom.g.attributes.position.needsUpdate = true;
-      pointsRef.current.rotation.y = rotRef.current * 0.3;
-      (pointsRef.current.material as THREE.PointsMaterial).size = 0.03 + treble * 0.04;
+      pointsRef.current.rotation.y = rotRef.current * 0.2;
+      pointsRef.current.rotation.x = Math.sin(t * 0.1) * 0.05;
+      (pointsRef.current.material as THREE.PointsMaterial).size = 0.06 + treble * 0.06;
+    }
+    // Layer 6: Outer ring (radius 10)
+    if (ringRef.current) {
+      ringRef.current.rotation.x = Math.PI / 2 + Math.sin(t * 0.1) * 0.1;
+      ringRef.current.rotation.z = -rotRef.current * 0.8;
+      const rm = ringRef.current.material as THREE.MeshStandardMaterial;
+      rm.emissiveIntensity = 0.6 + mid * 2;
+      rm.opacity = 0.15 + mid * 0.25;
+      rm.color.setHSL(hueRef.current + 0.3, 0.8, 0.5);
     }
   });
 
   return (
     <group>
-      <mesh ref={coreRef}><icosahedronGeometry args={[1, 3]} /><meshStandardMaterial color="#6366f1" emissive="#4338ca" emissiveIntensity={0.5} roughness={0.1} metalness={0.95} /></mesh>
-      <mesh ref={glowRef}><icosahedronGeometry args={[1.15, 2]} /><meshStandardMaterial color="#818cf8" emissive="#6366f1" emissiveIntensity={0.3} transparent opacity={0.2} roughness={1} metalness={0} /></mesh>
-      <mesh ref={wireRef}><icosahedronGeometry args={[1.8, 2]} /><meshStandardMaterial color="#06b6d4" emissive="#0891b2" emissiveIntensity={0.3} wireframe transparent opacity={0.4} /></mesh>
-      <points ref={pointsRef} geometry={geom.g}><pointsMaterial map={getParticleTex()} size={0.05} vertexColors transparent opacity={0.85} sizeAttenuation blending={THREE.AdditiveBlending} depthWrite={false} /></points>
+      {/* Layer 0: Core */}
+      <mesh ref={coreRef}><icosahedronGeometry args={[1, 4]} /><meshStandardMaterial color="#6366f1" emissive="#4338ca" emissiveIntensity={0.7} roughness={0.05} metalness={0.98} flatShading /></mesh>
+      {/* Layer 1: Glow shell */}
+      <mesh ref={glowRef}><icosahedronGeometry args={[1.0, 2]} /><meshStandardMaterial color="#818cf8" emissive="#6366f1" emissiveIntensity={0.5} transparent opacity={0.1} roughness={1} metalness={0} /></mesh>
+      {/* Layer 2: Wireframe shell */}
+      <mesh ref={wireRef}><icosahedronGeometry args={[1, 2]} /><meshStandardMaterial color="#06b6d4" emissive="#0891b2" emissiveIntensity={0.5} wireframe transparent opacity={0.3} /></mesh>
+      {/* Layer 3: Shockwave ring */}
+      <mesh ref={shockRef} rotation={[Math.PI / 2, 0, 0]}><ringGeometry args={[0.98, 1.0, 64]} /><meshStandardMaterial color="#f97316" emissive="#f59e0b" emissiveIntensity={2} transparent opacity={0.25} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
+      {/* Layer 4: Orbital spiral */}
+      <points ref={orbitRef} geometry={orbitGeom.g}><pointsMaterial map={getParticleTex()} size={0.05} vertexColors transparent opacity={0.6} sizeAttenuation blending={THREE.AdditiveBlending} depthWrite={false} /></points>
+      {/* Layer 5: Outer particle sphere */}
+      <points ref={pointsRef} geometry={geom.g}><pointsMaterial map={getParticleTex()} size={0.08} vertexColors transparent opacity={0.8} sizeAttenuation blending={THREE.AdditiveBlending} depthWrite={false} /></points>
+      {/* Layer 6: Outer ring */}
+      <mesh ref={ringRef}><torusGeometry args={[10, 0.02, 16, 128]} /><meshStandardMaterial color="#a855f7" emissive="#7c3aed" emissiveIntensity={1} transparent opacity={0.3} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
     </group>
   );
 }
@@ -298,58 +383,180 @@ export function FrequencyRings({ audioData, vizParams, sceneFrozen }: VizProps) 
 }
 
 // =============================================================================
-// COSMIC — Nebula cloud with gravitational attraction
+// COSMIC DUST — Vortex funnel draining into a black hole
+// Wide top → narrow drain, particles spiral down like water
 // =============================================================================
 export function EnergyWaves({ audioData, vizParams, sceneFrozen }: VizProps) {
   const pointsRef = useRef<THREE.Points>(null);
-  const count = 800;
-  const rotRef = useRef(0);
+  const drainRef = useRef<THREE.Mesh>(null);
+  const funnelRef = useRef<THREE.Mesh>(null);
+  const jetRef = useRef<THREE.Mesh>(null);
+  const glowRef = useRef<THREE.Mesh>(null);
 
-  const { g: geom, pos: basePos } = useMemo(() => {
+  const count = 3500;
+  const rotRef = useRef(0);
+  const suckRef = useRef(0);
+
+  const { g: geom, vel: baseVel } = useMemo(() => {
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
+    const vel = new Float32Array(count);
     for (let i = 0; i < count; i++) {
-      const r = Math.pow(Math.random(), 0.5) * 3;
-      const th = Math.random() * Math.PI * 2;
-      const ph = Math.acos(2 * Math.random() - 1);
-      pos[i*3] = r*Math.sin(ph)*Math.cos(th);
-      pos[i*3+1] = r*Math.sin(ph)*Math.sin(th);
-      pos[i*3+2] = r*Math.cos(ph);
-      const c = new THREE.Color().setHSL(0.7 + Math.random()*0.15, 0.8, 0.35 + Math.random()*0.35);
-      col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
+      // Funnel: wide at top (y=3), narrow at bottom (y=-3)
+      const heightT = Math.random(); // 0=top, 1=bottom
+      const y = 3 - heightT * 6; // from +3 to -3
+      // Radius shrinks as y decreases (funnel shape)
+      const maxRadius = 0.5 + heightT * 3.5; // 0.5 at bottom, 4 at top
+      const radius = Math.random() * maxRadius;
+      const angle = Math.random() * Math.PI * 2;
+      pos[i*3] = Math.cos(angle) * radius;
+      pos[i*3+1] = y;
+      pos[i*3+2] = Math.sin(angle) * radius;
+      // Faster rotation closer to drain
+      vel[i] = 0.5 + heightT * 1.5 + Math.random() * 0.2;
+      // Color: hot near drain, cool at top
+      const heat = heightT;
+      if (heat > 0.7) {
+        // Hot = orange/white near drain
+        const c = new THREE.Color().setHSL(0.05 + Math.random() * 0.05, 1.0, 0.6 + Math.random() * 0.3);
+        col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
+      } else if (heat > 0.3) {
+        // Mid = amber/yellow
+        const c = new THREE.Color().setHSL(0.1 + Math.random() * 0.05, 0.9, 0.5 + Math.random() * 0.2);
+        col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
+      } else {
+        // Cool = blue/purple at top
+        const c = new THREE.Color().setHSL(0.6 + Math.random() * 0.15, 0.8, 0.4 + Math.random() * 0.2);
+        col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
+      }
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
     g.setAttribute("color", new THREE.BufferAttribute(col, 3));
-    return { g, pos };
+    return { g, pos, vel };
   }, []);
 
   useFrame((s) => {
     if (!pointsRef.current) return;
     const t = s.clock.elapsedTime;
     const { bass, mid, peak, beat, energy } = audioData.current;
-    if (!sceneFrozen) rotRef.current += 0.002 * vizParams.rotationSpeed * (1 + energy * 2);
+
+    if (beat) suckRef.current = Math.min(suckRef.current + 0.8, 4);
+    suckRef.current *= 0.95;
+    const suck = 1 + bass * 4 + suckRef.current;
+
+    if (!sceneFrozen) rotRef.current += 0.005 * vizParams.rotationSpeed * (1 + energy * 2);
+
     const arr = geom.attributes.position.array as Float32Array;
 
     for (let i = 0; i < count; i++) {
       const idx = i * 3;
-      const gravity = 1 - bass * 0.15;
-      const swirl = rotRef.current + i * 0.01;
-      const x = basePos[idx] * gravity;
-      const y = basePos[idx+1] * gravity + Math.sin(t+i)*mid*0.2;
-      const z = basePos[idx+2] * gravity;
-      const beatPulse = beat ? peak * 0.15 : 0;
-      arr[idx] = x * Math.cos(swirl) - z * Math.sin(swirl) + beatPulse * Math.cos(i);
-      arr[idx+1] = y + beatPulse * Math.sin(i * 0.5);
-      arr[idx+2] = x * Math.sin(swirl) + z * Math.cos(swirl) + beatPulse * Math.sin(i);
+      let x = arr[idx], y = arr[idx+1], z = arr[idx+2];
+      const radius = Math.sqrt(x * x + z * z) + 0.01;
+      const angle = Math.atan2(z, x);
+
+      // Height factor: 0=top, 1=bottom (drain)
+      const heightT = Math.max(0, Math.min(1, (3 - y) / 6));
+
+      // Angular speed increases dramatically near drain
+      const angularSpeed = baseVel[i] * suck * (1 + heightT * 4) * (1 + mid * 2);
+      const newAngle = angle + angularSpeed * 0.025;
+
+      // Pull toward center + downward
+      const pullInward = suck * 0.02 * (0.3 + heightT * 2);
+      const pullDown = suck * 0.015 * (0.2 + heightT * 3);
+
+      const newRadius = radius - pullInward;
+      const newY = y - pullDown;
+
+      // Respawn at top when reaching drain
+      if (newRadius < 0.15 || newY < -3.2) {
+        const spawnT = Math.random() * 0.3; // top 30% of funnel
+        const spawnY = 3 - spawnT * 3;
+        const spawnR = Math.random() * (0.5 + spawnT * 3);
+        const spawnA = Math.random() * Math.PI * 2;
+        arr[idx] = Math.cos(spawnA) * spawnR;
+        arr[idx+1] = spawnY;
+        arr[idx+2] = Math.sin(spawnA) * spawnR;
+      } else {
+        arr[idx] = Math.cos(newAngle) * newRadius;
+        arr[idx+1] = newY + Math.sin(t * 3 + i * 0.01) * 0.01 * mid;
+        arr[idx+2] = Math.sin(newAngle) * newRadius;
+      }
     }
     geom.attributes.position.needsUpdate = true;
+
     const mat = pointsRef.current.material as THREE.PointsMaterial;
-    mat.size = 0.04 + bass * 0.04 + peak * 0.02;
-    mat.opacity = 0.5 + mid * 0.35;
+    mat.size = 0.025 + bass * 0.04 + peak * 0.02;
+    mat.opacity = 0.6 + mid * 0.3;
+
+    // Drain glow at bottom
+    if (drainRef.current) {
+      const ds = 0.3 + bass * 0.4 + suckRef.current * 0.3;
+      drainRef.current.scale.setScalar(ds);
+      const dm = drainRef.current.material as THREE.MeshStandardMaterial;
+      dm.emissiveIntensity = 2 + bass * 4 + peak * 3;
+    }
+
+    // Funnel mesh rotation
+    if (funnelRef.current) {
+      funnelRef.current.rotation.y = rotRef.current * 0.2;
+      const fm = funnelRef.current.material as THREE.MeshStandardMaterial;
+      fm.opacity = 0.15 + bass * 0.15;
+      fm.emissiveIntensity = 0.3 + bass;
+    }
+
+    // Downward jet from drain
+    if (jetRef.current) {
+      const jLen = 2 + bass * 5 + suckRef.current * 3;
+      jetRef.current.scale.set(0.8 + bass, jLen, 0.8 + bass);
+      jetRef.current.position.y = -2 - jLen * 0.3;
+      const jm = jetRef.current.material as THREE.MeshStandardMaterial;
+      jm.opacity = 0.2 + bass * 0.4;
+      jm.emissiveIntensity = 1 + bass * 3;
+    }
+
+    // Glow sphere at drain
+    if (glowRef.current) {
+      const gs = 0.5 + bass * 0.6 + peak * 0.4;
+      glowRef.current.scale.setScalar(gs);
+      const gm = glowRef.current.material as THREE.MeshStandardMaterial;
+      gm.emissiveIntensity = 1 + bass * 3 + peak * 2;
+    }
   });
 
-  return <points ref={pointsRef} geometry={geom}><pointsMaterial map={getParticleTex()} size={0.05} vertexColors transparent opacity={0.6} sizeAttenuation blending={THREE.AdditiveBlending} depthWrite={false} /></points>;
+  return (
+    <group>
+      {/* Cosmic dust particles */}
+      <points ref={pointsRef} geometry={geom}>
+        <pointsMaterial map={getParticleTex()} size={0.035} vertexColors transparent opacity={0.8} sizeAttenuation blending={THREE.AdditiveBlending} depthWrite={false} />
+      </points>
+
+      {/* Funnel wireframe shell */}
+      <mesh ref={funnelRef}>
+        <coneGeometry args={[4, 6, 32, 1, true]} />
+        <meshStandardMaterial color="#6366f1" emissive="#4338ca" emissiveIntensity={0.5} transparent opacity={0.15} wireframe side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+
+      {/* Drain glow */}
+      <mesh ref={glowRef} position={[0, -3, 0]}>
+        <sphereGeometry args={[0.5, 24, 24]} />
+        <meshStandardMaterial color="#f97316" emissive="#ea580c" emissiveIntensity={2} transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+
+      {/* Black hole drain */}
+      <mesh ref={drainRef} position={[0, -3, 0]}>
+        <sphereGeometry args={[0.3, 24, 24]} />
+        <meshBasicMaterial color="#000000" />
+      </mesh>
+
+      {/* Downward energy jet */}
+      <mesh ref={jetRef} position={[0, -4, 0]}>
+        <coneGeometry args={[0.4, 5, 16, 1, true]} />
+        <meshStandardMaterial color="#38bdf8" emissive="#0ea5e9" emissiveIntensity={2} transparent opacity={0.3} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
 }
 
 // =============================================================================

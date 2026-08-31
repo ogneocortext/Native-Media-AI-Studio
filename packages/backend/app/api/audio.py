@@ -442,6 +442,13 @@ async def get_analysis_by_filename(filename: str):
     if ".." in filename or filename.startswith("/"):
         raise HTTPException(status_code=400, detail="Invalid filename")
 
+    # Check database first (persistent across restarts)
+    from ..core import database
+    db_analysis = database.get_audio_analysis(filename)
+    if db_analysis:
+        return db_analysis
+
+    # Fallback to JSON file index
     index = _load_analysis_index()
 
     # Try exact match first
@@ -536,14 +543,23 @@ async def ensure_analysis(body: dict):
     if ".." in filename or filename.startswith("/"):
         raise HTTPException(status_code=400, detail="Invalid filename")
 
-    # Check if already cached
+    # Check database first (persistent across restarts)
+    from ..core import database
+    db_analysis = database.get_audio_analysis(filename)
+    if db_analysis:
+        return {"status": "cached", "analysis": db_analysis}
+
+    # Check if already cached in JSON index
     index = _load_analysis_index()
     job_id = index.get(filename)
     if job_id:
         analysis_path = _get_analysis_path(job_id)
         if analysis_path.exists():
             with open(analysis_path, "r", encoding="utf-8") as f:
-                return {"status": "cached", "analysis": json.load(f)}
+                data = json.load(f)
+                # Also save to database for future requests
+                database.update_audio_analysis(filename, data)
+                return {"status": "cached", "analysis": data}
 
     # Find the audio file
     file_path = AUDIO_DIR / filename
@@ -602,11 +618,112 @@ async def ensure_analysis(body: dict):
             json.dump(analysis_result, f, indent=2)
 
         logger.info(f"Analysis completed for '{filename}': {tempo:.1f} BPM, {beat_count} beats")
+        
+        # Save to database for persistence between server restarts
+        from ..core import database
+        database.update_audio_analysis(filename, analysis_result)
+        
         return {"status": "analyzed", "analysis": analysis_result}
     except Exception as e:
         logger.error(f"Analysis failed for '{filename}': {e}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
-async def rename_audio_file(body: dict):
+
+
+@router.post("/analyze-all")
+async def analyze_all_pending():
+    """Analyze all audio files in the media library that don't have analysis data.
+    Returns a summary of analyzed files."""
+    from ..core import database
+    from ..services.audio_analyzer import AudioAnalyzer, LIBROSA_AVAILABLE
+
+    if not LIBROSA_AVAILABLE:
+        raise HTTPException(status_code=503, detail="librosa not installed")
+
+    if not AUDIO_DIR.exists():
+        return {"status": "ok", "analyzed": 0, "total": 0, "files": []}
+
+    analyzer = AudioAnalyzer()
+    analyzed_files = []
+    errors = []
+
+    # Get all audio files
+    audio_files = [
+        f for f in AUDIO_DIR.iterdir()
+        if f.is_file() and f.suffix.lower() in ALLOWED_EXTENSIONS
+    ]
+
+    for file_path in audio_files:
+        filename = file_path.name
+        # Skip if already analyzed in database
+        existing = database.get_audio_analysis(filename)
+        if existing and existing.get("beat_times"):
+            continue
+
+        try:
+            unique_id = str(uuid.uuid4())[:8]
+            result = analyzer.analyze_file(str(file_path), job_id=unique_id)
+
+            tempo = result.beats.tempo_bpm if result.beats else 120.0
+            duration = result.waveform.duration_seconds if result.waveform else 0.0
+            beat_count = len(result.beats.beat_times) if result.beats else 0
+            beat_times = result.beats.beat_times if result.beats else []
+            onset_times = result.beats.onset_times if result.beats else []
+            confidence = result.beats.confidence if result.beats else 0.0
+            energy_curve = result.waveform.amplitude_envelope if result.waveform else []
+            rms = result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []
+
+            sections = _generate_sections_from_analysis(
+                duration=duration,
+                tempo=tempo,
+                beat_times=beat_times,
+                onset_times=onset_times,
+                rms_energy=rms,
+                hop_length=analyzer.hop_length,
+                sample_rate=result.waveform.sample_rate if result.waveform else 22050,
+            )
+
+            analysis_result = {
+                "tempo_bpm": round(float(tempo), 1),
+                "duration_seconds": round(float(duration), 2),
+                "beat_count": int(beat_count),
+                "sections": sections,
+                "beat_times": [round(float(t), 3) for t in beat_times[:800]],
+                "onset_times": [round(float(t), 3) for t in onset_times[:800]],
+                "energy_curve": [round(float(v), 4) for v in energy_curve],
+                "confidence": round(float(confidence), 3),
+                "amplitude_envelope": [round(float(v), 4) for v in energy_curve],
+                "stored_path": str(file_path),
+                "job_id": unique_id,
+            }
+
+            # Save to database
+            database.update_audio_analysis(filename, analysis_result)
+
+            # Also save to JSON file for backward compatibility
+            index = _load_analysis_index()
+            index[filename] = unique_id
+            _save_analysis_index(index)
+            analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
+            with open(analysis_file, "w") as f:
+                json.dump(analysis_result, f, indent=2)
+
+            analyzed_files.append({
+                "filename": filename,
+                "bpm": round(float(tempo), 1),
+                "beats": beat_count,
+                "confidence": round(float(confidence), 3),
+            })
+        except Exception as e:
+            errors.append({"filename": filename, "error": str(e)})
+            logger.warning(f"Failed to analyze '{filename}': {e}")
+
+    return {
+        "status": "ok",
+        "analyzed": len(analyzed_files),
+        "total": len(audio_files),
+        "files": analyzed_files,
+        "errors": errors,
+    }
     """Rename an audio file."""
     old_filename = body.get("old_filename", "")
     new_filename = body.get("new_filename", "")

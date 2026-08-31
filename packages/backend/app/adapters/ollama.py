@@ -402,6 +402,9 @@ Generate 3-8 scenes based on the input theme or concept."""
                 payload["format"] = params["format"]
             if "keep_alive" in params:
                 payload["keep_alive"] = params["keep_alive"]
+            # Disable thinking mode for structured output tasks (visualizer, storyboard)
+            if params.get("think") is False:
+                payload["think"] = False
 
             if system:
                 payload["system"] = system
@@ -1094,6 +1097,7 @@ Each scene should have unique camera work and lighting suggestions."""
         chat_kwargs: dict[str, Any] = {}
         if use_structured_output:
             chat_kwargs["format"] = "json"
+            chat_kwargs["think"] = False  # Disable thinking for structured JSON output
         if num_ctx is not None:
             chat_kwargs["num_ctx"] = num_ctx
         # Default to 16k ctx capped by chat() VRAM guard; caller can pass smaller for 8GB safety

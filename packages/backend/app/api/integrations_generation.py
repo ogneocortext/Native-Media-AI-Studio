@@ -1157,6 +1157,7 @@ async def generate_visualizer_preset(request: dict) -> dict:
             "model": model,
             "system": system_prompt,
             "format": "json",
+            "think": False,  # Disable thinking for structured JSON output
             "options": {
                 "temperature": temperature,
                 "num_ctx": 8192,

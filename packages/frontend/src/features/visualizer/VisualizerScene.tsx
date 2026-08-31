@@ -30,9 +30,8 @@ export function VisualizerScene({
   audioElapsedRef,
   sceneFrozen,
 }: VisualizerSceneProps) {
-  // Pass elapsed time to hook - it internally tracks via ref for live updates
-  const elapsed = audioElapsedRef?.current ?? 0;
-  const realData = useRealAudio(analyserRef, isPlaying, isPaused, analysisData, elapsed);
+  // Pass elapsed ref to hook so it reads live value inside useFrame
+  const realData = useRealAudio(analyserRef, isPlaying, isPaused, analysisData, audioElapsedRef);
   const demoData = useDemoAudio(demoEnabled && !isPlaying && !isPaused, demoBpm);
   const audioData = isPlaying ? realData : demoData;
 

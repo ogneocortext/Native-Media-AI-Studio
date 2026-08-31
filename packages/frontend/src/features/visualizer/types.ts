@@ -48,6 +48,12 @@ export interface VizParams {
   showFloatingShapes: boolean;
   showLightRays: boolean;
   matchTrack: boolean;
+  /** Post-processing effects from AI preset */
+  postfx?: {
+    bloom: number;
+    vignette: number;
+    glitch: number;
+  };
 }
 
 export const DEFAULT_VIZ_PARAMS: VizParams = {

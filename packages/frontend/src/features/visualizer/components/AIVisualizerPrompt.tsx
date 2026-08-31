@@ -54,6 +54,7 @@ export function AIVisualizerPrompt({ onApplyPreset, trackMeta, trackName }: AIVi
   }, [description, model, trackMeta]);
 
   const handleApply = useCallback(() => {
+    console.log("[AIVisualizerPrompt] handleApply called, generatedPreset:", !!generatedPreset);
     if (!generatedPreset) return;
     onApplyPreset(generatedPreset as unknown as VisualPreset);
     setGeneratedPreset(null);

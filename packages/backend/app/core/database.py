@@ -534,6 +534,65 @@ def _row_to_audio(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
+def update_audio_analysis(filename: str, analysis_result: dict) -> bool:
+    """Update the analysis result for an audio file.
+
+    Stores the full analysis data (beat_times, onset_times, energy_curve, etc.)
+    in the database for persistence between server restarts.
+    """
+    with get_db() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE audio_files
+            SET analysis_result = ?,
+                bpm = ?,
+                duration = ?
+            WHERE filename = ?
+            """,
+            (
+                json.dumps(analysis_result),
+                analysis_result.get("tempo_bpm"),
+                analysis_result.get("duration_seconds"),
+                filename,
+            ),
+        )
+        if cursor.rowcount == 0:
+            # File doesn't exist yet, insert it
+            import uuid
+            conn.execute(
+                """
+                INSERT INTO audio_files
+                (id, filename, original_name, stored_path, analysis_result, bpm, duration, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(uuid.uuid4()),
+                    filename,
+                    filename,
+                    analysis_result.get("stored_path", ""),
+                    json.dumps(analysis_result),
+                    analysis_result.get("tempo_bpm"),
+                    analysis_result.get("duration_seconds"),
+                    datetime.now().isoformat(),
+                ),
+            )
+        return True
+
+
+def get_audio_analysis(filename: str) -> dict | None:
+    """Get analysis result for an audio file from database."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT analysis_result FROM audio_files WHERE filename = ?",
+            (filename,),
+        ).fetchone()
+        if row and row["analysis_result"]:
+            data = _safe_json_loads(row["analysis_result"], {})
+            if data:
+                return data
+    return None
+
+
 # =============================================================================
 # AI Visual Repository
 # =============================================================================

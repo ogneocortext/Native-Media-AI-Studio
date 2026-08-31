@@ -1,12 +1,13 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Music, AlertCircle, Maximize2, Minimize2, Video, Square, Download, Settings, Snowflake, MessageSquare, Sparkles, Play } from "lucide-react";
-import { listAudioFiles, getAnalysis, ensureAnalysis } from "../../services/api";
+import { Music, AlertCircle, Maximize2, Minimize2, Video, Square, Download, Settings, Snowflake, MessageSquare, Sparkles, Play, Wand2 } from "lucide-react";
+import { listAudioFiles, ensureAnalysis } from "../../services/api";
 import type { AudioAnalysisData, AudioData, VizParams } from "./types";
 import { DEFAULT_VIZ_PARAMS } from "./types";
 import { useUIStore } from "../../state/uiStore";
 import { getVisualizationForTrack, VisualizationStyle } from "./trackConceptAnalyzer";
 import { VisualizerScene } from "./VisualizerScene";
+import { ShaderVisualizer } from "./ShaderVisualizer";
 import { WebGLRenderer } from "three";
 import { SpectrumBar } from "./components/SpectrumBar";
 import { StylePicker } from "./components/StylePicker";
@@ -20,6 +21,8 @@ import { selectPresetForTrack } from "./components/KineticPresets";
 import { AnimationDemo } from "./components/AnimationDemo";
 import { parseLyricsFromCsv } from "./lyricsParser";
 import type { VisualPreset } from "./visualPreset";
+import { showToast } from "../../utils/toast";
+console.log("[Visualizer] imported showToast:", typeof showToast);
 
 const _originalWarn = console.warn;
 console.warn = (...args: unknown[]) => {
@@ -39,6 +42,7 @@ export function Visualizer() {
   const [error, setError] = useState<string | null>(null);
   const [libraryFiles, setLibraryFiles] = useState<Array<{ filename: string; path: string }>>([]);
   const [liveAudioData, setLiveAudioData] = useState<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0 });
+  const liveAudioDataRef = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0 });
   const [visualizationStyle, setVisualizationStyle] = useState<VisualizationStyle>("geometric");
   const [csvContent, setCsvContent] = useState<string>("");
   const [vizParams, setVizParams] = useState<VizParams>(DEFAULT_VIZ_PARAMS);
@@ -58,6 +62,7 @@ export function Visualizer() {
   const [showAnimDemo, setShowAnimDemo] = useState(false);
   const [loadedPreset, setLoadedPreset] = useState<VisualPreset | null>(null);
   const [showAIPanel, setShowAIPanel] = useState(false);
+  const [vizMode, setVizMode] = useState<"3d" | "shader">("shader"); // Default to shader mode
 
   const { focusMode, toggleFocusMode } = useUIStore();
 
@@ -86,13 +91,17 @@ export function Visualizer() {
     return parseLyricsFromCsv(csvContent, trackName, duration);
   }, [csvContent]);
 
-  // Audio elapsed tracking
+  // Audio elapsed tracking — use rAF for precise timing (timeupdate only fires every 250ms)
   useEffect(() => {
     const el = audioElRef.current;
     if (!el) return;
-    const handler = () => { audioElapsedRef.current = el.currentTime; };
-    el.addEventListener("timeupdate", handler);
-    return () => el.removeEventListener("timeupdate", handler);
+    let rafId: number;
+    const track = () => {
+      audioElapsedRef.current = el.currentTime;
+      rafId = requestAnimationFrame(track);
+    };
+    rafId = requestAnimationFrame(track);
+    return () => cancelAnimationFrame(rafId);
   }, [audioUrl]);
 
   const setupAudio = useCallback(async (el: HTMLMediaElement) => {
@@ -140,10 +149,13 @@ export function Visualizer() {
     let realBpm = trackMetadata[filename]?.bpm;
     if (!analysis) {
       try {
-        analysis = await getAnalysis(filename);
-        if (analysis) {
-          setAnalysisData(prev => ({ ...prev, [filename]: analysis as AudioAnalysisData }));
-          realBpm = analysis.tempo_bpm ? Math.round(analysis.tempo_bpm) : undefined;
+        // Try to get cached analysis first, then ensure analysis (runs if needed)
+        const result = await ensureAnalysis(filename);
+        const ensuredAnalysis = result?.analysis;
+        if (ensuredAnalysis) {
+          analysis = ensuredAnalysis;
+          setAnalysisData(prev => ({ ...prev, [filename]: ensuredAnalysis }));
+          realBpm = ensuredAnalysis.tempo_bpm ? Math.round(ensuredAnalysis.tempo_bpm) : undefined;
           if (realBpm) setTrackMetadata(prev => ({ ...prev, [filename]: { bpm: realBpm } }));
         }
       } catch { /* fallback */ }
@@ -218,11 +230,48 @@ export function Visualizer() {
     };
   }, []);
 
-  /** Map a VisualPreset to visualization state and apply it, aligned to track if available */
+  // Audio analysis loop for shader mode (VisualizerScene only runs in 3D mode)
+  useEffect(() => {
+    if (vizMode !== "shader") return;
+    if (!isPlaying) return;
+
+    let raf: number;
+    const analyse = () => {
+      const analyser = analyserRef.current;
+      if (analyser) {
+        const freqArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(freqArray);
+        const arr = freqArray;
+
+        const sampleRate = audioCtxRef.current?.sampleRate ?? 44100;
+        const binSize = sampleRate / (arr.length * 2);
+        const bassBins = Math.max(1, Math.floor(250 / binSize));
+        const midBins = Math.max(bassBins + 1, Math.floor(4000 / binSize));
+
+        const rawBass = arr.slice(0, bassBins).reduce((a, b) => a + b, 0) / (bassBins * 255 || 1);
+        const rawMid = arr.slice(bassBins, midBins).reduce((a, b) => a + b, 0) / ((midBins - bassBins) * 255 || 1);
+        const rawTreble = arr.slice(midBins).reduce((a, b) => a + b, 0) / ((arr.length - midBins) * 255 || 1);
+
+        const bass = rawBass;
+        const mid = rawMid;
+        const treble = rawTreble;
+        const overall = bass * 0.4 + mid * 0.35 + treble * 0.25;
+        const peak = Math.max(bass, mid, treble);
+        const energy = (bass + mid + treble) / 3;
+
+        const newData: AudioData = { bass, mid, treble, overall, beat: false, peak, energy };
+        liveAudioDataRef.current = newData;
+        setLiveAudioData(newData);
+      }
+      raf = requestAnimationFrame(analyse);
+    };
+    raf = requestAnimationFrame(analyse);
+    return () => cancelAnimationFrame(raf);
+  }, [vizMode, isPlaying]);
   const applyPreset = useCallback((preset: VisualPreset, trackAnalysis?: AudioAnalysisData | null) => {
     setLoadedPreset(preset);
 
-    // Map visualizer style → VisualizationStyle
+    // Map visualizer style → VisualizationStyle (expanded mapping)
     const styleMap: Record<string, VisualizationStyle> = {
       particles: "particles",
       waveform: "waveform",
@@ -230,6 +279,16 @@ export function Visualizer() {
       bars: "synthwave",
       galaxy: "cosmic",
       terrain: "ocean",
+      fire: "inferno",
+      glitch: "storm",
+      neon: "synthwave",
+      spiral: "geometric",
+      vortex: "geometric",
+      fractal: "fractal",
+      rings: "pulse",
+      terrain3d: "waveform",
+      embers: "inferno",
+      shockwave: "storm",
     };
     if (preset.visualizer?.style && styleMap[preset.visualizer.style]) {
       setVisualizationStyle(styleMap[preset.visualizer.style]);
@@ -245,19 +304,31 @@ export function Visualizer() {
       ? trackAnalysis.energy_curve.reduce((a, b) => a + b, 0) / trackAnalysis.energy_curve.length
       : 0.5;
     const duration = trackAnalysis?.duration_seconds ?? 240;
-    const bpmFactor = bpm / 120; // normalize to 120 BPM baseline
-    const energyFactor = 0.5 + energyAvg; // 0.5–1.5x range
+    const bpmFactor = bpm / 120;
+    const energyFactor = 0.5 + energyAvg;
 
-    // Apply visualizer params with track alignment
+    // Apply postfx simulation via fog and light intensity
+    const postfx = (preset as any).postfx || {};
+    const bloomIntensity = postfx.bloom ?? 0;
+    const vignetteStrength = postfx.vignetteStrength ?? 0;
+    const glitchAmount = postfx.glitch ?? 0;
+
+    // Apply visualizer params with track alignment + postfx
     setVizParams(prev => ({
       ...prev,
       particleCount: Math.round((preset.visualizer?.particleCount ?? prev.particleCount) * energyFactor),
       scale: preset.visualizer?.scale ?? prev.scale,
-      glowIntensity: preset.visualizer?.glow ? Math.min(1.0, 0.8 * energyFactor) : 0.2,
+      glowIntensity: preset.visualizer?.glow ? Math.min(1.0, 0.8 * energyFactor + bloomIntensity * 0.2) : 0.2,
       rotationSpeed: (preset.visualizer?.rotation ? 1.0 : 0.0) * bpmFactor,
       colorShift: preset.visualizer?.intensity ?? prev.colorShift,
-      lerpSpeed: Math.max(0.1, 0.35 / bpmFactor), // faster tracks → snappier lerp
+      lerpSpeed: Math.max(0.1, 0.35 / bpmFactor),
       matchTrack: !!trackAnalysis,
+      // Postfx-driven params
+      lightIntensity: 0.8 + bloomIntensity * 0.4 - vignetteStrength * 0.2,
+      fogDensity: vignetteStrength * 0.02,
+      fogEnabled: vignetteStrength > 0.3,
+      // Store postfx for scene to consume
+      postfx: { bloom: bloomIntensity, vignette: vignetteStrength, glitch: glitchAmount },
     }));
 
     // Map lyric animation style → kinetic preset
@@ -268,28 +339,38 @@ export function Visualizer() {
       bounce: "dubstep",
       typewriter: "grime",
       kinetic: "cinematic",
+      shake: "phonk",
+      disappear: "ambient",
     };
     if (preset.lyrics?.style && kineticMap[preset.lyrics.style]) {
       setKineticPreset(kineticMap[preset.lyrics.style]);
     }
 
-    // Store track-aligned metadata on the preset for the scene to consume
-    if (trackAnalysis) {
-      (preset as any)._trackAlignment = {
-        bpm,
-        energyAvg,
-        duration,
-        beatTimes: trackAnalysis.beat_times,
-        onsetTimes: trackAnalysis.onset_times,
-        sections: trackAnalysis.sections,
-      };
-    }
+    // Store full preset data on the preset for the scene to consume
+    (preset as any)._trackAlignment = {
+      bpm,
+      energyAvg,
+      duration,
+      beatTimes: trackAnalysis?.beat_times,
+      onsetTimes: trackAnalysis?.onset_times,
+      sections: trackAnalysis?.sections,
+      postfx: (preset as any).postfx,
+      audioReactivity: (preset as any).audioReactivity,
+      camera: (preset as any).camera,
+    };
   }, []);
 
   const handlePresetLoaded = useCallback((preset: VisualPreset) => {
+    console.log("[Visualizer] handlePresetLoaded called");
     // Pass current track analysis so preset aligns to loaded track
     applyPreset(preset, currentAnalysisData);
-  }, [applyPreset, currentAnalysisData]);
+    // Show notification with preset details
+    const presetName = (preset as any)?.name || "AI Preset";
+    const style = (preset as any)?.visualizer?.style || "custom";
+    const mode = vizMode === "shader" ? "shader" : "3D";
+    console.log("[Visualizer] Calling showToast for:", presetName);
+    showToast(`Applied "${presetName}" → ${mode} (${style})`);
+  }, [applyPreset, currentAnalysisData, vizMode]);
 
   const handleClearPreset = useCallback(() => {
     setLoadedPreset(null);
@@ -378,6 +459,7 @@ export function Visualizer() {
             <Play size={14} />
           </button>
           <button onClick={() => setShowAIPanel(!showAIPanel)} className={`viz-icon-btn viz-ai-toggle ${showAIPanel ? "active" : ""}`} aria-label="AI generate preset" title="AI generate preset"><Sparkles size={14} /></button>
+          <button onClick={() => setVizMode(vizMode === "3d" ? "shader" : "3d")} className={`viz-icon-btn ${vizMode === "shader" ? "active" : ""}`} title={`Mode: ${vizMode === "3d" ? "3D Scene" : "Shader"}`}>{vizMode === "3d" ? <span style={{ fontSize: 11 }}>3D</span> : <span style={{ fontSize: 11 }}>FX</span>}</button>
           {lyrics.length > 0 && (
             <button onClick={() => setLyricsVisible(!lyricsVisible)} className={`viz-icon-btn viz-lyrics-btn ${lyricsVisible ? "active" : ""}`} aria-label={lyricsVisible ? "Hide lyrics" : "Show lyrics"} title={lyricsVisible ? "Hide lyrics" : "Show lyrics"}>
               <MessageSquare size={14} />
@@ -391,35 +473,59 @@ export function Visualizer() {
 
       <div className="viz-content">
         <div className="viz-canvas-wrap" ref={containerRef}>
-          <Canvas camera={{ position: [0, 0, 7], fov: 55 }} dpr={[1, 1.5]} frameloop={rendererReady ? "always" : "never"}
-            gl={async (props) => {
-              // Force WebGL2 — WebGPU doesn't support CanvasTexture which visualizations need
-              const r = new WebGLRenderer({ ...props, antialias: true });
-              setRendererBackend("WebGL2");
-              setRendererReady(true);
-              return r;
-            }}
-          >
-            <color attach="background" args={[bgColor]} />
-            <VisualizerScene
-              analyserRef={analyserRef}
+          {vizMode === "shader" ? (
+            <ShaderVisualizer
+              audioData={liveAudioDataRef}
+              trackName={currentFilename?.replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "") ?? ""}
               isPlaying={isPlaying}
-              isPaused={isPaused}
-              demoEnabled={demoEnabled}
-              demoBpm={demoBpm}
-              onAudioData={setLiveAudioData}
-              visualizationStyle={visualizationStyle}
-              vizParams={vizParams}
-              bgColor={bgColor}
-              meshColor={meshColor}
-              analysisData={currentAnalysisData}
-              audioElapsedRef={audioElapsedRef}
-              sceneFrozen={sceneFrozen}
+              className="absolute inset-0"
             />
-          </Canvas>
-          {!rendererReady && <div className="viz-loading-overlay"><div className="viz-loading-spinner" /><span>Initializing {rendererBackend || "renderer"}...</span></div>}
-          {rendererReady && <div className="viz-backend-badge">{rendererBackend}</div>}
-          <StylePicker active={visualizationStyle} onChange={setVisualizationStyle} />
+          ) : (
+            <>
+              <Canvas camera={{ position: [0, 0, 7], fov: 55 }} dpr={[1, 1.5]} frameloop={rendererReady ? "always" : "never"}
+                gl={async (props) => {
+                  // Force WebGL2 — WebGPU doesn't support CanvasTexture which visualizations need
+                  const r = new WebGLRenderer({ ...props, antialias: true });
+                  setRendererBackend("WebGL2");
+                  setRendererReady(true);
+                  return r;
+                }}
+              >
+                <color attach="background" args={[bgColor]} />
+                <VisualizerScene
+                  analyserRef={analyserRef}
+                  isPlaying={isPlaying}
+                  isPaused={isPaused}
+                  demoEnabled={demoEnabled}
+                  demoBpm={demoBpm}
+                  onAudioData={(data) => { liveAudioDataRef.current = data; setLiveAudioData(data); }}
+                  visualizationStyle={visualizationStyle}
+                  vizParams={vizParams}
+                  bgColor={bgColor}
+                  meshColor={meshColor}
+                  analysisData={currentAnalysisData}
+                  audioElapsedRef={audioElapsedRef}
+                  sceneFrozen={sceneFrozen}
+                />
+              </Canvas>
+              {!rendererReady && <div className="viz-loading-overlay"><div className="viz-loading-spinner" /><span>Initializing {rendererBackend || "renderer"}...</span></div>}
+              {rendererReady && <div className="viz-backend-badge">{rendererBackend}</div>}
+              <StylePicker active={visualizationStyle} onChange={setVisualizationStyle} />
+            </>
+          )}
+          {/* Show AI preset as a custom button when loaded - visible in both modes */}
+          {loadedPreset?.name && (
+            <div className="viz-ai-preset-row">
+              <button
+                className="viz-style-btn viz-ai-preset-btn active"
+                title={`AI Preset: ${loadedPreset.name}\nClick to remove`}
+                onClick={handleClearPreset}
+              >
+                <Wand2 size={10} />
+                <span className="viz-style-name">{loadedPreset.name}</span>
+              </button>
+            </div>
+          )}
           <KineticLyricOverlay lyrics={lyrics} elapsed={audioElapsedRef.current} visible={lyricsVisible} presetId={kineticPreset} beat={liveAudioData.beat} />
         </div>
         {showSettings && <SettingsPanel params={vizParams} onChange={setVizParams} bgColor={bgColor} meshColor={meshColor} onBgChange={setBgColor} onMeshChange={setMeshColor} demoEnabled={demoEnabled} onDemoToggle={setDemoEnabled} kineticPreset={kineticPreset} onKineticPresetChange={setKineticPreset} />}
