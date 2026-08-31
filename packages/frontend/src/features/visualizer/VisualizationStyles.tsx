@@ -265,8 +265,10 @@ export function AudioReactiveCore({ audioData, vizParams, sceneFrozen }: VizProp
 // =============================================================================
 export function OrbitalParticles({ audioData, vizParams, sceneFrozen }: VizProps) {
   const pointsRef = useRef<THREE.Points>(null);
-  const count = 2000;
+  const shockRef = useRef<THREE.Mesh>(null);
+  const count = 3000;
   const rotRef = useRef(0);
+  const beatPulse = useRef(0);
 
   const { g: geom, radii, angles } = useMemo(() => {
     const pos = new Float32Array(count * 3);
@@ -274,15 +276,15 @@ export function OrbitalParticles({ audioData, vizParams, sceneFrozen }: VizProps
     const r = new Float32Array(count);
     const a = new Float32Array(count);
     for (let i = 0; i < count; i++) {
-      const arm = i % 4;
+      const arm = i % 5;
       const t = Math.random();
-      const radius = 0.3 + t * 4.5;
-      const angle = t * Math.PI * 6 + (arm * Math.PI * 2 / 4) + (Math.random() - 0.5) * 0.4;
+      const radius = 0.2 + t * 5;
+      const angle = t * Math.PI * 8 + (arm * Math.PI * 2 / 5) + (Math.random() - 0.5) * 0.5;
       pos[i*3] = Math.cos(angle) * radius;
-      pos[i*3+1] = (Math.random() - 0.5) * 0.25 * (1 - t);
+      pos[i*3+1] = (Math.random() - 0.5) * 0.4 * (1 - t);
       pos[i*3+2] = Math.sin(angle) * radius;
-      const hue = 0.55 + t * 0.25 + arm * 0.05;
-      const c = new THREE.Color().setHSL(hue, 0.85, 0.45 + t * 0.25);
+      const hue = 0.55 + t * 0.25 + arm * 0.04;
+      const c = new THREE.Color().setHSL(hue, 0.9, 0.4 + t * 0.3);
       col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
       r[i] = radius;
       a[i] = angle;
@@ -296,25 +298,48 @@ export function OrbitalParticles({ audioData, vizParams, sceneFrozen }: VizProps
   useFrame((s) => {
     if (!pointsRef.current) return;
     const t = s.clock.elapsedTime;
-    const { bass, treble, peak, beat } = audioData.current;
-    if (!sceneFrozen) rotRef.current += 0.003 * vizParams.rotationSpeed * (1 + bass * 1.5);
+    const { bass, mid, treble, beat, energy } = audioData.current;
+
+    if (beat) beatPulse.current = 1.0;
+    beatPulse.current *= 0.9;
+    if (!sceneFrozen) rotRef.current += 0.004 * vizParams.rotationSpeed * (1 + bass * 2.5);
+
     const arr = geom.attributes.position.array as Float32Array;
 
     for (let i = 0; i < count; i++) {
       const idx = i * 3;
       const rad = radii[i];
-      const angle = angles[i] + rotRef.current * (1 + 1 / (rad + 0.5));
-      const pulse = 1 + bass * 0.25 + (beat ? peak * 0.2 : 0);
+      const angle = angles[i] + rotRef.current * (1 + 1.5 / (rad + 0.3));
+      // Dramatic pulse: bass expands, beat shockwave pushes outward
+      const pulse = 1 + bass * 0.4 + beatPulse.current * 0.6 * (1 / (rad + 0.2));
+      // Vertical movement driven by treble + mid
+      const vertical = Math.sin(t * 2 + i * 0.15) * treble * 0.8 + Math.cos(t + i * 0.08) * mid * 0.4;
       arr[idx] = Math.cos(angle) * rad * pulse;
-      arr[idx+1] = Math.sin(t + i * 0.1) * treble * 0.4;
+      arr[idx+1] = vertical * (1 + energy);
       arr[idx+2] = Math.sin(angle) * rad * pulse;
     }
     geom.attributes.position.needsUpdate = true;
-    (pointsRef.current.material as THREE.PointsMaterial).size = vizParams.particleSize * (1 + bass * 0.8);
-    (pointsRef.current.material as THREE.PointsMaterial).opacity = 0.6 + treble * 0.35;
+
+    const mat = pointsRef.current.material as THREE.PointsMaterial;
+    mat.size = vizParams.particleSize * (1 + bass * 1.2 + beatPulse.current * 0.8);
+    mat.opacity = 0.5 + treble * 0.4 + beatPulse.current * 0.3;
+
+    // Shockwave ring on beat
+    if (shockRef.current) {
+      const sScale = 0.5 + beatPulse.current * 6;
+      shockRef.current.scale.setScalar(sScale);
+      const sm = shockRef.current.material as THREE.MeshStandardMaterial;
+      sm.opacity = (1 - beatPulse.current) * 0.35;
+      sm.emissiveIntensity = (1 - beatPulse.current) * 4;
+    }
   });
 
-  return <points ref={pointsRef} geometry={geom}><pointsMaterial map={getParticleTex()} size={vizParams.particleSize} vertexColors transparent opacity={0.7} sizeAttenuation blending={THREE.AdditiveBlending} depthWrite={false} /></points>;
+  return (
+    <group>
+      <points ref={pointsRef} geometry={geom}><pointsMaterial map={getParticleTex()} size={vizParams.particleSize} vertexColors transparent opacity={0.7} sizeAttenuation blending={THREE.AdditiveBlending} depthWrite={false} /></points>
+      <mesh ref={shockRef} rotation={[Math.PI / 2, 0, 0]}><ringGeometry args={[0.98, 1.0, 64]} /><meshStandardMaterial color="#06b6d4" emissive="#0891b2" emissiveIntensity={3} transparent opacity={0.25} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
+    </group>
+  );
 }
 
 // =============================================================================
