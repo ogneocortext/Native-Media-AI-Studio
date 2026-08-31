@@ -12,6 +12,9 @@ import {
   VinylDisc,
   AuroraRibbon,
   OceanWaves,
+  FractalViz,
+  StormViz,
+  InfernoViz,
 } from "./VisualizationStyles";
 import { useRealAudio, useDemoAudio } from "./audioHooks";
 import { updateTrackFeatures } from "./trackFeatures";
@@ -61,13 +64,13 @@ export function VisualizerScene({
       case "particles": return <OrbitalParticles {...props} />;
       case "neural": return <FrequencyRings {...props} />;
       case "cosmic": return <EnergyWaves {...props} />;
+      case "fractal": return <FractalViz {...props} />;
       case "pulse": return <PulseRings {...props} />;
-      case "storm": return <GeometricViz {...props} />;
-      case "fractal": return <FrequencyRings {...props} />;
+      case "storm": return <StormViz {...props} />;
       case "vinyl": return <VinylDisc {...props} />;
       case "synthwave": return <SpectrumBars {...props} />;
       case "aurora": return <AuroraRibbon {...props} />;
-      case "inferno": return <OrbitalParticles {...props} />;
+      case "inferno": return <InfernoViz {...props} />;
       case "ocean": return <OceanWaves {...props} />;
       case "geometric":
       default: return <GeometricViz {...props} />;

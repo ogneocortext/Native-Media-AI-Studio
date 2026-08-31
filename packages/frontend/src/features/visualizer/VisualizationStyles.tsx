@@ -815,3 +815,181 @@ export function OceanWaves({ audioData, vizParams, sceneFrozen }: VizProps) {
 
   return <mesh ref={meshRef}><planeGeometry args={[8, 8, 64, 64]} /><meshStandardMaterial ref={matRef} color="#0891b2" emissive="#0e7490" emissiveIntensity={0.3} side={THREE.DoubleSide} roughness={0.1} metalness={0.8} map={getNoiseTex()} /></mesh>;
 }
+
+// =============================================================================
+// FRACTAL — Self-similar recursive patterns that evolve with music
+// =============================================================================
+export function FractalViz({ audioData, vizParams, sceneFrozen }: VizProps) {
+  const groupRef = useRef<THREE.Group>(null);
+  const ringRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const rotRef = useRef(0);
+  const beatPulse = useRef(0);
+  const ringCount = 7;
+
+  useFrame((s) => {
+    if (!groupRef.current) return;
+    const t = s.clock.elapsedTime;
+    const { bass, mid, treble, beat } = audioData.current;
+    const features = getTrackFeatures();
+
+    if (beat || features.onset > 0.5) beatPulse.current = 1.0;
+    beatPulse.current *= 0.9;
+    if (!sceneFrozen) rotRef.current += 0.005 * vizParams.rotationSpeed * (1 + bass * 2);
+
+    ringRefs.current.forEach((ring, i) => {
+      if (!ring) return;
+      const freq = i % 3 === 0 ? bass : i % 3 === 1 ? mid : treble;
+      const scale = 0.5 + i * 0.7 + freq * 0.5 + beatPulse.current * 0.3;
+      ring.scale.setScalar(scale);
+      ring.rotation.x = rotRef.current * (i + 1) * 0.3 + Math.sin(t + i) * 0.2;
+      ring.rotation.y = rotRef.current * (i + 1) * 0.2 + Math.cos(t * 0.7 + i) * mid * 0.5;
+      ring.rotation.z = Math.sin(t * 0.5 + i * 0.5) * treble * 0.8;
+      const m = ring.material as THREE.MeshStandardMaterial;
+      m.emissiveIntensity = 0.3 + freq * vizParams.glowIntensity * 2 + beatPulse.current * 1.5;
+      m.color.setHSL(0.7 + i * 0.05 + features.brightness * 0.2, 0.8, 0.5);
+      m.emissive.setHSL(0.75 + i * 0.04, 0.9, 0.4 + beatPulse.current * 0.3);
+      m.opacity = 0.4 + freq * 0.3;
+    });
+  });
+
+  return (
+    <group ref={groupRef}>
+      {Array.from({ length: ringCount }).map((_, i) => (
+        <mesh key={i} ref={(el) => { ringRefs.current[i] = el; }}>
+          <torusGeometry args={[1, 0.03 + i * 0.01, 16, 64]} />
+          <meshStandardMaterial color="#a855f7" emissive="#7c3aed" emissiveIntensity={0.5} transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// =============================================================================
+// STORM — Lightning bolts and energy discharges
+// =============================================================================
+export function StormViz({ audioData, vizParams, sceneFrozen }: VizProps) {
+  const groupRef = useRef<THREE.Group>(null);
+  const boltRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const glowRef = useRef<THREE.Mesh>(null);
+  const rotRef = useRef(0);
+  const boltFlash = useRef(0);
+
+  useFrame(() => {
+    if (!groupRef.current) return;
+    const { bass, treble, beat } = audioData.current;
+    const features = getTrackFeatures();
+
+    if (beat || features.onset > 0.6) boltFlash.current = 1.0;
+    boltFlash.current *= 0.85;
+    if (!sceneFrozen) rotRef.current += 0.006 * vizParams.rotationSpeed * (1 + treble * 3);
+
+    boltRefs.current.forEach((bolt, i) => {
+      if (!bolt) return;
+      const freq = i % 2 === 0 ? bass : treble;
+      const angle = (i / 6) * Math.PI * 2 + rotRef.current;
+      const length = 2 + freq * 3 + boltFlash.current * 2;
+      bolt.position.set(Math.cos(angle) * 0.5, length / 2 - 1, Math.sin(angle) * 0.5);
+      bolt.rotation.set(0, 0, angle + Math.PI / 2);
+      bolt.scale.set(1 + boltFlash.current * 0.5, length, 1 + boltFlash.current * 0.5);
+      const m = bolt.material as THREE.MeshStandardMaterial;
+      m.emissiveIntensity = 0.5 + boltFlash.current * 4 + freq * 2;
+      m.opacity = 0.3 + boltFlash.current * 0.7;
+      m.color.setHSL(0.6 + boltFlash.current * 0.1, 0.9, 0.5 + boltFlash.current * 0.3);
+    });
+
+    if (glowRef.current) {
+      const glowScale = 0.3 + bass * 0.5 + boltFlash.current * 0.8;
+      glowRef.current.scale.setScalar(glowScale);
+      const gm = glowRef.current.material as THREE.MeshStandardMaterial;
+      gm.emissiveIntensity = 1 + bass * 3 + boltFlash.current * 5;
+      gm.opacity = 0.3 + boltFlash.current * 0.4;
+    }
+
+    groupRef.current.rotation.y = rotRef.current * 0.5;
+  });
+
+  return (
+    <group ref={groupRef}>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <mesh key={i} ref={(el) => { boltRefs.current[i] = el; }}>
+          <boxGeometry args={[0.05, 1, 0.05]} />
+          <meshStandardMaterial color="#38bdf8" emissive="#0ea5e9" emissiveIntensity={1} transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </mesh>
+      ))}
+      <mesh ref={glowRef}>
+        <sphereGeometry args={[0.3, 16, 16]} />
+        <meshStandardMaterial color="#818cf8" emissive="#6366f1" emissiveIntensity={2} transparent opacity={0.4} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
+// =============================================================================
+// INFERNO — Rising fire and ember particles
+// =============================================================================
+export function InfernoViz({ audioData, vizParams }: VizProps) {
+  const pointsRef = useRef<THREE.Points>(null);
+  const coreRef = useRef<THREE.Mesh>(null);
+  const count = 2000;
+
+  const { g: geom } = useMemo(() => {
+    const pos = new Float32Array(count * 3);
+    const col = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * 2;
+      pos[i*3] = Math.cos(angle) * radius;
+      pos[i*3+1] = (Math.random() - 0.5) * 0.5;
+      pos[i*3+2] = Math.sin(angle) * radius;
+      const heat = Math.random();
+      const c = new THREE.Color().setHSL(0.02 + heat * 0.08, 1.0, 0.4 + heat * 0.3);
+      col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
+    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    return { g, pos };
+  }, []);
+
+  useFrame(() => {
+    if (!pointsRef.current) return;
+    const { bass, treble, beat } = audioData.current;
+    const features = getTrackFeatures();
+
+    const arr = geom.attributes.position.array as Float32Array;
+    for (let i = 0; i < count; i++) {
+      const idx = i * 3;
+      let y = arr[idx+1] + 0.02 + features.energy * 0.05 + bass * 0.03;
+      if (y > 3) y = -3;
+      arr[idx+1] = y;
+      const angle = Math.atan2(arr[idx+2], arr[idx]) + 0.02 * (1 + treble);
+      const radius = Math.sqrt(arr[idx] * arr[idx] + arr[idx+2] * arr[idx+2]);
+      arr[idx] = Math.cos(angle) * radius;
+      arr[idx+2] = Math.sin(angle) * radius;
+    }
+    geom.attributes.position.needsUpdate = true;
+
+    const mat = pointsRef.current.material as THREE.PointsMaterial;
+    mat.size = vizParams.particleSize * (1 + bass * 1.5);
+    mat.opacity = 0.6 + features.brightness * 0.3;
+
+    if (coreRef.current) {
+      const coreScale = 0.3 + bass * 0.6 + (beat ? 0.3 : 0);
+      coreRef.current.scale.setScalar(coreScale);
+      const cm = coreRef.current.material as THREE.MeshStandardMaterial;
+      cm.emissiveIntensity = 1 + bass * 4;
+    }
+  });
+
+  return (
+    <group>
+      <points ref={pointsRef} geometry={geom}>
+        <pointsMaterial map={getParticleTex()} size={0.05} vertexColors transparent opacity={0.7} sizeAttenuation blending={THREE.AdditiveBlending} depthWrite={false} />
+      </points>
+      <mesh ref={coreRef} position={[0, -2, 0]}>
+        <sphereGeometry args={[0.3, 16, 16]} />
+        <meshStandardMaterial color="#f97316" emissive="#ea580c" emissiveIntensity={2} transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
