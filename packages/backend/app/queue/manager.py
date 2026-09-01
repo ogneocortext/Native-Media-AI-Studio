@@ -235,14 +235,14 @@ class QueueManager:
 
     async def cancel_job(self, job_id: str) -> bool:
         """Cancel a pending, queued, or running job"""
-        job = await self.get_job(job_id)
-        if not job:
-            return False
-
-        if job.status not in (JobStatus.PENDING, JobStatus.QUEUED, JobStatus.RUNNING):
-            return False
-
         async with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return False
+
+            if job.status not in (JobStatus.PENDING, JobStatus.QUEUED, JobStatus.RUNNING):
+                return False
+
             job.status = JobStatus.CANCELLED
             job.completed_at = datetime.now()
             # Persist to SQLite
@@ -258,14 +258,14 @@ class QueueManager:
 
     async def retry_job(self, job_id: str) -> Job | None:
         """Retry a failed job"""
-        job = await self.get_job(job_id)
-        if not job or job.status != JobStatus.FAILED:
-            return None
-
-        if job.retry_count >= job.max_retries:
-            return None
-
         async with self._lock:
+            job = self._jobs.get(job_id)
+            if not job or job.status != JobStatus.FAILED:
+                return None
+
+            if job.retry_count >= job.max_retries:
+                return None
+
             job.retry_count += 1
             job.status = JobStatus.QUEUED
             job.error = None

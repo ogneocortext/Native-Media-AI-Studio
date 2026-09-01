@@ -286,7 +286,7 @@ async function createMusicVideoPlan(args) {
     bpm: analysis.tempo_bpm,
     duration: analysis.duration_seconds,
     energy: analysis.energy_curve,
-    recommended_style: analysis.tempo_bpm > 120 ? "high-energy" : "chiral",
+    recommended_style: analysis.tempo_bpm > 120 ? "high-energy" : "chill",
     scenes: analysis.sections?.map((s) => ({
       start: s.start,
       end: s.end,

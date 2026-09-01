@@ -307,18 +307,17 @@ if (-not $NoFrontend) {
         $viteJs = Join-Path $FrontendDir 'node_modules\vite\bin\vite.js'
         if (-not $node) {
             Write-Warn2 'No working node.exe found (checked fnm default alias and PATH)'
-            return
-        }
-        if (-not (Test-Path $viteJs)) {
+            $proc = $null
+        } elseif (-not (Test-Path $viteJs)) {
             Write-Warn2 "Vite not found at $viteJs - run an install first"
-            return
+            $proc = $null
+        } else {
+            Write-Warn2 "npm unavailable - launching Vite directly via $node"
+            $proc = Start-ProcessSafe -FilePath $node `
+                -ArgumentList @("`"$viteJs`"", '--port', "$FrontendPort") `
+                -WorkingDirectory $FrontendDir `
+                -LogFile $frontendLog -ErrorLog $frontendErrLog
         }
-        Write-Warn2 "npm unavailable - launching Vite directly via $node"
-        $proc = Start-ProcessSafe -FilePath $node `
-            -ArgumentList @("`"$viteJs`"", '--port', "$FrontendPort") `
-            -WorkingDirectory $FrontendDir `
-            -LogFile $frontendLog -ErrorLog $frontendErrLog
-    }
     
     if ($proc) {
         $script:started += @{ Name = 'Frontend'; Process = $proc }
@@ -394,7 +393,7 @@ while ($true) {
     } catch { }  # stdin not a console (redirected) - just keep watching
 
     foreach ($s in $script:started) {
-        if ($s.Process.HasExited) {
+        if ($s.Process -and $s.Process.HasExited) {
             $name = $s.Name
             $exitCode = $s.Process.ExitCode
 

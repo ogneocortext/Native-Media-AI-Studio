@@ -1060,8 +1060,10 @@ export function ThreeJSStudio() {
   const selectedObj = objects.find((o) => o.id === selectedObject);
 
   // ---- Event handlers ----
+  const objectCounterRef = useRef(0);
   const addObject = (type: AnimObject["type"]) => {
-    const id = `${type}-${Date.now()}`;
+    objectCounterRef.current++;
+    const id = `${type}-${Date.now()}-${objectCounterRef.current}`;
     const isCharacter = type === "character";
     const newObj: AnimObject = {
       id, name: isCharacter ? `Character ${objects.length + 1}` : `${type.charAt(0).toUpperCase() + type.slice(1)} ${objects.length + 1}`, type,
@@ -1261,7 +1263,7 @@ export function ThreeJSStudio() {
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" title="Playing" />
           )}
         </div>
-        {selectedTrack && (<audio ref={audioElementRef} src={`/api/audio/file/${selectedTrack}`} crossOrigin="anonymous" onEnded={() => setIsAudioPlaying(false)} className="hidden" />)}
+        {selectedTrack && (<audio ref={audioElementRef} src={`/api/audio/file/${encodeURIComponent(selectedTrack)}`} crossOrigin="anonymous" onEnded={() => setIsAudioPlaying(false)} className="hidden" />)}
         <button onClick={exportFrame} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0" title="Export frame as PNG"><Download size={13} /></button>
         <button onClick={() => setCodePanelOpen(!codePanelOpen)} className={`p-1.5 rounded transition-colors shrink-0 ${codePanelOpen ? "bg-emerald-600" : "bg-gray-700 hover:bg-gray-600"}`} title="Paste generated code"><FileCode size={13} /></button>
         <button onClick={toggleFocusMode} className={`p-1.5 rounded transition-colors shrink-0 ${focusMode ? "bg-amber-600" : "bg-gray-700 hover:bg-gray-600"}`} title={focusMode ? "Exit focus mode" : "Focus mode (hide UI)"}>

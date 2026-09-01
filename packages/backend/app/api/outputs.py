@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/outputs", tags=["Outputs"])
 
+import threading
+
 # =============================================================================
 # In-memory cache for output directory listing
 # =============================================================================
@@ -31,6 +33,7 @@ _output_cache: dict[str, Any] = {
     "mtime": 0,
     "timestamp": 0,
 }
+_output_cache_lock = threading.Lock()
 CACHE_TTL_SECONDS = 30  # Refresh cache every 30 seconds max
 
 
@@ -60,18 +63,91 @@ def _scan_with_cache() -> list[dict]:
     now = time.time()
     current_mtime = _get_dir_mtime()
 
-    # Return cache if still valid
-    cache = _output_cache
-    if (
-        cache["files"]
-        and now - cache["timestamp"] < CACHE_TTL_SECONDS
-        and cache["mtime"] >= current_mtime
-    ):
-        return cache["files"]
+    # Return cache if still valid (thread-safe read)
+    with _output_cache_lock:
+        cache = _output_cache
+        if (
+            cache["files"]
+            and now - cache["timestamp"] < CACHE_TTL_SECONDS
+            and cache["mtime"] >= current_mtime
+        ):
+            return cache["files"]
 
     # Cache miss - scan directory (without FFmpeg - fast metadata only)
     all_outputs: list[OutputFile] = []
     output_base = Path(config.output_dir)
+
+    # Scan standard output directories
+    for subdir in ["images", "video", "audio", "generated_3d"]:
+        dir_path = output_base / subdir
+        if not dir_path.exists():
+            continue
+
+        for file_path in dir_path.iterdir():
+            if not file_path.is_file():
+                continue
+            if file_path.suffix.lower() == ".json":
+                continue
+            # Skip cover sidecars in audio/video folders
+            if subdir in ("audio", "video") and file_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}:
+                continue
+
+            try:
+                stat = file_path.stat()
+            except OSError:
+                continue
+
+            # Fast metadata load (no FFmpeg)
+            metadata = load_sidecar_metadata(file_path)
+            file_type = get_file_type(file_path.name)
+            rel_path = file_path.relative_to(output_base).as_posix()
+
+            all_outputs.append(OutputFile(
+                filename=file_path.name,
+                path=str(file_path),
+                relative_path=rel_path,
+                file_type=file_type,
+                size_bytes=stat.st_size,
+                created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                cover_image=None,
+                has_cover=_has_cover_cached(file_path, subdir),
+                metadata=metadata,
+                job_id=metadata.get("job_id") if metadata else None,
+            ))
+
+    # Scan ComfyUI output directory for 3D assets
+    comfyui_output = config.comfyui_output_dir if config.comfyui_output_dir else PROJECT_ROOT.parent / "ComfyUI" / "output"
+    if comfyui_output.exists():
+        for glb_file in comfyui_output.rglob("*.glb"):
+            try:
+                stat = glb_file.stat()
+                rel_path = f"comfyui/{glb_file.relative_to(comfyui_output).as_posix()}"
+                all_outputs.append(OutputFile(
+                    filename=glb_file.name,
+                    path=str(glb_file),
+                    relative_path=rel_path,
+                    file_type="3d",
+                    size_bytes=stat.st_size,
+                    created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                    modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    cover_image=None,
+                    has_cover=False,
+                    metadata={},
+                    job_id=None,
+                ))
+            except OSError:
+                continue
+
+    all_outputs.sort(key=lambda x: x.created_at, reverse=True)
+
+    # Update cache (thread-safe write)
+    with _output_cache_lock:
+        _output_cache["files"] = all_outputs
+        _output_cache["mtime"] = current_mtime
+        _output_cache["timestamp"] = now
+
+    return all_outputs
 
     # Scan standard output directories
     for subdir in ["images", "video", "audio", "generated_3d"]:

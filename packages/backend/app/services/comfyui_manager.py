@@ -197,9 +197,10 @@ class ComfyUIManager:
             }
 
         if self.is_running():
+            pid = self._process.pid if self._process else "unknown"
             return {
                 "success": False,
-                "message": f"ComfyUI is already running (PID {self._process.pid})",
+                "message": f"ComfyUI is already running (PID {pid})",
             }
 
         # Check for CUDA availability first

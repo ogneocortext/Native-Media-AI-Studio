@@ -263,6 +263,14 @@ class HealthMonitor:
 
         for result in check_results:
             if isinstance(result, Exception):
+                # Find the adapter name from the tasks list
+                idx = check_results.index(result)
+                name = list(adapters.keys())[idx] if idx < len(adapters) else f"unknown_{idx}"
+                results[name] = {
+                    "status": ServiceHealth.OFFLINE.value,
+                    "url": adapters[name].base_url if name in adapters else None,
+                    "error": str(result),
+                }
                 continue
             adapter_name = result["name"]
             # Map to simplified structure for health endpoint

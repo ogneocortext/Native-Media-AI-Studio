@@ -38,7 +38,7 @@ $ServiceConfig = @{
         Port = 8000
         Python = $backendPython
         WorkingDir = Join-Path $ProjectRoot 'packages\backend'
-        Args = @('-m', 'app.main')
+        Args = @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000')
         LogFile = 'backend.log'
     }
     frontend = @{
@@ -292,7 +292,7 @@ switch ($Action) {
             try {
                 Start-Service $svc
             } catch {
-                Write-Warn2 "Failed to start $($svc.Name): $_"
+                Write-Warn "Failed to start $($ServiceConfig[$svc].Name): $_"
             }
         }
         Write-Host "`nAll requested services started." -ForegroundColor Green
@@ -303,7 +303,7 @@ switch ($Action) {
             try {
                 Stop-Service $svc
             } catch {
-                Write-Warn2 "Failed to stop $($svc.Name): $_"
+                Write-Warn "Failed to stop $($ServiceConfig[$svc].Name): $_"
             }
         }
         Write-Host "`nAll requested services stopped." -ForegroundColor Green
@@ -316,7 +316,7 @@ switch ($Action) {
                 Start-Sleep -Seconds 1
                 Start-Service $svc
             } catch {
-                Write-Warn2 "Failed to restart $($svc.Name): $_"
+                Write-Warn "Failed to restart $($ServiceConfig[$svc].Name): $_"
             }
         }
         Write-Host "`nAll requested services restarted." -ForegroundColor Green

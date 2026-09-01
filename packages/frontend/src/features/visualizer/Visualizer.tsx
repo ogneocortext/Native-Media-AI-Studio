@@ -439,9 +439,11 @@ export function Visualizer() {
   const downloadRecording = useCallback(() => {
     if (!recordedBlob) return;
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(recordedBlob);
+    const url = URL.createObjectURL(recordedBlob);
+    a.href = url;
     a.download = `visualizer_${Date.now()}.webm`;
     a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, [recordedBlob]);
 
   return (
