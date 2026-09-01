@@ -222,8 +222,10 @@ export function Visualizer() {
     if (energyAvg > 0.6 && bpm <= 130) return "pulse";
     // Medium energy + fast → Particles (galaxy)
     if (energyAvg > 0.4 && bpm > 120) return "particles";
-    // Low energy + slow → Aurora (dreamy) or Ocean
-    if (energyAvg < 0.4 && bpm < 100) return Math.random() > 0.5 ? "aurora" : "ocean";
+    // Low energy + slow → Aurora (dreamy) or Ocean (deterministic by energy value)
+    if (energyAvg < 0.4 && bpm < 100) {
+      return Math.floor(energyAvg * 100) % 2 === 0 ? "aurora" : "ocean";
+    }
     // Many sections → Neural (network)
     if (sectionCount > 6) return "neural";
     // Has chorus with high energy → Synthwave (spectrum)
@@ -380,16 +382,9 @@ export function Visualizer() {
   }, []);
 
   const handlePresetLoaded = useCallback((preset: VisualPreset) => {
-    console.log("[Visualizer] handlePresetLoaded called");
     // Pass current track analysis so preset aligns to loaded track
     applyPreset(preset, currentAnalysisData);
-    // Show notification with preset details
-    const presetName = (preset as any)?.name || "AI Preset";
-    const style = (preset as any)?.visualizer?.style || "custom";
-    const mode = vizMode === "shader" ? "shader" : "3D";
-    console.log("[Visualizer] Calling showToast for:", presetName);
-    showToast(`Applied "${presetName}" → ${mode} (${style})`);
-  }, [applyPreset, currentAnalysisData, vizMode]);
+  }, [applyPreset, currentAnalysisData]);
 
   const handleClearPreset = useCallback(() => {
     setLoadedPreset(null);

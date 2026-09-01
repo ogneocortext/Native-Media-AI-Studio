@@ -26,6 +26,7 @@ class AppConfig(BaseModel):
     # backend_port. Kept for config/ports.json compat.
     ws_port: int = 8000
     comfyui_url: str = "http://127.0.0.1:8188"
+    comfyui_output_dir: Path | None = None  # Defaults to <PROJECT_ROOT>/../ComfyUI/output if unset
     ollama_url: str = "http://127.0.0.1:11434"
     max_queue_workers: int = 1
     output_dir: Path = OUTPUT_DIR

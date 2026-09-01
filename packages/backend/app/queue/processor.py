@@ -163,7 +163,7 @@ class JobProcessor:
                 return
 
             # Check if we should retry
-            if job.retry_count < job.max_retries:
+            if current is not None and current.retry_count < job.max_retries:
                 await queue_manager.update_job(
                     job.id,
                     status=JobStatus.QUEUED,

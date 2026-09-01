@@ -17,7 +17,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
-from ..core.config import config
+from ..core.config import PROJECT_ROOT, config
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ async def _scan_with_cache() -> list[dict]:
             ))
 
     # Scan ComfyUI output directory for 3D assets
-    comfyui_output = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI\output")
+    comfyui_output = config.comfyui_output_dir if config.comfyui_output_dir else PROJECT_ROOT.parent / "ComfyUI" / "output"
     if comfyui_output.exists():
         for glb_file in comfyui_output.rglob("*.glb"):
             try:
@@ -633,7 +633,7 @@ async def find_duplicate_groups(
 @router.get("/comfyui/{file_path:path}")
 async def serve_comfyui_file(file_path: str):
     """Serve a file from the ComfyUI output directory."""
-    comfyui_output = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI\output")
+    comfyui_output = config.comfyui_output_dir if config.comfyui_output_dir else PROJECT_ROOT.parent / "ComfyUI" / "output"
     full_path = (comfyui_output / file_path).resolve()
     
     # Security check: ensure the path is within the ComfyUI output directory
@@ -862,7 +862,7 @@ async def get_3d_thumbnail(filename: str):
     
     # Search in ComfyUI output directory
     if not glb_path:
-        comfyui_output = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI\output")
+        comfyui_output = config.comfyui_output_dir if config.comfyui_output_dir else PROJECT_ROOT.parent / "ComfyUI" / "output"
         for glb_file in comfyui_output.rglob("*.glb"):
             if glb_file.name == filename:
                 glb_path = glb_file
