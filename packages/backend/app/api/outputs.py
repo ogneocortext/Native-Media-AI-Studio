@@ -53,7 +53,7 @@ def _get_dir_mtime() -> float:
     return latest
 
 
-async def _scan_with_cache() -> list[dict]:
+def _scan_with_cache() -> list[dict]:
     """Scan outputs with in-memory caching."""
     import time
 

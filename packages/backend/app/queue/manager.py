@@ -165,58 +165,58 @@ class QueueManager:
 
         old_status = job.status
 
+        # Compute new values before mutating in-memory state
+        new_status = status if status else job.status
+        new_progress = min(max(progress, 0.0), 1.0) if progress is not None else job.progress
+        new_message = message if message else job.message
+        new_error = error if error is not None else job.error
+        new_result = result if result else job.result
+        new_retry_count = retry_count if retry_count is not None else job.retry_count
+        new_output_path = output_path if output_path is not None else job.output_path
+        new_started_at = started_at if started_at is not None else job.started_at
+        new_completed_at = completed_at if completed_at is not None else job.completed_at
+
+        if status == JobStatus.RUNNING and not job.started_at:
+            new_started_at = datetime.now()
+        elif status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED):
+            new_completed_at = datetime.now()
+
         async with self._lock:
-            if status:
-                job.status = status
-                if status == JobStatus.RUNNING and not job.started_at:
-                    job.started_at = datetime.now()
-                elif status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED):
-                    job.completed_at = datetime.now()
-                    # Track completed jobs for auto-cleanup
-                    if status == JobStatus.COMPLETED:
-                        self._completed_count += 1
-                    # Auto-cleanup old completed/failed jobs when threshold exceeded
-                    if self._completed_count >= self._max_completed_cache:
-                        await self._auto_cleanup_unlocked()
-                        self._completed_count = 0
+            # Persist to SQLite first; only update in-memory on success
+            try:
+                JobDatabaseManager.update_job(
+                    job_id,
+                    status=new_status,
+                    progress=new_progress,
+                    message=new_message,
+                    error=new_error,
+                    result=new_result,
+                    started_at=new_started_at,
+                    completed_at=new_completed_at,
+                    retry_count=new_retry_count,
+                    output_path=new_output_path
+                )
+            except Exception as e:
+                logger.error("Failed to persist job %s update: %s", job_id, e)
+                return None
 
-            if progress is not None:
-                job.progress = min(max(progress, 0.0), 1.0)
+            # Update in-memory state only after successful DB write
+            job.status = new_status
+            job.progress = new_progress
+            job.message = new_message
+            job.error = new_error
+            job.result = new_result
+            job.retry_count = new_retry_count
+            job.output_path = new_output_path
+            job.started_at = new_started_at
+            job.completed_at = new_completed_at
 
-            if message:
-                job.message = message
+            if status == JobStatus.COMPLETED:
+                self._completed_count += 1
+            if self._completed_count >= self._max_completed_cache:
+                await self._auto_cleanup_unlocked()
+                self._completed_count = 0
 
-            if error is not None:
-                job.error = error
-
-            if result:
-                job.result = result
-
-            if retry_count is not None:
-                job.retry_count = retry_count
-
-            if output_path is not None:
-                job.output_path = output_path
-
-            if started_at is not None:
-                job.started_at = started_at
-
-            if completed_at is not None:
-                job.completed_at = completed_at
-
-            # Persist to SQLite
-            JobDatabaseManager.update_job(
-                job_id,
-                status=job.status,
-                progress=job.progress,
-                message=job.message,
-                error=job.error,
-                result=job.result,
-                started_at=job.started_at,
-                completed_at=job.completed_at,
-                retry_count=job.retry_count,
-                output_path=job.output_path
-            )
             await self._notify_subscribers(job)
 
         # Broadcast event outside lock

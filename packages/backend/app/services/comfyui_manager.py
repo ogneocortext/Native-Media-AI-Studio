@@ -376,16 +376,41 @@ class ComfyUIManager:
                     "hint": "Manual reinstallation required for updates",
                 }
 
-            # Git pull
-            logger.info("Running git pull in %s", COMFYUI_DIR)
             # Build PATH with common git locations for Windows
             git_path_extra = r";C:\Program Files\Git\cmd;C:\Program Files\Git\mingw64\bin;C:\Program Files (x86)\Git\cmd"
+            env = {**os.environ, "PATH": os.environ.get("PATH", "") + git_path_extra}
+
+            # Check for uncommitted local changes before pulling
+            status_result = await asyncio.create_subprocess_exec(
+                git_exe, "status", "--porcelain",
+                cwd=str(COMFYUI_DIR),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env
+            )
+            status_out, status_err = await status_result.communicate()
+            if status_result.returncode != 0:
+                return {
+                    "success": False,
+                    "message": "Git status check failed",
+                    "output": status_out.decode("utf-8", errors="replace").strip(),
+                    "errors": status_err.decode("utf-8", errors="replace").strip(),
+                }
+            if status_out.decode("utf-8", errors="replace").strip():
+                return {
+                    "success": False,
+                    "message": "ComfyUI has uncommitted local changes — commit or stash them before updating",
+                    "hint": "Run 'git stash' or commit your changes, then retry the update",
+                }
+
+            # Git pull
+            logger.info("Running git pull in %s", COMFYUI_DIR)
             pull_result = await asyncio.create_subprocess_exec(
                 git_exe, "pull",
                 cwd=str(COMFYUI_DIR),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env={**os.environ, "PATH": os.environ.get("PATH", "") + git_path_extra}
+                env=env
             )
             stdout, stderr = await pull_result.communicate()
 
