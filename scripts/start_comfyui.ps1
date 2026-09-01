@@ -6,11 +6,12 @@ param(
     [switch]$NoBrowser
 )
 
-$ErrorActionPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'Stop'
 
 # Configuration - uses the dedicated ComfyUI conda environment
-$ComfyUIPath = "D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI"
-$PythonExe = "D:\conda-envs\comfyui-cuda\Scripts\python.exe"
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+$ComfyUIPath = Join-Path $ProjectRoot '..\ComfyUI'
+$PythonExe = if ($env:COMFYUI_PYTHON) { $env:COMFYUI_PYTHON } else { "D:\conda-envs\comfyui-cuda\Scripts\python.exe" }
 $ComfyUIPort = 8188
 
 Write-Host "ComfyUI Management" -ForegroundColor Cyan

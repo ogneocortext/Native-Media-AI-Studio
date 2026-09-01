@@ -51,7 +51,15 @@ function Stop-PortOwner {
     if ($pids) {
         Write-Warn2 "Port $Port busy - stopping stale $Service process(es): $($pids -join ', ')"
         $pids | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
-        Start-Sleep -Seconds 2
+        # Verify port is actually free (up to 5s) before returning
+        for ($i = 1; $i -le 5; $i++) {
+            Start-Sleep -Seconds 1
+            if (-not (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)) {
+                Write-Ok "Port $Port freed after ${i}s"
+                return
+            }
+        }
+        Write-Warn2 "Port $Port still busy after 5s — service may fail to bind"
     }
 }
 
