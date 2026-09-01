@@ -310,6 +310,10 @@ class MusicVideoHandler:
             frame_re = re.compile(r"frame=\s*(\d+)")
             time_re = re.compile(r"time=\s*(\d+):(\d+):(\d+\.\d+)")
 
+            # Use mutable containers for closure state (avoids function attribute storage)
+            last_prog = [0.5]
+            last_prog_t = [0.5]
+
             async def _read_stderr():
                 buffer = ""
                 while True:
@@ -334,10 +338,8 @@ class MusicVideoHandler:
                                 frac = max(0.0, min(1.0, frame / max(1, total_frames)))
                                 prog = 0.5 + 0.5 * frac
                                 # Throttle updates: only every ~2% or 30 frames
-                                if not hasattr(_read_stderr, "_last_prog"):
-                                    _read_stderr._last_prog = 0.5  # type: ignore
-                                if prog - _read_stderr._last_prog >= 0.02 or frame % 30 == 0:  # type: ignore
-                                    _read_stderr._last_prog = prog  # type: ignore
+                                if prog - last_prog[0] >= 0.02 or frame % 30 == 0:
+                                    last_prog[0] = prog
                                     await self._update_progress(job, prog, f"Rendering frame {frame}/{total_frames} ({int(frac*100)}%)")
                             except Exception:
                                 pass
@@ -350,10 +352,8 @@ class MusicVideoHandler:
                                     secs = int(h) * 3600 + int(mm) * 60 + float(ss)
                                     frac = max(0.0, min(1.0, secs / max(1.0, duration)))
                                     prog = 0.5 + 0.5 * frac
-                                    if not hasattr(_read_stderr, "_last_prog_t"):
-                                        _read_stderr._last_prog_t = 0.5  # type: ignore
-                                    if prog - _read_stderr._last_prog_t >= 0.02:  # type: ignore
-                                        _read_stderr._last_prog_t = prog  # type: ignore
+                                    if prog - last_prog_t[0] >= 0.02:
+                                        last_prog_t[0] = prog
                                         await self._update_progress(job, prog, f"Rendering {int(secs)}s / {int(duration)}s ({int(frac*100)}%)")
                                 except Exception:
                                     pass

@@ -37,6 +37,11 @@ _output_cache_lock = threading.Lock()
 CACHE_TTL_SECONDS = 30  # Refresh cache every 30 seconds max
 
 
+async def _run_subprocess_thread(args: list[str], **kwargs) -> subprocess.CompletedProcess:
+    """Run a subprocess in a thread pool to avoid blocking the event loop."""
+    return await asyncio.to_thread(subprocess.run, args, **kwargs)
+
+
 def _get_dir_mtime() -> float:
     """Get the latest mtime across all output subdirectories."""
     output_base = Path(config.output_dir)
@@ -288,7 +293,7 @@ def load_sidecar_metadata(file_path: Path) -> dict | None:
     return None
 
 
-def _is_video_corrupted(video_path: Path) -> bool:
+async def _is_video_corrupted(video_path: Path) -> bool:
     """Check if a video file is corrupted/incomplete (missing moov atom, etc.)."""
     import shutil
     import subprocess
@@ -298,7 +303,7 @@ def _is_video_corrupted(video_path: Path) -> bool:
         return False
 
     try:
-        probe = subprocess.run(
+        probe = await _run_subprocess_thread(
             [ffmpeg, "-hide_banner", "-i", str(video_path)],
             capture_output=True, text=True, timeout=10,
         )
@@ -315,7 +320,7 @@ def _is_video_corrupted(video_path: Path) -> bool:
         return False
 
 
-def extract_video_thumbnail(video_path: Path, relative_base: Path) -> str | None:
+async def extract_video_thumbnail(video_path: Path, relative_base: Path) -> str | None:
     """Extract a poster frame from a video file using FFmpeg.
 
     Checks for existing {stem}.jpg first (cached). If missing, probes video duration
@@ -349,7 +354,7 @@ def extract_video_thumbnail(video_path: Path, relative_base: Path) -> str | None
 
     try:
         # Probe duration first to pick a good frame time
-        probe = subprocess.run(
+        probe = await _run_subprocess_thread(
             [ffmpeg, "-hide_banner", "-i", str(video_path)],
             capture_output=True, text=True, timeout=10,
         )
@@ -368,7 +373,7 @@ def extract_video_thumbnail(video_path: Path, relative_base: Path) -> str | None
         # Seek to 10% of duration or 1 second, whichever is greater
         seek_time = max(1.0, duration_sec * 0.1) if duration_sec > 0 else 1.0
 
-        result = subprocess.run(
+        result = await _run_subprocess_thread(
             [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
              "-ss", f"{seek_time:.1f}",
              "-i", str(video_path),
@@ -394,7 +399,7 @@ def extract_video_thumbnail(video_path: Path, relative_base: Path) -> str | None
     return None
 
 
-def extract_audio_cover(audio_path: Path, relative_base: Path) -> str | None:
+async def extract_audio_cover(audio_path: Path, relative_base: Path) -> str | None:
     """Extract embedded cover art from audio file (ID3, FLAC, etc.) using FFmpeg.
 
     Checks for existing {stem}.jpg first (cached). If missing, tries FFmpeg:
@@ -426,7 +431,7 @@ def extract_audio_cover(audio_path: Path, relative_base: Path) -> str | None:
 
     # Quick probe: does file have a video stream (cover)?
     try:
-        probe = subprocess.run(
+        probe = await _run_subprocess_thread(
             [ffmpeg, "-hide_banner", "-i", str(audio_path)],
             capture_output=True, text=True, timeout=5,
         )
@@ -443,7 +448,7 @@ def extract_audio_cover(audio_path: Path, relative_base: Path) -> str | None:
     # Avoid overwriting if we just checked and it didn't exist, now create
     try:
         # -frames:v 1 and -update 1 ensures single image, not sequence
-        result = subprocess.run(
+        result = await _run_subprocess_thread(
             [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
              "-i", str(audio_path), "-an", "-vcodec", "copy", "-frames:v", "1", "-update", "1", str(cover_path)],
             capture_output=True, text=True, timeout=10,
@@ -498,12 +503,12 @@ async def scan_output_directory(subdir: str, relative_base: Path) -> list[Output
         cover_image = None
         is_corrupted = False
         if file_type == "video":
-            cover_image = extract_video_thumbnail(file_path, relative_base)
+            cover_image = await extract_video_thumbnail(file_path, relative_base)
             # Detect corrupted/invalid video files
             if cover_image is None:
-                is_corrupted = _is_video_corrupted(file_path)
+                is_corrupted = await _is_video_corrupted(file_path)
         elif file_type == "audio":
-            cover_image = extract_audio_cover(file_path, relative_base)
+            cover_image = await extract_audio_cover(file_path, relative_base)
 
         # Build relative path for frontend (normalize to forward slashes for web URLs)
         rel_path = file_path.relative_to(relative_base)
@@ -912,7 +917,7 @@ async def regenerate_thumbnails() -> dict:
             continue
 
         total += 1
-        cover = extract_video_thumbnail(video_path, output_base)
+        cover = await extract_video_thumbnail(video_path, output_base)
         if cover:
             generated += 1
 
@@ -964,7 +969,7 @@ async def get_3d_thumbnail(filename: str):
         import subprocess
         script_path = Path(__file__).parent.parent / "services" / "generate_thumbnail.py"
         blender_exe = r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
-        result = subprocess.run(
+        result = await _run_subprocess_thread(
             [blender_exe, "--background", "--python", str(script_path), "--", str(glb_path), str(thumb_path), "256"],
             capture_output=True,
             text=True,

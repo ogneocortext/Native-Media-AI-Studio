@@ -96,7 +96,7 @@ class HealthMonitor:
     def _get_cpu_info(self) -> dict[str, Any]:
         """Get CPU information"""
         return {
-            "usage_percent": psutil.cpu_percent(interval=0.1),
+            "usage_percent": psutil.cpu_percent(interval=None),
             "count": psutil.cpu_count(),
             "count_logical": psutil.cpu_count(logical=True),
         }
