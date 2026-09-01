@@ -1,6 +1,6 @@
 /* eslint-disable @remotion/no-background-image, @remotion/non-pure-animation */
 import {
-  AbsoluteFill, Audio, Img, interpolate, spring, staticFile,
+  AbsoluteFill, Audio, interpolate, spring, staticFile,
   useCurrentFrame, useVideoConfig, Easing, Composition
 } from "remotion";
 import {
@@ -224,6 +224,9 @@ const MainVideo: React.FC = () => {
         isBreakdown={isBreakdown}
       />
 
+      {/* ─── Floating Particles ─── */}
+      <ParticlesLayer t={t} bass={bass} isChorus={isChorus} isBreakdown={isBreakdown} />
+
       {/* ─── Lyric Layer ─── */}
       <LyricLayer
         width={width}
@@ -273,35 +276,39 @@ const MainVideo: React.FC = () => {
 const BackgroundLayer: React.FC<any> = ({
   width, height, t, progress, bass, mid, isChorus, isBreakdown, isIntro, isOutro, camScale, camX, camY,
 }) => {
-  const bgOpacity = isIntro ? 0.4 + progress * 0.3 : isOutro ? 0.5 : 0.6;
-  const glowIntensity = isChorus ? 0.15 + bass * 0.1 : 0.08;
+  // Dynamic gradient - more visible colors
+  const gradientAngle = Math.floor(t * 15) % 360;
+  const glowIntensity = isChorus ? 0.2 + bass * 0.15 : 0.1;
 
   return (
-    <AbsoluteFill style={{ transform: `scale(${camScale}) translate(${camX}px, ${camY}px)` }}>
-      <Img
-        src={staticFile("blender-scenery.png")}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          filter: isBreakdown
-            ? "brightness(0.6) contrast(1.1) saturate(0.7)"
-            : `brightness(${0.75 + mid * 0.15}) contrast(1.05)`,
-          opacity: bgOpacity,
-        }}
-      />
-      {/* Gradient overlay */}
+    <AbsoluteFill>
+      {/* Base gradient - visible dark blue/purple tones */}
       <AbsoluteFill
         style={{
-          background: `linear-gradient(180deg, rgba(5,5,8,0.3) 0%, transparent 40%, transparent 60%, rgba(5,5,8,0.7) 100%)`,
+          background: `linear-gradient(${gradientAngle}deg, #0a0a1a 0%, #0d1025 30%, #0a0a18 60%, #08081a 100%)`,
         }}
       />
-      {/* Accent glow */}
+      {/* Animated radial glow - responds to audio */}
       <AbsoluteFill
         style={{
           opacity: glowIntensity,
-          background: `radial-gradient(800px 500px at 50% 40%, ${COLORS.glow}20 0%, transparent 60%)`,
-          transform: `translate(${Math.sin(t * 0.05) * 15}px, ${Math.cos(t * 0.04) * 8}px)`,
+          background: `radial-gradient(700px 500px at ${50 + Math.sin(t * 0.1) * 15}% ${35 + Math.cos(t * 0.08) * 10}%, ${COLORS.glow}25 0%, transparent 55%)`,
+          transform: `scale(${camScale}) translate(${camX * 0.5}px, ${camY * 0.5}px)`,
+        }}
+      />
+      {/* Secondary accent glow - opposite side */}
+      <AbsoluteFill
+        style={{
+          opacity: glowIntensity * 0.6,
+          background: `radial-gradient(500px 400px at ${70 + Math.cos(t * 0.06) * 20}% ${65 + Math.sin(t * 0.05) * 15}%, ${COLORS.accent}18 0%, transparent 50%)`,
+        }}
+      />
+      {/* Subtle grid pattern for depth */}
+      <AbsoluteFill
+        style={{
+          opacity: 0.03,
+          backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+          backgroundSize: "60px 60px",
         }}
       />
     </AbsoluteFill>
@@ -321,10 +328,11 @@ const Scene3DLayer: React.FC<any> = ({
         <ambientLight intensity={0.4} />
         <directionalLight position={[3, 5, 4]} intensity={0.8} />
         <pointLight position={[-3, -2, 2]} intensity={0.4} color={COLORS.glow} />
+        {/* Position 3D element to the LEFT side so it doesn't overlap centered lyrics */}
         <group
           scale={scale}
           rotation={[t * 0.15, t * 0.25 + bass * 0.2, 0]}
-          position={[isChorus ? 0.3 : -0.5, 0.2, 0] as any}
+          position={[-4.5, 0.5, -2] as any}
         >
           <mesh castShadow>
             <icosahedronGeometry args={[0.7, 0]} />
@@ -346,7 +354,41 @@ const Scene3DLayer: React.FC<any> = ({
   );
 };
 
-// ─── Waveform Layer Component ───
+// ─── Particles Layer Component ───
+const ParticlesLayer: React.FC<any> = ({ t, bass, isChorus, isBreakdown }) => {
+  const opacity = isBreakdown ? 0.15 : isChorus ? 0.4 : 0.25;
+  const particleCount = isChorus ? 25 : 15;
+
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none", opacity }}>
+      {Array.from({ length: particleCount }).map((_, i) => {
+        const speed = 0.1 + (i % 4) * 0.05;
+        const size = 1.5 + (i % 3) * 0.8;
+        const startX = (i * 137.5) % 100;
+        const startY = 20 + (i * 73) % 60;
+        const x = (startX + t * speed * 2) % 110 - 5;
+        const y = startY + Math.sin(t * 0.3 + i * 0.7) * 8;
+
+        return (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              left: `${x}%`,
+              top: `${y}%`,
+              width: size,
+              height: size,
+              borderRadius: "50%",
+              background: i % 3 === 0 ? COLORS.glow : COLORS.accent,
+              opacity: 0.3 + (i % 3) * 0.15 + bass * 0.1,
+              boxShadow: i % 4 === 0 ? `0 0 6px ${COLORS.glow}40` : "none",
+            }}
+          />
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
 const WaveformLayer: React.FC<any> = ({
   width, height, waveform, t, bass, isChorus, isBreakdown,
 }) => {
@@ -395,20 +437,20 @@ const LyricLayer: React.FC<any> = ({
         justifyContent: "center",
         alignItems: "center",
         pointerEvents: "none",
-        padding: "0 80px",
+        padding: "0 120px",
       }}
     >
       {/* Section label */}
- {!isBreakdown && (
+      {!isBreakdown && (
         <div
           style={{
             position: "absolute",
-            top: "15%",
+            top: "18%",
             fontFamily: FONTS.mono,
-            fontSize: 11,
-            letterSpacing: "0.25em",
+            fontSize: 10,
+            letterSpacing: "0.3em",
             color: COLORS.secondary,
-            opacity: 0.6,
+            opacity: 0.5,
             textTransform: "uppercase",
           }}
         >
@@ -416,12 +458,13 @@ const LyricLayer: React.FC<any> = ({
         </div>
       )}
 
-      {/* Main lyric text */}
+      {/* Main lyric text - centered, no overlap with 3D element */}
       <div
         style={{
           textAlign: "center",
-          maxWidth: 1200,
-          transform: `scale(${1 + bass * 0.015})`,
+          maxWidth: 1100,
+          width: "80%",
+          transform: `scale(${1 + bass * 0.01})`,
         }}
       >
         {isChorus ? (
@@ -575,17 +618,17 @@ const HUD: React.FC<any> = ({ t, progress, section, isBreakdown }) => {
     <div
       style={{
         position: "absolute",
-        top: 28,
-        left: 32,
-        right: 32,
+        top: 24,
+        left: 28,
+        right: 28,
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
         fontFamily: FONTS.mono,
-        fontSize: 10,
-        letterSpacing: "0.15em",
+        fontSize: 11,
+        letterSpacing: "0.12em",
         color: COLORS.secondary,
-        opacity: isBreakdown ? 0 : 0.7,
+        opacity: isBreakdown ? 0 : 0.8,
         pointerEvents: "none",
       }}
     >
