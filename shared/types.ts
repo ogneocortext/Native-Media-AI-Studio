@@ -220,7 +220,13 @@ export interface PortConfig {
   backend_url: string;
   backend_port: number;
   frontend_port: number;
+  video_editor_port: number;
+  comfyui_port: number;
+  comfyui_url: string;
+  events_url: string;
+  sse_url: string;
   ws_port: number;
+  ws_url: string;
 }
 
 // ============================================================================

@@ -7,11 +7,14 @@ import json
 import logging
 import shutil
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from functools import lru_cache
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 from ..core.config import config
@@ -23,7 +26,7 @@ router = APIRouter(prefix="/api/outputs", tags=["Outputs"])
 # =============================================================================
 # In-memory cache for output directory listing
 # =============================================================================
-_output_cache: dict[str, any] = {
+_output_cache: dict[str, Any] = {
     "files": [],
     "mtime": 0,
     "timestamp": 0,
@@ -70,6 +73,7 @@ async def _scan_with_cache() -> list[dict]:
     all_outputs: list[OutputFile] = []
     output_base = Path(config.output_dir)
 
+    # Scan standard output directories
     for subdir in ["images", "video", "audio", "generated_3d"]:
         dir_path = output_base / subdir
         if not dir_path.exists():
@@ -107,6 +111,29 @@ async def _scan_with_cache() -> list[dict]:
                 metadata=metadata,
                 job_id=metadata.get("job_id") if metadata else None,
             ))
+
+    # Scan ComfyUI output directory for 3D assets
+    comfyui_output = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI\output")
+    if comfyui_output.exists():
+        for glb_file in comfyui_output.rglob("*.glb"):
+            try:
+                stat = glb_file.stat()
+                rel_path = f"comfyui/{glb_file.relative_to(comfyui_output).as_posix()}"
+                all_outputs.append(OutputFile(
+                    filename=glb_file.name,
+                    path=str(glb_file),
+                    relative_path=rel_path,
+                    file_type="3d",
+                    size_bytes=stat.st_size,
+                    created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                    modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    cover_image=None,
+                    has_cover=False,
+                    metadata={},
+                    job_id=None,
+                ))
+            except OSError:
+                continue
 
     all_outputs.sort(key=lambda x: x.created_at, reverse=True)
 
@@ -160,6 +187,7 @@ def get_file_type(filename: str) -> str:
     image_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
     video_exts = {".mp4", ".webm", ".avi", ".mov", ".mkv"}
     audio_exts = {".mp3", ".wav", ".flac", ".ogg", ".m4a"}
+    model_exts = {".glb", ".gltf", ".obj", ".fbx", ".ply", ".stl"}
 
     if ext in image_exts:
         return "image"
@@ -167,6 +195,8 @@ def get_file_type(filename: str) -> str:
         return "video"
     elif ext in audio_exts:
         return "audio"
+    elif ext in model_exts:
+        return "3d"
     return "other"
 
 
@@ -600,12 +630,41 @@ async def find_duplicate_groups(
     return dup_groups[:limit]
 
 
+@router.get("/comfyui/{file_path:path}")
+async def serve_comfyui_file(file_path: str):
+    """Serve a file from the ComfyUI output directory."""
+    comfyui_output = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI\output")
+    full_path = (comfyui_output / file_path).resolve()
+    
+    # Security check: ensure the path is within the ComfyUI output directory
+    if not full_path.is_relative_to(comfyui_output) or not full_path.exists() or not full_path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Determine media type
+    suffix = full_path.suffix.lower()
+    media_type = "application/octet-stream"
+    if suffix == ".glb":
+        media_type = "model/gltf-binary"
+    elif suffix == ".gltf":
+        media_type = "model/gltf+json"
+    elif suffix == ".obj":
+        media_type = "text/plain"
+    elif suffix == ".fbx":
+        media_type = "application/octet-stream"
+    elif suffix == ".png":
+        media_type = "image/png"
+    elif suffix in (".jpg", ".jpeg"):
+        media_type = "image/jpeg"
+    
+    return FileResponse(str(full_path), media_type=media_type)
+
+
 @router.get("/{file_type}", response_model=list[OutputFile])
 async def list_outputs_by_type(
     file_type: str, limit: int = Query(50, ge=1, le=200)
 ) -> list[OutputFile]:
-    """List outputs filtered by type (images, video, audio)."""
-    valid_types = {"images": "image", "video": "video", "audio": "audio"}
+    """List outputs filtered by type (images, video, audio, 3d)."""
+    valid_types = {"images": "image", "video": "video", "audio": "audio", "3d": "3d"}
 
     if file_type not in valid_types:
         raise HTTPException(
@@ -787,3 +846,63 @@ async def regenerate_thumbnails() -> dict:
         "generated": generated,
         "total": total,
     }
+
+
+@router.get("/3d/thumbnail/{filename:path}")
+async def get_3d_thumbnail(filename: str):
+    """Generate and return a thumbnail for a 3D model."""
+    # Find the GLB file
+    output_base = Path(config.output_dir)
+    glb_path = None
+    
+    # Search in generated_3d directory
+    candidate = output_base / "generated_3d" / filename
+    if candidate.exists() and candidate.suffix.lower() == ".glb":
+        glb_path = candidate
+    
+    # Search in ComfyUI output directory
+    if not glb_path:
+        comfyui_output = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI\output")
+        for glb_file in comfyui_output.rglob("*.glb"):
+            if glb_file.name == filename:
+                glb_path = glb_file
+                break
+    
+    if not glb_path or not glb_path.exists():
+        raise HTTPException(status_code=404, detail="3D model not found")
+    
+    # Generate thumbnail path
+    thumb_dir = output_base / "thumbnails" / "3d"
+    thumb_dir.mkdir(parents=True, exist_ok=True)
+    thumb_path = thumb_dir / f"{glb_path.stem}.png"
+    
+    # Return cached thumbnail if it exists and is newer than the GLB
+    if thumb_path.exists():
+        glb_mtime = glb_path.stat().st_mtime
+        thumb_mtime = thumb_path.stat().st_mtime
+        if thumb_mtime > glb_mtime:
+            return FileResponse(str(thumb_path), media_type="image/png")
+    
+    # Generate thumbnail using Blender
+    try:
+        import subprocess
+        script_path = Path(__file__).parent.parent / "services" / "generate_thumbnail.py"
+        blender_exe = r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+        result = subprocess.run(
+            [blender_exe, "--background", "--python", str(script_path), "--", str(glb_path), str(thumb_path), "256"],
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+        
+        if result.returncode == 0 and thumb_path.exists():
+            return FileResponse(str(thumb_path), media_type="image/png")
+        else:
+            logger.error(f"Thumbnail generation failed: {result.stderr}")
+            raise HTTPException(status_code=500, detail="Failed to generate thumbnail")
+            
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Thumbnail generation timed out")
+    except Exception as e:
+        logger.error(f"Thumbnail generation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

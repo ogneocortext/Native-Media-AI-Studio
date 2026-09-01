@@ -172,7 +172,6 @@ async def lifespan(app: FastAPI):
 
     # Close all adapter sessions
     try:
-        from .adapters.registry import adapter_registry
         await adapter_registry.close_all()
         logger.info("Adapter sessions closed")
     except Exception as e:

@@ -28,12 +28,10 @@ A full-stack AI-powered creative production environment for music-driven media g
 
 ## Recent Changes
 
+- **Bug Sweep & Code Quality** — Fixed 18 issues across backend, frontend, and config: removed duplicate imports, fixed deprecated asyncio API, removed debug prints/memory leaks, corrected TypeScript package names, standardized config paths, added ESLint rules
 - **Memory Leak Fixes** — Queue manager auto-cleans completed/failed jobs (keeps most recent 100), resource monitor cleans stale warning entries
 - **Adapter Connection Reuse** — ComfyUI and Ollama adapters now reuse a single `aiohttp.ClientSession` per instance, eliminating a thread leak that caused health checks to time out
 - **Health Check Timeouts** — Added per-adapter (8s) and global (10s) timeouts to prevent health checks from hanging
-- **3D Generation Pipeline** — Added `Hy3DPostprocessMesh` and `Hy3DMeshUVWrap` nodes for smooth normals and decimated meshes (95% smaller GLBs)
-- **Async 3D Workflow** — `_submit_workflow` is now async with filesystem polling for GLB detection
-- **Adapter Cleanup** — Proper session cleanup on backend shutdown
 
 ## Hardware Targets
 

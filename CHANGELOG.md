@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Bug Sweep & Code Quality (2026-09-01)
+- **Backend**: Removed duplicate `adapter_registry` import in `main.py` shutdown handler
+- **Backend**: Replaced deprecated `asyncio.get_event_loop().time()` with `time.monotonic()` in `vram_manager.py` (removed in Python 3.10+)
+- **Backend**: Fixed `save_config()` Path serialization — added `default=str` to `json.dump` so `Path` objects serialize correctly
+- **Backend**: Removed debug `print`/`logger.info` statements from `music_video_handler.py`
+- **Backend**: Removed dead code (unused `all()` expression) in `diagnostics/health.py`
+- **Backend**: Removed dead `_save_jobs` method from `queue/manager.py`
+- **Backend**: Fixed `dict[str, any]` type annotation to `dict[str, Any]` in `api/outputs.py`
+- **Backend**: Fixed `request.name` reference in `api/jobs.py` (field doesn't exist in `JobCreateRequest`)
+- **Frontend**: Removed debug `console.log` statements from `Visualizer.tsx`
+- **Frontend**: Added cleanup effect for object URL, AudioContext, and MediaRecorder in `Visualizer.tsx` (memory leak fix)
+- **Frontend**: Removed fragile module-level `console.warn`/`console.error` overrides from `Visualizer.tsx` and `main.tsx`
+- **Frontend**: Fixed suspicious TypeScript package names in `package.json` (`@typescript/native`, `@typescript/typescript6` removed)
+- **Config**: Updated `shared/types.ts` `PortConfig` interface to match actual `ports.json` structure
+- **Config**: Standardized `localhost` → `127.0.0.1` in `config/ports.json`
+- **Config**: Removed hardcoded Windows path from `config/settings.json` (uses default from `config.py`)
+- **Tooling**: Added `@eslint/js` + `typescript-eslint` recommended rules to `eslint.config.js`
+- **Tooling**: Fixed invalid `--ws websockets-sansio` → `--ws websockets` in `start-backend.ps1`
+
 ### Fixed - Server Startup & Monitoring (2026-08-31)
 - **Startup Script** (`scripts/start-studio.ps1`): Fixed log overwrite on restart (now appends), added exponential backoff (1s/2s/4s) for crashed services, added process validation after start, added crash diagnostics showing last 10 lines of error log, added VideoEditor to auto-restart switch
 - **Unity MCP Bridge** (`tools/mcp/unity-mcp-bridge.mjs`): Fixed wrong default project path — was resolving to `tools/unity-project-mcp` instead of repo-root `unity-project-mcp`

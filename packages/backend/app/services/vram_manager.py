@@ -303,8 +303,8 @@ class VRAMManager:
         Returns True if enough VRAM became available, False if timeout.
         """
         import asyncio
-        start = asyncio.get_event_loop().time()
-        while (asyncio.get_event_loop().time() - start) < self.VRAM_WAIT_TIMEOUT:
+        start = time.monotonic()
+        while (time.monotonic() - start) < self.VRAM_WAIT_TIMEOUT:
             await asyncio.sleep(self.VRAM_POLL_INTERVAL)
             vram = await self.get_vram_status()
             if vram.get("free_mb", 0) >= self.MIN_VRAM_FOR_3D:

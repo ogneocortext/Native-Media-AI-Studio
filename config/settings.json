@@ -5,6 +5,5 @@
   "ws_port": 8000,
   "comfyui_url": "http://127.0.0.1:8188",
   "ollama_url": "http://127.0.0.1:11434",
-  "max_queue_workers": 1,
-  "output_dir": "D:/Backup of Important Data for Windows 11 Upgrade/Native Media AI Studio/output"
+  "max_queue_workers": 1
 }

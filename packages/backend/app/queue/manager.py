@@ -69,32 +69,6 @@ class QueueManager:
             except Exception as e:
                 logger.error("Error loading jobs from JSON: %s", e)
 
-    def _save_jobs(self):
-        """Persist jobs to SQLite database."""
-        try:
-            for job in self._jobs.values():
-                # Check if job exists in DB
-                existing = JobDatabaseManager.get_job(job.id)
-                if existing:
-                    # Update existing job
-                    JobDatabaseManager.update_job(
-                        job.id,
-                        status=job.status,
-                        progress=job.progress,
-                        message=job.message,
-                        error=job.error,
-                        result=job.result,
-                        started_at=job.started_at,
-                        completed_at=job.completed_at,
-                        output_path=job.output_path,
-                        retry_count=job.retry_count
-                    )
-                else:
-                    # Insert new job
-                    JobDatabaseManager.create_job(job)
-        except Exception as e:
-            logger.error("Error saving jobs to database: %s", e)
-
     async def subscribe(self, callback: Callable):
         """Subscribe to job updates"""
         self._subscribers.append(callback)

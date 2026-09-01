@@ -21,7 +21,7 @@ async def create_job(request: JobCreateRequest) -> Job:
     Creates the job with QUEUED status and broadcasts an SSE event
     (done inside queue_manager.enqueue).
     """
-    logger.info("Creating job: type=%s, name=%s", request.job_type, request.name)
+    logger.info("Creating job: type=%s", request.job_type)
     return await queue_manager.enqueue(request)
 
 

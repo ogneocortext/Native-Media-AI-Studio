@@ -1,12 +1,12 @@
 {
-  "backend_url": "http://localhost:8000",
+  "backend_url": "http://127.0.0.1:8000",
   "backend_port": 8000,
   "frontend_port": 5173,
   "video_editor_port": 8080,
   "comfyui_port": 8188,
-  "comfyui_url": "http://localhost:8188",
-  "events_url": "http://localhost:8000/api/events",
-  "sse_url": "http://localhost:8000/api/events",
+  "comfyui_url": "http://127.0.0.1:8188",
+  "events_url": "http://127.0.0.1:8000/api/events",
+  "sse_url": "http://127.0.0.1:8000/api/events",
   "ws_port": 8000,
-  "ws_url": "ws://localhost:8000/ws"
+  "ws_url": "ws://127.0.0.1:8000/ws"
 }

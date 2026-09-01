@@ -34,16 +34,13 @@ class MusicVideoHandler:
 
     async def process_job(self, job: Job) -> dict[str, Any]:
         """Process a music video generation job."""
-        print(f"DEBUG: process_job called for {job.id} v3", flush=True)
         import logging
         import traceback as tb_module
         logger = logging.getLogger(__name__)
-        logger.info("DEBUG: process_job info log for %s v3", job.id)
         try:
             return await self._process_job_inner(job)
         except Exception as e:
-            print(f"DEBUG: process_job FAILED for {job.id}: {e}", flush=True)
-            logger.error("DEBUG: process_job failed for %s: %s\n%s", job.id, repr(e), tb_module.format_exc())
+            logger.error("process_job failed for %s: %s\n%s", job.id, repr(e), tb_module.format_exc())
             raise
 
     async def _process_job_inner(self, job: Job) -> dict[str, Any]:

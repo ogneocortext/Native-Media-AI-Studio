@@ -102,7 +102,7 @@ def save_config(config: AppConfig) -> None:
     config_file = CONFIG_DIR / "settings.json"
     try:
         with open(config_file, "w") as f:
-            json.dump(config.model_dump(), f, indent=2)
+            json.dump(config.model_dump(), f, indent=2, default=str)
         logger.info(f"Configuration saved to {config_file}")
     except Exception as e:
         logger.error(f"Failed to save configuration to {config_file}: {e}")

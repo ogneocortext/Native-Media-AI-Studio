@@ -8,7 +8,7 @@ import { useUIStore } from "../../state/uiStore";
 import { getVisualizationForTrack, VisualizationStyle } from "./trackConceptAnalyzer";
 import { VisualizerScene } from "./VisualizerScene";
 import { ShaderVisualizer } from "./ShaderVisualizer";
-import { WebGLRenderer } from "three";
+import { ACESFilmicToneMapping } from "three";
 import { SpectrumBar } from "./components/SpectrumBar";
 import { StylePicker } from "./components/StylePicker";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -24,14 +24,7 @@ import { parseLyricsFromCsv } from "./lyricsParser";
 import type { VisualPreset } from "./visualPreset";
 import { showToast } from "../../utils/toast";
 import { visualPresets, selectVisualPreset } from "./visualPresets";
-console.log("[Visualizer] imported showToast:", typeof showToast);
 
-const _originalWarn = console.warn;
-console.warn = (...args: unknown[]) => {
-  const msg = String(args[0] ?? "");
-  if (msg.includes("THREE.Clock") || msg.includes("PCFSoftShadowMap")) return;
-  _originalWarn(...args);
-};
 
 export function Visualizer() {
   const [bgColor, setBgColor] = useState("#050505");
@@ -106,6 +99,18 @@ export function Visualizer() {
     rafId = requestAnimationFrame(track);
     return () => cancelAnimationFrame(rafId);
   }, [audioUrl]);
+
+  // Cleanup object URL, AudioContext, and recording on unmount
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+      if (audioCtxRef.current) audioCtxRef.current.close().catch(() => {});
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, []);
 
   const setupAudio = useCallback(async (el: HTMLMediaElement) => {
     try {
@@ -530,12 +535,13 @@ export function Visualizer() {
           ) : (
             <>
               <Canvas camera={{ position: [0, 0, 7], fov: 55 }} dpr={[1, 1.5]} frameloop={rendererReady ? "always" : "never"}
-                gl={async (props) => {
-                  // Force WebGL2 — WebGPU doesn't support CanvasTexture which visualizations need
-                  const r = new WebGLRenderer({ ...props, antialias: true });
+                gl={{ antialias: true }}
+                onCreated={({ gl }) => {
+                  // ACES filmic tone mapping — the 2026 standard for cinematic color
+                  gl.toneMapping = ACESFilmicToneMapping;
+                  gl.toneMappingExposure = 1.05;
                   setRendererBackend("WebGL2");
                   setRendererReady(true);
-                  return r;
                 }}
               >
                 <color attach="background" args={[bgColor]} />

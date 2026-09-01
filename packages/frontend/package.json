@@ -33,14 +33,13 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@types/three": "^0.185.4",
-    "@typescript/native": "npm:typescript@7.0.2",
     "@vitejs/plugin-react": "^6.1.1",
     "autoprefixer": "^10.5.4",
     "eslint": "catalog:",
     "playwright": "^1.62.1",
     "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",
-    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.68.0",
     "vite": "catalog:"
   }
