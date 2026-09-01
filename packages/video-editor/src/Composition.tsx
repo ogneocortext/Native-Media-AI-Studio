@@ -252,9 +252,13 @@ const LyricSection: React.FC<any> = ({ currentLyric, lyricProgress, section, t, 
     <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", pointerEvents: "none", padding: "0 100px" }}>
       <div style={{ textAlign: "center", maxWidth: 1100 }}>
         {isChorus ? (
-          // Chorus: Large hero text with split bounce
-          <div style={{ fontSize: section.typography.size * typoScale, fontWeight: section.typography.weight, letterSpacing: section.typography.spacing, fontFamily: section.typography.family, color: "#ffffff", textShadow: `0 0 40px ${section.palette.glow}40`, transform: `scale(${1 + bass * 0.02})` }}>
-            {currentLyric.text}
+          // Chorus: Large hero text with split bounce animation
+          <div style={{ fontSize: section.typography.size * typoScale, fontWeight: section.typography.weight, letterSpacing: section.typography.spacing, fontFamily: section.typography.family, color: "#ffffff", textShadow: `0 0 40px ${section.palette.glow}40`, transform: `scale(${1 + bass * 0.03})`, opacity: interpolate(lyricProgress, [0, 0.1], [0, 1]), transition: "opacity 0.3s" }}>
+            {currentLyric.text.split("").map((ch: string, i: number) => (
+              <span key={i} style={{ display: "inline-block", transform: `translateY(${Math.sin(t * 3 + i * 0.5) * (2 + bass * 5)}px)`, opacity: lyricProgress > i / currentLyric.text.length ? 1 : 0.3 }}>
+                {ch === " " ? "\u00A0" : ch}
+              </span>
+            ))}
           </div>
         ) : isBreakdown ? (
           // Breakdown: Spaced minimal
@@ -269,13 +273,14 @@ const LyricSection: React.FC<any> = ({ currentLyric, lyricProgress, section, t, 
             })}
           </div>
         ) : (
-          // Verse/Intro/Outro: Clean readable
+          // Verse/Intro/Outro: Clean readable with per-word animation
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
             {words.map((w: string, i: number) => {
               const active = lyricProgress >= i / words.length && lyricProgress < (i + 1) / words.length;
               const appeared = lyricProgress >= (i + 1) / words.length;
+              // Stagger animation based on word index
               return (
-                <span key={i} style={{ fontFamily: section.typography.family, fontSize: section.typography.size * typoScale, fontWeight: active ? section.typography.weight + 100 : section.typography.weight, letterSpacing: section.typography.spacing, color: appeared ? "#ffffff" : active ? section.palette.glow : `rgba(255,255,255,0.25)`, textShadow: active ? `0 0 12px ${section.palette.glow}40` : "none" }}>
+                <span key={i} style={{ fontFamily: section.typography.family, fontSize: section.typography.size * typoScale, fontWeight: active ? section.typography.weight + 100 : section.typography.weight, letterSpacing: section.typography.spacing, color: appeared ? "#ffffff" : active ? section.palette.glow : `rgba(255,255,255,0.25)`, textShadow: active ? `0 0 12px ${section.palette.glow}40` : "none", transform: active ? "translateY(-3px)" : "none", opacity: interpolate(lyricProgress, [i / words.length, i / words.length + 0.05], [0, 1]), transition: "all 0.2s ease" }}>
                   {w}
                 </span>
               );
