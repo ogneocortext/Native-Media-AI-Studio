@@ -379,7 +379,7 @@ def run():
         host=config.backend_host,
         port=port,
         log_level=config.log_level.lower(),
-        ws="websockets-sansio",
+        ws="websockets",
     )
     server = uvicorn.Server(uvicorn_config)
     asyncio.run(server.serve())

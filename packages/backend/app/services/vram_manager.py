@@ -276,7 +276,9 @@ class VRAMManager:
             # Still not enough VRAM - check if we can safely offload to CPU
             if self._ollama_loaded and self._can_safely_offload():
                 logger.info("VRAM Manager: Offloading Ollama to CPU (system RAM sufficient)")
-                offload_result = await self._unload_ollama_models()
+                unloaded = await _unload_ollama_models()
+                self._ollama_loaded = False
+                offload_result = {"action": "offload_ollama", "success": True, "models": unloaded}
                 actions.append(offload_result)
                 vram = await self.get_vram_status()
                 return {
@@ -366,7 +368,12 @@ class VRAMManager:
                 free_mb = vram.get("free_mb", 0)
                 if free_mb > self.MIN_VRAM_FOR_3D:
                     logger.info("VRAM Manager: Reloading Ollama models (free=%dMB)", free_mb)
-                    reload_result = await self._reload_ollama_models()
+                    # Get the last used model from Ollama adapter
+                    from ..adapters.ollama import ollama_adapter
+                    last_model = getattr(ollama_adapter, '_last_model', 'qwen3.5:4b')
+                    reload_ok = await _reload_ollama_models(last_model)
+                    self._ollama_loaded = reload_ok
+                    reload_result = {"action": "reload_ollama", "success": reload_ok, "model": last_model}
                     actions.append(reload_result)
                 else:
                     logger.warning("VRAM Manager: Not enough VRAM to reload Ollama "
@@ -379,104 +386,86 @@ class VRAMManager:
                 "ollama_loaded": self._ollama_loaded,
             }
 
-    async def _unload_ollama_models(self) -> dict[str, Any]:
-        """
-        Unload Ollama models from GPU to free VRAM.
-        Queries Ollama API for loaded models, then sends keep_alive=0 to unload.
-        """
+def _unload_ollama_models_sync() -> list[str]:
+    """Synchronous helper to unload Ollama models. Returns list of unloaded model names."""
+    import urllib.request
+    import json
+
+    # Get the list of loaded models
+    loaded_models: list[str] = []
+    try:
+        req = urllib.request.Request("http://127.0.0.1:11434/api/ps")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+            loaded_models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+    except Exception:
+        pass
+
+    if not loaded_models:
+        # Fallback: try the last known model
         try:
-            import urllib.request
-            import json
+            from ..adapters.ollama import ollama_adapter as _ollama_adapter
+            last_model = getattr(_ollama_adapter, '_last_model', None)
+            if last_model:
+                loaded_models = [last_model]
+        except Exception:
+            pass
 
-            # First, get the list of loaded models
-            loaded_models = []
-            try:
-                req = urllib.request.Request("http://127.0.0.1:11434/api/ps")
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    data = json.loads(resp.read())
-                    loaded_models = data.get("models", [])
-            except Exception:
-                pass
-
-            if not loaded_models:
-                # Fallback: try the last known model
-                try:
-                    from ..adapters.ollama import ollama_adapter as _ollama_adapter
-                    last_model = getattr(_ollama_adapter, '_last_model', None)
-                except Exception:
-                    last_model = None
-                if last_model:
-                    loaded_models = [{"name": last_model}]
-
-            # Unload each loaded model
-            for model_info in loaded_models:
-                model_name = model_info.get("name", "")
-                if not model_name:
-                    continue
-                try:
-                    data = json.dumps({
-                        "model": model_name,
-                        "prompt": " ",
-                        "keep_alive": 0,
-                    }).encode()
-                    req = urllib.request.Request(
-                        "http://127.0.0.1:11434/api/generate",
-                        data=data,
-                        headers={"Content-Type": "application/json"},
-                        method="POST",
-                    )
-                    with urllib.request.urlopen(req, timeout=5):
-                        pass
-                    logger.info("VRAM Manager: Unloaded Ollama model: %s", model_name)
-                except Exception:
-                    pass  # Timeout is expected since we're unloading
-
-            self._ollama_loaded = False
-            logger.info("VRAM Manager: Ollama models offloaded from GPU")
-            return {"action": "offload_ollama", "success": True}
-
-        except Exception as e:
-            logger.error("VRAM Manager: Failed to offload Ollama: %s", e)
-            return {"action": "offload_ollama", "success": False, "error": str(e)}
-
-    async def _reload_ollama_models(self) -> dict[str, Any]:
-        """
-        Reload Ollama models to GPU.
-        This sends a request to Ollama to load the model back.
-        """
+    # Unload each loaded model
+    for model_name in loaded_models:
         try:
-            import urllib.request
-            import json
-
-            # Get the last used model from Ollama adapter
-            from ..adapters.ollama import ollama_adapter
-            last_model = getattr(ollama_adapter, '_last_model', 'qwen3.5:4b')
-
-            # Ollama API: POST /api/generate with keep_alive=-1 loads model permanently
             data = json.dumps({
-                "model": last_model,
+                "model": model_name,
                 "prompt": " ",
-                "keep_alive": -1
+                "keep_alive": 0,
             }).encode()
-
             req = urllib.request.Request(
                 "http://127.0.0.1:11434/api/generate",
                 data=data,
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
+            with urllib.request.urlopen(req, timeout=5):
+                pass
+            logger.info("VRAM Manager: Unloaded Ollama model: %s", model_name)
+        except Exception:
+            pass  # Timeout is expected since we're unloading
 
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                # Read the response to ensure model is loaded
-                resp.read()
+    return loaded_models
 
-            self._ollama_loaded = True
-            logger.info("VRAM Manager: Ollama models reloaded to GPU (model=%s)", last_model)
-            return {"action": "reload_ollama", "success": True, "model": last_model}
 
-        except Exception as e:
-            logger.error("VRAM Manager: Failed to reload Ollama: %s", e)
-            return {"action": "reload_ollama", "success": False, "error": str(e)}
+def _reload_ollama_models_sync(model_name: str) -> bool:
+    """Synchronous helper to reload an Ollama model. Returns True on success."""
+    import urllib.request
+    import json
+
+    data = json.dumps({
+        "model": model_name,
+        "prompt": " ",
+        "keep_alive": -1
+    }).encode()
+
+    req = urllib.request.Request(
+        "http://127.0.0.1:11434/api/generate",
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        resp.read()
+
+    return True
+
+
+async def _unload_ollama_models() -> list[str]:
+    """Async wrapper to unload Ollama models without blocking the event loop."""
+    return await asyncio.to_thread(_unload_ollama_models_sync)
+
+
+async def _reload_ollama_models(model_name: str) -> bool:
+    """Async wrapper to reload an Ollama model without blocking the event loop."""
+    return await asyncio.to_thread(_reload_ollama_models_sync, model_name)
 
     async def check_and_prevent_oom(self) -> dict[str, Any] | None:
         """
@@ -497,7 +486,9 @@ class VRAMManager:
             # Critical VRAM - only offload if system can handle it
             if self._can_safely_offload():
                 logger.warning("VRAM Manager: CRITICAL VRAM (%.1f%%) - emergency offload", percent)
-                result = await self._unload_ollama_models()
+                unloaded = await _unload_ollama_models()
+                self._ollama_loaded = False
+                result = {"action": "emergency_offload", "success": True, "models": unloaded}
                 return {
                     "action": "emergency_offload",
                     "vram_percent": percent,

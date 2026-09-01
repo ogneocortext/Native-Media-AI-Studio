@@ -42,8 +42,8 @@ _GIT_PATHS = [
 ]
 
 
-def _find_git() -> str:
-    """Find the git executable on the system."""
+def _find_git() -> str | None:
+    """Find the git executable on the system. Returns None if not found."""
     # First try the PATH
     try:
         result = subprocess.run(
@@ -61,7 +61,7 @@ def _find_git() -> str:
         if os.path.isfile(path):
             return path
 
-    return "git"  # Fallback to PATH
+    return None  # Git not found
 
 
 class ComfyUIManager:
@@ -350,6 +350,12 @@ class ComfyUIManager:
         try:
             # Find git executable
             git_exe = _find_git()
+            if git_exe is None:
+                return {
+                    "success": False,
+                    "message": "Git is not available on this system",
+                    "hint": "Install Git to enable ComfyUI updates",
+                }
             logger.info("Using git executable: %s", git_exe)
 
             # Check if git is available
