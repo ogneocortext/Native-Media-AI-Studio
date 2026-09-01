@@ -27,6 +27,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useHealthStore } from "../../state/healthStore";
 import { useUIStore } from "../../state/uiStore";
 import { getApiBase, getLoadedModels } from "../../services/api";
+import { getVideoEditorUrl } from "../../services/portConfig";
 import type { DiagnosticsModelsResponse } from "../../services/api";
 import { formatElapsed } from "../../utils/format";
 
@@ -45,11 +46,15 @@ const createNav: NavItem[] = [
   { path: "/ai-tools", label: "AI Tools", icon: <Brain size={18} /> },
 ];
 
+// External links (dynamic ports)
+const externalNav: NavItem[] = [
+  { path: getVideoEditorUrl(), label: "Remotion Studio", icon: <Film size={18} /> },
+];
+
 const generateNav: NavItem[] = [
   { path: "/image-generation", label: "Image Gen", icon: <Image size={18} /> },
   { path: "/video-generation", label: "Video Gen", icon: <Film size={18} /> },
   { path: "/generate-3d", label: "3D Gen", icon: <Box size={18} /> },
-  { path: "http://localhost:3000", label: "Remotion Studio", icon: <Film size={18} /> },
 ];
 
 const manageNav: NavItem[] = [
@@ -258,6 +263,7 @@ export function Sidebar() {
           <NavSection title="Start" items={primaryNav} location={location} collapsed={collapsed && !isMobile} />
           <NavSection title="Create" items={createNav} location={location} collapsed={collapsed && !isMobile} />
           <NavSection title="Generate" items={generateNav} location={location} collapsed={collapsed && !isMobile} />
+          <NavSection title="External" items={externalNav} location={location} collapsed={collapsed && !isMobile} />
           <NavSection title="Manage" items={manageNav} location={location} collapsed={collapsed && !isMobile} />
           <NavSection title="System" items={systemNav} location={location} collapsed={collapsed && !isMobile} />
         </nav>

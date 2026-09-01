@@ -127,13 +127,13 @@ export function getApiBaseUrl(): string {
 
 /**
  * Get the Remotion Video Editor studio URL.
- * The studio runs on port 3000 (see config/ports.json `video_editor_port`).
+ * The studio runs on the port configured in config/ports.json (default: 8080).
  */
 export function getVideoEditorUrl(): string {
   if (!cachedConfig) {
-    return "http://localhost:3000";
+    return "http://localhost:8080";
   }
-  const port = cachedConfig.video_editor_port ?? 3000;
+  const port = cachedConfig.video_editor_port ?? 8080;
   return `http://localhost:${port}`;
 }
 
