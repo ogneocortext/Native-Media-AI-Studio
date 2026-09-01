@@ -203,19 +203,19 @@ const BackgroundSection: React.FC<any> = ({ section, t, bass, camScale, camX, ca
 
 // ─── Particles Layer Component ───
 const ParticlesLayer: React.FC<any> = ({ t, bass, isChorus, isBreakdown, isBeat, beatSpring, section }) => {
-  const opacity = isBreakdown ? 0.15 : isChorus ? 0.5 : 0.3;
-  const particleCount = isChorus ? 35 : 20;
-  const beatBounce = isBeat ? (beatSpring - 0.5) * 8 : 0;
+  const opacity = isBreakdown ? 0.2 : isChorus ? 0.6 : 0.4;
+  const particleCount = isChorus ? 40 : 25;
+  const beatBounce = isBeat ? (beatSpring - 0.5) * 10 : 0;
 
   return (
     <AbsoluteFill style={{ pointerEvents: "none", opacity }}>
       {Array.from({ length: particleCount }).map((_, i) => {
-        const speed = 0.15 + (i % 4) * 0.08;
-        const size = 1.5 + (i % 3) * 1.2;
+        const speed = 0.2 + (i % 4) * 0.1;
+        const size = 2 + (i % 3) * 1.5;
         const startX = (i * 137.5) % 100;
-        const startY = 15 + (i * 73) % 65;
-        const x = (startX + t * speed * 3) % 110 - 5;
-        const y = startY + Math.sin(t * 0.4 + i * 0.7) * 10 + beatBounce;
+        const startY = 12 + (i * 73) % 70;
+        const x = (startX + t * speed * 3.5) % 110 - 5;
+        const y = startY + Math.sin(t * 0.5 + i * 0.7) * 12 + beatBounce;
 
         return (
           <div
@@ -224,13 +224,13 @@ const ParticlesLayer: React.FC<any> = ({ t, bass, isChorus, isBreakdown, isBeat,
               position: "absolute",
               left: `${x}%`,
               top: `${y}%`,
-              width: size * (1 + bass * 0.5),
-              height: size * (1 + bass * 0.5),
+              width: size * (1 + bass * 0.6),
+              height: size * (1 + bass * 0.6),
               borderRadius: "50%",
               background: i % 3 === 0 ? section.palette.glow : section.palette.primary,
-              opacity: 0.4 + (i % 3) * 0.2 + bass * 0.15,
-              boxShadow: i % 4 === 0 ? `0 0 ${4 + bass * 8}px ${section.palette.glow}50` : "none",
-              transform: `scale(${1 + (isBeat ? bass * 0.3 : 0)})`,
+              opacity: 0.5 + (i % 3) * 0.25 + bass * 0.2,
+              boxShadow: i % 3 === 0 ? `0 0 ${6 + bass * 12}px ${section.palette.glow}60` : "none",
+              transform: `scale(${1 + (isBeat ? bass * 0.4 : 0)})`,
             }}
           />
         );
@@ -256,17 +256,17 @@ const Scene3DLayer: React.FC<any> = ({ section, t, bass, mid, treble, beatSpring
         <pointLight position={[3, 2, -2]} intensity={0.2 + mid * 0.3} color={section.palette.primary} />
         <group scale={scale} rotation={[t * 0.15 + bass * 0.1, t * 0.25 + bass * 0.2, Math.sin(t * 0.2) * 0.05]} position={[posX, posY, -1] as any}>
           <mesh>
-            <icosahedronGeometry args={[0.8, 0]} />
-            <meshStandardMaterial color={section.palette.primary} emissive={section.palette.glow} emissiveIntensity={0.25 + treble * 0.5} metalness={0.85} roughness={0.12} />
+            <icosahedronGeometry args={[0.9, 0]} />
+            <meshStandardMaterial color={section.palette.primary} emissive={section.palette.glow} emissiveIntensity={0.4 + treble * 0.6} metalness={0.85} roughness={0.12} />
           </mesh>
           <mesh scale={1.03}>
-            <icosahedronGeometry args={[0.8, 1]} />
-            <meshBasicMaterial color={section.palette.glow} wireframe transparent opacity={0.08 + bass * 0.08} />
+            <icosahedronGeometry args={[0.9, 1]} />
+            <meshBasicMaterial color={section.palette.glow} wireframe transparent opacity={0.12 + bass * 0.1} />
           </mesh>
           {/* Inner glow core */}
-          <mesh scale={0.4}>
-            <sphereGeometry args={[0.5, 16, 16]} />
-            <meshBasicMaterial color={section.palette.glow} transparent opacity={0.15 + bass * 0.2} />
+          <mesh scale={0.45}>
+            <sphereGeometry args={[0.6, 16, 16]} />
+            <meshBasicMaterial color={section.palette.glow} transparent opacity={0.25 + bass * 0.3} />
           </mesh>
         </group>
       </ThreeCanvas>
