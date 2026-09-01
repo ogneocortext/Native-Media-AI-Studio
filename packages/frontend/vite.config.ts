@@ -114,8 +114,9 @@ export default defineConfig(({ mode }) => {
         "animejs",
         "lucide-react",
         "zustand",
+        "@theatre/core",
+        "@theatre/studio",
       ],
-      exclude: ["@theatre/studio", "@theatre/core"],
     },
     build: {
       outDir: "dist",
