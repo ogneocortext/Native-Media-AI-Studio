@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Box, Play, Pause, Sparkles, Download, Settings, Circle, Square,
-  ChevronDown, ChevronUp, Music, Zap, FileCode, Maximize2, Minimize2,
+  ChevronDown, ChevronUp, Music, Zap, FileCode, Maximize2, Minimize2, User,
 } from "lucide-react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -14,6 +14,7 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { RGBShiftShader } from "three/examples/jsm/shaders/RGBShiftShader.js";
 import { FilmShader } from "three/examples/jsm/shaders/FilmShader.js";
 import { VignetteShader } from "three/examples/jsm/shaders/VignetteShader.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { listAudioFiles } from "../../services/api";
 import { useUIStore } from "../../state/uiStore";
 import { useBeatTimeline } from "../../hooks/useBeatTimeline";
@@ -52,21 +53,21 @@ export function ThreeJSStudio() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>(0);
-  const sceneRef = useRef<any>(null);
-  const rendererRef = useRef<any>(null);
-  const cameraRef = useRef<any>(null);
-  const objectsMapRef = useRef<Map<string, any>>(new Map());
-  const particlesRef = useRef<any>(null);
-  const clockRef = useRef<any>(null);
-  const bloomPassRef = useRef<any>(null);
-  const bloomComposerRef = useRef<any>(null);
-  const finalComposerRef = useRef<any>(null);
-  const composerRef = useRef<any>(null);
-  const caPassRef = useRef<any>(null);
-  const grainPassRef = useRef<any>(null);
-  const vignettePassRef = useRef<any>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const objectsMapRef = useRef<Map<string, THREE.Object3D>>(new Map());
+  const particlesRef = useRef<THREE.Points | null>(null);
+  const clockRef = useRef<THREE.Clock | null>(null);
+  const bloomPassRef = useRef<UnrealBloomPass | null>(null);
+  const bloomComposerRef = useRef<EffectComposer | null>(null);
+  const finalComposerRef = useRef<EffectComposer | null>(null);
+  const composerRef = useRef<EffectComposer | null>(null);
+  const caPassRef = useRef<ShaderPass | null>(null);
+  const grainPassRef = useRef<FilmPass | null>(null);
+  const vignettePassRef = useRef<ShaderPass | null>(null);
   const shakeRef = useRef(0);
-  const bgImageTextureRef = useRef<any>(null);
+  const bgImageTextureRef = useRef<THREE.Texture | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
@@ -74,6 +75,7 @@ export function ThreeJSStudio() {
   const audioFreqArrayRef = useRef<Uint8Array | null>(null);
   const threeRef = useRef<any>(null);
   const lastUiUpdateRef = useRef(0);
+  const characterMixersRef = useRef<Map<string, any>>(new Map());
 
   // ---- State ----
   const [isPlaying, setIsPlaying] = useState(false);
@@ -110,6 +112,12 @@ export function ThreeJSStudio() {
 
   const { analysis: beatAnalysis, loading: beatLoading, error: beatError, getCurrentBeat } = useBeatTimeline(selectedTrack || null);
   const getCurrentBeatRef = useRef(getCurrentBeat);
+
+  // Character animation state per object
+  const characterAnimDataRef = useRef<Map<string, { mixer: any; action: any; clips: string[] }>>(new Map());
+  const [characterAnimState, setCharacterAnimState] = useState<{ isPlaying: boolean; currentTime: number; duration: number; clipNames: string[] } | undefined>(undefined);
+  const characterAnimStateRef = useRef(characterAnimState);
+  useEffect(() => { characterAnimStateRef.current = characterAnimState; }, [characterAnimState]);
   useEffect(() => { getCurrentBeatRef.current = getCurrentBeat; }, [getCurrentBeat]);
 
   // ---- Refs for animation loop access ----
@@ -202,6 +210,148 @@ export function ThreeJSStudio() {
     else if (obj.type === "cone") { meshGroup = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.5, 32), mat); }
     else if (obj.type === "torus") { meshGroup = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.25, 16, 32), mat); }
     else if (obj.type === "bars") { meshGroup = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1, 0.12), mat); }
+    else if (obj.type === "character") {
+      if (obj.modelUrl) {
+        const loader = new GLTFLoader();
+        const url = obj.modelUrl;
+        meshGroup = await new Promise<any>((resolve) => {
+          loader.load(url, (gltf) => {
+            const model = gltf.scene;
+            model.traverse((child: any) => {
+              if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                child.layers.set(0);
+                if (obj.bloom) child.layers.enable(BLOOM_LAYER);
+              }
+            });
+            const mixer = new THREE.AnimationMixer(model);
+            if (gltf.animations && gltf.animations.length > 0) {
+              const requestedName = obj.animationName || gltf.animations[0].name;
+              const clipName = gltf.animations.find((a: any) => a.name === requestedName)
+                ? requestedName
+                : gltf.animations[0].name;
+              const action = mixer.clipAction(
+                gltf.animations.find((a: any) => a.name === clipName) || gltf.animations[0]
+              );
+              action.setLoop(obj.animationLoop !== false ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+              action.setEffectiveTimeScale(obj.animationSpeed ?? 1);
+              action.play();
+              characterAnimDataRef.current.set(obj.id, {
+                mixer,
+                action,
+                clips: gltf.animations.map((a: any) => a.name),
+              });
+            } else {
+              characterAnimDataRef.current.set(obj.id, { mixer, action: null, clips: [] });
+            }
+            characterMixersRef.current.set(obj.id, mixer);
+            resolve(model);
+          }, undefined, () => {
+            const fallback = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({
+              color: new THREE.Color(obj.color),
+              metalness: 0.1, roughness: 0.7,
+              emissive: new THREE.Color(obj.emissive), emissiveIntensity: obj.emissiveIntensity,
+            });
+            const headMat = new THREE.MeshStandardMaterial({
+              color: new THREE.Color(obj.color).multiplyScalar(1.1),
+              metalness: 0.8, roughness: 0.2,
+              emissive: new THREE.Color(obj.emissive), emissiveIntensity: obj.emissiveIntensity * 0.5,
+            });
+            const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1.0, 8, 16), bodyMat);
+            body.position.y = 0.8;
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 24, 24), headMat);
+            head.position.set(0, 1.58, 0.02);
+            const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.6, 4, 8), bodyMat);
+            armL.position.set(-0.42, 1.0, 0); armL.rotation.z = 0.15; armL.rotation.x = -0.05;
+            const armR = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.6, 4, 8), bodyMat);
+            armR.position.set(0.42, 1.0, 0); armR.rotation.z = -0.15; armR.rotation.x = -0.05;
+            const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.5, 4, 8), bodyMat);
+            legL.position.set(-0.15, 0.15, 0);
+            const legR = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.5, 4, 8), bodyMat);
+            legR.position.set(0.15, 0.15, 0);
+            const shadowCanvas = document.createElement('canvas');
+            shadowCanvas.width = 128; shadowCanvas.height = 128;
+            const ctx = shadowCanvas.getContext('2d')!;
+            const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            gradient.addColorStop(0, 'rgba(0,0,0,0.5)');
+            gradient.addColorStop(0.5, 'rgba(0,0,0,0.3)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 128, 128);
+            const shadowTex = new THREE.CanvasTexture(shadowCanvas);
+            const shadowContact = new THREE.Mesh(
+              new THREE.PlaneGeometry(1.2, 1.2),
+              new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false })
+            );
+            shadowContact.rotation.x = -Math.PI / 2; shadowContact.position.y = 0.01;
+            fallback.rotation.x = 0.03;
+            fallback.add(body, head, armL, armR, legL, legR, shadowContact);
+            fallback.traverse((c: any) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+            resolve(fallback);
+          });
+        });
+      } else {
+        const group = new THREE.Group();
+        const bodyMat = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(obj.color),
+          metalness: 0.1,
+          roughness: 0.7,
+          emissive: new THREE.Color(obj.emissive),
+          emissiveIntensity: obj.emissiveIntensity,
+        });
+        const headMat = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(obj.color).multiplyScalar(1.1),
+          metalness: 0.8,
+          roughness: 0.2,
+          emissive: new THREE.Color(obj.emissive),
+          emissiveIntensity: obj.emissiveIntensity * 0.5,
+        });
+        // Torso
+        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1.0, 8, 16), bodyMat);
+        body.position.y = 0.8;
+        // Head (slightly forward for natural look)
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 24, 24), headMat);
+        head.position.set(0, 1.58, 0.02);
+        // Arms with slight bend
+        const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.6, 4, 8), bodyMat);
+        armL.position.set(-0.42, 1.0, 0);
+        armL.rotation.z = 0.15;
+        armL.rotation.x = -0.05;
+        const armR = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.6, 4, 8), bodyMat);
+        armR.position.set(0.42, 1.0, 0);
+        armR.rotation.z = -0.15;
+        armR.rotation.x = -0.05;
+        // Legs with slight stance
+        const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.5, 4, 8), bodyMat);
+        legL.position.set(-0.15, 0.15, 0);
+        const legR = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.5, 4, 8), bodyMat);
+        legR.position.set(0.15, 0.15, 0);
+        // Soft contact shadow with radial gradient
+        const shadowCanvas = document.createElement('canvas');
+        shadowCanvas.width = 128; shadowCanvas.height = 128;
+        const ctx = shadowCanvas.getContext('2d')!;
+        const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+        gradient.addColorStop(0, 'rgba(0,0,0,0.5)');
+        gradient.addColorStop(0.5, 'rgba(0,0,0,0.3)');
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 128, 128);
+        const shadowTex = new THREE.CanvasTexture(shadowCanvas);
+        const shadowContact = new THREE.Mesh(
+          new THREE.PlaneGeometry(1.2, 1.2),
+          new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false })
+        );
+        shadowContact.rotation.x = -Math.PI / 2;
+        shadowContact.position.y = 0.01;
+        // Apply contrapposto pose to the whole group
+        group.rotation.x = 0.03;
+        group.add(body, head, armL, armR, legL, legR, shadowContact);
+        group.traverse((c: any) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+        meshGroup = group;
+      }
+    }
     else { meshGroup = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat); }
     meshGroup.position.set(...obj.position);
     meshGroup.rotation.set(...obj.rotation);
@@ -210,7 +360,7 @@ export function ThreeJSStudio() {
     meshGroup.castShadow = true;
     meshGroup.receiveShadow = true;
     const targetLayer = obj.bloom ? BLOOM_LAYER : 0;
-    meshGroup.traverse((child: any) => { if (child.isMesh) child.layers.set(targetLayer); });
+    meshGroup.traverse((child: any) => { if (child.isMesh) { child.layers.set(0); if (obj.bloom) child.layers.enable(BLOOM_LAYER); } });
     return meshGroup;
   }, []);
 
@@ -273,6 +423,29 @@ export function ThreeJSStudio() {
     else if (t === "lightning") geometry = new THREE.ConeGeometry(0.1, 3, 4);
     else if (t === "fire") geometry = new THREE.ConeGeometry(0.5, 2, 8);
     else if (t === "snow" || t === "rain") geometry = new THREE.SphereGeometry(0.05, 8, 8);
+    else if (t === "character") {
+      const group = new THREE.Group();
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(objDesc.color || "#fbbf24"),
+        metalness: objDesc.metalness ?? 0.1,
+        roughness: objDesc.roughness ?? 0.7,
+        emissive: new THREE.Color(objDesc.emissive || "#1a1000"),
+        emissiveIntensity: objDesc.emissiveIntensity ?? 0.1,
+      });
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1.0, 8, 16), bodyMat);
+      body.position.y = 0.8;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), bodyMat);
+      head.position.y = 1.6;
+      group.add(body, head);
+      group.castShadow = true;
+      const gpos = objDesc.position as [number, number, number] || [0, 0, 0];
+      const gscl = objDesc.scale as [number, number, number] || [1.5, 1.5, 1.5];
+      group.position.set(gpos[0], gpos[1], gpos[2]);
+      group.scale.set(gscl[0], gscl[1], gscl[2]);
+      if (objDesc.rotation) group.rotation.set(...(objDesc.rotation as [number, number, number]));
+      scene.add(group);
+      return;
+    }
     else if (t === "text" || t === "particle_field" || t === "light_rays" || t === "lens_flare") {
       return; // Special effects, skip geometry
     }
@@ -610,8 +783,12 @@ export function ThreeJSStudio() {
               mesh.scale.set(s[0] * pulse, s[1] * pulse, s[2] * pulse);
             }
           }
-        });
-        if (particlesRef.current && particleConfigRef.current.enabled && isPlay) {
+});
+         // Tick character animation mixers
+         if (isPlay) {
+           characterMixersRef.current.forEach((mixer) => { mixer.update(delta); });
+         }
+         if (particlesRef.current && particleConfigRef.current.enabled && isPlay) {
           const pos = particlesRef.current.geometry.attributes.position.array;
           const spd = particleConfigRef.current.speed * (1 + audioBass * 2);
           for (let i = 0; i < pos.length; i += 3) { pos[i + 1] += delta * spd * 0.4; if (pos[i + 1] > particleConfigRef.current.spread) pos[i + 1] = 0; }
@@ -711,7 +888,14 @@ export function ThreeJSStudio() {
       if (cancelled) return;
       const scene = sceneRef.current;
       const ids = new Set(objects.map((o) => o.id));
-      objectsMapRef.current.forEach((mesh, id) => { if (!ids.has(id)) { scene.remove(mesh); objectsMapRef.current.delete(id); } });
+      objectsMapRef.current.forEach((mesh, id) => {
+        if (!ids.has(id)) {
+          scene.remove(mesh);
+          objectsMapRef.current.delete(id);
+          characterMixersRef.current.delete(id);
+          characterAnimDataRef.current.delete(id);
+        }
+      });
       // Use sequential async iteration instead of forEach+async to avoid race conditions
       (async () => {
         for (const obj of objects) {
@@ -723,10 +907,21 @@ export function ThreeJSStudio() {
             mesh.position.set(...obj.position);
             mesh.rotation.set(...obj.rotation);
             mesh.scale.set(...obj.scale);
+            // For character type with changed modelUrl, reload the model
+            if (obj.type === "character" && obj.modelUrl && (mesh as any).__modelUrl !== obj.modelUrl) {
+              scene.remove(mesh);
+              const newMesh = await createMeshForObject(obj, THREE);
+              if (!cancelled) {
+                scene.add(newMesh);
+                objectsMapRef.current.set(obj.id, newMesh);
+                (newMesh as any).__modelUrl = obj.modelUrl;
+              }
+              continue;
+            }
             const um = (m: any) => { if (m.material) { if (m.material.color) m.material.color.set(obj.color); if (m.material.emissive) m.material.emissive.set(obj.emissive); m.material.metalness = obj.metalness; m.material.roughness = obj.roughness; m.material.emissiveIntensity = obj.emissiveIntensity; } };
             if (mesh.isGroup) mesh.traverse(um); else um(mesh);
             const tl = obj.bloom ? BLOOM_LAYER : 0;
-            mesh.traverse((c: any) => { if (c.isMesh) c.layers.set(tl); });
+            mesh.traverse((c: any) => { if (c.isMesh) { c.layers.set(0); if (obj.bloom) c.layers.enable(BLOOM_LAYER); } });
           }
         }
       })();
@@ -826,27 +1021,25 @@ export function ThreeJSStudio() {
     }
   }, [libraryTracks, selectedTrack]);
 
-  // Fetch metadata (BPM/duration) for loaded tracks
+  // Fetch metadata (BPM/duration) for selected track only
   useEffect(() => {
-    if (libraryTracks.length === 0) return;
+    if (!selectedTrack) { setTrackMetadata({}); return; }
     const fetchMetadata = async () => {
       const metadata: Record<string, { bpm?: number; duration?: number }> = {};
-      await Promise.all(libraryTracks.map(async (t) => {
-        try {
-          const res = await fetch(`/api/audio/analysis/${encodeURIComponent(t.filename)}`);
-          if (res.ok) {
-            const data: any = await res.json();
-            metadata[t.filename] = {
-              bpm: data.tempo_bpm ? Math.round(data.tempo_bpm) : undefined,
-              duration: data.duration_seconds ? Math.round(data.duration_seconds) : undefined,
-            };
-          }
-        } catch { /* ignore */ }
-      }));
+      try {
+        const res = await fetch(`/api/audio/analysis/${encodeURIComponent(selectedTrack)}`);
+        if (res.ok) {
+          const data: any = await res.json();
+          metadata[selectedTrack] = {
+            bpm: data.tempo_bpm ? Math.round(data.tempo_bpm) : undefined,
+            duration: data.duration_seconds ? Math.round(data.duration_seconds) : undefined,
+          };
+        }
+      } catch { /* ignore */ }
       setTrackMetadata(metadata);
     };
     fetchMetadata();
-  }, [libraryTracks]);
+  }, [selectedTrack]);
 
   // ---- Load library images ----
   useEffect(() => {
@@ -869,13 +1062,17 @@ export function ThreeJSStudio() {
   // ---- Event handlers ----
   const addObject = (type: AnimObject["type"]) => {
     const id = `${type}-${Date.now()}`;
-    const offset = (objects.length % 5) * 1.5 - 3;
+    const isCharacter = type === "character";
     const newObj: AnimObject = {
-      id, name: `${type.charAt(0).toUpperCase() + type.slice(1)} ${objects.length + 1}`, type,
-      position: [offset, 0.5, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
-      color: type === "sphere" ? "#60a5fa" : type === "box" ? "#a855f7" : type === "torus" ? "#f43f5e" : "#e2e8f0",
-      metalness: 0.6, roughness: 0.3, emissive: "#000000", emissiveIntensity: 0.1,
-      visible: true, bobSpeed: 1.5, bobAmount: 0.15, rotateSpeed: 0.4, bloom: type === "crown",
+      id, name: isCharacter ? `Character ${objects.length + 1}` : `${type.charAt(0).toUpperCase() + type.slice(1)} ${objects.length + 1}`, type,
+      position: [0, isCharacter ? 0 : 0.5, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
+      color: type === "sphere" ? "#60a5fa" : type === "box" ? "#a855f7" : type === "torus" ? "#f43f5e" : isCharacter ? "#fbbf24" : "#e2e8f0",
+      metalness: isCharacter ? 0.1 : 0.6, roughness: isCharacter ? 0.7 : 0.3, emissive: isCharacter ? "#1a1000" : "#000000", emissiveIntensity: 0.1,
+      visible: true, bobSpeed: 1.0, bobAmount: isCharacter ? 0.05 : 0.15, rotateSpeed: 0.2, bloom: type === "crown" || isCharacter,
+      modelUrl: isCharacter ? "/models/character_rigged.glb" : undefined,
+      animationName: undefined,
+      animationSpeed: 1,
+      animationLoop: true,
     };
     setObjects((prev) => [...prev, newObj]);
     setSelectedObject(id);
@@ -898,6 +1095,72 @@ export function ThreeJSStudio() {
     setSelectedObject(template.objects[0]?.id ?? null);
     setActiveTemplateId(template.id);
   };
+
+  // ---- Character animation controls ----
+  const refreshCharacterAnimState = useCallback((objId: string) => {
+    const data = characterAnimDataRef.current.get(objId);
+    if (data && data.action) {
+      setCharacterAnimState({
+        isPlaying: data.action.isRunning(),
+        currentTime: data.action.time,
+        duration: data.action.getClip().duration,
+        clipNames: data.clips,
+      });
+    } else {
+      setCharacterAnimState(undefined);
+    }
+  }, []);
+
+  const handleAnimPlayPause = useCallback(() => {
+    if (!selectedObject) return;
+    const data = characterAnimDataRef.current.get(selectedObject);
+    if (data && data.action) {
+      if (data.action.isRunning()) { data.action.pause(); } else { data.action.play(); }
+      refreshCharacterAnimState(selectedObject);
+    }
+  }, [selectedObject, refreshCharacterAnimState]);
+
+  const handleAnimSeek = useCallback((time: number) => {
+    if (!selectedObject) return;
+    const data = characterAnimDataRef.current.get(selectedObject);
+    if (data && data.action) {
+      data.action.time = time;
+      data.mixer.update(0);
+      refreshCharacterAnimState(selectedObject);
+    }
+  }, [selectedObject, refreshCharacterAnimState]);
+
+  const handleAnimSelect = useCallback((clipName: string) => {
+    if (!selectedObject) return;
+    const data = characterAnimDataRef.current.get(selectedObject);
+    if (data && data.mixer) {
+      const clip = data.mixer.existingAction(clipName) ? clipName : data.clips[0];
+      if (clip) {
+        data.action?.stop();
+        const newAction = data.mixer.clipAction(clip);
+        newAction.play();
+        data.action = newAction;
+        refreshCharacterAnimState(selectedObject);
+      }
+    }
+  }, [selectedObject, refreshCharacterAnimState]);
+
+  const handleViewportReset = useCallback(() => {
+    if (cameraRef.current) {
+      cameraRef.current.position.set(0, 3, 8);
+      cameraRef.current.lookAt(0, 0.5, 0);
+    }
+  }, []);
+
+  // ---- Character animation state refresh (10fps during playback) ----
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (selectedObject && characterAnimStateRef.current?.isPlaying) {
+        refreshCharacterAnimState(selectedObject);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [selectedObject, refreshCharacterAnimState]);
 
   const exportFrame = () => {
     if (!rendererRef.current) return;
@@ -963,6 +1226,8 @@ export function ThreeJSStudio() {
         <button onClick={() => addObject("crown")} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs shrink-0" title="Add Crown">👑</button>
         <button onClick={() => addObject("sphere")} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0 hidden xs:block" title="Add Sphere"><Circle size={13} /></button>
         <button onClick={() => addObject("box")} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0 hidden sm:block" title="Add Box"><Box size={13} /></button>
+          <button onClick={() => addObject("character")} className="p-1.5 bg-amber-700/50 hover:bg-amber-600/50 rounded shrink-0" title="Add Character"><User size={13} className="text-amber-200" /></button>
+          <button onClick={handleViewportReset} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0" title="Reset Camera"><Maximize2 size={13} /></button>
         <div className="flex items-center gap-1.5 sm:gap-2 ml-1 sm:ml-2 bg-gray-800/80 px-2 py-1 rounded-lg border border-gray-700 flex-1 min-w-0">
           <Music size={13} className="text-purple-400 shrink-0" />
           <select
@@ -1228,7 +1493,16 @@ export function ThreeJSStudio() {
                 onUpdateObject={updateObject} onLoadTemplate={loadTemplate}
               />
             )}
-            {drawerTab === "inspector" && <InspectorTab object={selectedObj} onUpdate={updateObject} />}
+            {drawerTab === "inspector" && (
+              <InspectorTab
+                object={selectedObj}
+                onUpdate={updateObject}
+                animationState={selectedObj?.type === "character" ? characterAnimState : undefined}
+                onAnimationPlayPause={handleAnimPlayPause}
+                onAnimationSeek={handleAnimSeek}
+                onAnimationSelect={handleAnimSelect}
+              />
+            )}
             {drawerTab === "scene" && (
               <SceneTab
                 sceneConfig={sceneConfig} particleConfig={particleConfig} cameraMode={cameraMode} fps={fps}

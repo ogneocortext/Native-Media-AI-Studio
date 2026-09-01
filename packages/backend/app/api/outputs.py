@@ -473,7 +473,7 @@ async def list_outputs(
     thumbnails are generated on-demand when opening a file.
     """
     # Fast cached scan (no FFmpeg)
-    all_outputs = await _scan_with_cache()
+    all_outputs = _scan_with_cache()
 
     if file_type:
         all_outputs = [o for o in all_outputs if o.file_type == file_type]
@@ -673,7 +673,7 @@ async def list_outputs_by_type(
         )
 
     # Use cached scan
-    all_outputs = await _scan_with_cache()
+    all_outputs = _scan_with_cache()
     filtered = [o for o in all_outputs if o.file_type == valid_types[file_type]]
     return filtered[:limit]
 

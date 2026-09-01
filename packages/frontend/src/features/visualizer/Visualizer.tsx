@@ -259,6 +259,7 @@ export function Visualizer() {
     if (!isPlaying) return;
 
     let raf: number;
+    let lastUiUpdate = 0;
     const analyse = () => {
       const analyser = analyserRef.current;
       if (analyser) {
@@ -285,7 +286,12 @@ export function Visualizer() {
 
         const newData: AudioData = { bass, mid, treble, overall, beat: false, peak, energy };
         liveAudioDataRef.current = newData;
-        setLiveAudioData(newData);
+        // Throttle UI updates to ~10fps to avoid excessive re-renders
+        const now = performance.now();
+        if (now - lastUiUpdate > 100) {
+          lastUiUpdate = now;
+          setLiveAudioData(newData);
+        }
       }
       raf = requestAnimationFrame(analyse);
     };
