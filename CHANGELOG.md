@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Security & Reliability Sweep (2026-09-01)
+- **Backend**: Added `threading.Lock` to `_output_cache` in `api/outputs.py` to prevent race conditions
+- **Backend**: Fixed TOCTOU race in `queue/manager.py` `cancel_job`/`retry_job` — moved status check inside lock
+- **Backend**: Fixed `diagnostics/health.py` — errored adapters now reported as OFFLINE instead of silently disappearing
+- **Backend**: Fixed `comfyui_manager.py` crash when detecting external ComfyUI (PID access on `None`)
+- **Backend**: Added git dirty-check before `git pull` in `comfyui_manager.py`
+- **Backend**: Added WebSocket origin validation in `main.py`
+- **Backend**: Fixed `_scan_with_cache` from `async def` → `def` (no await calls)
+- **Frontend**: Fixed ThreeJSStudio missing `encodeURIComponent` on audio URL
+- **Frontend**: Fixed ThreeJSStudio duplicate IDs using monotonic counter
+- **Frontend**: Fixed Visualizer object URL leak after download (revoke after 1s)
+- **Frontend**: Added throttled UI updates (~10fps) in Visualizer audio analysis loop
+- **Frontend**: Reused `Uint8Array` via `freqArrayRef` instead of per-frame allocation
+- **Scripts**: Fixed `manage-servers.ps1` undefined `Write-Warn2` and broken `$svc.Name` references
+- **Scripts**: Fixed `manage-servers.ps1` backend Args to use `uvicorn` module
+- **Scripts**: Fixed `start-studio.ps1` `return` inside frontend block (exits entire script)
+- **Scripts**: Fixed `start-studio.ps1` null reference after failed restart (`$s.Process` guard)
+- **MCP**: Fixed `ollama-tools-mcp.mjs` typo "chiral" → "chill"
+- **Config**: Fixed `pnpm-workspace.yaml` invalid `pmOnFail` and `allowBuilds` settings
+- **Config**: Aligned TypeScript version in `pnpm-workspace.yaml` catalog with `package.json` (^5.9.3)
+
 ### Fixed - Bug Sweep & Code Quality (2026-09-01)
 - **Backend**: Removed duplicate `adapter_registry` import in `main.py` shutdown handler
 - **Backend**: Replaced deprecated `asyncio.get_event_loop().time()` with `time.monotonic()` in `vram_manager.py` (removed in Python 3.10+)

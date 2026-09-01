@@ -28,6 +28,7 @@ A full-stack AI-powered creative production environment for music-driven media g
 
 ## Recent Changes
 
+- **Security & Reliability Sweep** — Added fetch timeouts/`res.ok` checks to all MCP servers, fixed WebSocket origin validation, fixed TOCTOU race in queue manager, added threading lock to output cache, fixed PowerShell script errors (undefined functions, broken paths), fixed pnpm workspace config
 - **Bug Sweep & Code Quality** — Fixed 18 issues across backend, frontend, and config: removed duplicate imports, fixed deprecated asyncio API, removed debug prints/memory leaks, corrected TypeScript package names, standardized config paths, added ESLint rules
 - **Memory Leak Fixes** — Queue manager auto-cleans completed/failed jobs (keeps most recent 100), resource monitor cleans stale warning entries
 - **Adapter Connection Reuse** — ComfyUI and Ollama adapters now reuse a single `aiohttp.ClientSession` per instance, eliminating a thread leak that caused health checks to time out
