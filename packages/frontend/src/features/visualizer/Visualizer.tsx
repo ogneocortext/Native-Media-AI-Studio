@@ -76,6 +76,7 @@ export function Visualizer() {
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const objectUrlRef = useRef<string | null>(null);
+  const freqArrayRef = useRef<Uint8Array | null>(null);
   const connectedElements = useRef<WeakSet<HTMLMediaElement>>(new WeakSet());
 
   // Load CSV and library
@@ -128,6 +129,7 @@ export function Visualizer() {
       analyser.fftSize = 2048;
       analyser.smoothingTimeConstant = 0.8;
       analyserRef.current = analyser;
+      freqArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
       const source = ctx.createMediaElementSource(el);
       sourceRef.current = source;
       source.connect(analyser);
@@ -260,7 +262,8 @@ export function Visualizer() {
     const analyse = () => {
       const analyser = analyserRef.current;
       if (analyser) {
-        const freqArray = new Uint8Array(analyser.frequencyBinCount);
+        const freqArray = freqArrayRef.current ?? new Uint8Array(analyser.frequencyBinCount);
+        freqArrayRef.current = freqArray;
         analyser.getByteFrequencyData(freqArray);
         const arr = freqArray;
 
