@@ -221,6 +221,11 @@ export function ThreeJSStudio() {
   const [sceneLoading, setSceneLoading] = useState(true);
   const renderPlayingRef = useRef(renderPlaying);
 
+  // Sync ref with state
+  useEffect(() => {
+    renderPlayingRef.current = renderPlaying;
+  }, [renderPlaying]);
+
   // ---- Helper: create a single scene object from JSON description ----
   const createSceneObject = useCallback((objDesc: any, THREE: any, scene: any) => {
     let geometry: any;
@@ -942,8 +947,8 @@ export function ThreeJSStudio() {
         }
       }
       if (audioContextRef.current.state === "suspended") await audioContextRef.current.resume();
-      if (isAudioPlaying) { audioElementRef.current.pause(); setIsAudioPlaying(false); }
-      else { await audioElementRef.current.play(); setIsAudioPlaying(true); setRenderPlaying(true); }
+      if (isAudioPlaying) { audioElementRef.current.pause(); setIsAudioPlaying(false); setIsPlaying(false); }
+      else { await audioElementRef.current.play(); setIsAudioPlaying(true); setIsPlaying(true); setRenderPlaying(true); }
     } catch (err) { console.error("Audio playback error:", err); }
   };
 

@@ -30,10 +30,8 @@
     "db:migrate": "cd packages/backend && D:\\conda-envs\\comfyui-cuda\\Scripts\\python.exe -c \"from app.core.database import init_db; init_db()\""
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "sharp": "^0.35.4",
     "turbo": "^2.10.12"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0"
   }
 }

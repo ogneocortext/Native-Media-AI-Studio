@@ -25,11 +25,10 @@ overrides:
 importers:
 
   .:
-    dependencies:
+    devDependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0
         version: 1.30.0(supports-color@8.1.1)(zod@4.4.3)
-    devDependencies:
       sharp:
         specifier: ^0.35.4
         version: 0.35.4(@types/node@26.4.0)
