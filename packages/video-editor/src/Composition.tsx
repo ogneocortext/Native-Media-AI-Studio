@@ -8,7 +8,7 @@ import {
   createSmoothSvgPath
 } from "@remotion/media-utils";
 import { ThreeCanvas } from "@remotion/three";
-import React from "react";
+import React, { useRef } from "react";
 
 // ─────────────────────────────────────────────────────────────
 // Signal Breaking Through The Noise — Professional Composition
@@ -122,12 +122,22 @@ const MainVideo: React.FC = () => {
   // Scale up typography for better visibility
   const typoScale = 1.3;
 
+  // ─── Beat Detection (rolling energy average) ───
+  const bassEnergy = bass;
+  const prevBassRef = useRef(0);
+  const beatThreshold = 0.35;
+  const minBeatGap = 0.15; // seconds
+  const lastBeatTimeRef = useRef(0);
+  const isBeat = bassEnergy > beatThreshold && (t - lastBeatTimeRef.current) > minBeatGap;
+  if (isBeat) lastBeatTimeRef.current = t;
+  prevBassRef.current = bassEnergy;
+
   // ─── Animation Values ───
-  const beatSpring = spring({ frame: frame % 14, fps, config: { damping: 18, stiffness: 140, mass: 0.7 } });
-  const breathe = Math.sin(t * section.camera.speed * 2) * 0.01 + 1;
-  const camScale = breathe * section.camera.scale * (isChorus ? 1 + bass * 0.03 : 1);
-  const camX = Math.sin(t * section.camera.speed) * (isChorus ? 12 : 6);
-  const camY = Math.cos(t * section.camera.speed * 0.7) * 4;
+  const beatSpring = spring({ frame: isBeat ? frame % 14 : frame % 14 - 14, fps, config: { damping: 12, stiffness: 200, mass: 0.5 } });
+  const breathe = Math.sin(t * section.camera.speed * 2) * 0.015 + 1;
+  const camScale = breathe * section.camera.scale * (isChorus ? 1 + bass * 0.05 : 1 + bass * 0.02);
+  const camX = Math.sin(t * section.camera.speed) * (isChorus ? 15 : 8) + (isBeat ? bass * 5 : 0);
+  const camY = Math.cos(t * section.camera.speed * 0.7) * 5;
 
   // ─── Transition Detection ───
   let wipeProgress = 0;
@@ -150,10 +160,13 @@ const MainVideo: React.FC = () => {
       <BackgroundSection section={section} t={t} bass={bass} camScale={camScale} camX={camX} camY={camY} />
 
       {/* ─── 3D Scene ─── */}
-      <Scene3DLayer section={section} t={t} bass={bass} mid={mid} treble={treble} beatSpring={beatSpring} width={width} height={height} />
+      <Scene3DLayer section={section} t={t} bass={bass} mid={mid} treble={treble} beatSpring={beatSpring} width={width} height={height} isBeat={isBeat} />
 
       {/* ─── Waveform ─── */}
       <WaveformSection waveform={waveform} section={section} width={width} height={height} t={t} bass={bass} />
+
+      {/* ─── Floating Particles ─── */}
+      <ParticlesLayer t={t} bass={bass} isChorus={isChorus} isBreakdown={isBreakdown} isBeat={isBeat} beatSpring={beatSpring} section={section} />
 
       {/* ─── Lyrics ─── */}
       <LyricSection currentLyric={currentLyric} lyricProgress={lyricProgress} section={section} t={t} bass={bass} width={width} height={height} typoScale={typoScale} />
@@ -188,13 +201,51 @@ const BackgroundSection: React.FC<any> = ({ section, t, bass, camScale, camX, ca
   );
 };
 
+// ─── Particles Layer Component ───
+const ParticlesLayer: React.FC<any> = ({ t, bass, isChorus, isBreakdown, isBeat, beatSpring, section }) => {
+  const opacity = isBreakdown ? 0.15 : isChorus ? 0.5 : 0.3;
+  const particleCount = isChorus ? 35 : 20;
+  const beatBounce = isBeat ? (beatSpring - 0.5) * 8 : 0;
+
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none", opacity }}>
+      {Array.from({ length: particleCount }).map((_, i) => {
+        const speed = 0.15 + (i % 4) * 0.08;
+        const size = 1.5 + (i % 3) * 1.2;
+        const startX = (i * 137.5) % 100;
+        const startY = 15 + (i * 73) % 65;
+        const x = (startX + t * speed * 3) % 110 - 5;
+        const y = startY + Math.sin(t * 0.4 + i * 0.7) * 10 + beatBounce;
+
+        return (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              left: `${x}%`,
+              top: `${y}%`,
+              width: size * (1 + bass * 0.5),
+              height: size * (1 + bass * 0.5),
+              borderRadius: "50%",
+              background: i % 3 === 0 ? section.palette.glow : section.palette.primary,
+              opacity: 0.4 + (i % 3) * 0.2 + bass * 0.15,
+              boxShadow: i % 4 === 0 ? `0 0 ${4 + bass * 8}px ${section.palette.glow}50` : "none",
+              transform: `scale(${1 + (isBeat ? bass * 0.3 : 0)})`,
+            }}
+          />
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
+
 // ─── 3D Scene Section ───
-const Scene3DLayer: React.FC<any> = ({ section, t, bass, mid, treble, beatSpring, width, height }) => {
+const Scene3DLayer: React.FC<any> = ({ section, t, bass, mid, treble, beatSpring, width, height, isBeat }) => {
   const opacity = section.name === "BREAKDOWN" ? 0 : Math.min(1, section.energy + 0.3);
-  const scale = (1 + bass * 0.08) * (0.97 + (beatSpring - 0.5) * 0.06);
+  const scale = (1 + bass * 0.1) * (0.96 + (beatSpring - 0.5) * 0.08) * (1 + (isBeat ? bass * 0.1 : 0));
   // Position: left side for intro/verse, center for chorus
-  const posX = section.name === "INTRO" ? -3.5 : section.energy > 0.7 ? 0 : -2.5;
-  const posY = 0.3 + Math.sin(t * 0.3) * 0.15;
+  const posX = section.name === "INTRO" ? -3.5 : section.energy > 0.7 ? 0.5 : -2.5;
+  const posY = 0.3 + Math.sin(t * 0.4) * 0.2 + (isBeat ? bass * 0.15 : 0);
 
   return (
     <AbsoluteFill style={{ opacity, pointerEvents: "none" }}>
