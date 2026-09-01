@@ -386,6 +386,60 @@ class VRAMManager:
                 "ollama_loaded": self._ollama_loaded,
             }
 
+    async def check_and_prevent_oom(self) -> dict[str, Any] | None:
+        """
+        Check VRAM and take action if OOM is imminent.
+        Called periodically by resource monitor.
+
+        Returns:
+            Action dict if intervention needed, None if OK
+        """
+        vram = await self.get_vram_status()
+        if not vram.get("available"):
+            return None
+
+        percent = vram.get("percent", 0)
+        state = vram.get("state", GPUState.AVAILABLE.value)
+
+        if state == GPUState.CRITICAL.value and self._ollama_loaded:
+            # Critical VRAM - only offload if system can handle it
+            if self._can_safely_offload():
+                logger.warning("VRAM Manager: CRITICAL VRAM (%.1f%%) - emergency offload", percent)
+                unloaded = await _unload_ollama_models()
+                self._ollama_loaded = False
+                result = {"action": "emergency_offload", "success": True, "models": unloaded}
+                return {
+                    "action": "emergency_offload",
+                    "vram_percent": percent,
+                    "result": result,
+                }
+            else:
+                logger.warning("VRAM Manager: CRITICAL VRAM (%.1f%%) but cannot safely offload "
+                               "(system RAM insufficient)", percent)
+                return {
+                    "action": "critical_vram_no_offload",
+                    "vram_percent": percent,
+                    "warning": "System RAM too low for safe offload. Close GPU apps manually.",
+                }
+
+        return None
+
+    def get_status(self) -> dict[str, Any]:
+        """Get VRAM manager status."""
+        return {
+            "current_workload": self._current_workload.value,
+            "ollama_loaded": self._ollama_loaded,
+            "comfyui_busy": self._comfyui_busy,
+            "nvml_available": self._nvml_available,
+            "gpustat_available": self._gpustat_available,
+            "thresholds": self.thresholds,
+            "min_vram_for_3d_mb": self.MIN_VRAM_FOR_3D,
+            "safety_thresholds": {
+                "min_system_ram_for_offload_mb": self.MIN_SYSTEM_RAM_FOR_OFFLOAD,
+            },
+        }
+
+
 def _unload_ollama_models_sync() -> list[str]:
     """Synchronous helper to unload Ollama models. Returns list of unloaded model names."""
     import urllib.request
@@ -467,61 +521,8 @@ async def _reload_ollama_models(model_name: str) -> bool:
     """Async wrapper to reload an Ollama model without blocking the event loop."""
     return await asyncio.to_thread(_reload_ollama_models_sync, model_name)
 
-    async def check_and_prevent_oom(self) -> dict[str, Any] | None:
-        """
-        Check VRAM and take action if OOM is imminent.
-        Called periodically by resource monitor.
-        
-        Returns:
-            Action dict if intervention needed, None if OK
-        """
-        vram = await self.get_vram_status()
-        if not vram.get("available"):
-            return None
 
-        percent = vram.get("percent", 0)
-        state = vram.get("state", GPUState.AVAILABLE.value)
-
-        if state == GPUState.CRITICAL.value and self._ollama_loaded:
-            # Critical VRAM - only offload if system can handle it
-            if self._can_safely_offload():
-                logger.warning("VRAM Manager: CRITICAL VRAM (%.1f%%) - emergency offload", percent)
-                unloaded = await _unload_ollama_models()
-                self._ollama_loaded = False
-                result = {"action": "emergency_offload", "success": True, "models": unloaded}
-                return {
-                    "action": "emergency_offload",
-                    "vram_percent": percent,
-                    "result": result,
-                }
-            else:
-                logger.warning("VRAM Manager: CRITICAL VRAM (%.1f%%) but cannot safely offload "
-                               "(system RAM insufficient)", percent)
-                return {
-                    "action": "critical_vram_no_offload",
-                    "vram_percent": percent,
-                    "warning": "System RAM too low for safe offload. Close GPU apps manually.",
-                }
-
-        return None
-
-    def get_status(self) -> dict[str, Any]:
-        """Get VRAM manager status."""
-        return {
-            "current_workload": self._current_workload.value,
-            "ollama_loaded": self._ollama_loaded,
-            "comfyui_busy": self._comfyui_busy,
-            "nvml_available": self._nvml_available,
-            "gpustat_available": self._gpustat_available,
-            "thresholds": self.thresholds,
-            "min_vram_for_3d_mb": self.MIN_VRAM_FOR_3D,
-            "safety_thresholds": {
-                "min_system_ram_for_offload_mb": self.MIN_SYSTEM_RAM_FOR_OFFLOAD,
-                "max_system_ram_percent": self.MAX_SYSTEM_RAM_PERCENT,
-                "vram_wait_timeout": self.VRAM_WAIT_TIMEOUT,
-            },
-        }
-
-
-# Global VRAM manager singleton
-vram_manager = VRAMManager()
+def _unload_ollama_models_sync() -> list[str]:
+    """Synchronous helper to unload Ollama models. Returns list of unloaded model names."""
+    import urllib.request
+    import json
