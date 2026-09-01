@@ -13,7 +13,7 @@ interface PortConfig {
   backend_url: string;
   backend_port: number;
   frontend_port: number;
-  ws_port: number; // deprecated alias — canonical is events at /api/events
+  ws_port: number;
   events_url?: string;
   sse_url?: string;
 }
@@ -23,10 +23,8 @@ interface PortConfig {
  * Falls back to environment variables or defaults
  */
 function getPortConfig(mode: string): PortConfig {
-  // Load env vars - pass empty prefix to get all env vars
   const env = loadEnv(mode, process.cwd(), "");
   
-  // Try to read from config/ports.json relative to project root (monorepo: packages/frontend -> ../../config)
   const configPath = path.resolve(__dirname, "../../config/ports.json");
   let config: PortConfig = {
     backend_url: env.VITE_BACKEND_URL || "http://localhost:8000",
@@ -44,7 +42,6 @@ function getPortConfig(mode: string): PortConfig {
         frontend_port: fileConfig.frontend_port || config.frontend_port,
         ws_port: fileConfig.ws_port || config.ws_port,
       };
-      console.log(`[Vite] Loaded port config from ${configPath}:`, config);
     }
   } catch (e) {
     console.warn("[Vite] Failed to load config/ports.json, using defaults/env vars:", e);
@@ -55,30 +52,16 @@ function getPortConfig(mode: string): PortConfig {
 
 export default defineConfig(({ mode }) => {
   const portConfig = getPortConfig(mode);
-  
-  // Extract host and port from backend_url for proxy target
   const backendUrl = portConfig.backend_url;
-  
-  // Ensure backendUrl has a protocol for URL constructor
-  const backendUrlWithProtocol = backendUrl.startsWith("http") 
-    ? backendUrl 
-    : `http://${backendUrl}`;
-  
-  const backendHost = portConfig.backend_url.includes("localhost") || portConfig.backend_url.includes("127.0.0.1")
+  const backendUrlWithProtocol = backendUrl.startsWith("http") ? backendUrl : `http://${backendUrl}`;
+  const backendHost = backendUrl.includes("localhost") || backendUrl.includes("127.0.0.1")
     ? "localhost"
     : new URL(backendUrlWithProtocol).hostname;
-  
   const proxyTarget = `http://${backendHost}:${portConfig.backend_port}`;
-
-  console.log(`[Vite] Starting with backend proxy: ${proxyTarget}`);
-  console.log(`[Vite] Frontend will serve on port: ${portConfig.frontend_port}`);
-  console.log(`[Vite] SSE events proxied via /api -> ${proxyTarget}`);
+  const isProd = mode === "production";
 
   return {
     plugins: [react(), tailwindcss()],
-    css: {
-      transformer: 'postcss',
-    },
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
@@ -102,7 +85,7 @@ export default defineConfig(({ mode }) => {
           ws: true,
         },
       },
-      // Stable file watching on Windows — native watcher crashes with large dirs
+      // Stable file watching on Windows
       watch: {
         usePolling: true,
         interval: 1000,
@@ -115,16 +98,59 @@ export default defineConfig(({ mode }) => {
           "**/public/renders/**",
         ],
       },
-      // Prevent HMR error overlay from crashing the dev server
       hmr: {
         overlay: false,
       },
     },
+    // Pre-bundle large dependencies for faster dev startup
+    optimizeDeps: {
+      include: [
+        "react",
+        "react-dom",
+        "react-dom/client",
+        "three",
+        "@react-three/fiber",
+        "@react-three/drei",
+        "animejs",
+        "lucide-react",
+        "zustand",
+      ],
+      exclude: ["@theatre/studio", "@theatre/core"],
+    },
     build: {
       outDir: "dist",
-      sourcemap: mode !== "production",
-      cssMinify: 'esbuild',
-      chunkSizeWarningLimit: 1000,
+      sourcemap: !isProd,
+      cssMinify: "esbuild",
+      chunkSizeWarningLimit: 1500,
+      // Target modern browsers for smaller bundles
+      target: "es2022",
+      rollupOptions: {
+        output: {
+          // Manual chunk splitting for better caching
+          // Rolldown/Vite 8 requires a function for manualChunks
+          manualChunks(id: string) {
+            if (id.includes("node_modules")) {
+              if (id.includes("three") || id.includes("@react-three")) {
+                return "three-vendor";
+              }
+              if (id.includes("react") || id.includes("react-dom")) {
+                return "react-vendor";
+              }
+              if (id.includes("animejs") || id.includes("@theatre")) {
+                return "animation-vendor";
+              }
+              if (id.includes("lucide-react") || id.includes("zustand")) {
+                return "ui-vendor";
+              }
+            }
+            return undefined;
+          },
+        },
+      },
+      // Minification settings
+      minify: isProd ? "esbuild" : false,
+      // Reduce console noise in production
+      reportCompressedSize: false,
     },
   };
 });
