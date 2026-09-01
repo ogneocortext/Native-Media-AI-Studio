@@ -119,6 +119,9 @@ const MainVideo: React.FC = () => {
   const isChorus = section.name.includes("CHORUS") || section.name === "BUILD_UP";
   const isBreakdown = section.name === "BREAKDOWN";
 
+  // Scale up typography for better visibility
+  const typoScale = 1.3;
+
   // ─── Animation Values ───
   const beatSpring = spring({ frame: frame % 14, fps, config: { damping: 18, stiffness: 140, mass: 0.7 } });
   const breathe = Math.sin(t * section.camera.speed * 2) * 0.01 + 1;
@@ -147,13 +150,13 @@ const MainVideo: React.FC = () => {
       <BackgroundSection section={section} t={t} bass={bass} camScale={camScale} camX={camX} camY={camY} />
 
       {/* ─── 3D Scene ─── */}
-      <Scene3DSection section={section} t={t} bass={bass} mid={mid} treble={treble} beatSpring={beatSpring} width={width} height={height} />
+      <Scene3DLayer section={section} t={t} bass={bass} mid={mid} treble={treble} beatSpring={beatSpring} width={width} height={height} />
 
       {/* ─── Waveform ─── */}
       <WaveformSection waveform={waveform} section={section} width={width} height={height} t={t} bass={bass} />
 
       {/* ─── Lyrics ─── */}
-      <LyricSection currentLyric={currentLyric} lyricProgress={lyricProgress} section={section} t={t} bass={bass} width={width} height={height} />
+      <LyricSection currentLyric={currentLyric} lyricProgress={lyricProgress} section={section} t={t} bass={bass} width={width} height={height} typoScale={typoScale} />
 
       {/* ─── Bento Boxes ─── */}
       {(isChorus || isBreakdown) && (
@@ -173,32 +176,46 @@ const MainVideo: React.FC = () => {
 const BackgroundSection: React.FC<any> = ({ section, t, bass, camScale, camX, camY }) => {
   return (
     <AbsoluteFill style={{ transform: `scale(${camScale}) translate(${camX}px, ${camY}px)` }}>
-      <AbsoluteFill style={{ background: `linear-gradient(${t * 10}deg, #050508 0%, ${section.palette.primary}15 50%, #050508 100%)` }} />
-      <AbsoluteFill style={{ opacity: 0.1 + bass * 0.1, background: `radial-gradient(800px 500px at 50% 40%, ${section.palette.glow}25 0%, transparent 60%)` }} />
+      {/* Base gradient - more vibrant */}
+      <AbsoluteFill style={{ background: `linear-gradient(${t * 12}deg, #0a0a1a 0%, ${section.palette.primary}25 30%, #0d1025 60%, ${section.palette.secondary}15 100%)` }} />
+      {/* Animated radial glow - responds to audio */}
+      <AbsoluteFill style={{ opacity: 0.15 + bass * 0.15, background: `radial-gradient(700px 500px at ${50 + Math.sin(t * 0.1) * 15}% ${35 + Math.cos(t * 0.08) * 10}%, ${section.palette.glow}30 0%, transparent 55%)` }} />
+      {/* Secondary accent glow */}
+      <AbsoluteFill style={{ opacity: 0.1 + bass * 0.1, background: `radial-gradient(500px 400px at ${70 + Math.cos(t * 0.06) * 20}% ${65 + Math.sin(t * 0.05) * 15}%, ${section.palette.glow}20 0%, transparent 50%)` }} />
+      {/* Subtle grid for depth */}
+      <AbsoluteFill style={{ opacity: 0.04, backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`, backgroundSize: "60px 60px" }} />
     </AbsoluteFill>
   );
 };
 
 // ─── 3D Scene Section ───
-const Scene3DSection: React.FC<any> = ({ section, t, bass, mid, treble, beatSpring, width, height }) => {
+const Scene3DLayer: React.FC<any> = ({ section, t, bass, mid, treble, beatSpring, width, height }) => {
   const opacity = section.name === "BREAKDOWN" ? 0 : Math.min(1, section.energy + 0.3);
-  const scale = (1 + bass * 0.05) * (0.98 + (beatSpring - 0.5) * 0.04);
-  const posX = section.name === "INTRO" ? -0.5 : section.energy > 0.8 ? 0.3 : -1.0;
+  const scale = (1 + bass * 0.08) * (0.97 + (beatSpring - 0.5) * 0.06);
+  // Position: left side for intro/verse, center for chorus
+  const posX = section.name === "INTRO" ? -3.5 : section.energy > 0.7 ? 0 : -2.5;
+  const posY = 0.3 + Math.sin(t * 0.3) * 0.15;
 
   return (
     <AbsoluteFill style={{ opacity, pointerEvents: "none" }}>
       <ThreeCanvas width={width} height={height} style={{ backgroundColor: "transparent" }}>
-        <ambientLight intensity={0.3 + section.energy * 0.3} />
-        <directionalLight position={[3, 5, 4]} intensity={0.6 + section.energy * 0.4} />
-        <pointLight position={[-3, -2, 2]} intensity={0.3 + treble * 0.3} color={section.palette.glow} />
-        <group scale={scale} rotation={[t * 0.12, t * 0.2 + bass * 0.15, 0]} position={[posX, 0.2, 0] as any}>
+        <ambientLight intensity={0.3 + section.energy * 0.4} />
+        <directionalLight position={[3, 5, 4]} intensity={0.6 + section.energy * 0.5} />
+        <pointLight position={[-3, -2, 2]} intensity={0.3 + treble * 0.4} color={section.palette.glow} />
+        <pointLight position={[3, 2, -2]} intensity={0.2 + mid * 0.3} color={section.palette.primary} />
+        <group scale={scale} rotation={[t * 0.15 + bass * 0.1, t * 0.25 + bass * 0.2, Math.sin(t * 0.2) * 0.05]} position={[posX, posY, -1] as any}>
           <mesh>
-            <icosahedronGeometry args={[0.7, 0]} />
-            <meshStandardMaterial color={section.palette.primary} emissive={section.palette.glow} emissiveIntensity={0.2 + treble * 0.4} metalness={0.85} roughness={0.15} />
+            <icosahedronGeometry args={[0.8, 0]} />
+            <meshStandardMaterial color={section.palette.primary} emissive={section.palette.glow} emissiveIntensity={0.25 + treble * 0.5} metalness={0.85} roughness={0.12} />
           </mesh>
-          <mesh scale={1.02}>
-            <icosahedronGeometry args={[0.7, 1]} />
-            <meshBasicMaterial color={section.palette.glow} wireframe transparent opacity={0.06 + bass * 0.06} />
+          <mesh scale={1.03}>
+            <icosahedronGeometry args={[0.8, 1]} />
+            <meshBasicMaterial color={section.palette.glow} wireframe transparent opacity={0.08 + bass * 0.08} />
+          </mesh>
+          {/* Inner glow core */}
+          <mesh scale={0.4}>
+            <sphereGeometry args={[0.5, 16, 16]} />
+            <meshBasicMaterial color={section.palette.glow} transparent opacity={0.15 + bass * 0.2} />
           </mesh>
         </group>
       </ThreeCanvas>
@@ -226,7 +243,7 @@ const WaveformSection: React.FC<any> = ({ waveform, section, width, height, t, b
 };
 
 // ─── Lyric Section ───
-const LyricSection: React.FC<any> = ({ currentLyric, lyricProgress, section, t, bass, width, height }) => {
+const LyricSection: React.FC<any> = ({ currentLyric, lyricProgress, section, t, bass, width, height, typoScale }) => {
   const words = currentLyric.text.split(" ");
   const isChorus = section.name.includes("CHORUS") || section.name === "BUILD_UP";
   const isBreakdown = section.name === "BREAKDOWN";
@@ -236,7 +253,7 @@ const LyricSection: React.FC<any> = ({ currentLyric, lyricProgress, section, t, 
       <div style={{ textAlign: "center", maxWidth: 1100 }}>
         {isChorus ? (
           // Chorus: Large hero text with split bounce
-          <div style={{ fontSize: section.typography.size, fontWeight: section.typography.weight, letterSpacing: section.typography.spacing, fontFamily: section.typography.family, color: "#ffffff", textShadow: `0 0 40px ${section.palette.glow}40`, transform: `scale(${1 + bass * 0.02})` }}>
+          <div style={{ fontSize: section.typography.size * typoScale, fontWeight: section.typography.weight, letterSpacing: section.typography.spacing, fontFamily: section.typography.family, color: "#ffffff", textShadow: `0 0 40px ${section.palette.glow}40`, transform: `scale(${1 + bass * 0.02})` }}>
             {currentLyric.text}
           </div>
         ) : isBreakdown ? (
@@ -245,7 +262,7 @@ const LyricSection: React.FC<any> = ({ currentLyric, lyricProgress, section, t, 
             {words.map((w: string, i: number) => {
               const active = lyricProgress >= i / words.length && lyricProgress < (i + 1) / words.length;
               return (
-                <span key={i} style={{ fontFamily: section.typography.family, fontSize: section.typography.size, fontWeight: active ? 500 : 200, letterSpacing: section.typography.spacing, color: active ? section.palette.glow : `rgba(255,255,255,${active ? 0.9 : 0.3})`, textTransform: "uppercase", textShadow: active ? `0 0 15px ${section.palette.glow}60` : "none" }}>
+                <span key={i} style={{ fontFamily: section.typography.family, fontSize: section.typography.size * typoScale, fontWeight: active ? 500 : 200, letterSpacing: section.typography.spacing, color: active ? section.palette.glow : `rgba(255,255,255,${active ? 0.9 : 0.3})`, textTransform: "uppercase", textShadow: active ? `0 0 15px ${section.palette.glow}60` : "none" }}>
                   {w}
                 </span>
               );
@@ -258,7 +275,7 @@ const LyricSection: React.FC<any> = ({ currentLyric, lyricProgress, section, t, 
               const active = lyricProgress >= i / words.length && lyricProgress < (i + 1) / words.length;
               const appeared = lyricProgress >= (i + 1) / words.length;
               return (
-                <span key={i} style={{ fontFamily: section.typography.family, fontSize: section.typography.size, fontWeight: active ? section.typography.weight + 100 : section.typography.weight, letterSpacing: section.typography.spacing, color: appeared ? "#ffffff" : active ? section.palette.glow : `rgba(255,255,255,0.25)`, textShadow: active ? `0 0 12px ${section.palette.glow}40` : "none" }}>
+                <span key={i} style={{ fontFamily: section.typography.family, fontSize: section.typography.size * typoScale, fontWeight: active ? section.typography.weight + 100 : section.typography.weight, letterSpacing: section.typography.spacing, color: appeared ? "#ffffff" : active ? section.palette.glow : `rgba(255,255,255,0.25)`, textShadow: active ? `0 0 12px ${section.palette.glow}40` : "none" }}>
                   {w}
                 </span>
               );
