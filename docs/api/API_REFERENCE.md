@@ -310,3 +310,41 @@ ws://localhost:8000/ws
 - `job.cancelled` — Job was cancelled
 - `system.health_changed` — Health status changed
 - `heartbeat` — Keep-alive ping (every 30s)
+
+---
+
+## Error Handling
+
+**Format:**
+```json
+{
+  "detail": "Error message",
+  "status_code": 500
+}
+```
+
+**Common Errors:**
+| Code | Description |
+|------|-------------|
+| 400 | Bad Request - Invalid parameters or file type |
+| 404 | Not Found - Resource does not exist |
+| 413 | Payload Too Large - File exceeds size limit |
+| 500 | Internal Server Error - Processing failed |
+| 503 | Service Unavailable - Required dependency missing |
+
+---
+
+## Agent Guidelines
+
+### Best Practices
+- Always URL-encode filenames when using them in API paths
+- Handle multipart/form-data for file uploads (don't set Content-Type header manually)
+- Check job status before attempting to retrieve results
+- Use WebSocket for real-time updates instead of polling when possible
+- Cache analysis results to avoid re-analyzing the same file
+
+### Rate Limiting
+No rate limiting for local development.
+
+### Retry Strategy
+Exponential backoff for 5xx errors, max 3 retries.

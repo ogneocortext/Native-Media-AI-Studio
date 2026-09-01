@@ -45,6 +45,10 @@ date: 2026-08-27
 - [[3d-rendering|🧊 3D Rendering]] — GPU rendering, Blender 5.2 EEVEE Next, optimization
 - [[visualization-effects|✨ Visualization Effects]] — WebGPU/TSL, particles, shaders, post-processing, volumetrics (NEW 2026-08-29)
 - [[prompt-engineering|✍️ Prompt Engineering]] — Effective prompts + repair/versioning workflow
+- [[remotion-guide|🎬 Remotion Video Compositing]] — Programmatic video with React (NEW 2026-09-01)
+
+### 🤖 AI Agent Resources
+- [[ai-agent-navigation|🤖 AI Agent Navigation]] — Quick lookup table for agents (NEW 2026-09-01)
 
 ### 📊 Research & Audit
 - [[../ux-audit/audit-report|🔍 UX Audit Report]] — User experience findings and recommendations
@@ -67,6 +71,7 @@ date: 2026-08-27
 | `#prompt` | Prompt engineering | 1 document |
 | `#kilo-code` | Kilo Code tooling and orchestration | 1 document |
 | `#subagent` | Subagent architecture and errors | 1 document |
+| `#remotion` | Remotion video compositing | 1 document |
 
 ---
 
@@ -127,11 +132,11 @@ graph LR
 
 | Metric | Count |
 |--------|-------|
-| Total Documents | 11 (+ ai-video-trends-2026, visualization-effects) |
-| Total Tags | 14 (+ visualization/webgpu) |
-| Total Links | 70+ |
-| Last Updated | 2026-08-29 (visualization-effects expanded, 3d-rendering updated) |
+| Total Documents | 15 (+ ai-video-trends-2026, visualization-effects, ai-agent-navigation) |
+| Total Tags | 16 (+ remotion) |
+| Total Links | 80+ |
+| Last Updated | 2026-09-01 (ai-agent-navigation added, duplicates consolidated) |
 
 ---
 
-*Last updated: 2026-08-29*
+*Last updated: 2026-09-01*
