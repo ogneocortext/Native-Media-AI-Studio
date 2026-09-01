@@ -46,6 +46,7 @@ date: 2026-08-27
 - [[visualization-effects|✨ Visualization Effects]] — WebGPU/TSL, particles, shaders, post-processing, volumetrics (NEW 2026-08-29)
 - [[prompt-engineering|✍️ Prompt Engineering]] — Effective prompts + repair/versioning workflow
 - [[remotion-guide|🎬 Remotion Video Compositing]] — Programmatic video with React (NEW 2026-09-01)
+- [[remotion-guide|🎬 Remotion Video Compositing]] — Programmatic video with React (NEW 2026-09-01)
 
 ### 🤖 AI Agent Resources
 - [[ai-agent-navigation|🤖 AI Agent Navigation]] — Quick lookup table for agents (NEW 2026-09-01)
