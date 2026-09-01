@@ -36,26 +36,50 @@ function getPortInfo() {
 async function execUnity(command, parameters = {}) {
   const info = getPortInfo();
   if (!info) return { error: "Unity MCP server not running (no port file)" };
-  const res = await fetch(`http://127.0.0.1:${info.port}/api/exec`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${info.evalToken}`,
-    },
-    body: JSON.stringify({ command, parameters }),
-  });
-  return res.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(`http://127.0.0.1:${info.port}/api/exec`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${info.evalToken}`,
+      },
+      body: JSON.stringify({ command, parameters }),
+      signal: controller.signal,
+    });
+    if (!res.ok) return { error: `Unity API error: ${res.status} ${res.statusText}` };
+    return res.json();
+  } catch (e) {
+    if (e.name === "AbortError") return { error: "Unity API request timed out (30s)" };
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function listCommands() {
   const info = getPortInfo();
   if (!info) return [];
-  const res = await fetch(
-    `http://127.0.0.1:${info.port}/api/commands?detail=compact`,
-    { headers: { Authorization: `Bearer ${info.evalToken}` } },
-  );
-  const data = await res.json();
-  return data.commands || [];
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(
+      `http://127.0.0.1:${info.port}/api/commands?detail=compact`,
+      {
+        headers: { Authorization: `Bearer ${info.evalToken}` },
+        signal: controller.signal,
+      },
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.commands || [];
+  } catch (e) {
+    if (e.name === "AbortError") return [];
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 // Create MCP server

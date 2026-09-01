@@ -448,7 +448,7 @@ class BlenderMCPServer:
         if self.socket:
             try:
                 self.socket.close()
-            except:
+            except Exception:
                 pass
             self.socket = None
 
@@ -481,7 +481,7 @@ class BlenderMCPServer:
             try:
                 if self.server_thread.is_alive():
                     self.server_thread.join(timeout=1.0)
-            except:
+            except Exception:
                 pass
             self.server_thread = None
 
@@ -596,7 +596,7 @@ class BlenderMCPServer:
                 self._clients.discard(client)
             try:
                 client.close()
-            except:
+            except Exception:
                 pass
             print("Client handler stopped")
 
@@ -1281,7 +1281,7 @@ class BlenderMCPServer:
                             # Try to use Linear color space for EXR files
                             try:
                                 env_tex.image.colorspace_settings.name = 'Linear'
-                            except:
+                            except Exception:
                                 # Fallback to Non-Color if Linear isn't available
                                 env_tex.image.colorspace_settings.name = 'Non-Color'
                         else:  # hdr
@@ -1290,7 +1290,7 @@ class BlenderMCPServer:
                                 try:
                                     env_tex.image.colorspace_settings.name = color_space
                                     break  # Stop if we successfully set a color space
-                                except:
+                                except Exception:
                                     continue
 
                         background = node_tree.nodes.new(type='ShaderNodeBackground')
@@ -1311,7 +1311,7 @@ class BlenderMCPServer:
                         # Clean up temporary file
                         try:
                             tempfile._cleanup()  # This will clean up all temporary files
-                        except:
+                        except Exception:
                             pass
 
                         return {
@@ -1356,12 +1356,12 @@ class BlenderMCPServer:
                                         if map_type in ['color', 'diffuse', 'albedo']:
                                             try:
                                                 image.colorspace_settings.name = 'sRGB'
-                                            except:
+                                            except Exception:
                                                 pass
                                         else:
                                             try:
                                                 image.colorspace_settings.name = 'Non-Color'
-                                            except:
+                                            except Exception:
                                                 pass
 
                                         downloaded_maps[map_type] = image
@@ -1369,7 +1369,7 @@ class BlenderMCPServer:
                                         # Clean up temporary file
                                         try:
                                             os.unlink(tmp_path)
-                                        except:
+                                        except Exception:
                                             pass
 
                     if not downloaded_maps:
@@ -1417,12 +1417,12 @@ class BlenderMCPServer:
                         if map_type.lower() in ['color', 'diffuse', 'albedo']:
                             try:
                                 tex_node.image.colorspace_settings.name = 'sRGB'
-                            except:
+                            except Exception:
                                 pass  # Use default if sRGB not available
                         else:
                             try:
                                 tex_node.image.colorspace_settings.name = 'Non-Color'
-                            except:
+                            except Exception:
                                 pass  # Use default if Non-Color not available
 
                         links.new(mapping.outputs['Vector'], tex_node.inputs['Vector'])
@@ -1584,12 +1584,12 @@ class BlenderMCPServer:
                     if map_type.lower() in ['color', 'diffuse', 'albedo']:
                         try:
                             img.colorspace_settings.name = 'sRGB'
-                        except:
+                        except Exception:
                             pass
                     else:
                         try:
                             img.colorspace_settings.name = 'Non-Color'
-                        except:
+                        except Exception:
                             pass
 
                     # Ensure the image is packed
@@ -1658,12 +1658,12 @@ class BlenderMCPServer:
                 if map_type.lower() in ['color', 'diffuse', 'albedo']:
                     try:
                         tex_node.image.colorspace_settings.name = 'sRGB'
-                    except:
+                    except Exception:
                         pass  # Use default if sRGB not available
                 else:
                     try:
                         tex_node.image.colorspace_settings.name = 'Non-Color'
-                    except:
+                    except Exception:
                         pass  # Use default if Non-Color not available
 
                 links.new(mapping.outputs['Vector'], tex_node.inputs['Vector'])
@@ -1995,6 +1995,7 @@ class BlenderMCPServer:
                 },
                 files=files
             )
+            response.raise_for_status()
             data = response.json()
             return data
         except Exception as e:
@@ -2055,6 +2056,7 @@ class BlenderMCPServer:
                 "subscription_key": subscription_key,
             },
         )
+        response.raise_for_status()
         data = response.json()
         return {
             "status_list": [i["status"] for i in data["jobs"]]
@@ -2569,7 +2571,7 @@ class BlenderMCPServer:
                     abs_target_path = os.path.abspath(target_path)
 
                     # Ensure the normalized path doesn't escape the target directory
-                    if not abs_target_path.startswith(abs_temp_dir):
+                    if not abs_target_path.startswith(abs_temp_dir + os.sep) and abs_target_path != abs_temp_dir:
                         with suppress(Exception):
                             shutil.rmtree(temp_dir)
                         return {"error": "Security issue: Zip contains files with path traversal attempt"}

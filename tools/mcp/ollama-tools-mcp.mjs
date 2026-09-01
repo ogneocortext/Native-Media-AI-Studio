@@ -20,6 +20,22 @@ const BASE_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 const COMFYUI_URL = process.env.COMFYUI_URL || "http://127.0.0.1:8188";
 const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 
+// Helper: fetch with timeout and ok-check
+async function fetchWithTimeout(url, opts = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...opts, signal: controller.signal });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`HTTP ${res.status} ${res.statusText}: ${text.slice(0, 200)}`);
+    }
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const server = new Server(
   { name: "ollama-tools", version: "1.0.0" },
   { capabilities: { tools: {} } }
@@ -142,7 +158,7 @@ async function analyzeImage(args) {
   
   let imageData;
   if (args.image_path.startsWith("http")) {
-    const res = await fetch(args.image_path);
+    const res = await fetchWithTimeout(args.image_path);
     const buf = Buffer.from(await res.arrayBuffer());
     imageData = buf.toString("base64");
   } else {
@@ -150,7 +166,7 @@ async function analyzeImage(args) {
     imageData = buf.toString("base64");
   }
 
-  const res = await fetch(`${BASE_URL}/api/generate`, {
+  const res = await fetchWithTimeout(`${BASE_URL}/api/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -166,7 +182,7 @@ async function analyzeImage(args) {
 }
 
 async function analyzeAudio(args) {
-  const res = await fetch(`${BACKEND_URL}/api/audio/analysis/${encodeURIComponent(args.filename)}`);
+  const res = await fetchWithTimeout(`${BACKEND_URL}/api/audio/analysis/${encodeURIComponent(args.filename)}`);
   const data = await res.json();
   return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
 }
@@ -255,14 +271,14 @@ async function generateVideo(args) {
 }
 
 async function listAudioLibrary() {
-  const res = await fetch(`${BACKEND_URL}/api/audio/files`);
+  const res = await fetchWithTimeout(`${BACKEND_URL}/api/audio/files`);
   const data = await res.json();
   const files = data.files.map((f) => f.filename).join("\n");
   return { content: [{ type: "text", text: `Available tracks:\n${files}` }] };
 }
 
 async function createMusicVideoPlan(args) {
-  const analysisRes = await fetch(`${BACKEND_URL}/api/audio/analysis/${encodeURIComponent(args.filename)}`);
+  const analysisRes = await fetchWithTimeout(`${BACKEND_URL}/api/audio/analysis/${encodeURIComponent(args.filename)}`);
   const analysis = await analysisRes.json();
   
   const plan = {

@@ -31,13 +31,18 @@ const ANALYZE_MJS = path.join(PROJECT_ROOT, "scripts", "vision", "analyze.mjs");
 const VISION_MJS = path.join(PROJECT_ROOT, "tools", "mcp", "vision.mjs");
 const ANALYZE_PY = path.join(PROJECT_ROOT, "tools", "tests", "vision_analyze.py");
 
-function runNode(script, args) {
+function runNode(script, args, timeoutMs = 60000) {
   return new Promise((resolve, reject) => {
     const child = spawn("node", [script, ...args], { cwd: PROJECT_ROOT });
     let out = "", err = "";
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error(`node process timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
     child.stdout.on("data", d => out += d);
     child.stderr.on("data", d => err += d);
     child.on("close", code => {
+      clearTimeout(timer);
       if (code !== 0) return reject(new Error(err || `exit ${code}`));
       resolve(out.trim());
     });
@@ -45,13 +50,18 @@ function runNode(script, args) {
   });
 }
 
-function runAnalyzePy(imagePath, prompt) {
+function runAnalyzePy(imagePath, prompt, timeoutMs = 60000) {
   return new Promise((resolve, reject) => {
     const child = spawn("python", [ANALYZE_PY, imagePath, prompt], { cwd: PROJECT_ROOT });
     let out = "", err = "";
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error(`python process timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
     child.stdout.on("data", d => out += d);
     child.stderr.on("data", d => err += d);
     child.on("close", code => {
+      clearTimeout(timer);
       if (code !== 0) return reject(new Error(err || `vision_analyze.py exit ${code}`));
       resolve(out.trim());
     });

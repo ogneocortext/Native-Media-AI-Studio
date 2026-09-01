@@ -30,7 +30,7 @@ JPEG_QUALITY = 70
 def resize_image(image_path: str) -> str:
     """Resize image and return base64-encoded JPEG."""
     img = Image.open(image_path)
-    img.thumbnail((MAX_DIMENSION, MAX_DIMENSION), Image.LANCZOS)
+    img.thumbnail((MAX_DIMENSION, MAX_DIMENSION), Image.Resampling.LANCZOS)
     
     # Convert RGBA to RGB for JPEG
     if img.mode == "RGBA":
