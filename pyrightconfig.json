@@ -6,7 +6,7 @@
     "DEBUG": true
   },
   "stubPath": "",
-  "pythonVersion": "3.12",
+  "pythonVersion": "3.11",
   "pythonPlatform": "Windows",
   "typeCheckingMode": "basic",
   "useLibraryCodeForTypes": true,

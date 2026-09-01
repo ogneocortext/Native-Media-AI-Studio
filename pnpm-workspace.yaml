@@ -2,6 +2,8 @@ packages:
   - packages/frontend
   - packages/video-editor
 
+# packages/backend is intentionally excluded — it's a Python (FastAPI) package, not a pnpm workspace member
+
 # Shared workspace lockfile — single lockfile at root for all workspace packages
 # (default in pnpm 9+, explicit here for clarity)
 

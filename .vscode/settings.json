@@ -1,0 +1,88 @@
+{
+  // TypeScript / JavaScript Language Server
+  "typescript.tsdk": "packages/frontend/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "typescript.inlayHints.parameterNames.enabled": "all",
+  "typescript.inlayHints.parameterTypes.enabled": true,
+  "typescript.inlayHints.variableTypes.enabled": true,
+  "typescript.inlayHints.functionLikeReturnTypes.enabled": true,
+  "javascript.inlayHints.parameterNames.enabled": "all",
+  "javascript.inlayHints.parameterTypes.enabled": true,
+  "javascript.inlayHints.variableTypes.enabled": true,
+  "javascript.inlayHints.functionLikeReturnTypes.enabled": true,
+
+  // ESLint (Flat Config)
+  "eslint.useFlatConfig": true,
+  "eslint.workingDirectories": [
+    {
+      "directory": "packages/frontend",
+      "changeProcessCWD": true
+    },
+    {
+      "directory": "packages/video-editor",
+      "changeProcessCWD": true
+    }
+  ],
+  "eslint.nodePath": "packages/frontend/node_modules",
+
+  // Python
+  "python.defaultInterpreterPath": "D:\\\\conda-envs\\\\comfyui-cuda\\\\Scripts\\\\python.exe",
+  "python.analysis.typeCheckingMode": "standard",
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingTypeStubs": "warning"
+  },
+  "python.analysis.extraPaths": [
+    "packages/backend"
+  ],
+  "python.analysis.include": [
+    "packages/backend/app"
+  ],
+  "python.analysis.exclude": [
+    "third_party",
+    "runtime",
+    "node_modules",
+    "**/node_modules",
+    "**/__pycache__"
+  ],
+
+  // Formatting
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "explicit"
+  },
+
+  // Tailwind CSS
+  "tailwindCSS.includeLanguages": {
+    "typescript": "html",
+    "typescriptreact": "html"
+  },
+  "tailwindCSS.experimental.configFile": {
+    "packages/frontend/src/styles/globals.css": "packages/frontend/**"
+  },
+
+  // Files
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/__pycache__": true,
+    "**/.git": true
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/__pycache__/**": true
+  },
+
+  // Search
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/__pycache__": true,
+    "third_party": true,
+    "runtime": true
+  }
+}
