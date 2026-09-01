@@ -289,23 +289,35 @@ switch ($Action) {
     'start' {
         Write-Host "`nStarting services..." -ForegroundColor Cyan
         foreach ($svc in $serviceList) {
-            Start-Service $svc
+            try {
+                Start-Service $svc
+            } catch {
+                Write-Warn2 "Failed to start $($svc.Name): $_"
+            }
         }
         Write-Host "`nAll requested services started." -ForegroundColor Green
     }
     'stop' {
         Write-Host "`nStopping services..." -ForegroundColor Yellow
         foreach ($svc in $serviceList) {
-            Stop-Service $svc
+            try {
+                Stop-Service $svc
+            } catch {
+                Write-Warn2 "Failed to stop $($svc.Name): $_"
+            }
         }
         Write-Host "`nAll requested services stopped." -ForegroundColor Green
     }
     'restart' {
         Write-Host "`nRestarting services..." -ForegroundColor Cyan
         foreach ($svc in $serviceList) {
-            Stop-Service $svc
-            Start-Sleep -Seconds 1
-            Start-Service $svc
+            try {
+                Stop-Service $svc
+                Start-Sleep -Seconds 1
+                Start-Service $svc
+            } catch {
+                Write-Warn2 "Failed to restart $($svc.Name): $_"
+            }
         }
         Write-Host "`nAll requested services restarted." -ForegroundColor Green
     }

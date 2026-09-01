@@ -20,9 +20,7 @@ if (-not (Test-Path $Launcher)) {
 $forwardArgs = @()
 if ($NoBackend) { $forwardArgs += '-NoBackend' }
 if ($NoFrontend) { $forwardArgs += '-NoFrontend' }
-
-# -Clean is delegated through; the target recreates venv/node_modules as needed.
-if ($Clean) { Write-Host "Note: -Clean is handled by start-studio.ps1 (recreates venv / node_modules)." -ForegroundColor Yellow }
+if ($Clean) { $forwardArgs += '-Clean' }
 
 Write-Host "Delegating to start-studio.ps1 $($forwardArgs -join ' ')..." -ForegroundColor Cyan
 & $Launcher @forwardArgs

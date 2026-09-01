@@ -23,6 +23,7 @@ param(
     [switch]$VideoEditor,
     [switch]$NoBrowser,
     [switch]$NoComfyUI,
+    [switch]$Clean,
     # Test hook: auto-stop all services after N seconds instead of waiting for 'q'
     [int]$AutoQuitSeconds = 0
 )
@@ -39,6 +40,22 @@ $BackendPort = 8000
 $FrontendPort = 5173
 $ComfyUIPort = 8188
 $started = @()   # @{ Name; Process }
+
+if ($Clean) {
+    Write-Step "Clean mode — removing build artifacts and caches"
+    $cleanDirs = @(
+        (Join-Path $ProjectRoot 'packages\frontend\dist'),
+        (Join-Path $ProjectRoot 'packages\video-editor\dist'),
+        (Join-Path $ProjectRoot 'packages\frontend\node_modules\.vite'),
+        (Join-Path $ProjectRoot 'packages\video-editor\node_modules\.vite')
+    )
+    foreach ($dir in $cleanDirs) {
+        if (Test-Path $dir) {
+            Remove-Item -Recurse -Force $dir
+            Write-Ok "Removed $dir"
+        }
+    }
+}
 
 function Write-Step { param([string]$msg) Write-Host "`n[$msg]" -ForegroundColor Cyan }
 function Write-Ok   { param([string]$msg) Write-Host "  [OK] $msg" -ForegroundColor Green }
