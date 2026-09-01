@@ -50,6 +50,42 @@ All MCP servers are configured in `opencode.json`:
 | ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://localhost:8188` | 8188          | ✅ Running    |
 | Remotion MCP | `npx -y @remotion/mcp@latest`                         | stdio         | ✅ Configured |
 
+### Vision Analysis Workflow
+
+> [!warning] CRITICAL: Always use the local vision model for visual analysis.
+> This model cannot see image attachments directly. Every screenshot must be routed
+> through the local Ollama vision model using the project's vision script.
+
+**Proper vision analysis workflow:**
+
+1. **Capture screenshot** with Playwright:
+   ```js
+   await page.screenshot({ path: 'browser-test/out/shot.png', fullPage: true });
+   ```
+
+2. **Analyze with vision script** (resizes + sends to Ollama gemma4):
+   ```bash
+   node scripts/vision.mjs analyze shot.png "optional prompt"
+   # or for code-grounded analysis:
+   node scripts/vision.mjs analyze shot.png src/components/Foo.tsx --mode regression --lines
+   ```
+
+3. **Verify findings** against ground truth (check actual DOM, API responses)
+
+4. **Act on verified findings** (fix layout, improve visuals, etc.)
+
+5. **Re-capture + re-analyze** to confirm improvements
+
+**Vision script options:**
+- `--low` — resize to 640px (sharpens text)
+- `--high` — resize to 1280px
+- `--mode ui|responsive|regression|compare` — analysis mode
+- `--viewport WxH` — intended viewport size
+- `--lines` — line-number attached source code
+- `--json` — machine-readable output
+
+**Default model:** `gemma4:e2b-it-qat` (override with `VISION_MODEL=...`)
+
 ### Ollama Integration
 
 Local Ollama models are available for vision analysis and tool-assisted generation:
