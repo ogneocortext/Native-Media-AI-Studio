@@ -315,8 +315,114 @@ const cinematicPreset: KineticPreset = {
 };
 
 // ============================================================
-// EXPORT ALL PRESETS
+// ENHANCED PRESETS WITH LRC TIMING SUPPORT
 // ============================================================
+
+/** Word-level animation - highlights individual words on beat */
+export function animateWordsOnBeat(el: HTMLElement, words: HTMLElement[], currentWordIdx: number) {
+  words.forEach((wordEl, idx) => {
+    if (idx === currentWordIdx) {
+      animate(wordEl, {
+        scale: [1, 1.2, 1],
+        textShadow: [
+          "0 0 8px currentColor",
+          "0 0 24px currentColor, 0 0 48px currentColor",
+          "0 0 8px currentColor",
+        ],
+        duration: 200,
+        ease: "outQuad",
+      });
+      wordEl.classList.add("active");
+    } else {
+      wordEl.classList.remove("active");
+    }
+  });
+}
+
+/** Section transition animation - dramatic effect on section change */
+export function animateSectionTransition(el: HTMLElement, fromSection: string, toSection: string) {
+  // Different transitions for different section changes
+  const intensity = getSectionIntensity(toSection);
+  
+  if (toSection === "DROP" || toSection === "FINAL DROP") {
+    // Explosive entrance for drops
+    animate(el, {
+      scale: [2.5, 1],
+      opacity: [0, 1],
+      rotateZ: [-5, 0],
+      duration: 300,
+      ease: "outExpo",
+    });
+  } else if (toSection === "CHORUS" || toSection === "FINAL CHORUS") {
+    // Swelling entrance for chorus
+    animate(el, {
+      scale: [0.8, 1.1, 1],
+      opacity: [0, 1],
+      letterSpacing: ["15px", "8px"],
+      duration: 500,
+      ease: "outExpo",
+    });
+  } else if (toSection === "BUILD-UP") {
+    // Tension building
+    animate(el, {
+      scale: [1, 1.05],
+      opacity: [0.8, 1],
+      duration: 400,
+      ease: "inOutQuad",
+    });
+  } else {
+    // Standard smooth transition
+    animate(el, {
+      opacity: [0, 1],
+      translateY: [20, 0],
+      duration: 300,
+      ease: "outExpo",
+    });
+  }
+}
+
+/** Get visual intensity based on section type */
+function getSectionIntensity(section: string): number {
+  const intensityMap: Record<string, number> = {
+    INTRO: 0.3,
+    VERSE: 0.5,
+    "PRE-CHORUS": 0.6,
+    CHORUS: 0.9,
+    BRIDGE: 0.6,
+    BREAKDOWN: 0.4,
+    "BUILD-UP": 0.7,
+    DROP: 1.0,
+    "FINAL CHORUS": 0.95,
+    "FINAL DROP": 1.0,
+    OUTRO: 0.3,
+  };
+  return intensityMap[section] ?? 0.5;
+}
+
+/** Estimate word-level timing from line timing */
+export function estimateWordTiming(text: string, lineStart: number, lineEnd: number): Array<{ word: string; start: number; end: number }> {
+  const words = text.split(/\s+/).filter(w => w.length > 0);
+  if (words.length === 0) return [];
+  
+  const duration = lineEnd - lineStart;
+  const timePerWord = duration / words.length;
+  
+  return words.map((word, idx) => ({
+    word,
+    start: lineStart + idx * timePerWord,
+    end: lineStart + (idx + 1) * timePerWord,
+  }));
+}
+
+/** Find current word index based on elapsed time */
+export function findCurrentWord(words: Array<{ start: number; end: number }>, elapsed: number): number {
+  for (let i = 0; i < words.length; i++) {
+    if (elapsed >= words[i].start && elapsed < words[i].end) {
+      return i;
+    }
+  }
+  return -1;
+}
 export const kineticPresets: Record<string, KineticPreset> = {
   phonk: phonkPreset,
   synthwave: synthwavePreset,

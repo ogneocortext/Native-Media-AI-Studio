@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect, useState } from "react";
 import type { LyricLine } from "./LyricOverlay";
-import { kineticPresets, selectPresetForTrack } from "./KineticPresets";
+import { kineticPresets, selectPresetForTrack, animateWordsOnBeat, animateSectionTransition, estimateWordTiming, findCurrentWord } from "./KineticPresets";
 import { getTrackFeatures } from "../trackFeatures";
 
 interface Props {
@@ -49,10 +49,12 @@ const SECTION_COLORS: Record<string, { base: string; glow: string; energy: strin
   OUTRO: { base: "#94a3b8", glow: "#64748b", energy: "#cbd5e1" },
 };
 
-export function KineticLyricOverlay({ lyrics, elapsed, visible, presetId, beat }: Props) {
+export function KineticLyricOverlay({ lyrics, elapsed, visible, presetId, beat, lrcSync }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevLineRef = useRef<LyricLine | null>(null);
+  const prevSectionRef = useRef<string>("");
   const [sectionPreset, setSectionPreset] = useState(presetId);
+  const wordElementsRef = useRef<HTMLElement[]>([]);
 
   const { currentLine, nextLine, currentSection } = useMemo(() => {
     if (!lyrics.length) return { currentLine: null, nextLine: null, currentSection: "VERSE" };
@@ -75,6 +77,18 @@ export function KineticLyricOverlay({ lyrics, elapsed, visible, presetId, beat }
 
   const preset = kineticPresets[sectionPreset] || kineticPresets[presetId] || kineticPresets.cinematic;
 
+  // Section transition animation
+  useEffect(() => {
+    if (!currentLine || !containerRef.current) return;
+    if (prevSectionRef.current !== currentSection && prevSectionRef.current) {
+      const el = containerRef.current.querySelector(".kinetic-active-line");
+      if (el) {
+        animateSectionTransition(el as HTMLElement, prevSectionRef.current, currentSection);
+      }
+    }
+    prevSectionRef.current = currentSection;
+  }, [currentSection, currentLine]);
+
   // Animate on line change with section-aware intensity
   useEffect(() => {
     if (!currentLine || !containerRef.current) return;
@@ -82,7 +96,6 @@ export function KineticLyricOverlay({ lyrics, elapsed, visible, presetId, beat }
       prevLineRef.current = currentLine;
       const el = containerRef.current.querySelector(".kinetic-active-line");
       if (el) {
-        // Enhanced enter animation with section-based intensity
         const intensity = getSectionIntensity(currentSection);
         (el as HTMLElement).style.setProperty("--section-intensity", String(intensity));
         preset.enterAnimation(el as HTMLElement);
@@ -101,6 +114,21 @@ export function KineticLyricOverlay({ lyrics, elapsed, visible, presetId, beat }
     }
   }, [beat, preset, features.energy, currentSection]);
 
+  // Word-level beat synchronization
+  useEffect(() => {
+    if (!currentLine || !containerRef.current) return;
+    const words = currentLine.words && currentLine.words.length > 0
+      ? currentLine.words
+      : estimateWordTiming(currentLine.text, currentLine.start, currentLine.end);
+    
+    const currentWordIdx = findCurrentWord(words, elapsed);
+    const wordEls = wordElementsRef.current;
+    
+    if (wordEls.length > 0 && currentWordIdx >= 0) {
+      animateWordsOnBeat(containerRef.current, wordEls, currentWordIdx);
+    }
+  }, [currentLine, elapsed]);
+
   // Phrase-change effect: pulse on line boundary (LRC precision)
   const phrasePulse = useMemo(() => {
     if (!currentLine) return false;
@@ -114,6 +142,9 @@ export function KineticLyricOverlay({ lyrics, elapsed, visible, presetId, beat }
   const colors = SECTION_COLORS[currentLine.section] || SECTION_COLORS.VERSE;
   const brightness = 0.7 + features.brightness * 0.3;
   const energyBoost = features.energy * 0.2;
+
+  // Render words with individual spans for word-level animation
+  const words = currentLine.text.split(/\s+/);
 
   return (
     <div
@@ -146,8 +177,18 @@ export function KineticLyricOverlay({ lyrics, elapsed, visible, presetId, beat }
           transition: "transform 0.08s ease-out, filter 0.15s ease-out",
           textShadow: `0 0 ${8 + features.energy * 24}px ${colors.glow}, 0 0 ${16 + features.energy * 32}px ${colors.energy}`,
         }}
+        ref={el => {
+          if (el) {
+            // Cache word elements for word-level animation
+            wordElementsRef.current = Array.from(el.querySelectorAll(".lyric-word"));
+          }
+        }}
       >
-        {currentLine.text}
+        {words.map((word, idx) => (
+          <span key={idx} className="lyric-word" style={{ display: "inline-block", marginRight: "0.3em" }}>
+            {word}
+          </span>
+        ))}
       </div>
       {nextLine && (
         <div
@@ -176,6 +217,7 @@ function getSectionIntensity(section: string): number {
     "BUILD-UP": 0.7,
     DROP: 1.0,
     "FINAL CHORUS": 0.95,
+    "FINAL DROP": 1.0,
     OUTRO: 0.3,
   };
   return intensityMap[section] ?? 0.5;

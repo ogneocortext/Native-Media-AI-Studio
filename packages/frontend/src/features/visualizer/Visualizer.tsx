@@ -339,19 +339,19 @@ export function Visualizer() {
     // Uses qwen3.5:9b via /ollama/visualizer, falls back silently if Ollama offline
     if (analysis && !loadedPreset) {
       const concept = csvContent ? getVisualizationForTrack(cleanName, csvContent) : null;
-      const desc = concept?.prompt || concept?.visualConcept || cleanName;
+      const desc = (concept as any)?.prompt || (concept as any)?.visualConcept || cleanName;
       const genre = concept?.genre?.join(", ") || "";
       // Fire-and-forget AI enrichment — show toast on success
       import("../../services/api").then(({ generateVisualizerPreset }) => {
         generateVisualizerPreset(
-          `${desc} — ${genre} — mood: ${concept?.mood?.join(", ") || "auto"}`.trim(),
+          `${desc} — ${genre} — mood: ${(concept as any)?.mood?.join(", ") || "auto"}`.trim(),
           undefined, // use backend default_model (qwen3.5:4b/9b)
           0.7,
           { bpm: realBpm, energy, duration_seconds: analysis.duration_seconds, genre }
         ).then(res => {
           if (res?.preset) {
-            applyPreset(res.preset, analysis);
-            setLoadedPreset(res.preset);
+            applyPreset(res.preset as any, analysis);
+            setLoadedPreset(res.preset as any);
             showToast(`AI enriched: "${res.preset.name}"`, "success");
           }
         }).catch(() => {/* silent fallback — heuristic preset already applied */});

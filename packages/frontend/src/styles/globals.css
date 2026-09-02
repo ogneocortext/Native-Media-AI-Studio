@@ -4253,17 +4253,186 @@ body::after {
 .viz-style-picker::-webkit-scrollbar-track { background: transparent; }
 .viz-style-picker::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
 
-/* Lyric overlay */
-.viz-lyrics {
-  position: absolute;
-  bottom: 120px;
-  left: 50%;
-  transform: translateX(-50%);
-  text-align: center;
-  z-index: 60;
-  pointer-events: none;
-  width: 90%;
-  max-width: 800px;
+/* Word-level lyric animations */
+.lyric-word {
+  display: inline-block;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.lyric-word.active {
+  transform: scale(1.15);
+  text-shadow:
+    0 0 12px currentColor,
+    0 0 30px currentColor,
+    0 0 50px currentColor;
+  filter: brightness(1.4);
+  z-index: 1;
+}
+
+/* Section transition animations */
+.viz-lyrics-enhanced.section-transition {
+  animation: section-fade-in 0.4s ease-out;
+}
+
+@keyframes section-fade-in {
+  0% {
+    opacity: 0.5;
+    transform: translateX(-50%) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+/* Drop section - explosive entrance */
+.viz-lyrics-enhanced[data-section="DROP"] .kinetic-active-line,
+.viz-lyrics-enhanced[data-section="FINAL DROP"] .kinetic-active-line {
+  animation: drop-explode 0.5s ease-out;
+}
+
+@keyframes drop-explode {
+  0% {
+    transform: scale(1.3);
+    filter: brightness(2);
+    text-shadow:
+      0 0 30px var(--section-glow),
+      0 0 60px var(--section-energy),
+      0 0 90px var(--section-glow);
+  }
+  40% {
+    transform: scale(0.95);
+    filter: brightness(1.2);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+/* Build-up section - increasing intensity */
+.viz-lyrics-enhanced[data-section="BUILD-UP"] {
+  animation: build-up-intensity 1.5s ease-in-out infinite;
+}
+
+@keyframes build-up-intensity {
+  0% {
+    filter: brightness(0.9);
+    transform: translateX(-50%) scale(0.98);
+  }
+  50% {
+    filter: brightness(1.1);
+    transform: translateX(-50%) scale(1.01);
+  }
+  100% {
+    filter: brightness(0.9);
+    transform: translateX(-50%) scale(0.98);
+  }
+}
+
+/* Chorus section - swelling glow */
+.viz-lyrics-enhanced[data-section="CHORUS"],
+.viz-lyrics-enhanced[data-section="FINAL CHORUS"] {
+  animation: chorus-glow 2s ease-in-out infinite;
+}
+
+@keyframes chorus-glow {
+  0%, 100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.2);
+  }
+}
+
+/* Verse section - subtle breathing */
+.viz-lyrics-enhanced[data-section="VERSE"] {
+  animation: verse-breathe 4s ease-in-out infinite;
+}
+
+@keyframes verse-breathe {
+  0%, 100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Intro/Outro - fade effect */
+.viz-lyrics-enhanced[data-section="INTRO"],
+.viz-lyrics-enhanced[data-section="OUTRO"] {
+  animation: intro-fade 3s ease-in-out infinite;
+}
+
+@keyframes intro-fade {
+  0%, 100% {
+    opacity: 0.7;
+    filter: brightness(0.8);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+/* Phrase pulse animation */
+.viz-lyrics-enhanced .phrase-pulse {
+  animation: phrase-pulse-anim 0.3s ease-out;
+}
+
+@keyframes phrase-pulse-anim {
+  0% {
+    transform: scale(1.08);
+    filter: brightness(1.4);
+    text-shadow:
+      0 0 20px var(--section-glow),
+      0 0 40px var(--section-energy),
+      0 0 60px var(--section-glow);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+/* Kinetic active line with enhanced glow */
+.viz-lyrics-enhanced .kinetic-active-line {
+  position: relative;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.4;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Section label with glow */
+.viz-lyrics-enhanced .viz-lyrics-section {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 0.6rem;
+  opacity: 0.8;
+  transition: all 0.3s ease;
+}
+
+/* Next line preview with smooth fade */
+.viz-lyrics-enhanced .viz-lyrics-next {
+  font-size: 0.9rem;
+  font-weight: 400;
+  margin-top: 0.5rem;
+  transition: opacity 0.4s ease, color 0.3s ease;
+}
+
+/* Beat-reactive scale for active line */
+.viz-lyrics-enhanced .kinetic-active-line.beat-reactive {
+  animation: beat-scale 0.15s ease-out;
+}
+
+@keyframes beat-scale {
+  0% { transform: scale(calc(1 + var(--beat-intensity, 0.5) * 0.08)); }
+  100% { transform: scale(1); }
 }
 
 /* ===== ENHANCED LRC-SYNCHRONIZED LYRICS ===== */

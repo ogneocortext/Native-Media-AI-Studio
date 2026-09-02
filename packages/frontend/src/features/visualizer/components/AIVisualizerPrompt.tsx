@@ -3,6 +3,7 @@ import { Sparkles, Wand2, Check, Loader2, RefreshCw, ChevronDown, Music2 } from 
 import { generateVisualizerPreset, getOllamaModels } from "../../../services/api";
 import type { AIGeneratedPreset, OllamaModel } from "../../../services/api";
 import type { VisualPreset } from "../visualPreset";
+import { AIPresetGallery } from "./AIPresetGallery";
 
 const TOOL_CAPABLE_MODELS = ["qwen3.5:9b", "qwen3.5:4b", "qwen3-vl:4b", "qwen3-vl:2b"];
 
@@ -27,6 +28,7 @@ export function AIVisualizerPrompt({ onApplyPreset, trackMeta, trackName }: AIVi
   const [error, setError] = useState<string | null>(null);
   const [generatedPreset, setGeneratedPreset] = useState<AIGeneratedPreset | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     getOllamaModels().then(data => {
@@ -57,6 +59,7 @@ export function AIVisualizerPrompt({ onApplyPreset, trackMeta, trackName }: AIVi
     console.log("[AIVisualizerPrompt] handleApply called, generatedPreset:", !!generatedPreset);
     if (!generatedPreset) return;
     onApplyPreset(generatedPreset as unknown as VisualPreset);
+    setRefreshKey(k => k + 1);
     setGeneratedPreset(null);
     setDescription("");
   }, [generatedPreset, onApplyPreset]);
@@ -173,6 +176,10 @@ export function AIVisualizerPrompt({ onApplyPreset, trackMeta, trackName }: AIVi
           </div>
         </div>
       )}
+
+      <div className="viz-ai-gallery-wrap">
+        <AIPresetGallery onApplyPreset={onApplyPreset} refreshKey={refreshKey} />
+      </div>
     </div>
   );
 }
