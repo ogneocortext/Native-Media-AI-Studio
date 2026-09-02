@@ -20,7 +20,6 @@ import { KineticLyricOverlay } from "./components/KineticLyricOverlay";
 import { parseLyricsFromCsv, parseLrcContent } from "./lyricsParser";
 import { AnimationDemo } from "./components/AnimationDemo";
 import { TheatreStudioPanel } from "./components/TheatreStudioPanel";
-import { parseLyricsFromCsv } from "./lyricsParser";
 import type { VisualPreset } from "./visualPreset";
 import { showToast } from "../../utils/toast";
 import { visualPresets, selectVisualPreset } from "./visualPresets";
@@ -83,21 +82,34 @@ export function Visualizer() {
   useEffect(() => { fetch("/track-prompts-lyrics.csv").then(r => r.text()).then(setCsvContent).catch(() => {}); }, []);
   useEffect(() => { listAudioFiles().then(files => { if (Array.isArray(files) && files.length > 0) setLibraryFiles(files); }).catch(() => {}); }, []);
 
-  // Parse lyrics from CSV into timed lines (uses shared parser)
+  // Parse lyrics - tries LRC first (precise timing), then CSV fallback
   const parseLyricsForTrack = useCallback(async (trackName: string, duration: number): Promise<LyricLine[]> => {
-    // Try LRC file first (precise timing)
-    if (trackName) {
-      try {
-        const lrcFilename = trackName.replace(/\.mp3$/i, ".lrc");
-        const lrcRes = await fetch(`/api/audio/file/${encodeURIComponent(lrcFilename)}`);
-        if (lrcRes.ok) {
-          const lrcContent = await lrcRes.text();
-          const lrcLyrics = parseLrcContent(lrcContent);
-          if (lrcLyrics.length > 0) return lrcLyrics;
-        }
-      } catch {
-        // LRC not available, fall through to CSV
+    if (!trackName) return parseLyricsFromCsv(csvContent, trackName, duration);
+
+    const lrcFilename = trackName.replace(/\.mp3$/i, ".lrc");
+
+    // Try public directory first (fast, no backend needed)
+    try {
+      const publicLrc = await fetch(`/audio/${encodeURIComponent(lrcFilename)}`);
+      if (publicLrc.ok) {
+        const lrcContent = await publicLrc.text();
+        const lrcLyrics = parseLrcContent(lrcContent);
+        if (lrcLyrics.length > 0) return lrcLyrics;
       }
+    } catch {
+      // Fall through
+    }
+
+    // Try backend API
+    try {
+      const apiLrc = await fetch(`/api/audio/file/${encodeURIComponent(lrcFilename)}`);
+      if (apiLrc.ok) {
+        const lrcContent = await apiLrc.text();
+        const lrcLyrics = parseLrcContent(lrcContent);
+        if (lrcLyrics.length > 0) return lrcLyrics;
+      }
+    } catch {
+      // Fall through
     }
 
     // Fall back to CSV parsing
