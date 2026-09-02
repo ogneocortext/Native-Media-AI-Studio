@@ -9,12 +9,192 @@ import logging
 import sqlite3
 from collections.abc import Generator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
 from .config import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Typed dataclass models for database rows
+# ---------------------------------------------------------------------------
+
+@dataclass
+class PromptRow:
+    """Typed representation of a prompts table row."""
+    id: str
+    name: str
+    prompt_type: str
+    text: str
+    tags: list[str]
+    category: str
+    description: str
+    is_favorite: bool
+    use_count: int
+    last_used_at: str | None
+    created_at: str
+    updated_at: str
+
+
+@dataclass
+class AudioFileRow:
+    """Typed representation of an audio_files table row."""
+    id: str
+    filename: str
+    original_name: str
+    stored_path: str
+    file_size: int
+    duration: float
+    sample_rate: int
+    channels: int
+    format: str
+    bpm: float | None
+    key: str | None
+    genre: str | None
+    music_prompt_id: str | None
+    analysis_result: dict[str, Any]
+    created_at: str
+
+
+@dataclass
+class AIVisualRow:
+    """Typed representation of an ai_visuals table row."""
+    id: str
+    prompt_id: str | None
+    style_id: str
+    checkpoint: str
+    width: int
+    height: int
+    steps: int
+    cfg: float
+    seed: int
+    sampler: str
+    scheduler: str
+    filename: str
+    stored_path: str
+    comfyui_prompt_id: str
+    is_selected: bool
+    is_favorite: bool
+    rating: int
+    tags: list[str]
+    generation_time_seconds: float
+    created_at: str
+
+
+@dataclass
+class SessionRow:
+    """Typed representation of a generation_sessions table row."""
+    id: str
+    audio_id: str | None
+    music_prompt_id: str | None
+    status: str
+    config: dict[str, Any]
+    selected_visuals: list[Any]
+    output_path: str | None
+    total_frames: int
+    generated_frames: int
+    estimated_time_seconds: float
+    actual_time_seconds: float
+    created_at: str
+    completed_at: str | None
+
+
+@dataclass
+class TrackRow:
+    """Typed representation of a tracks table row."""
+    id: str
+    filename: str
+    artist: str
+    title: str
+    duration_seconds: float
+    size_mb: float
+    source_path: str
+    music_prompt: str
+    lyrics: str
+    visual_style: str
+    visual_prompt: str
+    status: str
+    tags: list[str]
+    comfyui_visual_ids: list[str]
+    output_path: str | None
+    created_at: str
+    updated_at: str
+
+
+@dataclass
+class VizPresetRow:
+    """Typed representation of a visualization_presets table row."""
+    id: str
+    track_name: str
+    track_hash: str
+    preset_name: str
+    visualization_style: str
+    params: dict[str, Any]
+    ollama_model: str | None
+    prompt: str
+    lyrics: str
+    mood_tags: list[str]
+    genre_tags: list[str]
+    bpm: int
+    energy_level: str
+    is_unique: bool
+    usage_count: int
+    last_used: str | None
+    created_at: str
+    updated_at: str
+
+
+@dataclass
+class SystemResourceRow:
+    """Typed representation of a system_resources table row."""
+    id: int
+    timestamp: str
+    gpu_name: str | None
+    gpu_memory_total: int | None
+    gpu_memory_used: int | None
+    gpu_memory_free: int | None
+    gpu_utilization: int | None
+    cpu_percent: int | None
+    ram_total: int | None
+    ram_used: int | None
+    ram_free: int | None
+    ollama_available: bool
+    ollama_models: list[str]
+
+
+@dataclass
+class OllamaModelRow:
+    """Typed representation of an ollama_models table row."""
+    id: str
+    model_name: str
+    model_size: int | None
+    model_digest: str | None
+    is_tool_capable: bool
+    vram_required: int | None
+    last_checked: str | None
+    is_available: bool
+    capabilities: list[str]
+    created_at: str
+
+
+@dataclass
+class OllamaAnalysisRow:
+    """Typed representation of an ollama_analysis_responses table row."""
+    id: str
+    track_name: str
+    track_filename: str
+    model_name: str
+    prompt: str
+    lyrics: str
+    bpm: int
+    html_response: str
+    raw_response: str
+    status: str
+    created_at: str
+
 
 DB_PATH = PROJECT_ROOT / "storage" / "studio.db"
 
@@ -1536,3 +1716,307 @@ def delete_ollama_analysis_response(response_id: str) -> bool:
             (response_id,),
         )
         return cursor.rowcount > 0
+
+
+# =============================================================================
+# Typed accessors (dataclass-based, opt-in)
+# =============================================================================
+
+
+def get_prompt_typed(prompt_id: str) -> PromptRow | None:
+    """Get a prompt by ID as a typed PromptRow."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM prompts WHERE id = ?", (prompt_id,)
+        ).fetchone()
+        if row:
+            return _row_to_prompt_typed(row)
+    return None
+
+
+def get_prompts_typed(
+    prompt_type: str | None = None,
+    category: str | None = None,
+    favorite_only: bool = False,
+    search: str | None = None,
+    limit: int = 100,
+) -> list[PromptRow]:
+    """Get prompts with optional filtering as typed PromptRow list."""
+    query = "SELECT * FROM prompts WHERE 1=1"
+    params: list[Any] = []
+
+    if prompt_type:
+        query += " AND prompt_type = ?"
+        params.append(prompt_type)
+    if category:
+        query += " AND category = ?"
+        params.append(category)
+    if favorite_only:
+        query += " AND is_favorite = 1"
+    if search:
+        query += " AND (text LIKE ? OR name LIKE ? OR tags LIKE ?)"
+        search_term = f"%{search}%"
+        params.extend([search_term, search_term, search_term])
+
+    query += " ORDER BY is_favorite DESC, use_count DESC, updated_at DESC LIMIT ?"
+    params.append(limit)
+
+    with get_db() as conn:
+        rows = conn.execute(query, params).fetchall()
+        return [_row_to_prompt_typed(row) for row in rows]
+
+
+def _row_to_prompt_typed(row: sqlite3.Row) -> PromptRow:
+    """Convert a prompts row to a typed PromptRow."""
+    return PromptRow(
+        id=row["id"],
+        name=row["name"],
+        prompt_type=row["prompt_type"],
+        text=row["text"],
+        tags=json.loads(row["tags"]) if row["tags"] else [],
+        category=row["category"],
+        description=row["description"],
+        is_favorite=bool(row["is_favorite"]),
+        use_count=row["use_count"],
+        last_used_at=row["last_used_at"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def get_audio_file_typed(audio_id: str) -> AudioFileRow | None:
+    """Get an audio file by ID as a typed AudioFileRow."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM audio_files WHERE id = ?", (audio_id,)
+        ).fetchone()
+        if row:
+            return _row_to_audio_typed(row)
+    return None
+
+
+def get_audio_files_typed(
+    limit: int = 100, distinct: bool = False
+) -> list[AudioFileRow]:
+    """Get recent audio files as typed AudioFileRow list."""
+    with get_db() as conn:
+        if distinct:
+            rows = conn.execute(
+                """
+                SELECT a.* FROM audio_files a
+                INNER JOIN (
+                    SELECT filename, MAX(created_at) AS max_created
+                    FROM audio_files
+                    GROUP BY filename
+                ) b ON a.filename = b.filename AND a.created_at = b.max_created
+                ORDER BY a.created_at DESC LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM audio_files ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [_row_to_audio_typed(row) for row in rows]
+
+
+def _row_to_audio_typed(row: sqlite3.Row) -> AudioFileRow:
+    """Convert an audio_files row to a typed AudioFileRow."""
+    return AudioFileRow(
+        id=row["id"],
+        filename=row["filename"],
+        original_name=row["original_name"],
+        stored_path=row["stored_path"],
+        file_size=row["file_size"],
+        duration=row["duration"],
+        sample_rate=row["sample_rate"],
+        channels=row["channels"],
+        format=row["format"],
+        bpm=row["bpm"],
+        key=row["key"],
+        genre=row["genre"],
+        music_prompt_id=row["music_prompt_id"],
+        analysis_result=_safe_json_loads(row["analysis_result"], {}),
+        created_at=row["created_at"],
+    )
+
+
+def get_session_typed(session_id: str) -> SessionRow | None:
+    """Get a generation session by ID as a typed SessionRow."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM generation_sessions WHERE id = ?", (session_id,)
+        ).fetchone()
+        if row:
+            return _row_to_session_typed(row)
+    return None
+
+
+def get_sessions_typed(
+    status: str | None = None,
+    audio_id: str | None = None,
+    limit: int = 50,
+) -> list[SessionRow]:
+    """Get generation sessions as typed SessionRow list."""
+    query = "SELECT * FROM generation_sessions WHERE 1=1"
+    params: list[Any] = []
+
+    if status:
+        query += " AND status = ?"
+        params.append(status)
+    if audio_id:
+        query += " AND audio_id = ?"
+        params.append(audio_id)
+
+    query += " ORDER BY created_at DESC LIMIT ?"
+    params.append(limit)
+
+    with get_db() as conn:
+        rows = conn.execute(query, params).fetchall()
+        return [_row_to_session_typed(row) for row in rows]
+
+
+def _row_to_session_typed(row: sqlite3.Row) -> SessionRow:
+    """Convert a generation_sessions row to a typed SessionRow."""
+    return SessionRow(
+        id=row["id"],
+        audio_id=row["audio_id"],
+        music_prompt_id=row["music_prompt_id"],
+        status=row["status"],
+        config=json.loads(row["config"]) if row["config"] else {},
+        selected_visuals=json.loads(row["selected_visuals"]) if row["selected_visuals"] else [],
+        output_path=row["output_path"],
+        total_frames=row["total_frames"],
+        generated_frames=row["generated_frames"],
+        estimated_time_seconds=row["estimated_time_seconds"],
+        actual_time_seconds=row["actual_time_seconds"],
+        created_at=row["created_at"],
+        completed_at=row["completed_at"],
+    )
+
+
+def get_track_typed(track_id: str) -> TrackRow | None:
+    """Get a track by ID as a typed TrackRow."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM tracks WHERE id = ?", (track_id,)
+        ).fetchone()
+        if row:
+            return _row_to_track_typed(row)
+    return None
+
+
+def get_tracks_typed(
+    status: str | None = None,
+    artist: str | None = None,
+    search: str | None = None,
+    limit: int = 100,
+) -> list[TrackRow]:
+    """Get tracks as typed TrackRow list."""
+    query = "SELECT * FROM tracks WHERE 1=1"
+    params: list[Any] = []
+
+    if status:
+        query += " AND status = ?"
+        params.append(status)
+    if artist:
+        query += " AND artist = ?"
+        params.append(artist)
+    if search:
+        query += " AND (title LIKE ? OR artist LIKE ? OR music_prompt LIKE ? OR lyrics LIKE ?)"
+        search_term = f"%{search}%"
+        params.extend([search_term, search_term, search_term, search_term])
+
+    query += " ORDER BY artist, title LIMIT ?"
+    params.append(limit)
+
+    with get_db() as conn:
+        rows = conn.execute(query, params).fetchall()
+        return [_row_to_track_typed(row) for row in rows]
+
+
+def _row_to_track_typed(row: sqlite3.Row) -> TrackRow:
+    """Convert a tracks row to a typed TrackRow."""
+    return TrackRow(
+        id=row["id"],
+        filename=row["filename"],
+        artist=row["artist"],
+        title=row["title"],
+        duration_seconds=row["duration_seconds"],
+        size_mb=row["size_mb"],
+        source_path=row["source_path"],
+        music_prompt=row["music_prompt"],
+        lyrics=row["lyrics"],
+        visual_style=row["visual_style"],
+        visual_prompt=row["visual_prompt"],
+        status=row["status"],
+        tags=_safe_json_loads(row["tags"], []),
+        comfyui_visual_ids=_safe_json_loads(row["comfyui_visual_ids"], []),
+        output_path=row["output_path"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def get_visualization_preset_typed(track_hash: str) -> VizPresetRow | None:
+    """Get a visualization preset by track hash as a typed VizPresetRow."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM visualization_presets WHERE track_hash = ? AND is_unique = 1 ORDER BY usage_count DESC LIMIT 1",
+            (track_hash,),
+        ).fetchone()
+
+        if row:
+            conn.execute(
+                "UPDATE visualization_presets SET usage_count = usage_count + 1, last_used = ? WHERE id = ?",
+                (datetime.now().isoformat(), row["id"]),
+            )
+            return _row_to_viz_preset_typed(row)
+    return None
+
+
+def _row_to_viz_preset_typed(row: sqlite3.Row) -> VizPresetRow:
+    """Convert a visualization_presets row to a typed VizPresetRow."""
+    return VizPresetRow(
+        id=row["id"],
+        track_name=row["track_name"],
+        track_hash=row["track_hash"],
+        preset_name=row["preset_name"],
+        visualization_style=row["visualization_style"],
+        params=_safe_json_loads(row["params"], {}),
+        ollama_model=row["ollama_model"],
+        prompt=row["prompt"],
+        lyrics=row["lyrics"],
+        mood_tags=_safe_json_loads(row["mood_tags"], []),
+        genre_tags=_safe_json_loads(row["genre_tags"], []),
+        bpm=row["bpm"],
+        energy_level=row["energy_level"],
+        is_unique=row["is_unique"],
+        usage_count=row["usage_count"],
+        last_used=row["last_used"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+__all__ = [
+    "PromptRow",
+    "AudioFileRow",
+    "AIVisualRow",
+    "SessionRow",
+    "TrackRow",
+    "VizPresetRow",
+    "SystemResourceRow",
+    "OllamaModelRow",
+    "OllamaAnalysisRow",
+    "get_prompt_typed",
+    "get_prompts_typed",
+    "get_audio_file_typed",
+    "get_audio_files_typed",
+    "get_session_typed",
+    "get_sessions_typed",
+    "get_track_typed",
+    "get_tracks_typed",
+    "get_visualization_preset_typed",
+]

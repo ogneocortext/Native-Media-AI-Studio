@@ -1,4 +1,4 @@
-import { Sparkles, Box, Circle, Trash2, Eye, EyeOff, Layers } from "lucide-react";
+import { Sparkles, Box, Circle, Trash2, Eye, EyeOff, Layers, User } from "lucide-react";
 import type { AnimObject } from "../types";
 import { SCENE_TEMPLATES, type SceneTemplate } from "../sceneTemplates";
 
@@ -53,6 +53,7 @@ export function ObjectsTab({
           <button onClick={() => onAddObject("cylinder")} className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs flex items-center justify-center min-w-0 truncate">Cyl</button>
           <button onClick={() => onAddObject("cone")} className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs flex items-center justify-center min-w-0 truncate">Cone</button>
           <button onClick={() => onAddObject("torus")} className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs flex items-center justify-center min-w-0 truncate">Torus</button>
+          <button onClick={() => onAddObject("character")} className="px-2 py-1.5 bg-amber-900/40 hover:bg-amber-800/50 rounded text-xs flex items-center justify-center gap-1 min-w-0 truncate text-amber-200"><User size={11} /> <span className="hidden sm:inline">Character</span></button>
         </div>
       </div>
 

@@ -256,6 +256,15 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
                 hop_length=analyzer.hop_length,
                 sample_rate=result.waveform.sample_rate,
             )
+            # LLM refinement (deepseek-r1:7b) — non-blocking fallback keeps heuristic on timeout
+            try:
+                llm_secs = await _generate_sections_llm(
+                    cuda_result.get("duration_seconds", 0), tempo, beat_times, cuda_result.get("rms_energy", [])
+                )
+                if llm_secs:
+                    sections = llm_secs
+            except Exception:
+                pass
 
             analysis_result = {
                 "tempo_bpm": round(float(tempo), 1),
@@ -293,6 +302,12 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
                 hop_length=analyzer.hop_length,
                 sample_rate=result.waveform.sample_rate if result.waveform else 22050,
             )
+            try:
+                llm_secs = await _generate_sections_llm(duration, tempo, beat_times, result.waveform.rms_energy if result.waveform else [])
+                if llm_secs:
+                    sections = llm_secs
+            except Exception:
+                pass
 
             analysis_result = {
                 "tempo_bpm": round(float(tempo), 1),
@@ -431,6 +446,85 @@ def _generate_sections_from_analysis(
             sections[i]["end"] = round(min(duration, sections[i]["start"] + sec_dur * 0.8), 2)
 
     return sections
+
+
+async def _generate_sections_llm(
+    duration: float,
+    tempo: float,
+    beat_times: list[float],
+    rms_energy: list[float],
+    lyrics_hint: str = "",
+) -> list[dict] | None:
+    """Try LLM (deepseek-r1:7b → qwen3.5:4b fallback) to label sections semantically.
+    Returns None on failure so caller can fall back to heuristic."""
+    import aiohttp, json
+    from ..core.config import config as app_config
+    # Summarize energy curve (downsample to ~20 points for prompt)
+    if rms_energy and len(rms_energy) > 20:
+        step = len(rms_energy) / 20
+        sampled = [rms_energy[int(i*step)] for i in range(20)]
+    else:
+        sampled = rms_energy or []
+    energy_str = ", ".join(f"{v:.2f}" for v in sampled[:20])
+    beat_count = len(beat_times)
+    sys = (
+        "You are a music structure analyzer. Given tempo, beat count, duration and "
+        "normalized RMS energy curve (0-1, 20 samples over track), output ONLY JSON: "
+        '{"sections":[{"type":"intro|verse|chorus|bridge|outro","start":0.0,"end":12.5,"energy":0.7}]} '
+        "Rules: 4-8 sections, chronological, non-overlapping, cover 0..duration, "
+        "energy 0-1 correlates with loudness. Use chorus for peaks, intro/outro for edges."
+    )
+    user = f"tempo: {tempo:.1f} BPM, beats: {beat_count}, duration: {duration:.1f}s, energy: [{energy_str}]{' lyrics: '+lyrics_hint[:200] if lyrics_hint else ''}"
+    for model in ["deepseek-r1:7b", app_config.default_model, "qwen3.5:4b"]:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{app_config.ollama_url}/api/chat",
+                    json={
+                        "model": model,
+                        "messages": [{"role": "system", "content": sys}, {"role": "user", "content": user}],
+                        "stream": False,
+                        "format": "json",
+                        "think": False,
+                        "options": {"temperature": 0.2, "num_ctx": 4096},
+                    },
+                    timeout=aiohttp.ClientTimeout(total=25),
+                ) as resp:
+                    if resp.status != 200:
+                        continue
+                    data = await resp.json()
+                    content = (data.get("message", {}).get("content") or "").strip()
+                    if not content:
+                        continue
+                    # Strip fences
+                    if "```" in content:
+                        content = content.split("```")[1] if "```" in content else content
+                        if content.startswith("json"):
+                            content = content[4:]
+                        content = content.strip().split("```")[0].strip()
+                    parsed = json.loads(content)
+                    secs = parsed.get("sections") if isinstance(parsed, dict) else parsed
+                    if isinstance(secs, list) and 2 <= len(secs) <= 8:
+                        # Validate and clamp
+                        out = []
+                        for s in secs:
+                            typ = str(s.get("type", "verse")).lower()
+                            if typ not in ("intro","verse","chorus","bridge","outro","pre-chorus","drop"):
+                                typ = "verse"
+                            out.append({
+                                "type": typ,
+                                "start": round(float(s.get("start", 0)), 2),
+                                "end": round(float(s.get("end", duration)), 2),
+                                "energy": round(max(0.05, min(1.0, float(s.get("energy", 0.5)))), 3),
+                            })
+                        out.sort(key=lambda x: x["start"])
+                        # Ensure coverage
+                        out[0]["start"] = 0.0
+                        out[-1]["end"] = round(duration, 2)
+                        return out
+        except Exception:
+            continue
+    return None
 
 
 def _generate_sections(duration: float, tempo: float, beat_count: int) -> list[dict]:
@@ -771,17 +865,15 @@ async def serve_audio_file(request: Request, filename: str):
     # Decode URL-encoded filename (handles spaces, special chars)
     filename = urllib.parse.unquote(filename)
     
-    # Security: prevent directory traversal
-    if ".." in filename or filename.startswith("/"):
+    # Security: prevent directory traversal via resolve check
+    candidate = (AUDIO_DIR / filename).resolve()
+    allowed_dirs = [AUDIO_DIR.resolve(), (PROJECT_ROOT / "output" / "audio").resolve()]
+    if not any(str(candidate).startswith(str(d)) for d in allowed_dirs) or ".." in Path(filename).parts:
         raise HTTPException(status_code=400, detail="Invalid filename")
-
-    file_path = AUDIO_DIR / filename
-
-    # Check if file exists in AUDIO_DIR
+    file_path = candidate
     if not file_path.exists() or not file_path.is_file():
-        # Also check output/audio directory as fallback
-        alt_path = PROJECT_ROOT / "output" / "audio" / filename
-        if alt_path.exists() and alt_path.is_file():
+        alt_path = (PROJECT_ROOT / "output" / "audio" / filename).resolve()
+        if str(alt_path).startswith(str(allowed_dirs[1])) and alt_path.exists() and alt_path.is_file():
             file_path = alt_path
         else:
             raise HTTPException(status_code=404, detail=f"Audio file not found: {filename}")
@@ -799,8 +891,10 @@ async def serve_audio_file(request: Request, filename: str):
     }
     media_type = media_types.get(ext, "application/octet-stream")
 
-    # Echo back the requesting origin for CORS (works with credentials)
-    origin = request.headers.get("origin", "*")
+    # CORS: allowlist local origins only (no reflection)
+    allowed_origins = {"http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:8000", "http://localhost:8000"}
+    origin = request.headers.get("origin", "")
+    cors_origin = origin if origin in allowed_origins else "http://127.0.0.1:5173"
     return FileResponse(
         str(file_path),
         media_type=media_type,
@@ -808,7 +902,7 @@ async def serve_audio_file(request: Request, filename: str):
         headers={
              "Accept-Ranges": "bytes",
              "Cache-Control": "public, max-age=3600",
-             "Access-Control-Allow-Origin": origin,
+             "Access-Control-Allow-Origin": cors_origin,
         },
      )
 

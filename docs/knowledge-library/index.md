@@ -44,8 +44,8 @@ date: 2026-08-27
 ### 🎯 Specialized Guides
 - [[3d-rendering|🧊 3D Rendering]] — GPU rendering, Blender 5.2 EEVEE Next, optimization
 - [[visualization-effects|✨ Visualization Effects]] — WebGPU/TSL, particles, shaders, post-processing, volumetrics (NEW 2026-08-29)
+- [[2d-visualization-2026|🎨 2D Visualization 2026]] — Canvas2D/PixiJS/p5.js/Waviz 2026 open source 2D stacks (NEW 2026-09-02)
 - [[prompt-engineering|✍️ Prompt Engineering]] — Effective prompts + repair/versioning workflow
-- [[remotion-guide|🎬 Remotion Video Compositing]] — Programmatic video with React (NEW 2026-09-01)
 - [[remotion-guide|🎬 Remotion Video Compositing]] — Programmatic video with React (NEW 2026-09-01)
 
 ### 🤖 AI Agent Resources
@@ -133,10 +133,10 @@ graph LR
 
 | Metric | Count |
 |--------|-------|
-| Total Documents | 15 (+ ai-video-trends-2026, visualization-effects, ai-agent-navigation) |
+| Total Documents | 16 (+ 2d-visualization-2026) |
 | Total Tags | 16 (+ remotion) |
 | Total Links | 80+ |
-| Last Updated | 2026-09-01 (ai-agent-navigation added, duplicates consolidated) |
+| Last Updated | 2026-09-02 (2d-visualization-2026, LRC fixes, 3D LRC wiring, Canvas2D) |
 
 ---
 

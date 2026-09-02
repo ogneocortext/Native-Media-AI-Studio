@@ -7,11 +7,17 @@ import type { LyricLine } from "./components/KineticPresets";
  * This is the preferred format - each lyric line has its own row
  * with explicit timing.
  */
-export function parseLyricsFromNormalizedCsv(csvContent: string, trackName: string): LyricLine[] {
+export function parseLyricsFromNormalizedCsv(
+  csvContent: string,
+  trackName: string,
+): LyricLine[] {
   if (!csvContent || !trackName) return [];
 
   // Normalize line endings and split
-  const lines = csvContent.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  const lines = csvContent
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n");
   if (lines.length < 2) return [];
 
   // Find the header row to determine column indices
@@ -22,11 +28,20 @@ export function parseLyricsFromNormalizedCsv(csvContent: string, trackName: stri
   const endIdx = header.indexOf("end_time");
   const textIdx = header.indexOf("text");
 
-  if (trackIdx < 0 || sectionIdx < 0 || startIdx < 0 || endIdx < 0 || textIdx < 0) {
+  if (
+    trackIdx < 0 ||
+    sectionIdx < 0 ||
+    startIdx < 0 ||
+    endIdx < 0 ||
+    textIdx < 0
+  ) {
     return []; // Invalid format
   }
 
-  const cleanTrackName = trackName.toLowerCase().replace(/\s*\(.*?\)\s*/g, "").trim();
+  const cleanTrackName = trackName
+    .toLowerCase()
+    .replace(/\s*\(.*?\)\s*/g, "")
+    .trim();
   const result: LyricLine[] = [];
 
   for (let i = 1; i < lines.length; i++) {
@@ -35,9 +50,15 @@ export function parseLyricsFromNormalizedCsv(csvContent: string, trackName: stri
 
     // Parse CSV line (handle quoted fields)
     const fields = parseCsvLine(line);
-    if (fields.length <= Math.max(trackIdx, sectionIdx, startIdx, endIdx, textIdx)) continue;
+    if (
+      fields.length <= Math.max(trackIdx, sectionIdx, startIdx, endIdx, textIdx)
+    )
+      continue;
 
-    const csvName = fields[trackIdx].toLowerCase().replace(/\s*\(.*?\)\s*/g, "").trim();
+    const csvName = fields[trackIdx]
+      .toLowerCase()
+      .replace(/\s*\(.*?\)\s*/g, "")
+      .trim();
 
     // Fuzzy match
     if (cleanTrackName.includes(csvName) || csvName.includes(cleanTrackName)) {
@@ -66,93 +87,78 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
   const lines = lrcContent.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
   const result: LyricLine[] = [];
   let currentSection = "VERSE";
+  let offsetMs = 0;
+  const offsetMatch = lrcContent.match(/\[offset:\s*([+-]?\d+)\]/i);
+  if (offsetMatch) offsetMs = parseInt(offsetMatch[1], 10) || 0;
+
+  const sectionFor = (m: string) => {
+    const marker = m.toLowerCase().trim();
+    if (marker.includes("intro")) return "INTRO";
+    if (marker.startsWith("verse")) return "VERSE";
+    if (marker.includes("final") && marker.includes("drop")) return "FINAL DROP";
+    if (marker.includes("final") && marker.includes("chorus")) return "FINAL CHORUS";
+    if (marker.includes("pre-chorus") || marker.includes("pre chorus")) return "PRE-CHORUS";
+    if (marker.includes("chorus")) return "CHORUS";
+    if (marker.includes("bridge")) return "BRIDGE";
+    if (marker.includes("drop")) return "DROP";
+    if (marker.includes("breakdown")) return "BREAKDOWN";
+    if (marker.includes("build-up") || marker.includes("build up") || marker.includes("buildup")) return "BUILD-UP";
+    if (marker.includes("instrumental") || marker.includes("interlude") || marker.includes("solo")) return "INSTRUMENTAL";
+    if (marker.includes("outro")) return "OUTRO";
+    if (marker.includes("hook") || marker.includes("refrain")) return "CHORUS";
+    return marker.toUpperCase();
+  };
+
+  const tsRegex = /\[(\d{1,3}):(\d{2})[.:](\d{1,3})\]/g;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line) continue;
+    if (/^\[(ti|ar|al|length|by|re|ve):/i.test(line)) continue;
+    if (/^\[offset:/i.test(line)) continue;
 
-    // Skip metadata lines like [ti:...], [ar:...], [al:...], [length:...]
-    if (/^\[(ti|ar|al|length|by|offset|re|ve):/i.test(line)) continue;
-
-    // Parse timestamps: [mm:ss.xx]text or [mm:ss.xx][mm:ss.xx]text
-    const timestampMatch = line.match(/^\[(\d{2}):(\d{2})\.(\d{2})\](.*)$/);
-    if (timestampMatch) {
-      const text = timestampMatch[4].trim();
-
-      // Check if the text is a section marker like [Intro], [Verse], [Drop]
-      const sectionInText = text.match(/^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro)\]$/i);
-      if (sectionInText) {
-        const marker = sectionInText[1].toLowerCase().trim();
-        if (marker.includes("intro")) currentSection = "INTRO";
-        else if (marker.startsWith("verse")) currentSection = "VERSE";
-        else if (marker.includes("final") && marker.includes("drop")) currentSection = "FINAL DROP";
-        else if (marker.includes("final") && marker.includes("chorus")) currentSection = "FINAL CHORUS";
-        else if (marker.includes("chorus")) currentSection = "CHORUS";
-        else if (marker.includes("bridge")) currentSection = "BRIDGE";
-        else if (marker.includes("drop")) currentSection = "DROP";
-        else if (marker.includes("breakdown")) currentSection = "BREAKDOWN";
-        else if (marker.includes("build-up")) currentSection = "BUILD-UP";
-        else if (marker.includes("outro")) currentSection = "OUTRO";
-        else currentSection = marker.toUpperCase();
-        continue;
-      }
-
-      if (!text) continue;
-
-      const minutes = parseInt(timestampMatch[1], 10);
-      const seconds = parseInt(timestampMatch[2], 10);
-      const centiseconds = parseInt(timestampMatch[3], 10);
-      const start = minutes * 60 + seconds + centiseconds / 100;
-
-      result.push({
-        start,
-        end: start + 2, // Will be recalculated when we know the next line's start
-        text,
-        section: currentSection,
-      });
+    // Standalone section marker like [Chorus] (no timestamp)
+    const standaloneSection = line.match(/^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i);
+    if (standaloneSection) {
+      currentSection = sectionFor(standaloneSection[1]);
       continue;
     }
 
-    // Check if it's a standalone section marker like [Intro], [Verse], [Chorus]
-    const sectionMatch = line.match(/^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro)\]$/i);
-    if (sectionMatch) {
-      const marker = sectionMatch[1].toLowerCase().trim();
-      if (marker.includes("intro")) currentSection = "INTRO";
-      else if (marker.startsWith("verse")) currentSection = "VERSE";
-      else if (marker.includes("final") && marker.includes("drop")) currentSection = "FINAL DROP";
-      else if (marker.includes("final") && marker.includes("chorus")) currentSection = "FINAL CHORUS";
-      else if (marker.includes("chorus")) currentSection = "CHORUS";
-      else if (marker.includes("bridge")) currentSection = "BRIDGE";
-      else if (marker.includes("drop")) currentSection = "DROP";
-      else if (marker.includes("breakdown")) currentSection = "BREAKDOWN";
-      else if (marker.includes("build-up")) currentSection = "BUILD-UP";
-      else if (marker.includes("outro")) currentSection = "OUTRO";
-      else currentSection = marker.toUpperCase();
+    // Collect all timestamps on this line
+    const stamps = [...line.matchAll(tsRegex)];
+    if (stamps.length === 0) continue;
+    const text = line.replace(tsRegex, "").trim();
+    // Section marker embedded as text after timestamps: [00:12.00][Chorus]
+    const embeddedSection = text.match(/^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i);
+    if (embeddedSection) {
+      currentSection = sectionFor(embeddedSection[1]);
       continue;
     }
-    const seconds = parseInt(timestampMatch[2], 10);
-    const centiseconds = parseInt(timestampMatch[3], 10);
-    const start = minutes * 60 + seconds + centiseconds / 100;
-    const text = timestampMatch[4].trim();
-
     if (!text) continue;
 
-    result.push({
-      start,
-      end: start + 2, // Will be recalculated when we know the next line's start
-      text,
-      section: currentSection,
-    });
+    for (const m of stamps) {
+      const mins = parseInt(m[1], 10);
+      const secs = parseInt(m[2], 10);
+      const fracStr = m[3];
+      const div = fracStr.length === 3 ? 1000 : fracStr.length === 1 ? 10 : 100;
+      const start = mins * 60 + secs + parseInt(fracStr, 10) / div + offsetMs / 1000;
+      const clamped = Math.max(0, start);
+      result.push({ start: clamped, end: clamped + 2, text, section: currentSection });
+    }
   }
 
-  // Recalculate end times based on next line's start
+  result.sort((a, b) => a.start - b.start);
+  // Recalculate end times with caps to avoid unreadably short/long lines
   for (let i = 0; i < result.length - 1; i++) {
-    result[i].end = result[i + 1].start;
+    const gap = result[i + 1].start - result[i].start;
+    let end = result[i + 1].start;
+    if (gap > 0.5) end = Math.min(result[i].start + 6, result[i + 1].start - 0.2);
+    if (end < result[i].start + 1.5) end = Math.min(result[i + 1].start, result[i].start + 1.5);
+    result[i].end = end;
   }
-
-  // Last line gets a reasonable default duration
   if (result.length > 0) {
-    result[result.length - 1].end = result[result.length - 1].start + 3;
+    const last = result[result.length - 1];
+    last.end = last.start + 3;
   }
 
   return result;
@@ -186,7 +192,11 @@ function parseCsvLine(line: string): string[] {
  * Parse lyrics from CSV content for a given track name.
  * Tries normalized format first, falls back to legacy format.
  */
-export function parseLyricsFromCsv(csvContent: string, trackName: string, duration: number): LyricLine[] {
+export function parseLyricsFromCsv(
+  csvContent: string,
+  trackName: string,
+  duration: number,
+): LyricLine[] {
   // Try normalized format first
   const normalized = parseLyricsFromNormalizedCsv(csvContent, trackName);
   if (normalized.length > 0) return normalized;
@@ -199,21 +209,34 @@ export function parseLyricsFromCsv(csvContent: string, trackName: string, durati
  * Parse lyrics from the legacy CSV format.
  * Legacy format: "#","Track Name","Prompt","Lyrics (key excerpt/theme)"
  */
-function parseLyricsFromLegacyCsv(csvContent: string, trackName: string, duration: number): LyricLine[] {
+function parseLyricsFromLegacyCsv(
+  csvContent: string,
+  trackName: string,
+  duration: number,
+): LyricLine[] {
   if (!csvContent || !trackName) return [];
 
   const lines = csvContent.split("\n");
-  const cleanTrackName = trackName.toLowerCase().replace(/\s*\(.*?\)\s*/g, "").trim();
+  const cleanTrackName = trackName
+    .toLowerCase()
+    .replace(/\s*\(.*?\)\s*/g, "")
+    .trim();
 
   for (const line of lines) {
     const match = line.match(/^"\d+","([^"]+)"/);
     if (!match) continue;
 
     const csvName = match[1];
-    const cleanCsvName = csvName.toLowerCase().replace(/\s*\(.*?\)\s*/g, "").trim();
+    const cleanCsvName = csvName
+      .toLowerCase()
+      .replace(/\s*\(.*?\)\s*/g, "")
+      .trim();
 
     // Fuzzy match: track name contains CSV name or vice versa
-    if (cleanTrackName.includes(cleanCsvName) || cleanCsvName.includes(cleanTrackName)) {
+    if (
+      cleanTrackName.includes(cleanCsvName) ||
+      cleanCsvName.includes(cleanTrackName)
+    ) {
       // Extract lyrics from the 4th column - everything after the 3rd comma-separated field
       const lyricsColMatch = line.match(/^"\d+","[^"]*","[^"]*","(.*)"$/);
       if (!lyricsColMatch) continue;
@@ -233,7 +256,10 @@ function parseLyricsFromLegacyCsv(csvContent: string, trackName: string, duratio
  * 1. Section markers: 'Structure: Verse–Verse–Pre-Chorus–Chorus(""lyric..."")–Breakdown–Build-Up–Verse–Final Chorus'
  * 2. Theme + quoted: 'Theme: description. ""lyric 1 / lyric 2 / lyric 3""'
  */
-export function generateTimedLyrics(lyricsText: string, duration: number): LyricLine[] {
+export function generateTimedLyrics(
+  lyricsText: string,
+  duration: number,
+): LyricLine[] {
   if (!lyricsText || lyricsText.length < 10) return [];
 
   const sections: { section: string; lines: string[] }[] = [];
@@ -241,19 +267,26 @@ export function generateTimedLyrics(lyricsText: string, duration: number): Lyric
   let currentLines: string[] = [];
 
   // Check if this is format 1 (has explicit section markers)
-  const hasSectionMarkers = /(?:VERSE|CHORUS|BRIDGE|INTRO|FINAL\s*Chorus|PRE-CHORUS|BREAKDOWN|BUILD-UP)/i.test(lyricsText);
+  const hasSectionMarkers =
+    /(?:VERSE|CHORUS|BRIDGE|INTRO|FINAL\s*Chorus|PRE-CHORUS|BREAKDOWN|BUILD-UP)/i.test(
+      lyricsText,
+    );
 
   if (hasSectionMarkers) {
     // Parse lyrics text into sections
     // Split on section markers: Verse, Chorus, Bridge, Intro, Final Chorus, Pre-Chorus, Breakdown, Build-Up
-    const parts = lyricsText.split(/(Verse\s*\d*|Chorus|Bridge|Intro|Final\s*Chorus|Pre-Chorus|Breakdown|Build-Up)/gi);
+    const parts = lyricsText.split(
+      /(Verse\s*\d*|Chorus|Bridge|Intro|Final\s*Chorus|Pre-Chorus|Breakdown|Build-Up)/gi,
+    );
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]?.trim();
       if (!part) continue;
 
       // Check if this part is a section marker
-      const sectionMatch = part.match(/^(Verse\s*\d*|Chorus|Bridge|Intro|Final\s*Chorus|Pre-Chorus|Breakdown|Build-Up)$/i);
+      const sectionMatch = part.match(
+        /^(Verse\s*\d*|Chorus|Bridge|Intro|Final\s*Chorus|Pre-Chorus|Breakdown|Build-Up)$/i,
+      );
       if (sectionMatch) {
         if (currentLines.length) {
           sections.push({ section: currentSection, lines: [...currentLines] });
@@ -272,8 +305,13 @@ export function generateTimedLyrics(lyricsText: string, duration: number): Lyric
         // Lyric lines are typically in double-quotes: ""lyric text""
         const extracted = part
           .split(/""/)
-          .map(s => s.replace(/"/g, "").trim())
-          .filter(s => s.length > 3 && !s.toLowerCase().includes("structure:") && !s.toLowerCase().includes("theme:"));
+          .map((s) => s.replace(/"/g, "").trim())
+          .filter(
+            (s) =>
+              s.length > 3 &&
+              !s.toLowerCase().includes("structure:") &&
+              !s.toLowerCase().includes("theme:"),
+          );
 
         if (extracted.length > 0) {
           currentLines.push(...extracted);
@@ -289,8 +327,8 @@ export function generateTimedLyrics(lyricsText: string, duration: number): Lyric
       // Split by / or – or newlines
       const lyricLines = quotedText
         .split(/[\/–—\n]/)
-        .map(s => s.trim())
-        .filter(s => s.length > 2);
+        .map((s) => s.trim())
+        .filter((s) => s.length > 2);
 
       if (lyricLines.length > 0) {
         sections.push({ section: "VERSE", lines: lyricLines });
@@ -299,8 +337,13 @@ export function generateTimedLyrics(lyricsText: string, duration: number): Lyric
       // Fallback: just split by common separators
       const lyricLines = lyricsText
         .split(/[\/–—\n]/)
-        .map(s => s.trim())
-        .filter(s => s.length > 5 && !s.toLowerCase().startsWith("theme:") && !s.toLowerCase().startsWith("structure:"));
+        .map((s) => s.trim())
+        .filter(
+          (s) =>
+            s.length > 5 &&
+            !s.toLowerCase().startsWith("theme:") &&
+            !s.toLowerCase().startsWith("structure:"),
+        );
 
       if (lyricLines.length > 0) {
         sections.push({ section: "VERSE", lines: lyricLines });
@@ -321,19 +364,27 @@ export function generateTimedLyrics(lyricsText: string, duration: number): Lyric
 
   const timePerLine = duration / totalLines;
   const result: LyricLine[] = [];
+  for (let idx = 0; idx < sections.reduce((n,s)=>n+s.lines.length,0); idx++) {
+    // distribute exactly without accumulated rounding error
+  }
   let time = 0;
-
+  let lineIdx = 0;
   for (const section of sections) {
     for (const line of section.lines) {
+      const start = time;
+      const end = time + timePerLine;
       result.push({
-        start: Math.round(time * 10) / 10,
-        end: Math.round((time + timePerLine) * 10) / 10,
+        start: Math.round(start * 100) / 100,
+        end: Math.round(end * 100) / 100,
         text: line,
         section: section.section,
       });
-      time += timePerLine;
+      time = end;
+      lineIdx++;
     }
   }
+  // Clamp last end to duration
+  if (result.length) result[result.length-1].end = Math.round(duration * 100) / 100;
 
   return result;
 }

@@ -66,7 +66,14 @@ Generate 3-8 scenes based on the input theme or concept."""
         """
         super().__init__(base_url, "Ollama", mock_mode=mock_mode)
         self._available_models: list[str] = []
-        self._default_model: str = "qwen2.5:3b"  # Default to smaller model for speed
+        # Use models that actually exist in this install (qwen3.5:4b is always available)
+        # Import here to avoid circular init — fallback to qwen3.5:4b
+        try:
+            from ..core.config import config as _cfg
+            _def = _cfg.default_model
+        except Exception:
+            _def = "qwen3.5:4b"
+        self._default_model: str = _def
         self._last_model: str = self._default_model  # Track last used model for VRAM manager
         self._last_health_log: str | None = None
         self._session: aiohttp.ClientSession | None = None
@@ -444,7 +451,7 @@ Generate 3-8 scenes based on the input theme or concept."""
     async def chat(
         self,
         messages: list[dict[str, str]],
-        model: str = "qwen2.5:3b",
+        model: str = "qwen3.5:4b",
         tools: list[dict[str, Any]] | None = None,
         stream: bool = False,
         think: bool | str | None = None,

@@ -165,7 +165,7 @@ export interface OutputFile {
   filename: string;
   path: string;
   relative_path: string;
-  file_type: "image" | "video" | "audio" | "other";
+  file_type: "image" | "video" | "audio" | "other" | "3d";
   size_bytes: number;
   created_at: string;
   modified_at?: string;
@@ -193,7 +193,13 @@ export interface WebSocketMessage {
 }
 
 export interface JobEvent extends WebSocketMessage {
-  type: "job.queued" | "job.started" | "job.progress" | "job.completed" | "job.failed" | "job.cancelled";
+  type:
+    | "job.queued"
+    | "job.started"
+    | "job.progress"
+    | "job.completed"
+    | "job.failed"
+    | "job.cancelled";
   data: { job: Job };
 }
 

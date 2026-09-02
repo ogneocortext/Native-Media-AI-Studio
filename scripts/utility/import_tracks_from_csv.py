@@ -3,10 +3,14 @@ import csv
 import os
 import sys
 import re
+from pathlib import Path
 
-# Add the backend app to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'packages', 'backend'))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
 
+from tools.lib.paths import backend_dir
+
+sys.path.insert(0, str(backend_dir()))
 from app.core.database import (
     init_db, save_track, get_tracks, update_track, get_track, delete_track
 )

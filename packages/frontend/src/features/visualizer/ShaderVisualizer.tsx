@@ -3,45 +3,57 @@ import { ShaderCanvas } from "./components/ShaderCanvas";
 import { SHADER_PRESETS, type ShaderPresetName } from "./shaders";
 import { getShaderPresetForTrack, SHADER_PRESET_INFO } from "./shaderPresets";
 import type { AudioData } from "./types";
+import type { LyricLine } from "./components/LyricOverlay";
 
 interface ShaderVisualizerProps {
   audioData: React.MutableRefObject<AudioData>;
   trackName: string;
   isPlaying: boolean;
   className?: string;
+  lrcSync?: {
+    currentSection: string;
+    sectionProgress: number;
+    isPhraseStart: boolean;
+    lineProgress: number;
+  } | null;
+  lyrics?: LyricLine[];
 }
 
 /**
  * Shader-driven visualization that auto-selects a preset based on track mood.
  * Audio data drives shader uniforms in real-time.
  */
-export function ShaderVisualizer({ audioData, trackName, isPlaying, className }: ShaderVisualizerProps) {
+export function ShaderVisualizer({ audioData, trackName, isPlaying, className, lrcSync }: ShaderVisualizerProps) {
   const [preset, setPreset] = useState<ShaderPresetName>(() => getShaderPresetForTrack(trackName));
   const [showSelector, setShowSelector] = useState(false);
   const uniformsRef = useRef({
     bass: 0, mid: 0, treble: 0, beat: 0, energy: 0, peak: 0,
   });
 
-  // Update uniforms from audio data every frame
+  // Update uniforms from audio + LRC phrase timing
   useEffect(() => {
     let raf: number;
+    let phraseFlash = 0;
     const update = () => {
       const d = audioData.current;
+      if (lrcSync?.isPhraseStart) phraseFlash = 1;
+      else phraseFlash = Math.max(0, phraseFlash - 0.08);
+      // LRC phrase boosts beat/energy when a new lyric line starts
+      const lrcBeat = lrcSync?.isPhraseStart ? 1 : d.beat ? 1 : 0;
+      const lrcEnergy = d.energy + phraseFlash * 0.35 + (lrcSync?.sectionProgress ?? 0) * 0.1;
       uniformsRef.current = {
         bass: d.bass,
         mid: d.mid,
         treble: d.treble,
-        beat: d.beat ? 1 : 0,
-        energy: d.energy,
+        beat: lrcBeat,
+        energy: Math.min(1, lrcEnergy),
         peak: d.peak,
       };
       raf = requestAnimationFrame(update);
     };
-    if (isPlaying) {
-      raf = requestAnimationFrame(update);
-    }
+    if (isPlaying) raf = requestAnimationFrame(update);
     return () => cancelAnimationFrame(raf);
-  }, [isPlaying, audioData]);
+  }, [isPlaying, audioData, lrcSync]);
 
   // Auto-change preset when track changes
   useEffect(() => {

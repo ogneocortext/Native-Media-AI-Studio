@@ -1,37 +1,34 @@
-import { useRef, useEffect } from "react";
-import { OrbitControls, Environment, Lightformer } from "@react-three/drei";
+import { Environment, Lightformer, OrbitControls } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
+import { useEffect, useRef } from "react";
+import { LrcVizController } from "./LrcVizController";
+import { PostFX } from "./VisualizationFX";
 import {
   AudioReactiveCore,
-  OrbitalParticles,
-  FrequencyRings,
-  EnergyWaves,
-  SpectrumBars,
-  GeometricViz,
-  PulseRings,
-  VinylDisc,
   AuroraRibbon,
-  OceanWaves,
+  EnergyWaves,
   FractalViz,
-  StormViz,
+  FrequencyRings,
+  GeometricViz,
   InfernoViz,
+  OceanWaves,
+  OrbitalParticles,
+  PulseRings,
+  SpectrumBars,
+  StormViz,
+  VinylDisc,
 } from "./VisualizationStyles";
-import { LrcVizController, getSectionIntensity } from "./LrcVizController";
-import { PostFX } from "./VisualizationFX";
-import { useRealAudio, useDemoAudio } from "./audioHooks";
+import { useDemoAudio, useRealAudio } from "./audioHooks";
+import type { LyricLine } from "./components/LyricOverlay";
+import { getSectionIntensity } from "./sectionHelpers";
 import { updateTrackFeatures } from "./trackFeatures";
 import type { VisualizerSceneProps } from "./types";
 
 interface Props extends VisualizerSceneProps {
   /** LRC lyric data for phrase-synchronized visuals */
   lyrics?: LyricLine[];
-  /** Current LRC sync state */
-  lrcSync?: {
-    currentSection: string;
-    sectionProgress: number;
-    isPhraseStart: boolean;
-    lineProgress: number;
-  } | null;
+  /** Current LRC sync state — full type from VisualizerSceneProps */
+  lrcSync?: VisualizerSceneProps["lrcSync"];
 }
 
 export function VisualizerScene({
@@ -52,8 +49,17 @@ export function VisualizerScene({
   lrcSync = null,
 }: Props) {
   // Pass elapsed ref to hook so it reads live value inside useFrame
-  const realData = useRealAudio(analyserRef, isPlaying, isPaused, analysisData, audioElapsedRef);
-  const demoData = useDemoAudio(demoEnabled && !isPlaying && !isPaused, demoBpm);
+  const realData = useRealAudio(
+    analyserRef,
+    isPlaying,
+    isPaused,
+    analysisData,
+    audioElapsedRef,
+  );
+  const demoData = useDemoAudio(
+    demoEnabled && !isPlaying && !isPaused,
+    demoBpm,
+  );
   const audioData = isPlaying ? realData : demoData;
 
   // Update track features once per frame (shared across all visualizations)
@@ -85,23 +91,36 @@ export function VisualizerScene({
     // Wrap with LRC controller for section-synchronized color/intensity
     const viz = (() => {
       switch (visualizationStyle) {
-        case "waveform": return <AudioReactiveCore {...props} />;
-        case "particles": return <OrbitalParticles {...props} />;
-        case "neural": return <FrequencyRings {...props} />;
-        case "cosmic": return <EnergyWaves {...props} />;
-        case "fractal": return <FractalViz {...props} />;
-        case "pulse": return <PulseRings {...props} />;
-        case "storm": return <StormViz {...props} />;
-        case "vinyl": return <VinylDisc {...props} />;
-        case "synthwave": return <SpectrumBars {...props} />;
-        case "aurora": return <AuroraRibbon {...props} />;
-        case "inferno": return <InfernoViz {...props} />;
-        case "ocean": return <OceanWaves {...props} />;
+        case "waveform":
+          return <AudioReactiveCore {...props} />;
+        case "particles":
+          return <OrbitalParticles {...props} />;
+        case "neural":
+          return <FrequencyRings {...props} />;
+        case "cosmic":
+          return <EnergyWaves {...props} />;
+        case "fractal":
+          return <FractalViz {...props} />;
+        case "pulse":
+          return <PulseRings {...props} />;
+        case "storm":
+          return <StormViz {...props} />;
+        case "vinyl":
+          return <VinylDisc {...props} />;
+        case "synthwave":
+          return <SpectrumBars {...props} />;
+        case "aurora":
+          return <AuroraRibbon {...props} />;
+        case "inferno":
+          return <InfernoViz {...props} />;
+        case "ocean":
+          return <OceanWaves {...props} />;
         case "geometric":
-        default: return <GeometricViz {...props} />;
+        default:
+          return <GeometricViz {...props} />;
       }
     })();
-    
+
     return (
       <LrcVizController
         audioData={audioData}
@@ -118,34 +137,101 @@ export function VisualizerScene({
 
   return (
     <>
-      {vizParams.fogEnabled && <fogExp2 attach="fog" args={[bgColor ?? "#050505", vizParams.fogDensity]} />}
+      {vizParams.fogEnabled && (
+        <fogExp2
+          attach="fog"
+          args={[bgColor ?? "#050505", vizParams.fogDensity]}
+        />
+      )}
       {/* IBL studio environment (local Lightformers — no HDR fetch) gives metals
           and clearcoat materials real reflections; 2026 standard lighting rig. */}
       <Environment resolution={64} frames={1}>
-        <Lightformer form="rect" intensity={2.2 * (lrcSync ? getSectionIntensity(lrcSync.currentSection) : 1)} position={[0, 5, -4]} rotation={[Math.PI / 2.4, 0, 0]} scale={[9, 4, 1]} color="#dfe8ff" />
-        <Lightformer form="circle" intensity={1.6} position={[-5, 2, 3]} scale={3} color="#8ea2ff" />
-        <Lightformer form="circle" intensity={1.1} position={[5, -1, 2]} scale={2.4} color={meshColor} />
-        <Lightformer form="rect" intensity={0.9} position={[0, -4, 2]} rotation={[-Math.PI / 2.6, 0, 0]} scale={[8, 3, 1]} color="#2a2f45" />
+        <Lightformer
+          form="rect"
+          intensity={
+            2.2 * (lrcSync ? getSectionIntensity(lrcSync.currentSection) : 1)
+          }
+          position={[0, 5, -4]}
+          rotation={[Math.PI / 2.4, 0, 0]}
+          scale={[9, 4, 1]}
+          color="#dfe8ff"
+        />
+        <Lightformer
+          form="circle"
+          intensity={1.6}
+          position={[-5, 2, 3]}
+          scale={3}
+          color="#8ea2ff"
+        />
+        <Lightformer
+          form="circle"
+          intensity={1.1}
+          position={[5, -1, 2]}
+          scale={2.4}
+          color={meshColor}
+        />
+        <Lightformer
+          form="rect"
+          intensity={0.9}
+          position={[0, -4, 2]}
+          rotation={[-Math.PI / 2.6, 0, 0]}
+          scale={[8, 3, 1]}
+          color="#2a2f45"
+        />
       </Environment>
       {/* Key/fill/rim — physical falloff (decay 2) instead of legacy decay-0 */}
-      <ambientLight intensity={vizParams.lightIntensity * 0.35} color={vizParams.ambientColor} />
-      <pointLight position={[6, 6, 6]} intensity={vizParams.lightIntensity * 40} decay={2} color="#fff" />
-      <pointLight position={[-5, -3, 4]} intensity={vizParams.lightIntensity * 22} decay={2} color="#4da6ff" />
-      <pointLight position={[0, 4, -6]} intensity={vizParams.lightIntensity * 16} decay={2} color={meshColor} />
+      <ambientLight
+        intensity={vizParams.lightIntensity * 0.35}
+        color={vizParams.ambientColor}
+      />
+      <pointLight
+        position={[6, 6, 6]}
+        intensity={vizParams.lightIntensity * 40}
+        decay={2}
+        color="#fff"
+      />
+      <pointLight
+        position={[-5, -3, 4]}
+        intensity={vizParams.lightIntensity * 22}
+        decay={2}
+        color="#4da6ff"
+      />
+      <pointLight
+        position={[0, 4, -6]}
+        intensity={vizParams.lightIntensity * 16}
+        decay={2}
+        color={meshColor}
+      />
 
       {renderVisualization()}
 
       {vizParams.showGround && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3, 0]} receiveShadow={false}>
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, -3, 0]}
+          receiveShadow={false}
+        >
           <planeGeometry args={[20, 20]} />
-          <meshStandardMaterial color="#111111" metalness={0.9} roughness={0.15} />
+          <meshStandardMaterial
+            color="#111111"
+            metalness={0.9}
+            roughness={0.15}
+          />
         </mesh>
       )}
 
-      {/* Post pipeline: bloom + film grade (must be last; takes over render loop) */}
-      <PostFX audioData={audioData} />
+      {/* Post pipeline: bloom + film grade — now LRC-reactive (phrase pulse boosts bloom) */}
+      <PostFX audioData={audioData} lrcSync={lrcSync} />
 
-      <OrbitControls enablePan={false} enableZoom={true} minDistance={3} maxDistance={15} autoRotate={false} dampingFactor={0.05} enableDamping />
+      <OrbitControls
+        enablePan={false}
+        enableZoom={true}
+        minDistance={3}
+        maxDistance={15}
+        autoRotate={false}
+        dampingFactor={0.05}
+        enableDamping
+      />
     </>
   );
 }

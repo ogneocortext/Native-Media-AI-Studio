@@ -17,6 +17,16 @@ export function getOutputUrl(relativePath: string): string {
     return relativePath;
   }
 
+  // ComfyUI files are served from a separate endpoint
+  if (relativePath.startsWith("comfyui/")) {
+    const cached = getCachedConfig();
+    const filePart = relativePath.substring(8);
+    if (cached?.backend_url) {
+      return `${cached.backend_url}/api/outputs/comfyui/${filePart}`;
+    }
+    return `/api/outputs/comfyui/${filePart}`;
+  }
+
   const cached = getCachedConfig();
   if (cached?.backend_url) {
     return `${cached.backend_url}/output/${relativePath}`;

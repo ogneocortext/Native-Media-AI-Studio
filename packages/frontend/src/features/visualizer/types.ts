@@ -1,4 +1,4 @@
-import type { VisualizationStyle } from "./trackConceptAnalyzer";
+import type { LyricLine } from "./components/LyricOverlay";
 
 export interface AudioData {
   bass: number;
@@ -33,7 +33,14 @@ export interface VizParams {
   colorShift: number;
   glowIntensity: number;
   lerpSpeed: number;
-  materialType: "standard" | "metallic" | "glass" | "neon" | "matte" | "chrome" | "holographic";
+  materialType:
+    | "standard"
+    | "metallic"
+    | "glass"
+    | "neon"
+    | "matte"
+    | "chrome"
+    | "holographic";
   wireframe: boolean;
   opacity: number;
   shadowEnabled: boolean;
@@ -54,6 +61,8 @@ export interface VizParams {
     vignette: number;
     glitch: number;
   };
+  /** Mesh color for LRC-driven section changes */
+  meshColor?: string;
 }
 
 export const DEFAULT_VIZ_PARAMS: VizParams = {
@@ -96,11 +105,16 @@ export interface VisualizerSceneProps {
   sceneFrozen?: boolean;
   /** LRC lyric data for phrase-synchronized visuals */
   lyrics?: LyricLine[];
-  /** Current LRC sync state */
+  /** Current LRC sync state — full data for 3D reactivity */
   lrcSync?: {
     currentSection: string;
     sectionProgress: number;
     isPhraseStart: boolean;
     lineProgress: number;
+    currentLine: LyricLine | null;
+    nextLine: LyricLine | null;
+    timeToNextPhrase: number;
+    currentIndex: number;
+    totalLines: number;
   } | null;
 }

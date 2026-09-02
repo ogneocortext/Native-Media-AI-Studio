@@ -6,6 +6,7 @@ import type { AudioAnalysisData, AudioData, VizParams } from "./types";
 import { DEFAULT_VIZ_PARAMS } from "./types";
 import { useUIStore } from "../../state/uiStore";
 import { getVisualizationForTrack, VisualizationStyle } from "./trackConceptAnalyzer";
+import { Canvas2DVisualizer } from "./Canvas2DVisualizer";
 import { VisualizerScene } from "./VisualizerScene";
 import { useLrcSync } from "./useLrcSync";
 import { ShaderVisualizer } from "./ShaderVisualizer";
@@ -59,7 +60,8 @@ export function Visualizer() {
   const [showTheatreStudio, setShowTheatreStudio] = useState(false);
   const [loadedPreset, setLoadedPreset] = useState<VisualPreset | null>(null);
   const [showAIPanel, setShowAIPanel] = useState(false);
-  const [vizMode, setVizMode] = useState<"3d" | "shader">("shader"); // Default to shader mode
+  const [vizMode, setVizMode] = useState<"3d" | "shader" | "2d">("shader"); // 2d = Canvas2D (2026 visual-flux/Waviz)
+  const [canvas2DMode, setCanvas2DMode] = useState<"bars" | "waveform" | "radial">("bars");
   const [aiEnhancing, setAiEnhancing] = useState(false);
 
   const { focusMode, toggleFocusMode } = useUIStore();
@@ -68,13 +70,14 @@ export function Visualizer() {
   const currentAnalysisData = currentFilename ? analysisData[currentFilename] ?? null : null;
 
   const audioElapsedRef = useRef(0);
+  const [elapsed, setElapsed] = useState(0);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
 
-  // LRC sync for precise phrase-synchronized visuals (must be after refs)
-  const lrcSync = useLrcSync(lyrics, audioElapsedRef.current);
+  // LRC sync for precise phrase-synchronized visuals — now reactive via elapsed state
+  const lrcSync = useLrcSync(lyrics, elapsed);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -214,13 +217,19 @@ export function Visualizer() {
     };
   }, []);
 
-  // Audio elapsed tracking — use rAF for precise timing (timeupdate only fires every 250ms)
+  // Audio elapsed tracking — rAF updates ref + throttled React state for LRC sync (was stale)
   useEffect(() => {
     const el = audioElRef.current;
     if (!el) return;
     let rafId: number;
+    let lastUpdate = 0;
     const track = () => {
       audioElapsedRef.current = el.currentTime;
+      const now = performance.now();
+      if (now - lastUpdate > 80) { // ~12fps React update, avoids 60fps re-render thrash
+        lastUpdate = now;
+        setElapsed(el.currentTime);
+      }
       rafId = requestAnimationFrame(track);
     };
     rafId = requestAnimationFrame(track);
@@ -581,7 +590,14 @@ export function Visualizer() {
             <button onClick={toggleFocusMode} className="viz-icon-btn" aria-label={focusMode ? "Exit focus mode" : "Enter focus mode"} title={focusMode ? "Exit focus mode" : "Enter focus mode"}>{focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
           </div>
           <div className="viz-btn-group">
-            <button onClick={() => setVizMode(vizMode === "3d" ? "shader" : "3d")} className={`viz-icon-btn ${vizMode === "shader" ? "active" : ""}`} title={`Mode: ${vizMode === "3d" ? "3D Scene" : "Shader"}`}>{vizMode === "3d" ? <span style={{ fontSize: 11 }}>3D</span> : <span style={{ fontSize: 11 }}>FX</span>}</button>
+            <button onClick={() => setVizMode(vizMode === "3d" ? "shader" : vizMode === "shader" ? "2d" : "3d")} className={`viz-icon-btn ${vizMode !== "3d" ? "active" : ""}`} title={`Mode: ${vizMode}`}>{vizMode === "3d" ? <span style={{ fontSize: 11 }}>3D</span> : vizMode === "shader" ? <span style={{ fontSize: 11 }}>FX</span> : <span style={{ fontSize: 11 }}>2D</span>}</button>
+            {vizMode === "2d" && (
+              <select value={canvas2DMode} onChange={e => setCanvas2DMode(e.target.value as any)} className="viz-2d-mode-select" title="2D mode: bars/waveform/radial (2026 visual-flux)">
+                <option value="bars">Bars</option>
+                <option value="waveform">Wave</option>
+                <option value="radial">Radial</option>
+              </select>
+            )}
             {lyrics.length > 0 && (
               <button onClick={() => setLyricsVisible(!lyricsVisible)} className={`viz-icon-btn viz-lyrics-btn ${lyricsVisible ? "active" : ""}`} aria-label={lyricsVisible ? "Hide lyrics" : "Show lyrics"} title={lyricsVisible ? "Hide lyrics" : "Show lyrics"}>
                 <MessageSquare size={14} />
@@ -616,7 +632,19 @@ export function Visualizer() {
               audioData={liveAudioDataRef}
               trackName={currentFilename?.replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "") ?? ""}
               isPlaying={isPlaying}
+              lrcSync={lrcSync}
+              lyrics={lyrics}
               className="absolute inset-0"
+            />
+          ) : vizMode === "2d" ? (
+            <Canvas2DVisualizer
+              audioData={liveAudioDataRef}
+              analyserRef={analyserRef}
+              isPlaying={isPlaying}
+              mode={canvas2DMode}
+              lrcSync={lrcSync}
+              lyrics={lyrics}
+              bgColor={bgColor}
             />
           ) : (
             <>
@@ -646,12 +674,7 @@ export function Visualizer() {
                   audioElapsedRef={audioElapsedRef}
                   sceneFrozen={sceneFrozen}
                   lyrics={lyrics}
-                  lrcSync={lrcSync ? {
-                    currentSection: lrcSync.currentSection,
-                    sectionProgress: lrcSync.sectionProgress,
-                    isPhraseStart: lrcSync.isPhraseStart,
-                    lineProgress: lrcSync.lineProgress,
-                  } : null}
+                  lrcSync={lrcSync}
                 />
               </Canvas>
               {!rendererReady && <div className="viz-loading-overlay"><div className="viz-loading-spinner" /><span>Initializing {rendererBackend || "renderer"}...</span></div>}
@@ -674,7 +697,7 @@ export function Visualizer() {
           )}
               <KineticLyricOverlay
                 lyrics={lyrics}
-                elapsed={audioElapsedRef.current}
+                elapsed={elapsed}
                 visible={lyricsVisible}
                 presetId={kineticPreset}
                 beat={liveAudioData.beat}

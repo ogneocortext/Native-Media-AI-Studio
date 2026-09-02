@@ -5,5 +5,8 @@
   "ws_port": 8000,
   "comfyui_url": "http://127.0.0.1:8188",
   "ollama_url": "http://127.0.0.1:11434",
-  "max_queue_workers": 1
+  "max_queue_workers": 1,
+  "default_model": "qwen3.5:4b",
+  "vision_model": "qwen3-vl:4b",
+  "embedding_model": "nomic-embed-text:v1.5"
 }

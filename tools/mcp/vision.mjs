@@ -7,7 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..', '..');
 
 const IMAGE_EXT = /\.(png|jpe?g|webp|bmp)$/i;
-const DEFAULT_MODEL = 'qwen3-vl:2b';
+const DEFAULT_MODEL = process.env.VISION_MODEL || 'qwen3-vl:4b';
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://127.0.0.1:11434';
 
 const DEFAULT_PROMPT = `Analyze this audio visualization screenshot. Report concisely:

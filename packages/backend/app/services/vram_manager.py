@@ -368,9 +368,13 @@ class VRAMManager:
                 free_mb = vram.get("free_mb", 0)
                 if free_mb > self.MIN_VRAM_FOR_3D:
                     logger.info("VRAM Manager: Reloading Ollama models (free=%dMB)", free_mb)
-                    # Get the last used model from Ollama adapter
+                    # Get the last used model from Ollama adapter; sanitize to default if contaminated
                     from ..adapters.ollama import ollama_adapter
-                    last_model = getattr(ollama_adapter, '_last_model', 'qwen3.5:4b')
+                    from ..core.config import config as _cfg2
+                    last_model = getattr(ollama_adapter, '_last_model', _cfg2.default_model)
+                    if "llama" in last_model.lower() and last_model != _cfg2.default_model:
+                        logger.info("VRAM Manager: _last_model %s not default, using %s instead", last_model, _cfg2.default_model)
+                        last_model = _cfg2.default_model
                     reload_ok = await _reload_ollama_models(last_model)
                     self._ollama_loaded = reload_ok
                     reload_result = {"action": "reload_ollama", "success": reload_ok, "model": last_model}
@@ -489,14 +493,21 @@ def _unload_ollama_models_sync() -> list[str]:
 
 
 def _reload_ollama_models_sync(model_name: str) -> bool:
-    """Synchronous helper to reload an Ollama model. Returns True on success."""
+    """Synchronous helper to reload an Ollama model. Returns True on success.
+    Uses keep_alive=5m (not -1) so model expires naturally; also skips reload
+    if model_name is a legacy llama not in config.default_model."""
     import urllib.request
     import json
-
+    from ..core.config import config as _cfg
+    # Don't infinite-pin models; respect OLLAMA_KEEP_ALIVE
+    # Skip reload for llama legacy models unless they are the configured default
+    if "llama" in model_name.lower() and model_name != _cfg.default_model:
+        logger.info("VRAM Manager: Skipping reload of non-default llama model %s (default is %s)", model_name, _cfg.default_model)
+        return False
     data = json.dumps({
         "model": model_name,
         "prompt": " ",
-        "keep_alive": -1
+        "keep_alive": "5m"
     }).encode()
 
     req = urllib.request.Request(

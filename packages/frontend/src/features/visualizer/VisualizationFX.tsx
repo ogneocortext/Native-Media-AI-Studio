@@ -111,7 +111,7 @@ const FinalGradeShader = {
   `,
 };
 
-export function PostFX({ audioData }: { audioData: React.MutableRefObject<AudioData> }) {
+export function PostFX({ audioData, lrcSync }: { audioData: React.MutableRefObject<AudioData>; lrcSync?: { isPhraseStart: boolean; currentSection: string } | null }) {
   const { gl, scene, camera, size } = useThree();
   const beatPulse = useRef(0);
 
@@ -132,16 +132,12 @@ export function PostFX({ audioData }: { audioData: React.MutableRefObject<AudioD
   // Diagnostic handle (temporary)
   (window as unknown as { __postfx?: unknown }).__postfx = fx;
 
+  const phrasePulse = useRef(0);
   useFrame((state) => {
-    // Keep composer resolution in lockstep with the drawing buffer — covers
-    // container resizes, DPR changes and dev StrictMode re-mounts.
     const el = gl.domElement;
     const w = el.clientWidth;
     const h = el.clientHeight;
     if (fx.lastW !== w || fx.lastH !== h) {
-      // R3F sizes the canvas attributes directly, leaving three's internal
-      // _width/_height at the 300x150 default — setRenderTarget(null) then
-      // restores a stale viewport for the final fullscreen blit. Sync it.
       gl.setSize(w, h, false);
       fx.composer.setSize(w, h);
       fx.lastW = w;
@@ -150,13 +146,15 @@ export function PostFX({ audioData }: { audioData: React.MutableRefObject<AudioD
     const { bass, beat, energy } = audioData.current;
     if (beat) beatPulse.current = 1;
     beatPulse.current *= 0.9;
-    // Keep bloom reactive but capped — anything past ~0.9 strength blows out
-    // highlights into a white blob under ACES + UnrealBloom's wide radius.
+    if (lrcSync?.isPhraseStart) phrasePulse.current = 1;
+    phrasePulse.current *= 0.88;
     fx.bloom.strength = Math.min(
       0.9,
-      0.22 + bass * 0.6 + beatPulse.current * 0.35 + energy * 0.15,
+      0.22 + bass * 0.6 + beatPulse.current * 0.35 + energy * 0.15 + phrasePulse.current * 0.25,
     );
     fx.grade.uniforms.uTime.value = state.clock.elapsedTime;
+    // Phrase-driven vignette pulse via uniform (subtle)
+    fx.grade.uniforms.uVignette.value = phrasePulse.current > 0.1 ? 0.35 + phrasePulse.current * 0.2 : 0.35;
     fx.composer.render();
   }, 1);
 

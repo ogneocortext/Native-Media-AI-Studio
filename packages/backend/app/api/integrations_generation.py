@@ -31,6 +31,7 @@ class ImageGenerationRequest(BaseModel):
     sampler: str = "Euler a"
     backend: str = "comfyui"
     ckpt_name: str = ""
+    enrich_prompt: bool = False  # Explicit opt-in for LLM prompt enrichment (was auto, now manual)
 
     @field_validator("steps")
     @classmethod
@@ -227,6 +228,32 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         raise HTTPException(
             status_code=503, detail=f"Service {service_name} is not available"
         )
+
+    # Explicit LLM prompt enrichment — only if user opts in via enrich_prompt=true
+    if request.enrich_prompt and request.prompt and len(request.prompt.strip()) < 200:
+        try:
+            import aiohttp as _aio
+            enrich_sys = "You are a Stable Diffusion prompt engineer. Expand the user prompt into a detailed, comma-separated style prompt (keep <180 chars) and provide a negative_prompt. Respond ONLY JSON: {\"prompt\":\"...\",\"negative_prompt\":\"...\"}"
+            async with _aio.ClientSession() as s:
+                async with s.post(
+                    f"{config.ollama_url}/api/chat",
+                    json={"model": config.default_model, "messages": [{"role":"system","content":enrich_sys},{"role":"user","content":request.prompt}], "stream": False, "format":"json", "think": False, "options":{"temperature":0.7,"num_ctx":4096}},
+                    timeout=_aio.ClientTimeout(total=15),
+                ) as r:
+                    if r.status == 200:
+                        d = await r.json()
+                        c = (d.get("message",{}).get("content") or "").strip()
+                        if c:
+                            import json as _json
+                            if "```" in c:
+                                c = c.split("```")[1].split("```")[0].strip().lstrip("json").strip()
+                            pj = _json.loads(c)
+                            if pj.get("prompt"):
+                                request.prompt = pj["prompt"][:300]
+                            if pj.get("negative_prompt"):
+                                request.negative_prompt = pj["negative_prompt"][:500]
+        except Exception:
+            pass
 
     try:
         # Build params dict for adapter
@@ -580,6 +607,96 @@ async def queue_image_job(service_name: str, request: ImageGenerationRequest) ->
 
 
 
+@router.post("/ollama/embed")
+async def ollama_embed(request: dict) -> dict:
+    """Generate embedding via nomic-embed-text. Uses config.embedding_model by default."""
+    import aiohttp
+    text = (request.get("text") or request.get("input") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text/input required")
+    model = request.get("model") or config.embedding_model
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{config.ollama_url}/api/embed",
+                json={"model": model, "input": text},
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as resp:
+                if resp.status != 200:
+                    err = await resp.text()
+                    raise HTTPException(status_code=resp.status, detail=err[:500])
+                data = await resp.json()
+                emb = data.get("embeddings", [data.get("embedding")])[0] if "embeddings" in data else data.get("embedding")
+                if emb is None:
+                    raise HTTPException(status_code=502, detail="No embedding in response")
+                return {"model": model, "embedding": emb, "dimensions": len(emb)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ollama/search")
+async def ollama_semantic_search(request: dict) -> dict:
+    """Semantic search over tracks/visuals using nomic embeddings. Body: {query, limit?}"""
+    import aiohttp, math
+    query = (request.get("query") or "").strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="query required")
+    limit = min(int(request.get("limit", 10)), 20)
+    model = request.get("model") or config.embedding_model
+    # Embed query
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            f"{config.ollama_url}/api/embed",
+            json={"model": model, "input": query},
+            timeout=aiohttp.ClientTimeout(total=30),
+        ) as resp:
+            if resp.status != 200:
+                raise HTTPException(status_code=502, detail="Embedding failed")
+            qdata = await resp.json()
+            qemb = (qdata.get("embeddings") or [qdata.get("embedding")])[0]
+    # Fetch candidates from DB (tracks)
+    from ..core import database as db
+    candidates = []
+    try:
+        tracks = db.get_all_tracks() if hasattr(db, "get_all_tracks") else []
+        for t in (tracks or [])[:200]:
+            text = f"{t.get('title','')} {t.get('artist','')} {t.get('music_prompt','')} {t.get('lyrics','')[:200]}"
+            candidates.append({"type": "track", "id": t.get("id"), "text": text, "meta": t})
+    except Exception:
+        pass
+    if not candidates:
+        return {"query": query, "results": [], "model": model}
+    # Embed candidates with concurrency limit (was sequential 200*15s = 50min)
+    import asyncio as _asyncio
+    candidates = candidates[: min(len(candidates), limit * 5)]  # cap to 5x limit before embedding
+    sem = _asyncio.Semaphore(5)
+    async def _embed_one(c):
+        async with sem:
+            try:
+                async with aiohttp.ClientSession() as s:
+                    async with s.post(
+                        f"{config.ollama_url}/api/embed",
+                        json={"model": model, "input": c["text"][:800]},
+                        timeout=aiohttp.ClientTimeout(total=15),
+                    ) as r:
+                        if r.status != 200:
+                            return None
+                        d = await r.json()
+                        emb = (d.get("embeddings") or [d.get("embedding")])[0]
+                        dot = sum(a*b for a,b in zip(qemb, emb))
+                        nq = math.sqrt(sum(a*a for a in qemb))
+                        nb = math.sqrt(sum(a*a for a in emb))
+                        sim = dot / (nq*nb) if nq and nb else 0
+                        return {**c, "score": round(sim, 4)}
+            except Exception:
+                return None
+    results = [r for r in await _asyncio.gather(*[_embed_one(c) for c in candidates]) if r is not None]
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return {"query": query, "model": model, "results": results[:limit]}
+
+
 @router.get("/ollama/models")
 async def get_ollama_models() -> list:
     """Get available Ollama models, enriched with benchmark scores if available."""
@@ -714,7 +831,7 @@ async def ollama_chat(request: dict) -> dict:
         raise HTTPException(status_code=404, detail="Ollama not available")
 
     message = request.get("message", "")
-    model = request.get("model", "qwen2.5:3b")
+    model = request.get("model", config.default_model)
     history = request.get("history", [])
     think = request.get("think", None)
     stream = request.get("stream", False)
@@ -1109,7 +1226,7 @@ async def generate_visualizer_preset(request: dict) -> dict:
     if not description:
         raise HTTPException(status_code=400, detail="Description is required")
 
-    model = request.get("model", "qwen3.5:9b")
+    model = request.get("model", config.default_model)
     temperature = request.get("temperature", 0.7)
     # Optional track metadata for alignment
     track_meta = request.get("track") or {}
@@ -1193,10 +1310,39 @@ async def generate_visualizer_preset(request: dict) -> dict:
         preset.setdefault("tags", [])
         preset.setdefault("description", description)
 
+        # Persist to DB + file for retrieval after restart (storage/visualizer_presets/{hash}.json)
+        try:
+            import hashlib
+            from pathlib import Path
+            from ..core.database import save_visualization_preset
+            track_hash = hashlib.md5(f"{description}{bpm}{energy}{genre}".encode()).hexdigest()[:16]
+            track_name = request.get("track_name") or description[:60]
+            save_visualization_preset({
+                "track_name": track_name,
+                "track_hash": track_hash,
+                "preset_name": preset.get("name", "AI Generated"),
+                "visualization_style": preset.get("visualizer", {}).get("style", preset.get("style", "geometric")),
+                "params": preset,
+                "ollama_model": result.get("model", model),
+                "prompt": description,
+                "lyrics": request.get("lyrics", ""),
+                "bpm": bpm or 120,
+                "energy_level": ("high" if (energy or 0) > 0.6 else "low" if (energy or 0) < 0.35 else "medium"),
+                "mood_tags": preset.get("tags", []),
+                "genre_tags": [genre] if genre else [],
+            })
+            # Also write JSON file for direct retrieval
+            out_dir = Path(__file__).resolve().parents[4] / "storage" / "visualizer_presets"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / f"{track_hash}.json").write_text(json.dumps(preset, indent=2), encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"Failed to persist visualizer preset: {e}")
+
         return {
             "success": True,
             "preset": preset,
             "model": result.get("model", model),
+            "persisted": True,
         }
     except json.JSONDecodeError as e:
         logger.error("Failed to parse Ollama JSON response: %s (raw: %s)", e, response_text[:200])
@@ -1208,4 +1354,51 @@ async def generate_visualizer_preset(request: dict) -> dict:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         adapter.clear_activity(model)
+
+
+@router.get("/ollama/visualizer/presets")
+async def list_visualizer_presets() -> dict:
+    """List persisted visualizer presets (DB + file)."""
+    from pathlib import Path
+    from ..core.database import get_all_visualization_presets
+    presets = get_all_visualization_presets()
+    # Also include file-based presets not yet in DB
+    file_dir = Path(__file__).resolve().parents[4] / "storage" / "visualizer_presets"
+    files = [p.name for p in file_dir.glob("*.json")] if file_dir.exists() else []
+    return {"presets": presets, "files": files, "count": len(presets)}
+
+
+@router.get("/ollama/visualizer/preset/{track_hash}")
+async def get_visualizer_preset(track_hash: str) -> dict:
+    """Retrieve a persisted preset by track_hash."""
+    import json as _json
+    from pathlib import Path
+    from ..core.database import get_visualization_preset
+    preset = get_visualization_preset(track_hash)
+    if preset:
+        return {"preset": preset["params"], "meta": preset}
+    # Fallback to file
+    file_path = Path(__file__).resolve().parents[4] / "storage" / "visualizer_presets" / f"{track_hash}.json"
+    if file_path.exists():
+        return {"preset": _json.loads(file_path.read_text(encoding="utf-8")), "meta": {"source": "file"}}
+    from fastapi import HTTPException
+    raise HTTPException(status_code=404, detail="Preset not found")
+
+
+@router.delete("/ollama/visualizer/preset/{preset_id}")
+async def delete_visualizer_preset(preset_id: str) -> dict:
+    """Delete a saved preset by id."""
+    from pathlib import Path
+    from ..core.database import get_db
+    with get_db() as conn:
+        cur = conn.execute("DELETE FROM visualization_presets WHERE id = ?", (preset_id,))
+        if cur.rowcount == 0:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Preset not found")
+    # Also remove file if exists (by id or hash)
+    file_dir = Path(__file__).resolve().parents[4] / "storage" / "visualizer_presets"
+    for f in file_dir.glob(f"{preset_id[:16]}*.json"):
+        try: f.unlink()
+        except: pass
+    return {"deleted": preset_id}
 

@@ -41,6 +41,7 @@ const categoryConfig = [
   { key: "image", label: "Images", icon: Image, color: "text-purple-400" },
   { key: "video", label: "Videos", icon: Video, color: "text-blue-400" },
   { key: "audio", label: "Audio", icon: Music, color: "text-green-400" },
+  { key: "3d", label: "3D Models", icon: Box, color: "text-amber-400" },
 ] as const;
 
 export function MediaLibrary() {
@@ -93,10 +94,10 @@ export function MediaLibrary() {
     setIsRefreshing(false);
   };
 
-  const handleFilterChange = (type: "all" | "image" | "video" | "audio") => {
+  const handleFilterChange = (type: "all" | "image" | "video" | "audio" | "3d") => {
     setFilter({ type });
     if (type !== "all") {
-      fetchByType(type === "image" ? "images" : type === "video" ? "video" : "audio");
+      fetchByType(type === "image" ? "images" : type === "video" ? "video" : type === "3d" ? "3d" : "audio");
     } else {
       fetchOutputs();
     }
@@ -229,9 +230,9 @@ export function MediaLibrary() {
 
   const groupedOutputs = useMemo(() => {
     if (!groupByType) return null;
-    const groups: Record<string, OutputFile[]> = { video: [], audio: [], image: [], other: [] };
+    const groups: Record<string, OutputFile[]> = { video: [], audio: [], image: [], "3d": [], other: [] };
     for (const o of filteredOutputs) {
-      const k = (["video", "audio", "image"].includes(o.file_type) ? o.file_type : "other") as keyof typeof groups;
+      const k = (["video", "audio", "image", "3d"].includes(o.file_type) ? o.file_type : "other") as keyof typeof groups;
       groups[k].push(o);
     }
     return groups;
@@ -241,6 +242,7 @@ export function MediaLibrary() {
     video: "border-l-4 border-l-blue-500/60 bg-blue-500/[0.04] hover:bg-blue-500/[0.08]",
     audio: "border-l-4 border-l-emerald-500/60 bg-emerald-500/[0.04] hover:bg-emerald-500/[0.08]",
     image: "border-l-4 border-l-purple-500/60 bg-purple-500/[0.04] hover:bg-purple-500/[0.08]",
+    "3d": "border-l-4 border-l-amber-500/60 bg-amber-500/[0.04] hover:bg-amber-500/[0.08]",
     other: "",
   };
 
@@ -255,6 +257,8 @@ export function MediaLibrary() {
         return <Video className={className} />;
       case "audio":
         return <Music className={className} />;
+      case "3d":
+        return <Box className={className} />;
       default:
         return <FileType className={className} />;
     }
@@ -632,6 +636,13 @@ export function MediaLibrary() {
                   {output.file_type === "image" ? (
                     <img
                       src={getOutputUrl(output.relative_path)}
+                      alt={output.filename}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : output.file_type === "3d" ? (
+                    <img
+                      src={`/api/outputs/3d/thumbnail/${encodeURIComponent(output.filename)}`}
                       alt={output.filename}
                       className="w-full h-full object-cover"
                       loading="lazy"

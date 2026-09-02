@@ -134,6 +134,15 @@ async def lifespan(app: FastAPI):
 
     logger.info("Native Media AI Studio started successfully")
 
+    # Ensure Ollama starts idle — don't auto-load any model on resume/crash.
+    # Previous fire-and-forget visualizer generation left models resident via keep_alive=30m
+    try:
+        from .services.vram_manager import _unload_ollama_models
+        await _unload_ollama_models()
+        logger.info("Ollama models unloaded at startup (manual trigger required)")
+    except Exception as e:
+        logger.debug(f"Startup Ollama unload skipped: {e}")
+
     # Check adapter health
     try:
         service_health = await adapter_registry.check_all_health()

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { LyricLine } from "./components/LyricOverlay";
 
 export interface PhraseMarker {
@@ -33,19 +33,15 @@ export interface LrcSyncData {
  * Uses binary search for O(log n) lookups even with large lyric files.
  */
 export function useLrcSync(lyrics: LyricLine[], elapsed: number): LrcSyncData {
-  const lastLineIdx = useRef(-1);
-  const sectionStartTimes = useRef<Map<string, number>>(new Map());
-
-  // Pre-compute section start times
-  useEffect(() => {
-    const map = new Map<string, number>();
-    for (let i = 0; i < lyrics.length; i++) {
-      const section = lyrics[i].section;
-      if (!map.has(section)) {
-        map.set(section, lyrics[i].start);
-      }
+  const sectionBounds = useMemo(() => {
+    const map = new Map<string, { start: number; end: number }>();
+    for (const line of lyrics) {
+      const sec = line.section || "VERSE";
+      const cur = map.get(sec);
+      if (!cur) map.set(sec, { start: line.start, end: line.end });
+      else cur.end = Math.max(cur.end, line.end);
     }
-    sectionStartTimes.current = map;
+    return map;
   }, [lyrics]);
 
   return useMemo(() => {
@@ -63,83 +59,53 @@ export function useLrcSync(lyrics: LyricLine[], elapsed: number): LrcSyncData {
       };
     }
 
-    // Binary search for current line (O(log n))
-    let lo = 0, hi = lyrics.length - 1;
+    // Binary search for current line (O(log n)) — return null in gaps
+    let lo = 0, hi = lyrics.length - 1, found = -1;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
       const line = lyrics[mid];
       if (elapsed < line.start) hi = mid - 1;
       else if (elapsed >= line.end) lo = mid + 1;
-      else { lo = mid; break; }
+      else { found = mid; break; }
     }
-
-    const idx = Math.max(0, Math.min(lo, lyrics.length - 1));
-    const current = lyrics[idx];
-    const isInRange = elapsed >= current.start && elapsed < current.end;
-
-    // If not in range, find the closest line
-    let currentIdx = idx;
-    if (!isInRange) {
-      if (elapsed < current.start && idx > 0) {
-        currentIdx = idx - 1;
-      } else if (elapsed >= current.end && idx < lyrics.length - 1) {
-        // Check if we're between lines
-        currentIdx = idx;
+    if (found === -1) {
+      // Gap or before first line — show next line preview, no stale lyric
+      let nextIdx = lo;
+      if (nextIdx < 0) nextIdx = 0;
+      if (nextIdx >= lyrics.length) {
+        return {
+          currentLine: null, nextLine: null, lineProgress: 0, sectionProgress: 0,
+          currentSection: lyrics[lyrics.length - 1]?.section || "VERSE",
+          timeToNextPhrase: 0, isPhraseStart: false, totalLines: lyrics.length, currentIndex: -1,
+        };
       }
-    }
-
-    const activeLine = lyrics[currentIdx];
-    if (!activeLine || elapsed < activeLine.start) {
+      const nextLine = lyrics[nextIdx] || null;
       return {
-        currentLine: null,
-        nextLine: lyrics[0] || null,
-        lineProgress: 0,
-        sectionProgress: 0,
-        currentSection: lyrics[0]?.section || "VERSE",
-        timeToNextPhrase: lyrics[0] ? Math.max(0, lyrics[0].start - elapsed) : 0,
-        isPhraseStart: false,
-        totalLines: lyrics.length,
-        currentIndex: -1,
+        currentLine: null, nextLine, lineProgress: 0, sectionProgress: 0,
+        currentSection: nextLine?.section || lyrics[0]?.section || "VERSE",
+        timeToNextPhrase: nextLine ? Math.max(0, nextLine.start - elapsed) : 0,
+        isPhraseStart: false, totalLines: lyrics.length, currentIndex: -1,
       };
     }
-
+    const currentIdx = found;
+    const activeLine = lyrics[currentIdx];
     const nextLine = lyrics[currentIdx + 1] || null;
     const lineDuration = activeLine.end - activeLine.start;
-    const lineProgress = lineDuration > 0 ? (elapsed - activeLine.start) / lineDuration : 0;
-
-    // Section progress
-    const sectionStart = activeLine.start;
-    let sectionEnd = activeLine.end;
-    for (let i = currentIdx + 1; i < lyrics.length; i++) {
-      if (lyrics[i].section === activeLine.section) {
-        sectionEnd = lyrics[i].end;
-      } else {
-        break;
-      }
-    }
+    const lineProgress = lineDuration > 1e-6 ? (elapsed - activeLine.start) / lineDuration : 0;
+    // Section progress using precomputed bounds (handles non-contiguous sections)
+    const bounds = sectionBounds.get(activeLine.section || "VERSE");
+    const sectionStart = bounds?.start ?? activeLine.start;
+    const sectionEnd = bounds?.end ?? activeLine.end;
     const sectionDuration = sectionEnd - sectionStart;
-    const sectionProgress = sectionDuration > 0 ? (elapsed - sectionStart) / sectionDuration : 0;
-
-    // Phrase pulse detection
-    const timeSinceStart = elapsed - activeLine.start;
-    const isPhraseStart = timeSinceStart < 0.15;
-
-    // Reset last line index if seeking backwards
-    if (currentIdx < lastLineIdx.current) {
-      lastLineIdx.current = currentIdx;
-    }
-    lastLineIdx.current = currentIdx;
-
+    const sectionProgress = sectionDuration > 1e-6 ? (elapsed - sectionStart) / sectionDuration : 0;
+    const isPhraseStart = elapsed - activeLine.start < 0.15;
     return {
-      currentLine: activeLine,
-      nextLine,
+      currentLine: activeLine, nextLine,
       lineProgress: Math.max(0, Math.min(1, lineProgress)),
       sectionProgress: Math.max(0, Math.min(1, sectionProgress)),
       currentSection: activeLine.section,
       timeToNextPhrase: nextLine ? Math.max(0, nextLine.start - elapsed) : Math.max(0, activeLine.end - elapsed),
-      isPhraseStart,
-      totalLines: lyrics.length,
-      currentIndex: currentIdx,
+      isPhraseStart, totalLines: lyrics.length, currentIndex: currentIdx,
     };
   }, [lyrics, elapsed]);
 }
@@ -160,42 +126,27 @@ export function usePhraseMarkers(lyrics: LyricLine[]): PhraseMarker[] {
 
 /**
  * Hook that detects phrase boundaries for triggering visual events.
- * Returns true briefly after each new lyric line starts.
+ * Returns true briefly after each new lyric line starts. Memoized — no extra render.
  */
 export function usePhraseTrigger(
   lyrics: LyricLine[],
   elapsed: number,
-  windowMs: number = 150
+  windowMs: number = 150,
 ): { isTriggering: boolean; currentIdx: number; progress: number } {
-  const [state, setState] = useState({ isTriggering: false, currentIdx: -1, progress: 0 });
-
-  useEffect(() => {
-    if (!lyrics.length) return;
-
-    // Find current line
-    let idx = -1;
-    for (let i = 0; i < lyrics.length; i++) {
-      if (elapsed >= lyrics[i].start && elapsed < lyrics[i].end) {
-        idx = i;
-        break;
-      }
+  return useMemo(() => {
+    if (!lyrics.length) return { isTriggering: false, currentIdx: -1, progress: 0 };
+    let lo = 0, hi = lyrics.length - 1, found = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const l = lyrics[mid];
+      if (elapsed < l.start) hi = mid - 1;
+      else if (elapsed >= l.end) lo = mid + 1;
+      else { found = mid; break; }
     }
-
-    if (idx >= 0) {
-      const line = lyrics[idx];
-      const timeSinceStart = elapsed - line.start;
-      const progress = (elapsed - line.start) / (line.end - line.start);
-      setState({
-        isTriggering: timeSinceStart < windowMs / 1000,
-        currentIdx: idx,
-        progress,
-      });
-    } else {
-      setState({ isTriggering: false, currentIdx: -1, progress: 0 });
-    }
+    if (found === -1) return { isTriggering: false, currentIdx: -1, progress: 0 };
+    const line = lyrics[found];
+    const dur = line.end - line.start;
+    const progress = dur > 1e-6 ? (elapsed - line.start) / dur : 0;
+    return { isTriggering: elapsed - line.start < windowMs / 1000, currentIdx: found, progress: Math.max(0, Math.min(1, progress)) };
   }, [lyrics, elapsed, windowMs]);
-
-  return state;
 }
-
-import { useState } from "react";

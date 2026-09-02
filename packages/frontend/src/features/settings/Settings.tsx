@@ -63,6 +63,7 @@ export function Settings() {
           ollama_url: settings.ollama_url,
           log_level: settings.log_level,
           max_queue_workers: settings.max_queue_workers,
+          default_model: settings.default_model,
         }),
       });
       if (!res.ok) {
@@ -225,12 +226,15 @@ export function Settings() {
 
             <div>
               <label className="label">Default Model</label>
-              <select className="select" value={settings.default_model || "qwen2.5:3b"} onChange={(e) => setSettings(prev => ({ ...prev, default_model: e.target.value }))}>
-                <option value="qwen2.5:3b">qwen2.5:3b</option>
-                <option value="llama3.2">llama3.2</option>
-                <option value="mistral">mistral</option>
-                <option value="codellama">codellama</option>
+              <select className="select" value={settings.default_model || "qwen3.5:4b"} onChange={(e) => setSettings(prev => ({ ...prev, default_model: e.target.value }))}>
+                <option value="qwen3.5:4b">qwen3.5:4b (fast, 4B)</option>
+                <option value="qwen3.5:9b">qwen3.5:9b (quality, 9B)</option>
+                <option value="ornith-1.5:9b">ornith-1.5:9b (vision+tools)</option>
+                <option value="deepseek-r1:7b">deepseek-r1:7b (reasoning)</option>
+                <option value="gemma4:e2b-it-qat">gemma4:e2b-it-qat (vision)</option>
+                <option value="llama3.2:3b">llama3.2:3b (lightweight)</option>
               </select>
+              <p className="text-xs text-muted mt-1">Used for chat, visualizer, and 3D generation</p>
             </div>
           </div>
         </Card>

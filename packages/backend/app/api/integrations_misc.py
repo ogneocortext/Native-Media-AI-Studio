@@ -326,8 +326,16 @@ Respond with ONLY the JSON object, no explanation."""
         }
 
 @router.get("/ollama-models")
+async def get_ollama_models_misc() -> dict:
+    """List Ollama models via adapter (fixes decorator bug where GET /ollama-models was bound to cuda_analyze)."""
+    from ..adapters.registry import adapter_registry as _reg
+    adapter = _reg.get("ollama")
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Ollama not available")
+    models = await adapter.list_models()
+    return {"models": models}
 
-
+@router.post("/cuda/analyze-audio")
 async def cuda_analyze_audio(request: dict) -> dict:
     """
     Perform CUDA-accelerated audio frequency analysis.

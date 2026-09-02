@@ -6,7 +6,7 @@
  * dependencies.
  */
 
-export type ObjectType = "crown" | "box" | "sphere" | "cylinder" | "cone" | "torus" | "bars";
+export type ObjectType = "crown" | "box" | "sphere" | "cylinder" | "cone" | "torus" | "bars" | "character";
 
 export interface AnimObject {
   id: string;
@@ -26,6 +26,16 @@ export interface AnimObject {
   rotateSpeed: number;
   /** When true, the object is added to the selective bloom layer and glows. */
   bloom: boolean;
+  /** Character-specific: URL to a GLB/GLTF model file (from Hunyuan3D/Blender output). */
+  modelUrl?: string;
+  /** Character-specific: name of the animation clip to play from the loaded GLB. */
+  animationName?: string;
+  /** Character-specific: playback speed multiplier for the animation. */
+  animationSpeed?: number;
+  /** Character-specific: whether the animation should loop. */
+  animationLoop?: boolean;
+  /** Character-specific: character bible description for prompt regeneration. */
+  characterBible?: string;
 }
 
 export interface ParticleConfig {

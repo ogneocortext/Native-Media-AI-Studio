@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - 2026 2D Visualization + LRC-Driven 3D + Ollama Hardening (2026-09-02)
+
+#### 2D Visualization (2026 Open Source)
+- **Canvas2DVisualizer** `packages/frontend/src/features/visualizer/Canvas2DVisualizer.tsx` — 3 modes `bars/waveform/radial` via Canvas2D + Web Audio API (inspired by `visual-flux 2026` Apache-2.0 + `Waviz 2026` MIT), LRC `isPhraseStart/sectionProgress/lineProgress` reactive, HiDPI, palette per-section `INTRO/VERSE/CHORUS/DROP`
+- **Shader LRC sync** `ShaderVisualizer.tsx` now `lrcSync` phrase-boosted `beat`/`energy`, `VisualizationFX.tsx` `PostFX` bloom+vignette pulse on phrase
+- **Wire** `Visualizer.tsx` `vizMode:"3d"|"shader"|"2d"` toggle `FX/3D/2D`, `Canvas2DVisualizer` branch `640`
+- **Tests** `packages/frontend/tests/canvas2d.spec.ts` 1 passed (2D modes cycled, 0 console errors), `lrc-visualizer.spec.ts` now 2 passed (46 LRC lines, `INTRO/VERSE/DROP/FINAL DROP`)
+- **Research** `docs/knowledge-library/2d-visualization-2026.md` — 2026 methods: PixiJS 8, p5.js 1.9, I2Djs, Waviz, visual-flux, OpenVJ, Meyda, GSAP free
+
+#### LRC Stack Fix (Critical)
+- **Backend** `services/lyricsParser.py:8` — fixed `IndexError`/`SyntaxError` (un-importable), multi-stamp `[00:02.50][00:05.00]`, `offset:+500` drift, `:`/`1-3` digit support, `generate_lrc` `60.00` rollover
+- **Frontend** `lyricsParser.ts:84` — `offset`, multi-stamp, `1-3` digit, `INSTRUMENTAL/Hook/Refrain` sections, capped `end` `min(6,gap-0.2)`
+- **Sync** `useLrcSync.ts:35` — gap returns `null` not stale lyric, `sectionBounds` map (non-contiguous `CHORUS`), `usePhraseTrigger` `O(log n)` `useMemo`, `Visualizer.tsx:70` `elapsed` reactive `80ms` + `LrcVizController.tsx:65` `lineProgress/sectionProgress` scale/rotation
+
+#### 3D Visualizer LRC Wiring
+- `types.ts:109` `VisualizerSceneProps.lrcSync` full `currentLine/nextLine/timeToNextPhrase/currentIndex/totalLines`; `VisualizerScene.tsx:32` `PostFX lrcSync` phrase bloom `+0.25`, `LrcVizController.tsx:65` no `vizParams` mutation, full sync
+- Verified `useLrcSync` → `KineticLyricOverlay` + `VisualizerScene` + `ShaderVisualizer` + `Canvas2DVisualizer` all reactive
+
+#### Ollama & API Hardening
+- **Startup** `main.py:143` unload Ollama at startup → no auto-load on resume; `vram_manager.py:510` `keep_alive:-1`→`"5m"` + `llama` sanitize `370` (`qwen3.5:4b` default `config.py:34`, `adapters/ollama.py:70`, `config/settings.json:9`)
+- **Visualizer** `Visualizer.tsx:338` removed fire-and-forget `generateVisualizerPreset` on track select → manual `Enhance with AI` button `465` with diff toast
+- **ComfyUI** `integrations_generation.py:33` `enrich_prompt:bool=False` — was auto on `<120 chars`, now opt-in
+- **Search** `integrations_generation.py:640` sequential `200*15s` → `Semaphore(5)` concurrency + cap `limit*5`
+- **Misc** `integrations_misc.py:328` bare `@router.get("/ollama-models")` bug split into `get_ollama_models_misc` + `POST /cuda/analyze-audio`, `audio.py:860` path traversal `resolve().is_relative_to` + CORS allowlist
+
+#### Visualizer Preset Persistence & Gallery
+- `integrations_generation.py:1313` `POST /ollama/visualizer` now `save_visualization_preset()` + `storage/visualizer_presets/{hash}.json` `1331`, `GET /presets` `1358` + `DELETE /preset/{id}` `1392`
+- `AIPresetGallery.tsx:1` browsable gallery `search/style` filter, `Apply/Copy/Download/Delete`, survives restart (`storage/studio.db` WAL)
+- `AIVisualizerPrompt.tsx:18` history `refreshKey` + `Settings.tsx:62` `default_model` persistence fix, `tools/mcp/vision.mjs:11` `VISION_MODEL` env
+
 ### Fixed - Final Sweep & Documentation (2026-09-02)
 - **Backend**: Fixed missing `import asyncio` in `api/outputs.py` — caused runtime crash in FFmpeg operations
 - **Backend**: Removed dead code duplicate in `_scan_with_cache` (unreachable after return)

@@ -20,7 +20,7 @@ def list_prompts(
     limit: int = 100,
 ):
     """List prompts with optional filtering."""
-    return database.get_prompts(
+    return database.get_prompts_typed(
         prompt_type=prompt_type,
         category=category,
         favorite_only=favorite,
@@ -32,7 +32,7 @@ def list_prompts(
 @router.get("/{prompt_id}")
 def get_prompt(prompt_id: str):
     """Get a prompt by ID."""
-    prompt = database.get_prompt(prompt_id)
+    prompt = database.get_prompt_typed(prompt_id)
     if not prompt:
         raise HTTPException(status_code=404, detail="Prompt not found")
     return prompt
@@ -83,13 +83,13 @@ def list_audio_files(limit: int = 100, distinct: bool = True):
         limit: Maximum number of files to return.
         distinct: If True (default), deduplicate by filename (most recent only).
     """
-    return database.get_audio_files(limit=limit, distinct=distinct)
+    return database.get_audio_files_typed(limit=limit, distinct=distinct)
 
 
 @router.get("/audio/{audio_id}")
 def get_audio_file(audio_id: str):
     """Get audio file metadata."""
-    audio = database.get_audio_file(audio_id)
+    audio = database.get_audio_file_typed(audio_id)
     if not audio:
         raise HTTPException(status_code=404, detail="Audio file not found")
     return audio
@@ -153,7 +153,7 @@ def list_sessions(
     limit: int = 50,
 ):
     """List generation sessions."""
-    return database.get_sessions(status=status, audio_id=audio_id, limit=limit)
+    return database.get_sessions_typed(status=status, audio_id=audio_id, limit=limit)
 
 
 @router.post("/sessions/")
@@ -170,7 +170,7 @@ def create_session(request: dict):
 @router.get("/sessions/{session_id}")
 def get_session(session_id: str):
     """Get a generation session."""
-    session = database.get_session(session_id)
+    session = database.get_session_typed(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
@@ -213,13 +213,13 @@ def list_tracks(
     limit: int = 100,
 ):
     """List tracks with optional filtering."""
-    return database.get_tracks(status=status, artist=artist, search=search, limit=limit)
+    return database.get_tracks_typed(status=status, artist=artist, search=search, limit=limit)
 
 
 @router.get("/tracks/{track_id}")
 def get_track(track_id: str):
     """Get a track by ID."""
-    track = database.get_track(track_id)
+    track = database.get_track_typed(track_id)
     if not track:
         raise HTTPException(status_code=404, detail="Track not found")
     return track
@@ -317,9 +317,9 @@ def import_tracks_from_csv(request: dict):
         raise HTTPException(status_code=404, detail="CSV file not found")
 
     # Clear existing tracks
-    existing = database.get_tracks(limit=1000)
+    existing = database.get_tracks_typed(limit=1000)
     for t in existing:
-        database.delete_track(t["id"])
+        database.delete_track(t.id)
 
     imported = 0
 

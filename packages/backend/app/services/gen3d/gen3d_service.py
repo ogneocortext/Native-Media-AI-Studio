@@ -391,7 +391,7 @@ class Gen3DService:
             return json.loads(resp.read().decode())
 
     def _finalize_output(self, glb_relative: str, prompt_id: str) -> dict[str, Any]:
-        """Copy the ComfyUI-exported .glb into the backend output dir and return its path."""
+        """Copy the ComfyUI-exported .glb into the backend output dir, decimate if needed, and return its path."""
         logger.info("Finalizing output: %s", glb_relative)
         cand = Path(glb_relative)
         src = cand if cand.is_absolute() and cand.exists() else COMFYUI_OUTPUT_DIR / cand
@@ -410,11 +410,82 @@ class Gen3DService:
                     logger.warning("Could not copy .glb into outputs: %s", e)
             else:
                 logger.info("GLB already exists at: %s", dst)
-            return {"success": True, "model_path": str(dst), "prompt_id": prompt_id}
+            
+            # Post-process: decimate if mesh is too large
+            decimate_result = self._decimate_if_needed(dst)
+            
+            return {"success": True, "model_path": str(dst), "prompt_id": prompt_id, "decimate": decimate_result}
         # Source file not found — surface what ComfyUI reported.
         logger.warning("Exported .glb not found at %s (source %s)", glb_relative, src)
         return {"success": True, "prompt_id": prompt_id, "model_path": str(OUTPUT_DIR / Path(glb_relative).name),
                 "warning": "Mesh exported but file could not be located in backend outputs."}
+
+    def _decimate_if_needed(self, glb_path: Path, target_faces: int = 50000) -> dict:
+        """Decimate a GLB mesh if it exceeds the target face count.
+        
+        Uses Blender's Python API to reduce polygon count for manageable file sizes.
+        """
+        try:
+            import subprocess
+            import tempfile
+            
+            blender_exe = r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+            script_path = Path(__file__).parent / "decimate_glb.py"
+            
+            if not script_path.exists():
+                logger.warning("Decimation script not found: %s", script_path)
+                return {"decimated": False, "reason": "script_not_found"}
+            
+            # Create temp output path
+            temp_output = glb_path.with_suffix(".decimated.glb")
+            
+            result = subprocess.run(
+                [
+                    blender_exe, "--background", "--python", str(script_path),
+                    "--", str(glb_path), str(temp_output), str(target_faces)
+                ],
+                capture_output=True,
+                text=True,
+                timeout=180  # 3 minutes max for large meshes
+            )
+            
+            if result.returncode == 0 and temp_output.exists():
+                # Replace original with decimated version
+                original_size = glb_path.stat().st_size
+                temp_size = temp_output.stat().st_size
+                
+                if temp_size < original_size:
+                    # Backup original and replace
+                    backup_path = glb_path.with_suffix(".original.glb")
+                    if not backup_path.exists():
+                        glb_path.rename(backup_path)
+                    temp_output.rename(glb_path)
+                    
+                    logger.info(
+                        "Decimated %s: %.1fMB -> %.1fMB",
+                        glb_path.name,
+                        original_size / 1024 / 1024,
+                        glb_path.stat().st_size / 1024 / 1024
+                    )
+                    return {
+                        "decimated": True,
+                        "original_size_mb": round(original_size / 1024 / 1024, 1),
+                        "final_size_mb": round(glb_path.stat().st_size / 1024 / 1024, 1)
+                    }
+                else:
+                    # Decimated version is larger (shouldn't happen often)
+                    temp_output.unlink(missing_ok=True)
+                    return {"decimated": False, "reason": "decimated_larger"}
+            else:
+                logger.warning("Decimation failed: %s", result.stderr[:500] if result.stderr else "unknown")
+                return {"decimated": False, "reason": "blender_error"}
+                
+        except subprocess.TimeoutExpired:
+            logger.warning("Decimation timed out for %s", glb_path.name)
+            return {"decimated": False, "reason": "timeout"}
+        except Exception as e:
+            logger.warning("Decimation error for %s: %s", glb_path.name, e)
+            return {"decimated": False, "reason": str(e)}
 
     async def _submit_workflow(self, workflow: dict[str, Any], output_path: Path) -> dict[str, Any]:
         """Submit a workflow to ComfyUI and wait for completion.

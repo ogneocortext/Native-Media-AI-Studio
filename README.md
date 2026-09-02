@@ -8,10 +8,11 @@ A full-stack AI-powered creative production environment for music-driven media g
 - **Real Audio Analysis** — `librosa` beat/tempo/onset + RMS energy curve → 8 sections with `energy 0.2-1.0`, beat_times, confidence, and `stored_path` (no mocks)
 - **Video Generation (Real)** — `POST /api/video/generate-section` queues `MUSIC_VIDEO` jobs via `queue_manager` → `MusicVideoHandler` (FFmpeg 8.1 `testsrc` + `geq` filter) polling via `GET /api/jobs/{id}`
 - **Media Library — File Management** — Grid/list views with **embedded cover art** (FFmpeg extracts `attached pic` from MP3/FLAC → `audio/*.jpg`), **play inline** (`<video controls>` / `<audio controls>` + cover), **rename** (`POST /api/outputs/{path}/rename`), **delete** (removes `.json` + cover sidecar), **bulk delete**, and **duplicate detection** (`GET /api/outputs/duplicates/groups` by hash)
-- **3D Scene Generation** — Blender MCP integration for building 3D stages, characters, and beat-synced animation
+- **3D Scene Generation** — Blender MCP integration for building 3D stages, characters, and beat-synced animation (now LRC `isPhraseStart`/`sectionProgress` reactive via `LrcVizController` + `PostFX` bloom)
 - **Unity MCP** — Direct Unity Editor control for scene creation, GameObjects, animation, and rendering
 - **3D Model Creation** — Text/image-to-3D via Hunyuan3D-2mini (optimized for 8GB VRAM) + Wan 2.2 5B 480p fits 8GB
 - **GPU Audio Analysis** — CUDA-accelerated FFT via `app.services.cuda` with CPU librosa fallback
+- **2D Canvas Visualizer (2026)** — `Canvas2DVisualizer` 3 modes `bars/waveform/radial` (PixiJS 8/p5.js-inspired, Canvas2D + Web Audio, LRC phrase flash, 2026 visual-flux/Waviz methods) toggled `3D/FX/2D`
 - **Responsive Sidebar** — Collapsible + mobile drawer (`<900px` or portrait) with backdrop, `min-h-0` scroll, health `max-h-[22vh]`
 - **Track Manager** — Table view for pairing prompts and lyrics to tracks with persistent storage
 - **Storyboards** — Visual scene planning per track with prompts, lyrics, and 3D Studio integration (`/storyboards)
@@ -28,6 +29,7 @@ A full-stack AI-powered creative production environment for music-driven media g
 
 ## Recent Changes
 
+- **2026 2D + LRC-Driven Visuals (2026-09-02)** — Added `Canvas2DVisualizer.tsx` 3 modes `bars/waveform/radial` (Canvas2D + Web Audio, LRC `isPhraseStart/sectionProgress` reactive, 2026 visual-flux/Waviz methods), fixed LRC `offset`/multi-stamp/`60.00` drift (`lyricsParser.py`/`lyricsParser.ts`/`useLrcSync`), wired 3D `VisualizerScene`/`ShaderVisualizer`/`PostFX` to `lrcSync`, added `AIPresetGallery` browse + `storage/visualizer_presets` persistence, hardened Ollama (`keep_alive 5m`, startup unload, manual `Enhance with AI`)
 - **Final Sweep & Hardening** — Fixed missing `import asyncio`, unreachable OOM prevention, refactored to single `asyncio.run()`, enhanced AI code sanitization (strips eval/fetch/setInterval/event listeners), made checkpoint names configurable across backend and MCP
 - **Security & Reliability Sweep** — Added fetch timeouts/`res.ok` checks to all MCP servers, fixed WebSocket origin validation, fixed TOCTOU race in queue manager, added threading lock to output cache, fixed PowerShell script errors (undefined functions, broken paths), fixed pnpm workspace config
 - **Bug Sweep & Code Quality** — Fixed 18 issues across backend, frontend, and config: removed duplicate imports, fixed deprecated asyncio API, removed debug prints/memory leaks, corrected TypeScript package names, standardized config paths, added ESLint rules

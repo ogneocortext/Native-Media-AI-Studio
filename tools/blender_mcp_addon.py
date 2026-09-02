@@ -654,12 +654,12 @@ class BlenderMCPServer:
 
         # Add Hyper3d handlers only if enabled
         if bpy.context.scene.blendermcp_use_hyper3d:
-            polyhaven_handlers = {
+            hyper3d_handlers = {
                 "create_rodin_job": self.create_rodin_job,
                 "poll_rodin_job_status": self.poll_rodin_job_status,
                 "import_generated_asset": self.import_generated_asset,
             }
-            handlers.update(polyhaven_handlers)
+            handlers.update(hyper3d_handlers)
 
         # Add Sketchfab handlers only if enabled
         if bpy.context.scene.blendermcp_use_sketchfab:
@@ -794,7 +794,8 @@ class BlenderMCPServer:
                     round(float(obj.dimensions.z), 3),
                 ],
             }
-        except Exception:
+        except Exception as exc:
+            print(f"[blender-mcp] _snapshot_geometry failed for '{obj.name}': {exc}")
             return None
 
     @staticmethod
@@ -887,7 +888,8 @@ class BlenderMCPServer:
                 animation["nla_tracks"] = nla_tracks
 
             return {"animation": animation} if animation else {}
-        except Exception:
+        except Exception as exc:
+            print(f"[blender-mcp] _snapshot_animation failed for '{obj.name}': {exc}")
             return {}
 
     def get_world_state_snapshot(self):
