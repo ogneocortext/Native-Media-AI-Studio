@@ -91,7 +91,9 @@ export function Visualizer() {
   const parseLyricsForTrack = useCallback(async (trackName: string, duration: number): Promise<LyricLine[]> => {
     if (!trackName) return parseLyricsFromCsv(csvContent, trackName, duration);
 
-    const lrcFilename = trackName.replace(/\.mp3$/i, ".lrc");
+    // Ensure the filename has .lrc extension
+    const lrcFilename = trackName.endsWith(".lrc") ? trackName :
+      trackName.replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "") + ".lrc";
 
     // Try public directory first (fast, no backend needed)
     try {
