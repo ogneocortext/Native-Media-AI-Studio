@@ -2,6 +2,7 @@ import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { AudioData, VizParams, AudioAnalysisData } from "./types";
+import type { LyricLine } from "./components/LyricOverlay";
 import { getTrackFeatures } from "./trackFeatures";
 import { makeTerrainMaterial, updateTerrainMaterial, makeStreakMaterial, applyStreakVelocity } from "./VisualizationFX";
 
@@ -11,6 +12,60 @@ interface VizProps {
   analysisData?: AudioAnalysisData | null;
   audioElapsedRef?: React.MutableRefObject<number>;
   sceneFrozen?: boolean;
+  /** LRC lyric data for phrase-synchronized visuals */
+  lyrics?: LyricLine[];
+  /** Current LRC sync state */
+  lrcSync?: {
+    currentSection: string;
+    sectionProgress: number;
+    isPhraseStart: boolean;
+    lineProgress: number;
+  } | null;
+}
+
+// =============================================================================
+// LRC-driven visual helpers
+// =============================================================================
+
+/** Get color based on current LRC section */
+function getSectionColor(section: string, meshColor: string): THREE.Color {
+  const sectionColors: Record<string, string> = {
+    INTRO: "#818cf8",
+    VERSE: "#60a5fa",
+    "PRE-CHORUS": "#c084fc",
+    CHORUS: "#f472b6",
+    BRIDGE: "#f59e0b",
+    BREAKDOWN: "#34d399",
+    "BUILD-UP": "#fb923c",
+    DROP: "#ef4444",
+    "FINAL CHORUS": "#e879f9",
+    "FINAL DROP": "#f43f5e",
+    OUTRO: "#94a3b8",
+  };
+  return new THREE.Color(sectionColors[section] || meshColor);
+}
+
+/** Get intensity multiplier based on section */
+function getSectionIntensity(section: string): number {
+  const intensityMap: Record<string, number> = {
+    INTRO: 0.4,
+    VERSE: 0.6,
+    "PRE-CHORUS": 0.7,
+    CHORUS: 1.0,
+    BRIDGE: 0.7,
+    BREAKDOWN: 0.5,
+    "BUILD-UP": 0.8,
+    DROP: 1.3,
+    "FINAL CHORUS": 1.1,
+    "FINAL DROP": 1.4,
+    OUTRO: 0.4,
+  };
+  return intensityMap[section] ?? 0.6;
+}
+
+/** Smooth interpolation helper */
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * Math.min(1, Math.max(0, t));
 }
 
 // =============================================================================

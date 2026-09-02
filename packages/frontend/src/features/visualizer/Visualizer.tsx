@@ -60,6 +60,7 @@ export function Visualizer() {
   const [loadedPreset, setLoadedPreset] = useState<VisualPreset | null>(null);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [vizMode, setVizMode] = useState<"3d" | "shader">("shader"); // Default to shader mode
+  const [aiEnhancing, setAiEnhancing] = useState(false);
 
   const { focusMode, toggleFocusMode } = useUIStore();
 
@@ -335,29 +336,12 @@ export function Visualizer() {
       showToast(`Applied "${visualPreset.name}" preset`, "info");
     }
 
-    // Async LLM preset enrichment (non-blocking): generate AI preset from track concept + analysis
-    // Uses qwen3.5:9b via /ollama/visualizer, falls back silently if Ollama offline
-    if (analysis && !loadedPreset) {
-      const concept = csvContent ? getVisualizationForTrack(cleanName, csvContent) : null;
-      const desc = (concept as any)?.prompt || (concept as any)?.visualConcept || cleanName;
-      const genre = concept?.genre?.join(", ") || "";
-      // Fire-and-forget AI enrichment — show toast on success
-      import("../../services/api").then(({ generateVisualizerPreset }) => {
-        generateVisualizerPreset(
-          `${desc} — ${genre} — mood: ${(concept as any)?.mood?.join(", ") || "auto"}`.trim(),
-          undefined, // use backend default_model (qwen3.5:4b/9b)
-          0.7,
-          { bpm: realBpm, energy, duration_seconds: analysis.duration_seconds, genre }
-        ).then(res => {
-          if (res?.preset) {
-            applyPreset(res.preset as any, analysis);
-            setLoadedPreset(res.preset as any);
-            showToast(`AI enriched: "${res.preset.name}"`, "success");
-          }
-        }).catch(() => {/* silent fallback — heuristic preset already applied */});
-      });
-    }
-  }, [csvContent, analysisData, trackMetadata, parseLyricsForTrack, loadedPreset, applyPreset]);
+    // Store analysis for manual AI enrichment — user explicitly clicks "Enhance with AI"
+    // (previous fire-and-forget auto-generation removed: it overwrote the visible preset silently)
+    (window as any).__pendingAIAnalysis = analysis;
+    (window as any).__pendingAICleanName = cleanName;
+    (window as any).__pendingAIRealBpm = realBpm;
+  }, [csvContent, analysisData, trackMetadata, parseLyricsForTrack]);
 
   /** Select visualization style based on audio analysis data */
   const selectVisualizationForTrack = (analysis: AudioAnalysisData): VisualizationStyle | null => {
@@ -473,6 +457,38 @@ export function Visualizer() {
     setAnalyzing(false);
   }, [analyzing]);
 
+  const handleEnhanceWithAI = useCallback(async () => {
+    if (!currentAnalysisData || aiEnhancing) return;
+    setAiEnhancing(true);
+    setError(null);
+    try {
+      const cleanName = currentFilename?.replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "") || "track";
+      const concept = csvContent ? getVisualizationForTrack(cleanName, csvContent) : null;
+      const desc = (concept as any)?.prompt || (concept as any)?.visualConcept || cleanName;
+      const genre = (concept as any)?.genre?.join(", ") || "";
+      const energy = currentAnalysisData.energy_curve?.length
+        ? currentAnalysisData.energy_curve.reduce((a,b)=>a+b,0)/currentAnalysisData.energy_curve.length
+        : 0.5;
+      const { generateVisualizerPreset } = await import("../../services/api");
+      const res = await generateVisualizerPreset(
+        `${desc} — ${genre} — mood: ${(concept as any)?.mood?.join(", ") || "auto"}`.trim(),
+        undefined, 0.7,
+        { bpm: currentAnalysisData.tempo_bpm ? Math.round(currentAnalysisData.tempo_bpm) : undefined, energy, duration_seconds: currentAnalysisData.duration_seconds, genre }
+      );
+      if (res?.preset) {
+        // Keep current heuristic visible until user confirms — show preview via toast + apply immediately with clear feedback
+        const before = { ...vizParams };
+        applyPreset(res.preset as any, currentAnalysisData);
+        setLoadedPreset(res.preset as any);
+        showToast(`AI applied: "${res.preset.name}" (was ${before.particleCount} particles → ${res.preset.visualizer?.particleCount})`, "success");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "AI enrichment failed — check Ollama is running");
+    } finally {
+      setAiEnhancing(false);
+    }
+  }, [currentAnalysisData, currentFilename, csvContent, aiEnhancing, vizParams, applyPreset]);
+
   const startRecording = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -529,6 +545,11 @@ export function Visualizer() {
             <span className="viz-preset-badge" title={`Active preset: ${visualPresets[kineticPreset]?.name || kineticPreset}`}>
               {visualPresets[kineticPreset]?.name || kineticPreset}
             </span>
+          )}
+          {currentAnalysisData && !loadedPreset && (
+            <button className="viz-enhance-btn" onClick={handleEnhanceWithAI} disabled={aiEnhancing} title="Generate AI preset tuned to this track (manual, visible)">
+              {aiEnhancing ? "Enhancing..." : "Enhance with AI"}
+            </button>
           )}
         </div>
         <div className="viz-actions">

@@ -16,7 +16,7 @@ import {
   StormViz,
   InfernoViz,
 } from "./VisualizationStyles";
-import { PostFX } from "./VisualizationFX";
+import { LrcVizController, getSectionIntensity } from "./LrcVizController";
 import { useRealAudio, useDemoAudio } from "./audioHooks";
 import { updateTrackFeatures } from "./trackFeatures";
 import type { VisualizerSceneProps } from "./types";
@@ -81,22 +81,38 @@ export function VisualizerScene({
       lrcSync,
       lyrics,
     };
-    switch (visualizationStyle) {
-      case "waveform": return <AudioReactiveCore {...props} />;
-      case "particles": return <OrbitalParticles {...props} />;
-      case "neural": return <FrequencyRings {...props} />;
-      case "cosmic": return <EnergyWaves {...props} />;
-      case "fractal": return <FractalViz {...props} />;
-      case "pulse": return <PulseRings {...props} />;
-      case "storm": return <StormViz {...props} />;
-      case "vinyl": return <VinylDisc {...props} />;
-      case "synthwave": return <SpectrumBars {...props} />;
-      case "aurora": return <AuroraRibbon {...props} />;
-      case "inferno": return <InfernoViz {...props} />;
-      case "ocean": return <OceanWaves {...props} />;
-      case "geometric":
-      default: return <GeometricViz {...props} />;
-    }
+    // Wrap with LRC controller for section-synchronized color/intensity
+    const viz = (() => {
+      switch (visualizationStyle) {
+        case "waveform": return <AudioReactiveCore {...props} />;
+        case "particles": return <OrbitalParticles {...props} />;
+        case "neural": return <FrequencyRings {...props} />;
+        case "cosmic": return <EnergyWaves {...props} />;
+        case "fractal": return <FractalViz {...props} />;
+        case "pulse": return <PulseRings {...props} />;
+        case "storm": return <StormViz {...props} />;
+        case "vinyl": return <VinylDisc {...props} />;
+        case "synthwave": return <SpectrumBars {...props} />;
+        case "aurora": return <AuroraRibbon {...props} />;
+        case "inferno": return <InfernoViz {...props} />;
+        case "ocean": return <OceanWaves {...props} />;
+        case "geometric":
+        default: return <GeometricViz {...props} />;
+      }
+    })();
+    
+    return (
+      <LrcVizController
+        audioData={audioData}
+        vizParams={vizParams}
+        analysisData={analysisData}
+        audioElapsedRef={audioElapsedRef}
+        lyrics={lyrics}
+        lrcSync={lrcSync}
+      >
+        {viz}
+      </LrcVizController>
+    );
   };
 
   return (
@@ -105,7 +121,7 @@ export function VisualizerScene({
       {/* IBL studio environment (local Lightformers — no HDR fetch) gives metals
           and clearcoat materials real reflections; 2026 standard lighting rig. */}
       <Environment resolution={64} frames={1}>
-        <Lightformer form="rect" intensity={2.2} position={[0, 5, -4]} rotation={[Math.PI / 2.4, 0, 0]} scale={[9, 4, 1]} color="#dfe8ff" />
+        <Lightformer form="rect" intensity={2.2 * (lrcSync ? getSectionIntensity(lrcSync.currentSection) : 1)} position={[0, 5, -4]} rotation={[Math.PI / 2.4, 0, 0]} scale={[9, 4, 1]} color="#dfe8ff" />
         <Lightformer form="circle" intensity={1.6} position={[-5, 2, 3]} scale={3} color="#8ea2ff" />
         <Lightformer form="circle" intensity={1.1} position={[5, -1, 2]} scale={2.4} color={meshColor} />
         <Lightformer form="rect" intensity={0.9} position={[0, -4, 2]} rotation={[-Math.PI / 2.6, 0, 0]} scale={[8, 3, 1]} color="#2a2f45" />

@@ -33,17 +33,17 @@ export function AIPresetGallery({ onApplyPreset, refreshKey }: AIPresetGalleryPr
   const fetchPresets = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/integrations/ollama/visualizer/presets");
+      // Primary: legacy endpoint (proven stable, now persisted)
+      const res = await fetch("/api/integrations/visualization-presets");
       if (res.ok) {
         const data = await res.json();
-        setPresets(data.presets || []);
-      } else {
-        // fallback to legacy endpoint
-        const res2 = await fetch("/api/integrations/visualization-presets");
-        if (res2.ok) {
-          const data2 = await res2.json();
-          setPresets(data2.presets || []);
-        }
+        if (data.presets?.length) { setPresets(data.presets); return; }
+      }
+      // Fallback: new visualizer presets endpoint
+      const res2 = await fetch("/api/integrations/ollama/visualizer/presets", { signal: AbortSignal.timeout(5000) }).catch(()=>null);
+      if (res2?.ok) {
+        const data2 = await res2.json();
+        setPresets(data2.presets || []);
       }
     } catch {
       // silent
