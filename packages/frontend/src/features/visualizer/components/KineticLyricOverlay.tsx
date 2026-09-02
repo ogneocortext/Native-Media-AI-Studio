@@ -185,8 +185,9 @@ export function KineticLyricOverlay({ lyrics, elapsed, visible, presetId, beat, 
         }}
       >
         {words.map((word, idx) => (
-          <span key={idx} className="lyric-word" style={{ display: "inline-block", marginRight: "0.35em" }}>
-            {word}
+          <span key={idx} className="lyric-word-container" style={{ display: "inline-block" }}>
+            <span className="lyric-word">{word}</span>
+            {idx < words.length - 1 && <span className="lyric-space"> </span>}
           </span>
         ))}
       </div>

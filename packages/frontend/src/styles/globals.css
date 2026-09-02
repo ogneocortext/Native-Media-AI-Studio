@@ -4254,8 +4254,13 @@ body::after {
 .viz-style-picker::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
 
 /* Word-level lyric animations */
-.lyric-word {
+.lyric-word-container {
   display: inline-block;
+  white-space: nowrap;
+}
+
+.lyric-word {
+  display: inline;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 }
@@ -4268,6 +4273,11 @@ body::after {
     0 0 50px currentColor;
   filter: brightness(1.4);
   z-index: 1;
+}
+
+.lyric-space {
+  display: inline;
+  width: 0.3em;
 }
 
 /* Section transition animations */
