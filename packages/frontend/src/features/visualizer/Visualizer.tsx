@@ -123,6 +123,96 @@ export function Visualizer() {
     return parseLyricsFromCsv(csvContent, trackName, duration);
   }, [csvContent]);
 
+  // Apply preset callback - defined early because handlePresetLoaded depends on it
+  const applyPreset = useCallback((preset: VisualPreset, trackAnalysis?: AudioAnalysisData | null) => {
+    setLoadedPreset(preset);
+
+    // Map visualizer style → VisualizationStyle (expanded mapping)
+    const styleMap: Record<string, VisualizationStyle> = {
+      particles: "particles",
+      waveform: "waveform",
+      pulse: "pulse",
+      bars: "synthwave",
+      galaxy: "cosmic",
+      terrain: "ocean",
+      fire: "inferno",
+      glitch: "storm",
+      neon: "synthwave",
+      spiral: "geometric",
+      vortex: "geometric",
+      fractal: "fractal",
+      rings: "pulse",
+      terrain3d: "waveform",
+      embers: "inferno",
+      shockwave: "storm",
+    };
+    if (preset.visualizer?.style && styleMap[preset.visualizer.style]) {
+      setVisualizationStyle(styleMap[preset.visualizer.style]);
+    }
+
+    // Apply theme colors
+    if (preset.theme?.background) setBgColor(preset.theme.background);
+    if (preset.theme?.primary) setMeshColor(preset.theme.primary);
+
+    // Compute track-aware multipliers
+    const bpm = trackAnalysis?.tempo_bpm ?? 120;
+    const energyAvg = trackAnalysis?.energy_curve?.length
+      ? trackAnalysis.energy_curve.reduce((a, b) => a + b, 0) / trackAnalysis.energy_curve.length
+      : 0.5;
+    const duration = trackAnalysis?.duration_seconds ?? 240;
+    const bpmFactor = bpm / 120;
+    const energyFactor = 0.5 + energyAvg;
+
+    // Apply postfx simulation via fog and light intensity
+    const postfx = (preset as any).postfx || {};
+    const bloomIntensity = postfx.bloom ?? 0;
+    const vignetteStrength = postfx.vignetteStrength ?? 0;
+    const glitchAmount = postfx.glitch ?? 0;
+
+    // Apply visualizer params with track alignment + postfx
+    setVizParams(prev => ({
+      ...prev,
+      particleCount: Math.round((preset.visualizer?.particleCount ?? prev.particleCount) * energyFactor),
+      scale: preset.visualizer?.scale ?? prev.scale,
+      glowIntensity: preset.visualizer?.glow ? Math.min(1.0, 0.8 * energyFactor + bloomIntensity * 0.2) : 0.2,
+      rotationSpeed: (preset.visualizer?.rotation ? 1.0 : 0.0) * bpmFactor,
+      colorShift: preset.visualizer?.intensity ?? prev.colorShift,
+      lerpSpeed: Math.max(0.1, 0.35 / bpmFactor),
+      matchTrack: !!trackAnalysis,
+      lightIntensity: 0.8 + bloomIntensity * 0.4 - vignetteStrength * 0.2,
+      fogDensity: vignetteStrength * 0.02,
+      fogEnabled: vignetteStrength > 0.3,
+      postfx: { bloom: bloomIntensity, vignette: vignetteStrength, glitch: glitchAmount },
+    }));
+
+    // Map lyric animation style → kinetic preset
+    const kineticMap: Record<string, string> = {
+      glitch: "phonk",
+      neon: "synthwave",
+      fade: "ambient",
+      bounce: "dubstep",
+      typewriter: "grime",
+      kinetic: "cinematic",
+      shake: "phonk",
+      disappear: "ambient",
+    };
+    if (preset.lyrics?.style && kineticMap[preset.lyrics.style]) {
+      setKineticPreset(kineticMap[preset.lyrics.style]);
+    }
+
+    (preset as any)._trackAlignment = {
+      bpm,
+      energyAvg,
+      duration,
+      beatTimes: trackAnalysis?.beat_times,
+      onsetTimes: trackAnalysis?.onset_times,
+      sections: trackAnalysis?.sections,
+      postfx: (preset as any).postfx,
+      audioReactivity: (preset as any).audioReactivity,
+      camera: (preset as any).camera,
+    };
+  }, []);
+
   // Audio elapsed tracking — use rAF for precise timing (timeupdate only fires every 250ms)
   useEffect(() => {
     const el = audioElRef.current;
@@ -358,97 +448,6 @@ export function Visualizer() {
     raf = requestAnimationFrame(analyse);
     return () => cancelAnimationFrame(raf);
   }, [vizMode, isPlaying]);
-  const applyPreset = useCallback((preset: VisualPreset, trackAnalysis?: AudioAnalysisData | null) => {
-    setLoadedPreset(preset);
-
-    // Map visualizer style → VisualizationStyle (expanded mapping)
-    const styleMap: Record<string, VisualizationStyle> = {
-      particles: "particles",
-      waveform: "waveform",
-      pulse: "pulse",
-      bars: "synthwave",
-      galaxy: "cosmic",
-      terrain: "ocean",
-      fire: "inferno",
-      glitch: "storm",
-      neon: "synthwave",
-      spiral: "geometric",
-      vortex: "geometric",
-      fractal: "fractal",
-      rings: "pulse",
-      terrain3d: "waveform",
-      embers: "inferno",
-      shockwave: "storm",
-    };
-    if (preset.visualizer?.style && styleMap[preset.visualizer.style]) {
-      setVisualizationStyle(styleMap[preset.visualizer.style]);
-    }
-
-    // Apply theme colors
-    if (preset.theme?.background) setBgColor(preset.theme.background);
-    if (preset.theme?.primary) setMeshColor(preset.theme.primary);
-
-    // Compute track-aware multipliers
-    const bpm = trackAnalysis?.tempo_bpm ?? 120;
-    const energyAvg = trackAnalysis?.energy_curve?.length
-      ? trackAnalysis.energy_curve.reduce((a, b) => a + b, 0) / trackAnalysis.energy_curve.length
-      : 0.5;
-    const duration = trackAnalysis?.duration_seconds ?? 240;
-    const bpmFactor = bpm / 120;
-    const energyFactor = 0.5 + energyAvg;
-
-    // Apply postfx simulation via fog and light intensity
-    const postfx = (preset as any).postfx || {};
-    const bloomIntensity = postfx.bloom ?? 0;
-    const vignetteStrength = postfx.vignetteStrength ?? 0;
-    const glitchAmount = postfx.glitch ?? 0;
-
-    // Apply visualizer params with track alignment + postfx
-    setVizParams(prev => ({
-      ...prev,
-      particleCount: Math.round((preset.visualizer?.particleCount ?? prev.particleCount) * energyFactor),
-      scale: preset.visualizer?.scale ?? prev.scale,
-      glowIntensity: preset.visualizer?.glow ? Math.min(1.0, 0.8 * energyFactor + bloomIntensity * 0.2) : 0.2,
-      rotationSpeed: (preset.visualizer?.rotation ? 1.0 : 0.0) * bpmFactor,
-      colorShift: preset.visualizer?.intensity ?? prev.colorShift,
-      lerpSpeed: Math.max(0.1, 0.35 / bpmFactor),
-      matchTrack: !!trackAnalysis,
-      // Postfx-driven params
-      lightIntensity: 0.8 + bloomIntensity * 0.4 - vignetteStrength * 0.2,
-      fogDensity: vignetteStrength * 0.02,
-      fogEnabled: vignetteStrength > 0.3,
-      // Store postfx for scene to consume
-      postfx: { bloom: bloomIntensity, vignette: vignetteStrength, glitch: glitchAmount },
-    }));
-
-    // Map lyric animation style → kinetic preset
-    const kineticMap: Record<string, string> = {
-      glitch: "phonk",
-      neon: "synthwave",
-      fade: "ambient",
-      bounce: "dubstep",
-      typewriter: "grime",
-      kinetic: "cinematic",
-      shake: "phonk",
-      disappear: "ambient",
-    };
-    if (preset.lyrics?.style && kineticMap[preset.lyrics.style]) {
-      setKineticPreset(kineticMap[preset.lyrics.style]);
-    }
-
-    // Store full preset data on the preset for the scene to consume
-    (preset as any)._trackAlignment = {
-      bpm,
-      energyAvg,
-      duration,
-      beatTimes: trackAnalysis?.beat_times,
-      onsetTimes: trackAnalysis?.onset_times,
-      sections: trackAnalysis?.sections,
-      postfx: (preset as any).postfx,
-      audioReactivity: (preset as any).audioReactivity,
-      camera: (preset as any).camera,
-    };
-  }, []);
 
   const handlePresetLoaded = useCallback((preset: VisualPreset) => {
     // Pass current track analysis so preset aligns to loaded track
