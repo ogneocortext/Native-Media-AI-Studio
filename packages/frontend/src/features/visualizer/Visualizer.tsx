@@ -53,7 +53,6 @@ export function Visualizer() {
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [lyricsVisible, setLyricsVisible] = useState(true);
-  const lrcSync = useLrcSync(lyrics, audioElapsedRef.current);
   const [kineticPreset, setKineticPreset] = useState("cinematic");
   const [showAnimDemo, setShowAnimDemo] = useState(false);
   const [showTheatreStudio, setShowTheatreStudio] = useState(false);
@@ -71,6 +70,9 @@ export function Visualizer() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+
+  // LRC sync for precise phrase-synchronized visuals (must be after refs)
+  const lrcSync = useLrcSync(lyrics, audioElapsedRef.current);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
