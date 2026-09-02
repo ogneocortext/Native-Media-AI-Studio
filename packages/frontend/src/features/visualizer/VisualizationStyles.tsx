@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { AudioData, VizParams, AudioAnalysisData } from "./types";
 import { getTrackFeatures } from "./trackFeatures";
+import { makeTerrainMaterial, updateTerrainMaterial, makeStreakMaterial, applyStreakVelocity } from "./VisualizationFX";
 
 interface VizProps {
   audioData: React.MutableRefObject<AudioData>;
@@ -235,37 +236,25 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen }: VizProps) {
 // =============================================================================
 export function AudioReactiveCore({ audioData, vizParams, sceneFrozen }: VizProps) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const matRef = useRef<THREE.MeshStandardMaterial>(null);
-  const base = useRef<Float32Array | null>(null);
+  // 2026: GPU simplex-noise terrain with finite-difference normals + fresnel rim
+  const mat = useMemo(() => makeTerrainMaterial({ colorA: "#0e1a3f", colorB: "#67e8f9", rim: "#f0abfc", displace: 1.3, freq1: 0.6, freq2: 2.2, speed: 0.7, ripple: 0.3 }), []);
 
   useFrame((s) => {
-    if (!meshRef.current || !matRef.current) return;
-    const geo = meshRef.current.geometry as THREE.PlaneGeometry;
-    const pos = geo.attributes.position.array as Float32Array;
-    if (!base.current) base.current = new Float32Array(pos);
-    const { bass, mid, treble, peak } = audioData.current;
+    if (!meshRef.current) return;
     const t = s.clock.elapsedTime;
-
-    for (let i = 0; i < pos.length; i += 3) {
-      const x = base.current[i], y = base.current[i+1];
-      const d = Math.sqrt(x*x + y*y);
-      pos[i+2] = base.current[i+2] + Math.sin(x*1.5+t*2)*bass*0.8 + Math.sin(y*2.5+t*3)*mid*0.45 + Math.cos(d*4-t*5)*treble*0.3;
-    }
-    geo.attributes.position.needsUpdate = true;
-    geo.computeVertexNormals();
-
-    const e = bass * 0.5 + mid * 0.3 + treble * 0.2;
-    matRef.current.color.setHSL(0.55 - e * 0.35, 0.7, 0.5);
-    matRef.current.emissive.setHSL(0.55 - e * 0.35, 0.9, 0.15 + bass * vizParams.glowIntensity * 0.4);
-    matRef.current.emissiveIntensity = 0.2 + e * vizParams.glowIntensity;
-    matRef.current.roughness = 0.3 - bass * 0.15;
-    matRef.current.metalness = 0.5 + peak * 0.3;
+    const { bass, mid, treble, energy } = audioData.current;
+    updateTerrainMaterial(mat, t, { bass, mid, treble, energy }, vizParams.glowIntensity * 0.6);
     meshRef.current.rotation.x = -Math.PI / 2.5;
     if (!sceneFrozen) meshRef.current.rotation.z = t * 0.02 * vizParams.rotationSpeed;
     meshRef.current.scale.setScalar(vizParams.scale * (1 + bass * 0.15));
   });
 
-  return <mesh ref={meshRef}><planeGeometry args={[6, 6, 64, 64]} /><meshStandardMaterial ref={matRef} color="#6366f1" emissive="#4338ca" emissiveIntensity={0.3} side={THREE.DoubleSide} roughness={0.25} metalness={0.7} map={getNoiseTex()} /></mesh>;
+  return (
+    <mesh ref={meshRef}>
+      <planeGeometry args={[6, 6, 128, 128]} />
+      <primitive object={mat} attach="material" />
+    </mesh>
+  );
 }
 
 // =============================================================================
@@ -301,8 +290,16 @@ export function OrbitalParticles({ audioData, vizParams, sceneFrozen }: VizProps
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
     g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    // 2026: per-particle velocity drives screen-space motion stretch
+    applyStreakVelocity(g, (_i, x, _y, z) => {
+      const r = Math.hypot(x, z) || 0.001;
+      const s = 1.4 / (0.4 + r); // differential rotation — inner stars move faster
+      return [(-z / r) * s, 0, (x / r) * s];
+    }, count);
     return { g, pos, radii: r, angles: a };
   }, []);
+
+  const streakMat = useMemo(() => makeStreakMaterial({ size: 30, stretch: 3.2, opacity: 0.8 }), []);
 
   useFrame((s) => {
     if (!pointsRef.current) return;
@@ -333,9 +330,10 @@ export function OrbitalParticles({ audioData, vizParams, sceneFrozen }: VizProps
     }
     geom.attributes.position.needsUpdate = true;
 
-    const mat = pointsRef.current.material as THREE.PointsMaterial;
-    mat.size = vizParams.particleSize * (1 + bass * 0.8 + features.energy * 0.8 + beatPulse.current * 0.6);
-    mat.opacity = 0.4 + treble * 0.3 + features.brightness * 0.3 + beatPulse.current * 0.2;
+    const su = streakMat.uniforms;
+    su.uBass.value = bass;
+    su.uTreble.value = treble * 0.5 + features.brightness * 0.5;
+    su.uOpacity.value = 0.45 + treble * 0.25 + features.brightness * 0.25 + beatPulse.current * 0.15;
 
     // Shockwave ring on beat or onset
     if (shockRef.current) {
@@ -352,7 +350,7 @@ export function OrbitalParticles({ audioData, vizParams, sceneFrozen }: VizProps
 
   return (
     <group>
-      <points ref={pointsRef} geometry={geom}><pointsMaterial map={getParticleTex()} size={vizParams.particleSize} vertexColors transparent opacity={0.7} sizeAttenuation blending={THREE.AdditiveBlending} depthWrite={false} /></points>
+      <points ref={pointsRef} geometry={geom}><primitive object={streakMat} attach="material" /></points>
       <mesh ref={shockRef} rotation={[Math.PI / 2, 0, 0]}><ringGeometry args={[0.98, 1.0, 64]} /><meshStandardMaterial color="#06b6d4" emissive="#0891b2" emissiveIntensity={3} transparent opacity={0.25} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
     </group>
   );
@@ -508,8 +506,16 @@ export function EnergyWaves({ audioData, vizParams, sceneFrozen }: VizProps) {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
     g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    // 2026: dust streaks spiral toward the drain
+    applyStreakVelocity(g, (_i, x, _y, z) => {
+      const r = Math.hypot(x, z) || 0.001;
+      const s = 1.2 / (0.3 + r);
+      return [(-z / r) * s, -0.35 - Math.random() * 0.3, (x / r) * s];
+    }, count);
     return { g, pos, vel };
   }, []);
+
+  const streakMat = useMemo(() => makeStreakMaterial({ size: 24, stretch: 2.8, opacity: 0.85 }), []);
 
   useFrame((s) => {
     if (!pointsRef.current) return;
@@ -561,9 +567,10 @@ export function EnergyWaves({ audioData, vizParams, sceneFrozen }: VizProps) {
     }
     geom.attributes.position.needsUpdate = true;
 
-    const mat = pointsRef.current.material as THREE.PointsMaterial;
-    mat.size = 0.025 + bass * 0.04 + peak * 0.02;
-    mat.opacity = 0.6 + mid * 0.3;
+    const su = streakMat.uniforms;
+    su.uBass.value = bass;
+    su.uTreble.value = peak * 0.6 + mid * 0.4;
+    su.uOpacity.value = 0.55 + mid * 0.25;
 
     // Drain glow at bottom
     if (drainRef.current) {
@@ -604,7 +611,7 @@ export function EnergyWaves({ audioData, vizParams, sceneFrozen }: VizProps) {
     <group>
       {/* Cosmic dust particles */}
       <points ref={pointsRef} geometry={geom}>
-        <pointsMaterial map={getParticleTex()} size={0.035} vertexColors transparent opacity={0.8} sizeAttenuation blending={THREE.AdditiveBlending} depthWrite={false} />
+        <primitive object={streakMat} attach="material" />
       </points>
 
       {/* Funnel wireframe shell */}
@@ -709,7 +716,7 @@ export function SpectrumBars({ audioData, vizParams, sceneFrozen }: VizProps) {
     <group ref={groupRef}>
       {Array.from({ length: barCount }).map((_, i) => {
         const a = (i / barCount) * Math.PI * 2;
-        return <mesh key={i} ref={(el) => { barRefs.current[i] = el; }} position={[Math.cos(a)*2, -1.5, Math.sin(a)*2]} rotation={[0, -a, 0]}><boxGeometry args={[0.1, 1, 0.1]} /><meshStandardMaterial color={`hsl(${220+i*3},80%,55%)`} emissive={`hsl(${220+i*3},90%,45%)`} emissiveIntensity={0.3} roughness={0.2} metalness={0.8} /></mesh>;
+        return <mesh key={i} ref={(el) => { barRefs.current[i] = el; }} position={[Math.cos(a)*2, -1.5, Math.sin(a)*2]} rotation={[0, -a, 0]}><capsuleGeometry args={[0.045, 1, 4, 12]} /><meshPhysicalMaterial color={`hsl(${220+i*3},80%,55%)`} emissive={`hsl(${220+i*3},90%,45%)`} emissiveIntensity={0.3} roughness={0.18} metalness={0.85} clearcoat={1} clearcoatRoughness={0.15} /></mesh>;
       })}
     </group>
   );
@@ -739,7 +746,7 @@ export function VinylDisc({ audioData, vizParams, sceneFrozen }: VizProps) {
 
   return (
     <group>
-      <mesh ref={discRef}><cylinderGeometry args={[2.5, 2.5, 0.05, 64]} /><meshStandardMaterial color="#111" emissive="#1a1a2e" emissiveIntensity={0.1} roughness={0.15} metalness={0.9} map={getNoiseTex()} /></mesh>
+      <mesh ref={discRef}><cylinderGeometry args={[2.5, 2.5, 0.05, 96]} /><meshPhysicalMaterial color="#0b0b12" emissive="#1a1a2e" emissiveIntensity={0.1} roughness={0.12} metalness={0.85} clearcoat={1} clearcoatRoughness={0.06} map={getNoiseTex()} /></mesh>
       <group ref={groovesRef}>
         {Array.from({ length: 20 }).map((_, i) => (
           <mesh key={i} rotation={[Math.PI/2,0,0]} position={[0,0.03,0]}><torusGeometry args={[0.5+i*0.12, 0.003, 4, 128]} /><meshStandardMaterial color="#333" emissive="#222" emissiveIntensity={0.1} transparent opacity={0.2} /></mesh>
@@ -756,31 +763,24 @@ export function VinylDisc({ audioData, vizParams, sceneFrozen }: VizProps) {
 // =============================================================================
 export function AuroraRibbon({ audioData, vizParams, sceneFrozen }: VizProps) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const base = useRef<Float32Array | null>(null);
+  // 2026: aurora as a shader curtain — soft volumetric falloff, no hard plane edges
+  const mat = useMemo(() => makeTerrainMaterial({ colorA: "#052e1f", colorB: "#34d399", rim: "#c084fc", opacity: 0.72, displace: 0.9, freq1: 0.4, freq2: 2.6, speed: 0.5, ripple: 0.2 }), []);
 
   useFrame((s) => {
     if (!meshRef.current) return;
-    const geo = meshRef.current.geometry as THREE.PlaneGeometry;
-    const pos = geo.attributes.position.array as Float32Array;
-    if (!base.current) base.current = new Float32Array(pos);
-    const { bass, mid, treble, peak } = audioData.current;
     const t = s.clock.elapsedTime;
-
-    for (let i = 0; i < pos.length; i += 3) {
-      const x = base.current[i], y = base.current[i+1];
-      pos[i+2] = base.current[i+2] + Math.sin(x*0.8+t*1.5)*bass*0.6 + Math.sin(y*1.2+t*2)*mid*0.4 + Math.cos(x*2+t*3)*treble*0.25;
-    }
-    geo.attributes.position.needsUpdate = true;
-    geo.computeVertexNormals();
-    const m = meshRef.current.material as THREE.MeshStandardMaterial;
-    m.emissiveIntensity = 0.3 + bass * vizParams.glowIntensity * 0.7;
-    m.opacity = 0.6 + bass * 0.25;
-    m.color.setHSL(0.5 + peak * 0.2, 0.7, 0.5);
+    const { bass, mid, treble, energy } = audioData.current;
+    updateTerrainMaterial(mat, t, { bass, mid, treble, energy }, vizParams.glowIntensity * 0.8);
     meshRef.current.rotation.x = -Math.PI / 3;
     if (!sceneFrozen) meshRef.current.rotation.z = t * 0.01 * vizParams.rotationSpeed;
   });
 
-  return <mesh ref={meshRef}><planeGeometry args={[8, 5, 64, 40]} /><meshStandardMaterial color="#6366f1" emissive="#4338ca" emissiveIntensity={0.4} side={THREE.DoubleSide} transparent opacity={0.7} roughness={0.3} metalness={0.4} /></mesh>;
+  return (
+    <mesh ref={meshRef}>
+      <planeGeometry args={[8, 5, 96, 64]} />
+      <primitive object={mat} attach="material" />
+    </mesh>
+  );
 }
 
 // =============================================================================
@@ -788,32 +788,24 @@ export function AuroraRibbon({ audioData, vizParams, sceneFrozen }: VizProps) {
 // =============================================================================
 export function OceanWaves({ audioData, vizParams, sceneFrozen }: VizProps) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const matRef = useRef<THREE.MeshStandardMaterial>(null);
-  const base = useRef<Float32Array | null>(null);
+  // 2026: GPU ocean — layered noise swells, luminous crests, fresnel sheen
+  const mat = useMemo(() => makeTerrainMaterial({ colorA: "#031c33", colorB: "#2dd4bf", rim: "#a5f3fc", displace: 1.5, freq1: 0.35, freq2: 1.4, speed: 0.45, ripple: 0.45 }), []);
 
   useFrame((s) => {
-    if (!meshRef.current || !matRef.current) return;
-    const geo = meshRef.current.geometry as THREE.PlaneGeometry;
-    const pos = geo.attributes.position.array as Float32Array;
-    if (!base.current) base.current = new Float32Array(pos);
-    const { bass, mid, treble, peak } = audioData.current;
+    if (!meshRef.current) return;
     const t = s.clock.elapsedTime;
-
-    for (let i = 0; i < pos.length; i += 3) {
-      const x = base.current[i], y = base.current[i+1];
-      pos[i+2] = base.current[i+2] + Math.sin(x*0.6+t*1.2)*bass*1.0 + Math.sin(y*0.8+t*1.8)*mid*0.6 + Math.cos((x+y)*1.5+t*3)*treble*0.3;
-    }
-    geo.attributes.position.needsUpdate = true;
-    geo.computeVertexNormals();
-    matRef.current.color.setHSL(0.55, 0.7, 0.35 + bass * 0.2);
-    matRef.current.emissiveIntensity = 0.2 + bass * vizParams.glowIntensity * 0.6;
-    matRef.current.roughness = 0.15 + (1 - peak) * 0.3;
-    matRef.current.metalness = 0.7;
+    const { bass, mid, treble, energy } = audioData.current;
+    updateTerrainMaterial(mat, t, { bass, mid, treble, energy }, vizParams.glowIntensity * 0.5);
     meshRef.current.rotation.x = -Math.PI / 2.2;
     if (!sceneFrozen) meshRef.current.rotation.z = t * 0.005 * vizParams.rotationSpeed;
   });
 
-  return <mesh ref={meshRef}><planeGeometry args={[8, 8, 64, 64]} /><meshStandardMaterial ref={matRef} color="#0891b2" emissive="#0e7490" emissiveIntensity={0.3} side={THREE.DoubleSide} roughness={0.1} metalness={0.8} map={getNoiseTex()} /></mesh>;
+  return (
+    <mesh ref={meshRef}>
+      <planeGeometry args={[8, 8, 128, 128]} />
+      <primitive object={mat} attach="material" />
+    </mesh>
+  );
 }
 
 // =============================================================================
@@ -927,7 +919,7 @@ export function StormViz({ audioData, vizParams, sceneFrozen }: VizProps) {
 // =============================================================================
 // INFERNO — Rising fire and ember particles
 // =============================================================================
-export function InfernoViz({ audioData, vizParams }: VizProps) {
+export function InfernoViz({ audioData }: VizProps) {
   const pointsRef = useRef<THREE.Points>(null);
   const coreRef = useRef<THREE.Mesh>(null);
   const count = 2000;
@@ -948,8 +940,15 @@ export function InfernoViz({ audioData, vizParams }: VizProps) {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
     g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    // 2026: embers stretch upward with the heat current
+    applyStreakVelocity(g, (_i, x, _y, z) => {
+      const r = Math.hypot(x, z) || 0.001;
+      return [(-z / r) * 0.5, 1.1 + Math.random() * 0.9, (x / r) * 0.5];
+    }, count);
     return { g, pos };
   }, []);
+
+  const streakMat = useMemo(() => makeStreakMaterial({ size: 26, stretch: 2.2, opacity: 0.8 }), []);
 
   useFrame(() => {
     if (!pointsRef.current) return;
@@ -969,9 +968,10 @@ export function InfernoViz({ audioData, vizParams }: VizProps) {
     }
     geom.attributes.position.needsUpdate = true;
 
-    const mat = pointsRef.current.material as THREE.PointsMaterial;
-    mat.size = vizParams.particleSize * (1 + bass * 1.5);
-    mat.opacity = 0.6 + features.brightness * 0.3;
+    const su = streakMat.uniforms;
+    su.uBass.value = bass;
+    su.uTreble.value = treble;
+    su.uOpacity.value = 0.55 + features.brightness * 0.3;
 
     if (coreRef.current) {
       const coreScale = 0.3 + bass * 0.6 + (beat ? 0.3 : 0);
@@ -984,7 +984,7 @@ export function InfernoViz({ audioData, vizParams }: VizProps) {
   return (
     <group>
       <points ref={pointsRef} geometry={geom}>
-        <pointsMaterial map={getParticleTex()} size={0.05} vertexColors transparent opacity={0.7} sizeAttenuation blending={THREE.AdditiveBlending} depthWrite={false} />
+        <primitive object={streakMat} attach="material" />
       </points>
       <mesh ref={coreRef} position={[0, -2, 0]}>
         <sphereGeometry args={[0.3, 16, 16]} />

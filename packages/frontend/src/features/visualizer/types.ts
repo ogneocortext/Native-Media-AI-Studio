@@ -87,11 +87,20 @@ export interface VisualizerSceneProps {
   demoEnabled: boolean;
   demoBpm: number;
   onAudioData?: (data: AudioData) => void;
-  visualizationStyle: VisualizationStyle;
+  visualizationStyle: string;
   vizParams: VizParams;
   bgColor?: string;
   meshColor?: string;
   analysisData?: AudioAnalysisData | null;
   audioElapsedRef?: React.MutableRefObject<number>;
-  sceneFrozen: boolean;
+  sceneFrozen?: boolean;
+  /** LRC lyric data for phrase-synchronized visuals */
+  lyrics?: LyricLine[];
+  /** Current LRC sync state */
+  lrcSync?: {
+    currentSection: string;
+    sectionProgress: number;
+    isPhraseStart: boolean;
+    lineProgress: number;
+  } | null;
 }

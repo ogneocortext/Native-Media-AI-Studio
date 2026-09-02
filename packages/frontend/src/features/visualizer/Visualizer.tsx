@@ -7,6 +7,7 @@ import { DEFAULT_VIZ_PARAMS } from "./types";
 import { useUIStore } from "../../state/uiStore";
 import { getVisualizationForTrack, VisualizationStyle } from "./trackConceptAnalyzer";
 import { VisualizerScene } from "./VisualizerScene";
+import { useLrcSync } from "./useLrcSync";
 import { ShaderVisualizer } from "./ShaderVisualizer";
 import { ACESFilmicToneMapping } from "three";
 import { SpectrumBar } from "./components/SpectrumBar";
@@ -52,6 +53,7 @@ export function Visualizer() {
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [lyricsVisible, setLyricsVisible] = useState(true);
+  const lrcSync = useLrcSync(lyrics, audioElapsedRef.current);
   const [kineticPreset, setKineticPreset] = useState("cinematic");
   const [showAnimDemo, setShowAnimDemo] = useState(false);
   const [showTheatreStudio, setShowTheatreStudio] = useState(false);
@@ -593,6 +595,13 @@ export function Visualizer() {
                   analysisData={currentAnalysisData}
                   audioElapsedRef={audioElapsedRef}
                   sceneFrozen={sceneFrozen}
+                  lyrics={lyrics}
+                  lrcSync={lrcSync ? {
+                    currentSection: lrcSync.currentSection,
+                    sectionProgress: lrcSync.sectionProgress,
+                    isPhraseStart: lrcSync.isPhraseStart,
+                    lineProgress: lrcSync.lineProgress,
+                  } : null}
                 />
               </Canvas>
               {!rendererReady && <div className="viz-loading-overlay"><div className="viz-loading-spinner" /><span>Initializing {rendererBackend || "renderer"}...</span></div>}
@@ -613,7 +622,14 @@ export function Visualizer() {
               </button>
             </div>
           )}
-          <KineticLyricOverlay lyrics={lyrics} elapsed={audioElapsedRef.current} visible={lyricsVisible} presetId={kineticPreset} beat={liveAudioData.beat} />
+              <KineticLyricOverlay
+                lyrics={lyrics}
+                elapsed={audioElapsedRef.current}
+                visible={lyricsVisible}
+                presetId={kineticPreset}
+                beat={liveAudioData.beat}
+                lrcSync={lrcSync}
+              />
         </div>
         {showSettings && <SettingsPanel params={vizParams} onChange={setVizParams} bgColor={bgColor} meshColor={meshColor} onBgChange={setBgColor} onMeshChange={setMeshColor} demoEnabled={demoEnabled} onDemoToggle={setDemoEnabled} kineticPreset={kineticPreset} onKineticPresetChange={setKineticPreset} />}
         {showAIPanel && <AIVisualizerPrompt onApplyPreset={handlePresetLoaded} trackMeta={deriveTrackMeta(currentAnalysisData)} trackName={currentFilename} />}
