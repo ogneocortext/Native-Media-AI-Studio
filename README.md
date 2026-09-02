@@ -28,6 +28,7 @@ A full-stack AI-powered creative production environment for music-driven media g
 
 ## Recent Changes
 
+- **Final Sweep & Hardening** — Fixed missing `import asyncio`, unreachable OOM prevention, refactored to single `asyncio.run()`, enhanced AI code sanitization (strips eval/fetch/setInterval/event listeners), made checkpoint names configurable across backend and MCP
 - **Security & Reliability Sweep** — Added fetch timeouts/`res.ok` checks to all MCP servers, fixed WebSocket origin validation, fixed TOCTOU race in queue manager, added threading lock to output cache, fixed PowerShell script errors (undefined functions, broken paths), fixed pnpm workspace config
 - **Bug Sweep & Code Quality** — Fixed 18 issues across backend, frontend, and config: removed duplicate imports, fixed deprecated asyncio API, removed debug prints/memory leaks, corrected TypeScript package names, standardized config paths, added ESLint rules
 - **Memory Leak Fixes** — Queue manager auto-cleans completed/failed jobs (keeps most recent 100), resource monitor cleans stale warning entries

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Final Sweep & Documentation (2026-09-02)
+- **Backend**: Fixed missing `import asyncio` in `api/outputs.py` — caused runtime crash in FFmpeg operations
+- **Backend**: Removed dead code duplicate in `_scan_with_cache` (unreachable after return)
+- **Backend**: Fixed `check_and_prevent_oom` indentation in `vram_manager.py` — was unreachable as a nested function
+- **Backend**: Refactored `main.py` to use single `asyncio.run()` with async `main()` function
+- **Backend**: Made checkpoint name configurable in `comfyui_manager.py` `generate_video`
+- **Frontend**: Enhanced AI code sanitization in ThreeJSStudio — strips setInterval, setTimeout, eval, Function, fetch, localStorage, event listeners
+- **Frontend**: Removed global `(window).THREE` exposure — AI code uses parameter instead
+- **MCP**: Made checkpoint name configurable in `ollama-tools-mcp.mjs` `generateImage`
+
 ### Fixed - Security & Reliability Sweep (2026-09-01)
 - **Backend**: Added `threading.Lock` to `_output_cache` in `api/outputs.py` to prevent race conditions
 - **Backend**: Fixed TOCTOU race in `queue/manager.py` `cancel_job`/`retry_job` — moved status check inside lock
