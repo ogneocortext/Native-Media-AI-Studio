@@ -522,7 +522,5 @@ async def _reload_ollama_models(model_name: str) -> bool:
     return await asyncio.to_thread(_reload_ollama_models_sync, model_name)
 
 
-def _unload_ollama_models_sync() -> list[str]:
-    """Synchronous helper to unload Ollama models. Returns list of unloaded model names."""
-    import urllib.request
-    import json
+# Global VRAM manager singleton
+vram_manager = VRAMManager()
