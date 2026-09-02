@@ -506,6 +506,7 @@ class ComfyUIManager:
         duration: int,
         section: str,
         audio_path: str,
+        checkpoint_name: str = "model.safetensors",
     ) -> str | None:
         """Generate video via ComfyUI HTTP API. Returns path to output video or None."""
         from ..core.config import config
@@ -543,7 +544,7 @@ class ComfyUIManager:
                 },
                 "4": {
                     "class_type": "CheckpointLoaderSimple",
-                    "inputs": {"ckpt_name": "model.safetensors"},
+                    "inputs": {"ckpt_name": checkpoint_name},
                 },
                 "5": {
                     "class_type": "EmptyLatentImage",

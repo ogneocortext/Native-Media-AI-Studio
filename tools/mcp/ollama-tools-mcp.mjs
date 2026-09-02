@@ -191,6 +191,7 @@ async function generateImage(args) {
   // Use ComfyUI's simple txt2img workflow via the /prompt endpoint
   // First, get the object_info to find available checkpoints and samplers
   try {
+    const checkpoint = args.checkpoint || "sd_xl_base_1.0.safetensors";
     // Queue a prompt using ComfyUI's API
     // The workflow uses the default checkpoint loader + KSampler
     const workflow = {
@@ -210,7 +211,7 @@ async function generateImage(args) {
         class_type: "KSampler",
       },
       "4": {
-        inputs: { ckpt_name: "sd_xl_base_1.0.safetensors" },
+        inputs: { ckpt_name: checkpoint },
         class_type: "CheckpointLoaderSimple",
       },
       "5": {

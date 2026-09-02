@@ -360,14 +360,14 @@ async def sse_endpoint(request: Request):
     return EventSourceResponse(event_generator())
 
 
-def run():
+async def main():
     """Run the FastAPI application with resolved ports"""
     # Resolve ports BEFORE uvicorn binds so that:
     #   1. ports.json is accurate before the frontend starts, and
     #   2. the dynamic port resolution never sees the port we are about to bind
     #      as "occupied by a stale process".
     try:
-        resolved_config = asyncio.run(port_manager.resolve_all_ports())
+        resolved_config = await port_manager.resolve_all_ports()
         port = resolved_config["backend_port"]
         logger.info(f"Resolved backend port: {port}")
     except Exception as e:
@@ -382,7 +382,11 @@ def run():
         ws="websockets",
     )
     server = uvicorn.Server(uvicorn_config)
-    asyncio.run(server.serve())
+    await server.serve()
+
+
+def run():
+    asyncio.run(main())
 
 
 if __name__ == "__main__":

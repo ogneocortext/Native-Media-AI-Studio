@@ -583,6 +583,13 @@ export function ThreeJSStudio() {
       const sanitized = jsCode
         // Remove rAF loops — studio drives frames
         .replace(/requestAnimationFrame\s*\([^)]+\)\s*;?/g, "/* rAF stripped — studio drives loop */")
+        // Remove setInterval/setTimeout — prevents infinite loops and timing attacks
+        .replace(/setInterval\s*\([^)]+\)\s*;?/g, "/* setInterval stripped */")
+        .replace(/setTimeout\s*\([^)]+\)\s*;?/g, "/* setTimeout stripped */")
+        // Remove eval and Function constructor — prevents code injection
+        .replace(/\beval\s*\(/g, "/* eval stripped */(")
+        .replace(/\bnew\s+Function\s*\(/g, "/* new Function stripped */(")
+        .replace(/\bFunction\s*\(/g, "/* Function stripped */(")
         // Remove direct renderer.setSize(window.innerWidth ...) calls
         .replace(/renderer\s*\.\s*setSize\s*\(\s*window\.innerWidth[^)]+\)\s*;?/g, "/* renderer.setSize stripped */")
         .replace(/renderer\s*\.\s*setPixelRatio\s*\([^)]+\)\s*;?/g, "/* setPixelRatio stripped */")
@@ -590,6 +597,15 @@ export function ThreeJSStudio() {
         .replace(/window\s*\.\s*addEventListener\s*\(\s*['\"]resize['\"][^)]+\)\s*;?/g, "/* resize listener stripped */")
         // Remove standalone animate() invocations at top-level (not method calls)
         .replace(/^\s*animate\s*\(\s*[^)]*\)\s*;?\s*$/gm, "/* animate() stripped */")
+        // Remove window event listeners (click, keydown, etc.) — prevents DOM hijacking
+        .replace(/window\s*\.\s*addEventListener\s*\([^)]+\)\s*;?/g, "/* window event listener stripped */")
+        .replace(/document\s*\.\s*addEventListener\s*\([^)]+\)\s*;?/g, "/* document event listener stripped */")
+        // Remove fetch/XMLHttpRequest — prevents data exfiltration
+        .replace(/\bfetch\s*\(/g, "/* fetch stripped */(")
+        .replace(/\bXMLHttpRequest\s*\(/g, "/* XMLHttpRequest stripped */(")
+        // Remove localStorage/sessionStorage access
+        .replace(/localStorage\s*\.\s*(get|set|remove)Item\s*\(/g, "/* localStorage stripped */(")
+        .replace(/sessionStorage\s*\.\s*(get|set|remove)Item\s*\(/g, "/* sessionStorage stripped */(")
         // Neutralize direct THREE import assumptions — scene already provides globals
         .replace(/document\.getElementById\s*\(\s*['\"]three-container['\"]\s*\)/g, "null");
 
@@ -654,7 +670,6 @@ export function ThreeJSStudio() {
       if (finalComposerRef.current) finalComposerRef.current.setSize(w, h);
     };
     const initScene = async () => {
-      (window as any).THREE = THREE;
       threeRef.current = THREE;
 
       const scene = new THREE.Scene();
