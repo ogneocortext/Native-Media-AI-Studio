@@ -11,8 +11,10 @@ Provides:
 
 import logging
 import logging.handlers
+import os
 import sys
 from pathlib import Path
+from datetime import datetime, timedelta
 
 from ..core.config import PROJECT_ROOT
 
@@ -23,7 +25,8 @@ from ..core.config import PROJECT_ROOT
 # backend on Windows).
 _ORIGINAL_STDOUT = sys.stdout
 
-LOG_DIR = PROJECT_ROOT / "logs"
+# Log directory - use output/logs/ for consistency with service logs
+LOG_DIR = PROJECT_ROOT / "output" / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Log file paths
@@ -40,6 +43,9 @@ COMFYUI_USER_LOG_DIR = COMFYUI_DIR / "user"
 # Max size per log file (10 MB)
 MAX_BYTES = 10 * 1024 * 1024
 BACKUP_COUNT = 5
+
+# Log retention days (cleanup files older than this)
+LOG_RETENTION_DAYS = 7
 
 
 class _StdCapture:
@@ -199,6 +205,28 @@ def setup_logging(level: str = "INFO") -> None:
 
     root_logger.info("Logging initialized (level=%s, dir=%s)", level, LOG_DIR)
 
+    # Cleanup old log files on startup
+    cleanup_old_logs(LOG_DIR, LOG_RETENTION_DAYS)
+
+
+def cleanup_old_logs(log_dir: Path, retention_days: int = 7) -> int:
+    """Remove log files older than retention_days. Returns count of removed files."""
+    if not log_dir.exists():
+        return 0
+    cutoff = datetime.now() - timedelta(days=retention_days)
+    removed = 0
+    for f in log_dir.glob("**/*"):
+        if f.is_file() and f.suffix in (".log", ".err", ".csv", ".json", ".png", ".nsys-rep", ".sqlite"):
+            try:
+                if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
+                    f.unlink()
+                    removed += 1
+            except OSError:
+                pass
+    if removed:
+        logging.getLogger(__name__).info("Cleaned up %d old log files (>%d days)", removed, retention_days)
+    return removed
+
 
 def get_log_files() -> dict[str, Path]:
     """Get paths to all log files."""
@@ -218,7 +246,7 @@ def get_log_files() -> dict[str, Path]:
             reverse=True,
         )
         if comfyui_logs:
-            logs["comfyui"] = comfyui_logs[0]
+            logs["comfyui_native"] = comfyui_logs[0]
     return logs
 
 
@@ -233,6 +261,34 @@ def read_log_tail(log_file: Path, lines: int = 100) -> list[str]:
             return [line.rstrip() for line in all_lines[-lines:]]
     except Exception as e:
         return [f"Error reading log: {e}"]
+
+
+def get_recent_errors(log_file: Path = ERROR_LOG, minutes: int = 60, max_errors: int = 50) -> list[str]:
+    """Get error log entries from the last N minutes."""
+    if not log_file.exists():
+        return []
+
+    cutoff = datetime.now() - timedelta(minutes=minutes)
+    errors = []
+    try:
+        with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                # Try to parse the timestamp from the log line
+                try:
+                    if len(line) > 20 and " | " in line[:25]:
+                        ts_str = line[:19]
+                        ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+                        if ts >= cutoff:
+                            errors.append(line.rstrip())
+                except ValueError:
+                    # If we can't parse the timestamp, include the line anyway
+                    errors.append(line.rstrip())
+                if len(errors) >= max_errors:
+                    break
+    except Exception as e:
+        return [f"Error reading error log: {e}"]
+
+    return errors[-max_errors:]
 
 
 def get_log_stats() -> dict:
