@@ -56,7 +56,76 @@ export function parseLyricsFromNormalizedCsv(csvContent: string, trackName: stri
 }
 
 /**
- * Parse a single CSV line, handling quoted fields.
+ * Parse LRC timed lyrics format.
+ * Format: [mm:ss.xx]lyric text
+ * Optional metadata: [ti:Title], [ar:Artist], [al:Album]
+ */
+export function parseLrcContent(lrcContent: string): LyricLine[] {
+  if (!lrcContent) return [];
+
+  const lines = lrcContent.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  const result: LyricLine[] = [];
+  let currentSection = "VERSE";
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    // Skip metadata lines like [ti:...], [ar:...], [al:...], [length:...]
+    if (/^\[(ti|ar|al|length|by|offset|re|ve):/i.test(line)) continue;
+
+    // Parse timestamps: [mm:ss.xx]text or [mm:ss.xx][mm:ss.xx]text
+    const timestampMatch = line.match(/^\[(\d{2}):(\d{2})\.(\d{2})\](.*)$/);
+    if (!timestampMatch) {
+      // Check if it's a section marker like [Intro], [Verse], [Chorus], [Drop]
+      const sectionMatch = line.match(/^\[(Intro|Verse|Chorus|Bridge|Drop|Breakdown|Build-Up|Pre-Chorus|Final\s*Chorus|Outro)\]$/i);
+      if (sectionMatch) {
+        const marker = sectionMatch[1].toLowerCase();
+        if (marker.includes("intro")) currentSection = "INTRO";
+        else if (marker.startsWith("verse")) currentSection = "VERSE";
+        else if (marker.includes("chorus") && marker.includes("final")) currentSection = "FINAL CHORUS";
+        else if (marker.includes("chorus")) currentSection = "CHORUS";
+        else if (marker.includes("bridge")) currentSection = "BRIDGE";
+        else if (marker.includes("drop")) currentSection = "DROP";
+        else if (marker.includes("breakdown")) currentSection = "BREAKDOWN";
+        else if (marker.includes("build-up")) currentSection = "BUILD-UP";
+        else if (marker.includes("outro")) currentSection = "OUTRO";
+        else currentSection = marker.toUpperCase();
+      }
+      continue;
+    }
+
+    const minutes = parseInt(timestampMatch[1], 10);
+    const seconds = parseInt(timestampMatch[2], 10);
+    const centiseconds = parseInt(timestampMatch[3], 10);
+    const start = minutes * 60 + seconds + centiseconds / 100;
+    const text = timestampMatch[4].trim();
+
+    if (!text) continue;
+
+    result.push({
+      start,
+      end: start + 2, // Will be recalculated when we know the next line's start
+      text,
+      section: currentSection,
+    });
+  }
+
+  // Recalculate end times based on next line's start
+  for (let i = 0; i < result.length - 1; i++) {
+    result[i].end = result[i + 1].start;
+  }
+
+  // Last line gets a reasonable default duration
+  if (result.length > 0) {
+    result[result.length - 1].end = result[result.length - 1].start + 3;
+  }
+
+  return result;
+}
+
+/**
+ * Parse a single LRC line, handling quoted fields.
  */
 function parseCsvLine(line: string): string[] {
   const fields: string[] = [];

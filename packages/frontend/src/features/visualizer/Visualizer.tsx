@@ -17,7 +17,7 @@ import { PresetFileUpload } from "./components/PresetFileUpload";
 import { AIVisualizerPrompt } from "./components/AIVisualizerPrompt";
 import type { LyricLine } from "./components/LyricOverlay";
 import { KineticLyricOverlay } from "./components/KineticLyricOverlay";
-import { selectPresetForTrack } from "./components/KineticPresets";
+import { parseLyricsFromCsv, parseLrcContent } from "./lyricsParser";
 import { AnimationDemo } from "./components/AnimationDemo";
 import { TheatreStudioPanel } from "./components/TheatreStudioPanel";
 import { parseLyricsFromCsv } from "./lyricsParser";
@@ -84,7 +84,23 @@ export function Visualizer() {
   useEffect(() => { listAudioFiles().then(files => { if (Array.isArray(files) && files.length > 0) setLibraryFiles(files); }).catch(() => {}); }, []);
 
   // Parse lyrics from CSV into timed lines (uses shared parser)
-  const parseLyricsForTrack = useCallback((trackName: string, duration: number): LyricLine[] => {
+  const parseLyricsForTrack = useCallback(async (trackName: string, duration: number): Promise<LyricLine[]> => {
+    // Try LRC file first (precise timing)
+    if (trackName) {
+      try {
+        const lrcFilename = trackName.replace(/\.mp3$/i, ".lrc");
+        const lrcRes = await fetch(`/api/audio/file/${encodeURIComponent(lrcFilename)}`);
+        if (lrcRes.ok) {
+          const lrcContent = await lrcRes.text();
+          const lrcLyrics = parseLrcContent(lrcContent);
+          if (lrcLyrics.length > 0) return lrcLyrics;
+        }
+      } catch {
+        // LRC not available, fall through to CSV
+      }
+    }
+
+    // Fall back to CSV parsing
     return parseLyricsFromCsv(csvContent, trackName, duration);
   }, [csvContent]);
 
@@ -184,9 +200,9 @@ export function Visualizer() {
       if (viz) setVisualizationStyle(viz);
     }
 
-    // Load lyrics for this track
+    // Load lyrics for this track (LRC preferred, CSV fallback)
     const duration = analysis?.duration_seconds || 240;
-    const trackLyrics = parseLyricsForTrack(cleanName, duration);
+    const trackLyrics = await parseLyricsForTrack(cleanName, duration);
     setLyrics(trackLyrics);
     setLyricsVisible(trackLyrics.length > 0);
 
