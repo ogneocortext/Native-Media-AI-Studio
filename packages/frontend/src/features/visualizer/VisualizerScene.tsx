@@ -17,6 +17,7 @@ import {
   InfernoViz,
 } from "./VisualizationStyles";
 import { LrcVizController, getSectionIntensity } from "./LrcVizController";
+import { PostFX } from "./VisualizationFX";
 import { useRealAudio, useDemoAudio } from "./audioHooks";
 import { updateTrackFeatures } from "./trackFeatures";
 import type { VisualizerSceneProps } from "./types";
