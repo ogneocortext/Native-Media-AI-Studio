@@ -66,14 +66,28 @@ export function KineticLyricOverlay({ lyrics, elapsed, visible, presetId, beat, 
 
   const features = getTrackFeatures();
 
-  // Auto-switch preset based on LRC section markers
+  // Track whether user has manually selected a preset
+  const [userSelectedPreset, setUserSelectedPreset] = useState<string | null>(null);
+
+  // Update section preset only if user hasn't manually selected one
   useEffect(() => {
     if (!currentSection) return;
-    const newPreset = SECTION_PRESET_MAP[currentSection] || presetId;
-    if (newPreset !== sectionPreset) {
-      setSectionPreset(newPreset);
+    // Only auto-switch if user hasn't manually selected a preset
+    if (userSelectedPreset === null) {
+      const newPreset = SECTION_PRESET_MAP[currentSection] || presetId;
+      if (newPreset !== sectionPreset) {
+        setSectionPreset(newPreset);
+      }
     }
-  }, [currentSection, presetId]);
+  }, [currentSection, presetId, userSelectedPreset]);
+
+  // When presetId changes from settings, mark as user-selected
+  useEffect(() => {
+    if (presetId) {
+      setUserSelectedPreset(presetId);
+      setSectionPreset(presetId);
+    }
+  }, [presetId]);
 
   const preset = kineticPresets[sectionPreset] || kineticPresets[presetId] || kineticPresets.cinematic;
 

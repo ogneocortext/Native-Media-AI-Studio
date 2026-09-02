@@ -65,6 +65,7 @@ export function SettingsPanel({ params, onChange, bgColor, meshColor, onBgChange
             </button>
           ))}
         </div>
+        <small className="viz-hint">Auto-switches based on LRC section when track loads</small>
       </div>
       <div className="viz-settings-section">
         <label className="viz-check"><input type="checkbox" checked={demoEnabled} onChange={(e) => onDemoToggle(e.target.checked)} /><span>Demo animation</span></label>

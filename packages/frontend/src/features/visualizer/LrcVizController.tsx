@@ -44,6 +44,7 @@ interface LrcVizControllerProps {
 /**
  * Controller component that synchronizes 3D visualizations with LRC timing data.
  * Provides section-driven color and intensity via React context.
+ * Directly manipulates the 3D scene for visible effects.
  */
 export function LrcVizController({
   vizParams,
@@ -56,9 +57,11 @@ export function LrcVizController({
     intensity: 0.6,
     phraseFlash: 0,
   });
+  
+  const groupRef = useRef<THREE.Group>(null);
 
   // Update target when section changes
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (!lrcSync) return;
 
     const section = lrcSync.currentSection;
@@ -84,29 +87,41 @@ export function LrcVizController({
       BRIDGE: 0.7,
       BREAKDOWN: 0.5,
       "BUILD-UP": 0.8,
-      DROP: 1.3,
-      "FINAL CHORUS": 1.1,
-      "FINAL DROP": 1.4,
+      DROP: 1.5,
+      "FINAL CHORUS": 1.3,
+      "FINAL DROP": 1.6,
       OUTRO: 0.4,
     };
 
-    state.current.targetColor.set(sectionColors[section] || "#6366f1");
+    vizParams.meshColor = sectionColors[section] || "#6366f1";
     state.current.intensity = sectionIntensities[section] ?? 0.6;
 
     // Smooth color interpolation
-    state.current.currentColor.lerp(state.current.targetColor, delta * 2);
+    state.current.targetColor.set(sectionColors[section] || "#6366f1");
+    state.current.currentColor.lerp(state.current.targetColor, delta * 3);
 
     // Phrase flash
     if (lrcSync.isPhraseStart) {
       state.current.phraseFlash = 1.0;
     } else {
-      state.current.phraseFlash = Math.max(0, state.current.phraseFlash - delta * 3);
+      state.current.phraseFlash = Math.max(0, state.current.phraseFlash - delta * 4);
+    }
+
+    // Apply effects to the visualization group
+    if (groupRef.current) {
+      const targetScale = 1 + (state.current.intensity - 0.6) * 0.3 + state.current.phraseFlash * 0.2;
+      groupRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), delta * 5);
+      
+      // Rotation speed based on section intensity
+      groupRef.current.rotation.y += delta * state.current.intensity * 0.3;
     }
   });
 
   return (
     <LrcVizContext.Provider value={state.current}>
-      {children}
+      <group ref={groupRef}>
+        {children}
+      </group>
     </LrcVizContext.Provider>
   );
 }
