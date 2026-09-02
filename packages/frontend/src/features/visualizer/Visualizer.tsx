@@ -24,6 +24,7 @@ import { TheatreStudioPanel } from "./components/TheatreStudioPanel";
 import type { VisualPreset } from "./visualPreset";
 import { showToast } from "../../utils/toast";
 import { visualPresets, selectVisualPreset } from "./visualPresets";
+import { selectPresetForTrack } from "./components/KineticPresets";
 
 
 export function Visualizer() {
