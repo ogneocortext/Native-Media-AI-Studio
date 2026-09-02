@@ -221,7 +221,9 @@ export function Visualizer() {
 
     // Load lyrics for this track (LRC preferred, CSV fallback)
     const duration = analysis?.duration_seconds || 240;
+    console.log('[LRC] Loading lyrics for:', cleanName, 'duration:', duration);
     const trackLyrics = await parseLyricsForTrack(cleanName, duration);
+    console.log('[LRC] Loaded', trackLyrics.length, 'lyric lines');
     setLyrics(trackLyrics);
     setLyricsVisible(trackLyrics.length > 0);
 
@@ -242,7 +244,30 @@ export function Visualizer() {
       setVisualizationStyle(visualPreset.visualizationStyle);
       showToast(`Applied "${visualPreset.name}" preset`, "info");
     }
-  }, [csvContent, analysisData, trackMetadata, parseLyricsForTrack]);
+
+    // Async LLM preset enrichment (non-blocking): generate AI preset from track concept + analysis
+    // Uses qwen3.5:9b via /ollama/visualizer, falls back silently if Ollama offline
+    if (analysis && !loadedPreset) {
+      const concept = csvContent ? getVisualizationForTrack(cleanName, csvContent) : null;
+      const desc = concept?.prompt || concept?.visualConcept || cleanName;
+      const genre = concept?.genre?.join(", ") || "";
+      // Fire-and-forget AI enrichment — show toast on success
+      import("../../services/api").then(({ generateVisualizerPreset }) => {
+        generateVisualizerPreset(
+          `${desc} — ${genre} — mood: ${concept?.mood?.join(", ") || "auto"}`.trim(),
+          undefined, // use backend default_model (qwen3.5:4b/9b)
+          0.7,
+          { bpm: realBpm, energy, duration_seconds: analysis.duration_seconds, genre }
+        ).then(res => {
+          if (res?.preset) {
+            applyPreset(res.preset, analysis);
+            setLoadedPreset(res.preset);
+            showToast(`AI enriched: "${res.preset.name}"`, "success");
+          }
+        }).catch(() => {/* silent fallback — heuristic preset already applied */});
+      });
+    }
+  }, [csvContent, analysisData, trackMetadata, parseLyricsForTrack, loadedPreset, applyPreset]);
 
   /** Select visualization style based on audio analysis data */
   const selectVisualizationForTrack = (analysis: AudioAnalysisData): VisualizationStyle | null => {
