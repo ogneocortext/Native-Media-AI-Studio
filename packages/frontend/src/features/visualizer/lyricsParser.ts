@@ -95,8 +95,6 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
       }
       continue;
     }
-      continue;
-    }
 
     const minutes = parseInt(timestampMatch[1], 10);
     const seconds = parseInt(timestampMatch[2], 10);
