@@ -30,6 +30,7 @@ const SECTION_PRESET_MAP: Record<string, string> = {
   "BUILD-UP": "synthwave",
   DROP: "dubstep",
   "FINAL CHORUS": "phonk",
+  "FINAL DROP": "phonk",
   OUTRO: "lofi",
 };
 
@@ -44,6 +45,7 @@ const SECTION_COLORS: Record<string, { base: string; glow: string; energy: strin
   "BUILD-UP": { base: "#fb923c", glow: "#f97316", energy: "#fdba74" },
   DROP: { base: "#ef4444", glow: "#dc2626", energy: "#fca5a5" },
   "FINAL CHORUS": { base: "#e879f9", glow: "#d946ef", energy: "#f0abfc" },
+  "FINAL DROP": { base: "#f43f5e", glow: "#e11d48", energy: "#fda4af" },
   OUTRO: { base: "#94a3b8", glow: "#64748b", energy: "#cbd5e1" },
 };
 

@@ -77,13 +77,14 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
     // Parse timestamps: [mm:ss.xx]text or [mm:ss.xx][mm:ss.xx]text
     const timestampMatch = line.match(/^\[(\d{2}):(\d{2})\.(\d{2})\](.*)$/);
     if (!timestampMatch) {
-      // Check if it's a section marker like [Intro], [Verse], [Chorus], [Drop]
-      const sectionMatch = line.match(/^\[(Intro|Verse|Chorus|Bridge|Drop|Breakdown|Build-Up|Pre-Chorus|Final\s*Chorus|Outro)\]$/i);
+      // Check if it's a section marker like [Intro], [Verse], [Chorus], [Drop], [Final Drop]
+      const sectionMatch = line.match(/^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro)\]$/i);
       if (sectionMatch) {
-        const marker = sectionMatch[1].toLowerCase();
+        const marker = sectionMatch[1].toLowerCase().trim();
         if (marker.includes("intro")) currentSection = "INTRO";
         else if (marker.startsWith("verse")) currentSection = "VERSE";
-        else if (marker.includes("chorus") && marker.includes("final")) currentSection = "FINAL CHORUS";
+        else if (marker.includes("final") && marker.includes("drop")) currentSection = "FINAL DROP";
+        else if (marker.includes("final") && marker.includes("chorus")) currentSection = "FINAL CHORUS";
         else if (marker.includes("chorus")) currentSection = "CHORUS";
         else if (marker.includes("bridge")) currentSection = "BRIDGE";
         else if (marker.includes("drop")) currentSection = "DROP";
@@ -92,6 +93,8 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
         else if (marker.includes("outro")) currentSection = "OUTRO";
         else currentSection = marker.toUpperCase();
       }
+      continue;
+    }
       continue;
     }
 
