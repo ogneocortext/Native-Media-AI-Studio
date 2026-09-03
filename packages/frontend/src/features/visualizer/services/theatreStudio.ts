@@ -26,12 +26,11 @@ export async function getStudio(): Promise<any> {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
-    // Dynamic imports to avoid the "not initialized" warning on module load
     const [studioModule, coreModule] = await Promise.all([
       import("@theatre/studio"),
       import("@theatre/core"),
     ]);
-    
+
     studioInstance = studioModule.default;
     theatreCore = coreModule;
 

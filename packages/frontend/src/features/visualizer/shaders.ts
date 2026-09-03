@@ -485,11 +485,12 @@ export const SHADER_PRESETS = {
 
       float t = u_time * 0.5;
 
-      // Layered wave interference
+      // Layered wave interference — amplitude pumps with bass + beat pulse
+      // (u_beat arrives pre-decayed from the CPU loop, ~8-frame tail)
       float wave = 0.0;
       for (float i = 1.0; i <= 5.0; i++) {
         float freq = 3.0 * i + u_mid * 2.0;
-        float amp = 0.1 / i;
+        float amp = (0.1 / i) * (1.0 + u_bass * 1.5 + u_beat * 1.2);
         float phase = t * (1.0 + i * 0.3) + p.x * freq;
         wave += sin(phase) * amp;
       }
@@ -497,8 +498,8 @@ export const SHADER_PRESETS = {
       // Distance from wave line
       float dist = abs(p.y - wave);
 
-      // Glow bands
-      float bands = exp(-dist * (6.0 - u_bass * 3.0));
+      // Glow bands — width breathes with bass and punches on beats
+      float bands = exp(-dist * max(1.5, 7.0 - u_bass * 4.0 - u_beat * 1.5));
 
       // Color based on frequency
       vec3 color1 = vec3(0.2, 0.4, 1.0);
@@ -510,10 +511,10 @@ export const SHADER_PRESETS = {
       // Background
       vec3 bg = vec3(0.02, 0.02, 0.05);
 
-      // Beat flash
-      float flash = u_beat * 0.15 * exp(-length(p) * 2.0);
+      // Beat flash — strong enough to read as a pulse, focused at center
+      float flash = u_beat * 0.55 * exp(-length(p) * 1.5);
 
-      vec3 color = bg + bandColor * bands * (0.5 + u_energy) + vec3(1.0) * flash;
+      vec3 color = bg + bandColor * bands * (0.4 + u_energy * 1.2) + vec3(1.0) * flash;
 
       gl_FragColor = vec4(color, 1.0);
     }

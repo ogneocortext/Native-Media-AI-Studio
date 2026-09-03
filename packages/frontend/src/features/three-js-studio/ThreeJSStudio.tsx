@@ -107,7 +107,7 @@ export function ThreeJSStudio() {
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const objectsMapRef = useRef<Map<string, THREE.Object3D>>(new Map());
   const particlesRef = useRef<THREE.Points | null>(null);
-  const clockRef = useRef<THREE.Clock | null>(null);
+  const clockRef = useRef<THREE.Timer | null>(null);
   const bloomPassRef = useRef<UnrealBloomPass | null>(null);
   const bloomComposerRef = useRef<EffectComposer | null>(null);
   const finalComposerRef = useRef<EffectComposer | null>(null);
@@ -881,16 +881,18 @@ export function ThreeJSStudio() {
             }
           });
         };
-        const oldGroup = sceneRef.current.getObjectByName("__aiGenerated");
+        const scene = sceneRef.current;
+        if (!scene) return;
+        const oldGroup = scene.getObjectByName("__aiGenerated");
         if (oldGroup) {
           disposeGroup(oldGroup);
-          sceneRef.current.remove(oldGroup);
+          scene.remove(oldGroup);
         }
         // Also remove legacy tagged objects/lights from older runs
-        sceneRef.current.children.slice().forEach((c: any) => {
+        scene.children.slice().forEach((c: any) => {
           if (c.userData && c.userData.__ai) {
             disposeGroup(c);
-            sceneRef.current.remove(c);
+            scene.remove(c);
           }
         });
         // Reset previous update hooks
@@ -1079,7 +1081,7 @@ export function ThreeJSStudio() {
       renderer.setSize(container.clientWidth, container.clientHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.shadowMap.type = THREE.PCFShadowMap;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.2;
       rendererRef.current = renderer;
@@ -1198,12 +1200,15 @@ export function ThreeJSStudio() {
         objectsMapRef.current.set(obj.id, mesh);
       }
       clockRef.current = new THREE.Timer();
+      clockRef.current.connect(document);
 
       const animate = () => {
         animationRef.current = requestAnimationFrame(animate);
-        clockRef.current.update();
-        const delta = clockRef.current.getDelta();
-        const elapsed = clockRef.current.getElapsed();
+        const clock = clockRef.current;
+        if (!clock) return;
+        clock.update();
+        const delta = clock.getDelta();
+        const elapsed = clock.getElapsed();
         controls.update();
         let audioBass = 0,
           audioTreble = 0,
@@ -1346,7 +1351,9 @@ export function ThreeJSStudio() {
           finalComposerRef.current
         ) {
           const pv: boolean[] = [];
-          sceneRef.current.traverse((c: any) => {
+          const sceneForBloom = sceneRef.current;
+          if (!sceneForBloom) return;
+          sceneForBloom.traverse((c: any) => {
             if (c.isMesh) {
               pv.push(c.visible);
               c.visible =
@@ -1355,7 +1362,7 @@ export function ThreeJSStudio() {
           });
           bloomComposerRef.current.render();
           let i = 0;
-          sceneRef.current.traverse((c: any) => {
+          sceneForBloom.traverse((c: any) => {
             if (c.isMesh) c.visible = pv[i++];
           });
           finalComposerRef.current.render();
@@ -1442,6 +1449,7 @@ export function ThreeJSStudio() {
     return () => {
       cancelAnimationFrame(animationRef.current);
       window.removeEventListener("resize", onResize);
+      clockRef.current?.dispose();
       rendererRef.current?.dispose();
     };
   }, [createMeshForObject]);
@@ -1469,7 +1477,7 @@ export function ThreeJSStudio() {
           let mesh = objectsMapRef.current.get(obj.id);
           if (!mesh) {
             mesh = await createMeshForObject(obj, THREE);
-            if (!cancelled) {
+            if (!cancelled && mesh) {
               scene.add(mesh);
               objectsMapRef.current.set(obj.id, mesh);
             }
@@ -1502,9 +1510,8 @@ export function ThreeJSStudio() {
                 m.material.emissiveIntensity = obj.emissiveIntensity;
               }
             };
-            if (mesh.isGroup) mesh.traverse(um);
+            if (mesh instanceof THREE.Group) mesh.traverse(um);
             else um(mesh);
-            const tl = obj.bloom ? BLOOM_LAYER : 0;
             mesh.traverse((c: any) => {
               if (c.isMesh) {
                 c.layers.set(0);
@@ -1529,7 +1536,9 @@ export function ThreeJSStudio() {
       );
       if (sceneRef.current.fog) {
         sceneRef.current.fog.color.set(sceneConfig.fogColor);
-        sceneRef.current.fog.density = sceneConfig.fogDensity;
+        if (sceneRef.current.fog instanceof THREE.FogExp2) {
+          sceneRef.current.fog.density = sceneConfig.fogDensity;
+        }
       }
     }
     if (bloomPassRef.current)
@@ -1537,7 +1546,7 @@ export function ThreeJSStudio() {
     if (caPassRef.current)
       caPassRef.current.uniforms.amount.value = sceneConfig.chromaticAberration;
     if (grainPassRef.current)
-      grainPassRef.current.uniforms.intensity.value = sceneConfig.filmGrain;
+      (grainPassRef.current.uniforms as any).intensity.value = sceneConfig.filmGrain;
     if (vignettePassRef.current) {
       vignettePassRef.current.uniforms.offset.value =
         sceneConfig.vignetteRadius;
@@ -1566,11 +1575,18 @@ export function ThreeJSStudio() {
       particlesRef.current.geometry = pGeo;
       scene.add(particlesRef.current);
     }
-    const mat = particlesRef.current.material;
+    const mat = particlesRef.current.material as THREE.PointsMaterial | THREE.PointsMaterial[] | null;
     if (mat) {
-      mat.color.set(particleConfig.color);
-      mat.size = particleConfig.size;
-      mat.opacity = particleConfig.opacity;
+      const applyMat = (m: THREE.PointsMaterial) => {
+        m.color.set(particleConfig.color);
+        m.size = particleConfig.size;
+        m.opacity = particleConfig.opacity;
+      };
+      if (Array.isArray(mat)) {
+        mat.forEach(applyMat);
+      } else {
+        applyMat(mat);
+      }
     }
     particlesRef.current.visible = particleConfig.enabled;
   }, [particleConfig]);
@@ -1600,7 +1616,8 @@ export function ThreeJSStudio() {
         tex.needsUpdate = true;
         if (bgImageTextureRef.current) bgImageTextureRef.current.dispose();
         bgImageTextureRef.current = tex;
-        sceneRef.current.background = tex;
+        const s = sceneRef.current;
+        if (s) s.background = tex;
       };
       img.onerror = (err) =>
         console.error("BG image failed:", backgroundImageUrl, err);

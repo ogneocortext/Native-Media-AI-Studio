@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { AudioData, AudioAnalysisData } from "./types";
+import { ATTACK, RELEASE } from "./audioTiming";
 
 // Demo fallback — synthetic audio for when no track is playing
 export function useDemoAudio(enabled: boolean, bpm: number) {
@@ -84,15 +85,14 @@ export function useRealAudio(
     const rawMid = arr.slice(bassBins, midBins).reduce((a, b) => a + b, 0) / ((midBins - bassBins) * 255 || 1);
     const rawTreble = arr.slice(midBins).reduce((a, b) => a + b, 0) / ((arr.length - midBins) * 255 || 1);
 
-    // Attack/release smoothing: fast attack (0.6), slow release (0.15) for punchy response
-    const attack = 0.6;
-    const release = 0.15;
+    // Attack/release smoothing from shared timing constants (kept in sync with
+    // the shader-mode loop in Visualizer.tsx — see audioTiming.ts).
     const bassDiff = rawBass - smoothedBass.current;
-    smoothedBass.current += bassDiff * (bassDiff > 0 ? attack : release);
+    smoothedBass.current += bassDiff * (bassDiff > 0 ? ATTACK : RELEASE);
     const midDiff = rawMid - smoothedMid.current;
-    smoothedMid.current += midDiff * (midDiff > 0 ? attack : release);
+    smoothedMid.current += midDiff * (midDiff > 0 ? ATTACK : RELEASE);
     const trebleDiff = rawTreble - smoothedTreble.current;
-    smoothedTreble.current += trebleDiff * (trebleDiff > 0 ? attack : release);
+    smoothedTreble.current += trebleDiff * (trebleDiff > 0 ? ATTACK : RELEASE);
 
     const bass = smoothedBass.current;
     const mid = smoothedMid.current;

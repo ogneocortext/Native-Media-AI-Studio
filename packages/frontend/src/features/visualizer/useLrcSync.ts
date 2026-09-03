@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import type { LyricLine } from "./components/LyricOverlay";
 
 export interface PhraseMarker {
@@ -31,83 +31,111 @@ export interface LrcSyncData {
 /**
  * Hook that provides precise LRC timing data for visual synchronization.
  * Uses binary search for O(log n) lookups even with large lyric files.
+ *
+ * NOTE on timing resolution: this hook recomputes only when `elapsed` changes,
+ * so its output is quantized to the React-state update rate (~12–20 fps).
+ * Per-frame consumers (useFrame / rAF loops) must instead call the pure
+ * `computeLrcSync` below every frame with the live clock value — otherwise
+ * phrase pulses (a 150 ms window!) arrive late or are missed entirely.
  */
 export function useLrcSync(lyrics: LyricLine[], elapsed: number): LrcSyncData {
-  const sectionBounds = useMemo(() => {
-    const map = new Map<string, { start: number; end: number }>();
-    for (const line of lyrics) {
-      const sec = line.section || "VERSE";
-      const cur = map.get(sec);
-      if (!cur) map.set(sec, { start: line.start, end: line.end });
-      else cur.end = Math.max(cur.end, line.end);
-    }
-    return map;
-  }, [lyrics]);
+  const sectionBounds = useMemo(() => computeSectionBounds(lyrics), [lyrics]);
+  return useMemo(() => computeLrcSync(lyrics, elapsed, sectionBounds), [lyrics, elapsed, sectionBounds]);
+}
 
-  return useMemo(() => {
-    if (!lyrics.length) {
-      return {
-        currentLine: null,
-        nextLine: null,
-        lineProgress: 0,
-        sectionProgress: 0,
-        currentSection: "VERSE",
-        timeToNextPhrase: 0,
-        isPhraseStart: false,
-        totalLines: 0,
-        currentIndex: -1,
-      };
-    }
+/** Shared empty sync state (frozen — readers must not mutate). */
+export const EMPTY_LRC_SYNC: LrcSyncData = Object.freeze({
+  currentLine: null,
+  nextLine: null,
+  lineProgress: 0,
+  sectionProgress: 0,
+  currentSection: "VERSE",
+  timeToNextPhrase: 0,
+  isPhraseStart: false,
+  totalLines: 0,
+  currentIndex: -1,
+} as LrcSyncData);
 
-    // Binary search for current line (O(log n)) — return null in gaps
-    let lo = 0, hi = lyrics.length - 1, found = -1;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      const line = lyrics[mid];
-      if (elapsed < line.start) hi = mid - 1;
-      else if (elapsed >= line.end) lo = mid + 1;
-      else { found = mid; break; }
-    }
-    if (found === -1) {
-      // Gap or before first line — show next line preview, no stale lyric
-      let nextIdx = lo;
-      if (nextIdx < 0) nextIdx = 0;
-      if (nextIdx >= lyrics.length) {
-        return {
-          currentLine: null, nextLine: null, lineProgress: 0, sectionProgress: 0,
-          currentSection: lyrics[lyrics.length - 1]?.section || "VERSE",
-          timeToNextPhrase: 0, isPhraseStart: false, totalLines: lyrics.length, currentIndex: -1,
-        };
-      }
-      const nextLine = lyrics[nextIdx] || null;
-      return {
-        currentLine: null, nextLine, lineProgress: 0, sectionProgress: 0,
-        currentSection: nextLine?.section || lyrics[0]?.section || "VERSE",
-        timeToNextPhrase: nextLine ? Math.max(0, nextLine.start - elapsed) : 0,
-        isPhraseStart: false, totalLines: lyrics.length, currentIndex: -1,
-      };
-    }
-    const currentIdx = found;
-    const activeLine = lyrics[currentIdx];
-    const nextLine = lyrics[currentIdx + 1] || null;
-    const lineDuration = activeLine.end - activeLine.start;
-    const lineProgress = lineDuration > 1e-6 ? (elapsed - activeLine.start) / lineDuration : 0;
-    // Section progress using precomputed bounds (handles non-contiguous sections)
-    const bounds = sectionBounds.get(activeLine.section || "VERSE");
-    const sectionStart = bounds?.start ?? activeLine.start;
-    const sectionEnd = bounds?.end ?? activeLine.end;
-    const sectionDuration = sectionEnd - sectionStart;
-    const sectionProgress = sectionDuration > 1e-6 ? (elapsed - sectionStart) / sectionDuration : 0;
-    const isPhraseStart = elapsed - activeLine.start < 0.15;
+/** Precompute per-section time bounds (handles non-contiguous sections). */
+export function computeSectionBounds(lyrics: LyricLine[]): Map<string, { start: number; end: number }> {
+  const map = new Map<string, { start: number; end: number }>();
+  for (const line of lyrics) {
+    const sec = line.section || "VERSE";
+    const cur = map.get(sec);
+    if (!cur) map.set(sec, { start: line.start, end: line.end });
+    else cur.end = Math.max(cur.end, line.end);
+  }
+  return map;
+}
+
+/** Pure per-frame LRC lookup: binary search for current line (O(log n)) — null in gaps. */
+export function computeLrcSync(
+  lyrics: LyricLine[],
+  elapsed: number,
+  sectionBounds: Map<string, { start: number; end: number }>,
+): LrcSyncData {
+  if (!lyrics.length) {
     return {
-      currentLine: activeLine, nextLine,
-      lineProgress: Math.max(0, Math.min(1, lineProgress)),
-      sectionProgress: Math.max(0, Math.min(1, sectionProgress)),
-      currentSection: activeLine.section,
-      timeToNextPhrase: nextLine ? Math.max(0, nextLine.start - elapsed) : Math.max(0, activeLine.end - elapsed),
-      isPhraseStart, totalLines: lyrics.length, currentIndex: currentIdx,
+      currentLine: null,
+      nextLine: null,
+      lineProgress: 0,
+      sectionProgress: 0,
+      currentSection: "VERSE",
+      timeToNextPhrase: 0,
+      isPhraseStart: false,
+      totalLines: 0,
+      currentIndex: -1,
     };
-  }, [lyrics, elapsed]);
+  }
+
+  // Binary search for current line (O(log n)) — return null in gaps
+  let lo = 0, hi = lyrics.length - 1, found = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const line = lyrics[mid];
+    if (elapsed < line.start) hi = mid - 1;
+    else if (elapsed >= line.end) lo = mid + 1;
+    else { found = mid; break; }
+  }
+  if (found === -1) {
+    // Gap or before first line — show next line preview, no stale lyric
+    let nextIdx = lo;
+    if (nextIdx < 0) nextIdx = 0;
+    if (nextIdx >= lyrics.length) {
+      return {
+        currentLine: null, nextLine: null, lineProgress: 0, sectionProgress: 0,
+        currentSection: lyrics[lyrics.length - 1]?.section || "VERSE",
+        timeToNextPhrase: 0, isPhraseStart: false, totalLines: lyrics.length, currentIndex: -1,
+      };
+    }
+    const nextLine = lyrics[nextIdx] || null;
+    return {
+      currentLine: null, nextLine, lineProgress: 0, sectionProgress: 0,
+      currentSection: nextLine?.section || lyrics[0]?.section || "VERSE",
+      timeToNextPhrase: nextLine ? Math.max(0, nextLine.start - elapsed) : 0,
+      isPhraseStart: false, totalLines: lyrics.length, currentIndex: -1,
+    };
+  }
+  const currentIdx = found;
+  const activeLine = lyrics[currentIdx];
+  const nextLine = lyrics[currentIdx + 1] || null;
+  const lineDuration = activeLine.end - activeLine.start;
+  const lineProgress = lineDuration > 1e-6 ? (elapsed - activeLine.start) / lineDuration : 0;
+  // Section progress using precomputed bounds (handles non-contiguous sections)
+  const bounds = sectionBounds.get(activeLine.section || "VERSE");
+  const sectionStart = bounds?.start ?? activeLine.start;
+  const sectionEnd = bounds?.end ?? activeLine.end;
+  const sectionDuration = sectionEnd - sectionStart;
+  const sectionProgress = sectionDuration > 1e-6 ? (elapsed - sectionStart) / sectionDuration : 0;
+  const isPhraseStart = elapsed - activeLine.start < 0.15;
+  return {
+    currentLine: activeLine, nextLine,
+    lineProgress: Math.max(0, Math.min(1, lineProgress)),
+    sectionProgress: Math.max(0, Math.min(1, sectionProgress)),
+    currentSection: activeLine.section,
+    timeToNextPhrase: nextLine ? Math.max(0, nextLine.start - elapsed) : Math.max(0, activeLine.end - elapsed),
+    isPhraseStart, totalLines: lyrics.length, currentIndex: currentIdx,
+  };
 }
 
 /**

@@ -319,7 +319,7 @@ const cinematicPreset: KineticPreset = {
 // ============================================================
 
 /** Word-level animation - highlights individual words on beat */
-export function animateWordsOnBeat(el: HTMLElement, words: HTMLElement[], currentWordIdx: number) {
+export function animateWordsOnBeat(_el: HTMLElement, words: HTMLElement[], currentWordIdx: number) {
   words.forEach((wordEl, idx) => {
     if (idx === currentWordIdx) {
       animate(wordEl, {
@@ -340,10 +340,7 @@ export function animateWordsOnBeat(el: HTMLElement, words: HTMLElement[], curren
 }
 
 /** Section transition animation - dramatic effect on section change */
-export function animateSectionTransition(el: HTMLElement, fromSection: string, toSection: string) {
-  // Different transitions for different section changes
-  const intensity = getSectionIntensity(toSection);
-  
+export function animateSectionTransition(el: HTMLElement, toSection: string) {
   if (toSection === "DROP" || toSection === "FINAL DROP") {
     // Explosive entrance for drops
     animate(el, {
@@ -379,24 +376,6 @@ export function animateSectionTransition(el: HTMLElement, fromSection: string, t
       ease: "outExpo",
     });
   }
-}
-
-/** Get visual intensity based on section type */
-function getSectionIntensity(section: string): number {
-  const intensityMap: Record<string, number> = {
-    INTRO: 0.3,
-    VERSE: 0.5,
-    "PRE-CHORUS": 0.6,
-    CHORUS: 0.9,
-    BRIDGE: 0.6,
-    BREAKDOWN: 0.4,
-    "BUILD-UP": 0.7,
-    DROP: 1.0,
-    "FINAL CHORUS": 0.95,
-    "FINAL DROP": 1.0,
-    OUTRO: 0.3,
-  };
-  return intensityMap[section] ?? 0.5;
 }
 
 /** Estimate word-level timing from line timing */

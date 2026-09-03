@@ -101,7 +101,6 @@ export function KineticLyricOverlay({
       if (el) {
         animateSectionTransition(
           el as HTMLElement,
-          prevSectionRef.current,
           currentSection,
         );
       }

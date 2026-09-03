@@ -1,6 +1,6 @@
 import { Environment, Lightformer, OrbitControls } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { LrcVizController } from "./LrcVizController";
 import { PostFX } from "./VisualizationFX";
 import {
@@ -19,6 +19,10 @@ import {
   VinylDisc,
 } from "./VisualizationStyles";
 import { useDemoAudio, useRealAudio } from "./audioHooks";
+import { computeLrcSync, computeSectionBounds, EMPTY_LRC_SYNC } from "./useLrcSync";
+import type { LrcSyncData } from "./useLrcSync";
+import { getStoryState } from "./storyboard";
+import type { StoryBeat, Storyboard } from "./storyboard";
 import type { LyricLine } from "./components/LyricOverlay";
 import { getSectionIntensity } from "./sectionHelpers";
 import { updateTrackFeatures } from "./trackFeatures";
@@ -29,6 +33,8 @@ interface Props extends VisualizerSceneProps {
   lyrics?: LyricLine[];
   /** Current LRC sync state — full type from VisualizerSceneProps */
   lrcSync?: VisualizerSceneProps["lrcSync"];
+  /** Narrative storyboard (acts) for story-driven modulation */
+  storyboard?: Storyboard | null;
 }
 
 export function VisualizerScene({
@@ -47,6 +53,7 @@ export function VisualizerScene({
   sceneFrozen,
   lyrics = [],
   lrcSync = null,
+  storyboard = null,
 }: Props) {
   // Pass elapsed ref to hook so it reads live value inside useFrame
   const realData = useRealAudio(
@@ -62,9 +69,19 @@ export function VisualizerScene({
   );
   const audioData = isPlaying ? realData : demoData;
 
+  // Per-frame LRC + story state from the compensated audio clock (see audioTiming.ts).
+  // The React-state `lrcSync` prop is quantized to ~20 fps — too coarse for the
+  // 150 ms phrase-pulse window — so frame-critical children read these refs.
+  const sectionBounds = useMemo(() => computeSectionBounds(lyrics), [lyrics]);
+  const lrcSyncLiveRef = useRef<LrcSyncData>(EMPTY_LRC_SYNC);
+  const storyLiveRef = useRef<StoryBeat | null>(null);
+
   // Update track features once per frame (shared across all visualizations)
   useFrame(() => {
-    updateTrackFeatures(analysisData, audioElapsedRef?.current ?? 0);
+    const heard = audioElapsedRef?.current ?? 0;
+    updateTrackFeatures(analysisData, heard);
+    lrcSyncLiveRef.current = lyrics.length ? computeLrcSync(lyrics, heard, sectionBounds) : EMPTY_LRC_SYNC;
+    storyLiveRef.current = getStoryState(storyboard, heard).beat;
   });
 
   // Pass audio data to parent for spectrum display
@@ -129,6 +146,8 @@ export function VisualizerScene({
         audioElapsedRef={audioElapsedRef}
         lyrics={lyrics}
         lrcSync={lrcSync}
+        lrcSyncRef={lrcSyncLiveRef}
+        storyRef={storyLiveRef}
       >
         {viz}
       </LrcVizController>
@@ -221,7 +240,7 @@ export function VisualizerScene({
       )}
 
       {/* Post pipeline: bloom + film grade — now LRC-reactive (phrase pulse boosts bloom) */}
-      <PostFX audioData={audioData} lrcSync={lrcSync} />
+      <PostFX audioData={audioData} lrcSync={lrcSync} lrcSyncRef={lrcSyncLiveRef} />
 
       <OrbitControls
         enablePan={false}

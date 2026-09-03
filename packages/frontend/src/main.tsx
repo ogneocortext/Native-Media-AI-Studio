@@ -8,6 +8,20 @@ import { applyTheme, getStoredTheme } from "./utils/theme";
 // default (dark) theme on startup.
 applyTheme(getStoredTheme());
 
+// Suppress Theatre.js "not initialized" warning — we intentionally lazy-load
+// and initialize it in initApp().
+const theatreWarn = /@theatre\/studio/;
+const origWarn = console.warn;
+const origError = console.error;
+console.warn = (...args: unknown[]) => {
+  if (typeof args[0] === "string" && theatreWarn.test(args[0])) return;
+  origWarn.apply(console, args);
+};
+console.error = (...args: unknown[]) => {
+  if (typeof args[0] === "string" && theatreWarn.test(args[0])) return;
+  origError.apply(console, args);
+};
+
 // Initialize Theatre.js studio before rendering the app
 async function initApp() {
   const { getStudio } = await import("./features/visualizer/services/theatreStudio");

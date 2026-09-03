@@ -42,6 +42,14 @@ test('Canvas2D 2D mode renders and is LRC-reactive', async ({ page }) => {
     await page.waitForTimeout(500);
     await modeSelect.selectOption('radial');
     await page.waitForTimeout(500);
+    await modeSelect.selectOption('spectrogram');
+    await page.waitForTimeout(500);
+    await modeSelect.selectOption('lissajous');
+    await page.waitForTimeout(500);
+    await modeSelect.selectOption('constellation');
+    await page.waitForTimeout(500);
+    await modeSelect.selectOption('particles');
+    await page.waitForTimeout(500);
     await modeSelect.selectOption('bars');
     console.log('2D modes cycled');
   }

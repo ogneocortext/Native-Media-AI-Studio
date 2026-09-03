@@ -4,6 +4,7 @@
  */
 
 import { create } from "zustand";
+import { devtools } from "zustand/middleware";
 import { getGPUSnapshot, type GPUSnapshot } from "../services/api";
 
 interface GPUState {
@@ -21,11 +22,12 @@ interface GPUState {
 let pollingInterval: ReturnType<typeof setInterval> | null = null;
 let pollingRefCount = 0;
 
-export const useGPUStore = create<GPUState>((set, get) => ({
-  gpu: null,
-  isLoading: false,
-  error: null,
-  lastUpdated: null,
+export const useGPUStore = create<GPUState>()(
+  devtools((set, get) => ({
+    gpu: null,
+    isLoading: false,
+    error: null,
+    lastUpdated: null,
 
   fetchGPU: async () => {
     set({ isLoading: true, error: null });

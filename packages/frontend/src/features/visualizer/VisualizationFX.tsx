@@ -111,7 +111,7 @@ const FinalGradeShader = {
   `,
 };
 
-export function PostFX({ audioData, lrcSync }: { audioData: React.MutableRefObject<AudioData>; lrcSync?: { isPhraseStart: boolean; currentSection: string } | null }) {
+export function PostFX({ audioData, lrcSync, lrcSyncRef }: { audioData: React.MutableRefObject<AudioData>; lrcSync?: { isPhraseStart: boolean; currentSection: string } | null; lrcSyncRef?: { current: { isPhraseStart: boolean; currentSection: string } | null } }) {
   const { gl, scene, camera, size } = useThree();
   const beatPulse = useRef(0);
 
@@ -146,7 +146,8 @@ export function PostFX({ audioData, lrcSync }: { audioData: React.MutableRefObje
     const { bass, beat, energy } = audioData.current;
     if (beat) beatPulse.current = 1;
     beatPulse.current *= 0.9;
-    if (lrcSync?.isPhraseStart) phrasePulse.current = 1;
+    // Prefer the per-frame live sync; fall back to the React-state snapshot.
+    if ((lrcSyncRef?.current ?? lrcSync)?.isPhraseStart) phrasePulse.current = 1;
     phrasePulse.current *= 0.88;
     fx.bloom.strength = Math.min(
       0.9,

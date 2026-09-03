@@ -34,6 +34,11 @@ const TRACK_SHADER_MAP: Record<string, ShaderPresetName> = {
  * Uses fuzzy matching to handle variations in naming.
  */
 export function getShaderPresetForTrack(trackName: string): ShaderPresetName {
+  // Blank name (initial mount before a track is selected): neutral default.
+  // Without this, `"".includes` vacuity matches the first map entry and the
+  // canvas flashes the wrong preset, then recompiles on selection.
+  if (!trackName || !trackName.trim()) return "abstractWaves";
+
   // Exact match
   if (TRACK_SHADER_MAP[trackName]) return TRACK_SHADER_MAP[trackName];
 

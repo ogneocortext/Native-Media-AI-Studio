@@ -3,6 +3,7 @@
  */
 
 import { create } from "zustand";
+import { devtools } from "zustand/middleware";
 
 interface UIState {
   focusMode: boolean;
@@ -10,8 +11,10 @@ interface UIState {
   toggleFocusMode: () => void;
 }
 
-export const useUIStore = create<UIState>((set) => ({
-  focusMode: false,
-  setFocusMode: (active) => set({ focusMode: active }),
-  toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode })),
-}));
+export const useUIStore = create<UIState>()(
+  devtools((set) => ({
+    focusMode: false,
+    setFocusMode: (active) => set({ focusMode: active }),
+    toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode })),
+  }), { name: "UIStore" })
+);

@@ -16,6 +16,12 @@ interface ShaderVisualizerProps {
     isPhraseStart: boolean;
     lineProgress: number;
   } | null;
+  /**
+   * Per-frame live sync written by the parent's elapsed loop (see audioTiming.ts).
+   * Preferred over `lrcSync` in the rAF loop — the React-state snapshot is
+   * quantized to ~20 fps. Falls back to `lrcSync` when null (e.g. demo mode).
+   */
+  lrcSyncLive?: { current: ShaderVisualizerProps["lrcSync"] };
   lyrics?: LyricLine[];
 }
 
@@ -23,24 +29,32 @@ interface ShaderVisualizerProps {
  * Shader-driven visualization that auto-selects a preset based on track mood.
  * Audio data drives shader uniforms in real-time.
  */
-export function ShaderVisualizer({ audioData, trackName, isPlaying, className, lrcSync }: ShaderVisualizerProps) {
+export function ShaderVisualizer({ audioData, trackName, isPlaying, className, lrcSync, lrcSyncLive }: ShaderVisualizerProps) {
   const [preset, setPreset] = useState<ShaderPresetName>(() => getShaderPresetForTrack(trackName));
   const [showSelector, setShowSelector] = useState(false);
   const uniformsRef = useRef({
     bass: 0, mid: 0, treble: 0, beat: 0, energy: 0, peak: 0,
   });
+  const userSelectedPreset = useRef(false);
+  const lrcSyncPropRef = useRef(lrcSync);
+  lrcSyncPropRef.current = lrcSync;
 
   // Update uniforms from audio + LRC phrase timing
   useEffect(() => {
     let raf: number;
     let phraseFlash = 0;
+    let beatPulse = 0;
     const update = () => {
       const d = audioData.current;
-      if (lrcSync?.isPhraseStart) phraseFlash = 1;
+      const sync = lrcSyncLive?.current ?? lrcSyncPropRef.current;
+      if (sync?.isPhraseStart) phraseFlash = 1;
       else phraseFlash = Math.max(0, phraseFlash - 0.08);
-      // LRC phrase boosts beat/energy when a new lyric line starts
-      const lrcBeat = lrcSync?.isPhraseStart ? 1 : d.beat ? 1 : 0;
-      const lrcEnergy = d.energy + phraseFlash * 0.35 + (lrcSync?.sectionProgress ?? 0) * 0.1;
+      // Decayed beat pulse: the raw beat flag lives for a single frame (~16 ms),
+      // invisible to the eye and to frame captures — stretch it into an ~8-frame tail.
+      if (d.beat) beatPulse = 1;
+      else beatPulse = Math.max(0, beatPulse - 0.12);
+      const lrcBeat = sync?.isPhraseStart ? 1 : beatPulse;
+      const lrcEnergy = d.energy + phraseFlash * 0.35 + (sync?.sectionProgress ?? 0) * 0.1;
       uniformsRef.current = {
         bass: d.bass,
         mid: d.mid,
@@ -53,15 +67,18 @@ export function ShaderVisualizer({ audioData, trackName, isPlaying, className, l
     };
     if (isPlaying) raf = requestAnimationFrame(update);
     return () => cancelAnimationFrame(raf);
-  }, [isPlaying, audioData, lrcSync]);
+  }, [isPlaying, audioData, lrcSyncLive]);
 
-  // Auto-change preset when track changes
+  // Auto-change preset when track changes (only if user hasn't manually overridden)
   useEffect(() => {
-    const newPreset = getShaderPresetForTrack(trackName);
-    setPreset(newPreset);
+    if (!userSelectedPreset.current) {
+      const newPreset = getShaderPresetForTrack(trackName);
+      setPreset(newPreset);
+    }
   }, [trackName]);
 
   const handlePresetChange = useCallback((newPreset: ShaderPresetName) => {
+    userSelectedPreset.current = true;
     setPreset(newPreset);
     setShowSelector(false);
   }, []);
@@ -70,7 +87,7 @@ export function ShaderVisualizer({ audioData, trackName, isPlaying, className, l
     <div className={`relative w-full h-full ${className ?? ""}`}>
       <ShaderCanvas
         fragmentShader={SHADER_PRESETS[preset]}
-        uniforms={uniformsRef.current}
+        uniformsRef={uniformsRef}
         className="absolute inset-0"
       />
 

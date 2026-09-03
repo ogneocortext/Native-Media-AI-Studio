@@ -4,6 +4,7 @@
 
 import type { OutputFile } from "@shared/types";
 import { create } from "zustand";
+import { devtools } from "zustand/middleware";
 import { fetchPortConfig, getCachedConfig } from "../services/portConfig";
 
 export type { OutputFile };
@@ -112,14 +113,15 @@ export async function fetchOutputsByTypeFromAPI(
   return data.outputs || [];
 }
 
-export const useOutputStore = create<OutputState>((set, get) => ({
-  outputs: [],
-  recentOutputs: [],
-  selectedOutput: null,
-  isLoading: false,
-  error: null,
-  filter: { type: "all", limit: 50, offset: 0 },
-  counts: { total: 0, images: 0, videos: 0, audio: 0, models_3d: 0 },
+export const useOutputStore = create<OutputState>()(
+  devtools((set, get) => ({
+    outputs: [],
+    recentOutputs: [],
+    selectedOutput: null,
+    isLoading: false,
+    error: null,
+    filter: { type: "all", limit: 50, offset: 0 },
+    counts: { total: 0, images: 0, videos: 0, audio: 0, models_3d: 0 },
   setOutputs: (outputs) => set({ outputs, error: null }),
   setRecentOutputs: (recentOutputs) => set({ recentOutputs, error: null }),
   setSelectedOutput: (output) => set({ selectedOutput: output }),
