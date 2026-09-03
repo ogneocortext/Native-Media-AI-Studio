@@ -329,6 +329,95 @@ server.registerTool(
 );
 
 server.registerTool(
+  "set_object_visibility",
+  {
+    description: "Show or hide a GameObject in the scene. Use this to add/remove characters from view without deleting them.",
+    inputSchema: z.object({
+      object_name: z.string().describe("Name of the GameObject"),
+      visible: z.boolean().describe("true = show, false = hide"),
+    }),
+  },
+  async ({ object_name, visible }) => {
+    const result = await execUnity("set_object_visibility", { object_name, visible });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  },
+);
+
+server.registerTool(
+  "list_animations",
+  {
+    description: "List AnimationClips on a GameObject or its children.",
+    inputSchema: z.object({
+      object_name: z.string().describe("Root GameObject name"),
+    }),
+  },
+  async ({ object_name }) => {
+    const result = await execUnity("list_animations", { object_name });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  },
+);
+
+server.registerTool(
+  "play_animation",
+  {
+    description: "Play an AnimationClip on a GameObject with wrap mode, speed, and optional fade.",
+    inputSchema: z.object({
+      object_name: z.string().describe("Target GameObject name"),
+      clip_name: z.string().describe("AnimationClip name"),
+      speed: z.number().default(1).describe("Playback speed multiplier"),
+      wrap_mode: z.string().default("once").describe("Unity WrapMode: once, loop, pingpong, clamp"),
+      fade_time: z.number().optional().describe("Cross-fade duration in seconds"),
+    }),
+  },
+  async (params) => {
+    const result = await execUnity("play_animation", params);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  },
+);
+
+server.registerTool(
+  "stop_animation",
+  {
+    description: "Stop animation on a GameObject and optionally return to a pose or bind pose.",
+    inputSchema: z.object({
+      object_name: z.string().describe("Target GameObject name"),
+      return_to_bind_pose: z.boolean().default(true).describe("Return to bind pose after stop"),
+    }),
+  },
+  async ({ object_name, return_to_bind_pose }) => {
+    const result = await execUnity("stop_animation", { object_name, return_to_bind_pose });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  },
+);
+
+server.registerTool(
+  "blend_animation",
+  {
+    description: "Cross-fade from one AnimationClip to another on a GameObject over a duration.",
+    inputSchema: z.object({
+      object_name: z.string().describe("Target GameObject name"),
+      from_clip: z.string().describe("Current AnimationClip name"),
+      to_clip: z.string().describe("Target AnimationClip name"),
+      fade_time: z.number().default(0.5).describe("Blend duration in seconds"),
+    }),
+  },
+  async (params) => {
+    const result = await execUnity("blend_animation", params);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  },
+);
+
+server.registerTool(
   "list_pipeline_commands",
   {
     description: "List all available Unity Pipeline commands (100+ commands).",

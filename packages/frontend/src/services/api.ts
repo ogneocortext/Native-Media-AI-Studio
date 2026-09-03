@@ -1473,3 +1473,54 @@ export async function getModelsStatus(): Promise<Record<string, unknown>> {
   if (!res.ok) throw new Error("Failed to get models status");
   return res.json();
 }
+
+// =============================================================================
+// MCP Context API
+// =============================================================================
+
+export interface MCPContext {
+  updatedAt?: number;
+  character?: {
+    name?: string;
+    notes?: string;
+    seed?: number;
+    prompt?: string;
+    visible?: boolean;
+    animation?: string;
+  };
+  scene?: {
+    name?: string;
+    objects?: string[];
+    camera?: string;
+  };
+  audio?: {
+    filename?: string;
+    bpm?: number;
+    energy?: number;
+    beat?: boolean;
+  };
+  visualization?: {
+    style?: string;
+    mode?: "3d" | "shader" | "2d";
+    preset?: string;
+  };
+}
+
+export async function fetchMCPContext(): Promise<MCPContext> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/health/context`);
+  if (!res.ok) throw new Error("Failed to fetch MCP context");
+  return res.json();
+}
+
+export async function updateMCPContext(patch: MCPContext): Promise<MCPContext> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/health/context`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error("Failed to update MCP context");
+  return res.json();
+}
+

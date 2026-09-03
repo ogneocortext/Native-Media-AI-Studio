@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { Server } from "@modelcontextprotocol/server";
+import { readFileSync, existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
+const CONTEXT_PATH = path.join(PROJECT_ROOT, "output", "mcp-context.json");
 
 const BASE_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 const COMFYUI_URL = process.env.COMFYUI_URL || "http://127.0.0.1:8188";
@@ -43,6 +50,32 @@ async function readImageBase64(imagePath) {
     throw new Error(`Image too large for Ollama: ${(buf.length / 1024 / 1024).toFixed(1)} MB (cap ${MAX_IMAGE_BASE64_BYTES / 1024 / 1024} MB)`);
   }
   return base64;
+}
+
+const PROMPT_TEMPLATES = {
+  "3d-character": "a stylized 3D character concept, {description}, neutral A-pose, front view, studio lighting, white background, high detail, clean silhouette, game-ready",
+  "3d-character-texture": "character texture sheet, {description}, albedo map, normal map details, clothing folds, skin pores, fabric materials, PBR-ready, neutral lighting",
+  "3d-clothing": "clothing design, {description}, fabric texture, drape simulation reference, flat lay and worn view, material close-up, fashion tech pack style",
+  "3d-skin-material": "skin material reference, {description}, subsurface scattering reference, pore detail, freckles/markings, neutral expression, studio lighting, reference plate",
+  "3d-environment": "3D environment concept, {description}, wide shot, cinematic lighting, atmospheric fog, detailed props, game engine ready, matte painting style",
+  "viz-ui": "UI screenshot analysis: list visible elements, text, layout issues, errors, and the highest-impact fix",
+  "viz-responsive": "Responsive layout audit: viewport fit, touch targets, readability, hidden content, and one concrete fix",
+  "viz-regression": "Regression review: what changed, what broke, severity, and the shortest patch path",
+  "viz-compare": "Compare these two screenshots and summarize differences, improvements, and regressions",
+  "viz-music-video": "Music-video frame analysis: visual elements, audio sync, style consistency, issues, and one production upgrade",
+  "viz-consistency": "Visual consistency audit: color drift, typography mismatches, asset reuse needs, continuity issues, and recommendation",
+};
+
+const DEFAULT_NEGATIVE_PROMPT = "text, watermark, low quality, blurry, jpeg artifacts, cartoon, illustration, deformed, mutated, extra limbs, disfigured";
+
+function readMCPContext() {
+  try {
+    if (!existsSync(CONTEXT_PATH)) return null;
+    const raw = readFileSync(CONTEXT_PATH, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 const server = new Server(
@@ -125,6 +158,47 @@ server.setRequestHandler('tools/list', async () => ({
         required: ["filename"],
       },
     },
+    {
+      name: "suggest_3d_prompt",
+      description: "Enhance a raw idea into a 3D-ready prompt with skin/texture/clothing/material guidance. Returns an optimized prompt + negative prompt.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          idea: { type: "string", description: "Raw character/object idea" },
+          category: { type: "string", description: "One of: character, clothing, skin_material, environment", default: "character" },
+          style: { type: "string", description: "Optional style hint (cyberpunk, fantasy, realistic, stylized)" },
+        },
+        required: ["idea"],
+      },
+    },
+    {
+      name: "generate_3d_concept",
+      description: "Generate a concept image optimized for 3D conversion (Hunyuan3D-friendly). Uses prompt templates for characters, clothing, skin, or environments.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          description: { type: "string", description: "Subject description" },
+          category: { type: "string", description: "One of: 3d-character, 3d-character-texture, 3d-clothing, 3d-skin-material, 3d-environment", default: "3d-character" },
+          width: { type: "number", description: "Width in pixels", default: 1024 },
+          height: { type: "number", description: "Height in pixels", default: 1024 },
+        },
+        required: ["description"],
+      },
+    },
+    {
+      name: "update_mcp_context",
+      description: "Update the shared MCP context (character, scene, audio, visualization state) so other tools/servers can use it.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          context: {
+            type: "object",
+            description: "Partial context to merge: { character?, scene?, audio?, visualization? }",
+          },
+        },
+        required: ["context"],
+      },
+    },
   ],
 }));
 
@@ -151,6 +225,12 @@ server.setRequestHandler('tools/call', async (request) => {
         return await listAudioLibrary(reqId);
       case "create_music_video_plan":
         return await createMusicVideoPlan(reqId, args);
+      case "suggest_3d_prompt":
+        return await suggest3DPrompt(reqId, args);
+      case "generate_3d_concept":
+        return await generate3DConcept(reqId, args);
+      case "update_mcp_context":
+        return await updateMCPContext(reqId, args);
       default:
         logRequest(reqId, name, "unknown-tool");
         return textResponse(`Unknown tool: ${name}`, true);
@@ -315,6 +395,80 @@ async function createMusicVideoPlan(reqId, args) {
   };
 
   return textResponse(JSON.stringify(plan, null, 2));
+}
+
+async function suggest3DPrompt(reqId, args) {
+  const idea = args?.idea;
+  if (!idea || typeof idea !== "string") {
+    return textResponse("Missing required arg: idea", true);
+  }
+  const category = (args?.category || "character").toLowerCase();
+  const style = args?.style ? `, ${args.style} style` : "";
+  const template = PROMPT_TEMPLATES[`3d-${category}`] || PROMPT_TEMPLATES["3d-character"];
+  let positive = template.replace("{description}", idea) + style;
+
+  // Enrich with frontend context when available
+  const ctx = readMCPContext();
+  if (ctx?.visualization?.style) {
+    positive += `, ${ctx.visualization.style} visual style`;
+  }
+  if (ctx?.audio?.energy && ctx.audio.energy > 0.7) {
+    positive += ", high energy pose";
+  } else if (ctx?.audio?.energy && ctx.audio.energy < 0.3) {
+    positive += ", calm relaxed pose";
+  }
+  if (ctx?.character?.notes) {
+    positive += `, ${ctx.character.notes}`;
+  }
+
+  const result = {
+    category,
+    positive,
+    negative: DEFAULT_NEGATIVE_PROMPT,
+    context_used: !!ctx,
+    note: "Use this prompt to generate a concept image for 3D conversion.",
+  };
+  logRequest(reqId, "suggest_3d_prompt", `category=${category} idea=${idea.slice(0, 40)}`);
+  return textResponse(JSON.stringify(result, null, 2));
+}
+
+async function generate3DConcept(reqId, args) {
+  const description = args?.description;
+  if (!description || typeof description !== "string") {
+    return textResponse("Missing required arg: description", true);
+  }
+  const category = (args?.category || "3d-character").toLowerCase();
+  const template = PROMPT_TEMPLATES[category] || PROMPT_TEMPLATES["3d-character"];
+  const prompt = template.replace("{description}", description);
+  const negative = DEFAULT_NEGATIVE_PROMPT;
+  logRequest(reqId, "generate_3d_concept", `category=${category} desc=${description.slice(0, 40)}`);
+  return await generateImage(reqId, {
+    prompt,
+    negative_prompt: negative,
+    width: args?.width || 1024,
+    height: args?.height || 1024,
+  });
+}
+
+async function updateMCPContext(reqId, args) {
+  const patch = args?.context || args;
+  if (!patch || typeof patch !== "object") {
+    return textResponse("Missing required arg: context (partial context object)", true);
+  }
+  try {
+    const { writeFileSync, existsSync, mkdirSync } = await import("node:fs");
+    const ctxPath = path.join(PROJECT_ROOT, "output", "mcp-context.json");
+    const dir = path.dirname(ctxPath);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const prev = readMCPContext() || {};
+    const next = { ...prev, ...patch, updatedAt: Date.now() };
+    writeFileSync(ctxPath, JSON.stringify(next, null, 2));
+    logRequest(reqId, "update_mcp_context", `keys=${Object.keys(patch).join(",")}`);
+    return textResponse(JSON.stringify({ ok: true, context: next }, null, 2));
+  } catch (e) {
+    logRequest(reqId, "update_mcp_context", `error=${e.message}`);
+    return textResponse(`Failed to update context: ${e.message}`, true);
+  }
 }
 
 // ============================================================

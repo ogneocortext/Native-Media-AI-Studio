@@ -24,6 +24,7 @@ import {
   generate3D,
   generate3DFromImage,
   get3DStatus,
+  updateMCPContext,
 } from "../../services/api";
 import { ModelPreview } from "./ModelPreview";
 
@@ -55,6 +56,40 @@ const CHARACTER_TEMPLATES = [
     label: "Robot",
     prompt: "a futuristic robot, chrome metallic, highly detailed, standing pose",
     bible: "Futuristic robot; chrome metallic",
+  },
+];
+
+/** Material/skin/clothing prompt templates for better 3D concept generation. */
+const MATERIAL_TEMPLATES = [
+  {
+    label: "Leather Jacket",
+    prompt: "a stylized character wearing a worn brown leather jacket, metal zippers, fabric folds, neutral A-pose, front view, studio lighting, white background, highly detailed, game-ready",
+    tag: "clothing",
+  },
+  {
+    label: "Chainmail",
+    prompt: "a stylized character wearing intricate chainmail armor, metallic rings, subsurface metal reflections, neutral A-pose, front view, studio lighting, white background, highly detailed, game-ready",
+    tag: "clothing",
+  },
+  {
+    label: "Silk Robe",
+    prompt: "a stylized character wearing a flowing silk robe, fabric drape, soft highlights, neutral A-pose, front view, studio lighting, white background, highly detailed, game-ready",
+    tag: "clothing",
+  },
+  {
+    label: "Skin Material",
+    prompt: "character skin material reference, subsurface scattering, pore detail, freckles, neutral expression, studio lighting, reference plate, highly detailed",
+    tag: "skin",
+  },
+  {
+    label: "Robot Plating",
+    prompt: "a futuristic robot character with panel plating, wear and tear, scuff marks, exposed wiring joints, neutral A-pose, front view, studio lighting, white background, highly detailed, game-ready",
+    tag: "material",
+  },
+  {
+    label: "Environment Prop",
+    prompt: "a detailed environment prop, weathered wood and rusted metal, cinematic lighting, matte painting style, game engine ready, highly detailed",
+    tag: "environment",
   },
 ];
 
@@ -259,6 +294,18 @@ export function Generation3DPage() {
         const mp = (data as { model_path?: string }).model_path;
         const fn = mp ? String(mp).split(/[\\/]/).pop() : null;
         if (fn) saveBible(fn, bibleForResult());
+        if (fn) {
+          updateMCPContext({
+            character: {
+              name: charName.trim() || fn.replace(/\.glb$/i, ""),
+              notes: charNotes.trim(),
+              seed,
+              prompt,
+              visible: true,
+            },
+            scene: { name: "Generated3D" },
+          }).catch(() => { /* non-fatal */ });
+        }
       }
       loadStatus();
       loadHistory();
@@ -411,8 +458,28 @@ export function Generation3DPage() {
               />
               <div className="flex justify-between text-[10px] text-gray-500">
                 <span>5 (fast)</span><span>15 (balanced)</span><span>50 (max)</span>
+            </div>
+            {/* Material/skin/clothing templates — optimized for 3D concept generation */}
+            <div className="mt-3 pt-3 border-t border-gray-700/60">
+              <p className="text-[11px] text-gray-500 mb-1.5">Materials & Skins <span className="text-gray-600">— concept prompts for textures, clothing, skin</span></p>
+              <div className="flex flex-wrap gap-1.5">
+                {MATERIAL_TEMPLATES.map((t) => (
+                  <button
+                    key={t.label}
+                    onClick={() => setPrompt(t.prompt)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      prompt === t.prompt
+                        ? "bg-emerald-600 border-emerald-500 text-white"
+                        : "bg-gray-900 border-gray-700 text-gray-400 hover:border-emerald-500/40 hover:text-gray-200"
+                    }`}
+                    title={`${t.tag}: ${t.prompt}`}
+                  >
+                    + {t.label} <span className="opacity-50">• {t.tag}</span>
+                  </button>
+                ))}
               </div>
-                        </div>
+            </div>
+          </div>
 
             {/* Advanced Params — only useful when ComfyUI is connected */}
             <div className={`mt-3 space-y-3 ${!comfyRunning ? "opacity-50 pointer-events-none" : ""}`}>

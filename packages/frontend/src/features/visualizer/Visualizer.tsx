@@ -31,6 +31,7 @@ import { selectPresetForTrack } from "./components/KineticPresets";
 import { buildStoryboard, getStoryState, EMPTY_STORYBOARD } from "./storyboard";
 import { StoryActCard } from "./components/StoryActCard";
 import { BuilderFigure } from "./components/BuilderFigure";
+import { useMCPContextSync } from "./useMCPContextSync";
 
 /** Clamp a number into [min, max]; falls back to `fallback` when not finite. */
 function clampNum(value: unknown, min: number, max: number, fallback: number): number {
@@ -160,6 +161,16 @@ export function Visualizer() {
   // without re-subscribing mid-playback and capturing stale closures).
   const liveTimingRefs = useRef({ lyrics, sectionBounds });
   liveTimingRefs.current = { lyrics, sectionBounds };
+  // Sync key visualizer state to shared MCP context for prompt/context-aware tools.
+  useMCPContextSync({
+    visualization: { style: visualizationStyle, mode: vizMode, preset: loadedPreset?.name },
+    audio: {
+      filename: currentFilename ?? undefined,
+      bpm: currentAnalysisData?.tempo_bpm,
+      energy: currentAnalysisData?.energy_curve?.length ? currentAnalysisData.energy_curve.reduce((a, b) => a + b, 0) / currentAnalysisData.energy_curve.length : undefined,
+      beat: false,
+    },
+  });
   // Interpolated, latency-compensated audio clock (see audioTiming.ts).
   const audioClockRef = useRef(createAudioClock());
   const latencyRef = useRef(0);

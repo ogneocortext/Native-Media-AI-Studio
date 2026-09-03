@@ -17,6 +17,44 @@ const DEFAULT_PROMPT = `Analyze this audio visualization screenshot. Report conc
 4. How well the visualization represents music/audio concepts
 5. Specific improvements for making it more dynamic and visually impressive`;
 
+const VISION_MODES = {
+  ui: `Analyze this UI screenshot. Return a structured report:
+1. ELEMENTS: list visible UI elements with approximate positions (top-left, center, bottom-right)
+2. TEXT: transcribe visible labels/buttons/headings
+3. LAYOUT: spacing, alignment, overflow, responsiveness issues
+4. ERRORS: visible errors, warnings, broken images, missing states
+5. NEXT_ACTION: highest-impact fix a coding agent should make first`,
+
+  responsive: `Check this screen for responsive/layout issues:
+1. Viewport fit: is content cramped or overflowing?
+2. Touch targets: are buttons/inputs too small?
+3. Readability: is text too small or low-contrast?
+4. Navigation: is there hidden content behind menus/scroll?
+5. FIX: one concrete layout improvement`,
+
+  regression: `Compare against the expected design. Report:
+1. What changed from the intended layout/style
+2. What broke or looks worse than before
+3. Severity: critical / minor / cosmetic
+4. FIX: shortest revert or patch path`,
+
+  compare: `Compare these two screenshots. Identify differences, improvements, or regressions. Summarize key changes.`,
+
+  "music-video": `Analyze this music-video frame:
+1. Visual elements: shapes, text, motion blur, transitions
+2. Audio sync: does the visual match the expected beat/phrase energy?
+3. Style consistency: color grading, typography, effects
+4. Issues: aliasing, banding, strobe risk, readability
+5. Improvement: one change that raises production value`,
+
+  consistency: `Audit visual consistency across this media:
+1. Color palette drift between shots/scenes
+2. Typography or logo treatment mismatches
+3. Asset reuse or replacement needs
+4. Scene continuity issues
+5. Recommendation: keep / recut / reframe`,
+};
+
 function generateRequestId() {
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -134,7 +172,8 @@ async function callOllama(model, prompt, images = [], retries = 2, think = false
   }
 }
 
-async function warmModel(model) {
+async function warmModel(model, enabled = true) {
+  if (!enabled) return;
   const reqId = generateRequestId();
   try {
     await callOllama(model, 'Hi', [], 0);
@@ -227,6 +266,7 @@ async function cmdAnalyze(argv) {
   let quality = 70;
   let raw = false;
   let think = false;
+  let mode = null;
   const images = [];
 
   for (let i = 0; i < argv.length; i++) {
@@ -237,6 +277,7 @@ async function cmdAnalyze(argv) {
     else if (a === '--quality' && argv[i + 1]) { quality = parseInt(argv[++i], 10); }
     else if (a === '--raw') { raw = true; }
     else if (a === '--think') { think = true; }
+    else if (a === '--mode' && argv[i + 1]) { mode = argv[++i]; }
     else if (IMAGE_EXT.test(a)) { images.push(a); }
     else if (!a.startsWith('--') && prompt === null) { prompt = a; }
   }
@@ -248,6 +289,9 @@ async function cmdAnalyze(argv) {
 
   const finalPrompt = prompt || DEFAULT_PROMPT;
   const reqId = generateRequestId();
+
+  const modePrompt = VISION_MODES[mode] ? `${VISION_MODES[mode]}` : null;
+  const effectivePrompt = modePrompt || finalPrompt;
 
   const payloadImages = [];
   for (const imgPath of images) {
@@ -268,9 +312,9 @@ async function cmdAnalyze(argv) {
   }
 
   await ensureVisionModel(model);
-  await warmModel(model);
+  await warmModel(model, false);
 
-  const response = await callOllama(model, finalPrompt, payloadImages, 2, think);
+  const response = await callOllama(model, effectivePrompt, payloadImages, 2, think);
   console.log(response);
 
   // free VRAM immediately after use so the next vision request can switch models

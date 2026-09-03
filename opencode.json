@@ -18,6 +18,18 @@
       },
       "enabled": true
     },
+    "vision": {
+      "type": "local",
+      "command": [
+        "node",
+        "tools/mcp/vision-mcp.mjs"
+      ],
+      "environment": {
+        "OLLAMA_URL": "http://127.0.0.1:11434",
+        "BACKEND_URL": "http://127.0.0.1:8000"
+      },
+      "enabled": true
+    },
     "remotion-documentation": {
       "type": "local",
       "command": [

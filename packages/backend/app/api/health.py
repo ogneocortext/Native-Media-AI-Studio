@@ -356,3 +356,41 @@ async def check_service(service: str) -> dict:
         "status": "healthy" if is_healthy else "offline",
         "url": adapter.base_url
     }
+
+
+# Shared MCP context store: lightweight state for character, scene, audio, viz.
+# This is intentionally simple file-backed state so MCP servers can read it
+# without tight coupling to the frontend or backend session.
+
+_CONTEXT_PATH = config.output_dir / "mcp-context.json"
+
+
+def _read_context() -> dict:
+    try:
+        import json
+        if not _CONTEXT_PATH.exists():
+            return {}
+        return json.loads(_CONTEXT_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _write_context(data: dict) -> None:
+    try:
+        import json
+        _CONTEXT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _CONTEXT_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+@router.get("/context")
+async def get_mcp_context() -> dict:
+    return _read_context()
+
+
+@router.post("/context")
+async def set_mcp_context(payload: dict) -> dict:
+    _write_context(payload or {})
+    return {"ok": True, "context": _read_context()}
+
