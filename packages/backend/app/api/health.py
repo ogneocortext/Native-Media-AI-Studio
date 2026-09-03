@@ -1,7 +1,11 @@
 """
 Health and diagnostics API routes.
 """
-from fastapi import APIRouter
+import shutil
+import tempfile
+from pathlib import Path
+
+from fastapi import APIRouter, File, UploadFile
 
 from ..adapters.registry import adapter_registry
 from ..core.config import config
@@ -189,6 +193,60 @@ async def gen3d_generate(request: dict) -> dict:
         seed=request.get("seed", 42),
         cfg=request.get("cfg", 7.0),
     )
+
+
+ALLOWED_REF_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp"}
+MAX_REF_IMAGE_BYTES = 15 * 1024 * 1024
+
+
+@router.post("/3d/generate-image")
+async def gen3d_generate_image(
+    file: UploadFile = File(...),
+    steps: int = 15,
+    output_name: str | None = None,
+) -> dict:
+    """Generate a 3D model from a reference image (face/body lock source).
+
+    Uploads the image to a temp file, runs the Hunyuan3D image-to-3D chain,
+    then removes the temp file. Use this with a single anchor reference to
+    keep AI-generated characters consistent (see knowledge library:
+    character consistency method).
+    """
+    if file.content_type not in ALLOWED_REF_IMAGE_TYPES:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported image type {file.content_type}; use PNG, JPEG, or WebP",
+        )
+    suffix = Path(file.filename or "reference.png").suffix.lower() or ".png"
+    if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
+        suffix = ".png"
+    tmp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp_path = Path(tmp.name)
+        with tmp_path.open("wb") as out:
+            size = 0
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > MAX_REF_IMAGE_BYTES:
+                    raise ValueError("Reference image exceeds 15 MB")
+                out.write(chunk)
+        from ..services.gen3d.gen3d_service import gen3d_service
+        return await gen3d_service.generate_from_image(
+            image_path=str(tmp_path),
+            output_name=output_name,
+            steps=steps,
+        )
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 @router.get("/diagnostics")

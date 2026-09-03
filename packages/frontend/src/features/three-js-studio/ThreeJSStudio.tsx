@@ -1733,7 +1733,7 @@ export function ThreeJSStudio() {
 
   // ---- Event handlers ----
   const objectCounterRef = useRef(0);
-  const addObject = (type: AnimObject["type"]) => {
+  const addObject = (type: AnimObject["type"], overrides?: Omit<Partial<AnimObject>, "id" | "type">) => {
     objectCounterRef.current++;
     const id = `${type}-${Date.now()}-${objectCounterRef.current}`;
     const isCharacter = type === "character";
@@ -1769,6 +1769,10 @@ export function ThreeJSStudio() {
       animationName: undefined,
       animationSpeed: 1,
       animationLoop: true,
+      ...overrides,
+      // Overrides must not clobber identity/type.
+      id,
+      type,
     };
     setObjects((prev) => [...prev, newObj]);
     setSelectedObject(id);
@@ -1903,6 +1907,29 @@ export function ThreeJSStudio() {
       setBpm(Math.round(beatAnalysis.tempo_bpm));
     }
   }, [beatAnalysis]);
+
+  // Handoff from Generation3DPage ("Send to Studio"): add the generated model
+  // as a character with its bible prefilled. Runs once (guarded ref) since
+  // addObject is re-created every render.
+  const handoffConsumedRef = useRef(false);
+  useEffect(() => {
+    if (handoffConsumedRef.current) return;
+    handoffConsumedRef.current = true;
+    try {
+      const raw = localStorage.getItem("pendingCharacter");
+      if (!raw) return;
+      localStorage.removeItem("pendingCharacter");
+      const handoff = JSON.parse(raw) as { modelUrl?: string; name?: string; bible?: string };
+      if (!handoff?.modelUrl) return;
+      addObject("character", {
+        ...(handoff.name ? { name: handoff.name } : {}),
+        modelUrl: handoff.modelUrl,
+        ...(handoff.bible ? { characterBible: handoff.bible } : {}),
+      });
+    } catch {
+      /* malformed handoff — ignore */
+    }
+  }, [addObject]);
 
   const toggleAudio = async () => {
     if (!audioElementRef.current) return;

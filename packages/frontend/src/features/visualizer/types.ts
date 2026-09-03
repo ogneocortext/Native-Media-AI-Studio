@@ -8,6 +8,10 @@ export interface AudioData {
   beat: boolean;
   peak: number;
   energy: number;
+  /** Classified drum type at the last beat event, or null when no beat / indeterminate. */
+  drumType: "kick" | "snare" | "hat" | null;
+  /** Predicted seconds until the next beat (0 = beat happening now / no prediction). */
+  nextBeatIn: number;
 }
 
 export interface AudioAnalysisData {
@@ -117,4 +121,6 @@ export interface VisualizerSceneProps {
     currentIndex: number;
     totalLines: number;
   } | null;
+  /** Respect OS/user reduced-motion preference — reduces auto-rotation and bloom intensity. */
+  prefersReducedMotion?: boolean;
 }

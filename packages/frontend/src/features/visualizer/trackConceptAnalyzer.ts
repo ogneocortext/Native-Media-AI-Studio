@@ -199,6 +199,10 @@ function analyzeTrackConcept(trackName: string, prompt: string, lyrics: string):
     cyberpunk: ["cyberpunk", "neon", "system override", "agentic"],
     grime: ["grime", "uk grime"],
     rap: ["rap", "ghost", "junkyard", "cleaning up"],
+    "r&b": ["r&b", "rnb", "soul", "neo-soul", "slow jam"],
+    pop: ["pop", "dance-pop", "electropop", "k-pop", "j-pop"],
+    indie: ["indie", "indie rock", "indie folk", "alternative", "folk"],
+    "trap-metal": ["trap metal", "trap-metal", "nu metal", "rap metal"],
   };
   
   for (const [genre, keywords] of Object.entries(genreMap)) {
@@ -289,6 +293,21 @@ function recommendVisualization(
   // Dance/pop → Pulse
   if (combined.includes("pop") || combined.includes("dance") || combined.includes("disco")) {
     return "pulse";
+  }
+  
+  // R&B → Waveform
+  if (combined.includes("r&b") || combined.includes("rnb") || combined.includes("soul") || combined.includes("neo-soul")) {
+    return "waveform";
+  }
+  
+  // Indie/folk → Aurora
+  if (combined.includes("indie") || combined.includes("folk") || combined.includes("alternative")) {
+    return "aurora";
+  }
+  
+  // Trap metal → Inferno
+  if (combined.includes("trap metal") || combined.includes("trap-metal") || combined.includes("nu metal")) {
+    return "inferno";
   }
   
   return "geometric";

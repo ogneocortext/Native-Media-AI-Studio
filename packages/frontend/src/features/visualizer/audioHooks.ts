@@ -5,7 +5,7 @@ import { ATTACK, RELEASE } from "./audioTiming";
 
 // Demo fallback — synthetic audio for when no track is playing
 export function useDemoAudio(enabled: boolean, bpm: number) {
-  const data = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0 });
+  const data = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0, drumType: null, nextBeatIn: 0 });
   useFrame((state) => {
     if (!enabled) return;
     const t = state.clock.elapsedTime;
@@ -21,6 +21,8 @@ export function useDemoAudio(enabled: boolean, bpm: number) {
       beat: isBeat,
       peak: Math.max(bass, mid, treble),
       energy: (bass + mid + treble) / 3,
+      drumType: null,
+      nextBeatIn: 0,
     };
   });
   return data;
@@ -34,11 +36,15 @@ export function useRealAudio(
   analysisData?: AudioAnalysisData | null,
   audioElapsedRef?: React.MutableRefObject<number>,
 ) {
-  const data = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0 });
+  const data = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0, drumType: null, nextBeatIn: 0 });
   const freqArray = useRef<Uint8Array | null>(null);
   const lastBass = useRef(0);
   const beatCooldown = useRef(0);
   const lastBeatIdx = useRef(-1);
+  // Predictive beat: recent intervals for BPM estimation + next-beat countdown
+  const recentBeatIntervals = useRef<number[]>([]);
+  const lastBeatTime = useRef(0);
+  const nextBeatInRef = useRef(0);
   // Separate smoothing for attack (fast) and release (slow) for tighter sync
   const smoothedBass = useRef(0);
   const smoothedMid = useRef(0);
@@ -51,7 +57,7 @@ export function useRealAudio(
     if (!analyser) return;
     if (isPaused || !isPlaying) {
       if (data.current.bass !== 0 || data.current.mid !== 0 || data.current.treble !== 0) {
-        data.current = { bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0 };
+        data.current = { bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0, drumType: null, nextBeatIn: 0 };
         smoothedBass.current = 0;
         smoothedMid.current = 0;
         smoothedTreble.current = 0;
@@ -113,6 +119,7 @@ export function useRealAudio(
 
     // Beat detection: use analyzed beat_times if available
     let isBeat = false;
+    let drumType: "kick" | "snare" | "hat" | null = null;
     const elapsed = audioElapsedRef?.current ?? 0;
     if (analysisData && analysisData.beat_times.length > 0 && elapsed > 0) {
       // Find the closest beat using binary search (fast for large arrays)
@@ -137,10 +144,31 @@ export function useRealAudio(
       if (closestIdx >= 0 && closestDist < 0.1 && closestIdx !== lastBeatIdx.current) {
         isBeat = true;
         lastBeatIdx.current = closestIdx;
+        // Drum classification: use current frequency energy ratios at the beat instant
+        const bassEnergy = bass;
+        const midEnergy = mid;
+        const trebleEnergy = treble;
+        if (bassEnergy > 0.01 || midEnergy > 0.01 || trebleEnergy > 0.01) {
+          if (bassEnergy > 0.01 && midEnergy > 0.001) {
+            const bassToMid = bassEnergy / (midEnergy || 0.001);
+            const trebleToMid = trebleEnergy / (midEnergy || 0.001);
+            if (bassToMid > 1.8) drumType = "kick";
+            else if (trebleToMid > 1.5) drumType = "hat";
+            else if (midEnergy > bassEnergy && midEnergy > trebleEnergy) drumType = "snare";
+          }
+          if (!drumType && bassEnergy > midEnergy && bassEnergy > trebleEnergy) drumType = "kick";
+          if (!drumType && trebleEnergy > midEnergy && trebleEnergy > bassEnergy) drumType = "hat";
+        }
       }
       // Reset index if user seeks backwards
       if (beats.length > 0 && elapsed < beats[Math.max(0, lastBeatIdx.current)]) {
         lastBeatIdx.current = -1;
+      }
+      // Predictive next-beat countdown from analyzed beat_times
+      if (isBeat && closestIdx >= 0 && closestIdx < beats.length - 1) {
+        nextBeatInRef.current = Math.max(0, beats[closestIdx + 1] - elapsed);
+      } else if (!isBeat && nextBeatInRef.current > 0) {
+        nextBeatInRef.current = Math.max(0, nextBeatInRef.current - 0.016);
       }
     } else {
       // Adaptive bass spike detection with dynamic threshold
@@ -148,14 +176,47 @@ export function useRealAudio(
       const threshold = 0.4 + avgEnergy * 0.3; // Adapt to track loudness
       beatCooldown.current = Math.max(0, beatCooldown.current - 1);
       isBeat = bass > threshold && bass > lastBass.current * 1.1 && beatCooldown.current === 0;
-      if (isBeat) beatCooldown.current = 6;
+      if (isBeat) {
+        beatCooldown.current = 6;
+        // Drum classification for fallback detector
+        const bassEnergy = bass;
+        const midEnergy = mid;
+        const trebleEnergy = treble;
+        if (bassEnergy > 0.01 || midEnergy > 0.01 || trebleEnergy > 0.01) {
+          if (bassEnergy > 0.01 && midEnergy > 0.001) {
+            const bassToMid = bassEnergy / (midEnergy || 0.001);
+            const trebleToMid = trebleEnergy / (midEnergy || 0.001);
+            if (bassToMid > 1.8) drumType = "kick";
+            else if (trebleToMid > 1.5) drumType = "hat";
+            else if (midEnergy > bassEnergy && midEnergy > trebleEnergy) drumType = "snare";
+          }
+          if (!drumType && bassEnergy > midEnergy && bassEnergy > trebleEnergy) drumType = "kick";
+          if (!drumType && trebleEnergy > midEnergy && trebleEnergy > bassEnergy) drumType = "hat";
+        }
+        // Predictive beat from recent intervals (BPM estimation)
+        if (lastBeatTime.current > 0 && elapsed > 0) {
+          const interval = elapsed - lastBeatTime.current;
+          if (interval > 0.15 && interval < 2.0) {
+            recentBeatIntervals.current.push(interval);
+            if (recentBeatIntervals.current.length > 8) recentBeatIntervals.current.shift();
+          }
+        }
+        lastBeatTime.current = elapsed;
+        if (recentBeatIntervals.current.length > 0) {
+          const avgInterval = recentBeatIntervals.current.reduce((a, b) => a + b, 0) / recentBeatIntervals.current.length;
+          nextBeatInRef.current = Math.max(0, avgInterval);
+        }
+      } else if (nextBeatInRef.current > 0) {
+        nextBeatInRef.current = Math.max(0, nextBeatInRef.current - 0.016);
+      }
     }
     lastBass.current = bass;
 
     data.current = {
-      bass, mid, treble, overall, beat: isBeat,
-      peak: peakHold.current,
+      bass, mid, treble, overall, beat: isBeat, peak: peakHold.current,
       energy: (bass + mid + treble) / 3,
+      drumType,
+      nextBeatIn: nextBeatInRef.current,
     };
   });
   return data;

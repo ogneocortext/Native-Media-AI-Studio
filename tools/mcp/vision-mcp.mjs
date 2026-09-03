@@ -1,25 +1,6 @@
 #!/usr/bin/env node
-/**
- * Native Media AI Studio — Vision MCP Server
- * Isolated to this repo only. Routes screenshots to local Ollama vision model
- * so non-vision coding models (via Kilo) get text descriptions.
- *
- * Tools:
- *  - vision_describe  — describe single image with local vision model
- *  - vision_compare   — compare two images
- *  - vision_ui_audit  — structured UI audit (positions, text, errors)
- *
- * Depends only on:
- *  - tools/mcp/vision.mjs (primary, has sharp resize)
- *  - tools/tests/vision_analyze.py (fallback, repo-local)
- *  - Ollama at http://127.0.0.1:11434 (models: gemma4:e2b-it-qat, qwen3-vl:4b/2b)
- */
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
+import { Server } from "@modelcontextprotocol/server";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -31,57 +12,134 @@ const ANALYZE_MJS = path.join(PROJECT_ROOT, "scripts", "vision", "analyze.mjs");
 const VISION_MJS = path.join(PROJECT_ROOT, "tools", "mcp", "vision.mjs");
 const ANALYZE_PY = path.join(PROJECT_ROOT, "tools", "tests", "vision_analyze.py");
 
-function runNode(script, args, timeoutMs = 60000) {
+const ALLOWED_EXTENSIONS = /\.(png|jpe?g|webp|bmp|gif)$/i;
+
+function generateRequestId() {
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function logRequest(reqId, tool, detail) {
+  console.error(`[${reqId}] ${tool} | ${detail}`);
+}
+
+function textResponse(text, isError = false) {
+  return { content: [{ type: "text", text }], isError };
+}
+
+function runNode(script, args, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
-    const child = spawn("node", [script, ...args], { cwd: PROJECT_ROOT });
+    const child = spawn("node", [script, ...args], {
+      cwd: PROJECT_ROOT,
+      env: { ...process.env },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
     let out = "", err = "";
     const timer = setTimeout(() => {
-      child.kill();
-      reject(new Error(`node process timed out after ${timeoutMs}ms`));
+      child.kill("SIGTERM");
+      reject(new Error(`vision request timed out after ${timeoutMs}ms`));
     }, timeoutMs);
     child.stdout.on("data", d => out += d);
     child.stderr.on("data", d => err += d);
     child.on("close", code => {
       clearTimeout(timer);
-      if (code !== 0) return reject(new Error(err || `exit ${code}`));
+      if (code !== 0) {
+        const msg = err.trim() || `child process exited with code ${code}`;
+        return reject(new Error(msg));
+      }
       resolve(out.trim());
     });
     child.on("error", reject);
   });
 }
 
-function runAnalyzePy(imagePath, prompt, timeoutMs = 60000) {
+function runAnalyzePy(imagePath, prompt, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
-    const child = spawn("python", [ANALYZE_PY, imagePath, prompt], { cwd: PROJECT_ROOT });
+    const child = spawn("python", [ANALYZE_PY, imagePath, prompt], {
+      cwd: PROJECT_ROOT,
+      env: { ...process.env },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
     let out = "", err = "";
     const timer = setTimeout(() => {
-      child.kill();
-      reject(new Error(`python process timed out after ${timeoutMs}ms`));
+      child.kill("SIGTERM");
+      reject(new Error(`python vision fallback timed out after ${timeoutMs}ms`));
     }, timeoutMs);
     child.stdout.on("data", d => out += d);
     child.stderr.on("data", d => err += d);
     child.on("close", code => {
       clearTimeout(timer);
-      if (code !== 0) return reject(new Error(err || `vision_analyze.py exit ${code}`));
+      if (code !== 0) {
+        const msg = err.trim() || `vision_analyze.py exited with code ${code}`;
+        return reject(new Error(msg));
+      }
       resolve(out.trim());
     });
     child.on("error", reject);
   });
+}
+
+function resolveImagePath(input) {
+  if (!input || typeof input !== "string") {
+    throw new Error("image_path must be a non-empty string");
+  }
+  const abs = path.isAbsolute(input) ? input : path.join(PROJECT_ROOT, input);
+  if (!fs.existsSync(abs)) {
+    throw new Error(`Image not found: ${abs}`);
+  }
+  if (!ALLOWED_EXTENSIONS.test(abs)) {
+    throw new Error(`Unsupported image format: ${path.extname(abs)}`);
+  }
+  return abs;
 }
 
 async function describeImage(imagePath, prompt, mode) {
-  const abs = path.isAbsolute(imagePath) ? imagePath : path.join(PROJECT_ROOT, imagePath);
-  if (!fs.existsSync(abs)) throw new Error(`Image not found: ${abs} (project root: ${PROJECT_ROOT})`);
-  // Prefer vision.mjs (has sharp resize), fallback to analyze.mjs, then python
+  const abs = resolveImagePath(imagePath);
+  const finalPrompt = prompt || "Describe this image in detail.";
+  const finalMode = mode || "ui";
+  const reqId = generateRequestId();
+
+  logRequest(reqId, "vision_describe", `mode=${finalMode} image=${abs}`);
+
+  // Primary: vision.mjs (sharp resize + Ollama /api/generate)
   try {
-    const args = ["analyze", abs, prompt || "Describe this image in detail.", "--mode", mode || "ui"];
-    return await runNode(VISION_MJS, args);
+    const args = ["analyze", abs, finalPrompt, "--mode", finalMode];
+    const result = await runNode(VISION_MJS, args);
+    logRequest(reqId, "vision_describe", "primary-ok");
+    return result;
   } catch (e) {
+    logRequest(reqId, "vision_describe", `primary-failed: ${e.message}`);
+
+    // Fallback 1: analyze.mjs
     try {
-      return await runNode(ANALYZE_MJS, [abs, "--prompt", prompt || "Describe this image in detail.", "--mode", mode || "ui"]);
-    } catch {
-      return await runAnalyzePy(abs, prompt || "Describe this image in detail.");
+      const result = await runNode(ANALYZE_MJS, [abs, "--prompt", finalPrompt, "--mode", finalMode]);
+      logRequest(reqId, "vision_describe", "fallback1-ok");
+      return result;
+    } catch (e2) {
+      logRequest(reqId, "vision_describe", `fallback1-failed: ${e2.message}`);
+
+      // Fallback 2: Python
+      const result = await runAnalyzePy(abs, finalPrompt);
+      logRequest(reqId, "vision_describe", "fallback2-ok");
+      return result;
     }
+  }
+}
+
+async function compareImages(imageA, imageB, prompt) {
+  const a = resolveImagePath(imageA);
+  const b = resolveImagePath(imageB);
+  const finalPrompt = prompt || "Compare these two images. Identify differences, improvements, or regressions. Summarize key changes.";
+  const reqId = generateRequestId();
+
+  logRequest(reqId, "vision_compare", `start ${a} vs ${b}`);
+
+  try {
+    const combined = await runNode(VISION_MJS, ["compare", a, b, finalPrompt]);
+    logRequest(reqId, "vision_compare", "ok");
+    return combined;
+  } catch (e) {
+    logRequest(reqId, "vision_compare", `failed: ${e.message}`);
+    throw e;
   }
 }
 
@@ -90,17 +148,27 @@ const server = new Server(
   { capabilities: { tools: {} } }
 );
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
+server.setRequestHandler('tools/list', async () => ({
   tools: [
     {
       name: "vision_describe",
-      description: "Describe a screenshot/image using local Ollama vision model (qwen3-vl:4b). For non-vision coding agents: pass image path, get text description back. Scoped strictly to Native Media AI Studio.",
+      description: "Describe a screenshot/image using local Ollama vision model (qwen3-vl-optimized). For non-vision coding agents: pass image path, get text description back. Scoped strictly to Native Media AI Studio.",
       inputSchema: {
         type: "object",
         properties: {
-          image_path: { type: "string", description: "Absolute or repo-relative path to image (png/jpg) under Native Media AI Studio. Example: output/logs/screenshot.png or D:\\...\\Native Media AI Studio\\output\\screenshot.png" },
-          prompt: { type: "string", description: "Custom prompt. Default: detailed UI description with element positions. Use for targeted questions." },
-          mode: { type: "string", enum: ["ui", "responsive", "regression", "compare", "music-video", "consistency"], description: "Preset prompt mode. 'ui' = detailed scene/elements. 'responsive' = layout issues. 'regression' = compare vs source." }
+          image_path: {
+            type: "string",
+            description: "Absolute or repo-relative path to image (png/jpg/webp) under Native Media AI Studio. Example: output/logs/screenshot.png or D:\\...\\Native Media AI Studio\\output\\screenshot.png"
+          },
+          prompt: {
+            type: "string",
+            description: "Custom prompt. Default: detailed UI description with element positions. Use for targeted questions."
+          },
+          mode: {
+            type: "string",
+            enum: ["ui", "responsive", "regression", "compare", "music-video", "consistency"],
+            description: "Preset prompt mode. 'ui' = detailed scene/elements. 'responsive' = layout issues. 'regression' = compare vs source."
+          }
         },
         required: ["image_path"]
       }
@@ -124,7 +192,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          image_path: { type: "string" },
+          image_path: { type: "string", description: "Absolute or repo-relative path to image" },
           viewport: { type: "string", description: "e.g. 1280x800" },
           label: { type: "string", description: "Screen label, e.g. Generation3DPage" }
         },
@@ -134,20 +202,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   ]
 }));
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+server.setRequestHandler('tools/call', async (request) => {
   const { name, arguments: args } = request.params;
+  const reqId = generateRequestId();
   try {
     if (name === "vision_describe") {
-      const text = await describeImage(args.image_path, args.prompt || null, args.mode || "ui");
-      return { content: [{ type: "text", text }] };
+      const text = await describeImage(args?.image_path, args?.prompt || null, args?.mode || "ui");
+      return textResponse(text);
     }
     if (name === "vision_compare") {
-      const prompt = args.prompt || "Compare these two images. Identify differences, improvements, or regressions. Summarize key changes.";
-      const a = path.isAbsolute(args.image_a) ? args.image_a : path.join(PROJECT_ROOT, args.image_a);
-      const b = path.isAbsolute(args.image_b) ? args.image_b : path.join(PROJECT_ROOT, args.image_b);
-      // Use vision.mjs compare command (has resize)
-      const combined = await runNode(VISION_MJS, ["compare", a, b, prompt]);
-      return { content: [{ type: "text", text: combined }] };
+      const prompt = args?.prompt || "Compare these two images. Identify differences, improvements, or regressions. Summarize key changes.";
+      const combined = await compareImages(args?.image_a, args?.image_b, prompt);
+      return textResponse(combined);
     }
     if (name === "vision_ui_audit") {
       const auditPrompt = `Perform a structured UI audit. Return JSON-like sections:
@@ -156,13 +222,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 3. LAYOUT: responsive/layout issues
 4. ERRORS: visible errors, warnings, broken images
 5. NEXT_ACTION: what should a coding agent fix first?
-Viewport: ${args.viewport || "unknown"} Label: ${args.label || "screen"}`;
-      const text = await describeImage(args.image_path, auditPrompt, "ui");
-      return { content: [{ type: "text", text }] };
+Viewport: ${args?.viewport || "unknown"} Label: ${args?.label || "screen"}`;
+      const text = await describeImage(args?.image_path, auditPrompt, "ui");
+      return textResponse(text);
     }
-    throw new Error(`Unknown tool ${name}`);
+    logRequest(reqId, "tools/call", `unknown-tool ${name}`);
+    return textResponse(`Unknown tool ${name}`, true);
   } catch (e) {
-    return { content: [{ type: "text", text: `Vision error: ${e.message}` }], isError: true };
+    console.error(`[${reqId}] [vision-mcp] tool error: ${e.message}`);
+    return textResponse(`Vision error: ${e.message}`, true);
   }
 });
 
@@ -171,4 +239,7 @@ async function main() {
   await server.connect(transport);
   console.error("native-media-vision MCP ready (project root: " + PROJECT_ROOT + ")");
 }
-main().catch(err => { console.error(err); process.exit(1); });
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

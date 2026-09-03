@@ -1,24 +1,23 @@
 #!/usr/bin/env node
-/**
- * Ollama Tools MCP Server
- * 
- * Provides tool-use capabilities for Ollama models to:
- * - Generate images (via ComfyUI)
- * - Generate videos (via ComfyUI/Wan2.1)
- * - Analyze images (via Ollama VLM)
- * - Analyze audio (via backend API)
- * - Create music videos (via Remotion)
- * 
- * Usage: node tools/mcp/ollama-tools-mcp.mjs
- */
-
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
+import { Server } from "@modelcontextprotocol/server";
 
 const BASE_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 const COMFYUI_URL = process.env.COMFYUI_URL || "http://127.0.0.1:8188";
 const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
+const MAX_IMAGE_BASE64_BYTES = 20 * 1024 * 1024; // 20 MB safety cap
+
+function generateRequestId() {
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function textResponse(text, isError = false) {
+  return { content: [{ type: "text", text }], isError };
+}
+
+function logRequest(reqId, tool, detail) {
+  console.error(`[${reqId}] ${tool} | ${detail}`);
+}
 
 // Helper: fetch with timeout and ok-check
 async function fetchWithTimeout(url, opts = {}, timeoutMs = 30000) {
@@ -36,6 +35,16 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = 30000) {
   }
 }
 
+async function readImageBase64(imagePath) {
+  const fs = await import("fs");
+  const buf = fs.readFileSync(imagePath);
+  const base64 = buf.toString("base64");
+  if (buf.length > MAX_IMAGE_BASE64_BYTES) {
+    throw new Error(`Image too large for Ollama: ${(buf.length / 1024 / 1024).toFixed(1)} MB (cap ${MAX_IMAGE_BASE64_BYTES / 1024 / 1024} MB)`);
+  }
+  return base64;
+}
+
 const server = new Server(
   { name: "ollama-tools", version: "1.0.0" },
   { capabilities: { tools: {} } }
@@ -45,7 +54,7 @@ const server = new Server(
 // TOOL DEFINITIONS
 // ============================================================
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
+server.setRequestHandler('tools/list', async () => ({
   tools: [
     {
       name: "analyze_image",
@@ -123,49 +132,55 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 // TOOL HANDLERS
 // ============================================================
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+server.setRequestHandler('tools/call', async (request) => {
   const { name, arguments: args } = request.params;
+  const reqId = generateRequestId();
+  logRequest(reqId, name, "start");
 
   try {
     switch (name) {
       case "analyze_image":
-        return await analyzeImage(args);
+        return await analyzeImage(reqId, args);
       case "analyze_audio":
-        return await analyzeAudio(args);
+        return await analyzeAudio(reqId, args);
       case "generate_image":
-        return await generateImage(args);
+        return await generateImage(reqId, args);
       case "generate_video":
-        return await generateVideo(args);
+        return await generateVideo(reqId, args);
       case "list_audio_library":
-        return await listAudioLibrary();
+        return await listAudioLibrary(reqId);
       case "create_music_video_plan":
-        return await createMusicVideoPlan(args);
+        return await createMusicVideoPlan(reqId, args);
       default:
-        return { content: [{ type: "text", text: `Unknown tool: ${name}` }] };
+        logRequest(reqId, name, "unknown-tool");
+        return textResponse(`Unknown tool: ${name}`, true);
     }
   } catch (err) {
-    return {
-      content: [{ type: "text", text: `Error: ${err.message}` }],
-      isError: true,
-    };
+    logRequest(reqId, name, `error: ${err.message}`);
+    return textResponse(`Error: ${err.message}`, true);
   }
 });
 
-async function analyzeImage(args) {
-  // Read image and convert to base64
+async function analyzeImage(reqId, args) {
   const fs = await import("fs");
   const path = await import("path");
   
   let imageData;
   if (args.image_path.startsWith("http")) {
+    logRequest(reqId, "analyze_image", "fetching-remote-image");
     const res = await fetchWithTimeout(args.image_path);
     const buf = Buffer.from(await res.arrayBuffer());
     imageData = buf.toString("base64");
   } else {
-    const buf = fs.readFileSync(args.image_path);
-    imageData = buf.toString("base64");
+    const abs = path.resolve(args.image_path);
+    if (!fs.existsSync(abs)) {
+      return textResponse(`Image not found: ${abs}`, true);
+    }
+    logRequest(reqId, "analyze_image", `reading-local: ${abs}`);
+    imageData = await readImageBase64(abs);
   }
 
+  logRequest(reqId, "analyze_image", `calling-ollama model=${args.model || "qwen3-vl:4b"}`);
   const res = await fetchWithTimeout(`${BASE_URL}/api/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -174,26 +189,29 @@ async function analyzeImage(args) {
       prompt: args.prompt || "Describe this image in detail.",
       images: [imageData],
       stream: false,
+      keep_alive: "60s",
     }),
   });
 
   const data = await res.json();
-  return { content: [{ type: "text", text: data.response || "No response" }] };
+  logRequest(reqId, "analyze_image", "ollama-ok");
+  return textResponse(data.response || "No response");
 }
 
-async function analyzeAudio(args) {
+async function analyzeAudio(reqId, args) {
+  if (!args.filename) {
+    return textResponse("Missing required arg: filename", true);
+  }
+  logRequest(reqId, "analyze_audio", `filename=${args.filename}`);
   const res = await fetchWithTimeout(`${BACKEND_URL}/api/audio/analysis/${encodeURIComponent(args.filename)}`);
   const data = await res.json();
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return textResponse(JSON.stringify(data, null, 2));
 }
 
-async function generateImage(args) {
-  // Use ComfyUI's simple txt2img workflow via the /prompt endpoint
-  // First, get the object_info to find available checkpoints and samplers
+async function generateImage(reqId, args) {
+  logRequest(reqId, "generate_image", `prompt=${args.prompt}`);
   try {
     const checkpoint = args.checkpoint || "sd_xl_base_1.0.safetensors";
-    // Queue a prompt using ComfyUI's API
-    // The workflow uses the default checkpoint loader + KSampler
     const workflow = {
       "3": {
         inputs: {
@@ -247,38 +265,38 @@ async function generateImage(args) {
     });
     const data = await res.json();
     if (data.prompt_id) {
-      return { content: [{ type: "text", text: `✅ Image generation queued: ${data.prompt_id}\nPrompt: "${args.prompt}"\nSize: ${args.width || 1024}x${args.height || 1024}` }] };
+      return textResponse(`✅ Image generation queued: ${data.prompt_id}\nPrompt: "${args.prompt}"\nSize: ${args.width || 1024}x${args.height || 1024}`);
     }
-    return { content: [{ type: "text", text: `⚠️ ComfyUI response: ${JSON.stringify(data)}` }] };
+    logRequest(reqId, "generate_image", `comfyui-warn prompt_id-missing`);
+    return textResponse(`⚠️ ComfyUI response: ${JSON.stringify(data)}`);
   } catch (err) {
-    return { content: [{ type: "text", text: `❌ ComfyUI not available: ${err.message}` }] };
+    logRequest(reqId, "generate_image", `comfyui-error: ${err.message}`);
+    return textResponse(`❌ ComfyUI not available: ${err.message}`, true);
   }
 }
 
-async function generateVideo(args) {
-  // Check if LTX or Wan model is available in ComfyUI
+async function generateVideo(reqId, args) {
+  logRequest(reqId, "generate_video", `prompt=${args.prompt}`);
   try {
-    // For now, return info about what's needed
-    // In a full implementation, this would queue a video workflow
-    return {
-      content: [{
-        type: "text",
-        text: `🎬 Video generation for "${args.prompt}" (${args.duration || 4}s)\n\nTo generate videos locally, ensure ComfyUI has:\n- LTXVideo or Wan2.1 model installed\n- ComfyUI-VideoHelperSuite custom node\n\nAlternatively, use ComfyUI MCP server (comfyui) for direct workflow control.`,
-      }],
-    };
+    return textResponse(`🎬 Video generation for "${args.prompt}" (${args.duration || 4}s)\n\nTo generate videos locally, ensure ComfyUI has:\n- LTXVideo or Wan2.1 model installed\n- ComfyUI-VideoHelperSuite custom node\n\nAlternatively, use ComfyUI MCP server (comfyui) for direct workflow control.`);
   } catch (err) {
-    return { content: [{ type: "text", text: `❌ Error: ${err.message}` }] };
+    return textResponse(`❌ Error: ${err.message}`, true);
   }
 }
 
-async function listAudioLibrary() {
+async function listAudioLibrary(reqId) {
+  logRequest(reqId, "list_audio_library", "fetching-backend");
   const res = await fetchWithTimeout(`${BACKEND_URL}/api/audio/files`);
   const data = await res.json();
-  const files = data.files.map((f) => f.filename).join("\n");
-  return { content: [{ type: "text", text: `Available tracks:\n${files}` }] };
+  const files = (data.files || []).map((f) => f.filename).join("\n");
+  return textResponse(`Available tracks:\n${files}`);
 }
 
-async function createMusicVideoPlan(args) {
+async function createMusicVideoPlan(reqId, args) {
+  if (!args.filename) {
+    return textResponse("Missing required arg: filename", true);
+  }
+  logRequest(reqId, "create_music_video_plan", `filename=${args.filename}`);
   const analysisRes = await fetchWithTimeout(`${BACKEND_URL}/api/audio/analysis/${encodeURIComponent(args.filename)}`);
   const analysis = await analysisRes.json();
   
@@ -296,7 +314,7 @@ async function createMusicVideoPlan(args) {
     })),
   };
 
-  return { content: [{ type: "text", text: JSON.stringify(plan, null, 2) }] };
+  return textResponse(JSON.stringify(plan, null, 2));
 }
 
 // ============================================================

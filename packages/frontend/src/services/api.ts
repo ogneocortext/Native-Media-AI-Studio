@@ -929,6 +929,28 @@ export async function generate3D(request: {
   return res.json();
 }
 
+/** Generate a 3D model from a reference image (character face/body lock source). */
+export async function generate3DFromImage(
+  file: File,
+  opts?: { steps?: number; output_name?: string },
+): Promise<Record<string, unknown>> {
+  const base = getApiBase();
+  const form = new FormData();
+  form.append("file", file, file.name);
+  const params = new URLSearchParams();
+  if (opts?.steps) params.set("steps", String(opts.steps));
+  if (opts?.output_name) params.set("output_name", opts.output_name);
+  const res = await fetch(`${base}/api/health/3d/generate-image?${params.toString()}`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to trigger image-to-3D generation");
+  }
+  return res.json();
+}
+
 // =============================================================================
 // Diagnostics API
 // =============================================================================

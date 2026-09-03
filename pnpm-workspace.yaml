@@ -65,6 +65,9 @@ minimumReleaseAgeExclude:
   - '@remotion/effects@4.0.519'
   - '@remotion/transitions@4.0.519'
 
+allowBuilds:
+  esbuild: set this to true or false
+
 # Side-by-side TS 6 + TS 7 per https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0
 # - `typescript` (6.0.3 via @typescript/typescript6) is used by eslint/typescript-eslint (Go port has no JS API yet)
 # - `@typescript/native` (7.0.2) provides `tsc` 7 for fast builds; use `pnpm --filter frontend exec --package=@typescript/native tsc`

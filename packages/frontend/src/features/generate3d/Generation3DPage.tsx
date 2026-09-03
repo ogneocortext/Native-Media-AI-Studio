@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import {
   generate3D,
+  generate3DFromImage,
   get3DStatus,
 } from "../../services/api";
 import { ModelPreview } from "./ModelPreview";
@@ -32,6 +33,47 @@ const PROMPT_EXAMPLES = [
   { label: "DJ Console", prompt: "a DJ console, modern minimalist, LED indicators, top-down view", tag: "prop" },
   { label: "Stage", prompt: "concert stage platform, LED walls, fog, cinematic volumetric lighting", tag: "environment" },
 ];
+
+/** Character templates — prompt + bible starter per the 4-step consistency method. */
+const CHARACTER_TEMPLATES = [
+  {
+    label: "Humanoid",
+    prompt: "a stylized humanoid character, athletic build, matte bodysuit with glowing seam lines, symmetrical proportions, neutral A-pose, highly detailed, standing pose",
+    bible: "Stylized humanoid; athletic build; matte bodysuit, glowing seams",
+  },
+  {
+    label: "Avatar Bust",
+    prompt: "a stylized avatar bust, androgynous face, short dark hair, smooth skin, studio lighting, front-facing portrait, highly detailed",
+    bible: "Avatar bust; androgynous face; short dark hair",
+  },
+  {
+    label: "Creature",
+    prompt: "a small forest creature mascot, big expressive eyes, soft fur, rounded friendly forms, standing pose, highly detailed",
+    bible: "Forest creature mascot; big eyes; soft fur; rounded forms",
+  },
+  {
+    label: "Robot",
+    prompt: "a futuristic robot, chrome metallic, highly detailed, standing pose",
+    bible: "Futuristic robot; chrome metallic",
+  },
+];
+
+const PENDING_CHARACTER_KEY = "pendingCharacter";
+
+interface CharacterBible {
+  name: string;
+  notes: string;
+  seed: number;
+  prompt: string;
+}
+
+function loadBibles(): Record<string, CharacterBible> {
+  try {
+    return JSON.parse(localStorage.getItem("characterBibles") || "{}") as Record<string, CharacterBible>;
+  } catch {
+    return {};
+  }
+}
 
 const PIPELINE_STEPS = [
   { n: 1, t: "Text Prompt", c: "text-sky-400" },
@@ -66,6 +108,69 @@ export function Generation3DPage() {
     scale: 1.0,
     resolution: 256,
   });
+
+  // Character workflow (4-step consistency method): templates, reference
+  // image, bible (name + notes), and seed lock. Bible is saved per generated
+  // model and handed to Three.js Studio with the model.
+  const [genMode, setGenMode] = useState<"text" | "reference">("text");
+  const [charName, setCharName] = useState("");
+  const [charNotes, setCharNotes] = useState("");
+  const [seed, setSeed] = useState(42);
+  const [refFile, setRefFile] = useState<File | null>(null);
+  const [refPreviewUrl, setRefPreviewUrl] = useState<string | null>(null);
+  const [refError, setRefError] = useState<string | null>(null);
+  const [bibles, setBibles] = useState<Record<string, CharacterBible>>(loadBibles);
+
+  const saveBible = useCallback((filename: string, bible: CharacterBible) => {
+    setBibles((prev) => {
+      const next = { ...prev, [filename]: bible };
+      try { localStorage.setItem("characterBibles", JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  const randomizeSeed = useCallback(() => {
+    setSeed(Math.floor(Math.random() * 2 ** 31));
+  }, []);
+
+  const handleReferenceFile = useCallback((file: File | null) => {
+    if (refPreviewUrl) URL.revokeObjectURL(refPreviewUrl);
+    setRefPreviewUrl(null);
+    setRefFile(null);
+    setRefError(null);
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setRefError("Reference must be PNG, JPEG, or WebP.");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setRefError("Reference image exceeds 15 MB.");
+      return;
+    }
+    setRefFile(file);
+    setRefPreviewUrl(URL.createObjectURL(file));
+  }, [refPreviewUrl]);
+
+  // Keep the current bible alongside the generation result/history.
+  const bibleForResult = useCallback((): CharacterBible => ({
+    name: charName.trim(),
+    notes: charNotes.trim(),
+    seed,
+    prompt,
+  }), [charName, charNotes, seed, prompt]);
+
+  const sendToStudio = useCallback((filename: string) => {
+    const bible = bibles[filename] ?? bibleForResult();
+    const servable = `/output/generated_3d/${filename}`;
+    try {
+      localStorage.setItem(PENDING_CHARACTER_KEY, JSON.stringify({
+        modelUrl: servable,
+        name: bible.name || filename.replace(/\.glb$/i, ""),
+        bible: [bible.name, bible.notes].filter(Boolean).join(" — ") || bible.prompt,
+      }));
+    } catch { /* ignore */ }
+    navigate("/three-js-studio");
+  }, [bibles, bibleForResult, navigate]);
 
   const loadStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -146,10 +251,14 @@ export function Generation3DPage() {
     setResult(null);
     const start = Date.now();
     try {
-      const data = await generate3D({ prompt, model, steps, cfg: vizParams.cfg, params: vizParams });
+      const data = await generate3D({ prompt, model, steps, seed, cfg: vizParams.cfg, params: vizParams });
       setResult(data);
       if ((data as { success?: boolean }).success === false) {
         setError((data as { error?: string }).error || "Generation failed — check ComfyUI and VRAM");
+      } else {
+        const mp = (data as { model_path?: string }).model_path;
+        const fn = mp ? String(mp).split(/[\\/]/).pop() : null;
+        if (fn) saveBible(fn, bibleForResult());
       }
       loadStatus();
       loadHistory();
@@ -166,6 +275,33 @@ export function Generation3DPage() {
       setGenerating(false);
       const dur = Math.round((Date.now() - start) / 1000);
       if (dur > 5) console.log(`3D generation took ${dur}s`);
+    }
+  };
+
+  const handleGenerateFromReference = async () => {
+    if (!refFile) return;
+    setGenerating(true);
+    setError(null);
+    setResult(null);
+    const start = Date.now();
+    try {
+      const data = await generate3DFromImage(refFile, { steps });
+      setResult(data);
+      if ((data as { success?: boolean }).success === false) {
+        setError((data as { error?: string }).error || "Reference generation failed — check ComfyUI and VRAM");
+      } else {
+        const mp = (data as { model_path?: string }).model_path;
+        const fn = mp ? String(mp).split(/[\\/]/).pop() : null;
+        if (fn) saveBible(fn, bibleForResult());
+      }
+      loadStatus();
+      loadHistory();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Reference generation failed");
+    } finally {
+      setGenerating(false);
+      const dur = Math.round((Date.now() - start) / 1000);
+      if (dur > 5) console.log(`Reference 3D generation took ${dur}s`);
     }
   };
 
@@ -360,6 +496,20 @@ export function Generation3DPage() {
               <label className="text-sm font-medium text-gray-300">Prompt</label>
               <span className={`text-xs ${wordCount > 75 ? "text-red-400" : wordCount > 60 ? "text-amber-400" : "text-gray-500"}`}>{wordCount}/75 words • {prompt.length}/500 chars</span>
             </div>
+            {/* Text vs reference-image source tabs */}
+            <div className="flex gap-1.5 mb-3 p-1 bg-gray-900 rounded-lg w-fit" role="tablist" aria-label="Generation source">
+              {(["text", "reference"] as const).map((m) => (
+                <button
+                  key={m}
+                  role="tab"
+                  aria-selected={genMode === m}
+                  onClick={() => setGenMode(m)}
+                  className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${genMode === m ? "bg-violet-600 text-white" : "text-gray-400 hover:text-gray-200"}`}
+                >
+                  {m === "text" ? "Text prompt" : "Reference image"}
+                </button>
+              ))}
+            </div>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -387,16 +537,101 @@ export function Generation3DPage() {
                 </button>
               ))}
             </div>
+            {/* Character templates — prompt + bible starter per consistency method */}
+            <div className="mt-3 pt-3 border-t border-gray-700/60">
+              <p className="text-[11px] text-gray-500 mb-1.5">Characters <span className="text-gray-600">— set prompt + bible starter</span></p>
+              <div className="flex flex-wrap gap-1.5">
+                {CHARACTER_TEMPLATES.map((t) => (
+                  <button
+                    key={t.label}
+                    onClick={() => { setPrompt(t.prompt); setCharNotes(t.bible); if (!charName.trim()) setCharName(t.label); }}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      prompt === t.prompt
+                        ? "bg-amber-600 border-amber-500 text-white"
+                        : "bg-gray-900 border-gray-700 text-gray-400 hover:border-amber-500/40 hover:text-gray-200"
+                    }`}
+                    title={t.bible}
+                  >
+                    + {t.label} <span className="opacity-50">• character</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
+
+          {/* Character bible — name + notes travel with the model to the Studio */}
+          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+            <label className="text-sm font-medium text-gray-300 block mb-2">Character bible <span className="text-gray-500 font-normal">— consistency lock</span></label>
+            <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-2">
+              <input
+                value={charName}
+                onChange={(e) => setCharName(e.target.value)}
+                placeholder="Name (e.g. Copper Builder)"
+                aria-label="Character name"
+                className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500"
+              />
+              <input
+                value={charNotes}
+                onChange={(e) => setCharNotes(e.target.value)}
+                placeholder="Notes: copper skin, shaved head, teal jacket…"
+                aria-label="Character notes"
+                className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500"
+              />
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              <label className="text-xs text-gray-400" htmlFor="gen3d-seed">Seed</label>
+              <input
+                id="gen3d-seed"
+                type="number"
+                value={seed}
+                onChange={(e) => setSeed(Number(e.target.value) || 0)}
+                className="w-28 px-2 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-xs text-white font-mono focus:outline-none focus:border-violet-500"
+                title="Lock the seed to reproduce a character; randomize for variations"
+              />
+              <button
+                onClick={randomizeSeed}
+                className="text-xs px-2.5 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-gray-300 hover:border-violet-500/40 flex items-center gap-1"
+                title="Randomize seed"
+              >
+                <RefreshCw size={12} /> Random
+              </button>
+              <span className="text-[11px] text-gray-500">Same seed + same prompt = same mesh. Pick a template to prefill.</span>
+            </div>
+          </div>
+
+          {/* Reference image source — image-to-3D for face/body lock */}
+          {genMode === "reference" && (
+            <div className="bg-gray-800 rounded-xl p-4 border border-amber-500/30">
+              <label className="text-sm font-medium text-gray-300 block mb-2">Reference image <span className="text-gray-500 font-normal">— PNG / JPEG / WebP, ≤15 MB</span></label>
+              <div className="flex items-start gap-3">
+                <label className="shrink-0 cursor-pointer px-3 py-2 bg-gray-900 border border-gray-700 hover:border-amber-500/40 rounded-lg text-xs text-gray-300">
+                  Choose file
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(e) => handleReferenceFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                {refPreviewUrl ? (
+                  <img src={refPreviewUrl} alt="Reference preview" className="w-20 h-20 object-cover rounded-lg border border-gray-700" />
+                ) : (
+                  <p className="text-xs text-gray-500 self-center">Front-facing, evenly lit, plain background works best. The mesh is built from this image — use one anchor per character.</p>
+                )}
+              </div>
+              {refError && <p className="text-xs text-red-400 mt-2">{refError}</p>}
+              {refFile && <p className="text-xs text-gray-500 mt-2 font-mono truncate" title={refFile.name}>{refFile.name} • {(refFile.size / 1024 / 1024).toFixed(1)} MB</p>}
+            </div>
+          )}
 
           {/* Generate Button with progress */}
           <button
-            onClick={handleGenerate}
-            disabled={generating || !prompt.trim() || wordCount > 75 || !comfyRunning}
+            onClick={genMode === "reference" ? handleGenerateFromReference : handleGenerate}
+            disabled={generating || !comfyRunning || (genMode === "reference" ? !refFile : (!prompt.trim() || wordCount > 75))}
             className="w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-gray-700 disabled:text-gray-400 text-white rounded-xl font-medium flex items-center justify-center gap-2"
           >
             {generating ? <Loader2 size={18} className="animate-spin" /> : <Wand2 size={18} />}
-            {generating ? `Generating... ${elapsed}s / ~${estimatedSec}s` : `Generate 3D Model • ${selectedModel.vram} • ~${Math.round(estimatedSec / 60)} min`}
+            {generating ? `Generating... ${elapsed}s / ~${estimatedSec}s` : genMode === "reference" ? `Generate 3D from Reference • ~${Math.round(estimatedSec / 60)} min` : `Generate 3D Model • ${selectedModel.vram} • ~${Math.round(estimatedSec / 60)} min`}
           </button>
           {generating && (
             <div className="bg-gray-800 rounded-xl p-3 border border-violet-500/20">
@@ -450,7 +685,7 @@ export function Generation3DPage() {
                       <ModelPreview url={glbUrl} />
                     </div>
                   )}
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <a
                       href={`/output/generated_3d/${String((result as { model_path?: string }).model_path).split(/[\\/]/).pop()}`}
                       download
@@ -459,6 +694,16 @@ export function Generation3DPage() {
                       <Download size={14} />
                       Download .glb
                     </a>
+                    {glbFilename && (
+                      <button
+                        onClick={() => sendToStudio(glbFilename)}
+                        className="px-4 py-2 bg-amber-600 hover:bg-amber-500 rounded-lg text-white text-sm flex items-center gap-2"
+                        title="Open in Three.js Studio with this model loaded as a character + bible"
+                      >
+                        <Box size={14} />
+                        Send to Studio
+                      </button>
+                    )}
                     <button
                       onClick={() => navigate("/music-video-wizard")}
                       className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-white text-sm flex items-center gap-2"
@@ -570,9 +815,19 @@ export function Generation3DPage() {
                   >
                     <div className="flex-1 min-w-0">
                       <div className="text-xs text-white truncate font-mono" title={f.filename}>{f.filename}</div>
-                      <div className="text-[10px] text-gray-500 mt-0.5">{ageLabel}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">{ageLabel}{bibles[f.filename]?.name ? ` • ${bibles[f.filename].name}` : ""}</div>
                     </div>
                     <span className="text-xs text-gray-400 shrink-0 tabular-nums">{(f.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      title="Send to Three.js Studio as character"
+                      onClick={(e) => { e.stopPropagation(); sendToStudio(f.filename); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") sendToStudio(f.filename); }}
+                      className="text-gray-500 hover:text-amber-300 shrink-0"
+                    >
+                      <Box size={12} />
+                    </span>
                     <a
                       href={f.servable_url ?? `/output/generated_3d/${f.filename}`}
                       target="_blank"

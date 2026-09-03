@@ -40,6 +40,7 @@ date: 2026-08-27
 - [[three-js-studio|🌐 Three.js Studio]] — Browser-based 3D scene builder with particles & reflections
 - [[ai-video-trends-2026|📈 AI Video Trends 2026]] — 5 industry shifts, model landscape, pipeline upgrades
 - [[kilo-code-subagent-orchestration|🤖 Kilo Code Subagent Orchestration]] — Subagent architecture, provider errors, optimization strategies
+- [[kilo-code-subagent-optimization|🚀 Kilo Code Subagent Optimization]] — Config implementations, concurrency limits, retry jitter, verification
 
 ### 🎯 Specialized Guides
 - [[3d-rendering|🧊 3D Rendering]] — GPU rendering, Blender 5.2 EEVEE Next, optimization
@@ -70,8 +71,12 @@ date: 2026-08-27
 | `#comfyui` | ComfyUI workflows | 2 documents |
 | `#gpu` | GPU optimization | 3 documents |
 | `#prompt` | Prompt engineering | 1 document |
-| `#kilo-code` | Kilo Code tooling and orchestration | 1 document |
-| `#subagent` | Subagent architecture and errors | 1 document |
+| `#kilo-code` | Kilo Code tooling and orchestration | 2 documents |
+| `#subagent` | Subagent architecture and errors | 2 documents |
+| `#optimization` | Subagent optimization strategies | 1 document |
+| `#configuration` | Kilo Code configuration | 1 document |
+| `#concurrency` | Concurrency control and rate limiting | 1 document |
+| `#retry` | Retry policies and backoff | 1 document |
 | `#remotion` | Remotion video compositing | 1 document |
 
 ---
@@ -133,11 +138,11 @@ graph LR
 
 | Metric | Count |
 |--------|-------|
-| Total Documents | 16 (+ 2d-visualization-2026) |
-| Total Tags | 16 (+ remotion) |
+| Total Documents | 18 (+ 2d-visualization-2026) |
+| Total Tags | 20 (+ remotion) |
 | Total Links | 80+ |
-| Last Updated | 2026-09-02 (2d-visualization-2026, LRC fixes, 3D LRC wiring, Canvas2D) |
+| Last Updated | 2026-09-03 (kilo-code-subagent-optimization, kilo.json config, concurrency limits) |
 
 ---
 
-*Last updated: 2026-09-01*
+*Last updated: 2026-09-03*

@@ -17,7 +17,7 @@ import {
   SpectrumBars,
   StormViz,
   VinylDisc,
-} from "./VisualizationStyles";
+} from "./viz-styles";
 import { useDemoAudio, useRealAudio } from "./audioHooks";
 import { computeLrcSync, computeSectionBounds, EMPTY_LRC_SYNC } from "./useLrcSync";
 import type { LrcSyncData } from "./useLrcSync";
@@ -54,6 +54,7 @@ export function VisualizerScene({
   lyrics = [],
   lrcSync = null,
   storyboard = null,
+  prefersReducedMotion = false,
 }: Props) {
   // Pass elapsed ref to hook so it reads live value inside useFrame
   const realData = useRealAudio(
@@ -104,6 +105,7 @@ export function VisualizerScene({
       sceneFrozen,
       lrcSync,
       lyrics,
+      prefersReducedMotion,
     };
     // Wrap with LRC controller for section-synchronized color/intensity
     const viz = (() => {
@@ -205,19 +207,19 @@ export function VisualizerScene({
       />
       <pointLight
         position={[6, 6, 6]}
-        intensity={vizParams.lightIntensity * 40}
+        intensity={vizParams.lightIntensity * (prefersReducedMotion ? 15 : 40)}
         decay={2}
         color="#fff"
       />
       <pointLight
         position={[-5, -3, 4]}
-        intensity={vizParams.lightIntensity * 22}
+        intensity={vizParams.lightIntensity * (prefersReducedMotion ? 8 : 22)}
         decay={2}
         color="#4da6ff"
       />
       <pointLight
         position={[0, 4, -6]}
-        intensity={vizParams.lightIntensity * 16}
+        intensity={vizParams.lightIntensity * (prefersReducedMotion ? 6 : 16)}
         decay={2}
         color={meshColor}
       />

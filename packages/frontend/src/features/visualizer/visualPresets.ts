@@ -320,6 +320,158 @@ export const visualPresets: Record<string, VisualPreset> = {
   },
 
   // ============================================================
+  // R&B — Smooth, sensual, warm
+  // ============================================================
+  rb: {
+    id: "rb",
+    name: "R&B Soul",
+    description: "Smooth sensual flow with warm sunset glow and soft bloom",
+    genres: ["r&b", "rnb", "soul", "neo-soul", "slow jam"],
+    vizParams: {
+      scale: 1.1,
+      scaleBoost: 1.4,
+      rotationSpeed: 0.5,
+      colorShift: 1.1,
+      glowIntensity: 0.5,
+      lerpSpeed: 0.22,
+      materialType: "glass",
+      wireframe: false,
+      opacity: 0.9,
+      shadowEnabled: true,
+      reflectionEnabled: true,
+      particleCount: 180,
+      particleSize: 0.03,
+      lightIntensity: 1.2,
+      ambientColor: "#120510",
+      fogEnabled: true,
+      fogDensity: 0.02,
+      showGround: true,
+      showFloatingShapes: true,
+      showLightRays: false,
+      postfx: { bloom: 0.5, vignette: 0.4, glitch: 0 },
+    },
+    bgColor: "#0a0510",
+    meshColor: "#ff77aa",
+    kineticPreset: "cinematic",
+    visualizationStyle: "waveform",
+    theatreValues: { translateX: 0, translateY: 0, opacity: 0.95, scale: 1, rotateZ: 0, skewX: 0, letterSpacing: 6, blur: 0 },
+  },
+
+  // ============================================================
+  // POP — Bright, polished, energetic
+  // ============================================================
+  pop: {
+    id: "pop",
+    name: "Pop Gloss",
+    description: "Bright polished bounce with chrome shimmer and vibrant bloom",
+    genres: ["pop", "dance-pop", "electropop", "k-pop", "j-pop"],
+    vizParams: {
+      scale: 1.2,
+      scaleBoost: 1.6,
+      rotationSpeed: 1.0,
+      colorShift: 1.4,
+      glowIntensity: 0.6,
+      lerpSpeed: 0.35,
+      materialType: "chrome",
+      wireframe: false,
+      opacity: 1.0,
+      shadowEnabled: true,
+      reflectionEnabled: true,
+      particleCount: 220,
+      particleSize: 0.04,
+      lightIntensity: 1.6,
+      ambientColor: "#0a001a",
+      fogEnabled: true,
+      fogDensity: 0.02,
+      showGround: true,
+      showFloatingShapes: true,
+      showLightRays: true,
+      postfx: { bloom: 0.8, vignette: 0.3, glitch: 0.1 },
+    },
+    bgColor: "#080015",
+    meshColor: "#ff00ff",
+    kineticPreset: "synthwave",
+    visualizationStyle: "pulse",
+    theatreValues: { translateX: 0, translateY: 0, opacity: 1, scale: 1, rotateZ: 0, skewX: 0, letterSpacing: 5, blur: 0 },
+  },
+
+  // ============================================================
+  // INDIE — Organic, warm, introspective
+  // ============================================================
+  indie: {
+    id: "indie",
+    name: "Indie Organic",
+    description: "Warm introspective flow with soft aurora and gentle particles",
+    genres: ["indie", "indie rock", "indie folk", "alternative", "folk"],
+    vizParams: {
+      scale: 1.0,
+      scaleBoost: 1.3,
+      rotationSpeed: 0.3,
+      colorShift: 0.7,
+      glowIntensity: 0.4,
+      lerpSpeed: 0.18,
+      materialType: "glass",
+      wireframe: false,
+      opacity: 0.85,
+      shadowEnabled: false,
+      reflectionEnabled: true,
+      particleCount: 160,
+      particleSize: 0.025,
+      lightIntensity: 0.9,
+      ambientColor: "#0f150a",
+      fogEnabled: true,
+      fogDensity: 0.025,
+      showGround: true,
+      showFloatingShapes: true,
+      showLightRays: false,
+      postfx: { bloom: 0.4, vignette: 0.5, glitch: 0 },
+    },
+    bgColor: "#0a0d08",
+    meshColor: "#88cc66",
+    kineticPreset: "ambient",
+    visualizationStyle: "aurora",
+    theatreValues: { translateX: 0, translateY: 0, opacity: 0.9, scale: 1, rotateZ: 0, skewX: 0, letterSpacing: 3, blur: 1 },
+  },
+
+  // ============================================================
+  // TRAP / METAL — Heavy, aggressive, dark
+  // ============================================================
+  trapMetal: {
+    id: "trapMetal",
+    name: "Trap Metal",
+    description: "Heavy aggressive distortion with rising fire and screen shake",
+    genres: ["trap metal", "trap-metal", "metal", "rap metal", "nu metal"],
+    vizParams: {
+      scale: 1.6,
+      scaleBoost: 2.4,
+      rotationSpeed: 2.0,
+      colorShift: 1.9,
+      glowIntensity: 0.9,
+      lerpSpeed: 0.75,
+      materialType: "neon",
+      wireframe: false,
+      opacity: 1.0,
+      shadowEnabled: false,
+      reflectionEnabled: false,
+      particleCount: 650,
+      particleSize: 0.09,
+      lightIntensity: 2.8,
+      ambientColor: "#120005",
+      fogEnabled: true,
+      fogDensity: 0.045,
+      showGround: false,
+      showFloatingShapes: true,
+      showLightRays: true,
+      postfx: { bloom: 1.0, vignette: 0.85, glitch: 0.7 },
+    },
+    bgColor: "#0a0005",
+    meshColor: "#ff2200",
+    kineticPreset: "dubstep",
+    visualizationStyle: "inferno",
+    theatreValues: { translateX: 0, translateY: 0, opacity: 1, scale: 1.25, rotateZ: 0, skewX: 0, letterSpacing: 0, blur: 0 },
+  },
+
+  // ============================================================
   // DEFAULT — Balanced, works with any track
   // ============================================================
   balanced: {
@@ -386,6 +538,10 @@ export function selectVisualPreset(
   if (name.includes("dubstep") || name.includes("bass") || name.includes("heavy")) return "dubstep";
   if (name.includes("lo-fi") || name.includes("lofi") || name.includes("chill")) return "lofi";
   if (name.includes("cinematic") || name.includes("epic") || name.includes("trailer")) return "cinematic";
+  if (name.includes("r&b") || name.includes("rnb") || name.includes("soul") || name.includes("neo-soul")) return "rb";
+  if (name.includes("pop") || name.includes("dance-pop") || name.includes("electropop")) return "pop";
+  if (name.includes("indie") || name.includes("indie rock") || name.includes("indie folk") || name.includes("alternative")) return "indie";
+  if (name.includes("trap metal") || name.includes("trap-metal") || name.includes("nu metal")) return "trapMetal";
 
   // Fall back to energy/BPM-based selection
   if (energy !== undefined) {

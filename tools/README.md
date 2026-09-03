@@ -13,8 +13,11 @@ Local MCP server that wraps Unity's REST API for Kilo Code integration.
 
 ```bash
 cd tools
-npm install @modelcontextprotocol/sdk zod
+npm install @modelcontextprotocol/server zod
 ```
+
+> [!note] MCP SDK v2
+> These servers run on **@modelcontextprotocol/server v2.0.0** (ESM-first). The v1→v2 migration was applied via codemod + manual optimizations: `Server()` + `setRequestHandler` for stdio servers, `McpServer` + `registerTool` for the Unity bridge, structured logging, request correlation IDs, and tightened timeouts.
 
 ## Usage
 

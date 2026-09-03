@@ -1,0 +1,13 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "subagent_depth": 1,
+  "model": "kilo-auto/free",
+  "default_agent": "code",
+  "instructions": ["AGENTS.md", "Guidelines.md"],
+  "snapshot": false,
+  "mcp": {
+    "remotion-documentation": {
+      "enabled": true
+    }
+  }
+}

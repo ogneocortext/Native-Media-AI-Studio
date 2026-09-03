@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Music, AlertCircle, Maximize2, Minimize2, Video, Square, Download, Settings, Snowflake, MessageSquare, Sparkles, Play, Wand2 } from "lucide-react";
+import { Music, AlertCircle, Maximize2, Minimize2, Video, Square, Download, Settings, Snowflake, MessageSquare, Sparkles, Play, Wand2, Accessibility } from "lucide-react";
 import { listAudioFiles, ensureAnalysis } from "../../services/api";
 import type { AudioAnalysisData, AudioData, VizParams } from "./types";
 import { DEFAULT_VIZ_PARAMS } from "./types";
@@ -101,8 +101,8 @@ export function Visualizer() {
   const [isPaused, setIsPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [libraryFiles, setLibraryFiles] = useState<Array<{ filename: string; path: string }>>([]);
-  const [liveAudioData, setLiveAudioData] = useState<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0 });
-  const liveAudioDataRef = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0 });
+  const [liveAudioData, setLiveAudioData] = useState<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0, drumType: null, nextBeatIn: 0 });
+  const liveAudioDataRef = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0, drumType: null, nextBeatIn: 0 });
   const [visualizationStyle, setVisualizationStyle] = useState<VisualizationStyle>("geometric");
   const [csvContent, setCsvContent] = useState<string>("");
   const [vizParams, setVizParams] = useState<VizParams>(DEFAULT_VIZ_PARAMS);
@@ -123,6 +123,7 @@ export function Visualizer() {
   const [showTheatreStudio, setShowTheatreStudio] = useState(false);
   const [loadedPreset, setLoadedPreset] = useState<VisualPreset | null>(null);
   const [showAIPanel, setShowAIPanel] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [vizMode, setVizMode] = useState<"3d" | "shader" | "2d">("shader"); // 2d = Canvas2D (2026 visual-flux/Waviz)
   const [canvas2DMode, setCanvas2DMode] = useState<"bars" | "waveform" | "radial" | "spectrogram" | "lissajous" | "constellation" | "particles">("bars");
   const [aiEnhancing, setAiEnhancing] = useState(false);
@@ -347,7 +348,7 @@ export function Visualizer() {
     beatCooldownRef.current = 0;
     lastBeatIdxRef.current = -1;
     last3DUiUpdateRef.current = 0;
-    const idle: AudioData = { bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0 };
+    const idle: AudioData = { bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0, drumType: null, nextBeatIn: 0 };
     liveAudioDataRef.current = idle;
     setLiveAudioData(idle);
   }, []);
@@ -651,6 +652,8 @@ export function Visualizer() {
           beat: isBeat,
           peak: peakHoldRef.current,
           energy: (bass + mid + treble) / 3,
+          drumType: null,
+          nextBeatIn: 0,
         };
         liveAudioDataRef.current = newData;
         const now = performance.now();
@@ -778,6 +781,15 @@ export function Visualizer() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Respect OS reduced-motion preference and allow manual toggle
+  useEffect(() => {
+    const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => setPrefersReducedMotion(e.matches);
+    handler(mql);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
   }, []);
 
   useEffect(() => {
@@ -925,6 +937,9 @@ export function Visualizer() {
               <Wand2 size={14} />
             </button>
             <button onClick={() => setShowAIPanel(!showAIPanel)} className={`viz-icon-btn viz-ai-toggle ${showAIPanel ? "active" : ""}`} aria-label="AI generate preset" title="AI generate preset"><Sparkles size={14} /></button>
+            <button onClick={() => setPrefersReducedMotion(p => !p)} className={`viz-icon-btn ${prefersReducedMotion ? "active" : ""}`} aria-label={prefersReducedMotion ? "Motion on" : "Motion off"} title={prefersReducedMotion ? "Reduced motion: ON (click to disable)" : "Reduced motion: OFF (click to enable)"}>
+              <Accessibility size={14} />
+            </button>
           </div>
         </div>
       </header>
@@ -999,6 +1014,7 @@ export function Visualizer() {
                   lyrics={lyrics}
                   lrcSync={lrcSync}
                   storyboard={storyboard}
+                  prefersReducedMotion={prefersReducedMotion}
                 />
               </Canvas>
               {!rendererReady && <div className="viz-loading-overlay"><div className="viz-loading-spinner" /><span>Initializing {rendererBackend || "renderer"}...</span></div>}
