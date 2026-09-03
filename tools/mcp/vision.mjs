@@ -69,7 +69,7 @@ async function resizeImage(inputPath, maxDim = 1024, quality = 80) {
 
     const resized = await img
       .resize(newW, newH, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality })
+      .png()
       .toBuffer();
 
     process.stderr.write(`[vision] ${inputPath}: ${w}x${h} -> ${newW}x${newH} (${buf.length} -> ${resized.length} bytes)\n`);
@@ -141,6 +141,46 @@ async function ollamaReady(timeoutMs = 10000) {
   return false;
 }
 
+async function getRunningModels() {
+  try {
+    const res = await fetch(`${OLLAMA_URL}/api/ps`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.models || []).map(m => m.name);
+  } catch {
+    return [];
+  }
+}
+
+async function unloadModel(model) {
+  try {
+    await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, keep_alive: 0 }),
+      signal: AbortSignal.timeout(30000),
+    });
+    process.stderr.write(`[vision] unloaded model: ${model}\n`);
+  } catch (e) {
+    process.stderr.write(`[vision] unload ${model} failed: ${e.message}\n`);
+  }
+}
+
+async function ensureVisionModel(model) {
+  const running = await getRunningModels();
+  if (running.length === 0) return;
+
+  const toUnload = running.filter(m => m !== model);
+  if (toUnload.length === 0) return;
+
+  for (const m of toUnload) {
+    await unloadModel(m);
+  }
+
+  // brief pause so VRAM can actually free
+  await new Promise(r => setTimeout(r, 1500));
+}
+
 async function cmdAnalyze(argv) {
   let prompt = null;
   let model = process.env.VISION_MODEL || DEFAULT_MODEL;
@@ -184,6 +224,7 @@ async function cmdAnalyze(argv) {
     process.exit(1);
   }
 
+  await ensureVisionModel(model);
   await warmModel(model);
 
   const response = await callOllama(model, finalPrompt, payloadImages);
@@ -218,6 +259,7 @@ async function cmdCompare(argv) {
     process.exit(1);
   }
 
+  await ensureVisionModel(model);
   await warmModel(model);
 
   const response = await callOllama(model, prompt, [img1, img2]);
@@ -253,6 +295,7 @@ async function cmdDiff(argv) {
     process.exit(1);
   }
 
+  await ensureVisionModel(model);
   await warmModel(model);
 
   const response = await callOllama(model, prompt, [img1, img2]);

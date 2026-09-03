@@ -65,9 +65,9 @@ All MCP servers are configured in `opencode.json`:
 
 2. **Analyze with vision script** (resizes + sends to Ollama gemma4):
    ```bash
-   node scripts/vision.mjs analyze shot.png "optional prompt"
+   node tools/mcp/vision.mjs analyze shot.png "optional prompt"
    # or for code-grounded analysis:
-   node scripts/vision.mjs analyze shot.png src/components/Foo.tsx --mode regression --lines
+   node tools/mcp/vision.mjs analyze shot.png src/components/Foo.tsx --mode regression --lines
    ```
 
 3. **Verify findings** against ground truth (check actual DOM, API responses)
@@ -77,14 +77,16 @@ All MCP servers are configured in `opencode.json`:
 5. **Re-capture + re-analyze** to confirm improvements
 
 **Vision script options:**
-- `--low` — resize to 640px (sharpens text)
-- `--high` — resize to 1280px
+- `--low` — resize to 640px max (faster, smaller payload)
+- `--high` — resize to 1280px max (higher detail)
 - `--mode ui|responsive|regression|compare` — analysis mode
 - `--viewport WxH` — intended viewport size
 - `--lines` — line-number attached source code
 - `--json` — machine-readable output
 
 **Default model:** `gemma4:e2b-it-qat` (override with `VISION_MODEL=...`)
+
+**VRAM management:** The vision script automatically unloads any other currently running Ollama models before loading the vision model, preventing OOM errors on GPUs with limited VRAM.
 
 ### Ollama Integration
 

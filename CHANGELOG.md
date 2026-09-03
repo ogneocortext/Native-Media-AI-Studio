@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Vision MCP OOM Prevention (2026-09-03)
+- **MCP**: `tools/mcp/vision.mjs` now automatically unloads other running Ollama models via `/api/ps` + `/api/generate keep_alive:0` before loading the target vision model, preventing GPU OOM timeouts on limited-VRAM systems
+- **Docs**: Updated `AGENTS.md` vision workflow and `docs/knowledge-library/technical-reference.md` to document automatic model offloading and corrected resize/format behavior
+
 ### Added - 2026 2D Visualization + LRC-Driven 3D + Ollama Hardening (2026-09-02)
 
 #### 2D Visualization (2026 Open Source)

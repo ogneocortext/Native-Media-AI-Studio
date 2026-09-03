@@ -641,8 +641,8 @@ node tools/mcp/vision.mjs diff old.png new.png
 
 ### How It Works
 
-1. Resizes image to max 1024px using sharp (or 640px with `--low` for text-dense UI)
-2. Converts to JPEG at 80% quality (~80KB output)
+1. Resizes image to max 640px by default using sharp and converts to PNG (`--high` for 1280px, `--low` for 640px)
+2. Automatically unloads any other currently running Ollama models before loading the vision model, preventing OOM errors on GPUs with limited VRAM
 3. Sends base64 to Ollama's `/api/generate` endpoint
 4. Returns the model's analysis
 
