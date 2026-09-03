@@ -184,7 +184,7 @@ async function ensureVisionModel(model) {
 async function cmdAnalyze(argv) {
   let prompt = null;
   let model = process.env.VISION_MODEL || DEFAULT_MODEL;
-  let maxDim = 640;
+  let maxDim = 1024;
   let quality = 70;
   let raw = false;
   const images = [];
