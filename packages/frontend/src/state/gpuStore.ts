@@ -61,7 +61,7 @@ export const useGPUStore = create<GPUState>()(
       pollingInterval = null;
     }
   },
-}));
+})));
 
 // Selectors
 export const useGPUSnapshot = () => useGPUStore((state) => state.gpu);

@@ -30,6 +30,7 @@ import { visualPresets, selectVisualPreset } from "./visualPresets";
 import { selectPresetForTrack } from "./components/KineticPresets";
 import { buildStoryboard, getStoryState, EMPTY_STORYBOARD } from "./storyboard";
 import { StoryActCard } from "./components/StoryActCard";
+import { BuilderFigure } from "./components/BuilderFigure";
 
 /** Clamp a number into [min, max]; falls back to `fallback` when not finite. */
 function clampNum(value: unknown, min: number, max: number, fallback: number): number {
@@ -1030,6 +1031,8 @@ export function Visualizer() {
               <div className={`viz-letterbox top ${storyState.beat?.cinematic ? "on" : ""}`} />
               <div className={`viz-letterbox bottom ${storyState.beat?.cinematic ? "on" : ""}`} />
               <StoryActCard beat={storyState.beat} elapsed={elapsed} />
+              {/* Builder silhouette — story anchor, puppeteered by audio + acts */}
+              <BuilderFigure audioData={liveAudioDataRef} storyBeat={storyState.beat} visible={lyrics.length > 0} />
         </div>
         {showSettings && <SettingsPanel params={vizParams} onChange={setVizParams} bgColor={bgColor} meshColor={meshColor} onBgChange={setBgColor} onMeshChange={setMeshColor} demoEnabled={demoEnabled} onDemoToggle={setDemoEnabled} kineticPreset={kineticPreset} onKineticPresetChange={setKineticPreset} />}
         {showAIPanel && <AIVisualizerPrompt onApplyPreset={handlePresetLoaded} trackMeta={deriveTrackMeta(currentAnalysisData)} trackName={currentFilename ?? undefined} />}

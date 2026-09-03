@@ -4,7 +4,6 @@
  */
 
 import { create } from "zustand";
-import { devtools } from "zustand/middleware";
 import { fetchPortConfig } from "../services/portConfig";
 import {
   healthCheck,
@@ -43,7 +42,7 @@ let healthSubscriptions: {
   unsubState: () => void;
 } | null = null;
 
-export const useHealthStore = create<HealthState>(devtools((set, get) => ({
+export const useHealthStore = create<HealthState>((set, get) => ({
   backend: "offline",
   overall: "unhealthy",
   adapters: {},

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./styles/globals.css";
 import { applyTheme, getStoredTheme } from "./utils/theme";
+import { installDebugFetch } from "./services/debugApi";
 
 // Apply the persisted theme before the first paint to avoid a flash of the
 // default (dark) theme on startup.
@@ -21,6 +22,11 @@ console.error = (...args: unknown[]) => {
   if (typeof args[0] === "string" && theatreWarn.test(args[0])) return;
   origError.apply(console, args);
 };
+
+// Install API debug logger in development
+if (import.meta.env.DEV) {
+  installDebugFetch();
+}
 
 // Initialize Theatre.js studio before rendering the app
 async function initApp() {

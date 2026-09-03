@@ -256,8 +256,22 @@ export function buildStoryboard(
   const span = hi - lo;
   for (const p of pending) {
     const mood = span > 1e-3 ? 0.05 + 0.9 * ((p.rawMood - lo) / span) : p.rawMood;
-    const { rawMood: _dropped, ...rest } = p;
-    beats.push({ ...rest, mood });
+    beats.push({
+      id: p.id,
+      index: p.index,
+      act: p.act,
+      actTitle: p.actTitle,
+      section: p.section,
+      start: p.start,
+      end: p.end,
+      mood,
+      palette: p.palette,
+      camera: p.camera,
+      motif: p.motif,
+      hook: p.hook,
+      lineCount: p.lineCount,
+      cinematic: p.cinematic,
+    });
   }
 
   return { track: trackName, duration, beats };

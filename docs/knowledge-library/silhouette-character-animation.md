@@ -38,6 +38,13 @@ Real-time beat-synced music visuals punish realistic characters three ways: gene
 - **Motion**: beat bounce (decayed pulse, same pattern as shader `u_beat`), hammering loop on beats during `assembly`, breath sway otherwise, head-bob on `payoff`. All driven per-frame from `liveAudioDataRef` — zero React re-renders.
 - **Storytelling beats (Jusska principle)**: hammer hits land ON beats during "piece by piece" refrains; lamp glow swells with energy; figure migrates left-bench → center only at triumph (composition = narrative).
 
+## Verification (2026-09-03, capture harness + DOM probes)
+
+- Renders at correct box with no page errors and no overlap with lyrics/controls.
+- Strict silhouette test passes: head/torso/limbs distinct at thumbnail scale in all acts.
+- Joint telemetry matches acts: seated/hunched (act I), hammer swing shR 62°→23° / elR −42°→−69° cycling on the ~400 ms beat grid with hammer prop visible (act II), arms raised 151°/159° with bench faded (act V).
+- Rim light follows act palette; lamp glow pumps with energy + beat pulse.
+
 ## Explicit non-goals
 
 - No faces, hands, fingers, cloth sim, or lip-sync on the Builder (silhouette contract).

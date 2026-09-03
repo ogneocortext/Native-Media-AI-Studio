@@ -4,7 +4,6 @@
  */
 
 import { create } from "zustand";
-import { devtools } from "zustand/middleware";
 import { fetchPortConfig } from "../services/portConfig";
 import {
   Job,
@@ -54,8 +53,7 @@ interface JobState {
   disconnectSSE: () => void;
 }
 
-export const useJobStore = create<JobState>()(
-  devtools((set, get) => ({
+export const useJobStore = create<JobState>((set, get) => ({
     jobs: [],
     stats: null,
     currentJob: null,
@@ -413,3 +411,4 @@ export function stopAutoRefresh() {
     autoRefreshInterval = null;
   }
 }
+

@@ -1,5 +1,5 @@
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Layout } from "./components/layout/Layout";
 import { Dashboard } from "./features/dashboard/Dashboard";
 import { Queue } from "./features/queue/Queue";
@@ -8,6 +8,7 @@ import { LogViewer } from "./features/logs/LogViewer";
 import { NotFound } from "./features/not-found/NotFound";
 import { ErrorBoundary } from "./components/common";
 import { ToastProvider } from "./components/common/Toast";
+import { DebugPanel } from "./components/debug/DebugPanel";
 
 // Helper for lazy loading modules with named exports
 const lazyNamed = (modulePromise: Promise<{ [key: string]: any }>, name: string) =>
@@ -30,6 +31,17 @@ const KineticTypographyPage = lazyNamed(import("./features/kinetic-typography/Ki
 const Preview = lazyNamed(import("./features/preview/Preview"), "Preview");
 
 function App() {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === "D") {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("debug-panel-toggle"));
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   return (
     <ToastProvider>
       <BrowserRouter>
@@ -65,6 +77,7 @@ function App() {
           </Suspense>
         </Layout>
       </BrowserRouter>
+      <DebugPanel />
     </ToastProvider>
   );
 }

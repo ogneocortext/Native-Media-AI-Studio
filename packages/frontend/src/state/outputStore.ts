@@ -4,7 +4,6 @@
 
 import type { OutputFile } from "@shared/types";
 import { create } from "zustand";
-import { devtools } from "zustand/middleware";
 import { fetchPortConfig, getCachedConfig } from "../services/portConfig";
 
 export type { OutputFile };
@@ -113,8 +112,7 @@ export async function fetchOutputsByTypeFromAPI(
   return data.outputs || [];
 }
 
-export const useOutputStore = create<OutputState>()(
-  devtools((set, get) => ({
+export const useOutputStore = create<OutputState>()((set, get) => ({
     outputs: [],
     recentOutputs: [],
     selectedOutput: null,
@@ -122,159 +120,159 @@ export const useOutputStore = create<OutputState>()(
     error: null,
     filter: { type: "all", limit: 50, offset: 0 },
     counts: { total: 0, images: 0, videos: 0, audio: 0, models_3d: 0 },
-  setOutputs: (outputs) => set({ outputs, error: null }),
-  setRecentOutputs: (recentOutputs) => set({ recentOutputs, error: null }),
-  setSelectedOutput: (output) => set({ selectedOutput: output }),
-  setFilter: (filterUpdate) =>
-    set((state) => ({ filter: { ...state.filter, ...filterUpdate } })),
-  setCounts: (countsUpdate) =>
-    set((state) => ({ counts: { ...state.counts, ...countsUpdate } })),
+    setOutputs: (outputs) => set({ outputs, error: null }),
+    setRecentOutputs: (recentOutputs) => set({ recentOutputs, error: null }),
+    setSelectedOutput: (output) => set({ selectedOutput: output }),
+    setFilter: (filterUpdate) =>
+      set((state) => ({ filter: { ...state.filter, ...filterUpdate } })),
+    setCounts: (countsUpdate) =>
+      set((state) => ({ counts: { ...state.counts, ...countsUpdate } })),
 
-  fetchOutputs: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      const { filter } = get();
-      const fileType = filter.type === "all" ? undefined : filter.type;
-      const response = await fetchOutputsFromAPI(
-        fileType,
-        filter.limit,
-        filter.offset,
-      );
-      set({
-        outputs: response.outputs,
-        counts: {
-          total: response.total,
-          images: response.images_count,
-          videos: response.videos_count,
-          audio: response.audio_count,
-          models_3d: response.models_3d_count || 0,
-        },
-        error: null,
-      });
-    } catch (error) {
-      set({
-        error:
-          error instanceof Error ? error.message : "Failed to fetch outputs",
-      });
-    } finally {
-      set({ isLoading: false });
-    }
-  },
+    fetchOutputs: async () => {
+      set({ isLoading: true, error: null });
+      try {
+        const { filter } = get();
+        const fileType = filter.type === "all" ? undefined : filter.type;
+        const response = await fetchOutputsFromAPI(
+          fileType,
+          filter.limit,
+          filter.offset,
+        );
+        set({
+          outputs: response.outputs,
+          counts: {
+            total: response.total,
+            images: response.images_count,
+            videos: response.videos_count,
+            audio: response.audio_count,
+            models_3d: response.models_3d_count || 0,
+          },
+          error: null,
+        });
+      } catch (error) {
+        set({
+          error:
+            error instanceof Error ? error.message : "Failed to fetch outputs",
+        });
+      } finally {
+        set({ isLoading: false });
+      }
+    },
 
-  fetchRecent: async (limit = 10) => {
-    set({ isLoading: true, error: null });
-    try {
-      const recentOutputs = await fetchRecentOutputsFromAPI(limit);
-      set({ recentOutputs, error: null });
-    } catch (error) {
-      set({
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to fetch recent outputs",
-      });
-    } finally {
-      set({ isLoading: false });
-    }
-  },
+    fetchRecent: async (limit = 10) => {
+      set({ isLoading: true, error: null });
+      try {
+        const recentOutputs = await fetchRecentOutputsFromAPI(limit);
+        set({ recentOutputs, error: null });
+      } catch (error) {
+        set({
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to fetch recent outputs",
+        });
+      } finally {
+        set({ isLoading: false });
+      }
+    },
 
-  fetchByType: async (type) => {
-    set({ isLoading: true, error: null });
-    try {
-      const outputs = await fetchOutputsByTypeFromAPI(type);
-      set({ outputs, error: null });
-    } catch (error) {
-      set({
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to fetch " + type + " outputs",
-      });
-    } finally {
-      set({ isLoading: false });
-    }
-  },
+    fetchByType: async (type) => {
+      set({ isLoading: true, error: null });
+      try {
+        const outputs = await fetchOutputsByTypeFromAPI(type);
+        set({ outputs, error: null });
+      } catch (error) {
+        set({
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to fetch " + type + " outputs",
+        });
+      } finally {
+        set({ isLoading: false });
+      }
+    },
 
-  deleteOutput: async (relativePath: string) => {
-    try {
+    deleteOutput: async (relativePath: string) => {
+      try {
+        const base = await getBackendUrl();
+        const res = await fetch(
+          base + "/api/outputs/" + encodeURIComponent(relativePath),
+          { method: "DELETE" },
+        );
+        if (!res.ok) throw new Error("Failed to delete output");
+        set((state) => ({
+          outputs: state.outputs.filter((o) => o.relative_path !== relativePath),
+          recentOutputs: state.recentOutputs.filter(
+            (o) => o.relative_path !== relativePath,
+          ),
+        }));
+      } catch (error) {
+        set((state) => ({
+          outputs: state.outputs.filter((o) => o.relative_path !== relativePath),
+        }));
+        throw error;
+      }
+    },
+
+    renameOutput: async (relativePath: string, newName: string) => {
       const base = await getBackendUrl();
       const res = await fetch(
-        base + "/api/outputs/" + encodeURIComponent(relativePath),
-        { method: "DELETE" },
+        base + "/api/outputs/" + encodeURIComponent(relativePath) + "/rename",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ new_name: newName }),
+        },
       );
-      if (!res.ok) throw new Error("Failed to delete output");
-      set((state) => ({
-        outputs: state.outputs.filter((o) => o.relative_path !== relativePath),
-        recentOutputs: state.recentOutputs.filter(
-          (o) => o.relative_path !== relativePath,
-        ),
-      }));
-    } catch (error) {
-      set((state) => ({
-        outputs: state.outputs.filter((o) => o.relative_path !== relativePath),
-      }));
-      throw error;
-    }
-  },
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Rename failed" }));
+        throw new Error(err.detail || "Rename failed");
+      }
+      // Refresh after rename
+      await get().fetchOutputs();
+      await get().fetchRecent(12);
+      return res.json();
+    },
 
-  renameOutput: async (relativePath: string, newName: string) => {
-    const base = await getBackendUrl();
-    const res = await fetch(
-      base + "/api/outputs/" + encodeURIComponent(relativePath) + "/rename",
-      {
+    bulkDelete: async (paths: string[]) => {
+      const base = await getBackendUrl();
+      const res = await fetch(base + "/api/outputs/bulk-delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ new_name: newName }),
-      },
-    );
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Rename failed" }));
-      throw new Error(err.detail || "Rename failed");
-    }
-    // Refresh after rename
-    await get().fetchOutputs();
-    await get().fetchRecent(12);
-    return res.json();
-  },
+        body: JSON.stringify({ paths }),
+      });
+      if (!res.ok) throw new Error("Bulk delete failed");
+      const data = await res.json();
+      await get().fetchOutputs();
+      await get().fetchRecent(12);
+      return data;
+    },
 
-  bulkDelete: async (paths: string[]) => {
-    const base = await getBackendUrl();
-    const res = await fetch(base + "/api/outputs/bulk-delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paths }),
-    });
-    if (!res.ok) throw new Error("Bulk delete failed");
-    const data = await res.json();
-    await get().fetchOutputs();
-    await get().fetchRecent(12);
-    return data;
-  },
-
-  fetchDuplicates: async (quick = true) => {
-    const base = await getBackendUrl();
-    const res = await fetch(
-      base + "/api/outputs/duplicates/groups?quick=" + quick,
-    );
-    if (!res.ok) throw new Error("Failed to fetch duplicates");
-    return res.json() as Promise<
-      Array<{
-        hash: string;
-        count: number;
-        size_bytes: number;
-        wasted_bytes: number;
-        files: Array<{
-          filename: string;
-          relative_path: string;
+    fetchDuplicates: async (quick = true) => {
+      const base = await getBackendUrl();
+      const res = await fetch(
+        base + "/api/outputs/duplicates/groups?quick=" + quick,
+      );
+      if (!res.ok) throw new Error("Failed to fetch duplicates");
+      return res.json() as Promise<
+        Array<{
+          hash: string;
+          count: number;
           size_bytes: number;
-          created_at: string;
-        }>;
-      }>
-    >;
-  },
+          wasted_bytes: number;
+          files: Array<{
+            filename: string;
+            relative_path: string;
+            size_bytes: number;
+            created_at: string;
+          }>;
+        }>
+      >;
+    },
 
-  clearError: () => set({ error: null }),
-}));
+    clearError: () => set({ error: null }),
+  }))
 
 export { formatBytes as formatFileSize } from "../utils/format";
 
