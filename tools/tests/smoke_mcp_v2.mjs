@@ -124,7 +124,7 @@ async function testServer(server) {
       params: server.toolCall,
     });
 
-    const callRes = await waitForResponse(child, 3, server.expectError ? 15000 : 60000);
+    const callRes = await waitForResponse(child, 3, server.expectError ? 15000 : 120000);
     if (callRes.error) {
       console.log(`  tools/call: server-error (${callRes.error.message || JSON.stringify(callRes.error)})`);
     } else if (callRes.result?.isError) {

@@ -20,6 +20,8 @@ if (!PROJECT_PATH.includes(":") && !PROJECT_PATH.startsWith("/")) {
   PROJECT_PATH = join(__dirname, "..", "..", PROJECT_PATH);
 }
 
+const BASE_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
+
 let cachedPortInfo = null;
 let cacheAge = 0;
 const PORT_CACHE_TTL_MS = 2000;
@@ -67,11 +69,42 @@ async function unityFetch(path, opts = {}, timeoutMs = 30000) {
   }
 }
 
+function normalizeUnityParameters(command, parameters = {}) {
+  const params = { ...parameters };
+
+  // Unwrap settings wrapper if model nested everything under "settings"
+  if (params.settings && typeof params.settings === "object" && !params.component && !params.componentType) {
+    Object.assign(params, params.settings);
+    delete params.settings;
+  }
+
+  // Normalize add_component parameter schema
+  if (command === "add_component") {
+    // Map legacy componentType -> component
+    if (params.componentType && !params.component) {
+      params.component = params.componentType;
+      delete params.componentType;
+    }
+    // Map generic type -> component
+    if (params.type && !params.component) {
+      params.component = params.type;
+      delete params.type;
+    }
+    // Ensure target exists
+    if (!params.target && params.name) {
+      params.target = params.name;
+    }
+  }
+
+  return params;
+}
+
 async function execUnity(command, parameters = {}) {
+  const normalized = normalizeUnityParameters(command, parameters);
   return unityFetch(`/api/exec`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ command, parameters }),
+    body: JSON.stringify({ command, parameters: normalized }),
   });
 }
 
@@ -428,6 +461,160 @@ server.registerTool(
     return {
       content: [{ type: "text", text: JSON.stringify(commands, null, 2) }],
     };
+  },
+);
+
+server.registerTool(
+  "plan_unity_scene",
+  {
+    description:
+      "Generate a structured sequence of Unity Editor commands from a natural-language scene description. Returns executable command objects for unity_command or specific tools.",
+    inputSchema: z.object({
+       description: z.string().describe("Scene/object description (e.g. 'a neon-lit cyberpunk alley with a pulsing hologram')"),
+       target: z.string().optional().describe("Hint: character, environment, lighting, animation"),
+       model: z.string().optional().describe("Ollama text model").default("llama3.2:3b"),
+     }),
+  },
+  async ({ description, target, model }) => {
+    const knownCommands = [
+      "create_gameobject",
+      "add_component",
+      "capture_scene_view",
+      "create_scene",
+      "create_animation_clip",
+      "set_object_visibility",
+      "list_animations",
+      "play_animation",
+      "stop_animation",
+      "blend_animation",
+      "capture_frame_sequence",
+      "get_beat_data",
+      "create_beat_animation",
+      "list_pipeline_commands",
+      "unity_command",
+    ];
+
+    const systemPrompt = "You are a Unity Editor workflow planner. Return ONLY valid JSON.";
+    const userPrompt = `Generate Unity Editor commands for: ${description}
+Target: ${target || "general"}
+Valid commands: ${knownCommands.join(", ")}
+
+Return JSON only:
+{"summary":"...","commands":[{"command":"create_gameobject","parameters":{}}],"notes":[]}`;
+
+    try {
+      const res = await fetch(`${BASE_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: model || "llama3.2:3b",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        stream: false,
+        keep_alive: "60s",
+        chat_template_kwargs: { enable_thinking: false },
+        options: { num_ctx: 8192, num_predict: 8192, temperature: 0.2 },
+      }),
+      });
+
+      // Manual timeout wrapper for broader compatibility
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Ollama request timed out")), 180000),
+      );
+
+      const data = await Promise.race([
+        (async () => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })(),
+        timeoutPromise,
+      ]);
+      const raw = data.message?.content || "";
+
+      // Debug log to file
+      try {
+        const { writeFileSync } = await import("node:fs");
+        const { join } = await import("path");
+        const __dirname = dirname(fileURLToPath(import.meta.url));
+        const PROJECT_ROOT = join(__dirname, "..", "..");
+        writeFileSync(join(PROJECT_ROOT, "output", "unity-debug.json"), JSON.stringify({
+          reqId: Math.random().toString(36).slice(2, 8),
+          model: model || "llama3.2:3b",
+          done_reason: data.done_reason,
+          contentLength: raw.length,
+          thinkingLength: (data.message?.thinking || "").length,
+          content: raw.slice(0, 500),
+          thinking: (data.message?.thinking || "").slice(0, 500),
+        }, null, 2));
+      } catch {}
+
+      const trimmed = raw.trim();
+      let jsonMatch = trimmed.match(/\{[\s\S]*\}/);
+      let parsed;
+      if (jsonMatch) {
+        try {
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch {
+          // fallback: try to find a JSON object with expected keys
+        }
+      }
+      if (!parsed) {
+        const summaryMatch = trimmed.match(/\{\s*"summary"\s*:\s*"/);
+        if (summaryMatch) {
+          const start = summaryMatch.index;
+          const candidate = trimmed.slice(start);
+          const endMatch = candidate.match(/\}\s*$/);
+          const jsonStr = endMatch ? candidate.slice(0, endMatch.index + 1) : candidate;
+          try {
+            parsed = JSON.parse(jsonStr);
+          } catch {
+            parsed = null;
+          }
+        }
+      }
+      if (!parsed) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Ollama did not return parseable JSON for Unity scene plan.\nRaw output:\n${trimmed.slice(0, 2000)}`,
+              isError: true,
+            },
+          ],
+        };
+      }
+
+      const commands = Array.isArray(parsed.commands) ? parsed.commands : [];
+      const unknown = commands
+        .map((c) => c?.command)
+        .filter((cmd) => !knownCommands.includes(cmd));
+
+      const result = {
+        summary: parsed.summary || "",
+        commands,
+        notes: Array.isArray(parsed.notes) ? parsed.notes : [],
+        unknown_commands: unknown,
+        next_step: unknown.length
+          ? `Replace unknown commands: ${unknown.join(", ")}`
+          : "Execute commands sequentially with unity_command.",
+      };
+
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to generate Unity scene plan: ${err.message}`,
+            isError: true,
+          },
+        ],
+      };
+    }
   },
 );
 

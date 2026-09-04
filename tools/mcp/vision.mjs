@@ -139,8 +139,12 @@ async function callOllama(model, prompt, images = [], retries = 2, think = false
         images: images.length > 0 ? images : undefined,
         stream: false,
         keep_alive: '60s',
+        think: think ? true : false,
+        options: {
+          num_ctx: 16384,
+          max_tokens: 2048,
+        },
       };
-      if (think) body.think = true;
 
       logVision(reqId, `ollama-generate attempt=${attempt + 1} model=${model} images=${images.length} think=${think}`);
 

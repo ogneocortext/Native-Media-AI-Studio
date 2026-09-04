@@ -97,7 +97,7 @@ server.setRequestHandler('tools/list', async () => ({
         properties: {
           image_path: { type: "string", description: "Path or URL to the image" },
           prompt: { type: "string", description: "Question to ask about the image", default: "Describe this image in detail." },
-          model: { type: "string", description: "Ollama vision model", default: "qwen3-vl:4b" },
+          model: { type: "string", description: "Ollama vision model", default: "qwen3-vl-optimized" },
         },
         required: ["image_path"],
       },
@@ -186,6 +186,19 @@ server.setRequestHandler('tools/list', async () => ({
       },
     },
     {
+      name: "plan_blender_script",
+      description: "Generate an executable Blender Python script (bpy) from a natural-language description. Returns the script plus an instruction summary and required assets. The returned script can be executed with blender_execute_blender_code.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          description: { type: "string", description: "What to build in Blender (e.g. 'low-poly knight with metal armor', 'studio lighting rig for product viz')" },
+          target: { type: "string", description: "Asset type hint: mesh, material, rig, scene, lighting, cleanup, uv", default: "mesh" },
+          model: { type: "string", description: "Ollama text model", default: "qwen3.5:9b" },
+        },
+        required: ["description"],
+      },
+    },
+    {
       name: "update_mcp_context",
       description: "Update the shared MCP context (character, scene, audio, visualization state) so other tools/servers can use it.",
       inputSchema: {
@@ -229,6 +242,8 @@ server.setRequestHandler('tools/call', async (request) => {
         return await suggest3DPrompt(reqId, args);
       case "generate_3d_concept":
         return await generate3DConcept(reqId, args);
+      case "plan_blender_script":
+        return await planBlenderScript(reqId, args);
       case "update_mcp_context":
         return await updateMCPContext(reqId, args);
       default:
@@ -448,6 +463,118 @@ async function generate3DConcept(reqId, args) {
     width: args?.width || 1024,
     height: args?.height || 1024,
   });
+}
+
+async function planBlenderScript(reqId, args) {
+  const description = args?.description;
+  if (!description || typeof description !== "string") {
+    return textResponse("Missing required arg: description", true);
+  }
+  const target = (args?.target || "mesh").toLowerCase();
+  const model = args?.model || "qwen3.5:9b";
+  logRequest(reqId, "plan_blender_script", `target=${target} desc=${description.slice(0, 40)}`);
+
+  const systemPrompt = `You are a Blender Python (bpy) expert. Generate ONLY valid bpy scripts.
+
+CRITICAL API RULES:
+- mesh.vertices is read-only for adding vertices; use Mesh.from_pydata(verts, edges, faces) to build meshes
+- object.children is read-only; parent with Object.parent = parent_obj, NOT .children.append()
+- Always assign the mesh to the object: obj.data = mesh
+- Use bpy.context.active_object or bpy.context.selected_objects after ops
+- Never reference undefined variables (check spelling: obelisk vs obelik vs obeli)
+- Return ONLY JSON, no markdown fences`;
+
+  const userPrompt = `Create a Blender Python script for: ${description}
+
+Target type: ${target}
+
+Return ONLY JSON, no markdown fences:
+{"script":"import bpy\\n...","instructions":"step-by-step","required_assets":[]}
+
+Rules:
+- Use bpy only, metric units, meaningful names
+- Add basic materials when relevant using the CORRECT pattern above
+- No external files unless in required_assets`;
+
+  try {
+    const res = await fetchWithTimeout(`${BASE_URL}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        stream: false,
+        keep_alive: "60s",
+        chat_template_kwargs: { enable_thinking: false },
+        options: { num_ctx: 8192, num_predict: 8192, temperature: 0.2 },
+      }),
+    }, 180000);
+
+    const data = await res.json();
+    const raw = data.message?.content || "";
+    const thinking = data.message?.thinking || "";
+
+    // Debug log to file
+    try {
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(path.join(PROJECT_ROOT, "output", "ollama-debug.json"), JSON.stringify({
+        reqId, model, done_reason: data.done_reason, contentLength: raw.length, thinkingLength: thinking.length,
+        content: raw.slice(0, 500), thinking: thinking.slice(0, 500),
+      }, null, 2));
+    } catch {}
+
+    // Try to extract JSON from the response - prefer top-level object with known keys
+    const trimmed = raw.trim();
+    let jsonMatch = trimmed.match(/\{[\s\S]*\}/);
+    let parsed;
+    if (jsonMatch) {
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        // fallback: try to find a JSON object with expected keys
+      }
+    }
+    if (!parsed) {
+      const scriptMatch = trimmed.match(/\{\s*"script"\s*:\s*"/);
+      if (scriptMatch) {
+        const start = scriptMatch.index;
+        const candidate = trimmed.slice(start);
+        const endMatch = candidate.match(/\}\s*$/);
+        const jsonStr = endMatch ? candidate.slice(0, endMatch.index + 1) : candidate;
+        try {
+          parsed = JSON.parse(jsonStr);
+        } catch {
+          parsed = null;
+        }
+      }
+    }
+    if (!parsed) {
+      return textResponse(`Ollama did not return parseable JSON for blender script.\nRaw output:\n${trimmed.slice(0, 2000)}`, true);
+    }
+
+    const script = parsed.script || "";
+    if (!script.includes("bpy") && !script.includes("import bpy")) {
+      return textResponse(`Generated script does not appear to use bpy.\nRaw output:\n${raw.slice(0, 2000)}`, true);
+    }
+
+    const result = {
+      target,
+      description,
+      script,
+      instructions: parsed.instructions || "",
+      required_assets: Array.isArray(parsed.required_assets) ? parsed.required_assets : [],
+      note: "Execute this script with blender_execute_blender_code or in Blender's Text Editor.",
+    };
+
+    logRequest(reqId, "plan_blender_script", "generated");
+    return textResponse(JSON.stringify(result, null, 2));
+  } catch (err) {
+    logRequest(reqId, "plan_blender_script", `error=${err.message}`);
+    return textResponse(`Failed to generate Blender script: ${err.message}`, true);
+  }
 }
 
 async function updateMCPContext(reqId, args) {
