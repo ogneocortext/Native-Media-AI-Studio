@@ -18,6 +18,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..core.config import PROJECT_ROOT
+from ..services.source_separation import SourceSeparator, source_separator
+from ..services.source_separation import SEPARATION_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -855,6 +857,77 @@ async def analyze_all_pending():
     old_path.rename(new_path)
 
     return {"success": True, "old_filename": old_filename, "new_filename": new_filename_with_ext}
+
+
+class StemSeparationResponse(BaseModel):
+    """Response model for audio stem separation."""
+    success: bool
+    audio_file: str
+    model: str
+    stems: dict[str, str]
+    duration: float
+    computed_at: str
+    error: str | None = None
+
+
+@router.post("/separate", response_model=StemSeparationResponse)
+async def separate_audio(
+    file: UploadFile = File(...),
+    model: str = "htdemucs",
+) -> StemSeparationResponse:
+    """Separate an uploaded audio file into isolated stems (vocals, drums, bass, other)."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    # Save uploaded file to audio dir
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
+        )
+
+    saved_name = f"{uuid.uuid4().hex}{ext}"
+    saved_path = AUDIO_DIR / saved_name
+    content = await file.read()
+    saved_path.write_bytes(content)
+
+    try:
+        result = await source_separator.separate(
+            audio_path=str(saved_path),
+            model=model,
+        )
+        return StemSeparationResponse(
+            success=bool(result.stems) and not result.error,
+            audio_file=result.audio_file,
+            model=result.model,
+            stems=result.stems,
+            duration=result.duration,
+            computed_at=result.computed_at,
+            error=result.error,
+        )
+    except Exception as e:
+        logger.exception("Stem separation failed")
+        raise HTTPException(status_code=500, detail=f"Separation failed: {e}")
+
+
+@router.get("/stems/{filename:path}")
+async def get_stems(filename: str) -> dict:
+    """Get previously separated stems for an audio file, if available."""
+    import urllib.parse
+    filename = urllib.parse.unquote(filename)
+    stem_dir = SEPARATION_DIR / "htdemucs" / Path(filename).stem
+    stems = {}
+    if stem_dir.exists():
+        for stem_name in ["vocals", "drums", "bass", "other"]:
+            stem_path = stem_dir / f"{stem_name}.wav"
+            if stem_path.exists():
+                stems[stem_name] = str(stem_path)
+    return {
+        "audio_file": filename,
+        "stems": stems,
+        "found": bool(stems),
+    }
 
 
 @router.get("/file/{filename:path}")

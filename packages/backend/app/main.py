@@ -287,9 +287,9 @@ async def ws_http_fallback():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket shim that mirrors SSE broadcasts for legacy clients."""
-    # Origin validation: only accept connections from trusted local origins
-    origin = websocket.headers.get("origin", "")
-    allowed_origins = {"http://localhost", "http://127.0.0.1", "https://localhost", "https://127.0.0.1"}
+    # Origin validation: only accept connections from trusted local origins.
+    # Mirror the CORS allowlist so dynamic backend/frontend ports are accepted.
+    allowed_origins = _local_origins
     if origin and not any(origin.startswith(allowed) for allowed in allowed_origins):
         await websocket.close(code=4001, reason="Origin not allowed")
         return

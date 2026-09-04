@@ -55,21 +55,11 @@ export function Queue() {
     deleteJob,
     clearCompleted,
     clearFailed,
-    connectSSE,
-    disconnectSSE,
   } = useJobStore();
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Initial data fetch and SSE connection
-  useEffect(() => {
-    fetchJobs();
-    connectSSE();
-
-    return () => {
-      disconnectSSE();
-    };
-  }, [fetchJobs, connectSSE, disconnectSSE]);
+  // SSE is managed centrally by Layout.tsx; no per-component connect/disconnect.
 
   const handleCancel = async (id: string) => {
     if (!confirm("Cancel this job?")) return;

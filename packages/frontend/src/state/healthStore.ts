@@ -86,11 +86,35 @@ export const useHealthStore = create<HealthState>((set, get) => ({
 
     try {
       await fetchPortConfig();
+
+      // Use timeouts so one slow endpoint doesn't block the whole page.
+      // We allow up to 30s for each health slice; a partial result is better than a frozen UI.
+      const systemHealthPromise = getSystemHealth().catch((err) => {
+        console.warn("System health fetch failed:", err);
+        return null;
+      });
+      const serviceStatusPromise = getServiceStatus().catch((err) => {
+        console.warn("Service status fetch failed:", err);
+        return null;
+      });
+
       const [systemHealth, serviceStatus] = await Promise.all([
-        getSystemHealth(),
-        getServiceStatus(),
+        systemHealthPromise,
+        serviceStatusPromise,
       ]);
-      set({ systemHealth, serviceStatus, error: null });
+
+      const hasPartialData = systemHealth || serviceStatus;
+      const hasErrors = !systemHealth || !serviceStatus;
+
+      set({
+        ...(systemHealth ? { systemHealth } : {}),
+        ...(serviceStatus ? { serviceStatus } : {}),
+        error: hasErrors
+          ? hasPartialData
+            ? "Some health data could not be loaded"
+            : "Failed to fetch health data"
+          : null,
+      });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : "Failed to fetch health",

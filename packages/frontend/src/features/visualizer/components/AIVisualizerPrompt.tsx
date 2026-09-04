@@ -5,7 +5,7 @@ import type { AIGeneratedPreset, OllamaModel } from "../../../services/api";
 import type { VisualPreset } from "../visualPreset";
 import { AIPresetGallery } from "./AIPresetGallery";
 
-const TOOL_CAPABLE_MODELS = ["qwen3.5:9b", "qwen3.5:4b", "qwen3-vl:4b", "qwen3-vl:2b"];
+const TOOL_CAPABLE_MODELS = ["gemma4:e2b-it-qat", "gemma4-vision-optimized:latest", "qwen3.5:9b", "qwen3.5:4b"];
 
 interface TrackMeta {
   bpm?: number;
@@ -22,7 +22,7 @@ interface AIVisualizerPromptProps {
 
 export function AIVisualizerPrompt({ onApplyPreset, trackMeta, trackName }: AIVisualizerPromptProps) {
   const [description, setDescription] = useState("");
-  const [model, setModel] = useState("qwen3.5:9b");
+  const [model, setModel] = useState("gemma4:e2b-it-qat");
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

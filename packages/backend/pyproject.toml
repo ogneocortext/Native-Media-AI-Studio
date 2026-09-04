@@ -9,6 +9,25 @@ description = "Native Media AI Studio FastAPI backend"
 requires-python = ">=3.10"
 readme = "README.md"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests that hit the app/network boundary",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["*/__pycache__/*", "*/tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 20
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["app*"]

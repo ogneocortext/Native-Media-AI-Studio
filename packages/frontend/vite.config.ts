@@ -54,9 +54,7 @@ export default defineConfig(({ mode }) => {
   const portConfig = getPortConfig(mode);
   const backendUrl = portConfig.backend_url;
   const backendUrlWithProtocol = backendUrl.startsWith("http") ? backendUrl : `http://${backendUrl}`;
-  const backendHost = backendUrl.includes("localhost") || backendUrl.includes("127.0.0.1")
-    ? "localhost"
-    : new URL(backendUrlWithProtocol).hostname;
+  const backendHost = new URL(backendUrlWithProtocol).hostname;
   const proxyTarget = `http://${backendHost}:${portConfig.backend_port}`;
   const isProd = mode === "production";
 

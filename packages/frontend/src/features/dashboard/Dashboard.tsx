@@ -20,7 +20,7 @@ export function Dashboard() {
   useEffect(() => { fetchRecent(4); }, [fetchRecent]);
 
   const hasOutputs = recentOutputs.length > 0;
-  const hasJobs = jobs.length > 0;
+  const hasActiveJobs = jobs.some(j => j.status === "pending" || j.status === "queued" || j.status === "running");
 
   const handleDelete = async (e: React.MouseEvent, output: typeof recentOutputs[0]) => {
     e.preventDefault();
@@ -153,7 +153,7 @@ export function Dashboard() {
         </Card>
       )}
 
-      {hasJobs && !hasOutputs && (
+      {hasActiveJobs && !hasOutputs && (
         <Card className="mt-6">
           <p className="text-sm text-white font-semibold flex items-center gap-2"><Film size={14} className="text-violet-400" /> Jobs in progress</p>
           <p className="text-xs text-muted mt-1">Check Queue — videos render one at a time to avoid VRAM errors.</p>
@@ -161,7 +161,7 @@ export function Dashboard() {
         </Card>
       )}
 
-      {!hasOutputs && !hasJobs && (
+      {!hasOutputs && !hasActiveJobs && (
         <div className="mt-6 rounded-xl border border-white/5 bg-white/[0.02] p-4 flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center shrink-0"><Image size={14} className="text-emerald-400" /></div>
           <div>

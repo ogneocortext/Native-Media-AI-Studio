@@ -21,6 +21,7 @@ import {
   Zap,
   Wand2,
   Type,
+  Thermometer,
 } from "lucide-react";
 import React, { useEffect, useState, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
@@ -65,6 +66,7 @@ const manageNav: NavItem[] = [
 
 const systemNav: NavItem[] = [
   { path: "/health", label: "Health", icon: <Activity size={18} /> },
+  { path: "/gpu", label: "GPU", icon: <Thermometer size={18} /> },
   { path: "/logs", label: "Logs", icon: <FileText size={18} /> },
   { path: "/settings", label: "Settings", icon: <Settings size={18} /> },
   { path: "/docs", label: "Docs", icon: <BookOpen size={18} /> },
@@ -140,13 +142,13 @@ function NavSection({ title, items, location, collapsed }: { title: string; item
 
 export function Sidebar() {
   const location = useLocation();
-  const { overall, adapters, isLoading, fetchHealth, connectSSE, disconnectSSE } = useHealthStore();
+  const { overall, adapters, isLoading, fetchHealth } = useHealthStore();
   const { focusMode } = useUIStore();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  useEffect(() => { fetchHealth(); connectSSE(); return () => disconnectSSE(); }, [fetchHealth, connectSSE, disconnectSSE]);
+  useEffect(() => { fetchHealth(); }, [fetchHealth]);
 
   useEffect(() => {
     const check = () => {

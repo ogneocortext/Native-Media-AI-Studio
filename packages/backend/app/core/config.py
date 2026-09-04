@@ -31,8 +31,8 @@ class AppConfig(BaseModel):
     max_queue_workers: int = 1
     output_dir: Path = OUTPUT_DIR
     log_level: str = "INFO"
-    default_model: str = "qwen3.5:4b"
-    vision_model: str = "qwen3-vl:4b"
+    default_model: str = "gemma4:e2b-it-qat"
+    vision_model: str = "gemma4-vision-optimized:latest"
     embedding_model: str = "nomic-embed-text:v1.5"
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

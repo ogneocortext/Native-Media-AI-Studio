@@ -67,14 +67,9 @@ interface OutputState {
 }
 
 async function getBackendUrl(): Promise<string> {
-  try {
-    await fetchPortConfig();
-    const cached = getCachedConfig();
-    if (cached?.backend_url) return cached.backend_url;
-  } catch {
-    /* fall through */
-  }
-  return "http://localhost:8000";
+  // Use relative URLs so requests go through the Vite proxy.
+  // This avoids CORS, localhost/127.0.0.1 mismatch, and stale ports.json issues.
+  return "";
 }
 
 export async function fetchOutputsFromAPI(

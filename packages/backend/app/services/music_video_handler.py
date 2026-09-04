@@ -64,6 +64,10 @@ class MusicVideoHandler:
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         method = params.get("method", "visualization")
+        model = params.get("model", "")
+        # Auto-switch to ComfyUI AnimateDiff when a motion module is selected from the UI
+        if method == "visualization" and any(kw in model.lower() for kw in ["mm_sd", "mm-stabilized", "motion"]):
+            method = "comfyui"
 
         # Update progress
         await self._update_progress(job, 0.1, "Analyzing audio features...")
@@ -397,32 +401,45 @@ class MusicVideoHandler:
             raise RuntimeError(f"FFmpeg failed: {e}") from e
 
     async def _render_with_comfyui(self, job: Job, audio_path: str, output_path: Path, width: int, height: int, duration: float, analysis: dict) -> None:
-        """Render video using ComfyUI for AI-generated content."""
-        await self._update_progress(job, 0.5, "Generating video with ComfyUI...")
+        """Render video using ComfyUI AnimateDiff for AI-generated content."""
+        await self._update_progress(job, 0.5, "Generating video with ComfyUI AnimateDiff...")
 
         try:
-            from ..services.comfyui_manager import ComfyUIManager
-            manager = ComfyUIManager()
+            from ..adapters.registry import adapter_registry
+            adapter = adapter_registry.get("comfyui")
+            if not adapter:
+                raise RuntimeError("ComfyUI adapter not available")
 
             prompt = job.params.get("prompt", "Music video visualization")
-            section = job.params.get("section", "full")
+            negative_prompt = job.params.get("negative_prompt", "blurry, bad quality, distorted, static")
+            steps = int(job.params.get("steps", 10))
+            cfg_scale = float(job.params.get("cfg_scale", 7.0))
+            fps = int(job.params.get("fps", 8))
+            num_frames = int(job.params.get("num_frames", max(8, int(duration * fps))))
+            seed = int(job.params.get("seed", -1))
 
-            result = await manager.generate_video(
-                prompt=prompt,
-                width=width,
-                height=height,
-                duration=int(duration),
-                section=section,
-                audio_path=audio_path,
-            )
+            result = await adapter.generate({
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "steps": steps,
+                "cfg_scale": cfg_scale,
+                "width": width,
+                "height": height,
+                "seed": seed,
+                "sampler_name": "euler_ancestral",
+                "video": True,
+                "num_frames": num_frames,
+                "fps": fps,
+            })
 
-            if result and Path(result).exists():
+            video_path = result.get("video_path")
+            if video_path and Path(video_path).exists():
                 import shutil
-                shutil.move(str(result), str(output_path))
+                shutil.move(str(video_path), str(output_path))
             else:
-                raise RuntimeError("ComfyUI generation failed")
+                raise RuntimeError("ComfyUI generation failed: no video path returned")
         except ImportError:
-            raise RuntimeError("ComfyUI manager not available")
+            raise RuntimeError("ComfyUI adapter not available")
         except Exception as e:
             raise RuntimeError(f"ComfyUI generation failed: {e}")
 

@@ -209,29 +209,29 @@ class HealthMonitor:
             }
 
     async def check_all_services(self, config: Any) -> dict[str, Any]:
-        """Check health of all configured services"""
+        """Check health of all configured services with per-adapter timeouts."""
         from ..adapters.registry import adapter_registry
 
         results = {}
         for name, adapter in adapter_registry.get_all_adapters().items():
             try:
-                is_healthy = await adapter.health_check()
-                error = None
-                if hasattr(adapter, 'get_last_error'):
-                    error = adapter.get_last_error()
+                # Use the timed variant so one hung adapter can't stall the whole endpoint
+                result = await self.check_service_with_timing(name)
                 results[name] = {
                     "name": name,
-                    "status": ServiceHealth.HEALTHY.value if is_healthy else ServiceHealth.OFFLINE.value,
-                    "url": adapter.base_url,
+                    "status": result.get("status", ServiceHealth.OFFLINE.value),
+                    "url": result.get("url", adapter.base_url),
                     "adapter_name": adapter.name,
-                    "error": error,
+                    "response_time_ms": result.get("response_time_ms"),
+                    "error": result.get("error"),
                 }
             except Exception as e:
                 results[name] = {
                     "name": name,
                     "status": ServiceHealth.OFFLINE.value,
                     "url": adapter.base_url,
-                    "error": str(e)
+                    "adapter_name": adapter.name,
+                    "error": str(e),
                 }
 
         return results

@@ -3,6 +3,7 @@ Job processor - handles actual job execution with serial processing.
 """
 
 import asyncio
+import inspect
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -87,7 +88,7 @@ class JobProcessor:
                 pass
 
     async def _process_loop(self):
-        """Main processing loop - runs jobs serially"""
+        """Main processing loop - runs jobs serially, event-driven."""
         while self._running:
             try:
                 # Find next queued job
@@ -96,7 +97,8 @@ class JobProcessor:
                     job = queued_jobs[0]  # Get oldest queued job
                     await self._process_job(job)
                 else:
-                    await asyncio.sleep(1)  # Wait for new jobs
+                    # Wait for a new job signal (up to 5s, then re-check for safety)
+                    await queue_manager.wait_for_jobs(timeout=5.0)
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -132,7 +134,7 @@ class JobProcessor:
                 raise ValueError(f"No handler registered for job type: {job.job_type}")
 
             # Run the handler
-            if asyncio.iscoroutinefunction(handler):
+            if inspect.iscoroutinefunction(handler):
                 result = await handler(job)
             else:
                 result = handler(job)

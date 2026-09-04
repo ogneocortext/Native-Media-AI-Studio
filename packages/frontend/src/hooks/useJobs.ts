@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useJobStore } from "../state/jobStore";
 import {
   useHealthStore,
@@ -33,17 +33,35 @@ export function useJobs() {
 export function useHealth() {
   const health = useSystemHealth();
   const serviceStatus = useServiceStatus();
-  const loading = useHealthStore((state) => state.isLoading);
+  const storeLoading = useHealthStore((state) => state.isLoading);
   const error = useHealthStore((state) => state.error);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const didInitRef = useRef(false);
 
   const refresh = useCallback(async () => {
     await useHealthStore.getState().fetchSystemStatus();
   }, []);
 
   useEffect(() => {
-    useHealthStore.getState().fetchHealth().catch(console.error);
-    refresh().catch(console.error);
-  }, [refresh]);
+    if (didInitRef.current) return;
+    didInitRef.current = true;
+
+    let cancelled = false;
+    setInitialLoading(true);
+
+    Promise.all([
+      useHealthStore.getState().fetchHealth().catch(() => {}),
+      useHealthStore.getState().fetchSystemStatus().catch(() => {}),
+    ]).finally(() => {
+      if (!cancelled) setInitialLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const loading = initialLoading || storeLoading;
 
   return {
     health,

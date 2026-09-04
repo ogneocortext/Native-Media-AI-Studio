@@ -31,6 +31,7 @@ class QueueManager:
         self._subscribers: list[Callable] = []
         self._completed_count: int = 0  # Track completed jobs for auto-cleanup
         self._max_completed_cache: int = 100  # Auto-cleanup after this many completed
+        self._new_job_event = asyncio.Event()
         self._load_jobs()
 
     def _load_jobs(self):
@@ -45,11 +46,11 @@ class QueueManager:
             # or database error - jobs will be loaded after init_db
             logger.warning("Database not ready for job loading: %s", e)
 
-    def reload_from_db(self):
+    async def reload_from_db(self):
         """Reload all jobs from database (called after init_db)."""
         self._jobs.clear()
         try:
-            db_jobs = JobDatabaseManager.get_all_jobs()
+            db_jobs = await JobDatabaseManager.get_all_jobs_async()
             for job in db_jobs:
                 self._jobs[job.id] = job
             logger.info("Loaded %d jobs from database", len(self._jobs))
@@ -80,6 +81,18 @@ class QueueManager:
                 await callback(job)
             except Exception as e:
                 logger.error("Error notifying subscriber: %s", e)
+
+    def _signal_new_job(self):
+        """Signal the processor that a new job is available."""
+        self._new_job_event.set()
+
+    async def wait_for_jobs(self, timeout: float | None = None):
+        """Wait for a new job to be enqueued. Returns True if signaled, False on timeout."""
+        try:
+            await asyncio.wait_for(self._new_job_event.wait(), timeout=timeout)
+            return True
+        except asyncio.TimeoutError:
+            return False
     async def _broadcast_job_event(self, event_type: str, job: Job):
         """Broadcast a job event to all SSE clients"""
         try:
@@ -116,9 +129,11 @@ class QueueManager:
                 status=JobStatus.QUEUED
             )
             self._jobs[job.id] = job
-            # Persist to SQLite
-            JobDatabaseManager.create_job(job)
+            # Persist to SQLite offloaded to thread to avoid blocking event loop
+            await JobDatabaseManager.create_job_async(job)
             await self._notify_subscribers(job)
+            # Signal processor that a new job is available
+            self._signal_new_job()
         # Broadcast after release lock to avoid blocking
         await self._broadcast_job_event("job.queued", job)
         return job
@@ -184,7 +199,7 @@ class QueueManager:
         async with self._lock:
             # Persist to SQLite first; only update in-memory on success
             try:
-                JobDatabaseManager.update_job(
+                await JobDatabaseManager.update_job_async(
                     job_id,
                     status=new_status,
                     progress=new_progress,
@@ -246,7 +261,7 @@ class QueueManager:
             job.status = JobStatus.CANCELLED
             job.completed_at = datetime.now()
             # Persist to SQLite
-            JobDatabaseManager.update_job(
+            await JobDatabaseManager.update_job_async(
                 job_id,
                 status=job.status,
                 completed_at=job.completed_at
@@ -272,7 +287,7 @@ class QueueManager:
             job.progress = 0.0
             job.message = ""
             # Persist to SQLite
-            JobDatabaseManager.update_job(
+            await JobDatabaseManager.update_job_async(
                 job_id,
                 status=job.status,
                 progress=job.progress,
@@ -281,6 +296,7 @@ class QueueManager:
                 retry_count=job.retry_count
             )
             await self._notify_subscribers(job)
+            self._signal_new_job()
 
         await self._broadcast_job_event("job.queued", job)
         return job
@@ -291,7 +307,7 @@ class QueueManager:
             if job_id in self._jobs:
                 del self._jobs[job_id]
                 # Remove from SQLite
-                JobDatabaseManager.delete_job(job_id)
+                await JobDatabaseManager.delete_job_async(job_id)
                 return True
             return False
 
@@ -303,7 +319,7 @@ class QueueManager:
             for job_id in completed_ids:
                 del self._jobs[job_id]
             # Remove from SQLite
-            count = JobDatabaseManager.clear_completed()
+            count = await JobDatabaseManager.clear_completed_async()
             return count
 
     async def clear_failed(self) -> int:
@@ -313,7 +329,7 @@ class QueueManager:
                          if j.status == JobStatus.FAILED]
             for job_id in failed_ids:
                 del self._jobs[job_id]
-            count = JobDatabaseManager.clear_failed()
+            count = await JobDatabaseManager.clear_failed_async()
             return count
 
     async def _auto_cleanup_unlocked(self) -> int:
@@ -336,7 +352,7 @@ class QueueManager:
         for job in to_remove:
             if job.id in self._jobs:
                 del self._jobs[job.id]
-                JobDatabaseManager.delete_job(job.id)
+                await JobDatabaseManager.delete_job_async(job.id)
                 removed += 1
         
         if removed:

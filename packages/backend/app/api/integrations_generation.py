@@ -708,9 +708,9 @@ async def get_ollama_models() -> list:
         models = await adapter.list_models()
         # Enrich with benchmark data if present
         try:
-            from ..services.ollama_benchmark import get_all_results
+            from ..services.ollama_benchmark import get_all_results as get_scene_results
 
-            bench = get_all_results()
+            bench = get_scene_results()
             bench_map = bench.get("results", {}) if bench else {}
             for m in models:
                 name = m.get("name")
@@ -719,6 +719,24 @@ async def get_ollama_models() -> list:
                     m["benchmark"] = {
                         "score": r.get("validation", {}).get("score", 0),
                         "latency_ms": r.get("latency_ms"),
+                        "success": r.get("success"),
+                        "timestamp": r.get("timestamp"),
+                    }
+        except Exception:
+            pass
+        # Enrich with coding benchmark data if present
+        try:
+            from ..services.coding_benchmark import get_all_results as get_coding_results
+
+            coding = get_coding_results()
+            coding_map = coding.get("results", {}) if coding else {}
+            for m in models:
+                name = m.get("name")
+                if name in coding_map:
+                    r = coding_map[name]
+                    m["codingBenchmark"] = {
+                        "score": r.get("total_score", 0),
+                        "latency_ms": r.get("total_latency_ms"),
                         "success": r.get("success"),
                         "timestamp": r.get("timestamp"),
                     }
@@ -771,6 +789,58 @@ async def get_best_benchmark_model() -> dict:
     """Get the best model according to benchmark scores."""
     try:
         from ..services.ollama_benchmark import get_best_model, get_all_results
+
+        best = get_best_model()
+        all_results = get_all_results()
+        if not best:
+            return {"best": None, "results": all_results}
+        return {"best": best, "result": all_results.get("results", {}).get(best), "results": all_results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ollama/coding-benchmark/results")
+async def get_coding_benchmark_results() -> dict:
+    """Get stored coding benchmark results."""
+    try:
+        from ..services.coding_benchmark import get_all_results
+
+        return get_all_results()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ollama/coding-benchmark/run")
+async def run_coding_benchmark(request: dict = None) -> dict:
+    """Run coding benchmark against Ollama models.
+
+    Body: { "models": ["qwen2.5:7b", ...] } or {} to benchmark all.
+    """
+    adapter = adapter_registry.get("ollama")
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Ollama not available")
+    if not await adapter.health_check():
+        raise HTTPException(status_code=503, detail="Ollama is not available")
+
+    body = request or {}
+    models = body.get("models") if isinstance(body, dict) else None
+    max_models = body.get("max_models", 12) if isinstance(body, dict) else 12
+
+    try:
+        from ..services.coding_benchmark import run_benchmark
+
+        result = await run_benchmark(models, adapter, max_models=max_models)
+        return result
+    except Exception as e:
+        logger.error(f"Coding benchmark run failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ollama/coding-benchmark/best")
+async def get_best_coding_model() -> dict:
+    """Get the best model according to coding benchmark scores."""
+    try:
+        from ..services.coding_benchmark import get_best_model, get_all_results
 
         best = get_best_model()
         all_results = get_all_results()

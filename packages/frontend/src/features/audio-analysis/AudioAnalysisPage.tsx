@@ -7,7 +7,7 @@ import {
 import {
   analyzeAudio, analyzeAudioCuda, generateVideoSection,
   listAudioFiles, renameAudioFile, getAnalysis, getCudaStatus,
-  getApiBase, type AudioAnalysisResult,
+  getApiBase, type AudioAnalysisResult, separateAudioStems,
 } from "../../services/api";
 import { DS } from "../../styles/designSystem";
 import {
@@ -102,6 +102,7 @@ export function AudioAnalysisPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [separating, setSeparating] = useState(false);
   const [analysis, setAnalysis] = useState<AudioAnalysisResult | null>(null);
   const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -205,6 +206,24 @@ export function AudioAnalysisPage() {
       loadAudioFiles();
     } catch (err: unknown) { setError(err instanceof Error ? err.message : "Analysis failed"); setAnalysisStep(""); }
     finally { setAnalyzing(false); }
+  };
+
+  const handleSeparate = async () => {
+    if (!file) return;
+    const vErr = validateFile(file);
+    if (vErr) { setFileError(vErr); return; }
+    setSeparating(true); setError(null);
+    setAnalysisStep("Separating stems with Demucs...");
+    try {
+      const result = await separateAudioStems(file, "htdemucs");
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setAnalysisStep(`Separated ${Object.keys(result.stems).length} stems`);
+        setTimeout(() => setAnalysisStep(""), 2000);
+      }
+    } catch (err: unknown) { setError(err instanceof Error ? err.message : "Separation failed"); setAnalysisStep(""); }
+    finally { setSeparating(false); }
   };
 
   const handleAnalyzeLibraryFile = async (storedPath: string) => {
@@ -348,7 +367,8 @@ export function AudioAnalysisPage() {
           </div>
           {fileError && <div className={DS.cardError} role="alert"><AlertCircle size={16} /><span className="text-sm">{fileError}</span></div>}
 
-          {file && <button onClick={handleAnalyze} disabled={analyzing} className={`${DS.btnPrimary} w-full`} aria-busy={analyzing}>{analyzing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}{analyzing ? "Analyzing..." : `Analyze ${file.name}`}</button>}
+          {file && <button onClick={handleAnalyze} disabled={analyzing || separating} className={`${DS.btnPrimary} w-full`} aria-busy={analyzing}>{analyzing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}{analyzing ? "Analyzing..." : `Analyze ${file.name}`}</button>}
+          {file && !analyzing && <button onClick={handleSeparate} disabled={separating || analyzing} className={`${DS.btnSecondary} w-full mt-2`} aria-busy={separating}>{separating ? <Loader2 size={18} className="animate-spin" /> : <Music2 size={18} />}{separating ? "Separating..." : "Separate Stems"}</button>}
 
           {analyzing && analysisStep && (
             <div className={DS.cardTight} style={{ background: "rgba(139,92,246,0.08)", borderColor: "rgba(139,92,246,0.2)" }} role="status" aria-live="polite">

@@ -54,6 +54,8 @@ date: 2026-08-27
 
 ### 📊 Research & Audit
 - [[../ux-audit/audit-report|🔍 UX Audit Report]] — User experience findings and recommendations
+- [[ollama-benchmarks|🏁 Ollama Three.js Scene Benchmark]] — Model benchmarking for scene generation (NEW 2026-09-04)
+- [[coding-benchmarks|🧪 Coding Model Benchmark]] — Python code, test generation, tool use, edge-case benchmarks for AI test harness selection (NEW 2026-09-04)
 
 ---
 

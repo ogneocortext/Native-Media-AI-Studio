@@ -488,21 +488,24 @@ class ResourceMonitor:
 
     async def _get_ollama_vram_usage(self) -> int:
         """Query Ollama API for loaded model size in MB. Returns 0 if unavailable."""
-        try:
-            import urllib.request
-            import json
-            base = "http://127.0.0.1:11434"
-            req = urllib.request.Request(f"{base}/api/ps")
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                data = json.loads(resp.read())
-                models = data.get("models", [])
-                if models:
-                    size_vram = models[0].get("size_vram", 0)
-                    if size_vram:
-                        return max(0, int(size_vram // (1024 * 1024)))
-        except Exception:
-            pass
-        return 0
+        def _sync_fetch() -> int:
+            try:
+                import urllib.request
+                import json
+                base = "http://127.0.0.1:11434"
+                req = urllib.request.Request(f"{base}/api/ps")
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    data = json.loads(resp.read())
+                    models = data.get("models", [])
+                    if models:
+                        size_vram = models[0].get("size_vram", 0)
+                        if size_vram:
+                            return max(0, int(size_vram // (1024 * 1024)))
+            except Exception:
+                pass
+            return 0
+
+        return await asyncio.to_thread(_sync_fetch)
 
     @staticmethod
     def _get_process_name(pid: int) -> str:
@@ -647,27 +650,31 @@ class ResourceMonitor:
             import psutil
 
             if psutil.virtual_memory().percent >= 85:
-                import urllib.request, json
+                def _sync_offload() -> str | None:
+                    import urllib.request, json
+                    try:
+                        req = urllib.request.Request("http://127.0.0.1:11434/api/ps")
+                        with urllib.request.urlopen(req, timeout=3) as resp:
+                            data = json.loads(resp.read())
+                            for m in data.get("models", [])[:1]:  # offload at least one
+                                name = m.get("name", "")
+                                if name:
+                                    payload = json.dumps({"model": name, "keep_alive": 0}).encode()
+                                    r = urllib.request.Request(
+                                        "http://127.0.0.1:11434/api/generate",
+                                        data=payload,
+                                        headers={"Content-Type": "application/json"},
+                                    )
+                                    with urllib.request.urlopen(r, timeout=5):
+                                        pass
+                                    return f"offloaded ollama {name}"
+                    except Exception:
+                        pass
+                    return None
 
-                try:
-                    req = urllib.request.Request("http://127.0.0.1:11434/api/ps")
-                    with urllib.request.urlopen(req, timeout=3) as resp:
-                        data = json.loads(resp.read())
-                        for m in data.get("models", [])[:1]:  # offload at least one
-                            name = m.get("name", "")
-                            if name:
-                                payload = json.dumps({"model": name, "keep_alive": 0}).encode()
-                                r = urllib.request.Request(
-                                    "http://127.0.0.1:11434/api/generate",
-                                    data=payload,
-                                    headers={"Content-Type": "application/json"},
-                                )
-                                with urllib.request.urlopen(r, timeout=5):
-                                    pass
-                                actions.append(f"offloaded ollama {name}")
-                                break
-                except Exception:
-                    pass
+                result = await asyncio.to_thread(_sync_offload)
+                if result:
+                    actions.append(result)
         except Exception:
             pass
 

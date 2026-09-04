@@ -1,5 +1,7 @@
 """Adapter registry."""
+import asyncio
 import os
+import threading
 
 from ..core.config import config
 from .base import BaseAdapter
@@ -14,10 +16,15 @@ class AdapterRegistry:
         self._adapters: dict[str, BaseAdapter] = {}
         self._initialized = False
         self._mock_mode = os.getenv("MOCK_GENERATION", "false").lower() == "true"
+        self._init_lock = threading.Lock()
 
     def _ensure_init(self):
-        """Initialize adapters if not already done."""
-        if not self._initialized:
+        """Initialize adapters if not already done. Thread-safe."""
+        if self._initialized:
+            return
+        with self._init_lock:
+            if self._initialized:
+                return
             # Initialize with mock mode based on env var or forced setting
             self._adapters["comfyui"] = ComfyUIAdapter(
                 config.comfyui_url,
