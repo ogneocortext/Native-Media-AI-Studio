@@ -422,4 +422,78 @@ Generation requests are validated at the API layer:
 
 ---
 
-*Last updated: 2026-08-28*
+## Backend Integration Fixes — 2026-09-04
+
+> [!note] Scope
+> Hardening pass over the ComfyUI integration: adapter, manager, API routes,
+> workflow handler, and frontend service. All fixes verified with
+> `packages/backend/tests/test_comfyui_manager.py`.
+
+### Adapter (`app/adapters/comfyui.py`)
+
+- **Path traversal fixed**: `/view` filenames from ComfyUI history are sanitized
+  via `_sanitize_filename()` before download; the video writer additionally
+  verifies the resolved output path stays inside `output/video/`.
+- **Video timeout fixed**: was `num_frames * fps * 2` (the clip duration —
+  guaranteed timeout for any real generation); now `max(600, num_frames * fps * 2)`.
+- **Seed handling**: `seed = 0` is respected as a fixed seed (`_resolve_seed`),
+  not silently treated as "random". Sampler names are normalized via
+  `_map_sampler()` / `SAMPLER_MAP`.
+- **Dead AnimateDiff node removed**: the unused
+  `ADE_AnimateDiffUniformContextOptions` node ("6") is no longer emitted.
+- **`_wait_for_video_result`** also checks output under `"videos"`
+  (VideoHelperSuite nodes don't always report under `"gifs"`).
+- **Prompt submit errors** include the response body (first 500 chars).
+
+### Manager (`app/services/comfyui_manager.py`)
+
+- **`start(extra_args=...)` is honored** — appended after the built-in
+  `EXTRA_ARGS`.
+- **Git executable discovery cached** (`_find_git()`); version checks no longer
+  fail when `git` is only available at a known install path.
+- **Version info cached 30s** (`VERSION_CACHE_TTL`) — the UI polls `/status`
+  frequently and each check previously spawned git subprocesses including a
+  network `git fetch`.
+- **Ahead/behind fixed**: now `HEAD...@{upstream}` (with `origin/master`
+  fallback) — the previous `origin/master...HEAD` comparison labeled "behind"
+  as "ahead".
+- **stderr reader task is stored** (`self._stderr_task`) and cancelled on stop —
+  unreferenced asyncio tasks can be garbage-collected mid-flight.
+- **`is_running()` recovers**: after a managed process dies, the dead handle is
+  cleared and the port check runs, so an externally-started ComfyUI is
+  detected again.
+- **Video download fixed**: `/view` uses proper query params
+  (filename/subfolder/`type=output`) instead of a raw unencoded URL, and keeps
+  the real file extension instead of forcing `.mp4`.
+
+### API (`app/api/comfyui.py`)
+
+- All blocking calls (`get_status`, `get_version`, `stop`, restart's stop step)
+  run via `asyncio.to_thread` — previously they blocked the event loop on every
+  UI status poll.
+
+### Workflow Handler (`app/services/comfyui_workflow_handler.py`)
+
+- **Images are written to disk**: the adapter's base64 result is decoded to
+  `output/images/<timestamp>_<uuid>.png`. Previously the job reported an
+  `output_path` that was never created.
+- **Videos honor the adapter's `video_path`** (the file actually written by
+  `_fetch_video`) instead of fabricating a nonexistent `.mp4` path.
+- Raises a clear error when the adapter returns no image data.
+
+### Frontend (`services/comfyui.ts`)
+
+- **`queuePrompt` surfaces ComfyUI's error JSON**: `error` and a per-node
+  summary of `node_errors` are included in the thrown `ComfyUIError`.
+- **Object URL leak fixed**: `revokeImage()` helper added for `useEffect`
+  cleanup of URLs created by `getImage()`.
+
+### Test Suite
+
+- `packages/backend/tests/test_comfyui_manager.py` is now tracked in git
+  (the blanket `test_*.py` ignore rule was hiding it) and mocks
+  `is_running()` so it passes even while ComfyUI is running on port 8188.
+
+---
+
+*Last updated: 2026-09-04*

@@ -170,6 +170,8 @@ backend/
 # Scattered test files (move to tests/)
 test_*.py
 backend/test_*.py
+# ...except the tracked backend test suite
+!packages/backend/tests/test_*.py
 # Generated demo outputs (regenerable)
 tools/output/beat_data.json
 tools/output/analyze_output.txt
@@ -212,4 +214,10 @@ stable-diffusion/vae/
 .pytest_cache/
 browser-test/
 .playwright-report/
+.coverage
 
+# Unity render output frames (large, regenerable - .png already ignored, this also excludes .meta sidecars)
+unity-project-mcp/Assets/Textures/render_frames/
+
+
+unity-project-mcp/Assets/Textures/render_frames.meta

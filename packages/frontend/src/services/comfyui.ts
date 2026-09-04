@@ -55,7 +55,26 @@ export async function queuePrompt(workflow: Record<string, unknown>): Promise<{ 
   });
 
   if (!response.ok) {
-    throw new ComfyUIError(`ComfyUI queue failed: ${response.statusText}`, response.status);
+    // ComfyUI returns actionable error details (node validation errors, etc.)
+    // in the response body — surface them instead of the generic statusText.
+    let detail = response.statusText;
+    try {
+      const errBody = await response.json();
+      if (errBody?.error) detail = String(errBody.error);
+      const nodeErrors = errBody?.node_errors as Record<string, unknown> | undefined;
+      if (nodeErrors && Object.keys(nodeErrors).length > 0) {
+        const nodeSummary = Object.entries(nodeErrors)
+          .map(([nodeId, nodeErr]) => {
+            const errors = (nodeErr as { errors?: unknown[] })?.errors;
+            return `node ${nodeId}: ${Array.isArray(errors) ? errors.length : "?"} error(s)`;
+          })
+          .join("; ");
+        detail = `${detail} (${nodeSummary})`;
+      }
+    } catch {
+      // Body was not JSON — keep the statusText fallback
+    }
+    throw new ComfyUIError(`ComfyUI queue failed: ${detail}`, response.status);
   }
 
   const data = await response.json();
@@ -274,6 +293,14 @@ export async function getImage(
 }
 
 /**
+ * Release an object URL created by getImage(). Call this when the image
+ * is no longer displayed to avoid leaking memory (e.g. in useEffect cleanup).
+ */
+export function revokeImage(objectUrl: string): void {
+  URL.revokeObjectURL(objectUrl);
+}
+
+/**
  * Get WebSocket URL for real-time progress updates.
  */
 export function getWebSocketUrl(): string {
@@ -288,6 +315,7 @@ export default {
   getAvailableModels,
   generateText2Image,
   getImage,
+  revokeImage,
   getWebSocketUrl,
   ComfyUIError,
 };

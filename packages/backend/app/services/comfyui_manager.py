@@ -42,8 +42,19 @@ _GIT_PATHS = [
 ]
 
 
+_GIT_EXECUTABLE: str | None = None
+_GIT_RESOLVED = False
+
+
 def _find_git() -> str | None:
-    """Find the git executable on the system. Returns None if not found."""
+    """Find the git executable on the system. Returns None if not found.
+
+    Result is cached; git never moves mid-session so one lookup is enough.
+    """
+    global _GIT_EXECUTABLE, _GIT_RESOLVED
+    if _GIT_RESOLVED:
+        return _GIT_EXECUTABLE
+
     # First try the PATH
     try:
         result = subprocess.run(
@@ -52,25 +63,37 @@ def _find_git() -> str | None:
             timeout=5,
         )
         if result.returncode == 0:
-            return "git"
+            _GIT_EXECUTABLE = "git"
+            _GIT_RESOLVED = True
+            return _GIT_EXECUTABLE
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
 
     # Try common locations
     for path in _GIT_PATHS:
         if os.path.isfile(path):
-            return path
+            _GIT_EXECUTABLE = path
+            _GIT_RESOLVED = True
+            return _GIT_EXECUTABLE
 
+    _GIT_RESOLVED = True
     return None  # Git not found
 
 
 class ComfyUIManager:
     """Manages the ComfyUI process lifecycle."""
 
+    # Version info is cached because the UI polls /status frequently and each
+    # check spawns git subprocesses (including a network `git fetch`).
+    VERSION_CACHE_TTL = 30.0  # seconds
+
     def __init__(self):
         self._process: subprocess.Popen | None = None
         self._port = DEFAULT_PORT
         self._start_time: float | None = None
+        self._stderr_task: asyncio.Task | None = None
+        self._version_cache: dict | None = None
+        self._version_cache_time: float = 0.0
 
     def is_installed(self) -> bool:
         """Check if ComfyUI is installed."""
@@ -82,7 +105,13 @@ class ComfyUIManager:
         
         # Check if we started the process
         if self._process is not None:
-            return self._process.poll() is None
+            if self._process.poll() is None:
+                return True
+            # Our process exited — forget it and fall through to the port
+            # check so an externally-started ComfyUI is still detected.
+            self._process = None
+            self._start_time = None
+            self._stderr_task = None
         
         # Also check if ComfyUI port is open (external process)
         # Use a simple socket check to avoid async issues
@@ -95,17 +124,38 @@ class ComfyUIManager:
         except Exception:
             return False
 
-    def get_version(self) -> dict:
-        """Get ComfyUI version info from git."""
+    def get_version(self, refresh: bool = False) -> dict:
+        """Get ComfyUI version info from git.
+
+        Results are cached for VERSION_CACHE_TTL because this is called on
+        every /status poll and each check spawns git subprocesses (including
+        a network `git fetch`).
+
+        Args:
+            refresh: Skip the cache and re-run the git checks.
+        """
         if not self.is_installed():
             return {"installed": False}
 
+        now = time.time()
+        if (
+            not refresh
+            and self._version_cache is not None
+            and now - self._version_cache_time < self.VERSION_CACHE_TTL
+        ):
+            return dict(self._version_cache)
+
         result = {"installed": True, "path": str(COMFYUI_DIR)}
+
+        git_exe = _find_git()
+        if git_exe is None:
+            result["error"] = "git executable not found"
+            return result
 
         try:
             # Get current commit
             commit = subprocess.run(
-                ["git", "log", "--oneline", "-1"],
+                [git_exe, "log", "--oneline", "-1"],
                 capture_output=True, text=True, cwd=str(COMFYUI_DIR)
             )
             if commit.returncode == 0:
@@ -113,7 +163,7 @@ class ComfyUIManager:
 
             # Get tag/describe
             describe = subprocess.run(
-                ["git", "describe", "--tags", "--always"],
+                [git_exe, "describe", "--tags", "--always"],
                 capture_output=True, text=True, cwd=str(COMFYUI_DIR)
             )
             if describe.returncode == 0:
@@ -121,7 +171,7 @@ class ComfyUIManager:
 
             # Get branch
             branch = subprocess.run(
-                ["git", "branch", "--show-current"],
+                [git_exe, "branch", "--show-current"],
                 capture_output=True, text=True, cwd=str(COMFYUI_DIR)
             )
             if branch.returncode == 0:
@@ -129,23 +179,32 @@ class ComfyUIManager:
 
             # Check if behind remote
             subprocess.run(
-                ["git", "fetch", "--quiet"],
+                [git_exe, "fetch", "--quiet"],
                 capture_output=True, cwd=str(COMFYUI_DIR)
             )
             ahead_behind = subprocess.run(
-                ["git", "rev-list", "--left-right", "--count", "origin/master...HEAD"],
+                [git_exe, "rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
                 capture_output=True, text=True, cwd=str(COMFYUI_DIR)
             )
+            if ahead_behind.returncode != 0:
+                # Fall back for repos without an upstream branch configured
+                ahead_behind = subprocess.run(
+                    [git_exe, "rev-list", "--left-right", "--count", "HEAD...origin/master"],
+                    capture_output=True, text=True, cwd=str(COMFYUI_DIR)
+                )
             if ahead_behind.returncode == 0:
                 parts = ahead_behind.stdout.strip().split("\t")
                 if len(parts) == 2:
-                    result["behind_remote"] = int(parts[0]) if parts[0].isdigit() else 0
-                    result["ahead_of_remote"] = int(parts[1]) if parts[1].isdigit() else 0
+                    # With HEAD on the left: parts[0] = ahead, parts[1] = behind
+                    result["ahead_of_remote"] = int(parts[0]) if parts[0].isdigit() else 0
+                    result["behind_remote"] = int(parts[1]) if parts[1].isdigit() else 0
                     result["up_to_date"] = result["behind_remote"] == 0
 
         except Exception as e:
             result["error"] = str(e)
 
+        self._version_cache = dict(result)
+        self._version_cache_time = time.time()
         return result
 
     async def _check_cuda(self) -> dict:
@@ -224,6 +283,8 @@ class ComfyUIManager:
             "--lowvram",
         ]
         cmd.extend(EXTRA_ARGS)
+        if extra_args:
+            cmd.extend(extra_args)
 
         try:
             # Start headlessly (no window on Windows)
@@ -236,16 +297,35 @@ class ComfyUIManager:
                 # CREATE_NEW_PROCESS_GROUP makes the child independent of parent
                 creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
 
-            # Use subprocess.DEVNULL for stdout/stderr to prevent blocking
+            # Capture stderr so startup failures are visible in logs.
+            # stdout is still discarded to avoid log spam from normal ComfyUI output.
             self._process = subprocess.Popen(
                 cmd,
                 cwd=str(COMFYUI_DIR),
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 startupinfo=startupinfo,
                 creationflags=creation_flags,
+                text=True,
+                bufsize=1,  # Line-buffered
             )
             self._start_time = time.time()
+
+            # Start a background task to read stderr and log it
+            async def _read_stderr():
+                if self._process is None or self._process.stderr is None:
+                    return
+                try:
+                    for line in self._process.stderr:
+                        line = line.strip()
+                        if line:
+                            logger.warning("ComfyUI stderr: %s", line)
+                except (ValueError, OSError):
+                    pass  # Process may have exited
+
+            # Keep a reference to the task — unreferenced tasks can be
+            # garbage-collected mid-flight (see asyncio.create_task docs).
+            self._stderr_task = asyncio.create_task(_read_stderr())
 
             # Wait a moment and check if it started successfully
             await asyncio.sleep(3)
@@ -318,6 +398,9 @@ class ComfyUIManager:
                 "message": f"Error stopping ComfyUI: {str(e)}",
             }
         finally:
+            if self._stderr_task is not None and not self._stderr_task.done():
+                self._stderr_task.cancel()
+            self._stderr_task = None
             self._process = None
             self._start_time = None
 
@@ -435,8 +518,8 @@ class ComfyUIManager:
                     "hint": "Try resolving merge conflicts or run 'git pull' manually in the ComfyUI directory",
                 }
 
-            # Get new version info
-            version = self.get_version()
+            # Get new version info (bypass cache — we just pulled new commits)
+            version = self.get_version(refresh=True)
 
             # Restart if it was running
             restart_result = None
@@ -597,15 +680,22 @@ class ComfyUIManager:
                                 if "gifs" in output:
                                     for gif in output["gifs"]:
                                         video_path = gif.get("filename")
+                                        video_subfolder = gif.get("subfolder", "")
                                         if video_path:
                                             # Download the video
                                             async with session.get(
-                                                f"{base_url}/view?filename={video_path}",
+                                                f"{base_url}/view",
+                                                params={
+                                                    "filename": video_path,
+                                                    "subfolder": video_subfolder,
+                                                    "type": "output",
+                                                },
                                                 timeout=aiohttp.ClientTimeout(total=60),
                                             ) as video_resp:
                                                 if video_resp.status == 200:
                                                     data = await video_resp.read()
-                                                    output_path = PROJECT_ROOT / "output" / "video" / f"{section}_{prompt_id[:8]}.mp4"
+                                                    ext = Path(video_path).suffix or ".mp4"
+                                                    output_path = PROJECT_ROOT / "output" / "video" / f"{section}_{prompt_id[:8]}{ext}"
                                                     output_path.parent.mkdir(parents=True, exist_ok=True)
                                                     with open(output_path, "wb") as f:
                                                         f.write(data)

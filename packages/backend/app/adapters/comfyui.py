@@ -9,6 +9,7 @@ import base64
 import json
 import logging
 import uuid
+from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -16,6 +17,44 @@ import aiohttp
 from .base import AdapterStatus, BaseAdapter
 
 logger = logging.getLogger(__name__)
+
+# Map UI sampler names to ComfyUI sampler names
+SAMPLER_MAP = {
+    "Euler a": "euler_ancestral",
+    "Euler": "euler",
+    "DPM++ 2M": "dpmpp_2m",
+    "DPM++ SDE": "dpmpp_sde",
+}
+
+MAX_SEED = 2**32 - 1
+
+
+def _map_sampler(sampler_name: str) -> str:
+    """Map a UI sampler name to its ComfyUI equivalent."""
+    return SAMPLER_MAP.get(sampler_name, sampler_name.lower().replace(" ", "_"))
+
+
+def _resolve_seed(seed: Any) -> int:
+    """Return a valid seed; pick a random one when out of range (e.g. -1)."""
+    try:
+        seed_int = int(seed)
+    except (TypeError, ValueError):
+        seed_int = -1
+    if 0 <= seed_int <= MAX_SEED:
+        return seed_int
+    return int(uuid.uuid4().int % (2**32))
+
+
+def _sanitize_filename(filename: str) -> str:
+    """Strip any path components from a ComfyUI-provided filename.
+
+    ComfyUI returns filenames from its history API; a malicious or buggy
+    node could include path separators, so never trust them blindly.
+    """
+    safe = Path(str(filename).replace("\\", "/")).name
+    if not safe or safe in {".", ".."}:
+        raise ValueError(f"Invalid filename returned by ComfyUI: {filename!r}")
+    return safe
 
 
 class ComfyUIAdapter(BaseAdapter):
@@ -95,6 +134,19 @@ class ComfyUIAdapter(BaseAdapter):
         # Fallback to default
         return preferred_checkpoints[0]
 
+    def _get_available_motion_module(self) -> str:
+        """Get the best available AnimateDiff motion module."""
+        preferred_motion_modules = [
+            "mm_sd_v15_v2.ckpt",
+            "mm-Stabilized_high.ckpt",
+        ]
+        for preferred in preferred_motion_modules:
+            if self._available_checkpoints:
+                # Motion modules may also appear in checkpoint list on some installs
+                if preferred in self._available_checkpoints:
+                    return preferred
+        return preferred_motion_modules[0]
+
     async def health_check(self) -> bool:
         """Check if ComfyUI is available"""
         try:
@@ -141,20 +193,8 @@ class ComfyUIAdapter(BaseAdapter):
         cfg_scale = params.get("cfg_scale", 7.0)
         width = params.get("width", 512)
         height = params.get("height", 512)
-        seed = params.get("seed", -1)
-        sampler_name = params.get("sampler_name", "euler_ancestral")
-
-        # Map sampler names to ComfyUI equivalents
-        sampler_map = {
-            "Euler a": "euler_ancestral",
-            "Euler": "euler",
-            "DPM++ 2M": "dpmpp_2m",
-            "DPM++ SDE": "dpmpp_sde",
-        }
-        comfy_sampler = sampler_map.get(sampler_name, sampler_name.lower().replace(" ", "_"))
-
-        # Use a random seed if -1
-        actual_seed = seed if seed > 0 else int(uuid.uuid4().int % (2**32))
+        comfy_sampler = _map_sampler(params.get("sampler_name", "euler_ancestral"))
+        actual_seed = _resolve_seed(params.get("seed", -1))
 
         # Build workflow
         workflow = self._build_workflow(
@@ -185,17 +225,9 @@ class ComfyUIAdapter(BaseAdapter):
         seed = params.get("seed", -1)
         sampler_name = params.get("sampler_name", "euler_ancestral")
 
-        # Map sampler names to ComfyUI equivalents
-        sampler_map = {
-            "Euler a": "euler_ancestral",
-            "Euler": "euler",
-            "DPM++ 2M": "dpmpp_2m",
-            "DPM++ SDE": "dpmpp_sde",
-        }
-        comfy_sampler = sampler_map.get(sampler_name, sampler_name.lower().replace(" ", "_"))
-
-        # Use a random seed if -1
-        actual_seed = seed if seed > 0 else int(uuid.uuid4().int % (2**32))
+        sampler_name = params.get("sampler_name", "euler_ancestral")
+        comfy_sampler = _map_sampler(sampler_name)
+        actual_seed = _resolve_seed(params.get("seed", -1))
 
         # Build a minimal workflow: checkpoint -> clip text encode -> ksampler -> save
         # This uses ComfyUI's API workflow format
@@ -231,17 +263,8 @@ class ComfyUIAdapter(BaseAdapter):
         num_frames = params.get("num_frames", 24)
         fps = params.get("fps", 12)
 
-        # Map sampler names to ComfyUI equivalents
-        sampler_map = {
-            "Euler a": "euler_ancestral",
-            "Euler": "euler",
-            "DPM++ 2M": "dpmpp_2m",
-            "DPM++ SDE": "dpmpp_sde",
-        }
-        comfy_sampler = sampler_map.get(sampler_name, sampler_name.lower().replace(" ", "_"))
-
-        # Use a random seed if -1
-        actual_seed = seed if seed > 0 else int(uuid.uuid4().int % (2**32))
+        comfy_sampler = _map_sampler(sampler_name)
+        actual_seed = _resolve_seed(seed)
 
         # Build AnimateDiff video workflow
         workflow = self._build_video_workflow(
@@ -253,8 +276,10 @@ class ComfyUIAdapter(BaseAdapter):
         prompt_id = await self._submit_prompt(workflow)
         self._current_prompt_id = prompt_id
 
-        # Wait for video completion
-        video_path = await self._wait_for_video_result(prompt_id, timeout=num_frames * fps * 2)
+        # Wait for video completion. AnimateDiff can take several minutes even
+        # for short clips, so never use the clip duration as the timeout.
+        video_timeout = max(600, num_frames * fps * 2)
+        video_path = await self._wait_for_video_result(prompt_id, timeout=video_timeout)
 
         return {
             "video_path": video_path,
@@ -352,7 +377,8 @@ class ComfyUIAdapter(BaseAdapter):
             timeout=aiohttp.ClientTimeout(total=10),
         ) as resp:
             if resp.status != 200:
-                raise Exception(f"Failed to submit prompt: {resp.status}")
+                body = await resp.text()
+                raise Exception(f"Failed to submit prompt: {resp.status} - {body[:500]}")
             data = await resp.json()
             return data["prompt_id"]
 
@@ -388,7 +414,10 @@ class ComfyUIAdapter(BaseAdapter):
 
     async def _fetch_image(self, filename: str, subfolder: str = "") -> str:
         """Fetch an image from ComfyUI and return as base64"""
-        params = {"filename": filename}
+        params: dict[str, Any] = {
+            "filename": _sanitize_filename(filename),
+            "type": "output",
+        }
         if subfolder:
             params["subfolder"] = subfolder
 
@@ -427,7 +456,7 @@ class ComfyUIAdapter(BaseAdapter):
         """
         # Select checkpoint - prefer SD 1.5 for AnimateDiff
         checkpoint = self._get_available_checkpoint()
-        motion_module = "mm_sd15_v3.safetensors"
+        motion_module = self._get_available_motion_module()
 
         # AnimateDiff workflow with context options for better quality
         return {
@@ -474,17 +503,6 @@ class ComfyUIAdapter(BaseAdapter):
                         "width": width,
                         "height": height,
                         "batch_size": num_frames,
-                    },
-                },
-                # KSampler with AnimateDiff context
-                "6": {
-                    "class_type": "ADE_AnimateDiffUniformContextOptions",
-                    "inputs": {
-                        "context_length": min(num_frames, 16),
-                        "context_stride": 1,
-                        "context_overlap": 4,
-                        "context_schedule": "uniform",
-                        "closed_loop": False,
                     },
                 },
                 # KSampler
@@ -552,6 +570,13 @@ class ComfyUIAdapter(BaseAdapter):
                                 subfolder = gif.get("subfolder", "")
                                 if filename:
                                     return await self._fetch_video(filename, subfolder)
+                        # Some video nodes report their output under "videos"
+                        if "videos" in output:
+                            for vid in output["videos"]:
+                                filename = vid.get("filename")
+                                subfolder = vid.get("subfolder", "")
+                                if filename:
+                                    return await self._fetch_video(filename, subfolder)
                         # Check for images (fallback - might be frame sequence)
                         if "images" in output:
                             for img in output["images"]:
@@ -565,9 +590,9 @@ class ComfyUIAdapter(BaseAdapter):
     async def _fetch_video(self, filename: str, subfolder: str = "") -> str:
         """Fetch a video/gif from ComfyUI and return the local path."""
         from ..core.config import PROJECT_ROOT
-        import os
 
-        params = {"filename": filename}
+        safe_name = _sanitize_filename(filename)
+        params: dict[str, Any] = {"filename": safe_name, "type": "output"}
         if subfolder:
             params["subfolder"] = subfolder
 
@@ -582,8 +607,11 @@ class ComfyUIAdapter(BaseAdapter):
                 # Save to output directory
                 output_dir = PROJECT_ROOT / "output" / "video"
                 output_dir.mkdir(parents=True, exist_ok=True)
-                output_path = output_dir / filename
-                with open(output_path, "wb") as f:
-                    f.write(data)
+                output_path = output_dir / safe_name
+                if not output_path.resolve().is_relative_to(output_dir.resolve()):
+                    raise ValueError(
+                        f"ComfyUI video path escapes output dir: {safe_name!r}"
+                    )
+                output_path.write_bytes(data)
                 return str(output_path)
             raise Exception(f"Failed to fetch video: {resp.status}")

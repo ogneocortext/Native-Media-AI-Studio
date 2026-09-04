@@ -1,5 +1,8 @@
 """ComfyUI workflow handler."""
 
+import base64
+import uuid
+from datetime import datetime
 from typing import Any
 
 from ..adapters.registry import adapter_registry
@@ -23,23 +26,40 @@ class ComfyUIWorkflowHandler:
 
         result = await adapter.generate(params)
 
-        output_dir = PROJECT_ROOT / "output" / ("video" if is_video else "images")
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        import uuid
-        from datetime import datetime
-
-        ext = "mp4" if is_video else "png"
-        filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.{ext}"
-        filepath = output_dir / filename
-
         prompt_id = result.get("prompt_id", "unknown")
         seed = result.get("seed", -1)
+
+        # Video results are already saved to disk by the adapter
+        # (_fetch_video writes them under PROJECT_ROOT/output/video).
+        if is_video and result.get("video_path"):
+            return {
+                "output_path": result["video_path"],
+                "prompt_id": prompt_id,
+                "seed": seed,
+                "is_video": is_video,
+                "info": result.get("info", f"Generation completed. seed: {seed}"),
+            }
+
+        # Image results come back as base64 — persist them to disk. Without
+        # this the job would report an output_path that doesn't exist.
+        image_b64 = result.get("image")
+        if not image_b64:
+            raise RuntimeError(
+                f"ComfyUI returned no image data for prompt {prompt_id}"
+            )
+
+        output_dir = PROJECT_ROOT / "output" / "images"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        filename = (
+            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.png"
+        )
+        filepath = output_dir / filename
+        filepath.write_bytes(base64.b64decode(image_b64))
 
         return {
             "output_path": str(filepath),
             "prompt_id": prompt_id,
             "seed": seed,
             "is_video": is_video,
-            "info": f"Generation completed. seed: {seed}",
+            "info": result.get("info", f"Generation completed. seed: {seed}"),
         }
