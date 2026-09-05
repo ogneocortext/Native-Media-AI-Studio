@@ -127,7 +127,8 @@ async def ensure_vram_available(required_mb: int = 4096) -> dict:
 
         if free_mb < required_mb:
             # Try to offload Ollama models first
-            offload_result = await vram_manager._unload_ollama_models()
+            from ..services.vram_manager import _unload_ollama_models
+            offload_result = await _unload_ollama_models()
             if offload_result.get("success"):
                 result["offloaded"] = True
                 result["message"] = "Offloaded Ollama models to free VRAM"

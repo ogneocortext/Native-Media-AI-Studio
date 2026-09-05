@@ -7,13 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Async Refactoring & VRAM Management (2026-09-05)
+
+- **Backend**: Fixed asyncio refactoring in `diagnostics/resources.py` — converted synchronous GPU check methods to run via `asyncio.to_thread()` to prevent blocking the event loop
+- **Backend**: Fixed `vram_manager.py` — converted `_get_vram_gpustat_sync()` and `_get_vram_nvml_sync()` to synchronous versions wrapped with `asyncio.to_thread()` for proper async execution
+- **Backend**: Fixed `integrations_config.py` — corrected VRAM offload function call from `vram_manager._unload_ollama_models()` to direct function import
+- **Backend**: Fixed `integrations_generation.py` — corrected VRAM manager function calls to use direct imports instead of instance methods
+- **Backend**: Fixed `main.py` — changed `queue_manager.reload_from_db()` to `await queue_manager.reload_from_db()` for proper async execution
+- **Backend**: Enhanced `comfyui.py` — added `_get_queue_status()` method to check ComfyUI queue status, improved error handling with timeout and cancellation detection
+- **Docs**: Updated knowledge library index — corrected document count (27), tag count (22), and last updated date (2026-09-05)
+
 ### Fixed - Vision MCP OOM Prevention (2026-09-03)
+
 - **MCP**: `tools/mcp/vision.mjs` now automatically unloads other running Ollama models via `/api/ps` + `/api/generate keep_alive:0` before loading the target vision model, preventing GPU OOM timeouts on limited-VRAM systems
 - **Docs**: Updated `AGENTS.md` vision workflow and `docs/knowledge-library/technical-reference.md` to document automatic model offloading and corrected resize/format behavior
 
 ### Added - 2026 2D Visualization + LRC-Driven 3D + Ollama Hardening (2026-09-02)
 
 #### 2D Visualization (2026 Open Source)
+
 - **Canvas2DVisualizer** `packages/frontend/src/features/visualizer/Canvas2DVisualizer.tsx` — 3 modes `bars/waveform/radial` via Canvas2D + Web Audio API (inspired by `visual-flux 2026` Apache-2.0 + `Waviz 2026` MIT), LRC `isPhraseStart/sectionProgress/lineProgress` reactive, HiDPI, palette per-section `INTRO/VERSE/CHORUS/DROP`
 - **Shader LRC sync** `ShaderVisualizer.tsx` now `lrcSync` phrase-boosted `beat`/`energy`, `VisualizationFX.tsx` `PostFX` bloom+vignette pulse on phrase
 - **Wire** `Visualizer.tsx` `vizMode:"3d"|"shader"|"2d"` toggle `FX/3D/2D`, `Canvas2DVisualizer` branch `640`
@@ -21,15 +33,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Research** `docs/knowledge-library/2d-visualization-2026.md` — 2026 methods: PixiJS 8, p5.js 1.9, I2Djs, Waviz, visual-flux, OpenVJ, Meyda, GSAP free
 
 #### LRC Stack Fix (Critical)
+
 - **Backend** `services/lyricsParser.py:8` — fixed `IndexError`/`SyntaxError` (un-importable), multi-stamp `[00:02.50][00:05.00]`, `offset:+500` drift, `:`/`1-3` digit support, `generate_lrc` `60.00` rollover
 - **Frontend** `lyricsParser.ts:84` — `offset`, multi-stamp, `1-3` digit, `INSTRUMENTAL/Hook/Refrain` sections, capped `end` `min(6,gap-0.2)`
 - **Sync** `useLrcSync.ts:35` — gap returns `null` not stale lyric, `sectionBounds` map (non-contiguous `CHORUS`), `usePhraseTrigger` `O(log n)` `useMemo`, `Visualizer.tsx:70` `elapsed` reactive `80ms` + `LrcVizController.tsx:65` `lineProgress/sectionProgress` scale/rotation
 
 #### 3D Visualizer LRC Wiring
+
 - `types.ts:109` `VisualizerSceneProps.lrcSync` full `currentLine/nextLine/timeToNextPhrase/currentIndex/totalLines`; `VisualizerScene.tsx:32` `PostFX lrcSync` phrase bloom `+0.25`, `LrcVizController.tsx:65` no `vizParams` mutation, full sync
 - Verified `useLrcSync` → `KineticLyricOverlay` + `VisualizerScene` + `ShaderVisualizer` + `Canvas2DVisualizer` all reactive
 
 #### Ollama & API Hardening
+
 - **Startup** `main.py:143` unload Ollama at startup → no auto-load on resume; `vram_manager.py:510` `keep_alive:-1`→`"5m"` + `llama` sanitize `370` (`qwen3.5:4b` default `config.py:34`, `adapters/ollama.py:70`, `config/settings.json:9`)
 - **Visualizer** `Visualizer.tsx:338` removed fire-and-forget `generateVisualizerPreset` on track select → manual `Enhance with AI` button `465` with diff toast
 - **ComfyUI** `integrations_generation.py:33` `enrich_prompt:bool=False` — was auto on `<120 chars`, now opt-in
@@ -37,11 +52,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Misc** `integrations_misc.py:328` bare `@router.get("/ollama-models")` bug split into `get_ollama_models_misc` + `POST /cuda/analyze-audio`, `audio.py:860` path traversal `resolve().is_relative_to` + CORS allowlist
 
 #### Visualizer Preset Persistence & Gallery
+
 - `integrations_generation.py:1313` `POST /ollama/visualizer` now `save_visualization_preset()` + `storage/visualizer_presets/{hash}.json` `1331`, `GET /presets` `1358` + `DELETE /preset/{id}` `1392`
 - `AIPresetGallery.tsx:1` browsable gallery `search/style` filter, `Apply/Copy/Download/Delete`, survives restart (`storage/studio.db` WAL)
 - `AIVisualizerPrompt.tsx:18` history `refreshKey` + `Settings.tsx:62` `default_model` persistence fix, `tools/mcp/vision.mjs:11` `VISION_MODEL` env
 
 ### Fixed - Final Sweep & Documentation (2026-09-02)
+
 - **Backend**: Fixed missing `import asyncio` in `api/outputs.py` — caused runtime crash in FFmpeg operations
 - **Backend**: Removed dead code duplicate in `_scan_with_cache` (unreachable after return)
 - **Backend**: Fixed `check_and_prevent_oom` indentation in `vram_manager.py` — was unreachable as a nested function
@@ -52,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MCP**: Made checkpoint name configurable in `ollama-tools-mcp.mjs` `generateImage`
 
 ### Fixed - Security & Reliability Sweep (2026-09-01)
+
 - **Backend**: Added `threading.Lock` to `_output_cache` in `api/outputs.py` to prevent race conditions
 - **Backend**: Fixed TOCTOU race in `queue/manager.py` `cancel_job`/`retry_job` — moved status check inside lock
 - **Backend**: Fixed `diagnostics/health.py` — errored adapters now reported as OFFLINE instead of silently disappearing
@@ -73,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Config**: Aligned TypeScript version in `pnpm-workspace.yaml` catalog with `package.json` (^5.9.3)
 
 ### Fixed - Bug Sweep & Code Quality (2026-09-01)
+
 - **Backend**: Removed duplicate `adapter_registry` import in `main.py` shutdown handler
 - **Backend**: Replaced deprecated `asyncio.get_event_loop().time()` with `time.monotonic()` in `vram_manager.py` (removed in Python 3.10+)
 - **Backend**: Fixed `save_config()` Path serialization — added `default=str` to `json.dump` so `Path` objects serialize correctly
@@ -92,11 +111,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tooling**: Fixed invalid `--ws websockets-sansio` → `--ws websockets` in `start-backend.ps1`
 
 ### Fixed - Server Startup & Monitoring (2026-08-31)
+
 - **Startup Script** (`scripts/start-studio.ps1`): Fixed log overwrite on restart (now appends), added exponential backoff (1s/2s/4s) for crashed services, added process validation after start, added crash diagnostics showing last 10 lines of error log, added VideoEditor to auto-restart switch
 - **Unity MCP Bridge** (`tools/mcp/unity-mcp-bridge.mjs`): Fixed wrong default project path — was resolving to `tools/unity-project-mcp` instead of repo-root `unity-project-mcp`
 - **File Organization**: Moved 30+ loose files into structured directories (`tools/mcp/`, `tools/demos/`, `tools/tests/`, `tools/output/`, `scripts/utility/`, `docs/scratch/`), updated all 64 broken path references across 15+ files
 
 ### Fixed - Frontend Stability & Performance (2026-08-31)
+
 - **Error Boundaries**: Added reusable `ErrorBoundary` component, wrapped all 20 routes to prevent single-component crashes from killing the page
 - **Memory Leaks**: Fixed ThreeJSStudio resize listener never being removed (cleanup referenced wrong function), fixed healthStore SSE double-subscription leak
 - **Performance**: Throttled ThreeJSStudio `animationTime` state updates from 60fps to ~10fps, added `React.memo` to Visualizer sub-components (StylePicker, SpectrumBar), added ref-counted polling to gpuStore
@@ -105,6 +126,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Code Quality**: Extracted duplicated `formatElapsed` function to shared `utils/format.ts`, created reusable `usePolling` hook
 
 ### Fixed - Visualizer Page (2026-08-31)
+
 - Fixed CSS class mismatch in loading indicator (`.viz-loading` → `.viz-loading-overlay`)
 - Added AnimationDemo toggle button to topbar (was unreachable)
 - Fixed SVG demo button active state
@@ -113,15 +135,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced all 13 visualizations with better colors, materials, and effects (more particles, higher segment counts, glow shells)
 
 ### Fixed - Confidence Score (2026-08-25)
+
 - **Backend**: `audio_analyzer.py:224` windowed onset (`p85`, `±1` frame) + beat regularity (`CV`) + dynamic range → `0.28` → `0.85` on `182s 143BPM` (was `mean(onset/max)`, now `0.55*onset + 0.30*regularity + 0.15*dynamic` + `sqrt` boost)
 - **Verified**: `5` library files now `0.86-0.88` (was `0.27-0.35`), `POST /api/audio/analyze` `0.851`
 
 ### Fixed - Video Rendering & Queue Preview (2026-08-25)
+
 - **Backend**: `music_video_handler.py:231` `showspectrum … scale=log:rate=30` → `Option not found` (was `772MB` bloat + `timeout`); fixed `scale=log[vid]`, `preset ultrafast` → `crf 23 preset fast maxrate 8M`
 - **Frontend**: `QueueList.tsx:109` now renders `<video controls preload=metadata>` via `/output/video/{filename}` + `Download`/`Open` (was text only, `output_path` ignored `result.output_path`)
 - **Verified**: `hasVideo true`, `GET /output/video/281baf85_music_video.mp4` `200 video/mp4`
 
 ### Fixed - Generate-3D Page UX (2026-08-25)
+
 - **Backend**: `gen3d/service.py:24` `..core.config` → `...core.config` (`500` → `200` `{"available":true,"comfyui_running":true}`)
 - **Frontend**: auto-load `status`/`history` on mount, `elapsed` timer, word-count validation (`75` words, `500` chars)
 - **Model cards**: `VRAM`/`time` badges (`5GB 2-3min 8GB-safe` vs `9GB+ 6-8min`), selected `border-violet`, `steps` slider `5-50` with `fast/balanced/quality` + `~min` estimate
@@ -130,10 +155,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sidebar**: live `● Ready`/`Offline` badge, formatted status, `Recent Models` list (`.glb` from `/api/outputs`)
 
 ### Fixed - Queue Progress Bar (2026-08-25)
+
 - **Backend**: `music_video_handler.py:316` stream `stderr` via `read(1024)` split on `[\r\n]` for `frame=`/`time=` → `update_job(0.5→1.0, "Rendering frame X/Y (Z%)")`
 - **Was**: `communicate()` until FFmpeg exit → `50%` stuck until `100%`; now `50%` → `85% 125/180` → `97% 170/180` → `100%`
 
 ### Fixed - Video Rendering Efficient (2026-08-25)
+
 - **Backend**: `crf 23 preset fast maxrate 8M` (was `ultrafast` → `772MB` for `4:24`), add `-t duration` (was full `4:24` for every `5s` → `timeout 60s`)
 - **Abstract**: `PALETTES` by `section`/`energy` (`chorus #ff0055|#ffaa00`, `verse`, `bridge`) + `contrast/saturation` driven by `energy_curve`
 - **Verified**: `5s 1080p` now `3.16MB 5.00s` (was `20MB` partial, `50MB` minimal, `772MB` bloated)
@@ -141,15 +168,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed - Audio Analysis & GPU Health (2026-08-25)
 
 #### CUDA Toolkit 12.4 + Nsight Research
+
 - **Research**: Evaluated `https://docs.nvidia.com/cuda/cuda-programming-guide/index.html` (v13.3) for `CUDA 12.4` / `GTX 1070 Ti sm_61` / `torch 2.6.0+cu124` — pinned archive `12.4.0`, documented useful sections (`2.5 Async`, `4.2 Graphs`, `4.3 Stream Alloc`) vs `sm_80+` skip-list
 - **Added**: `docs/knowledge-library/technical-reference.md` — `CUDA Toolkit & Programming Guide — 2026-08-25 Research` with Nsight `2026.1.3` install paths, WDDM caveats, `torch.profiler` fallback (451 ms CUDA captured where `nsys` returned 0.05 MB empty)
 - **Perf**: `app/services/cuda/processor.py` — cached `hann_window` + `rfftfreq` (saves 32 ms), fused `abs().square()` (127 ms → 89 ms), `CudaVisualizationFFT` same cache; `tools/analyze_and_sync.py` — `torch.cuda.Stream()` overlap CPU `beat_track` (24.0 s → 14.7 s, -39% on 182 s track)
 
 #### GPU Health Fallback (WDDM GeForce fix)
+
 - **Fixed**: `GET /api/health/gpu` returned `{"available":false}` on `System Python311` where `pynvml` hardcodes `NVSMI/nvml.dll` (missing, only `System32` exists) — patched `pynvml.py` + added `torch.cuda` fallback in `app/diagnostics/resources.py:541` and `app/services/vram_manager.py:109` (`mem_get_info`, `get_device_properties`, `fallback: torch.cuda` flag)
 - **Fixed**: `GET /api/integrations/cuda/status` 404 from frontend — `api.ts:607` used `/api/health/integrations/cuda/status`; corrected to `/api/integrations/cuda/status` with legacy fallback, banner now shows `CUDA Available` + VRAM badge
 
 #### Audio Analysis UX
+
 - **Upload**: `validateFile` (MP3/WAV/FLAC/OGG/M4A, 500 MB), inline `fileError`, `audio` preview via `URL.createObjectURL`, `Clear` button, drag `border-dashed` states, `role=button` + `Enter`
 - **CUDA banner**: always visible `role=status` — green `CUDA Available` / amber `CPU Mode`, VRAM `used/total %` badge, `fallback` badge, `GPU on/off` toggle with `aria-label`
 - **Progress**: `aria-live`, `aria-busy`, dismissible error, `10–30 s` hint
@@ -158,9 +188,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Library**: computed `filtered/sorted/paged`, `No files match + Clear filter`, `N files` count, fixed `filtered.length` pagination, updated Tips
 
 #### Backend Integration Fix
+
 - **Fixed**: `app/api/integrations_generation.py:74` `NameError: ImageGenerationRequest/VideoGenerationRequest not defined` — defined both `BaseModel`s locally, cleared `__pycache__`, backend now starts via `venv` `uvicorn` (`PID 23524` `available:true 3782/8192 MB`)
 
 ### Fixed - Health Page Layout
+
 - **Fixed**: GPU card orphaned in 3-column grid — changed to 2-column layout (CPU+Memory, Disk+GPU)
 - **Fixed**: ComfyUI card was heavy full-width before resource metrics — moved to sidebar column
 - **Fixed**: Service Checks crammed into 1/3 width — merged into equal 2-column layout with Performance History
@@ -169,12 +201,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Added**: Reusable `ResourceCard` component for CPU/Memory/Disk
 
 ### Added - Per-Process GPU Memory Monitoring
+
 - **Added**: `/api/health/gpu/processes` endpoint using Windows Performance Counters (`win32pdh`) for per-process VRAM tracking
 - Works on WDDM (GeForce) without admin privileges — replaces NVML-only approach that returned `N/A` on GTX 1070 Ti
 - Human-readable format: process names resolved from PIDs, memory in MB/GB, sorted by usage
 - Frontend GPU card now shows top 8 processes by VRAM usage
 
 ### Fixed - Vision Analysis Infrastructure
+
 - **Fixed**: `vision-mcp_vision_mcp` tool fails with large images — created `tools/mcp/vision.mjs` standalone analyzer using sharp for resizing
 - **Added**: `tools/mcp/vision.mjs` with `analyze`, `compare`, `diff` commands using sharp + Ollama gemma4:e2b-it-qat
 - **Added**: `vision-page-analysis` skill in `.kilo/skills/` for screenshot-to-analysis workflow
@@ -183,23 +217,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed - AI Tools Page Bug Fixes & Improvements
 
 #### Critical: SSE Stream Parsing
+
 - **Fixed**: `parseOllamaStream()` in `services/api.ts` — `event:` and `data:` lines are separate in SSE format but parser tried to extract event from the data line; stream was completely non-functional
 - **Fixed**: Visualization tool calls never triggered during streaming — `td.result` was never populated; now extracts config directly from tool call arguments
 - **Fixed**: `done` event overwrote accumulated `fullResponse` with only the last turn's text, losing prior turns
 
 #### Generation Control
+
 - **Added**: Cancel button with `AbortController` support — users can now stop ongoing generation
 - **Added**: `ollamaChatStream()` accepts `AbortSignal` parameter for proper request cancellation
 - **Fixed**: `vizConfig` not cleared on new generation — stale visualizations persisted
 
 #### Tool Editor
+
 - **Added**: JSON validation with visual feedback — red border + "Invalid JSON" message
 - **Added**: Save button disabled when JSON is invalid or tool name is empty
 
 #### Files Changed
-| Action | File |
-|--------|------|
-| Modified | `packages/frontend/src/services/api.ts` |
+
+| Action   | File                                                      |
+| -------- | --------------------------------------------------------- |
+| Modified | `packages/frontend/src/services/api.ts`                   |
 | Modified | `packages/frontend/src/features/ai-tools/AIToolsPage.tsx` |
 
 ### Added - Comprehensive Backend Logging
@@ -246,6 +284,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added - Ollama Tool Calling & Agent Loop
 
 #### Backend
+
 - **New API endpoint**: `POST /api/integrations/ollama/chat` — Chat with tool calling and agent loop
 - **Agent loop pattern**: Automatic tool execution up to `max_tool_calls` iterations
 - **Built-in tools**: `get_project_structure`, `search_docs`, `get_system_health`, `list_jobs`, `get_job_status`
@@ -253,21 +292,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tool details response**: Returns `tool_details` array with name, arguments, and result for each tool call
 
 #### Frontend
+
 - **Updated AI Tools Page**: Connection status, tool registry, tool call display
 - **New API functions**: `ollamaChat()`, `ollamaChatStream()`, `parseOllamaStream()`
 - **Tool definition types**: `ToolDefinition`, `ChatMessage` interfaces
 
 #### Files Changed
-| Action | File |
-|--------|------|
-| Modified | `packages/backend/app/adapters/ollama.py` |
-| Modified | `packages/backend/app/api/integrations.py` |
+
+| Action   | File                                                      |
+| -------- | --------------------------------------------------------- |
+| Modified | `packages/backend/app/adapters/ollama.py`                 |
+| Modified | `packages/backend/app/api/integrations.py`                |
 | Modified | `packages/frontend/src/features/ai-tools/AIToolsPage.tsx` |
-| Modified | `packages/frontend/src/services/api.ts` |
+| Modified | `packages/frontend/src/services/api.ts`                   |
 
 ### Changed - WebSocket Replaced with SSE (Server-Sent Events)
 
 #### Why SSE over WebSocket
+
 - **Automatic reconnection** — Browser's EventSource API handles reconnection natively; no custom reconnect logic needed
 - **Event resumption** — `Last-Event-ID` header automatically replays missed events after reconnection
 - **Proxy/firewall friendly** — SSE uses plain HTTP, works through any proxy without special configuration
@@ -275,6 +317,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Vite 8.x compatible** — Eliminates WebSocket proxy bugs present in Vite 8.2.2
 
 #### Backend Changes
+
 - **New SSE endpoint**: `GET /api/events` — streams health updates, job progress, and resource warnings
 - **New module**: `packages/backend/app/sse/handler.py` — `SSEManager` class manages client queues
 - **Dependency added**: `sse-starlette>=2.0.0` for SSE response handling
@@ -282,6 +325,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Updated**: `health_broadcast_loop()` and `resource_monitoring_loop()` now use `sse_manager`
 
 #### Frontend Changes
+
 - **New service**: `packages/frontend/src/services/sseService.ts` — `SSEService` class using native `EventSource` API
 - **Removed**: `socketManager.ts`, `createWebSocket()`, `getWebSocketUrl()`
 - **Updated stores**:
@@ -294,28 +338,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Removed**: All WebSocket-related code and dependencies
 
 #### Files Changed
-| Action | File |
-|--------|------|
-| Added | `packages/backend/app/sse/__init__.py` |
-| Added | `packages/backend/app/sse/handler.py` |
-| Added | `packages/frontend/src/services/sseService.ts` |
-| Modified | `packages/backend/app/main.py` |
-| Modified | `packages/backend/app/diagnostics/resources.py` |
-| Modified | `packages/backend/app/queue/manager.py` |
-| Modified | `packages/backend/app/queue/processor.py` |
-| Modified | `packages/backend/app/api/jobs.py` |
-| Modified | `packages/backend/requirements.txt` |
-| Modified | `packages/frontend/src/state/healthStore.ts` |
-| Modified | `packages/frontend/src/state/jobStore.ts` |
+
+| Action   | File                                                  |
+| -------- | ----------------------------------------------------- |
+| Added    | `packages/backend/app/sse/__init__.py`                |
+| Added    | `packages/backend/app/sse/handler.py`                 |
+| Added    | `packages/frontend/src/services/sseService.ts`        |
+| Modified | `packages/backend/app/main.py`                        |
+| Modified | `packages/backend/app/diagnostics/resources.py`       |
+| Modified | `packages/backend/app/queue/manager.py`               |
+| Modified | `packages/backend/app/queue/processor.py`             |
+| Modified | `packages/backend/app/api/jobs.py`                    |
+| Modified | `packages/backend/requirements.txt`                   |
+| Modified | `packages/frontend/src/state/healthStore.ts`          |
+| Modified | `packages/frontend/src/state/jobStore.ts`             |
 | Modified | `packages/frontend/src/components/layout/Sidebar.tsx` |
-| Modified | `packages/frontend/src/features/queue/Queue.tsx` |
-| Modified | `packages/frontend/src/services/api.ts` |
-| Modified | `packages/frontend/src/services/portConfig.ts` |
-| Modified | `packages/frontend/src/hooks/useWebSocket.ts` |
-| Modified | `packages/frontend/src/hooks/index.ts` |
-| Deleted | `packages/frontend/src/services/socketManager.ts` |
+| Modified | `packages/frontend/src/features/queue/Queue.tsx`      |
+| Modified | `packages/frontend/src/services/api.ts`               |
+| Modified | `packages/frontend/src/services/portConfig.ts`        |
+| Modified | `packages/frontend/src/hooks/useWebSocket.ts`         |
+| Modified | `packages/frontend/src/hooks/index.ts`                |
+| Deleted  | `packages/frontend/src/services/socketManager.ts`     |
 
 #### New Vault Files (docs/knowledge-library/)
+
 - **`codebase.json`** — Machine-readable project structure: packages, tools, config, data flow pipelines. Maps every key file to its purpose so agents can navigate without reading source.
 - **`api-registry.json`** — Complete API endpoint registry: 50+ endpoints across 10 routers with full request/response schemas, Pydantic model fields, query parameters, and content types.
 - **`mcp-registry.json`** — MCP server tool inventories: 4 servers (Unity, Blender, ComfyUI, Remotion) with 80+ tools, parameter schemas, and usage patterns (full pipeline, quick video, 3D render).
@@ -323,14 +369,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`prompts.json`** — Genre prompt templates with weighted examples, negative prompts, and render tips.
 
 #### New Backend Endpoints (packages/backend/app/api/docs.py)
+
 - **`GET /api/docs/bootstrap`** — Single-call agent onboarding: returns manifest + codebase + API registry + MCP registry + prompts + vault doc index + quick start steps. One call gives agents everything needed to operate.
 - **`GET /api/docs/search?q=<query>`** — Full-text search with relevance scoring: title matches (10pt), tag matches (8pt), path matches (5pt), content matches (3pt + multi-occurrence bonus). Returns ranked results with snippet context.
-- **`GET /api/docs/structure?depth=N`** — Project directory tree scoped to key directories (packages, docs, tools, scripts, config). Skips hidden/node_modules/__pycache__/venv.
+- **`GET /api/docs/structure?depth=N`** — Project directory tree scoped to key directories (packages, docs, tools, scripts, config). Skips hidden/node_modules/**pycache**/venv.
 - **`GET /api/docs/codebase`** — Shortcut: returns codebase.json directly.
 - **`GET /api/docs/api-registry`** — Shortcut: returns api-registry.json directly.
 - **`GET /api/docs/mcp-registry`** — Shortcut: returns mcp-registry.json directly.
 
 #### Frontend Documentation Page Improvements
+
 - **Server-side search** — Debounced search using `/api/docs/search` with relevance scores displayed next to results.
 - **JSON file badges** — Each JSON file type gets a colored badge: Agent Manifest (amber), Prompts (pink), Codebase Map (cyan), API Registry (emerald), MCP Registry (blue).
 - **JSON viewer** — Shows top-level key count, file size, and copy-to-clipboard button.
@@ -373,12 +421,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added - Server Management & Data Persistence (Session 6)
 
 #### Server Management
+
 - **Unified server management**: `manage-servers.ps1` script for start/stop/restart/status of all services
 - **ComfyUI integration**: `start-studio.ps1` now manages ComfyUI alongside backend/frontend/video editor
 - **ComfyUI start script**: Fixed paths in `start_comfyui.ps1` for ComfyUI location and Python environment
 - **NPM scripts**: Added `pnpm start`, `pnpm start:all`, `pnpm servers status` commands
 
 #### Data Persistence
+
 - **Database upgrade**: New tables for tracks, prompts, audio_files, ai_visuals, generation_sessions, user_preferences
 - **Track Manager UI**: Table view for pairing prompts and lyrics to tracks with inline editing
 - **CSV import**: Import tracks from HappyShrimp CSV with prompts and lyrics
@@ -387,6 +437,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **User preferences**: Key-value store for UI defaults and settings
 
 #### AI Visual Generation
+
 - **ComfyUI service**: Full API client for image generation, model listing, system stats
 - **AI Visuals Panel**: UI for generating AI visuals with prompt input and style presets
 - **Style previews**: Low-res (256x256) thumbnails for all 8 styles before full generation
@@ -394,12 +445,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Generation estimator**: Frame counts, time, VRAM, and output size estimates for GTX 1070 Ti
 
 #### Audio Visualization
+
 - **AudioReactiveVisualizer**: Real-time audio visualization using Remotion's APIs
 - **Multiple styles**: Bars, waveform, circular, particles
 - **Color schemes**: Neon, fire, ocean, monochrome
 - **Composition upgrade**: Layered rendering with AI visual background + audio visualizer overlay
 
 #### Repository Organization
+
 - **Removed old directories**: Deleted `backend/`, `frontend/` (superseded by `packages/`)
 - **Moved media files**: Large video files moved to `output/videos/`, test audio to `tests/audio/`
 - **Updated .gitignore**: Added model directories, Happy Shrimp cache, and other clutter
@@ -409,6 +462,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed - Codebase Cleanup & Type System Alignment
 
 #### Type System
+
 - **Shared types aligned with backend Pydantic models**:
   - Added missing `MUSIC_VIDEO_PREVIEW` to `JobType` enum in `shared/types.ts`
   - Added `queued` and `retrying` fields to `QueueStats` interface
@@ -419,6 +473,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Eliminates duplicate type definitions, ensuring single source of truth
 
 #### Configuration
+
 - **Workspace structure**: Python backend removed from pnpm workspace (it uses pip/conda, not npm)
   - `pnpm-workspace.yaml` now explicitly lists `packages/frontend`, `packages/video-editor`, and `shared`
   - Root `package.json` workspaces updated to match
@@ -427,6 +482,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Path aliases**: Added `@shared` alias to `tsconfig.json` and `vite.config.ts` for cleaner imports
 
 #### Code Quality
+
 - **Backend logging**: Replaced all `print()` calls with `logger.warning()`/`logger.info()` in:
   - `packages/backend/app/adapters/base.py`
   - `packages/backend/app/core/port_manager.py`
@@ -443,6 +499,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added - Remotion Video Editor Improvements (Session 4)
 
 #### Modular Components
+
 - **Reusable component library** (`src/components/index.ts`):
   - `useAudioAnalysis()` — Hook for real-time audio spectrum/waveform data
   - `LyricDisplay` — Animated lyrics with verse/chorus/bridge styles
@@ -452,6 +509,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `TrackInfo` — Track metadata display with progress bar
 
 #### Template System
+
 - **Template composition** (`src/compositions/Template.tsx`):
   - Configuration-driven approach (edit CONFIG object)
   - Easy lyric timing format
@@ -459,6 +517,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All reusable components wired up
 
 #### Documentation
+
 - **Comprehensive README** (`packages/video-editor/README.md`):
   - Quick start guide
   - Project structure overview
@@ -472,6 +531,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added - Design System & UX Overhaul (Session 4)
 
 #### CSS & Visual Design
+
 - **Enhanced color palette** — Added accent (pink), cyan, and emerald colors for more vibrant UI
 - **Depth & layering** — Cards now have multi-layered shadows, gradient backgrounds, and top highlight lines
 - **Micro-animations** — Added 12+ new animations (pulse-glow, shimmer, float, slide-in-up, ripple, etc.)
@@ -482,18 +542,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Status badges** — Color-coded badges with backgrounds for each status type
 
 #### Responsive Design
+
 - **5 breakpoints** — Large desktop (1920+), medium (1400), small (1100), portrait (900), narrow (600)
 - **Vertical display support** — Sidebar collapses to horizontal top bar on portrait orientations
 - **Adaptive grids** — 4→2→1 column degradation based on screen width
 - **Mobile-friendly** — Compact padding, smaller fonts, touch-friendly targets
 
 #### Component Improvements
+
 - **StatusBadge** — Now includes background colors and borders per status type
 - **Card** — New `glow` prop for gradient border effect on hover
 - **ProgressBar** — New `showPercentage` and `size` props
 - **EmptyState** — Animated icon with float effect
 
 #### Beat Detection
+
 - **Real audio analysis** — Replaced placeholder BPM assumption with actual audio energy analysis
 - **Multi-band detection** — Analyzes low, mid, and high frequency bands
 - **Adaptive thresholding** — Uses local median for dynamic onset detection
@@ -501,6 +564,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Beat classification** — Downbeats, backbeats, and energy-based intensity classification
 
 #### ComfyUI Integration
+
 - **Process manager** — Start/stop ComfyUI headlessly from the app
 - **CUDA detection** — Checks for NVIDIA GPU compatibility before starting
 - **Auto-restart** — Stops, updates, and restarts ComfyUI seamlessly
@@ -508,17 +572,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Health monitoring** — Real-time status with uptime tracking
 
 #### Logging System
+
 - **Centralized logging** — Structured logging to 4 rotating log files
 - **Per-module logs** — Separate files for app, errors, queue, and ComfyUI
 - **Frontend log viewer** — Tabbed interface with search, filter, and auto-refresh
 - **stdout capture** — print() calls are now logged via app.stdout
 
 #### Security
+
 - **Fixed vulnerabilities** — Updated brace-expansion, nanoid, postcss (0 remaining)
 
 ---
 
 ### Added - Art Direction Page Redesign (Session 3)
+
 - **Live Style Tile** — Top panel shows combined effect of all active modules:
   - Gradient background using selected palette colors
   - Typography preview with selected font style and size
@@ -551,6 +618,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added - Page-by-Page UX Audit & Improvements (Session 3)
 
 #### CSS & Component Improvements
+
 - **Card styling** — Added `.card` with shadow, `.metric-card` with hover effects, `.section-header` for consistent section labeling
 - **Button hierarchy** — `.btn-primary` now uses gradient + shadow + hover lift; `.btn-ghost` for secondary actions; `.btn-lg` for prominent CTAs
 - **EmptyState component** — Enhanced with optional `icon` and `action` (CTA button) props for actionable empty states
@@ -559,12 +627,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Page Improvements
 
 **Dashboard**
+
 - Added Quick Actions grid (Create Music Video, Generate Image, Visualizer, View Queue) with hover animations
 - Converted Status Overview cards to centered metric cards with icons and hover effects
 - Improved empty states with icons and actionable CTAs ("Generate Your First Image" button)
 - Enhanced System Resources with bolder labels and improved progress bars
 
 **Music Video Studio**
+
 - Fixed waveform visualization (normalized amplitude data, added glow effects)
 - Fixed AudioContext suspended state (resume on user gesture before play)
 - Added ghost-style "Change Audio" button (replaces prominent "Change Audio File")
@@ -575,14 +645,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed FFmpeg rendering (simplified command using testsrc for reliability)
 
 **Image Generation**
+
 - Enhanced empty state with icon and contextual CTA (shows "Generate" button when prompt exists)
 
 **Global**
+
 - Reduced information density across all pages with better spacing
 - Standardized button styles (primary = gradient, secondary = outline, ghost = transparent)
 - Improved typography with uppercase tracking labels for settings
 
 #### Bug Fixes
+
 - CORS: Added port 3000 to backend allowed origins
 - Dashboard: Fixed missing `</div>` tag causing syntax error
 - Dashboard: Fixed `stats.total` → `stats.pending` type error
@@ -593,6 +666,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added - Backend Audio Upload & Music Video Rendering (Session 2)
 
 #### New Files
+
 - **`packages/backend/app/api/audio.py`** — Audio upload and analysis API router
   - `POST /api/audio/upload` — Multipart file upload (max 500 MB, chunked)
   - `GET /api/audio/files` — List uploaded audio files
@@ -609,6 +683,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`docs/architecture/ARCHITECTURE.md`** — System architecture documentation
 
 #### Modified Files
+
 - **`packages/backend/app/main.py`** — Added audio router registration
 - **`packages/backend/app/queue/processor.py`** — Registered music video handlers
 - **`packages/frontend/src/services/api.ts`** — Added `uploadAudioFile()` function
@@ -627,6 +702,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`CHANGELOG.md`** — This update
 
 ### Fixed
+
 - Missing `config/ports.json` — Created with correct monorepo port settings
 - MusicVideo.tsx duplicate closing `</div>` tag
 - Job submission now requires successful upload before enabling
@@ -638,6 +714,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added - Music Video Studio (Complete Rewrite)
 
 #### Frontend Components
+
 - **AudioVisualizer** (`frontend/src/components/audio/AudioVisualizer.tsx`)
   - Real-time waveform visualization using Web Audio API
   - Beat detection with bass frequency analysis
@@ -676,6 +753,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Centralized exports for all audio-related components
 
 #### Enhanced MusicVideo Page
+
 - Complete rewrite of `frontend/src/features/music-video/MusicVideo.tsx`
 - **Tabbed Interface** with 4 sections:
   - **Audio Tab**: File upload + waveform visualizer + quick settings
@@ -691,6 +769,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Quality Settings**: Draft/Standard/High quality options
 
 #### Backend API Endpoints
+
 - **Music Video Models** (`backend/app/api/integrations.py`)
   - `BeatMarker` - Beat marker for music video synchronization
   - `MusicVideoStyle` - Visual style configuration
@@ -710,11 +789,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Returns available ComfyUI workflow templates
 
 #### Job Types
+
 - Added `MUSIC_VIDEO_PREVIEW` to `JobType` enum (`backend/app/models/job.py`)
 
 ### Fixed
 
 #### Backend API Routes
+
 - Added `/api/services/status` route to `backend/app/main.py`
   - Returns adapter status and WebSocket connection count
 - Added `/api/render/health` route to `backend/app/main.py`
@@ -722,6 +803,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed 404 errors on health check endpoints
 
 #### Frontend Configuration
+
 - Updated `frontend/src/services/portConfig.ts`
   - Changed default URLs from `localhost` to `127.0.0.1`
   - Fixed WebSocket port to use same port as backend HTTP API (8000)
@@ -731,6 +813,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 #### Port Configuration
+
 - Backend now serves WebSocket on same port as HTTP API (port 8000)
 - WebSocket path changed to `/ws` instead of separate port
 - Frontend dynamically reads WebSocket URL from `config/ports.json`
@@ -742,6 +825,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Infrastructure Improvements (Session 2)
 
 #### Backend
+
 - Implemented backend health API routes
   - `/api/health` - Basic health check
   - `/api/diagnostics/system` - System diagnostics
@@ -752,6 +836,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added resource monitoring task
 
 #### Frontend
+
 - Fixed Media Library route integration
 - Added Media Library to sidebar navigation
 - Implemented ComfyUI adapter configuration in Settings page
@@ -764,8 +849,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Git Commit Timeline
 
 ### Commit [PENDING] - feat(music-video): Complete music video studio implementation
+
 **Date:** 2026-04-24  
 **Changes:**
+
 - All Music Video Studio components and backend endpoints
 - AudioVisualizer, BeatTimeline, StyleTemplateGallery, VideoPreview
 - Enhanced MusicVideo.tsx with tabbed interface
@@ -773,15 +860,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MUSIC_VIDEO_PREVIEW job type
 
 ### Commit [PENDING] - fix(api): Add missing health and service routes
+
 **Date:** 2026-04-24  
 **Changes:**
+
 - Added `/api/services/status` endpoint
 - Added `/api/render/health` endpoint
 - Fixed WebSocket port configuration
 
 ### Commit [PENDING] - refactor(frontend): ComfyUI integration and theme support
+
 **Date:** 2026-04-24  
 **Changes:**
+
 - Updated Settings page for ComfyUI configuration
 - Added light theme toggle
 - Fixed port configuration (localhost → 127.0.0.1)
@@ -793,6 +884,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### For Users Upgrading
 
 #### Music Video Studio
+
 1. Upload audio file in the **Audio** tab
 2. Select visual style in the **Visual Style** tab
 3. Edit beat markers in the **Beat Timeline** tab
@@ -800,6 +892,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 5. Submit job or add to batch queue
 
 #### Configuration Changes
+
 - WebSocket now connects on same port as backend (8000)
 - No separate WebSocket port configuration needed
 
@@ -808,6 +901,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Future Roadmap
 
 ### Planned Features
+
 - [ ] Real-time preview during audio playback
 - [ ] Export to multiple platforms (YouTube, Vimeo)
 - [ ] Lyrics synchronization for karaoke-style videos
@@ -816,14 +910,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Video stitching for long tracks
 
 ### Known Issues
+
 - Git index.lock blocking commits (requires manual removal)
 - Some lint warnings in new components (non-blocking)
 
 ---
 
 ## Contributors
+
 - Development assisted by Cascade AI (Windsurf)
 
 ---
 
-*Last updated: 2026-08-31*
+_Last updated: 2026-08-31_

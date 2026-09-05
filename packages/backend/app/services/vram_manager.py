@@ -159,16 +159,15 @@ class VRAMManager:
 
         return {"available": False}
 
-    async def _get_vram_gpustat(self) -> dict[str, Any]:
-        """Get VRAM stats via gpustat."""
+    def _get_vram_gpustat_sync(self) -> dict[str, Any]:
+        """Get VRAM stats via gpustat (sync version for asyncio.to_thread)."""
         import gpustat
+
         stats = gpustat.new_query()
         if not stats.gpus:
             return {"available": False}
 
         gpu = stats.gpus[0]
-        # gpustat 1.x exposes memory_* as direct properties on GPUStat
-        # (not gpu.memory.total). Support both for compatibility.
         if hasattr(gpu, "memory_total"):
             total_mb = gpu.memory_total
             used_mb = gpu.memory_used
@@ -191,14 +190,15 @@ class VRAMManager:
             "used_mb": int(used_mb),
             "free_mb": int(free_mb),
             "percent": round(percent, 1),
-            "gpu_utilization": gpu.utilization,
-            "temperature": gpu.temperature,
+            "gpu_utilization": getattr(gpu, "utilization", 0) or 0,
+            "temperature": getattr(gpu, "temperature", 0) or 0,
             "state": self._determine_state(percent),
         }
 
-    async def _get_vram_nvml(self) -> dict[str, Any]:
-        """Get VRAM stats via pynvml."""
+    def _get_vram_nvml_sync(self) -> dict[str, Any]:
+        """Get VRAM stats via pynvml (sync version for asyncio.to_thread)."""
         import pynvml
+
         handle = pynvml.nvmlDeviceGetHandleByIndex(0)
         info = pynvml.nvmlDeviceGetMemoryInfo(handle)
         util = pynvml.nvmlDeviceGetUtilizationRates(handle)
@@ -219,6 +219,14 @@ class VRAMManager:
             "temperature": int(temp),
             "state": self._determine_state(percent),
         }
+
+    async def _get_vram_gpustat(self) -> dict[str, Any]:
+        """Get VRAM stats via gpustat."""
+        return await asyncio.to_thread(self._get_vram_gpustat_sync)
+
+    async def _get_vram_nvml(self) -> dict[str, Any]:
+        """Get VRAM stats via pynvml."""
+        return await asyncio.to_thread(self._get_vram_nvml_sync)
 
     def _determine_state(self, percent: float) -> str:
         """Determine GPU state based on VRAM usage percentage."""

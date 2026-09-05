@@ -44,8 +44,8 @@ All MCP servers are configured in `opencode.json`:
 
 | Server       | Command                                               | Port          | Status        |
 | ------------ | ----------------------------------------------------- | ------------- | ------------- |
-| Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`                | stdio         | ✅ Configured |
-| Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                | 7800 (REST)   | ✅ Running    |
+| Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`                 | stdio         | ✅ Configured |
+| Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                 | 7800 (REST)   | ✅ Running    |
 | Blender MCP  | `uvx blender-mcp`                                     | 9876 (socket) | ✅ Running    |
 | ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://localhost:8188` | 8188          | ✅ Running    |
 | Remotion MCP | `npx -y @remotion/mcp@latest`                         | stdio         | ✅ Configured |
@@ -59,11 +59,13 @@ All MCP servers are configured in `opencode.json`:
 **Proper vision analysis workflow:**
 
 1. **Capture screenshot** with Playwright:
+
    ```js
-   await page.screenshot({ path: 'browser-test/out/shot.png', fullPage: true });
+   await page.screenshot({ path: "browser-test/out/shot.png", fullPage: true });
    ```
 
 2. **Analyze with vision script** (resizes + sends to Ollama gemma4):
+
    ```bash
    node tools/mcp/vision.mjs analyze shot.png "optional prompt"
    # or for code-grounded analysis:
@@ -77,6 +79,7 @@ All MCP servers are configured in `opencode.json`:
 5. **Re-capture + re-analyze** to confirm improvements
 
 **Vision script options:**
+
 - `--low` — resize to 640px max (faster, smaller payload)
 - `--high` — resize to 1280px max (higher detail)
 - `--mode ui|responsive|regression|compare` — analysis mode
@@ -86,7 +89,7 @@ All MCP servers are configured in `opencode.json`:
 
 **Default model:** `gemma4:e2b-it-qat` (override with `VISION_MODEL=...`)
 
-**VRAM management:** The vision script automatically unloads any other currently running Ollama models before loading the vision model, preventing OOM errors on GPUs with limited VRAM.
+**VRAM management:** The vision script automatically unloads any other currently running Ollama models before loading the vision model, preventing OOM errors on GPUs with limited VRAM. The backend VRAM manager has been refactored to use proper async patterns with `asyncio.to_thread()` for GPU operations.
 
 ### Ollama Integration
 

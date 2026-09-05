@@ -1,17 +1,20 @@
 # API Reference
 
 > **Base URL:** `http://localhost:8000`
-> **Last Updated:** August 2026
+> **Last Updated:** September 2026
 
 ## Jobs
 
 ### List all jobs
+
 ```
 GET /api/jobs?status={status}
 ```
+
 Optional `status` filter: `pending`, `queued`, `running`, `completed`, `failed`, `cancelled`.
 
 ### Create a job
+
 ```
 POST /api/jobs
 Content-Type: application/json
@@ -37,31 +40,37 @@ Content-Type: application/json
 ```
 
 ### Get job details
+
 ```
 GET /api/jobs/{job_id}
 ```
 
 ### Cancel a job
+
 ```
 POST /api/jobs/{job_id}/cancel
 ```
 
 ### Retry a failed job
+
 ```
 POST /api/jobs/{job_id}/retry
 ```
 
 ### Delete a job
+
 ```
 DELETE /api/jobs/{job_id}
 ```
 
 ### Get queue statistics
+
 ```
 GET /api/jobs/stats
 ```
 
 ### Clear completed jobs
+
 ```
 POST /api/jobs/clear-completed
 ```
@@ -71,15 +80,18 @@ POST /api/jobs/clear-completed
 ## Audio
 
 ### Upload an audio file
+
 ```
 POST /api/audio/upload
 Content-Type: multipart/form-data
 
 file: <binary audio data>
 ```
+
 Supported formats: MP3, WAV, FLAC, OGG, M4A, WMA, AAC. Max size: 500 MB.
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -91,11 +103,13 @@ Supported formats: MP3, WAV, FLAC, OGG, M4A, WMA, AAC. Max size: 500 MB.
 ```
 
 ### List uploaded audio files
+
 ```
 GET /api/audio/files
 ```
 
 ### Analyze audio (real)
+
 ```
 POST /api/audio/analyze
 Content-Type: multipart/form-data
@@ -114,15 +128,19 @@ file: <binary>
   "job_id": "85a406ef"
 }
 ```
+
 No mocks — fails with `503 librosa not installed` or `500 Analysis failed` and surfaces in wizard.
 
 ### Get analysis result
+
 ```
 GET /api/audio/analysis/{job_id}
 ```
+
 Returns JSON analysis result with beat times, tempo, amplitude envelope.
 
 ### Generate video section (real queue)
+
 ```
 POST /api/video/generate-section
 {
@@ -143,22 +161,27 @@ POST /api/video/generate-section
 ## Outputs
 
 ### List all outputs
+
 ```
 GET /api/outputs?file_type={type}&search={query}&limit={n}&offset={n}
 ```
 
 ### Get recent outputs
+
 ```
 GET /api/outputs/recent?limit={n}
 ```
 
 ### Get outputs by type
+
 ```
 GET /api/outputs/{file_type}
 ```
+
 Where `file_type` is `images`, `video`, or `audio`.
 
 ### Outputs — covers, rename, duplicates (new)
+
 Audio files with embedded art (ID3 `attached pic`, FLAC `PICTURE`) are extracted via FFmpeg on scan to `audio/{stem}.jpg` and returned as `cover_image: "audio/...jpg"` (skip-list prevents `*.jpg` sidecars from appearing as standalone images).
 
 ```
@@ -179,9 +202,11 @@ POST /api/outputs/bulk-delete
 ```
 
 ### Delete an output (now also removes sidecars)
+
 ```
 DELETE /api/outputs/{file_path}
 ```
+
 Removes file + `file.json`/`file.mp3.json` + cover `file.jpg` sidecars if inside `output/`.
 
 ---
@@ -189,21 +214,25 @@ Removes file + `file.json`/`file.mp3.json` + cover `file.jpg` sidecars if inside
 ## Health & System
 
 ### Ping
+
 ```
 GET /api/ping
 ```
 
 ### Health check
+
 ```
 GET /api/health
 ```
 
 ### Service status
+
 ```
 GET /api/services/status
 ```
 
 ### Render health (system resources)
+
 ```
 GET /api/render/health
 ```
@@ -213,6 +242,7 @@ GET /api/render/health
 ## Image Generation
 
 ### Generate image (direct)
+
 ```
 POST /api/integrations/{backend}/generate
 Content-Type: application/json
@@ -228,9 +258,11 @@ Content-Type: application/json
   "sampler": "Euler a"
 }
 ```
+
 `backend` can be `comfyui` or `sd_webui`.
 
 ### Queue image job
+
 ```
 POST /api/integrations/{backend}/job
 Content-Type: application/json
@@ -249,12 +281,15 @@ Content-Type: application/json
 ## GPU & 3D Generation
 
 ### GPU Snapshot
+
 ```
 GET /api/health/gpu
 ```
+
 Returns real-time GPU stats including VRAM, utilization, temperature, and per-process breakdown.
 
 **Response:**
+
 ```json
 {
   "available": true,
@@ -267,18 +302,21 @@ Returns real-time GPU stats including VRAM, utilization, temperature, and per-pr
   "memory_controller_utilization": 26,
   "temperature_c": 45,
   "processes": [
-    {"pid": 1234, "name": "blender.exe", "used_mb": 2048, "kind": "compute"}
+    { "pid": 1234, "name": "blender.exe", "used_mb": 2048, "kind": "compute" }
   ]
 }
 ```
 
 ### 3D Generation Status
+
 ```
 GET /api/health/3d/status
 ```
+
 Returns 3D generation service status and model availability.
 
 ### Generate 3D Model
+
 ```
 POST /api/health/3d/generate
 Content-Type: application/json
@@ -290,6 +328,7 @@ Content-Type: application/json
   "seed": 42
 }
 ```
+
 Generates a 3D model from text prompt using Hunyuan3D-2mini. Returns `{success, model_path}`.
 
 ---
@@ -297,11 +336,13 @@ Generates a 3D model from text prompt using Hunyuan3D-2mini. Returns `{success, 
 ## WebSocket
 
 ### Connect
+
 ```
 ws://localhost:8000/ws
 ```
 
 ### Message types received
+
 - `job.queued` — Job added to queue
 - `job.started` — Job started processing
 - `job.progress` — Progress update (0.0 to 1.0)
@@ -316,6 +357,7 @@ ws://localhost:8000/ws
 ## Error Handling
 
 **Format:**
+
 ```json
 {
   "detail": "Error message",
@@ -337,6 +379,7 @@ ws://localhost:8000/ws
 ## Agent Guidelines
 
 ### Best Practices
+
 - Always URL-encode filenames when using them in API paths
 - Handle multipart/form-data for file uploads (don't set Content-Type header manually)
 - Check job status before attempting to retrieve results
@@ -344,7 +387,9 @@ ws://localhost:8000/ws
 - Cache analysis results to avoid re-analyzing the same file
 
 ### Rate Limiting
+
 No rate limiting for local development.
 
 ### Retry Strategy
+
 Exponential backoff for 5xx errors, max 3 retries.

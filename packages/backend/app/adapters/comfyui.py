@@ -412,6 +412,24 @@ class ComfyUIAdapter(BaseAdapter):
                 return await resp.json()
             return {}
 
+    async def _get_queue_status(self, prompt_id: str) -> dict[str, Any] | None:
+        """Check if a prompt is in the ComfyUI queue. Returns the queue entry or None."""
+        session = await self._get_session()
+        async with session.get(
+            f"{self.base_url}/queue",
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                # ComfyUI /queue returns {"running": [...], "queued": [...]}
+                for item in data.get("running", []):
+                    if item.get("task_id") == prompt_id or item.get("id") == prompt_id:
+                        return item
+                for item in data.get("queued", []):
+                    if item.get("task_id") == prompt_id or item.get("id") == prompt_id:
+                        return item
+            return None
+
     async def _fetch_image(self, filename: str, subfolder: str = "") -> str:
         """Fetch an image from ComfyUI and return as base64"""
         params: dict[str, Any] = {
@@ -550,17 +568,27 @@ class ComfyUIAdapter(BaseAdapter):
         Wait for a video prompt to complete and return the video path.
 
         Polls ComfyUI history until the prompt appears with video/gif output.
+        Raises TimeoutError on timeout, or RuntimeError if ComfyUI reports
+        the prompt failed or was cancelled.
         """
         start = asyncio.get_event_loop().time()
 
         while True:
-            if asyncio.get_event_loop().time() - start > timeout:
+            elapsed = asyncio.get_event_loop().time() - start
+            if elapsed > timeout:
                 raise TimeoutError(f"ComfyUI video generation timed out after {timeout}s")
 
             # Check history
             history = await self._get_history(prompt_id)
             if prompt_id in history:
                 entry = history[prompt_id]
+                # Check for execution failure (ComfyUI sets status_str / error on failed prompts)
+                status_str = entry.get("status_str", "")
+                if status_str == "error" or entry.get("status", "") == "error":
+                    error_msg = entry.get("error", status_str) or "ComfyUI execution error"
+                    logger.error("ComfyUI prompt %s failed: %s", prompt_id, error_msg)
+                    raise RuntimeError(f"ComfyUI generation failed: {error_msg}")
+
                 if "outputs" in entry:
                     for node_id, output in entry["outputs"].items():
                         # Check for video/gif output (VideoHelperSuite)
@@ -584,6 +612,15 @@ class ComfyUIAdapter(BaseAdapter):
                                 if filename and filename.endswith((".gif", ".mp4", ".webm")):
                                     subfolder = img.get("subfolder", "")
                                     return await self._fetch_video(filename, subfolder)
+
+            # Also check the /queue endpoint — if the prompt isn't in the queue
+            # and isn't in history, it may have been cancelled or never started.
+            # Give it a few iterations before declaring it lost.
+            if elapsed > 10:
+                queue_status = await self._get_queue_status(prompt_id)
+                if not queue_status:
+                    logger.warning("Prompt %s not in queue or history after %ds — may have been cancelled", prompt_id, int(elapsed))
+                    raise RuntimeError(f"ComfyUI prompt {prompt_id} not found in queue or history — it may have been cancelled or rejected")
 
             await asyncio.sleep(2)
 

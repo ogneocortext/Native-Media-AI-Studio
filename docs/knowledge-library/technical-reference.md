@@ -1,7 +1,7 @@
 # 3D Rendering Pipeline - Technical Knowledge Library
 
 **Purpose:** AI agent reference for the Native Media AI Studio 3D rendering system  
-**Last Updated:** 2026-08-25 — CUDA 12.4 / Nsight / Audio 0.85 conf / Video 3.16MB / Queue 90% frame / 3D Ready  
+**Last Updated:** 2026-09-05 — Async refactoring, VRAM management fixes, ComfyUI error handling  
 **Audience:** AI agents, developers, automated systems
 
 ---
@@ -56,20 +56,20 @@ PATHS = {
     "project_root": "<your-project-root>",
     "frontend": "<your-project-root>/packages/frontend",
     "backend": "<your-project-root>/packages/backend",
-    
+
     # Python environments
     "backend_venv": "<your-project-root>/venv/Scripts/python.exe",
     "comfyui_conda": "<your-comfyui-conda-env>/Scripts/python.exe",
-    
+
     # ComfyUI
     "comfyui_root": "<your-comfyui-root>",
     "hunyuan3d_model": "<your-comfyui-root>/models/diffusion_models/hunyuan3d-2mini",
-    
+
     # Output
     "output_dir": "<your-project-root>/output",
     "generated_3d": "<your-project-root>/output/generated_3d",
     "logs": "<your-project-root>/output/logs",
-    
+
     # Blender
     "blender_executable": "<your-blender-path>/blender.exe",
 }
@@ -246,6 +246,7 @@ Invoke-WebRequest -Uri "http://localhost:8188/system_stats" -UseBasicParsing
 ## GPU Constraints & Optimization — 2026 Updates
 
 ### Blender 5.1 / 5.2 Notes (web synthesis Aug 2026)
+
 - **5.1:** +10% GPU render (various scenes), +20% CPU Windows, AMD HIP RT default — upgrade path.
 - **Backend select:** RTX→OptiX (30-50% over CUDA), GTX 1070 Ti→CUDA; set `Device→GPU Compute`; CPU+GPU only if CPU high-core.
 - **EEVEE Next:** screen-space raytracing overhaul + Fast GI; ray-traced shadows/GI slower → enable selectively; if viewport <24 fps, decimate (Collapse general, Un-Subdivide only if subdivided) + instances.
@@ -253,14 +254,14 @@ Invoke-WebRequest -Uri "http://localhost:8188/system_stats" -UseBasicParsing
 
 ### GTX 1070 Ti (8GB VRAM) Limits — Revised
 
-| Task | Max Resolution | Notes |
-|------|---------------|-------|
-| Image Generation | 512x512 | 768x768 possible with --disable-pinned-memory |
-| 3D Generation (Hunyuan3D-2mini) | Default | Optimized for 8GB ~5GB |
-| Video Generation — Wan 2.2 5B | 480p 832×480 ✅ | 6-8GB fits; 720p tight, needs GGUF+offload |
-| Video Generation — Wan 2.2 14B | 720p | 24GB+ — cloud only (A6000 48GB) |
-| AnimateDiff/SVD | 512x512 16f | 12GB comfortable, 8GB limited |
-| Blender Rendering | 1080p | EEVEE Next real-time; Cycles 128 samples |
+| Task                            | Max Resolution  | Notes                                         |
+| ------------------------------- | --------------- | --------------------------------------------- |
+| Image Generation                | 512x512         | 768x768 possible with --disable-pinned-memory |
+| 3D Generation (Hunyuan3D-2mini) | Default         | Optimized for 8GB ~5GB                        |
+| Video Generation — Wan 2.2 5B   | 480p 832×480 ✅ | 6-8GB fits; 720p tight, needs GGUF+offload    |
+| Video Generation — Wan 2.2 14B  | 720p            | 24GB+ — cloud only (A6000 48GB)               |
+| AnimateDiff/SVD                 | 512x512 16f     | 12GB comfortable, 8GB limited                 |
+| Blender Rendering               | 1080p           | EEVEE Next real-time; Cycles 128 samples      |
 
 ### VRAM Management
 
@@ -294,13 +295,13 @@ GET http://localhost:8000/api/health/gpu
 
 #### What is worth reading for this project
 
-| Guide section | Why it matters here | File refs |
-|---|---|---|
-| **Part 2.5 Asynchronous Execution + 4.2 CUDA Graphs + 4.3 Stream-Ordered Allocator** | Biggest win: `processor.py:92` is sync per-call (`as_tensor` → `stft` → `.cpu()`). Overlapping `CudaAudioAnalyzer` + `CudaImageProcessor` with `torch.cuda.Stream()` and capturing repeated `analyze()` in `CUDAGraph` would cut batch latency. PyTorch already uses stream-ordered alloc internally. | `app/services/cuda/processor.py:77` |
-| **Part 2.6 / 4.1 Unified Memory + 5.2 Environment Variables** | Debug OOM without code change: `CUDA_VISIBLE_DEVICES=0`, `CUDA_LAUNCH_BLOCKING=1`, `compute-sanitizer`. Complements `vram_manager.py:80` + `GET /api/health/gpu`. | `app/services/vram_manager.py:80` |
-| **Part 1 Programming Model + 5.1 Compute Capabilities** | Explains occupancy/memory model behind librosa→torch port. Confirms Pascal limits. | `tools/analyze_and_sync.py:44` (still CPU `beat_track`) |
-| **Part 2.2 Intro to CUDA Python** | More relevant than C++ Ch.2.1 if you port beat-tracking beyond PyTorch (`numba`/`cupy`). | — |
-| **Part 3.5 Tour of Features → Nsight Systems** | System-level timeline for the full pipeline (`analyze_and_sync.py` + ComfyUI). Installed: `Nsight Systems 2026.1.3` — see below. | — |
+| Guide section                                                                        | Why it matters here                                                                                                                                                                                                                                                                                   | File refs                                               |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| **Part 2.5 Asynchronous Execution + 4.2 CUDA Graphs + 4.3 Stream-Ordered Allocator** | Biggest win: `processor.py:92` is sync per-call (`as_tensor` → `stft` → `.cpu()`). Overlapping `CudaAudioAnalyzer` + `CudaImageProcessor` with `torch.cuda.Stream()` and capturing repeated `analyze()` in `CUDAGraph` would cut batch latency. PyTorch already uses stream-ordered alloc internally. | `app/services/cuda/processor.py:77`                     |
+| **Part 2.6 / 4.1 Unified Memory + 5.2 Environment Variables**                        | Debug OOM without code change: `CUDA_VISIBLE_DEVICES=0`, `CUDA_LAUNCH_BLOCKING=1`, `compute-sanitizer`. Complements `vram_manager.py:80` + `GET /api/health/gpu`.                                                                                                                                     | `app/services/vram_manager.py:80`                       |
+| **Part 1 Programming Model + 5.1 Compute Capabilities**                              | Explains occupancy/memory model behind librosa→torch port. Confirms Pascal limits.                                                                                                                                                                                                                    | `tools/analyze_and_sync.py:44` (still CPU `beat_track`) |
+| **Part 2.2 Intro to CUDA Python**                                                    | More relevant than C++ Ch.2.1 if you port beat-tracking beyond PyTorch (`numba`/`cupy`).                                                                                                                                                                                                              | —                                                       |
+| **Part 3.5 Tour of Features → Nsight Systems**                                       | System-level timeline for the full pipeline (`analyze_and_sync.py` + ComfyUI). Installed: `Nsight Systems 2026.1.3` — see below.                                                                                                                                                                      | —                                                       |
 
 #### What to skip on this GPU
 
@@ -331,21 +332,23 @@ Trace: `output/logs/torch-prof-trace.json` (10 MB, open in `chrome://tracing` or
 
 **Real profile — `CudaAudioAnalyzer.analyze()` on 30s audio (venv `torch 2.6.0+cu124`, GTX 1070 Ti):**
 
-| Kernel | Self CUDA | % | Note |
-|---|---|---|---|
-| `aten::abs` | 127 ms | 28% | `magnitude = torch.abs(stft)` dominates — `processor.py:109` |
-| `aten::abs` (2nd, 60s file) | 95 ms | 37% | Same hotspot scaled |
-| `aten::hann_window` | 22 ms | 8.8% | Allocates new window each call |
-| `aten::mm` / `aten::matmul` | 54 ms | 12% | Only in viz/matmul path |
-| `aten::stft` | ~9 ms | 2% | Surprisingly cheap — not bottleneck |
-| **Total** | **~452 ms self CUDA / 451 ms CPU** | — | `cuda_audio_analyze` wall 303 ms for 30s file; 254 ms for 60s file |
+| Kernel                      | Self CUDA                          | %    | Note                                                               |
+| --------------------------- | ---------------------------------- | ---- | ------------------------------------------------------------------ |
+| `aten::abs`                 | 127 ms                             | 28%  | `magnitude = torch.abs(stft)` dominates — `processor.py:109`       |
+| `aten::abs` (2nd, 60s file) | 95 ms                              | 37%  | Same hotspot scaled                                                |
+| `aten::hann_window`         | 22 ms                              | 8.8% | Allocates new window each call                                     |
+| `aten::mm` / `aten::matmul` | 54 ms                              | 12%  | Only in viz/matmul path                                            |
+| `aten::stft`                | ~9 ms                              | 2%   | Surprisingly cheap — not bottleneck                                |
+| **Total**                   | **~452 ms self CUDA / 451 ms CPU** | —    | `cuda_audio_analyze` wall 303 ms for 30s file; 254 ms for 60s file |
 
 **Findings applied to `app/services/cuda/processor.py`:**
-- Hotspot is *not* `torch.stft` — it's the downstream `abs`/`pow`/`hann_window` chain. Caching `hann_window` and fusing `magnitude ** 2` would shave ~30 ms.
+
+- Hotspot is _not_ `torch.stft` — it's the downstream `abs`/`pow`/`hann_window` chain. Caching `hann_window` and fusing `magnitude ** 2` would shave ~30 ms.
 - `n_frames=1292` for 30s @ 22050/512 matches librosa; pipeline spends ~24s wall in `tools/analyze_and_sync.py:44` (`librosa.beat.beat_track` on CPU) — GPU STFT saves <0.5s there. Biggest win is parallelizing beat tracking or batching multiple files with `torch.cuda.Stream` + `CUDAGraph`, not micro-optimizing STFT.
 - `CudaImageProcessor` `aten::_upsample_bilinear2d_aa` 12 ms — `antialias=True` costs; drop if not needed.
 
 To get full `nsys` CUDA timeline (requires Admin):
+
 ```powershell
 # Run PowerShell as Administrator, then:
 nsys profile --trace=cuda,nvtx --force-overwrite=true -o output/logs/nsys-audio-admin `
@@ -442,16 +445,16 @@ viz = processor.generate_fft_visualization("path/to/audio.mp3")
 
 ### Audio Features Extracted
 
-| Feature | Description | Use Case |
-|---------|-------------|----------|
-| tempo_bpm | Beats per minute | Animation speed |
-| beat_timestamps | Beat positions | Cut timing |
-| onset_strength | Note onsets | Visual events |
-| spectral_centroid | Brightness | Color mapping |
-| spectral_rolloff | Bass/treble | Energy mapping |
-| zero_crossing_rate | Noisiness | Texture choice |
-| mfcc | Timbre | Instrument detection |
-| chroma | Harmony | Color palette |
+| Feature            | Description      | Use Case             |
+| ------------------ | ---------------- | -------------------- |
+| tempo_bpm          | Beats per minute | Animation speed      |
+| beat_timestamps    | Beat positions   | Cut timing           |
+| onset_strength     | Note onsets      | Visual events        |
+| spectral_centroid  | Brightness       | Color mapping        |
+| spectral_rolloff   | Bass/treble      | Energy mapping       |
+| zero_crossing_rate | Noisiness        | Texture choice       |
+| mfcc               | Timbre           | Instrument detection |
+| chroma             | Harmony          | Color palette        |
 
 ---
 
@@ -459,14 +462,14 @@ viz = processor.generate_fft_visualization("path/to/audio.mp3")
 
 ### Key Components
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| `Studio3D.tsx` | `features/studio3d/` | 3D generation UI |
-| `MusicVideo.tsx` | `features/music-video/` | Music video creation |
-| `HealthPage.tsx` | `features/health/` | System diagnostics |
-| `Dashboard.tsx` | `features/dashboard/` | Main entry point |
-| `api.ts` | `services/` | Backend API client |
-| `portConfig.ts` | `services/` | Dynamic port configuration |
+| Component        | Location                | Purpose                    |
+| ---------------- | ----------------------- | -------------------------- |
+| `Studio3D.tsx`   | `features/studio3d/`    | 3D generation UI           |
+| `MusicVideo.tsx` | `features/music-video/` | Music video creation       |
+| `HealthPage.tsx` | `features/health/`      | System diagnostics         |
+| `Dashboard.tsx`  | `features/dashboard/`   | Main entry point           |
+| `api.ts`         | `services/`             | Backend API client         |
+| `portConfig.ts`  | `services/`             | Dynamic port configuration |
 
 ### Adding a New Feature Page
 
@@ -524,26 +527,26 @@ curl http://localhost:8188/system_stats | python -m json.tool
 
 ### Backend Errors
 
-| Error | Cause | Solution |
-|-------|-------|----------|
+| Error                                                                | Cause                | Solution                          |
+| -------------------------------------------------------------------- | -------------------- | --------------------------------- |
 | `{"success": false, "error": "3D generation service not available"}` | Model or env missing | Check paths in `gen3d/service.py` |
-| `{"error": "CONNECTION_ERROR"}` | ComfyUI down | Start ComfyUI on port 8188 |
-| `GPU data unavailable` | nvidia-ml-py missing | `pip install nvidia-ml-py3` |
+| `{"error": "CONNECTION_ERROR"}`                                      | ComfyUI down         | Start ComfyUI on port 8188        |
+| `GPU data unavailable`                                               | nvidia-ml-py missing | `pip install nvidia-ml-py3`       |
 
 ### ComfyUI Errors
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `Model not found` | Wrong path | Check `hunyuan3d-2mini` exists |
-| `CUDA out of memory` | VRAM exhausted | Reduce resolution, close apps |
-| `Import error` | Missing dependency | Install in comfyui-cuda env |
+| Error                | Cause              | Solution                       |
+| -------------------- | ------------------ | ------------------------------ |
+| `Model not found`    | Wrong path         | Check `hunyuan3d-2mini` exists |
+| `CUDA out of memory` | VRAM exhausted     | Reduce resolution, close apps  |
+| `Import error`       | Missing dependency | Install in comfyui-cuda env    |
 
 ### Blender MCP Errors
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `Could not connect` | Addon disabled | Enable in Preferences > Add-ons |
-| `Server not running` | MCP stopped | Click "Start MCP Server" in sidebar |
+| Error                       | Cause          | Solution                            |
+| --------------------------- | -------------- | ----------------------------------- |
+| `Could not connect`         | Addon disabled | Enable in Preferences > Add-ons     |
+| `Server not running`        | MCP stopped    | Click "Start MCP Server" in sidebar |
 | `Protocol version mismatch` | Outdated addon | Run `uvx blender-mcp install-addon` |
 
 ---
@@ -568,13 +571,13 @@ curl http://localhost:8188/system_stats | python -m json.tool
 
 ### Environment Variables
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `VITE_BACKEND_URL` | `http://127.0.0.1:8000` | Frontend API target |
-| `VITE_BACKEND_PORT` | `8000` | Backend port |
-| `VITE_FRONTEND_PORT` | `5173` | Frontend port |
-| `COMFYUI_PATH` | (auto) | ComfyUI installation |
-| `CUDA_VISIBLE_DEVICES` | `0` | GPU device index |
+| Variable               | Default                 | Purpose              |
+| ---------------------- | ----------------------- | -------------------- |
+| `VITE_BACKEND_URL`     | `http://127.0.0.1:8000` | Frontend API target  |
+| `VITE_BACKEND_PORT`    | `8000`                  | Backend port         |
+| `VITE_FRONTEND_PORT`   | `5173`                  | Frontend port        |
+| `COMFYUI_PATH`         | (auto)                  | ComfyUI installation |
+| `CUDA_VISIBLE_DEVICES` | `0`                     | GPU device index     |
 
 ---
 
@@ -650,11 +653,11 @@ Default model: `gemma4:e2b-it-qat`. Override with `--model` or `VISION_MODEL` en
 
 ### Available Vision Models
 
-| Model | Size | Speed | Quality |
-|-------|------|-------|---------|
-| `qwen3-vl:2b` | 2B | Fast | Good |
-| `qwen3-vl:4b` | 4B | Medium | Better |
-| `gemma4:e2b-it-qat` | 2B | Fast | Good |
+| Model               | Size | Speed  | Quality |
+| ------------------- | ---- | ------ | ------- |
+| `qwen3-vl:2b`       | 2B   | Fast   | Good    |
+| `qwen3-vl:4b`       | 4B   | Medium | Better  |
+| `gemma4:e2b-it-qat` | 2B   | Fast   | Good    |
 
 ### Direct API Usage
 
@@ -743,11 +746,11 @@ The Visualizer page (`/visualizer`) is a real-time 3D audio visualizer built wit
 
 ### Frequency Mapping
 
-| Frequency Range | Target | Effect |
-|-----------------|--------|--------|
-| 20-250 Hz (Bass) | Icosahedron scale | Geometry expansion pulse |
-| 250 Hz-2 kHz (Mids) | Material color | Chromatic HSL shift |
-| 2 kHz+ (Treble) | Rotation speed | Axial rotation increase |
+| Frequency Range     | Target            | Effect                   |
+| ------------------- | ----------------- | ------------------------ |
+| 20-250 Hz (Bass)    | Icosahedron scale | Geometry expansion pulse |
+| 250 Hz-2 kHz (Mids) | Material color    | Chromatic HSL shift      |
+| 2 kHz+ (Treble)     | Rotation speed    | Axial rotation increase  |
 
 ### Components
 
@@ -768,4 +771,4 @@ The Visualizer page (`/visualizer`) is a real-time 3D audio visualizer built wit
 
 ---
 
-*This document is maintained for AI agent consumption. Update when architecture changes.*
+_This document is maintained for AI agent consumption. Update when architecture changes._

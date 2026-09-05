@@ -28,10 +28,12 @@ date: 2026-08-27
 ## 🗂️ Library Structure
 
 ### 🎬 Production Pipeline
+
 - [[music-video-production|🎵 Music Video Production Guide]] — Complete production workflow from audio upload to final export
 - [[youtube-optimization|📺 YouTube Optimization]] — Platform-specific optimization for reach and engagement
 
 ### 🛠️ Technical References
+
 - [[technical-reference|⚙️ Technical Reference]] — System architecture, API reference, service management
 - [[integration-ollama|🤖 Ollama Integration]] — Local LLM inference, tool calling, agent loop patterns
 - [[comfyui-workflows|🎨 ComfyUI Workflows]] — Custom workflows for image/video generation
@@ -43,6 +45,7 @@ date: 2026-08-27
 - [[kilo-code-subagent-optimization|🚀 Kilo Code Subagent Optimization]] — Config implementations, concurrency limits, retry jitter, verification
 
 ### 🎯 Specialized Guides
+
 - [[3d-rendering|🧊 3D Rendering]] — GPU rendering, Blender 5.2 EEVEE Next, optimization
 - [[visualization-effects|✨ Visualization Effects]] — WebGPU/TSL, particles, shaders, post-processing, volumetrics (NEW 2026-08-29)
 - [[2d-visualization-2026|🎨 2D Visualization 2026]] — Canvas2D/PixiJS/p5.js/Waviz 2026 open source 2D stacks (NEW 2026-09-02)
@@ -50,9 +53,11 @@ date: 2026-08-27
 - [[remotion-guide|🎬 Remotion Video Compositing]] — Programmatic video with React (NEW 2026-09-01)
 
 ### 🤖 AI Agent Resources
+
 - [[ai-agent-navigation|🤖 AI Agent Navigation]] — Quick lookup table for agents (NEW 2026-09-01)
 
 ### 📊 Research & Audit
+
 - [[../ux-audit/audit-report|🔍 UX Audit Report]] — User experience findings and recommendations
 - [[ollama-benchmarks|🏁 Ollama Three.js Scene Benchmark]] — Model benchmarking for scene generation (NEW 2026-09-04)
 - [[coding-benchmarks|🧪 Coding Model Benchmark]] — Python code, test generation, tool use, edge-case benchmarks for AI test harness selection (NEW 2026-09-04)
@@ -61,37 +66,39 @@ date: 2026-08-27
 
 ## 🏷️ Tags Index
 
-| Tag | Description | Documents |
-|-----|-------------|-----------|
-| `#music-video` | Music video production | 5 documents |
-| `#3d-rendering` | 3D rendering and optimization | 3 documents |
-| `#visualization` | Visualization effects, shaders, particles | 1 document |
-| `#webgpu` | WebGPU / TSL / compute | 2 documents |
-| `#ai-generation` | AI image/video generation | 4 documents |
-| `#youtube` | YouTube platform optimization | 1 document |
-| `#blender` | Blender 3D integration | 2 documents |
-| `#comfyui` | ComfyUI workflows | 2 documents |
-| `#gpu` | GPU optimization | 3 documents |
-| `#prompt` | Prompt engineering | 1 document |
-| `#kilo-code` | Kilo Code tooling and orchestration | 2 documents |
-| `#subagent` | Subagent architecture and errors | 2 documents |
-| `#optimization` | Subagent optimization strategies | 1 document |
-| `#configuration` | Kilo Code configuration | 1 document |
-| `#concurrency` | Concurrency control and rate limiting | 1 document |
-| `#retry` | Retry policies and backoff | 1 document |
-| `#remotion` | Remotion video compositing | 1 document |
+| Tag              | Description                               | Documents   |
+| ---------------- | ----------------------------------------- | ----------- |
+| `#music-video`   | Music video production                    | 5 documents |
+| `#3d-rendering`  | 3D rendering and optimization             | 3 documents |
+| `#visualization` | Visualization effects, shaders, particles | 1 document  |
+| `#webgpu`        | WebGPU / TSL / compute                    | 2 documents |
+| `#ai-generation` | AI image/video generation                 | 4 documents |
+| `#youtube`       | YouTube platform optimization             | 1 document  |
+| `#blender`       | Blender 3D integration                    | 2 documents |
+| `#comfyui`       | ComfyUI workflows                         | 2 documents |
+| `#gpu`           | GPU optimization                          | 3 documents |
+| `#prompt`        | Prompt engineering                        | 1 document  |
+| `#kilo-code`     | Kilo Code tooling and orchestration       | 2 documents |
+| `#subagent`      | Subagent architecture and errors          | 2 documents |
+| `#optimization`  | Subagent optimization strategies          | 1 document  |
+| `#configuration` | Kilo Code configuration                   | 1 document  |
+| `#concurrency`   | Concurrency control and rate limiting     | 1 document  |
+| `#retry`         | Retry policies and backoff                | 1 document  |
+| `#remotion`      | Remotion video compositing                | 1 document  |
 
 ---
 
 ## 🔗 Quick Links
 
 ### By Role
+
 - **🎬 Director** → [[music-video-production]] → [[youtube-optimization]]
 - **💻 Developer** → [[technical-reference]] → [[comfyui-workflows]] → [[blender-mcp]]
 - **🎨 Artist** → [[prompt-engineering]] → [[3d-rendering]] → [[music-video-production]]
 - **🤖 AI Agent** → [[kilo-code-subagent-orchestration]] → [[technical-reference]] → [[prompt-engineering]]
 
 ### By Pipeline Phase
+
 ```mermaid
 graph LR
     A[Upload Audio] --> B[Analyze Beats]
@@ -106,17 +113,20 @@ graph LR
 ## 📝 How to Use This Vault
 
 ### For Creators
+
 1. Start with [[music-video-production]] to understand the full workflow
 2. Use [[prompt-engineering]] to craft better prompts
 3. Reference [[youtube-optimization]] before publishing
 
 ### For AI Agents
+
 1. Read [[technical-reference]] for system capabilities
 2. Follow the workflow in [[music-video-production]]
 3. Use [[comfyui-workflows]] and [[blender-mcp]] for technical operations
 4. Return here to update knowledge as new techniques are discovered
 
 ### Adding New Knowledge
+
 1. Create a new `.md` file in this vault
 2. Add YAML frontmatter with `tags`, `aliases`, and `date`
 3. Use `[[wiki-links]]` to connect to related documents
@@ -128,6 +138,7 @@ graph LR
 
 > [!warning] Keep Updated
 > This knowledge library should be updated when:
+>
 > - New features are added to the pipeline
 > - UX improvements are implemented
 > - New models or tools are integrated
@@ -138,13 +149,13 @@ graph LR
 
 ## 📊 Vault Statistics
 
-| Metric | Count |
-|--------|-------|
-| Total Documents | 18 (+ 2d-visualization-2026) |
-| Total Tags | 20 (+ remotion) |
-| Total Links | 80+ |
-| Last Updated | 2026-09-03 (kilo-code-subagent-optimization, kilo.json config, concurrency limits) |
+| Metric          | Count                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| Total Documents | 27                                                                                 |
+| Total Tags      | 22                                                                                 |
+| Total Links     | 80+                                                                                |
+| Last Updated    | 2026-09-05 (vision MCP OOM prevention, comprehensive bug fixes, async refactoring) |
 
 ---
 
-*Last updated: 2026-09-03*
+_Last updated: 2026-09-05_

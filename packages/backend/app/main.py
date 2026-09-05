@@ -92,7 +92,7 @@ async def lifespan(app: FastAPI):
     # Initialize SQLite database
     try:
         init_db()
-        queue_manager.reload_from_db()
+        await queue_manager.reload_from_db()
         logger.info("Database initialized")
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")

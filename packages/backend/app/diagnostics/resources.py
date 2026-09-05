@@ -151,15 +151,15 @@ class ResourceMonitor:
 
         try:
             if self._gpustat_available:
-                return await self._check_vram_gpustat()
+                return await asyncio.to_thread(self._check_vram_gpustat_sync)
             elif self._nvml_available:
-                return await self._check_vram_nvml()
+                return await asyncio.to_thread(self._check_vram_nvml_sync)
         except Exception as e:
             logger.warning(f"Failed to check VRAM: {e}")
 
         return None
 
-    async def _check_vram_gpustat(self) -> dict[str, Any] | None:
+    def _check_vram_gpustat_sync(self) -> dict[str, Any] | None:
         """Check VRAM using gpustat. Only raises critical when VRAM is extreme
         AND the GPU is under heavy compute load or high temperature."""
         import gpustat
@@ -226,7 +226,7 @@ class ResourceMonitor:
             }
         return None
 
-    async def _check_vram_nvml(self) -> dict[str, Any] | None:
+    def _check_vram_nvml_sync(self) -> dict[str, Any] | None:
         """Check VRAM using pynvml. Only raises critical when VRAM is extreme
         AND the GPU is under heavy compute load or high temperature."""
         import pynvml
@@ -298,7 +298,7 @@ class ResourceMonitor:
             }
         return None
 
-    async def _get_gpu_processes(self) -> list[dict[str, Any]]:
+    def _get_gpu_processes_sync(self) -> list[dict[str, Any]]:
         """Get list of processes using the GPU with their memory usage.
         Uses nvidia-smi as primary source (works without admin).
         Per-process memory requires NVML accounting mode (admin needed)."""
@@ -402,7 +402,7 @@ class ResourceMonitor:
 
         return processes, memory_available
 
-    async def _enrich_process_names(self, processes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _enrich_process_names_sync(self, processes: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Add process names via nvidia-smi if not already populated."""
         needs_names = any(p.get("name") in (None, "unknown") for p in processes)
         if not needs_names:
@@ -541,6 +541,14 @@ class ResourceMonitor:
             pass
         return f"PID {pid}"
 
+    async def _get_gpu_processes(self) -> tuple[list[dict[str, Any]], bool]:
+        """Async wrapper around _get_gpu_processes_sync."""
+        return await asyncio.to_thread(self._get_gpu_processes_sync)
+
+    async def _enrich_process_names(self, processes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Async wrapper around _enrich_process_names_sync."""
+        return await asyncio.to_thread(self._enrich_process_names_sync, processes)
+
     async def get_gpu_snapshot(self) -> dict[str, Any]:
         """Get a full GPU snapshot for visibility: memory, utilization,
         temperature, and per-process breakdown."""
@@ -549,29 +557,31 @@ class ResourceMonitor:
         # Primary: NVML (pynvml/gpustat)
         if self._nvml_available:
             try:
-                import pynvml
-                handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+                def _nvml_snapshot():
+                    import pynvml
+                    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
 
-                mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
-                util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-                temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+                    mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                    util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                    temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
 
-                processes, memory_available = await self._get_gpu_processes()
-                processes = await self._enrich_process_names(processes)
-                snapshot = {
-                    "available": True,
-                    "name": pynvml.nvmlDeviceGetName(handle),
-                    "memory_used_mb": mem.used // (1024 * 1024),
-                    "memory_free_mb": mem.free // (1024 * 1024),
-                    "memory_total_mb": mem.total // (1024 * 1024),
-                    "memory_percent": round((mem.used / mem.total) * 100, 1) if mem.total else 0,
-                    "gpu_utilization": util.gpu,
-                    "memory_controller_utilization": util.memory,
-                    "temperature_c": temp,
-                    "processes": processes,
-                    "memory_available": memory_available,
-                }
-                return snapshot
+                    processes, memory_available = self._get_gpu_processes_sync()
+                    processes = self._enrich_process_names_sync(processes)
+                    return {
+                        "available": True,
+                        "name": pynvml.nvmlDeviceGetName(handle),
+                        "memory_used_mb": mem.used // (1024 * 1024),
+                        "memory_free_mb": mem.free // (1024 * 1024),
+                        "memory_total_mb": mem.total // (1024 * 1024),
+                        "memory_percent": round((mem.used / mem.total) * 100, 1) if mem.total else 0,
+                        "gpu_utilization": util.gpu,
+                        "memory_controller_utilization": util.memory,
+                        "temperature_c": temp,
+                        "processes": processes,
+                        "memory_available": memory_available,
+                    }
+
+                return await asyncio.to_thread(_nvml_snapshot)
             except Exception as e:
                 logger.warning(f"Failed to get GPU snapshot via NVML: {e}")
 

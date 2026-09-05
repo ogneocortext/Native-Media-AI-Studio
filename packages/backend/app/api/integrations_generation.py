@@ -866,17 +866,17 @@ async def get_vram_status() -> dict:
 @router.post("/vram/offload-ollama")
 async def offload_ollama() -> dict:
     """Manually offload Ollama models from GPU to free VRAM"""
-    from ..services.vram_manager import vram_manager
-    result = await vram_manager._unload_ollama_models()
+    from ..services.vram_manager import _unload_ollama_models
+    result = await _unload_ollama_models()
     return result
 
 
 @router.post("/vram/reload-ollama")
 async def reload_ollama() -> dict:
     """Manually reload Ollama models to GPU"""
-    from ..services.vram_manager import vram_manager
-    result = await vram_manager._reload_ollama_models()
-    return result
+    from ..services.vram_manager import _reload_ollama_models
+    result = await _reload_ollama_models(config.default_model)
+    return {"success": result, "model": config.default_model}
 
 
 @router.post("/ollama/chat")

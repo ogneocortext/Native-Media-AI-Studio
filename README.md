@@ -29,6 +29,7 @@ A full-stack AI-powered creative production environment for music-driven media g
 
 ## Recent Changes
 
+- **Async Refactoring & VRAM Management (2026-09-05)** — Fixed asyncio refactoring in GPU monitoring and VRAM management using `asyncio.to_thread()`, corrected VRAM offload/reload function calls, enhanced ComfyUI error handling with queue status checks and timeout detection, updated documentation
 - **2026 2D + LRC-Driven Visuals (2026-09-02)** — Added `Canvas2DVisualizer.tsx` 3 modes `bars/waveform/radial` (Canvas2D + Web Audio, LRC `isPhraseStart/sectionProgress` reactive, 2026 visual-flux/Waviz methods), fixed LRC `offset`/multi-stamp/`60.00` drift (`lyricsParser.py`/`lyricsParser.ts`/`useLrcSync`), wired 3D `VisualizerScene`/`ShaderVisualizer`/`PostFX` to `lrcSync`, added `AIPresetGallery` browse + `storage/visualizer_presets` persistence, hardened Ollama (`keep_alive 5m`, startup unload, manual `Enhance with AI`)
 - **Final Sweep & Hardening** — Fixed missing `import asyncio`, unreachable OOM prevention, refactored to single `asyncio.run()`, enhanced AI code sanitization (strips eval/fetch/setInterval/event listeners), made checkpoint names configurable across backend and MCP
 - **Security & Reliability Sweep** — Added fetch timeouts/`res.ok` checks to all MCP servers, fixed WebSocket origin validation, fixed TOCTOU race in queue manager, added threading lock to output cache, fixed PowerShell script errors (undefined functions, broken paths), fixed pnpm workspace config
@@ -144,44 +145,44 @@ pnpm db:migrate          # Initialize SQLite database
 
 ## Services
 
-| Service | Port | Description |
-|---------|------|-------------|
-| Backend | 8000 | FastAPI + WebSockets + SQLite |
-| Frontend | 5173 | React + Vite UI |
-| ComfyUI | 8188 | AI image/video generation |
-| Video Editor | 3000 | Remotion studio |
+| Service      | Port | Description                   |
+| ------------ | ---- | ----------------------------- |
+| Backend      | 8000 | FastAPI + WebSockets + SQLite |
+| Frontend     | 5173 | React + Vite UI               |
+| ComfyUI      | 8188 | AI image/video generation     |
+| Video Editor | 3000 | Remotion studio               |
 
 ## API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/health` | GET | Service health status |
-| `/api/health/gpu` | GET | Real VRAM/util/temps (GTX 1070 Ti) |
-| `/api/health/diagnostics/memory` | GET | System memory breakdown + top RAM processes |
-| `/api/health/ollama/models` | GET | Currently loaded Ollama models with VRAM usage |
-| `/api/integrations/comfyui/checkpoints` | GET | List available checkpoint models |
-| `/api/integrations/music-video/styles` | GET | Music video visual styles |
-| `/api/integrations/music-video/templates` | GET | Video generation workflow templates |
-| `/api/integrations/vram/offload-ollama` | POST | Unload Ollama models to free VRAM |
-| `/api/audio/upload` | POST | Upload audio (500 MB, MP3/WAV/FLAC) → `stored_path` |
-| `/api/audio/analyze` | POST | Real `librosa` analyze → `tempo_bpm`, `beat_times[800]`, `energy_curve[100]`, `sections[8]` |
-| `/api/audio/files` | GET | List uploaded audio |
-| `/api/video/generate-section` | POST | Queue `MUSIC_VIDEO` section (`prompt`, `audio_path`, `duration`, `vertical_first`) → `job_id` (poll `GET /api/jobs/{id}`) |
-| `/api/outputs` | GET | List outputs (`?file_type`/`search`/`limit`) with `cover_image` for audio (`audio/*.jpg` extracted) |
-| `/api/outputs/recent` | GET | Recent outputs |
-| `/api/outputs/duplicates/groups` | GET | Duplicate groups by hash (`?quick=true` 1MB) → `hash`, `wasted_bytes` |
-| `/api/outputs/{file_type}` | GET | `images`/`video`/`audio` filtered |
-| `/api/outputs/{path}` | DELETE | Delete file + sidecars (`.json`, cover `.jpg`) |
-| `/api/outputs/{path}/rename` | POST | Rename file + sidecars (`{new_name}`) |
-| `/api/outputs/bulk-delete` | POST | Bulk delete `{paths: string[]}` |
-| `/api/jobs` | GET/POST | Job queue management |
-| `/api/jobs/{id}` | GET | Poll job (`status`, `progress`, `output_path`) |
-| `/api/data/tracks/` | GET/POST | Track library CRUD |
-| `/api/data/prompts/` | GET/POST | Prompt storage |
-| `/api/data/visuals/` | GET | AI-generated visuals |
-| `/api/data/sessions/` | GET | Generation sessions |
-| `/api/data/preferences/` | GET/PUT | User preferences |
-| `/ws` | WS | WebSocket real-time events (`job.progress`, `job.completed`) |
+| Endpoint                                  | Method   | Description                                                                                                               |
+| ----------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `/api/health`                             | GET      | Service health status                                                                                                     |
+| `/api/health/gpu`                         | GET      | Real VRAM/util/temps (GTX 1070 Ti)                                                                                        |
+| `/api/health/diagnostics/memory`          | GET      | System memory breakdown + top RAM processes                                                                               |
+| `/api/health/ollama/models`               | GET      | Currently loaded Ollama models with VRAM usage                                                                            |
+| `/api/integrations/comfyui/checkpoints`   | GET      | List available checkpoint models                                                                                          |
+| `/api/integrations/music-video/styles`    | GET      | Music video visual styles                                                                                                 |
+| `/api/integrations/music-video/templates` | GET      | Video generation workflow templates                                                                                       |
+| `/api/integrations/vram/offload-ollama`   | POST     | Unload Ollama models to free VRAM                                                                                         |
+| `/api/audio/upload`                       | POST     | Upload audio (500 MB, MP3/WAV/FLAC) → `stored_path`                                                                       |
+| `/api/audio/analyze`                      | POST     | Real `librosa` analyze → `tempo_bpm`, `beat_times[800]`, `energy_curve[100]`, `sections[8]`                               |
+| `/api/audio/files`                        | GET      | List uploaded audio                                                                                                       |
+| `/api/video/generate-section`             | POST     | Queue `MUSIC_VIDEO` section (`prompt`, `audio_path`, `duration`, `vertical_first`) → `job_id` (poll `GET /api/jobs/{id}`) |
+| `/api/outputs`                            | GET      | List outputs (`?file_type`/`search`/`limit`) with `cover_image` for audio (`audio/*.jpg` extracted)                       |
+| `/api/outputs/recent`                     | GET      | Recent outputs                                                                                                            |
+| `/api/outputs/duplicates/groups`          | GET      | Duplicate groups by hash (`?quick=true` 1MB) → `hash`, `wasted_bytes`                                                     |
+| `/api/outputs/{file_type}`                | GET      | `images`/`video`/`audio` filtered                                                                                         |
+| `/api/outputs/{path}`                     | DELETE   | Delete file + sidecars (`.json`, cover `.jpg`)                                                                            |
+| `/api/outputs/{path}/rename`              | POST     | Rename file + sidecars (`{new_name}`)                                                                                     |
+| `/api/outputs/bulk-delete`                | POST     | Bulk delete `{paths: string[]}`                                                                                           |
+| `/api/jobs`                               | GET/POST | Job queue management                                                                                                      |
+| `/api/jobs/{id}`                          | GET      | Poll job (`status`, `progress`, `output_path`)                                                                            |
+| `/api/data/tracks/`                       | GET/POST | Track library CRUD                                                                                                        |
+| `/api/data/prompts/`                      | GET/POST | Prompt storage                                                                                                            |
+| `/api/data/visuals/`                      | GET      | AI-generated visuals                                                                                                      |
+| `/api/data/sessions/`                     | GET      | Generation sessions                                                                                                       |
+| `/api/data/preferences/`                  | GET/PUT  | User preferences                                                                                                          |
+| `/ws`                                     | WS       | WebSocket real-time events (`job.progress`, `job.completed`)                                                              |
 
 ## Database
 
@@ -190,6 +191,7 @@ SQLite database at `packages/backend/storage/studio.db` with tables:
 - **tracks** — Music library with prompts, lyrics, visual styles
 
 Track data is imported from `docs/track-prompts-lyrics.csv` via `POST /api/data/tracks/import-csv`. The frontend fetches tracks from the backend API at runtime, falling back to embedded CSV data if the backend is unavailable.
+
 - **prompts** — Reusable generation prompts with tags and categories
 - **audio_files** — Audio metadata (duration, BPM, key, genre)
 - **ai_visuals** — Generated image records with parameters
@@ -200,13 +202,13 @@ Track data is imported from `docs/track-prompts-lyrics.csv` via `POST /api/data/
 
 Environment variables:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `BACKEND_PORT` | 8000 | Backend server port |
-| `FRONTEND_PORT` | 5173 | Frontend dev server port |
-| `COMFYUI_PORT` | 8188 | ComfyUI port |
-| `VIDEO_PORT` | 3000 | Video editor port |
-| `OUTPUT_DIR` | ./output | Output directory |
+| Variable        | Default  | Description              |
+| --------------- | -------- | ------------------------ |
+| `BACKEND_PORT`  | 8000     | Backend server port      |
+| `FRONTEND_PORT` | 5173     | Frontend dev server port |
+| `COMFYUI_PORT`  | 8188     | ComfyUI port             |
+| `VIDEO_PORT`    | 3000     | Video editor port        |
+| `OUTPUT_DIR`    | ./output | Output directory         |
 
 ## Documentation
 
