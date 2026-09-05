@@ -2,6 +2,7 @@ import type { VizParams } from "../types";
 import { DEFAULT_VIZ_PARAMS } from "../types";
 import { kineticPresetList } from "./KineticPresets";
 import { visualPresetList } from "../visualPresets";
+import type { VisualizationStyle } from "../trackConceptAnalyzer";
 
 interface Props {
   params: VizParams;
@@ -14,29 +15,50 @@ interface Props {
   onDemoToggle: (v: boolean) => void;
   kineticPreset: string;
   onKineticPresetChange: (p: string) => void;
+  visualizationStyle?: VisualizationStyle;
+  onVisualizationStyleChange?: (s: VisualizationStyle) => void;
+  vizMode?: "3d" | "shader" | "2d";
+  onVizModeChange?: (m: "3d" | "shader" | "2d") => void;
+  activeVisualPresetId?: string | null;
+  onVisualPresetSelect?: (id: string) => void;
 }
 
-export function SettingsPanel({ params, onChange, bgColor, meshColor, onBgChange, onMeshChange, demoEnabled, onDemoToggle, kineticPreset, onKineticPresetChange }: Props) {
+export function SettingsPanel({ params, onChange, bgColor, meshColor, onBgChange, onMeshChange, demoEnabled, onDemoToggle, kineticPreset, onKineticPresetChange, visualizationStyle, onVisualizationStyleChange, vizMode, onVizModeChange, activeVisualPresetId, onVisualPresetSelect }: Props) {
   return (
     <aside className="viz-settings">
       <div className="viz-settings-section">
         <h4>Visual Presets</h4>
         <div className="kinetic-preset-list">
-          {visualPresetList.filter(p => p.id !== "balanced").map(p => (
+          {visualPresetList.filter(p => p.id !== "balanced").map(p => {
+            const isActive = activeVisualPresetId
+              ? activeVisualPresetId === p.id
+              : visualizationStyle
+                ? visualizationStyle === p.visualizationStyle && kineticPreset === p.kineticPreset
+                : kineticPreset === p.kineticPreset;
+            return (
             <button
               key={p.id}
-              className={`kinetic-preset-btn ${kineticPreset === p.kineticPreset ? "active" : ""}`}
+              className={`kinetic-preset-btn ${isActive ? "active" : ""}`}
               onClick={() => {
-                onChange({ ...DEFAULT_VIZ_PARAMS, ...p.vizParams });
-                onBgChange(p.bgColor);
-                onMeshChange(p.meshColor);
-                onKineticPresetChange(p.kineticPreset);
+                if (onVisualPresetSelect) {
+                  onVisualPresetSelect(p.id);
+                } else {
+                  onChange({ ...DEFAULT_VIZ_PARAMS, ...p.vizParams });
+                  onBgChange(p.bgColor);
+                  onMeshChange(p.meshColor);
+                  onKineticPresetChange(p.kineticPreset);
+                  onVisualizationStyleChange?.(p.visualizationStyle);
+                  if (vizMode && vizMode !== "3d" && onVizModeChange) {
+                    onVizModeChange("3d");
+                  }
+                }
               }}
-              title={p.description}
+              title={`${p.description} — 3D style: ${p.visualizationStyle}`}
             >
               {p.name}
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
       <div className="viz-settings-section">

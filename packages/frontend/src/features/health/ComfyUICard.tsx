@@ -24,7 +24,7 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
   if (!status?.installed) return null;
 
   return (
-    <Card className="lg:col-span-1">
+    <Card className="comfy-card lg:col-span-1">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div

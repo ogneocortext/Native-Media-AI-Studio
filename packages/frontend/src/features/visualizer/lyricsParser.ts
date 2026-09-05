@@ -127,7 +127,11 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
     // Collect all timestamps on this line
     const stamps = [...line.matchAll(tsRegex)];
     if (stamps.length === 0) continue;
-    const text = line.replace(tsRegex, "").trim();
+    let text = line.replace(tsRegex, "").trim();
+    // Word-level LRC: support <mm:ss.xx> inline tags (enhanced LRC) and 2026 karaoke style
+    // e.g. "[00:05.80]Blue <00:06.10>light's <00:06.40>the" or "[00:05.80]word [00:06.10]word"
+    const wordTagRegex = /<(\d{1,3}):(\d{2})[.:](\d{1,3})>/g;
+    const inlineWordTags = [...text.matchAll(wordTagRegex)];
     // Section marker embedded as text after timestamps: [00:12.00][Chorus]
     const embeddedSection = text.match(/^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i);
     if (embeddedSection) {
@@ -135,6 +139,47 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
       continue;
     }
     if (!text) continue;
+
+    // If inline word tags exist, parse as word-level timing
+    if (inlineWordTags.length > 0) {
+      const lineStartMins = parseInt(stamps[0][1], 10);
+      const lineStartSecs = parseInt(stamps[0][2], 10);
+      const lineStartFrac = stamps[0][3];
+      const lineStartDiv = lineStartFrac.length === 3 ? 1000 : lineStartFrac.length === 1 ? 10 : 100;
+      const lineStart = lineStartMins * 60 + lineStartSecs + parseInt(lineStartFrac, 10) / lineStartDiv + offsetMs / 1000;
+      // Split text by word tags to reconstruct words with timing
+      const words: Array<{ word: string; start: number; end: number }> = [];
+      let lastTime = Math.max(0, lineStart);
+      // First word is before first <tag>
+      const firstTagIdx = text.indexOf("<");
+      let firstWord = firstTagIdx > 0 ? text.slice(0, firstTagIdx).trim() : "";
+      if (firstWord) words.push({ word: firstWord, start: lastTime, end: lastTime + 0.4 });
+      for (const wt of inlineWordTags) {
+        const wMins = parseInt(wt[1], 10);
+        const wSecs = parseInt(wt[2], 10);
+        const wFrac = wt[3];
+        const wDiv = wFrac.length === 3 ? 1000 : wFrac.length === 1 ? 10 : 100;
+        const wStart = wMins * 60 + wSecs + parseInt(wFrac, 10) / wDiv + offsetMs / 1000;
+        // Text between this tag and next tag (or end) is the word
+        const tagEnd = (wt as any).index! + wt[0].length;
+        const nextTagIdx = text.indexOf("<", tagEnd);
+        const wordText = (nextTagIdx >= 0 ? text.slice(tagEnd, nextTagIdx) : text.slice(tagEnd)).trim().split(/\s+/)[0] || "";
+        if (wordText) {
+          // Close previous word's end at this word's start
+          if (words.length > 0) words[words.length - 1].end = Math.max(words[words.length - 1].start + 0.2, wStart);
+          words.push({ word: wordText, start: Math.max(0, wStart), end: Math.max(0, wStart) + 0.5 });
+          lastTime = wStart;
+        }
+      }
+      // Fix last word end to next line's start or +1.2s
+      if (words.length > 0) {
+        // Derive line end from next timestamp in file (peek ahead) or default
+        const lineText = words.map(w => w.word).join(" ");
+        const lastWordEnd = words[words.length - 1].start + 0.6;
+        result.push({ start: Math.max(0, lineStart), end: lastWordEnd, text: lineText, section: currentSection, words } as any);
+      }
+      continue;
+    }
 
     for (const m of stamps) {
       const mins = parseInt(m[1], 10);

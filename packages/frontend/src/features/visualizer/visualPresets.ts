@@ -554,8 +554,8 @@ export function selectVisualPreset(
   if (bpm !== undefined) {
     if (bpm > 140) return "dubstep";
     if (bpm > 120) return "grime";
-    if (bpm < 90) return "lofi";
-    if (bpm < 100) return "ambient";
+    if (bpm < 85) return "ambient";
+    if (bpm < 100) return "lofi";
   }
 
   return "balanced";

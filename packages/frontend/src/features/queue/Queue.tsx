@@ -59,6 +59,13 @@ export function Queue() {
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Fetch jobs on mount so the queue page reflects the latest state
+  // (SSE is managed centrally by Layout.tsx).
+  useEffect(() => {
+    fetchJobs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchJobs]);
+
   // SSE is managed centrally by Layout.tsx; no per-component connect/disconnect.
 
   const handleCancel = async (id: string) => {

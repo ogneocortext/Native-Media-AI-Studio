@@ -1770,9 +1770,6 @@ export function ThreeJSStudio() {
       animationSpeed: 1,
       animationLoop: true,
       ...overrides,
-      // Overrides must not clobber identity/type.
-      id,
-      type,
     };
     setObjects((prev) => [...prev, newObj]);
     setSelectedObject(id);

@@ -10,8 +10,29 @@ interface LayoutProps { children: React.ReactNode; }
 const APP_VERSION = "1.0.0";
 const COPYRIGHT = "InterGalactic Media Productions LLC";
 
+// Expose stores on window for test harnesses / debug tooling.
+import { sseService } from "../../services/sseService";
+
+declare global {
+  interface Window {
+    __healthStore?: typeof useHealthStore;
+    __jobStore?: typeof useJobStore;
+    __sseService?: SSEServiceLike;
+  }
+}
+
+interface SSEServiceLike {
+  feedMessage: (message: Record<string, unknown>) => void;
+}
+
 export function Layout({ children }: LayoutProps) {
   useEffect(() => {
+    // Expose stores + SSE service for test harnesses that read state /
+    // dispatch events without React rendering.
+    (window as any).__healthStore = useHealthStore;
+    (window as any).__jobStore = useJobStore;
+    (window as any).__sseService = sseService;
+
     startAutoRefresh();
     // Centralize SSE: connect once here so the EventSource is not
     // opened/closed by every mount/unmount of Sidebar/Queue/etc.

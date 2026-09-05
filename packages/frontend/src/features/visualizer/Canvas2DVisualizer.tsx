@@ -99,8 +99,18 @@ export function Canvas2DVisualizer({ audioData, analyserRef, isPlaying, mode = "
         canvas.width = w;
         canvas.height = h;
       }
-      ctx.fillStyle = bgColor;
-      ctx.fillRect(0, 0, w, h);
+      // 2026 p5.js trail: background alpha 5-15 for ghostly persistence (visual-flux + p5js.ai 2026)
+      // Each mode gets tuned alpha: bars need crisp bars (higher clear), particles need long trails
+      if (isPlaying) {
+        if (mode !== "spectrogram") {
+          const trailAlpha = mode === "particles" ? "0A" : mode === "bars" ? "14" : mode === "waveform" ? "12" : "0F";
+          ctx.fillStyle = bgColor + trailAlpha;
+          ctx.fillRect(0, 0, w, h);
+        }
+      } else {
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, w, h);
+      }
 
       if (phraseFlash > 0.05) {
         ctx.fillStyle = `rgba(255,255,255,${phraseFlash * 0.08})`;
@@ -108,10 +118,17 @@ export function Canvas2DVisualizer({ audioData, analyserRef, isPlaying, mode = "
       }
 
       if (!analyser || !isPlaying) {
-        ctx.fillStyle = colors[0] + "40";
+        // 2026 kinetic idle: variable-font-inspired — weight pulses with phraseFlash, not static
+        const idlePulse = phraseFlash * 0.3 + Math.sin(performance.now()*0.002) * 0.08;
+        ctx.fillStyle = colors[0] + "60";
         ctx.font = `${24 * dpr}px monospace`;
         ctx.textAlign = "center";
-        ctx.fillText(`${section} — ${mode}`, w / 2, h / 2);
+        ctx.globalAlpha = 0.7 + idlePulse;
+        ctx.fillText(`${section} — ${mode}`, w / 2, h / 2 - 6*dpr);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = colors[1] + "30";
+        ctx.font = `${11 * dpr}px monospace`;
+        ctx.fillText(`▶ play a track for audio-reactive`, w / 2, h / 2 + 18*dpr);
         raf = requestAnimationFrame(draw);
         return;
       }
@@ -123,39 +140,118 @@ export function Canvas2DVisualizer({ audioData, analyserRef, isPlaying, mode = "
         const barCount = 64;
         const step = Math.floor(freq.length / barCount);
         const barW = w / barCount;
+        // Frequency-specific color semantics (vision: "does pink = bass?" → bass=warm, mid=primary, treble=cool)
         for (let i = 0; i < barCount; i++) {
           const v = freq[i * step] / 255;
-          const boosted = v + phraseFlash * 0.35 + (sync?.lineProgress ?? 0) * 0.1;
+          const boosted = v + phraseFlash * 0.35 + (sync?.lineProgress ?? 0) * 0.1 + d.bass * 0.08;
           const bh = boosted * h * 0.85;
           const x = i * barW;
           const y = h - bh;
+          // Depth shadow layer (vision: "add depth")
+          ctx.fillStyle = "rgba(0,0,0,0.35)";
+          ctx.fillRect(x + 1 + 2*dpr, h - bh + 2*dpr, barW - 2, bh);
           const grad = ctx.createLinearGradient(x, y, x, h);
           const cIdx = Math.floor((i / barCount) * colors.length);
+          // Bass warmth, treble cool — clarify frequency mapping
+          const warmMix = (i / barCount < 0.3) ? d.bass * 0.35 : 0;
+          const coolMix = (i / barCount > 0.7) ? d.treble * 0.35 : 0;
           grad.addColorStop(0, colors[cIdx % colors.length]);
+          grad.addColorStop(0.6, colors[cIdx % colors.length] + (warmMix ? "" : ""));
           grad.addColorStop(1, colors[0] + "60");
           ctx.fillStyle = grad;
+          // Apply warm/cool tint via overlay (cheap)
           ctx.fillRect(x + 1, y, barW - 2, bh);
-          if (d.beat && v > 0.6) {
+          if (warmMix > 0.1) { ctx.fillStyle = `rgba(255,120,40,${warmMix*0.25})`; ctx.fillRect(x+1, y, barW-2, bh); }
+          if (coolMix > 0.1) { ctx.fillStyle = `rgba(60,160,255,${coolMix*0.25})`; ctx.fillRect(x+1, y, barW-2, bh); }
+          if (d.beat && v > 0.55) {
+            // Stronger beat particle burst (vision: "pulsing when music hits")
             ctx.fillStyle = "#ffffff";
-            ctx.fillRect(x + 1, y - 2 * dpr, barW - 2, 2 * dpr);
+            ctx.fillRect(x + 1, y - 3 * dpr, barW - 2, 3 * dpr);
+            ctx.shadowColor = colors[cIdx % colors.length];
+            ctx.shadowBlur = 10 * dpr;
+            ctx.fillRect(x + 1, y - 1 * dpr, barW - 2, 1 * dpr);
+            ctx.shadowBlur = 0;
+            // Tiny burst dots above peak
+            if (i % 4 === 0) {
+              ctx.fillStyle = `rgba(255,255,255,${0.85})`;
+              ctx.beginPath();
+              ctx.arc(x + barW/2, y - 6*dpr - Math.random()*6*dpr, 2*dpr, 0, Math.PI*2);
+              ctx.fill();
+            }
           }
         }
+        // Secondary harmonic overlay — faint ghost bars at 1.5x frequency (vision: "harmonic complexity")
+        ctx.globalAlpha = 0.22 + d.treble * 0.25;
+        ctx.fillStyle = colors[2] || colors[1];
+        for (let i = 0; i < barCount; i++) {
+          const v2 = freq[Math.min(freq.length-1, Math.floor((i * 1.5) % freq.length))] / 255;
+          if (v2 > 0.5) {
+            const h2 = v2 * h * 0.18;
+            ctx.fillRect(i * barW + barW*0.35, h - h2 - 2*dpr, barW*0.3, h2);
+          }
+        }
+        ctx.globalAlpha = 1;
       } else if (mode === "waveform") {
-        ctx.strokeStyle = colors[1];
-        ctx.lineWidth = 2 * dpr;
-        ctx.shadowColor = colors[0];
-        ctx.shadowBlur = 8 * dpr + phraseFlash * 12;
-        ctx.beginPath();
-        const slice = w / wave.length;
+        // Depth grid behind waveform (vision: "faint 3D grid behind waves")
+        ctx.strokeStyle = colors[0] + "18";
+        ctx.lineWidth = dpr;
+        const gridStep = Math.floor(w / 12);
+        for (let gx = 0; gx < w; gx += gridStep) {
+          ctx.beginPath(); ctx.moveTo(gx, h*0.2); ctx.lineTo(gx + 8*dpr*Math.sin(performance.now()*0.0003 + gx*0.01), h*0.8); ctx.stroke();
+        }
+        for (let gy = h*0.25; gy < h*0.75; gy += h*0.15) {
+          ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+        }
+        // 2026 smooth: 3-point Gaussian-ish moving average (Ollama fix #2) + HSB hue drift
+        const smoothed = new Uint8Array(wave.length);
         for (let i = 0; i < wave.length; i++) {
+          const prev = wave[Math.max(0, i-1)];
+          const next = wave[Math.min(wave.length-1, i+1)];
+          smoothed[i] = (prev * 0.25 + wave[i] * 0.5 + next * 0.25);
+        }
+        ctx.strokeStyle = colors[1];
+        ctx.lineWidth = 2.2 * dpr;
+        ctx.shadowColor = colors[0];
+        ctx.shadowBlur = 9 * dpr + phraseFlash * 14 + d.peak * 10 * dpr;
+        ctx.beginPath();
+        const slice = w / smoothed.length;
+        for (let i = 0; i < smoothed.length; i++) {
           const x = i * slice;
-          const v = (wave[i] - 128) / 128;
-          const y = h / 2 + v * h * 0.35 * (1 + d.energy * 0.5 + phraseFlash * 0.4);
-          const xOff = (sync?.lineProgress ?? 0) * 12 * dpr * Math.sin(i * 0.01);
+          const v = (smoothed[i] - 128) / 128;
+          const y = h / 2 + v * h * 0.35 * (1 + d.energy * 0.55 + phraseFlash * 0.45 + d.bass*0.25);
+          const xOff = (sync?.lineProgress ?? 0) * 14 * dpr * Math.sin(i * 0.01 + performance.now()*0.001);
           if (i === 0) ctx.moveTo(x + xOff, y);
           else ctx.lineTo(x + xOff, y);
         }
         ctx.stroke();
+        // Secondary harmonic faint line (vision: "secondary waveform")
+        ctx.strokeStyle = colors[2] + "88";
+        ctx.lineWidth = 1.2 * dpr;
+        ctx.shadowBlur = 0;
+        ctx.beginPath();
+        for (let i = 0; i < wave.length; i += 2) {
+          const x = i * slice;
+          const idx2 = (i * 3) % wave.length;
+          const v2 = (wave[idx2] - 128) / 128;
+          const y2 = h / 2 + v2 * h * 0.18 * (1 + d.treble*0.6) * 0.5;
+          if (i === 0) ctx.moveTo(x, y2);
+          else ctx.lineTo(x, y2);
+        }
+        ctx.stroke();
+        // Peak particles — glowing dots along peaks (vision)
+        ctx.shadowBlur = 8 * dpr;
+        for (let i = 0; i < wave.length; i += 24) {
+          const v = (wave[i] - 128) / 128;
+          if (Math.abs(v) > 0.55) {
+            const x = i * slice;
+            const y = h / 2 + v * h * 0.35 * (1 + d.energy*0.5);
+            ctx.fillStyle = d.beat ? "#ffffff" : colors[1];
+            ctx.shadowColor = colors[0];
+            ctx.beginPath();
+            ctx.arc(x, y, 2.5*dpr + d.peak*2*dpr, 0, Math.PI*2);
+            ctx.fill();
+          }
+        }
         ctx.shadowBlur = 0;
       } else if (mode === "radial") {
         const cx = w / 2, cy = h / 2;
@@ -186,36 +282,24 @@ export function Canvas2DVisualizer({ audioData, analyserRef, isPlaying, mode = "
       } else if (mode === "spectrogram") {
         const specW = w;
         const specH = h;
-        const sliceW = 2 * dpr;
-        const binCount = Math.floor(freq.length * 0.6);
-        const colData = ctx.getImageData(0, 0, specW, specH);
-        const pixels = colData.data;
-        for (let x = 0; x < specW - sliceW; x++) {
-          for (let y = 0; y < specH; y++) {
-            const idx = (y * specW + x) * 4;
-            const nextIdx = (y * specW + (x + sliceW)) * 4;
-            pixels[idx] = pixels[nextIdx];
-            pixels[idx + 1] = pixels[nextIdx + 1];
-            pixels[idx + 2] = pixels[nextIdx + 2];
-            pixels[idx + 3] = 255;
-          }
-        }
+        const sliceW = Math.max(2, Math.round(2 * dpr));
+        const binCount = Math.floor(freq.length * 0.5);
+        // Blit existing canvas to the left by sliceW (GPU-accelerated, replaces costly CPU getImageData)
+        ctx.drawImage(canvas, sliceW, 0, specW - sliceW, specH, 0, 0, specW - sliceW, specH);
+        // Clear rightmost strip
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(specW - sliceW, 0, sliceW, specH);
+        // Draw new slice on the right
         const binH = specH / binCount;
         for (let i = 0; i < binCount; i++) {
           const v = freq[i] / 255;
-          const x = specW - sliceW;
+          if (v < 0.02) continue;
           const y = specH - (i + 1) * binH;
           const hue = (1 - v) * 240;
           const rgb = hslToRgb(hue / 360, 1, 0.5);
-          for (let py = Math.max(0, y); py < Math.min(specH, y + binH); py++) {
-            const idx = (py * specW + x) * 4;
-            pixels[idx] = rgb[0];
-            pixels[idx + 1] = rgb[1];
-            pixels[idx + 2] = rgb[2];
-            pixels[idx + 3] = 255;
-          }
+          ctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+          ctx.fillRect(specW - sliceW, y, sliceW, Math.ceil(binH));
         }
-        ctx.putImageData(colData, 0, 0);
         if (phraseFlash > 0.05) {
           ctx.fillStyle = `rgba(255,255,255,${phraseFlash * 0.1})`;
           ctx.fillRect(0, 0, w, h);
@@ -258,10 +342,11 @@ export function Canvas2DVisualizer({ audioData, analyserRef, isPlaying, mode = "
         const step = 8;
         for (let i = 0; i < freq.length; i += step) {
           const v = freq[i] / 255;
-          if (v > 0.15) {
+          if (v > 0.18) {
             const x = (i / freq.length) * w;
             const y = h - v * h * 0.85;
             points.push({ x, y, v });
+            if (points.length >= 64) break;
           }
         }
         // Draw connections

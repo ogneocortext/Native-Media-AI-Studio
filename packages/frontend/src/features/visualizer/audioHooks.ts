@@ -140,8 +140,8 @@ export function useRealAudio(
           closestIdx = i;
         }
       }
-      // Only trigger if within window and we haven't triggered for this beat yet
-      if (closestIdx >= 0 && closestDist < 0.1 && closestIdx !== lastBeatIdx.current) {
+      // Tight window 60ms (was 100ms) for snappy sync
+      if (closestIdx >= 0 && closestDist < 0.06 && closestIdx !== lastBeatIdx.current) {
         isBeat = true;
         lastBeatIdx.current = closestIdx;
         // Drum classification: use current frequency energy ratios at the beat instant

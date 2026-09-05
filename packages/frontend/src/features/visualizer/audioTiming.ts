@@ -13,12 +13,12 @@
  * latency-compensated clock below — never raw `el.currentTime`.
  */
 
-/** AnalyserNode temporal smoothing. 0.8 (the old value) trails onsets by ~100 ms+; we do our own attack/release instead. */
-export const ANALYSER_SMOOTHING = 0.55;
-/** Attack coefficient per frame @60fps — fast onset response. */
-export const ATTACK = 0.7;
-/** Release coefficient per frame @60fps — decay without long trailing. */
-export const RELEASE = 0.2;
+/** AnalyserNode temporal smoothing. 0.8 trailed ~100ms; 0.55 was still ~40ms. 0.25 gives tight transient without self-smoothing. */
+export const ANALYSER_SMOOTHING = 0.25;
+/** Attack per frame @60fps — 0.9 hits onsets within 1 frame (2026 tight sync). */
+export const ATTACK = 0.88;
+/** Release per frame @60fps — 0.15 decays in ~6 frames, not 15. */
+export const RELEASE = 0.15;
 
 /**
  * Estimate total audio output latency in seconds: time between a sample being

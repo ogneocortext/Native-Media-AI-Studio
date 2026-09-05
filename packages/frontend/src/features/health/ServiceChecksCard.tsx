@@ -27,7 +27,7 @@ export function ServiceChecksCard() {
   };
 
   return (
-    <Card title="Service Checks" icon={<Activity size={16} className="text-emerald-400" />}>
+    <Card className="service-checks-card" title="Service Checks" icon={<Activity size={16} className="text-emerald-400" />}>
       <div className="space-y-2">
         {SERVICES.map((service) => {
           const check = checks[service];

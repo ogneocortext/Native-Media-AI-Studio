@@ -138,7 +138,7 @@ pnpm servers status
 
 ### Code Standards
 - **Backend:** Pydantic models must be the single source of truth for schemas. Keep API routes thin; place business logic in `/services`.
-- **Frontend:** No hardcoded API URLs. Always read from `ports.json` or Vite env vars.
+- **Frontend:** No hardcoded API URLs. Always read from `ports.json` or Vite env vars. Health/SSE calls fall back to direct backend URL when proxy is down.
 - **Testing:** Focus on backend unit tests for the Queue and Port Manager. E2E tests are secondary for Phase 1.
 
 ---

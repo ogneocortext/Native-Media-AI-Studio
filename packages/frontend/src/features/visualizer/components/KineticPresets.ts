@@ -378,19 +378,28 @@ export function animateSectionTransition(el: HTMLElement, toSection: string) {
   }
 }
 
-/** Estimate word-level timing from line timing */
+/** Estimate word-level timing from line timing — syllable/char-weighted, not even split (2026 fix) */
 export function estimateWordTiming(text: string, lineStart: number, lineEnd: number): Array<{ word: string; start: number; end: number }> {
   const words = text.split(/\s+/).filter(w => w.length > 0);
   if (words.length === 0) return [];
-  
-  const duration = lineEnd - lineStart;
-  const timePerWord = duration / words.length;
-  
-  return words.map((word, idx) => ({
-    word,
-    start: lineStart + idx * timePerWord,
-    end: lineStart + (idx + 1) * timePerWord,
-  }));
+  const duration = Math.max(0.6, lineEnd - lineStart);
+  // Weight by visible length + syllable heuristic (longer words & those with more vowels take longer)
+  const weights = words.map(w => {
+    const clean = w.replace(/[^a-zA-Z0-9']/g, "");
+    const syllables = Math.max(1, (clean.match(/[aeiouy]{1,2}/gi) || []).length);
+    return Math.max(1.5, clean.length * 0.6 + syllables * 0.9);
+  });
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  let cursor = lineStart;
+  return words.map((word, idx) => {
+    const wDur = (weights[idx] / totalWeight) * duration;
+    // Add tiny gap (40ms) between words except last, for readability
+    const gap = idx < words.length - 1 ? 0.04 : 0;
+    const start = cursor;
+    const end = Math.min(lineEnd, cursor + wDur - gap);
+    cursor += wDur;
+    return { word, start, end: Math.max(start + 0.18, end) };
+  });
 }
 
 /** Find current word index based on elapsed time */

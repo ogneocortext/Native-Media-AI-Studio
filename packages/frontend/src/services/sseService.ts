@@ -6,6 +6,8 @@
  * and event resumption built-in.
  */
 
+import { getEventsUrl, getCachedConfig } from "./portConfig";
+
 type MessageListener = (message: Record<string, unknown>) => void;
 
 class SSEService {
@@ -24,6 +26,20 @@ class SSEService {
     return () => {
       this.listeners.delete(listener);
     };
+  }
+
+  /**
+   * Feed a synthetic SSE message to all listeners (used by test harnesses).
+   * Mirrors what `onmessage` does after JSON-parsing an inbound event.
+   */
+  feedMessage(message: Record<string, unknown>): void {
+    this.listeners.forEach((listener) => {
+      try {
+        listener(message);
+      } catch (error) {
+        console.error("[SSE] listener error:", error);
+      }
+    });
   }
 
   /** Subscribe to connection-state changes. Returns an unsubscribe fn. */
@@ -78,8 +94,13 @@ class SSEService {
   private open(): void {
     if (this.eventSource || !this.wantsConnection) return;
 
-    // SSE uses regular HTTP, not WebSocket protocol
-    const sseUrl = `${window.location.protocol}//${window.location.host}/api/events`;
+    // Prefer the explicit backend events URL from ports.json / env.
+    // Fall back to the Vite proxy path so local dev still works without a
+    // ports.json refresh after backend restart.
+    const cached = getCachedConfig();
+    const configuredUrl = getEventsUrl();
+    const proxyUrl = `${window.location.protocol}//${window.location.host}/api/events`;
+    const sseUrl = configuredUrl && configuredUrl !== proxyUrl ? configuredUrl : proxyUrl;
 
     this.eventSource = new EventSource(sseUrl);
 

@@ -7,12 +7,31 @@ import type { Job, QueueStats } from "@shared/types";
 
 export type { Job, QueueStats };
 import { fetchWithTimeout } from "./fetchWithTimeout";
+import { getBackendUrl, getCachedConfig } from "./portConfig";
 
 // Get backend URL from config (reads ports.json or env vars)
 export const getApiBase = (): string => {
   // Use relative URLs so requests go through Vite proxy (avoids CORS)
   return "";
 };
+
+async function withDirectBackendFallback<T>(
+  proxyCall: () => Promise<T>,
+  directPath: string,
+): Promise<T> {
+  try {
+    return await proxyCall();
+  } catch (error) {
+    const cached = getCachedConfig();
+    const backendUrl = cached?.backend_url || getBackendUrl();
+    const directUrl = `${backendUrl.replace(/\/$/, "")}${directPath}`;
+    console.warn(`[api] proxy call failed, falling back to direct backend URL: ${directUrl}`, error);
+    return fetchWithTimeout(directUrl, { timeout: 30000 }).then((res) => {
+      if (!res.ok) throw new Error("Health check failed");
+      return res.json();
+    });
+  }
+}
 
 export interface HealthStatus {
   status: string;
@@ -158,23 +177,35 @@ export async function ping(): Promise<{ status: string }> {
 
 export async function healthCheck(): Promise<AggregateHealth> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health`, { timeout: 30000 });
-  if (!res.ok) throw new Error("Health check failed");
-  return res.json();
+  return withDirectBackendFallback(
+    () => fetchWithTimeout(`${base}/api/health`, { timeout: 30000 }).then((res) => {
+      if (!res.ok) throw new Error("Health check failed");
+      return res.json();
+    }),
+    "/api/health",
+  );
 }
 
 export async function getSystemHealth(): Promise<SystemHealth> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/render/health`, { timeout: 30000 });
-  if (!res.ok) throw new Error("Failed to get system health");
-  return res.json();
+  return withDirectBackendFallback(
+    () => fetchWithTimeout(`${base}/api/render/health`, { timeout: 30000 }).then((res) => {
+      if (!res.ok) throw new Error("Failed to get system health");
+      return res.json();
+    }),
+    "/api/render/health",
+  );
 }
 
 export async function getServiceStatus(): Promise<ServiceStatus> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/services/status`, { timeout: 30000 });
-  if (!res.ok) throw new Error("Failed to get service status");
-  return res.json();
+  return withDirectBackendFallback(
+    () => fetchWithTimeout(`${base}/api/services/status`, { timeout: 30000 }).then((res) => {
+      if (!res.ok) throw new Error("Failed to get service status");
+      return res.json();
+    }),
+    "/api/services/status",
+  );
 }
 
 // Image generation (uses ComfyUI)

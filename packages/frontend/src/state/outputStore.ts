@@ -4,7 +4,6 @@
 
 import type { OutputFile } from "@shared/types";
 import { create } from "zustand";
-import { fetchPortConfig, getCachedConfig } from "../services/portConfig";
 
 export type { OutputFile };
 

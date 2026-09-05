@@ -20,6 +20,9 @@ export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = f
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<WebGLRenderingContext | null>(null);
   const programRef = useRef<WebGLProgram | null>(null);
+  const bufferRef = useRef<WebGLBuffer | null>(null);
+  const vsRef = useRef<WebGLShader | null>(null);
+  const fsRef = useRef<WebGLShader | null>(null);
   const uniformLocsRef = useRef<Record<string, WebGLUniformLocation | null>>({});
   const rafRef = useRef<number>(0);
   const startTimeRef = useRef(Date.now());
@@ -45,6 +48,18 @@ export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = f
     if (!gl) return;
     glRef.current = gl;
 
+    // Clean up previous WebGL resources before recompiling new preset
+    if (programRef.current) {
+      if (vsRef.current) { gl.detachShader(programRef.current, vsRef.current); gl.deleteShader(vsRef.current); vsRef.current = null; }
+      if (fsRef.current) { gl.detachShader(programRef.current, fsRef.current); gl.deleteShader(fsRef.current); fsRef.current = null; }
+      gl.deleteProgram(programRef.current);
+      programRef.current = null;
+    }
+    if (bufferRef.current) {
+      gl.deleteBuffer(bufferRef.current);
+      bufferRef.current = null;
+    }
+
     const vsSource = `
       attribute vec2 a_position;
       void main() {
@@ -55,6 +70,7 @@ export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = f
     const vs = gl.createShader(gl.VERTEX_SHADER)!;
     gl.shaderSource(vs, vsSource);
     gl.compileShader(vs);
+    vsRef.current = vs;
     if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
       console.error("Vertex shader error:", gl.getShaderInfoLog(vs));
       return;
@@ -64,6 +80,7 @@ export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = f
     const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
     gl.shaderSource(fs, fsSource);
     gl.compileShader(fs);
+    fsRef.current = fs;
     if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
       console.error("Fragment shader error:", gl.getShaderInfoLog(fs));
       return;
@@ -83,6 +100,7 @@ export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = f
 
     const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
     const buffer = gl.createBuffer();
+    bufferRef.current = buffer;
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
 
@@ -103,6 +121,16 @@ export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = f
     initGL();
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      const gl = glRef.current;
+      if (gl) {
+        if (programRef.current) {
+          if (vsRef.current) { gl.detachShader(programRef.current, vsRef.current); gl.deleteShader(vsRef.current); vsRef.current = null; }
+          if (fsRef.current) { gl.detachShader(programRef.current, fsRef.current); gl.deleteShader(fsRef.current); fsRef.current = null; }
+          gl.deleteProgram(programRef.current);
+          programRef.current = null;
+        }
+        if (bufferRef.current) { gl.deleteBuffer(bufferRef.current); bufferRef.current = null; }
+      }
     };
   }, [initGL]);
 

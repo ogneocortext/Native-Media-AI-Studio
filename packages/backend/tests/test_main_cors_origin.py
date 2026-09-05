@@ -5,14 +5,21 @@ Tests for the dynamic CORS origin fix in main.py:
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
+
+BACKEND_ROOT = Path(__file__).resolve().parent.parent
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
+
+from app.main import app, _local_origins
+from app.core.config import config
 
 
 def test_local_origins_contains_configured_ports():
     """_local_origins must include both the configured backend and frontend ports."""
-    from app.main import app, _local_origins
-    from app.core.config import config
-
     expected_backend = f"http://localhost:{config.backend_port}"
     expected_frontend = f"http://localhost:{config.frontend_port}"
 

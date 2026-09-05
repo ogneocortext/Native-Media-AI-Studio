@@ -1,8 +1,16 @@
 """Regression tests for the job queue manager and processor fixes."""
+from __future__ import annotations
+
+import sys
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
+
+BACKEND_ROOT = Path(__file__).resolve().parent.parent
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 from app.core import database as database_module
 from app.models.job import Job, JobStatus, JobType

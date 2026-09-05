@@ -29,6 +29,7 @@ A full-stack AI-powered creative production environment for music-driven media g
 
 ## Recent Changes
 
+- **Backend Startup & Frontend Connectivity (2026-09-05)** — Fixed WebSocket origin validation crash in `main.py`, added pre-flight port check, frontend health/SSE calls now fall back to direct backend URL when Vite proxy is down, start script retries backend launch on port conflicts
 - **Async Refactoring & VRAM Management (2026-09-05)** — Fixed asyncio refactoring in GPU monitoring and VRAM management using `asyncio.to_thread()`, corrected VRAM offload/reload function calls, enhanced ComfyUI error handling with queue status checks and timeout detection, updated documentation
 - **2026 2D + LRC-Driven Visuals (2026-09-02)** — Added `Canvas2DVisualizer.tsx` 3 modes `bars/waveform/radial` (Canvas2D + Web Audio, LRC `isPhraseStart/sectionProgress` reactive, 2026 visual-flux/Waviz methods), fixed LRC `offset`/multi-stamp/`60.00` drift (`lyricsParser.py`/`lyricsParser.ts`/`useLrcSync`), wired 3D `VisualizerScene`/`ShaderVisualizer`/`PostFX` to `lrcSync`, added `AIPresetGallery` browse + `storage/visualizer_presets` persistence, hardened Ollama (`keep_alive 5m`, startup unload, manual `Enhance with AI`)
 - **Final Sweep & Hardening** — Fixed missing `import asyncio`, unreachable OOM prevention, refactored to single `asyncio.run()`, enhanced AI code sanitization (strips eval/fetch/setInterval/event listeners), made checkpoint names configurable across backend and MCP

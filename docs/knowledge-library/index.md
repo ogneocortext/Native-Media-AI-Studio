@@ -48,7 +48,8 @@ date: 2026-09-05
 
 - [[3d-rendering|🧊 3D Rendering]] — GPU rendering, Blender 5.2 EEVEE Next, optimization
 - [[visualization-effects|✨ Visualization Effects]] — WebGPU/TSL, particles, shaders, post-processing, volumetrics (NEW 2026-08-29)
-- [[2d-visualization-2026|🎨 2D Visualization 2026]] — Canvas2D/PixiJS/p5.js/Waviz 2026 open source 2D stacks (NEW 2026-09-02)
+- [[2d-visualization-2026|🎨 2D Visualization 2026]] — Canvas2D/PixiJS/p5.js/Waviz 2026 open source 2D stacks (UPDATED 2026-09-05: PixiJS 8.19, p5.js trails, Summer 2026 addendum)
+- [[character-animation-2026-summer-synthesis|🎭 Character Animation 2026 — Summer Synthesis]] — Story-first puppet, beatPhase sync, performance-driven (NEW 2026-09-05)
 - [[audio-reactive-production|🎧 Audio-Reactive Production]] — Audio → visual mapping, beat sync
 - [[silhouette-character-animation|🎭 Silhouette Character Animation]] — Character rigging & motion
 - [[character-driven-visualization-research|🔬 Character-Driven Visualization]] — Character research
@@ -162,10 +163,10 @@ graph LR
 
 | Metric          | Count                                                                              |
 | --------------- | ---------------------------------------------------------------------------------- |
-| Total Documents | 27                                                                                 |
+| Total Documents | 28                                                                                 |
 | Total Tags      | 22                                                                                 |
 | Total Links     | 80+                                                                                |
-| Last Updated    | 2026-09-05 (vision MCP OOM prevention, comprehensive bug fixes, async refactoring) |
+| Last Updated    | 2026-09-05 (backend connectivity + frontend fallback + start-script resilience + WebSocket origin fix) |
 
 ---
 

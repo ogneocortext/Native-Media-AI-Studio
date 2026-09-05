@@ -464,8 +464,8 @@ export const SHADER_PRESETS = {
   `,
 
   // ============================================================
-  // ABSTRACT WAVES — Default fallback
-  // Flowing abstract waveform visualization
+  // ABSTRACT WAVES — Default fallback (v2: vision-feedback upgrade)
+  // Adds: depth grid, secondary harmonic, peak particles, beat color shift
   // ============================================================
   abstractWaves: `
     precision highp float;
@@ -478,6 +478,8 @@ export const SHADER_PRESETS = {
     uniform float u_peak;
     uniform vec2 u_resolution;
 
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+
     void main() {
       vec2 uv = gl_FragCoord.xy / u_resolution.xy;
       vec2 p = uv * 2.0 - 1.0;
@@ -485,8 +487,7 @@ export const SHADER_PRESETS = {
 
       float t = u_time * 0.5;
 
-      // Layered wave interference — amplitude pumps with bass + beat pulse
-      // (u_beat arrives pre-decayed from the CPU loop, ~8-frame tail)
+      // ── Primary layered wave interference (pumps with bass + beat) ──
       float wave = 0.0;
       for (float i = 1.0; i <= 5.0; i++) {
         float freq = 3.0 * i + u_mid * 2.0;
@@ -495,26 +496,84 @@ export const SHADER_PRESETS = {
         wave += sin(phase) * amp;
       }
 
-      // Distance from wave line
+      // ── Secondary harmonic (higher-freq, faint green — harmonic complexity cue) ──
+      float harmonic = 0.0;
+      for (float i = 6.0; i <= 8.0; i++) {
+        float freq = 2.5 * i + u_treble * 3.0;
+        float amp = (0.025 / i) * (1.0 + u_treble * 2.0 + u_mid * 0.8);
+        harmonic += sin(t * (1.8 + i*0.2) + p.x * freq + 1.7) * amp;
+      }
+
       float dist = abs(p.y - wave);
+      float distH = abs(p.y - (wave*0.55 + harmonic));
 
       // Glow bands — width breathes with bass and punches on beats
-      float bands = exp(-dist * max(1.5, 7.0 - u_bass * 4.0 - u_beat * 1.5));
+      float bands  = exp(-dist  * max(1.5, 7.0 - u_bass * 4.0 - u_beat * 1.5));
+      float bandsH = exp(-distH * max(3.0, 9.0 - u_treble * 3.0)) * 0.55;
 
-      // Color based on frequency
+      // ── Depth grid behind waves (faint 3D cue — vision: "faint 3D grid") ──
+      vec2 gridP = vec2(p.x * 1.2, p.y + 0.25) * 6.0;
+      vec2 gp = fract(gridP) - 0.5;
+      float gridLine = min(abs(gp.x), abs(gp.y));
+      float grid = smoothstep(0.48, 0.45, gridLine) * 0.12;
+      grid *= smoothstep(1.0, 0.0, length(p)) * 0.5; // fade to center/edges
+      grid *= (0.6 + u_mid * 0.6);
+      float gridPersp = 1.0 / (abs(p.y + 0.45) + 0.25);
+      grid *= clamp(gridPersp * 0.15, 0.0, 1.0);
+
+      // ── Color: beat-synced shift blue→purple→pink, plus treble green hint ──
       vec3 color1 = vec3(0.2, 0.4, 1.0);
       vec3 color2 = vec3(1.0, 0.2, 0.5);
       vec3 color3 = vec3(0.0, 0.8, 0.6);
-      vec3 bandColor = mix(color1, color2, sin(p.x * 2.0 + t) * 0.5 + 0.5);
-      bandColor = mix(bandColor, color3, u_treble);
+      // Dynamic palette lerp driven by beat + bass (vision: "pulsing color shifts")
+      vec3 palette = mix(color1, color2, sin(p.x * 2.0 + t*1.2) * 0.5 + 0.5);
+      palette = mix(palette, color3, u_treble * 0.35);
+      palette = mix(palette, vec3(0.7, 0.2, 1.0), u_beat * 0.45); // beat purple punch
+      palette = mix(palette, vec3(1.0, 0.45, 0.15), u_bass * 0.15); // bass warmth
 
-      // Background
+      // Peak-highlight: brighter where wave curvature peaks (vision: "brighter peaks when loud")
+      float peakHl = smoothstep(0.08, 0.0, dist) * (0.5 + u_peak * 0.9);
+
+      // ── Peak particles: glowing dots along wave crest (vision: "dots along peaks") ──
+      float particles = 0.0;
+      for (float i = 0.0; i < 16.0; i++) {
+        float px = fract(hash(vec2(i, 37.0)) * 43758.5) * 2.0 - 1.0;
+        px *= u_resolution.x / u_resolution.y;
+        // sample wave height at particle x — keeps dots glued to the wave
+        float waveAtPx = 0.0;
+        for (float k = 1.0; k <= 3.0; k++) {
+          float fk = 3.0*k + u_mid*1.5;
+          waveAtPx += sin(t*(1.0+k*0.3) + px*fk) * (0.1/k)*(1.0+u_bass*0.8);
+        }
+        float py = waveAtPx + fract(hash(vec2(i, 91.0)) - t*0.15*(0.4+hash(vec2(i,13.0))))*0.12 - 0.06;
+        float d = length(vec2(p.x - px, (p.y - py)*1.6));
+        float pSize = 0.008 + hash(vec2(i, 7.0))*0.006;
+        particles += (pSize / (d + pSize)) * 0.025 * (1.0 + u_energy*1.2 + u_beat*1.5) * (0.7 + hash(vec2(i,19.0))*0.6);
+      }
+
+      // ── Background with subtle vignette ──
       vec3 bg = vec3(0.02, 0.02, 0.05);
+      // Depth-grid contribution (cool, subtle)
+      vec3 gridColor = vec3(0.15, 0.22, 0.45) * grid;
+      // Harmonic line (green, faint)
+      vec3 harmonicColor = vec3(0.15, 0.95, 0.45) * bandsH * (0.35 + u_treble*0.5);
 
-      // Beat flash — strong enough to read as a pulse, focused at center
-      float flash = u_beat * 0.55 * exp(-length(p) * 1.5);
+      // Beat flash — focused center, warmer now
+      float flash = u_beat * 0.55 * exp(-length(p) * 1.45);
+      vec3 flashColor = mix(vec3(1.0, 0.9, 0.7), vec3(0.9, 0.4, 1.0), u_treble) * flash;
 
-      vec3 color = bg + bandColor * bands * (0.4 + u_energy * 1.2) + vec3(1.0) * flash;
+      // Subtle scan bloom at horizon
+      float horizonBloom = exp(-abs(p.y - wave*0.2) * 12.0) * 0.04 * (1.0 + u_energy);
+
+      vec3 color = bg + gridColor + palette * bands * (0.45 + u_energy * 1.35)
+                 + harmonicColor + vec3(0.18, 0.4, 1.0) * horizonBloom
+                 + palette * peakHl * 0.35
+                 + vec3(0.9, 0.7, 1.0) * particles
+                 + flashColor;
+
+      // Energy vignette (stronger when loud)
+      float vig = 1.0 - dot(p * 0.42, p * 0.42);
+      color *= mix(1.0, vig, 0.22);
 
       gl_FragColor = vec4(color, 1.0);
     }

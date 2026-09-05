@@ -32,7 +32,7 @@ export function OllamaModelsCard() {
   const activity = data?.activity || {};
 
   return (
-    <Card className="mb-6" title="Ollama Models" icon={<Cpu size={16} className="text-violet-400" />}>
+    <Card className="ollama-card mb-6" title="Ollama Models" icon={<Cpu size={16} className="text-violet-400" />}>
       {models.length === 0 ? (
         <div className="text-center py-6">
           <Cpu size={28} className="mx-auto mb-3 opacity-30 text-violet-400" />

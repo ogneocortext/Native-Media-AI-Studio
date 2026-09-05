@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import socket
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -29,6 +30,26 @@ from .websocket.handler import connection_manager
 # Initialize logging before anything else
 setup_logging(config.log_level)
 logger = logging.getLogger(__name__)
+
+
+def _is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
+    """Quick pre-flight check to warn if the target port is already occupied."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(0.5)
+            return sock.connect_ex((host, port)) == 0
+    except Exception:
+        return False
+
+
+if _is_port_in_use(config.backend_port):
+    logger.warning(
+        "Backend port %d appears occupied before bind; if startup fails, check for a stale process or change config/ports.json",
+        config.backend_port,
+    )
+else:
+    logger.info("Backend port %d is available", config.backend_port)
+
 
 output_dir = Path(config.output_dir)
 output_dir.mkdir(parents=True, exist_ok=True)
@@ -289,6 +310,7 @@ async def websocket_endpoint(websocket: WebSocket):
     """WebSocket shim that mirrors SSE broadcasts for legacy clients."""
     # Origin validation: only accept connections from trusted local origins.
     # Mirror the CORS allowlist so dynamic backend/frontend ports are accepted.
+    origin = websocket.headers.get("origin", "")
     allowed_origins = _local_origins
     if origin and not any(origin.startswith(allowed) for allowed in allowed_origins):
         await websocket.close(code=4001, reason="Origin not allowed")

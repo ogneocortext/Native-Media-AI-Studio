@@ -39,7 +39,7 @@ export function ShaderVisualizer({ audioData, trackName, isPlaying, className, l
   const lrcSyncPropRef = useRef(lrcSync);
   lrcSyncPropRef.current = lrcSync;
 
-  // Update uniforms from audio + LRC phrase timing
+  // Update uniforms from audio — tight, analysis-driven (2026 fix: was lagging ~80ms)
   useEffect(() => {
     let raf: number;
     let phraseFlash = 0;
@@ -48,18 +48,28 @@ export function ShaderVisualizer({ audioData, trackName, isPlaying, className, l
       const d = audioData.current;
       const sync = lrcSyncLive?.current ?? lrcSyncPropRef.current;
       if (sync?.isPhraseStart) phraseFlash = 1;
-      else phraseFlash = Math.max(0, phraseFlash - 0.08);
-      // Decayed beat pulse: the raw beat flag lives for a single frame (~16 ms),
-      // invisible to the eye and to frame captures — stretch it into an ~8-frame tail.
-      if (d.beat) beatPulse = 1;
-      else beatPulse = Math.max(0, beatPulse - 0.12);
-      const lrcBeat = sync?.isPhraseStart ? 1 : beatPulse;
-      const lrcEnergy = d.energy + phraseFlash * 0.35 + (sync?.sectionProgress ?? 0) * 0.1;
+      else phraseFlash = Math.max(0, phraseFlash - 0.07);
+      // Beat pulse: snap on beat, exponential decay (half-life ~80ms, not linear 0.12) — matches audioTiming RELEASE
+      if (d.beat) {
+        beatPulse = 1;
+      } else {
+        // decay with dt-agnostic factor ~0.08 per frame @60fps
+        beatPulse *= 0.88;
+        if (beatPulse < 0.01) beatPulse = 0;
+        // also shape by nextBeatIn for anticipatory swell (BPM-scaled)
+        const nb = (d as any).nextBeatIn ?? 0;
+        if (nb > 0 && nb < 0.12) {
+          // tiny pre-beat lift (anticipation) — not a full beat
+          beatPulse = Math.max(beatPulse, 0.15 * (1 - nb / 0.12));
+        }
+      }
+      // Energy: live + phrase flash only (sectionProgress was biasing lag); analysis energy already blended in Visualizer
+      const lrcEnergy = d.energy + phraseFlash * 0.3;
       uniformsRef.current = {
         bass: d.bass,
         mid: d.mid,
         treble: d.treble,
-        beat: lrcBeat,
+        beat: beatPulse,
         energy: Math.min(1, lrcEnergy),
         peak: d.peak,
       };

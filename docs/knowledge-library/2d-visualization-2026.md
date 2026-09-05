@@ -89,10 +89,22 @@ Current studio uses `KineticLyricOverlay.tsx` + `KineticPresets.ts` (GSAP/Anime.
 
 ---
 
-## 7. How to Use This Entry
+## 7. Summer 2026 Addendum (June–August 2026)
+
+> Updated 2026-09-05 — fresh web search `2D audio visualization trends 2026`, `PixiJS 8 p5.js generative 2026`, `kinetic typography 2026`
+
+**PixiJS 8.19 (June 2026)** — 500k weekly downloads, now ships `pixi.js/html-source` (live DOM → GPU texture, input stays editable), `Graphics → SVG export` (`graphicsContextToSvg`), 25 official agent skills (`npx skills add pixijs/pixi.js`), sprite mask `channel: 'alpha'`. Directly maps to lyric particles on GPU.
+
+**p5.js Audio Reactive (2026)** — `p5js.ai` docs show `FFT spectrum bars + HSB hue cycling (frameCount % 360) + background alpha 5 for motion trails + center circle 50–400px scaled to volume`. Battle-tested pattern for `Canvas2DVisualizer` `bars` mode.
+
+**ImgTool 2026 Guide** — platform specs that should drive 2D export: YouTube `2560×1440/16:9`, TikTok/Reels `1080×1920/9:16` 15–60s hook-first, Spotify Canvas `720×720` 3–8s seamless loop (beat-boundary). Reinforces need for `bars` vs `rings` loopability.
+
+**Kinetic Typography as Brand Motion (Aug 2026)** — `muksalcreative.com 2026-08-01` & `pixanimation 2026-01-25`: variable fonts (wght/wdth axes) + AI voice-sync are mainstream; kinetic = pacing mechanism, not decoration. 2026 rule: *scale/rotation/stretch must earn its 200ms INP budget* (digit Silk 2026-02-03). For our 7 `Canvas2D` modes, this means per-mode typography should be `variable-font`-driven, not just `animejs` translate.
+
+## 8. How to Use This Entry
 
 * For 2D work, start with `PixiJS 8` + `p5.js` (both MIT, 2026 active).
 * For beat detection, prefer `spectral-flux` (`visual-flux`) over `librosa` for 2D canvas.
 * Search future work with `2026` suffix: e.g., `PixiJS 8 2026`, `p5.js sound 2026`, `meyda 2026`.
 
-*Generated 2026-09-02 via web search `2026 open source 2D visualization`.*
+*Generated 2026-09-02 via web search `2026 open source 2D visualization`; addendum 2026-09-05 via Summer 2026 refresh.*

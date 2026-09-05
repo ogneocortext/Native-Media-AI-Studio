@@ -206,7 +206,7 @@ export function GpuMonitorPage() {
                 <MemoryStick size={14} className="text-violet-400" />
                 <span className="text-xs text-muted">VRAM</span>
               </div>
-              <p className="text-2xl font-bold text-white">{memPct.toFixed(1)}%</p>
+              <p className="text-2xl font-bold" style={{ color: getUsageColor(memPct) }}>{memPct.toFixed(1)}%</p>
               <p className="text-xs text-muted mt-1">
                 {snapshot.memory_used_mb}MB / {snapshot.memory_total_mb}MB
               </p>
@@ -218,7 +218,7 @@ export function GpuMonitorPage() {
                 <Activity size={14} className="text-emerald-400" />
                 <span className="text-xs text-muted">GPU Utilization</span>
               </div>
-              <p className="text-2xl font-bold text-white">{util.toFixed(0)}%</p>
+              <p className="text-2xl font-bold" style={{ color: getUsageColor(util) }}>{util.toFixed(0)}%</p>
               <p className="text-xs text-muted mt-1">
                 Memory controller: {snapshot.memory_controller_utilization ?? 0}%
               </p>

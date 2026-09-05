@@ -1,7 +1,7 @@
 # 3D Rendering Pipeline - Technical Knowledge Library
 
 **Purpose:** AI agent reference for the Native Media AI Studio 3D rendering system  
-**Last Updated:** 2026-09-05 — Async refactoring, VRAM management fixes, ComfyUI error handling  
+**Last Updated:** 2026-09-05 — Async refactoring, VRAM management fixes, ComfyUI error handling, backend startup resilience, frontend fallback connectivity  
 **Audience:** AI agents, developers, automated systems
 
 ---
@@ -188,6 +188,12 @@ Invoke-WebRequest -Uri "http://localhost:8000/api/health" -UseBasicParsing
 # Test ComfyUI
 Invoke-WebRequest -Uri "http://localhost:8188/system_stats" -UseBasicParsing
 ```
+
+> [!note] Frontend Fallback Behavior
+> The frontend `api.ts` and `sseService.ts` now fall back to direct backend URLs from `config/ports.json` when the Vite proxy is down. If the health badge shows `Offline` while the backend is running, check `config/ports.json` and ensure `backend_url` matches the running port.
+
+> [!note] Backend Startup Resilience
+> `scripts/start-studio.ps1` now retries backend launch twice with backoff and warns if port 8000 is occupied before bind. `packages/backend/app/main.py` logs a pre-flight port check at import time.
 
 ---
 

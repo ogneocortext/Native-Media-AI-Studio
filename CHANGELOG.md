@@ -5,6 +5,18 @@ All notable changes to the Native Media AI Studio project are documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed - Backend Startup & Frontend Connectivity (2026-09-05)
+
+- **Backend**: Fixed WebSocket origin validation `NameError` in `packages/backend/app/main.py:293` — added `origin = websocket.headers.get("origin", "")`
+- **Backend**: Added pre-flight port availability check in `packages/backend/app/main.py` — warns if backend port is occupied before uvicorn bind
+- **Frontend**: Added direct-backend fallback in `packages/frontend/src/services/api.ts` for `healthCheck`, `getSystemHealth`, and `getServiceStatus` when Vite proxy returns `ECONNREFUSED`
+- **Frontend**: Updated `packages/frontend/src/services/sseService.ts` to prefer configured `events_url` from `portConfig.ts`, falling back to Vite proxy `/api/events`
+- **Scripts**: Improved `scripts/start-studio.ps1` — added 500ms delay after `Stop-PortOwner`, 2-attempt retry for backend launch with exponential backoff
+- **Tests**: Added/updated Playwright browser tests (`packages/frontend/tests/*.spec.ts`) and backend test fixtures
+- **Docs**: Added `.python-env` to document preferred CUDA conda environment and fallback venv
+
 ## [1.0.0] - 2026-09-05
 
 ### Fixed - Async Refactoring & VRAM Management (2026-09-05)

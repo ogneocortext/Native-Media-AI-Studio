@@ -225,14 +225,23 @@ if (Test-Path $condaPython) {
 if (-not $NoBackend) {
     Write-Step 'Starting backend (FastAPI)'
     Stop-PortOwner -Port $BackendPort -Service 'backend'
+    Start-Sleep -Milliseconds 500
 
     $backendLog = Join-Path $LogDir 'backend.log'
     $backendErrLog = Join-Path $LogDir 'backend.err.log'
     # Fresh log on initial start (restarts append)
-    $proc = Start-ProcessSafe -FilePath $venvPython `
-        -ArgumentList @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', "$BackendPort") `
-        -WorkingDirectory $BackendDir `
-        -LogFile $backendLog -ErrorLog $backendErrLog
+    $proc = $null
+    for ($attempt = 1; $attempt -le 2; $attempt++) {
+        $proc = Start-ProcessSafe -FilePath $venvPython `
+            -ArgumentList @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', "$BackendPort") `
+            -WorkingDirectory $BackendDir `
+            -LogFile $backendLog -ErrorLog $backendErrLog
+        if ($proc) { break }
+        if ($attempt -lt 2) {
+            Write-Warn2 "Backend launch failed, retrying in $($attempt * 2)s..."
+            Start-Sleep -Seconds ($attempt * 2)
+        }
+    }
     
     if ($proc) {
         $script:started += @{ Name = 'Backend'; Process = $proc }

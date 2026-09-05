@@ -1,65 +1,49 @@
 import { test, expect } from '@playwright/test';
+import { navigateWithWait, cleanupRoutes, setupConsoleErrorCapture, expectNoConsoleErrors } from './helpers';
 
-test('Canvas2D 2D mode renders and is LRC-reactive', async ({ page }) => {
-  await page.goto('http://localhost:5173/visualizer');
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(2000);
+test.describe('Canvas2D Visualizer', () => {
+  test.beforeEach(async ({ page }) => {
+    await cleanupRoutes(page);
+  });
 
-  // Select a track
-  const select = page.locator('select.viz-track-select').first();
-  await expect(select).toBeVisible({ timeout: 10000 });
-  const options = await select.locator('option').allTextContents();
-  const target = options.find(o => o.includes('Built This From A Dream')) || options[1];
-  if (target) await select.selectOption({ label: target });
-  await page.waitForTimeout(3000);
+  test('renders 2D mode canvas and cycles modes', async ({ page }) => {
+    const errors = setupConsoleErrorCapture(page);
+    await navigateWithWait(page, '/visualizer');
 
-  // Cycle vizMode: 3d -> shader -> 2d (current default shader, so two clicks to get to 2d via 3d)
-  const modeBtn = page.locator('button', { hasText: 'FX' }).first().or(page.locator('button', { hasText: '3D' }).first()).or(page.locator('button', { hasText: '2D' }).first());
-  // Our button shows FX/3D/2D text - click until we see 2D
-  for (let i = 0; i < 4; i++) {
-    const text = await page.locator('.viz-btn-group button').first().textContent().catch(() => '');
-    const has2D = await page.locator('canvas').count();
-    // Click the mode toggle (the button with title Mode:)
-    const toggle = page.locator('button[title^="Mode:"]').first();
-    if (await toggle.count()) {
-      const title = await toggle.getAttribute('title');
-      if (title?.includes('2d')) break;
-      await toggle.click();
-      await page.waitForTimeout(800);
-    } else break;
-  }
+    // Wait for the track selector to appear
+    const trackSelect = page.locator('[data-testid="viz-track-select"]');
+    await expect(trackSelect).toBeVisible({ timeout: 15_000 });
 
-  // Check canvas exists in 2d mode
-  const canvasCount = await page.locator('canvas').count();
-  console.log('canvasCount', canvasCount);
-  expect(canvasCount).toBeGreaterThan(0);
+    // Pick the first available track if any
+    const optionCount = await trackSelect.locator('option').count();
+    if (optionCount > 1) {
+      await trackSelect.selectOption({ index: 1 });
+    }
 
-  // Check for 2d mode selector when in 2d
-  const modeSelect = page.locator('.viz-2d-mode-select');
-  if (await modeSelect.count() > 0) {
-    console.log('2D mode selector visible');
-    await modeSelect.selectOption('waveform');
-    await page.waitForTimeout(500);
-    await modeSelect.selectOption('radial');
-    await page.waitForTimeout(500);
-    await modeSelect.selectOption('spectrogram');
-    await page.waitForTimeout(500);
-    await modeSelect.selectOption('lissajous');
-    await page.waitForTimeout(500);
-    await modeSelect.selectOption('constellation');
-    await page.waitForTimeout(500);
-    await modeSelect.selectOption('particles');
-    await page.waitForTimeout(500);
-    await modeSelect.selectOption('bars');
-    console.log('2D modes cycled');
-  }
+    // Use the test harness to switch to 2D mode reliably
+    await page.evaluate(() => {
+      const win = window as any;
+      win.__VIZ_TEST__?.setMode?.('2d');
+    });
 
-  // Check no console errors
-  const errors: string[] = [];
-  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.waitForTimeout(1000);
-  expect(errors.length).toBe(0);
+    // Wait for canvas to render
+    const canvas = page.locator('canvas');
+    await expect(canvas.first()).toBeVisible({ timeout: 15_000 });
 
-  await page.screenshot({ path: 'packages/frontend/test-results/canvas2d-2d-mode.png', fullPage: true });
-  console.log('Canvas2D test passed');
+    // Cycle through 2D sub-modes via the harness
+    const modes = ['bars', 'waveform', 'radial', 'spectrogram', 'lissajous', 'constellation', 'particles'] as const;
+    for (const mode of modes) {
+      await page.evaluate((m) => { (window as any).__VIZ_TEST__?.set2DMode?.(m); }, mode);
+      await expect(canvas.first()).toBeVisible({ timeout: 5_000 });
+    }
+
+    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+  });
+
+  test('visualizer page loads without console errors', async ({ page }) => {
+    const errors = setupConsoleErrorCapture(page);
+    await navigateWithWait(page, '/visualizer');
+    await page.waitForTimeout(1000);
+    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+  });
 });

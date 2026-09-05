@@ -21,7 +21,7 @@ export function ResourceCard({ icon: Icon, iconColor, label, cores, usage, subte
   const colors = colorMap[iconColor] || colorMap.blue;
 
   return (
-    <Card>
+    <Card className="resource-card">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2.5">
           <div className={`w-9 h-9 rounded-lg ${colors.bg} flex items-center justify-center`}>
@@ -34,10 +34,12 @@ export function ResourceCard({ icon: Icon, iconColor, label, cores, usage, subte
         </div>
         <span
           className="text-xs px-2 py-1 rounded-full font-medium"
-          style={{
-            background: `${getUsageColor(usage)}20`,
-            color: getUsageColor(usage),
-          }}
+          style={
+            {
+              background: `${getUsageColor(usage)}20`,
+              color: getUsageColor(usage),
+            }
+          }
         >
           {usage.toFixed(1)}%
         </span>

@@ -1,0 +1,16 @@
+# Preferred Python Environment for Native Media AI Studio
+# This file indicates the preferred Python environment for CUDA-enabled features
+
+# CUDA-enabled conda environment (recommended for GPU features)
+PYTHON_ENV=D:\conda-envs\comfyui-cuda\Scripts\python.exe
+
+# Fallback venv (CPU-only, no CUDA)
+FALLBACK_VENV=venv\Scripts\python.exe
+
+# Environment type: conda (for CUDA) or venv (CPU-only)
+ENV_TYPE=conda
+
+# CUDA support
+CUDA_ENABLED=true
+CUDA_VERSION=12.4
+PYTORCH_VERSION=2.5.1+cu124
