@@ -78,6 +78,8 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
         },
         "/ws": {
+          // Legacy WS proxy — kept for compat with old clients that still try ws://…/ws.
+          // Canonical real-time is SSE at /api/events (see docs/api/API_REFERENCE.md).
           target: proxyTarget,
           changeOrigin: true,
           ws: true,

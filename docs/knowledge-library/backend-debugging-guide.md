@@ -1,8 +1,8 @@
 # Backend Debugging & ComfyUI Integration Findings
 
-> Date: 2026-08-27
+> Date: 2026-09-05 (updated — SSE supersedes WebSocket)
 > Author: Kilo (AI Assistant)
-> Status: Active
+> Status: Active — SSE is canonical; legacy `ws://…/ws` returns 426
 
 ## Overview
 
@@ -176,20 +176,19 @@ async def _auto_cleanup_unlocked(self):
 
 ## Progress Tracking Architecture
 
-### Backend Endpoints
+### Backend Endpoints (current)
 
 1. `POST /api/integrations/comfyui/generate` - Returns `prompt_id` immediately
-2. `GET /api/integrations/comfyui/progress/{prompt_id}` - Returns current progress
-3. `GET /api/integrations/comfyui/result/{prompt_id}` - Returns final result
+2. `GET /api/jobs/{job_id}` - Poll queue job (legacy `/progress/{prompt_id}` / `/result/{prompt_id}` merged into unified queue)
+3. `GET /api/events` - SSE stream for `job.progress` / `job.completed` (preferred over polling) — `packages/backend/app/sse/handler.py` + `packages/frontend/src/services/sseService.ts`
 
-### Frontend Flow
+### Frontend Flow (current)
 
-1. User clicks Generate
-2. Frontend calls `generateImage()` API
-3. Backend submits to ComfyUI, returns `prompt_id`
-4. Frontend polls `/progress/{prompt_id}` every second
-5. Frontend shows real step progress (e.g., "Step 5/20")
-6. When complete, frontend fetches result from `/result/{prompt_id}`
+1. User clicks Generate → `POST /api/integrations/comfyui/generate` or `POST /api/video/generate-section`
+2. Backend creates `Job` (queue) and returns `job_id`/`prompt_id`
+3. Frontend either (a) polls `GET /api/jobs/{job_id}` every 1.2s **or** (b) listens to `GET /api/events` SSE for `job.progress`
+4. SSE `job.progress` shows real step progress (e.g., "Step 5/20") via `Queue.tsx` + `jobStore.ts`
+5. On `job.completed`, result `output_path`/`model_path` is read from job + `GET /api/outputs`
 
 ### ComfyUI Progress Data
 
@@ -268,13 +267,13 @@ The workflow JSON must be in API format (node IDs as keys), not UI format (inclu
 
 ### Health Checks
 
-The backend checks adapter health on startup and broadcasts via SSE. Health status is shown in the sidebar.
+The backend checks adapter health on startup and broadcasts via SSE (`GET /api/events`, `sseService.ts`). Health status is shown in the sidebar. Legacy `ws://127.0.0.1:8000/ws` is a compat shim that returns `426` for HTTP `GET` and `101` only for WebSocket upgrade — new code must use SSE.
 
 ---
 
 ## Future Improvements
 
-1. **WebSocket Progress** - Replace polling with WebSocket for real-time updates
+1. ~~**WebSocket Progress** - Replace polling with WebSocket for real-time updates~~ ✅ **Done (2026-09): SSE `GET /api/events`** replaces polling + legacy WebSocket — see `docs/api/API_REFERENCE.md` §Real-Time Events and `packages/backend/app/sse/handler.py`
 2. **Batch Generation** - Support multiple seeds in one request
 3. **Image-to-Image** - Add img2img support
 4. **Inpainting** - Add mask-based inpainting

@@ -301,7 +301,8 @@ export function revokeImage(objectUrl: string): void {
 }
 
 /**
- * Get WebSocket URL for real-time progress updates.
+ * Get ComfyUI's native WebSocket URL (for ComfyUI's own /ws progress).
+ * Note: Backend realtime is SSE at GET /api/events (getEventsUrl) — this is only for direct ComfyUI WS.
  */
 export function getWebSocketUrl(): string {
   return getComfyuiWsUrl();

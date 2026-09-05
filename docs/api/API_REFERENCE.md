@@ -340,9 +340,10 @@ Generates a 3D model from text prompt using Hunyuan3D-2mini. Returns `{success, 
 ```
 GET http://localhost:8000/api/events
 Accept: text/event-stream
+# Browser: const es = new EventSource('/api/events'); es.onmessage = (e) => { JSON.parse(e.data) }
 ```
 
-Legacy `ws://localhost:8000/ws` returns `426 Upgrade Required` — use SSE `events_url`/`sse_url` from `config/ports.json`.
+Legacy `ws://localhost:8000/ws` returns `426 Upgrade Required` (compat shim for old clients) — use SSE `events_url`/`sse_url` from `config/ports.json`. Vite proxy `/ws` entry is legacy compat.
 
 ### Event types received
 
@@ -353,7 +354,122 @@ Legacy `ws://localhost:8000/ws` returns `426 Upgrade Required` — use SSE `even
 - `job.failed` — Job failed with error
 - `job.cancelled` — Job was cancelled
 - `system.health_changed` — Health status changed
+- `system.resource_warning` — VRAM/resource warning (`system.resource_warning`)
 - `heartbeat` — Keep-alive ping (every 30s)
+
+## Transcription & Lyrics
+
+### Transcribe audio → LRC (Whisper/WhisperX)
+
+```
+POST /api/transcription/transcribe
+Content-Type: multipart/form-data
+file: <audio>  (+ optional model/language params)
+
+GET /api/transcription/transcript/lrc/{filename:path}         → LRC text
+GET /api/transcription/transcript/lrc-word/{filename:path}    → word-level JSON
+GET /api/transcription/transcript/{filename:path}             → raw transcript JSON
+```
+
+### Lyrics CRUD
+
+```
+GET  /api/lyrics/track/{track_id}                  → lyrics for a track
+POST /api/lyrics/track/{track_id}  {lrc: string}   → save lyrics
+GET  /api/lyrics/by-filename/{filename:path}       → lyrics by audio filename
+POST /api/lyrics/import-lrc  (multipart LRC file)
+GET  /api/lyrics/tracks-with-lyrics                → tracks that have lyrics
+GET  /api/lyrics/visual-preset/{track_id}          → visual preset per track
+POST /api/lyrics/visual-preset/{track_id}          → save preset mapping
+```
+
+LRC sync surfaced via `useLrcSync` + `Canvas2DVisualizer`/`VisualizerScene`/`KineticLyricOverlay`; parser fixes `offset`/multi-stamp/60.00 rollover at `services/lyricsParser.py:8` + `lyricsParser.ts:84`.
+
+## ComfyUI Process Management
+
+```
+GET  /api/comfyui/status           → managed ComfyUI status
+POST /api/comfyui/start?port=8188
+POST /api/comfyui/stop
+POST /api/comfyui/restart
+POST /api/comfyui/update           → git pull + requirements reinstall (when local)
+GET  /api/comfyui/version
+```
+
+Native ComfyUI HTTP API is also directly reachable at `http://127.0.0.1:8188` (`/prompt`, `/queue`, `/history`, `/view`, `/system_stats`).
+
+## Docs & Knowledge Library
+
+```
+GET /api/docs/list?search={q}&vault_only={bool}   → list vault + guide docs
+GET /api/docs/file?path=knowledge-library/index.md → raw markdown / JSON
+GET /api/docs/vault                                → vault-only shortcut
+GET /api/docs/manifest  → agent.manifest.json
+GET /api/docs/prompts   → prompts.json
+GET /api/docs/codebase  → codebase.json
+GET /api/docs/api-registry → api-registry.json
+GET /api/docs/mcp-registry → mcp-registry.json
+GET /api/docs/bootstrap → single-call bootstrap (manifest + codebase + API + MCP + vault index)
+GET /api/docs/search?q={q}                        → ranked full-text search
+GET /api/docs/structure?depth={n}                 → directory tree
+```
+
+Frontend `Documentation.tsx` renders these live; JSON badges + copy buttons.
+
+## Logs
+
+```
+GET  /api/logs/                         → log file info (rotation: 10MB × 5)
+GET  /api/logs/{log_name}?lines={n}     → tail (app.log, error.log, comfyui.log, queue.log, ollama.log)
+POST /api/logs/clear                    → clear all logs
+POST /api/logs/frontend                 → ingest frontend console logs
+```
+
+## Data — Tracks / Prompts / Visuals / Sessions / Preferences
+
+```
+GET    /api/data/tracks/?search=&status=&artist=&limit=         → list tracks (CSV import via POST /api/data/tracks/import)
+POST   /api/data/tracks/  |  PATCH /api/data/sessions/{id} | DELETE /api/data/{prompt_id}
+GET    /api/data/  (prompts, favorite/use toggles)
+GET    /api/data/audio/ | visuals/ | sessions/ | preferences/
+PUT    /api/data/preferences/{key}
+```
+
+Frontend `TrackManager` + `StoryboardPage` consume these.
+
+## Audio — Extended
+
+Beyond `POST /api/audio/analyze` + `GET /api/audio/analysis/{job_id}` documented above:
+
+```
+POST /api/audio/analyze-cuda          → CUDA-accelerated variant
+GET  /api/audio/analysis/by-filename/{filename} → cached result by original filename (Three.js beat timeline)
+GET  /api/audio/file/{filename:path}  → serve raw audio file
+POST /api/audio/separate              → stem separation (vocals/drums/bass/other → stems/)
+GET  /api/audio/stems/{filename:path}
+POST /api/audio/ensure-analysis       → ensure cached analysis else trigger
+POST /api/audio/analyze-all           → batch analyze library
+```
+
+## Health — Extended
+
+Beyond `GET /api/health` + `GET /api/health/gpu`:
+
+```
+GET  /api/health/gpu/processes         → per-process VRAM via Windows Performance Counters (GeForce WDDM, no admin)
+GET  /api/health/ffmpeg                → FFmpeg 8.1 probe
+GET  /api/health/3d/models             → list Hunyuan3D/Wan 2.2 model availability
+POST /api/health/3d/generate-image     → image-to-3D variant
+GET  /api/health/diagnostics           → full diagnostics
+GET  /api/health/diagnostics/services
+GET  /api/health/diagnostics/system    → CPU/RAM/disk + system memory breakdown
+POST /api/health/diagnostics/memory/cleanup
+GET  /api/health/context               → agent context snapshot
+POST /api/health/context
+GET  /api/health/ollama/models         → loaded Ollama models + VRAM
+POST /api/health/ollama/clear-activity
+GET  /api/ping
+```
 
 ---
 
