@@ -84,9 +84,9 @@ Native-Media-AI-Studio/
 
 ### Prerequisites
 
-- **Python 3.11+** (via Conda recommended for GPU support)
-- **Node.js 20+**
-- **pnpm 9+** (`npm install -g pnpm@9`)
+- **Python 3.11+** (via conda env `comfyui-cuda` recommended for GPU support — see `.python-env`)
+- **Node.js 22+** (via `fnm`; `engines` requires `>=22.13.0`)
+- **pnpm 11+** (`npm install -g pnpm@11`; `packageManager` is `pnpm@11.24.0`)
 - **ComfyUI** installed at your location here
 - **Conda environment** `comfyui-cuda` with PyTorch CUDA support
 
@@ -145,12 +145,12 @@ pnpm db:migrate          # Initialize SQLite database
 
 ## Services
 
-| Service      | Port | Description                   |
-| ------------ | ---- | ----------------------------- |
-| Backend      | 8000 | FastAPI + WebSockets + SQLite |
-| Frontend     | 5173 | React + Vite UI               |
-| ComfyUI      | 8188 | AI image/video generation     |
-| Video Editor | 3000 | Remotion studio               |
+| Service      | Port | Description                                      |
+| ------------ | ---- | ------------------------------------------------ |
+| Backend      | 8000 | FastAPI + SSE (`/api/events`) + SQLite           |
+| Frontend     | 5173 | React + Vite UI                                  |
+| ComfyUI      | 8188 | AI image/video generation                        |
+| Video Editor | 8080 | Remotion studio (`config/ports.json` dynamic)    |
 
 ## API Endpoints
 
@@ -182,7 +182,7 @@ pnpm db:migrate          # Initialize SQLite database
 | `/api/data/visuals/`                      | GET      | AI-generated visuals                                                                                                      |
 | `/api/data/sessions/`                     | GET      | Generation sessions                                                                                                       |
 | `/api/data/preferences/`                  | GET/PUT  | User preferences                                                                                                          |
-| `/ws`                                     | WS       | WebSocket real-time events (`job.progress`, `job.completed`)                                                              |
+| `/api/events`                             | SSE      | Server-Sent Events (`job.progress`, `job.completed`); legacy `ws://…/ws` returns `426`                                   |
 
 ## Database
 

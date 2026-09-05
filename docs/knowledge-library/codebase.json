@@ -1,10 +1,10 @@
 {
   "title": "Codebase Structure — Project Map",
-  "version": "2026-08-24",
+  "version": "2026-09-05",
   "description": "Machine-readable project structure for AI agents. Maps directories, key files, and their purposes.",
   "quick_start": {
-    "backend_start": "cd packages/backend && python -m app.main",
-    "frontend_start": "cd packages/frontend && npm run dev",
+    "backend_start": "cd packages/backend && D:\\conda-envs\\comfyui-cuda\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000",
+      "frontend_start": "cd packages/frontend && pnpm dev",
     "backend_url": "http://localhost:8000",
     "frontend_url": "http://localhost:5173",
     "comfyui_url": "http://localhost:8188",
@@ -41,7 +41,7 @@
         "app/core/port_manager.py": "Dynamic port allocation"
       },
       "dependencies": ["fastapi", "uvicorn", "librosa", "numpy", "pydantic", "aiofiles"],
-      "start_command": "D:\\...\\venv\\Scripts\\python.exe -m app.main"
+      "start_command": "D:\\conda-envs\\comfyui-cuda\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
     },
     "frontend": {
       "path": "packages/frontend",
@@ -68,7 +68,7 @@
         "src/components/layout/Layout.tsx": "Main layout with mobile spacer",
         "src/services/api.ts": "Backend API client",
         "src/services/comfyui.ts": "ComfyUI API client",
-        "src/services/socketManager.ts": "WebSocket manager",
+        "src/services/sseService.ts": "SSE manager (canonical; socketManager removed)",
         "src/state/outputStore.ts": "Zustand output state",
         "src/state/jobStore.ts": "Zustand job state",
         "src/state/healthStore.ts": "Zustand health state",
@@ -96,7 +96,7 @@
   "config": {
     "config/ports.json": "Dynamic port configuration (backend, frontend, ComfyUI, Unity)",
     "config/settings.json": "AppConfig — host, ports, adapter URLs, output dir, log level",
-    "opencode.json": "MCP server configuration (4 servers: remotion, comfyui, blender, unity)"
+    "opencode.json": "MCP server configuration (6 servers: ollama-tools, vision, remotion, comfyui, blender, unity)"
   },
   "data_flow": {
     "audio_pipeline": "MP3/WAV → POST /api/audio/analyze → librosa → beat_times + sections + energy_curve → POST /api/video/generate-section",

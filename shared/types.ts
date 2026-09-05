@@ -183,9 +183,9 @@ export interface OutputsResponse {
 }
 
 // ============================================================================
-// WebSocket Events
+// Real-Time Events (SSE — canonical; WebSocket types kept for compat)
 // ============================================================================
-
+// Legacy alias: keep WebSocketMessage name for backward compat
 export interface WebSocketMessage {
   type: string;
   data: unknown;

@@ -1,6 +1,6 @@
 {
   "title": "Genre Prompts — Copy-Paste Templates",
-  "version": "2026-08-24",
+  "version": "2026-09-05",
   "prompt_format": "[Shot Size] + [Camera Angle] + [Subject] + [Action] + [Setting] + [Lighting] + [Mood] + [Style]",
   "copyright": "Copy-paste ready for POST /api/video/generate-section. Keep <75 words, present tense, one paragraph.",
   "style": "Add Style Anchoring like [in the style of Spider-Verse] or seed:42 for consistency",

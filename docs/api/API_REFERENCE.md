@@ -1,7 +1,7 @@
 # API Reference
 
 > **Base URL:** `http://localhost:8000`
-> **Last Updated:** September 2026
+> **Last Updated:** 2026-09-05 (SSE, audio covers, duplicate detection)
 
 ## Jobs
 
@@ -333,15 +333,18 @@ Generates a 3D model from text prompt using Hunyuan3D-2mini. Returns `{success, 
 
 ---
 
-## WebSocket
+## Real-Time Events (SSE — canonical)
 
 ### Connect
 
 ```
-ws://localhost:8000/ws
+GET http://localhost:8000/api/events
+Accept: text/event-stream
 ```
 
-### Message types received
+Legacy `ws://localhost:8000/ws` returns `426 Upgrade Required` — use SSE `events_url`/`sse_url` from `config/ports.json`.
+
+### Event types received
 
 - `job.queued` — Job added to queue
 - `job.started` — Job started processing
@@ -380,11 +383,11 @@ ws://localhost:8000/ws
 
 ### Best Practices
 
-- Always URL-encode filenames when using them in API paths
-- Handle multipart/form-data for file uploads (don't set Content-Type header manually)
-- Check job status before attempting to retrieve results
-- Use WebSocket for real-time updates instead of polling when possible
-- Cache analysis results to avoid re-analyzing the same file
+ - Always URL-encode filenames when using them in API paths
+ - Handle multipart/form-data for file uploads (don't set Content-Type header manually)
+ - Check job status before attempting to retrieve results
+ - Use SSE (`GET /api/events`) for real-time updates instead of polling; `ws://…/ws` is a legacy shim
+ - Cache analysis results to avoid re-analyzing the same file
 
 ### Rate Limiting
 

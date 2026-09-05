@@ -1,6 +1,6 @@
 # Music Video Studio Guide
 
-> **Last Updated:** August 2026 (Three.js Studio modernization) • **UI:** Dashboard `Drop your song` → Wizard `5 steps` (live)
+> **Last Updated:** 2026-09-05 • **UI:** Dashboard `Drop your song` → Wizard `5 steps` (live) — Three.js Studio 6 templates, real-beat timeline
 > **For Classic tabbed UI see `Docs → Guides & API → MUSIC_VIDEO_GUIDE (Classic)` in vault `music-video-production.md`**
 
 ## Overview (3 steps, not 6)

@@ -40,15 +40,16 @@ unity-project-mcp/        # Unity project for music video generation
 
 ## MCP Server Configuration
 
-All MCP servers are configured in `opencode.json`:
+All MCP servers are configured in `opencode.json` (6 servers — Vision is additional local MCP):
 
-| Server       | Command                                               | Port          | Status        |
-| ------------ | ----------------------------------------------------- | ------------- | ------------- |
-| Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`                 | stdio         | ✅ Configured |
-| Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                 | 7800 (REST)   | ✅ Running    |
-| Blender MCP  | `uvx blender-mcp`                                     | 9876 (socket) | ✅ Running    |
-| ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://localhost:8188` | 8188          | ✅ Running    |
-| Remotion MCP | `npx -y @remotion/mcp@latest`                         | stdio         | ✅ Configured |
+| Server       | Command                                                          | Port          | Status        |
+| ------------ | ---------------------------------------------------------------- | ------------- | ------------- |
+| Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`                            | stdio         | ✅ Configured |
+| Vision       | `node tools/mcp/vision-mcp.mjs`                                  | stdio         | ✅ Configured |
+| Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                            | 7800 (REST)   | ✅ Running    |
+| Blender MCP  | `uvx blender-mcp`                                                | 9876 (socket) | ✅ Running    |
+| ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://localhost:8188 --force-remote` | 8188      | ✅ Running    |
+| Remotion MCP | `npx -y @remotion/mcp@latest`                                    | stdio         | ✅ Configured |
 
 ### Vision Analysis Workflow
 

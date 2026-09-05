@@ -1,6 +1,6 @@
 {
   "title": "MCP Registry — Tool Inventories",
-  "version": "2026-08-24",
+  "version": "2026-09-05",
   "description": "MCP server tool inventories with call signatures for AI agents. Each server is configured in opencode.json.",
   "servers": {
     "unity": {

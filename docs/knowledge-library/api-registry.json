@@ -1,6 +1,6 @@
 {
   "title": "API Registry — Endpoint Schemas",
-  "version": "2026-08-24",
+  "version": "2026-09-05",
   "base_url": "http://localhost:8000",
   "description": "Complete API endpoint registry with request/response schemas for AI agents. Use this to make correct API calls without reading source code.",
   "quick_reference": {

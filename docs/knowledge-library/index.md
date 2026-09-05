@@ -10,7 +10,7 @@ aliases:
   - Production Reference
 cssclasses:
   - knowledge-index
-date: 2026-08-27
+date: 2026-09-05
 ---
 
 # 📚 Knowledge Library Index
@@ -49,12 +49,18 @@ date: 2026-08-27
 - [[3d-rendering|🧊 3D Rendering]] — GPU rendering, Blender 5.2 EEVEE Next, optimization
 - [[visualization-effects|✨ Visualization Effects]] — WebGPU/TSL, particles, shaders, post-processing, volumetrics (NEW 2026-08-29)
 - [[2d-visualization-2026|🎨 2D Visualization 2026]] — Canvas2D/PixiJS/p5.js/Waviz 2026 open source 2D stacks (NEW 2026-09-02)
+- [[audio-reactive-production|🎧 Audio-Reactive Production]] — Audio → visual mapping, beat sync
+- [[silhouette-character-animation|🎭 Silhouette Character Animation]] — Character rigging & motion
+- [[character-driven-visualization-research|🔬 Character-Driven Visualization]] — Character research
+- [[hardware-verified-models|🖥️ Hardware-Verified Models]] — 8GB VRAM model matrix
 - [[prompt-engineering|✍️ Prompt Engineering]] — Effective prompts + repair/versioning workflow
 - [[remotion-guide|🎬 Remotion Video Compositing]] — Programmatic video with React (NEW 2026-09-01)
 
 ### 🤖 AI Agent Resources
 
 - [[ai-agent-navigation|🤖 AI Agent Navigation]] — Quick lookup table for agents (NEW 2026-09-01)
+- [[backend-debugging-guide|🐛 Backend Debugging Guide]] — Debugging patterns for FastAPI/queue/VRAM
+- [[ollama-thinking-structured-outputs|🧠 Ollama Thinking & Structured Outputs]] — `think` + `format:json`
 
 ### 📊 Research & Audit
 
@@ -85,6 +91,11 @@ date: 2026-08-27
 | `#concurrency`   | Concurrency control and rate limiting     | 1 document  |
 | `#retry`         | Retry policies and backoff                | 1 document  |
 | `#remotion`      | Remotion video compositing                | 1 document  |
+| `#audio`         | Audio-reactive production                 | 1 document  |
+| `#silhouette`    | Silhouette / character animation          | 2 documents |
+| `#hardware`      | Hardware-verified 8GB models              | 1 document  |
+| `#backend`       | Backend debugging                         | 1 document  |
+| `#ollama`        | Ollama thinking / structured outputs      | 2 documents |
 
 ---
 

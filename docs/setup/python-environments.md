@@ -1,63 +1,60 @@
 # Python Environment Setup
 
-This project uses Python 3.11 for the backend and AI/ML services. Multiple virtual environments exist for different subsystems.
+> **Last Updated:** 2026-09-05 — canonical env is `comfyui-cuda` conda env + `venv/` fallback
 
 ## Python Version
 
 - **Required:** Python 3.11.x
-- **Location:** `%LOCALAPPDATA%\Programs\Python\Python311\python.exe`
+- **Primary (CUDA):** `D:\conda-envs\comfyui-cuda\Scripts\python.exe` — PyTorch `2.5.1+cu124`, CUDA `12.4`
+- **Fallback (CPU):** `D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\venv\Scripts\python.exe` — CPU-only
+- **Config file:** `.python-env` (`PYTHON_ENV`, `CUDA_VERSION`, `PYTORCH_VERSION`, `ENV_TYPE=conda`)
+- **Type checking:** `pyrightconfig.json` executionEnvironments point at `D:/conda-envs/comfyui-cuda/Scripts/python.exe`
 
-## Virtual Environments
+> Historical `runtime/venvs/.venvs/venv_*` 8-venv matrix (`venv_backend`, `venv_comfyui`, …) was a draft plan and was never created. The actual layout is the single `comfyui-cuda` conda env + local `venv/` fallback (see `AGENTS.md` § Python Environment).
 
-The project maintains separate venvs under `runtime/venvs/.venvs/` for isolation:
-
-| Venv | Purpose | Key Packages |
-|------|---------|--------------|
-| `venv_backend` | FastAPI backend, job queue | fastapi, uvicorn, aiohttp, sqlalchemy |
-| `venv_comfyui` | ComfyUI workflow execution | comfyui-client, torch, torchvision |
-| `venv_llm` | Local LLM inference | transformers, torch, accelerate |
-| `venv_ollama` | Ollama API client | httpx, aiohttp |
-| `venv_audio` | Audio analysis & beat detection | librosa, numpy, scipy |
-| `venv_vision` | Vision models & image processing | torch, transformers, PIL |
-| `venv_triposr` | 3D model generation | torch, trimesh |
-| `venv_openclaw` | OpenClaw MCP integration | mcp, httpx |
-
-## Setup (Single Env for Backend)
-
-For most development, only `venv_backend` is needed:
+## Quick Start
 
 ```powershell
-# Create
-python -m venv runtime/venvs/.venvs/venv_backend
+# Backend — conda CUDA env (preferred, GPU audio/3D work)
+D:\conda-envs\comfyui-cuda\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+# or via pnpm:
+pnpm dev:backend
 
-# Activate
-./runtime/venvs/.venvs/venv_backend/Scripts/Activate.ps1
-
-# Install backend deps
-pip install -r packages/backend/requirements.txt
+# Fallback — local venv (CPU, no CUDA)
+.\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-## Full Setup (All Subsystems)
+## Conda Environment Details
+
+The `comfyui-cuda` env is also used for ComfyUI (`tools`/`ComfyUI/main.py`) and for GPU analysis (`tools/analyze_and_sync.py`, `app/services/cuda/processor.py`).
 
 ```powershell
-$venvs = @("venv_backend", "venv_comfyui", "venv_llm", "venv_ollama",
-           "venv_audio", "venv_vision", "venv_triposr", "venv_openclaw")
+# Activate (if needed)
+conda activate comfyui-cuda
 
-foreach ($v in $venvs) {
-    $path = "runtime/venvs/.venvs/$v"
-    if (-not (Test-Path $path)) {
-        python -m venv $path
-    }
-}
+# Verify CUDA
+D:\conda-envs\comfyui-cuda\Scripts\python.exe -c "import torch; print(torch.cuda.is_available(), torch.version.cuda)"
+
+# Install backend deps (same file the conda env uses)
+D:\conda-envs\comfyui-cuda\Scripts\python.exe -m pip install -r packages/backend/requirements.txt
+# or: pip install -r pyproject.toml  (PEP 517, same deps)
 ```
 
-## Running the Backend
+## ComfyUI
 
 ```powershell
-# Activate backend venv
-./runtime/venvs/.venvs/venv_backend/Scripts/Activate.ps1
-
-# Start server
-cd packages/backend
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+D:\conda-envs\comfyui-cuda\Scripts\python.exe main.py --port 8188 --disable-pinned-memory `
+  --workingDirectory "D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI"
+# or:
+pnpm dev:comfyui  # → scripts/start_comfyui.ps1
 ```
+
+## Environment Variables
+
+| Variable | In `.python-env` / `config/settings.json` | Purpose |
+|----------|-------------------------------------------|---------|
+| `PYTHON_ENV` | `D:\conda-envs\comfyui-cuda\Scripts\python.exe` | Interpreter for CUDA features |
+| `CUDA_VERSION` | `12.4` | Toolkit pin |
+| `PYTORCH_VERSION` | `2.5.1+cu124` | Wheel pin |
+| `COMFYUI_PATH` | `D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI` | ComfyUI root |
+| `OUTPUT_DIR` | `./output` | Generative outputs |

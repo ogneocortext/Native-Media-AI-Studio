@@ -76,6 +76,7 @@ coverage/
 .env
 .env.local
 .python-env
+!.python-env
 .conda/
 envs/
 .venv-remaster/

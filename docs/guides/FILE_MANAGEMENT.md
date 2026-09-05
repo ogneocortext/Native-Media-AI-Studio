@@ -1,6 +1,6 @@
 # File Management Guide — Media Library
 
-> **Last Updated:** August 2026 • Covers `output/` file ops: play, cover art, rename, delete, duplicates
+> **Last Updated:** 2026-09-05 • Covers `output/` file ops: play, cover art, rename, delete, duplicates
 
 ## Overview
 

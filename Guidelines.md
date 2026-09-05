@@ -1,7 +1,7 @@
-# Native Media AI Studio — Project Guidelines (v2)
+# Native Media AI Studio — Project Guidelines (v3)
 
-> **Last Updated:** August 2026  
-> **Status:** Active Development (Phase 1 + Music Video Workflow)  
+> **Last Updated:** 2026-09-05
+> **Status:** Active Development (Phase 1+2 — Music Video Wizard, 2D/LRC Visualizer, 3D Gen, Unity/Blender/Remotion)
 > **Purpose:** Living specification and implementation guide for the creative production environment.
 
 ---
@@ -32,10 +32,10 @@ Design conservatively for a **local Windows machine** with constrained resources
 ### 2.1 Locked Implementation Choices
 To prevent decision fatigue, the following stack choices are finalized:
 - **Frontend:** React + Vite, Zustand for state management, Tailwind for styling.
-- **Backend:** FastAPI, WebSockets for live events.
-- **Queue/Persistence:** SQLite for lightweight job tracking, JSON sidecars for output metadata.
-- **Visuals:** Three.js / WebGL for in-app preview rendering.
-- **Integrations:** API adapters for local SD WebUI, ComfyUI, and Ollama.
+ - **Backend:** FastAPI, SSE (`GET /api/events`, `sse-starlette`) for live events — WebSocket `/ws` is a legacy 426 shim.
+ - **Queue/Persistence:** SQLite for lightweight job tracking, JSON sidecars for output metadata.
+ - **Visuals:** Three.js / `@react-three/fiber` + Canvas2D (`Canvas2DVisualizer` bars/waveform/radial) + Remotion; WebGL accelerated.
+ - **Integrations:** API adapters for local ComfyUI, Ollama, Blender MCP (port 9876), Unity MCP (port 7800).
 
 ---
 
@@ -58,11 +58,12 @@ All generations pass through a unified queue with the following schema:
 }
 ```
 
-### 3.2 WebSocket Events
-The backend pushes real-time updates to the UI via WebSockets:
+### 3.2 Real-Time Events (SSE)
+The backend pushes real-time updates to the UI via **Server-Sent Events** (`GET /api/events`, `sseService.ts`):
 - `job.queued`, `job.started`, `job.progress`, `job.completed`, `job.failed`
 - `system.health_changed` (e.g., ComfyUI went offline)
 - `system.resource_warning` (e.g., High VRAM usage)
+- Legacy `ws://…/ws` returns `426` — use SSE `events_url`/`sse_url` from `config/ports.json`.
 
 ### 3.3 Output Directory & Metadata
 Outputs must be strictly organized. Every generated media file gets a JSON sidecar:
@@ -75,16 +76,19 @@ Outputs must be strictly organized. Every generated media file gets a JSON sidec
 
 ```text
 Native-Media-AI-Studio/
-├── frontend/             # React/Vite UI
-├── backend/              # FastAPI Server
-│   ├── api/              # REST routes & WebSocket handlers
-│   ├── core/             # Port manager, Health monitor, SQLite setup
-│   ├── services/         # Job orchestration & Queue workers
-│   └── adapters/         # SD WebUI, ComfyUI, Ollama wrappers
-├── shared/               # TypeScript types generated from Pydantic
-├── config/               # default.yaml, integrations.yaml, ports.json
-├── output/               # Generative outputs (images, video, audio)
-└── scripts/              # start.bat, cleanup.ps1
+├── packages/frontend/    # React/Vite UI (port 5173) + Remotion video-editor (8080)
+├── packages/backend/     # FastAPI Server (port 8000) — ComfyUI on 8188
+│   ├── app/api/          # REST routes (jobs, health, audio, outputs, docs, sse)
+│   ├── app/sse/          # SSE handler (canonical); app/websocket/ is legacy shim
+│   ├── app/core/         # Port manager, Health monitor, SQLite setup
+│   ├── app/services/     # Job orchestration, audio, blender, cuda, gen3d, vram_manager
+│   ├── app/diagnostics/  # resources / health diagnostics
+│   └── app/adapters/     # ComfyUI, Ollama, Blender, Unity wrappers
+├── shared/               # TypeScript types (Job, QueueStats, OutputFile, ...)
+├── config/               # ports.json (dynamic) + settings.json
+├── output/               # Generative outputs (images, video, audio, generated_3d) — gitignored
+├── tools/                # MCP bridges (unity-mcp-bridge.mjs, vision.mjs) + demos
+└── scripts/              # start-studio.ps1, manage-servers.ps1
 ```
 
 ### 4.1 Dynamic Port System
@@ -105,7 +109,7 @@ To avoid conflicts, the app must resolve ports at startup:
 
 ### Feature 2: Health & Diagnostics
 - **AC1:** `GET /api/health` returns aggregate status of the backend and all configured adapters.
-- **AC2:** If SD WebUI crashes, the frontend UI badge updates from "Online" to "Offline" within 5 seconds via WebSocket.
+ - **AC2:** If ComfyUI/Ollama crashes, the frontend health badge updates from "Online" to "Offline" within 5 seconds via SSE (`GET /api/events`).
 
 ### Feature 3: Universal Job Queue
 - **AC1:** User can submit an image generation job, which enters `PENDING` state.
@@ -127,8 +131,9 @@ To avoid conflicts, the app must resolve ports at startup:
 ## 6. Development Workflow & Standards
 
 ### Starting the App
-```bash
-scripts\start.bat
+```powershell
+pnpm start  # or: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\start-studio.ps1
+pnpm servers status
 ```
 
 ### Code Standards
@@ -172,12 +177,15 @@ The UI tracks progress through stages:
 
 ---
 
-## Appendix: Deferred / Future Scope (Phase 2+)
+## Appendix: Phase 2 Status (formerly Deferred)
 
-*Features not yet implemented.*
+The following were deferred in v2 and have since shipped — kept here for traceability:
 
-- **Real-time Audio Reactivity:** Live visualization that reacts to audio playback in real-time
-- **Lyric Video Generation:** Auto-timed lyric overlays synced to vocal tracks
-- **Album Art Generation:** AI-generated cover art from audio mood analysis
-- **Advanced Video Effects:** Chromatic aberration, motion blur, film grain overlays
-- **Custom ComfyUI Workflow Integration:** Full ComfyUI node graph execution for video generation
+- **Real-time Audio Reactivity:** ✅ `Canvas2DVisualizer` bars/waveform/radial + `VisualizerScene`/`ShaderVisualizer` + `PostFX` bloom (LRC `isPhraseStart`/`sectionProgress` reactive)
+- **Lyric Video / Kinetic Typography:** ✅ 8 genre presets via `anime.js` + `Theatre.js` Studio panel + LRC `offset`/multi-stamp parser + WhisperX transcription
+- **Album Art / Cover Extraction:** ✅ FFmpeg `attached pic` → `audio/*.jpg` sidecar, returned as `cover_image` in `GET /api/outputs`
+- **Custom ComfyUI Workflow Integration:** ✅ `comfyui-mcp` custom workflows, Hunyuan3D-2mini (Wan 2.2 5B 480p fits 8GB) + ComfyUI-Hunyuan3DWrapper
+
+Remaining future scope (Phase 3+):
+- **Advanced Video Effects:** Chromatic aberration, motion blur, film grain overlays (partially done via `PostFX` but not full Remotion `@remotion/effects` chain)
+- **Multi-user / Cloud:** Still out of scope per §1.1

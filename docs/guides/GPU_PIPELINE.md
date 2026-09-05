@@ -1,6 +1,6 @@
 # GPU Music Video Pipeline Guide
 
-> **Last Updated:** August 2026 • **Tested:** `GTX 1070 Ti 8GB VRAM, CUDA 12.4, PyTorch 2.5.1+cu124, FFmpeg 8.1.1`
+> **Last Updated:** 2026-09-05 • **Tested:** `GTX 1070 Ti 8GB VRAM, CUDA 12.4, PyTorch 2.5.1+cu124, FFmpeg 8.1.1`
 
 ## Architecture
 
