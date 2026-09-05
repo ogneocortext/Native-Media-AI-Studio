@@ -16,394 +16,1138 @@
   },
   "routers": {
     "/api/audio": {
-      "tags": ["Audio"],
+      "tags": [
+        "Audio"
+      ],
       "endpoints": {
         "POST /api/audio/upload": {
           "description": "Upload audio file (MP3/WAV/FLAC, 500MB max)",
-          "request": { "content_type": "multipart/form-data", "fields": { "file": "UploadFile (audio/*)" } },
-          "response": { "model": "AudioUploadResponse", "fields": { "success": "bool", "filename": "str", "stored_path": "str", "size_bytes": "int", "message": "str" } }
+          "request": {
+            "content_type": "multipart/form-data",
+            "fields": {
+              "file": "UploadFile (audio/*)"
+            }
+          },
+          "response": {
+            "model": "AudioUploadResponse",
+            "fields": {
+              "success": "bool",
+              "filename": "str",
+              "stored_path": "str",
+              "size_bytes": "int",
+              "message": "str"
+            }
+          }
         },
         "POST /api/audio/analyze": {
           "description": "Analyze audio — returns beat times, sections, energy curve. GPU-accelerated via librosa+CUDA.",
-          "request": { "content_type": "multipart/form-data", "fields": { "file": "UploadFile (audio/*)" } },
-          "response": { "model": "AudioAnalysisResult", "fields": { "tempo_bpm": "float", "duration_seconds": "float", "beat_count": "int", "sections": "list[{type,start,end,energy}]", "beat_times": "list[float]", "onset_times": "list[float]", "energy_curve": "list[float]", "confidence": "float", "amplitude_envelope": "list[float]", "stored_path": "str|null", "job_id": "str|null" } },
+          "request": {
+            "content_type": "multipart/form-data",
+            "fields": {
+              "file": "UploadFile (audio/*)"
+            }
+          },
+          "response": {
+            "model": "AudioAnalysisResult",
+            "fields": {
+              "tempo_bpm": "float",
+              "duration_seconds": "float",
+              "beat_count": "int",
+              "sections": "list[{type,start,end,energy}]",
+              "beat_times": "list[float]",
+              "onset_times": "list[float]",
+              "energy_curve": "list[float]",
+              "confidence": "float",
+              "amplitude_envelope": "list[float]",
+              "stored_path": "str|null",
+              "job_id": "str|null"
+            }
+          },
           "notes": "Sections are energy-aware: intro/verse/chorus/bridge/outro with beat-snapped boundaries"
         },
         "GET /api/audio/analysis/{job_id}": {
           "description": "Get analysis result by job ID",
-          "request": { "path": { "job_id": "str" } },
-          "response": { "model": "AudioAnalysisResult" }
+          "request": {
+            "path": {
+              "job_id": "str"
+            }
+          },
+          "response": {
+            "model": "AudioAnalysisResult"
+          }
         },
         "GET /api/audio/files": {
           "description": "List uploaded audio files",
-          "response": { "model": "list[dict]" }
+          "response": {
+            "model": "list[dict]"
+          }
+        },
+        "GET /api/audio/analysis/by-filename/{filename}": {
+          "description": "Get cached analysis by original filename (for Three.js Studio beat timeline)",
+          "request": {
+            "path": {
+              "filename": "str"
+            }
+          },
+          "response": {
+            "model": "AudioAnalysisResult"
+          }
+        },
+        "POST /api/audio/analyze-cuda": {
+          "description": "CUDA-accelerated analyze variant",
+          "request": {
+            "content_type": "multipart/form-data",
+            "fields": {
+              "file": "UploadFile"
+            }
+          },
+          "response": {
+            "model": "AudioAnalysisResult"
+          }
+        },
+        "GET /api/audio/file/{filename:path}": {
+          "description": "Serve raw uploaded audio file",
+          "request": {
+            "path": {
+              "filename": "str"
+            }
+          },
+          "response": {
+            "content_type": "audio/*"
+          }
+        },
+        "POST /api/audio/separate": {
+          "description": "Stem separation (vocals/drums/bass/other)",
+          "request": {
+            "content_type": "multipart/form-data"
+          },
+          "response": {
+            "model": "StemSeparationResponse"
+          }
+        },
+        "GET /api/audio/stems/{filename:path}": {
+          "description": "List separated stems",
+          "request": {
+            "path": {
+              "filename": "str"
+            }
+          },
+          "response": {
+            "model": "list[dict]"
+          }
+        },
+        "POST /api/audio/ensure-analysis": {
+          "description": "Ensure cached analysis exists, else trigger analyze",
+          "request": {
+            "content_type": "application/json"
+          },
+          "response": {
+            "model": "AudioAnalysisResult"
+          }
         }
       }
     },
     "/api/video": {
-      "tags": ["Video"],
+      "tags": [
+        "Video"
+      ],
       "endpoints": {
         "POST /api/video/generate-section": {
           "description": "Generate video for a music section. Creates a job that renders via FFmpeg.",
-          "request": { "content_type": "application/json", "model": "VideoGenerateRequest", "fields": { "prompt": "str (required)", "negative_prompt": "str (default '')", "steps": "int (default 20)", "cfg_scale": "float (default 7.0)", "seed": "int (default -1)", "section": "str (default 'full') — intro|verse|chorus|bridge|outro", "duration": "float (default 10.0) — seconds", "vertical_first": "bool (default false)", "audio_path": "str|null — path from audio analysis stored_path", "audio_filename": "str|null" } },
-          "response": { "model": "VideoGenerateResponse", "fields": { "success": "bool", "job_id": "str|null", "output_path": "str|null", "section": "str", "error": "str|null", "message": "str|null" } }
+          "request": {
+            "content_type": "application/json",
+            "model": "VideoGenerateRequest",
+            "fields": {
+              "prompt": "str (required)",
+              "negative_prompt": "str (default '')",
+              "steps": "int (default 20)",
+              "cfg_scale": "float (default 7.0)",
+              "seed": "int (default -1)",
+              "section": "str (default 'full') — intro|verse|chorus|bridge|outro",
+              "duration": "float (default 10.0) — seconds",
+              "vertical_first": "bool (default false)",
+              "audio_path": "str|null — path from audio analysis stored_path",
+              "audio_filename": "str|null"
+            }
+          },
+          "response": {
+            "model": "VideoGenerateResponse",
+            "fields": {
+              "success": "bool",
+              "job_id": "str|null",
+              "output_path": "str|null",
+              "section": "str",
+              "error": "str|null",
+              "message": "str|null"
+            }
+          }
         }
       }
     },
     "/api/outputs": {
-      "tags": ["Outputs"],
+      "tags": [
+        "Outputs"
+      ],
       "endpoints": {
         "GET /api/outputs": {
           "description": "List output files with filtering",
-          "request": { "query": { "file_type": "str|null — audio|video|image", "search": "str|null", "date_from": "str|null — ISO date", "date_to": "str|null — ISO date", "limit": "int (default 50)", "offset": "int (default 0)" } },
-          "response": { "model": "OutputsResponse", "fields": { "outputs": "list[OutputFile]", "total": "int", "images_count": "int", "videos_count": "int", "audio_count": "int" } }
+          "request": {
+            "query": {
+              "file_type": "str|null — audio|video|image",
+              "search": "str|null",
+              "date_from": "str|null — ISO date",
+              "date_to": "str|null — ISO date",
+              "limit": "int (default 50)",
+              "offset": "int (default 0)"
+            }
+          },
+          "response": {
+            "model": "OutputsResponse",
+            "fields": {
+              "outputs": "list[OutputFile]",
+              "total": "int",
+              "images_count": "int",
+              "videos_count": "int",
+              "audio_count": "int"
+            }
+          }
         },
         "GET /api/outputs/recent": {
           "description": "Get recent output files",
-          "request": { "query": { "limit": "int (default 10)" } },
-          "response": { "model": "list[OutputFile]" }
+          "request": {
+            "query": {
+              "limit": "int (default 10)"
+            }
+          },
+          "response": {
+            "model": "list[OutputFile]"
+          }
         },
         "GET /api/outputs/duplicates/groups": {
           "description": "Find duplicate file groups by SHA256 hash",
-          "request": { "query": { "quick": "bool (default true)", "limit": "int (default 50)" } },
-          "response": { "model": "list[dict] — groups of duplicate files" }
+          "request": {
+            "query": {
+              "quick": "bool (default true)",
+              "limit": "int (default 50)"
+            }
+          },
+          "response": {
+            "model": "list[dict] — groups of duplicate files"
+          }
         },
         "GET /api/outputs/{file_type}": {
           "description": "List outputs by type (audio/video/image)",
-          "request": { "path": { "file_type": "str" }, "query": { "limit": "int (default 50)" } },
-          "response": { "model": "list[OutputFile]" }
+          "request": {
+            "path": {
+              "file_type": "str"
+            },
+            "query": {
+              "limit": "int (default 50)"
+            }
+          },
+          "response": {
+            "model": "list[OutputFile]"
+          }
         },
         "POST /api/outputs/bulk-delete": {
           "description": "Delete multiple output files",
-          "request": { "content_type": "application/json", "model": "BulkDeleteRequest", "fields": { "paths": "list[str]" } },
-          "response": { "model": "dict — {deleted: int, errors: list}" }
+          "request": {
+            "content_type": "application/json",
+            "model": "BulkDeleteRequest",
+            "fields": {
+              "paths": "list[str]"
+            }
+          },
+          "response": {
+            "model": "dict — {deleted: int, errors: list}"
+          }
         },
         "DELETE /api/outputs/{file_path}": {
           "description": "Delete single output file + sidecar cover/metadata",
-          "request": { "path": { "file_path": "str — relative path" } },
-          "response": { "model": "dict" }
+          "request": {
+            "path": {
+              "file_path": "str — relative path"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/outputs/{file_path}/rename": {
           "description": "Rename output file + sidecar files",
-          "request": { "path": { "file_path": "str" }, "content_type": "application/json", "model": "RenameRequest", "fields": { "new_name": "str" } },
-          "response": { "model": "dict" }
+          "request": {
+            "path": {
+              "file_path": "str"
+            },
+            "content_type": "application/json",
+            "model": "RenameRequest",
+            "fields": {
+              "new_name": "str"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
         }
       }
     },
     "/api/jobs": {
-      "tags": ["Jobs"],
+      "tags": [
+        "Jobs"
+      ],
       "endpoints": {
         "POST /api/jobs/": {
           "description": "Create a new job",
-          "request": { "content_type": "application/json", "model": "JobCreateRequest" },
-          "response": { "model": "Job", "status": 201 }
+          "request": {
+            "content_type": "application/json",
+            "model": "JobCreateRequest"
+          },
+          "response": {
+            "model": "Job",
+            "status": 201
+          }
         },
         "GET /api/jobs/": {
           "description": "List all jobs, optionally filter by status",
-          "request": { "query": { "status": "str|null — pending|running|completed|failed" } },
-          "response": { "model": "list[Job]" }
+          "request": {
+            "query": {
+              "status": "str|null — pending|running|completed|failed"
+            }
+          },
+          "response": {
+            "model": "list[Job]"
+          }
         },
         "GET /api/jobs/stats": {
           "description": "Get queue statistics",
-          "response": { "model": "QueueStats" }
+          "response": {
+            "model": "QueueStats"
+          }
         },
         "GET /api/jobs/types": {
           "description": "List available job types",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/jobs/{job_id}": {
           "description": "Get job status and result",
-          "request": { "path": { "job_id": "str" } },
-          "response": { "model": "Job" },
+          "request": {
+            "path": {
+              "job_id": "str"
+            }
+          },
+          "response": {
+            "model": "Job"
+          },
           "notes": "Poll this endpoint after generating video. Check status: pending|running|completed|failed"
         },
         "POST /api/jobs/{job_id}/cancel": {
           "description": "Cancel a running job",
-          "request": { "path": { "job_id": "str" } },
-          "response": { "model": "dict" }
+          "request": {
+            "path": {
+              "job_id": "str"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/jobs/{job_id}/retry": {
           "description": "Retry a failed job",
-          "request": { "path": { "job_id": "str" } },
-          "response": { "model": "Job" }
+          "request": {
+            "path": {
+              "job_id": "str"
+            }
+          },
+          "response": {
+            "model": "Job"
+          }
         },
         "DELETE /api/jobs/{job_id}": {
           "description": "Delete a job",
-          "request": { "path": { "job_id": "str" } },
-          "response": { "model": "dict" }
+          "request": {
+            "path": {
+              "job_id": "str"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/jobs/clear-completed": {
           "description": "Clear all completed jobs",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         }
       }
     },
     "/api/health": {
-      "tags": ["Health"],
+      "tags": [
+        "Health"
+      ],
       "endpoints": {
         "GET /api/health": {
           "description": "Overall system health — backend, ComfyUI, Ollama status",
-          "response": { "model": "dict", "fields": { "status": "healthy|degraded|unhealthy", "backend": "online|offline", "adapters": "dict[adapter_status]", "overall": "str" } }
+          "response": {
+            "model": "dict",
+            "fields": {
+              "status": "healthy|degraded|unhealthy",
+              "backend": "online|offline",
+              "adapters": "dict[adapter_status]",
+              "overall": "str"
+            }
+          }
         },
         "GET /api/health/ping": {
           "description": "Simple ping",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/health/gpu": {
           "description": "GPU snapshot — VRAM, utilization, temperature",
-          "response": { "model": "dict", "fields": { "vram_total_mb": "int", "vram_used_mb": "int", "vram_free_mb": "int", "gpu_utilization": "int (0-100)", "temperature": "int (°C)" } }
+          "response": {
+            "model": "dict",
+            "fields": {
+              "vram_total_mb": "int",
+              "vram_used_mb": "int",
+              "vram_free_mb": "int",
+              "gpu_utilization": "int (0-100)",
+              "temperature": "int (°C)"
+            }
+          }
         },
         "GET /api/health/3d/status": {
           "description": "3D generation pipeline status",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/health/3d/generate": {
           "description": "Trigger 3D generation",
-          "request": { "content_type": "application/json", "fields": { "prompt": "str", "model": "str" } },
-          "response": { "model": "dict" }
+          "request": {
+            "content_type": "application/json",
+            "fields": {
+              "prompt": "str",
+              "model": "str"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/health/diagnostics": {
           "description": "Full system diagnostics",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/health/diagnostics/services": {
           "description": "Check all services",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/health/diagnostics/system": {
           "description": "System-level diagnostics (CPU, RAM, disk)",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/health/services/{service}/check": {
           "description": "Check specific service health",
-          "request": { "path": { "service": "str" } },
-          "response": { "model": "dict" }
+          "request": {
+            "path": {
+              "service": "str"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
+        },
+        "GET /api/health/gpu/processes": {
+          "description": "Per-process VRAM via Windows Performance Counters",
+          "response": {
+            "model": "dict",
+            "fields": {
+              "processes": "list[{pid,name,mem_mb}]"
+            }
+          }
+        },
+        "GET /api/health/ffmpeg": {
+          "description": "FFmpeg version/capabilities probe",
+          "response": {
+            "model": "dict"
+          }
+        },
+        "GET /api/health/context": {
+          "description": "Agent context snapshot",
+          "response": {
+            "model": "dict"
+          }
         }
       }
     },
     "/api/services/comfyui": {
-      "tags": ["ComfyUI"],
+      "tags": [
+        "ComfyUI"
+      ],
       "endpoints": {
         "GET /api/services/comfyui/status": {
           "description": "ComfyUI process status",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/services/comfyui/start": {
           "description": "Start ComfyUI process",
-          "request": { "query": { "port": "int (default 8188)" } },
-          "response": { "model": "dict" }
+          "request": {
+            "query": {
+              "port": "int (default 8188)"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/services/comfyui/stop": {
           "description": "Stop ComfyUI process",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/services/comfyui/restart": {
           "description": "Restart ComfyUI process",
-          "request": { "query": { "port": "int (default 8188)" } },
-          "response": { "model": "dict" }
+          "request": {
+            "query": {
+              "port": "int (default 8188)"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/services/comfyui/update": {
           "description": "Update ComfyUI",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/services/comfyui/version": {
           "description": "Get ComfyUI version",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         }
       }
     },
     "/api/integrations": {
-      "tags": ["Integrations"],
+      "tags": [
+        "Integrations"
+      ],
       "endpoints": {
         "GET /api/integrations/": {
           "description": "List all integrations",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/integrations/{service_name}": {
           "description": "Get specific integration status",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/integrations/models/status": {
           "description": "Check loaded model status",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/integrations/{service_name}/generate": {
           "description": "Generate image via adapter",
-          "request": { "model": "ImageGenerationRequest", "fields": { "prompt": "str", "negative_prompt": "str", "steps": "int", "cfg_scale": "float", "width": "int", "height": "int", "seed": "int", "sampler": "str", "backend": "str" } },
-          "response": { "model": "dict" }
+          "request": {
+            "model": "ImageGenerationRequest",
+            "fields": {
+              "prompt": "str",
+              "negative_prompt": "str",
+              "steps": "int",
+              "cfg_scale": "float",
+              "width": "int",
+              "height": "int",
+              "seed": "int",
+              "sampler": "str",
+              "backend": "str"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/integrations/{service_name}/generate-video": {
           "description": "Generate video via adapter",
-          "request": { "model": "VideoGenerationRequest", "fields": { "prompt": "str", "negative_prompt": "str", "steps": "int", "cfg_scale": "float", "width": "int", "height": "int", "seed": "int", "sampler": "str", "num_frames": "int", "fps": "int", "motion_module": "str" } },
-          "response": { "model": "dict" }
+          "request": {
+            "model": "VideoGenerationRequest",
+            "fields": {
+              "prompt": "str",
+              "negative_prompt": "str",
+              "steps": "int",
+              "cfg_scale": "float",
+              "width": "int",
+              "height": "int",
+              "seed": "int",
+              "sampler": "str",
+              "num_frames": "int",
+              "fps": "int",
+              "motion_module": "str"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/integrations/{service_name}/job": {
           "description": "Queue image generation job",
-          "request": { "model": "ImageGenerationRequest" },
-          "response": { "model": "dict" }
+          "request": {
+            "model": "ImageGenerationRequest"
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/integrations/ollama/models": {
           "description": "List available Ollama models",
-          "response": { "model": "list" }
+          "response": {
+            "model": "list"
+          }
         },
         "POST /api/integrations/ollama/generate": {
           "description": "Generate text via Ollama",
-          "request": { "query": { "prompt": "str", "model": "str (default 'llama2')" } },
-          "response": { "model": "dict" }
+          "request": {
+            "query": {
+              "prompt": "str",
+              "model": "str (default 'llama2')"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/integrations/audio/analyze": {
           "description": "Analyze audio via integration",
-          "request": { "model": "AudioAnalysisRequest", "fields": { "audio_path": "str", "hop_length": "int", "frame_length": "int" } },
-          "response": { "model": "dict" }
+          "request": {
+            "model": "AudioAnalysisRequest",
+            "fields": {
+              "audio_path": "str",
+              "hop_length": "int",
+              "frame_length": "int"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/integrations/audio/analyze/job": {
           "description": "Create audio analysis job",
-          "request": { "model": "AudioAnalysisJobRequest", "fields": { "audio_path": "str", "hop_length": "int", "frame_length": "int", "max_retries": "int" } },
-          "response": { "model": "dict" }
+          "request": {
+            "model": "AudioAnalysisJobRequest",
+            "fields": {
+              "audio_path": "str",
+              "hop_length": "int",
+              "frame_length": "int",
+              "max_retries": "int"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/integrations/music-video/styles": {
           "description": "List music video styles",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/integrations/music-video/generate": {
           "description": "Generate full music video",
-          "request": { "model": "MusicVideoRequest", "fields": { "audio_path": "str", "style": "MusicVideoStyle", "beat_markers": "list[BeatMarker]", "duration": "str", "resolution": "str", "fps": "int", "quality": "str" } },
-          "response": { "model": "dict" }
+          "request": {
+            "model": "MusicVideoRequest",
+            "fields": {
+              "audio_path": "str",
+              "style": "MusicVideoStyle",
+              "beat_markers": "list[BeatMarker]",
+              "duration": "str",
+              "resolution": "str",
+              "fps": "int",
+              "quality": "str"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/integrations/music-video/preview": {
           "description": "Generate music video preview",
-          "request": { "model": "PreviewGenerationRequest" },
-          "response": { "model": "dict" }
+          "request": {
+            "model": "PreviewGenerationRequest"
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/integrations/music-video/templates": {
           "description": "List workflow templates",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         }
       }
     },
     "/api/data": {
-      "tags": ["Data"],
+      "tags": [
+        "Data"
+      ],
       "endpoints": {
         "GET /api/data/": {
           "description": "List saved prompts with filtering",
-          "request": { "query": { "prompt_type": "str|null", "category": "str|null", "favorite": "bool|null", "search": "str|null", "limit": "int" } },
-          "response": { "model": "list[dict]" }
+          "request": {
+            "query": {
+              "prompt_type": "str|null",
+              "category": "str|null",
+              "favorite": "bool|null",
+              "search": "str|null",
+              "limit": "int"
+            }
+          },
+          "response": {
+            "model": "list[dict]"
+          }
         },
         "POST /api/data/": {
           "description": "Save a prompt",
-          "request": { "content_type": "application/json" },
-          "response": { "model": "dict" }
+          "request": {
+            "content_type": "application/json"
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/data/{prompt_id}/use": {
           "description": "Record prompt usage",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/data/{prompt_id}/favorite": {
           "description": "Toggle prompt favorite",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "DELETE /api/data/{prompt_id}": {
           "description": "Delete a prompt",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/data/audio/": {
           "description": "List audio files",
-          "response": { "model": "list[dict]" }
+          "response": {
+            "model": "list[dict]"
+          }
         },
         "GET /api/data/visuals/": {
           "description": "List visual assets",
-          "response": { "model": "list[dict]" }
+          "response": {
+            "model": "list[dict]"
+          }
         },
         "POST /api/data/visuals/save": {
           "description": "Save a visual asset",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/data/sessions/": {
           "description": "List sessions",
-          "response": { "model": "list[dict]" }
+          "response": {
+            "model": "list[dict]"
+          }
         },
         "POST /api/data/sessions/": {
           "description": "Create a session",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/data/sessions/{session_id}": {
           "description": "Get session details",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "PATCH /api/data/sessions/{session_id}": {
           "description": "Update a session",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/data/preferences/": {
           "description": "Get preferences",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "PUT /api/data/preferences/{key}": {
           "description": "Set preference",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/data/tracks/": {
           "description": "List tracks",
-          "request": { "query": { "status": "str|null", "artist": "str|null", "search": "str|null", "limit": "int" } },
-          "response": { "model": "list[dict]" }
+          "request": {
+            "query": {
+              "status": "str|null",
+              "artist": "str|null",
+              "search": "str|null",
+              "limit": "int"
+            }
+          },
+          "response": {
+            "model": "list[dict]"
+          }
         },
         "POST /api/data/tracks/": {
           "description": "Create a track",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/data/tracks/import": {
           "description": "Import tracks",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         }
       }
     },
     "/api/docs": {
-      "tags": ["Docs"],
+      "tags": [
+        "Docs"
+      ],
       "endpoints": {
         "GET /api/docs/list": {
           "description": "List all documentation files (vault + guides)",
-          "request": { "query": { "vault_only": "bool (default false)", "search": "str|null — filter by title/tags/path" } },
-          "response": { "model": "list[DocEntry]", "fields": { "path": "str", "vault_path": "str", "title": "str", "file_type": "vault|guide", "tags": "list[str]", "aliases": "list[str]", "in_vault": "bool" } }
+          "request": {
+            "query": {
+              "vault_only": "bool (default false)",
+              "search": "str|null — filter by title/tags/path"
+            }
+          },
+          "response": {
+            "model": "list[DocEntry]",
+            "fields": {
+              "path": "str",
+              "vault_path": "str",
+              "title": "str",
+              "file_type": "vault|guide",
+              "tags": "list[str]",
+              "aliases": "list[str]",
+              "in_vault": "bool"
+            }
+          }
         },
         "GET /api/docs/file": {
           "description": "Get raw markdown or JSON content for a doc file",
-          "request": { "query": { "path": "str — e.g. 'knowledge-library/index.md'" } },
-          "response": { "model": "DocContent", "fields": { "path": "str", "title": "str", "tags": "list[str]", "aliases": "list[str]", "raw_markdown": "str" } }
+          "request": {
+            "query": {
+              "path": "str — e.g. 'knowledge-library/index.md'"
+            }
+          },
+          "response": {
+            "model": "DocContent",
+            "fields": {
+              "path": "str",
+              "title": "str",
+              "tags": "list[str]",
+              "aliases": "list[str]",
+              "raw_markdown": "str"
+            }
+          }
         },
         "GET /api/docs/vault": {
           "description": "Shortcut: list only vault files (knowledge-library)",
-          "response": { "model": "list[DocEntry]" }
+          "response": {
+            "model": "list[DocEntry]"
+          }
         },
         "GET /api/docs/manifest": {
           "description": "Shortcut: return agent.manifest.json directly",
-          "response": { "model": "dict — full manifest content" }
+          "response": {
+            "model": "dict — full manifest content"
+          }
         },
         "GET /api/docs/prompts": {
           "description": "Shortcut: return prompts.json directly",
-          "response": { "model": "dict — full prompts content" }
+          "response": {
+            "model": "dict — full prompts content"
+          }
+        },
+        "GET /api/docs/bootstrap": {
+          "description": "Single-call agent bootstrap: manifest + codebase + api-registry + mcp-registry + vault index",
+          "response": {
+            "model": "dict"
+          }
+        },
+        "GET /api/docs/search": {
+          "description": "Full-text search across vault + guides",
+          "request": {
+            "query": {
+              "q": "str"
+            }
+          },
+          "response": {
+            "model": "list[dict]"
+          }
+        },
+        "GET /api/docs/structure": {
+          "description": "Project directory tree",
+          "request": {
+            "query": {
+              "depth": "int"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
+        },
+        "GET /api/docs/codebase": {
+          "description": "Shortcut: codebase.json",
+          "response": {
+            "model": "dict"
+          }
+        },
+        "GET /api/docs/api-registry": {
+          "description": "Shortcut: api-registry.json",
+          "response": {
+            "model": "dict"
+          }
+        },
+        "GET /api/docs/mcp-registry": {
+          "description": "Shortcut: mcp-registry.json",
+          "response": {
+            "model": "dict"
+          }
         }
       }
     },
     "/api/logs": {
-      "tags": ["Logs"],
+      "tags": [
+        "Logs"
+      ],
       "endpoints": {
         "GET /api/logs/": {
           "description": "Get log file info",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "GET /api/logs/{log_name}": {
           "description": "Get log file content",
-          "request": { "path": { "log_name": "str" }, "query": { "lines": "int (default 100)" } },
-          "response": { "model": "dict" }
+          "request": {
+            "path": {
+              "log_name": "str"
+            },
+            "query": {
+              "lines": "int (default 100)"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/logs/clear": {
           "description": "Clear all log files",
-          "response": { "model": "dict" }
+          "response": {
+            "model": "dict"
+          }
         },
         "POST /api/logs/frontend": {
           "description": "Receive frontend logs",
-          "request": { "content_type": "application/json" },
-          "response": { "model": "dict" }
+          "request": {
+            "content_type": "application/json"
+          },
+          "response": {
+            "model": "dict"
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "tags": [
+        "SSE"
+      ],
+      "endpoints": {
+        "GET /api/events": {
+          "description": "Server-Sent Events stream - canonical real-time channel (replaces legacy ws which returns 426). Emits job/system/heartbeat events.",
+          "request": {
+            "headers": {
+              "Accept": "text/event-stream"
+            }
+          },
+          "response": {
+            "content_type": "text/event-stream",
+            "events": [
+              "job.queued",
+              "job.started",
+              "job.progress",
+              "job.completed",
+              "job.failed",
+              "job.cancelled",
+              "system.health_changed",
+              "system.resource_warning",
+              "heartbeat"
+            ]
+          },
+          "notes": "Use EventSource. Legacy ws shim remains for compat only."
+        }
+      }
+    },
+    "/api/transcription": {
+      "tags": [
+        "Transcription"
+      ],
+      "endpoints": {
+        "POST /api/transcription/transcribe": {
+          "description": "Whisper/WhisperX transcription -> LRC + word-level timestamps",
+          "request": {
+            "content_type": "multipart/form-data"
+          },
+          "response": {
+            "model": "dict"
+          }
+        },
+        "GET /api/transcription/transcript/lrc/{filename:path}": {
+          "description": "Get LRC lyrics",
+          "request": {
+            "path": {
+              "filename": "str"
+            }
+          },
+          "response": {
+            "model": "str (LRC text)"
+          }
+        },
+        "GET /api/transcription/transcript/lrc-word/{filename:path}": {
+          "description": "Get word-level LRC",
+          "request": {
+            "path": {
+              "filename": "str"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
+        },
+        "GET /api/transcription/transcript/{filename:path}": {
+          "description": "Get raw transcript JSON",
+          "request": {
+            "path": {
+              "filename": "str"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
+        }
+      }
+    },
+    "/api/lyrics": {
+      "tags": [
+        "Lyrics"
+      ],
+      "endpoints": {
+        "GET /api/lyrics/track/{track_id}": {
+          "description": "Get lyrics for a track",
+          "request": {
+            "path": {
+              "track_id": "str"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
+        },
+        "POST /api/lyrics/track/{track_id}": {
+          "description": "Save lyrics for a track",
+          "request": {
+            "path": {
+              "track_id": "str"
+            },
+            "content_type": "application/json"
+          },
+          "response": {
+            "model": "dict"
+          }
+        },
+        "GET /api/lyrics/by-filename/{filename:path}": {
+          "description": "Get lyrics by audio filename",
+          "request": {
+            "path": {
+              "filename": "str"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
+        },
+        "POST /api/lyrics/import-lrc": {
+          "description": "Import LRC file",
+          "request": {
+            "content_type": "multipart/form-data"
+          },
+          "response": {
+            "model": "dict"
+          }
+        }
+      }
+    },
+    "/api/comfyui": {
+      "tags": [
+        "ComfyUI"
+      ],
+      "endpoints": {
+        "GET /api/comfyui/status": {
+          "description": "ComfyUI process status",
+          "response": {
+            "model": "dict"
+          }
+        },
+        "POST /api/comfyui/start": {
+          "description": "Start ComfyUI",
+          "request": {
+            "query": {
+              "port": "int (default 8188)"
+            }
+          },
+          "response": {
+            "model": "dict"
+          }
+        },
+        "POST /api/comfyui/stop": {
+          "description": "Stop ComfyUI",
+          "response": {
+            "model": "dict"
+          }
+        },
+        "POST /api/comfyui/restart": {
+          "description": "Restart ComfyUI",
+          "response": {
+            "model": "dict"
+          }
         }
       }
     }

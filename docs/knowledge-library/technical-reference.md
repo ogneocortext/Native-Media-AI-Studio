@@ -24,8 +24,10 @@
 │  Backend (FastAPI + uvicorn)                                                │
 │  ├── Port: 8000                                                             │
 │  ├── SSE: /api/events (Server-Sent Events)                                  │
-│  ├── Routes: /api/jobs, /api/health, /api/integrations, /api/data          │
-│  └── Services: Queue, Audio Analysis, Blender, CUDA, Gen3D                 │
+│  ├── Routes: /api/jobs, /api/health, /api/audio, /api/outputs,              │
+│  │          /api/video, /api/transcription, /api/lyrics, /api/comfyui,     │
+│  │          /api/data, /api/docs, /api/logs, /api/events (SSE)            │
+│  └── Services: Queue, Audio Analysis, Blender, CUDA, Gen3D, VRAM Manager   │
 │                                                                             │
 │  ComfyUI                                                                    │
 │  ├── Port: 8188                                                             │
@@ -33,10 +35,10 @@
 │  └── API: /system_stats, /history, /queue                                  │
 │                                                                             │
 │  Blender MCP                                                                │
-│  ├── Addon: "Interface: Blender MCP"                                        │
-│  ├── Protocol: v4                                                           │
+│  ├── Addon: "Interface: Blender MCP" v1.5                                   │
+│  ├── Protocol: TCP socket 9876 (addon) — NOT browser WebSocket              │
 │  ├── Capabilities: execute_code, get_scene_info, get_object_info           │
-│  └── Connection: localhost (WebSocket)                                      │
+│  └── Connection: localhost:9876 TCP                                         │
 │                                                                             │
 │  Hardware                                                                   │
 │  ├── GPU: NVIDIA GeForce GTX 1070 Ti (8GB VRAM, sm_61 Pascal, 19 SMs)      │
@@ -86,15 +88,20 @@ PATHS = {
 GET http://localhost:8000/api/health
 # Response: {"status": "healthy", "backend": "online", "adapters": {...}}
 
-# GPU snapshot
+# GPU snapshot (use this before large renders)
 GET http://localhost:8000/api/health/gpu
-# Response: {"available": true, "name": "...", "memory_used_mb": ..., ...}
+# Response: {"available": true, "name": "...", "memory_used_mb": ..., "memory_free_mb": ..., "memory_total_mb": ..., "fallback": false}
+# Per-process VRAM (GeForce WDDM via Performance Counters — no admin needed):
+GET http://localhost:8000/api/health/gpu/processes
+
+# Real-time events (SSE canonical — legacy ws://.../ws returns 426):
+GET http://localhost:8000/api/events  # Accept: text/event-stream
 
 # 3D generation status
 GET http://localhost:8000/api/health/3d/status
 # Response: {"available": true, "model_exists": true, "generated_count": 0}
 
-# ComfyUI system stats
+# ComfyUI system stats (direct)
 GET http://localhost:8188/system_stats
 # Response: {"system": {...}, "devices": [...]}
 ```
