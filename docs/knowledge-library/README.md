@@ -21,18 +21,30 @@
 
 ```
 knowledge-library/
-├── .obsidian/              ← Obsidian configuration
-│   ├── app.json
-│   ├── appearance.json
-│   └── ...
-├── index.md                ← Start here
+├── .obsidian/              ← Obsidian configuration (gitignored)
+├── index.md                ← Start here (27 docs indexed)
 ├── music-video-production.md
 ├── youtube-optimization.md
-├── technical-reference.md
+├── technical-reference.md  ← Architecture + API + GPU (2026-09-05)
 ├── comfyui-workflows.md
 ├── blender-mcp.md
+├── hunyuan3d-setup.md
+├── three-js-studio.md
 ├── 3d-rendering.md
+├── visualization-effects.md
+├── 2d-visualization-2026.md
+├── audio-reactive-production.md
+├── silhouette-character-animation.md
+├── character-driven-visualization-research.md
+├── hardware-verified-models.md
 ├── prompt-engineering.md
+├── integration-ollama.md
+├── ai-agent-navigation.md
+├── backend-debugging-guide.md
+├── ollama-benchmarks.md / coding-benchmarks.md / ollama-thinking-structured-outputs.md
+├── kilo-code-subagent-*.md
+├── remotion-guide.md / ai-video-trends-2026.md
+├── codebase.json / api-registry.json / mcp-registry.json / prompts.json / agent.manifest.json
 └── Knowledge Graph.canvas  ← Visual overview
 ```
 

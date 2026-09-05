@@ -5,7 +5,7 @@ All notable changes to the Native Media AI Studio project are documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-09-05
 
 ### Fixed - Async Refactoring & VRAM Management (2026-09-05)
 
@@ -109,6 +109,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Config**: Removed hardcoded Windows path from `config/settings.json` (uses default from `config.py`)
 - **Tooling**: Added `@eslint/js` + `typescript-eslint` recommended rules to `eslint.config.js`
 - **Tooling**: Fixed invalid `--ws websockets-sansio` → `--ws websockets` in `start-backend.ps1`
+
+### Added - Three.js Studio Modernization (2026-08-27)
+
+- **Three.js Studio**: Compact 2-row header + canvas + bottom drawer (Objects/Inspector/Scene), 6 production templates (Concert Stage, Cosmic Void, Equalizer Wall, Geometric City, Vinyl Spin, Pulse Orb), selective bloom dual-composer + post-FX chain (chromatic aberration, film grain, vignette), real beat timeline via `useBeatTimeline` (`GET /api/audio/analysis/by-filename/{filename}`) + beat-punch shake, image-as-background with 12-cover quick-pick, `audioDriven` bars/pillars for Equalizer Wall/City — see `docs/implementation-summary.md` §2026-08-27
+- **3D Gen fix**: `Generation3DPage.tsx` `404 /api/3d/models` → `/api/health/3d/models`, CORS `getApiBase()` → relative URL, clickable model list + preview, `_repatriate_orphans()` surfaces 4 GLBs (`output/generated_3d/`)
+- **Docs**: `docs/guides/MUSIC_VIDEO_GUIDE.md` new Three.js Studio section (§8), `MUSIC_VIDEO_GUIDE.md` now primary over classic `/music-video`
 
 ### Fixed - Server Startup & Monitoring (2026-08-31)
 

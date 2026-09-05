@@ -49,7 +49,7 @@
       "lang": "typescript",
       "description": "React + Vite + Tailwind CSS frontend with Remotion for video compositing",
       "structure": {
-        "src/App.tsx": "Router — 14 routes (/, /queue, /music-video, /studio-3d, /image-generation, /visualizer, /library, /settings, /docs, /art-direction, /video-editor, /logs, /health)",
+        "src/App.tsx": "Router — 19 routes (/, /queue, /music-video-wizard, /three-js-studio, /audio-analysis, /video-generation, /generate-3d, /ai-tools, /docs, /storyboards, /image-generation, /visualizer, /library, /settings, /logs, /health, /kinetic-typography, /gpu, /preview) + legacy redirects",
         "src/features/dashboard/Dashboard.tsx": "Main dashboard — drop zone, quick actions",
         "src/features/music-video/MusicVideoWizard.tsx": "5-step wizard — no mocks, real API calls",
         "src/features/music-video/MusicVideo.tsx": "Music video player — beat detection, audio analysis",
@@ -75,8 +75,8 @@
         "src/styles/globals.css": "Tailwind + minimalist background + responsive layout"
       },
       "dependencies": ["react", "vite", "zustand", "tailwindcss", "remotion"],
-      "start_command": "npm run dev",
-      "build_command": "npm run build"
+      "start_command": "pnpm dev",
+      "build_command": "pnpm build"
     }
   },
   "tools": {
