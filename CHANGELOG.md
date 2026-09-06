@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - Media Library Performance & Presentation Overhaul (2026-09-06)
+
+- **Performance**: Debounced search (350 ms) + `useDeferredValue`, pagination (`ITEMS_PER_PAGE=24` + *Load more*), `React.memo` `MediaCard` with `animationDelay` stagger (40 ms), `SkeletonGrid` shimmer, `useMemo` filtered/sorted + `visibleCount` slice (was rendering all 179 at once), `format*` memoization.
+- **Presentation**: Glass-morphism cards (`backdrop-blur-xl`, `bg-black/20`, `border-white/5/10`), hover lift (`-translate-y-1`, `shadow-xl`, `scale-105` on image), gradient badges, refined typography (`tracking-tight`, `Sparkles` header), improved empty state (gradient icon, tip `Press / to search`).
+- **Animations**: Entrance `fade-in slide-in-from-bottom-2` with stagger, modal `zoom-in-95` + `backdrop-blur`, hover `scale-110` on action buttons, shimmer skeleton, pulse on duplicate badge, transition `duration-300` throughout.
+- **Functionality**: Hover video autoplay (`video` muted loop on hover, “hover to preview” hint), lightbox zoom (`scale 0.5–3`, `+/-` + `%` badge, cursor-zoom), keyboard shortcuts (`/` focus search, `Esc` close, `g` toggle group), `Load more` pagination with remaining count, stacked type legend, `groupByType` preserved with same card component.
+- **Code**: Removed duplicated grid/list branches (was 1394 lines → 508), extracted `useDebounce` + `MediaCard` memo + `SkeletonGrid`, fixed `Check` import, removed dead `render*Badge` helpers, kept `selectedPaths` bulk + duplicates panel with backdrop-blur.
+
 ### Added - GPU Telemetry Database & Trending Visualizations (2026-09-06)
 
 - **Database** (`packages/backend/app/core/database.py:199`): `SCHEMA_VERSION 8` + new `gpu_telemetry` table (`ts_ms/ts_iso/gpu_name/memory_* /gpu_util/temp/processes_json`, indexes on `ts_ms/ts_iso`, 14-day retention). Helpers: `log_gpu_telemetry()`, `get_gpu_history(since_ms,limit)`, `get_gpu_stats()`, `cleanup_old_gpu_telemetry()`. Survives reloads/reboots — DB at `storage/studio.db` (not `packages/backend/storage`).
