@@ -583,8 +583,8 @@ export function GpuMonitorPage() {
                 <button onClick={handleClear} disabled={history.length === 0} className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-muted hover:text-red-300 disabled:opacity-40"><Trash2 size={12} /> Clear</button>
               </div>
             </div>
-            {/* inline stats */}
-            <div className="grid grid-cols-3 gap-2 mt-3">
+            {/* inline stats — responsive: 1 col on <640px */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
               <div className="rounded-lg bg-white/[0.03] border border-white/5 px-3 py-2">
                 <div className="flex items-center gap-1.5 text-[11px] text-muted"><Thermometer size={11} className="text-rose-400" /> Temp <span className="ml-auto flex items-center gap-1">{trendIcon(tempStats.trend)} <span className="text-[10px]">{tempStats.trend}</span></span></div>
                 <p className="text-sm font-semibold text-white mt-1">{tempStats.cur.toFixed(0)}°C <span className="text-[11px] font-normal text-muted">avg {tempStats.avg.toFixed(0)}° • {tempStats.min.toFixed(0)}–{tempStats.max.toFixed(0)}°</span></p>
@@ -617,7 +617,7 @@ export function GpuMonitorPage() {
               {chartData.length < 2 ? (
                 <div className="h-48 flex items-center justify-center text-xs text-muted">Collecting data… {chartData.length}/2 points ({history.length} stored)</div>
               ) : (
-                <div className="h-52">
+                <div className="h-52" role="img" aria-label={`Temperature trend over ${rangeLabel}, drag brush handles to zoom, throttle at 83°C`}>
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }} syncId="gpu">
                       <defs>
@@ -635,7 +635,7 @@ export function GpuMonitorPage() {
                       />
                       <ReferenceLine y={83} stroke="#f97316" strokeDasharray="4 4" label={{ value: "throttle", position: "insideTopRight", fill: "#fb923c", fontSize: 9 }} />
                       <Area type="monotone" dataKey="temp" stroke="#ef4444" strokeWidth={2} fill="url(#tempGrad)" name="Temp °C" dot={false} activeDot={{ r: 3, strokeWidth: 1 }} isAnimationActive={false} />
-                      {chartData.length > 40 && <Brush dataKey="label" height={18} stroke="#ef4444" fill="rgba(255,255,255,0.03)" tickFormatter={() => ""} />}
+                      {chartData.length > 40 && <Brush dataKey="label" height={18} stroke="#ef4444" fill="rgba(255,255,255,0.03)" tickFormatter={() => ""} aria-label="Brush to zoom temperature history" />}
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -647,7 +647,7 @@ export function GpuMonitorPage() {
               {chartData.length < 2 ? (
                 <div className="h-48 flex items-center justify-center text-xs text-muted">Collecting data… {chartData.length}/2 points</div>
               ) : (
-                <div className="h-52">
+                <div className="h-52" role="img" aria-label={`VRAM and GPU utilization over ${rangeLabel}, drag brush handles to zoom, warn at 75%`}>
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }} syncId="gpu">
                       <defs>
@@ -670,7 +670,7 @@ export function GpuMonitorPage() {
                       <ReferenceLine y={75} stroke="#f59e0b" strokeDasharray="3 3" strokeOpacity={0.5} />
                       <Area type="monotone" dataKey="vram" stroke="#a855f7" strokeWidth={2} fill="url(#vramGrad)" name="VRAM %" dot={false} activeDot={{ r: 3 }} isAnimationActive={false} />
                       <Area type="monotone" dataKey="util" stroke="#22c55e" strokeWidth={2} fill="url(#utilGrad)" name="GPU %" dot={false} activeDot={{ r: 3 }} isAnimationActive={false} />
-                      {chartData.length > 40 && <Brush dataKey="label" height={18} stroke="#a855f7" fill="rgba(255,255,255,0.03)" tickFormatter={() => ""} />}
+                      {chartData.length > 40 && <Brush dataKey="label" height={18} stroke="#a855f7" fill="rgba(255,255,255,0.03)" tickFormatter={() => ""} aria-label="Brush to zoom VRAM and utilization history" />}
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -682,7 +682,7 @@ export function GpuMonitorPage() {
           {history.length > 30 && (
             <Card title="Long-term overview (all stored)" className="!p-4"
               headerActions={<span className="text-[11px] text-muted">{history.length} points • ~{((history[history.length-1].time - history[0].time)/60000).toFixed(0)} min</span>}>
-              <div className="h-36">
+              <div className="h-36" role="img" aria-label="Long-term overview of all stored GPU history, drag brush to zoom">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={downsample(history, 200)} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
@@ -692,7 +692,7 @@ export function GpuMonitorPage() {
                     <Line type="monotone" dataKey="vram" stroke="#a855f7" strokeWidth={1.5} dot={false} name="VRAM %" />
                     <Line type="monotone" dataKey="util" stroke="#22c55e" strokeWidth={1.5} dot={false} name="GPU %" />
                     <Line type="monotone" dataKey="temp" stroke="#ef4444" strokeWidth={1} dot={false} name="Temp °C" />
-                    <Brush dataKey="label" height={16} stroke="#6366f1" fill="rgba(255,255,255,0.02)" tickFormatter={() => ""} />
+                    <Brush dataKey="label" height={16} stroke="#6366f1" fill="rgba(255,255,255,0.02)" tickFormatter={() => ""} aria-label="Brush to zoom long-term overview" />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -739,11 +739,12 @@ export function GpuMonitorPage() {
             )}
             <div className="flex flex-wrap gap-2 mb-3">
               <div className="relative flex-1 min-w-[180px]">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden />
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Filter by name or PID…"
+                  aria-label="Filter GPU processes by name or PID"
                   className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder:text-muted focus:outline-none focus:border-violet-500/50"
                 />
               </div>
