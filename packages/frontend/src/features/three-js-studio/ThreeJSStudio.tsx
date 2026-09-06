@@ -1904,9 +1904,9 @@ export function ThreeJSStudio() {
     }
   }, [beatAnalysis]);
 
-  // Handoff from Generation3DPage ("Send to Studio"): add the generated model
+  // Handoff from Generation3DPage / Media Library ("Send to Studio"): add the generated model
   // as a character with its bible prefilled. Runs once (guarded ref) since
-  // addObject is re-created every render.
+  // addObject is re-created every render, plus live listener for queue-while-open (Media Library → Studio without leaving page).
   const handoffConsumedRef = useRef(false);
   useEffect(() => {
     if (handoffConsumedRef.current) return;
@@ -1925,6 +1925,35 @@ export function ThreeJSStudio() {
     } catch {
       /* malformed handoff — ignore */
     }
+  }, [addObject]);
+  // Live queue from Media Library while Studio stays open (storage event across tabs, same-tab via custom event)
+  useEffect(() => {
+    const handleQueue = (raw: string | null) => {
+      if (!raw) return;
+      try {
+        const handoff = JSON.parse(raw) as { modelUrl?: string; name?: string; bible?: string };
+        if (!handoff?.modelUrl) return;
+        addObject("character", {
+          ...(handoff.name ? { name: handoff.name } : {}),
+          modelUrl: handoff.modelUrl,
+          ...(handoff.bible ? { characterBible: handoff.bible } : {}),
+        });
+        localStorage.removeItem("pendingCharacter");
+      } catch {}
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "pendingCharacter" && e.newValue) handleQueue(e.newValue);
+    };
+    const onCustom = (e: Event) => {
+      const custom = e as CustomEvent<string>;
+      if (custom.detail) handleQueue(custom.detail);
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("pendingCharacter", onCustom as EventListener);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("pendingCharacter", onCustom as EventListener);
+    };
   }, [addObject]);
 
   const toggleAudio = async () => {

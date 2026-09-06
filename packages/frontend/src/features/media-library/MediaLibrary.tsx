@@ -67,9 +67,9 @@ const typeAccent: Record<string, string> = {
 
 function is3DModelFile(filename: string) { return /\.(glb|gltf|fbx|obj)$/i.test(filename || ""); }
 
-const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSelect, onToggle, onDelete, onRename, onOpenBlender, onOpenUnity }: {
+const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSelect, onToggle, onDelete, onRename, onOpenBlender, onOpenUnity, onAddToStudio }: {
   output: OutputFile; index: number; selected: boolean; isDup: boolean;
-  onSelect: () => void; onToggle: (e: React.MouseEvent) => void; onDelete: (e: React.MouseEvent) => void; onRename: (e: React.MouseEvent) => void; onOpenBlender?: (e: React.MouseEvent) => void; onOpenUnity?: (e: React.MouseEvent) => void;
+  onSelect: () => void; onToggle: (e: React.MouseEvent) => void; onDelete: (e: React.MouseEvent) => void; onRename: (e: React.MouseEvent) => void; onOpenBlender?: (e: React.MouseEvent) => void; onOpenUnity?: (e: React.MouseEvent) => void; onAddToStudio?: (e: React.MouseEvent) => void;
 }) {
   const [hover, setHover] = useState(false);
   return (
@@ -108,6 +108,7 @@ const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSe
           <button onClick={(e)=>{e.stopPropagation(); onSelect();}} className="p-2.5 bg-white/10 backdrop-blur rounded-xl hover:bg-white/20 text-white hover:scale-110 transition-all" title="Quick view"><Eye size={16} /></button>
           {is3DModelFile(output.filename) && (
             <>
+              <button onClick={onAddToStudio} className="p-2.5 bg-violet-600/80 backdrop-blur rounded-xl hover:bg-violet-500 text-white hover:scale-110 transition-all shadow-lg" title="Add to Studio without leaving page"><Sparkles size={16} /></button>
               <button onClick={onOpenBlender} className="p-2.5 bg-orange-500/20 backdrop-blur rounded-xl hover:bg-orange-500/40 text-orange-300 hover:text-orange-200 hover:scale-110 transition-all" title="Open in Blender"><Box size={16} /></button>
               <button onClick={onOpenUnity} className="p-2.5 bg-blue-500/20 backdrop-blur rounded-xl hover:bg-blue-500/40 text-blue-300 hover:text-blue-200 hover:scale-110 transition-all" title="Open in Unity"><Layers size={16} /></button>
             </>
@@ -121,8 +122,8 @@ const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSe
       <div className="p-3">
         <p className="text-sm text-white truncate font-medium" title={output.filename}>{output.filename}</p>
         <div className="flex items-center justify-between mt-1.5 text-xs text-muted">
-          <span className="flex items-center gap-1"><HardDrive size={11} />{formatFileSize(output.size_bytes)}</span>
-          <span className="flex items-center gap-1"><Clock size={11} />{formatDate(output.created_at)}</span>
+          <span className="flex items-center gap-1 whitespace-nowrap"><HardDrive size={11} />{formatFileSize(output.size_bytes)}</span>
+          <span className="flex items-center gap-1 whitespace-nowrap"><Clock size={11} />{formatDate(output.created_at)}</span>
         </div>
       </div>
     </div>
@@ -169,7 +170,8 @@ export function MediaLibrary() {
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [lightboxZoom, setLightboxZoom] = useState(1);
-  const [openingApp, setOpeningApp] = useState<null | "blender" | "unity">(null);
+  const [openingApp, setOpeningApp] = useState<null | "blender" | "unity" | "studio">(null);
+  const [studioToast, setStudioToast] = useState<string | null>(null);
 
   useEffect(() => { fetchOutputs(); fetchRecent(12); }, [fetchOutputs, fetchRecent, filter.type]);
   useEffect(() => { if (deferredSearch !== filter.search) setFilter({ search: deferredSearch }); }, [deferredSearch]);
@@ -223,6 +225,21 @@ export function MediaLibrary() {
       const res = await openInUnity(output.relative_path);
       console.log("Unity open:", res);
     } catch (e) { alert(e instanceof Error ? e.message : "Failed to open in Unity"); } finally { setOpeningApp(null); }
+  };
+  const handleAddToStudio = async (output: OutputFile, openInNewTab = false) => {
+    if (!is3DModelFile(output.filename)) { alert("Only 3D models (.glb/.gltf/.fbx/.obj) can be added to Studio"); return; }
+    setOpeningApp("studio");
+    try {
+      const servable = output.relative_path.startsWith("generated_3d/") ? `/output/${output.relative_path}` : getOutputUrl(output.relative_path);
+      // Queue for Three.js Studio handoff (read on next mount, without leaving page) + live dispatch for same-tab open Studio
+      const payload = { modelUrl: servable, name: output.filename.replace(/\.(glb|gltf|fbx|obj)$/i, ""), bible: output.filename };
+      try { localStorage.setItem("pendingCharacter", JSON.stringify(payload)); } catch {}
+      try { window.dispatchEvent(new CustomEvent("pendingCharacter", { detail: JSON.stringify(payload) })); } catch {}
+      try { const { updateMCPContext } = await import("../../services/api"); await updateMCPContext({ character: { name: payload.name, notes: payload.bible, visible: true } } as any); } catch {}
+      setStudioToast(`Queued “${output.filename}” for Studio — ${openInNewTab ? "opening in new tab…" : "stay here, open Studio when ready"}`);
+      setTimeout(() => setStudioToast(null), 3000);
+      if (openInNewTab) window.open("/three-js-studio", "_blank");
+    } catch (e) { alert(e instanceof Error ? e.message : "Failed to queue for Studio"); } finally { setOpeningApp(null); }
   };
 
   const hasActiveFilters = !!(searchTerm||dateFrom||dateTo);
@@ -290,6 +307,13 @@ export function MediaLibrary() {
           </div>
         </div>
 
+        {studioToast && (
+          <div className="fixed top-20 right-4 z-[60] bg-violet-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 animate-in slide-in-from-top-2 border border-violet-500/30">
+            <Sparkles size={16} className="animate-pulse" /> <span className="text-sm font-medium">{studioToast}</span>
+            <button onClick={() => setStudioToast(null)} className="ml-2 p-1 hover:bg-white/20 rounded-lg"><X size={14} /></button>
+          </div>
+        )}
+
         {selectedPaths.size>0 && (
           <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-violet-500/10 border border-violet-500/20 backdrop-blur animate-in slide-in-from-top-2 duration-300">
             <span className="text-sm text-white font-medium flex items-center gap-2"><CheckSquare size={16} className="text-violet-400" />{selectedPaths.size} selected</span>
@@ -330,11 +354,12 @@ export function MediaLibrary() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <StatCard icon={HardDrive} iconWrapperClass="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center backdrop-blur" iconClass="w-5 h-5 text-primary" value={counts.total} label="Total Files" />
           <StatCard icon={Image} iconWrapperClass="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center backdrop-blur" iconClass="w-5 h-5 text-purple-400" value={counts.images} label="Images" />
           <StatCard icon={Video} iconWrapperClass="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center backdrop-blur" iconClass="w-5 h-5 text-blue-400" value={counts.videos} label="Videos" />
           <StatCard icon={Music} iconWrapperClass="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center backdrop-blur" iconClass="w-5 h-5 text-green-400" value={counts.audio} label="Audio" />
+          <StatCard icon={Box} iconWrapperClass="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center backdrop-blur" iconClass="w-5 h-5 text-amber-400" value={counts.models_3d ?? 0} label="3D Models" />
         </div>
 
         <div className="flex flex-col gap-4">
@@ -395,7 +420,7 @@ export function MediaLibrary() {
             {!groupByType && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {visibleOutputs.map((output, i)=> (
-                  <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelect(output.relative_path);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} onOpenBlender={(e)=>{e.stopPropagation(); handleOpenBlender(output);}} onOpenUnity={(e)=>{e.stopPropagation(); handleOpenUnity(output);}} />
+                  <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelect(output.relative_path);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} onOpenBlender={(e)=>{e.stopPropagation(); handleOpenBlender(output);}} onOpenUnity={(e)=>{e.stopPropagation(); handleOpenUnity(output);}} onAddToStudio={(e)=>{e.stopPropagation(); handleAddToStudio(output, false);}} />
                 ))}
               </div>
             )}
@@ -411,7 +436,7 @@ export function MediaLibrary() {
                     <div key={type}>
                       <h3 className="flex items-center gap-2 text-sm font-bold text-white mb-3"><Icon size={16} className={color} />{label} <span className="text-xs font-normal text-muted">({items.length})</span><span className="flex-1 h-px bg-white/5 ml-2" /></h3>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                        {visible.map((output,i)=> <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelect(output.relative_path);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} onOpenBlender={(e)=>{e.stopPropagation(); handleOpenBlender(output);}} onOpenUnity={(e)=>{e.stopPropagation(); handleOpenUnity(output);}} />)}
+                        {visible.map((output,i)=> <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelect(output.relative_path);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} onOpenBlender={(e)=>{e.stopPropagation(); handleOpenBlender(output);}} onOpenUnity={(e)=>{e.stopPropagation(); handleOpenUnity(output);}} onAddToStudio={(e)=>{e.stopPropagation(); handleAddToStudio(output, false);}} />)}
                       </div>
                     </div>
                   );
@@ -481,7 +506,13 @@ export function MediaLibrary() {
                   <button onClick={()=> setOutputToDelete(selectedOutput)} className="btn btn-danger flex-1"><Trash2 size={14} />Delete</button>
                 </div>
                 {is3DModelFile(selectedOutput.filename) && (
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex gap-2 mt-3 flex-wrap">
+                    <button onClick={()=> handleAddToStudio(selectedOutput, false)} disabled={openingApp==="studio"} className="btn flex-1 flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-50">
+                      {openingApp==="studio" ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />} Add to Studio
+                    </button>
+                    <button onClick={()=> handleAddToStudio(selectedOutput, true)} disabled={openingApp==="studio"} className="btn flex-1 flex items-center justify-center gap-2 bg-violet-600/80 hover:bg-violet-500 text-white border border-violet-500/30 disabled:opacity-50">
+                      <ExternalLink size={14} /> Add & Open
+                    </button>
                     <button onClick={()=> handleOpenBlender(selectedOutput)} disabled={openingApp==="blender"} className="btn flex-1 flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-500 text-white disabled:opacity-50">
                       {openingApp==="blender" ? <RefreshCw size={14} className="animate-spin" /> : <Box size={14} />} Open in Blender
                     </button>
