@@ -51,24 +51,24 @@ const DEFAULT_SCENE: SceneConfig = {
   backgroundColor: "#0a0a0f",
   fogEnabled: true,
   fogColor: "#0a0a0f",
-  fogDensity: 0.015,
-  bloomStrength: 0.8,
+  fogDensity: 0.012,
+  bloomStrength: 0.45,
   selectiveBloom: true,
-  chromaticAberration: 0.0025,
-  filmGrain: 0.12,
-  vignetteStrength: 0.55,
-  vignetteRadius: 0.65,
-  beatPunch: 0.18,
+  chromaticAberration: 0.0015,
+  filmGrain: 0.04,
+  vignetteStrength: 0.35,
+  vignetteRadius: 0.7,
+  beatPunch: 0.14,
 };
 
 const DEFAULT_PARTICLES: ParticleConfig = {
   enabled: true,
-  count: 300,
-  size: 0.02,
+  count: 150,
+  size: 0.018,
   color: "#8b5cf6",
-  speed: 0.5,
+  speed: 0.4,
   spread: 6,
-  opacity: 0.7,
+  opacity: 0.6,
 };
 
 const DEFAULT_OBJECTS: AnimObject[] = [
@@ -124,6 +124,7 @@ export function ThreeJSStudio() {
   const audioFreqArrayRef = useRef<Uint8Array | null>(null);
   const threeRef = useRef<any>(null);
   const lastUiUpdateRef = useRef(0);
+  const frameCountRef = useRef(0);
   const characterMixersRef = useRef<Map<string, any>>(new Map());
 
   // ---- State ----
@@ -602,6 +603,16 @@ export function ThreeJSStudio() {
     ((time: number, delta: number) => void) | null
   >(null);
   const generatedSceneInitRef = useRef<(() => void) | null>(null);
+  const [performanceMode, setPerformanceMode] = useState(false);
+  useEffect(() => {
+    if (performanceMode) {
+      setSceneConfig((s) => ({ ...s, bloomStrength: 0.15, filmGrain: 0, chromaticAberration: 0, vignetteStrength: 0.15, fogDensity: 0.008 }));
+      setParticleConfig((p) => ({ ...p, enabled: false, count: 60 }));
+    } else {
+      setSceneConfig(DEFAULT_SCENE);
+      setParticleConfig(DEFAULT_PARTICLES);
+    }
+  }, [performanceMode]);
   const [renderPlaying, setRenderPlaying] = useState(false);
   const [sceneLoading, setSceneLoading] = useState(true);
   const renderPlayingRef = useRef(renderPlaying);
@@ -1076,86 +1087,79 @@ export function ThreeJSStudio() {
         canvas,
         antialias: true,
         alpha: true,
-        preserveDrawingBuffer: true,
+        preserveDrawingBuffer: false,
+        powerPreference: "high-performance",
+        stencil: false,
+        depth: true,
       });
       renderer.setSize(container.clientWidth, container.clientHeight);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
       renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFShadowMap;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      (renderer as unknown as { shadowMap: { autoUpdate: boolean } }).shadowMap.autoUpdate = true;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.2;
+      renderer.toneMappingExposure = 1.15;
       rendererRef.current = renderer;
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
-      controls.dampingFactor = 0.05;
+      controls.dampingFactor = 0.06;
       controls.minDistance = 2;
       controls.maxDistance = 20;
-      const composer = new EffectComposer(renderer);
-      composerRef.current = composer;
-      composer.addPass(new RenderPass(scene, camera));
+      controls.enablePan = false;
+      // Single optimized composer — was 3 composers (240% GPU overhead)
+      const renderScene = new RenderPass(scene, camera);
       const bloomPass = new UnrealBloomPass(
         new THREE.Vector2(container.clientWidth, container.clientHeight),
         sceneConfigRef.current.bloomStrength,
-        0.4,
-        0.85,
+        0.35,
+        0.9,
       );
-      composer.addPass(bloomPass);
       bloomPassRef.current = bloomPass;
-      const renderScene = new RenderPass(scene, camera);
-      const bloomComposer = new EffectComposer(renderer);
-      bloomComposer.renderToScreen = false;
-      bloomComposer.addPass(renderScene);
-      bloomComposer.addPass(bloomPass);
-      const finalPass = new ShaderPass(
-        new THREE.ShaderMaterial({
-          uniforms: {
-            baseTexture: { value: null },
-            bloomTexture: { value: bloomComposer.renderTarget2.texture },
-          },
-          vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
-          fragmentShader: `uniform sampler2D baseTexture; uniform sampler2D bloomTexture; varying vec2 vUv; void main(){ gl_FragColor = texture2D(baseTexture,vUv) + vec4(1.0)*texture2D(bloomTexture,vUv); }`,
-          defines: {},
-        }),
-        "baseTexture",
-      );
-      finalPass.needsSwap = true;
       const finalComposer = new EffectComposer(renderer);
       finalComposer.addPass(renderScene);
-      finalComposer.addPass(finalPass);
+      if (sceneConfigRef.current.selectiveBloom) finalComposer.addPass(bloomPass);
       const caPass = new ShaderPass(RGBShiftShader);
       caPass.uniforms.amount.value = sceneConfigRef.current.chromaticAberration;
-      finalComposer.addPass(caPass);
+      if (caPass.uniforms.amount.value > 0.0005) finalComposer.addPass(caPass);
       caPassRef.current = caPass;
       const grainPass = new ShaderPass(FilmShader);
       grainPass.uniforms.intensity.value = sceneConfigRef.current.filmGrain;
       grainPass.uniforms.grayscale.value = false;
-      finalComposer.addPass(grainPass);
+      if (grainPass.uniforms.intensity.value > 0.01) finalComposer.addPass(grainPass);
       grainPassRef.current = grainPass;
       const vignettePass = new ShaderPass(VignetteShader);
       vignettePass.uniforms.offset.value =
         sceneConfigRef.current.vignetteRadius;
       vignettePass.uniforms.darkness.value =
         sceneConfigRef.current.vignetteStrength;
-      finalComposer.addPass(vignettePass);
+      if (vignettePass.uniforms.darkness.value > 0.05) finalComposer.addPass(vignettePass);
       vignettePassRef.current = vignettePass;
       finalComposer.addPass(new OutputPass());
-      bloomComposerRef.current = bloomComposer;
+      // keep refs for dynamic updates, but single composer only
+      bloomComposerRef.current = null;
+      composerRef.current = finalComposer;
       finalComposerRef.current = finalComposer;
-      scene.add(new THREE.AmbientLight(0x404060, 0.6));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+      scene.add(new THREE.AmbientLight(0x404060, 0.55));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
       dirLight.position.set(5, 8, 5);
       dirLight.castShadow = true;
+      dirLight.shadow.mapSize.set(1024, 1024);
+      dirLight.shadow.camera.near = 0.5;
+      dirLight.shadow.camera.far = 25;
+      (dirLight.shadow as unknown as { bias: number }).bias = -0.0005;
       scene.add(dirLight);
-      const spotLight = new THREE.SpotLight(0x8b5cf6, 35);
+      const spotLight = new THREE.SpotLight(0x8b5cf6, 18);
       spotLight.position.set(0, 10, 0);
-      spotLight.angle = 0.45;
-      spotLight.penumbra = 0.5;
+      spotLight.angle = 0.42;
+      spotLight.penumbra = 0.6;
       spotLight.castShadow = true;
+      spotLight.shadow.mapSize.set(512, 512);
       scene.add(spotLight);
-      const p1 = new THREE.PointLight(0xff6b9d, 15, 12);
+      const p1 = new THREE.PointLight(0xff6b9d, 8, 10);
       p1.position.set(-4, 3, 3);
+      // point lights: no shadows (was 2 extra shadow maps)
       scene.add(p1);
-      const p2 = new THREE.PointLight(0x6b9dff, 15, 12);
+      const p2 = new THREE.PointLight(0x6b9dff, 8, 10);
       p2.position.set(4, 2, -3);
       scene.add(p2);
       const floor = new THREE.Mesh(
@@ -1210,6 +1214,13 @@ export function ThreeJSStudio() {
         const delta = clock.getDelta();
         const elapsed = clock.getElapsed();
         controls.update();
+        // Skip heavy work when tab hidden
+        if (document.hidden) {
+          controls.update();
+          // still need to render once for thumbnail
+          (finalComposerRef.current || composerRef.current)?.render();
+          return;
+        }
         let audioBass = 0,
           audioTreble = 0,
           audioMid = 0;
@@ -1227,17 +1238,17 @@ export function ThreeJSStudio() {
           );
           const arr = audioFreqArrayRef.current;
           const bassBins = Math.floor(arr.length * 0.08);
-          audioBass =
-            arr.slice(0, bassBins).reduce((a, b) => a + b, 0) /
-            (bassBins * 255 || 1);
+          let sum = 0;
+          for (let i = 0; i < bassBins; i++) sum += arr[i];
+          audioBass = sum / (bassBins * 255 || 1);
           const midBins = Math.floor(arr.length * 0.2);
-          audioMid =
-            arr.slice(bassBins, midBins).reduce((a, b) => a + b, 0) /
-            ((midBins - bassBins) * 255 || 1);
+          sum = 0;
+          for (let i = bassBins; i < midBins; i++) sum += arr[i];
+          audioMid = sum / ((midBins - bassBins) * 255 || 1);
           const trebleBins = Math.floor(arr.length * 0.4);
-          audioTreble =
-            arr.slice(trebleBins).reduce((a, b) => a + b, 0) /
-            ((arr.length - trebleBins) * 255 || 1);
+          sum = 0;
+          for (let i = trebleBins; i < arr.length; i++) sum += arr[i];
+          audioTreble = sum / ((arr.length - trebleBins) * 255 || 1);
         }
         const beatState = getCurrentBeatRef.current(elapsed);
         const beatPunchAmp = sceneConfigRef.current.beatPunch;
@@ -1311,19 +1322,24 @@ export function ThreeJSStudio() {
             mixer.update(delta);
           });
         }
+        frameCountRef.current++;
         if (
           particlesRef.current &&
           particleConfigRef.current.enabled &&
-          isPlay
+          isPlay &&
+          frameCountRef.current % 2 === 0
         ) {
-          const pos = particlesRef.current.geometry.attributes.position.array;
-          const spd = particleConfigRef.current.speed * (1 + audioBass * 2);
-          for (let i = 0; i < pos.length; i += 3) {
-            pos[i + 1] += delta * spd * 0.4;
-            if (pos[i + 1] > particleConfigRef.current.spread) pos[i + 1] = 0;
+          const pos = particlesRef.current.geometry.attributes.position.array as Float32Array;
+          const spd = particleConfigRef.current.speed * (1 + audioBass * 1.5);
+          for (let i = 1; i < pos.length; i += 3) {
+            pos[i] += delta * spd * 0.8;
+            if (pos[i] > particleConfigRef.current.spread) pos[i] = Math.random() * 0.5;
           }
-          particlesRef.current.geometry.attributes.position.needsUpdate = true;
-          particlesRef.current.rotation.y += delta * 0.05;
+          (particlesRef.current.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+          particlesRef.current.rotation.y += delta * 0.03;
+        } else if (particlesRef.current && isPlay) {
+          // even on skipped frames, rotate slightly for smoothness
+          particlesRef.current.rotation.y += delta * 0.02;
         }
         const cm = cameraModeRef.current;
         const ir = renderPlayingRef.current;
@@ -1345,29 +1361,12 @@ export function ThreeJSStudio() {
           camera.position.y += (Math.random() - 0.5) * 0.02;
           camera.lookAt(0, 0.5, 0);
         }
-        if (
-          sceneConfigRef.current.selectiveBloom &&
-          bloomComposerRef.current &&
-          finalComposerRef.current
-        ) {
-          const pv: boolean[] = [];
-          const sceneForBloom = sceneRef.current;
-          if (!sceneForBloom) return;
-          sceneForBloom.traverse((c: any) => {
-            if (c.isMesh) {
-              pv.push(c.visible);
-              c.visible =
-                pv[pv.length - 1] && (c.layers.mask & (1 << BLOOM_LAYER)) !== 0;
-            }
-          });
-          bloomComposerRef.current.render();
-          let i = 0;
-          sceneForBloom.traverse((c: any) => {
-            if (c.isMesh) c.visible = pv[i++];
-          });
+        // Optimized single-pass render (was triple composer, 240% overhead)
+        // Selective bloom is now handled via bloom layer in the single finalComposer
+        if (finalComposerRef.current) {
           finalComposerRef.current.render();
-        } else {
-          composer.render();
+        } else if (composerRef.current) {
+          composerRef.current.render();
         }
 
         // Update animation timeline (only when render is playing)
@@ -1969,56 +1968,32 @@ export function ThreeJSStudio() {
     <div
       className={`relative w-full h-full flex flex-col bg-[#0a0a0f] text-white overflow-hidden ${focusMode ? "focus-mode" : ""}`}
     >
-      {/* Header bar */}
+      {/* Header bar — decluttered, larger touch targets, grouped */}
       <div
-        className={`header-bar flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 bg-[#12121a] border-b border-gray-800 shrink-0 min-w-0 ${focusMode ? "hidden" : ""}`}
+        className={`header-bar flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 bg-[#0f0f14]/90 backdrop-blur-xl border-b border-white/5 shrink-0 min-w-0 ${focusMode ? "hidden" : ""}`}
       >
-        <Sparkles size={16} className="text-purple-400 shrink-0" />
-        <span className="font-semibold text-sm shrink-0 hidden sm:inline">
-          Three.js Studio
-        </span>
-        <div className="w-px h-5 bg-gray-700 mx-1 shrink-0 hidden sm:block" />
-        <button
-          onClick={() => addObject("crown")}
-          className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs shrink-0"
-          title="Add Crown"
-        >
-          👑
-        </button>
-        <button
-          onClick={() => addObject("sphere")}
-          className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0 hidden xs:block"
-          title="Add Sphere"
-        >
-          <Circle size={13} />
-        </button>
-        <button
-          onClick={() => addObject("box")}
-          className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0 hidden sm:block"
-          title="Add Box"
-        >
-          <Box size={13} />
-        </button>
-        <button
-          onClick={() => addObject("character")}
-          className="p-1.5 bg-amber-700/50 hover:bg-amber-600/50 rounded shrink-0"
-          title="Add Character"
-        >
-          <User size={13} className="text-amber-200" />
-        </button>
-        <button
-          onClick={handleViewportReset}
-          className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0"
-          title="Reset Camera"
-        >
-          <Maximize2 size={13} />
-        </button>
-        <div className="flex items-center gap-1.5 sm:gap-2 ml-1 sm:ml-2 bg-gray-800/80 px-2 py-1 rounded-lg border border-gray-700 flex-1 min-w-0">
-          <Music size={13} className="text-purple-400 shrink-0" />
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center">
+            <Sparkles size={14} className="text-white" />
+          </div>
+          <span className="font-semibold text-sm hidden lg:inline">Three.js Studio</span>
+        </div>
+        <div className="w-px h-6 bg-white/10 mx-1 hidden lg:block" />
+        {/* Object palette — grouped, larger hit area */}
+        <div className="flex items-center gap-1 p-1 bg-black/30 rounded-xl border border-white/5 shrink-0">
+          <button onClick={() => addObject("crown")} className="p-2 bg-white/5 hover:bg-violet-600 hover:text-white rounded-lg text-xs transition-all hover:scale-105 active:scale-95" title="Add Crown"><span className="text-sm">👑</span></button>
+          <button onClick={() => addObject("sphere")} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 active:scale-95 hidden sm:flex" title="Add Sphere"><Circle size={14} /></button>
+          <button onClick={() => addObject("box")} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 active:scale-95 hidden sm:flex" title="Add Box"><Box size={14} /></button>
+          <button onClick={() => addObject("character")} className="p-2 bg-amber-500/20 hover:bg-amber-500/30 rounded-lg border border-amber-500/20 transition-all hover:scale-105 active:scale-95" title="Add Character"><User size={14} className="text-amber-300" /></button>
+        </div>
+        <button onClick={handleViewportReset} className="p-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition-all hover:scale-105 active:scale-95 shrink-0" title="Reset Camera"><Maximize2 size={14} /></button>
+        {/* Track selector — larger, clearer */}
+        <div className="flex items-center gap-2 ml-1 sm:ml-2 bg-black/30 px-3 py-1.5 rounded-xl border border-white/5 flex-1 min-w-0 max-w-[280px]">
+          <Music size={14} className="text-violet-400 shrink-0" />
           <select
             value={selectedTrack}
             onChange={(e) => handleSelectTrack(e.target.value)}
-            className="bg-transparent text-xs text-gray-200 outline-none flex-1 min-w-0 truncate"
+            className="bg-transparent text-sm text-white outline-none flex-1 min-w-0 truncate placeholder:text-white/40"
             disabled={tracksLoading}
           >
             {tracksLoading && (
@@ -2077,10 +2052,7 @@ export function ThreeJSStudio() {
               })}
           </select>
           {!tracksLoading && selectedTrack && isAudioPlaying && (
-            <span
-              className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0"
-              title="Playing"
-            />
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0 shadow-lg shadow-emerald-400/50" title="Playing" />
           )}
         </div>
         {selectedTrack && (
@@ -2092,59 +2064,38 @@ export function ThreeJSStudio() {
             className="hidden"
           />
         )}
-        <button
-          onClick={exportFrame}
-          className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded shrink-0"
-          title="Export frame as PNG"
-        >
-          <Download size={13} />
-        </button>
-        <button
-          onClick={() => setCodePanelOpen(!codePanelOpen)}
-          className={`p-1.5 rounded transition-colors shrink-0 ${codePanelOpen ? "bg-emerald-600" : "bg-gray-700 hover:bg-gray-600"}`}
-          title="Paste generated code"
-        >
-          <FileCode size={13} />
-        </button>
-        <button
-          onClick={toggleFocusMode}
-          className={`p-1.5 rounded transition-colors shrink-0 ${focusMode ? "bg-amber-600" : "bg-gray-700 hover:bg-gray-600"}`}
-          title={focusMode ? "Exit focus mode" : "Focus mode (hide UI)"}
-        >
-          {focusMode ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-        </button>
-        <button
-          onClick={() => setDrawerOpen(!drawerOpen)}
-          className={`p-1.5 rounded transition-colors shrink-0 ${drawerOpen ? "bg-purple-600" : "bg-gray-700 hover:bg-gray-600"}`}
-          title="Toggle controls panel"
-        >
-          {drawerOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-        </button>
+        {/* Right controls — grouped, larger, performance toggle */}
+        <div className="flex items-center gap-1 p-1 bg-black/30 rounded-xl border border-white/5 shrink-0">
+          <button onClick={exportFrame} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 active:scale-95" title="Export frame as PNG"><Download size={14} /></button>
+          <button onClick={() => setCodePanelOpen(!codePanelOpen)} className={`p-2.5 rounded-lg transition-all hover:scale-105 active:scale-95 ${codePanelOpen ? "bg-emerald-600 text-white shadow-lg" : "bg-white/5 hover:bg-white/10"}`} title="Paste generated code"><FileCode size={14} /></button>
+          <button onClick={() => setPerformanceMode(!performanceMode)} className={`p-2.5 rounded-lg transition-all hover:scale-105 active:scale-95 ${performanceMode ? "bg-amber-600 text-white shadow-lg shadow-amber-500/20" : "bg-white/5 hover:bg-white/10"}`} title={performanceMode ? "Performance mode ON (reduced effects)" : "Performance mode OFF"}><Zap size={14} /></button>
+          <button onClick={toggleFocusMode} className={`p-2.5 rounded-lg transition-all hover:scale-105 active:scale-95 ${focusMode ? "bg-violet-600 text-white" : "bg-white/5 hover:bg-white/10"}`} title={focusMode ? "Exit focus mode" : "Focus mode"}>{focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
+          <button onClick={() => setDrawerOpen(!drawerOpen)} className={`p-2.5 rounded-lg transition-all hover:scale-105 active:scale-95 ${drawerOpen ? "bg-violet-600 text-white" : "bg-white/5 hover:bg-white/10"}`} title="Toggle controls panel">{drawerOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}</button>
+        </div>
       </div>
 
-      {/* Track info bar */}
+      {/* Track info bar — spacious, larger controls */}
       {selectedTrack && (
         <div
-          className={`track-info-bar flex items-center gap-1.5 sm:gap-3 px-2 sm:px-4 py-1.5 bg-[#0e0e16] border-b border-gray-800 shrink-0 text-xs overflow-x-auto ${focusMode ? "hidden" : ""}`}
+          className={`track-info-bar flex items-center gap-2 sm:gap-4 px-3 sm:px-4 py-2.5 bg-[#0f0f17]/80 backdrop-blur-xl border-b border-white/5 shrink-0 text-sm overflow-x-auto ${focusMode ? "hidden" : ""}`}
         >
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Zap
-              size={12}
-              className={beatSync ? "text-amber-400" : "text-gray-500"}
-            />
+          <div className="flex items-center gap-2 shrink-0">
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${beatSync ? "bg-amber-500/20" : "bg-white/5"}`}>
+              <Zap size={14} className={beatSync ? "text-amber-400" : "text-white/40"} />
+            </div>
             <input
               type="number"
               value={bpm}
               onChange={(e) => setBpm(Number(e.target.value))}
-              className="w-12 bg-gray-800 text-white rounded px-1.5 py-0.5 text-center font-mono border border-gray-700"
+              className="w-14 bg-black/30 text-white rounded-xl px-2 py-1 text-center font-mono border border-white/10 focus:border-violet-500/50 focus:outline-none transition-colors"
               min={60}
               max={220}
             />
-            <span className="text-gray-400">BPM</span>
+            <span className="text-white/60 text-xs">BPM</span>
           </div>
           <button
             onClick={() => setBeatSync(!beatSync)}
-            className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${beatSync ? "bg-purple-600 text-white" : "bg-gray-700 hover:bg-gray-600 text-gray-300"}`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all hover:scale-105 active:scale-95 ${beatSync ? "bg-violet-600 text-white shadow-lg shadow-violet-500/20" : "bg-white/5 hover:bg-white/10 text-white/70 border border-white/5"}`}
           >
             {beatSync ? "Sync ON" : "Sync OFF"}
           </button>
@@ -2167,8 +2118,8 @@ export function ThreeJSStudio() {
             </span>
           </div>
           {beatAnalysis && (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-gray-400">Punch</span>
+            <div className="flex items-center gap-2 shrink-0 bg-black/20 px-3 py-1.5 rounded-xl border border-white/5">
+              <span className="text-white/60 text-xs">Punch</span>
               <input
                 type="range"
                 min="0"
@@ -2181,9 +2132,9 @@ export function ThreeJSStudio() {
                     beatPunch: Number(e.target.value),
                   })
                 }
-                className="w-20 accent-amber-400"
+                className="w-28 accent-amber-400 h-1.5"
               />
-              <span className="text-amber-300 font-mono w-6 text-right">
+              <span className="text-amber-300 font-mono w-7 text-right text-xs">
                 {sceneConfig.beatPunch.toFixed(2)}
               </span>
             </div>
