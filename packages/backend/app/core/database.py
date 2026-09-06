@@ -199,7 +199,7 @@ class OllamaAnalysisRow:
 DB_PATH = PROJECT_ROOT / "storage" / "studio.db"
 
 # Database schema version for migrations
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 def _safe_json_loads(val: str | None, default: Any = None) -> Any:
@@ -287,6 +287,8 @@ def init_db():
             _migrate_v6(conn)
         if current_version < 7:
             _migrate_v7(conn)
+        if current_version < 8:
+            _migrate_v8(conn)
 
         set_schema_version(conn, SCHEMA_VERSION)
         logger.info("Database initialized at version %d", SCHEMA_VERSION)
@@ -1341,6 +1343,144 @@ def _migrate_v7(conn: sqlite3.Connection):
         conn.execute("SELECT data FROM lyrics_lines LIMIT 0")
     except sqlite3.OperationalError:
         conn.execute("ALTER TABLE lyrics_lines ADD COLUMN data TEXT DEFAULT '{}'")
+
+
+def _migrate_v8(conn: sqlite3.Connection):
+    """Add gpu_telemetry table for persistent GPU trend history."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS gpu_telemetry (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts_ms INTEGER NOT NULL,
+            ts_iso TEXT NOT NULL,
+            gpu_name TEXT,
+            memory_total INTEGER,
+            memory_used INTEGER,
+            memory_free INTEGER,
+            memory_percent REAL,
+            gpu_util INTEGER,
+            mem_controller_util INTEGER,
+            temperature_c INTEGER,
+            processes_json TEXT DEFAULT '[]'
+        );
+        CREATE INDEX IF NOT EXISTS idx_gpu_telemetry_ts ON gpu_telemetry(ts_ms);
+        CREATE INDEX IF NOT EXISTS idx_gpu_telemetry_iso ON gpu_telemetry(ts_iso);
+    """)
+
+
+# =============================================================================
+# GPU Telemetry Repository (trending history)
+# =============================================================================
+
+@dataclass
+class GpuTelemetryRow:
+    id: int
+    ts_ms: int
+    ts_iso: str
+    gpu_name: str | None
+    memory_total: int | None
+    memory_used: int | None
+    memory_free: int | None
+    memory_percent: float | None
+    gpu_util: int | None
+    mem_controller_util: int | None
+    temperature_c: int | None
+    processes: list[dict]
+
+
+def log_gpu_telemetry(snapshot: dict, processes: list[dict] | None = None) -> int:
+    """Persist a GPU snapshot for trending. Returns row id. No-op if unavailable."""
+    if not snapshot.get("available"):
+        return 0
+    import time as _time
+    ts_ms = int(_time.time() * 1000)
+    ts_iso = datetime.now().isoformat()
+    procs = processes if processes is not None else snapshot.get("processes", [])
+    with get_db() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO gpu_telemetry
+            (ts_ms, ts_iso, gpu_name, memory_total, memory_used, memory_free,
+             memory_percent, gpu_util, mem_controller_util, temperature_c, processes_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ts_ms, ts_iso,
+                snapshot.get("name"),
+                snapshot.get("memory_total_mb"),
+                snapshot.get("memory_used_mb"),
+                snapshot.get("memory_free_mb"),
+                snapshot.get("memory_percent"),
+                snapshot.get("gpu_utilization"),
+                snapshot.get("memory_controller_utilization"),
+                snapshot.get("temperature_c"),
+                json.dumps(procs or []),
+            ),
+        )
+        return cur.lastrowid or 0
+
+
+def get_gpu_history(since_ms: int | None = None, limit: int = 2000, include_processes: bool = False) -> list[dict]:
+    """Fetch GPU telemetry points. since_ms filters ts_ms >= value. Ordered asc for charting."""
+    q = "SELECT * FROM gpu_telemetry"
+    params: list[Any] = []
+    if since_ms is not None:
+        q += " WHERE ts_ms >= ?"
+        params.append(since_ms)
+    q += " ORDER BY ts_ms ASC LIMIT ?"
+    params.append(limit)
+    with get_db() as conn:
+        rows = conn.execute(q, params).fetchall()
+        out = []
+        for r in rows:
+            d: dict[str, Any] = {
+                "ts_ms": r["ts_ms"],
+                "ts_iso": r["ts_iso"],
+                "gpu_name": r["gpu_name"],
+                "memory_total": r["memory_total"],
+                "memory_used": r["memory_used"],
+                "memory_free": r["memory_free"],
+                "memory_percent": r["memory_percent"],
+                "gpu_util": r["gpu_util"],
+                "mem_controller_util": r["mem_controller_util"],
+                "temperature_c": r["temperature_c"],
+            }
+            if include_processes:
+                d["processes"] = _safe_json_loads(r["processes_json"], [])
+            out.append(d)
+        return out
+
+
+def get_gpu_stats(since_ms: int | None = None) -> dict:
+    """Aggregate stats over window. Returns avg/min/max/current + trend slope per metric."""
+    hist = get_gpu_history(since_ms=since_ms, limit=10000)
+    if not hist:
+        return {"count": 0}
+    def _stats(key: str):
+        vals = [h[key] for h in hist if isinstance(h[key], (int, float))]
+        if not vals: return {"avg": 0, "min": 0, "max": 0, "cur": 0, "trend": "flat", "slope": 0}
+        avg = sum(vals)/len(vals); mn = min(vals); mx = max(vals); cur = vals[-1]
+        n = min(len(vals), 40); sl = vals[-n:]
+        sx = sy = sxy = sx2 = 0
+        for i, v in enumerate(sl): sx+=i; sy+=v; sxy+=i*v; sx2+=i*i
+        slope = (n*sxy - sx*sy)/(n*sx2 - sx*sx or 1)
+        trend = "up" if slope > 0.08 else "down" if slope < -0.08 else "flat"
+        return {"avg": avg, "min": mn, "max": mx, "cur": cur, "trend": trend, "slope": slope}
+    return {
+        "count": len(hist),
+        "since_ms": since_ms,
+        "since_iso": hist[0]["ts_iso"] if hist else None,
+        "until_iso": hist[-1]["ts_iso"] if hist else None,
+        "temperature_c": _stats("temperature_c"),
+        "memory_percent": _stats("memory_percent"),
+        "gpu_util": _stats("gpu_util"),
+    }
+
+
+def cleanup_old_gpu_telemetry(keep_days: int = 14) -> int:
+    """Purge points older than keep_days. Returns deleted count."""
+    with get_db() as conn:
+        cur = conn.execute("DELETE FROM gpu_telemetry WHERE ts_ms < ?", (int((__import__("time").time() - keep_days*86400)*1000),))
+        return cur.rowcount
 
 
 # =============================================================================

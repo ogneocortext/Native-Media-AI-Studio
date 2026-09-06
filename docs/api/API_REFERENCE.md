@@ -456,6 +456,9 @@ POST /api/audio/analyze-all           → batch analyze library
 Beyond `GET /api/health` + `GET /api/health/gpu`:
 
 ```
+GET  /api/health/gpu/history?range=1h&limit=2000&include_processes=false → DB-backed trending history (5m|15m|1h|6h|12h|24h|7d or since_ms)
+GET  /api/health/gpu/stats?range=1h    → aggregated avg/min/max/cur + linear-regression trend (flat|up|down) over window
+DELETE /api/health/gpu/history?keep_days=0 → purge (0 = wipe all, else keep N days; 14-day auto-retention)
 GET  /api/health/gpu/processes         → per-process VRAM via Windows Performance Counters (GeForce WDDM, no admin)
 GET  /api/health/ffmpeg                → FFmpeg 8.1 probe
 GET  /api/health/3d/models             → list Hunyuan3D/Wan 2.2 model availability

@@ -22,9 +22,8 @@ A full-stack AI-powered creative production environment for music-driven media g
 - **Video Editor** — Remotion-powered studio for audio-reactive music videos
 - **Log Viewer** — Centralized logs with analytics dashboard (pie charts, timelines, sparklines), system diagnostics (RAM gauge, per-process memory breakdown), and Ollama model VRAM monitor
 - **Queue System** — Job management with real-time SSE status, bulk clear for failed/completed jobs, auto-cleanup of old completed jobs (keeps most recent 100)
-- **GPU Monitoring** — Real-time VRAM, utilization, temperature, per-process breakdown, and Ollama model tracker with one-click VRAM offload
-- **Database Persistence** — SQLite storage for prompts, audio metadata, AI visuals, and generation sessions
-- **GPU Monitoring** — Real-time VRAM, utilization, temperature, and per-process breakdown via `/api/health/gpu`
+- **GPU Monitoring** — Real-time VRAM, utilization, temperature, per-process breakdown, DB-backed trending (5m–24h window, 14-day retention), sparkline donuts, stacked attribution, `Export CSV` via `/api/health/gpu/history` + `/stats`
+- **Database Persistence** — SQLite storage for prompts, audio metadata, AI visuals, generation sessions, and `gpu_telemetry` trending history
 - **Obsidian Vault** — `docs/knowledge-library/.obsidian/snippets/nstudio-*.css` (pro, immersive, callouts, tables, headers)
 
 ## Recent Changes
@@ -158,7 +157,10 @@ pnpm db:migrate          # Initialize SQLite database
 | Endpoint                                  | Method   | Description                                                                                                               |
 | ----------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `/api/health`                             | GET      | Service health status                                                                                                     |
-| `/api/health/gpu`                         | GET      | Real VRAM/util/temps (GTX 1070 Ti)                                                                                        |
+| `/api/health/gpu`                         | GET      | Real VRAM/util/temps (GTX 1070 Ti) + auto-log to `gpu_telemetry`                                                         |
+| `/api/health/gpu/history`               | GET      | DB trending history `?range=1h&limit=2000` (5m–24h)                                                                        |
+| `/api/health/gpu/stats`                 | GET      | Aggregated avg/min/max + trend slope                                                                                       |
+| `/api/health/gpu/history`               | DELETE   | Purge history `?keep_days=0` (14-day auto-retention)                                                                       |
 | `/api/health/diagnostics/memory`          | GET      | System memory breakdown + top RAM processes                                                                               |
 | `/api/health/ollama/models`               | GET      | Currently loaded Ollama models with VRAM usage                                                                            |
 | `/api/integrations/comfyui/checkpoints`   | GET      | List available checkpoint models                                                                                          |
@@ -187,7 +189,7 @@ pnpm db:migrate          # Initialize SQLite database
 
 ## Database
 
-SQLite database at `packages/backend/storage/studio.db` with tables:
+SQLite database at `storage/studio.db` with tables:
 
 - **tracks** — Music library with prompts, lyrics, visual styles
 
@@ -198,6 +200,7 @@ Track data is imported from `docs/track-prompts-lyrics.csv` via `POST /api/data/
 - **ai_visuals** — Generated image records with parameters
 - **generation_sessions** — Full workflow tracking
 - **user_preferences** — UI defaults and settings
+- **gpu_telemetry** — GPU trending history (temp/VRAM/util + processes, 14-day retention, `GET /api/health/gpu/history`)
 
 ## Configuration
 

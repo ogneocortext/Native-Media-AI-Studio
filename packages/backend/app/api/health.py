@@ -81,9 +81,18 @@ async def render_health() -> dict:
 
 
 @router.get("/gpu")
-async def gpu_snapshot() -> dict:
+async def gpu_snapshot(log: bool = True) -> dict:
     """GPU snapshot: VRAM load, utilization, temperature, and per-process breakdown."""
-    return await resource_monitor.get_gpu_snapshot()
+    snap = await resource_monitor.get_gpu_snapshot()
+    if log and snap.get("available"):
+        try:
+            from ..core.database import log_gpu_telemetry
+            import asyncio as _asyncio
+            # off-thread DB write so NVML poll stays fast
+            await _asyncio.to_thread(log_gpu_telemetry, snap)
+        except Exception:
+            pass
+    return snap
 
 
 @router.get("/gpu/processes")
@@ -91,6 +100,52 @@ async def gpu_processes() -> dict:
     """Per-process GPU memory usage via Windows Performance Counters (WDDM)."""
     processes = await resource_monitor.get_gpu_processes_human()
     return {"processes": processes, "count": len(processes)}
+
+
+@router.get("/gpu/history")
+async def gpu_history(
+    range: str | None = None,
+    since_ms: int | None = None,
+    limit: int = 2000,
+    include_processes: bool = False,
+) -> dict:
+    """Trending history from DB. `range` = 5m|15m|1h|6h|12h|24h|7d, or explicit since_ms epoch."""
+    import time as _time
+    from ..core.database import get_gpu_history
+    if since_ms is None and range:
+        mapping = {"5m": 5*60*1000, "15m": 15*60*1000, "30m": 30*60*1000, "1h": 60*60*1000, "6h": 6*60*60*1000, "12h": 12*60*60*1000, "24h": 24*60*60*1000, "7d": 7*24*60*60*1000}
+        ms = mapping.get(range)
+        if ms is not None:
+            since_ms = int(_time.time()*1000) - ms
+    limit = max(1, min(limit, 10000))
+    pts = get_gpu_history(since_ms=since_ms, limit=limit, include_processes=include_processes)
+    return {"points": pts, "count": len(pts), "since_ms": since_ms}
+
+
+@router.get("/gpu/stats")
+async def gpu_stats(range: str | None = None, since_ms: int | None = None) -> dict:
+    """Aggregated stats + trend over window."""
+    import time as _time
+    from ..core.database import get_gpu_stats
+    if since_ms is None and range:
+        mapping = {"5m": 5*60*1000, "15m": 15*60*1000, "30m": 30*60*1000, "1h": 60*60*1000, "6h": 6*60*60*1000, "12h": 12*60*60*1000, "24h": 24*60*60*1000, "7d": 7*24*60*60*1000}
+        ms = mapping.get(range)
+        if ms is not None:
+            since_ms = int(_time.time()*1000) - ms
+    return get_gpu_stats(since_ms=since_ms)
+
+
+@router.delete("/gpu/history")
+async def gpu_history_clear(keep_days: int = 0) -> dict:
+    """Clear history. keep_days=0 wipes all; otherwise keep last N days."""
+    from ..core.database import cleanup_old_gpu_telemetry, get_connection
+    if keep_days <= 0:
+        from ..core.database import get_db
+        with get_db() as conn:
+            cur = conn.execute("DELETE FROM gpu_telemetry")
+            return {"deleted": cur.rowcount, "kept_days": 0}
+    deleted = cleanup_old_gpu_telemetry(keep_days=keep_days)
+    return {"deleted": deleted, "kept_days": keep_days}
 
 
 @router.get("/ollama/models")

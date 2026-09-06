@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - GPU Telemetry Database & Trending Visualizations (2026-09-06)
+
+- **Database** (`packages/backend/app/core/database.py:199`): `SCHEMA_VERSION 8` + new `gpu_telemetry` table (`ts_ms/ts_iso/gpu_name/memory_* /gpu_util/temp/processes_json`, indexes on `ts_ms/ts_iso`, 14-day retention). Helpers: `log_gpu_telemetry()`, `get_gpu_history(since_ms,limit)`, `get_gpu_stats()`, `cleanup_old_gpu_telemetry()`. Survives reloads/reboots — DB at `storage/studio.db` (not `packages/backend/storage`).
+- **API** (`packages/backend/app/api/health.py:83`): `GET /api/health/gpu` now auto-logs (`?log=bool`), new `GET /gpu/history?range=5m|15m|1h|6h|12h|24h|7d&limit&include_processes`, `GET /gpu/stats?range`, `DELETE /gpu/history?keep_days`. Frontend also has `getGPUHistory/clearGPUHistory/getGPUStats` in `packages/frontend/src/services/api.ts:952`.
+- **Backend logger** (`packages/backend/app/diagnostics/resources.py:760`): `resource_monitoring_loop` now persists a snapshot every 10s + opportunistic prune, so history grows even when `/gpu` page is closed.
+- **Frontend GPU Monitor** (`packages/frontend/src/features/gpu/GpuMonitorPage.tsx:1`): complete overhaul — persistent trending (DB + `localStorage v2` fallback, 17k points ≈24h), range pills `5m/15m/1h/6h/12h/24h` with downsample to 300 pts, inline sparkline donuts/bars in 4 metric cards, stacked attribution bar for top-6 processes, `syncId="gpu"` crosshair, `ReferenceLine` throttle 83°C & 75% warn, trend icons + `avg/min-max` stats, pattern text (“VRAM easing…”, “load building…”), `Export CSV` & `Clear` (DB+cache), `Brush` zoom, long-term `LineChart` overview (14-day retention), visibility-aware pause, `DB ✓` badge.
+- **Visual polish**: temperature/ VRAM/ util sparklines (opacity 0.33), donut for VRAM %, segmented headroom bar, left-border tint by VRAM share, tip titles with `% of VRAM`.
+- **Docs**: `docs/api/API_REFERENCE.md` Health — Extended, `docs/guides/GPU_PIPELINE.md` & `README.md` Service/API tables updated.
+
 ### Fixed - Backend Startup & Frontend Connectivity (2026-09-05)
 
 - **Backend**: Fixed WebSocket origin validation `NameError` in `packages/backend/app/main.py:293` — added `origin = websocket.headers.get("origin", "")`

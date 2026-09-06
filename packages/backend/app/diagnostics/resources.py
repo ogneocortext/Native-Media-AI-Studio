@@ -771,6 +771,17 @@ async def resource_monitoring_loop(interval_seconds: float = 10.0):
             warnings = await resource_monitor.check_all()
             if warnings:
                 await resource_monitor.broadcast_warnings(warnings)
+            # Persistent GPU trending — log snapshot to DB every cycle for pattern mapping
+            try:
+                snap = await resource_monitor.get_gpu_snapshot()
+                if snap.get("available"):
+                    from ..core.database import log_gpu_telemetry, cleanup_old_gpu_telemetry
+                    await asyncio.to_thread(log_gpu_telemetry, snap)
+                    # opportunistic retention: keep 14 days, prune every ~100 cycles (~16 min at 10s)
+                    if int(asyncio.get_event_loop().time()) % 1000 < 10:
+                        await asyncio.to_thread(cleanup_old_gpu_telemetry, 14)
+            except Exception as _e:
+                logger.debug(f"GPU telemetry log skipped: {_e}")
         except Exception as e:
             logger.error(f"Error in resource monitoring loop: {e}")
 

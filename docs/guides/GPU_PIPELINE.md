@@ -126,7 +126,10 @@ curl http://localhost:11434/api/generate -d '{"model":"gemma3:4b","prompt":"Desc
 
 | Endpoint | Desc |
 |---|---|
-| `GET /api/health/gpu` | VRAM/util/temp/processes (tested `1719/8192 MB 29% 48°C` after Happyshrimp batch) |
+| `GET /api/health/gpu` | VRAM/util/temp/processes (tested `1719/8192 MB 29% 48°C` after Happyshrimp batch) — auto-logs to `gpu_telemetry` (`?log=false` to skip) |
+| `GET /api/health/gpu/history?range=1h&limit=2000` | DB trending history (5m/15m/1h/6h/12h/24h/7d or `since_ms`), 14-day retention |
+| `GET /api/health/gpu/stats?range=1h` | Aggregated avg/min/max/cur + slope trend (`flat/up/down`) |
+| `DELETE /api/health/gpu/history?keep_days=0` | Purge trending history (0 = wipe all) |
 | `GET /api/health/3d/status`, `POST /api/health/3d/generate` | 3D service |
 | `POST /api/audio/analyze`, `POST /api/video/generate-section` | Wizard pipeline (see `API_REFERENCE.md`) |
 
