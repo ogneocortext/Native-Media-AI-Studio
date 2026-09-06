@@ -4,6 +4,7 @@ import { formatFileSize, formatDate, formatDateTime } from "../../utils/format";
 import { getOutputUrl } from "../../utils/url";
 import { StatCard } from "./MediaLibraryStats";
 import { ModelPreview } from "../generate3d/ModelPreview";
+import { openInBlender, openInUnity } from "../../services/api";
 import {
   Image,
   Video,
@@ -66,9 +67,9 @@ const typeAccent: Record<string, string> = {
 
 function is3DModelFile(filename: string) { return /\.(glb|gltf|fbx|obj)$/i.test(filename || ""); }
 
-const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSelect, onToggle, onDelete, onRename }: {
+const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSelect, onToggle, onDelete, onRename, onOpenBlender, onOpenUnity }: {
   output: OutputFile; index: number; selected: boolean; isDup: boolean;
-  onSelect: () => void; onToggle: (e: React.MouseEvent) => void; onDelete: (e: React.MouseEvent) => void; onRename: (e: React.MouseEvent) => void;
+  onSelect: () => void; onToggle: (e: React.MouseEvent) => void; onDelete: (e: React.MouseEvent) => void; onRename: (e: React.MouseEvent) => void; onOpenBlender?: (e: React.MouseEvent) => void; onOpenUnity?: (e: React.MouseEvent) => void;
 }) {
   const [hover, setHover] = useState(false);
   return (
@@ -100,11 +101,17 @@ const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSe
           <div className="flex flex-col items-center gap-2 text-muted"><FileType className="w-12 h-12" /><span className="text-xs uppercase">{output.file_type}</span></div>
         )}
         {output.file_type === "audio" && output.cover_image && <div className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-black/60 backdrop-blur flex items-center justify-center border border-white/10"><Music size={12} className="text-white" /></div>}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-1.5">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-1.5 flex-wrap p-2">
           <a href={getOutputUrl(output.relative_path)} download onClick={e => e.stopPropagation()} className="p-2.5 bg-white/10 backdrop-blur rounded-xl hover:bg-white/20 text-white hover:scale-110 transition-all" title="Download"><Download size={16} /></a>
           <button onClick={onRename} className="p-2.5 bg-white/10 backdrop-blur rounded-xl hover:bg-white/20 text-white hover:scale-110 transition-all" title="Rename"><Pencil size={16} /></button>
           <button onClick={onDelete} className="p-2.5 bg-red-500/20 backdrop-blur rounded-xl hover:bg-red-500/40 text-red-300 hover:text-red-200 hover:scale-110 transition-all" title="Delete"><Trash2 size={16} /></button>
           <button onClick={(e)=>{e.stopPropagation(); onSelect();}} className="p-2.5 bg-white/10 backdrop-blur rounded-xl hover:bg-white/20 text-white hover:scale-110 transition-all" title="Quick view"><Eye size={16} /></button>
+          {is3DModelFile(output.filename) && (
+            <>
+              <button onClick={onOpenBlender} className="p-2.5 bg-orange-500/20 backdrop-blur rounded-xl hover:bg-orange-500/40 text-orange-300 hover:text-orange-200 hover:scale-110 transition-all" title="Open in Blender"><Box size={16} /></button>
+              <button onClick={onOpenUnity} className="p-2.5 bg-blue-500/20 backdrop-blur rounded-xl hover:bg-blue-500/40 text-blue-300 hover:text-blue-200 hover:scale-110 transition-all" title="Open in Unity"><Layers size={16} /></button>
+            </>
+          )}
         </div>
         <div className="absolute top-2 left-2 flex gap-1.5">
           <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium border backdrop-blur ${output.file_type==="video"?"bg-blue-500/20 text-blue-300 border-blue-500/30":output.file_type==="audio"?"bg-emerald-500/20 text-emerald-300 border-emerald-500/30":output.file_type==="image"?"bg-purple-500/20 text-purple-300 border-purple-500/30":"bg-gray-500/20 text-gray-300 border-gray-500/30"}`}>{output.file_type}</span>
@@ -162,6 +169,7 @@ export function MediaLibrary() {
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [lightboxZoom, setLightboxZoom] = useState(1);
+  const [openingApp, setOpeningApp] = useState<null | "blender" | "unity">(null);
 
   useEffect(() => { fetchOutputs(); fetchRecent(12); }, [fetchOutputs, fetchRecent, filter.type]);
   useEffect(() => { if (deferredSearch !== filter.search) setFilter({ search: deferredSearch }); }, [deferredSearch]);
@@ -200,6 +208,21 @@ export function MediaLibrary() {
   const handleDeleteGroupKeepOldest = async (group:{files:Array<{relative_path:string;filename:string}>})=>{
     const toDelete=group.files.slice(1).map(f=>f.relative_path); if(toDelete.length===0) return; if(!confirm(`Keep oldest "${group.files[0].filename}" and delete ${toDelete.length} duplicate(s)?`)) return;
     setIsDeleting(true); try{ await useOutputStore.getState().bulkDelete(toDelete); const groups=await useOutputStore.getState().fetchDuplicates(true); setDuplicateGroups(groups);}catch(e){ alert(e instanceof Error?e.message:"Delete failed");} finally{ setIsDeleting(false); }
+  };
+  const handleOpenBlender = async (output: OutputFile) => {
+    setOpeningApp("blender");
+    try {
+      const res = await openInBlender(output.relative_path);
+      // brief toast via alert — keep local-first simple
+      console.log("Blender open:", res);
+    } catch (e) { alert(e instanceof Error ? e.message : "Failed to open in Blender"); } finally { setOpeningApp(null); }
+  };
+  const handleOpenUnity = async (output: OutputFile) => {
+    setOpeningApp("unity");
+    try {
+      const res = await openInUnity(output.relative_path);
+      console.log("Unity open:", res);
+    } catch (e) { alert(e instanceof Error ? e.message : "Failed to open in Unity"); } finally { setOpeningApp(null); }
   };
 
   const hasActiveFilters = !!(searchTerm||dateFrom||dateTo);
@@ -372,7 +395,7 @@ export function MediaLibrary() {
             {!groupByType && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {visibleOutputs.map((output, i)=> (
-                  <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelect(output.relative_path);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} />
+                  <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelect(output.relative_path);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} onOpenBlender={(e)=>{e.stopPropagation(); handleOpenBlender(output);}} onOpenUnity={(e)=>{e.stopPropagation(); handleOpenUnity(output);}} />
                 ))}
               </div>
             )}
@@ -388,7 +411,7 @@ export function MediaLibrary() {
                     <div key={type}>
                       <h3 className="flex items-center gap-2 text-sm font-bold text-white mb-3"><Icon size={16} className={color} />{label} <span className="text-xs font-normal text-muted">({items.length})</span><span className="flex-1 h-px bg-white/5 ml-2" /></h3>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                        {visible.map((output,i)=> <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelect(output.relative_path);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} />)}
+                        {visible.map((output,i)=> <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelect(output.relative_path);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} onOpenBlender={(e)=>{e.stopPropagation(); handleOpenBlender(output);}} onOpenUnity={(e)=>{e.stopPropagation(); handleOpenUnity(output);}} />)}
                       </div>
                     </div>
                   );
@@ -457,6 +480,16 @@ export function MediaLibrary() {
                   <a href={getOutputUrl(selectedOutput.relative_path)} download className="btn btn-secondary flex-1 flex items-center justify-center gap-2"><Download size={14} />Download</a>
                   <button onClick={()=> setOutputToDelete(selectedOutput)} className="btn btn-danger flex-1"><Trash2 size={14} />Delete</button>
                 </div>
+                {is3DModelFile(selectedOutput.filename) && (
+                  <div className="flex gap-2 mt-3">
+                    <button onClick={()=> handleOpenBlender(selectedOutput)} disabled={openingApp==="blender"} className="btn flex-1 flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-500 text-white disabled:opacity-50">
+                      {openingApp==="blender" ? <RefreshCw size={14} className="animate-spin" /> : <Box size={14} />} Open in Blender
+                    </button>
+                    <button onClick={()=> handleOpenUnity(selectedOutput)} disabled={openingApp==="unity"} className="btn flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50">
+                      {openingApp==="unity" ? <RefreshCw size={14} className="animate-spin" /> : <Layers size={14} />} Open in Unity
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
