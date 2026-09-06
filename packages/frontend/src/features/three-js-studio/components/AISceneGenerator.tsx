@@ -33,6 +33,7 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
   const [benchError, setBenchError] = useState<string | null>(null);
   const [benchUpdatedAt, setBenchUpdatedAt] = useState<string | null>(null);
   const [showBenchDetails, setShowBenchDetails] = useState(false);
+  const [sectionsOpen, setSectionsOpen] = useState({ model: true, prompt: false, preview: false, bench: false });
 
   // Fetch storyboard content if specified
   useEffect(() => {
@@ -315,19 +316,19 @@ Return ONLY the function, no fences.`;
             </div>
           )}
 
-          {/* Model Selection + Benchmark */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[10px] uppercase tracking-wider text-gray-500">Model</label>
-              <button
-                onClick={handleRunBenchmark}
-                disabled={benchLoading}
-                className="text-[10px] px-2 py-0.5 rounded bg-amber-900/30 hover:bg-amber-800/50 text-amber-300 border border-amber-700/30 disabled:opacity-50 flex items-center gap-1"
-                title="Benchmark all models on Three.js contract (takes ~1-2 min)"
-              >
-                {benchLoading ? <span className="inline-block w-3 h-3 border border-amber-300 border-t-transparent rounded-full animate-spin" /> : "⚡"}
-                {benchLoading ? "Benchmarking…" : "Benchmark"}
-              </button>
+          {/* Model Selection — collapsible, was dense with 15 repeated prompts */}
+          <div className="rounded-lg bg-black/20 border border-white/5 overflow-hidden">
+            <button onClick={() => setSectionsOpen(s => ({ ...s, model: !s.model }))} className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 transition-colors">
+              <span className="text-[11px] font-medium text-white flex items-center gap-1.5"><Zap size={12} className="text-amber-400" /> Model <span className="text-[10px] text-white/40">({models.length} available)</span></span>
+              <span className="flex items-center gap-2">
+                <span onClick={(e) => { e.stopPropagation(); handleRunBenchmark(); }} className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 ${benchLoading ? "bg-amber-900/50 text-amber-200 border-amber-700/50" : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/20"}`} title="Benchmark all models">{benchLoading ? <span className="w-3 h-3 border border-amber-300 border-t-transparent rounded-full animate-spin inline-block" /> : "⚡"} {benchLoading ? "…" : "Benchmark"}</span>
+                {sectionsOpen.model ? <ChevronUp size={12} className="text-white/40" /> : <ChevronDown size={12} className="text-white/40" />}
+              </span>
+            </button>
+            {sectionsOpen.model && (
+              <div className="p-2 pt-0">
+              <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-white/40">Selected</span>
             </div>
             <div className="flex gap-1.5">
               <select
@@ -418,36 +419,40 @@ Return ONLY the function, no fences.`;
               );
             })()}
             {benchError && <div className="mt-1 text-[10px] text-red-400 bg-red-900/20 border border-red-700/30 rounded px-2 py-1">{benchError}</div>}
+              </div>
+            )}
           </div>
 
-          {/* Prompt Variations */}
-          <div>
-            <label className="text-[10px] uppercase tracking-wider text-gray-500 mb-1 block">Prompt Strategy</label>
-            <div className="grid grid-cols-2 gap-1">
-              {variations.map((v, i) => (
-                <button
-                  key={v.id}
-                  onClick={() => setActiveVariation(i)}
-                  className={`px-2 py-1.5 rounded text-[10px] text-left transition-colors ${
-                    activeVariation === i
-                      ? "bg-purple-600/30 border border-purple-500/50 text-white"
-                      : "bg-gray-800 hover:bg-gray-700 border border-transparent text-gray-300"
-                  }`}
-                >
-                  <div className="font-medium">{v.name}</div>
-                  <div className="text-gray-500 text-[9px]">{v.description}</div>
-                </button>
-              ))}
-            </div>
+          {/* Prompt Strategy — collapsible, was dense 2x2 grid */}
+          <div className="rounded-lg bg-black/20 border border-white/5 overflow-hidden">
+            <button onClick={() => setSectionsOpen(s => ({ ...s, prompt: !s.prompt }))} className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 transition-colors">
+              <span className="text-[11px] font-medium text-white flex items-center gap-1.5"><Sparkles size={12} className="text-violet-400" /> Prompt Strategy <span className="text-[10px] text-white/40">({variations[activeVariation]?.name})</span></span>
+              {sectionsOpen.prompt ? <ChevronUp size={12} className="text-white/40" /> : <ChevronDown size={12} className="text-white/40" />}
+            </button>
+            {sectionsOpen.prompt && (
+              <div className="p-2 pt-0 space-y-2">
+                <div className="grid grid-cols-2 gap-1.5">
+                  {variations.map((v, i) => (
+                    <button
+                      key={v.id}
+                      onClick={() => setActiveVariation(i)}
+                      className={`px-2.5 py-2 rounded-xl text-[11px] text-left transition-all hover:scale-[1.02] active:scale-[0.98] ${activeVariation === i ? "bg-violet-600 text-white shadow-lg" : "bg-white/5 hover:bg-white/10 border border-white/5 text-white/70"}`}
+                    >
+                      <div className="font-medium">{v.name}</div>
+                      <div className="text-[10px] opacity-60 line-clamp-2">{v.description}</div>
+                    </button>
+                  ))}
+                </div>
+                <div className="rounded-lg bg-black/30 border border-white/5 p-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-white/40">Preview</span>
+                    <button onClick={() => navigator.clipboard.writeText(variations[activeVariation]?.prompt || "")} className="text-[10px] text-violet-300 hover:text-violet-200 flex items-center gap-1"><Copy size={10} />Copy</button>
+                  </div>
+                  <pre className="text-[11px] text-white/70 max-h-28 overflow-auto whitespace-pre-wrap leading-relaxed">{variations[activeVariation]?.prompt}</pre>
+                </div>
+              </div>
+            )}
           </div>
-
-          {/* Preview Prompt */}
-          <details className="text-[10px]">
-            <summary className="text-gray-500 cursor-pointer hover:text-gray-300">Preview prompt...</summary>
-            <pre className="mt-1 bg-gray-900 rounded p-2 text-gray-400 max-h-32 overflow-y-auto whitespace-pre-wrap">
-              {variations[activeVariation]?.prompt}
-            </pre>
-          </details>
 
           {/* Generate Button */}
           <button
