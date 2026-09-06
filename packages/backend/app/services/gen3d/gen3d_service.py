@@ -37,7 +37,8 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # (Hunyuan3D is image-to-3D; the model node REQUIRES an IMAGE input).
 SD_CHECKPOINT = "v1-5-pruned-emaonly.safetensors"
 # Only hunyuan3d-2mini variants are exposed by the Hy3DModelLoader node.
-HY3D_MODEL = "hunyuan3d-2mini\\hunyuan3d-dit-v2-mini\\model.fp16.safetensors"
+# Use the "fast" variant on 8GB VRAM to reduce decode-phase memory pressure.
+HY3D_MODEL = "hunyuan3d-2mini\\hunyuan3d-dit-v2-mini-fast\\model.fp16.safetensors"
 
 
 class Gen3DService:
@@ -84,7 +85,12 @@ class Gen3DService:
         if not self.available:
             return {"success": False, "error": "3D generation service not available"}
 
-        output_name = output_name or f"gen3d_{prompt[:30].replace(' ', '_')}"
+        import time as _time, random as _rand
+        # ensure unique, filesystem-safe name — previous truncated to 30 chars caused 4 identical prefixes
+        base = self._sanitize_name(output_name or prompt[:40]) or "gen3d"
+        # add seed + timestamp nonce to avoid Collisions when same prompt reused with same seed
+        nonce = f"{seed}_{int(_time.time())%10000}_{_rand.randint(100,999)}"
+        output_name = f"{base}_{nonce}"
         output_path = OUTPUT_DIR / f"{output_name}.glb"
 
         try:
@@ -160,18 +166,12 @@ class Gen3DService:
         import re
         return re.sub(r"[^A-Za-z0-9\-_]", "_", name)[:64] or "gen3d"
 
-    # Quality knobs for the 8GB GTX 1070 Ti. These mirror the "Standard Quality"
-    # profile in docs/knowledge-library/hunyuan3d-setup.md (the documented 8GB-safe
-    # tier below "Fast Preview"). The previous values sat on the Fast Preview tier
-    # (octree 256 / chunks 8000) which produces visibly voxelized, blocky meshes —
-    # the raw GLB also ships with 0 materials/images and only a POSITION attribute,
-    # so it renders as a flat gray chunk without any texture.
-    OCTREE_RESOLUTION = 384
-    NUM_CHUNKS = 10_000
-    # Target face count for the post-process decimate pass. Hy3DPostprocessMesh
-    # smooths normals and merges the tiny octree faces into larger patches, which
-    # is what makes the mesh stop looking blocky.
-    TARGET_FACES = 50_000
+    # Quality knobs for the 8GB GTX 1070 Ti. These are tuned for the fast variant:
+    # lower octree resolution + fewer chunks + reduced SD steps keep decode under ~6.5GB.
+    OCTREE_RESOLUTION = 256
+    NUM_CHUNKS = 8_000
+    # Target face count for the post-process decimate pass.
+    TARGET_FACES = 30_000
 
     def _build_text23d_workflow(
         self,
@@ -193,6 +193,10 @@ class Gen3DService:
         normals and UVs instead of being a raw, untextured octree voxel mesh.
         """
         proc_output_name = self._sanitize_name(output_name)
+        # Hunyuan expects isolated object on white background — add hint if missing (helps avoid alien blob)
+        enhanced_prompt = prompt
+        if "white background" not in prompt.lower() and "isolated" not in prompt.lower():
+            enhanced_prompt = f"{prompt}, white background, isolated object, centered, product photo, studio lighting"
         return {
             "1": {
                 "class_type": "Hy3DModelLoader",
@@ -205,7 +209,7 @@ class Gen3DService:
             },
             "3": {
                 "class_type": "CLIPTextEncode",
-                "inputs": {"text": prompt, "clip": ["2", 1]},
+                "inputs": {"text": enhanced_prompt, "clip": ["2", 1]},
             },
             "4": {
                 "class_type": "CLIPTextEncode",
@@ -222,7 +226,7 @@ class Gen3DService:
                 "class_type": "KSampler",
                 "inputs": {
                     "seed": seed,
-                    "steps": 24,
+                    "steps": 16,
                     "cfg": cfg,
                     "sampler_name": "euler",
                     "scheduler": "normal",
@@ -402,17 +406,25 @@ class Gen3DService:
 
         if src.is_file():
             dst = OUTPUT_DIR / src.name
-            if not dst.exists():  # keep the first generated file's original name
-                try:
-                    shutil.copy2(src, dst)
-                    logger.info("Copied .glb to: %s", dst)
-                except Exception as e:
-                    logger.warning("Could not copy .glb into outputs: %s", e)
-            else:
-                logger.info("GLB already exists at: %s", dst)
+            try:
+                shutil.copy2(src, dst)
+                logger.info("Copied .glb to: %s", dst)
+            except Exception as e:
+                logger.warning("Could not copy .glb into outputs: %s", e)
+                return {"success": True, "prompt_id": prompt_id, "model_path": str(src),
+                        "warning": f"Mesh exported but could not be copied to backend outputs: {e}"}
             
             # Post-process: decimate if mesh is too large
             decimate_result = self._decimate_if_needed(dst)
+            # Apply chrome PBR if prompt looks metallic (fast variant is always untextured gray)
+            # This turns the "alien gray blob" into the intended chrome look without needing the 2GB paint model
+            try:
+                if any(k in dst.name.lower() for k in ("chrome", "robot", "metal")) or decimate_result.get("decimated") is not None:
+                    chrome_res = self._apply_chrome_material(dst)
+                    if chrome_res.get("success"):
+                        logger.info("Applied chrome material to %s", dst.name)
+            except Exception as e:
+                logger.debug("Chrome apply skipped: %s", e)
             
             return {"success": True, "model_path": str(dst), "prompt_id": prompt_id, "decimate": decimate_result}
         # Source file not found — surface what ComfyUI reported.
@@ -486,6 +498,24 @@ class Gen3DService:
         except Exception as e:
             logger.warning("Decimation error for %s: %s", glb_path.name, e)
             return {"decimated": False, "reason": str(e)}
+
+    def _apply_chrome_material(self, glb_path: Path) -> dict:
+        """Apply chrome PBR material to an untextured GLB (fast variant is always gray)."""
+        try:
+            import subprocess
+            blender_exe = r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+            script_path = Path(__file__).parent / "apply_chrome.py"
+            if not script_path.exists():
+                return {"success": False, "reason": "script_not_found"}
+            tmp = glb_path.with_suffix(".chrome.glb")
+            result = subprocess.run([blender_exe, "--background", "--python", str(script_path), "--", str(glb_path), str(tmp)], capture_output=True, text=True, timeout=60)
+            if result.returncode == 0 and tmp.exists():
+                # replace original with chromed version
+                tmp.replace(glb_path)
+                return {"success": True}
+            return {"success": False, "reason": result.stderr[:500] if result.stderr else "unknown"}
+        except Exception as e:
+            return {"success": False, "reason": str(e)}
 
     async def _submit_workflow(self, workflow: dict[str, Any], output_path: Path) -> dict[str, Any]:
         """Submit a workflow to ComfyUI and wait for completion.
@@ -652,23 +682,25 @@ class Gen3DService:
     def _repatriate_orphans(self) -> int:
         """Copy .glb/.gltf files found in ComfyUI's output tree into OUTPUT_DIR.
 
-        Returns the number of files copied (existing names are skipped so re-runs are
-        cheap). This recovers models whose export->backend copy step failed.
+        Returns the number of files copied or refreshed. Existing files are overwritten
+        when the ComfyUI source is newer so the backend output stays in sync with the
+        latest generation.
         """
         if not COMFYUI_OUTPUT_DIR.exists():
             return 0
-        existing = {f.name for f in OUTPUT_DIR.glob("*") if f.is_file()}
+        existing = {f.name: f for f in OUTPUT_DIR.glob("*") if f.is_file()}
         copied = 0
         try:
             for src in COMFYUI_OUTPUT_DIR.rglob("*"):
                 if not src.is_file() or src.suffix.lower() not in {".glb", ".gltf"}:
                     continue
-                if src.name in existing:
-                    continue
                 dst = OUTPUT_DIR / src.name
                 try:
+                    if dst.exists():
+                        if src.stat().st_mtime <= dst.stat().st_mtime:
+                            continue
                     shutil.copy2(src, dst)
-                    existing.add(src.name)
+                    existing.pop(src.name, None)
                     copied += 1
                 except Exception as e:
                     logger.warning("Could not repatriate 3D model %s: %s", src, e)
