@@ -61,7 +61,8 @@ date: 2026-09-05
 
 - [[ai-agent-navigation|🤖 AI Agent Navigation]] — Quick lookup table for agents (NEW 2026-09-01)
 - [[backend-debugging-guide|🐛 Backend Debugging Guide]] — Debugging patterns for FastAPI/queue/VRAM
-- [[ollama-thinking-structured-outputs|🧠 Ollama Thinking & Structured Outputs]] — `think` + `format:json`
+ - [[ollama-thinking-structured-outputs|🧠 Ollama Thinking & Structured Outputs]] — `think` + `format:json`
+ - [[minicpm-v-best-practices|🔍 MiniCPM-V 2.6 Best Practices]] — your `minicpm-v:8b` local vision: 1.8MP any-aspect OCR, multi-image/video, RLAIF-V trustworthy, 640-token efficiency on GTX 1070 Ti (NEW 2026-09-06)
 
 ### 📊 Research & Audit
 
@@ -163,10 +164,10 @@ graph LR
 
 | Metric          | Count                                                                              |
 | --------------- | ---------------------------------------------------------------------------------- |
-| Total Documents | 28                                                                                 |
+| Total Documents | 29                                                                                 |
 | Total Tags      | 22                                                                                 |
 | Total Links     | 80+                                                                                |
-| Last Updated    | 2026-09-05 (backend connectivity + frontend fallback + start-script resilience + WebSocket origin fix) |
+| Last Updated    | 2026-09-06 (minicpm-v:8b vision — OCR / chart / multi-image + vision.mjs + /api/vision/ocr) |
 
 ---
 

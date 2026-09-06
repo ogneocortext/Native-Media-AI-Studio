@@ -995,6 +995,18 @@ export async function clearGPUHistory(keepDays: number = 0): Promise<{ deleted: 
   return res.json();
 }
 
+// Vision OCR (MiniCPM-V 2.6 — see docs/knowledge-library/minicpm-v-best-practices.md)
+export async function visionOCR(file: File, prompt: string = "ocr", model: string = "minicpm-v:8b"): Promise<{ text: string; model: string; prompt: string }> {
+  const base = getApiBase();
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("prompt", prompt);
+  fd.append("model", model);
+  const res = await fetchWithTimeout(`${base}/api/vision/ocr`, { method: "POST", body: fd, timeout: 120000 });
+  if (!res.ok) throw new Error("Vision OCR failed");
+  return res.json();
+}
+
 export async function getFFmpegStatus(): Promise<{ running: boolean; count: number; processes: any[] }> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/health/ffmpeg`, { timeout: 30000 });
