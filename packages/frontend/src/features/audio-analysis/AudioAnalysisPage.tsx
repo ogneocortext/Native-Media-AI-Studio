@@ -8,7 +8,9 @@ import {
   analyzeAudio, analyzeAudioCuda, generateVideoSection,
   listAudioFiles, renameAudioFile, getAnalysis, getCudaStatus,
   getApiBase, type AudioAnalysisResult, separateAudioStems,
+  ensureAnalysis, getAvailableAudioBackends, getAnalysisSummary, analyzeAllPending,
 } from "../../services/api";
+import { useAudioAnalysis } from "../../hooks/useAudioAnalysis";
 import { DS } from "../../styles/designSystem";
 import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
@@ -98,14 +100,12 @@ function getEnergyColor(energy: number): string {
 }
 
 export function AudioAnalysisPage() {
+  const audio = useAudioAnalysis();
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
   const [separating, setSeparating] = useState(false);
-  const [analysis, setAnalysis] = useState<AudioAnalysisResult | null>(null);
   const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [selectedLibraryFile, setSelectedLibraryFile] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(true);
@@ -128,6 +128,11 @@ export function AudioAnalysisPage() {
   const [analysisStep, setAnalysisStep] = useState<string>("");
   const [gpuVram, setGpuVram] = useState<{ used: number; total: number; percent: number } | null>(null);
 
+  // Keep local aliases for compatibility with the rest of this component
+  const analyzing = audio.analyzing;
+  const analysis = audio.analysis;
+  const error = audio.error;
+
   useEffect(() => {
     getCudaStatus()
       .then(s => {
@@ -135,7 +140,6 @@ export function AudioAnalysisPage() {
         setCudaGpuName(s.gpu_name ?? "");
         setCudaFallback((s as unknown as Record<string, unknown>).fallback === "torch.cuda");
         if (!s.available) setUseCuda(false);
-        // Fetch VRAM for banner when available
         fetch(`${getApiBase()}/api/health/gpu`).then(r => r.json()).then(g => {
           if (g.available) setGpuVram({ used: g.memory_used_mb ?? 0, total: g.memory_total_mb ?? 8192, percent: g.memory_percent ?? 0 });
         }).catch(() => {});
@@ -163,10 +167,10 @@ export function AudioAnalysisPage() {
   const handleFileSelect = (f: File) => {
     const err = validateFile(f);
     if (err) { setFileError(err); setFile(null); return; }
-    setFileError(null); setFile(f); setAnalysis(null); setError(null);
+    setFileError(null); setFile(f); audio.reset();
   };
 
-  const clearFile = () => { setFile(null); setPreviewUrl(null); setFileError(null); setAnalysis(null); };
+  const clearFile = () => { setFile(null); setPreviewUrl(null); setFileError(null); audio.reset(); };
 
   useEffect(() => {
     if (!activeJobId) return;
@@ -195,17 +199,13 @@ export function AudioAnalysisPage() {
     if (!file) return;
     const vErr = validateFile(file);
     if (vErr) { setFileError(vErr); return; }
-    setAnalyzing(true); setError(null); setAnalysis(null);
-    setAnalysisStep("Uploading audio file...");
-    try {
-      setAnalysisStep(useCuda && cudaAvailable ? `Analyzing on GPU${cudaFallback ? " (compat mode)" : ""}...` : "Analyzing tempo and beats...");
-      const result = (useCuda && cudaAvailable) ? await analyzeAudioCuda(file) : await analyzeAudio(file);
+    setAnalysisStep(useCuda && cudaAvailable ? `Analyzing on GPU${cudaFallback ? " (compat mode)" : ""}...` : "Analyzing tempo and beats...");
+    const result = await audio.analyze(file, "sonara", useCuda && cudaAvailable);
+    if (result) {
       setAnalysisStep("Detecting song structure...");
-      setAnalysis(result);
-      setAnalysisStep("");
       loadAudioFiles();
-    } catch (err: unknown) { setError(err instanceof Error ? err.message : "Analysis failed"); setAnalysisStep(""); }
-    finally { setAnalyzing(false); }
+    }
+    setAnalysisStep("");
   };
 
   const handleSeparate = async () => {
@@ -229,29 +229,28 @@ export function AudioAnalysisPage() {
   const handleAnalyzeLibraryFile = async (storedPath: string) => {
     if (!storedPath || editingFile) return;
     setSelectedLibraryFile(storedPath);
-    setAnalyzing(true); setError(null); setAnalysis(null);
     setAnalysisStep("Loading audio file...");
     try {
       const filename = storedPath.split(/[/\\]/).pop() || "audio.mp3";
-      const base = getApiBase();
+      // Prefer cached analysis summary (agent-friendly compact view)
       try {
-        const cached = await getAnalysis(filename);
-        setAnalysisStep("Retrieving cached analysis...");
-        setAnalysis(cached);
-        setAnalysisStep(""); setAnalyzing(false); setSelectedLibraryFile(null);
-        return;
+        const cached = await getAnalysisSummary(filename);
+        if (cached && !cached.error) {
+          setAnalysisStep("Retrieving cached analysis...");
+          setAnalysis(cached as AudioAnalysisResult);
+          setAnalysisStep(""); setSelectedLibraryFile(null);
+          return;
+        }
       } catch { /* no cache */ }
-      setAnalysisStep("Analyzing tempo and beats...");
-      const response = await fetch(`${base}/api/audio/file/${filename}`);
-      if (!response.ok) throw new Error("Failed to load audio file");
-      const blob = await response.blob();
-      const file = new File([blob], filename, { type: blob.type });
-      const result = await analyzeAudio(file);
-      setAnalysisStep("Detecting song structure...");
-      setAnalysis(result);
+      // Fall back to ensure-analysis on the default backend
+      const ensured = await audio.ensure(filename, "sonara");
+      if (ensured && ensured.analysis) {
+        setAnalysisStep("Detecting song structure...");
+        setAnalysis(ensured.analysis as AudioAnalysisResult);
+      }
       setAnalysisStep("");
     } catch (err: unknown) { setError(err instanceof Error ? err.message : "Analysis failed"); setAnalysisStep(""); }
-    finally { setAnalyzing(false); setSelectedLibraryFile(null); }
+    finally { setSelectedLibraryFile(null); }
   };
 
   const startEditing = (path: string, currentName: string) => {

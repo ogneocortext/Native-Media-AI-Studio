@@ -88,6 +88,53 @@ class AudioAnalysisResult(BaseModel):
     job_id: str | None = None
 
 
+@router.get("/backends")
+async def list_audio_backends():
+    """List available audio analysis backends."""
+    from ..services.audio_analyzer import AudioAnalyzer, LIBROSA_AVAILABLE, MADMOM_AVAILABLE, SONARA_AVAILABLE
+    return {
+        "available": [b for b, avail in [
+            ("sonara", SONARA_AVAILABLE),
+            ("madmom", MADMOM_AVAILABLE),
+            ("librosa", LIBROSA_AVAILABLE),
+        ] if avail],
+        "default": "sonara" if SONARA_AVAILABLE else "librosa",
+    }
+
+
+@router.get("/analysis/summary/{filename}")
+async def get_analysis_summary(filename: str):
+    """Agent-friendly summary of cached analysis for a file.
+    
+    Returns a compact view optimized for AI consumption:
+    - tempo, duration, beat count, confidence
+    - section labels with start/end/energy
+    - whether spectral/onset data is present
+    """
+    import urllib.parse
+    filename = urllib.parse.unquote(filename)
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    try:
+        data = await get_analysis_by_filename(filename)
+    except HTTPException:
+        raise
+    return {
+        "filename": filename,
+        "tempo_bpm": data.get("tempo_bpm"),
+        "duration_seconds": data.get("duration_seconds"),
+        "beat_count": data.get("beat_count"),
+        "confidence": data.get("confidence"),
+        "sections": data.get("sections", []),
+        "has_beat_times": bool(data.get("beat_times")),
+        "has_onset_times": bool(data.get("onset_times")),
+        "has_energy_curve": bool(data.get("energy_curve")),
+        "has_spectral": bool(data.get("spectral_centroid") or data.get("spectral_rolloff")),
+        "job_id": data.get("job_id"),
+        "stored_path": data.get("stored_path"),
+    }
+
+
 @router.post("/upload", response_model=AudioUploadResponse)
 async def upload_audio(file: UploadFile = File(...)) -> AudioUploadResponse:
     """Upload an audio file for music video creation."""

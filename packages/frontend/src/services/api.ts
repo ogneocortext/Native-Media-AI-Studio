@@ -434,6 +434,86 @@ export async function clearLogs(): Promise<any> {
 }
 
 // =============================================================================
+// Log Analytics API
+// =============================================================================
+
+export interface LogAnalyticsSummary {
+  total_events: number;
+  last_event_at: string | null;
+  last_cleanup_at: string | null;
+  levels: Array<{ level: string; count: number }>;
+  top_loggers: Array<{ logger: string; count: number }>;
+  top_messages: Array<{ message: string; count: number; level: string }>;
+  sources: Array<{ source: string; count: number }>;
+}
+
+export interface LogAnalyticsTrendPoint {
+  ts_iso: string;
+  ts_ms: number;
+  level: string;
+  logger: string;
+  message: string;
+}
+
+export interface LogAnalyticsPatterns {
+  levels: Array<{ level: string; count: number }>;
+  loggers: Array<{ logger: string; count: number }>;
+  messages: Array<{ message: string; count: number; level: string }>;
+}
+
+export async function getLogAnalyticsSummary(): Promise<LogAnalyticsSummary> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/logs/analytics/summary`, { timeout: 30000 });
+  if (!res.ok) throw new Error("Failed to get log analytics summary");
+  return res.json();
+}
+
+export async function getLogAnalyticsTrends(sinceMs?: number, limit = 5000): Promise<{ count: number; points: LogAnalyticsTrendPoint[] }> {
+  const base = getApiBase();
+  const params = new URLSearchParams();
+  if (sinceMs !== undefined) params.set("since_ms", String(sinceMs));
+  params.set("limit", String(limit));
+  const res = await fetchWithTimeout(`${base}/api/logs/analytics/trends?${params.toString()}`, { timeout: 30000 });
+  if (!res.ok) throw new Error("Failed to get log analytics trends");
+  return res.json();
+}
+
+export async function getLogAnalyticsPatterns(limit = 20): Promise<LogAnalyticsPatterns> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/logs/analytics/patterns?limit=${limit}`, { timeout: 30000 });
+  if (!res.ok) throw new Error("Failed to get log analytics patterns");
+  return res.json();
+}
+
+export async function ingestLogsForAnalytics(params: {
+  source?: string;
+  log_name?: string;
+  limit?: number;
+}): Promise<{ inserted: number; source: string; path: string }> {
+  const base = getApiBase();
+  const body = {
+    source: params.source ?? "app",
+    log_name: params.log_name ?? "app",
+    limit: params.limit ?? 20000,
+  };
+  const res = await fetchWithTimeout(`${base}/api/logs/analytics/ingest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    timeout: 120000,
+  });
+  if (!res.ok) throw new Error("Failed to ingest logs for analytics");
+  return res.json();
+}
+
+export async function cleanupLogAnalytics(keepDays = 30): Promise<{ deleted: number; keep_days: number }> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/logs/analytics/cleanup?keep_days=${keepDays}`, { method: "POST", timeout: 30000 });
+  if (!res.ok) throw new Error("Failed to cleanup log analytics");
+  return res.json();
+}
+
+// =============================================================================
 // Data Persistence API — Prompts, Audio, Visuals, Sessions, Preferences
 // =============================================================================
 
@@ -673,12 +753,12 @@ export async function getAnalysis(filename: string): Promise<any> {
 }
 
 /** Ensure analysis exists for a file — runs analysis if not cached */
-export async function ensureAnalysis(filename: string): Promise<{ status: string; analysis: any }> {
+export async function ensureAnalysis(filename: string, backend: string = "sonara"): Promise<{ status: string; analysis: any }> {
   const base = getApiBase();
   const res = await fetch(`${base}/api/audio/ensure-analysis`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filename }),
+    body: JSON.stringify({ filename, backend }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -696,11 +776,11 @@ export async function getCudaStatus(): Promise<{ available: boolean; gpu_name?: 
   return res.json();
 }
 
-export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
+export async function analyzeAudio(file: File, backend: string = "sonara"): Promise<AudioAnalysisResult> {
   const base = getApiBase();
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch(`${base}/api/audio/analyze`, {
+  const res = await fetch(`${base}/api/audio/analyze?backend=${encodeURIComponent(backend)}`, {
     method: "POST",
     body: formData,
   });
@@ -735,6 +815,60 @@ export async function listAudioFiles(): Promise<Array<{
   if (!res.ok) throw new Error("Failed to list audio files");
   const data = await res.json();
   return Array.isArray(data) ? data : (data?.files || []);
+}
+
+// =============================================================================
+// Audio Analysis API — agent-friendly expanded surface
+// =============================================================================
+
+export interface AudioBackendsResponse {
+  available: string[];
+  default: string;
+}
+
+export async function getAvailableAudioBackends(): Promise<AudioBackendsResponse> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/audio/backends`);
+  if (!res.ok) throw new Error("Failed to get audio backends");
+  return res.json();
+}
+
+export async function getAnalysisSummary(filename: string): Promise<{
+  filename: string;
+  tempo_bpm: number | null;
+  duration_seconds: number | null;
+  beat_count: number | null;
+  confidence: number | null;
+  sections: Array<{ type: string; start: number; end: number; energy: number }>;
+  has_beat_times: boolean;
+  has_onset_times: boolean;
+  has_energy_curve: boolean;
+  has_spectral: boolean;
+  job_id: string | null;
+  stored_path: string | null;
+}> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/audio/analysis/summary/${encodeURIComponent(filename)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "No analysis summary found");
+  }
+  return res.json();
+}
+
+export async function analyzeAllPending(backend: string = "sonara"): Promise<{
+  status: string;
+  analyzed: number;
+  total: number;
+  files: Array<{ filename: string; bpm: number; beats: number; confidence: number }>;
+  errors: Array<{ filename: string; error: string }>;
+}> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/audio/analyze-all?backend=${encodeURIComponent(backend)}`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("analyze-all failed");
+  return res.json();
 }
 
 // ---------------------------------------------------------------------------
