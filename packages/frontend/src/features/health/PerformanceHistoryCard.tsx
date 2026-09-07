@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { Card } from "../../components/common";
 import { TrendingUp, Play, Pause } from "lucide-react";
-import { getGPUSnapshot, getSystemDiagnostics } from "../../services/api";
+import { useHealthStore } from "../../state/healthStore";
 
 interface DataPoint {
   time: number;
@@ -28,40 +28,42 @@ export function PerformanceHistoryCard() {
   const [history, setHistory] = useState<DataPoint[]>([]);
   const [activeChart, setActiveChart] = useState<string>("gpu");
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const fetchGPUData = useHealthStore((s) => s.fetchGPUData);
+  const fetchVRAMStatus = useHealthStore((s) => s.fetchVRAMStatus);
 
   const loadData = useCallback(async () => {
     try {
-      const [gpuData, sysData] = await Promise.all([
-        getGPUSnapshot().catch(() => null),
-        getSystemDiagnostics().catch(() => null),
-      ]);
+      await Promise.all([fetchGPUData(), fetchVRAMStatus()]);
       const now = Date.now();
       const timeLabel = new Date().toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
       });
+      const { granular: currentGranular } = useHealthStore.getState();
+      const gpuData = currentGranular.gpu.snapshot;
+      const vramData = currentGranular.vram as { vram?: { percent?: number }; gpu?: { utilization?: number }; cpu?: { usage_percent?: number }; memory?: { percent?: number }; temperature?: number } | null;
       setHistory((prev) => [
         ...prev.slice(-MAX_HISTORY_POINTS),
         {
           time: now,
           label: timeLabel,
           gpu: gpuData?.gpu_utilization ?? 0,
-          vram: gpuData?.memory_percent ?? 0,
-          cpu: sysData?.cpu?.usage_percent ?? 0,
-          memory: sysData?.memory?.percent ?? 0,
-          temp: gpuData?.temperature_c ?? 0,
+          vram: gpuData?.memory_percent ?? vramData?.vram?.percent ?? 0,
+          cpu: vramData?.cpu?.usage_percent ?? 0,
+          memory: vramData?.memory?.percent ?? 0,
+          temp: gpuData?.temperature_c ?? vramData?.temperature ?? 0,
         },
       ]);
     } catch {
       // ignore
     }
-  }, []);
+  }, [fetchGPUData, fetchVRAMStatus]);
 
   useEffect(() => {
     loadData();
     if (!autoRefresh) return;
-    const interval = setInterval(loadData, 5000);
+    const interval = setInterval(loadData, 10000); // Increased from 5s to 10s
     return () => clearInterval(interval);
   }, [loadData, autoRefresh]);
 

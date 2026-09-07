@@ -391,7 +391,10 @@ export async function restartComfyUI(port: number = 8188): Promise<any> {
 
 export async function updateComfyUI(): Promise<any> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/services/comfyui/update`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/services/comfyui/update`, {
+    method: "POST",
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to update ComfyUI");
   return res.json();
 }

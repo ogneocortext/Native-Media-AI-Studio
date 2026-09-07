@@ -1,8 +1,12 @@
 // Analyze rollup-plugin-visualizer stats.html and print actionable bundle insights.
-// Usage: node scripts/analyze-bundle-stats.mjs [path/to/stats.html]
+// Usage:
+//   node scripts/analyze-bundle-stats.mjs [path/to/stats.html]      — full report
+//   node scripts/analyze-bundle-stats.mjs --who <substring>        — which chunks contain modules matching <substring>
 import { readFileSync } from "node:fs";
 
-const path = process.argv[2] ?? "packages/frontend/dist/stats.html";
+const whoIdx = process.argv.indexOf("--who");
+const who = whoIdx >= 0 ? process.argv[whoIdx + 1] : null;
+const path = process.argv.find((a, i) => i >= 2 && a !== "--who" && a !== who) ?? "packages/frontend/dist/stats.html";
 const html = readFileSync(path, "utf8");
 
 const marker = "const data = ";
@@ -24,32 +28,60 @@ const data = JSON.parse(html.slice(jsonStart, tailIdx + tail.length));
 const parts = data.nodeParts; // uid -> {renderedLength, gzipLength, brotliLength}
 const metas = data.nodeMetas; // uid -> {id, moduleParts, imported, importers, isEntry, isExternal}
 
-// Walk the tree; collect leaves (actual chunks/files)
+// Walk the tree. Top-level children of root are chunks (asset files); their subtrees are modules.
+// Build: uidToChunk (module uid -> chunk name), chunkAgg (per-chunk size sums), chunk list for section 1.
 const chunks = []; // {chunkName, uid}
-(function walk(node, chunkName) {
-  if (node.children) {
-    for (const child of node.children) walk(child, child.children ? chunkName : child.name);
-    return;
-  }
-  chunks.push({ chunkName: node.name, uid: node.uid });
-})(data.tree, "root");
+const uidToChunk = new Map();
+const chunkAgg = new Map(); // chunkName -> {rendered, gzip, modules}
+function walkChunk(chunkNode) {
+  let rendered = 0, gzip = 0, modules = 0;
+  (function walkModule(node) {
+    if (node.children) {
+      for (const child of node.children) walkModule(child);
+      return;
+    }
+    if (node.uid) {
+      uidToChunk.set(node.uid, chunkNode.name);
+      const p = parts[node.uid];
+      if (p) { rendered += p.renderedLength ?? 0; gzip += p.gzipLength ?? 0; }
+      modules += 1;
+    }
+  })(chunkNode);
+  chunks.push({ chunkName: chunkNode.name, uid: chunkNode.uid });
+  chunkAgg.set(chunkNode.name, { rendered, gzip, modules });
+}
+for (const chunkNode of data.tree.children ?? []) walkChunk(chunkNode);
 
 const kb = (n) => (n / 1024).toFixed(1) + " KB";
 
-// --- 1. Per-chunk totals (rendered + gzip) ---
-console.log("=== CHUNK TOTALS (rendered | gzip) ===");
-const chunkTotals = new Map();
-for (const { chunkName, uid } of chunks) {
-  const p = parts[uid];
-  if (!p) continue;
-  const t = chunkTotals.get(chunkName) ?? { rendered: 0, gzip: 0 };
-  t.rendered += p.renderedLength;
-  t.gzip += p.gzipLength ?? 0;
-  chunkTotals.set(chunkName, t);
+// --who mode: find chunks containing modules whose id matches the substring
+if (who) {
+  const hits = new Map(); // chunkName -> {count, rendered}
+  for (const [uid, p] of Object.entries(parts)) {
+    const meta = metas[p.metaUid];
+    if (!meta?.id || meta.isExternal) continue;
+    if (!String(meta.id).toLowerCase().includes(who.toLowerCase())) continue;
+    const chunkName = uidToChunk.get(uid);
+    if (!chunkName) continue;
+    const t = hits.get(chunkName) ?? { count: 0, rendered: 0 };
+    t.count += 1;
+    t.rendered += p.renderedLength ?? 0;
+    hits.set(chunkName, t);
+  }
+  console.log(`chunks containing modules matching "${who}":`);
+  [...hits.entries()]
+    .sort((a, b) => b[1].rendered - a[1].rendered)
+    .forEach(([name, t]) => console.log(`${name.padEnd(50)} ${t.count} modules, ${kb(t.rendered)}`));
+  if (hits.size === 0) console.log("(none)");
+  process.exit(0);
 }
-[...chunkTotals.entries()]
+
+// --- 1. Per-chunk totals (rendered + gzip) ---
+console.log("=== CHUNK TOTALS (rendered | gzip | modules) ===");
+[...chunkAgg.entries()]
   .sort((a, b) => b[1].rendered - a[1].rendered)
-  .forEach(([name, t]) => console.log(`${name.padEnd(45)} ${kb(t.rendered).padStart(10)} | ${kb(t.gzip).padStart(9)}`));
+  .slice(0, 25)
+  .forEach(([name, t]) => console.log(`${name.padEnd(45)} ${kb(t.rendered).padStart(10)} | ${kb(t.gzip).padStart(9)} | ${t.modules}`));
 
 // --- 2. Top packages by size ---
 // nodeParts[partUid] = {renderedLength,gzipLength,metaUid}; nodeMetas[metaUid] = {id,...}
@@ -103,3 +135,27 @@ for (const [metaUid, arr] of partsByMeta) {
 dups.sort((a, b) => b.rendered - a.rendered).slice(0, 15)
   .forEach(d => console.log(`${String(d.id).replace(/^.*node_modules\//, "npm:").padEnd(70)} x${d.chunks} ${kb(d.rendered)}`));
 console.log(`total duplicated modules: ${dups.length}`);
+// --- 5. One-off: where did recharts land, and who pulls it into the entry chunk? ---
+const isRecharts = (id) => /recharts|d3-|^npm:d3|victory-vendor/.test(id);
+const chunkNames = new Map();
+for (const [uid, meta] of Object.entries(metas)) {
+  if (meta.isEntry || meta.isDynamicEntry) chunkNames.set(uid, meta.id);
+}
+const rechartsByChunk = new Map();
+for (const [uid, p] of Object.entries(parts)) {
+  const m = metas[p.metaUid];
+  if (!m || !isRecharts(m.id)) continue;
+  const cUid = Object.keys(m.moduleParts ?? {})[0];
+  const cname = m.moduleParts && chunkNames.get(cUid) ? chunkNames.get(cUid) : cUid;
+  const key = String(cname).replace(/^.*assets\//, "");
+  const t = rechartsByChunk.get(key) ?? { size: 0, modules: [] };
+  t.size += p.renderedLength;
+  t.modules.push(m.id.replace(/^.*node_modules\//, ""));
+  rechartsByChunk.set(key, t);
+}
+console.log("\n=== RECHARTS/D3 MODULES PER CHUNK ===");
+for (const [chunk, t] of [...rechartsByChunk.entries()].sort((a, b) => b[1].size - a[1].size).slice(0, 8)) {
+  console.log(`${chunk}  ${kb(t.size)} (${t.modules.length} modules)`);
+  if (chunk.startsWith("index")) t.modules.slice(0, 12).forEach((m) => console.log("   -", m));
+}
+

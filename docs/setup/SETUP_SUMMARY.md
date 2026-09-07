@@ -1,17 +1,17 @@
 # Setup Summary — Native Media AI Studio
 
-> **Last Updated:** 2026-09-06 — env decoupling: dedicated `nma-studio-cuda` venv for backend/GPU; `comfyui-cuda` is ComfyUI's runtime only. Supersedes Aug 2026 setup snapshot. See `docs/setup/CONDA_SETUP.md` + `docs/setup/python-environments.md` for canonical env docs.
+> **Last Updated:** 2026-09-07 — ComfyUI updated to ea33b154, Manager enabled with `--enable-manager`, backend running on 8001, frontend on 5174. Supersedes Aug 2026 setup snapshot. See `docs/setup/CONDA_SETUP.md` + `docs/setup/python-environments.md` for canonical env docs.
 
 ## ✅ Current System Status
 
-### Running Services (2026-09-05)
+### Running Services (2026-09-07)
 
 | Service | Port | Health Check | Notes |
 |---------|------|--------------|-------|
-| Backend (FastAPI) | 8000 | `GET http://127.0.0.1:8000/api/health` | SSE `GET /api/events`, queue, audio analysis (librosa) |
-| Frontend (Vite) | 5173 | `http://127.0.0.1:5173` | 19 routes + legacy redirects |
-| Video Editor (Remotion) | 8080 | `http://127.0.0.1:8080` | `config/ports.json` dynamic (README previously listed 3000, actual is 8080) |
-| ComfyUI | 8188 | `GET http://127.0.0.1:8188/system_stats` | Hunyuan3D-2mini, Wan 2.2 5B, AnimateDiff |
+| Backend (FastAPI) | 8001 | `GET http://127.0.0.1:8001/api/health` | SSE `GET /api/events`, queue, audio analysis (librosa); dynamic via `port_manager.py` |
+| Frontend (Vite) | 5174 | `http://127.0.0.1:5174` | 19 routes + legacy redirects; dynamic via `port_manager.py` |
+| Video Editor (Remotion) | 8080 | `http://127.0.0.1:8080` | `config/ports.json` dynamic |
+| ComfyUI | 8188 | `GET http://127.0.0.1:8188/system_stats` | Hunyuan3D-2mini, Wan 2.2 5B, AnimateDiff; started with `--enable-manager` |
 | Unity MCP Bridge | 7800 (REST) | `POST http://127.0.0.1:7800/api/exec {command:"editor_status"}` | `tools/mcp/unity-mcp-bridge.mjs` |
 | Blender MCP | 9876 (TCP) | Blender addon sidebar “Start MCP Server” | `uvx blender-mcp`, executable `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe` |
 | Ollama | 11434 | `GET http://127.0.0.1:11434/api/tags` | `gemma4:e2b-it-qat`, `qwen3-vl:4b` |
@@ -59,11 +59,11 @@ pnpm start
 pnpm servers status
 # or: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action status
 
-# Backend only (studio venv, CUDA)
-D:\conda-envs\nma-studio-cuda\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --app-dir packages/backend
+# Backend only (studio venv, CUDA) — dynamic port via port_manager.py
+D:\conda-envs\nma-studio-cuda\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --app-dir packages/backend
 
-# ComfyUI (own runtime env)
-D:\conda-envs\comfyui-cuda\Scripts\python.exe main.py --port 8188 --disable-pinned-memory
+# ComfyUI (own runtime env) — --enable-manager required for Manager queue API
+D:\conda-envs\comfyui-cuda\Scripts\python.exe main.py --port 8188 --disable-pinned-memory --enable-manager
 # WorkingDirectory: D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI
 ```
 
@@ -74,7 +74,7 @@ See `docs/setup/CONDA_SETUP.md`, `docs/setup/VIDEO_SETUP.md`, `docs/setup/MODEL_
 ## 📁 Key Files Reference (Current)
 
 ### Configuration
-- `config/ports.json` — Dynamic port map (backend 8000, frontend 5173, video 8080, comfyui 8188, SSE `events_url`/`sse_url`, legacy `ws_url`)
+- `config/ports.json` — Dynamic port map (backend 8001, frontend 5174, video 8080, comfyui 8188, SSE `events_url`/`sse_url`, legacy `ws_url`)
 - `config/settings.json` — AppConfig
 - `opencode.json` — MCP servers (6: ollama-tools, vision, remotion, comfyui --force-remote, blender 9876, unity 7800)
 - `kilo.jsonc` — Kilo Code instructions (`AGENTS.md`, `Guidelines.md`)
@@ -95,10 +95,10 @@ See `docs/setup/CONDA_SETUP.md`, `docs/setup/VIDEO_SETUP.md`, `docs/setup/MODEL_
 
 ## 🔧 Troubleshooting
 
-### Backend won't start (Port 8000 in use)
+### Backend won't start (Port 8001 in use)
 ```powershell
 # Port manager auto-increments; check:
-Get-NetTCPConnection -LocalPort 8000 -State Listen
+Get-NetTCPConnection -LocalPort 8001 -State Listen
 # or kill orphan python from previous crash:
 taskkill /F /IM python.exe
 # prefer managed restart:
@@ -113,8 +113,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -
 ```
 
 ### Media Library not loading
-1. `curl http://127.0.0.1:8000/api/health`
-2. Check `packages/frontend` Vite proxy (`vite.config.ts` → `/api` → 8000)
+1. `curl http://127.0.0.1:8001/api/health`
+2. Check `packages/frontend` Vite proxy (`vite.config.ts` → `/api` → 8001)
 3. Refresh page; check `GET /api/outputs` response
 
 ---

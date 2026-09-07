@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, StatusBadge, LoadingSpinner } from "../../components/common";
 import {
   XCircle,
@@ -14,12 +14,11 @@ import {
   Database,
 } from "lucide-react";
 import { useHealth } from "../../hooks";
+import { useHealthStore } from "../../state/healthStore";
 import {
-  getComfyUIStatus,
   startComfyUI,
   stopComfyUI,
   updateComfyUI,
-  getApiBase,
   cleanupSystemMemory,
   type ComfyUIStatus,
 } from "../../services/api";
@@ -43,6 +42,20 @@ export function HealthPage() {
   const [vramStatus, setVramStatus] = useState<Record<string, unknown> | null>(null);
   const [actionLog, setActionLog] = useState<Array<{ time: string; message: string; type: string }>>([]);
 
+  const fetchComfyUI = useHealthStore((s) => s.fetchComfyUIStatus);
+  const fetchVRAM = useHealthStore((s) => s.fetchVRAMStatus);
+  const granular = useHealthStore((s) => s.granular);
+
+  // Sync ComfyUI status from granular store
+  useEffect(() => {
+    if (granular.comfyui) setComfyui(granular.comfyui);
+  }, [granular.comfyui]);
+
+  // Sync VRAM status from granular store
+  useEffect(() => {
+    if (granular.vram) setVramStatus(granular.vram);
+  }, [granular.vram]);
+
   // Add a log message
   const addLog = (message: string, type: string = "info") => {
     const time = new Date().toLocaleTimeString();
@@ -51,42 +64,6 @@ export function HealthPage() {
 
   // Clear logs
   const clearLogs = () => setActionLog([]);
-
-  // Fetch ComfyUI status
-  const fetchComfyUIStatus = async () => {
-    try {
-      const status = await getComfyUIStatus();
-      setComfyui(status);
-    } catch {
-      // Ignore errors
-    }
-  };
-
-  // Fetch VRAM status — returns the data directly so callers don't rely on stale state
-  const fetchVRAMStatus = useCallback(async () => {
-    try {
-      const base = getApiBase();
-      const res = await fetch(`${base}/api/integrations/vram/status`);
-      if (res.ok) {
-        const data = await res.json();
-        setVramStatus(data as Record<string, unknown>);
-        return data as Record<string, unknown>;
-      }
-    } catch {
-      // Ignore errors
-    }
-    return null;
-  }, []);
-
-  useEffect(() => {
-    fetchComfyUIStatus();
-    fetchVRAMStatus();
-    const interval = setInterval(() => {
-      fetchComfyUIStatus();
-      fetchVRAMStatus();
-    }, 10000); // Refresh every 10s
-    return () => clearInterval(interval);
-  }, []);
 
   const handleComfyUIAction = async (action: "start" | "stop" | "update") => {
     setComfyuiLoading(true);
@@ -98,7 +75,7 @@ export function HealthPage() {
         case "start":
           addLog("Checking VRAM availability...", "info");
           {
-            const vramData = await fetchVRAMStatus();
+            const vramData = await fetchVRAM();
             const _vram = (vramData as unknown as { vram?: { percent: number } })?.vram;
             if (_vram && _vram.percent > 80) {
               addLog(`Warning: VRAM is at ${_vram.percent}%`, "warning");
@@ -163,8 +140,8 @@ export function HealthPage() {
           break;
       }
       // Refresh status after action
-      await fetchComfyUIStatus();
-      await fetchVRAMStatus();
+      fetchComfyUI();
+      fetchVRAM();
     } catch (err) {
       addLog(`Error: ${err instanceof Error ? err.message : String(err)}`, "error");
       console.error(`ComfyUI ${action} failed:`, err);

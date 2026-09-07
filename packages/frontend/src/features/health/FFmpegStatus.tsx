@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Terminal } from "lucide-react";
 import { Card } from "../../components/common";
-import { getFFmpegStatus } from "../../services/api";
+import { useHealthStore } from "../../state/healthStore";
 
 interface FFmpegStatusData {
   running: boolean;
@@ -15,21 +15,21 @@ export function FFmpegStatus() {
     count: 0,
     processes: [],
   });
-
-  const fetchStatus = async () => {
-    try {
-      const status = await getFFmpegStatus();
-      setFfmpeg(status);
-    } catch {
-      // ignore
-    }
-  };
+  const fetchFFmpegData = useHealthStore((s) => s.fetchFFmpegData);
+  const granular = useHealthStore((s) => s.granular);
 
   useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 3000);
+    fetchFFmpegData();
+    const interval = setInterval(fetchFFmpegData, 10000); // Increased from 3s to 10s
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchFFmpegData]);
+
+  useEffect(() => {
+    const data = granular.ffmpeg;
+    if (data) {
+      setFfmpeg({ running: data.running, count: data.count, processes: data.processes || [] });
+    }
+  }, [granular.ffmpeg]);
 
   if (!ffmpeg.running) return null;
 

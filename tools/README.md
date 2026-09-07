@@ -79,9 +79,22 @@ uvx blender-mcp --version  # Verify connection
 ### Tools Provided
 - Scene management, object creation/manipulation, materials, animation, lighting, camera, rendering
 - 3D model generation via Hunyuan3D-2mini
-- Asset downloads from Poly Haven and Sketchfab
+- Asset downloads from Poly Haven and Sketchfab (1M+ free CC — Data API `v3` search public, Download API `/v3/models/{uid}/download` requires free `Token`; free `basic` plan suffices)
 
-See `.kilo/skills/blender-mcp/SKILL.md` for full documentation.
+#### Sketchfab Setup (offline, replaces banger.show Sketchfab import)
+```powershell
+# 1. Free token from sketchfab.com/settings/password
+setx BLENDERMCP_SKETCHFAB_API_KEY "your_token_here"
+# also add to repo .env (gitignored) for future shells
+Add-Content .env "BLENDERMCP_SKETCHFAB_API_KEY=your_token_here"
+
+# 2. Or paste in Blender: N-panel → BlenderMCP → Use assets from Sketchfab
+#    + Addon Preferences → sketchfab_api_key + Scene.blendermcp_sketchfab_api_key, then bpy.ops.wm.save_userpref()
+# 3. Verify (should show Logged in as: <user>)
+#    blender_get_sketchfab_status  -> Data API v3 /v3/me (tools/blender_mcp_addon.py:2302)
+```
+
+See `.kilo/skills/blender-mcp/SKILL.md` and `docs/knowledge-library/blender-mcp.md` for full documentation.
 
 ---
 

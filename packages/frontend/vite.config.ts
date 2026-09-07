@@ -86,6 +86,7 @@ export default defineConfig(({ mode }) => {
         "@": path.resolve(__dirname, "./src"),
         "@shared": path.resolve(__dirname, "../../shared"),
       },
+      dedupe: ["three"],
     },
     server: {
       port: portConfig.frontend_port,
@@ -153,14 +154,23 @@ export default defineConfig(({ mode }) => {
           // Rolldown/Vite 8 requires a function for manualChunks
           manualChunks(id: string) {
             if (id.includes("node_modules")) {
-              if (id.includes("three") || id.includes("@react-three")) {
-                return "three-vendor";
+              if (id.includes("three/examples") || (id.includes("three") && id.includes("examples"))) {
+                return "three-examples";
+              }
+              if (id.includes("three") && !id.includes("@react-three")) {
+                return "three-core";
+              }
+              if (id.includes("@react-three")) {
+                return "react-three";
               }
               if (id.includes("react") || id.includes("react-dom")) {
                 return "react-vendor";
               }
-              if (id.includes("animejs") || id.includes("@theatre")) {
-                return "animation-vendor";
+              if (id.includes("animejs")) {
+                return "animejs-vendor";
+              }
+              if (id.includes("@theatre")) {
+                return "theatre-vendor";
               }
               if (id.includes("lucide-react") || id.includes("zustand")) {
                 return "ui-vendor";

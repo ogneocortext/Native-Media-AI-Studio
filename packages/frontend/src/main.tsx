@@ -11,7 +11,7 @@ import { fetchPortConfig } from "./services/portConfig";
 applyTheme(getStoredTheme());
 
 // Suppress Theatre.js "not initialized" warning — we intentionally lazy-load
-// and initialize it in initApp().
+// Theatre only when the Visualizer's Theatre Studio panel is opened.
 const theatreWarn = /@theatre\/studio/;
 const origWarn = console.warn;
 const origError = console.error;
@@ -29,13 +29,12 @@ if (import.meta.env.DEV) {
   installDebugFetch();
 }
 
-// Initialize Theatre.js studio before rendering the app
+// Initialize the app. Theatre.js is NOT loaded here — it is ~1 MB (266 KB gzip)
+// and only needed by the Visualizer's Theatre Studio panel, which initializes
+// it on demand via createTheatreProject() (see theatreStudio.ts).
 async function initApp() {
   // Load port configuration first so all services use the correct backend URL
   await fetchPortConfig();
-
-  const { getStudio } = await import("./features/visualizer/services/theatreStudio");
-  await getStudio();
 
   createRoot(document.getElementById("root")!).render(
     <StrictMode>

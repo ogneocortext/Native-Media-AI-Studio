@@ -23,13 +23,12 @@ import {
   Type,
   Thermometer,
 } from "lucide-react";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useHealthStore } from "../../state/healthStore";
 import { useUIStore } from "../../state/uiStore";
-import { getApiBase, getLoadedModels } from "../../services/api";
+import { getApiBase } from "../../services/api";
 import { getVideoEditorUrl } from "../../services/portConfig";
-import type { DiagnosticsModelsResponse } from "../../services/api";
 import { formatElapsed } from "../../utils/format";
 
 interface NavItem { path: string; label: string; icon: React.ReactNode; badge?: string; }
@@ -327,32 +326,22 @@ export function Sidebar() {
 // Loaded Ollama Models component for sidebar
 
 function LoadedModels({ collapsed }: { collapsed: boolean }) {
-  const [data, setData] = useState<DiagnosticsModelsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
-
-  const fetchModels = useCallback(async () => {
-    try {
-      const result = await getLoadedModels();
-      setData(result);
-    } catch {
-      setData({ loaded: false, models: [], activity: {} });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const fetchOllamaModels = useHealthStore((s) => s.fetchOllamaModels);
+  const granular = useHealthStore((s) => s.granular);
+  const data = granular.ollamaModels || { loaded: false, models: [], activity: {} };
 
   useEffect(() => {
-    fetchModels();
-    const interval = setInterval(fetchModels, 5000);
+    fetchOllamaModels();
+    const interval = setInterval(fetchOllamaModels, 15000); // Increased from 5s to 15s
     const clock = setInterval(() => setNow(Date.now()), 1000);
     return () => { clearInterval(interval); clearInterval(clock); };
-  }, [fetchModels]);
+  }, [fetchOllamaModels]);
 
-  const models = data?.models || [];
-  const activity = data?.activity || {};
+  const models = data.models || [];
+  const activity = data.activity || {};
 
-  if (loading && models.length === 0) {
+  if (models.length === 0 && !granular.ollamaModels) {
     return collapsed ? null : (
       <div className="sidebar-loaded-models">
         <Cpu size={12} className="loaded-models-icon" />
@@ -426,23 +415,18 @@ function LoadedModels({ collapsed }: { collapsed: boolean }) {
 
 // ComfyUI Quick Control component for sidebar
 function ComfyUIQuickControl({ collapsed }: { collapsed: boolean }) {
-  const [comfyui, setComfyui] = useState<{ installed?: boolean; running?: boolean } | null>(null);
   const [loading, setLoading] = useState(false);
+  const fetchComfyUI = useHealthStore((s) => s.fetchComfyUIStatus);
   const { fetchHealth } = useHealthStore();
-
-  const fetchStatus = useCallback(async () => {
-    try {
-      const base = getApiBase();
-      const res = await fetch(`${base}/api/services/comfyui/status`);
-      if (res.ok) setComfyui((await res.json()) as { installed?: boolean; running?: boolean });
-    } catch { /* ignore */ }
-  }, []);
+  const granular = useHealthStore((s) => s.granular);
 
   useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 15000);
+    fetchComfyUI();
+    const interval = setInterval(fetchComfyUI, 30000); // Increased from 15s to 30s
     return () => clearInterval(interval);
-  }, [fetchStatus]);
+  }, [fetchComfyUI]);
+
+  const comfyui = granular.comfyui;
 
   const handleToggle = async () => {
     if (!comfyui?.installed) return;
@@ -451,12 +435,12 @@ function ComfyUIQuickControl({ collapsed }: { collapsed: boolean }) {
       const base = getApiBase();
       const action = comfyui.running ? 'stop' : 'start';
       await fetch(`${base}/api/services/comfyui/${action}`, { method: 'POST' });
-      await fetchStatus();
+      await fetchComfyUI();
       // Refresh global health store so "System Health" section updates
       fetchHealth();
       // Schedule a second refresh after delay to catch slow startup
       setTimeout(() => {
-        fetchStatus();
+        fetchComfyUI();
         fetchHealth();
       }, 5000);
     } catch { /* ignore */ }

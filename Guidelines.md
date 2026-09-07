@@ -36,6 +36,7 @@ To prevent decision fatigue, the following stack choices are finalized:
  - **Queue/Persistence:** SQLite for lightweight job tracking, JSON sidecars for output metadata.
  - **Visuals:** Three.js / `@react-three/fiber` + Canvas2D (`Canvas2DVisualizer` bars/waveform/radial) + Remotion; WebGL accelerated.
  - **Integrations:** API adapters for local ComfyUI, Ollama, Blender MCP (port 9876), Unity MCP (port 7800).
+ - **Ports:** Backend resolves dynamically at startup via `port_manager.py`; current live config is in `config/ports.json`. Frontend falls back to 5174 when 5173 is occupied. Backend falls back to 8001 when 8000 is occupied.
 
 ---
 
@@ -76,8 +77,8 @@ Outputs must be strictly organized. Every generated media file gets a JSON sidec
 
 ```text
 Native-Media-AI-Studio/
-├── packages/frontend/    # React/Vite UI (port 5173) + Remotion video-editor (8080)
-├── packages/backend/     # FastAPI Server (port 8000) — ComfyUI on 8188
+├── packages/frontend/    # React/Vite UI (dynamic port, usually 5174) + Remotion video-editor (8080)
+├── packages/backend/     # FastAPI Server (dynamic port, usually 8001) — ComfyUI on 8188
 │   ├── app/api/          # REST routes (jobs, health, audio, outputs, docs, sse)
 │   ├── app/sse/          # SSE handler (canonical); app/websocket/ is legacy shim
 │   ├── app/core/         # Port manager, Health monitor, SQLite setup

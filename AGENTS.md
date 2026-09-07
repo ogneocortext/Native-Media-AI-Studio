@@ -108,7 +108,7 @@ Local Ollama models are available for vision analysis and tool-assisted generati
 Backend and frontend must be started as **detached background services** so they survive after the terminal closes. Use the project scripts instead of running servers inline.
 
 - **Start background services:** `scripts\start-services.ps1`
-  - Backend (`http://localhost:8000`) + Frontend (`http://localhost:5173`) are started hidden and detached.
+  - Backend (`http://localhost:8001`) + Frontend (`http://localhost:5174`) are started hidden and detached.
   - Add `-ComfyUI` to also start ComfyUI (`http://localhost:8188`).
   - Safe to run repeatedly: if a port is already in use, that service is skipped.
 - **Check status / restart individually:** `scripts\manage-servers.ps1 -Action status`
@@ -147,7 +147,7 @@ The Visualizer (`packages/frontend/src/features/visualizer/`) includes:
 - Start interactive mode: `scripts\start-studio.ps1`
 - Check server status: `scripts\manage-servers.ps1 -Action status`
 - Unity health: `curl -X POST http://127.0.0.1:7800/api/exec -H "Authorization: Bearer <token>" -d '{"command":"editor_status","parameters":{}}'`
-- Backend health: `http://127.0.0.1:8000/api/health`
+- Backend health: `http://127.0.0.1:8001/api/health` (check `config/ports.json` for current port)
 - ComfyUI: `http://127.0.0.1:8188`
 
 ## Dependencies

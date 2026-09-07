@@ -6,8 +6,12 @@
  * Theatre.js — Motion design editor with visual timeline for high-fidelity animation
  */
 import { useEffect, useRef, useState } from "react";
-import { animate, stagger } from "animejs";
-import { getProject } from "@theatre/core";
+
+interface Libs {
+  animate: (targets: any, params: any) => any;
+  stagger: (val: number, opts?: any) => any;
+  getProject: (name: string) => any;
+}
 
 interface Props {
   visible: boolean;
@@ -19,11 +23,33 @@ export function AnimationDemo({ visible, onClose }: Props) {
   const wordsRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [activeDemo, setActiveDemo] = useState<"anime" | "theatre" | null>(null);
-  const theatreProject = useRef<ReturnType<typeof getProject> | null>(null);
-  const theatreSheet = useRef<ReturnType<ReturnType<typeof getProject>["sheet"]> | null>(null);
+  const [libs, setLibs] = useState<Libs | null>(null);
+  const [loading, setLoading] = useState(false);
+  const theatreProject = useRef<any>(null);
+  const theatreSheet = useRef<any>(null);
+
+  // Lazy-load heavy animation libs only when this demo is actually visible
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      import("animejs").then(m => ({ animate: m.animate, stagger: m.stagger })),
+      import("@theatre/core").then(m => ({ getProject: m.getProject })),
+    ]).then(([anime, theatre]) => {
+      if (!cancelled) {
+        setLibs({ animate: anime.animate, stagger: anime.stagger, getProject: theatre.getProject });
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [visible]);
 
   // Anime.js demo: Staggered word reveal
   const runAnimeDemo = () => {
+    if (!libs) return;
     setActiveDemo("anime");
     if (!wordsRef.current) return;
     const words = wordsRef.current.querySelectorAll(".demo-word");
@@ -32,17 +58,18 @@ export function AnimationDemo({ visible, onClose }: Props) {
       (w as HTMLElement).style.transform = "translateY(20px)";
     });
 
-    animate(words, {
+    libs.animate(words, {
       opacity: [0, 1],
       translateY: [20, 0],
       duration: 600,
-      delay: stagger(80, { from: "first" }),
+      delay: libs.stagger(80, { from: "first" }),
       ease: "outExpo",
     });
   };
 
   // Anime.js demo: SVG path drawing
   const runSvgDemo = () => {
+    if (!libs) return;
     setActiveDemo("anime");
     if (!svgRef.current) return;
     const paths = svgRef.current.querySelectorAll("path");
@@ -51,22 +78,23 @@ export function AnimationDemo({ visible, onClose }: Props) {
       path.style.strokeDasharray = `${length}`;
       path.style.strokeDashoffset = `${length}`;
     });
-    animate(paths, {
+    libs.animate(paths, {
       strokeDashoffset: 0,
       duration: 1200,
-      delay: stagger(200),
+      delay: libs.stagger(200),
       ease: "inOutQuad",
     });
   };
 
   // Theatre.js demo: Create a project with animated object
   const runTheatreDemo = () => {
+    if (!libs) return;
     setActiveDemo("theatre");
     if (theatreProject.current) {
       theatreProject.current = null;
       theatreSheet.current = null;
     }
-    const project = getProject("Visualizer Demo");
+    const project = libs.getProject("Visualizer Demo");
     theatreProject.current = project;
     const sheet = project.sheet("Scene 1");
     theatreSheet.current = sheet;
@@ -80,22 +108,21 @@ export function AnimationDemo({ visible, onClose }: Props) {
       el.style.transform = `translateX(${values.x}px) scale(${values.scale})`;
       el.style.opacity = `${values.opacity}`;
     });
-    // @ts-expect-error - Theatre.js types are incomplete
     obj.value = { x: 0, opacity: 1, scale: 1 };
   };
 
   useEffect(() => {
     if (!visible) return;
     // Run entrance animation on mount
-    if (titleRef.current) {
-      animate(titleRef.current, {
+    if (titleRef.current && libs) {
+      libs.animate(titleRef.current, {
         opacity: [0, 1],
         translateY: [-20, 0],
         duration: 800,
         ease: "outExpo",
       });
     }
-  }, [visible]);
+  }, [visible, libs]);
 
   if (!visible) return null;
 
@@ -108,13 +135,13 @@ export function AnimationDemo({ visible, onClose }: Props) {
         </div>
 
         <div className="anim-demo-buttons">
-          <button onClick={runAnimeDemo} className={`anim-demo-btn ${activeDemo === "anime" ? "active" : ""}`}>
+          <button onClick={runAnimeDemo} disabled={loading} className={`anim-demo-btn ${activeDemo === "anime" ? "active" : ""}`}>
             Anime.js — Stagger Words
           </button>
-          <button onClick={runSvgDemo} className={`anim-demo-btn ${activeDemo === "anime" ? "active" : ""}`}>
+          <button onClick={runSvgDemo} disabled={loading} className={`anim-demo-btn ${activeDemo === "anime" ? "active" : ""}`}>
             Anime.js — SVG Draw
           </button>
-          <button onClick={runTheatreDemo} className={`anim-demo-btn ${activeDemo === "theatre" ? "active" : ""}`}>
+          <button onClick={runTheatreDemo} disabled={loading} className={`anim-demo-btn ${activeDemo === "theatre" ? "active" : ""}`}>
             Theatre.js — Object Animate
           </button>
         </div>

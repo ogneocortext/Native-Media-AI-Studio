@@ -1,0 +1,11 @@
+Model Information:
+* title:	Sound system
+* source:	https://sketchfab.com/3d-models/sound-system-725273fbdde54a1babaf6ce1c95b96b4
+* author:	yryabchenko (https://sketchfab.com/yryabchenko)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Sound system" (https://sketchfab.com/3d-models/sound-system-725273fbdde54a1babaf6ce1c95b96b4) by yryabchenko (https://sketchfab.com/yryabchenko) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

@@ -162,7 +162,7 @@ export function LogsViewer() {
     const interval = setInterval(() => {
       fetchLogContent();
       fetchLogInfo();
-    }, 3000);
+    }, 10000); // Increased from 3s to 10s
     return () => clearInterval(interval);
   }, [expanded, autoRefresh, activeLog]);
 

@@ -80,8 +80,8 @@ export function InspectorTab({
         <SliderRow label="Glow / Emissive" min={0} max={2} step={0.1} value={object.emissiveIntensity} onChange={(v) => onUpdate(object.id, { emissiveIntensity: v })} />
       </div>
 
-      {/* Character-specific controls */}
-      {object.type === "character" && (
+      {/* Model/Animation controls — any object with modelUrl (blend->glb pipeline) or character */}
+      {(object.modelUrl || object.type === "character") && (
         <div className="border-t border-gray-800 pt-2 space-y-2">
           <div className="text-gray-400 font-medium">Character Model</div>
 

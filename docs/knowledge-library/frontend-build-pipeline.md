@@ -165,7 +165,79 @@ node scripts/analyze-bundle-stats.mjs
 # → chunk totals, top packages, largest app files, cross-chunk duplicates
 ```
 
-### 6.1 Bundle Analyzer Script (`scripts/analyze-bundle-stats.mjs`)
+---
+
+## 7. Additional Optimization Research (2026-09-07)
+
+### 7.1 Cross-Tab Polling: Tab Leader Pattern
+- **Problem:** Multiple tabs/components poll the same backend endpoint independently, multiplying DB load.
+- **Pattern:** Use the `BroadcastChannel` API (or `localStorage` `storage` event as fallback) to elect a single "leader" tab per resource type. Only the leader polls; other tabs subscribe to broadcast updates.
+- **Implementation notes for this project:**
+  - Leader election via `localStorage` timestamp + heartbeat.
+  - Fallback to individual polling if `BroadcastChannel` is unavailable (private browsing on some browsers).
+  - Applies cleanly to health endpoints: `/api/health`, `/api/logs/analytics/summary`, `/api/system/stats`.
+
+### 7.2 SQLite Query Performance: ANALYZE + Covering Indexes
+- **Command:** `ANALYZE` rebuilds the internal statistics so the query planner picks the best index.
+- **Covering index:** Include all filtered/sorted columns in one index to avoid table lookups.
+- **Applied to this project:**
+  - Migration v13 added indexes on `log_events.ts_ms`, `log_events.source`, and composite `(ts_ms, source)`.
+  - Analytics summary endpoint now has 30s in-memory TTL cache.
+  - Recommendation: Run `ANALYZE` after bulk inserts or on a schedule (e.g., after log rotation).
+
+### 7.3 Vite `manualChunks` Time-of-Check vs Time-of-Use (TDZ) Hazards
+- **Risk:** Moving modules into a manual chunk can change evaluation order. If module A imports module B and both are split, B may not be initialized when A runs (especially with circular deps).
+- **Mitigation:**
+  - Keep entry-point chunks (`index`) separate from vendor chunks.
+  - Avoid splitting modules that share tight circular dependencies.
+  - Verify with `node --trace-tls` equivalent: watch for `ReferenceError` or `undefined` in production build smoke tests.
+
+### 7.4 SSE Deduplication & Rate Limiting
+- **Problem:** Multiple SSE listeners on the same event stream cause duplicate parsing and memory pressure.
+- **Pattern:** Single shared `EventSource` per resource, multiplexed to subscribers via a lightweight pub/sub (e.g., RxJS `Subject`, or a simple callback registry).
+- **Rate limiting:** Backend should cap event emission frequency (e.g., `broadcast_warnings` now throttled to once per 60s per resource type).
+
+### 7.5 Zustand v4 Selector Stability
+- **Problem:** Inline selectors like `useStore(state => state.x)` create new function references every render, defeating shallow equality and causing unnecessary re-renders.
+- **Fix:** Use `useShallow` from `zustand/shallow` or memoize selectors with `useCallback` / module-level constants.
+- **Applied to this project:** Polling components migrated to `useHealthStore` with explicit selectors where needed.
+
+---
+
+## 8. Implementation History
+
+| Date | Change | Impact |
+|------|--------|--------|
+| 2026-09-07 | Added `fetchPortConfig()` to `main.tsx` `initApp()` | Fixed CORS fallback on port 5174 |
+| 2026-09-07 | Consolidated polling into `useHealthStore` | Eliminated duplicate fetch loops |
+| 2026-09-07 | Increased polling intervals across health components | Reduced DB/network load |
+| 2026-09-07 | Throttled `broadcast_warnings` to 60s per resource | Cut SSE message volume |
+| 2026-09-07 | Added DB migration v13 with analytics indexes | Faster `log_events` queries |
+| 2026-09-07 | Added 30s TTL cache to `/api/logs/analytics/summary` | Lower DB hit rate |
+| 2026-09-07 | Split `three-vendor` → `three-core` + `three-examples` | Smaller initial JS payload |
+| 2026-09-07 | Added `vite-plugin-compression` + `rollup-plugin-visualizer` | gzip/brotli artifacts, bundle insights |
+
+---
+
+## 9. How to Use
+
+```bash
+# Fast type-check only
+pnpm type-check
+
+# Production build with compression
+pnpm build
+
+# Build + open bundle analyzer
+pnpm build:analyze
+# → opens dist/stats.html
+
+# Mine dist/stats.html without rebuilding (no browser needed)
+node scripts/analyze-bundle-stats.mjs
+# → chunk totals, top packages, largest app files, cross-chunk duplicates
+```
+
+### 9.1 Bundle Analyzer Script (`scripts/analyze-bundle-stats.mjs`)
 
 Parses the JSON payload embedded in `dist/stats.html` (rollup-plugin-visualizer "sunset" format) and prints a text report:
 

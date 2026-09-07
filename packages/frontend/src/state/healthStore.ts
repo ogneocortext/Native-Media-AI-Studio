@@ -1,6 +1,8 @@
 /**
  * Zustand store for health state management.
  * Provides real-time health updates via SSE (Server-Sent Events).
+ * Also centralizes granular health polling so components don't run
+ * competing intervals.
  */
 
 import { create } from "zustand";
@@ -9,12 +11,26 @@ import {
   healthCheck,
   getSystemHealth,
   getServiceStatus,
+  getGPUSnapshot,
+  getGPUProcesses,
+  getFFmpegStatus,
+  getLoadedModels,
+  getComfyUIStatus,
   AggregateHealth,
   AdapterHealth,
   SystemHealth,
   ServiceStatus,
+  type ComfyUIStatus,
 } from "../services/api";
 import { sseService } from "../services/sseService";
+
+interface GranularHealthData {
+  gpu: { snapshot: Awaited<ReturnType<typeof getGPUSnapshot>> | null; processes: Awaited<ReturnType<typeof getGPUProcesses>>; error: string | null };
+  ffmpeg: Awaited<ReturnType<typeof getFFmpegStatus>> | null;
+  ollamaModels: Awaited<ReturnType<typeof getLoadedModels>> | null;
+  comfyui: ComfyUIStatus | null;
+  vram: Record<string, unknown> | null;
+}
 
 interface HealthState {
   backend: "online" | "offline";
@@ -26,6 +42,7 @@ interface HealthState {
   isLoading: boolean;
   error: string | null;
   sseConnected: boolean;
+  granular: GranularHealthData;
 
   // Actions
   setHealth: (health: AggregateHealth) => void;
@@ -34,6 +51,11 @@ interface HealthState {
   refreshAll: () => Promise<void>;
   connectSSE: () => void;
   disconnectSSE: () => void;
+  fetchGPUData: () => Promise<void>;
+  fetchFFmpegData: () => Promise<void>;
+  fetchOllamaModels: () => Promise<void>;
+  fetchComfyUIStatus: () => Promise<void>;
+  fetchVRAMStatus: () => Promise<Record<string, unknown> | null>;
 }
 
 // SSE subscriptions installed by connectSSE (released on disconnect).
@@ -41,6 +63,14 @@ let healthSubscriptions: {
   unsubMessage: () => void;
   unsubState: () => void;
 } | null = null;
+
+const EMPTY_GRANULAR: GranularHealthData = {
+  gpu: { snapshot: null, processes: { processes: [], count: 0 }, error: null },
+  ffmpeg: null,
+  ollamaModels: null,
+  comfyui: null,
+  vram: null,
+};
 
 export const useHealthStore = create<HealthState>((set, get) => ({
   backend: "offline",
@@ -52,6 +82,7 @@ export const useHealthStore = create<HealthState>((set, get) => ({
   isLoading: false,
   error: null,
   sseConnected: false,
+  granular: EMPTY_GRANULAR,
 
   setHealth: (health: AggregateHealth) => {
     set({
@@ -172,6 +203,71 @@ export const useHealthStore = create<HealthState>((set, get) => ({
     healthSubscriptions = null;
     sseService.disconnect();
     set({ sseConnected: false });
+  },
+
+  // Granular data fetchers (centralized so components don't compete)
+  fetchGPUData: async () => {
+    try {
+      const [snapshot, processes] = await Promise.all([
+        getGPUSnapshot(),
+        getGPUProcesses().catch(() => ({ processes: [], count: 0 })),
+      ]);
+      set((s) => ({
+        granular: { ...s.granular, gpu: { snapshot, processes, error: null } },
+      }));
+    } catch (error) {
+      set((s) => ({
+        granular: {
+          ...s.granular,
+          gpu: { ...s.granular.gpu, error: error instanceof Error ? error.message : "GPU unavailable" },
+        },
+      }));
+    }
+  },
+
+  fetchFFmpegData: async () => {
+    try {
+      const data = await getFFmpegStatus();
+      set((s) => ({ granular: { ...s.granular, ffmpeg: data } }));
+    } catch {
+      set((s) => ({ granular: { ...s.granular, ffmpeg: null } }));
+    }
+  },
+
+  fetchOllamaModels: async () => {
+    try {
+      const data = await getLoadedModels();
+      set((s) => ({ granular: { ...s.granular, ollamaModels: data } }));
+    } catch {
+      set((s) => ({ granular: { ...s.granular, ollamaModels: { loaded: false, models: [], activity: {} } } }));
+    }
+  },
+
+  fetchComfyUIStatus: async () => {
+    try {
+      const data = await getComfyUIStatus();
+      set((s) => ({ granular: { ...s.granular, comfyui: data } }));
+    } catch {
+      set((s) => ({ granular: { ...s.granular, comfyui: null } }));
+    }
+  },
+
+  fetchVRAMStatus: async () => {
+    try {
+      const base = (await import("../services/portConfig")).getBackendUrl();
+      const res = await fetch(`${base}/api/integrations/vram/status`, { signal: AbortSignal.timeout(30000) });
+      if (res.ok) {
+        const data = await res.json();
+        set((s) => ({ granular: { ...s.granular, vram: data } }));
+        return data as Record<string, unknown>;
+      } else {
+        set((s) => ({ granular: { ...s.granular, vram: null } }));
+        return null;
+      }
+    } catch {
+      set((s) => ({ granular: { ...s.granular, vram: null } }));
+      return null;
+    }
   },
 }));
 

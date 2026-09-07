@@ -87,15 +87,46 @@ date: 2026-08-24
 > )
 > ```
 
-### Sketchfab Models
+### Sketchfab Models (1M+ free CC library, replaces banger.show cloud import)
 
-> [!note] 3D Model Download
+> [!info] Setup — free, no paid plan
+> 1. Free account at `sketchfab.com` (Epic Games login works) → `Settings → Password → API Token`
+> 2. Persistent key (priority `Prefs → Scene → env` `tools/blender_mcp_addon.py:338`):
+>    * **Env (recommended):** `setx BLENDERMCP_SKETCHFAB_API_KEY "<token>"` + repo `.env:1` `BLENDERMCP_SKETCHFAB_API_KEY=...` (`.gitignore:76` ignores `.env`)
+>    * **Blender UI:** `N-panel → BlenderMCP → Use assets from Sketchfab` + paste in `Addon Preferences → sketchfab_api_key` `tools/blender_mcp_addon.py:3184` and `Scene.blendermcp_sketchfab_api_key` `tools/blender_mcp_addon.py:3508`, then `bpy.ops.wm.save_userpref()`
+> 3. Verify: `blender_get_sketchfab_status()` → `Logged in as: <user>` (`Data API v3` `/v3/me` `tools/blender_mcp_addon.py:2302`). Free `basic` account suffices; `Pro` only adds private models/500MB uploads/viewer white-label.
+> 4. Search is public (no key); **Download API** `/v3/models/{uid}/download` `tools/blender_mcp_addon.py:2518` requires that free token (`Authorization: Token <key>` → `glTF/GLB/USDZ`, not source `FBX/OBJ`).
+
+> [!note] 3D Model Download (offline after download — no 10/day limit vs banger.show)
 > ```python
+> # Search (public, no key) then download with free token
+> blender_search_sketchfab_models(query="boombox", count=20, downloadable=True)
+> blender_get_sketchfab_model_preview(uid="abc123")
 > blender_download_sketchfab_model(
->     uid="model_uid_here",
->     target_size=2.0  # meters
+>     uid="abc123",
+>     target_size=1.0,      # meters, largest dimension
+>     normalize_size=True
 > )
+> # Curated music-video picks: stage d5c7733d06d24947bf60b3a0fe203f69, boombox fb8a583f743a47268a2aaa420624c794,
+> # speakers 725273fbdde54a1babaf6ce1c95b96b4, turntable b7bb537521bd4fa9be15926c24bb4656 (all CC BY, low-poly for GTX 1070 Ti 8GB)
 > ```
+
+### Blend -> GLB for Media Library + Three.js Studio (AI agent pipeline)
+
+> [!success] `stage.blend` (`21 MB`, now `output/generated_3d/stage.glb` + `public/models/blends/stage.glb`) — use headless converter so Blender UI can stay hung
+> ```powershell
+> # AI agents after blender_execute_blender_code generation:
+> python tools/convert_blend_to_glb.py stage.blend --public
+> #  -> Blender --background --python (Y-up, apply, bake animations) -> output/generated_3d/<name>.glb (Media Library file_type=3d outputs.py:202)
+> #  -> packages/frontend/public/models/blends/<name>.glb (/models/blends/<name>.glb for Three.js GLTFLoader)
+> # Handles *.blend at repo root (gitignored *.blend:122) — output GLB is ignored, public GLB is tracked (!public:133)
+> ```
+
+> [!tip] Three.js Studio import + animation
+> * Any `AnimObject` with `modelUrl` now loads via `GLTFLoader` (`hooks/useMeshFactory.ts:66` `else if (obj.modelUrl)` — not just `type==="character"`), so `boombox/character/stage` all animate
+> * `InspectorTab.tsx:43` shows Animation controls (clip dropdown, scrubber `currentTime/duration`, `Play/Pause`, `Speed`, `Loop`) for **any** `modelUrl` (was character-only)
+> * Timeline + beat sync: `sceneConfig.beatPunch` (`ThreeJSStudio.tsx:TrackInfoBar`) + per-object `bobSpeed/bobAmount/rotateSpeed` + `AnimationMixer` `useMeshFactory.ts:84` + keyframe bake `export_animations True` in `convert_blend_to_glb.py`
+> * `MediaLibrary.tsx:229` `handleAddToStudio()` -> `pendingCharacter` `modelUrl: /output/generated_3d/*.glb` dispatches to Studio; drag-drop `.glb` also works `InspectorTab.tsx:39`
 
 ---
 

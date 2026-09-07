@@ -1,35 +1,27 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Cpu, Loader2 } from "lucide-react";
 import { Card } from "../../components/common";
-import { getLoadedModels } from "../../services/api";
-import type { DiagnosticsModelsResponse } from "../../services/api";
+import { useHealthStore } from "../../state/healthStore";
 import { formatElapsed } from "../../utils/format";
 
 export function OllamaModelsCard() {
-  const [data, setData] = useState<DiagnosticsModelsResponse | null>(null);
   const [now, setNow] = useState(Date.now());
-
-  const fetchData = useCallback(async () => {
-    try {
-      const result = await getLoadedModels();
-      setData(result);
-    } catch {
-      setData({ loaded: false, models: [], activity: {} });
-    }
-  }, []);
+  const fetchOllamaModels = useHealthStore((s) => s.fetchOllamaModels);
+  const granular = useHealthStore((s) => s.granular);
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 5000);
+    fetchOllamaModels();
+    const interval = setInterval(fetchOllamaModels, 15000); // Increased from 5s to 15s
     const clock = setInterval(() => setNow(Date.now()), 1000);
     return () => {
       clearInterval(interval);
       clearInterval(clock);
     };
-  }, [fetchData]);
+  }, [fetchOllamaModels]);
 
-  const models = data?.models || [];
-  const activity = data?.activity || {};
+  const data = granular.ollamaModels || { loaded: false, models: [], activity: {} };
+  const models = data.models || [];
+  const activity = data.activity || {};
 
   return (
     <Card className="ollama-card mb-6" title="Ollama Models" icon={<Cpu size={16} className="text-violet-400" />}>

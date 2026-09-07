@@ -221,7 +221,7 @@ class OllamaAnalysisRow:
 DB_PATH = PROJECT_ROOT / "storage" / "studio.db"
 
 # Database schema version for migrations
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 
 def _safe_json_loads(val: str | None, default: Any = None) -> Any:
@@ -324,6 +324,15 @@ def _migrate_v12(conn: sqlite3.Connection):
     conn.execute("""
         CREATE UNIQUE INDEX IF NOT EXISTS uq_log_events_unique
         ON log_events(ts_iso, level, logger, message)
+    """)
+
+
+def _migrate_v13(conn: sqlite3.Connection):
+    """Add performance indexes for analytics queries and time-based filtering."""
+    conn.executescript("""
+        CREATE INDEX IF NOT EXISTS idx_log_events_ts_ms ON log_events(ts_ms);
+        CREATE INDEX IF NOT EXISTS idx_log_events_source ON log_events(source);
+        CREATE INDEX IF NOT EXISTS idx_log_events_ts_source ON log_events(ts_ms, source);
     """)
 
 
@@ -555,6 +564,8 @@ def init_db():
             _migrate_v11(conn)
         if current_version < 12:
             _migrate_v12(conn)
+        if current_version < 13:
+            _migrate_v13(conn)
 
         set_schema_version(conn, SCHEMA_VERSION)
         logger.info("Database initialized at version %d", SCHEMA_VERSION)

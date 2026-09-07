@@ -64,6 +64,8 @@ class ResourceMonitor:
     def __init__(self, thresholds: ResourceThresholds | None = None):
         self.thresholds = thresholds or ResourceThresholds()
         self._last_warnings: dict[ResourceType, WarningLevel] = {}
+        self._last_broadcast_time: dict[ResourceType, float] = {}
+        self._broadcast_interval_seconds = 60.0
         self._gpustat_available = False
         self._nvml_available = False
 
@@ -730,24 +732,36 @@ class ResourceMonitor:
         return warnings
 
     async def broadcast_warnings(self, warnings: list[dict[str, Any]]):
-        """Broadcast resource warnings via SSE"""
+        """Broadcast resource warnings via SSE, throttled to max once per 60s per resource type."""
+        import time as _time
+        now = _time.time()
         for warning in warnings:
             resource_type = warning["type"]
             level = warning["level"]
-
-            # Only broadcast if warning level changed or is critical
             last_level = self._last_warnings.get(resource_type)
-            if last_level != level or level == WarningLevel.CRITICAL:
+            last_broadcast = self._last_broadcast_time.get(resource_type, 0.0)
+
+            # Broadcast if level changed, became critical, or enough time passed since last broadcast
+            should_broadcast = (
+                last_level != level or
+                level == WarningLevel.CRITICAL or
+                (now - last_broadcast) >= self._broadcast_interval_seconds
+            )
+
+            if should_broadcast:
                 await sse_manager.broadcast("system.resource_warning", warning)
                 logger.warning(f"Resource warning broadcast: {warning['message']}")
+                self._last_broadcast_time[resource_type] = now
+
+            # Track last seen level
+            if last_level != level:
                 self._last_warnings[resource_type] = level
 
-            # Clear warning if resolved
-            if level != WarningLevel.CRITICAL and resource_type in self._last_warnings:
-                del self._last_warnings[resource_type]
+            # Clear warning if resolved and not critical
+            if level != WarningLevel.CRITICAL:
+                self._last_warnings.pop(resource_type, None)
 
         # Cleanup stale entries (resource types no longer being warned about)
-        # This prevents unbounded growth if resource types are added/removed
         stale_keys = [k for k in self._last_warnings if k not in [w["type"] for w in warnings]]
         for key in stale_keys:
             del self._last_warnings[key]

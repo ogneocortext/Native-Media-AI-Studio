@@ -5,38 +5,29 @@ import {
   Activity,
   Thermometer,
   RefreshCw,
-  Loader2,
 } from "lucide-react";
 import { Card } from "../../components/common";
-import { getGPUSnapshot, getGPUProcesses } from "../../services/api";
-import type { GPUSnapshot, GPUProcessInfo } from "../../services/api";
+import { useHealthStore } from "../../state/healthStore";
 import { getUsageColor } from "./utils";
 
 export function GPUCard() {
-  const [gpu, setGpu] = useState<GPUSnapshot | null>(null);
-  const [processes, setProcesses] = useState<GPUProcessInfo[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const fetchGPU = async () => {
-    setLoading(true);
-    try {
-      const [snapshot, procs] = await Promise.all([
-        getGPUSnapshot(),
-        getGPUProcesses().catch(() => ({ processes: [] })),
-      ]);
-      setGpu(snapshot);
-      setProcesses(procs.processes || []);
-    } catch {
-      // GPU monitoring not available
-    }
-    setLoading(false);
-  };
+  const [gpu, setGpu] = useState<Awaited<ReturnType<typeof import("../../services/api").getGPUSnapshot>> | null>(null);
+  const [processes, setProcesses] = useState<import("../../services/api").GPUProcessInfo[]>([]);
+  const fetchGPUData = useHealthStore((s) => s.fetchGPUData);
+  const granular = useHealthStore((s) => s.granular);
 
   useEffect(() => {
-    fetchGPU();
-    const interval = setInterval(fetchGPU, 5000); // Refresh every 5s
+    fetchGPUData();
+    const interval = setInterval(fetchGPUData, 10000); // Increased from 5s to 10s
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchGPUData]);
+
+  useEffect(() => {
+    const snapshot = granular.gpu.snapshot;
+    const procData = granular.gpu.processes;
+    if (snapshot) setGpu(snapshot);
+    if (procData?.processes) setProcesses(procData.processes);
+  }, [granular.gpu.snapshot, granular.gpu.processes]);
 
   if (!gpu?.available) {
     return (
@@ -51,8 +42,8 @@ export function GPUCard() {
               <p className="text-xs text-muted">Not available</p>
             </div>
           </div>
-          <button onClick={fetchGPU} disabled={loading} className="text-xs text-muted hover:text-white">
-            {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+          <button onClick={fetchGPUData} className="text-xs text-muted hover:text-white">
+            <RefreshCw size={14} />
           </button>
         </div>
         <p className="text-xs text-muted">GPU monitoring requires NVIDIA drivers with NVML support</p>
@@ -87,8 +78,8 @@ export function GPUCard() {
           >
             {memPercent.toFixed(0)}%
           </span>
-          <button onClick={fetchGPU} disabled={loading} className="text-xs text-muted hover:text-white">
-            {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+          <button onClick={fetchGPUData} className="text-xs text-muted hover:text-white">
+            <RefreshCw size={14} />
           </button>
         </div>
       </div>

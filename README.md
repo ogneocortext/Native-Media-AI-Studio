@@ -56,7 +56,7 @@ Native-Media-AI-Studio/
 ├── config/                 # Shared configuration (ports, settings, tracks)
 ├── docs/                   # All documentation
 ├── packages/               # Monorepo packages
-│   ├── frontend/           # React + Vite UI (port 5173)
+│   ├── frontend/           # React + Vite UI (dynamic port, usually 5174)
 │   │   └── src/features/   # Feature-based modules
 │   │       ├── ai-tools/         # AI chat + tool registry
 │   │       ├── image-generation/ # ComfyUI image gen
@@ -64,7 +64,7 @@ Native-Media-AI-Studio/
 │   │       ├── settings/         # App settings
 │   │       ├── video-generation/ # ComfyUI video gen
 │   │       └── visualizer/       # 3D audio visualizer (types + hooks + scene)
-│   ├── backend/            # FastAPI backend (port 8000)
+│   ├── backend/            # FastAPI backend (dynamic port, usually 8001)
 │   │   └── app/api/        # Modular API routes
 │   │       ├── integrations_config.py    # Config/settings endpoints
 │   │       ├── integrations_generation.py # ComfyUI/Ollama/VRAM/Audio
@@ -126,7 +126,7 @@ python -c "from app.services.cuda import cuda_audio; import numpy as np; print(c
 # POST /api/health/3d/generate {"prompt": "a robot", "steps": 15}
 
 # GPU monitoring
-curl http://localhost:8000/api/health/gpu
+curl http://localhost:8001/api/health/gpu
 ```
 
 See [GPU Pipeline Guide](docs/guides/GPU_PIPELINE.md) for full documentation.
@@ -149,8 +149,8 @@ pnpm db:migrate          # Initialize SQLite database
 
 | Service      | Port | Description                                      |
 | ------------ | ---- | ------------------------------------------------ |
-| Backend      | 8000 | FastAPI + SSE (`/api/events`) + SQLite           |
-| Frontend     | 5173 | React + Vite UI                                  |
+| Backend      | 8000/8001 (dynamic) | FastAPI + SSE (`/api/events`) + SQLite           |
+| Frontend     | 5173/5174 (dynamic) | React + Vite UI                                  |
 | ComfyUI      | 8188 | AI image/video generation                        |
 | Video Editor | 8080 | Remotion studio (`config/ports.json` dynamic)    |
 
