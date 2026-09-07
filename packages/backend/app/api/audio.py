@@ -3,6 +3,8 @@ Audio upload and analysis API routes.
 Handles file uploads for music video creation and audio analysis.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import uuid
@@ -204,48 +206,11 @@ async def analyze_audio(
             content = await file.read()
             buffer.write(content)
 
-        from ..services.audio_analyzer import AudioAnalyzer, LIBROSA_AVAILABLE
-        if not LIBROSA_AVAILABLE:
-            raise HTTPException(status_code=503, detail="librosa not installed. Run: pip install librosa soundfile")
+        _check_backend_available(backend)
 
         analyzer = AudioAnalyzer()
         result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
-
-        # Convert to wizard-friendly format — now with real librosa features
-        tempo = result.beats.tempo_bpm if result.beats else 120.0
-        duration = result.waveform.duration_seconds if result.waveform else 0.0
-        beat_count = len(result.beats.beat_times) if result.beats else 0
-        beat_times = result.beats.beat_times if result.beats else []
-        onset_times = result.beats.onset_times if result.beats else []
-        confidence = result.beats.confidence if result.beats else 0.0
-        # Energy curve for frontend viz (downsampled envelope + full rms mean)
-        energy_curve = result.waveform.amplitude_envelope if result.waveform else []
-        rms = result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []
-
-        # Generate sections from REAL energy + beats, not uniform slicing
-        sections = _generate_sections_from_analysis(
-            duration=duration,
-            tempo=tempo,
-            beat_times=beat_times,
-            onset_times=onset_times,
-            rms_energy=rms,
-            hop_length=analyzer.hop_length,
-            sample_rate=result.waveform.sample_rate if result.waveform else 22050,
-        )
-
-        analysis_result = {
-            "tempo_bpm": round(float(tempo), 1),
-            "duration_seconds": round(float(duration), 2),
-            "beat_count": int(beat_count),
-            "sections": sections,
-            "beat_times": [round(float(t), 3) for t in beat_times[:800]],
-            "onset_times": [round(float(t), 3) for t in onset_times[:800]],
-            "energy_curve": [round(float(v), 4) for v in energy_curve],
-            "confidence": round(float(confidence), 3),
-            "amplitude_envelope": [round(float(v), 4) for v in energy_curve],
-            "stored_path": str(file_path),
-            "job_id": unique_id,
-        }
+        analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
 
         # Cache the analysis index
         index = _load_analysis_index()
@@ -288,6 +253,8 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
         if not LIBROSA_AVAILABLE:
             raise HTTPException(status_code=503, detail="librosa not installed")
 
+        analyzer = AudioAnalyzer()
+
         # Try CUDA first, fall back to CPU
         try:
             from ..services.audio_analyzer import analyze_with_cuda
@@ -296,88 +263,21 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
             cuda_result = None
 
         if cuda_result and cuda_result.get("computed_on") == "GPU":
-            # CUDA succeeded — use its spectral features + CPU beat tracking
-            analyzer = AudioAnalyzer()
+            # CUDA succeeded — use CPU beat tracking + CUDA spectral features
             result = analyzer.analyze_file(str(file_path), job_id=unique_id)
-            tempo = result.beats.tempo_bpm
-            beat_times = result.beats.beat_times
-            confidence = result.beats.confidence
-            sections = _generate_sections_from_analysis(
-                duration=cuda_result.get("duration_seconds", 0),
-                tempo=tempo,
-                beat_times=beat_times,
-                onset_times=result.beats.onset_times,
-                rms_energy=cuda_result.get("rms_energy", []),
-                hop_length=analyzer.hop_length,
-                sample_rate=result.waveform.sample_rate,
-            )
-            # LLM refinement (deepseek-r1:7b) — non-blocking fallback keeps heuristic on timeout
-            try:
-                llm_secs = await _generate_sections_llm(
-                    cuda_result.get("duration_seconds", 0), tempo, beat_times, cuda_result.get("rms_energy", [])
-                )
-                if llm_secs:
-                    sections = llm_secs
-            except Exception:
-                pass
-
-            analysis_result = {
-                "tempo_bpm": round(float(tempo), 1),
-                "duration_seconds": round(float(cuda_result.get("duration_seconds", 0)), 2),
-                "beat_count": len(beat_times),
-                "sections": sections,
-                "beat_times": [round(float(t), 3) for t in beat_times[:800]],
-                "onset_times": [round(float(t), 3) for t in result.beats.onset_times[:800]],
-                "energy_curve": [round(float(v), 4) for v in cuda_result.get("amplitude_envelope", [])],
-                "confidence": round(float(confidence), 3),
-                "amplitude_envelope": [round(float(v), 4) for v in cuda_result.get("amplitude_envelope", [])],
-                "stored_path": str(file_path),
-                "job_id": unique_id,
-                "computed_on": "GPU",
-            }
+            analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
+            analysis_result["computed_on"] = "GPU"
+            # Override energy curve with CUDA spectral data when available
+            if cuda_result.get("amplitude_envelope"):
+                analysis_result["energy_curve"] = [round(float(v), 4) for v in cuda_result["amplitude_envelope"]]
+                analysis_result["amplitude_envelope"] = analysis_result["energy_curve"]
+            await _apply_llm_sections(analysis_result, result, cuda_result.get("rms_energy", []))
         else:
             # CUDA unavailable — fall back to CPU
-            analyzer = AudioAnalyzer()
             result = analyzer.analyze_file(str(file_path), job_id=unique_id)
-
-            tempo = result.beats.tempo_bpm if result.beats else 120.0
-            duration = result.waveform.duration_seconds if result.waveform else 0.0
-            beat_count = len(result.beats.beat_times) if result.beats else 0
-            beat_times = result.beats.beat_times if result.beats else []
-            onset_times = result.beats.onset_times if result.beats else []
-            confidence = result.beats.confidence if result.beats else 0.0
-            energy_curve = result.waveform.amplitude_envelope if result.waveform else []
-
-            sections = _generate_sections_from_analysis(
-                duration=duration,
-                tempo=tempo,
-                beat_times=beat_times,
-                onset_times=onset_times,
-                rms_energy=result.waveform.rms_energy if result.waveform else [],
-                hop_length=analyzer.hop_length,
-                sample_rate=result.waveform.sample_rate if result.waveform else 22050,
-            )
-            try:
-                llm_secs = await _generate_sections_llm(duration, tempo, beat_times, result.waveform.rms_energy if result.waveform else [])
-                if llm_secs:
-                    sections = llm_secs
-            except Exception:
-                pass
-
-            analysis_result = {
-                "tempo_bpm": round(float(tempo), 1),
-                "duration_seconds": round(float(duration), 2),
-                "beat_count": int(beat_count),
-                "sections": sections,
-                "beat_times": [round(float(t), 3) for t in beat_times[:800]],
-                "onset_times": [round(float(t), 3) for t in onset_times[:800]],
-                "energy_curve": [round(float(v), 4) for v in energy_curve],
-                "confidence": round(float(confidence), 3),
-                "amplitude_envelope": [round(float(v), 4) for v in energy_curve],
-                "stored_path": str(file_path),
-                "job_id": unique_id,
-                "computed_on": "CPU",
-            }
+            analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
+            analysis_result["computed_on"] = "CPU"
+            await _apply_llm_sections(analysis_result, result, result.waveform.rms_energy if result.waveform else [])
 
         # Cache the analysis index
         index = _load_analysis_index()
@@ -395,6 +295,65 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+def _check_backend_available(backend: str) -> None:
+    """Raise 503 if the requested analysis backend is not installed."""
+    from ..services.audio_analyzer import (
+        LIBROSA_AVAILABLE,
+        MADMOM_AVAILABLE,
+        SONARA_AVAILABLE,
+    )
+    backend = (backend or "sonara").lower()
+    if backend == "sonara" and not SONARA_AVAILABLE:
+        raise HTTPException(status_code=503, detail="sonara not installed. Run: pip install sonara")
+    if backend == "madmom" and not MADMOM_AVAILABLE:
+        raise HTTPException(status_code=503, detail="madmom-infer not installed. Run: pip install madmom-infer")
+    if backend == "librosa" and not LIBROSA_AVAILABLE:
+        raise HTTPException(status_code=503, detail="librosa not installed. Run: pip install librosa soundfile")
+    if backend not in ("sonara", "madmom", "librosa"):
+        raise HTTPException(status_code=400, detail=f"Unknown backend: {backend}. Choose sonara, madmom, or librosa.")
+
+
+def _build_analysis_result(
+    result,
+    unique_id: str,
+    file_path: Path,
+    analyzer,
+) -> dict:
+    """Build the standard analysis response dict from an AudioAnalysisResult."""
+    tempo = result.beats.tempo_bpm if result.beats else 120.0
+    duration = result.waveform.duration_seconds if result.waveform else 0.0
+    beat_count = len(result.beats.beat_times) if result.beats else 0
+    beat_times = result.beats.beat_times if result.beats else []
+    onset_times = result.beats.onset_times if result.beats else []
+    confidence = result.beats.confidence if result.beats else 0.0
+    energy_curve = result.waveform.amplitude_envelope if result.waveform else []
+    rms = result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []
+
+    sections = _generate_sections_from_analysis(
+        duration=duration,
+        tempo=tempo,
+        beat_times=beat_times,
+        onset_times=onset_times,
+        rms_energy=rms,
+        hop_length=analyzer.hop_length,
+        sample_rate=result.waveform.sample_rate if result.waveform else 22050,
+    )
+
+    return {
+        "tempo_bpm": round(float(tempo), 1),
+        "duration_seconds": round(float(duration), 2),
+        "beat_count": int(beat_count),
+        "sections": sections,
+        "beat_times": [round(float(t), 3) for t in beat_times[:800]],
+        "onset_times": [round(float(t), 3) for t in onset_times[:800]],
+        "energy_curve": [round(float(v), 4) for v in energy_curve],
+        "confidence": round(float(confidence), 3),
+        "amplitude_envelope": [round(float(v), 4) for v in energy_curve],
+        "stored_path": str(file_path),
+        "job_id": unique_id,
+    }
 
 
 def _generate_sections_from_analysis(
@@ -582,6 +541,21 @@ async def _generate_sections_llm(
     return None
 
 
+async def _apply_llm_sections(analysis_result: dict, result, rms_energy: list[float]) -> None:
+    """Best-effort LLM section refinement. Mutates `analysis_result["sections"]` on success."""
+    try:
+        llm_secs = await _generate_sections_llm(
+            analysis_result["duration_seconds"],
+            analysis_result["tempo_bpm"],
+            result.beats.beat_times,
+            rms_energy,
+        )
+        if llm_secs:
+            analysis_result["sections"] = llm_secs
+    except Exception:
+        pass
+
+
 def _generate_sections(duration: float, tempo: float, beat_count: int) -> list[dict]:
     """Legacy fallback — uniform slicing (kept for queue path)."""
     return _generate_sections_from_analysis(duration, tempo, [], [], [], 512, 22050)
@@ -693,11 +667,11 @@ async def list_uploaded_audio():
 
 
 @router.post("/ensure-analysis")
-async def ensure_analysis(body: dict):
+async def ensure_analysis(body: EnsureAnalysisRequest):
     """Ensure analysis exists for a file — run analysis if not cached.
     Used by frontend features that depend on analysis data."""
-    filename = body.get("filename", "")
-    backend = body.get("backend", "sonara")
+    filename = body.filename
+    backend = body.backend
     if not filename:
         raise HTTPException(status_code=400, detail="filename required")
 
@@ -728,47 +702,13 @@ async def ensure_analysis(body: dict):
         raise HTTPException(status_code=404, detail=f"Audio file not found: {filename}")
 
     # Run analysis
-    from ..services.audio_analyzer import AudioAnalyzer, LIBROSA_AVAILABLE
-    if not LIBROSA_AVAILABLE:
-        raise HTTPException(status_code=503, detail="librosa not installed")
+    _check_backend_available(backend)
 
     try:
         unique_id = str(uuid.uuid4())[:8]
         analyzer = AudioAnalyzer()
         result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
-
-        tempo = result.beats.tempo_bpm if result.beats else 120.0
-        duration = result.waveform.duration_seconds if result.waveform else 0.0
-        beat_count = len(result.beats.beat_times) if result.beats else 0
-        beat_times = result.beats.beat_times if result.beats else []
-        onset_times = result.beats.onset_times if result.beats else []
-        confidence = result.beats.confidence if result.beats else 0.0
-        energy_curve = result.waveform.amplitude_envelope if result.waveform else []
-        rms = result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []
-
-        sections = _generate_sections_from_analysis(
-            duration=duration,
-            tempo=tempo,
-            beat_times=beat_times,
-            onset_times=onset_times,
-            rms_energy=rms,
-            hop_length=analyzer.hop_length,
-            sample_rate=result.waveform.sample_rate if result.waveform else 22050,
-        )
-
-        analysis_result = {
-            "tempo_bpm": round(float(tempo), 1),
-            "duration_seconds": round(float(duration), 2),
-            "beat_count": int(beat_count),
-            "sections": sections,
-            "beat_times": [round(float(t), 3) for t in beat_times[:800]],
-            "onset_times": [round(float(t), 3) for t in onset_times[:800]],
-            "energy_curve": [round(float(v), 4) for v in energy_curve],
-            "confidence": round(float(confidence), 3),
-            "amplitude_envelope": [round(float(v), 4) for v in energy_curve],
-            "stored_path": str(file_path),
-            "job_id": unique_id,
-        }
+        analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
 
         # Save to index and file
         index[filename] = unique_id
@@ -778,7 +718,7 @@ async def ensure_analysis(body: dict):
         with open(analysis_file, "w") as f:
             json.dump(analysis_result, f, indent=2)
 
-        logger.info(f"Analysis completed for '{filename}': {tempo:.1f} BPM, {beat_count} beats")
+        logger.info(f"Analysis completed for '{filename}': {analysis_result['tempo_bpm']} BPM, {analysis_result['beat_count']} beats")
         
         # Save to database for persistence between server restarts
         from ..core import database
@@ -787,6 +727,8 @@ async def ensure_analysis(body: dict):
         _analysis_cache[filename] = analysis_result
 
         return {"status": "analyzed", "analysis": analysis_result}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Analysis failed for '{filename}': {e}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
@@ -822,42 +764,12 @@ async def analyze_all_pending(backend: str = "sonara"):
         if existing and existing.get("beat_times"):
             continue
 
+        _check_backend_available(backend)
+
         try:
             unique_id = str(uuid.uuid4())[:8]
             result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
-
-            tempo = result.beats.tempo_bpm if result.beats else 120.0
-            duration = result.waveform.duration_seconds if result.waveform else 0.0
-            beat_count = len(result.beats.beat_times) if result.beats else 0
-            beat_times = result.beats.beat_times if result.beats else []
-            onset_times = result.beats.onset_times if result.beats else []
-            confidence = result.beats.confidence if result.beats else 0.0
-            energy_curve = result.waveform.amplitude_envelope if result.waveform else []
-            rms = result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []
-
-            sections = _generate_sections_from_analysis(
-                duration=duration,
-                tempo=tempo,
-                beat_times=beat_times,
-                onset_times=onset_times,
-                rms_energy=rms,
-                hop_length=analyzer.hop_length,
-                sample_rate=result.waveform.sample_rate if result.waveform else 22050,
-            )
-
-            analysis_result = {
-                "tempo_bpm": round(float(tempo), 1),
-                "duration_seconds": round(float(duration), 2),
-                "beat_count": int(beat_count),
-                "sections": sections,
-                "beat_times": [round(float(t), 3) for t in beat_times[:800]],
-                "onset_times": [round(float(t), 3) for t in onset_times[:800]],
-                "energy_curve": [round(float(v), 4) for v in energy_curve],
-                "confidence": round(float(confidence), 3),
-                "amplitude_envelope": [round(float(v), 4) for v in energy_curve],
-                "stored_path": str(file_path),
-                "job_id": unique_id,
-            }
+            analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
 
             # Save to database
             database.update_audio_analysis(filename, analysis_result)
@@ -872,24 +784,32 @@ async def analyze_all_pending(backend: str = "sonara"):
 
             analyzed_files.append({
                 "filename": filename,
-                "bpm": round(float(tempo), 1),
-                "beats": beat_count,
-                "confidence": round(float(confidence), 3),
+                "bpm": analysis_result["tempo_bpm"],
+                "beats": analysis_result["beat_count"],
+                "confidence": analysis_result["confidence"],
             })
         except Exception as e:
             errors.append({"filename": filename, "error": str(e)})
             logger.warning(f"Failed to analyze '{filename}': {e}")
 
-    return {
-        "status": "ok",
-        "analyzed": len(analyzed_files),
-        "total": len(audio_files),
-        "files": analyzed_files,
-        "errors": errors,
-    }
+
+class EnsureAnalysisRequest(BaseModel):
+    """Request model for ensuring cached analysis exists for an audio file."""
+    filename: str
+    backend: str = "sonara"
+
+
+class RenameAudioRequest(BaseModel):
+    """Request model for renaming an audio file."""
+    old_filename: str
+    new_filename: str
+
+
+@router.post("/rename", response_model=dict)
+async def rename_audio(body: RenameAudioRequest) -> dict:
     """Rename an audio file."""
-    old_filename = body.get("old_filename", "")
-    new_filename = body.get("new_filename", "")
+    old_filename = body.old_filename
+    new_filename = body.new_filename
 
     if not old_filename or not new_filename:
         raise HTTPException(status_code=400, detail="Both old_filename and new_filename are required")

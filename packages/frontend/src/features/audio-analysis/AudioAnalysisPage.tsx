@@ -5,10 +5,9 @@ import {
   Clock, TrendingUp, Music2, Pencil,
 } from "lucide-react";
 import {
-  analyzeAudio, analyzeAudioCuda, generateVideoSection,
-  listAudioFiles, renameAudioFile, getAnalysis, getCudaStatus,
+  generateVideoSection,
+  listAudioFiles, renameAudioFile, getCudaStatus,
   getApiBase, type AudioAnalysisResult, separateAudioStems,
-  ensureAnalysis, getAvailableAudioBackends, getAnalysisSummary, analyzeAllPending,
 } from "../../services/api";
 import { useAudioAnalysis } from "../../hooks/useAudioAnalysis";
 import { DS } from "../../styles/designSystem";
@@ -132,6 +131,7 @@ export function AudioAnalysisPage() {
   const analyzing = audio.analyzing;
   const analysis = audio.analysis;
   const error = audio.error;
+  const { setAnalysis, setError } = audio;
 
   useEffect(() => {
     getCudaStatus()
@@ -232,21 +232,11 @@ export function AudioAnalysisPage() {
     setAnalysisStep("Loading audio file...");
     try {
       const filename = storedPath.split(/[/\\]/).pop() || "audio.mp3";
-      // Prefer cached analysis summary (agent-friendly compact view)
-      try {
-        const cached = await getAnalysisSummary(filename);
-        if (cached && !cached.error) {
-          setAnalysisStep("Retrieving cached analysis...");
-          setAnalysis(cached as AudioAnalysisResult);
-          setAnalysisStep(""); setSelectedLibraryFile(null);
-          return;
-        }
-      } catch { /* no cache */ }
-      // Fall back to ensure-analysis on the default backend
+      // ensure-analysis returns cached analysis immediately when available
       const ensured = await audio.ensure(filename, "sonara");
       if (ensured && ensured.analysis) {
         setAnalysisStep("Detecting song structure...");
-        setAnalysis(ensured.analysis as AudioAnalysisResult);
+        setAnalysis(ensured.analysis);
       }
       setAnalysisStep("");
     } catch (err: unknown) { setError(err instanceof Error ? err.message : "Analysis failed"); setAnalysisStep(""); }

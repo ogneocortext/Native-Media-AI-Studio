@@ -316,9 +316,10 @@ export async function separateAudioStems(
   formData.append("file", file);
   formData.append("model", model);
 
-  const res = await fetch(`${base}/api/audio/separate`, {
+  const res = await fetchWithTimeout(`${base}/api/audio/separate`, {
     method: "POST",
     body: formData,
+    timeout: 300000,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Separation failed" }));
@@ -329,8 +330,11 @@ export async function separateAudioStems(
 
 export async function getAudioStems(filename: string): Promise<{ audio_file: string; stems: Record<string, string>; found: boolean }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/audio/stems/${encodeURIComponent(filename)}`);
-  if (!res.ok) throw new Error("Failed to load stems");
+  const res = await fetchWithTimeout(`${base}/api/audio/stems/${encodeURIComponent(filename)}`, { timeout: 30000 });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to load stems");
+  }
   return res.json();
 }
 
@@ -744,7 +748,7 @@ export interface AudioAnalysisResult {
 
 export async function getAnalysis(filename: string): Promise<any> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/audio/analysis/by-filename/${encodeURIComponent(filename)}`);
+  const res = await fetchWithTimeout(`${base}/api/audio/analysis/by-filename/${encodeURIComponent(filename)}`, { timeout: 30000 });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "No cached analysis found");
@@ -755,10 +759,11 @@ export async function getAnalysis(filename: string): Promise<any> {
 /** Ensure analysis exists for a file — runs analysis if not cached */
 export async function ensureAnalysis(filename: string, backend: string = "sonara"): Promise<{ status: string; analysis: any }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/audio/ensure-analysis`, {
+  const res = await fetchWithTimeout(`${base}/api/audio/ensure-analysis`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ filename, backend }),
+    timeout: 300000,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -780,11 +785,15 @@ export async function analyzeAudio(file: File, backend: string = "sonara"): Prom
   const base = getApiBase();
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch(`${base}/api/audio/analyze?backend=${encodeURIComponent(backend)}`, {
+  const res = await fetchWithTimeout(`${base}/api/audio/analyze?backend=${encodeURIComponent(backend)}`, {
     method: "POST",
     body: formData,
+    timeout: 300000,
   });
-  if (!res.ok) throw new Error("Analysis failed");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Analysis failed");
+  }
   return res.json();
 }
 
@@ -792,18 +801,25 @@ export async function analyzeAudioCuda(file: File): Promise<AudioAnalysisResult>
   const base = getApiBase();
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch(`${base}/api/audio/analyze-cuda`, {
+  const res = await fetchWithTimeout(`${base}/api/audio/analyze-cuda`, {
     method: "POST",
     body: formData,
+    timeout: 300000,
   });
-  if (!res.ok) throw new Error("CUDA analysis failed");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "CUDA analysis failed");
+  }
   return res.json();
 }
 
 export async function getAnalysisResult(jobId: string): Promise<AudioAnalysisResult> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/audio/analysis/${jobId}`);
-  if (!res.ok) throw new Error("Failed to get analysis result");
+  const res = await fetchWithTimeout(`${base}/api/audio/analysis/${jobId}`, { timeout: 30000 });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to get analysis result");
+  }
   return res.json();
 }
 
@@ -811,8 +827,11 @@ export async function listAudioFiles(): Promise<Array<{
   filename: string; path: string; size_bytes: number;
 }>> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/audio/files`);
-  if (!res.ok) throw new Error("Failed to list audio files");
+  const res = await fetchWithTimeout(`${base}/api/audio/files`, { timeout: 30000 });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to list audio files");
+  }
   const data = await res.json();
   return Array.isArray(data) ? data : (data?.files || []);
 }
@@ -828,8 +847,11 @@ export interface AudioBackendsResponse {
 
 export async function getAvailableAudioBackends(): Promise<AudioBackendsResponse> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/audio/backends`);
-  if (!res.ok) throw new Error("Failed to get audio backends");
+  const res = await fetchWithTimeout(`${base}/api/audio/backends`, { timeout: 30000 });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to get audio backends");
+  }
   return res.json();
 }
 
@@ -864,10 +886,14 @@ export async function analyzeAllPending(backend: string = "sonara"): Promise<{
   errors: Array<{ filename: string; error: string }>;
 }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/audio/analyze-all?backend=${encodeURIComponent(backend)}`, {
+  const res = await fetchWithTimeout(`${base}/api/audio/analyze-all?backend=${encodeURIComponent(backend)}`, {
     method: "POST",
+    timeout: 300000,
   });
-  if (!res.ok) throw new Error("analyze-all failed");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "analyze-all failed");
+  }
   return res.json();
 }
 
@@ -896,10 +922,11 @@ export interface TranscriptionResult {
 
 export async function transcribeAudio(filename: string, language?: string, modelSize?: string): Promise<TranscriptionResult> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/audio/transcribe`, {
+  const res = await fetchWithTimeout(`${base}/api/audio/transcribe`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ filename, language, model_size: modelSize }),
+    timeout: 300000,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -910,8 +937,11 @@ export async function transcribeAudio(filename: string, language?: string, model
 
 export async function getTranscription(filename: string): Promise<TranscriptionResult> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/audio/transcript/${encodeURIComponent(filename)}`);
-  if (!res.ok) throw new Error("No transcription found");
+  const res = await fetchWithTimeout(`${base}/api/audio/transcript/${encodeURIComponent(filename)}`, { timeout: 30000 });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "No transcription found");
+  }
   return res.json();
 }
 
@@ -927,44 +957,61 @@ export async function getLyricsForTrack(trackId: string): Promise<{
   total_lines: number;
 }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/lyrics/track/${trackId}`);
-  if (!res.ok) throw new Error("No lyrics found");
+  const res = await fetchWithTimeout(`${base}/api/lyrics/track/${trackId}`, { timeout: 30000 });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "No lyrics found");
+  }
   return res.json();
 }
 
 export async function saveLyricsForTrack(trackId: string, lines: LyricLine[]): Promise<{ status: string }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/lyrics/track/${trackId}`, {
+  const res = await fetchWithTimeout(`${base}/api/lyrics/track/${trackId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ lines }),
+    timeout: 30000,
   });
-  if (!res.ok) throw new Error("Failed to save lyrics");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to save lyrics");
+  }
   return res.json();
 }
 
 export async function deleteLyricsForTrack(trackId: string): Promise<{ status: string }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/lyrics/track/${trackId}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete lyrics");
+  const res = await fetchWithTimeout(`${base}/api/lyrics/track/${trackId}`, { method: "DELETE", timeout: 30000 });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to delete lyrics");
+  }
   return res.json();
 }
 
 export async function importLRC(trackId: string, lrcContent: string): Promise<{ status: string; lines_count: number }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/lyrics/import-lrc`, {
+  const res = await fetchWithTimeout(`${base}/api/lyrics/import-lrc`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ track_id: trackId, lrc_content: lrcContent }),
+    timeout: 30000,
   });
-  if (!res.ok) throw new Error("Failed to import LRC");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to import LRC");
+  }
   return res.json();
 }
 
 export async function exportLRC(trackId: string): Promise<{ lrc: string; format: string }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/lyrics/track/${trackId}/lrc`);
-  if (!res.ok) throw new Error("Failed to export LRC");
+  const res = await fetchWithTimeout(`${base}/api/lyrics/track/${trackId}/lrc`, { timeout: 30000 });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to export LRC");
+  }
   return res.json();
 }
 
@@ -977,8 +1024,11 @@ export async function getTracksWithLyrics(): Promise<Array<{
   lyric_count: number;
 }>> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/lyrics/tracks-with-lyrics`);
-  if (!res.ok) throw new Error("Failed to get tracks");
+  const res = await fetchWithTimeout(`${base}/api/lyrics/tracks-with-lyrics`, { timeout: 30000 });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to get tracks");
+  }
   return res.json();
 }
 
@@ -990,17 +1040,21 @@ export async function getLyricsByFilename(filename: string): Promise<{
   total_lines: number;
 }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/lyrics/by-filename/${encodeURIComponent(filename)}`);
-  if (!res.ok) throw new Error("No lyrics found");
+  const res = await fetchWithTimeout(`${base}/api/lyrics/by-filename/${encodeURIComponent(filename)}`, { timeout: 30000 });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "No lyrics found");
+  }
   return res.json();
 }
 
 export async function renameAudioFile(oldFilename: string, newFilename: string): Promise<{ success: boolean; new_filename: string }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/audio/rename`, {
+  const res = await fetchWithTimeout(`${base}/api/audio/rename`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ old_filename: oldFilename, new_filename: newFilename }),
+    timeout: 30000,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

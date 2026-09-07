@@ -14,13 +14,14 @@ so agents don't need to know about librosa/sonara/madmom internals.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import requests  # type: ignore
 
 logger = logging.getLogger(__name__)
 
-_BASE: str = "http://127.0.0.1:8000/api/audio"
+_BASE: str = os.environ.get("AUDIO_AGENT_BASE_URL", "http://127.0.0.1:8001/api/audio")
 
 
 def backends() -> dict[str, Any]:

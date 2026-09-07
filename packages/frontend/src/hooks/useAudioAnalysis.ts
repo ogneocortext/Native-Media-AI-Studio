@@ -117,5 +117,7 @@ export function useAudioAnalysis() {
     ensure,
     analyze,
     reset,
+    setAnalysis,
+    setError,
   };
 }
