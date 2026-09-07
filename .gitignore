@@ -228,3 +228,8 @@ unity-project-mcp/Assets/Textures/render_frames/
 
 
 unity-project-mcp/Assets/Textures/render_frames.meta
+
+# TypeScript incremental build info and compiled config output (tsc -b side effects)
+*.tsbuildinfo
+packages/frontend/vite.config.js
+packages/frontend/vite.config.d.ts

@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "dev:stable": "set NODE_OPTIONS=--max-old-space-size=4096 && vite",
-    "build": "tsc && vite build",
+    "build": "tsc -b && vite build",
+    "type-check": "tsc -b",
+    "build:analyze": "tsc -b && vite build --mode analyze",
     "preview": "vite preview",
     "lint": "eslint src",
     "test": "playwright test",
@@ -40,9 +42,11 @@
     "eslint": "catalog:",
     "playwright": "^1.62.1",
     "postcss": "^8.5.26",
+    "rollup-plugin-visualizer": "^7.1.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.68.0",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vite-plugin-compression": "^0.5.1"
   }
 }

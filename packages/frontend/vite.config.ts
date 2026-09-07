@@ -4,6 +4,8 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import compression from "vite-plugin-compression";
+import { visualizer } from "rollup-plugin-visualizer";
 
 // Derive __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -57,9 +59,28 @@ export default defineConfig(({ mode }) => {
   const backendHost = new URL(backendUrlWithProtocol).hostname;
   const proxyTarget = `http://${backendHost}:${portConfig.backend_port}`;
   const isProd = mode === "production";
+  const isAnalyze = mode === "analyze";
 
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      compression({
+        algorithm: "gzip",
+        ext: ".gz",
+      }),
+      compression({
+        algorithm: "brotliCompress",
+        ext: ".br",
+      }),
+      isAnalyze &&
+        visualizer({
+          open: true,
+          gzipSize: true,
+          brotliSize: true,
+          filename: "dist/stats.html",
+        }),
+    ].filter(Boolean),
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
@@ -125,6 +146,7 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1500,
       // Target modern browsers for smaller bundles
       target: "es2022",
+      modulePreload: true,
       rollupOptions: {
         output: {
           // Manual chunk splitting for better caching
@@ -152,6 +174,24 @@ export default defineConfig(({ mode }) => {
       minify: isProd ? "esbuild" : false,
       // Reduce console noise in production
       reportCompressedSize: false,
+    },
+    preview: {
+      port: portConfig.frontend_port,
+      proxy: {
+        "/api": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/output": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/ws": {
+          target: proxyTarget,
+          changeOrigin: true,
+          ws: true,
+        },
+      },
     },
   };
 });
