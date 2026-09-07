@@ -4,10 +4,17 @@
 Provides text-to-3D and image-to-3D generation using multiple backends
 appropriate for the GTX 1070 Ti (8GB VRAM, sm_61):
 
+Image-to-3D backends (require reference image):
 - **Hunyuan3D-2mini** (geometry, ~5GB) — native ComfyUI or Kijai wrapper
 - **Hunyuan3D-2mv** (geometry, ~6GB) — native ComfyUI multi-view
 - **TripoSR** (geometry, ~4GB) — fastest, ComfyUI-3D-Pack
 - **Stable Fast 3D** (geometry+UV, ~6GB) — ComfyUI-3D-Pack
+
+Text-to-3D backends (no reference image needed):
+- **Point-E** (point cloud, ~4-6GB) — OpenAI, MIT license
+- **Shap-E** (implicit mesh, ~6-8GB) — OpenAI, MIT license
+- **Hunyuan3D-2mini via 2-stage** (text→SDXL→3D, ~9-10GB total) — tight on 8GB
+- **Hunyuan3D-2GP** (text→3D, <6GB) — DeepBeepMeep GPU-poor fork, standalone
 
 PyTorch 2.14.0+cu126 is the LAST prebuilt wheel supporting Pascal (sm_61).
 From 2.15 onward, must build from source or stay on 2.14.
@@ -107,6 +114,38 @@ MODEL_BACKENDS = {
         "num_chunks": None,
         "target_faces": 50000,
     },
+    "point_e": {
+        "name": "Point-E",
+        "vram_gb": 5,
+        "speed_s": "30-60",
+        "quality": "Prototype (point cloud)",
+        "description": "OpenAI point-cloud diffusion model. MIT license. Lightweight educational/prototyping tool.",
+        "checkpoint_subpath": "point-e/base-40M/model.safetensors",
+        "diffusion_subpath": None,
+        "supports_texture": False,
+        "supports_multiview": False,
+        "supports_native": False,
+        "supports_kijai": False,
+        "octree_resolution": None,
+        "num_chunks": None,
+        "target_faces": 10000,
+    },
+    "shap_e": {
+        "name": "Shap-E",
+        "vram_gb": 6,
+        "speed_s": "60-120",
+        "quality": "Prototype (implicit mesh)",
+        "description": "OpenAI implicit-function generator. MIT license. Textured mesh extraction.",
+        "checkpoint_subpath": "shap-e/model.safetensors",
+        "diffusion_subpath": None,
+        "supports_texture": False,
+        "supports_multiview": False,
+        "supports_native": False,
+        "supports_kijai": False,
+        "octree_resolution": None,
+        "num_chunks": None,
+        "target_faces": 15000,
+    },
 }
 
 # Default backend for new requests
@@ -121,6 +160,9 @@ class Gen3DService:
     - hunyuan3d_2mv: multi-view geometry via native ComfyUI (~6 GB)
     - triposr: ultra-fast feedforward mesh (~4 GB)
     - stable_fast_3d: fast mesh with UVs (~6 GB)
+    - point_e: lightweight point-cloud diffusion (~5 GB, MIT)
+    - shap_e: implicit-function mesh generator (~6 GB, MIT)
+    - hunyuan3d_2gp: GPU-poor text-to-3D via standalone app (<6 GB)
 
     PyTorch 2.14.0+cu126 is the LAST prebuilt wheel supporting Pascal (sm_61).
     From 2.15 onward, must build from source or stay on 2.14.
@@ -142,6 +184,10 @@ class Gen3DService:
             self.model_dir = COMFYUI_DIR / "models" / "checkpoints" / "triposr"
         elif self.backend == "stable_fast_3d":
             self.model_dir = COMFYUI_DIR / "models" / "checkpoints" / "stable-fast-3d"
+        elif self.backend == "point_e":
+            self.model_dir = COMFYUI_DIR / "models" / "checkpoints" / "point-e"
+        elif self.backend == "shap_e":
+            self.model_dir = COMFYUI_DIR / "models" / "checkpoints" / "shap-e"
         else:
             self.model_dir = None
 
@@ -316,6 +362,14 @@ class Gen3DService:
             )
         elif self.backend == "stable_fast_3d":
             return self._build_sf3d_text23d_workflow(
+                prompt, proc_output_name, seed
+            )
+        elif self.backend == "point_e":
+            return self._build_point_e_workflow(
+                prompt, proc_output_name, seed
+            )
+        elif self.backend == "shap_e":
+            return self._build_shap_e_workflow(
                 prompt, proc_output_name, seed
             )
         else:
@@ -583,6 +637,83 @@ class Gen3DService:
                     "mesh": ["8", 0],
                     "filename_prefix": f"3d/{output_name}",
                     "format": "glb",
+                },
+            },
+        }
+
+    def _build_point_e_workflow(
+        self,
+        prompt: str,
+        output_name: str,
+        seed: int,
+    ) -> dict[str, Any]:
+        """Build ComfyUI workflow for Point-E text-to-3D.
+
+        Point-E generates point clouds from text prompts directly (no image stage).
+        Requires the openai/point-e ComfyUI custom node.
+        """
+        return {
+            "1": {
+                "class_type": "PointETextTo3D",
+                "inputs": {
+                    "text": prompt,
+                    "seed": seed,
+                    "guidance_scale": 1.5,
+                    "num_inference_steps": 64,
+                },
+            },
+            "2": {
+                "class_type": "PointECloudToMesh",
+                "inputs": {
+                    "point_cloud": ["1", 0],
+                    "smoothing": True,
+                },
+            },
+            "3": {
+                "class_type": "Save3DModel",
+                "inputs": {
+                    "mesh": ["2", 0],
+                    "filename_prefix": f"3d/{output_name}",
+                    "format": "obj",
+                },
+            },
+        }
+
+    def _build_shap_e_workflow(
+        self,
+        prompt: str,
+        output_name: str,
+        seed: int,
+    ) -> dict[str, Any]:
+        """Build ComfyUI workflow for Shap-E text-to-3D.
+
+        Shap-E generates implicit functions from text prompts directly.
+        Requires the openai/shap-e ComfyUI custom node.
+        """
+        return {
+            "1": {
+                "class_type": "ShapETextTo3D",
+                "inputs": {
+                    "text": prompt,
+                    "seed": seed,
+                    "guidance_scale": 15.0,
+                    "num_inference_steps": 50,
+                },
+            },
+            "2": {
+                "class_type": "ShapEMeshExtract",
+                "inputs": {
+                    "implicit": ["1", 0],
+                    "resolution": 256,
+                    "threshold": 0.0,
+                },
+            },
+            "3": {
+                "class_type": "Save3DModel",
+                "inputs": {
+                    "mesh": ["2", 0],
+                    "filename_prefix": f"3d/{output_name}",
+                    "format": "obj",
                 },
             },
         }
@@ -953,8 +1084,11 @@ class Gen3DService:
             "model_path": str(self.model_dir) if self.model_dir else "n/a",
             "model_exists": self.model_dir.exists() if self.model_dir else False,
             "output_dir": str(OUTPUT_DIR),
-            "generated_count": len(list(OUTPUT_DIR.glob("*.glb"))),
+            "generated_count": len(list(OUTPUT_DIR.glob("*.glb"))) + len(list(OUTPUT_DIR.glob("*.obj"))),
             "available_backends": list(MODEL_BACKENDS.keys()),
+            "text_to_3d_backends": ["point_e", "shap_e", "hunyuan3d_2mini", "hunyuan3d_2mv", "hunyuan3d_2gp"],
+            "image_to_3d_backends": ["hunyuan3d_2mini", "hunyuan3d_2mv", "triposr", "stable_fast_3d"],
+            "knowledge_library": "docs/knowledge-library/text-to-3d-options-2026.md",
         }
 
     def list_models(self) -> list[dict[str, Any]]:

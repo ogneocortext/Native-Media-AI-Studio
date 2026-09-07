@@ -1,0 +1,376 @@
+{
+  "last_node_id": 10,
+  "last_link_id": 10,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "pos": [
+        100,
+        100
+      ],
+      "size": [
+        320,
+        60
+      ],
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "widgets_values": [
+        "sdxl_turbo",
+        "sdxl_turbo"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "DualCLIPLoader",
+      "pos": [
+        100,
+        200
+      ],
+      "size": [
+        320,
+        60
+      ],
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model_name",
+          "type": "MODEL",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            2,
+            3
+          ]
+        }
+      ],
+      "widgets_values": [
+        "sdxl_turbo",
+        "sdxl_turbo"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "CLIPTextEncode",
+      "pos": [
+        100,
+        320
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "widgets_values": [
+        "a 3D model of a ceramic mug with sunflower pattern, white background, product photo, high quality"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CLIPTextEncode",
+      "pos": [
+        100,
+        580
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "widgets_values": [
+        "low quality, blurry, text, watermark, shadow"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "EmptyLatentImage",
+      "pos": [
+        100,
+        840
+      ],
+      "size": [
+        320,
+        120
+      ],
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "widgets_values": [
+        1024,
+        1024,
+        1
+      ]
+    },
+    {
+      "id": 6,
+      "type": "KSampler",
+      "pos": [
+        600,
+        400
+      ],
+      "size": [
+        320,
+        420
+      ],
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 4
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 5
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 6
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "widgets_values": [
+        42,
+        "normal",
+        1,
+        4
+      ]
+    },
+    {
+      "id": 7,
+      "type": "VAEDecode",
+      "pos": [
+        1000,
+        400
+      ],
+      "size": [
+        160,
+        40
+      ],
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 7
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            9
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "VAELoader",
+      "pos": [
+        1000,
+        200
+      ],
+      "size": [
+        320,
+        60
+      ],
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            8
+          ]
+        }
+      ],
+      "widgets_values": [
+        "sdxl_base_1.0.safetensors"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "SaveImage",
+      "pos": [
+        1000,
+        500
+      ],
+      "size": [
+        320,
+        300
+      ],
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 9
+        }
+      ],
+      "outputs": [],
+      "widgets_values": [
+        "t2d_reference"
+      ]
+    },
+    {
+      "id": 10,
+      "type": "Note",
+      "pos": [
+        600,
+        100
+      ],
+      "size": [
+        320,
+        200
+      ],
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "widgets_values": [
+        "Text-to-3D Pipeline (Stage 1: Text -> Image)\\n\\n1. Enter your text prompt in node 3\\n2. Run workflow to generate reference image\\n3. Save image and feed into Hunyuan3D-2mini image-to-3D workflow\\n4. For native text-to-3D, use Hunyuan3D-2GP gradio app with --enable_t23d\\n\\nVRAM: ~4 GB for SDXL Turbo step\\nTotal pipeline VRAM: ~9-10 GB (text -> image -> 3D)"
+      ]
+    }
+  ],
+  "links": [
+    {
+      "id": 1,
+      "origin": 1,
+      "target": 6,
+      "slot": 0
+    },
+    {
+      "id": 2,
+      "origin": 2,
+      "target": 3,
+      "slot": 0
+    },
+    {
+      "id": 3,
+      "origin": 2,
+      "target": 4,
+      "slot": 0
+    },
+    {
+      "id": 4,
+      "origin": 3,
+      "target": 6,
+      "slot": 1
+    },
+    {
+      "id": 5,
+      "origin": 4,
+      "target": 6,
+      "slot": 2
+    },
+    {
+      "id": 6,
+      "origin": 5,
+      "target": 6,
+      "slot": 3
+    },
+    {
+      "id": 7,
+      "origin": 6,
+      "target": 7,
+      "slot": 0
+    },
+    {
+      "id": 8,
+      "origin": 8,
+      "target": 7,
+      "slot": 1
+    },
+    {
+      "id": 9,
+      "origin": 7,
+      "target": 9,
+      "slot": 0
+    }
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7,
+      "offset": [
+        0,
+        0
+      ]
+    }
+  },
+  "version": 0.4
+}

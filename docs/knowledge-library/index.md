@@ -40,6 +40,7 @@ date: 2026-09-05
 - [[blender-mcp|🖥️ Blender MCP Integration]] — 3D scene building via MCP protocol
 - [[hunyuan3d-setup|🧊 Hunyuan3D-2mini Setup]] — ComfyUI 3D generation with Kijai wrapper
 - [[3d-generation-options-2026|🧊 3D Generation Options 2026]] — Complete image-to-3D landscape for 8GB VRAM (PyTorch 2.14, Pascal capstone)
+- [[text-to-3d-options-2026|💬 Text-to-3D Options 2026]] — Open-source text-to-3D models for 8GB VRAM (Point-E, Shap-E, Hunyuan3D-2mini T2I, TRELLIS-text)
 - [[three-js-studio|🌐 Three.js Studio]] — Browser-based 3D scene builder with particles & reflections
 - [[ai-video-trends-2026|📈 AI Video Trends 2026]] — 5 industry shifts, model landscape, pipeline upgrades
 - [[kilo-code-subagent-orchestration|🤖 Kilo Code Subagent Orchestration]] — Subagent architecture, provider errors, optimization strategies
@@ -170,11 +171,11 @@ graph LR
 
 | Metric          | Count                                                                              |
 | --------------- | ---------------------------------------------------------------------------------- |
-| Total Documents | 31                                                                                 |
-| Total Tags      | 25                                                                                 |
-| Total Links     | 80+                                                                                |
-| Last Updated    | 2026-09-06 (python-environment-management — venv decoupling, Pascal/CUDA wheel matrix) |
-| Latest Add      | 2026-09-07 (3d-generation-options-2026 — 8GB VRAM image-to-3D landscape post-PyTorch 2.14) |
+| Total Documents | 32                                                                                 |
+| Total Tags      | 26                                                                                 |
+| Total Links     | 85+                                                                                |
+| Last Updated    | 2026-09-07 (text-to-3d-options-2026 — open-source text-to-3D for 8GB VRAM)         |
+| Latest Add      | 2026-09-07 (text-to-3d-options-2026 — Point-E, Shap-E, Hunyuan3D-2GP, TRELLIS-text) |
 
 ---
 
