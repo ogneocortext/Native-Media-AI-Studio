@@ -51,6 +51,18 @@ For textured output, you need to compile:
 pip install wheels\custom_rasterizer-0.1-cp312-cp312-win_amd64.whl
 ```
 
+> [!important] ABI compatibility (verified 2026-09-06)
+> Use **`custom_rasterizer-0.1-cp312-cp312-win_amd64.whl`** — the only variant that
+> works with the comfyui-cuda env's torch **2.14.0+cu126**. The
+> `0.1.0+torch260.cuda126` wheel is compiled against torch 2.6.0 and **fails to
+> import** on torch 2.5.1 (`ImportError: DLL load failed ... procedure could not
+> be found` — ABI symbol mismatch). Do not "upgrade" to the torch260/torch270
+> wheels unless torch in that env is upgraded to match.
+>
+> Also note: always `import torch` **before** `import custom_rasterizer` on
+> Windows, or the CUDA DLLs are not on the DLL search path (error changes to
+> "module could not be found").
+
 > [!warning] GPU Requirement
 > **Pascal (GTX 10xx) and newer supported.** Our GTX 1070 Ti works for geometry. Texture compilation requires CUDA 12.6+ for best compatibility.
 
@@ -435,3 +447,75 @@ Multiple Python processes = uvicorn spawned a child with the wrong interpreter.
 ---
 
 *Last updated: 2026-08-27 — Added Fixes 4-6 for ComfyUI pipeline tensor format and dictionary unpacking issues*
+
+---
+
+## Backend Integration Notes (2026-09-06)
+
+### Fix: VRAM manager import error
+**File:** `packages/backend/app/adapters/ollama.py`
+
+**Symptom:** `500 Internal Server Error` on `POST /api/health/3d/generate`; backend error log shows:
+```
+ImportError: cannot import name 'ollama_adapter' from 'app.adapters.ollama'
+```
+
+**Root cause:** `vram_manager.py` imports `ollama_adapter` from `app.adapters.ollama`, but `ollama.py` only exposed the `OllamaAdapter` class, not a module-level instance.
+
+**Fix applied:** Added a backward-compatible singleton at the bottom of `ollama.py`:
+```python
+ollama_adapter = OllamaAdapter()
+```
+
+**Files changed:**
+- `packages/backend/app/adapters/ollama.py`
+
+---
+
+## 2026 Best Practices: Hunyuan3D + ComfyUI
+
+### Path selection
+| Goal | Path | Why |
+|------|------|-----|
+| Geometry only, 8GB VRAM | **Native ComfyUI** support | Easiest install, lowest VRAM (~5 GB) |
+| Textured output, 12GB+ VRAM | **Kijai ComfyUI-Hunyuan3DWrapper** | Full PBR pipeline (geometry + texture) |
+| Best quality/speed on 8GB | **2mini-turbo at 1024, 15 steps** | Community-verified sweet spot |
+
+> [!important] Native ComfyUI = geometry only.
+> If you want textured meshes, you need the Kijai wrapper. Our GTX 1070 Ti (8GB) fits shape-only comfortably; full textured output via Kijai wrapper pushes toward 12 GB and is not practical on this machine.
+
+### Input image rules
+- Transparent/clean background is mandatory. Busy backgrounds become unwanted geometry.
+- Kijai wrapper auto-removes backgrounds via `ComfyUI_essentials`.
+- Single-view works; multi-view (front + side) improves geometry but increases inference time.
+
+### Node schema updates (as of 2026-07)
+- `Hy3DGenerateMesh` requires an IMAGE input (it is image-to-3D, not pure text-to-3D).
+- For text prompts, the working pattern is: text → SD1.5 image → Hy3DGenerateMesh.
+- The raw `Hy3DVAEDecode` output is an unindexed octree voxel mesh; always run `Hy3DPostprocessMesh` with `smooth_normals=True` before export.
+- `Hy3DMeshUVWrap` is needed if the GLB should carry UVs for downstream materials/viewers.
+
+### Version note
+- Hunyuan3D-2.1 wrapper exists (`visualbruno/ComfyUI-Hunyuan3d-2-1`) with improved UV mapping, but we currently use Kijai’s 2.0 wrapper.
+- Recheck model versions and ComfyUI compatibility every few months; this space moves fast.
+
+---
+
+## Current Machine Status (2026-09-06)
+
+### ComfyUI install
+- Path: `D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI`
+- Custom nodes: `ComfyUI-Hunyuan3DWrapper` present
+- Models: `hunyuan3d-2mini/hunyuan3d-dit-v2-mini/model.fp16.safetensors` present
+- Missing for full texture pipeline: compiled `custom_rasterizer` + `differentiable_renderer`
+
+### Backend config
+- Service file: `packages/backend/app/services/gen3d/gen3d_service.py`
+- API routes: `packages/backend/app/api/health.py`
+  - `POST /3d/generate`
+  - `POST /3d/generate-image`
+- Frontend wizard: `packages/frontend/src/features/generate3d/`
+
+### Known issues
+- 3D generation currently returns 500 due to VRAM manager Ollama reload import path; fixed in `ollama.py`.
+- Full texture generation exceeds 8GB VRAM; we intentionally stay on geometry-only tier.

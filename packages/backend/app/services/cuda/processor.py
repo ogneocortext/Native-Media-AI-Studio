@@ -5,7 +5,7 @@ Provides GPU-accelerated audio analysis, image preprocessing, and
 visualization FFT via PyTorch CUDA. Falls back to CPU (librosa/numpy)
 when CUDA is unavailable.
 
-Target hardware: GTX 1070 Ti (8GB VRAM, sm_61, 19 SMs) with PyTorch 2.5.1+cu124.
+Target hardware: GTX 1070 Ti (8GB VRAM, sm_61, 19 SMs) with PyTorch 2.14.0+cu126.
 """
 
 from __future__ import annotations

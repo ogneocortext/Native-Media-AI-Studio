@@ -1,6 +1,6 @@
 # Setup Summary — Native Media AI Studio
 
-> **Last Updated:** 2026-09-05 — supersedes Aug 2026 setup snapshot. See `docs/setup/CONDA_SETUP.md` + `docs/setup/python-environments.md` for canonical env docs.
+> **Last Updated:** 2026-09-06 — env decoupling: dedicated `nma-studio-cuda` venv for backend/GPU; `comfyui-cuda` is ComfyUI's runtime only. Supersedes Aug 2026 setup snapshot. See `docs/setup/CONDA_SETUP.md` + `docs/setup/python-environments.md` for canonical env docs.
 
 ## ✅ Current System Status
 
@@ -20,10 +20,11 @@
 
 | Env | Path | Use |
 |-----|------|-----|
-| Primary (CUDA) | `D:\conda-envs\comfyui-cuda\Scripts\python.exe` — PyTorch 2.5.1+cu124, CUDA 12.4 | Backend, ComfyUI, `tools/analyze_and_sync.py`, CUDA processor |
+| Primary (CUDA, backend) | `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` — Python 3.11.9, PyTorch 2.14.0+cu126 | Backend, `tools/analyze_and_sync.py`, CUDA processor |
+| ComfyUI Runtime | `D:\conda-envs\comfyui-cuda\Scripts\python.exe` — PyTorch 2.14.0+cu126 | ComfyUI service only |
 | Fallback (CPU) | `.\venv\Scripts\python.exe` | CPU-only fallback |
 
-Former `runtime/venvs/.venvs/venv_*` 8-venv matrix was a draft plan and was never created — see `docs/setup/python-environments.md`.
+`nma-studio-cuda` is a standalone venv (base interpreter: `C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311`) fully decoupled from `D:\conda-envs\space-analyzer-cuda` (different project — do not touch). Former `runtime/venvs/.venvs/venv_*` 8-venv matrix was a draft plan and was never created — see `docs/setup/python-environments.md`.
 
 ### ComfyUI Location
 
@@ -58,10 +59,10 @@ pnpm start
 pnpm servers status
 # or: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action status
 
-# Backend only (conda CUDA env)
-D:\conda-envs\comfyui-cuda\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --app-dir packages/backend
+# Backend only (studio venv, CUDA)
+D:\conda-envs\nma-studio-cuda\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --app-dir packages/backend
 
-# ComfyUI
+# ComfyUI (own runtime env)
 D:\conda-envs\comfyui-cuda\Scripts\python.exe main.py --port 8188 --disable-pinned-memory
 # WorkingDirectory: D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI
 ```

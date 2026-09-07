@@ -1,16 +1,29 @@
 # Preferred Python Environment for Native Media AI Studio
 # This file indicates the preferred Python environment for CUDA-enabled features
+#
+# DECOUPLING NOTE (2026-09-06):
+# `nma-studio-cuda` is a standalone venv (Python 3.11.9, base interpreter at
+# C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311) built
+# specifically for this project. It is fully decoupled from
+# `D:\conda-envs\space-analyzer-cuda` (belongs to a different project — never
+# delete or modify it for this project's sake) and from `comfyui-cuda`.
+# `comfyui-cuda` is a venv bootstrapped FROM space-analyzer-cuda and remains
+# ComfyUI's runtime only.
 
-# CUDA-enabled conda environment (recommended for GPU features)
-PYTHON_ENV=D:\conda-envs\comfyui-cuda\Scripts\python.exe
+# Dedicated studio environment (recommended for backend + GPU features)
+PYTHON_ENV=D:\conda-envs\nma-studio-cuda\Scripts\python.exe
+
+# ComfyUI runtime (separate env, owned by the ComfyUI service)
+COMFYUI_ENV=D:\conda-envs\comfyui-cuda\Scripts\python.exe
 
 # Fallback venv (CPU-only, no CUDA)
 FALLBACK_VENV=venv\Scripts\python.exe
 
-# Environment type: conda (for CUDA) or venv (CPU-only)
-ENV_TYPE=conda
+# Environment type: venv (nma-studio-cuda is a venv, NOT a conda env)
+ENV_TYPE=venv
 
-# CUDA support
+# CUDA support (torch 2.14.0+cu126 — Pascal/sm_61-safe build per
+# packages/backend/requirements-torch.txt)
 CUDA_ENABLED=true
-CUDA_VERSION=12.4
-PYTORCH_VERSION=2.5.1+cu124
+CUDA_VERSION=12.6
+PYTORCH_VERSION=2.14.0+cu126

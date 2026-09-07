@@ -43,6 +43,7 @@ date: 2026-09-05
 - [[ai-video-trends-2026|📈 AI Video Trends 2026]] — 5 industry shifts, model landscape, pipeline upgrades
 - [[kilo-code-subagent-orchestration|🤖 Kilo Code Subagent Orchestration]] — Subagent architecture, provider errors, optimization strategies
 - [[kilo-code-subagent-optimization|🚀 Kilo Code Subagent Optimization]] — Config implementations, concurrency limits, retry jitter, verification
+- [[python-environment-management|🐍 Python Environment Management]] — venv mechanics, decoupling graph, PyTorch×Pascal (sm_61) wheel matrix, env migration recipes (NEW 2026-09-06)
 
 ### 🎯 Specialized Guides
 
@@ -98,6 +99,7 @@ date: 2026-09-05
 | `#hardware`      | Hardware-verified 8GB models              | 1 document  |
 | `#backend`       | Backend debugging                         | 1 document  |
 | `#ollama`        | Ollama thinking / structured outputs      | 2 documents |
+| `#python`        | Python envs, venv decoupling, CUDA wheels | 1 document  |
 
 ---
 
@@ -164,11 +166,11 @@ graph LR
 
 | Metric          | Count                                                                              |
 | --------------- | ---------------------------------------------------------------------------------- |
-| Total Documents | 29                                                                                 |
-| Total Tags      | 22                                                                                 |
+| Total Documents | 30                                                                                 |
+| Total Tags      | 23                                                                                 |
 | Total Links     | 80+                                                                                |
-| Last Updated    | 2026-09-06 (minicpm-v:8b vision — OCR / chart / multi-image + vision.mjs + /api/vision/ocr) |
+| Last Updated    | 2026-09-06 (python-environment-management — venv decoupling, Pascal/CUDA wheel matrix) |
 
 ---
 
-_Last updated: 2026-09-05_
+_Last updated: 2026-09-06_

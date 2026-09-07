@@ -44,8 +44,8 @@
 
 - **ComfyUI location**: `<your-comfyui-root>`
 - **Custom nodes**: `<your-comfyui-root>/custom_nodes/` (already has AnimateDiff, WanVideo)
-- **Conda env with CUDA**: `<your-conda-envs>/comfyui-cuda` (PyTorch 2.5.1+cu124)
-- **Project venv**: `<your-project-root>/runtime/venvs/.venvs/venv_backend` (PyTorch 2.5.1+cu124)
+- **Conda env with CUDA**: `<your-conda-envs>/comfyui-cuda` (PyTorch 2.14.0+cu126)
+- **Project venv**: `<your-project-root>/runtime/venvs/.venvs/venv_backend` (PyTorch 2.14.0+cu126)
 
 ## Notes
 

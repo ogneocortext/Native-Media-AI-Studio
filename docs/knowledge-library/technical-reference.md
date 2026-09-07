@@ -43,7 +43,7 @@
 │  Hardware                                                                   │
 │  ├── GPU: NVIDIA GeForce GTX 1070 Ti (8GB VRAM, sm_61 Pascal, 19 SMs)      │
 │  ├── CUDA: 12.4 (nvcc V12.4.99) / Driver 582.66 CUDA 13.0 compat            │
-│  ├── PyTorch: 2.5.1+cu124 (comfyui-cuda) / 2.6.0+cu124 (venv)                │
+│  ├── PyTorch: 2.14.0+cu126 (comfyui-cuda) / 2.14.0+cu126 (nma-studio-cuda)                │
 │  └── Profilers: Nsight Systems 2026.1.3 + Nsight Compute 2026.2.0           │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -304,7 +304,7 @@ GET http://localhost:8000/api/health/gpu
 
 - **Do not upgrade toolkit to 13.x** — no `sm_61` kernels will build. Keep `CUDA_HOME=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4` and `TORCH_CUDA_ARCH_LIST=6.1` when building extensions (`requirements-torch.txt:24`).
 - **No Tensor Cores, no `sm_80+` features.** `torch.compile()` unsupported on Pascal (`environment.yml:115`). Stay `float32` for `torch.stft`/`torch.fft` in `app/services/cuda/processor.py:98`.
-- Torch wheels bundle their own runtime (`cu121` index, `torch 2.5.1+cu121` / `2.6.0+cu124` verified); system toolkit only needed for **custom kernel builds**.
+- Torch wheels bundle their own runtime (`cu126` index, `torch 2.14.0+cu126` verified); system toolkit only needed for **custom kernel builds**.
 
 #### What is worth reading for this project
 

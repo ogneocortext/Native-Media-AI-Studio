@@ -6,8 +6,8 @@
 - **GPU**: NVIDIA GeForce GTX 1070 Ti (8GB VRAM, sm_61, 19 SMs)
 - **CUDA Toolkit**: 12.4 (C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4)
 - **Driver**: 582.66, CUDA Version: 13.0 supported
-- **PyTorch**: 2.5.1+cu124 (in `runtime/venvs/.venvs/venv_backend`)
-- **Also available**: venv with PyTorch 2.6.0+cu124 (root venv)
+- **PyTorch**: 2.14.0+cu126 (in `runtime/venvs/.venvs/venv_backend`)
+- **Also available**: venv with PyTorch 2.14.0+cu126 (root venv)
 - **Compute capability**: 6.1 (Pascal) — CUDA 13 dropped Pascal support but CUDA 12.4 works
 
 ## Blender GPU Rendering

@@ -2,14 +2,13 @@
 # =============================================================================
 # Hardware target: GTX 1070 Ti (Pascal, compute capability sm_61, 8GB VRAM)
 #
-# IMPORTANT: Pascal support requires the cu121 index. Newer torch builds
-# (cu124/cu126/cu128 on the default PyPI index) drop or risk dropping sm_61,
-# so install THIS file explicitly - do not add torch to requirements.txt:
+# Pascal support path on current stable:
+# - Install from the cu126 wheel index with an explicit torch pin.
+# - Do NOT use the default PyPI index for torch on Pascal: default wheels
+#   dropped sm_61 starting with torch 2.8.0.
 #
-#   ..\..\venv\Scripts\python.exe -m pip install -r requirements-torch.txt
-#
-# Installed version reference: torch 2.5.1+cu121 / torchvision 0.20.1+cu121 /
-# torchaudio 2.5.1+cu121 (~2.5 GB download; bundles its own CUDA runtime -
+# Installed version reference: torch 2.14.0+cu126 / torchvision 0.29.0+cu126 /
+# torchaudio 2.11.0+cu126 (~2.6 GB download; bundles its own CUDA runtime -
 # no conda, no system CUDA Toolkit, no cuDNN install required).
 #
 # -----------------------------------------------------------------------------
@@ -17,8 +16,8 @@
 #
 # System toolkits live in C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\
 # (v11.8 [partial, no nvcc], v12.4, v12.9, v13.x). For building torch CUDA
-# extensions against this cu121 build, use the v12.4 toolkit (closest minor
-# above 12.1; major-version match is what matters):
+# extensions against this cu126 build, use the v12.4 toolkit (closest minor
+# above 12.6; major-version match is what matters):
 #
 #   PowerShell:
 #     $env:CUDA_HOME = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
@@ -30,7 +29,20 @@
 #   Note: v13.x toolkits dropped Pascal support entirely - never use them
 #   to build kernels meant to run on this GPU.
 #
---index-url https://download.pytorch.org/whl/cu121
-torch==2.5.1+cu121
-torchvision==0.20.1+cu121
-torchaudio==2.5.1+cu121
+# -----------------------------------------------------------------------------
+# Pin matrix (current stable, verified 2026-09-07)
+# -----------------------------------------------------------------------------
+# | Package       | Pin                       | Notes                            |
+# |---------------|---------------------------|----------------------------------|
+# | torch        | 2.14.0+cu126              | Pascal-safe cu126 wheel          |
+# | torchvision  | 0.29.0+cu126              | Latest cu126 build for 2.14.x    |
+# | torchaudio   | 2.11.0+cu126              | Latest cu126 build for 2.14.x    |
+#
+# If you need torchvision/torchaudio for a different torch minor, use the
+# matching cu126 build from https://download.pytorch.org/whl/cu126/torchvision/
+# and https://download.pytorch.org/whl/cu126/torchaudio/
+
+--index-url https://download.pytorch.org/whl/cu126
+torch==2.14.0+cu126
+torchvision==0.29.0+cu126
+torchaudio==2.11.0+cu126

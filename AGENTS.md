@@ -105,8 +105,14 @@ Local Ollama models are available for vision analysis and tool-assisted generati
 
 ### Server Management
 
-- Use `scripts/start-studio.ps1` to start all services (backend, ComfyUI, frontend)
-- Use `scripts/manage-servers.ps1` for individual server control (start/stop/status/restart)
+Backend and frontend must be started as **detached background services** so they survive after the terminal closes. Use the project scripts instead of running servers inline.
+
+- **Start background services:** `scripts\start-services.ps1`
+  - Backend (`http://localhost:8000`) + Frontend (`http://localhost:5173`) are started hidden and detached.
+  - Add `-ComfyUI` to also start ComfyUI (`http://localhost:8188`).
+  - Safe to run repeatedly: if a port is already in use, that service is skipped.
+- **Check status / restart individually:** `scripts\manage-servers.ps1 -Action status`
+- **Full interactive mode** (foreground, with live monitor and auto-restart): `scripts\start-studio.ps1`
 - Ports are managed dynamically by `packages/backend/app/core/port_manager.py`
 
 ### Music Video Pipeline
@@ -137,8 +143,9 @@ The Visualizer (`packages/frontend/src/features/visualizer/`) includes:
 
 ## Common Tasks
 
-- Start all services: `scripts/start-studio.ps1`
-- Check server status: `scripts/manage-servers.ps1 -Action status`
+- Start background services: `scripts\start-services.ps1`
+- Start interactive mode: `scripts\start-studio.ps1`
+- Check server status: `scripts\manage-servers.ps1 -Action status`
 - Unity health: `curl -X POST http://127.0.0.1:7800/api/exec -H "Authorization: Bearer <token>" -d '{"command":"editor_status","parameters":{}}'`
 - Backend health: `http://127.0.0.1:8000/api/health`
 - ComfyUI: `http://127.0.0.1:8188`
@@ -146,19 +153,27 @@ The Visualizer (`packages/frontend/src/features/visualizer/`) includes:
 ## Dependencies
 
 - Node.js 22+ (via fnm)
-- Python 3.11+ (via conda environment at `D:\conda-envs\comfyui-cuda\` for CUDA support)
+- Python 3.11+ (standalone venv at `D:\conda-envs\nma-studio-cuda\` for CUDA support)
 - Blender 5.2 (`C:\Program Files\Blender Foundation\Blender 5.2\blender.exe`)
 - Unity Editor 6000.5.1f1
 - ComfyUI at `D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI`
-- NVIDIA GPU with CUDA 12.4 for GPU-accelerated audio analysis
+- NVIDIA GPU with CUDA (torch bundles its own CUDA runtime — no system toolkit needed)
 
 ## Python Environment
 
-The project uses a CUDA-enabled conda environment for GPU features:
+The project has a **dedicated, standalone venv** built specifically for Native Media AI Studio:
 
-- **Primary Environment**: `D:\conda-envs\comfyui-cuda\` (PyTorch 2.5.1+cu124, CUDA 12.4)
+- **Primary Environment (backend + GPU)**: `D:\conda-envs\nma-studio-cuda\` — standalone venv on Python 3.11.9 (base interpreter: `C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311`), PyTorch 2.14.0+cu126 (Pascal/sm_61-safe build per `packages/backend/requirements-torch.txt`)
+- **ComfyUI Runtime (separate env)**: `D:\conda-envs\comfyui-cuda\` — venv used **only** by the ComfyUI service (PyTorch 2.14.0+cu126)
 - **Fallback**: Local venv at `venv/` (CPU-only, no CUDA)
 - **Configuration**: See `.python-env` file for environment settings
-- **Type Checking**: Pyright configured to use conda environment in `pyrightconfig.json`
+- **Type Checking**: Pyright configured to use the studio venv in `pyrightconfig.json`
+- **Health Check**: `scripts\check-env-health.ps1` (add `-Torch` for CUDA matmul test) — validates decoupling, venv `pyvenv.cfg` bases, and Pascal-safe torch
+- **Reference**: `docs/knowledge-library/python-environment-management.md` — venv mechanics, PyTorch×Pascal wheel matrix, env migration recipes. Venvs are **not movable or copyable**; migrate via recreate-from-requirements, never by copying folders.
 
-AI agents should prefer the conda environment for CUDA-dependent operations (audio analysis, ML features).
+> [!warning] Decoupling & ownership
+> - `nma-studio-cuda` is fully decoupled from `D:\conda-envs\space-analyzer-cuda` (that env belongs to a **different project** — never delete or modify it for this project's sake).
+> - `comfyui-cuda` was historically a venv bootstrapped *from* `space-analyzer-cuda`; it remains ComfyUI's runtime only. Do not use it for the backend.
+> - Scripts resolve: studio env → ComfyUI env → `venv/` fallback.
+
+AI agents should prefer the studio environment (`nma-studio-cuda`) for CUDA-dependent operations (audio analysis, ML features).

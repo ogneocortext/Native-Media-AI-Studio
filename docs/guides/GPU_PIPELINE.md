@@ -1,6 +1,6 @@
 # GPU Music Video Pipeline Guide
 
-> **Last Updated:** 2026-09-05 • **Tested:** `GTX 1070 Ti 8GB VRAM, CUDA 12.4, PyTorch 2.5.1+cu124, FFmpeg 8.1.1`
+> **Last Updated:** 2026-09-05 • **Tested:** `GTX 1070 Ti 8GB VRAM, CUDA 12.6, PyTorch 2.14.0+cu126, FFmpeg 8.1.1`
 
 ## Architecture
 
@@ -146,7 +146,7 @@ websockets-sansio
 nvidia-ml-py>=13.0
 librosa>=0.11.0
 soundfile
-torch==2.5.1+cu124
+torch==2.14.0+cu126
 ```
 
 **Env:**
