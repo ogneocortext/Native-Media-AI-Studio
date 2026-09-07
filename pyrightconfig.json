@@ -17,7 +17,7 @@
   "executionEnvironments": [
     {
       "root": "packages/backend/app",
-      "python": "D:/conda-envs/comfyui-cuda/Scripts/python.exe"
+      "python": "D:/conda-envs/nma-studio-cuda/Scripts/python.exe"
     }
   ]
 }

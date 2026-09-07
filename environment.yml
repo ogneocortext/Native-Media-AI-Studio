@@ -1,5 +1,20 @@
-# Native Media AI Studio — Conda Environment
+# Native Media AI Studio — Conda Environment (LEGACY / OPTIONAL)
 # =============================================================================
+# NOTE (2026-09-06): This machine has NO conda installation. The canonical,
+# purpose-built environment for this project is a standalone venv:
+#
+#   D:\conda-envs\nma-studio-cuda   (Python 3.11.9, torch 2.5.1+cu121)
+#
+# Recreate it without conda:
+#   py -V:3.11 -m venv D:\conda-envs\nma-studio-cuda
+#   D:\conda-envs\nma-studio-cuda\Scripts\python -m pip install -U pip
+#   D:\conda-envs\nma-studio-cuda\Scripts\python -m pip install ^
+#       -r packages/backend/requirements.txt -r packages/backend/requirements-torch.txt
+#
+# The conda recipe below is kept for portability on machines that DO have
+# conda. Never depend on D:\conda-envs\space-analyzer-cuda — it belongs to a
+# different project.
+#
 # This file defines a reproducible conda environment for the entire project,
 # including the FastAPI backend, ComfyUI, and all ML/CUDA dependencies.
 #

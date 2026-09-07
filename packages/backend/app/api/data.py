@@ -2,13 +2,118 @@
 Data persistence API routes — prompts, audio, visuals, sessions, tracks, preferences.
 """
 
+import csv
 import os
+import re
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, ConfigDict
 
 from ..core import database
 
 router = APIRouter(prefix="/api/data", tags=["Data"])
+
+
+class CreatePromptRequest(BaseModel):
+    """Request body for creating a prompt."""
+    name: str = ""
+    prompt_type: str = "visual_generation"
+    text: str = ""
+    tags: list[str] | None = None
+    category: str = ""
+    description: str = ""
+
+
+class SaveVisualRequest(BaseModel):
+    """Request body for saving AI visual metadata."""
+    style_id: str = ""
+    filename: str = ""
+    stored_path: str = ""
+    prompt_id: str | None = None
+    width: int = 512
+    height: int = 512
+    steps: int = 20
+    cfg: float = 7.0
+    seed: int = 0
+    checkpoint: str = ""
+    comfyui_prompt_id: str = ""
+    generation_time: float = 0.0
+    tags: list[str] | None = None
+
+
+class CreateSessionRequest(BaseModel):
+    """Request body for creating a generation session."""
+    audio_id: str | None = None
+    music_prompt_id: str | None = None
+    config: dict | None = None
+
+
+class UpdateSessionRequest(BaseModel):
+    """Request body for updating a generation session (allows extra fields)."""
+    model_config = ConfigDict(extra="allow")
+
+
+class SetPreferenceRequest(BaseModel):
+    """Request body for setting a user preference."""
+    value: str | None = None
+    category: str = "general"
+
+
+class CreateTrackRequest(BaseModel):
+    """Request body for creating a track record."""
+    filename: str = ""
+    title: str = ""
+    artist: str = ""
+    duration_seconds: float = 0
+    size_mb: float = 0
+    source_path: str = ""
+    music_prompt: str = ""
+    lyrics: str = ""
+    visual_style: str = ""
+    visual_prompt: str = ""
+    tags: list[str] | None = None
+
+
+class UpdateTrackRequest(BaseModel):
+    """Request body for updating a track (allows extra fields)."""
+    model_config = ConfigDict(extra="allow")
+
+
+class ImportTracksRequest(BaseModel):
+    """Request body for importing tracks from a directory."""
+    directory: str
+
+
+class ImportTracksFromCsvRequest(BaseModel):
+    """Request body for importing tracks from CSV (no fields required)."""
+    pass
+
+
+class SaveGeneratedSceneRequest(BaseModel):
+    """Request body for saving generated scene code."""
+    code: str
+    track: str = "unknown"
+    model: str = "unknown"
+
+
+class CleanupIncompleteScenesRequest(BaseModel):
+    """Request body for cleaning up incomplete scene files."""
+    track: str = ""
+    keep: int = 3
+
+
+class SaveOllamaAnalysisRequest(BaseModel):
+    """Request body for saving an Ollama analysis response."""
+    track_name: str = ""
+    html_response: str = ""
+    raw_response: str = ""
+    track_filename: str = ""
+    model_name: str = ""
+    prompt: str = ""
+    lyrics: str = ""
+    bpm: int = 0
+    status: str = "completed"
 
 
 @router.get("/")
@@ -39,15 +144,15 @@ def get_prompt(prompt_id: str):
 
 
 @router.post("/")
-def create_prompt(request: dict):
+def create_prompt(body: CreatePromptRequest):
     """Save a new prompt."""
     prompt_id = database.save_prompt(
-        name=request.get("name", ""),
-        prompt_type=request.get("prompt_type", "visual_generation"),
-        text=request.get("text", ""),
-        tags=request.get("tags"),
-        category=request.get("category", ""),
-        description=request.get("description", ""),
+        name=body.name,
+        prompt_type=body.prompt_type,
+        text=body.text,
+        tags=body.tags,
+        category=body.category,
+        description=body.description,
     )
     return {"id": prompt_id, "success": True}
 
@@ -112,22 +217,22 @@ def list_visuals(
 
 
 @router.post("/visuals/save")
-def save_visual(request: dict):
+def save_visual(body: SaveVisualRequest):
     """Save AI visual metadata."""
     visual_id = database.save_ai_visual(
-        style_id=request.get("style_id", ""),
-        filename=request.get("filename", ""),
-        stored_path=request.get("stored_path", ""),
-        prompt_id=request.get("prompt_id"),
-        width=request.get("width", 512),
-        height=request.get("height", 512),
-        steps=request.get("steps", 20),
-        cfg=request.get("cfg", 7.0),
-        seed=request.get("seed", 0),
-        checkpoint=request.get("checkpoint", ""),
-        comfyui_prompt_id=request.get("comfyui_prompt_id", ""),
-        generation_time=request.get("generation_time", 0.0),
-        tags=request.get("tags"),
+        style_id=body.style_id,
+        filename=body.filename,
+        stored_path=body.stored_path,
+        prompt_id=body.prompt_id,
+        width=body.width,
+        height=body.height,
+        steps=body.steps,
+        cfg=body.cfg,
+        seed=body.seed,
+        checkpoint=body.checkpoint,
+        comfyui_prompt_id=body.comfyui_prompt_id,
+        generation_time=body.generation_time,
+        tags=body.tags,
     )
     return {"id": visual_id, "success": True}
 
@@ -157,12 +262,12 @@ def list_sessions(
 
 
 @router.post("/sessions/")
-def create_session(request: dict):
+def create_session(body: CreateSessionRequest):
     """Create a generation session."""
     session_id = database.save_session(
-        audio_id=request.get("audio_id"),
-        music_prompt_id=request.get("music_prompt_id"),
-        config=request.get("config"),
+        audio_id=body.audio_id,
+        music_prompt_id=body.music_prompt_id,
+        config=body.config,
     )
     return {"id": session_id, "success": True}
 
@@ -177,9 +282,9 @@ def get_session(session_id: str):
 
 
 @router.patch("/sessions/{session_id}")
-def update_session(session_id: str, request: dict):
+def update_session(session_id: str, body: UpdateSessionRequest):
     """Update a generation session."""
-    database.update_session(session_id, **request)
+    database.update_session(session_id, **body.model_dump())
     return {"success": True}
 
 
@@ -190,12 +295,12 @@ def get_preferences(category: str | None = None):
 
 
 @router.put("/preferences/{key}")
-def set_preference(key: str, request: dict):
+def set_preference(key: str, body: SetPreferenceRequest):
     """Set a user preference."""
     database.set_preference(
         key=key,
-        value=request.get("value"),
-        category=request.get("category", "general"),
+        value=body.value,
+        category=body.category,
     )
     return {"success": True}
 
@@ -226,28 +331,28 @@ def get_track(track_id: str):
 
 
 @router.post("/tracks/")
-def create_track(request: dict):
+def create_track(body: CreateTrackRequest):
     """Create a new track record."""
     track_id = database.save_track(
-        filename=request.get("filename", ""),
-        title=request.get("title", ""),
-        artist=request.get("artist", ""),
-        duration_seconds=request.get("duration_seconds", 0),
-        size_mb=request.get("size_mb", 0),
-        source_path=request.get("source_path", ""),
-        music_prompt=request.get("music_prompt", ""),
-        lyrics=request.get("lyrics", ""),
-        visual_style=request.get("visual_style", ""),
-        visual_prompt=request.get("visual_prompt", ""),
-        tags=request.get("tags"),
+        filename=body.filename,
+        title=body.title,
+        artist=body.artist,
+        duration_seconds=body.duration_seconds,
+        size_mb=body.size_mb,
+        source_path=body.source_path,
+        music_prompt=body.music_prompt,
+        lyrics=body.lyrics,
+        visual_style=body.visual_style,
+        visual_prompt=body.visual_prompt,
+        tags=body.tags,
     )
     return {"id": track_id, "success": True}
 
 
 @router.patch("/tracks/{track_id}")
-def update_track(track_id: str, request: dict):
+def update_track(track_id: str, body: UpdateTrackRequest):
     """Update a track."""
-    database.update_track(track_id, **request)
+    database.update_track(track_id, **body.model_dump())
     return {"success": True}
 
 
@@ -261,9 +366,9 @@ def delete_track(track_id: str):
 
 
 @router.post("/tracks/import")
-def import_tracks(request: dict):
+def import_tracks(body: ImportTracksRequest):
     """Import tracks from a directory."""
-    directory = request.get("directory", "")
+    directory = body.directory
     if not directory or not os.path.isdir(directory):
         raise HTTPException(status_code=400, detail="Invalid directory")
 
@@ -303,11 +408,8 @@ def import_tracks(request: dict):
 
 
 @router.post("/tracks/import-csv")
-def import_tracks_from_csv(request: dict):
+def import_tracks_from_csv(body: ImportTracksFromCsvRequest):
     """Import tracks from the CSV file."""
-    import csv
-    import re
-
     csv_path = os.path.join(
         os.path.dirname(__file__), "..", "..", "..", "..",
         "docs", "track-prompts-lyrics.csv"
@@ -316,10 +418,10 @@ def import_tracks_from_csv(request: dict):
     if not os.path.exists(csv_path):
         raise HTTPException(status_code=404, detail="CSV file not found")
 
-    # Clear existing tracks
-    existing = database.get_tracks_typed(limit=1000)
-    for t in existing:
-        database.delete_track(t.id)
+    # Clear existing tracks in a single transaction
+    with database.get_db() as conn:
+        conn.execute("DELETE FROM tracks")
+        conn.execute("DELETE FROM sqlite_sequence WHERE name = 'tracks'")
 
     imported = 0
 
@@ -358,16 +460,15 @@ def import_tracks_from_csv(request: dict):
             )
             imported += 1
 
-import json  # noqa: F401
-from datetime import datetime
+    return {"imported": imported, "count": imported}
 
 
 @router.post("/saved-scenes")
-def save_generated_scene(request: dict):
+def save_generated_scene(body: SaveGeneratedSceneRequest):
     """Save generated scene code to a file for later retrieval."""
-    code = request.get("code", "")
-    track_name = request.get("track", "unknown")
-    model = request.get("model", "unknown")
+    code = body.code
+    track_name = body.track
+    model = body.model
     if not code:
         raise HTTPException(status_code=400, detail="No code provided")
 
@@ -415,10 +516,10 @@ def list_saved_scenes():
 
 
 @router.post("/saved-scenes/cleanup")
-def cleanup_incomplete_scenes(request: dict):
+def cleanup_incomplete_scenes(body: CleanupIncompleteScenesRequest):
     """Remove incomplete scene files for a track, keeping only the largest (most complete) ones."""
-    track = request.get("track", "")
-    keep = request.get("keep", 3)  # Keep top N most complete files
+    track = body.track
+    keep = body.keep
     output_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "output", "generated-scenes")
     if not os.path.exists(output_dir):
         return {"removed": 0}
@@ -448,18 +549,18 @@ def cleanup_incomplete_scenes(request: dict):
 # Ollama Analysis Response Endpoints
 
 @router.post("/ollama-analysis")
-def save_ollama_analysis(request: dict):
+def save_ollama_analysis(body: SaveOllamaAnalysisRequest):
     """Save an Ollama analysis response."""
     response_id = database.save_ollama_analysis_response(
-        track_name=request.get("track_name", ""),
-        html_response=request.get("html_response", ""),
-        raw_response=request.get("raw_response", ""),
-        track_filename=request.get("track_filename", ""),
-        model_name=request.get("model_name", ""),
-        prompt=request.get("prompt", ""),
-        lyrics=request.get("lyrics", ""),
-        bpm=request.get("bpm", 0),
-        status=request.get("status", "completed"),
+        track_name=body.track_name,
+        html_response=body.html_response,
+        raw_response=body.raw_response,
+        track_filename=body.track_filename,
+        model_name=body.model_name,
+        prompt=body.prompt,
+        lyrics=body.lyrics,
+        bpm=body.bpm,
+        status=body.status,
     )
     return {"success": True, "id": response_id}
 
@@ -467,17 +568,17 @@ def save_ollama_analysis(request: dict):
 @router.get("/ollama-analysis")
 def list_ollama_analysis(track_name: str | None = None, limit: int = 50):
     """List Ollama analysis responses, optionally filtered by track."""
-    responses = database.get_ollama_analysis_responses(track_name=track_name, limit=limit)
-    return {"responses": responses}
+    responses = database.list_ollama_analysis_typed(track_name=track_name, limit=limit)
+    return {"responses": [r.__dict__ for r in responses]}
 
 
 @router.get("/ollama-analysis/{response_id}")
 def get_ollama_analysis(response_id: str):
     """Get a single Ollama analysis response."""
-    response = database.get_ollama_analysis_response(response_id)
+    response = database.get_ollama_analysis_response_typed(response_id)
     if not response:
         raise HTTPException(status_code=404, detail="Response not found")
-    return response
+    return response.__dict__
 
 
 @router.delete("/ollama-analysis/{response_id}")

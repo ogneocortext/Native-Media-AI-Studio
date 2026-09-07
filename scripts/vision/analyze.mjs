@@ -26,8 +26,8 @@ const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 
 // Configuration
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const VISION_MODEL = process.env.VISION_MODEL || 'qwen3-vl:4b';
-const VISION_MAX_DIM = parseInt(process.env.VISION_MAX_DIM || '1024');
+const VISION_MODEL = process.env.VISION_MODEL || 'gemma4:e2b-it-qat';
+const VISION_MAX_DIM = parseInt(process.env.VISION_MAX_DIM || '1280');
 const VISION_QUALITY = parseInt(process.env.VISION_QUALITY || '80');
 
 function parseArgs(argv) {

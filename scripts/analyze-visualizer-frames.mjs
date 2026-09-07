@@ -27,7 +27,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
 process.chdir(REPO_ROOT);
 
-const DEFAULT_MODEL = process.env.VISION_MODEL || "qwen3-vl:4b";
+const DEFAULT_MODEL = process.env.VISION_MODEL || "gemma4:e2b-it-qat";
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 const VITE_URL = process.env.VITE_URL || "http://localhost:5173";
 

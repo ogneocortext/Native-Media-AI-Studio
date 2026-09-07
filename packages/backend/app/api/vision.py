@@ -52,16 +52,15 @@ async def vision_ocr(
     file: UploadFile = File(...),
     prompt: str = Form("ocr"),
     model: str = Form(DEFAULT_MODEL),
+    relative_path: str = Form(""),
 ):
-    """OCR / chart / table extraction via local vision model (default minicpm-v:8b)."""
+    """OCR / chart / table extraction via local vision model (default minicpm-v:8b). Persists to DB for history/search."""
     if file.content_type and not file.content_type.startswith("image/"):
-        # allow any image; reject non-image
         if file.content_type not in ("image/png", "image/jpeg", "image/webp", "image/jpg"):
             pass
     raw = await file.read()
     if not raw:
         return {"error": "empty file"}
-    # guard size (compress via sharp-like logic is done client-side; here just cap 15MB)
     if len(raw) > 15 * 1024 * 1024:
         return {"error": "file too large (15MB max)"}
     b64 = base64.b64encode(raw).decode()
@@ -75,13 +74,44 @@ async def vision_ocr(
             model = FALLBACK_MODEL
         except Exception as e2:
             return {"error": str(e2), "model": model}
-    return {"text": text, "model": model, "prompt": prompt, "filename": file.filename}
+    # Persist to DB (applicable: Media Library covers, GPU charts, any ad-hoc scan)
+    try:
+        from ..core.database import save_vision_ocr
+        rel = relative_path or file.filename or "unknown"
+        await _run_in_thread(save_vision_ocr, rel, file.filename or "unknown", text, model, prompt, file.content_type, len(raw))
+    except Exception as e:
+        logger.debug(f"vision ocr DB save skipped: {e}")
+    return {"text": text, "model": model, "prompt": prompt, "filename": file.filename, "relative_path": relative_path or file.filename}
 
 
 @router.post("/chart")
 async def vision_chart(file: UploadFile = File(...), model: str = Form(DEFAULT_MODEL)):
     """Convenience alias for chart reading."""
     return await vision_ocr(file=file, prompt="chart", model=model)
+
+
+@router.get("/ocr/history")
+async def vision_ocr_history(limit: int = 20):
+    """List recent OCR results from DB (Media Library covers, charts)."""
+    try:
+        from ..core.database import list_vision_ocr
+        pts = await _run_in_thread(list_vision_ocr, limit)
+        return {"results": pts, "count": len(pts)}
+    except Exception as e:
+        return {"error": str(e), "results": []}
+
+
+@router.get("/ocr/by-path/{relative_path:path}")
+async def vision_ocr_by_path(relative_path: str):
+    """Get latest OCR for a given library file."""
+    try:
+        from ..core.database import get_vision_ocr
+        r = await _run_in_thread(get_vision_ocr, relative_path)
+        if not r:
+            return {"found": False, "relative_path": relative_path}
+        return {"found": True, **r}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 async def _run_in_thread(func, *args):

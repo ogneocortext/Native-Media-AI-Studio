@@ -25,12 +25,16 @@ $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 
 # Service configuration
-# Use CUDA-enabled conda environment for GPU features
+# Backend/GPU: dedicated studio env (standalone venv, decoupled from
+# space-analyzer-cuda and from ComfyUI). ComfyUI service uses comfyui-cuda.
+$studioPython = 'D:\conda-envs\nma-studio-cuda\Scripts\python.exe'
 $condaPython = 'D:\conda-envs\comfyui-cuda\Scripts\python.exe'
 $venvPython = Join-Path $ProjectRoot 'venv\Scripts\python.exe'
 
-# Prefer conda environment if available (CUDA support)
-$backendPython = if (Test-Path $condaPython) { $condaPython } else { $venvPython }
+# Prefer studio env > ComfyUI env > CPU fallback
+$backendPython = if (Test-Path $studioPython) { $studioPython }
+                 elseif (Test-Path $condaPython) { $condaPython }
+                 else { $venvPython }
 
 $ServiceConfig = @{
     backend = @{
@@ -38,7 +42,7 @@ $ServiceConfig = @{
         Port = 8000
         Python = $backendPython
         WorkingDir = Join-Path $ProjectRoot 'packages\backend'
-        Args = @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000')
+        Args = @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000', '--reload')
         LogFile = 'backend.log'
     }
     frontend = @{

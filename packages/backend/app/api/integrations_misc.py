@@ -2,6 +2,8 @@
 Integrations API - Miscellaneous routes (CUDA, Track Analysis, System Resources).
 """
 
+from __future__ import annotations
+
 import os
 import time
 import logging
@@ -72,6 +74,11 @@ class TrackAnalysisRequest(BaseModel):
     prompt: str
     lyrics: str
     bpm: int = 120
+
+
+class CudaAnalyzeAudioRequest(BaseModel):
+    """Request for CUDA-accelerated audio frequency analysis."""
+    audio_url: str
 
 
 @router.post("/analyze-track-stream")
@@ -336,14 +343,14 @@ async def get_ollama_models_misc() -> dict:
     return {"models": models}
 
 @router.post("/cuda/analyze-audio")
-async def cuda_analyze_audio(request: dict) -> dict:
+async def cuda_analyze_audio(body: CudaAnalyzeAudioRequest) -> dict:
     """
     Perform CUDA-accelerated audio frequency analysis.
     Returns enhanced frequency data for visualization.
     """
     import numpy as np
     
-    audio_url = request.get("audio_url", "")
+    audio_url = body.audio_url
     if not audio_url:
         raise HTTPException(status_code=400, detail="audio_url required")
     

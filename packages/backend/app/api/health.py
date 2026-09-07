@@ -1,11 +1,14 @@
 """
 Health and diagnostics API routes.
 """
+from __future__ import annotations
+
 import shutil
 import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, File, UploadFile
+from pydantic import BaseModel
 
 from ..adapters.registry import adapter_registry
 from ..core.config import config
@@ -13,6 +16,16 @@ from ..diagnostics.health import health_monitor
 from ..diagnostics.resources import resource_monitor
 
 router = APIRouter(prefix="/api/health", tags=["Health"])
+
+
+class Gen3DGenerateRequest(BaseModel):
+    """Request for generating a 3D model from text."""
+
+    prompt: str
+    output_name: str | None = None
+    steps: int = 15
+    seed: int = 42
+    cfg: float = 7.0
 
 
 @router.get("/ping")
@@ -231,22 +244,15 @@ async def gen3d_models() -> list[dict]:
 
 
 @router.post("/3d/generate")
-async def gen3d_generate(request: dict) -> dict:
-    """Generate a 3D model from text prompt.
-
-    Request body:
-        prompt: Text description
-        output_name: Optional filename
-        steps: Diffusion steps (default 15)
-        seed: Random seed (default 42)
-    """
+async def gen3d_generate(body: Gen3DGenerateRequest) -> dict:
+    """Generate a 3D model from text prompt."""
     from ..services.gen3d.gen3d_service import gen3d_service
     return await gen3d_service.generate_from_text(
-        prompt=request.get("prompt", ""),
-        output_name=request.get("output_name"),
-        steps=request.get("steps", 15),
-        seed=request.get("seed", 42),
-        cfg=request.get("cfg", 7.0),
+        prompt=body.prompt,
+        output_name=body.output_name,
+        steps=body.steps,
+        seed=body.seed,
+        cfg=body.cfg,
     )
 
 

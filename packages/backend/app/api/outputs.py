@@ -190,6 +190,7 @@ class OutputsResponse(BaseModel):
     images_count: int
     videos_count: int
     audio_count: int
+    models_3d_count: int = 0
 
 
 def get_file_type(filename: str) -> str:
@@ -526,6 +527,7 @@ async def list_outputs(
     images_count = len([o for o in all_outputs if o.file_type == "image"])
     videos_count = len([o for o in all_outputs if o.file_type == "video"])
     audio_count = len([o for o in all_outputs if o.file_type == "audio"])
+    models_3d_count = len([o for o in all_outputs if o.file_type == "3d"])
 
     # Apply pagination
     paginated = all_outputs[offset : offset + limit]
@@ -536,6 +538,7 @@ async def list_outputs(
         images_count=images_count,
         videos_count=videos_count,
         audio_count=audio_count,
+        models_3d_count=models_3d_count,
     )
 
 

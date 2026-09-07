@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     One-command launcher for Native Media AI Studio (backend + frontend).
 .DESCRIPTION
@@ -204,19 +204,24 @@ Write-Host '  Native Media AI Studio - starting' -ForegroundColor Cyan
 Write-Host '==============================================' -ForegroundColor Cyan
 
 # --- Preflight: Python environment ---
-# Use CUDA-enabled conda environment for GPU features
+# Backend/GPU: dedicated studio env (standalone venv, decoupled from
+# space-analyzer-cuda). ComfyUI runs on its own comfyui-cuda env.
+$studioPython = 'D:\conda-envs\nma-studio-cuda\Scripts\python.exe'
 $condaPython = 'D:\conda-envs\comfyui-cuda\Scripts\python.exe'
 $venvPython = Join-Path $ProjectRoot 'venv\Scripts\python.exe'
 
-# Prefer conda environment if available (CUDA support)
-if (Test-Path $condaPython) {
+# Prefer studio env > ComfyUI env > CPU fallback
+if (Test-Path $studioPython) {
+    $venvPython = $studioPython
+    Write-Ok "Using dedicated studio environment: $studioPython"
+} elseif (Test-Path $condaPython) {
     $venvPython = $condaPython
-    Write-Ok "Using CUDA-enabled conda environment: $condaPython"
+    Write-Ok "Using CUDA-enabled environment: $condaPython"
 } elseif (Test-Path $venvPython) {
     Write-Ok "Using local venv: $venvPython (CPU-only, no CUDA)"
 } else {
     Write-Warn2 "No Python environment found!"
-    Write-Warn2 "Create conda env: conda env create -f environment.yml"
+    Write-Warn2 "Create studio venv: py -V:3.11 -m venv D:\conda-envs\nma-studio-cuda && D:\conda-envs\nma-studio-cuda\Scripts\python -m pip install -r packages\backend\requirements.txt -r packages\backend\requirements-torch.txt"
     Write-Warn2 "Or create venv: py -V:3.11 -m venv venv && venv\Scripts\python -m pip install -r packages\backend\requirements.txt"
     exit 1
 }
@@ -327,6 +332,7 @@ if (-not $NoFrontend) {
                 -WorkingDirectory $FrontendDir `
                 -LogFile $frontendLog -ErrorLog $frontendErrLog
         }
+    }
     
     if ($proc) {
         $script:started += @{ Name = 'Frontend'; Process = $proc }

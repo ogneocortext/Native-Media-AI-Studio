@@ -4,6 +4,7 @@ import App from "./App";
 import "./styles/globals.css";
 import { applyTheme, getStoredTheme } from "./utils/theme";
 import { installDebugFetch } from "./services/debugApi";
+import { fetchPortConfig } from "./services/portConfig";
 
 // Apply the persisted theme before the first paint to avoid a flash of the
 // default (dark) theme on startup.
@@ -30,6 +31,9 @@ if (import.meta.env.DEV) {
 
 // Initialize Theatre.js studio before rendering the app
 async function initApp() {
+  // Load port configuration first so all services use the correct backend URL
+  await fetchPortConfig();
+
   const { getStudio } = await import("./features/visualizer/services/theatreStudio");
   await getStudio();
 

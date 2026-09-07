@@ -28,6 +28,8 @@ A full-stack AI-powered creative production environment for music-driven media g
 
 ## Recent Changes
 
+- **Media Library 3D Count + Layout Fix (2026-09-06)** — Backend `list_outputs` now returns `models_3d_count`; frontend Library stats grid shows **3D Models** count. File size/date in `MediaCard` footers use `whitespace-nowrap` to prevent wrapping.
+- **Backend Auto-Reload for Dev (2026-09-06)** — `scripts/manage-servers.ps1` and `scripts/start-services.ps1` now start uvicorn with `--reload` so backend code changes reload automatically.
 - **Backend Startup & Frontend Connectivity (2026-09-05)** — Fixed WebSocket origin validation crash in `main.py`, added pre-flight port check, frontend health/SSE calls now fall back to direct backend URL when Vite proxy is down, start script retries backend launch on port conflicts
 - **Async Refactoring & VRAM Management (2026-09-05)** — Fixed asyncio refactoring in GPU monitoring and VRAM management using `asyncio.to_thread()`, corrected VRAM offload/reload function calls, enhanced ComfyUI error handling with queue status checks and timeout detection, updated documentation
 - **2026 2D + LRC-Driven Visuals (2026-09-02)** — Added `Canvas2DVisualizer.tsx` 3 modes `bars/waveform/radial` (Canvas2D + Web Audio, LRC `isPhraseStart/sectionProgress` reactive, 2026 visual-flux/Waviz methods), fixed LRC `offset`/multi-stamp/`60.00` drift (`lyricsParser.py`/`lyricsParser.ts`/`useLrcSync`), wired 3D `VisualizerScene`/`ShaderVisualizer`/`PostFX` to `lrcSync`, added `AIPresetGallery` browse + `storage/visualizer_presets` persistence, hardened Ollama (`keep_alive 5m`, startup unload, manual `Enhance with AI`)

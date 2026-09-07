@@ -6,7 +6,7 @@
  * and event resumption built-in.
  */
 
-import { getEventsUrl, getCachedConfig } from "./portConfig";
+import { getEventsUrl } from "./portConfig";
 
 type MessageListener = (message: Record<string, unknown>) => void;
 
@@ -97,7 +97,6 @@ class SSEService {
     // Prefer the explicit backend events URL from ports.json / env.
     // Fall back to the Vite proxy path so local dev still works without a
     // ports.json refresh after backend restart.
-    const cached = getCachedConfig();
     const configuredUrl = getEventsUrl();
     const proxyUrl = `${window.location.protocol}//${window.location.host}/api/events`;
     const sseUrl = configuredUrl && configuredUrl !== proxyUrl ? configuredUrl : proxyUrl;

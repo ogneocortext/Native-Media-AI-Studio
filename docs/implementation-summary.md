@@ -56,7 +56,19 @@ All endpoints organized into focused route modules:
 
 ---
 
-*Last updated: 2026-08-25*
+## ✅ 2026-09-06 — Media Library fixes + backend auto-reload
+
+### Media Library: 3D Models count + footer wrapping
+- Backend `packages/backend/app/api/outputs.py` now includes `models_3d_count` in `OutputsResponse` and computes it in `list_outputs`.
+- Frontend `packages/frontend/src/features/media-library/MediaLibrary.tsx` adds a 5th **3D Models** `StatCard` and expands the stats grid to `lg:grid-cols-5`.
+- `MediaCard` footer spans for size/date now use `whitespace-nowrap` to prevent awkward line breaks.
+
+### Backend dev auto-reload
+- `scripts/manage-servers.ps1` and `scripts/start-services.ps1` now pass `--reload` to uvicorn so code changes reload without manual restarts.
+
+---
+
+*Last updated: 2026-09-06*
 
 ---
 

@@ -89,6 +89,11 @@ async def open_in_blender(payload: dict):
                 data = sock.recv(4096)
                 if data:
                     logger.info("Blender MCP import response: %s", data[:500])
+                    try:
+                        from ..core.database import log_native_open as _logmcp
+                        import asyncio as _asyncio3
+                        await _asyncio3.to_thread(_logmcp, rel, src.name, "blender", "blender-mcp", True)
+                    except: pass
                     return {"success": True, "method": "blender-mcp", "path": str(src), "message": "Sent to running Blender via MCP"}
             except Exception:
                 pass
@@ -135,8 +140,20 @@ except Exception as e:
 
         # Use Popen so backend doesn't block
         proc = subprocess.Popen([blender, "--python", script, "--", str(src)], creationflags=subprocess.DETACHED_PROCESS if hasattr(subprocess, "DETACHED_PROCESS") else 0)
+        # Persist to DB (applicable: audit trail, recently opened, dedup)
+        try:
+            from ..core.database import log_native_open as _log
+            import asyncio as _asyncio
+            await _asyncio.to_thread(_log, rel, src.name, "blender", "launch", True)
+        except Exception as e:
+            logger.debug("native open DB log skipped: %s", e)
         return {"success": True, "method": "launch", "blender": blender, "path": str(src), "pid": proc.pid, "message": "Launched Blender with model"}
     except Exception as e:
+        try:
+            from ..core.database import log_native_open as _log2
+            import asyncio as _asyncio2
+            await _asyncio2.to_thread(_log2, rel, src.name if 'src' in locals() else rel, "blender", "launch", False)
+        except: pass
         logger.error("Failed to launch Blender: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -162,7 +179,17 @@ async def open_in_unity(payload: dict):
     try:
         shutil.copy2(src, dest)
         logger.info("Copied %s -> %s", src, dest)
+        try:
+            from ..core.database import log_native_open as _logu
+            import asyncio as _asyncio4
+            await _asyncio4.to_thread(_logu, rel, src.name, "unity", "copy", True)
+        except: pass
     except Exception as e:
+        try:
+            from ..core.database import log_native_open as _logu2
+            import asyncio as _asyncio5
+            await _asyncio5.to_thread(_logu2, rel, src.name if 'src' in locals() else rel, "unity", "copy", False)
+        except: pass
         raise HTTPException(status_code=500, detail=f"Copy failed: {e}")
 
     # Try Unity MCP refresh (optional) — Unity auto-imports on file change, but we can ping the bridge
@@ -213,3 +240,15 @@ async def native_open_status():
         "blender": {"available": bool(blender), "path": blender},
         "unity": {"available": unity, "project": str(UNITY_PROJECT), "generated_dir": str(UNITY_ASSETS_GENERATED)},
     }
+
+
+@router.get("/open/history")
+async def native_open_history(app: str | None = None, limit: int = 20):
+    """Recent Blender/Unity opens from DB — powers 'recently opened' and dedup."""
+    try:
+        from ..core.database import list_native_opens
+        import asyncio as _asyncio6
+        rows = await _asyncio6.to_thread(list_native_opens, app, limit)
+        return {"results": rows, "count": len(rows)}
+    except Exception as e:
+        return {"error": str(e), "results": []}

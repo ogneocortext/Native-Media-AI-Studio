@@ -3,7 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { Server } from "@modelcontextprotocol/server";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { spawn } from "child_process";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,7 +26,7 @@ function textResponse(text, isError = false) {
   return { content: [{ type: "text", text }], isError };
 }
 
-function runNode(script, args, timeoutMs = 120000) {
+function runNode(script, args, timeoutMs = 300000) {
   return new Promise((resolve, reject) => {
     const child = spawn("node", [script, ...args], {
       cwd: PROJECT_ROOT,
@@ -52,7 +52,7 @@ function runNode(script, args, timeoutMs = 120000) {
   });
 }
 
-function runAnalyzePy(imagePath, prompt, timeoutMs = 120000) {
+function runAnalyzePy(imagePath, prompt, timeoutMs = 300000) {
   return new Promise((resolve, reject) => {
     const child = spawn("python", [ANALYZE_PY, imagePath, prompt], {
       cwd: PROJECT_ROOT,
@@ -100,7 +100,6 @@ async function describeImage(imagePath, prompt, mode) {
 
   logRequest(reqId, "vision_describe", `mode=${finalMode} image=${abs}`);
 
-  // Primary: vision.mjs (sharp resize + Ollama /api/generate)
   try {
     const args = ["analyze", abs, finalPrompt, "--mode", finalMode];
     const result = await runNode(VISION_MJS, args);
@@ -109,7 +108,6 @@ async function describeImage(imagePath, prompt, mode) {
   } catch (e) {
     logRequest(reqId, "vision_describe", `primary-failed: ${e.message}`);
 
-    // Fallback 1: analyze.mjs
     try {
       const result = await runNode(ANALYZE_MJS, [abs, "--prompt", finalPrompt, "--mode", finalMode]);
       logRequest(reqId, "vision_describe", "fallback1-ok");
@@ -117,7 +115,6 @@ async function describeImage(imagePath, prompt, mode) {
     } catch (e2) {
       logRequest(reqId, "vision_describe", `fallback1-failed: ${e2.message}`);
 
-      // Fallback 2: Python
       const result = await runAnalyzePy(abs, finalPrompt);
       logRequest(reqId, "vision_describe", "fallback2-ok");
       return result;
@@ -143,6 +140,21 @@ async function compareImages(imageA, imageB, prompt) {
   }
 }
 
+// ─── Tool execution bridge ─────────────────────────────────────────────────────
+// Import tool definitions and executor from vision.mjs so MCP tool calls and
+// Ollama-side tool calls share the same implementations.
+
+let TOOL_DEFS = [];
+let executeTool = async () => ({ error: 'tools not loaded' });
+
+try {
+  const visionModule = await import(pathToFileURL(VISION_MJS).href);
+  TOOL_DEFS = visionModule.TOOL_DEFS || [];
+  executeTool = visionModule.executeTool || executeTool;
+} catch (e) {
+  console.error('[vision-mcp] failed to load tool bridge from vision.mjs:', e.message);
+}
+
 const server = new Server(
   { name: "native-media-vision", version: "1.0.0" },
   { capabilities: { tools: {} } }
@@ -152,7 +164,7 @@ server.setRequestHandler('tools/list', async () => ({
   tools: [
     {
       name: "vision_describe",
-      description: "Describe a screenshot/image using local Ollama vision model (qwen3-vl-optimized). For non-vision coding agents: pass image path, get text description back. Scoped strictly to Native Media AI Studio.",
+      description: "Describe a screenshot/image using local Ollama vision model (gemma4:e2b-it-qat with chain-of-thought). For non-vision coding agents: pass image path, get text description back. Scoped strictly to Native Media AI Studio.",
       inputSchema: {
         type: "object",
         properties: {
@@ -198,7 +210,78 @@ server.setRequestHandler('tools/list', async () => ({
         },
         required: ["image_path"]
       }
-    }
+    },
+    // Gemma4-expandable tools
+    {
+      name: "read_source",
+      description: "Read a source file from the project (first 200 lines). Use this to inspect what the code looks like when diagnosing UI issues.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Repo-relative path, e.g. packages/frontend/src/features/generate3d/Generation3DPage.tsx" }
+        },
+        required: ["path"]
+      }
+    },
+    {
+      name: "search_files",
+      description: "Search for files matching a regex pattern in the project. Returns up to 50 matches.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          pattern: { type: "string", description: "Regex pattern, e.g. \".*Generation3D.*\\\\.tsx$\"" },
+          path: { type: "string", description: "Directory to search from (default: project root)" }
+        },
+        required: ["pattern"]
+      }
+    },
+    {
+      name: "get_file_info",
+      description: "Get file size and modification time. Use this to verify a file exists before reading.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Repo-relative path to file or directory" }
+        },
+        required: ["path"]
+      }
+    },
+    {
+      name: "compare_visuals",
+      description: "Compare two images via the vision model. Returns a detailed diff summary.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          image_a: { type: "string", description: "Repo-relative path to first image" },
+          image_b: { type: "string", description: "Repo-relative path to second image" },
+          prompt: { type: "string", description: "Optional focus prompt" }
+        },
+        required: ["image_a", "image_b"]
+      }
+    },
+    {
+      name: "take_screenshot",
+      description: "Capture a screenshot of a URL using headless Playwright. Returns the saved image path.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "URL to capture (default: http://localhost:5173)" },
+          full_page: { type: "boolean", description: "Capture full scrollable page (default: false)" }
+        },
+        required: []
+      }
+    },
+    {
+      name: "list_outputs",
+      description: "List recent generated media files (images, video, audio) in output/ directory.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "Max files to return (default 20)" }
+        },
+        required: []
+      }
+    },
   ]
 }));
 
@@ -220,12 +303,19 @@ server.setRequestHandler('tools/call', async (request) => {
 1. ELEMENTS: list visible UI elements with approximate position (top-left, center, bottom-right etc)
 2. TEXT: transcribe visible text labels/buttons
 3. LAYOUT: responsive/layout issues
-4. ERRORS: visible errors, warnings, broken images
+4. ERRORS: visible errors, warnings, broken images, missing states
 5. NEXT_ACTION: what should a coding agent fix first?
 Viewport: ${args?.viewport || "unknown"} Label: ${args?.label || "screen"}`;
       const text = await describeImage(args?.image_path, auditPrompt, "ui");
       return textResponse(text);
     }
+
+    // New tool-callable tools: execute directly via vision.mjs bridge
+    if (TOOL_DEFS.some(t => t.function?.name === name)) {
+      const result = await executeTool(name, args || {});
+      return textResponse(JSON.stringify(result, null, 2));
+    }
+
     logRequest(reqId, "tools/call", `unknown-tool ${name}`);
     return textResponse(`Unknown tool ${name}`, true);
   } catch (e) {

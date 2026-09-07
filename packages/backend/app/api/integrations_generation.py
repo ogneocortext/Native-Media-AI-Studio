@@ -2,6 +2,8 @@
 Integrations API - Generation routes (ComfyUI, Ollama, VRAM, Audio).
 """
 
+from __future__ import annotations
+
 import json
 import os
 import time
@@ -608,13 +610,13 @@ async def queue_image_job(service_name: str, request: ImageGenerationRequest) ->
 
 
 @router.post("/ollama/embed")
-async def ollama_embed(request: dict) -> dict:
+async def ollama_embed(body: OllamaEmbedRequest) -> dict:
     """Generate embedding via nomic-embed-text. Uses config.embedding_model by default."""
     import aiohttp
-    text = (request.get("text") or request.get("input") or "").strip()
+    text = body.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="text/input required")
-    model = request.get("model") or config.embedding_model
+    model = body.model or config.embedding_model
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -637,14 +639,14 @@ async def ollama_embed(request: dict) -> dict:
 
 
 @router.post("/ollama/search")
-async def ollama_semantic_search(request: dict) -> dict:
-    """Semantic search over tracks/visuals using nomic embeddings. Body: {query, limit?}"""
+async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
+    """Semantic search over tracks/visuals using nomic embeddings."""
     import aiohttp, math
-    query = (request.get("query") or "").strip()
+    query = body.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="query required")
-    limit = min(int(request.get("limit", 10)), 20)
-    model = request.get("model") or config.embedding_model
+    limit = min(body.limit, 20)
+    model = body.model or config.embedding_model
     # Embed query
     async with aiohttp.ClientSession() as session:
         async with session.post(
@@ -759,20 +761,16 @@ async def get_benchmark_results() -> dict:
 
 
 @router.post("/ollama/benchmark/run")
-async def run_benchmark(request: dict = None) -> dict:
-    """Run Three.js generation benchmark against Ollama models.
-
-    Body: { "models": ["qwen2.5:3b", ...] } or {} to benchmark all.
-    """
+async def run_benchmark(body: RunBenchmarkRequest) -> dict:
+    """Run Three.js generation benchmark against Ollama models."""
     adapter = adapter_registry.get("ollama")
     if not adapter:
         raise HTTPException(status_code=404, detail="Ollama not available")
     if not await adapter.health_check():
         raise HTTPException(status_code=503, detail="Ollama is not available")
 
-    body = request or {}
-    models = body.get("models") if isinstance(body, dict) else None
-    max_models = body.get("max_models", 8) if isinstance(body, dict) else 8
+    models = body.models
+    max_models = body.max_models
 
     try:
         from ..services.ollama_benchmark import run_benchmark
@@ -811,20 +809,16 @@ async def get_coding_benchmark_results() -> dict:
 
 
 @router.post("/ollama/coding-benchmark/run")
-async def run_coding_benchmark(request: dict = None) -> dict:
-    """Run coding benchmark against Ollama models.
-
-    Body: { "models": ["qwen2.5:7b", ...] } or {} to benchmark all.
-    """
+async def run_coding_benchmark(body: RunCodingBenchmarkRequest) -> dict:
+    """Run coding benchmark against Ollama models."""
     adapter = adapter_registry.get("ollama")
     if not adapter:
         raise HTTPException(status_code=404, detail="Ollama not available")
     if not await adapter.health_check():
         raise HTTPException(status_code=503, detail="Ollama is not available")
 
-    body = request or {}
-    models = body.get("models") if isinstance(body, dict) else None
-    max_models = body.get("max_models", 12) if isinstance(body, dict) else 12
+    models = body.models
+    max_models = body.max_models
 
     try:
         from ..services.coding_benchmark import run_benchmark
@@ -880,18 +874,9 @@ async def reload_ollama() -> dict:
 
 
 @router.post("/ollama/chat")
-async def ollama_chat(request: dict) -> dict:
+async def ollama_chat(body: OllamaChatRequest) -> dict:
     """
     Chat with Ollama using the /api/chat endpoint with tool calling support.
-
-    Request body:
-    - message: User message
-    - model: Model name (optional)
-    - history: Previous messages (optional)
-    - tools: Tool definitions (optional)
-    - think: Enable thinking mode (optional)
-    - stream: Enable streaming (optional, default false)
-    - max_tool_calls: Maximum tool call iterations (optional, default 5)
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -900,21 +885,20 @@ async def ollama_chat(request: dict) -> dict:
     if not adapter:
         raise HTTPException(status_code=404, detail="Ollama not available")
 
-    message = request.get("message", "")
-    model = request.get("model", config.default_model)
-    history = request.get("history", [])
-    think = request.get("think", None)
-    stream = request.get("stream", False)
-    max_tool_calls = request.get("max_tool_calls", 5)
-    ollama_options = request.get("options", {}) or {}
-    # Also allow system to be passed via request
-    system_prompt = request.get("system")
+    message = body.message
+    model = body.model or config.default_model
+    history = body.history or []
+    think = body.think
+    stream = body.stream
+    max_tool_calls = body.max_tool_calls
+    ollama_options = body.options or {}
+    system_prompt = body.system
 
     # Track activity for this model
     adapter.set_activity(model, "chat", message[:80])
 
     # Normalize tools: can be boolean (True/False) or list
-    tools_raw = request.get("tools", [])
+    tools_raw = body.tools if body.tools is not None else []
     if tools_raw is True:
         tools = adapter.get_tool_definitions() if adapter else []
     elif tools_raw is False or tools_raw is None:
@@ -1107,6 +1091,58 @@ class AudioAnalysisRequest(BaseModel):
     frame_length: int = 1024
 
 
+class OllamaEmbedRequest(BaseModel):
+    """Request for generating embeddings via Ollama."""
+
+    text: str
+    model: str | None = None
+
+
+class OllamaSemanticSearchRequest(BaseModel):
+    """Request for semantic search over tracks/visuals."""
+
+    query: str
+    limit: int = 10
+    model: str | None = None
+
+
+class RunBenchmarkRequest(BaseModel):
+    """Request to run the Three.js generation benchmark."""
+
+    models: list[str] | None = None
+    max_models: int = 8
+
+
+class RunCodingBenchmarkRequest(BaseModel):
+    """Request to run the coding benchmark."""
+
+    models: list[str] | None = None
+    max_models: int = 12
+
+
+class OllamaChatRequest(BaseModel):
+    """Request for Ollama chat with tool calling support."""
+
+    message: str
+    model: str | None = None
+    history: list[dict] | None = None
+    think: bool | None = None
+    stream: bool = False
+    max_tool_calls: int = 5
+    options: dict | None = None
+    system: str | None = None
+    tools: bool | list | None = None
+
+
+class GenerateVisualizerPresetRequest(BaseModel):
+    """Request for generating a visualizer preset from natural language."""
+
+    description: str
+    model: str | None = None
+    temperature: float = 0.7
+    track: dict | None = None
+
+
 class AudioAnalysisJobRequest(BaseModel):
     """Request to queue an audio analysis job"""
 
@@ -1286,20 +1322,20 @@ Respond with ONLY the JSON object, no markdown fences, no explanation."""
 
 
 @router.post("/ollama/visualizer")
-async def generate_visualizer_preset(request: dict) -> dict:
+async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> dict:
     """Generate a visualizer preset from a natural language description using Ollama."""
     adapter = adapter_registry.get("ollama")
     if not adapter:
         raise HTTPException(status_code=404, detail="Ollama not available")
 
-    description = request.get("description", "").strip()
+    description = body.description.strip()
     if not description:
         raise HTTPException(status_code=400, detail="Description is required")
 
-    model = request.get("model", config.default_model)
-    temperature = request.get("temperature", 0.7)
+    model = body.model or config.default_model
+    temperature = body.temperature
     # Optional track metadata for alignment
-    track_meta = request.get("track") or {}
+    track_meta = body.track or {}
     bpm = track_meta.get("bpm")
     energy = track_meta.get("energy")
     duration = track_meta.get("duration_seconds")

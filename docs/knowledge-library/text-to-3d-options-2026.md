@@ -44,14 +44,14 @@ python gradio_app.py \
 | Attribute | Value |
 |-----------|-------|
 | License | Same as upstream Hunyuan3D (Tencent Hunyuan Community) |
-| Parameters | 0.6 B (mini) |
-| VRAM (shape only) | < 6 GB |
+| Parameters | 0.6 B (mini) / 1.1 B (mv/full) |
+| VRAM (shape only) | < 6 GB with profile 4 |
 | VRAM (shape + texture) | ~12 GB |
 | Input | Text prompt OR single image |
 | Output | GLB / OBJ |
 | Text-to-3D support | Yes (`--enable_t23d`) |
-| Speed | Slower than vanilla (sequential CPU offload) |
-| Special | Five memory profiles (1–5); Profile 4 targets 6 GB VRAM |
+| Speed | Slower than vanilla (sequential CPU/GPU offload via mmgp) |
+| Special | Five memory profiles (1–5); Windows support; Turbo/Fast models; API server + Blender addon |
 
 **How to run:**
 ```bash
@@ -63,11 +63,27 @@ python gradio_app.py --enable_t23d --profile 4
 
 - Profile 4 = LowRAM_LowVRAM (6 GB VRAM budget).
 - Profile 5 = VerylowRAM_LowVRAM (maximum compatibility, slowest).
+- Requires Python 3.10, torch 2.5.1+cu124 (per repo README).
 
-**ComfyUI:** Not yet natively wrapped; use the standalone gradio app or call the API server:
+**API server:**
 ```bash
 python api_server.py --host 0.0.0.0 --port 8080
 ```
+
+### Evaluation for this project
+
+**Useful?** Yes, but not as a ComfyUI backend. It is a standalone Gradio/API app, so it cannot be driven by `gen3d_service.py`’s existing ComfyUI workflow path without adding a second execution channel. The practical value is:
+
+1. **Proof of concept / fallback** — if ComfyUI Hunyuan3D nodes misbehave on Pascal, 2GP gives you a separate path that still fits under 6 GB.
+2. **Turbo/Fast variants** — `Hunyuan3D-2mini-Turbo` and `Hunyuan3D-2mini-Fast` are explicitly listed in the model zoo and may be faster than the base mini model we currently target.
+3. **Blender addon** — 2GP ships a Blender addon, which could let artists trigger generations from inside Blender without touching ComfyUI.
+
+**Gaps vs our stack:**
+- No ComfyUI wrapper (we already use ComfyUI as the 3D runtime).
+- torch 2.5.1+cu124 vs our pinned torch 2.14.0+cu126 — both support sm_61, but mixing PyTorch versions in one system is messy. Prefer one install.
+- Texture generation still needs ~12 GB, so same cap as vanilla Hunyuan3D.
+
+**Verdict:** Add as a documented external fallback in `gen3d_service.py` status output (already done). Do **not** integrate into the ComfyUI workflow path yet. Revisit if native ComfyUI wrapper appears or if we need a fallback when Kijai/native nodes break.
 
 ---
 
@@ -296,3 +312,23 @@ Given the current stack (PyTorch 2.14 + CUDA 12.6 + ComfyUI v0.34+ + 8 GB VRAM):
    - `point-e-text-to-3d.json`
 2. Update `gen3d_service.py` to register text-to-3D backends.
 3. Document API endpoints for text-to-3D in backend docs.
+
+## Applicability of External “ComfyUI Desktop + video stack” Guidance
+
+An external agent recommended: ComfyUI Desktop, Wan/LTX-Video, AnimateDiff, ControlNet, Wav2Lip/MuseTalk/SadTalker, DaVinci Resolve, and shader visualizers for a phonk/dubstep music-video pipeline.
+
+**What is applicable to Native Media AI Studio:**
+- **Lip sync** — we do not yet have a lip-sync stage. The tools named (Wav2Lip, MuseTalk, LatentSync, SadTalker, LivePortrait) are all legitimate local options on Windows/GPU. The “Lip2AI/Vid2AI” label you remembered is almost certainly a UI-branded lip-sync job, not a distinct model. This is the highest-value missing piece in our current video pipeline.
+- **AnimateDiff for loops** — useful for background loops (rotating logos, neon city drifts, visualizer textures). ComfyUI + AnimateDiff-Evolved fits our existing ComfyUI runtime.
+- **ControlNet / video guidance** — already conceptually aligned with our ComfyUI stack; useful for preserving character pose/composition across generated shots.
+
+**What is already covered or redundant:**
+- **ComfyUI Desktop recommendation** — we already run ComfyUI manually; switching to Desktop is a convenience, not a capability gain.
+- **Butterchurn / VSXu / Synesthesia** — we already have a Three.js + Canvas2D real-time visualizer; adding a second real-time renderer is unnecessary unless the user specifically wants Milkdrop-style presets.
+- **DaVinci Resolve for final assembly** — valid external suggestion, but our project also has Remotion MCP for programmatic assembly. Resolve is editor-centric; Remotion is automation-centric. Both can coexist.
+
+**What is less applicable given our constraints:**
+- **Wan/LTX-Video as primary path** — these models are 14–24 GB+ unquantized; on 8 GB VRAM they need extreme quantization or very short clips. Our current 8 GB cap makes them marginal compared to image-to-3D + real-time visualizer layers.
+- **Heavy local video diffusion** — the external guidance assumes ~12–24 GB VRAM. Our Pascal card changes the priority order: geometry + real-time visuals > long AI video clips.
+
+**Conclusion:** Treat the external guidance as a feature backlog, not a replacement for our current stack. The actionable item is **lip sync**; everything else is either already covered or VRAM-prohibitive at our current hardware tier.

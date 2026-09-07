@@ -97,7 +97,7 @@ server.setRequestHandler('tools/list', async () => ({
         properties: {
           image_path: { type: "string", description: "Path or URL to the image" },
           prompt: { type: "string", description: "Question to ask about the image", default: "Describe this image in detail." },
-          model: { type: "string", description: "Ollama vision model", default: "qwen3-vl-optimized" },
+          model: { type: "string", description: "Ollama vision model", default: "gemma4:e2b-it-qat" },
         },
         required: ["image_path"],
       },

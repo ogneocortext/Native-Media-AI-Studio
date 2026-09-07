@@ -14,7 +14,7 @@ Text-to-3D backends (no reference image needed):
 - **Point-E** (point cloud, ~4-6GB) — OpenAI, MIT license
 - **Shap-E** (implicit mesh, ~6-8GB) — OpenAI, MIT license
 - **Hunyuan3D-2mini via 2-stage** (text→SDXL→3D, ~9-10GB total) — tight on 8GB
-- **Hunyuan3D-2GP** (text→3D, <6GB) — DeepBeepMeep GPU-poor fork, standalone
+- **Hunyuan3D-2GP** (text→3D, <6GB) — DeepBeepMeep standalone app, NOT a ComfyUI node
 
 PyTorch 2.14.0+cu126 is the LAST prebuilt wheel supporting Pascal (sm_61).
 From 2.15 onward, must build from source or stay on 2.14.
@@ -162,7 +162,7 @@ class Gen3DService:
     - stable_fast_3d: fast mesh with UVs (~6 GB)
     - point_e: lightweight point-cloud diffusion (~5 GB, MIT)
     - shap_e: implicit-function mesh generator (~6 GB, MIT)
-    - hunyuan3d_2gp: GPU-poor text-to-3D via standalone app (<6 GB)
+    - hunyuan3d_2gp: external standalone text-to-3D app (<6 GB, DeepBeepMeep fork)
 
     PyTorch 2.14.0+cu126 is the LAST prebuilt wheel supporting Pascal (sm_61).
     From 2.15 onward, must build from source or stay on 2.14.
@@ -1086,7 +1086,7 @@ class Gen3DService:
             "output_dir": str(OUTPUT_DIR),
             "generated_count": len(list(OUTPUT_DIR.glob("*.glb"))) + len(list(OUTPUT_DIR.glob("*.obj"))),
             "available_backends": list(MODEL_BACKENDS.keys()),
-            "text_to_3d_backends": ["point_e", "shap_e", "hunyuan3d_2mini", "hunyuan3d_2mv", "hunyuan3d_2gp"],
+            "text_to_3d_backends": ["point_e", "shap_e", "hunyuan3d_2mini", "hunyuan3d_2mv", "hunyuan3d_2gp_external"],
             "image_to_3d_backends": ["hunyuan3d_2mini", "hunyuan3d_2mv", "triposr", "stable_fast_3d"],
             "knowledge_library": "docs/knowledge-library/text-to-3d-options-2026.md",
         }

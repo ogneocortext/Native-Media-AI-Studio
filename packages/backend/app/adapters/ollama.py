@@ -1252,3 +1252,7 @@ Each scene should have unique camera work and lighting suggestions."""
     def get_available_models(self) -> list[str]:
         """Get list of available models from last refresh"""
         return self._available_models.copy()
+
+
+# Backward-compatible singleton for VRAM manager and any legacy imports.
+ollama_adapter = OllamaAdapter()

@@ -1,8 +1,8 @@
 {
   "backend_host": "127.0.0.1",
-  "backend_port": 8000,
-  "frontend_port": 5173,
-  "ws_port": 8000,
+  "backend_port": 8001,
+  "frontend_port": 5174,
+  "ws_port": 8001,
   "comfyui_url": "http://127.0.0.1:8188",
   "ollama_url": "http://127.0.0.1:11434",
   "max_queue_workers": 1,

@@ -1,0 +1,15 @@
+# Experimental / optional dependencies for stack extensions.
+# Install ONLY in the studio env (nma-studio-cuda) for benchmarking.
+# DO NOT add to production requirements.txt until benchmarks prove value.
+
+# Audio analysis alternatives
+madmom-infer>=0.1.0   # Neural beat/downbeat tracking (fallback to librosa if unavailable)
+sonara>=0.1.0         # Rust-backed fast audio features via PyO3
+
+# Video rendering alternatives
+core-flux>=0.1.0      # 3–6× faster MoviePy-compatible video editing
+MovieLite>=0.1.0      # Numba-optimized MoviePy alternative
+
+# 3D / Gaussian splatting
+kaolin>=0.17.0        # NVIDIA 3D sparse voxel / Gaussian splat ops
+gsplat>=1.0           # Lightweight Gaussian splatting library
