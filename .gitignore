@@ -215,6 +215,12 @@ stable-diffusion/vae/
 .pytest_cache/
 browser-test/
 .playwright-report/
+playwright-report/
+test-results/
+test-results.json/
+
+# Unity generated model output (produced by the 3D generation pipeline)
+unity-project-mcp/Assets/GeneratedModels/
 .coverage
 
 # Unity render output frames (large, regenerable - .png already ignored, this also excludes .meta sidecars)
