@@ -47,6 +47,19 @@ export async function navigateWithWait(page: Page, path: string, timeout = 15_00
   await expect(page.locator('main.layout-main, main')).toBeVisible({ timeout });
 }
 
+/**
+ * Assert that the page was redirected to a target path.
+ *
+ * IMPORTANT: Use this instead of `expect(page.url()).toContain(...)` after
+ * `navigateWithWait`. React Router's client-side `<Navigate>` fires asynchronously
+ * after `domcontentloaded`, so a synchronous `page.url()` check races the redirect
+ * and sees the source URL. `toHaveURL` retries until the pattern matches or the
+ * assertion timeout elapses.
+ */
+export async function expectRedirectedTo(page: Page, pathPattern: string | RegExp, timeout = 5_000): Promise<void> {
+  await expect(page).toHaveURL(pathPattern, { timeout });
+}
+
 // ---------------------------------------------------------------------------
 // Route tracking (page-scoped)
 // ---------------------------------------------------------------------------

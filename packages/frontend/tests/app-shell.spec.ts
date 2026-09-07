@@ -6,6 +6,7 @@ import {
   cleanupRoutes,
   setupConsoleErrorCapture,
   expectNoConsoleErrors,
+  expectRedirectedTo,
 } from './helpers';
 
 test.describe('App Shell', () => {
@@ -58,8 +59,10 @@ test.describe('App Shell', () => {
   });
 
   test('redirect routes resolve correctly', async ({ page }) => {
+    // Use expectRedirectedTo: client-side <Navigate> fires after domcontentloaded,
+    // so a synchronous page.url() check races the redirect and sees the source path.
     await navigateWithWait(page, '/music-video');
-    expect(page.url()).toContain('/music-video-wizard');
+    await expectRedirectedTo(page, /\/music-video-wizard/);
   });
 
   test('sidebar CTA navigates to music video wizard', async ({ page }) => {

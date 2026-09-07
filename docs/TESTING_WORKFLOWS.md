@@ -4,6 +4,37 @@ This document describes the three new testing systems added to Native Media AI S
 
 ---
 
+## 0. Playwright E2E Testing Patterns
+
+**Purpose:** Frontend end-to-end tests validate real browser behavior, routing, SSE integration, and UI rendering against a live Vite dev server.
+
+### Critical Pattern: Redirect Assertions
+
+React Router's client-side `<Navigate>` fires asynchronously after `domcontentloaded`. A common race condition occurs when tests check `page.url()` immediately after `navigateWithWait()`:
+
+```ts
+// ❌ BAD — races the client-side redirect
+await navigateWithWait(page, '/music-video');
+expect(page.url()).toContain('/music-video-wizard'); // sees /music-video
+
+// ✅ GOOD — toHaveURL retries until the redirect settles
+await navigateWithWait(page, '/music-video');
+await expect(page).toHaveURL(/\/music-video-wizard/);
+```
+
+**Helper:** Use `expectRedirectedTo(page, pattern)` from `tests/helpers.ts` for redirect assertions.
+
+### Composable API Mocks
+
+Route handlers in `tests/helpers.ts` are composable — individual mock functions (`mockApiHealth`, `mockApiQueueEmpty`, `mockApiSystemHealth`, etc.) do **not** call `cleanupRoutes()` internally. This allows stacking multiple mocks in one test without interference. Always call `cleanupRoutes(page)` in `beforeEach` or `afterEach` to reset between tests.
+
+### SSE / Polling SPAs
+
+- `navigateWithWait` uses `domcontentloaded` + a stable locator, **not** `networkidle`, which is known to cause flakiness with SSE/polling SPAs.
+- SSE events are dispatched via `dispatchSseEvent(page, event)` which feeds messages into the live `sseService` exposed on `window.__sseService`.
+
+---
+
 ## 1. AI Test Generation (`scripts/ai-test-generator.py`)
 
 **Purpose:** Uses your local Ollama coding model to inspect backend source files, identify untested branches and edge cases, and generate pytest tests for uncovered paths.
