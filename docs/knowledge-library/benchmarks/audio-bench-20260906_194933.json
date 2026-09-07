@@ -1,0 +1,29 @@
+[
+  {
+    "name": "librosa",
+    "track": "03c5fbfd_NeoCortext - I Won\u2019t Ride with the Choir.mp3",
+    "duration_s": 38.063,
+    "tempo_bpm": 92.28515625,
+    "beat_count": 330,
+    "downbeat_count": null,
+    "notes": "baseline"
+  },
+  {
+    "name": "madmom-infer",
+    "track": "03c5fbfd_NeoCortext - I Won\u2019t Ride with the Choir.mp3",
+    "duration_s": 0.0,
+    "tempo_bpm": null,
+    "beat_count": 0,
+    "downbeat_count": null,
+    "notes": "framework-only (no simple beat/downbeat API yet)"
+  },
+  {
+    "name": "sonara",
+    "track": "03c5fbfd_NeoCortext - I Won\u2019t Ride with the Choir.mp3",
+    "duration_s": 0.659,
+    "tempo_bpm": 92.4509048461914,
+    "beat_count": 330,
+    "downbeat_count": 1043,
+    "notes": "Rust-backed PyO3"
+  }
+]

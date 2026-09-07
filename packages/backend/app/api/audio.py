@@ -133,8 +133,14 @@ async def upload_audio(file: UploadFile = File(...)) -> AudioUploadResponse:
 
 
 @router.post("/analyze", response_model=AudioAnalysisResult)
-async def analyze_audio(file: UploadFile = File(...)) -> AudioAnalysisResult:
-    """Analyze audio file for tempo, beats, and sections."""
+async def analyze_audio(
+    file: UploadFile = File(...),
+    backend: str = "sonara",
+) -> AudioAnalysisResult:
+    """Analyze audio file for tempo, beats, and sections.
+
+    backend: one of librosa, madmom, sonara. Falls back to librosa if unavailable.
+    """
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
 
@@ -156,7 +162,7 @@ async def analyze_audio(file: UploadFile = File(...)) -> AudioAnalysisResult:
             raise HTTPException(status_code=503, detail="librosa not installed. Run: pip install librosa soundfile")
 
         analyzer = AudioAnalyzer()
-        result = analyzer.analyze_file(str(file_path), job_id=unique_id)
+        result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
 
         # Convert to wizard-friendly format — now with real librosa features
         tempo = result.beats.tempo_bpm if result.beats else 120.0
@@ -644,6 +650,7 @@ async def ensure_analysis(body: dict):
     """Ensure analysis exists for a file — run analysis if not cached.
     Used by frontend features that depend on analysis data."""
     filename = body.get("filename", "")
+    backend = body.get("backend", "sonara")
     if not filename:
         raise HTTPException(status_code=400, detail="filename required")
 
@@ -681,7 +688,7 @@ async def ensure_analysis(body: dict):
     try:
         unique_id = str(uuid.uuid4())[:8]
         analyzer = AudioAnalyzer()
-        result = analyzer.analyze_file(str(file_path), job_id=unique_id)
+        result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
 
         tempo = result.beats.tempo_bpm if result.beats else 120.0
         duration = result.waveform.duration_seconds if result.waveform else 0.0
@@ -739,7 +746,7 @@ async def ensure_analysis(body: dict):
 
 
 @router.post("/analyze-all")
-async def analyze_all_pending():
+async def analyze_all_pending(backend: str = "sonara"):
     """Analyze all audio files in the media library that don't have analysis data.
     Returns a summary of analyzed files."""
     from ..core import database
@@ -770,7 +777,7 @@ async def analyze_all_pending():
 
         try:
             unique_id = str(uuid.uuid4())[:8]
-            result = analyzer.analyze_file(str(file_path), job_id=unique_id)
+            result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
 
             tempo = result.beats.tempo_bpm if result.beats else 120.0
             duration = result.waveform.duration_seconds if result.waveform else 0.0

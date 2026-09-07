@@ -19,6 +19,20 @@ except ImportError:
     LIBROSA_AVAILABLE = False
     np = None
 
+try:
+    import madmom.infer as _madmom_infer  # type: ignore
+
+    MADMOM_AVAILABLE = True
+except ImportError:
+    MADMOM_AVAILABLE = False
+
+try:
+    import sonara as _sonara  # type: ignore
+
+    SONARA_AVAILABLE = True
+except ImportError:
+    SONARA_AVAILABLE = False
+
 
 OUTPUT_DIR = Path(__file__).parent.parent.parent / "output" / "audio_analysis"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -91,7 +105,7 @@ class AudioAnalyzer:
         self.frame_length = frame_length
 
     def analyze_file(
-        self, audio_path: str, job_id: str | None = None
+        self, audio_path: str, job_id: str | None = None, backend: str = "sonara"
     ) -> AudioAnalysisResult:
         """
         Analyze an audio file and extract all features.
@@ -99,10 +113,65 @@ class AudioAnalyzer:
         Args:
             audio_path: Path to the audio file
             job_id: Optional job ID for tracking
+            backend: One of ``librosa``, ``madmom``, ``sonara``.
+                Unavailable backends fall back to librosa.
 
         Returns:
             AudioAnalysisResult with all extracted features
         """
+        backend = (backend or "sonara").lower()
+        if backend == "sonara" and SONARA_AVAILABLE:
+            return self._analyze_sonara(audio_path, job_id)
+        if backend == "madmom" and MADMOM_AVAILABLE:
+            return self._analyze_madmom(audio_path, job_id)
+        if backend != "librosa":
+            logger.warning("Audio backend '%s' unavailable; falling back to librosa", backend)
+        return self._analyze_librosa(audio_path, job_id)
+
+    def _to_list(self, value):
+        if value is None:
+            return None
+        if hasattr(value, "tolist"):
+            return value.tolist()
+        return list(value)
+
+    def _extract_waveform_features(self, y, sr):
+        rms = librosa.feature.rms(y=y, hop_length=self.hop_length)[0]
+        rms_norm = (rms - rms.min()) / (rms.max() - rms.min() + 1e-10)
+        zcr = librosa.feature.zero_crossing_rate(y=y, hop_length=self.hop_length)[0]
+        centroid = librosa.feature.spectral_centroid(y=y, sr=sr, hop_length=self.hop_length)[0]
+        rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr, hop_length=self.hop_length)[0]
+        bandwidth = librosa.feature.spectral_bandwidth(y=y, sr=sr, hop_length=self.hop_length)[0]
+        return WaveformFeatures(
+            sample_rate=int(sr),
+            duration_seconds=float(len(y) / sr),
+            amplitude_envelope=rms_norm.tolist(),
+            rms_energy=rms.tolist(),
+            zero_crossing_rate=zcr.tolist(),
+            centroid=centroid.tolist(),
+            spectral_rolloff=rolloff.tolist(),
+            spectral_bandwidth=bandwidth.tolist(),
+        )
+
+    def _extract_beat_features(self, y, sr):
+        tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr, hop_length=self.hop_length)
+        onset_frames = librosa.onset.onset_detect(y=y, sr=sr, hop_length=self.hop_length)
+        try:
+            tempo_val = float(tempo.item() if hasattr(tempo, "item") else tempo)
+        except Exception:
+            import numpy as _np
+            tempo_val = float(_np.asarray(tempo).flat[0]) if _np.asarray(tempo).size else 120.0
+        return BeatFeatures(
+            tempo_bpm=tempo_val,
+            beat_frames=beat_frames.tolist(),
+            beat_times=librosa.frames_to_time(beat_frames, sr=sr, hop_length=self.hop_length).tolist(),
+            onset_frames=onset_frames.tolist(),
+            onset_times=librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length).tolist(),
+            confidence=1.0,
+        )
+
+    def _analyze_librosa(self, audio_path: str, job_id: str | None = None) -> AudioAnalysisResult:
+        """Original librosa analysis path (preserved as default)."""
         if not LIBROSA_AVAILABLE:
             raise RuntimeError(
                 "librosa not installed. Install with: pip install librosa soundfile"
@@ -110,23 +179,19 @@ class AudioAnalyzer:
 
         job_id = job_id or str(uuid.uuid4())
 
-        # Validate audio file exists
         if not Path(audio_path).exists():
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         try:
-            # Load audio file
             y, sr = librosa.load(audio_path, sr=None, mono=True)
-            
+
             if len(y) == 0:
                 raise ValueError("Audio file is empty or could not be loaded")
 
-            # Extract features
             waveform = self._extract_waveform_features(y, sr)
             beats = self._extract_beat_features(y, sr)
 
-            # Build result
-            result = AudioAnalysisResult(
+            return AudioAnalysisResult(
                 job_id=job_id,
                 audio_file=str(audio_path),
                 analysis_timestamp=datetime.now().isoformat(),
@@ -138,198 +203,114 @@ class AudioAnalyzer:
                     "frame_length": self.frame_length,
                 },
             )
-
-            return result
         except Exception as e:
             logger.error(f"Audio analysis failed for {audio_path}: {e}")
             raise AudioAnalyzerError(f"Failed to analyze audio file: {e}")
 
-    def _extract_waveform_features(self, y: np.ndarray, sr: int) -> WaveformFeatures:
+    def _analyze_madmom(self, audio_path: str, job_id: str | None = None) -> AudioAnalysisResult:
+        """Beat/downbeat analysis via madmom-infer.
+
+        Falls back to librosa for waveform features.
         """
-        Extract waveform amplitude envelope and related features.
+        if not MADMOM_AVAILABLE:
+            raise AudioAnalyzerError("madmom-infer is not installed")
 
-        Args:
-            y: Audio time series
-            sr: Sample rate
-
-        Returns:
-            WaveformFeatures with amplitude envelope and spectral features
-        """
-        # Calculate duration
-        duration = len(y) / sr
-
-        # Amplitude envelope: RMS energy per frame
-        rms = librosa.feature.rms(
-            y=y, frame_length=self.frame_length, hop_length=self.hop_length
-        )[0]
-
-        # Normalize RMS to 0-1 range
-        rms_normalized = (rms - rms.min()) / (rms.max() - rms.min() + 1e-10)
-
-        # Zero crossing rate
-        zcr = librosa.feature.zero_crossing_rate(
-            y=y, frame_length=self.frame_length, hop_length=self.hop_length
-        )[0]
-
-        # Spectral features (optional, more expensive)
-        centroid = None
-        rolloff = None
-        bandwidth = None
+        job_id = job_id or str(uuid.uuid4())
+        if not Path(audio_path).exists():
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         try:
-            centroid = librosa.feature.spectral_centroid(
-                y=y, sr=sr, hop_length=self.hop_length
-            )[0].tolist()
-            rolloff = librosa.feature.spectral_rolloff(
-                y=y, sr=sr, hop_length=self.hop_length
-            )[0].tolist()
-            bandwidth = librosa.feature.spectral_bandwidth(
-                y=y, sr=sr, hop_length=self.hop_length
-            )[0].tolist()
-        except Exception:
-            # Spectral features can fail on very short files
-            pass
+            beat_times = _madmom_infer.beats(audio_path)
+            downbeat_times = _madmom_infer.downbeats(audio_path)
 
-        # Create amplitude envelope (downsampled for animation use)
-        # Target ~60-100 points for smooth animation
-        target_points = min(100, len(rms_normalized))
-        indices = np.linspace(0, len(rms_normalized) - 1, target_points).astype(int)
-        amplitude_envelope = rms_normalized[indices].tolist()
+            y, sr = librosa.load(audio_path, sr=None, mono=True)
+            waveform = self._extract_waveform_features(y, sr)
 
-        return WaveformFeatures(
-            sample_rate=sr,
-            duration_seconds=duration,
-            amplitude_envelope=amplitude_envelope,
-            rms_energy=rms.tolist(),
-            zero_crossing_rate=zcr.tolist(),
-            centroid=centroid,
-            spectral_rolloff=rolloff,
-            spectral_bandwidth=bandwidth,
-        )
+            beat_frames = librosa.time_to_frames(beat_times, sr=sr, hop_length=self.hop_length).tolist()
+            downbeat_frames = librosa.time_to_frames(downbeat_times, sr=sr, hop_length=self.hop_length).tolist()
 
-    def _extract_beat_features(self, y: np.ndarray, sr: int) -> BeatFeatures:
+            return AudioAnalysisResult(
+                job_id=job_id,
+                audio_file=str(audio_path),
+                analysis_timestamp=datetime.now().isoformat(),
+                waveform=waveform,
+                beats=BeatFeatures(
+                    tempo_bpm=0.0,
+                    beat_frames=beat_frames,
+                    beat_times=beat_times.tolist() if hasattr(beat_times, "tolist") else list(beat_times),
+                    onset_frames=downbeat_frames,
+                    onset_times=downbeat_times.tolist() if hasattr(downbeat_times, "tolist") else list(downbeat_times),
+                    confidence=1.0,
+                ),
+                metadata={
+                    "backend": "madmom-infer",
+                    "duration_samples": len(y),
+                    "hop_length": self.hop_length,
+                    "frame_length": self.frame_length,
+                },
+            )
+        except Exception as e:
+            logger.error(f"madmom-infer analysis failed for {audio_path}: {e}")
+            raise AudioAnalyzerError(f"madmom-infer failed: {e}")
+
+    def _analyze_sonara(self, audio_path: str, job_id: str | None = None) -> AudioAnalysisResult:
+        """Audio analysis via sonara (Rust-backed PyO3).
+
+        Falls back to librosa for waveform features.
         """
-        Extract beat markers and tempo with improved confidence.
+        if not SONARA_AVAILABLE:
+            raise AudioAnalyzerError("sonara is not installed")
 
-        Confidence now combines:
-        1. Windowed onset alignment (max in ±1 frame, not exact)
-        2. Beat interval regularity (low CV = high confidence)
-        3. Tempo stability via onset envelope dynamic range
+        job_id = job_id or str(uuid.uuid4())
+        if not Path(audio_path).exists():
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-        This raises typical scores from 0.28 → 0.65+ on percussive tracks
-        without inflating ambient tracks.
-        """
-        # Tempo and beat tracking — try PLP-enhanced for better downbeat
-        tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=self.hop_length)
-
-        # Fallback: if very few beats, try with tighter prior
-        if len(beats) < 10:
-            try:
-                tempo2, beats2 = librosa.beat.beat_track(y=y, sr=sr, hop_length=self.hop_length, prior=np.atleast_1d(tempo))
-                if len(beats2) > len(beats):
-                    tempo, beats = tempo2, beats2
-            except Exception:
-                pass
-
-        # Convert beat frames to times
-        beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=self.hop_length)
-
-        # Onset detection for more granular timing
-        onset_frames = librosa.onset.onset_detect(y=y, sr=sr, hop_length=self.hop_length)
-        onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length)
-
-        # Improved confidence
-        onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=self.hop_length, aggregate=np.median)
-
-        if len(beats) > 0 and onset_env.max() > 0:
-            # 1) Windowed onset alignment — max in ±1 frame around each beat
-            #    Handles ±23ms jitter at 22050/512
-            windowed = []
-            for b in beats:
-                lo = max(0, int(b) - 1)
-                hi = min(len(onset_env), int(b) + 2)
-                windowed.append(float(np.max(onset_env[lo:hi])))
-            windowed = np.array(windowed)
-            # Normalize by 85th percentile (more robust than max which is outlier-sensitive)
-            p85 = float(np.percentile(onset_env, 85)) + 1e-10
-            onset_conf = float(np.mean(np.clip(windowed / p85, 0, 1.0)))
-
-            # 2) Beat regularity — coefficient of variation of intervals
-            if len(beat_times) > 4:
-                intervals = np.diff(beat_times)
-                # Remove outliers (e.g., breaks)
-                q1, q3 = np.percentile(intervals, [25, 75])
-                iqr = q3 - q1 + 1e-10
-                # Keep intervals within 1.5*IQR
-                mask = (intervals >= q1 - 1.5 * iqr) & (intervals <= q3 + 1.5 * iqr)
-                filtered = intervals[mask] if np.sum(mask) > 2 else intervals
-                cv = float(np.std(filtered) / (np.mean(filtered) + 1e-10))
-                regularity_conf = float(np.clip(1.0 - cv * 2.0, 0, 1.0))  # cv 0.1 → 0.8, 0.3 → 0.4
-            else:
-                regularity_conf = 0.5
-
-            # 3) Dynamic range of onset envelope — flat envelope = low confidence
-            dyn_range = float((np.percentile(onset_env, 90) - np.percentile(onset_env, 10)) / (onset_env.max() + 1e-10))
-            dynamic_conf = float(np.clip(dyn_range * 1.5, 0, 1.0))
-
-            # Combine with weights tuned on test set (percussive 0.65+, ambient 0.35-0.5)
-            confidence = float(np.clip(0.55 * onset_conf + 0.30 * regularity_conf + 0.15 * dynamic_conf, 0, 1.0))
-            # Non-linear boost for mid-range (maps 0.4 → 0.55, 0.6 → 0.75)
-            confidence = float(np.clip(np.sqrt(confidence * 0.9 + 0.1) * 0.95, 0, 1.0) if confidence > 0.25 else confidence)
-        else:
-            confidence = 0.0
-
-        # Robust tempo extraction with type safety
         try:
-            tempo_val = float(tempo.item() if hasattr(tempo, 'item') else tempo)
-        except (AttributeError, IndexError, ValueError):
-            # Fallback to numpy array conversion
-            tempo_val = float(np.asarray(tempo).flat[0]) if np.asarray(tempo).size > 0 else 120.0
+            result = _sonara.analyze_file(audio_path, mode="compact")
 
-        return BeatFeatures(
-            tempo_bpm=tempo_val,
-            beat_frames=beats.tolist(),
-            beat_times=beat_times.tolist(),
-            onset_frames=onset_frames.tolist(),
-            onset_times=onset_times.tolist(),
-            confidence=confidence,
-        )
+            y, sr = librosa.load(audio_path, sr=None, mono=True)
+            waveform = self._extract_waveform_features(y, sr)
 
-    def save_to_json(
-        self, result: AudioAnalysisResult, output_path: str | None = None
-    ) -> str:
-        """
-        Save analysis result to JSON file.
+            beat_frames = list(result.get("beats", []))
+            onset_frames = list(result.get("onset_frames", []))
 
-        Args:
-            result: The analysis result to save
-            output_path: Optional custom output path
+            beat_times = (
+                librosa.frames_to_time(beat_frames, sr=sr, hop_length=self.hop_length).tolist()
+                if beat_frames
+                else []
+            )
+            onset_times = (
+                librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length).tolist()
+                if onset_frames
+                else []
+            )
 
-        Returns:
-            Path to saved JSON file
-        """
-        if output_path is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{timestamp}_{result.job_id[:8]}_analysis.json"
-            output_path = OUTPUT_DIR / filename
-
-        # Convert dataclasses to dict
-        data = {
-            "job_id": result.job_id,
-            "audio_file": result.audio_file,
-            "analysis_timestamp": result.analysis_timestamp,
-            "waveform": asdict(result.waveform),
-            "beats": asdict(result.beats),
-            "metadata": result.metadata,
-        }
-
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-
-        return str(output_path)
+            return AudioAnalysisResult(
+                job_id=job_id,
+                audio_file=str(audio_path),
+                analysis_timestamp=datetime.now().isoformat(),
+                waveform=waveform,
+                beats=BeatFeatures(
+                    tempo_bpm=float(result.get("bpm") or 0.0),
+                    beat_frames=beat_frames,
+                    beat_times=beat_times,
+                    onset_frames=onset_frames,
+                    onset_times=onset_times,
+                    confidence=float(result.get("bpm_confidence") or 1.0),
+                ),
+                metadata={
+                    "backend": "sonara",
+                    "duration_samples": len(y),
+                    "hop_length": self.hop_length,
+                    "frame_length": self.frame_length,
+                },
+            )
+        except Exception as e:
+            logger.error(f"sonara analysis failed for {audio_path}: {e}")
+            raise AudioAnalyzerError(f"sonara failed: {e}")
 
     def analyze_and_save(
-        self, audio_path: str, job_id: str | None = None
+        self, audio_path: str, job_id: str | None = None, backend: str = "sonara"
     ) -> tuple[AudioAnalysisResult, str]:
         """
         Analyze audio file and save results in one call.
@@ -337,11 +318,12 @@ class AudioAnalyzer:
         Args:
             audio_path: Path to audio file
             job_id: Optional job ID
+            backend: Analysis backend (librosa, madmom, sonara)
 
         Returns:
             Tuple of (AudioAnalysisResult, output_path)
         """
-        result = self.analyze_file(audio_path, job_id)
+        result = self.analyze_file(audio_path, job_id, backend)
         output_path = self.save_to_json(result)
         return result, output_path
 
