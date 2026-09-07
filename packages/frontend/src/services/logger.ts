@@ -11,6 +11,7 @@ interface LogEntry {
   source: string;
   message: string;
   data?: Record<string, unknown>;
+  trace_id?: string;
 }
 
 class Logger {
@@ -18,9 +19,11 @@ class Logger {
   private queue: LogEntry[] = [];
   private flushInterval: number = 5000;
   private intervalId: ReturnType<typeof setInterval> | null = null;
+  private traceId: string;
 
   constructor(source: string) {
     this.source = source;
+    this.traceId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     this.startFlushInterval();
   }
 
@@ -56,6 +59,7 @@ class Logger {
       source: this.source,
       message,
       data,
+      trace_id: this.traceId,
     };
 
     // Also log to console for development

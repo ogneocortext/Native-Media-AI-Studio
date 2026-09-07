@@ -68,6 +68,7 @@ const systemNav: NavItem[] = [
   { path: "/health", label: "Health", icon: <Activity size={18} /> },
   { path: "/gpu", label: "GPU", icon: <Thermometer size={18} /> },
   { path: "/logs", label: "Logs", icon: <FileText size={18} /> },
+  { path: "/log-analytics", label: "Log Analytics", icon: <BarChart3 size={18} /> },
   { path: "/settings", label: "Settings", icon: <Settings size={18} /> },
   { path: "/docs", label: "Docs", icon: <BookOpen size={18} /> },
 ];

@@ -238,7 +238,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from .api import audio, comfyui, data, docs, health, integrations, jobs, logs, lyrics, native_open, outputs, transcription, video, vision  # noqa: E402
+from .api import audio, comfyui, data, docs, health, integrations, jobs, log_analytics, logs, lyrics, native_open, outputs, transcription, video, vision  # noqa: E402
 
 app.include_router(jobs.router)
 app.include_router(health.router)
@@ -249,6 +249,7 @@ app.include_router(transcription.router)
 app.include_router(lyrics.router)
 app.include_router(comfyui.router)
 app.include_router(logs.router)
+app.include_router(log_analytics.router)
 app.include_router(data.router)
 app.include_router(video.router)
 app.include_router(vision.router)

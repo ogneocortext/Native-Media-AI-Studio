@@ -30,6 +30,7 @@ const StoryboardPage = lazyNamed(import("./features/storyboards/StoryboardPage")
 const KineticTypographyPage = lazyNamed(import("./features/kinetic-typography/KineticTypographyPage"), "KineticTypographyPage");
 const Preview = lazyNamed(import("./features/preview/Preview"), "Preview");
 const GpuMonitorPage = lazyNamed(import("./features/gpu/GpuMonitorPage"), "GpuMonitorPage");
+const LogAnalyticsPage = lazyNamed(import("./features/log-analytics/LogAnalytics"), "LogAnalytics");
 
 function App() {
   useEffect(() => {
@@ -64,6 +65,7 @@ function App() {
             <Route path="/library" element={<ErrorBoundary><MediaLibrary /></ErrorBoundary>} />
             <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
             <Route path="/logs" element={<ErrorBoundary><LogViewer /></ErrorBoundary>} />
+            <Route path="/log-analytics" element={<ErrorBoundary><LogAnalyticsPage /></ErrorBoundary>} />
             <Route path="/health" element={<ErrorBoundary><HealthPage /></ErrorBoundary>} />
             <Route path="/kinetic-typography" element={<ErrorBoundary><KineticTypographyPage /></ErrorBoundary>} />
             <Route path="/gpu" element={<ErrorBoundary><GpuMonitorPage /></ErrorBoundary>} />

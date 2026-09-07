@@ -7,15 +7,37 @@ generation sessions, and user preferences.
 import json
 import logging
 import sqlite3
+import time as _time
+import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from .config import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# SQLite type adapters / converters
+# ---------------------------------------------------------------------------
+
+def _adapt_datetime(value: datetime) -> str:
+    return value.isoformat()
+
+def _convert_datetime(value: bytes) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.decode())
+    except (ValueError, TypeError):
+        return None
+
+sqlite3.register_adapter(datetime, _adapt_datetime)
+sqlite3.register_converter("timestamp", _convert_datetime)
+sqlite3.register_converter("datetime", _convert_datetime)
 
 
 # ---------------------------------------------------------------------------
@@ -199,7 +221,7 @@ class OllamaAnalysisRow:
 DB_PATH = PROJECT_ROOT / "storage" / "studio.db"
 
 # Database schema version for migrations
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 12
 
 
 def _safe_json_loads(val: str | None, default: Any = None) -> Any:
@@ -216,10 +238,11 @@ def _safe_json_loads(val: str | None, default: Any = None) -> Any:
 def get_connection() -> sqlite3.Connection:
     """Get a database connection with row factory."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, detect_types=sqlite3.PARSE_DECLTYPES)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
 
@@ -268,6 +291,241 @@ def set_schema_version(conn: sqlite3.Connection, version: int) -> None:
     )
 
 
+def _migrate_v11(conn: sqlite3.Connection):
+    """Add log_events table for persistent log analytics/trending."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS log_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts_iso TEXT NOT NULL DEFAULT (datetime('now')),
+            ts_ms INTEGER NOT NULL,
+            level TEXT NOT NULL,
+            logger TEXT NOT NULL,
+            message TEXT NOT NULL,
+            source TEXT DEFAULT 'app'
+        );
+        CREATE INDEX IF NOT EXISTS idx_log_events_ts_iso ON log_events(ts_iso);
+        CREATE INDEX IF NOT EXISTS idx_log_events_level ON log_events(level);
+        CREATE INDEX IF NOT EXISTS idx_log_events_logger ON log_events(logger);
+    """)
+
+
+def _migrate_v12(conn: sqlite3.Connection):
+    """Deduplicate log_events and prevent future duplicates."""
+    # Deduplicate by keeping the first occurrence of each unique event
+    conn.execute("""
+        DELETE FROM log_events
+        WHERE id NOT IN (
+            SELECT MIN(id)
+            FROM log_events
+            GROUP BY ts_iso, level, logger, message
+        )
+    """)
+    # Add unique constraint to prevent future duplicates
+    conn.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_log_events_unique
+        ON log_events(ts_iso, level, logger, message)
+    """)
+
+
+# =============================================================================
+# Log Analytics Repository
+# =============================================================================
+
+@dataclass
+class LogEventRow:
+    id: int
+    ts_iso: str
+    ts_ms: int
+    level: str
+    logger: str
+    message: str
+    source: str
+
+
+def _parse_log_line(line: str) -> LogEventRow | None:
+    """Parse a single log line into a LogEventRow."""
+    # Expected format: YYYY-MM-DD HH:MM:SS | LEVEL | logger | func | message
+    try:
+        parts = line.split(" | ", 4)
+        if len(parts) < 5:
+            return None
+        ts_str = parts[0].strip()
+        level = parts[1].strip()
+        logger = parts[2].strip()
+        # parts[3] is funcName, ignore
+        message = parts[4].strip()
+        try:
+            dt = datetime.fromisoformat(ts_str)
+            ts_ms = int(dt.timestamp() * 1000)
+        except (ValueError, TypeError):
+            ts_ms = 0
+        return LogEventRow(
+            id=0,
+            ts_iso=ts_str,
+            ts_ms=ts_ms,
+            level=level,
+            logger=logger,
+            message=message,
+            source="app",
+        )
+    except Exception:
+        return None
+
+
+def ingest_log_file(path: Path, source: str = "app", limit: int = 20000) -> int:
+    """Parse a log file and insert NEW events into SQLite. Returns inserted count."""
+    if not path.exists():
+        return 0
+    with get_db() as conn:
+        last_ts = conn.execute(
+            "SELECT MAX(ts_ms) FROM log_events WHERE source = ?",
+            (source,),
+        ).fetchone()[0] or 0
+    rows: list[LogEventRow] = []
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                row = _parse_log_line(line)
+                if row and row.ts_ms > last_ts:
+                    row.source = source
+                    rows.append(row)
+                    if len(rows) >= limit:
+                        break
+    except Exception:
+        return 0
+    if not rows:
+        return 0
+    with get_db() as conn:
+        conn.executemany(
+            """
+            INSERT OR IGNORE INTO log_events (ts_iso, ts_ms, level, logger, message, source)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [(r.ts_iso, r.ts_ms, r.level, r.logger, r.message, r.source) for r in rows],
+        )
+        return conn.total_changes
+
+
+def get_log_trends(since_ms: int | None = None, limit: int = 5000) -> list[dict]:
+    """Return log events as time-series points for charting."""
+    q = "SELECT ts_iso, ts_ms, level, logger, message FROM log_events"
+    params: list[Any] = []
+    if since_ms is not None:
+        q += " WHERE ts_ms >= ?"
+        params.append(since_ms)
+    q += " ORDER BY ts_ms ASC LIMIT ?"
+    params.append(limit)
+    with get_db() as conn:
+        rows = conn.execute(q, params).fetchall()
+        return [
+            {
+                "ts_iso": r["ts_iso"],
+                "ts_ms": r["ts_ms"],
+                "level": r["level"],
+                "logger": r["logger"],
+                "message": r["message"],
+            }
+            for r in rows
+        ]
+
+
+def get_log_patterns(limit: int = 20) -> dict:
+    """Aggregate common log patterns: top loggers, level counts, top messages."""
+    with get_db() as conn:
+        level_rows = conn.execute(
+            "SELECT level, COUNT(*) as cnt FROM log_events GROUP BY level ORDER BY cnt DESC"
+        ).fetchall()
+        logger_rows = conn.execute(
+            "SELECT logger, COUNT(*) as cnt FROM log_events GROUP BY logger ORDER BY cnt DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        message_rows = conn.execute(
+            """
+            SELECT message, COUNT(*) as cnt, MIN(level) as level
+            FROM log_events
+            GROUP BY message
+            ORDER BY cnt DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return {
+            "levels": [{"level": r["level"], "count": r["cnt"]} for r in level_rows],
+            "loggers": [{"logger": r["logger"], "count": r["cnt"]} for r in logger_rows],
+            "messages": [
+                {"message": r["message"], "count": r["cnt"], "level": r["level"]} for r in message_rows
+            ],
+        }
+
+
+LOG_ANALYTICS_LAST_CLEANUP_KEY = "log_analytics_last_cleanup_at"
+
+
+def get_log_analytics_last_cleanup() -> str | None:
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT value FROM user_preferences WHERE key = ?", (LOG_ANALYTICS_LAST_CLEANUP_KEY,)
+        ).fetchone()
+        if row:
+            try:
+                return json.loads(row["value"])
+            except (json.JSONDecodeError, TypeError):
+                return None
+    return None
+
+
+def set_log_analytics_last_cleanup(ts_iso: str, conn: sqlite3.Connection | None = None) -> None:
+    """Persist last cleanup timestamp. Reuses `conn` when provided."""
+    close_after = False
+    if conn is None:
+        conn = get_connection()
+        close_after = True
+    try:
+        conn.execute(
+            "INSERT OR REPLACE INTO user_preferences (key, value, category, updated_at) VALUES (?, ?, 'logs', ?)",
+            (LOG_ANALYTICS_LAST_CLEANUP_KEY, json.dumps(ts_iso), ts_iso),
+        )
+    finally:
+        if close_after:
+            conn.close()
+
+
+def get_log_analytics_sources(limit: int = 20) -> list[dict[str, Any]]:
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT source, COUNT(*) as cnt FROM log_events GROUP BY source ORDER BY cnt DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [{"source": r["source"], "count": r["cnt"]} for r in rows]
+
+
+def cleanup_old_log_events(keep_days: int = 30, conn: sqlite3.Connection | None = None) -> int:
+    """Delete log events older than `keep_days`. Returns deleted count.
+
+    Pass `conn` to avoid nested SQLite writer locks during startup migrations.
+    """
+    close_after = False
+    if conn is None:
+        conn = get_connection()
+        close_after = True
+    try:
+        cursor = conn.execute(
+            "DELETE FROM log_events WHERE ts_ms < ?",
+            (int(__import__("time").time() - keep_days * 86400) * 1000,),
+        )
+        deleted = cursor.rowcount
+        ts_iso = datetime.now().isoformat()
+        set_log_analytics_last_cleanup(ts_iso, conn=conn)
+        if deleted:
+            logger.info("Cleaned up %d log analytics events older than %d days", deleted, keep_days)
+        else:
+            logger.debug("Log analytics cleanup ran at %s; no events older than %d days", ts_iso, keep_days)
+        return deleted
+    finally:
+        if close_after:
+            conn.close()
+
+
 def init_db():
     """Initialize database tables and run migrations."""
     with get_db() as conn:
@@ -289,9 +547,21 @@ def init_db():
             _migrate_v7(conn)
         if current_version < 8:
             _migrate_v8(conn)
+        if current_version < 9:
+            _migrate_v9(conn)
+        if current_version < 10:
+            _migrate_v10(conn)
+        if current_version < 11:
+            _migrate_v11(conn)
+        if current_version < 12:
+            _migrate_v12(conn)
 
         set_schema_version(conn, SCHEMA_VERSION)
         logger.info("Database initialized at version %d", SCHEMA_VERSION)
+
+        # Prune stale log analytics rows on startup so the store stays lean.
+        # Reuse the same connection to avoid nested SQLite writer locks.
+        cleanup_old_log_events(keep_days=30, conn=conn)
 
 
 def _migrate_v1(conn: sqlite3.Connection):
@@ -468,8 +738,6 @@ def save_prompt(
     description: str = "",
 ) -> str:
     """Save a prompt and return its ID."""
-    import uuid
-
     prompt_id = str(uuid.uuid4())
     now = datetime.now().isoformat()
 
@@ -610,8 +878,6 @@ def save_audio_file(
     If a file with the same filename already exists, returns the existing ID
     instead of creating a duplicate entry.
     """
-    import uuid
-
     with get_db() as conn:
         # Check for existing file with same filename to avoid duplicates
         existing = conn.execute(
@@ -740,7 +1006,6 @@ def update_audio_analysis(filename: str, analysis_result: dict) -> bool:
         )
         if cursor.rowcount == 0:
             # File doesn't exist yet, insert it
-            import uuid
             conn.execute(
                 """
                 INSERT INTO audio_files
@@ -796,8 +1061,6 @@ def save_ai_visual(
     tags: list[str] | None = None,
 ) -> str:
     """Save AI visual metadata and return its ID."""
-    import uuid
-
     visual_id = str(uuid.uuid4())
     now = datetime.now().isoformat()
 
@@ -966,8 +1229,6 @@ def save_session(
     config: dict[str, Any] | None = None,
 ) -> str:
     """Create a generation session and return its ID."""
-    import uuid
-
     session_id = str(uuid.uuid4())
     now = datetime.now().isoformat()
 
@@ -1085,8 +1346,6 @@ def save_track(
     tags: list[str] | None = None,
 ) -> str:
     """Save a track and return its ID."""
-    import uuid
-
     track_id = str(uuid.uuid4())
     now = datetime.now().isoformat()
 
@@ -1391,7 +1650,6 @@ def log_gpu_telemetry(snapshot: dict, processes: list[dict] | None = None) -> in
     """Persist a GPU snapshot for trending. Returns row id. No-op if unavailable."""
     if not snapshot.get("available"):
         return 0
-    import time as _time
     ts_ms = int(_time.time() * 1000)
     ts_iso = datetime.now().isoformat()
     procs = processes if processes is not None else snapshot.get("processes", [])
@@ -1483,6 +1741,217 @@ def cleanup_old_gpu_telemetry(keep_days: int = 14) -> int:
         return cur.rowcount
 
 
+def _migrate_v9(conn: sqlite3.Connection):
+    """Add vision OCR, native open history, studio scenes, character bibles, and performance indexes."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS vision_ocr_results (
+            id TEXT PRIMARY KEY,
+            relative_path TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            ocr_text TEXT NOT NULL,
+            model TEXT NOT NULL,
+            prompt TEXT NOT NULL,
+            file_type TEXT,
+            size_bytes INTEGER,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_vision_ocr_path ON vision_ocr_results(relative_path);
+        CREATE INDEX IF NOT EXISTS idx_vision_ocr_created ON vision_ocr_results(created_at);
+
+        CREATE TABLE IF NOT EXISTS native_app_opens (
+            id TEXT PRIMARY KEY,
+            relative_path TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            app TEXT NOT NULL,
+            method TEXT,
+            success INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_native_opens_app ON native_app_opens(app);
+        CREATE INDEX IF NOT EXISTS idx_native_opens_created ON native_app_opens(created_at);
+
+        CREATE TABLE IF NOT EXISTS studio_scenes (
+            id TEXT PRIMARY KEY,
+            filename TEXT NOT NULL,
+            code TEXT NOT NULL,
+            track TEXT,
+            model TEXT,
+            preview_image TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_studio_scenes_track ON studio_scenes(track);
+        CREATE INDEX IF NOT EXISTS idx_studio_scenes_created ON studio_scenes(created_at);
+
+        CREATE TABLE IF NOT EXISTS character_bibles (
+            id TEXT PRIMARY KEY,
+            filename TEXT NOT NULL UNIQUE,
+            name TEXT,
+            notes TEXT,
+            seed INTEGER,
+            prompt TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_bibles_name ON character_bibles(name);
+
+        -- Performance indexes for existing hot tables
+        CREATE INDEX IF NOT EXISTS idx_gpu_telemetry_composite ON gpu_telemetry(ts_ms, gpu_util);
+        CREATE INDEX IF NOT EXISTS idx_prompts_text ON prompts(text);
+        CREATE INDEX IF NOT EXISTS idx_tracks_title ON tracks(title);
+        CREATE INDEX IF NOT EXISTS idx_jobs_type_status ON jobs(job_type, status);
+    """)
+
+
+def _migrate_v10(conn: sqlite3.Connection):
+    """Add missing performance indexes for frequently queried columns."""
+    conn.executescript("""
+        CREATE INDEX IF NOT EXISTS idx_ollama_analysis_track_filename
+            ON ollama_analysis_responses(track_filename);
+        CREATE INDEX IF NOT EXISTS idx_native_opens_relative_path
+            ON native_app_opens(relative_path);
+        CREATE INDEX IF NOT EXISTS idx_lyrics_lines_track_sort
+            ON lyrics_lines(track_id, sort_order);
+        CREATE INDEX IF NOT EXISTS idx_system_resources_timestamp_desc
+            ON system_resources(timestamp DESC);
+    """)
+
+
+# =============================================================================
+# Vision OCR Results — replaces ad-hoc file scans, enables search/history
+# =============================================================================
+
+@dataclass
+class VisionOcrRow:
+    id: str
+    relative_path: str
+    filename: str
+    ocr_text: str
+    model: str
+    prompt: str
+    file_type: str | None
+    size_bytes: int | None
+    created_at: str
+
+
+def save_vision_ocr(relative_path: str, filename: str, ocr_text: str, model: str, prompt: str, file_type: str | None = None, size_bytes: int | None = None) -> str:
+    vid = str(uuid.uuid4())
+    now = datetime.now().isoformat()
+    with get_db() as conn:
+        conn.execute("INSERT OR REPLACE INTO vision_ocr_results (id, relative_path, filename, ocr_text, model, prompt, file_type, size_bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (vid, relative_path, filename, ocr_text, model, prompt, file_type, size_bytes, now))
+    return vid
+
+
+def get_vision_ocr(relative_path: str) -> dict | None:
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM vision_ocr_results WHERE relative_path = ? ORDER BY created_at DESC LIMIT 1", (relative_path,)).fetchone()
+        if row:
+            return dict(row)
+    return None
+
+
+def list_vision_ocr(limit: int = 50) -> list[dict]:
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM vision_ocr_results ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+# =============================================================================
+# Native App Opens — audit trail for Blender/Unity handoffs
+# =============================================================================
+
+@dataclass
+class NativeOpenRow:
+    id: str
+    relative_path: str
+    filename: str
+    app: str
+    method: str | None
+    success: bool
+    created_at: str
+
+
+def log_native_open(relative_path: str, filename: str, app: str, method: str | None = None, success: bool = True) -> str:
+    nid = str(uuid.uuid4())
+    now = datetime.now().isoformat()
+    with get_db() as conn:
+        conn.execute("INSERT INTO native_app_opens (id, relative_path, filename, app, method, success, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (nid, relative_path, filename, app, method, int(success), now))
+    return nid
+
+
+def list_native_opens(app: str | None = None, limit: int = 50) -> list[dict]:
+    with get_db() as conn:
+        if app:
+            rows = conn.execute("SELECT * FROM native_app_opens WHERE app = ? ORDER BY created_at DESC LIMIT ?", (app, limit)).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM native_app_opens ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+# =============================================================================
+# Studio Scenes — DB-backed version of file-based visualizer_presets
+# =============================================================================
+
+@dataclass
+class StudioSceneRow:
+    id: str
+    filename: str
+    code: str
+    track: str | None
+    model: str | None
+    preview_image: str | None
+    created_at: str
+    updated_at: str
+
+
+def save_studio_scene(filename: str, code: str, track: str | None = None, model: str | None = None, preview_image: str | None = None) -> str:
+    sid = str(uuid.uuid4())
+    now = datetime.now().isoformat()
+    with get_db() as conn:
+        conn.execute("INSERT OR REPLACE INTO studio_scenes (id, filename, code, track, model, preview_image, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (sid, filename, code, track, model, preview_image, now, now))
+    return sid
+
+
+def list_studio_scenes(track: str | None = None, limit: int = 50) -> list[dict]:
+    with get_db() as conn:
+        if track:
+            rows = conn.execute("SELECT * FROM studio_scenes WHERE track = ? ORDER BY updated_at DESC LIMIT ?", (track, limit)).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM studio_scenes ORDER BY updated_at DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+# =============================================================================
+# Character Bibles — DB backing for localStorage characterBibles
+# =============================================================================
+
+@dataclass
+class CharacterBibleRow:
+    id: str
+    filename: str
+    name: str | None
+    notes: str | None
+    seed: int | None
+    prompt: str | None
+    created_at: str
+    updated_at: str
+
+
+def save_character_bible(filename: str, name: str | None, notes: str | None, seed: int | None, prompt: str | None) -> str:
+    now = datetime.now().isoformat()
+    with get_db() as conn:
+        existing = conn.execute("SELECT id FROM character_bibles WHERE filename = ?", (filename,)).fetchone()
+        bid = existing["id"] if existing else str(uuid.uuid4())
+        conn.execute("INSERT OR REPLACE INTO character_bibles (id, filename, name, notes, seed, prompt, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM character_bibles WHERE filename = ?), ?), ?)", (bid, filename, name, notes, seed, prompt, filename, now, now))
+        return bid
+
+
+def list_character_bibles(limit: int = 100) -> list[dict]:
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM character_bibles ORDER BY updated_at DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+
 # =============================================================================
 # Ollama Analysis Response Repository
 
@@ -1491,7 +1960,6 @@ def cleanup_old_gpu_telemetry(keep_days: int = 14) -> int:
 
 def save_visualization_preset(preset: dict) -> str:
     """Save a visualization preset to the database."""
-    import uuid
     preset_id = preset.get("id", str(uuid.uuid4()))
     now = datetime.now().isoformat()
 
@@ -1751,8 +2219,6 @@ def save_ollama_analysis_response(
     status: str = "completed",
 ) -> str:
     """Save an Ollama analysis response and return its ID."""
-    import uuid
-
     response_id = str(uuid.uuid4())
     now = datetime.now().isoformat()
 
@@ -1856,6 +2322,55 @@ def delete_ollama_analysis_response(response_id: str) -> bool:
             (response_id,),
         )
         return cursor.rowcount > 0
+
+
+# =============================================================================
+# Typed accessors for Ollama Analysis Responses
+# =============================================================================
+
+def get_ollama_analysis_response_typed(response_id: str) -> OllamaAnalysisRow | None:
+    """Get a single Ollama analysis response by ID as a typed row."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM ollama_analysis_responses WHERE id = ?",
+            (response_id,),
+        ).fetchone()
+        if row:
+            return _row_to_ollama_analysis_typed(row)
+    return None
+
+
+def list_ollama_analysis_typed(track_name: str | None = None, limit: int = 50) -> list[OllamaAnalysisRow]:
+    """List Ollama analysis responses as typed rows."""
+    with get_db() as conn:
+        if track_name:
+            rows = conn.execute(
+                "SELECT * FROM ollama_analysis_responses WHERE track_name = ? ORDER BY created_at DESC LIMIT ?",
+                (track_name, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM ollama_analysis_responses ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [_row_to_ollama_analysis_typed(row) for row in rows]
+
+
+def _row_to_ollama_analysis_typed(row: sqlite3.Row) -> OllamaAnalysisRow:
+    """Convert an ollama_analysis_responses row to a typed OllamaAnalysisRow."""
+    return OllamaAnalysisRow(
+        id=row["id"],
+        track_name=row["track_name"],
+        track_filename=row["track_filename"],
+        model_name=row["model_name"],
+        prompt=row["prompt"],
+        lyrics=row["lyrics"],
+        bpm=row["bpm"],
+        html_response=row["html_response"],
+        raw_response=row["raw_response"],
+        status=row["status"],
+        created_at=row["created_at"],
+    )
 
 
 # =============================================================================
@@ -2150,6 +2665,10 @@ __all__ = [
     "SystemResourceRow",
     "OllamaModelRow",
     "OllamaAnalysisRow",
+    "VisionOcrRow",
+    "NativeOpenRow",
+    "StudioSceneRow",
+    "CharacterBibleRow",
     "get_prompt_typed",
     "get_prompts_typed",
     "get_audio_file_typed",
@@ -2159,4 +2678,6 @@ __all__ = [
     "get_track_typed",
     "get_tracks_typed",
     "get_visualization_preset_typed",
+    "get_ollama_analysis_response_typed",
+    "list_ollama_analysis_typed",
 ]
