@@ -39,6 +39,7 @@ date: 2026-09-05
 - [[comfyui-workflows|🎨 ComfyUI Workflows]] — Custom workflows for image/video generation
 - [[blender-mcp|🖥️ Blender MCP Integration]] — 3D scene building via MCP protocol
 - [[hunyuan3d-setup|🧊 Hunyuan3D-2mini Setup]] — ComfyUI 3D generation with Kijai wrapper
+- [[3d-generation-options-2026|🧊 3D Generation Options 2026]] — Complete image-to-3D landscape for 8GB VRAM (PyTorch 2.14, Pascal capstone)
 - [[three-js-studio|🌐 Three.js Studio]] — Browser-based 3D scene builder with particles & reflections
 - [[ai-video-trends-2026|📈 AI Video Trends 2026]] — 5 industry shifts, model landscape, pipeline upgrades
 - [[kilo-code-subagent-orchestration|🤖 Kilo Code Subagent Orchestration]] — Subagent architecture, provider errors, optimization strategies
@@ -79,6 +80,7 @@ date: 2026-09-05
 | ---------------- | ----------------------------------------- | ----------- |
 | `#music-video`   | Music video production                    | 5 documents |
 | `#3d-rendering`  | 3D rendering and optimization             | 3 documents |
+| `#3d-generation` | 3D model generation (image-to-3D, 2026)   | 1 document  |
 | `#visualization` | Visualization effects, shaders, particles | 1 document  |
 | `#webgpu`        | WebGPU / TSL / compute                    | 2 documents |
 | `#ai-generation` | AI image/video generation                 | 4 documents |
@@ -100,6 +102,8 @@ date: 2026-09-05
 | `#backend`       | Backend debugging                         | 1 document  |
 | `#ollama`        | Ollama thinking / structured outputs      | 2 documents |
 | `#python`        | Python envs, venv decoupling, CUDA wheels | 1 document  |
+| `#pascal-gpu`    | GTX 10xx Pascal architecture              | 1 document  |
+| `#vram-optimization` | 8GB VRAM optimization techniques       | 1 document  |
 
 ---
 
@@ -166,10 +170,11 @@ graph LR
 
 | Metric          | Count                                                                              |
 | --------------- | ---------------------------------------------------------------------------------- |
-| Total Documents | 30                                                                                 |
-| Total Tags      | 23                                                                                 |
+| Total Documents | 31                                                                                 |
+| Total Tags      | 25                                                                                 |
 | Total Links     | 80+                                                                                |
 | Last Updated    | 2026-09-06 (python-environment-management — venv decoupling, Pascal/CUDA wheel matrix) |
+| Latest Add      | 2026-09-07 (3d-generation-options-2026 — 8GB VRAM image-to-3D landscape post-PyTorch 2.14) |
 
 ---
 

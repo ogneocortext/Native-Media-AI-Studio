@@ -1,0 +1,57 @@
+{
+  "last_node_id": 4,
+  "last_link_id": 3,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [100, 100],
+      "size": [320, 280],
+      "outputs": [
+        {"name": "IMAGE", "type": "IMAGE", "links": [1]},
+        {"name": "MASK", "type": "MASK", "links": []}
+      ],
+      "widgets_values": ["input.png", "image"]
+    },
+    {
+      "id": 2,
+      "type": "TripoSRGenerate",
+      "pos": [500, 100],
+      "size": [320, 200],
+      "inputs": [
+        {"name": "image", "type": "IMAGE", "link": 1}
+      ],
+      "outputs": [
+        {"name": "MESH", "type": "MESH", "links": [3]}
+      ],
+      "widgets_values": {
+        "resolution": 512,
+        "quality_preset": "balanced",
+        "mesh_format": "glb"
+      }
+    },
+    {
+      "id": 3,
+      "type": "Save3DModel",
+      "pos": [900, 100],
+      "size": [320, 60],
+      "inputs": [
+        {"name": "mesh", "type": "MESH", "link": 3}
+      ],
+      "widgets_values": {
+        "filename_prefix": "output/3d/triposr_",
+        "format": "glb"
+      }
+    }
+  ],
+  "links": [
+    [1, 1, 0, 2, 0, "IMAGE"],
+    [3, 2, 0, 3, 0, "MESH"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {"scale": 0.7, "offset": [0, 0]}
+  },
+  "version": 0.4
+}

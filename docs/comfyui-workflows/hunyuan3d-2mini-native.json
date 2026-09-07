@@ -1,0 +1,68 @@
+{
+  "last_node_id": 4,
+  "last_link_id": 3,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "ImageOnlyCheckpointLoader",
+      "pos": [100, 100],
+      "size": [320, 60],
+      "mode": 0,
+      "outputs": [
+        {"name": "MODEL", "type": "MODEL", "links": [1]},
+        {"name": "CLIP", "type": "CLIP", "links": []},
+        {"name": "VAE", "type": "VAE", "links": [2]}
+      ],
+      "widgets_values": ["hunyuan3d-dit-v2-mini.safetensors"]
+    },
+    {
+      "id": 2,
+      "type": "LoadImage",
+      "pos": [100, 300],
+      "size": [320, 280],
+      "outputs": [
+        {"name": "IMAGE", "type": "IMAGE", "links": [3]},
+        {"name": "MASK", "type": "MASK", "links": []}
+      ],
+      "widgets_values": ["input.png", "image"]
+    },
+    {
+      "id": 3,
+      "type": "Hunyuan3Dv2Conditioning",
+      "pos": [500, 100],
+      "size": [320, 60],
+      "inputs": [
+        {"name": "image", "type": "IMAGE", "link": 3},
+        {"name": "model", "type": "MODEL", "link": 1}
+      ],
+      "outputs": [
+        {"name": "positive", "type": "CONDITIONING", "links": []},
+        {"name": "negative", "type": "CONDITIONING", "links": []},
+        {"name": "latent", "type": "LATENT", "links": [4]}
+      ]
+    },
+    {
+      "id": 4,
+      "type": "SaveGLB",
+      "pos": [900, 100],
+      "size": [320, 60],
+      "inputs": [
+        {"name": "vae", "type": "VAE", "link": 2},
+        {"name": "samples", "type": "LATENT", "link": 4}
+      ],
+      "widgets_values": ["output/3d/hunyuan3d_2mini_", "glb"]
+    }
+  ],
+  "links": [
+    [1, 1, 0, 3, 0, "MODEL"],
+    [2, 1, 2, 4, 0, "VAE"],
+    [3, 2, 0, 3, 0, "IMAGE"],
+    [4, 3, 2, 4, 1, "LATENT"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {"scale": 0.7, "offset": [0, 0]}
+  },
+  "version": 0.4
+}

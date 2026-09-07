@@ -1,0 +1,74 @@
+{
+  "3d_generation_options_2026": {
+    "recommended_for_8gb_vram": [
+      {
+        "model": "Hunyuan3D-2mini (native)",
+        "vram": "~5 GB",
+        "speed": "30-60s",
+        "quality": "Very good",
+        "install": "Built into ComfyUI core — no custom nodes needed",
+        "workflow_file": "hunyuan3d-2mini-native.json",
+        "nodes": ["ImageOnlyCheckpointLoader", "Hunyuan3Dv2Conditioning", "SaveGLB"],
+        "notes": "Geometry only. Use Kijai wrapper for textures (requires 12GB+)."
+      },
+      {
+        "model": "Hunyuan3D-2mv (native)",
+        "vram": "~6 GB",
+        "speed": "60-120s",
+        "quality": "Excellent (multi-view)",
+        "install": "Built into ComfyUI core — no custom nodes needed",
+        "workflow_file": "hunyuan3d-2mv-native.json",
+        "nodes": ["ImageOnlyCheckpointLoader", "Hunyuan3Dv2ConditioningMultiView", "SaveGLB"],
+        "notes": "Provide front/left/right/back images. Front-only works but may have unseen-side artifacts."
+      },
+      {
+        "model": "TripoSR",
+        "vram": "~4-5 GB",
+        "speed": "~0.5s",
+        "quality": "Good",
+        "install": "ComfyUI-3D-Pack or ComfyUI-TripoSR via Manager",
+        "workflow_file": "triposr-fast.json",
+        "nodes": ["TripoSRGenerate", "Save3DModel"],
+        "notes": "Fastest option. Single forward pass, no iterative diffusion. Best for rapid prototyping."
+      },
+      {
+        "model": "Stable Fast 3D (SF3D)",
+        "vram": "~6 GB",
+        "speed": "~0.5-2s",
+        "quality": "Good+ (UV unwrapped)",
+        "install": "ComfyUI-3D-Pack via Manager",
+        "workflow_file": "stable-fast-3d.json",
+        "nodes": ["Comfy3DLoadSF3DModel", "Comfy3DStableFast3D", "Save3DModel"],
+        "notes": "Includes UV unwrapping. Best output quality-to-speed ratio for 8GB cards."
+      }
+    ],
+    "not_feasible_on_8gb": [
+      {
+        "model": "Hunyuan3D-2.1 full pipeline",
+        "vram": "29 GB",
+        "reason": "Texture stage alone is 21 GB"
+      },
+      {
+        "model": "TRELLIS.2",
+        "vram": "16-24 GB",
+        "reason": "4B parameter model + VAE stages"
+      },
+      {
+        "model": "Pixal3D",
+        "vram": "12-16 GB",
+        "reason": "Shares TRELLIS.2 backbone"
+      },
+      {
+        "model": "Hyper3D Rodin Gen-2",
+        "vram": "24 GB+",
+        "reason": "API-only; local weights not publicly released"
+      }
+    ],
+    "hybrid_strategy": {
+      "description": "Generate geometry locally (free, instant), texture via cloud API",
+      "local_stage": "Hunyuan3D-2mini or TripoSR (4-6 GB VRAM)",
+      "cloud_stage": "Hyper3D API, Hunyuan 3.0 Partner Nodes, or Meshy",
+      "benefit": "Maximizes 8GB VRAM for iteration, gets PBR materials when needed"
+    }
+  }
+}

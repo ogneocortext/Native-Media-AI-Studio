@@ -289,6 +289,7 @@ Supplement to [[visualization-effects#6. Blender 5.2 LTS|Visualization Effects �
 
 ## See Also
 
+- [[3d-generation-options-2026]] — **NEW**: Complete guide to local image-to-3D on 8GB VRAM (PyTorch 2.14, Pascal capstone)
 - [[visualization-effects|✨ Visualization Effects & 3D Rendering Techniques]] — Full 2026 effects library (shaders, particles, post, volumetrics, audio mapping, 8 engines)
 - [[music-video-production]] — Full production workflow
 - [[blender-mcp]] — Blender MCP integration

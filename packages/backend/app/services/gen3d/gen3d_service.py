@@ -1,12 +1,16 @@
 """
 3D asset generation service.
 
-Provides text-to-3D and image-to-3D generation using Hunyuan3D-2mini
-via ComfyUI's Kijai Wrapper (the correct approach per knowledge base).
+Provides text-to-3D and image-to-3D generation using multiple backends
+appropriate for the GTX 1070 Ti (8GB VRAM, sm_61):
 
-Your GTX 1070 Ti (8GB VRAM, CUDA 13.0) supports:
-- Geometry generation (via Kijai Wrapper)
-- Texture generation (CUDA 12.6+ required, you have 13.0)
+- **Hunyuan3D-2mini** (geometry, ~5GB) — native ComfyUI or Kijai wrapper
+- **Hunyuan3D-2mv** (geometry, ~6GB) — native ComfyUI multi-view
+- **TripoSR** (geometry, ~4GB) — fastest, ComfyUI-3D-Pack
+- **Stable Fast 3D** (geometry+UV, ~6GB) — ComfyUI-3D-Pack
+
+PyTorch 2.14.0+cu126 is the LAST prebuilt wheel supporting Pascal (sm_61).
+From 2.15 onward, must build from source or stay on 2.14.
 """
 
 from __future__ import annotations
@@ -26,7 +30,6 @@ logger = logging.getLogger(__name__)
 
 # Paths derived from app config (not hardcoded)
 COMFYUI_DIR = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI")
-COMFYUI_MODEL = COMFYUI_DIR / "models" / "diffusion_models" / "hunyuan3d-2mini"
 COMFYUI_URL = app_config.comfyui_url
 # ComfyUI writes exported meshes to its own output directory.
 COMFYUI_OUTPUT_DIR = COMFYUI_DIR / "output"
@@ -36,23 +39,122 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # SD1.5 checkpoint used to generate an image that Hunyuan3D-2mini conditions on
 # (Hunyuan3D is image-to-3D; the model node REQUIRES an IMAGE input).
 SD_CHECKPOINT = "v1-5-pruned-emaonly.safetensors"
-# Only hunyuan3d-2mini variants are exposed by the Hy3DModelLoader node.
-# Use the "fast" variant on 8GB VRAM to reduce decode-phase memory pressure.
-HY3D_MODEL = "hunyuan3d-2mini\\hunyuan3d-dit-v2-mini-fast\\model.fp16.safetensors"
+
+# Model backends available for 8GB VRAM.
+# Each backend specifies the model path, expected node names, and VRAM budget.
+MODEL_BACKENDS = {
+    "hunyuan3d_2mini": {
+        "name": "Hunyuan3D-2mini",
+        "vram_gb": 5,
+        "speed_s": "30-60",
+        "quality": "Very good",
+        "description": "0.6B parameter image-to-shape. Geometry only. Fastest Hunyuan variant.",
+        "checkpoint_subpath": "hunyuan3d-2mini/hunyuan3d-dit-v2-mini/model.fp16.safetensors",
+        "diffusion_subpath": "hunyuan3d-2mini/hunyuan3d-dit-v2-mini/model.fp16.safetensors",
+        "supports_texture": False,
+        "supports_multiview": False,
+        "supports_native": True,
+        "supports_kijai": True,
+        "octree_resolution": 256,
+        "num_chunks": 8000,
+        "target_faces": 30000,
+    },
+    "hunyuan3d_2mv": {
+        "name": "Hunyuan3D-2mv",
+        "vram_gb": 6,
+        "speed_s": "60-120",
+        "quality": "Excellent (multi-view)",
+        "description": "1.1B parameter multi-view image-to-shape. Geometry only. Better unseen-side accuracy.",
+        "checkpoint_subpath": "hunyuan3d-2mv/hunyuan3d-dit-v2-mv/model.fp16.safetensors",
+        "diffusion_subpath": "hunyuan3d-2mv/hunyuan3d-dit-v2-mv/model.fp16.safetensors",
+        "supports_texture": False,
+        "supports_multiview": True,
+        "supports_native": True,
+        "supports_kijai": True,
+        "octree_resolution": 256,
+        "num_chunks": 10000,
+        "target_faces": 30000,
+    },
+    "triposr": {
+        "name": "TripoSR",
+        "vram_gb": 4,
+        "speed_s": "0.5",
+        "quality": "Good",
+        "description": "Single-pass feedforward 3D reconstruction. Fastest option. ~0.5s per mesh.",
+        "checkpoint_subpath": "triposr/model.safetensors",
+        "diffusion_subpath": None,
+        "supports_texture": False,
+        "supports_multiview": False,
+        "supports_native": False,
+        "supports_kijai": False,
+        "octree_resolution": None,
+        "num_chunks": None,
+        "target_faces": 50000,
+    },
+    "stable_fast_3d": {
+        "name": "Stable Fast 3D",
+        "vram_gb": 6,
+        "speed_s": "2-5",
+        "quality": "Good+ (UV unwrapped)",
+        "description": "Fast textured mesh with UV unwrapping. Based on TripoSR with explicit UV optimization.",
+        "checkpoint_subpath": "stable-fast-3d/model.safetensors",
+        "diffusion_subpath": None,
+        "supports_texture": False,
+        "supports_multiview": False,
+        "supports_native": False,
+        "supports_kijai": False,
+        "octree_resolution": None,
+        "num_chunks": None,
+        "target_faces": 50000,
+    },
+}
+
+# Default backend for new requests
+DEFAULT_BACKEND = "hunyuan3d_2mini"
 
 
 class Gen3DService:
-    """Generate 3D assets from text or image prompts using ComfyUI + Kijai Wrapper."""
+    """Generate 3D assets from text or image prompts using ComfyUI + multiple backends.
 
-    def __init__(self):
-        self.available = COMFYUI_MODEL.exists() and self._check_comfyui()
-        if self.available:
-            logger.info("3D generation service ready: Hunyuan3D-2mini via ComfyUI")
+    Supports backends appropriate for 8GB VRAM (GTX 1070 Ti, sm_61):
+    - hunyuan3d_2mini: geometry via native ComfyUI or Kijai wrapper (~5 GB)
+    - hunyuan3d_2mv: multi-view geometry via native ComfyUI (~6 GB)
+    - triposr: ultra-fast feedforward mesh (~4 GB)
+    - stable_fast_3d: fast mesh with UVs (~6 GB)
+
+    PyTorch 2.14.0+cu126 is the LAST prebuilt wheel supporting Pascal (sm_61).
+    From 2.15 onward, must build from source or stay on 2.14.
+    """
+
+    def __init__(self, backend: str = DEFAULT_BACKEND):
+        self.backend = backend if backend in MODEL_BACKENDS else DEFAULT_BACKEND
+        backend_info = MODEL_BACKENDS[self.backend]
+        self.backend_name = backend_info["name"]
+        self.octree_resolution = backend_info.get("octree_resolution") or 256
+        self.num_chunks = backend_info.get("num_chunks") or 8000
+        self.target_faces = backend_info.get("target_faces") or 30000
+
+        # Resolve model path for availability check
+        if self.backend in ("hunyuan3d_2mini", "hunyuan3d_2mv"):
+            subpath = backend_info["diffusion_subpath"] or backend_info["checkpoint_subpath"]
+            self.model_dir = COMFYUI_DIR / "models" / "diffusion_models" / subpath
+        elif self.backend == "triposr":
+            self.model_dir = COMFYUI_DIR / "models" / "checkpoints" / "triposr"
+        elif self.backend == "stable_fast_3d":
+            self.model_dir = COMFYUI_DIR / "models" / "checkpoints" / "stable-fast-3d"
         else:
-            model_exists = COMFYUI_MODEL.exists()
-            comfyui_ok = self._check_comfyui()
-            logger.warning("3D generation unavailable: model=%s comfyui=%s",
-                           model_exists, comfyui_ok)
+            self.model_dir = None
+
+        self.available = self._check_comfyui()
+        if self.available and self.model_dir and not self.model_dir.exists():
+            logger.warning("3D model missing for backend '%s': %s", self.backend, self.model_dir)
+            self.available = False
+        if self.available:
+            logger.info("3D generation service ready: %s via ComfyUI", self.backend_name)
+        else:
+            logger.warning("3D generation unavailable: backend=%s comfyui=%s model_exists=%s",
+                           self.backend, self.available,
+                           self.model_dir.exists() if self.model_dir else "n/a")
 
     def _check_comfyui(self) -> bool:
         """Check if ComfyUI is running and accessible."""
@@ -70,6 +172,7 @@ class Gen3DService:
         steps: int = 15,
         seed: int = 42,
         cfg: float = 7.0,
+        backend: str = DEFAULT_BACKEND,
     ) -> dict[str, Any]:
         """Generate a 3D model from a text prompt.
 
@@ -78,10 +181,18 @@ class Gen3DService:
             output_name: Optional filename (without extension).
             steps: Diffusion steps (lower = faster, 10-20 typical).
             seed: Random seed for reproducibility.
+            backend: Model backend override (hunyuan3d_2mini, hunyuan3d_2mv, triposr, stable_fast_3d).
 
         Returns:
             Dict with 'success', 'model_path', 'preview_path', 'metadata'.
         """
+        if backend != self.backend:
+            # Spin up a fresh service instance for the requested backend
+            svc = Gen3DService(backend=backend)
+            if not svc.available:
+                return {"success": False, "error": f"Backend '{backend}' not available"}
+            return await svc.generate_from_text(prompt, output_name, steps, seed, cfg)
+
         if not self.available:
             return {"success": False, "error": "3D generation service not available"}
 
@@ -121,6 +232,7 @@ class Gen3DService:
         image_path: str,
         output_name: str | None = None,
         steps: int = 15,
+        backend: str = DEFAULT_BACKEND,
     ) -> dict[str, Any]:
         """Generate a 3D model from an input image.
 
@@ -128,10 +240,17 @@ class Gen3DService:
             image_path: Path to the input image.
             output_name: Optional filename (without extension).
             steps: Diffusion steps.
+            backend: Model backend override.
 
         Returns:
             Dict with 'success', 'model_path', 'preview_path', 'metadata'.
         """
+        if backend != self.backend:
+            svc = Gen3DService(backend=backend)
+            if not svc.available:
+                return {"success": False, "error": f"Backend '{backend}' not available"}
+            return await svc.generate_from_image(image_path, output_name, steps)
+
         if not self.available:
             return {"success": False, "error": "3D generation service not available"}
 
@@ -145,7 +264,6 @@ class Gen3DService:
             logger.info("VRAM pre-3d generation: %s", vram_result)
 
             try:
-                # Build workflow for image-to-3D via Kijai Wrapper
                 workflow = self._build_image23d_workflow(image_path, output_name, steps)
                 result = await self._submit_workflow(workflow, output_path)
                 return result
@@ -181,7 +299,37 @@ class Gen3DService:
         seed: int,
         cfg: float = 7.0,
     ) -> dict[str, Any]:
-        """Build a ComfyUI workflow: SD1.5 text-to-image, then Hunyuan3D image-to-mesh.
+        """Build a ComfyUI workflow for text-to-3D.
+
+        Dispatches to the appropriate workflow builder based on the selected backend.
+        """
+        proc_output_name = self._sanitize_name(output_name)
+
+        if self.backend in ("hunyuan3d_2mini", "hunyuan3d_2mv"):
+            return self._build_hunyuan_text23d_workflow(
+                prompt, proc_output_name, steps, seed, cfg
+            )
+        elif self.backend == "triposr":
+            # TripoSR is image-only; first render a concept image, then generate 3D
+            return self._build_triposr_text23d_workflow(
+                prompt, proc_output_name, seed
+            )
+        elif self.backend == "stable_fast_3d":
+            return self._build_sf3d_text23d_workflow(
+                prompt, proc_output_name, seed
+            )
+        else:
+            raise ValueError(f"Unsupported backend for text-to-3D: {self.backend}")
+
+    def _build_hunyuan_text23d_workflow(
+        self,
+        prompt: str,
+        output_name: str,
+        steps: int,
+        seed: int,
+        cfg: float = 7.0,
+    ) -> dict[str, Any]:
+        """Build ComfyUI workflow: SD1.5 text-to-image, then Hunyuan3D image-to-mesh.
 
         Hunyuan3D-2mini is an image-to-3D model — its Hy3DGenerateMesh node requires an
         IMAGE input (verified against the live node schema). So for a text prompt we first
@@ -192,15 +340,18 @@ class Gen3DService:
         (Hy3DPostprocessMesh -> Hy3DMeshUVWrap) so the exported GLB carries smooth
         normals and UVs instead of being a raw, untextured octree voxel mesh.
         """
-        proc_output_name = self._sanitize_name(output_name)
+        backend_info = MODEL_BACKENDS[self.backend]
+        model_path = backend_info["diffusion_subpath"] or backend_info["checkpoint_subpath"]
+
         # Hunyuan expects isolated object on white background — add hint if missing (helps avoid alien blob)
         enhanced_prompt = prompt
         if "white background" not in prompt.lower() and "isolated" not in prompt.lower():
             enhanced_prompt = f"{prompt}, white background, isolated object, centered, product photo, studio lighting"
+
         return {
             "1": {
                 "class_type": "Hy3DModelLoader",
-                "inputs": {"model": HY3D_MODEL},
+                "inputs": {"model": model_path.replace("\\", "/")},
             },
             # --- Stage 1: text -> image (SD1.5, 512x512) ---
             "2": {
@@ -258,19 +409,13 @@ class Gen3DService:
                     "latents": ["8", 0],
                     "vae": ["1", 1],
                     "box_v": 1.01,
-                    "octree_resolution": self.OCTREE_RESOLUTION,
-                    "num_chunks": self.NUM_CHUNKS,
+                    "octree_resolution": self.octree_resolution,
+                    "num_chunks": self.num_chunks,
                     "mc_level": 0,
                     "mc_algo": "mc",
                 },
             },
             # --- Stage 3: post-process the raw octree mesh ---
-            # Hy3DPostprocessMesh removes orphan floaters, decimates to a sane
-            # face budget, and — crucially — smooths vertex normals. The raw
-            # Hy3DVAEDecode output is an unindexed octree voxel mesh that renders
-            # as a blocky gray chunk; smooth_normals is what turns it into a
-            # shaded surface. Hy3DMeshUVWrap then bakes UVs so the GLB carries
-            # enough for a downstream material / viewer to texture it.
             "11": {
                 "class_type": "Hy3DPostprocessMesh",
                 "inputs": {
@@ -278,7 +423,7 @@ class Gen3DService:
                     "remove_floaters": True,
                     "remove_degenerate_faces": True,
                     "reduce_faces": True,
-                    "max_facenum": self.TARGET_FACES,
+                    "max_facenum": self.target_faces,
                     "smooth_normals": True,
                 },
             },
@@ -290,111 +435,284 @@ class Gen3DService:
                 "class_type": "Hy3DExportMesh",
                 "inputs": {
                     "trimesh": ["12", 0],
-                    "filename_prefix": f"3d/{proc_output_name}",
+                    "filename_prefix": f"3d/{output_name}",
                     "file_format": "glb",
                 },
             },
         }
+
+    def _build_triposr_text23d_workflow(
+        self,
+        prompt: str,
+        output_name: str,
+        seed: int,
+    ) -> dict[str, Any]:
+        """Build ComfyUI workflow: SD1.5 text-to-image, then TripoSR image-to-mesh."""
+        enhanced_prompt = prompt
+        if "white background" not in prompt.lower():
+            enhanced_prompt = f"{prompt}, white background, isolated object, centered, product photo"
+
+        return {
+            # Stage 1: text -> image (SD1.5)
+            "1": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": SD_CHECKPOINT},
+            },
+            "2": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": enhanced_prompt, "clip": ["1", 1]},
+            },
+            "3": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "text": "blurry, lowres, jpeg artifacts, cartoon, illustration, text, watermark",
+                    "clip": ["1", 1],
+                },
+            },
+            "4": {
+                "class_type": "EmptyLatentImage",
+                "inputs": {"width": 512, "height": 512, "batch_size": 1},
+            },
+            "5": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "seed": seed,
+                    "steps": 16,
+                    "cfg": 7.0,
+                    "sampler_name": "euler",
+                    "scheduler": "normal",
+                    "denoise": 1.0,
+                    "model": ["1", 0],
+                    "positive": ["2", 0],
+                    "negative": ["3", 0],
+                    "latent_image": ["4", 0],
+                },
+            },
+            "6": {
+                "class_type": "VAEDecode",
+                "inputs": {"samples": ["5", 0], "vae": ["1", 2]},
+            },
+            # Stage 2: TripoSR image -> mesh
+            "7": {
+                "class_type": "TripoSRGenerate",
+                "inputs": {
+                    "image": ["6", 0],
+                    "resolution": 512,
+                    "quality_preset": "balanced",
+                    "mesh_format": "glb",
+                },
+            },
+            "8": {
+                "class_type": "Save3DModel",
+                "inputs": {
+                    "mesh": ["7", 0],
+                    "filename_prefix": f"3d/{output_name}",
+                    "format": "glb",
+                },
+            },
+        }
+
+    def _build_sf3d_text23d_workflow(
+        self,
+        prompt: str,
+        output_name: str,
+        seed: int,
+    ) -> dict[str, Any]:
+        """Build ComfyUI workflow: SD1.5 text-to-image, then StableFast3D image-to-mesh."""
+        enhanced_prompt = prompt
+        if "white background" not in prompt.lower():
+            enhanced_prompt = f"{prompt}, white background, isolated object, centered, product photo"
+
+        return {
+            # Stage 1: text -> image (SD1.5)
+            "1": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": SD_CHECKPOINT},
+            },
+            "2": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": enhanced_prompt, "clip": ["1", 1]},
+            },
+            "3": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "text": "blurry, lowres, jpeg artifacts, cartoon, illustration, text, watermark",
+                    "clip": ["1", 1],
+                },
+            },
+            "4": {
+                "class_type": "EmptyLatentImage",
+                "inputs": {"width": 512, "height": 512, "batch_size": 1},
+            },
+            "5": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "seed": seed,
+                    "steps": 16,
+                    "cfg": 7.0,
+                    "sampler_name": "euler",
+                    "scheduler": "normal",
+                    "denoise": 1.0,
+                    "model": ["1", 0],
+                    "positive": ["2", 0],
+                    "negative": ["3", 0],
+                    "latent_image": ["4", 0],
+                },
+            },
+            "6": {
+                "class_type": "VAEDecode",
+                "inputs": {"samples": ["5", 0], "vae": ["1", 2]},
+            },
+            # Stage 2: StableFast3D image -> mesh
+            "7": {
+                "class_type": "Comfy3DLoadSF3DModel",
+                "inputs": {"model_name": "stable-fast-3d"},
+            },
+            "8": {
+                "class_type": "Comfy3DStableFast3D",
+                "inputs": {
+                    "sf3d_model": ["7", 0],
+                    "image": ["6", 0],
+                    "resolution": 512,
+                    "mesh_format": "glb",
+                },
+            },
+            "9": {
+                "class_type": "Save3DModel",
+                "inputs": {
+                    "mesh": ["8", 0],
+                    "filename_prefix": f"3d/{output_name}",
+                    "format": "glb",
+                },
+            },
+        }
+
     def _build_image23d_workflow(
         self,
         image_path: str,
         output_name: str,
         steps: int,
     ) -> dict[str, Any]:
-        """Build ComfyUI workflow JSON for image-to-3D using Kijai Wrapper nodes."""
+        """Build ComfyUI workflow JSON for image-to-3D based on the selected backend."""
         uploaded = self._upload_image(image_path)
         image_name = uploaded.get("name", Path(image_path).name)
         proc_output_name = self._sanitize_name(output_name)
 
-        return {
-            "1": {
-                "class_type": "Hy3DModelLoader",
-                "inputs": {"model": HY3D_MODEL},
-            },
-            "2": {
-                "class_type": "LoadImage",
-                "inputs": {"image": image_name},
-            },
-            "3": {
-                "class_type": "Hy3DGenerateMesh",
-                "inputs": {
-                    "pipeline": ["1", 0],
-                    "image": ["2", 0],
-                    "guidance_scale": 5.5,
-                    "steps": steps,
-                    "seed": 42,
+        if self.backend in ("hunyuan3d_2mini", "hunyuan3d_2mv"):
+            backend_info = MODEL_BACKENDS[self.backend]
+            model_path = backend_info["diffusion_subpath"] or backend_info["checkpoint_subpath"]
+
+            return {
+                "1": {
+                    "class_type": "Hy3DModelLoader",
+                    "inputs": {"model": model_path.replace("\\", "/")},
                 },
-            },
-            "4": {
-                "class_type": "Hy3DVAEDecode",
-                "inputs": {
-                    "latents": ["3", 0],
-                    "vae": ["1", 1],
-                    "box_v": 1.01,
-                    "octree_resolution": self.OCTREE_RESOLUTION,
-                    "num_chunks": self.NUM_CHUNKS,
-                    "mc_level": 0,
-                    "mc_algo": "mc",
+                "2": {
+                    "class_type": "LoadImage",
+                    "inputs": {"image": image_name},
                 },
-            },
-            "5": {
-                "class_type": "Hy3DPostprocessMesh",
-                "inputs": {
-                    "trimesh": ["4", 0],
-                    "remove_floaters": True,
-                    "remove_degenerate_faces": True,
-                    "reduce_faces": True,
-                    "max_facenum": self.TARGET_FACES,
-                    "smooth_normals": True,
+                "3": {
+                    "class_type": "Hy3DGenerateMesh",
+                    "inputs": {
+                        "pipeline": ["1", 0],
+                        "image": ["2", 0],
+                        "guidance_scale": 5.5,
+                        "steps": steps,
+                        "seed": 42,
+                    },
                 },
-            },
-            "6": {
-                "class_type": "Hy3DMeshUVWrap",
-                "inputs": {"trimesh": ["5", 0]},
-            },
-            "7": {
-                "class_type": "Hy3DExportMesh",
-                "inputs": {
-                    "trimesh": ["6", 0],
-                    "filename_prefix": f"3d/{proc_output_name}",
-                    "file_format": "glb",
+                "4": {
+                    "class_type": "Hy3DVAEDecode",
+                    "inputs": {
+                        "latents": ["3", 0],
+                        "vae": ["1", 1],
+                        "box_v": 1.01,
+                        "octree_resolution": self.octree_resolution,
+                        "num_chunks": self.num_chunks,
+                        "mc_level": 0,
+                        "mc_algo": "mc",
+                    },
                 },
-            },
-        }
+                "5": {
+                    "class_type": "Hy3DPostprocessMesh",
+                    "inputs": {
+                        "trimesh": ["4", 0],
+                        "remove_floaters": True,
+                        "remove_degenerate_faces": True,
+                        "reduce_faces": True,
+                        "max_facenum": self.target_faces,
+                        "smooth_normals": True,
+                    },
+                },
+                "6": {
+                    "class_type": "Hy3DMeshUVWrap",
+                    "inputs": {"trimesh": ["5", 0]},
+                },
+                "7": {
+                    "class_type": "Hy3DExportMesh",
+                    "inputs": {
+                        "trimesh": ["6", 0],
+                        "filename_prefix": f"3d/{proc_output_name}",
+                        "file_format": "glb",
+                    },
+                },
+            }
+        elif self.backend == "triposr":
+            return {
+                "1": {
+                    "class_type": "LoadImage",
+                    "inputs": {"image": image_name},
+                },
+                "2": {
+                    "class_type": "TripoSRGenerate",
+                    "inputs": {
+                        "image": ["1", 0],
+                        "resolution": 512,
+                        "quality_preset": "balanced",
+                        "mesh_format": "glb",
+                    },
+                },
+                "3": {
+                    "class_type": "Save3DModel",
+                    "inputs": {
+                        "mesh": ["2", 0],
+                        "filename_prefix": f"3d/{proc_output_name}",
+                        "format": "glb",
+                    },
+                },
+            }
+        elif self.backend == "stable_fast_3d":
+            return {
+                "1": {
+                    "class_type": "LoadImage",
+                    "inputs": {"image": image_name},
+                },
+                "2": {
+                    "class_type": "Comfy3DLoadSF3DModel",
+                    "inputs": {"model_name": "stable-fast-3d"},
+                },
+                "3": {
+                    "class_type": "Comfy3DStableFast3D",
+                    "inputs": {
+                        "sf3d_model": ["2", 0],
+                        "image": ["1", 0],
+                        "resolution": 512,
+                        "mesh_format": "glb",
+                    },
+                },
+                "4": {
+                    "class_type": "Save3DModel",
+                    "inputs": {
+                        "mesh": ["3", 0],
+                        "filename_prefix": f"3d/{proc_output_name}",
+                        "format": "glb",
+                    },
+                },
+            }
+        else:
+            raise ValueError(f"Unsupported backend for image-to-3D: {self.backend}")
+
     def _upload_image(self, image_path: str) -> dict[str, Any]:
-        """Upload an image to ComfyUI."""
-        import urllib.request
-        import urllib.parse
-        import mimetypes
-        import uuid
-
-        path = Path(image_path)
-        if not path.exists():
-            raise FileNotFoundError(f"Image not found: {image_path}")
-
-        boundary = uuid.uuid4().hex
-        content_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
-
-        with open(path, "rb") as f:
-            data = f.read()
-
-        body = (
-            f"--{boundary}\r\n"
-            f'Content-Disposition: form-data; name="image"; filename="{path.name}"\r\n'
-            f"Content-Type: {content_type}\r\n\r\n"
-        ).encode() + data + f"\r\n--{boundary}--\r\n".encode()
-
-        req = urllib.request.Request(
-            f"{COMFYUI_URL}/upload/image",
-            data=body,
-            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
-            method="POST",
-        )
-
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode())
-
-    def _finalize_output(self, glb_relative: str, prompt_id: str) -> dict[str, Any]:
         """Copy the ComfyUI-exported .glb into the backend output dir, decimate if needed, and return its path."""
         logger.info("Finalizing output: %s", glb_relative)
         cand = Path(glb_relative)
@@ -629,11 +947,14 @@ class Gen3DService:
         comfyui_ok = self._check_comfyui()
         return {
             "available": self.available,
+            "backend": self.backend,
+            "backend_name": self.backend_name,
             "comfyui_running": comfyui_ok,
-            "model_path": str(COMFYUI_MODEL),
-            "model_exists": COMFYUI_MODEL.exists(),
+            "model_path": str(self.model_dir) if self.model_dir else "n/a",
+            "model_exists": self.model_dir.exists() if self.model_dir else False,
             "output_dir": str(OUTPUT_DIR),
             "generated_count": len(list(OUTPUT_DIR.glob("*.glb"))),
+            "available_backends": list(MODEL_BACKENDS.keys()),
         }
 
     def list_models(self) -> list[dict[str, Any]]:

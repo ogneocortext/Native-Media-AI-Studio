@@ -428,6 +428,7 @@ Multiple Python processes = uvicorn spawned a child with the wrong interpreter.
 
 ## See Also
 
+- [[3d-generation-options-2026]] — **NEW**: Full 3D generation landscape for 8GB VRAM (PyTorch 2.14, Pascal capstone)
 - [[3d-rendering]] - GPU rendering optimization
 - [[comfyui-workflows]] - General ComfyUI workflows
 - [[blender-mcp]] - Import meshes to Blender
@@ -501,13 +502,26 @@ ollama_adapter = OllamaAdapter()
 
 ---
 
-## Current Machine Status (2026-09-06)
+## Current Machine Status (2026-09-07)
+
+### PyTorch environment
+- **nma-studio-cuda**: torch **2.14.0+cu126** — the **last Pascal-compatible release**
+- **comfyui-cuda**: torch **2.14.0+cu126**
+- From PyTorch 2.15 onward, `cu126` wheels are dropped for Pascal; must stay on 2.14 or build from source.
 
 ### ComfyUI install
 - Path: `D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI`
 - Custom nodes: `ComfyUI-Hunyuan3DWrapper` present
 - Models: `hunyuan3d-2mini/hunyuan3d-dit-v2-mini/model.fp16.safetensors` present
 - Missing for full texture pipeline: compiled `custom_rasterizer` + `differentiable_renderer`
+- Native Hunyuan3D-2 support: available in ComfyUI core (update to latest)
+
+### Recommended additions for 8GB VRAM
+See [[3d-generation-options-2026]] for the full landscape:
+- **TripoSR** — ~0.5s generation, ~4-5GB VRAM, install via `ComfyUI-3D-Pack`
+- **Stable Fast 3D** — ~6GB VRAM, UV-unwrapped output, install via `ComfyUI-3D-Pack`
+- **Hunyuan3D-2mv** — native ComfyUI, multi-view, ~6GB VRAM
+- Full texture pipelines (~12GB+) are **not practical** on GTX 1070 Ti
 
 ### Backend config
 - Service file: `packages/backend/app/services/gen3d/gen3d_service.py`
@@ -519,3 +533,4 @@ ollama_adapter = OllamaAdapter()
 ### Known issues
 - 3D generation currently returns 500 due to VRAM manager Ollama reload import path; fixed in `ollama.py`.
 - Full texture generation exceeds 8GB VRAM; we intentionally stay on geometry-only tier.
+- PyTorch 2.14 is the last prebuilt wheel for Pascal; pin this version.
