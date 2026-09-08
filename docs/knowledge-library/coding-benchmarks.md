@@ -6,12 +6,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Service** | `packages/backend/app/services/coding_benchmark.py` |
-| **CLI** | `scripts/run_coding_benchmark.py` |
+| **Service** | `tools/scripts/coding_benchmark.py` |
+| **CLI** | `python tools/scripts/coding_benchmark.py` |
 | **Output** | `output/coding-benchmarks.json` |
-| **API Results** | `GET /api/integrations/ollama/coding-benchmark/results` |
-| **API Run** | `POST /api/integrations/ollama/coding-benchmark/run` |
-| **API Best** | `GET /api/integrations/ollama/coding-benchmark/best` |
 
 ## Why This Benchmark Exists
 
@@ -100,28 +97,13 @@ This benchmark measures those skills directly so the harness can pick the best m
 
 ```bash
 # Default: benchmark the project's standard coding models
-python scripts/run_coding_benchmark.py
+python tools/scripts/coding_benchmark.py
 
 # Specific model
-python scripts/run_coding_benchmark.py --model qwen2.5:7b
+python tools/scripts/coding_benchmark.py --model qwen2.5:7b
 
 # All available models (capped at 12)
-python scripts/run_coding_benchmark.py --all
-```
-
-### API
-
-```bash
-# Run benchmark
-curl -X POST http://127.0.0.1:8000/api/integrations/ollama/coding-benchmark/run \
-  -H "Content-Type: application/json" \
-  -d '{"models": ["qwen2.5:7b", "qwen3.5:9b"]}'
-
-# Get results
-curl http://127.0.0.1:8000/api/integrations/ollama/coding-benchmark/results
-
-# Get best model
-curl http://127.0.0.1:8000/api/integrations/ollama/coding-benchmark/best
+python tools/scripts/coding_benchmark.py --all
 ```
 
 ## Output Format
@@ -182,7 +164,7 @@ curl http://127.0.0.1:8000/api/integrations/ollama/coding-benchmark/best
 Use coding benchmark scores to select the model for `scripts/ai-test-generator.py`:
 
 ```python
-from app.services.coding_benchmark import get_best_model
+from tools.scripts.coding_benchmark import get_best_model
 
 best_coding_model = get_best_model()
 if best_coding_model:
@@ -202,7 +184,7 @@ if (best) {
 
 To add a new task:
 
-1. Add a task dict in `packages/backend/app/services/coding_benchmark.py` with `name`, `weight`, `system`, `user`, `validator`.
+1. Add a task dict in `tools/scripts/coding_benchmark.py` with `name`, `weight`, `system`, `user`, `validator`.
 2. Implement the validator function `_validate_<task_name>(code: str) -> dict`.
 3. Register it in the `VALIDATORS` dict.
 4. Update this doc with the new task description and scoring rules.

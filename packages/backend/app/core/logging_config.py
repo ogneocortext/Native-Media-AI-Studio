@@ -11,10 +11,9 @@ Provides:
 
 import logging
 import logging.handlers
-import os
 import sys
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from ..core.config import PROJECT_ROOT
 
@@ -256,7 +255,7 @@ def read_log_tail(log_file: Path, lines: int = 100) -> list[str]:
         return ["Log file not found"]
 
     try:
-        with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+        with open(log_file, encoding="utf-8", errors="replace") as f:
             all_lines = f.readlines()
             return [line.rstrip() for line in all_lines[-lines:]]
     except Exception as e:
@@ -271,7 +270,7 @@ def get_recent_errors(log_file: Path = ERROR_LOG, minutes: int = 60, max_errors:
     cutoff = datetime.now() - timedelta(minutes=minutes)
     errors = []
     try:
-        with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+        with open(log_file, encoding="utf-8", errors="replace") as f:
             for line in f:
                 # Try to parse the timestamp from the log line
                 try:

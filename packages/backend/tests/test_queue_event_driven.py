@@ -16,7 +16,7 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from app.models.job import JobCreateRequest, Job, JobStatus, JobType
+from app.models.job import JobCreateRequest, JobType
 from app.queue.manager import QueueManager
 from app.queue.processor import JobProcessor
 
@@ -69,7 +69,6 @@ async def test_wait_for_jobs_returns_true_when_signaled():
 @pytest.mark.asyncio
 async def test_processor_loop_uses_event_wait():
     """Processor._process_loop must use wait_for_jobs, not busy-polling."""
-    from app.queue import manager as manager_module
     from app.queue import processor as processor_module
 
     qm = QueueManager()

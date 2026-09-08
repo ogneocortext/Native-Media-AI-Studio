@@ -7,7 +7,7 @@ import os
 import re
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
 
 from ..core import database
@@ -425,7 +425,7 @@ def import_tracks_from_csv(body: ImportTracksFromCsvRequest):
 
     imported = 0
 
-    with open(csv_path, "r", encoding="utf-8") as f:
+    with open(csv_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
 
         for row in reader:

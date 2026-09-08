@@ -10,7 +10,6 @@ import json
 import logging
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -139,7 +138,6 @@ async def get_lyrics(track_id: str):
 @router.post("/track/{track_id}")
 async def save_lyrics(track_id: str, lyrics: LyricsInput):
     """Save lyrics for a track. Replaces all existing lyrics."""
-    import json
 
     with get_db() as conn:
         # Verify track exists
@@ -285,7 +283,6 @@ async def get_tracks_with_lyrics():
 @router.get("/visual-preset/{track_id}")
 async def get_visual_preset(track_id: str):
     """Get visual preset for a track."""
-    import json
 
     with get_db() as conn:
         track = conn.execute(
@@ -305,7 +302,6 @@ async def get_visual_preset(track_id: str):
 @router.post("/visual-preset/{track_id}")
 async def save_visual_preset(track_id: str, preset: dict):
     """Save visual preset for a track."""
-    import json
 
     with get_db() as conn:
         track = conn.execute("SELECT id FROM tracks WHERE id = ?", (track_id,)).fetchone()

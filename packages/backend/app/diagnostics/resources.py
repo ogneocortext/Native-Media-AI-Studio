@@ -89,7 +89,7 @@ class ResourceMonitor:
             self._nvml_available = True
             if not self._gpustat_available:
                 logger.info("GPU monitoring enabled via pynvml")
-        except (ImportError, Exception) as e:
+        except Exception as e:
             if not self._gpustat_available:
                 logger.warning(f"GPU monitoring not available: {e}")
 
@@ -368,7 +368,7 @@ class ResourceMonitor:
                                 "used_mb": mem_mb,
                                 "kind": "graphics",
                             })
-                except (AttributeError, Exception):
+                except Exception:
                     try:
                         import pynvml
                         handle = pynvml.nvmlDeviceGetHandleByIndex(0)
@@ -492,8 +492,8 @@ class ResourceMonitor:
         """Query Ollama API for loaded model size in MB. Returns 0 if unavailable."""
         def _sync_fetch() -> int:
             try:
-                import urllib.request
                 import json
+                import urllib.request
                 base = "http://127.0.0.1:11434"
                 req = urllib.request.Request(f"{base}/api/ps")
                 with urllib.request.urlopen(req, timeout=5) as resp:
@@ -514,7 +514,6 @@ class ResourceMonitor:
         """Get process name from PID. Uses CreateToolhelp32Snapshot (works for protected processes)."""
         try:
             import ctypes
-            from ctypes import wintypes
 
             class PROCESSENTRY32(ctypes.Structure):
                 _fields_ = [("dwSize", ctypes.c_ulong), ("cntUsage", ctypes.c_ulong),
@@ -638,8 +637,8 @@ class ResourceMonitor:
 
         # Clear old temp files and job sidecars older than 7 days
         try:
-            from pathlib import Path
             import time
+            from pathlib import Path
 
             for sub in ["output/video", "output/previews", "output/generated_3d", "output/audio_analysis"]:
                 p = Path(__file__).resolve().parents[3] / sub
@@ -663,7 +662,8 @@ class ResourceMonitor:
 
             if psutil.virtual_memory().percent >= 85:
                 def _sync_offload() -> str | None:
-                    import urllib.request, json
+                    import json
+                    import urllib.request
                     try:
                         req = urllib.request.Request("http://127.0.0.1:11434/api/ps")
                         with urllib.request.urlopen(req, timeout=3) as resp:
@@ -789,7 +789,7 @@ async def resource_monitoring_loop(interval_seconds: float = 10.0):
             try:
                 snap = await resource_monitor.get_gpu_snapshot()
                 if snap.get("available"):
-                    from ..core.database import log_gpu_telemetry, cleanup_old_gpu_telemetry
+                    from ..core.database import cleanup_old_gpu_telemetry, log_gpu_telemetry
                     await asyncio.to_thread(log_gpu_telemetry, snap)
                     # opportunistic retention: keep 14 days, prune every ~100 cycles (~16 min at 10s)
                     if int(asyncio.get_event_loop().time()) % 1000 < 10:

@@ -5,11 +5,11 @@
 # Audio analysis alternatives
 madmom-infer>=0.1.0   # Neural beat/downbeat tracking (fallback to librosa if unavailable)
 sonara>=0.1.0         # Rust-backed fast audio features via PyO3
+faster-whisper>=1.1.0 # Whisper transcription → POST /api/audio/transcribe
+demucs>=4.0.0         # Audio source separation → POST /api/audio/separate
+# spleeter is an optional fallback for separation; install via `pip install spleeter` if demucs is unavailable.
 
 # Video rendering alternatives
-core-flux>=0.1.0      # 3–6× faster MoviePy-compatible video editing
-MovieLite>=0.1.0      # Numba-optimized MoviePy alternative
-
+# core-flux and MovieLite removed — only referenced in scripts/benchmark_video_tools.py, not wired to backend API.
 # 3D / Gaussian splatting
-kaolin>=0.17.0        # NVIDIA 3D sparse voxel / Gaussian splat ops
-gsplat>=1.0           # Lightweight Gaussian splatting library
+# kaolin and gsplat removed — zero runtime references in codebase.

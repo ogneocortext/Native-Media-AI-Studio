@@ -1,9 +1,8 @@
 """Audio analysis service for extracting waveform and beat features from audio files."""
 
-import json
 import logging
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any

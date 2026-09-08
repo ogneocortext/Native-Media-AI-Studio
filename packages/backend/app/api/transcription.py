@@ -8,7 +8,6 @@ word-level timestamps using faster-whisper running locally on CUDA.
 
 import json
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -29,8 +28,8 @@ router = APIRouter(prefix="/api/audio", tags=["Transcription"])
 
 class TranscriptionRequest(BaseModel):
     filename: str
-    language: Optional[str] = None  # Auto-detect if None
-    model_size: Optional[str] = DEFAULT_MODEL_SIZE
+    language: str | None = None  # Auto-detect if None
+    model_size: str | None = DEFAULT_MODEL_SIZE
 
 
 # ---------------------------------------------------------------------------

@@ -5,11 +5,8 @@ Integrations API - Generation routes (ComfyUI, Ollama, VRAM, Audio).
 from __future__ import annotations
 
 import json
-import os
-import time
 import logging
 from pathlib import Path
-from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, field_validator
@@ -278,12 +275,12 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
                 request.ckpt_name = ""
             else:
                 params["ckpt_name"] = request.ckpt_name
-        
+
         logger.debug("calling adapter.submit_only with params=%s", params)
-        
+
         # Submit the prompt and get the prompt_id immediately
         prompt_id = await adapter.submit_only(params)
-        
+
         logger.debug("prompt_id=%s", prompt_id)
 
         return {
@@ -323,7 +320,7 @@ async def get_result(service_name: str, prompt_id: str) -> dict:
             if prompt_id in history:
                 entry = history[prompt_id]
                 outputs = entry.get("outputs", {})
-                
+
                 # Find the image output
                 for node_id, output in outputs.items():
                     if "images" in output:
@@ -335,7 +332,7 @@ async def get_result(service_name: str, prompt_id: str) -> dict:
                                 params = {"filename": filename}
                                 if subfolder:
                                     params["subfolder"] = subfolder
-                                
+
                                 async with session.get(
                                     f"{base_url}/view",
                                     params=params,
@@ -343,15 +340,15 @@ async def get_result(service_name: str, prompt_id: str) -> dict:
                                 ) as img_resp:
                                     if img_resp.status == 200:
                                         img_data = await img_resp.read()
-                                        
+
                                         # Save to output directory
                                         output_dir = PROJECT_ROOT / "output" / "images"
                                         output_dir.mkdir(parents=True, exist_ok=True)
-                                        
+
                                         filepath = output_dir / filename
                                         with open(filepath, "wb") as f:
                                             f.write(img_data)
-                                        
+
                                         return {
                                             "status": "completed",
                                             "success": True,
@@ -360,7 +357,7 @@ async def get_result(service_name: str, prompt_id: str) -> dict:
                                         }
 
                 return {"status": "error", "error": "No images found in output", "prompt_id": prompt_id}
-            
+
             return {"status": "pending", "prompt_id": prompt_id}
 
     except Exception as e:
@@ -501,9 +498,10 @@ async def get_preview(prompt_id: str) -> dict:
 @router.get("/comfyui/view/{prompt_id}/{filename}")
 async def view_preview(request: Request, prompt_id: str, filename: str):
     """Proxy endpoint to serve preview images from ComfyUI."""
+    from urllib.parse import unquote
+
     import aiohttp
     from fastapi.responses import StreamingResponse
-    from urllib.parse import unquote
 
     base_url = config.comfyui_url
     decoded_filename = unquote(filename)
@@ -641,7 +639,9 @@ async def ollama_embed(body: OllamaEmbedRequest) -> dict:
 @router.post("/ollama/search")
 async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
     """Semantic search over tracks/visuals using nomic embeddings."""
-    import aiohttp, math
+    import math
+
+    import aiohttp
     query = body.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="query required")
@@ -687,7 +687,7 @@ async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
                             return None
                         d = await r.json()
                         emb = (d.get("embeddings") or [d.get("embedding")])[0]
-                        dot = sum(a*b for a,b in zip(qemb, emb))
+                        dot = sum(a*b for a, b in zip(qemb, emb, strict=True))
                         nq = math.sqrt(sum(a*a for a in qemb))
                         nb = math.sqrt(sum(a*a for a in emb))
                         sim = dot / (nq*nb) if nq and nb else 0
@@ -701,146 +701,14 @@ async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
 
 @router.get("/ollama/models")
 async def get_ollama_models() -> list:
-    """Get available Ollama models, enriched with benchmark scores if available."""
+    """Get available Ollama models."""
     adapter = adapter_registry.get("ollama")
     if not adapter:
         raise HTTPException(status_code=404, detail="Ollama not available")
 
     try:
         models = await adapter.list_models()
-        # Enrich with benchmark data if present
-        try:
-            from ..services.ollama_benchmark import get_all_results as get_scene_results
-
-            bench = get_scene_results()
-            bench_map = bench.get("results", {}) if bench else {}
-            for m in models:
-                name = m.get("name")
-                if name in bench_map:
-                    r = bench_map[name]
-                    m["benchmark"] = {
-                        "score": r.get("validation", {}).get("score", 0),
-                        "latency_ms": r.get("latency_ms"),
-                        "success": r.get("success"),
-                        "timestamp": r.get("timestamp"),
-                    }
-        except Exception:
-            pass
-        # Enrich with coding benchmark data if present
-        try:
-            from ..services.coding_benchmark import get_all_results as get_coding_results
-
-            coding = get_coding_results()
-            coding_map = coding.get("results", {}) if coding else {}
-            for m in models:
-                name = m.get("name")
-                if name in coding_map:
-                    r = coding_map[name]
-                    m["codingBenchmark"] = {
-                        "score": r.get("total_score", 0),
-                        "latency_ms": r.get("total_latency_ms"),
-                        "success": r.get("success"),
-                        "timestamp": r.get("timestamp"),
-                    }
-        except Exception:
-            pass
         return models
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/ollama/benchmark/results")
-async def get_benchmark_results() -> dict:
-    """Get stored Three.js benchmark results."""
-    try:
-        from ..services.ollama_benchmark import get_all_results
-
-        return get_all_results()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/ollama/benchmark/run")
-async def run_benchmark(body: RunBenchmarkRequest) -> dict:
-    """Run Three.js generation benchmark against Ollama models."""
-    adapter = adapter_registry.get("ollama")
-    if not adapter:
-        raise HTTPException(status_code=404, detail="Ollama not available")
-    if not await adapter.health_check():
-        raise HTTPException(status_code=503, detail="Ollama is not available")
-
-    models = body.models
-    max_models = body.max_models
-
-    try:
-        from ..services.ollama_benchmark import run_benchmark
-
-        result = await run_benchmark(models, adapter, max_models=max_models)
-        return result
-    except Exception as e:
-        logger.error(f"Benchmark run failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/ollama/benchmark/best")
-async def get_best_benchmark_model() -> dict:
-    """Get the best model according to benchmark scores."""
-    try:
-        from ..services.ollama_benchmark import get_best_model, get_all_results
-
-        best = get_best_model()
-        all_results = get_all_results()
-        if not best:
-            return {"best": None, "results": all_results}
-        return {"best": best, "result": all_results.get("results", {}).get(best), "results": all_results}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/ollama/coding-benchmark/results")
-async def get_coding_benchmark_results() -> dict:
-    """Get stored coding benchmark results."""
-    try:
-        from ..services.coding_benchmark import get_all_results
-
-        return get_all_results()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/ollama/coding-benchmark/run")
-async def run_coding_benchmark(body: RunCodingBenchmarkRequest) -> dict:
-    """Run coding benchmark against Ollama models."""
-    adapter = adapter_registry.get("ollama")
-    if not adapter:
-        raise HTTPException(status_code=404, detail="Ollama not available")
-    if not await adapter.health_check():
-        raise HTTPException(status_code=503, detail="Ollama is not available")
-
-    models = body.models
-    max_models = body.max_models
-
-    try:
-        from ..services.coding_benchmark import run_benchmark
-
-        result = await run_benchmark(models, adapter, max_models=max_models)
-        return result
-    except Exception as e:
-        logger.error(f"Coding benchmark run failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/ollama/coding-benchmark/best")
-async def get_best_coding_model() -> dict:
-    """Get the best model according to coding benchmark scores."""
-    try:
-        from ..services.coding_benchmark import get_best_model, get_all_results
-
-        best = get_best_model()
-        all_results = get_all_results()
-        if not best:
-            return {"best": None, "results": all_results}
-        return {"best": best, "result": all_results.get("results", {}).get(best), "results": all_results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1104,20 +972,6 @@ class OllamaSemanticSearchRequest(BaseModel):
     query: str
     limit: int = 10
     model: str | None = None
-
-
-class RunBenchmarkRequest(BaseModel):
-    """Request to run the Three.js generation benchmark."""
-
-    models: list[str] | None = None
-    max_models: int = 8
-
-
-class RunCodingBenchmarkRequest(BaseModel):
-    """Request to run the coding benchmark."""
-
-    models: list[str] | None = None
-    max_models: int = 12
 
 
 class OllamaChatRequest(BaseModel):
@@ -1394,7 +1248,7 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
         # Parse the JSON response
         try:
             preset = json.loads(response_text)
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             # Try to extract JSON from markdown fences if present
             cleaned = response_text.strip()
             if cleaned.startswith("```"):
@@ -1420,9 +1274,10 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
         try:
             import hashlib
             from pathlib import Path
+
             from ..core.database import save_visualization_preset
             track_hash = hashlib.md5(f"{description}{bpm}{energy}{genre}".encode()).hexdigest()[:16]
-            track_name = request.get("track_name") or description[:60]
+            track_name = track_meta.get("track_name") or description[:60]
             save_visualization_preset({
                 "track_name": track_name,
                 "track_hash": track_hash,
@@ -1431,7 +1286,7 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
                 "params": preset,
                 "ollama_model": result.get("model", model),
                 "prompt": description,
-                "lyrics": request.get("lyrics", ""),
+                "lyrics": track_meta.get("lyrics", ""),
                 "bpm": bpm or 120,
                 "energy_level": ("high" if (energy or 0) > 0.6 else "low" if (energy or 0) < 0.35 else "medium"),
                 "mood_tags": preset.get("tags", []),
@@ -1466,6 +1321,7 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
 async def list_visualizer_presets() -> dict:
     """List persisted visualizer presets (DB + file)."""
     from pathlib import Path
+
     from ..core.database import get_all_visualization_presets
     presets = get_all_visualization_presets()
     # Also include file-based presets not yet in DB
@@ -1479,6 +1335,7 @@ async def get_visualizer_preset(track_hash: str) -> dict:
     """Retrieve a persisted preset by track_hash."""
     import json as _json
     from pathlib import Path
+
     from ..core.database import get_visualization_preset
     preset = get_visualization_preset(track_hash)
     if preset:
@@ -1495,6 +1352,7 @@ async def get_visualizer_preset(track_hash: str) -> dict:
 async def delete_visualizer_preset(preset_id: str) -> dict:
     """Delete a saved preset by id."""
     from pathlib import Path
+
     from ..core.database import get_db
     with get_db() as conn:
         cur = conn.execute("DELETE FROM visualization_presets WHERE id = ?", (preset_id,))
@@ -1504,7 +1362,9 @@ async def delete_visualizer_preset(preset_id: str) -> dict:
     # Also remove file if exists (by id or hash)
     file_dir = Path(__file__).resolve().parents[4] / "storage" / "visualizer_presets"
     for f in file_dir.glob(f"{preset_id[:16]}*.json"):
-        try: f.unlink()
-        except: pass
+        try:
+            f.unlink()
+        except Exception:
+            pass
     return {"deleted": preset_id}
 

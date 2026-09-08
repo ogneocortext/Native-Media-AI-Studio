@@ -1,7 +1,9 @@
 import sys
-sys.path.insert(0, r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\packages\backend")
+from pathlib import Path
+from tools.lib.paths import backend_dir
 
-import numpy as np
+sys.path.insert(0, str(backend_dir()))
+
 import librosa
 from app.services.cuda import cuda_audio, cuda_available
 
@@ -9,7 +11,7 @@ print(f"CUDA available: {cuda_available()}")
 print(f"Sample rate: {cuda_audio.sample_rate} Hz")
 
 # Load a real track
-audio_path = r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\output\audio\The Architect's Ghost (Synthwave Mix).wav"
+audio_path = str(Path(__file__).resolve().parent.parent / "output" / "audio" / "The Architect's Ghost (Synthwave Mix).wav")
 print(f"\nLoading: {audio_path}")
 
 y, sr = librosa.load(audio_path, sr=22050, mono=True)
@@ -19,7 +21,7 @@ print(f"Duration: {len(y)/sr:.2f}s, Samples: {len(y)}")
 print("\nRunning GPU audio analysis...")
 result = cuda_audio.analyze(y)
 
-print(f"\nAnalysis complete:")
+print("\nAnalysis complete:")
 print(f"  Computed on: {result['computed_on']}")
 print(f"  Frames: {result['n_frames']}")
 print(f"  Duration: {result['duration_seconds']:.2f}s")

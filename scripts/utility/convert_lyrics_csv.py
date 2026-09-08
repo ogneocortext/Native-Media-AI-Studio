@@ -12,6 +12,7 @@ import csv
 import re
 import sys
 
+
 def parse_structure_sections(text):
     """Parse 'Structure: Verse–Verse–Chorus(""lyrics..."')' format."""
     sections = []
@@ -19,13 +20,13 @@ def parse_structure_sections(text):
     structure_match = re.search(r'Structure:\s*(.+)', text, re.IGNORECASE)
     if not structure_match:
         return sections
-    
+
     structure = structure_match.group(1)
-    
+
     # Split on section markers (handle en-dash and em-dash separators)
     # The separator is en-dash (–) or em-dash (—)
     parts = re.split(r'(Verse\s*\d*|Chorus|Bridge|Intro|Final\s*Chorus|Pre-Chorus|Breakdown|Build-Up)', structure, flags=re.IGNORECASE)
-    
+
     current_section = "INTRO"
     for part in parts:
         part = part.strip()
@@ -33,7 +34,7 @@ def parse_structure_sections(text):
         part = part.lstrip('–—').rstrip('–—').strip()
         if not part:
             continue
-        
+
         # Check if section marker
         section_match = re.match(r'^(Verse\s*\d*|Chorus|Bridge|Intro|Final\s*Chorus|Pre-Chorus|Breakdown|Build-Up)$', part, re.IGNORECASE)
         if section_match:
@@ -58,7 +59,7 @@ def parse_structure_sections(text):
                 lyric = lyric.strip()
                 if lyric and len(lyric) > 3 and not lyric.lower().startswith(("structure", "theme")):
                     sections.append((current_section, lyric))
-    
+
     return sections
 
 
@@ -124,26 +125,26 @@ def compute_timing(sections, bpm, duration=120):
     """Compute start/end times for each section based on BPM."""
     if not sections:
         return []
-    
+
     # Estimate: each line gets roughly equal time
     total_lines = len(sections)
     time_per_line = duration / total_lines
-    
+
     # But try to be smarter: group by section
     section_groups = {}
     for section, text in sections:
         if section not in section_groups:
             section_groups[section] = []
         section_groups[section].append(text)
-    
+
     result = []
     current_time = 0.0
-    
+
     # Distribute time: choruses get more time, verses get standard
     for section, texts in section_groups.items():
         section_weight = 1.5 if section in ("CHORUS", "FINAL CHORUS") else 1.0
         time_for_section = len(texts) * time_per_line * section_weight
-        
+
         for text in texts:
             line_duration = time_for_section / len(texts)
             result.append({
@@ -153,36 +154,35 @@ def compute_timing(sections, bpm, duration=120):
                 "text": text,
             })
             current_time += line_duration
-    
+
     return result
 
 
 def convert_csv(input_path, output_path):
     """Convert the CSV to normalized format."""
     rows = []
-    
-    with open(input_path, 'r', encoding='utf-8') as f:
+
+    with open(input_path, encoding='utf-8') as f:
         reader = csv.reader(f)
-        header = next(reader)  # Skip header
-        
+        header = next(reader)  # Skip header row (return value intentionally unused)
+
         for row in reader:
             if len(row) < 4:
                 continue
-            
-            track_num = row[0].strip('"')
+
             track_name = row[1].strip('"')
             prompt = row[2].strip('"')
             lyrics_text = row[3].strip('"')
-            
+
             # Skip "same as" entries
             if lyrics_text.lower().startswith("same lyrics as"):
                 continue
-            
+
             bpm = extract_bpm(prompt)
-            
+
             # Determine lyrics format and parse
             sections = []
-            
+
             if re.search(r'Structure:', lyrics_text, re.IGNORECASE):
                 sections = parse_structure_sections(lyrics_text)
             elif re.search(r'Chorus:', lyrics_text, re.IGNORECASE):
@@ -191,13 +191,13 @@ def convert_csv(input_path, output_path):
                 sections = parse_short_hook(lyrics_text)
             elif '""' in lyrics_text:
                 sections = parse_theme_sections(lyrics_text)
-            
+
             if not sections:
                 continue
-            
+
             # Compute timing
             timed_lyrics = compute_timing(sections, bpm)
-            
+
             for lyric in timed_lyrics:
                 rows.append({
                     "track_name": track_name,
@@ -206,7 +206,7 @@ def convert_csv(input_path, output_path):
                     "end_time": lyric["end"],
                     "text": lyric["text"],
                 })
-    
+
     # Write normalized CSV
     with open(output_path, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
@@ -219,7 +219,7 @@ def convert_csv(input_path, output_path):
                 row["end_time"],
                 row["text"],
             ])
-    
+
     print(f"Converted {len(rows)} lyric lines from {input_path} to {output_path}")
 
 

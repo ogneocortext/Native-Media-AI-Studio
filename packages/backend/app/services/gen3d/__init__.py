@@ -1,1 +1,3 @@
-from .gen3d_service import gen3d_service, Gen3DService
+from .gen3d_service import Gen3DService, gen3d_service
+
+__all__ = ["Gen3DService", "gen3d_service"]

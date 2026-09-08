@@ -10,7 +10,7 @@ import logging
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
-from ..core.logging_config import get_log_files, read_log_tail, get_log_stats
+from ..core.logging_config import get_log_files, get_log_stats, read_log_tail
 
 router = APIRouter(prefix="/api/logs", tags=["Logs"])
 

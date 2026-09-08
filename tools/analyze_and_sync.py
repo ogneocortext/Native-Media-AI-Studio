@@ -15,12 +15,11 @@ Outputs JSON with:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import sys
 
-from tools.lib.paths import backend_dir, output_dir
 from tools.lib.audio import analyze_audio, save_beat_data
+from tools.lib.paths import output_dir
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -50,7 +49,7 @@ def main() -> None:
         logger.error("Analysis failed: %s", exc)
         sys.exit(1)
 
-    print(f"\n=== Audio Analysis ===")
+    print("\n=== Audio Analysis ===")
     print(f"Tempo: {data['tempo']:.1f} BPM")
     print(f"Duration: {data['duration']:.2f}s")
     print(f"Beats: {data['beat_count']}")

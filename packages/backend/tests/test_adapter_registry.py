@@ -6,8 +6,8 @@ Tests for the adapter registry thread-safety fix:
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 import threading
+from pathlib import Path
 
 import pytest
 

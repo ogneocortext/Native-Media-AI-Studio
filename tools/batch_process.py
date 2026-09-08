@@ -34,15 +34,17 @@ import json
 import sys
 from pathlib import Path
 
-from tools.lib.paths import PROJECT_ROOT, backend_dir, output_dir
-from tools.lib.audio import analyze_audio, analyze_audio_async, save_beat_data
+from tools.lib.paths import backend_dir, project_root
 
 
 def _add_backend_to_path() -> None:
-    """Ensure backend package is importable without a package install."""
+    """Ensure backend package and tools namespace are importable without a package install."""
     backend = str(backend_dir())
     if backend not in sys.path:
         sys.path.insert(0, backend)
+    tools_root = str(project_root())
+    if tools_root not in sys.path:
+        sys.path.insert(0, tools_root)
 
 
 _add_backend_to_path()
@@ -86,7 +88,7 @@ async def batch_analyze(files: list[str], output_dir: str | None = None) -> list
 
 async def batch_structure(files: list[str], output_dir: str | None = None) -> list[dict]:
     """Run structure analysis on multiple files."""
-    from app.services.structure_analysis import structure_analyzer
+    from tools.structure_analysis import structure_analyzer
 
     results: list[dict] = []
     for i, f in enumerate(files):
@@ -113,7 +115,7 @@ async def batch_structure(files: list[str], output_dir: str | None = None) -> li
 
 async def batch_fingerprint(files: list[str]) -> list[dict]:
     """Fingerprint multiple audio files."""
-    from app.services.audio_fingerprinting import audio_fingerprinter
+    from tools.audio_fingerprinting import audio_fingerprinter
 
     if not audio_fingerprinter.is_available():
         print("fpcalc not found. Install chromaprint: https://acoustid.org/chromaprint")
@@ -238,7 +240,7 @@ async def batch_export_midi(files: list[str], output_dir: str) -> list[dict]:
 
 async def batch_find_duplicates(files: list[str]) -> list[dict]:
     """Find acoustic duplicates among files."""
-    from app.services.audio_fingerprinting import audio_fingerprinter
+    from tools.audio_fingerprinting import audio_fingerprinter
 
     if not audio_fingerprinter.is_available():
         print("fpcalc not found. Install chromaprint: https://acoustid.org/chromaprint")

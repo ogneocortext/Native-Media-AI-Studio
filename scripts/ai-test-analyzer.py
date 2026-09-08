@@ -20,8 +20,8 @@ import tempfile
 from pathlib import Path
 
 try:
-    import urllib.request
     import urllib.error
+    import urllib.request
 except ImportError:
     print("urllib not available", file=sys.stderr)
     sys.exit(1)

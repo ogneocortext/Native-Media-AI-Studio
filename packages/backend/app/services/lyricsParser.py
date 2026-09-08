@@ -19,8 +19,10 @@ def parse_lrc_to_lines(lrc_content: str) -> list[dict]:
     # Detect global offset tag
     m_off = re.search(r"\[offset:\s*([+-]?\d+)\]", lrc_content, re.IGNORECASE)
     if m_off:
-        try: offset_ms = int(m_off.group(1))
-        except: offset_ms = 0
+        try:
+            offset_ms = int(m_off.group(1))
+        except Exception:
+            offset_ms = 0
 
     for raw_line in lrc_content.split("\n"):
         line = raw_line.strip()

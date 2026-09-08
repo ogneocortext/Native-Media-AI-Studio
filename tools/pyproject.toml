@@ -20,6 +20,9 @@ midi = [
 osc = [
     "python-osc>=1.8.0",
 ]
+test = [
+    "mcp>=1.0.0",
+]
 full = [
     "native-media-ai-studio-tools[audio]",
 ]

@@ -141,6 +141,10 @@ _(None — all components now source media data from the library API)_
 - `MusicVideoHandler` — FFmpeg video rendering with visualization filters
 - `ImageGenerationHandler` — ComfyUI integration
 - `ComfyUIWorkflowHandler` — Custom workflow execution
+- `VRAMManager` — GPU memory coordination between Ollama and ComfyUI
+- `CUDAProcessor` — GPU-accelerated FFT and audio analysis
+- `Gen3DService` — 3D model generation (Hunyuan3D-2mini)
+- **Tooling** (moved to `tools/`): `audio_analysis_agent`, `audio_fingerprinting`, `structure_analysis`, `blender/builder`, `blender/lyrics_sync`, `coding_benchmark`, `ollama_benchmark`
 
 ### Database Schema (SQLite)
 - `jobs` — Job records with status, progress, params, results

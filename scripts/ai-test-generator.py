@@ -19,8 +19,8 @@ from pathlib import Path
 from typing import Any
 
 try:
-    import urllib.request
     import urllib.error
+    import urllib.request
 except ImportError:
     print("urllib not available; cannot call Ollama", file=sys.stderr)
     sys.exit(1)

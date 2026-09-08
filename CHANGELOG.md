@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Refactored - Backend Service Relocation & Dead Code Removal (2026-09-07)
+
+- **Backend**: Moved 7 service files from `packages/backend/app/services/` to `tools/` and `tools/scripts/`:
+  - `audio_analysis_agent.py`, `audio_fingerprinting.py`, `structure_analysis.py` → `tools/`
+  - `blender/builder.py`, `blender/lyrics_sync.py` → `tools/blender/`
+  - `coding_benchmark.py`, `ollama_benchmark.py` → `tools/scripts/`
+- **Backend**: Removed dead `/ollama/benchmark/*` and `/ollama/coding-benchmark/*` endpoints from `integrations_generation.py`
+- **Backend**: Removed unused `RunBenchmarkRequest` and `RunCodingBenchmarkRequest` models
+- **Backend**: Simplified `GET /ollama/models` to drop benchmark enrichment logic
+- **Dependencies**: Trimmed unused packages from `requirements.txt` and `requirements-experimental.txt`
+- **Tools**: Updated `tools/batch_process.py` imports to use new `tools.` module paths
+- **Tests**: All 34 backend tests pass; no regressions from refactor
+
 ### Added - Media Library Performance & Presentation Overhaul (2026-09-06)
 
 - **Performance**: Debounced search (350 ms) + `useDeferredValue`, pagination (`ITEMS_PER_PAGE=24` + *Load more*), `React.memo` `MediaCard` with `animationDelay` stagger (40 ms), `SkeletonGrid` shimmer, `useMemo` filtered/sorted + `visibleCount` slice (was rendering all 179 at once), `format*` memoization.
@@ -438,8 +451,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added - GPU Music Video Pipeline & 3D Generation
 
 - **3D generation service**: `app.services.gen3d` — text-to-3D and image-to-3D via Hunyuan3D-2mini (optimized for 8GB VRAM)
-- **Blender scene builder**: `app.services.blender.builder` — generates bpy scripts for stages (concert, abstract, nature, urban, space), characters, cameras, beat-synced animation
-- **Lyrics sync mapper**: `app.services.blender.lyrics_sync` — maps timed lyrics to animation events, aligns to beats, supports WhisperX output
+- **Blender scene builder**: `tools/blender/builder` — generates bpy scripts for stages (concert, abstract, nature, urban, space), characters, cameras, beat-synced animation
+- **Lyrics sync mapper**: `tools/blender/lyrics_sync` — maps timed lyrics to animation events, aligns to beats, supports WhisperX output
 - **CUDA audio analysis**: `app.services.cuda.processor` — torch.stft() GPU FFT, spectral features, onset detection; image preprocessing (resize/normalize); visualization FFT
 - **Hunyuan3D-2mini model**: Downloaded to `ComfyUI/models/diffusion_models/hunyuan3d-2mini` (~2.5GB)
 - **ComfyUI-Hunyuan3DWrapper**: Custom node installed for ComfyUI integration

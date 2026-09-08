@@ -881,8 +881,8 @@ Generate 3-8 scenes based on the input theme or concept."""
 
     async def _tool_search_docs(self, query: str, limit: int = 5) -> str:
         """Search project documentation - scans real docs/ and markdown files."""
-        import os
         import glob
+        import os
 
         root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         results: list[str] = []
@@ -892,7 +892,7 @@ Generate 3-8 scenes based on the input theme or concept."""
         for pattern in ["**/*.md", "docs/**/*.md", "packages/**/README.md"]:
             for filepath in glob.glob(os.path.join(root, pattern), recursive=True):
                 try:
-                    with open(filepath, "r", encoding="utf-8") as f:
+                    with open(filepath, encoding="utf-8") as f:
                         content = f.read()
                     # Check if query appears in content
                     if query_lower in content.lower():

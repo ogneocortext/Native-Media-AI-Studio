@@ -345,7 +345,7 @@ class QueueManager:
             and j.completed_at is not None
         ]
         terminal_jobs.sort(key=lambda j: j.completed_at)
-        
+
         # Keep the most recent half, remove the rest
         to_remove = terminal_jobs[:max(0, len(terminal_jobs) // 2)]
         removed = 0
@@ -354,7 +354,7 @@ class QueueManager:
                 del self._jobs[job.id]
                 await JobDatabaseManager.delete_job_async(job.id)
                 removed += 1
-        
+
         if removed:
             logger.info("Auto-cleanup removed %d old completed jobs", removed)
         return removed

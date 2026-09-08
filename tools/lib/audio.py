@@ -12,7 +12,6 @@ librosa boilerplate.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import threading
@@ -55,7 +54,6 @@ def analyze_beats(y, sr, *, use_gpu: bool = True) -> dict[str, Any]:
         Dict with keys: tempo, beat_times, duration, gpu_result.
     """
     import librosa
-    import numpy as np
 
     gpu_result = None
 

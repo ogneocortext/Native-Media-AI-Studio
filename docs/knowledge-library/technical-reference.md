@@ -388,7 +388,7 @@ nsys stats --report cuda_api_sum output/logs/nsys-audio-admin.nsys-rep
 ### Available Methods
 
 ```python
-from app.services.blender.builder import BlenderSceneBuilder
+from tools.blender.builder import BlenderSceneBuilder
 
 builder = BlenderSceneBuilder(
     render_engine="CYCLES",  # or "EEVEE"

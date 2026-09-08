@@ -2,17 +2,13 @@
 Integrations API - Music Video routes.
 """
 
-import os
-import time
 import logging
-from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..adapters.registry import adapter_registry
-from ..core.config import PROJECT_ROOT, config
 from ..models.job import JobCreateRequest, JobType
 from ..queue.manager import queue_manager
 from .integrations_config import ensure_vram_available, estimate_generation_time
@@ -285,10 +281,13 @@ async def get_job_progress(job_id: str) -> dict:
         # Calculate progress percentage
         progress = job.progress or 0
         estimated_seconds = job.params.get("estimated_seconds", 0)
-        elapsed = (datetime.utcnow() - job.created_at.replace(tzinfo=None)).total_seconds() if job.created_at else 0
+        # created_at is stored as naive LOCAL time (datetime.now default), so
+        # elapsed must be computed against a naive local clock, not utcnow().
+        elapsed = (datetime.now() - job.created_at).total_seconds() if job.created_at else 0
 
         remaining_seconds = max(0, estimated_seconds - elapsed) if estimated_seconds > 0 else 0
-        end_time = (datetime.utcnow() + timedelta(seconds=remaining_seconds)).isoformat() + "Z" if remaining_seconds > 0 else None
+        # Render ETA in UTC to match the trailing "Z" (Zulu/UTC) suffix.
+        end_time = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=remaining_seconds)).isoformat() + "Z" if remaining_seconds > 0 else None
 
         return {
             "job_id": job_id,

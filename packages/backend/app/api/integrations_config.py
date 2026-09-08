@@ -2,19 +2,14 @@
 Integrations API - for external service integration.
 """
 
-import os
-import time
 import logging
-from pathlib import Path
-from datetime import datetime, timedelta
+import os
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..adapters.registry import adapter_registry
-from ..core.config import PROJECT_ROOT
-from ..models.job import JobCreateRequest, JobType
-from ..queue.manager import queue_manager
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +89,7 @@ def estimate_generation_time(steps: int, width: int, height: int, num_frames: in
     return {
         "estimated_seconds": round(estimated_seconds, 1),
         "estimated_minutes": round(estimated_seconds / 60, 1),
-        "estimated_end_time": (datetime.utcnow() + timedelta(seconds=estimated_seconds)).isoformat() + "Z",
+        "estimated_end_time": (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=estimated_seconds)).isoformat() + "Z",
         "sec_per_frame": round(sec_per_frame, 1),
         "total_frames": total_frames,
         "factors": {
@@ -153,6 +148,7 @@ async def ensure_vram_available(required_mb: int = 4096) -> dict:
 async def get_system_resources() -> dict:
     """Get current system resources including GPU, CPU, RAM, and Ollama status."""
     import subprocess
+
     import psutil
 
     resources = {

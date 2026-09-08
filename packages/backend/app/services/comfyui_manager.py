@@ -108,7 +108,7 @@ class ComfyUIManager:
     def is_running(self) -> bool:
         """Check if ComfyUI is running (either managed or external)."""
         import socket
-        
+
         # Check if we started the process
         if self._process is not None:
             if self._process.poll() is None:
@@ -118,7 +118,7 @@ class ComfyUIManager:
             self._process = None
             self._start_time = None
             self._stderr_task = None
-        
+
         # Also check if ComfyUI port is open (external process)
         # Use a simple socket check to avoid async issues
         try:
@@ -317,8 +317,11 @@ class ComfyUIManager:
             )
             self._start_time = time.time()
 
-            # Start a background task to read stderr and log it
-            async def _read_stderr():
+            # Start a background task to read stderr and log it.
+            # NOTE: iterating a subprocess PIPE is blocking I/O, so it must run
+            # in a worker thread — otherwise the backend event loop would freeze
+            # while ComfyUI holds the pipe open (blocking any other request).
+            def _drain_stderr():
                 if self._process is None or self._process.stderr is None:
                     return
                 try:
@@ -328,6 +331,9 @@ class ComfyUIManager:
                             logger.warning("ComfyUI stderr: %s", line)
                 except (ValueError, OSError):
                     pass  # Process may have exited
+
+            async def _read_stderr():
+                await asyncio.to_thread(_drain_stderr)
 
             # Keep a reference to the task — unreferenced tasks can be
             # garbage-collected mid-flight (see asyncio.create_task docs).
@@ -413,66 +419,66 @@ class ComfyUIManager:
     async def _update_requirements(self, comfyui_dir: Path) -> dict:
         """Update Python requirements for ComfyUI."""
         result = {"success": False, "step": "requirements"}
-        
+
         requirements_file = comfyui_dir / "requirements.txt"
         if not requirements_file.exists():
             result["message"] = "requirements.txt not found"
             return result
-        
+
         # Prefer the comfyui-cuda venv which has the correct PyTorch/CUDA build
         venv_python = Path(r"D:\conda-envs\comfyui-cuda\Scripts\python.exe")
         if not venv_python.exists():
             venv_python = VENV_PYTHON if VENV_PYTHON.exists() else Path(sys.executable)
-        
+
         try:
             proc = await _run_subprocess(
                 [str(venv_python), "-m", "pip", "install", "-r", str(requirements_file), "--upgrade"],
                 capture_output=True,
             )
-            
+
             result["success"] = proc.returncode == 0
             result["output"] = proc.stdout.decode("utf-8", errors="replace").strip()[-500:] if isinstance(proc.stdout, bytes) else proc.stdout.strip()[-500:]
             result["errors"] = proc.stderr.decode("utf-8", errors="replace").strip()[-500:] if isinstance(proc.stderr, bytes) else proc.stderr.strip()[-500:]
             result["python"] = str(venv_python)
         except Exception as e:
             result["message"] = str(e)
-        
+
         return result
 
     async def _update_custom_nodes(self, comfyui_dir: Path) -> dict:
         """Update ComfyUI custom nodes directly by iterating git repos."""
         result = {"success": False, "step": "custom_nodes"}
-        
+
         custom_nodes_dir = comfyui_dir / "custom_nodes"
         if not custom_nodes_dir.exists():
             result["message"] = "custom_nodes directory not found"
             return result
-        
+
         git_exe = _find_git()
         if git_exe is None:
             result["message"] = "Git executable not found — cannot update custom nodes"
             return result
-        
+
         # Prefer the comfyui-cuda venv for pip operations
         venv_python = Path(r"D:\conda-envs\comfyui-cuda\Scripts\python.exe")
         if not venv_python.exists():
             venv_python = VENV_PYTHON if VENV_PYTHON.exists() else Path(sys.executable)
-        
+
         updated = []
         skipped = []
         failed = []
-        
+
         for node_dir in custom_nodes_dir.iterdir():
             if not node_dir.is_dir():
                 continue
-            
+
             git_dir = node_dir / ".git"
             if not git_dir.exists():
                 skipped.append(node_dir.name)
                 continue
-            
+
             requirements_file = node_dir / "requirements.txt"
-            
+
             # git pull
             pull = await _run_subprocess(
                 [git_exe, "pull"],
@@ -481,11 +487,11 @@ class ComfyUIManager:
             )
             stdout = pull.stdout.decode("utf-8", errors="replace").strip() if isinstance(pull.stdout, bytes) else (pull.stdout or "").strip()
             stderr = pull.stderr.decode("utf-8", errors="replace").strip() if isinstance(pull.stderr, bytes) else (pull.stderr or "").strip()
-            
+
             if pull.returncode != 0:
                 failed.append(f"{node_dir.name}: git pull failed ({stderr or stdout})")
                 continue
-            
+
             # pip upgrade if requirements.txt exists
             if requirements_file.exists():
                 pip = await _run_subprocess(
@@ -494,13 +500,13 @@ class ComfyUIManager:
                 )
                 pip_stdout = pip.stdout.decode("utf-8", errors="replace").strip() if isinstance(pip.stdout, bytes) else (pip.stdout or "").strip()
                 pip_stderr = pip.stderr.decode("utf-8", errors="replace").strip() if isinstance(pip.stderr, bytes) else (pip.stderr or "").strip()
-                
+
                 if pip.returncode != 0:
                     failed.append(f"{node_dir.name}: pip upgrade failed ({pip_stderr or pip_stdout})")
                     continue
-            
+
             updated.append(node_dir.name)
-        
+
         result["success"] = len(failed) == 0
         result["updated"] = updated
         result["skipped"] = skipped
@@ -519,7 +525,7 @@ class ComfyUIManager:
             Dict with status and update details
         """
         logger.info("ComfyUI update requested")
-        
+
         if not self.is_installed():
             logger.warning("ComfyUI not installed at %s", COMFYUI_DIR)
             return {
@@ -626,7 +632,7 @@ class ComfyUIManager:
 
             # Update Python requirements
             pip_result = await self._update_requirements(COMFYUI_DIR)
-            
+
             # Update custom nodes via ComfyUI-Manager if available
             custom_nodes_result = await self._update_custom_nodes(COMFYUI_DIR)
 

@@ -26,15 +26,7 @@ class LyricsSyncMapper:
         lyrics: list[dict[str, Any]],
         style: str = "fade",
     ) -> list[dict[str, Any]]:
-        """Map lyrics to display events with frame-accurate timing.
-
-        Args:
-            lyrics: List of dicts with 'text', 'start', 'end' keys.
-            style: Animation style ('fade', 'pop', 'typewriter', 'slide').
-
-        Returns:
-            List of event dicts with frame numbers and animation params.
-        """
+        """Map lyrics to display events with frame-accurate timing."""
         events = []
         for i, lyric in enumerate(lyrics):
             start_frame = int(lyric.get("start", 0) * self.fps)
@@ -59,16 +51,7 @@ class LyricsSyncMapper:
         beat_times: list[float],
         min_duration: float = 0.5,
     ) -> list[dict[str, Any]]:
-        """Snap lyric start/end times to nearest beats for tighter sync.
-
-        Args:
-            lyrics: List of lyric dicts with 'text', 'start', 'end'.
-            beat_times: Sorted list of beat timestamps.
-            min_duration: Minimum lyric display duration.
-
-        Returns:
-            List of adjusted lyric dicts.
-        """
+        """Snap lyric start/end times to nearest beats for tighter sync."""
         if not beat_times:
             return lyrics
 
@@ -83,7 +66,6 @@ class LyricsSyncMapper:
             new_start = nearest_beat(start)
             new_end = nearest_beat(end)
             if new_end - new_start < min_duration:
-                # Find next beat after start for end
                 future_beats = [b for b in beat_times if b > new_start + min_duration]
                 new_end = future_beats[0] if future_beats else new_start + min_duration
 
@@ -96,10 +78,7 @@ class LyricsSyncMapper:
         return aligned
 
     def generate_blender_lyrics(self, lyrics: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Format lyrics for the Blender scene builder's add_lyrics_text method.
-
-        Returns list with 'text', 'start', 'end' keys ready for script generation.
-        """
+        """Format lyrics for the Blender scene builder's add_lyrics_text method."""
         return [
             {
                 "text": l.get("text", ""),
@@ -110,10 +89,7 @@ class LyricsSyncMapper:
         ]
 
     def from_whisperx(self, whisperx_output: dict[str, Any]) -> list[dict[str, Any]]:
-        """Convert WhisperX alignment output to lyric events.
-
-        WhisperX output has 'words' list with 'word', 'start', 'end'.
-        """
+        """Convert WhisperX alignment output to lyric events."""
         words = whisperx_output.get("words", [])
         lyrics = []
         for w in words:
@@ -133,10 +109,7 @@ class LyricsSyncMapper:
         word_lyrics: list[dict[str, Any]],
         words_per_line: int = 5,
     ) -> list[dict[str, Any]]:
-        """Group word-level lyrics into multi-word lines.
-
-        Useful for karaoke-style or grouped lyric display.
-        """
+        """Group word-level lyrics into multi-word lines."""
         lines = []
         for i in range(0, len(word_lyrics), words_per_line):
             chunk = word_lyrics[i:i + words_per_line]

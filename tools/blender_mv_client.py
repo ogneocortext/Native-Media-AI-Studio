@@ -39,7 +39,7 @@ def call_blender(cmd_type: str, params=None, timeout: float = 60.0):
         while True:
             try:
                 chunk = sock.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 break
             if not chunk:
                 break
@@ -53,7 +53,7 @@ def call_blender(cmd_type: str, params=None, timeout: float = 60.0):
 
 def load_beats(duration: float):
     """Load beat times within [0, duration] from beat_data.json."""
-    with open(BEAT_DATA_PATH, "r", encoding="utf-8") as f:
+    with open(BEAT_DATA_PATH, encoding="utf-8") as f:
         data = json.load(f)
     beats = [t for t in data["beat_times"] if 0 <= t <= duration]
     print(f"Tempo: {data['tempo']:.1f} BPM | beats in 0-{duration}s window: {len(beats)}")
@@ -292,7 +292,7 @@ def cmd_render(duration: float, width: int, height: int):
 
 def cmd_status():
     try:
-        with open(PROGRESS_PATH, "r", encoding="utf-8") as f:
+        with open(PROGRESS_PATH, encoding="utf-8") as f:
             print(json.dumps(json.load(f), indent=2))
     except FileNotFoundError:
         print("No progress file yet.")

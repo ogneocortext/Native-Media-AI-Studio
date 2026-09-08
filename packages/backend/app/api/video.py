@@ -43,8 +43,8 @@ class VideoGenerateResponse(BaseModel):
 async def generate_section(request: VideoGenerateRequest) -> VideoGenerateResponse:
     """Generate a video section — queues real MUSIC_VIDEO job, no mock fallback."""
     try:
-        from ..queue.manager import queue_manager
         from ..models.job import JobType
+        from ..queue.manager import queue_manager
 
         # Validate prompt
         if not request.prompt or not request.prompt.strip():
@@ -54,7 +54,6 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
         # Require audio_path for real handler — no silent placeholder
         if not request.audio_path:
             # Try to find most recent uploaded audio as fallback
-            from pathlib import Path as _P
             from ..core.config import PROJECT_ROOT as _PR
             audio_dir = _PR / "output" / "audio"
             candidates = sorted(audio_dir.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True) if audio_dir.exists() else []

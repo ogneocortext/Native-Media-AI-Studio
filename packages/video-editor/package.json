@@ -6,8 +6,6 @@
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
-    "@react-three/drei": "^10.7.8",
-    "@react-three/fiber": "^9.7.0",
     "@remotion/captions": "4.0.519",
     "@remotion/cli": "4.0.519",
     "@remotion/effects": "^4.0.519",

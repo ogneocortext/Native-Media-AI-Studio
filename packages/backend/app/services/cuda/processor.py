@@ -11,7 +11,6 @@ Target hardware: GTX 1070 Ti (8GB VRAM, sm_61, 19 SMs) with PyTorch 2.14.0+cu126
 from __future__ import annotations
 
 import logging
-import math
 from typing import Any
 
 import numpy as np

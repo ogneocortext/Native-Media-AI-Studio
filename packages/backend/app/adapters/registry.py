@@ -1,5 +1,4 @@
 """Adapter registry."""
-import asyncio
 import os
 import threading
 

@@ -14,8 +14,8 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from app.main import app, _local_origins
 from app.core.config import config
+from app.main import _local_origins, app
 
 
 def test_local_origins_contains_configured_ports():
@@ -53,8 +53,8 @@ def test_local_origins_is_set_not_list():
 @pytest.mark.asyncio
 async def test_cors_middleware_accepts_local_origin():
     """Preflight OPTIONS from a local origin should be accepted."""
-    from app.main import app, _local_origins
-    from httpx import AsyncClient, ASGITransport
+    from app.main import _local_origins
+    from httpx import ASGITransport, AsyncClient
 
     # Pick one allowed origin
     allowed_origin = next(iter(_local_origins))
@@ -79,8 +79,7 @@ async def test_cors_middleware_accepts_local_origin():
 @pytest.mark.asyncio
 async def test_cors_rejects_unknown_origin():
     """Preflight from an untrusted origin should be denied (no ACAO)."""
-    from app.main import app
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

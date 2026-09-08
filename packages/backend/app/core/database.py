@@ -392,7 +392,7 @@ def ingest_log_file(path: Path, source: str = "app", limit: int = 20000) -> int:
         ).fetchone()[0] or 0
     rows: list[LogEventRow] = []
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
+        with open(path, encoding="utf-8", errors="replace") as f:
             for line in f:
                 row = _parse_log_line(line)
                 if row and row.ts_ms > last_ts:
@@ -2021,7 +2021,7 @@ def get_visualization_preset(track_hash: str) -> dict | None:
             "SELECT * FROM visualization_presets WHERE track_hash = ? AND is_unique = 1 ORDER BY usage_count DESC LIMIT 1",
             (track_hash,),
         ).fetchone()
-        
+
         if row:
             # Update usage count
             conn.execute(
@@ -2199,7 +2199,7 @@ def get_available_ollama_models(min_vram_free: int = 0) -> list[dict]:
             """,
             (min_vram_free,),
         ).fetchall()
-        
+
         return [
             {
                 "id": row["id"],

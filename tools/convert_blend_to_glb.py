@@ -15,7 +15,6 @@ Usage:
 Supported: .blend -> .glb/.gltf, preserves armatures/actions, applies transforms.
 """
 import argparse
-import json
 import os
 import shutil
 import subprocess
@@ -126,7 +125,8 @@ def convert(blend: Path, out: Path | None, to_public: bool, do_apply: bool, do_a
         print("--- stderr ---", result.stderr, file=sys.stderr)
     try:
         os.unlink(temp_script)
-    except: pass
+    except Exception:
+        pass
 
     if not out.exists():
         raise RuntimeError(f"Export failed — no GLB at {out}\nstdout: {result.stdout}\nstderr: {result.stderr}")
@@ -142,7 +142,8 @@ def convert(blend: Path, out: Path | None, to_public: bool, do_apply: bool, do_a
     try:
         rel = out.relative_to(PROJECT_ROOT / "output")
         print(f"Media Library relative_path: {rel.as_posix()} -> /output/{rel.as_posix()}")
-    except: pass
+    except Exception:
+        pass
 
     return out
 

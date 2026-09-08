@@ -1,5 +1,5 @@
-import sqlite3
 import os
+import sqlite3
 
 db_path = r'D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\packages\backend\storage\studio.db'
 if os.path.exists(db_path):

@@ -26,7 +26,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import logging
 import os
@@ -35,7 +34,6 @@ import time
 from pathlib import Path
 
 from tools.lib.paths import backend_dir, output_dir
-from tools.lib.audio import analyze_audio, load_audio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

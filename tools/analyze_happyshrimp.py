@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import sys
 
-from tools.lib.paths import backend_dir, output_dir
 from tools.lib.audio import analyze_audio, save_beat_data
+from tools.lib.paths import backend_dir, output_dir
 
 
 def _add_backend_to_path() -> None:
@@ -22,11 +22,11 @@ _add_backend_to_path()
 
 def analyze_audio_file(audio_path, output_path=None):
     """Analyze audio file with GPU acceleration."""
-    print(f"CUDA available: check skipped (use analyze_audio for auto-detect)")
+    print("CUDA available: check skipped (use analyze_audio for auto-detect)")
 
     try:
         data = analyze_audio(audio_path)
-        print(f"\n=== Audio Analysis ===")
+        print("\n=== Audio Analysis ===")
         print(f"Computed on: {data.get('gpu_result', {}).get('computed_on', 'CPU') if data.get('gpu_result') else 'CPU'}")
         print(f"Tempo: {data['tempo']:.1f} BPM")
         print(f"Beats: {data['beat_count']}")

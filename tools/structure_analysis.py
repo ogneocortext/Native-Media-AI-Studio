@@ -12,13 +12,10 @@ import logging
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from ..core.config import PROJECT_ROOT
-
-STRUCTURE_DIR = PROJECT_ROOT / "output" / "structure"
+STRUCTURE_DIR = Path(__file__).resolve().parent.parent / "output" / "structure"
 STRUCTURE_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -89,7 +86,6 @@ class StructureAnalyzer:
         """
         try:
             import librosa
-            import numpy as np
 
             y, sr = librosa.load(audio_path, sr=22050, mono=True)
             duration = len(y) / sr
@@ -127,7 +123,7 @@ class StructureAnalyzer:
                 duration=duration,
                 tempo_bpm=tempo_val,
                 key=key,
-                key_confidence=key_confidence,
+                key_confidence=key_conf,
                 sections=sections,
                 chords=chords,
                 mood=mood,
@@ -154,10 +150,8 @@ class StructureAnalyzer:
         """Detect musical key from chromagram."""
         import numpy as np
 
-        # Average chroma across time
         chroma_avg = np.mean(chroma, axis=1)
 
-        # Major and minor key profiles (Krumhansl-Schmuckler)
         major_profile = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
         minor_profile = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
 
@@ -185,18 +179,12 @@ class StructureAnalyzer:
         import librosa
         import numpy as np
 
-        # Compute recurrence matrix
         mfcc = librosa.feature.mfcc(y=y, sr=sr, hop_length=512, n_mfcc=13)
         R = librosa.segment.recurrence_matrix(mfcc, mode="affinity", k=30)
-
-        # Find boundaries
         boundaries = librosa.segment.agglomerative(R, min_segments=4)
-
-        # Convert to times
         boundary_times = librosa.frames_to_time(boundaries, sr=sr, hop_length=512)
         boundary_times = np.concatenate([[0], boundary_times, [len(y) / sr]])
 
-        # Compute energy per section
         rms = librosa.feature.rms(y=y, hop_length=512)[0]
         rms_times = librosa.frames_to_time(np.arange(len(rms)), sr=sr, hop_length=512)
 
@@ -206,17 +194,13 @@ class StructureAnalyzer:
         for i in range(len(boundary_times) - 1):
             start = boundary_times[i]
             end = boundary_times[i + 1]
-
-            # Get RMS in this section
             mask = (rms_times >= start) & (rms_times < end)
             section_rms = rms[mask] if np.any(mask) else [0]
             energy = float(np.mean(section_rms))
 
-            # Determine section type by energy and position
             idx = min(i, len(section_types) - 1)
             sec_type = section_types[idx]
 
-            # High energy sections more likely to be chorus
             if energy > 0.6 and sec_type not in ["intro", "outro"]:
                 sec_type = "chorus"
             elif energy < 0.3 and sec_type == "chorus":
@@ -241,7 +225,6 @@ class StructureAnalyzer:
             "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm",
         ]
 
-        # Simple chord templates (major and minor triads)
         templates = []
         for root in range(12):
             major = np.zeros(12)
@@ -256,7 +239,6 @@ class StructureAnalyzer:
             minor[(root + 7) % 12] = 0.6
             templates.append(minor / np.sum(minor))
 
-        # Sliding window chord detection
         hop = max(1, chroma.shape[1] // 50)
         chords = []
 
@@ -265,7 +247,6 @@ class StructureAnalyzer:
             if np.sum(window) == 0:
                 continue
 
-            # Correlate with templates
             scores = []
             for t in templates:
                 score = np.corrcoef(window, t)[0, 1]
@@ -290,22 +271,18 @@ class StructureAnalyzer:
         import librosa
         import numpy as np
 
-        # Spectral features
         centroid = librosa.feature.spectral_centroid(y=y, sr=sr, hop_length=512)[0]
         zcr = librosa.feature.zero_crossing_rate(y=y, hop_length=512)[0]
         rms = librosa.feature.rms(y=y, hop_length=512)[0]
 
-        # Normalize features to 0-1 range
         centroid_norm = float(np.mean(centroid) / (sr / 2))
         zcr_norm = float(np.mean(zcr) / 0.1)
         energy_norm = float(np.mean(rms) / 0.3)
 
-        # Tempo (normalized to typical range 60-180 BPM)
         tempo, _ = librosa.beat.beat_track(y=y, sr=sr, hop_length=512)
         tempo_val = float(tempo.item() if hasattr(tempo, "item") else tempo)
         tempo_norm = min(1.0, max(0.0, (tempo_val - 60) / 120))
 
-        # Harmonic ratio
         harmonic_ratio = float(np.sum(y_harmonic ** 2) / (np.sum(y ** 2) + 1e-10))
 
         return {
@@ -318,18 +295,15 @@ class StructureAnalyzer:
 
     def _classify_mood(self, features: dict[str, float], tempo: float) -> dict[str, float]:
         """Classify mood based on features."""
-        import numpy as np
 
         mood_scores = {}
         tempo_norm = min(1.0, max(0.0, (tempo - 60) / 120))
 
         for mood, profile in self.MOOD_PROFILES.items():
-            # Compute distance to mood profile
             energy_dist = abs(features["energy"] - profile["energy"])
             tempo_dist = abs(tempo_norm - profile["tempo"])
             valence_dist = abs(features.get("harmonic_ratio", 0.5) - profile["valence"])
 
-            # Convert distance to similarity (0-1)
             similarity = 1.0 - min(1.0, (energy_dist + tempo_dist + valence_dist) / 3)
             mood_scores[mood] = round(float(similarity), 3)
 
@@ -337,7 +311,6 @@ class StructureAnalyzer:
 
     def _classify_genre(self, features: dict[str, float], tempo: float) -> dict[str, float]:
         """Classify genre hints based on features."""
-        import numpy as np
 
         genre_scores = {}
         tempo_norm = min(1.0, max(0.0, (tempo - 60) / 120))
@@ -358,7 +331,6 @@ class StructureAnalyzer:
         output_path = STRUCTURE_DIR / filename
 
         data = asdict(result)
-        # Convert Section and ChordSegment dataclasses
         data["sections"] = [asdict(s) for s in result.sections]
         data["chords"] = [asdict(c) for c in result.chords]
 

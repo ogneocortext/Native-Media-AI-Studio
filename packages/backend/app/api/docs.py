@@ -126,7 +126,7 @@ def _scan_docs() -> list[DocEntry]:
                         title = m.group(1).strip()[:80]
                     tags = meta.get("tags", [])
                     aliases = meta.get("aliases", [])
-            except:
+            except Exception:
                 title = _title_from_path(p)
                 tags = []
                 aliases = []
@@ -264,6 +264,7 @@ async def agent_bootstrap():
     """Single-call agent onboarding: returns manifest, codebase structure, API registry, MCP registry, and system health.
     Use this endpoint first when an agent connects — one call gives everything needed to operate."""
     import json
+
     from ..core.config import AppConfig
 
     # Load all registry files

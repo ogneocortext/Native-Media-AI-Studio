@@ -3,7 +3,7 @@ Test Hunyuan3D-2mini generation directly using hy3dgen library.
 This script runs in the comfyui-cuda conda environment.
 """
 import os
-import sys
+
 import torch
 
 # Low VRAM settings
@@ -24,14 +24,14 @@ if torch.cuda.is_available():
 try:
     print("\nImporting hy3dgen...")
     from hy3dgen.shapegen import Hunyuan3DDiTFlowMatchingPipeline
-    
+
     print("Loading pipeline...")
     pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(
         model_path,
         torch_dtype=torch.float16,
     )
     print("Pipeline loaded successfully!")
-    
+
     print("\nGenerating 3D model...")
     result = pipeline(
         prompt="a happy shrimp character, cute, cartoon style",
@@ -39,10 +39,10 @@ try:
         guidance_scale=5.0,
         generator=torch.manual_seed(42),
     )
-    
+
     print(f"Result type: {type(result)}")
     print(f"Result attributes: {dir(result)}")
-    
+
     if hasattr(result, 'meshes'):
             mesh = result.meshes[0]
             mesh.export(output_path)
@@ -57,7 +57,7 @@ try:
             print("Note: Got image output instead of 3D mesh")
     else:
             print(f"Unexpected result: {result}")
-            
+
 except Exception as e:
     print(f"\nERROR: {e}")
     import traceback

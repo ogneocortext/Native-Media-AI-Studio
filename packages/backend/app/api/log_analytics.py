@@ -5,8 +5,6 @@ Provides trend-analysis endpoints backed by the SQLite log_events store.
 """
 
 import time
-from datetime import datetime
-from pathlib import Path
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
@@ -19,7 +17,7 @@ from ..core.database import (
     get_log_trends,
     ingest_log_file,
 )
-from ..core.logging_config import LOG_DIR, get_log_files
+from ..core.logging_config import LOG_DIR
 
 router = APIRouter(prefix="/api/logs/analytics", tags=["Log Analytics"])
 

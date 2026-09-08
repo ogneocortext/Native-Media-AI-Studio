@@ -19,14 +19,14 @@ def get_windows_version() -> str:
     """Get the correct Windows display version (e.g., Windows 11 Pro)."""
     if sys.platform != 'win32':
         return platform.version()
-    
+
     # On Windows, platform.version() returns the NT kernel version (e.g., "10.0.22631")
     # which doesn't directly tell us if it's Windows 10 or 11.
     # Windows 11 starts from build 22000.
     try:
         version = sys.getwindowsversion()
         build = version.build
-        
+
         # Determine Windows display name based on build number
         if build >= 22631:
             display_name = "11 24H2"
@@ -42,7 +42,7 @@ def get_windows_version() -> str:
             display_name = "10 2004"
         else:
             display_name = f"10 (Build {build})"
-        
+
         # Try to get the edition (Pro, Home, etc.)
         try:
             import winreg

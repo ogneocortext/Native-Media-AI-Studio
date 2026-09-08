@@ -16,21 +16,18 @@ can be re-run without GPU-heavy execution.
 from __future__ import annotations
 
 import ast
+import asyncio
 import json
+import logging
 import re
 import time
-import logging
-import subprocess
-import tempfile
-import asyncio
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
-
-from ..core.config import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 BENCHMARK_FILE = PROJECT_ROOT / "output" / "coding-benchmarks.json"
 
 # ---------------------------------------------------------------------------
@@ -137,49 +134,42 @@ def _validate_code_generation(code: str) -> dict[str, Any]:
     score = 0
     max_score = 100
 
-    # Must define the function with exact name
     if re.search(r"def\s+validate_email\s*\(", code):
         score += 15
         details.append({"rule": "has_function", "passed": True, "weight": 15})
     else:
         details.append({"rule": "has_function", "passed": False, "weight": 15})
 
-    # Type hints
     if "-> bool" in code and "str" in code and "None" in code:
         score += 15
         details.append({"rule": "has_type_hints", "passed": True, "weight": 15})
     else:
         details.append({"rule": "has_type_hints", "passed": False, "weight": 15})
 
-    # Docstring
     if '"""' in code or "'''" in code:
         score += 10
         details.append({"rule": "has_docstring", "passed": True, "weight": 10})
     else:
         details.append({"rule": "has_docstring", "passed": False, "weight": 10})
 
-    # Regex usage
     if "re." in code or "import re" in code:
         score += 15
         details.append({"rule": "uses_regex", "passed": True, "weight": 15})
     else:
         details.append({"rule": "uses_regex", "passed": False, "weight": 15})
 
-    # None handling
     if "None" in code and ("if" in code or "return False" in code):
         score += 15
         details.append({"rule": "handles_none", "passed": True, "weight": 15})
     else:
         details.append({"rule": "handles_none", "passed": False, "weight": 15})
 
-    # Strip whitespace
     if "strip()" in code:
         score += 10
         details.append({"rule": "strips_whitespace", "passed": True, "weight": 10})
     else:
         details.append({"rule": "strips_whitespace", "passed": False, "weight": 10})
 
-    # Syntax valid
     try:
         ast.parse(code)
         score += 20
@@ -187,10 +177,9 @@ def _validate_code_generation(code: str) -> dict[str, Any]:
     except SyntaxError:
         details.append({"rule": "valid_syntax", "passed": False, "weight": 20})
 
-    # Reasonable length
     lines = len(code.strip().splitlines())
     if 3 <= lines <= 30:
-        score += 0  # no penalty
+        score += 0
         details.append({"rule": "reasonable_length", "passed": True, "weight": 0})
     else:
         details.append({"rule": "reasonable_length", "passed": False, "weight": 0})
@@ -212,7 +201,6 @@ def _validate_tool_use(text: str) -> dict[str, Any]:
     score = 0
     max_score = 100
 
-    # Extract JSON from response
     code = text.strip()
     if code.startswith("```"):
         code = re.sub(r"^```(?:json)?\s*", "", code)
@@ -221,7 +209,6 @@ def _validate_tool_use(text: str) -> dict[str, Any]:
     try:
         obj = json.loads(code)
     except json.JSONDecodeError:
-        # Try to find JSON object in text
         m = re.search(r"\{.*\}", code, re.DOTALL)
         if m:
             try:
@@ -247,25 +234,21 @@ def _validate_tool_use(text: str) -> dict[str, Any]:
             "metrics": {"parseable": False},
         }
 
-    # Valid JSON object
     score += 25
     details.append({"rule": "valid_json", "passed": True, "weight": 25})
 
-    # Has 'tool' key
     if isinstance(obj, dict) and "tool" in obj:
         score += 25
         details.append({"rule": "has_tool_key", "passed": True, "weight": 25})
     else:
         details.append({"rule": "has_tool_key", "passed": False, "weight": 25})
 
-    # Has 'arguments' key
     if isinstance(obj, dict) and "arguments" in obj and isinstance(obj["arguments"], dict):
         score += 25
         details.append({"rule": "has_arguments_key", "passed": True, "weight": 25})
     else:
         details.append({"rule": "has_arguments_key", "passed": False, "weight": 25})
 
-    # Correct tool name
     if isinstance(obj, dict) and obj.get("tool") == "search_files":
         score += 25
         details.append({"rule": "correct_tool_name", "passed": True, "weight": 25})
@@ -289,7 +272,6 @@ def _validate_test_generation(code: str) -> dict[str, Any]:
     score = 0
     max_score = 100
 
-    # Must be valid Python
     try:
         tree = ast.parse(code)
         score += 20
@@ -306,7 +288,6 @@ def _validate_test_generation(code: str) -> dict[str, Any]:
             "metrics": {"lines": len(code.splitlines()), "test_functions": 0},
         }
 
-    # Must have test functions
     test_fns = [
         n for n in ast.walk(tree)
         if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")
@@ -317,7 +298,6 @@ def _validate_test_generation(code: str) -> dict[str, Any]:
     else:
         details.append({"rule": "has_test_functions", "passed": False, "weight": 20})
 
-    # Must import pytest
     has_pytest_import = any(
         isinstance(n, ast.Import) and any(m.name == "pytest" for m in n.names)
         for n in ast.walk(tree)
@@ -331,28 +311,24 @@ def _validate_test_generation(code: str) -> dict[str, Any]:
     else:
         details.append({"rule": "imports_pytest", "passed": False, "weight": 15})
 
-    # Must test zero division
     if "ZeroDivisionError" in code or "zero" in code.lower():
         score += 20
         details.append({"rule": "tests_zero_division", "passed": True, "weight": 20})
     else:
         details.append({"rule": "tests_zero_division", "passed": False, "weight": 20})
 
-    # Must test normal case
     if "divide(" in code and "2" in code and "1" in code:
         score += 15
         details.append({"rule": "tests_normal_case", "passed": True, "weight": 15})
     else:
         details.append({"rule": "tests_normal_case", "passed": False, "weight": 15})
 
-    # Must have at least 2 test functions
     if len(test_fns) >= 2:
         score += 10
         details.append({"rule": "multiple_tests", "passed": True, "weight": 10})
     else:
         details.append({"rule": "multiple_tests", "passed": False, "weight": 10})
 
-    # Bonus: uses pytest.raises
     if "pytest.raises" in code:
         score += 10
         details.append({"rule": "uses_pytest_raises", "passed": True, "weight": 10})
@@ -400,14 +376,12 @@ def _validate_edge_cases(code: str) -> dict[str, Any]:
         if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")
     ]
 
-    # At least 3 test functions for 3+ edge cases
     if len(test_fns) >= 3:
         score += 30
         details.append({"rule": "three_plus_tests", "passed": True, "weight": 30})
     else:
         details.append({"rule": "three_plus_tests", "passed": False, "weight": 30})
 
-    # Checks for specific edge case patterns
     code_lower = code.lower()
     edge_checks = [
         ("boundary_1001", "1001" in code, "Tests score > 1000 boundary"),
@@ -427,10 +401,9 @@ def _validate_edge_cases(code: str) -> dict[str, Any]:
         else:
             details.append({"rule": name, "passed": False, "weight": 10})
 
-    # Must import pytest
     has_pytest = "pytest" in code
     if has_pytest:
-        score += 0  # already implied by test functions
+        score += 0
 
     passed = sum(1 for d in details if d["passed"])
     return {
@@ -469,7 +442,7 @@ def _validate_task(task_type: str, content: str) -> dict[str, Any]:
 def _load_file() -> dict[str, Any]:
     if BENCHMARK_FILE.exists():
         try:
-            with open(BENCHMARK_FILE, "r", encoding="utf-8") as f:
+            with open(BENCHMARK_FILE, encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
             logger.warning(f"Failed to load coding benchmark file: {e}")
@@ -526,7 +499,6 @@ async def run_single_benchmark(model: str, adapter, task_timeout: float = 60.0, 
     ]
     tasks = all_tasks[:2] if quick else all_tasks
 
-    # 2026 tuning: quick mode uses a smaller context window for lower latency
     if num_ctx is None:
         num_ctx = 8192 if not quick else 4096
 

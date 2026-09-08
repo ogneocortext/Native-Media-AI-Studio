@@ -32,7 +32,7 @@ date: 2026-09-04
 
 | Aspect | Detail |
 |--------|--------|
-| **Service** | `packages/backend/app/services/ollama_benchmark.py` |
+| **Service** | `tools/scripts/ollama_benchmark.py` |
 | **Output** | `output/ollama-benchmarks.json` |
 | **Prompt Type** | Standardized Three.js scene generation (120 BPM, cinematic, neon) |
 | **Validation** | Regex contract + optional `node --check` syntax validation |
@@ -176,7 +176,7 @@ GET /api/benchmarks/best
 ### Via Python
 
 ```python
-from packages.backend.app.services.ollama_benchmark import run_benchmark, get_all_results
+from tools.scripts.ollama_benchmark import run_benchmark, get_all_results
 
 # Run benchmarks
 results = await run_benchmark(models=None, adapter=adapter, max_models=8)

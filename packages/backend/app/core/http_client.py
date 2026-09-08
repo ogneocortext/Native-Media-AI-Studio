@@ -4,15 +4,15 @@ Uses httpx for both sync and async HTTP operations
 Compatible with urllib3 2.x and charset-normalizer 3.x
 """
 
-from typing import Any, Optional
-import httpx
 from contextlib import asynccontextmanager
+
+import httpx
 
 # Default timeout for all requests
 DEFAULT_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 
 # Shared async client (to be used across the application)
-_async_client: Optional[httpx.AsyncClient] = None
+_async_client: httpx.AsyncClient | None = None
 
 
 def get_sync_client(**kwargs) -> httpx.Client:
@@ -85,35 +85,35 @@ class HTTPClientMixin:
     Mixin class for adapters that need HTTP functionality.
     Provides both sync and async HTTP methods.
     """
-    
+
     def __init__(self):
-        self._sync_client: Optional[httpx.Client] = None
-    
+        self._sync_client: httpx.Client | None = None
+
     @property
     def sync_client(self) -> httpx.Client:
         """Lazy initialization of sync client"""
         if self._sync_client is None or self._sync_client.is_closed:
             self._sync_client = get_sync_client()
         return self._sync_client
-    
+
     async def http_get(self, url: str, **kwargs) -> httpx.Response:
         """Async GET request"""
         client = await get_async_client()
         return await client.get(url, **kwargs)
-    
+
     async def http_post(self, url: str, **kwargs) -> httpx.Response:
         """Async POST request"""
         client = await get_async_client()
         return await client.post(url, **kwargs)
-    
+
     def sync_get(self, url: str, **kwargs) -> httpx.Response:
         """Synchronous GET request (for non-async contexts)"""
         return self.sync_client.get(url, **kwargs)
-    
+
     def sync_post(self, url: str, **kwargs) -> httpx.Response:
         """Synchronous POST request (for non-async contexts)"""
         return self.sync_client.post(url, **kwargs)
-    
+
     def close(self):
         """Close the sync client"""
         if self._sync_client and not self._sync_client.is_closed:
@@ -125,7 +125,7 @@ class HTTPClientMixin:
 
 class ResponseCompat:
     """Wrapper to provide requests-like response interface"""
-    
+
     def __init__(self, response: httpx.Response):
         self._response = response
         self.status_code = response.status_code
@@ -134,7 +134,7 @@ class ResponseCompat:
         self.text = response.text
         self.content = response.content
         self.json = response.json
-    
+
     def __getattr__(self, name):
         # Forward any other attributes to the wrapped response
         return getattr(self._response, name)

@@ -1,27 +1,30 @@
 # Code created by Siddharth Ahuja: www.github.com/ahujasid © 2025
 
-import re
-import bpy
-import mathutils
-import json
-import threading
-import socket
-import queue
-import time
-import requests
-import tempfile
-import traceback
-import os
-import shutil
-import zipfile
-from bpy.props import IntProperty, BoolProperty
+import base64
+import hashlib
+import hmac
 import io
-from datetime import datetime
-import hashlib, hmac, base64
+import json
+import os
 import os.path as osp
+import queue
+import re
+import shutil
+import socket
+import tempfile
+import threading
+import time
+import traceback
+import zipfile
 from collections import deque
 from contextlib import contextmanager, redirect_stdout, suppress
+from datetime import datetime
+
+import bpy
+import mathutils
+import requests
 from bpy.app.handlers import persistent
+from bpy.props import BoolProperty, IntProperty
 
 bl_info = {
     "name": "Blender MCP",
@@ -506,7 +509,7 @@ class BlenderMCPServer:
                     )
                     client_thread.daemon = True
                     client_thread.start()
-                except socket.timeout:
+                except TimeoutError:
                     # Just check running condition
                     continue
                 except Exception as e:
@@ -583,7 +586,7 @@ class BlenderMCPServer:
                     except json.JSONDecodeError:
                         # Incomplete data, wait for more
                         pass
-                except socket.timeout:
+                except TimeoutError:
                     # Expected; loop round and re-check self.running.
                     continue
                 except Exception as e:
@@ -669,7 +672,7 @@ class BlenderMCPServer:
                 "download_sketchfab_model": self.download_sketchfab_model,
             }
             handlers.update(sketchfab_handlers)
-        
+
         # Add Hunyuan3d handlers only if enabled
         if bpy.context.scene.blendermcp_use_hunyuan3d:
             hunyuan_handlers = {
@@ -684,7 +687,7 @@ class BlenderMCPServer:
             try:
                 print(f"Executing handler for {cmd_type}")
                 result = handler(**params)
-                print(f"Handler execution complete")
+                print("Handler execution complete")
                 return {"status": "success", "result": result}
             except Exception as e:
                 print(f"Error in handler: {str(e)}")
@@ -1324,7 +1327,7 @@ class BlenderMCPServer:
                     except Exception as e:
                         return {"error": f"Failed to set up HDRI in Blender: {str(e)}"}
                 else:
-                    return {"error": f"Requested resolution or format not available for this HDRI"}
+                    return {"error": "Requested resolution or format not available for this HDRI"}
 
             elif asset_type == "textures":
                 if not file_format:
@@ -1375,7 +1378,7 @@ class BlenderMCPServer:
                                             pass
 
                     if not downloaded_maps:
-                        return {"error": f"No texture maps found for the requested resolution and format"}
+                        return {"error": "No texture maps found for the requested resolution and format"}
 
                     # Create a new material with the downloaded textures
                     mat = bpy.data.materials.new(name=asset_id)
@@ -1552,7 +1555,7 @@ class BlenderMCPServer:
                         with suppress(Exception):
                             shutil.rmtree(temp_dir)
                 else:
-                    return {"error": f"Requested format or resolution not available for this model"}
+                    return {"error": "Requested format or resolution not available for this model"}
 
             else:
                 return {"error": f"Unsupported asset type: {asset_type}"}
@@ -1965,7 +1968,7 @@ class BlenderMCPServer:
             case "FAL_AI":
                 return self.create_rodin_job_fal_ai(*args, **kwargs)
             case _:
-                return f"Error: Unknown Hyper3D Rodin mode!"
+                return "Error: Unknown Hyper3D Rodin mode!"
 
     def create_rodin_job_main_site(
             self,
@@ -2042,7 +2045,7 @@ class BlenderMCPServer:
             case "FAL_AI":
                 return self.poll_rodin_job_status_fal_ai(*args, **kwargs)
             case _:
-                return f"Error: Unknown Hyper3D Rodin mode!"
+                return "Error: Unknown Hyper3D Rodin mode!"
 
     def poll_rodin_job_status_main_site(self, subscription_key: str):
         """Call the job status API to get the job status"""
@@ -2140,7 +2143,7 @@ class BlenderMCPServer:
                 if mesh_obj.data.name is not None:
                     mesh_obj.data.name = mesh_name
                 print(f"Mesh renamed to: {mesh_name}")
-        except Exception as e:
+        except Exception:
             print("Having issue with renaming, give up renaming.")
 
         return mesh_obj
@@ -2152,7 +2155,7 @@ class BlenderMCPServer:
             case "FAL_AI":
                 return self.import_generated_asset_fal_ai(*args, **kwargs)
             case _:
-                return f"Error: Unknown Hyper3D Rodin mode!"
+                return "Error: Unknown Hyper3D Rodin mode!"
 
     def import_generated_asset_main_site(self, task_uuid: str, name: str):
         """Fetch the generated asset, import into blender"""
@@ -2284,7 +2287,7 @@ class BlenderMCPServer:
         except Exception as e:
             return {"succeed": False, "error": str(e)}
     #endregion
- 
+
     #region Sketchfab API
     def get_sketchfab_status(self):
         """Get the current status of Sketchfab integration"""
@@ -2414,35 +2417,35 @@ class BlenderMCPServer:
         """Get thumbnail preview image of a Sketchfab model by its UID"""
         try:
             import base64
-            
+
             api_key = self._get_sketchfab_api_key()
             if not api_key:
                 return {"error": "Sketchfab API key is not configured"}
 
             headers = {"Authorization": f"Token {api_key}"}
-            
+
             # Get model info which includes thumbnails
             response = requests.get(
                 f"https://api.sketchfab.com/v3/models/{uid}",
                 headers=headers,
                 timeout=30
             )
-            
+
             if response.status_code == 401:
                 return {"error": "Authentication failed (401). Check your API key."}
-            
+
             if response.status_code == 404:
                 return {"error": f"Model not found: {uid}"}
-            
+
             if response.status_code != 200:
                 return {"error": f"Failed to get model info: {response.status_code}"}
-            
+
             data = response.json()
             thumbnails = data.get("thumbnails", {}).get("images", [])
-            
+
             if not thumbnails:
                 return {"error": "No thumbnail available for this model"}
-            
+
             # Find a suitable thumbnail (prefer medium size ~640px)
             selected_thumbnail = None
             for thumb in thumbnails:
@@ -2450,34 +2453,34 @@ class BlenderMCPServer:
                 if 400 <= width <= 800:
                     selected_thumbnail = thumb
                     break
-            
+
             # Fallback to the first available thumbnail
             if not selected_thumbnail:
                 selected_thumbnail = thumbnails[0]
-            
+
             thumbnail_url = selected_thumbnail.get("url")
             if not thumbnail_url:
                 return {"error": "Thumbnail URL not found"}
-            
+
             # Download the thumbnail image
             img_response = requests.get(thumbnail_url, timeout=30)
             if img_response.status_code != 200:
                 return {"error": f"Failed to download thumbnail: {img_response.status_code}"}
-            
+
             # Encode image as base64
             image_data = base64.b64encode(img_response.content).decode('ascii')
-            
+
             # Determine format from content type or URL
             content_type = img_response.headers.get("Content-Type", "")
             if "png" in content_type or thumbnail_url.endswith(".png"):
                 img_format = "png"
             else:
                 img_format = "jpeg"
-            
+
             # Get additional model info for context
             model_name = data.get("name", "Unknown")
             author = data.get("user", {}).get("username", "Unknown")
-            
+
             return {
                 "success": True,
                 "image_data": image_data,
@@ -2488,7 +2491,7 @@ class BlenderMCPServer:
                 "thumbnail_width": selected_thumbnail.get("width"),
                 "thumbnail_height": selected_thumbnail.get("height")
             }
-            
+
         except requests.exceptions.Timeout:
             return {"error": "Request timed out. Check your internet connection."}
         except Exception as e:
@@ -2625,12 +2628,12 @@ class BlenderMCPServer:
             all_meshes = []
             for obj in root_objects:
                 all_meshes.extend(get_all_mesh_children(obj))
-            
+
             if all_meshes:
                 # Calculate combined world bounding box for all meshes
                 all_min = mathutils.Vector((float('inf'), float('inf'), float('inf')))
                 all_max = mathutils.Vector((float('-inf'), float('-inf'), float('-inf')))
-                
+
                 for mesh_obj in all_meshes:
                     # Get world-space bounding box corners
                     for corner in mesh_obj.bound_box:
@@ -2641,7 +2644,7 @@ class BlenderMCPServer:
                         all_max.x = max(all_max.x, world_corner.x)
                         all_max.y = max(all_max.y, world_corner.y)
                         all_max.z = max(all_max.z, world_corner.z)
-                
+
                 # Calculate dimensions
                 dimensions = [
                     all_max.x - all_min.x,
@@ -2649,13 +2652,13 @@ class BlenderMCPServer:
                     all_max.z - all_min.z
                 ]
                 max_dimension = max(dimensions)
-                
+
                 # Apply normalization if requested
                 scale_applied = 1.0
                 if normalize_size and max_dimension > 0:
                     scale_factor = target_size / max_dimension
                     scale_applied = scale_factor
-                    
+
                     # ✅ Only apply scale to ROOT objects (not children!)
                     # Child objects inherit parent's scale through matrix_world
                     for root in root_objects:
@@ -2664,14 +2667,14 @@ class BlenderMCPServer:
                             root.scale.y * scale_factor,
                             root.scale.z * scale_factor
                         )
-                    
+
                     # Update the scene to recalculate matrix_world for all objects
                     bpy.context.view_layer.update()
-                    
+
                     # Recalculate bounding box after scaling
                     all_min = mathutils.Vector((float('inf'), float('inf'), float('inf')))
                     all_max = mathutils.Vector((float('-inf'), float('-inf'), float('-inf')))
-                    
+
                     for mesh_obj in all_meshes:
                         for corner in mesh_obj.bound_box:
                             world_corner = mesh_obj.matrix_world @ mathutils.Vector(corner)
@@ -2681,13 +2684,13 @@ class BlenderMCPServer:
                             all_max.x = max(all_max.x, world_corner.x)
                             all_max.y = max(all_max.y, world_corner.y)
                             all_max.z = max(all_max.z, world_corner.z)
-                    
+
                     dimensions = [
                         all_max.x - all_min.x,
                         all_max.y - all_min.y,
                         all_max.z - all_min.z
                     ]
-                
+
                 world_bounding_box = [[all_min.x, all_min.y, all_min.z], [all_max.x, all_max.y, all_max.z]]
             else:
                 world_bounding_box = None
@@ -2699,7 +2702,7 @@ class BlenderMCPServer:
                 "message": "Model imported successfully",
                 "imported_objects": imported_object_names
             }
-            
+
             if world_bounding_box:
                 result["world_bounding_box"] = world_bounding_box
             if dimensions:
@@ -2707,7 +2710,7 @@ class BlenderMCPServer:
             if normalize_size:
                 result["scale_applied"] = round(scale_applied, 6)
                 result["normalized"] = True
-            
+
             return result
 
         except requests.exceptions.Timeout:
@@ -2733,8 +2736,8 @@ class BlenderMCPServer:
                 case "OFFICIAL_API":
                     if not secret_id or not secret_key:
                         return {
-                            "enabled": False, 
-                            "mode": hunyuan3d_mode, 
+                            "enabled": False,
+                            "mode": hunyuan3d_mode,
                             "message": """Hunyuan3D integration is currently enabled, but SecretId or SecretKey is not given. To enable it:
                                 1. In the 3D Viewport, find the BlenderMCP panel in the sidebar (press N if hidden)
                                 2. Keep the 'Use Tencent Hunyuan 3D model generation' checkbox checked
@@ -2744,8 +2747,8 @@ class BlenderMCPServer:
                 case "LOCAL_API":
                     if not api_url:
                         return {
-                            "enabled": False, 
-                            "mode": hunyuan3d_mode, 
+                            "enabled": False,
+                            "mode": hunyuan3d_mode,
                             "message": """Hunyuan3D integration is currently enabled, but API URL  is not given. To enable it:
                                 1. In the 3D Viewport, find the BlenderMCP panel in the sidebar (press N if hidden)
                                 2. Keep the 'Use Tencent Hunyuan 3D model generation' checkbox checked
@@ -2754,22 +2757,22 @@ class BlenderMCPServer:
                         }
                 case _:
                     return {
-                        "enabled": False, 
+                        "enabled": False,
                         "message": "Hunyuan3D integration is enabled and mode is not supported."
                     }
             return {
-                "enabled": True, 
+                "enabled": True,
                 "mode": hunyuan3d_mode,
                 "message": "Hunyuan3D integration is enabled and ready to use."
             }
         return {
-            "enabled": False, 
+            "enabled": False,
             "message": """Hunyuan3D integration is currently disabled. To enable it:
                         1. In the 3D Viewport, find the BlenderMCP panel in the sidebar (press N if hidden)
                         2. Check the 'Use Tencent Hunyuan 3D model generation' checkbox
                         3. Restart the connection to Claude"""
         }
-    
+
     @staticmethod
     def get_tencent_cloud_sign_headers(
         method: str,
@@ -2786,16 +2789,16 @@ class BlenderMCPServer:
         # Generate timestamp
         timestamp = int(time.time())
         date = datetime.utcfromtimestamp(timestamp).strftime("%Y-%m-%d")
-        
+
         # If host is not provided, it is generated based on service and region.
         if not host:
             host = f"{service}.tencentcloudapi.com"
-        
+
         endpoint = f"https://{host}"
-        
+
         # Constructing the request body
         payload_str = json.dumps(data)
-        
+
         # ************* Step 1: Concatenate the canonical request string *************
         canonical_uri = path
         canonical_querystring = ""
@@ -2803,7 +2806,7 @@ class BlenderMCPServer:
         canonical_headers = f"content-type:{ct}\nhost:{host}\nx-tc-action:{headParams.get('Action', '').lower()}\n"
         signed_headers = "content-type;host;x-tc-action"
         hashed_request_payload = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
-        
+
         canonical_request = (method + "\n" +
                             canonical_uri + "\n" +
                             canonical_querystring + "\n" +
@@ -2827,8 +2830,8 @@ class BlenderMCPServer:
         secret_service = sign(secret_date, service)
         secret_signing = sign(secret_service, "tc3_request")
         signature = hmac.new(
-            secret_signing, 
-            string_to_sign.encode("utf-8"), 
+            secret_signing,
+            string_to_sign.encode("utf-8"),
             hashlib.sha256
         ).hexdigest()
 
@@ -2858,7 +2861,7 @@ class BlenderMCPServer:
             case "LOCAL_API":
                 return self.create_hunyuan_job_local_site(*args, **kwargs)
             case _:
-                return f"Error: Unknown Hunyuan3D mode!"
+                return "Error: Unknown Hunyuan3D mode!"
 
     def create_hunyuan_job_main_site(
         self,
@@ -2910,7 +2913,7 @@ class BlenderMCPServer:
                         data["ImageBase64"] = image_base64
                     except Exception as e:
                         return {"error": f"Image encoding failed: {str(e)}"}
-            
+
             # Get signed headers
             headers, endpoint = self.get_tencent_cloud_sign_headers("POST", "/", headParams, data, service, region, secret_id, secret_key)
 
@@ -2966,7 +2969,7 @@ class BlenderMCPServer:
                         image_base64 = base64.b64encode(resImg.content).decode("ascii")
                         data["image"] = image_base64
                     except Exception as e:
-                        return {"error": f"Failed to download or encode image: {str(e)}"} 
+                        return {"error": f"Failed to download or encode image: {str(e)}"}
                 else:
                     try:
                         # Convert to Base64 format
@@ -2985,7 +2988,7 @@ class BlenderMCPServer:
                 return {
                     "error": f"Generation failed: {response.text}"
                 }
-        
+
             # Decode base64 and save to temporary file
             with tempfile.NamedTemporaryFile(delete=False, suffix=".glb") as temp_file:
                 temp_file.write(response.content)
@@ -2996,7 +2999,7 @@ class BlenderMCPServer:
                 bpy.ops.import_scene.gltf(filepath=temp_file_name)
                 os.unlink(temp_file.name)
                 return None
-            
+
             bpy.app.timers.register(import_handler)
 
             return {
@@ -3006,11 +3009,11 @@ class BlenderMCPServer:
         except Exception as e:
             print(f"An error occurred: {e}")
             return {"error": str(e)}
-        
-    
+
+
     def poll_hunyuan_job_status(self, *args, **kwargs):
         return self.poll_hunyuan_job_status_ai(*args, **kwargs)
-    
+
     def poll_hunyuan_job_status_ai(self, job_id: str):
         """Call the job status API to get the job status"""
         print(job_id)
@@ -3022,7 +3025,7 @@ class BlenderMCPServer:
                 return {"error": "SecretId or SecretKey is not given"}
             if not job_id:
                 return {"error": "JobId is required"}
-            
+
             # Updated to Tencent Cloud AI3D API 3.0 (2025-05-13)
             service = "ai3d"
             action = "QueryHunyuanTo3DProJob"
@@ -3058,11 +3061,11 @@ class BlenderMCPServer:
 
     def import_generated_asset_hunyuan(self, *args, **kwargs):
         return self.import_generated_asset_hunyuan_ai(*args, **kwargs)
-            
+
     def import_generated_asset_hunyuan_ai(self, name: str, zip_file_url: str):
         if not zip_file_url:
             return {"error": "No file URL provided"}
-        
+
         # Validate URL
         if not re.match(r'^https?://', zip_file_url, re.IGNORECASE):
             return {"error": "Invalid URL format. Must start with http:// or https://"}
@@ -3162,7 +3165,7 @@ class BlenderMCPServer:
 # Blender Addon Preferences
 class BLENDERMCP_AddonPreferences(bpy.types.AddonPreferences):
     bl_idname = __name__
-    
+
     def _on_telemetry_consent_changed(self, context):
         try:
             sync_edit_capture_handlers()
@@ -3206,10 +3209,10 @@ class BLENDERMCP_AddonPreferences(bpy.types.AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
-        
+
         # Telemetry section
         layout.label(text="Telemetry & Privacy:", icon='PREFERENCES')
-        
+
         box = layout.box()
         row = box.row()
         row.prop(self, "telemetry_consent", text="Allow Telemetry")
@@ -3224,7 +3227,7 @@ class BLENDERMCP_AddonPreferences(bpy.types.AddonPreferences):
             box.label(text="(tool names, success/failure, duration - no prompts or code).", icon='BLANK1')
         box.separator()
         box.label(text="Data is not linked to your name or account. Change this anytime.", icon='CHECKMARK')
-        
+
         # Terms and Conditions link
         box.separator()
         row = box.row()
@@ -3290,17 +3293,17 @@ class BLENDERMCP_PT_Panel(bpy.types.Panel):
                 layout.prop(scene, "blendermcp_hunyuan3d_num_inference_steps", text="Number of Inference Steps")
                 layout.prop(scene, "blendermcp_hunyuan3d_guidance_scale", text="Guidance Scale")
                 layout.prop(scene, "blendermcp_hunyuan3d_texture", text="Generate Texture")
-        
+
         if not scene.blendermcp_server_running:
             layout.operator("blendermcp.start_server", text="Connect to MCP server")
         else:
             layout.operator("blendermcp.stop_server", text="Disconnect from MCP server")
             layout.label(text=f"Running on port {scene.blendermcp_port}")
-        
+
         # Feedback section
         layout.separator()
         feedback_box = layout.box()
-        
+
         col = feedback_box.column(align=True)
         col.label(text="Feedback", icon='URL')
         col.label(text="bit.ly/blender-mcp-form")
@@ -3381,7 +3384,7 @@ class BLENDERMCP_OT_OpenTerms(bpy.types.Operator):
             self.report({'INFO'}, "Terms and Conditions opened in browser")
         except Exception as e:
             self.report({'ERROR'}, f"Could not open Terms and Conditions: {str(e)}")
-        
+
         return {'FINISHED'}
 
 # Registration functions
@@ -3498,7 +3501,7 @@ def register():
         description="Whether to generate texture for the 3D model",
         default=False,
     )
-    
+
     bpy.types.Scene.blendermcp_use_sketchfab = bpy.props.BoolProperty(
         name="Use Sketchfab",
         description="Enable Sketchfab asset integration",

@@ -1,7 +1,7 @@
 import csv
 import re
 
-with open('packages/frontend/public/track-prompts-lyrics.csv', 'r', encoding='utf-8') as f:
+with open('packages/frontend/public/track-prompts-lyrics.csv', encoding='utf-8') as f:
     reader = csv.reader(f)
     header = next(reader)
     row = next(reader)

@@ -23,7 +23,6 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Optional
 
 from ..core.config import PROJECT_ROOT
 
@@ -48,7 +47,7 @@ DEFAULT_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "medium")
 # ---------------------------------------------------------------------------
 
 _model = None
-_model_size: Optional[str] = None
+_model_size: str | None = None
 
 
 def get_model(model_size: str = DEFAULT_MODEL_SIZE):
@@ -86,7 +85,7 @@ def get_model(model_size: str = DEFAULT_MODEL_SIZE):
 
 def transcribe_audio(
     audio_path: str,
-    language: Optional[str] = None,
+    language: str | None = None,
     model_size: str = DEFAULT_MODEL_SIZE,
 ) -> dict:
     """
@@ -198,7 +197,7 @@ def result_to_word_level_lrc(result: dict) -> str:
 # File paths
 # ---------------------------------------------------------------------------
 
-def get_audio_path(filename: str) -> Optional[Path]:
+def get_audio_path(filename: str) -> Path | None:
     """Resolve audio file path from filename.
 
     Searches the known audio locations first, then falls back to treating

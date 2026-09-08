@@ -1,5 +1,6 @@
-from pathlib import Path
 import re
+from pathlib import Path
+
 
 # Simulate the _get_transcript_path function
 def _get_transcript_path(filename: str) -> Path:

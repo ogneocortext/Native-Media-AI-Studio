@@ -7,14 +7,12 @@ import json
 import logging
 import shutil
 import subprocess
-import sys
 from datetime import datetime
 from pathlib import Path
-from functools import lru_cache
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..core.config import PROJECT_ROOT, config
@@ -226,8 +224,6 @@ def load_sidecar_metadata(file_path: Path) -> dict | None:
 
 async def _is_video_corrupted(video_path: Path) -> bool:
     """Check if a video file is corrupted/incomplete (missing moov atom, etc.)."""
-    import shutil
-    import subprocess
 
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
@@ -258,8 +254,6 @@ async def extract_video_thumbnail(video_path: Path, relative_base: Path) -> str 
     and extracts a frame at 10% of playback (or 1s, whichever is greater).
     Saves as sidecar .jpg. Returns relative cover path if successful, else None.
     """
-    import shutil
-    import subprocess
 
     # 1) Check existing sidecar image
     for ext in (".jpg", ".jpeg", ".png", ".webp"):
@@ -353,8 +347,6 @@ async def extract_audio_cover(audio_path: Path, relative_base: Path) -> str | No
                 continue
 
     # 2) Try FFmpeg extract — skip if no attached picture stream
-    import shutil
-    import subprocess
 
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
@@ -392,7 +384,8 @@ async def extract_audio_cover(audio_path: Path, relative_base: Path) -> str | No
         # Cleanup tiny failed file
         if cover_path.exists() and cover_path.stat().st_size < 1024:
             try: cover_path.unlink()  # type: ignore
-            except: pass
+            except Exception:
+                pass
     except Exception:
         pass
     return None
@@ -598,7 +591,7 @@ async def find_duplicate_groups(
                 else:
                     f.seek(-min(8192, p.stat().st_size), 2)
                     h.update(f.read())
-        except: 
+        except Exception:
             h.update(p.name.encode())
         return h.hexdigest()
 
@@ -608,7 +601,7 @@ async def find_duplicate_groups(
             with open(p, "rb") as f:
                 for chunk in iter(lambda: f.read(8192), b""):
                     h.update(chunk)
-        except:
+        except Exception:
             return file_quick_hash(p)
         return h.hexdigest()
 
@@ -630,7 +623,7 @@ async def find_duplicate_groups(
         for p in paths_sorted:
             try:
                 rel = p.relative_to(output_base).as_posix()
-            except: rel = str(p)
+            except Exception: rel = str(p)
             rels.append({"filename": p.name, "relative_path": rel, "size_bytes": p.stat().st_size, "created_at": datetime.fromtimestamp(p.stat().st_ctime).isoformat()})
         dup_groups.append({
             "hash": h[:16],
@@ -649,11 +642,11 @@ async def serve_comfyui_file(file_path: str):
     """Serve a file from the ComfyUI output directory."""
     comfyui_output = config.comfyui_output_dir if config.comfyui_output_dir else PROJECT_ROOT.parent / "ComfyUI" / "output"
     full_path = (comfyui_output / file_path).resolve()
-    
+
     # Security check: ensure the path is within the ComfyUI output directory
     if not full_path.is_relative_to(comfyui_output) or not full_path.exists() or not full_path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
-    
+
     # Determine media type
     suffix = full_path.suffix.lower()
     media_type = "application/octet-stream"
@@ -669,7 +662,7 @@ async def serve_comfyui_file(file_path: str):
         media_type = "image/png"
     elif suffix in (".jpg", ".jpeg"):
         media_type = "image/jpeg"
-    
+
     return FileResponse(str(full_path), media_type=media_type)
 
 
@@ -714,8 +707,10 @@ async def bulk_delete(body: BulkDeleteRequest) -> dict:
             for ext in (".json", ".jpg", ".jpeg", ".png", ".webp"):
                 for cand in (full_path.with_suffix(ext), full_path.with_name(full_path.stem + ext), Path(str(full_path) + ".json")):
                     if cand.exists() and cand.resolve().is_relative_to(output_base):
-                        try: cand.unlink()
-                        except: pass
+                        try:
+                            cand.unlink()
+                        except Exception:
+                            pass
             deleted.append(fp)
         except Exception as e:
             failed.append({"path": fp, "error": str(e)})
@@ -747,15 +742,19 @@ async def delete_output(file_path: str) -> dict:
         alt_json = full_path.with_suffix(".json")
         for jp in {json_path, alt_json}:
             if jp.exists() and jp.resolve().is_relative_to(output_base):
-                try: jp.unlink()
-                except: pass
+                try:
+                    jp.unlink()
+                except Exception:
+                    pass
 
         # Remove cover sidecar (audio/video thumbnails)
         for ext in (".jpg", ".jpeg", ".png", ".webp"):
             for cand in (full_path.with_suffix(ext), full_path.with_name(full_path.stem + ext)):
                 if cand.exists() and cand.resolve().is_relative_to(output_base):
-                    try: cand.unlink()
-                    except: pass
+                    try:
+                        cand.unlink()
+                    except Exception:
+                        pass
 
         return {"success": True, "message": f"Deleted {full_path.name} (+ sidecars)"}
     except Exception as e:
@@ -816,8 +815,10 @@ async def rename_output(file_path: str, body: RenameRequest) -> dict:
                         if cand.name.startswith(full_path.stem):
                             new_cand = new_path.with_name(new_path.stem + cand.suffix)
                     if not new_cand.exists():
-                        try: cand.rename(new_cand)
-                        except: pass
+                        try:
+                            cand.rename(new_cand)
+                        except Exception:
+                            pass
 
         new_rel = new_path.relative_to(output_base).as_posix()
         return {"success": True, "message": f"Renamed to {new_name}", "new_path": new_rel, "new_name": new_name}
@@ -868,12 +869,12 @@ async def get_3d_thumbnail(filename: str):
     # Find the GLB file
     output_base = Path(config.output_dir)
     glb_path = None
-    
+
     # Search in generated_3d directory
     candidate = output_base / "generated_3d" / filename
     if candidate.exists() and candidate.suffix.lower() == ".glb":
         glb_path = candidate
-    
+
     # Search in ComfyUI output directory
     if not glb_path:
         comfyui_output = config.comfyui_output_dir if config.comfyui_output_dir else PROJECT_ROOT.parent / "ComfyUI" / "output"
@@ -881,22 +882,22 @@ async def get_3d_thumbnail(filename: str):
             if glb_file.name == filename:
                 glb_path = glb_file
                 break
-    
+
     if not glb_path or not glb_path.exists():
         raise HTTPException(status_code=404, detail="3D model not found")
-    
+
     # Generate thumbnail path
     thumb_dir = output_base / "thumbnails" / "3d"
     thumb_dir.mkdir(parents=True, exist_ok=True)
     thumb_path = thumb_dir / f"{glb_path.stem}.png"
-    
+
     # Return cached thumbnail if it exists and is newer than the GLB
     if thumb_path.exists():
         glb_mtime = glb_path.stat().st_mtime
         thumb_mtime = thumb_path.stat().st_mtime
         if thumb_mtime > glb_mtime:
             return FileResponse(str(thumb_path), media_type="image/png")
-    
+
     # Generate thumbnail using Blender
     try:
         import subprocess
@@ -908,13 +909,13 @@ async def get_3d_thumbnail(filename: str):
             text=True,
             timeout=120
         )
-        
+
         if result.returncode == 0 and thumb_path.exists():
             return FileResponse(str(thumb_path), media_type="image/png")
         else:
             logger.error(f"Thumbnail generation failed: {result.stderr}")
             raise HTTPException(status_code=500, detail="Failed to generate thumbnail")
-            
+
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Thumbnail generation timed out")
     except Exception as e:

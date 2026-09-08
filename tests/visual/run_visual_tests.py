@@ -22,7 +22,8 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+    from playwright.sync_api import sync_playwright
 except ImportError:
     print("playwright not installed. Run: pip install playwright && playwright install chromium", file=sys.stderr)
     sys.exit(1)

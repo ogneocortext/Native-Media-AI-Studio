@@ -13,17 +13,13 @@ import hashlib
 import json
 import logging
 import subprocess
-import tempfile
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from ..core.config import PROJECT_ROOT
-
-FINGERPRINT_DIR = PROJECT_ROOT / "output" / "fingerprints"
+FINGERPRINT_DIR = Path(__file__).resolve().parent.parent / "output" / "fingerprints"
 FINGERPRINT_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -149,14 +145,10 @@ class AudioFingerprinter:
             )
 
     def _fingerprint_similarity(self, fp1: str, fp2: str) -> float:
-        """Compute similarity between two fingerprints (0.0 to 1.0).
-
-        Uses bit-level comparison of the chromaprint strings.
-        """
+        """Compute similarity between two fingerprints (0.0 to 1.0)."""
         if not fp1 or not fp2:
             return 0.0
 
-        # Decode base64 fingerprints to binary
         import base64
         try:
             bin1 = base64.b64decode(fp1)
@@ -164,12 +156,10 @@ class AudioFingerprinter:
         except Exception:
             return 0.0
 
-        # Compare using Hamming distance on the shorter fingerprint
         min_len = min(len(bin1), len(bin2))
         if min_len == 0:
             return 0.0
 
-        # Count matching bits
         matching_bits = 0
         total_bits = min_len * 8
         for i in range(min_len):
@@ -183,29 +173,19 @@ class AudioFingerprinter:
         audio_files: list[str],
         similarity_threshold: float = 0.85,
     ) -> list[DuplicateGroup]:
-        """Find duplicate audio files using acoustic fingerprinting.
-
-        Args:
-            audio_files: List of audio file paths to check.
-            similarity_threshold: Minimum similarity (0-1) to consider duplicates.
-
-        Returns:
-            List of DuplicateGroup objects.
-        """
+        """Find duplicate audio files using acoustic fingerprinting."""
         results: list[FingerprintResult] = []
         for f in audio_files:
             result = await self.fingerprint_file(f)
             if result.fingerprint:
                 results.append(result)
 
-        # Group by exact hash first
         hash_groups: dict[str, list[FingerprintResult]] = {}
         for r in results:
             if r.hash not in hash_groups:
                 hash_groups[r.hash] = []
             hash_groups[r.hash].append(r)
 
-        # For non-exact matches, compare fingerprints
         duplicates: list[DuplicateGroup] = []
         processed_hashes: set[str] = set()
 
@@ -220,7 +200,6 @@ class AudioFingerprinter:
                 ))
                 processed_hashes.add(fp_hash)
 
-        # Cross-comparison for near-duplicates
         all_fps = [(r.audio_file, r.fingerprint, r.duration) for r in results]
         for i, (file1, fp1, dur1) in enumerate(all_fps):
             group_files = [file1]

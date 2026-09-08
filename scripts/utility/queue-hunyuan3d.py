@@ -2,9 +2,8 @@
 Queue a Hunyuan3D workflow via ComfyUI API.
 """
 import json
-import urllib.request
 import time
-import os
+import urllib.request
 
 COMFYUI_URL = "http://127.0.0.1:8188"
 WORKFLOW_PATH = r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\output\workflows\hunyuan3d-mesh-gen.json"
@@ -83,7 +82,7 @@ def main():
                 node_history = history[prompt_id]
                 outputs = node_history.get("outputs", {})
                 if outputs:
-                    log(f"\nGeneration complete!")
+                    log("\nGeneration complete!")
                     log(f"Output nodes: {list(outputs.keys())}")
                     for node_id, output in outputs.items():
                         if "images" in output:
@@ -95,16 +94,16 @@ def main():
                     break
         except Exception as e:
             log(f"  Error checking history: {e}")
-        
+
         # Check queue status
         queue = get_queue()
         running = len(queue.get("queue_running", []))
         pending = len(queue.get("queue_pending", []))
-        
+
         elapsed = int(time.time() - start)
         if elapsed % 30 == 0:  # Log every 30 seconds
             log(f"  Status: {elapsed}s elapsed, {running} running, {pending} pending")
-        
+
         time.sleep(5)
     else:
         log("TIMEOUT: Generation took too long")

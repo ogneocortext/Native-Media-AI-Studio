@@ -24,14 +24,15 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shutil
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
-from ...core.config import config as app_config  # noqa: E402 - must be after logger for import order
+from ...core.config import (
+    config as app_config,  # noqa: E402 - must be after logger for import order
+)
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +243,8 @@ class Gen3DService:
         if not self.available:
             return {"success": False, "error": "3D generation service not available"}
 
-        import time as _time, random as _rand
+        import random as _rand
+        import time as _time
         # ensure unique, filesystem-safe name — previous truncated to 30 chars caused 4 identical prefixes
         base = self._sanitize_name(output_name or prompt[:40]) or "gen3d"
         # add seed + timestamp nonce to avoid Collisions when same prompt reused with same seed
@@ -725,8 +727,10 @@ class Gen3DService:
         steps: int,
     ) -> dict[str, Any]:
         """Build ComfyUI workflow JSON for image-to-3D based on the selected backend."""
-        uploaded = self._upload_image(image_path)
-        image_name = uploaded.get("name", Path(image_path).name)
+        # The workflow only needs the image's basename — ComfyUI resolves it
+        # against its own input directory. (This used to call _upload_image(),
+        # the output-finalize step, which crashed with a NameError here.)
+        image_name = Path(image_path).name
         proc_output_name = self._sanitize_name(output_name)
 
         if self.backend in ("hunyuan3d_2mini", "hunyuan3d_2mv"):
@@ -843,10 +847,10 @@ class Gen3DService:
         else:
             raise ValueError(f"Unsupported backend for image-to-3D: {self.backend}")
 
-    def _upload_image(self, image_path: str) -> dict[str, Any]:
+    def _upload_image(self, image_path: str, prompt_id: str) -> dict[str, Any]:
         """Copy the ComfyUI-exported .glb into the backend output dir, decimate if needed, and return its path."""
-        logger.info("Finalizing output: %s", glb_relative)
-        cand = Path(glb_relative)
+        logger.info("Finalizing output: %s", image_path)
+        cand = Path(image_path)
         src = cand if cand.is_absolute() and cand.exists() else COMFYUI_OUTPUT_DIR / cand
         if not src.exists():
             # Fallback: search the ComfyUI output tree for the basename
@@ -862,7 +866,7 @@ class Gen3DService:
                 logger.warning("Could not copy .glb into outputs: %s", e)
                 return {"success": True, "prompt_id": prompt_id, "model_path": str(src),
                         "warning": f"Mesh exported but could not be copied to backend outputs: {e}"}
-            
+
             # Post-process: decimate if mesh is too large
             decimate_result = self._decimate_if_needed(dst)
             # Apply chrome PBR if prompt looks metallic (fast variant is always untextured gray)
@@ -874,11 +878,11 @@ class Gen3DService:
                         logger.info("Applied chrome material to %s", dst.name)
             except Exception as e:
                 logger.debug("Chrome apply skipped: %s", e)
-            
+
             return {"success": True, "model_path": str(dst), "prompt_id": prompt_id, "decimate": decimate_result}
         # Source file not found — surface what ComfyUI reported.
-        logger.warning("Exported .glb not found at %s (source %s)", glb_relative, src)
-        return {"success": True, "prompt_id": prompt_id, "model_path": str(OUTPUT_DIR / Path(glb_relative).name),
+        logger.warning("Exported .glb not found at %s (source %s)", image_path, src)
+        return {"success": True, "prompt_id": prompt_id, "model_path": str(OUTPUT_DIR / Path(image_path).name),
                 "warning": "Mesh exported but file could not be located in backend outputs."}
 
     def _decimate_if_needed(self, glb_path: Path, target_faces: int = 50000) -> dict:
@@ -888,18 +892,17 @@ class Gen3DService:
         """
         try:
             import subprocess
-            import tempfile
-            
+
             blender_exe = r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
             script_path = Path(__file__).parent / "decimate_glb.py"
-            
+
             if not script_path.exists():
                 logger.warning("Decimation script not found: %s", script_path)
                 return {"decimated": False, "reason": "script_not_found"}
-            
+
             # Create temp output path
             temp_output = glb_path.with_suffix(".decimated.glb")
-            
+
             result = subprocess.run(
                 [
                     blender_exe, "--background", "--python", str(script_path),
@@ -909,19 +912,19 @@ class Gen3DService:
                 text=True,
                 timeout=180  # 3 minutes max for large meshes
             )
-            
+
             if result.returncode == 0 and temp_output.exists():
                 # Replace original with decimated version
                 original_size = glb_path.stat().st_size
                 temp_size = temp_output.stat().st_size
-                
+
                 if temp_size < original_size:
                     # Backup original and replace
                     backup_path = glb_path.with_suffix(".original.glb")
                     if not backup_path.exists():
                         glb_path.rename(backup_path)
                     temp_output.rename(glb_path)
-                    
+
                     logger.info(
                         "Decimated %s: %.1fMB -> %.1fMB",
                         glb_path.name,
@@ -940,7 +943,7 @@ class Gen3DService:
             else:
                 logger.warning("Decimation failed: %s", result.stderr[:500] if result.stderr else "unknown")
                 return {"decimated": False, "reason": "blender_error"}
-                
+
         except subprocess.TimeoutExpired:
             logger.warning("Decimation timed out for %s", glb_path.name)
             return {"decimated": False, "reason": "timeout"}
@@ -975,9 +978,9 @@ class Gen3DService:
         expected filename prefix.
         """
         import asyncio
-        import urllib.request
-        import urllib.error
         import time
+        import urllib.error
+        import urllib.request
 
         # Submit workflow
         prompt_data = {"prompt": workflow}
@@ -1032,7 +1035,7 @@ class Gen3DService:
 
                     if glb_rel:
                         logger.info("3D generation complete: %s", glb_rel)
-                        return self._finalize_output(glb_rel, prompt_id)
+                        return self._upload_image(glb_rel, prompt_id)
 
                     # Check for errors
                     messages = node_history.get("status", {})
@@ -1049,7 +1052,7 @@ class Gen3DService:
                             glb_path = COMFYUI_OUTPUT_DIR / glb_name
                             if glb_path.exists():
                                 logger.info("3D generation complete (file found): %s", glb_path)
-                                return self._finalize_output(str(glb_path), prompt_id)
+                                return self._upload_image(str(glb_path), prompt_id)
 
                         # Fallback: search for any new GLB in the output directory
                         glb_files = sorted(
@@ -1060,7 +1063,7 @@ class Gen3DService:
                         for glb_file in glb_files:
                             if glb_file.stat().st_mtime > start:
                                 logger.info("3D generation complete (new file): %s", glb_file)
-                                return self._finalize_output(str(glb_file), prompt_id)
+                                return self._upload_image(str(glb_file), prompt_id)
 
             except Exception as e:
                 logger.debug("Polling for completion: %s", e)

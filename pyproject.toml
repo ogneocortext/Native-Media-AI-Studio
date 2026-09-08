@@ -74,6 +74,18 @@ select = [
 ]
 ignore = ["E501"]  # Line too long (handled by formatter)
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI/Starlette inspect these callables inside argument defaults —
+# File(...)/Query(...)/Depends(...)/Path(...)/Header(...) are the supported idiom.
+extend-immutable-calls = [
+    "fastapi.File",
+    "fastapi.Query",
+    "fastapi.Depends",
+    "fastapi.Path",
+    "fastapi.Header",
+    "fastapi.Form",
+]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 

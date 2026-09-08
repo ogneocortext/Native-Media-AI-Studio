@@ -18,33 +18,28 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
-import sqlite3
 import sys
 import time
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 # Ensure backend root is on sys.path
 BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent / "packages" / "backend"
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
+from app.adapters.base import AdapterStatus  # noqa: E402
+from app.adapters.registry import AdapterRegistry, BaseAdapter  # noqa: E402
 from app.core import database as database_module  # noqa: E402
 from app.main import app  # noqa: E402
-from app.adapters.registry import AdapterRegistry, BaseAdapter  # noqa: E402
-from app.adapters.base import AdapterStatus  # noqa: E402
+from app.models.job import Job, JobStatus, JobType  # noqa: E402
 from app.queue.manager import QueueManager  # noqa: E402
 from app.queue.processor import JobProcessor  # noqa: E402
 from app.sse.handler import SSEManager  # noqa: E402
-from app.websocket.handler import ConnectionManager  # noqa: E402
-from app.models.job import Job, JobStatus, JobType  # noqa: E402
-
 
 # ===========================================================================
 # Shared fixtures
@@ -195,7 +190,6 @@ async def _create_job_via_api(client: AsyncClient, job_type: JobType = JobType.I
 
 # Need to import JobDatabaseManager at module level for the helper above
 from app.queue.db_manager import JobDatabaseManager  # noqa: E402
-
 
 # ===========================================================================
 # Integration tests

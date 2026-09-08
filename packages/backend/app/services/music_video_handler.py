@@ -3,8 +3,6 @@
 import asyncio
 import json
 import shutil
-import subprocess
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -449,28 +447,28 @@ class MusicVideoHandler:
         # These are simplified but reliable filters that work with FFmpeg 8.x
         if style == "waveform":
             return (
-                f"geq=lum='128+127*sin(X/30+T*2)*cos(Y/20+T*1.5)':"
-                f"cb=128:cr=128,"
-                f"format=yuv420p[outv]"
+                "geq=lum='128+127*sin(X/30+T*2)*cos(Y/20+T*1.5)':"
+                "cb=128:cr=128,"
+                "format=yuv420p[outv]"
             )
         elif style == "particles":
             return (
-                f"geq=lum='255*abs(sin(X/20+T*3)*cos(Y/15+T*2))':"
-                f"cb=128:cr=128,"
-                f"format=yuv420p[outv]"
+                "geq=lum='255*abs(sin(X/20+T*3)*cos(Y/15+T*2))':"
+                "cb=128:cr=128,"
+                "format=yuv420p[outv]"
             )
         elif style == "geometric":
             return (
-                f"geq=lum='if(bitor(lt(mod(X+T*50,100),50),lt(mod(Y+T*30,100),50)),255,50)':"
-                f"cb=128:cr=128,"
-                f"format=yuv420p[outv]"
+                "geq=lum='if(bitor(lt(mod(X+T*50,100),50),lt(mod(Y+T*30,100),50)),255,50)':"
+                "cb=128:cr=128,"
+                "format=yuv420p[outv]"
             )
         else:  # abstract
             return (
-                f"geq=lum='128+127*sin(X/30+T*2)*cos(Y/20+T*1.5)':"
-                f"cb='128+127*sin(X/25+T)':"
-                f"cr='128+127*cos(Y/25+T)',"
-                f"format=yuv420p[outv]"
+                "geq=lum='128+127*sin(X/30+T*2)*cos(Y/20+T*1.5)':"
+                "cb='128+127*sin(X/25+T)':"
+                "cr='128+127*cos(Y/25+T)',"
+                "format=yuv420p[outv]"
             )
 
     async def _create_placeholder_output(self, job: Job, output_path: Path, analysis: dict):

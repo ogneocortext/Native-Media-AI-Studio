@@ -9,7 +9,6 @@ import json
 import logging
 import uuid
 from pathlib import Path
-from functools import lru_cache
 
 # In-memory cache for analysis data (avoids DB hits on every frontend poll)
 _analysis_cache: dict[str, dict] = {}
@@ -20,8 +19,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..core.config import PROJECT_ROOT
-from ..services.source_separation import SourceSeparator, source_separator
-from ..services.source_separation import SEPARATION_DIR
+from ..services.source_separation import SEPARATION_DIR, source_separator
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +36,7 @@ def _load_analysis_index() -> dict:
     """Load the analysis index mapping filenames to job IDs."""
     if ANALYSIS_INDEX.exists():
         try:
-            with open(ANALYSIS_INDEX, "r", encoding="utf-8") as f:
+            with open(ANALYSIS_INDEX, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             return {}
@@ -93,7 +91,11 @@ class AudioAnalysisResult(BaseModel):
 @router.get("/backends")
 async def list_audio_backends():
     """List available audio analysis backends."""
-    from ..services.audio_analyzer import AudioAnalyzer, LIBROSA_AVAILABLE, MADMOM_AVAILABLE, SONARA_AVAILABLE
+    from ..services.audio_analyzer import (
+        LIBROSA_AVAILABLE,
+        MADMOM_AVAILABLE,
+        SONARA_AVAILABLE,
+    )
     return {
         "available": [b for b, avail in [
             ("sonara", SONARA_AVAILABLE),
@@ -208,6 +210,8 @@ async def analyze_audio(
 
         _check_backend_available(backend)
 
+        from ..services.audio_analyzer import AudioAnalyzer
+
         analyzer = AudioAnalyzer()
         result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
         analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
@@ -249,7 +253,7 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
             content = await file.read()
             buffer.write(content)
 
-        from ..services.audio_analyzer import AudioAnalyzer, LIBROSA_AVAILABLE
+        from ..services.audio_analyzer import LIBROSA_AVAILABLE, AudioAnalyzer
         if not LIBROSA_AVAILABLE:
             raise HTTPException(status_code=503, detail="librosa not installed")
 
@@ -471,7 +475,10 @@ async def _generate_sections_llm(
 ) -> list[dict] | None:
     """Try LLM (deepseek-r1:7b → qwen3.5:4b fallback) to label sections semantically.
     Returns None on failure so caller can fall back to heuristic."""
-    import aiohttp, json
+    import json
+
+    import aiohttp
+
     from ..core.config import config as app_config
     # Summarize energy curve (downsample to ~20 points for prompt)
     if rms_energy and len(rms_energy) > 20:
@@ -552,8 +559,10 @@ async def _apply_llm_sections(analysis_result: dict, result, rms_energy: list[fl
         )
         if llm_secs:
             analysis_result["sections"] = llm_secs
-    except Exception:
-        pass
+    except Exception as e:
+        # Best-effort: keep the fallback sections on any failure, but surface
+        # the reason so silent LLM degradations remain debuggable.
+        logger.debug("LLM section refinement failed, using fallback sections: %s", e, exc_info=True)
 
 
 def _generate_sections(duration: float, tempo: float, beat_count: int) -> list[dict]:
@@ -621,7 +630,7 @@ async def get_analysis_by_filename(filename: str):
         else:
             raise HTTPException(status_code=404, detail="Analysis file missing")
 
-    with open(analysis_path, "r", encoding="utf-8") as f:
+    with open(analysis_path, encoding="utf-8") as f:
         data = json.load(f)
 
     return data
@@ -690,7 +699,7 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
     if job_id:
         analysis_path = _get_analysis_path(job_id)
         if analysis_path.exists():
-            with open(analysis_path, "r", encoding="utf-8") as f:
+            with open(analysis_path, encoding="utf-8") as f:
                 data = json.load(f)
                 # Also save to database for future requests
                 database.update_audio_analysis(filename, data)
@@ -706,6 +715,8 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
 
     try:
         unique_id = str(uuid.uuid4())[:8]
+        from ..services.audio_analyzer import AudioAnalyzer
+
         analyzer = AudioAnalyzer()
         result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
         analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
@@ -719,7 +730,7 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
             json.dump(analysis_result, f, indent=2)
 
         logger.info(f"Analysis completed for '{filename}': {analysis_result['tempo_bpm']} BPM, {analysis_result['beat_count']} beats")
-        
+
         # Save to database for persistence between server restarts
         from ..core import database
         database.update_audio_analysis(filename, analysis_result)
@@ -739,7 +750,7 @@ async def analyze_all_pending(backend: str = "sonara"):
     """Analyze all audio files in the media library that don't have analysis data.
     Returns a summary of analyzed files."""
     from ..core import database
-    from ..services.audio_analyzer import AudioAnalyzer, LIBROSA_AVAILABLE
+    from ..services.audio_analyzer import LIBROSA_AVAILABLE, AudioAnalyzer
 
     if not LIBROSA_AVAILABLE:
         raise HTTPException(status_code=503, detail="librosa not installed")
@@ -908,10 +919,10 @@ async def get_stems(filename: str) -> dict:
 async def serve_audio_file(request: Request, filename: str):
     """Serve an audio file by filename."""
     import urllib.parse
-    
+
     # Decode URL-encoded filename (handles spaces, special chars)
     filename = urllib.parse.unquote(filename)
-    
+
     # Security: prevent directory traversal via resolve check
     candidate = (AUDIO_DIR / filename).resolve()
     allowed_dirs = [AUDIO_DIR.resolve(), (PROJECT_ROOT / "output" / "audio").resolve()]

@@ -70,8 +70,8 @@ async def open_in_blender(payload: dict):
     # Try Blender MCP import first (if Blender is running with the addon)
     try:
         # Lazy import to avoid hard dep
-        import socket
         import json
+        import socket
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(2.0)
@@ -90,10 +90,12 @@ async def open_in_blender(payload: dict):
                 if data:
                     logger.info("Blender MCP import response: %s", data[:500])
                     try:
-                        from ..core.database import log_native_open as _logmcp
                         import asyncio as _asyncio3
+
+                        from ..core.database import log_native_open as _logmcp
                         await _asyncio3.to_thread(_logmcp, rel, src.name, "blender", "blender-mcp", True)
-                    except: pass
+                    except Exception:
+                        pass
                     return {"success": True, "method": "blender-mcp", "path": str(src), "message": "Sent to running Blender via MCP"}
             except Exception:
                 pass
@@ -142,18 +144,21 @@ except Exception as e:
         proc = subprocess.Popen([blender, "--python", script, "--", str(src)], creationflags=subprocess.DETACHED_PROCESS if hasattr(subprocess, "DETACHED_PROCESS") else 0)
         # Persist to DB (applicable: audit trail, recently opened, dedup)
         try:
-            from ..core.database import log_native_open as _log
             import asyncio as _asyncio
+
+            from ..core.database import log_native_open as _log
             await _asyncio.to_thread(_log, rel, src.name, "blender", "launch", True)
         except Exception as e:
             logger.debug("native open DB log skipped: %s", e)
         return {"success": True, "method": "launch", "blender": blender, "path": str(src), "pid": proc.pid, "message": "Launched Blender with model"}
     except Exception as e:
         try:
-            from ..core.database import log_native_open as _log2
             import asyncio as _asyncio2
+
+            from ..core.database import log_native_open as _log2
             await _asyncio2.to_thread(_log2, rel, src.name if 'src' in locals() else rel, "blender", "launch", False)
-        except: pass
+        except Exception:
+            pass
         logger.error("Failed to launch Blender: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -180,23 +185,27 @@ async def open_in_unity(payload: dict):
         shutil.copy2(src, dest)
         logger.info("Copied %s -> %s", src, dest)
         try:
-            from ..core.database import log_native_open as _logu
             import asyncio as _asyncio4
+
+            from ..core.database import log_native_open as _logu
             await _asyncio4.to_thread(_logu, rel, src.name, "unity", "copy", True)
-        except: pass
+        except Exception:
+            pass
     except Exception as e:
         try:
-            from ..core.database import log_native_open as _logu2
             import asyncio as _asyncio5
+
+            from ..core.database import log_native_open as _logu2
             await _asyncio5.to_thread(_logu2, rel, src.name if 'src' in locals() else rel, "unity", "copy", False)
-        except: pass
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail=f"Copy failed: {e}")
 
     # Try Unity MCP refresh (optional) — Unity auto-imports on file change, but we can ping the bridge
     unity_refreshed = False
     try:
-        import socket
         import json
+        import socket
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(2.0)
         # Unity MCP bridge REST at 7800, but also try socket
@@ -246,8 +255,9 @@ async def native_open_status():
 async def native_open_history(app: str | None = None, limit: int = 20):
     """Recent Blender/Unity opens from DB — powers 'recently opened' and dedup."""
     try:
-        from ..core.database import list_native_opens
         import asyncio as _asyncio6
+
+        from ..core.database import list_native_opens
         rows = await _asyncio6.to_thread(list_native_opens, app, limit)
         return {"results": rows, "count": len(rows)}
     except Exception as e:

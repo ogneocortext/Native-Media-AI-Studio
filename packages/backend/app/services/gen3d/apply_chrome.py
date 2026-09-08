@@ -1,6 +1,8 @@
 """Assign a chrome PBR material to an untextured GLB via Blender."""
-import bpy
 import sys
+
+import bpy
+
 
 def apply_chrome(input_path: str, output_path: str):
     try:

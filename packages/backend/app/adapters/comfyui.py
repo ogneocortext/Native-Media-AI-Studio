@@ -119,7 +119,7 @@ class ComfyUIAdapter(BaseAdapter):
             "sd_v1-5.ckpt",
             "sd_xl_base_1.0.safetensors",
         ]
-        
+
         # Check if any preferred checkpoint is available
         if self._available_checkpoints:
             for preferred in preferred_checkpoints:
@@ -130,7 +130,7 @@ class ComfyUIAdapter(BaseAdapter):
                 name_lower = cp.lower()
                 if not any(bad in name_lower for bad in ["hunyuan", "wan", "animate", "motion", "3d"]):
                     return cp
-        
+
         # Fallback to default
         return preferred_checkpoints[0]
 
@@ -222,7 +222,6 @@ class ComfyUIAdapter(BaseAdapter):
         cfg_scale = params.get("cfg_scale", 7.0)
         width = params.get("width", 512)
         height = params.get("height", 512)
-        seed = params.get("seed", -1)
         sampler_name = params.get("sampler_name", "euler_ancestral")
 
         sampler_name = params.get("sampler_name", "euler_ancestral")

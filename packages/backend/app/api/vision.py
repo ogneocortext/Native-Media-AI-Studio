@@ -7,12 +7,8 @@ re-implementing curl on the frontend. Model-aware: minicpm-v disables tools/thin
 import base64
 import json as _json
 import logging
-import tempfile
-from pathlib import Path
 
 from fastapi import APIRouter, File, Form, UploadFile
-
-from ..core.config import config
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vision", tags=["Vision"])

@@ -8,12 +8,10 @@ Or for lighter weight: pip install spleeter
 """
 
 import asyncio
-import json
 import logging
-import shutil
 import subprocess
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 

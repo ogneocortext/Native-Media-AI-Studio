@@ -67,7 +67,7 @@ D:\conda-envs\comfyui-cuda\Scripts\python.exe main.py --port 8188 --disable-pinn
 # WorkingDirectory: D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI
 ```
 
-See `docs/setup/CONDA_SETUP.md`, `docs/setup/VIDEO_SETUP.md`, `docs/setup/MODEL_SETUP.md` for model-specific guides.
+See `docs/setup/CONDA_SETUP.md`, `docs/setup/VIDEO_SETUP.md`, `docs/setup/MODEL_SETUP.md` for model-specific guides, and `docs/SYSTEM_REQUIREMENTS.md` for system-level tools.
 
 ---
 

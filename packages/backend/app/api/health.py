@@ -3,7 +3,7 @@ Health and diagnostics API routes.
 """
 from __future__ import annotations
 
-import shutil
+import logging
 import tempfile
 from pathlib import Path
 
@@ -14,6 +14,8 @@ from ..adapters.registry import adapter_registry
 from ..core.config import config
 from ..diagnostics.health import health_monitor
 from ..diagnostics.resources import resource_monitor
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/health", tags=["Health"])
 
@@ -99,12 +101,13 @@ async def gpu_snapshot(log: bool = True) -> dict:
     snap = await resource_monitor.get_gpu_snapshot()
     if log and snap.get("available"):
         try:
-            from ..core.database import log_gpu_telemetry
             import asyncio as _asyncio
+
+            from ..core.database import log_gpu_telemetry
             # off-thread DB write so NVML poll stays fast
             await _asyncio.to_thread(log_gpu_telemetry, snap)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("GPU telemetry write skipped: %s", e)
     return snap
 
 
@@ -124,6 +127,7 @@ async def gpu_history(
 ) -> dict:
     """Trending history from DB. `range` = 5m|15m|1h|6h|12h|24h|7d, or explicit since_ms epoch."""
     import time as _time
+
     from ..core.database import get_gpu_history
     if since_ms is None and range:
         mapping = {"5m": 5*60*1000, "15m": 15*60*1000, "30m": 30*60*1000, "1h": 60*60*1000, "6h": 6*60*60*1000, "12h": 12*60*60*1000, "24h": 24*60*60*1000, "7d": 7*24*60*60*1000}
@@ -139,6 +143,7 @@ async def gpu_history(
 async def gpu_stats(range: str | None = None, since_ms: int | None = None) -> dict:
     """Aggregated stats + trend over window."""
     import time as _time
+
     from ..core.database import get_gpu_stats
     if since_ms is None and range:
         mapping = {"5m": 5*60*1000, "15m": 15*60*1000, "30m": 30*60*1000, "1h": 60*60*1000, "6h": 6*60*60*1000, "12h": 12*60*60*1000, "24h": 24*60*60*1000, "7d": 7*24*60*60*1000}
@@ -151,7 +156,7 @@ async def gpu_stats(range: str | None = None, since_ms: int | None = None) -> di
 @router.delete("/gpu/history")
 async def gpu_history_clear(keep_days: int = 0) -> dict:
     """Clear history. keep_days=0 wipes all; otherwise keep last N days."""
-    from ..core.database import cleanup_old_gpu_telemetry, get_connection
+    from ..core.database import cleanup_old_gpu_telemetry
     if keep_days <= 0:
         from ..core.database import get_db
         with get_db() as conn:
@@ -164,8 +169,9 @@ async def gpu_history_clear(keep_days: int = 0) -> dict:
 @router.get("/ollama/models")
 async def ollama_models() -> dict:
     """Get currently loaded Ollama models with VRAM usage and active tasks."""
-    import urllib.request
     import json
+    import urllib.request
+
     from ..adapters.registry import adapter_registry
     try:
         req = urllib.request.Request("http://127.0.0.1:11434/api/ps")
@@ -331,8 +337,9 @@ async def system_diagnostics() -> dict:
 @router.post("/diagnostics/memory/cleanup")
 async def cleanup_memory() -> dict:
     """Trigger system RAM cleanup (GC, torch cache, old temp files, Ollama offload if needed)."""
-    from ..diagnostics.resources import resource_monitor
     import psutil
+
+    from ..diagnostics.resources import resource_monitor
 
     before = psutil.virtual_memory().percent
     result = await resource_monitor.cleanup_system_memory()

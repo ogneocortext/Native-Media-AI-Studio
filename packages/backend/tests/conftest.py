@@ -10,14 +10,12 @@ Provides:
 
 from __future__ import annotations
 
-import asyncio
-from typing import AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock
+from collections.abc import AsyncGenerator
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
-from pathlib import Path
+from httpx import ASGITransport, AsyncClient
 
 # ---------------------------------------------------------------------------
 # Ensure the backend package is importable when running pytest from the
@@ -27,15 +25,13 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(BACKEND_ROOT) not in __import__("sys").path:
     __import__("sys").path.insert(0, str(BACKEND_ROOT))
 
+from app.adapters.registry import AdapterRegistry, BaseAdapter  # noqa: E402
 from app.core import database as database_module  # noqa: E402
 from app.main import app  # noqa: E402
-from app.adapters.registry import AdapterRegistry, BaseAdapter  # noqa: E402
+from app.models.job import Job, JobStatus, JobType  # noqa: E402
 from app.queue.manager import QueueManager  # noqa: E402
-from app.queue.processor import JobProcessor  # noqa: E402
 from app.sse.handler import SSEManager  # noqa: E402
 from app.websocket.handler import ConnectionManager  # noqa: E402
-from app.models.job import Job, JobStatus, JobType  # noqa: E402
-
 
 # ===========================================================================
 # Database fixture

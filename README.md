@@ -28,6 +28,7 @@ A full-stack AI-powered creative production environment for music-driven media g
 
 ## Recent Changes
 
+- **Backend Service Relocation & Dead Code Removal (2026-09-07)** — Moved 7 service files from `packages/backend/app/services/` to `tools/` and `tools/scripts/` (`audio_analysis_agent`, `audio_fingerprinting`, `structure_analysis`, `blender/builder`, `blender/lyrics_sync`, `coding_benchmark`, `ollama_benchmark`). Removed dead benchmark API endpoints from `integrations_generation.py`. Trimmed unused dependencies. All 34 backend tests pass.
 - **Media Library 3D Count + Layout Fix (2026-09-06)** — Backend `list_outputs` now returns `models_3d_count`; frontend Library stats grid shows **3D Models** count. File size/date in `MediaCard` footers use `whitespace-nowrap` to prevent wrapping.
 - **Backend Auto-Reload for Dev (2026-09-06)** — `scripts/manage-servers.ps1` and `scripts/start-services.ps1` now start uvicorn with `--reload` so backend code changes reload automatically.
 - **Backend Startup & Frontend Connectivity (2026-09-05)** — Fixed WebSocket origin validation crash in `main.py`, added pre-flight port check, frontend health/SSE calls now fall back to direct backend URL when Vite proxy is down, start script retries backend launch on port conflicts

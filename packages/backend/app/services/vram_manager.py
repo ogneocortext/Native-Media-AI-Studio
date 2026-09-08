@@ -64,7 +64,7 @@ class VRAMManager:
 
         # Minimum free VRAM needed for 3D generation (in MB)
         self.MIN_VRAM_FOR_3D = 4000  # 4GB for Hunyuan3D-2mini
-        
+
         # Safety margins for system stability
         # Don't offload to CPU if system RAM is below this threshold
         self.MIN_SYSTEM_RAM_FOR_OFFLOAD = 4096  # 4GB free RAM required
@@ -92,7 +92,7 @@ class VRAMManager:
             self._nvml_available = True
             if not self._gpustat_available:
                 logger.info("VRAM Manager: GPU monitoring enabled via pynvml")
-        except (ImportError, Exception) as e:
+        except Exception as e:
             if not self._gpustat_available:
                 logger.warning("VRAM Manager: GPU monitoring not available: %s", e)
 
@@ -454,8 +454,8 @@ class VRAMManager:
 
 def _unload_ollama_models_sync() -> list[str]:
     """Synchronous helper to unload Ollama models. Returns list of unloaded model names."""
-    import urllib.request
     import json
+    import urllib.request
 
     # Get the list of loaded models
     loaded_models: list[str] = []
@@ -504,8 +504,9 @@ def _reload_ollama_models_sync(model_name: str) -> bool:
     """Synchronous helper to reload an Ollama model. Returns True on success.
     Uses keep_alive=5m (not -1) so model expires naturally; also skips reload
     if model_name is a legacy llama not in config.default_model."""
-    import urllib.request
     import json
+    import urllib.request
+
     from ..core.config import config as _cfg
     # Don't infinite-pin models; respect OLLAMA_KEEP_ALIVE
     # Skip reload for llama legacy models unless they are the configured default

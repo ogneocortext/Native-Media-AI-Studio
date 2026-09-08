@@ -9,20 +9,21 @@ Scoring is deterministic and cheap (regex + optional node --check), so
 benchmarks can be re-run without GPU-heavy execution.
 """
 
+from __future__ import annotations
+
 import json
-import re
-import time
 import logging
+import re
 import subprocess
 import tempfile
-from pathlib import Path
+import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
-
-from ..core.config import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 BENCHMARK_FILE = PROJECT_ROOT / "output" / "ollama-benchmarks.json"
 
 # Standardized prompt - must match AISceneGenerator contract
@@ -59,7 +60,6 @@ BENCHMARK_OPTIONS = {
 }
 
 # Validation rules: (name, pattern, should_exist, weight, description)
-# Patterns for forbidden checks require "(" to avoid matching prose comments (e.g. "// no requestAnimationFrame")
 VALIDATION_RULES = [
     ("has_applyScene", r"function\s+applyScene\s*\(\s*scene\s*,\s*camera\s*,\s*renderer\s*,\s*THREE\s*\)", True, 20, "Defines applyScene(scene,camera,renderer,THREE)"),
     ("has_ai_group", r"__aiGenerated", True, 15, "Uses __aiGenerated group for cleanup"),
@@ -99,12 +99,10 @@ def _validate_code(code: str) -> dict[str, Any]:
             "passed": ok,
         })
 
-    # Extra metrics
     line_count = len(code_stripped.splitlines())
     char_count = len(code_stripped)
     has_balanced_braces = code_stripped.count("{") == code_stripped.count("}")
 
-    # Try node --check if available (syntax validation)
     node_valid = None
     node_error = None
     try:
@@ -118,7 +116,6 @@ def _validate_code(code: str) -> dict[str, Any]:
         node_valid = (result.returncode == 0)
         if not node_valid:
             node_error = result.stderr.strip()[:300]
-        # node --check success gives +5 bonus, failure -10 penalty
         if node_valid:
             score += 5
             max_score += 5
@@ -129,7 +126,6 @@ def _validate_code(code: str) -> dict[str, Any]:
         node_valid = None
         node_error = str(e)[:200]
 
-    # Line count heuristic: 40-120 ideal, penalize extremes
     line_penalty = 0
     if line_count < 20:
         line_penalty = 10
@@ -139,7 +135,6 @@ def _validate_code(code: str) -> dict[str, Any]:
         line_penalty = 5
     score = max(0, score - line_penalty)
 
-    # Normalize to 0-100
     normalized = round((score / max_score) * 100) if max_score else 0
 
     return {
@@ -161,7 +156,7 @@ def _validate_code(code: str) -> dict[str, Any]:
 def _load_file() -> dict[str, Any]:
     if BENCHMARK_FILE.exists():
         try:
-            with open(BENCHMARK_FILE, "r", encoding="utf-8") as f:
+            with open(BENCHMARK_FILE, encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
             logger.warning(f"Failed to load benchmark file: {e}")
@@ -184,14 +179,12 @@ def get_best_model() -> str | None:
     results = data.get("results", {})
     if not results:
         return None
-    # Prefer highest score, then lowest latency
     best = None
     best_score = -1
     best_latency = float("inf")
     for name, r in results.items():
         score = r.get("validation", {}).get("score", 0) if isinstance(r.get("validation"), dict) else 0
         latency = r.get("latency_ms", 999999)
-        # Only consider successful generations
         if r.get("success") is False:
             continue
         if score > best_score or (score == best_score and latency < best_latency):
@@ -201,27 +194,10 @@ def get_best_model() -> str | None:
     return best
 
 def _vram_aware_num_ctx(model: str) -> int:
-    """Pick num_ctx that fits pro prompt (~1800 tok) + 900 predict without OOM.
-    Keeps full guidelines + few-shot example intact for professional visuals.
-    8GB VRAM: 3072~0.9GB KV, 4096~1.2GB, 6144~1.8GB, 8192~2.5GB for 9b.
-    """
+    """Pick num_ctx that fits pro prompt (~1800 tok) + 900 predict without OOM."""
     try:
-        from ..services.vram_manager import vram_manager
-        # Try to get free VRAM synchronously via last cached status; fallback to probe
-        # Use sync-ish inspection: if manager has cached status, use it, else default 4096
-        import asyncio
-
-        # If running in async context, try to get status via vram_manager.get_vram_status if available
-        # For simplicity, peek at thresholds and assume conservative default
-        # Real free check is done in caller when possible; this is fallback
-        free = 2048  # conservative fallback
-        # Attempt to read from vram_manager's last status if exposed
-        # The manager caches after each poll; we use 4096 as safe professional default
         is_large = any(k in model.lower() for k in ("9b", "7b", "13b", "14b", "10b"))
-        # Professional prompt needs at least 3072 to avoid truncating guidelines + example
         base = 4096 if not is_large else 6144
-        # If free VRAM probe is available via sync path, adjust
-        # This helper is called from async run_single_benchmark where we do async fetch below
         return base
     except Exception:
         return 4096
@@ -230,18 +206,8 @@ def _vram_aware_num_ctx(model: str) -> int:
 async def _get_optimal_num_ctx(model: str) -> int:
     """Async VRAM probe for benchmark — ensures pro prompt not truncated yet fits 8GB."""
     try:
-        from ..services.vram_manager import vram_manager
-
-        status = await vram_manager.get_vram_status()
-        # vram_manager returns {free_mb, total_mb, ...} or similar
-        free = status.get("free_mb") or status.get("memory_free_mb") or status.get("vram_free_mb") or 2000
-        is_large = any(k in model.lower() for k in ("9b", "7b", "13b", "14b", "10b"))
-        if free > 4000:
-            return 8192 if is_large else 6144
-        elif free > 2000:
-            return 4096
-        else:
-            return 3072  # still fits 1800 prompt + 900 predict = 2700
+        # vram_manager is backend-only; tools scripts probe heuristically.
+        return _vram_aware_num_ctx(model)
     except Exception:
         return _vram_aware_num_ctx(model)
 
@@ -266,7 +232,6 @@ async def run_single_benchmark(model: str, adapter) -> dict[str, Any]:
         content = result.get("message", {}).get("content", "") if isinstance(result, dict) else str(result)
         validation = _validate_code(content)
 
-        # Check for empty or error
         success = bool(content and len(content.strip()) > 50 and validation["score"] >= 40)
 
         return {
@@ -297,7 +262,6 @@ async def run_single_benchmark(model: str, adapter) -> dict[str, Any]:
 
 async def run_benchmark(models: list[str] | None, adapter, max_models: int = 8) -> dict[str, Any]:
     """Run benchmark for given models (or all available if None), store results."""
-    # Resolve model list
     if not models:
         try:
             available = await adapter.list_models()
@@ -306,7 +270,6 @@ async def run_benchmark(models: list[str] | None, adapter, max_models: int = 8) 
             logger.error(f"Failed to list models: {e}")
             models = []
 
-    # Filter to reasonable count
     models = models[:max_models]
 
     if not models:
@@ -320,7 +283,6 @@ async def run_benchmark(models: list[str] | None, adapter, max_models: int = 8) 
         logger.info(f"Benchmarking {model}...")
         result = await run_single_benchmark(model, adapter)
         data["results"][model] = result
-        # Save incrementally so partial results are visible
         data["updated_at"] = datetime.now(timezone.utc).isoformat()
         _save_file(data)
 

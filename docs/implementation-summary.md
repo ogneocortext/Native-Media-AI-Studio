@@ -68,6 +68,42 @@ All endpoints organized into focused route modules:
 
 ---
 
+---
+
+## ✅ 2026-09-07 — Backend Service Relocation & Dead Code Removal
+
+### Service File Reorganization
+
+Moved 7 service files from `packages/backend/app/services/` to `tools/` and `tools/scripts/` to better separate backend runtime services from standalone tooling:
+
+| Old Path | New Path |
+|----------|----------|
+| `packages/backend/app/services/audio_analysis_agent.py` | `tools/audio_analysis_agent.py` |
+| `packages/backend/app/services/audio_fingerprinting.py` | `tools/audio_fingerprinting.py` |
+| `packages/backend/app/services/structure_analysis.py` | `tools/structure_analysis.py` |
+| `packages/backend/app/services/blender/builder.py` | `tools/blender/builder.py` |
+| `packages/backend/app/services/blender/lyrics_sync.py` | `tools/blender/lyrics_sync.py` |
+| `packages/backend/app/services/coding_benchmark.py` | `tools/scripts/coding_benchmark.py` |
+| `packages/backend/app/services/ollama_benchmark.py` | `tools/scripts/ollama_benchmark.py` |
+
+### Dead Code Removal
+
+- Removed `/ollama/benchmark/*` and `/ollama/coding-benchmark/*` endpoints from `integrations_generation.py`
+- Removed unused `RunBenchmarkRequest` and `RunCodingBenchmarkRequest` Pydantic models
+- Simplified `GET /ollama/models` to drop benchmark enrichment logic
+
+### Dependency Cleanup
+
+- Trimmed unused packages from `packages/backend/requirements.txt` and `requirements-experimental.txt`
+
+### Verification
+
+- `tools/batch_process.py` imports updated to use new `tools.` module paths
+- Backend test suite: **34/34 passed**
+- `python -m py_compile` passes on key backend files
+
+---
+
 *Last updated: 2026-09-06*
 
 ---

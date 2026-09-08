@@ -11,8 +11,6 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from sse_starlette.sse import EventSourceResponse
-
 from ..models.job import Job
 
 logger = logging.getLogger(__name__)

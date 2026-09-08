@@ -3,11 +3,9 @@ Test Hunyuan3D-2mini generation via ComfyUI API.
 Uses the Hy3D custom nodes to generate a 3D mesh from a text prompt.
 """
 import json
-import urllib.request
-import urllib.parse
 import time
-import os
-import random
+import urllib.parse
+import urllib.request
 
 COMFYUI_URL = "http://127.0.0.1:8188"
 

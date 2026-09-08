@@ -60,7 +60,7 @@ Model: `ComfyUI/models/diffusion_models/hunyuan3d-2mini` (~2.5GB). For `Wan 2.2 
 Generates **bpy scripts**, not direct Blender calls — scripts are executed via MCP `blender_execute_blender_code`.
 
 ```python
-from app.services.blender.builder import BlenderSceneBuilder
+from tools.blender.builder import BlenderSceneBuilder
 
 builder = BlenderSceneBuilder(render_engine='CYCLES', resolution=(1920, 1080), fps=24)
 scripts: list[str] = builder.build_full_scene({
@@ -76,7 +76,7 @@ scripts: list[str] = builder.build_full_scene({
 Optional, for WhisperX timed lyrics:
 
 ```python
-from app.services.blender.lyrics_sync import LyricsSyncMapper
+from tools.blender.lyrics_sync import LyricsSyncMapper
 
 mapper = LyricsSyncMapper(fps=24)
 events = mapper.map_to_events(lyrics, style='fade')  # lyrics: [{text, start, end}]

@@ -3,12 +3,10 @@ import argparse
 import base64
 import json
 import logging
-import os
 import sys
 import time
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from io import BytesIO
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -21,7 +19,7 @@ logger = logging.getLogger(__name__)
 class ScreenshotCapture:
     def __init__(self, monitor: int = 1):
         self.monitor = monitor
-    
+
     def capture(self, output_path: str | None = None) -> dict[str, Any]:
         try:
             with mss.mss() as sct:
@@ -45,7 +43,7 @@ class GemmaAnalyzer:
         self.base_url = base_url.rstrip('/')
         self.model = model
         self.timeout = 120.0
-        
+
     async def analyze_image(self, image_base64: str, prompt: str | None = None) -> dict[str, Any]:
         default_prompt = 'You are an expert UI/UX designer. Analyze this screenshot of a web application and provide feedback on: 1. Visual design - colors, spacing, typography 2. Layout and hierarchy 3. Accessibility and usability 4. Specific issues and improvement suggestions 5. What works well. Provide analysis in a structured format for developers.'
         analysis_prompt = prompt or default_prompt
@@ -67,7 +65,7 @@ class DesignFeedbackService:
     def __init__(self, ollama_url: str = 'http://localhost:11434', model: str = 'gemma4:e2b', monitor: int = 1):
         self.screenshot = ScreenshotCapture(monitor=monitor)
         self.analyzer = GemmaAnalyzer(base_url=ollama_url, model=model)
-    
+
     async def capture_and_analyze(self, output_path: str | None = None, prompt: str | None = None, save_screenshot: bool = True) -> dict[str, Any]:
         if save_screenshot and not output_path:
             timestamp = int(time.time())
@@ -79,13 +77,13 @@ class DesignFeedbackService:
 
 class DesignFeedbackHandler(BaseHTTPRequestHandler):
     service = None
-    
+
     def _send_json_response(self, status: int, data: dict):
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
-    
+
     def do_GET(self):
         if self.path == '/health':
             self._send_json_response(200, {'status': 'ok', 'service': 'design-feedback'})
@@ -98,7 +96,7 @@ class DesignFeedbackHandler(BaseHTTPRequestHandler):
                 self._send_json_response(500, {'error': str(e)})
         else:
             self._send_json_response(404, {'error': 'Not found'})
-    
+
     def do_POST(self):
         if self.path == '/analyze':
             try:
@@ -116,7 +114,7 @@ class DesignFeedbackHandler(BaseHTTPRequestHandler):
                 self._send_json_response(500, {'error': str(e)})
         else:
             self._send_json_response(404, {'error': 'Not found'})
-    
+
     def log_message(self, format, *args):
         pass
 
@@ -142,9 +140,9 @@ def main():
     parser.add_argument('--ollama_url', type=str, default='http://localhost:11434', help='Ollama server URL')
     parser.add_argument('--model', type=str, default='gemma4:e2b', help='Model to use for analysis')
     parser.add_argument('--monitor', type=int, default=1, help='Monitor to capture')
-    
+
     args = parser.parse_args()
-    
+
     if args.analyze:
         try:
             with open(args.analyze, 'rb') as f:

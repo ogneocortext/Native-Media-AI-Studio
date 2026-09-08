@@ -31,13 +31,13 @@ def resize_image(image_path: str) -> str:
     """Resize image and return base64-encoded JPEG."""
     img = Image.open(image_path)
     img.thumbnail((MAX_DIMENSION, MAX_DIMENSION), Image.Resampling.LANCZOS)
-    
+
     # Convert RGBA to RGB for JPEG
     if img.mode == "RGBA":
         background = Image.new("RGB", img.size, (0, 0, 0))
         background.paste(img, mask=img.split()[3])
         img = background
-    
+
     import io
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=JPEG_QUALITY)
@@ -47,7 +47,7 @@ def resize_image(image_path: str) -> str:
 def analyze(image_path: str, prompt: str, model: str = DEFAULT_MODEL) -> str:
     """Send image to Ollama vision model and return response."""
     b64 = resize_image(image_path)
-    
+
     body = json.dumps({
         "model": model,
         "messages": [{
@@ -57,20 +57,20 @@ def analyze(image_path: str, prompt: str, model: str = DEFAULT_MODEL) -> str:
         }],
         "stream": False
     })
-    
+
     req = urllib.request.Request(
         f"{OLLAMA_HOST}/api/chat",
         data=body.encode(),
         headers={"Content-Type": "application/json"}
     )
-    
+
     # Retry logic for intermittent failures
     for attempt in range(3):
         try:
             resp = urllib.request.urlopen(req, timeout=180)
             result = json.loads(resp.read())
             return result.get("message", {}).get("content", "NO CONTENT")
-        except Exception as e:
+        except Exception:
             if attempt < 2:
                 import time
                 time.sleep(2)
@@ -83,14 +83,14 @@ def main():
         print(f"Usage: {sys.argv[0]} <image_path> <prompt>")
         print(f"Example: {sys.argv[0]} screenshot.png 'Describe this UI'")
         sys.exit(1)
-    
+
     image_path = sys.argv[1]
     prompt = sys.argv[2]
-    
+
     if not Path(image_path).exists():
         print(f"ERROR: Image not found: {image_path}", file=sys.stderr)
         sys.exit(1)
-    
+
     try:
         result = analyze(image_path, prompt)
         print(result)

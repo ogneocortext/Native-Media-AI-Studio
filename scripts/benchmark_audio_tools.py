@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass, asdict
-from pathlib import Path
+from dataclasses import asdict, dataclass
 from datetime import datetime
+from pathlib import Path
 
 OUTPUT_DIR = Path(__file__).parent.parent / "docs" / "knowledge-library" / "benchmarks"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
