@@ -11,7 +11,7 @@ aliases:
   - Python Environment Management
   - venv Decoupling
   - PyTorch Pascal Support
-date: 2026-09-06
+date: 2026-09-08
 ---
 
 # 🐍 Python Environment Management & Pascal GPU Support
@@ -31,8 +31,8 @@ date: 2026-09-06
 
 | Interpreter | Version | Notes |
 | --- | --- | --- |
-| `C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311\python.exe` | 3.11.9 | ✅ The only "safe" standalone CPython for this project's stack. Base for `nma-studio-cuda` and project `venv/` |
-| `C:\Python314` | 3.14 | Too new for torch/CUDA wheels — do not use for backend |
+| `C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311\python.exe` | 3.11.9 | ✅ The only "safe" standalone CPython for this project's CUDA stack. Base for `nma-studio-cuda` and project `venv/` |
+| `C:\Python314\python.exe` | 3.14.x | ✅ Used for `studio-tools` venv (pure-tooling scripts, no torch/CUDA) |
 | `winget` v1.29.290 available | — | Install more standalone Pythons via `winget install Python.Python.3.11` (or `Python.Python.312`) |
 
 ### `D:\conda-envs` environments
@@ -40,24 +40,28 @@ date: 2026-09-06
 | Env | Size | Python | Base / parent | Role | Torch |
 | --- | --- | --- | --- | --- | --- |
 | `nma-studio-cuda` | 4.87 GB | 3.11.9 | **Standalone C: Python311** (decoupled ✅) | Native Media AI Studio backend + GPU | 2.14.0+cu126 |
-| `comfyui-cuda` | 6.47 GB | 3.12.13 | ⚠️ venv bootstrapped FROM `space-analyzer-cuda` | ComfyUI service runtime ONLY | 2.14.0+cu126 |
+| `comfyui-cuda` | ~6 GB | 3.11.9 | **Standalone C: Python311** (decoupled ✅) | ComfyUI service runtime ONLY | 2.14.0+cu126 |
+| `studio-tools` | varies | 3.14.x | **Standalone C: Python314** | Pure-tooling scripts (no backend/CUDA imports) | None |
 | `space-analyzer-cuda` | 9.17 GB | 3.12.13 | conda env | ❌ **Different project (moto-vision). NEVER delete or modify** | 2.6.0-era |
 
 ### Hidden dependency graph (why deletion is dangerous)
 
 ```
-C:\...\Python311 (3.11.9, standalone)
+C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311 (3.11.9, standalone)
 ├── D:\conda-envs\nma-studio-cuda    (this project: backend + GPU)
-└── D:\Backup...\Native Media AI Studio\venv  (project CPU fallback)
+└── D:\conda-envs\comfyui-cuda       (ComfyUI runtime venv)
+
+C:\Python314 (3.14.x, standalone)
+└── D:\conda-envs\studio-tools       (this project: pure tooling, no torch)
 
 D:\conda-envs\space-analyzer-cuda  (Python 3.12.13 — ANOTHER PROJECT'S env)
-├── D:\conda-envs\comfyui-cuda       (ComfyUI runtime venv ← bootstrapped from it)
 └── D:\moto-vision-venv              (moto-vision project venv, --system-site-packages)
 ```
 
-> [!danger] Deleting `space-analyzer-cuda` breaks THREE things, not one
-> Its `python.exe` is the `home` of two venvs: `comfyui-cuda` (this project's ComfyUI
-> service) and `moto-vision-venv` (a different project). It is also the only Python
+> [!danger] Deleting `space-analyzer-cuda` breaks TWO things, not one
+> Its `python.exe` is the `home` of one venv: `moto-vision-venv` (a different project).
+> It is also the only Python 3.12 interpreter on this machine. This project's
+> `comfyui-cuda` is now standalone and does NOT depend on it.
 
 ---
 

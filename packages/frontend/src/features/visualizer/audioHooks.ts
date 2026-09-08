@@ -3,6 +3,7 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { AudioData, AudioAnalysisData } from "./types";
 import { ATTACK, RELEASE } from "./audioTiming";
+import { getBeatNearTimeFromArray, getNextBeatInFromArray } from "../../../shared/timing";
 
 // Demo fallback — synthetic audio for when no track is playing
 export function useDemoAudio(enabled: boolean, bpm: number) {
@@ -41,7 +42,6 @@ export function useRealAudio(
   const freqArray = useRef<Uint8Array | null>(null);
   const lastBass = useRef(0);
   const beatCooldown = useRef(0);
-  const lastBeatIdx = useRef(-1);
   // Predictive beat: recent intervals for BPM estimation + next-beat countdown
   const recentBeatIntervals = useRef<number[]>([]);
   const lastBeatTime = useRef(0);
@@ -123,28 +123,10 @@ export function useRealAudio(
     let drumType: "kick" | "snare" | "hat" | null = null;
     const elapsed = audioElapsedRef?.current ?? 0;
     if (analysisData && analysisData.beat_times.length > 0 && elapsed > 0) {
-      // Find the closest beat using binary search (fast for large arrays)
-      const beats = analysisData.beat_times;
-      let lo = 0, hi = beats.length - 1;
-      while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        if (beats[mid] < elapsed) lo = mid + 1;
-        else hi = mid - 1;
-      }
-      // Check neighbors for closest
-      let closestIdx = -1;
-      let closestDist = Infinity;
-      for (let i = Math.max(0, hi); i <= Math.min(beats.length - 1, lo); i++) {
-        const dist = Math.abs(beats[i] - elapsed);
-        if (dist < closestDist) {
-          closestDist = dist;
-          closestIdx = i;
-        }
-      }
-      // Tight window 60ms (was 100ms) for snappy sync
-      if (closestIdx >= 0 && closestDist < 0.06 && closestIdx !== lastBeatIdx.current) {
+      // Use shared timing helper for binary-search beat lookup
+      const near = getBeatNearTimeFromArray(analysisData.beat_times, elapsed, 0.06);
+      if (near) {
         isBeat = true;
-        lastBeatIdx.current = closestIdx;
         // Drum classification: use current frequency energy ratios at the beat instant
         const bassEnergy = bass;
         const midEnergy = mid;
@@ -161,16 +143,8 @@ export function useRealAudio(
           if (!drumType && trebleEnergy > midEnergy && trebleEnergy > bassEnergy) drumType = "hat";
         }
       }
-      // Reset index if user seeks backwards
-      if (beats.length > 0 && elapsed < beats[Math.max(0, lastBeatIdx.current)]) {
-        lastBeatIdx.current = -1;
-      }
       // Predictive next-beat countdown from analyzed beat_times
-      if (isBeat && closestIdx >= 0 && closestIdx < beats.length - 1) {
-        nextBeatInRef.current = Math.max(0, beats[closestIdx + 1] - elapsed);
-      } else if (!isBeat && nextBeatInRef.current > 0) {
-        nextBeatInRef.current = Math.max(0, nextBeatInRef.current - 0.016);
-      }
+      nextBeatInRef.current = getNextBeatInFromArray(analysisData.beat_times, elapsed);
     } else {
       // Adaptive bass spike detection with dynamic threshold
       const avgEnergy = (bass + mid + treble) / 3;

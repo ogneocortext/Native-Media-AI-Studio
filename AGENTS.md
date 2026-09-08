@@ -40,7 +40,7 @@ tools/                  # MCP bridges, demo scripts, and Go infrastructure sidec
   │   └── test_mcp*.py           # MCP connection tests
   ├── blender_mcp_addon.py   # Blender MCP addon (Python, v1.5)
   ├── analyze_and_sync.py    # Audio analysis → beat-synced JSON for Unity
-  └── analyze_happyshrimp.py # GPU-accelerated audio analysis demo
+  └── audio_analysis_demo.py  # GPU-accelerated audio analysis demo
 .kilo/
 ├── agents/data.md        # Data analysis agent configuration
 ├── skills/unity-mcp/SKILL.md  # Unity MCP skill documentation

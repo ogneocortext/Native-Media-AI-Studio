@@ -12,7 +12,7 @@ const ANALYZE_MJS = path.join(PROJECT_ROOT, "tools", "vision", "analyze.mjs");
 const ANALYZE_PY = path.join(PROJECT_ROOT, "tools", "tests", "vision_analyze.py");
 
 const ALLOWED_EXTENSIONS = /\.(png|jpe?g|webp|bmp|gif)$/i;
-const DEFAULT_MODEL = process.env.VISION_MODEL || "gemma4:e2b-it-qat";
+const DEFAULT_MODEL = process.env.VISION_MODEL || "qwen3-vl:2b";
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 
 function generateRequestId() {
@@ -719,7 +719,7 @@ server.setRequestHandler('tools/list', async () => ({
   tools: [
     {
       name: "vision_describe",
-      description: "Describe a screenshot/image using local Ollama vision model (gemma4:e2b-it-qat with chain-of-thought). For non-vision coding agents: pass image path, get text description back. Scoped strictly to Native Media AI Studio.",
+      description: "Describe a screenshot/image using local Ollama vision model (qwen3-vl:2b fast, or gemma4 for detailed). For non-vision coding agents: pass image path, get text description back. Scoped strictly to Native Media AI Studio.",
       inputSchema: {
         type: "object",
         properties: {

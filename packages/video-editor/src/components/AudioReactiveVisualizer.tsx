@@ -1,6 +1,9 @@
 /**
  * AudioReactiveVisualizer — Real-time audio visualization using Remotion's APIs.
  * Uses useAudioData and visualizeAudio from @remotion/media-utils.
+ *
+ * When `analysis` (TimingContract) is provided, AI agents can drive section-based
+ * color shifts and timing-aware effects without relying solely on live audio.
  */
 
 import { useCurrentFrame, useVideoConfig, Audio, AbsoluteFill } from "remotion";
@@ -9,6 +12,8 @@ import {
   visualizeAudio,
   visualizeAudioWaveform,
 } from "@remotion/media-utils";
+import type { TimingContract } from "../../../shared/timing";
+import { generateTimingHints, getSectionAtTime } from "../../../shared/timing";
 
 interface AudioReactiveVisualizerProps {
   audioSrc: string;
@@ -17,6 +22,8 @@ interface AudioReactiveVisualizerProps {
   sensitivity?: number;
   smoothing?: boolean;
   className?: string;
+  /** Optional analyzed timing data for AI-driven visuals */
+  analysis?: TimingContract | null;
 }
 
 const COLOR_SCHEMES = {
@@ -33,10 +40,23 @@ export function AudioReactiveVisualizer({
   sensitivity = 1,
   smoothing = true,
   className = "",
+  analysis = null,
 }: AudioReactiveVisualizerProps) {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const audioData = useAudioData(audioSrc);
+
+  // Section-aware color override from analyzed timing data
+  const t = frame / fps;
+  const section = analysis ? getSectionAtTime(analysis.sections, t) : null;
+  const effectiveColors = section?.palette
+    ? [
+        section.palette.primary ?? COLOR_SCHEMES[colorScheme][0],
+        section.palette.secondary ?? COLOR_SCHEMES[colorScheme][1],
+        section.palette.glow ?? COLOR_SCHEMES[colorScheme][2],
+        COLOR_SCHEMES[colorScheme][3],
+      ]
+    : COLOR_SCHEMES[colorScheme];
 
   if (!audioData) {
     return (
@@ -67,8 +87,6 @@ export function AudioReactiveVisualizer({
     windowInSeconds: 0.1,
   });
 
-  const colors = COLOR_SCHEMES[colorScheme];
-
   return (
     <AbsoluteFill className={className}>
       <Audio src={audioSrc} />
@@ -76,7 +94,7 @@ export function AudioReactiveVisualizer({
         style,
         visualization,
         waveform,
-        colors,
+        effectiveColors,
         width,
         height,
         sensitivity,

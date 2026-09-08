@@ -1,5 +1,5 @@
 # ComfyUI Management Script
-# Starts ComfyUI with the dedicated comfyui-cuda conda environment
+# Starts ComfyUI with the dedicated comfyui-cuda venv
 
 param(
     [switch]$LowVRAM,
@@ -8,7 +8,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# Configuration - uses the dedicated ComfyUI conda environment
+# Configuration - uses the dedicated ComfyUI venv
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $ComfyUIPath = Join-Path $ProjectRoot '..\ComfyUI'
 $PythonExe = if ($env:COMFYUI_PYTHON) { $env:COMFYUI_PYTHON } else { "D:\conda-envs\comfyui-cuda\Scripts\python.exe" }
@@ -28,7 +28,7 @@ if (-not (Test-Path $ComfyUIPath)) {
 
 if (-not (Test-Path $PythonExe)) {
     Write-Host "ERROR: Python not found at $PythonExe" -ForegroundColor Red
-    Write-Host "The comfyui-cuda conda environment may not exist." -ForegroundColor Yellow
+    Write-Host "The comfyui-cuda venv may not exist." -ForegroundColor Yellow
     exit 1
 }
 

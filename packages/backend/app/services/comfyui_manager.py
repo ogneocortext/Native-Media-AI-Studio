@@ -29,11 +29,32 @@ COMFYUI_DIR = PROJECT_ROOT.parent / "ComfyUI"
 COMFYUI_MAIN = COMFYUI_DIR / "main.py"
 DEFAULT_PORT = 8188
 
-# Use the main project venv which has compatible PyTorch+CUDA
-VENV_PYTHON = PROJECT_ROOT / "venv" / "Scripts" / "python.exe"
-if not VENV_PYTHON.exists():
-    # Fall back to backend venv
-    VENV_PYTHON = PROJECT_ROOT / "runtime" / "venvs" / ".venvs" / "venv_backend" / "Scripts" / "python.exe"
+# ComfyUI MUST run in its own dedicated environment. Using the project venv or
+# sys.executable risks inheriting a parent bootstrapped from another project
+# (e.g. space-analyzer-cuda) — that breaks adapter isolation and can leak
+# incompatible packages into ComfyUI.
+_COMFYUI_PYTHON = Path(r"D:\conda-envs\comfyui-cuda\Scripts\python.exe")
+if not _COMFYUI_PYTHON.exists():
+    # Hard fail at import time so misconfiguration is caught immediately,
+    # not lazily when the first generation request arrives.
+    raise RuntimeError(
+        f"ComfyUI Python not found at {_COMFYUI_PYTHON}. "
+        "ComfyUI requires its own environment (comfyui-cuda). "
+        "See AGENTS.md 'Python Environments' section."
+    )
+
+# Sanity-check: refuse to run if this env was bootstrapped from space-analyzer.
+# This is the exact leakage vector the user reported.
+_cfg = _COMFYUI_PYTHON.parent / "pyvenv.cfg"
+if _cfg.exists():
+    _home = _cfg.read_text(errors="ignore")
+    if "space-analyzer" in _home:
+        raise RuntimeError(
+            "ComfyUI environment is parented to space-analyzer-cuda. "
+            "Recreate comfyui-cuda as a standalone venv to prevent cross-project leakage."
+        )
+
+VENV_PYTHON = _COMFYUI_PYTHON
 
 # Extra args for compatibility with GTX 10-series GPUs
 EXTRA_ARGS = ["--disable-pinned-memory"]
@@ -425,10 +446,11 @@ class ComfyUIManager:
             result["message"] = "requirements.txt not found"
             return result
 
-        # Prefer the comfyui-cuda venv which has the correct PyTorch/CUDA build
+        # ComfyUI updates must use the comfyui-cuda venv. Never fall back to the
+        # project venv or sys.executable — those can be parented to space-analyzer-cuda.
         venv_python = Path(r"D:\conda-envs\comfyui-cuda\Scripts\python.exe")
         if not venv_python.exists():
-            venv_python = VENV_PYTHON if VENV_PYTHON.exists() else Path(sys.executable)
+            venv_python = VENV_PYTHON
 
         try:
             proc = await _run_subprocess(

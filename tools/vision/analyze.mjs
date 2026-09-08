@@ -99,16 +99,43 @@ function buildPrompt(args) {
 
   switch (args.mode) {
     case 'music-video':
-      return `You are a professional music-video director reviewing a rendered frame${section}.
+      return `You are a professional music-video director and VFX supervisor reviewing a rendered frame from an audio-reactive visualization.
 
-Evaluate this frame against broadcast-quality standards:
-1. COMPOSITION: Rule of thirds, leading lines, head room, look room, depth layers (foreground/midground/background)
-2. LIGHTING: Key light, rim light, color temperature consistency, exposure balance
-3. COLOR: Dominant palette, mood alignment, saturation vs. intended genre${section}
-4. ENERGY: Rate 1-10. Is this appropriate${section}?
-5. IMPACT: Strongest visual element and first gaze target
-6. ISSUES: Top 3 improvements ranked by impact
-7. BEAT SYNC: Would this frame cut cleanly on a strong beat? Why or why not?`;
+Context: This is a Remotion-rendered frame for a music video. The visualization uses SVG/Canvas elements driven by audio analysis (BPM, frequency bands, waveform). The song is "${args.section || 'unknown section'}".
+
+Evaluate this frame with these specific criteria:
+
+1. DEPTH LAYERS (Foreground/Midground/Background):
+   - Are there at least 3 distinct depth layers?
+   - Does parallax or size variation create real depth?
+   - Rate depth effect 1-10
+
+2. AUDIO-REACTIVE ELEMENTS:
+   - Are waveform/spectrum bars visible and properly sized?
+   - Do particles or elements appear to respond to audio?
+   - Is the central focal point (orb/flame/shape) appropriately intense?
+
+3. COLOR & MOOD:
+   - Does the palette match the song section (cyan=intro, blue=verse, purple=chorus, amber=bridge)?
+   - Is there sufficient contrast between elements?
+   - Rate mood alignment 1-10
+
+4. COMPOSITION:
+   - Is the rule of thirds or center-weighted balance used effectively?
+   - Are there leading lines or visual flow?
+   - Is text readable against the background?
+
+5. TECHNICAL QUALITY:
+   - Any rendering artifacts, clipping, or overflow issues?
+   - Are SVG elements sharp or pixelated?
+   - Is the aspect ratio correct (16:9)?
+
+6. TOP 3 IMPROVEMENTS (ranked by impact):
+   - What single change would most improve this frame?
+   - What element feels flat or missing?
+   - What would make this feel more "premium YouTube" quality?
+
+Return your analysis as structured JSON with these keys: depth_rating, mood_rating, composition_rating, top_improvements (array of 3 strings), visual_elements (array of visible element names).`;
 
     case 'responsive':
       return `You are a senior frontend engineer auditing a Native Media AI Studio UI screenshot.
@@ -141,6 +168,24 @@ For every difference:
 4. FIX/PROMOTE: If it is a regression, what is the shortest fix. If it is an improvement, what principle does it demonstrate?
 
 Prioritize differences that affect usability, readability, or visual hierarchy.`;
+
+    case 'depth':
+      return `You are a VFX depth analyst reviewing a music visualization frame for spatial quality.
+
+Rate each depth cue 1-10 and provide specific improvement suggestions:
+
+1. SIZE GRADIENT: Do elements shrink with distance? Are near elements significantly larger than far ones?
+2. OVERLAP: Do elements properly occlude each other based on depth order?
+3. ATMOSPHERIC PERSPECTURE: Do distant elements fade, blur, or shift toward background color?
+4. PARALLAX: Would motion at different speeds create depth illusion?
+5. FOCUS/BLUR: Is there depth-of-field effect on background/foreground elements?
+6. LIGHTING DEPTH: Do light sources create proper shadows and highlights that define space?
+7. COLOR DEPTH: Do warm colors advance and cool colors recede appropriately?
+
+Overall depth score: [average of above]
+Top 3 specific fixes to increase depth perception:
+
+Return as JSON: {depth_scores: {size_gradient, overlap, atmospheric, parallax, focus_blur, lighting_depth, color_depth}, overall_depth: number, top_fixes: [string]}`;
 
     case 'consistency':
       return `You are a design systems auditor checking visual consistency across Native Media AI Studio frames.

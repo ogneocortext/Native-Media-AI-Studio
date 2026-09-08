@@ -747,6 +747,27 @@ export interface AudioAnalysisResult {
   amplitude_envelope: number[];
   stored_path: string | null;
   job_id: string | null;
+  // Timing contract for frontend + Remotion + AI agents
+  timing_contract?: {
+    filename: string;
+    duration: number;
+    bpm: number;
+    bpmConfidence: number;
+    beats: Array<{
+      time: number;
+      drumType: string | null;
+      energy: number;
+      isDownbeat?: boolean;
+      bpm?: number;
+    }>;
+    sections: Array<{ type: string; start: number; end: number; energy: number }>;
+    energyCurve: Array<{ time: number; value: number }>;
+    amplitudeEnvelope: number[];
+  };
+  // Suggested visualization parameters for AI/agent-driven presets
+  suggested_visualization?: string;
+  suggested_kinetic_preset?: string;
+  suggested_theme_seed?: string;
 }
 
 export async function getAnalysis(filename: string): Promise<any> {
@@ -822,6 +843,17 @@ export async function getAnalysisResult(jobId: string): Promise<AudioAnalysisRes
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "Failed to get analysis result");
+  }
+  return res.json();
+}
+
+/** Get Remotion-ready timing metadata (TimingContract) for a file. */
+export async function getTimingMetadata(filename: string): Promise<any> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/audio/timing-metadata/${encodeURIComponent(filename)}`, { timeout: 30000 });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "No timing metadata found");
   }
   return res.json();
 }

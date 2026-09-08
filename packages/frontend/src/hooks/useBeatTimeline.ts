@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AudioAnalysisResult } from "../services/api";
+import { getBeatNearTimeFromArray, getNextBeatInFromArray } from "../../shared/timing";
 
 export interface BeatState {
   /** True for the configured window (default 100ms) after a beat onset. */
@@ -124,19 +125,13 @@ export function useBeatTimeline(filename: string | null) {
       const beats = analysis!.beat_times;
       const windowSec = beatWindowMs / 1000;
 
-      // Binary search for the last beat <= elapsedSec
-      let lo = 0;
-      let hi = beats.length - 1;
-      while (lo < hi) {
-        const mid = (lo + hi + 1) >>> 1;
-        if (beats[mid] <= elapsedSec) lo = mid;
-        else hi = mid - 1;
-      }
-      const lastIdx = beats[lo] <= elapsedSec ? lo : -1;
+      // Shared binary-search beat lookup
+      const near = getBeatNearTimeFromArray(beats, elapsedSec, windowSec);
+      const isOnBeat = near !== null;
+      const lastIdx = near ? near.index : -1;
       const lastBeatTime = lastIdx >= 0 ? beats[lastIdx] : -Infinity;
       const timeSinceLastBeat = elapsedSec - lastBeatTime;
-      const isOnBeat = timeSinceLastBeat >= 0 && timeSinceLastBeat < windowSec;
-      const nextBeatIn = lastIdx + 1 < beats.length ? beats[lastIdx + 1] - elapsedSec : 0;
+      const nextBeatIn = getNextBeatInFromArray(beats, elapsedSec);
 
       // Smoothed sub-beat energy from amplitude_envelope (interpolated)
       if (analysis!.amplitude_envelope && analysis!.amplitude_envelope.length > 0) {

@@ -27,7 +27,7 @@
   "eslint.nodePath": "packages/frontend/node_modules",
 
   // Python
-  "python.defaultInterpreterPath": "D:\\\\conda-envs\\\\comfyui-cuda\\\\Scripts\\\\python.exe",
+  "python.defaultInterpreterPath": "D:\\conda-envs\\nma-studio-cuda\\Scripts\\python.exe",
   "python.analysis.typeCheckingMode": "standard",
   "python.analysis.autoImportCompletions": true,
   "python.analysis.diagnosticSeverityOverrides": {

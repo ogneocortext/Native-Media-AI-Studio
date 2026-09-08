@@ -1,0 +1,10 @@
+# Standalone tool dependencies (studio-tools venv, Python 3.14)
+# These packages are pure-Python or have 3.14 wheels and do NOT pull in torch/CUDA.
+# Install with:
+#   D:\conda-envs\studio-tools\Scripts\python.exe -m pip install -r requirements-standalone.txt
+
+httpx>=0.25.0
+mss>=9.0.0
+Pillow>=10.0.0
+numpy>=1.24.0
+librosa>=0.10.0

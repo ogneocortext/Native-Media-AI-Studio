@@ -3,7 +3,7 @@
   "version": "2026-09-05",
   "description": "Machine-readable project structure for AI agents. Maps directories, key files, and their purposes.",
   "quick_start": {
-    "backend_start": "cd packages/backend && D:\\conda-envs\\comfyui-cuda\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000",
+    "backend_start": "cd packages/backend && D:\\conda-envs\\nma-studio-cuda\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000",
       "frontend_start": "cd packages/frontend && pnpm dev",
     "backend_url": "http://localhost:8000",
     "frontend_url": "http://localhost:5173",
@@ -41,7 +41,7 @@
         "app/core/port_manager.py": "Dynamic port allocation"
       },
       "dependencies": ["fastapi", "uvicorn", "librosa", "numpy", "pydantic", "aiofiles"],
-      "start_command": "D:\\conda-envs\\comfyui-cuda\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
+      "start_command": "D:\\conda-envs\\nma-studio-cuda\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
     },
     "frontend": {
       "path": "packages/frontend",
@@ -86,7 +86,7 @@
       "mcp/vision.mjs": "Standalone vision analyzer",
       "blender_mcp_addon.py": "Blender addon for MCP protocol (v1.5, port 9876)",
       "analyze_and_sync.py": "GPU audio analysis → beat-synced JSON for Unity",
-      "analyze_happyshrimp.py": "GPU-accelerated audio analysis demo"
+      "audio_analysis_demo.py": "GPU-accelerated audio analysis demo"
     },
     "scripts": {
       "scripts/start-studio.ps1": "Start all services (backend, ComfyUI, frontend)",

@@ -153,6 +153,13 @@ _(None — all components now source media data from the library API)_
 - `Gen3DService` — 3D model generation (Hunyuan3D-2mini)
 - **Tooling** (moved to `tools/`): `audio_analysis_agent`, `audio_fingerprinting`, `structure_analysis`, `blender/builder`, `blender/lyrics_sync`, `coding_benchmark`, `ollama_benchmark`
 
+### Shared Timing Layer (`shared/timing.ts`)
+Single source of truth for beat/section/energy timing contracts across backend, frontend, Remotion, and AI agents:
+- `TimingContract` — normalized beat events, sections, energy curve, lyrics
+- `getSectionAtTime()` / `getBeatNearTime()` / `getNextBeatIn()` — binary-search helpers
+- `generateTimingHints()` — throttled beat pulses + section-change/drop/build_up hints for AI renderers
+- Array variants (`getBeatNearTimeFromArray`, `getNextBeatInFromArray`) for legacy flat `beat_times[]`
+
 ### Database Schema (SQLite)
 - `jobs` — Job records with status, progress, params, results
 - `job_events` — Event log for auditing

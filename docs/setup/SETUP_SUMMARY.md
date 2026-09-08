@@ -22,9 +22,10 @@
 |-----|------|-----|
 | Primary (CUDA, backend) | `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` — Python 3.11.9, PyTorch 2.14.0+cu126 | Backend, `tools/analyze_and_sync.py`, CUDA processor |
 | ComfyUI Runtime | `D:\conda-envs\comfyui-cuda\Scripts\python.exe` — PyTorch 2.14.0+cu126 | ComfyUI service only |
+| Standalone tooling | `D:\conda-envs\studio-tools\Scripts\python.exe` — Python 3.14.x | Pure-tooling scripts that do NOT import backend/CUDA/ComfyUI code |
 | Fallback (CPU) | `.\venv\Scripts\python.exe` | CPU-only fallback |
 
-`nma-studio-cuda` is a standalone venv (base interpreter: `C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311`) fully decoupled from `D:\conda-envs\space-analyzer-cuda` (different project — do not touch). Former `runtime/venvs/.venvs/venv_*` 8-venv matrix was a draft plan and was never created — see `docs/setup/python-environments.md`.
+`nma-studio-cuda` and `comfyui-cuda` are standalone venvs built from `C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311` (3.11.9), fully decoupled from `D:\conda-envs\space-analyzer-cuda` (different project — do not touch). `studio-tools` is a standalone venv built from `C:\Python314\python.exe` (3.14.x) for pure-tooling scripts. Former `runtime/venvs/.venvs/venv_*` 8-venv matrix was a draft plan and was never created — see `docs/setup/python-environments.md`.
 
 ### ComfyUI Location
 

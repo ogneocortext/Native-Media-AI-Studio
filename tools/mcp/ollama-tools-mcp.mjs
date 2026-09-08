@@ -44,7 +44,22 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = 30000) {
 
 async function readImageBase64(imagePath) {
   const fs = await import("fs");
-  const buf = fs.readFileSync(imagePath);
+  let buf = fs.readFileSync(imagePath);
+  
+  // Resize large images to avoid Ollama 400 errors
+  if (buf.length > 100000) {
+    try {
+      const sharp = (await import("sharp")).default;
+      buf = await sharp(buf)
+        .resize(1280, 1280, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+      console.error(`[vision] Resized ${imagePath}: ${fs.statSync(imagePath).size} -> ${buf.length} bytes`);
+    } catch {
+      // sharp not available — fallback: send raw
+    }
+  }
+  
   const base64 = buf.toString("base64");
   if (buf.length > MAX_IMAGE_BASE64_BYTES) {
     throw new Error(`Image too large for Ollama: ${(buf.length / 1024 / 1024).toFixed(1)} MB (cap ${MAX_IMAGE_BASE64_BYTES / 1024 / 1024} MB)`);
@@ -97,7 +112,7 @@ server.setRequestHandler('tools/list', async () => ({
         properties: {
           image_path: { type: "string", description: "Path or URL to the image" },
           prompt: { type: "string", description: "Question to ask about the image", default: "Describe this image in detail." },
-          model: { type: "string", description: "Ollama vision model", default: "gemma4:e2b-it-qat" },
+          model: { type: "string", description: "Ollama vision model (qwen3-vl:2b=fast, gemma4=e2b-it-qat=detailed)", default: "qwen3-vl:2b" },
         },
         required: ["image_path"],
       },
@@ -286,7 +301,7 @@ async function analyzeImage(reqId, args) {
       stream: false,
       keep_alive: "60s",
     }),
-  });
+  }, 120000);
 
   const data = await res.json();
   logRequest(reqId, "analyze_image", "ollama-ok");

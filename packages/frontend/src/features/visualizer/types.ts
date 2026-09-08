@@ -29,6 +29,27 @@ export interface AudioAnalysisData {
   spectral_rolloff?: number[];
   spectral_bandwidth?: number[];
   zero_crossing_rate?: number[];
+  // Timing contract for Remotion + AI agents
+  timing_contract?: {
+    filename: string;
+    duration: number;
+    bpm: number;
+    bpmConfidence: number;
+    beats: Array<{
+      time: number;
+      drumType: string | null;
+      energy: number;
+      isDownbeat?: boolean;
+      bpm?: number;
+    }>;
+    sections: Array<{ type: string; start: number; end: number; energy: number }>;
+    energyCurve: Array<{ time: number; value: number }>;
+    amplitudeEnvelope: number[];
+  };
+  // Suggested visualization parameters for AI/agent-driven presets
+  suggested_visualization?: string;
+  suggested_kinetic_preset?: string;
+  suggested_theme_seed?: string;
 }
 
 export interface VizParams {

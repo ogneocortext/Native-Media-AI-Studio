@@ -5,6 +5,8 @@
  * camera, post-processing, lyrics animation, and audio reactivity.
  */
 
+import type { TimingHint } from "../../../shared/timing";
+
 // =============================================================================
 // Color Theme
 // =============================================================================
@@ -191,6 +193,9 @@ export interface VisualPreset {
     visualizer?: Partial<VisualizerConfig>;
     postfx?: Partial<PostProcessingConfig>;
   }>;
+
+  /** AI-generated timing hints for Remotion / agent-driven animations */
+  timingHints?: TimingHint[];
 }
 
 export const DEFAULT_VISUAL_PRESET: VisualPreset = {

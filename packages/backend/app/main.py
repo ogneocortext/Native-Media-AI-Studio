@@ -1,6 +1,12 @@
 """Native Media AI Studio - Main FastAPI Application"""
 
 import asyncio
+import sys
+if sys.platform == "win32":
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    except Exception:
+        pass
 import json
 import logging
 import socket
@@ -450,4 +456,11 @@ def run():
 
 
 if __name__ == "__main__":
+    # Windows: ensure Proactor for subprocess (ffmpeg) — Selector does not support create_subprocess_exec
+    import sys
+    if sys.platform == "win32":
+        try:
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        except Exception:
+            pass
     run()

@@ -86,6 +86,12 @@ class AudioAnalysisResult(BaseModel):
     amplitude_envelope: list[float] = []
     stored_path: str | None = None
     job_id: str | None = None
+    # Timing contract (shared with frontend + Remotion + AI agents)
+    timing_contract: dict | None = None
+    # Suggested visualization parameters for AI/agent-driven presets
+    suggested_visualization: str | None = None
+    suggested_kinetic_preset: str | None = None
+    suggested_theme_seed: str | None = None
 
 
 @router.get("/backends")
@@ -357,7 +363,80 @@ def _build_analysis_result(
         "amplitude_envelope": [round(float(v), 4) for v in energy_curve],
         "stored_path": str(file_path),
         "job_id": unique_id,
+        # Timing contract for frontend + Remotion + AI agents
+        "timing_contract": {
+            "filename": file_path.name,
+            "duration": round(float(duration), 2),
+            "bpm": round(float(tempo), 1),
+            "bpmConfidence": round(float(confidence), 3),
+            "beats": [
+                {
+                    "time": round(float(bt), 3),
+                    "drumType": None,
+                    "energy": round(float(
+                        next((e for e in (rms_energy or []) if e > 0), 0.5)
+                    ), 4) if rms_energy else 0.5,
+                    "isDownbeat": i == 0 or (i > 0 and (bt - beat_times[i - 1]) > 60.0 / max(tempo, 1) * 1.5),
+                    "bpm": round(float(tempo), 1),
+                }
+                for i, bt in enumerate(beat_times[:800])
+            ],
+            "sections": sections,
+            "energyCurve": [
+                {"time": round(float(i) * duration / max(len(energy_curve) - 1, 1), 3), "value": round(float(v), 4)}
+                for i, v in enumerate(energy_curve)
+            ],
+            "amplitudeEnvelope": [round(float(v), 4) for v in energy_curve],
+        },
+        # Visualization hints for AI-driven preset generation
+        "suggested_visualization": _suggest_visualization(tempo, duration, sections, energy_curve),
+        "suggested_kinetic_preset": _suggest_kinetic_preset(tempo, sections),
+        "suggested_theme_seed": _suggest_theme_seed(sections, energy_curve),
     }
+
+
+def _suggest_visualization(tempo: float, duration: float, sections: list[dict], energy_curve: list[float]) -> str | None:
+    """Suggest a visualization style based on track characteristics."""
+    avg_energy = sum(energy_curve) / len(energy_curve) if energy_curve else 0.5
+    if avg_energy > 0.65 and tempo > 135:
+        return "geometric"
+    if avg_energy > 0.65 and tempo <= 135:
+        return "pulse"
+    if avg_energy > 0.45 and tempo > 120:
+        return "particles"
+    if avg_energy < 0.4 and tempo < 100:
+        return "aurora"
+    if any(s.get("type") == "chorus" for s in sections) and avg_energy > 0.5:
+        return "synthwave"
+    if avg_energy < 0.35:
+        return "cosmic"
+    if tempo > 140:
+        return "pulse"
+    if tempo < 90:
+        return "aurora"
+    return "geometric"
+
+
+def _suggest_kinetic_preset(tempo: float, sections: list[dict]) -> str | None:
+    """Suggest a kinetic typography preset based on track characteristics."""
+    has_chorus = any(s.get("type") == "chorus" for s in sections)
+    if tempo > 140 and has_chorus:
+        return "dubstep"
+    if tempo > 130:
+        return "cinematic"
+    if tempo < 100:
+        return "ambient"
+    return "synthwave"
+
+
+def _suggest_theme_seed(sections: list[dict], energy_curve: list[float]) -> str | None:
+    """Suggest a theme seed string for AI-driven color generation."""
+    avg_energy = sum(energy_curve) / len(energy_curve) if energy_curve else 0.5
+    if avg_energy > 0.7:
+        return "neon"
+    if avg_energy < 0.35:
+        return "ethereal"
+    return "balanced"
 
 
 def _generate_sections_from_analysis(
@@ -568,6 +647,27 @@ async def _apply_llm_sections(analysis_result: dict, result, rms_energy: list[fl
 def _generate_sections(duration: float, tempo: float, beat_count: int) -> list[dict]:
     """Legacy fallback — uniform slicing (kept for queue path)."""
     return _generate_sections_from_analysis(duration, tempo, [], [], [], 512, 22050)
+
+
+@router.get("/timing-metadata/{filename}")
+async def get_timing_metadata(filename: str):
+    """Get Remotion-ready timing metadata for a file.
+
+    Returns a TimingContract with beat events, section boundaries, energy
+    curve, amplitude envelope, and visualization hints. Optimized for AI
+    agents and Remotion renderers.
+    """
+    import urllib.parse
+    filename = urllib.parse.unquote(filename)
+
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    data = await get_analysis_by_filename(filename)
+    tc = data.get("timing_contract")
+    if not tc:
+        raise HTTPException(status_code=404, detail="No timing metadata found — run audio analysis first")
+    return tc
 
 
 @router.get("/analysis/by-filename/{filename}")

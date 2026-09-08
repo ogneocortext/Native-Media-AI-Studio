@@ -3,6 +3,8 @@
 import asyncio
 import json
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -346,12 +348,43 @@ class MusicVideoHandler:
             import re
 
             total_frames = int(duration * fps) if duration and fps else 0
+            # Windows: ensure Proactor for subprocess, fallback to to_thread if Selector is active
             # Use -progress pipe:1 for machine-readable, but we parse frame= lines from stderr
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+            except NotImplementedError as _ne:
+                # Fallback for SelectorEventLoop on Windows (uvicorn --reload) -> run in thread
+                import subprocess as _sp
+                def _run_ffmpeg():
+                    result = _sp.run(cmd, capture_output=True, text=True)
+                    return result.returncode, result.stdout, result.stderr
+                returncode, stdout_text, stderr_text = await asyncio.to_thread(_run_ffmpeg)
+                # Mimic streaming progress: single update
+                await self._update_progress(job, 0.9, "FFmpeg finished (thread fallback)")
+                if returncode != 0:
+                    tail = stderr_text[-1500:] if len(stderr_text) > 1500 else stderr_text
+                    import logging as _logging2
+                    _logging2.getLogger(__name__).error("FFmpeg full stderr (thread fallback):\n%s", stderr_text)
+                    raise RuntimeError(f"FFmpeg failed: {tail}")
+                # Ensure output exists
+                if not Path(output_path).exists():
+                    raise RuntimeError(f"FFmpeg failed: output not created at {output_path}")
+                # Skip the rest of streaming logic - jump to completion
+                await self._update_progress(job, 1.0, "Music video complete (thread fallback)")
+                return {
+                    "output_path": str(output_path),
+                    "output_filename": output_path.name,
+                    "duration_seconds": duration,
+                    "resolution": f"{width}x{height}",
+                    "fps": fps,
+                    "tempo_bpm": analysis.get("tempo_bpm", 0),
+                    "num_beats": analysis.get("num_beats", 0),
+                    "style": viz_config.get("style", "abstract"),
+                }
 
             # Read stderr streaming (FFmpeg uses \r for progress, not \n) while process runs, update progress 0.5→1.0
             stderr_chunks = []
@@ -479,6 +512,8 @@ class MusicVideoHandler:
             video_path = result.get("video_path")
             if video_path and Path(video_path).exists():
                 import shutil
+import subprocess
+import sys
                 shutil.move(str(video_path), str(output_path))
             else:
                 raise RuntimeError("ComfyUI generation failed: no video path returned")

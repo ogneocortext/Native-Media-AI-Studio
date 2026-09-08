@@ -9,18 +9,22 @@ import {
 } from "@remotion/media-utils";
 import { ThreeCanvas } from "@remotion/three";
 import React, { useRef } from "react";
+import { useAnalyzedAudioData } from "./hooks/useAnalyzedAudioData";
+import type { AudioAnalysisData } from "../services/api";
 
 // ─────────────────────────────────────────────────────────────
-// Signal Breaking Through The Noise — Professional Composition
-// Based on: docs/STORYBOARD_SignalBreakingThroughNoise.md
-// 136 BPM Progressive Trance, 242.32s (7269f @30fps)
+// Data-driven Remotion composition
+//
+// AI agents / frontend can pass `analysis` (AudioAnalysisData from
+// GET /api/audio/analysis/... or GET /api/audio/timing-metadata/...)
+// to override the static storyboard defaults.
 // ─────────────────────────────────────────────────────────────
 
 const FPS = 30;
-const DURATION_SECONDS = 242.32;
-const DURATION_FRAMES = Math.ceil(DURATION_SECONDS * FPS);
+const DEFAULT_DURATION_SECONDS = 242.32;
+const DEFAULT_DURATION_FRAMES = Math.ceil(DEFAULT_DURATION_SECONDS * FPS);
 
-// ─── Section Definitions (from storyboard) ───
+// ─── Fallback storyboard (Signal Breaking Through The Noise) ───
 type Section = {
   id: string;
   name: string;
@@ -32,7 +36,7 @@ type Section = {
   camera: { scale: number; speed: number };
 };
 
-const SECTIONS: Section[] = [
+const FALLBACK_SECTIONS: Section[] = [
   { id: "S01", name: "INTRO", start: 0, end: 30.5, energy: 0.20, palette: { primary: "#38bdf8", secondary: "#0ea5e9", glow: "#22d3ee" }, typography: { size: 26, weight: 500, family: "DM Mono, monospace", spacing: "0.06em" }, camera: { scale: 0.995, speed: 0.03 } },
   { id: "S02", name: "VERSE_01", start: 30.5, end: 60.36, energy: 0.548, palette: { secondary: "#5ab8d4", primary: "#45a0c4", glow: "#60a5fa" }, typography: { size: 34, weight: 600, family: "Space Grotesk, sans-serif", spacing: "0.02em" }, camera: { scale: 1.0, speed: 0.08 } },
   { id: "S03", name: "CHORUS_01", start: 60.36, end: 90.79, energy: 0.923, palette: { primary: "#c084fc", secondary: "#a855f7", glow: "#d946ef" }, typography: { size: 88, weight: 800, family: "Space Grotesk, sans-serif", spacing: "-0.04em" }, camera: { scale: 1.02, speed: 0.12 } },
@@ -43,111 +47,148 @@ const SECTIONS: Section[] = [
   { id: "S08", name: "OUTRO", start: 212.04, end: 242.32, energy: 0.794, palette: { primary: "#fbbf24", secondary: "#d4a853", glow: "#fcd34d" }, typography: { size: 48, weight: 500, family: "Space Grotesk, sans-serif", spacing: "0.04em" }, camera: { scale: 0.99, speed: 0.01 } },
 ];
 
-// ─── Lyric Data ───
 type LyricLine = { start: number; end: number; text: string; section: string };
 
-const lyricBlocks: { start: number; end: number; lines: string[]; section: string }[] = [
-  { start: 0, end: 30.5, section: "INTRO", lines: ["I used to stand at the edge of everything I knew", "Watching the old world fade into a different kind of blue", "I drew my maps in silence, traced the lines with borrowed light", "And somewhere in the static I found something worth the fight"] },
-  { start: 30.5, end: 60.36, section: "VERSE_01", lines: ["The city changed around me and the code rewrote the sky", "But I was learning how to breathe inside the reason why", "Every door that closed behind me opened something new", "I built myself from frequencies I never thought I knew"] },
-  { start: 60.36, end: 90.79, section: "CHORUS_01", lines: ["I am the signal breaking through the noise", "I am the light that finds the dark and makes a choice", "Static in my veins but I am not afraid", "I am the frequency", "I am the frequency"] },
-  { start: 90.79, end: 121.24, section: "CHORUS_02", lines: ["I am the signal breaking through the noise", "I am the light that finds the dark and makes a choice", "Static in my veins but I am not afraid", "I am the frequency", "I am the frequency"] },
-  { start: 121.24, end: 151.45, section: "BREAKDOWN", lines: ["Still here", "Still moving", "Still drawing the map", "Still here", "Still moving", "Through the light and back"] },
-  { start: 151.45, end: 181.67, section: "CHORUS_03_PEAK", lines: ["I am the signal breaking through the noise", "I am the light that finds the dark and makes a choice", "Static in my veins but I am not afraid", "I am the frequency", "I am the frequency"] },
-  { start: 181.67, end: 212.04, section: "BUILD_UP", lines: ["Rising", "Rising", "Let it break through", "Rising", "Rising", "Let it take you"] },
-  { start: 212.04, end: 242.32, section: "OUTRO", lines: ["The borrowed light became my own, the grief became a song", "And everything I thought I lost was where I still belong", "Not the version that was promised, not the life I thought I'd find", "But something real and present and entirely mine"] },
+const FALLBACK_LYRICS: LyricLine[] = [
+  { start: 0, end: 7.6, text: "I used to stand at the edge of everything I knew", section: "INTRO" },
+  { start: 7.6, end: 15.2, text: "Watching the old world fade into a different kind of blue", section: "INTRO" },
+  { start: 15.2, end: 22.8, text: "I drew my maps in silence, traced the lines with borrowed light", section: "INTRO" },
+  { start: 22.8, end: 30.5, text: "And somewhere in the static I found something worth the fight", section: "INTRO" },
+  { start: 30.5, end: 37.7, text: "The city changed around me and the code rewrote the sky", section: "VERSE_01" },
+  { start: 37.7, end: 45.3, text: "But I was learning how to breathe inside the reason why", section: "VERSE_01" },
+  { start: 45.3, end: 52.9, text: "Every door that closed behind me opened something new", section: "VERSE_01" },
+  { start: 52.9, end: 60.36, text: "I built myself from frequencies I never thought I knew", section: "VERSE_01" },
+  { start: 60.36, end: 67.0, text: "I am the signal breaking through the noise", section: "CHORUS_01" },
+  { start: 67.0, end: 73.6, text: "I am the light that finds the dark and makes a choice", section: "CHORUS_01" },
+  { start: 73.6, end: 79.8, text: "Static in my veins but I am not afraid", section: "CHORUS_01" },
+  { start: 79.8, end: 86.4, text: "I am the frequency", section: "CHORUS_01" },
+  { start: 86.4, end: 90.79, text: "I am the frequency", section: "CHORUS_01" },
+  { start: 90.79, end: 97.4, text: "I am the signal breaking through the noise", section: "CHORUS_02" },
+  { start: 97.4, end: 104.0, text: "I am the light that finds the dark and makes a choice", section: "CHORUS_02" },
+  { start: 104.0, end: 110.2, text: "Static in my veins but I am not afraid", section: "CHORUS_02" },
+  { start: 110.2, end: 116.8, text: "I am the frequency", section: "CHORUS_02" },
+  { start: 116.8, end: 121.24, text: "I am the frequency", section: "CHORUS_02" },
+  { start: 121.24, end: 128.0, text: "Still here", section: "BREAKDOWN" },
+  { start: 128.0, end: 134.6, text: "Still moving", section: "BREAKDOWN" },
+  { start: 134.6, end: 141.2, text: "Still drawing the map", section: "BREAKDOWN" },
+  { start: 141.2, end: 147.8, text: "Still here", section: "BREAKDOWN" },
+  { start: 147.8, end: 151.45, text: "Through the light and back", section: "BREAKDOWN" },
+  { start: 151.45, end: 158.0, text: "I am the signal breaking through the noise", section: "CHORUS_03_PEAK" },
+  { start: 158.0, end: 164.6, text: "I am the light that finds the dark and makes a choice", section: "CHORUS_03_PEAK" },
+  { start: 164.6, end: 170.8, text: "Static in my veins but I am not afraid", section: "CHORUS_03_PEAK" },
+  { start: 170.8, end: 177.4, text: "I am the frequency", section: "CHORUS_03_PEAK" },
+  { start: 177.4, end: 181.67, text: "I am the frequency", section: "CHORUS_03_PEAK" },
+  { start: 181.67, end: 188.0, text: "Rising", section: "BUILD_UP" },
+  { start: 188.0, end: 194.4, text: "Rising", section: "BUILD_UP" },
+  { start: 194.4, end: 201.0, text: "Let it break through", section: "BUILD_UP" },
+  { start: 201.0, end: 207.6, text: "Rising", section: "BUILD_UP" },
+  { start: 207.6, end: 212.04, text: "Let it take you", section: "BUILD_UP" },
+  { start: 212.04, end: 219.0, text: "The borrowed light became my own, the grief became a song", section: "OUTRO" },
+  { start: 219.0, end: 226.5, text: "And everything I thought I lost was where I still belong", section: "OUTRO" },
+  { start: 226.5, end: 234.0, text: "Not the version that was promised, not the life I thought I'd find", section: "OUTRO" },
+  { start: 234.0, end: 242.32, text: "But something real and present and entirely mine", section: "OUTRO" },
 ];
 
-const lyrics: LyricLine[] = lyricBlocks.flatMap((b) => {
-  const per = (b.end - b.start) / b.lines.length;
-  return b.lines.map((text, i) => ({
-    start: b.start + i * per,
-    end: b.start + (i + 1) * per,
-    text,
-    section: b.section,
-  }));
-});
-
-const transitionTimes = [30.5, 60.36, 90.79, 121.24, 151.45, 181.67, 212.04];
-
-// ─── Easing ───
-const EASE_SMOOTH = Easing.bezier(0.25, 0.1, 0.25, 1);
+const FALLBACK_TRANSITIONS = [30.5, 60.36, 90.79, 121.24, 151.45, 181.67, 212.04];
 
 // ─── Composition ───
+interface MainVideoProps {
+  analysis?: AudioAnalysisData | null;
+}
+
 export const MyComposition = () => (
   <Composition
     id="SignalBreakingThroughNoise"
     component={MainVideo}
-    durationInFrames={DURATION_FRAMES}
+    durationInFrames={DEFAULT_DURATION_FRAMES}
     fps={FPS}
     width={1920}
     height={1080}
   />
 );
 
-const MainVideo: React.FC = () => {
+const MainVideo: React.FC<MainVideoProps> = ({ analysis }) => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
 
-  // ─── Audio Analysis ───
-  const { audioData, dataOffsetInSeconds } = useWindowedAudioData({
-    src: staticFile("signal.mp3"),
-    frame,
-    fps,
-    windowInSeconds: 30,
-  });
+  // Prefer analyzed data; fall back to windowed audio-only mode
+  const analyzed = useAnalyzedAudioData(
+    typeof staticFile === "function" ? staticFile("signal.mp3") : "",
+    analysis,
+    { beatWindowMs: 100, smoothing: true }
+  );
 
-  const spectrum = audioData
-    ? visualizeAudio({ fps, frame, audioData, numberOfSamples: 64, optimizeFor: "speed", dataOffsetInSeconds })
-    : new Array(64).fill(0);
+  // Fallback storyboard values when no analyzed data
+  const sections = (analysis?.timing_contract?.sections?.length
+    ? analysis.timing_contract.sections.map((s, i) => ({
+        ...s,
+        id: `S${String(i + 1).padStart(2, "0")}`,
+        palette: {
+          primary: s.type.includes("CHORUS") ? "#c084fc" : s.type === "BREAKDOWN" ? "#b08a5a" : s.type === "BUILD_UP" ? "#fbbf24" : "#60a5fa",
+          secondary: s.type.includes("CHORUS") ? "#a855f7" : s.type === "BREAKDOWN" ? "#8a7048" : s.type === "BUILD_UP" ? "#f59e0b" : "#45a0c4",
+          glow: s.type.includes("CHORUS") ? "#d946ef" : s.type === "BREAKDOWN" ? "#f59e0b" : s.type === "BUILD_UP" ? "#fcd34d" : "#22d3ee",
+        },
+        typography: {
+          size: s.type.includes("CHORUS") ? 88 : s.type === "BREAKDOWN" ? 36 : s.type === "BUILD_UP" ? 72 : 48,
+          weight: s.type.includes("CHORUS") ? 800 : s.type === "BREAKDOWN" ? 400 : 600,
+          family: "Space Grotesk, sans-serif",
+          spacing: s.type.includes("CHORUS") ? "-0.04em" : s.type === "BREAKDOWN" ? "0.22em" : "0.02em",
+        },
+        camera: {
+          scale: 0.99 + s.energy * 0.05,
+          speed: 0.03 + s.energy * 0.12,
+        },
+      }))
+    : FALLBACK_SECTIONS
+  ) as Section[];
 
-  const waveform = audioData
-    ? visualizeAudioWaveform({ fps, frame, audioData, numberOfSamples: 200, windowInSeconds: 0.4, dataOffsetInSeconds })
-    : new Array(200).fill(0);
+  const lyrics = analysis?.timing_contract?.lyrics?.length
+    ? analysis.timing_contract.lyrics.map(l => ({
+        start: l.start,
+        end: l.end,
+        text: l.text,
+        section: l.words ? "LYRIC" : "LYRIC",
+      }))
+    : FALLBACK_LYRICS;
 
-  const bass = spectrum.slice(0, 12).reduce((a, b) => a + b, 0) / 12 || 0;
-  const mid = spectrum.slice(12, 32).reduce((a, b) => a + b, 0) / 20 || 0;
-  const treble = spectrum.slice(32, 56).reduce((a, b) => a + b, 0) / 24 || 0;
+  const transitionTimes = sections.length > 1
+    ? sections.slice(1).map(s => s.start)
+    : FALLBACK_TRANSITIONS;
 
   // ─── Timing ───
-  const t = frame / fps;
-  const progress = frame / DURATION_FRAMES;
+  const t = analyzed.time;
+  const duration = analyzed.ready ? (analysis?.timing_contract?.duration ?? DEFAULT_DURATION_SECONDS) : DEFAULT_DURATION_SECONDS;
+  const progress = Math.min(1, t / duration);
   const currentLyric = lyrics.find((l) => t >= l.start && l.end > t) ?? lyrics[0];
   const lyricProgress = currentLyric ? (t - currentLyric.start) / (currentLyric.end - currentLyric.start) : 0;
 
   // ─── Current Section ───
-  const section = SECTIONS.find(s => t >= s.start && t < s.end) ?? SECTIONS[0];
+  const section = analyzed.section
+    ? { ...analyzed.section, id: sections[Math.max(0, sections.findIndex(s => s.start <= t && s.end > t))]?.id ?? "S01", palette: sections[Math.max(0, sections.findIndex(s => s.start <= t && s.end > t))]?.palette ?? FALLBACK_SECTIONS[0].palette, typography: sections[Math.max(0, sections.findIndex(s => s.start <= t && s.end > t))]?.typography ?? FALLBACK_SECTIONS[0].typography, camera: sections[Math.max(0, sections.findIndex(s => s.start <= t && s.end > t))]?.camera ?? FALLBACK_SECTIONS[0].camera }
+    : sections.find(s => t >= s.start && t < s.end) ?? sections[0];
   const isChorus = section.name.includes("CHORUS") || section.name === "BUILD_UP";
   const isBreakdown = section.name === "BREAKDOWN";
 
-  // Scale up typography for better visibility
   const typoScale = 1.3;
 
-  // ─── BPM-synced pulse (136 BPM) — deterministic clock, works even when
-  // the spectral bass is quiet; sharp attack, fast decay per beat.
-  const BPM = 136;
+  // ─── BPM-synced pulse — dynamic from analyzed data ───
+  const BPM = analyzed.ready && analysis?.timing_contract?.bpm ? analysis.timing_contract.bpm : 136;
   const beatDur = 60 / BPM;
   const beatPhase = (t % beatDur) / beatDur;
   const beatPulse = Math.pow(1 - beatPhase, 2.5);
-  const pulse = Math.min(1, bass * 0.7 + beatPulse * section.energy * 0.55);
+  const pulse = Math.min(1, analyzed.bass * 0.7 + beatPulse * section.energy * 0.55);
 
-  // ─── Beat Detection (rolling energy average) ───
-  const bassEnergy = bass;
-  const prevBassRef = useRef(0);
-  const beatThreshold = 0.35;
-  const minBeatGap = 0.15; // seconds
-  const lastBeatTimeRef = useRef(0);
-  const isBeat = bassEnergy > beatThreshold && (t - lastBeatTimeRef.current) > minBeatGap;
-  if (isBeat) lastBeatTimeRef.current = t;
-  prevBassRef.current = bassEnergy;
+  // ─── Beat Detection — prefer analyzed beats, fall back to energy threshold ───
+  const isBeat = analyzed.isBeat;
+  const beatSpring = spring({ frame: isBeat ? frame % 14 : frame % 14 - 14, fps, config: { damping: 12, stiffness: 200, mass: 0.5 } });
 
   // ─── Animation Values ───
-  const beatSpring = spring({ frame: isBeat ? frame % 14 : frame % 14 - 14, fps, config: { damping: 12, stiffness: 200, mass: 0.5 } });
   const breathe = Math.sin(t * section.camera.speed * 2) * 0.015 + 1;
   const camScale = breathe * section.camera.scale * (1 + pulse * (isChorus ? 0.04 : 0.02));
-  const camX = Math.sin(t * section.camera.speed) * (isChorus ? 15 : 8) + (isBeat ? bass * 5 : 0);
+  const camX = Math.sin(t * section.camera.speed) * (isChorus ? 15 : 8) + (isBeat ? analyzed.bass * 5 : 0);
   const camY = Math.cos(t * section.camera.speed * 0.7) * 5;
 
-  // ─── Transition Detection ───
+  // ─── Transition Detection — from analyzed section boundaries or fallback ───
   let wipeProgress = 0;
   let activeTransition = -1;
   for (let i = 0; i < transitionTimes.length; i++) {
@@ -165,26 +206,26 @@ const MainVideo: React.FC = () => {
       <Audio src={staticFile("signal.mp3")} />
 
       {/* ─── Background ─── */}
-      <BackgroundSection section={section} t={t} bass={bass} pulse={pulse} camScale={camScale} camX={camX} camY={camY} />
+      <BackgroundSection section={section} t={t} bass={analyzed.bass} pulse={pulse} camScale={camScale} camX={camX} camY={camY} />
 
       {/* ─── 3D Scene ─── */}
-      <Scene3DLayer section={section} t={t} bass={bass} mid={mid} treble={treble} beatSpring={beatSpring} width={width} height={height} isBeat={isBeat} pulse={pulse} />
+      <Scene3DLayer section={section} t={t} bass={analyzed.bass} mid={analyzed.mid} treble={analyzed.treble} beatSpring={beatSpring} width={width} height={height} isBeat={isBeat} pulse={pulse} />
 
       {/* ─── Beat-synced pulse rings ─── */}
-      <BeatRings section={section} t={t} isChorus={isChorus} isBreakdown={isBreakdown} />
+      <BeatRings section={section} t={t} isChorus={isChorus} isBreakdown={isBreakdown} bpm={BPM} />
 
       {/* ─── Waveform ─── */}
-      <WaveformSection waveform={waveform} section={section} width={width} height={height} bass={bass} />
+      <WaveformSection waveform={analyzed.waveform} section={section} width={width} height={height} bass={analyzed.bass} />
 
       {/* ─── Floating Particles ─── */}
-      <ParticlesLayer t={t} bass={bass} isChorus={isChorus} isBreakdown={isBreakdown} isBeat={isBeat} beatSpring={beatSpring} pulse={pulse} section={section} />
+      <ParticlesLayer t={t} bass={analyzed.bass} isChorus={isChorus} isBreakdown={isBreakdown} isBeat={isBeat} beatSpring={beatSpring} pulse={pulse} section={section} />
 
       {/* ─── Lyrics ─── */}
-      <LyricSection currentLyric={currentLyric} lyricProgress={lyricProgress} section={section} t={t} bass={bass} width={width} height={height} typoScale={typoScale} />
+      <LyricSection currentLyric={currentLyric} lyricProgress={lyricProgress} section={section} t={t} bass={analyzed.bass} width={width} height={height} typoScale={typoScale} />
 
       {/* ─── Bento Boxes ─── */}
       {(isChorus || isBreakdown) && (
-        <BentoSection spectrum={spectrum} section={section} t={t} progress={progress} width={width} height={height} bass={bass} />
+        <BentoSection spectrum={analyzed.spectrum} section={section} t={t} progress={progress} width={width} height={height} bass={analyzed.bass} bpm={BPM} />
       )}
 
       {/* ─── Transitions ─── */}
@@ -305,9 +346,9 @@ const Scene3DLayer: React.FC<any> = ({ section, t, bass, mid, treble, beatSpring
 // ─── Beat-synced Pulse Rings ───
 const phase = (t: number, dur: number) => (t % dur) / dur;
 
-const BeatRings: React.FC<any> = ({ section, t, isChorus, isBreakdown }) => {
+const BeatRings: React.FC<any> = ({ section, t, isChorus, isBreakdown, bpm }) => {
   if (isBreakdown) return null;
-  const BPM = 136;
+  const BPM = bpm || 136;
   const beatDur = 60 / BPM;
   const ringCount = isChorus ? 2 : 1;
   const fade = isChorus ? 1 : 0.5;
@@ -342,7 +383,7 @@ const WaveformSection: React.FC<any> = ({ waveform, section, width, height, bass
 
   const opacity = section.name === "BREAKDOWN" ? 0.25 : section.energy > 0.8 ? 0.6 : 0.4;
   const strokeWidth = section.name.includes("CHORUS") ? 2 : 1.5;
-  const uid = `waveGlow-${section.id}`;
+  const uid = `waveGlow-${section.id || "fallback"}`;
 
   return (
     <svg width={width} height={height} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
@@ -427,7 +468,7 @@ const LyricSection: React.FC<any> = ({ currentLyric, lyricProgress, section, t, 
 };
 
 // ─── Bento Section ───
-const BentoSection: React.FC<any> = ({ spectrum, section, t, progress, width, height, bass }) => {
+const BentoSection: React.FC<any> = ({ spectrum, section, t, progress, width, height, bass, bpm }) => {
   const isBreakdown = section.name === "BREAKDOWN";
   const cardWidth = isBreakdown ? 280 : 420;
   const cardHeight = isBreakdown ? 100 : 140;
@@ -438,7 +479,7 @@ const BentoSection: React.FC<any> = ({ spectrum, section, t, progress, width, he
       <div style={{ display: "flex", gap: 16, alignItems: "flex-end" }}>
         {!isBreakdown && (
           <div style={{ width: 280, height: cardHeight, borderRadius: 20, background: "rgba(18,22,34,0.7)", backdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.08)", padding: 16, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-            <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, letterSpacing: "0.15em", color: "rgba(255,255,255,0.5)" }}>136 BPM • PROGRESSIVE TRANCE</div>
+            <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, letterSpacing: "0.15em", color: "rgba(255,255,255,0.5)" }}>{Math.round(bpm || 136)} BPM • PROGRESSIVE TRANCE</div>
             <div style={{ width: "100%", height: 2, background: "rgba(255,255,255,0.1)", borderRadius: 1, overflow: "hidden" }}>
               <div style={{ width: `${progress * 100}%`, height: "100%", background: section.palette.glow }} />
             </div>
@@ -465,5 +506,5 @@ const TransitionOverlay: React.FC<any> = ({ wipeProgress, width, height }) => {
   );
 };
 
-export const SignalDuration = DURATION_FRAMES;
+export const SignalDuration = DEFAULT_DURATION_FRAMES;
 export const SignalFps = FPS;

@@ -241,6 +241,34 @@ const energyCurve = analysis.energy_curve;  // Array of energy values
 const sections = analysis.sections;  // [{type, start, end, energy}]
 ```
 
+### Timing Contract (shared + AI-friendly)
+
+Use `shared/timing.ts` as the single source of truth for timing lookups:
+
+```tsx
+import { getSectionAtTime, getBeatNearTime, getNextBeatIn, interpolateEnergy, generateTimingHints } from "../../../shared/timing";
+import type { TimingContract } from "../../../shared/timing";
+
+// 1. Fetch TimingContract (Remotion/AI-agent optimized)
+const res = await fetch(`/api/audio/timing-metadata/${filename}`);
+const contract: TimingContract = await res.json();
+
+// 2. Frame-accurate section/beat/energy in your Remotion component
+const t = frame / fps;
+const section = getSectionAtTime(contract.sections, t);
+const beat = getBeatNearTime(contract.beats, t, 0.1);
+const nextBeatIn = getNextBeatIn(contract.beats, t);
+const energy = interpolateEnergy(contract, t);
+
+// 3. Generate timing hints for AI-driven keyframes (once per render)
+const hints = generateTimingHints(contract);
+// hints → beat_pulse / section_change / drop / build_up / lyric_phrase / color_shift
+```
+
+`useAnalyzedAudioData(audioSrc, analysis)` in `packages/video-editor/src/hooks/useAnalyzedAudioData.ts` wraps the above into a Remotion hook with spectrum/waveform fallback.
+
+`AudioReactiveVisualizer` now accepts an optional `analysis` prop for section-aware palette shifts.
+
 ## Post-Processing Effects
 
 ```tsx

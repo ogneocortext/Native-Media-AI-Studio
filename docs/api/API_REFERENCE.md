@@ -139,6 +139,41 @@ GET /api/audio/analysis/{job_id}
 
 Returns JSON analysis result with beat times, tempo, amplitude envelope.
 
+### Get timing metadata (Remotion / AI-agent ready)
+
+```
+GET /api/audio/timing-metadata/{filename}
+```
+
+Returns a `TimingContract` optimized for Remotion compositions and AI-generated graphics:
+
+```json
+{
+  "filename": "song.mp3",
+  "duration": 234.12,
+  "bpm": 97.5,
+  "bpmConfidence": 0.86,
+  "beats": [
+    { "time": 20.329, "drumType": "kick", "energy": 0.92, "isDownbeat": true, "bpm": 98.0 }
+  ],
+  "sections": [
+    { "type": "intro", "start": 0.0, "end": 29.5, "energy": 0.2, "bpm": 96.0 }
+  ],
+  "energyCurve": [{ "time": 0.0, "value": 0.12 }, ...],
+  "amplitudeEnvelope": [0.12, 0.34, ...],
+  "lyrics": [{ "start": 4.2, "end": 8.1, "text": "...", "phraseStart": true }],
+  "suggestedVisualization": "particles",
+  "suggestedKineticPreset": "phonk-drift",
+  "suggestedThemeSeed": "synthwave"
+}
+```
+
+Field notes:
+- `beats` is throttled to ~200 events (one per ~Nth onset) to keep AI keyframing tractable.
+- `sections` are beat-snapped, non-overlapping, and cover `[0, duration]`.
+- `energyCurve` is sub-sampled for fast interpolation in Remotion `useCurrentFrame()` loops.
+- `suggestedVisualization` / `suggestedKineticPreset` / `suggestedThemeSeed` are AI-friendly hints derived from track energy/spectral features.
+
 ### Generate video section (real queue)
 
 ```

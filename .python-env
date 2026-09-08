@@ -6,9 +6,10 @@
 # C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311) built
 # specifically for this project. It is fully decoupled from
 # `D:\conda-envs\space-analyzer-cuda` (belongs to a different project — never
-# delete or modify it for this project's sake) and from `comfyui-cuda`.
-# `comfyui-cuda` is a venv bootstrapped FROM space-analyzer-cuda and remains
-# ComfyUI's runtime only.
+# delete or modify it for this project's sake). `comfyui-cuda` is also a
+# standalone venv (Python 3.11.9, base interpreter at
+# C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311) and is used
+# for the ComfyUI service runtime only.
 
 # Dedicated studio environment (recommended for backend + GPU features)
 PYTHON_ENV=D:\conda-envs\nma-studio-cuda\Scripts\python.exe
@@ -16,10 +17,14 @@ PYTHON_ENV=D:\conda-envs\nma-studio-cuda\Scripts\python.exe
 # ComfyUI runtime (separate env, owned by the ComfyUI service)
 COMFYUI_ENV=D:\conda-envs\comfyui-cuda\Scripts\python.exe
 
+# Standalone tooling environment (Python 3.14 — stdlib + pure-Python tools only)
+# Use this for scripts that do NOT import backend/CUDA/ComfyUI code.
+TOOLS_ENV=D:\conda-envs\studio-tools\Scripts\python.exe
+
 # Fallback venv (CPU-only, no CUDA)
 FALLBACK_VENV=venv\Scripts\python.exe
 
-# Environment type: venv (nma-studio-cuda is a venv, NOT a conda env)
+# Environment type: venv (all envs above are venvs, NOT conda envs)
 ENV_TYPE=venv
 
 # CUDA support (torch 2.14.0+cu126 — Pascal/sm_61-safe build per

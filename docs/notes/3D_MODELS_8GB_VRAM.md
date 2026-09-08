@@ -31,7 +31,7 @@
 
 1. **Shape Generation**: Hunyuan3D-2mini Turbo via ComfyUI
    - Fast (turbo), fits in 5-6GB, good quality
-   - Can run locally in `venv_backend` or `comfyui-cuda` conda env
+    - Can run locally in `venv_backend` or `comfyui-cuda` venv
 
 2. **Texture/Refinement**: Trellis 2 GG UF at Q4 if VRAM allows
    - Otherwise use Hunyuan3D-Paint (needs ~16GB, run via cloud API)
@@ -44,7 +44,7 @@
 
 - **ComfyUI location**: `<your-comfyui-root>`
 - **Custom nodes**: `<your-comfyui-root>/custom_nodes/` (already has AnimateDiff, WanVideo)
-- **Conda env with CUDA**: `<your-conda-envs>/comfyui-cuda` (PyTorch 2.14.0+cu126)
+- **ComfyUI venv with CUDA**: `<your-comfyui-envs>/comfyui-cuda` (PyTorch 2.14.0+cu126)
 - **Project venv**: `<your-project-root>/runtime/venvs/.venvs/venv_backend` (PyTorch 2.14.0+cu126)
 
 ## Notes

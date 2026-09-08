@@ -125,7 +125,7 @@ npx -y @remotion/mcp@latest
 
 ### Scripts
 - `analyze_and_sync.py` — Analyze audio and generate Unity beat-synced animation data (JSON with tempo, beat_times, keyframes)
-- `analyze_happyshrimp.py` — GPU-accelerated analysis demo using CUDA
+- `audio_analysis_demo.py` — GPU-accelerated analysis demo using CUDA
 - `demos/demo_all_features.py` — Full feature demonstration
 - `demos/demo_audio_analysis.py` — Audio analysis demo
 

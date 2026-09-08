@@ -1,6 +1,6 @@
 # System Requirements — Native Media AI Studio
 
-> **Last Updated:** 2026-09-07
+> **Last Updated:** 2026-09-08 — added `studio-tools` (Python 3.14) for standalone tooling
 
 External tools and system-level dependencies that are **not** installable via `pip` / `pnpm`.
 
@@ -13,7 +13,7 @@ External tools and system-level dependencies that are **not** installable via `p
 | **FFmpeg** (`ffmpeg`, `ffprobe`) | Cover art extraction, video rendering, format probing | `choco install ffmpeg` / `winget install ffmpeg` / https://ffmpeg.org/download.html |
 | **Git** | ComfyUI self-update (`git pull`) in `comfyui_manager.py` | https://git-scm.com/downloads |
 | **PowerShell 7+** | Service scripts (`scripts/*.ps1`) | Windows 11 ships with pwsh; otherwise `winget install Microsoft.PowerShell` |
-| **Python** (`python.exe`) | Backend venv (`D:\conda-envs\nma-studio-cuda\Scripts\python.exe`), ComfyUI runtime venv | Python 3.11+ (base interpreter already installed) |
+| **Python** (`python.exe`) | Backend venv (`D:\conda-envs\nma-studio-cuda\Scripts\python.exe`), ComfyUI runtime venv, standalone tooling venv (`D:\conda-envs\studio-tools\Scripts\python.exe`) | Python 3.11+ (backend/CUDA), Python 3.14+ (standalone tools) |
 | **Node.js 22+** | Frontend dev server, Vite build, MCP tool scripts | https://nodejs.org/ or `fnm use 22` |
 
 ---
@@ -62,6 +62,7 @@ where.exe ffmpeg ffprobe git pwsh
 # Python envs
 D:\conda-envs\nma-studio-cuda\Scripts\python.exe -c "import torch; print('torch', torch.__version__)"
 D:\conda-envs\comfyui-cuda\Scripts\python.exe -c "import torch; print('comfyui torch', torch.__version__)"
+D:\conda-envs\studio-tools\Scripts\python.exe -c "import sys; print('studio-tools', sys.version)"
 
 # Services
 curl http://127.0.0.1:8001/api/health

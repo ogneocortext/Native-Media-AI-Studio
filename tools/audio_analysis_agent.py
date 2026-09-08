@@ -27,7 +27,7 @@ _AUDIO_AGENT_BASE_URL: str = os.environ.get("AUDIO_AGENT_BASE_URL", "http://127.
 def backends() -> dict[str, Any]:
     """Return available audio analysis backends and the current default."""
     try:
-        r = requests.get(f"{_BASE}/backends", timeout=10)
+        r = requests.get(f"{_AUDIO_AGENT_BASE_URL}/backends", timeout=10)
         r.raise_for_status()
         return r.json()
     except Exception as exc:
@@ -46,7 +46,7 @@ def analyze(file_path: str, backend: str = "sonara") -> dict[str, Any]:
         with open(file_path, "rb") as fh:
             files = {"file": fh}
             r = requests.post(
-                f"{_BASE}/analyze",
+                f"{_AUDIO_AGENT_BASE_URL}/analyze",
                 params={"backend": backend},
                 files=files,
                 timeout=300,
@@ -67,7 +67,7 @@ def ensure(filename: str, backend: str = "sonara") -> dict[str, Any]:
     """
     try:
         r = requests.post(
-            f"{_BASE}/ensure-analysis",
+            f"{_AUDIO_AGENT_BASE_URL}/ensure-analysis",
             json={"filename": filename, "backend": backend},
             timeout=300,
         )
@@ -86,7 +86,7 @@ def summary(filename: str) -> dict[str, Any]:
     full ``beat_times`` / ``energy_curve`` arrays.
     """
     try:
-        r = requests.get(f"{_BASE}/analysis/summary/{filename}", timeout=10)
+        r = requests.get(f"{_AUDIO_AGENT_BASE_URL}/analysis/summary/{filename}", timeout=10)
         r.raise_for_status()
         return r.json()
     except Exception as exc:
@@ -101,7 +101,7 @@ def analyze_all(backend: str = "sonara") -> dict[str, Any]:
     """
     try:
         r = requests.post(
-            f"{_BASE}/analyze-all",
+            f"{_AUDIO_AGENT_BASE_URL}/analyze-all",
             params={"backend": backend},
             timeout=600,
         )

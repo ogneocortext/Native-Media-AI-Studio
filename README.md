@@ -87,11 +87,13 @@ Native-Media-AI-Studio/
 
 ### Prerequisites
 
-- **Python 3.11+** (via conda env `comfyui-cuda` recommended for GPU support — see `.python-env`)
+- **Python 3.11+** (via venv `nma-studio-cuda` for backend/GPU — see `.python-env`)
+- **Python 3.14+** (via venv `studio-tools` for standalone tooling — see `tools/requirements-standalone.txt`)
 - **Node.js 22+** (via `fnm`; `engines` requires `>=22.13.0`)
 - **pnpm 11+** (`npm install -g pnpm@11`; `packageManager` is `pnpm@11.24.0`)
 - **ComfyUI** installed at your location here
-- **Conda environment** `comfyui-cuda` with PyTorch CUDA support
+- **venv** `nma-studio-cuda` with PyTorch CUDA support
+- **venv** `studio-tools` with pure-Python tooling dependencies
 
 ### Start All Services
 
