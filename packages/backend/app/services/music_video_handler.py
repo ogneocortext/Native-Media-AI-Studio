@@ -165,7 +165,53 @@ class MusicVideoHandler:
         for name in ["ffmpeg", "ffmpeg.exe"]:
             cmd = shutil.which(name)
             if cmd:
-                return cmd
+                try:
+                    pp = Path(cmd)
+                    if pp.is_symlink():
+                        try:
+                            target = pp.readlink()
+                            if not target.is_absolute():
+                                target = pp.parent / target
+                            if target.exists():
+                                cleaned = str(target)
+                                if cleaned.startswith('\\\\?\\'):
+                                    cleaned = cleaned[4:]
+                                return cleaned
+                        except Exception:
+                            pass
+                        try:
+                            resolved = pp.resolve(strict=True)
+                            if resolved.exists() and resolved.stat().st_size > 10000:
+                                # Strip \\?\ long-path prefix for asyncio compatibility
+                                cleaned = str(resolved)
+                                if cleaned.startswith('\\\\?\\'):
+                                    cleaned = cleaned[4:]
+                                return cleaned
+                        except Exception:
+                            pass
+                    if pp.exists() and pp.stat().st_size == 0:
+                        try:
+                            gyan = list((Path.home() / "AppData" / "Local" / "Microsoft" / "WinGet" / "Packages").glob("Gyan.FFmpeg.Essentials*/ffmpeg-*/bin/ffmpeg.exe"))
+                            if gyan and gyan[0].exists():
+                                return str(gyan[0])
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                # Clean any \\?\ prefix
+                cleaned_cmd = cmd
+                if isinstance(cleaned_cmd, str) and cleaned_cmd.startswith('\\\\?\\'):
+                    cleaned_cmd = cleaned_cmd[4:]
+                return cleaned_cmd
+        try:
+            gyan = list((Path.home() / "AppData" / "Local" / "Microsoft" / "WinGet" / "Packages").glob("Gyan.FFmpeg.Essentials*/ffmpeg-*/bin/ffmpeg.exe"))
+            if gyan and gyan[0].exists():
+                cleaned = str(gyan[0])
+                if cleaned.startswith('\\\\?\\'):
+                    cleaned = cleaned[4:]
+                return cleaned
+        except Exception:
+            pass
         return None
 
     async def _render_with_ffmpeg(

@@ -184,17 +184,39 @@ The Visualizer (`packages/frontend/src/features/visualizer/`) includes:
 - ComfyUI at `D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI`
 - NVIDIA GPU with CUDA (torch bundles its own CUDA runtime — no system toolkit needed)
 
-## Python Environment
+## Python Environments
 
-The project has a **dedicated, standalone venv** built specifically for Native Media AI Studio:
+The project has **three** Python environments. Do not assume `python` on PATH is the correct one.
 
-- **Primary Environment (backend + GPU)**: `D:\conda-envs\nma-studio-cuda\` — standalone venv on Python 3.11.9 (base interpreter: `C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311`), PyTorch 2.14.0+cu126 (Pascal/sm_61-safe build per `packages/backend/requirements-torch.txt`)
-- **ComfyUI Runtime (separate env)**: `D:\conda-envs\comfyui-cuda\` — venv used **only** by the ComfyUI service (PyTorch 2.14.0+cu126)
-- **Fallback**: Local venv at `venv/` (CPU-only, no CUDA)
-- **Configuration**: See `.python-env` file for environment settings
-- **Type Checking**: Pyright configured to use the studio venv in `pyrightconfig.json`
-- **Health Check**: `scripts\check-env-health.ps1` (add `-Torch` for CUDA matmul test) — validates decoupling, venv `pyvenv.cfg` bases, and Pascal-safe torch
-- **Reference**: `docs/knowledge-library/python-environment-management.md` — venv mechanics, PyTorch×Pascal wheel matrix, env migration recipes. Venvs are **not movable or copyable**; migrate via recreate-from-requirements, never by copying folders.
+### Preferred interpreter selection
+
+| Task | Use this interpreter |
+|------|----------------------|
+| Backend, audio analysis, ML, any CUDA feature | `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` |
+| ComfyUI service only | `D:\conda-envs\comfyui-cuda\Scripts\python.exe` |
+| Fallback / CPU-only scripts | `venv\Scripts\python.exe` |
+
+Rules:
+- **Default to the studio env** (`nma-studio-cuda`) for backend + GPU work.
+- **Never** use `comfyui-cuda` for backend work; it is ComfyUI-only.
+- **Never** modify or delete `D:\conda-envs\space-analyzer-cuda`; it belongs to another project.
+
+### Paths and metadata
+
+- **Primary Environment (backend + GPU)**: `D:\conda-envs\nma-studio-cuda\`
+  - Python 3.11.9, PyTorch `2.14.0+cu126`
+  - Pascal/sm_61-safe build
+  - Base interpreter: `C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311`
+- **ComfyUI Runtime (separate env)**: `D:\conda-envs\comfyui-cuda\`
+  - Used **only** by the ComfyUI service
+  - PyTorch `2.14.0+cu126`
+- **Fallback**: `venv/` (CPU-only)
+
+### Source of truth
+
+- `.python-env` — environment variables pointing to the exact python executables
+- `pyrightconfig.json` — points type checking to the studio env
+- `scripts\check-env-health.ps1` — validates decoupling and CUDA health (add `-Torch` for CUDA matmul test)
 
 > [!warning] Decoupling & ownership
 > - `nma-studio-cuda` is fully decoupled from `D:\conda-envs\space-analyzer-cuda` (that env belongs to a **different project** — never delete or modify it for this project's sake).
