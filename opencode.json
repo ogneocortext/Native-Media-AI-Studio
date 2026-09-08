@@ -72,6 +72,17 @@
         "UNITY_PROJECT_PATH": "./unity-project-mcp"
       },
       "enabled": true
+    },
+    "hyperframes": {
+      "type": "local",
+      "command": [
+        "node",
+        "tools/mcp/hyperframes-mcp.mjs"
+      ],
+      "environment": {
+        "HYPERFRAMES_PROJECT": "tools/hyperframes-test"
+      },
+      "enabled": true
     }
   }
 }

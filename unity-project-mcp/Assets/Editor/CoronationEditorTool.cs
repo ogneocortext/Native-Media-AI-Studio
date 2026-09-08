@@ -31,7 +31,7 @@ public class CoronationEditorTool : EditorWindow
     [MenuItem("Tools/Coronation/Render Frames")]
     static void RenderFrames()
     {
-        var scene = FindObjectOfType<CoronationScene>();
+        var scene = FindAnyObjectByType<CoronationScene>();
         if (scene == null)
         {
             Debug.LogError("No CoronationScene found. Generate scene first.");

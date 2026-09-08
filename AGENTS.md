@@ -46,7 +46,12 @@ tools/                  # MCP bridges, demo scripts, and Go infrastructure sidec
 ├── skills/unity-mcp/SKILL.md  # Unity MCP skill documentation
 └── package.json          # Kilo Code plugin dependencies
 unity-project-mcp/        # Unity project for music video generation
+unity-visualizer/          # Native Media Visualizer — standalone Unity audio visualization project
 ```
+
+## Protected Directories
+
+> [!warning] CRITICAL: Do not delete or move `unity-visualizer/` during directory audits or cleanup. This is a dedicated standalone Unity project for track audio visualization and must not be conflated with `unity-project-mcp/`.
 
 ## MCP Server Configuration
 

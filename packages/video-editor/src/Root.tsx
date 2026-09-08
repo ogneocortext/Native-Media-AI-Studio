@@ -1,6 +1,7 @@
 import "./index.css";
 import { MyComposition } from "./Composition";
 import { StillIRiseComposition, StillIRiseDuration, StillIRiseFps } from "./StillIRise";
+import { StillIRiseV7Composition, StillIRiseV7Duration, StillIRiseV7Fps } from "./StillIRiseV7";
 import { SiliconDreamsPreview, SiliconDreamsDuration, SiliconDreamsFps } from "./SiliconDreamsPreview";
 import { TakeTheCrownComposition, TakeTheCrownDuration, TakeTheCrownFps } from "./TakeTheCrown";
 import { Composition } from "remotion";
@@ -54,6 +55,22 @@ export const RemotionRoot: React.FC = () => {
         component={TakeTheCrownComposition}
         durationInFrames={TakeTheCrownDuration}
         fps={TakeTheCrownFps}
+        width={1080}
+        height={1920}
+      />
+      <Composition
+        id="StillIRiseV7"
+        component={StillIRiseV7Composition}
+        durationInFrames={StillIRiseV7Duration}
+        fps={StillIRiseV7Fps}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="StillIRiseV7Vertical"
+        component={StillIRiseV7Composition}
+        durationInFrames={StillIRiseV7Duration}
+        fps={StillIRiseV7Fps}
         width={1080}
         height={1920}
       />

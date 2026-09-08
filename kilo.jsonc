@@ -8,6 +8,9 @@
   "mcp": {
     "remotion-documentation": {
       "enabled": true
+    },
+    "vision": {
+      "enabled": true
     }
   }
 }

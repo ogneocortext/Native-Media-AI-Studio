@@ -41,9 +41,7 @@ public class CoronationScene : MonoBehaviour
     public Color ashColor = new Color(0.04f, 0.03f, 0.02f);
     
     private int frameCount = 0;
-    private float timer = 0f;
     private float beatTimer = 0f;
-    private bool isRendering = false;
     
     void Start()
     {
@@ -179,7 +177,6 @@ public class CoronationScene : MonoBehaviour
     
     IEnumerator RenderFrames()
     {
-        isRendering = true;
         frameCount = 0;
         float interval = 1f / fps;
         
@@ -209,10 +206,9 @@ public class CoronationScene : MonoBehaviour
             }
         }
         
-        isRendering = false;
         Debug.Log($"Render complete: {frameCount} frames");
         #if UNITY_EDITOR
-        EditorApplication.isPlaying = false;
+        UnityEditor.EditorApplication.ExitPlaymode();
         #endif
     }
     

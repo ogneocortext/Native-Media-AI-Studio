@@ -12,8 +12,60 @@
 import { useCurrentFrame, useVideoConfig } from "remotion";
 import { useAudioData, visualizeAudio, visualizeAudioWaveform } from "@remotion/media-utils";
 import type { AudioAnalysisData } from "../services/api";
-import type { TimingContract, SectionEvent, BeatEvent } from "../../../shared/timing";
-import { getSectionAtTime, getBeatNearTime, getNextBeatIn, interpolateEnergy } from "../../../shared/timing";
+import type { TimingContract, SectionEvent, BeatEvent } from "../lib/timing";
+import { getSectionAtTime, getBeatNearTime, getNextBeatIn, interpolateEnergy } from "../lib/timing";
+
+/**
+ * useTimingContract — pure contract lookups, no audio decoding.
+ *
+ * The "equivalent pattern" entry point for compositions that already stream
+ * audio through `useWindowedAudioData` (memory-friendly for long tracks) but
+ * still want frame-accurate beat/section/energy lookups from an embedded
+ * TimingContract. Binary searches run per frame and are O(log n).
+ */
+export interface TimingContractState {
+  time: number;
+  frame: number;
+  section: SectionEvent | null;
+  isBeat: boolean;
+  beat: BeatEvent | null;
+  /** Seconds since the closest beat (0 when on-beat or between-window) */
+  sinceBeat: number;
+  nextBeatIn: number;
+  /** Interpolated energy from the contract's energy curve (0..1) */
+  contractEnergy: number;
+  /** Energy of the enclosing section (0..1) */
+  sectionEnergy: number;
+  ready: boolean;
+}
+
+export function useTimingContract(contract: TimingContract | null): TimingContractState {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const t = frame / fps;
+
+  if (!contract) {
+    return { time: t, frame, section: null, isBeat: false, beat: null, sinceBeat: 0, nextBeatIn: 0, contractEnergy: 0.5, sectionEnergy: 0.5, ready: false };
+  }
+
+  const beats = contract.beats || [];
+  const beatResult = getBeatNearTime(beats, t, 0.1);
+  const sinceBeat = beatResult ? beatResult.distance : 0;
+  const section = getSectionAtTime(contract.sections || [], t);
+
+  return {
+    time: t,
+    frame,
+    section,
+    isBeat: beatResult !== null,
+    beat: beatResult?.beat ?? null,
+    sinceBeat,
+    nextBeatIn: getNextBeatIn(beats, t),
+    contractEnergy: interpolateEnergy(contract, t),
+    sectionEnergy: section?.energy ?? 0.5,
+    ready: true,
+  };
+}
 
 export interface AnalyzedAudioState {
   /** Raw frequency spectrum (from Remotion) */
@@ -107,3 +159,5 @@ export function useAnalyzedAudioData(
     ready: true,
   };
 }
+
+export type { TimingContractState };

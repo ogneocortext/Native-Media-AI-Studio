@@ -32,7 +32,7 @@ public class AutoCapture : MonoBehaviour
         {
             Debug.Log("Capture complete: " + frameCount + " frames");
             #if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
+            UnityEditor.EditorApplication.ExitPlaymode();
             #endif
         }
     }

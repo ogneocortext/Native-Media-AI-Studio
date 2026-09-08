@@ -799,7 +799,11 @@ server.setRequestHandler('tools/list', async () => ({
         required: ["image_paths"]
       }
     },
-    ...TOOL_DEFS,
+    ...TOOL_DEFS.map(t => ({
+      name: t.function.name,
+      description: t.function.description,
+      inputSchema: t.function.parameters,
+    })),
   ]
 }));
 

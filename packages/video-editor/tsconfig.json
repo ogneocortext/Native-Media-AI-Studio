@@ -10,8 +10,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "noUnusedLocals": true,
-    "types": ["@react-three/fiber"]
+    "noUnusedLocals": true
   },
   "exclude": ["remotion.config.ts"]
 }

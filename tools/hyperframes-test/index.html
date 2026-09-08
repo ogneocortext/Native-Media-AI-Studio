@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #05050a;
+        font-family: 'Inter', ui-sans-serif, system-ui;
+      }
+      .bg-mesh {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        background:
+          radial-gradient(1200px 800px at 10% 10%, rgba(56,189,248,0.25), transparent 40%),
+          radial-gradient(1000px 600px at 90% 30%, rgba(168,85,247,0.25), transparent 40%),
+          radial-gradient(900px 900px at 50% 90%, rgba(236,72,153,0.25), transparent 40%);
+        filter: saturate(1.2);
+      }
+      .stage {
+        position: relative;
+        z-index: 10;
+        width: 1920px;
+        height: 1080px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2rem;
+        padding: 2rem;
+      }
+      .title {
+        font-size: clamp(3rem, 8vw, 7rem);
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        line-height: 0.95;
+        color: #fff;
+      }
+      .subtitle {
+        font-size: clamp(1rem, 2vw, 1.5rem);
+        color: rgba(255, 255, 255, 0.85);
+        max-width: 48rem;
+        text-align: center;
+      }
+      .badge {
+        display: inline-flex;
+        padding: 0.5rem 1rem;
+        border-radius: 9999px;
+        border: 1px solid rgba(255,255,255,0.2);
+        backdrop-filter: blur(10px);
+        background: rgba(255,255,255,0.05);
+        color: #fff;
+      }
+      .beat-bar {
+        width: 8px;
+        border-radius: 9999px;
+        background: linear-gradient(to top, #38bdf8, #a855f7);
+        transform-origin: bottom;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-199x" id="root" data-composition-id="main" data-start="0" data-duration="10" data-width="1920" data-height="1080">
+      <div data-hf-id="hf-r47l" class="bg-mesh"></div>
+      <div data-hf-id="hf-tan6" class="stage">
+        <div data-hf-id="hf-x6fx" class="badge">HyperFrames Test</div>
+        <h1 data-hf-id="hf-hobm" class="title" id="title">Video as Code</h1>
+        <p data-hf-id="hf-dzjx" class="subtitle" id="subtitle">
+          Deterministic HTML-to-video renders with GSAP animations.
+          This is an isolated test project for the HyperFrames MCP bridge.
+        </p>
+        <div data-hf-id="hf-x9sd" class="flex items-end gap-2 h-24 mt-4" id="bars"></div>
+      </div>
+    </div>
+
+    <script>
+      const barsWrap = document.getElementById('bars');
+      for (let i = 0; i < 32; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'beat-bar';
+        bar.style.height = `${((i * 37 + 13) % 80) + 20}%`;
+        barsWrap.appendChild(bar);
+      }
+
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true, defaults: { ease: 'power3.out' } });
+      tl.from('#title', { y: 60, opacity: 0, duration: 1.2 })
+        .from('#subtitle', { y: 30, opacity: 0, duration: 1 }, '-=0.8')
+        .from('.badge', { scale: 0.8, opacity: 0, duration: 0.6 }, '-=0.6')
+        .from('.beat-bar', { scaleY: 0, opacity: 0, duration: 0.6, stagger: 0.02 }, '-=0.4');
+      window.__timelines['main'] = tl;
+
+      gsap.to('.beat-bar', {
+        scaleY: 1.6,
+        duration: 0.5,
+        ease: 'power2.inOut',
+        stagger: { each: 0.06, repeat: 9, yoyo: true },
+      });
+    </script>
+  </body>
+</html>

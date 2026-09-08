@@ -180,6 +180,9 @@ importers:
       three:
         specifier: 0.185.1
         version: 0.185.1
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
     devDependencies:
       '@remotion/eslint-config-flat':
         specifier: 4.0.522
