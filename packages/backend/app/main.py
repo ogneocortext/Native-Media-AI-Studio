@@ -424,6 +424,16 @@ async def main():
         logger.warning(f"Port pre-resolution failed, using default port {config.backend_port}: {e}")
         port = config.backend_port
 
+    # If our resolved port is already occupied by our own service, exit
+    # instead of binding a second instance. This is the "sticky port"
+    # guard that prevents duplicate backends when an agent re-invokes the
+    # server while it is already running.
+    if _is_port_in_use(port) and await port_manager._is_service_running("backend", port):
+        logger.info(
+            "Backend already running on port %d; skipping duplicate bind.", port
+        )
+        return
+
     uvicorn_config = uvicorn.Config(
         app,
         host=config.backend_host,

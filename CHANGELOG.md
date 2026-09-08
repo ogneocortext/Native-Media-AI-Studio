@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed - Service Management, Port Standardization & Vite Config Shadowing (2026-09-07)
+
+- **Scripts** (`scripts/manage-servers.ps1`): Defined missing `Test-PortInUse` — `Start-Service` crashed with `CommandNotFoundException` under `$ErrorActionPreference = 'Stop'`, making services unstartable through the script
+- **Scripts**: `Stop-Service` now kills the full uvicorn `--reload` tree (reloader parents via `app.main:app` cmdline match, then port listeners in up to 3 passes) and verifies the port is actually released — orphaned reload children plus Windows stale-socket entries previously kept port 8000 wedged
+- **Scripts**: `Test-ServiceRunning` health timeout 2s → 6s (`/api/health` probes adapters live; ComfyUI-down alone took >2s, causing false "STOPPED" status)
+- **Scripts**: Occupied-port error now prints the exact recovery command (`manage-servers.ps1 -Action stop -Services <svc>`)
+- **Scripts**: Added root-level `check_ports.ps1` — one-shot LISTENING-port → owning-process map for triaging stale servers
+- **Frontend**: Deleted tsc-emitted `vite.config.js`/`vite.config.d.ts` that **shadowed** `vite.config.ts` (Vite resolves `.js` first) — the stale artifact lacked `server.host: "127.0.0.1"`, so the dev server bound IPv6-only (`[::1]:5173`) while scripts, proxy and CORS allowlists expected IPv4
+- **Frontend** (`tsconfig.node.json`): composite emit redirected to `node_modules/.tmp/tsc-node` via `outDir`, so `pnpm build`/`type-check` can never regenerate a shadowing `vite.config.js` at the package root
+- **Frontend** (`vite.config.ts`): pinned `server.host: "127.0.0.1"` explicitly
+- **Backend** (`main.py`, `port_manager.py`): sticky-port guard — if the resolved port already serves *our* backend, startup logs and exits instead of spawning a duplicate instance (prevents duplicate-backend port drift)
+- **Backend** (`integrations_generation.py`): restored the 6 `/api/integrations/ollama/(coding-)benchmark/*` endpoints removed during the service-relocation refactor (the Three.js Studio `AISceneGenerator` still calls them) and fixed the `sys.path` root (`PROJECT_ROOT`, not `PROJECT_ROOT.parent`) so `tools.scripts.*` imports resolve
+- **Config**: standardized ports to backend **8000** / frontend **5173** across `config/ports.json`, `config/settings.json`, `storage/ports.json`, `AGENTS.md`, `tools/audio_analysis_agent.py`
+- **Docs**: README ports + endpoint table, `API_REFERENCE.md` benchmark endpoints, `frontend-build-pipeline.md` §7.6 config-shadowing hazard, `backend-debugging-guide.md` stale-server playbook, `coding-benchmarks.md` CLI path
+- **Verification**: backend `200` on 8000; frontend `200` on `127.0.0.1:5173` (IPv4) with working `/api` proxy; 5/5 backend CORS tests; `pnpm type-check` clean; all 6 benchmark routes present in `/openapi.json`
+
+### Refactored - Backend Service Relocation & Dead Code Removal (2026-09-07)
 
 ### Refactored - Backend Service Relocation & Dead Code Removal (2026-09-07)
 

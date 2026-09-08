@@ -202,6 +202,13 @@ node scripts/analyze-bundle-stats.mjs
 - **Fix:** Use `useShallow` from `zustand/shallow` or memoize selectors with `useCallback` / module-level constants.
 - **Applied to this project:** Polling components migrated to `useHealthStore` with explicit selectors where needed.
 
+### 7.6 Compiled `vite.config.js` Shadows `vite.config.ts` (2026-09-07)
+- **Incident:** The dev server bound **IPv6-only** (`[::1]:5173`) — `http://127.0.0.1:5173` (used by `manage-servers.ps1` health probes, the Vite→backend proxy, and CORS allowlists) failed while `http://localhost:5173` worked. Every `vite.config.ts` edit appeared to be ignored.
+- **Root cause:** Vite config resolution order is `.js` before `.ts`. A `tsc --build` run had emitted `vite.config.js` + `vite.config.d.ts` into the package root (because `tsconfig.node.json` was `composite` without an `outDir`), and that stale artifact — missing `server.host: "127.0.0.1"` — **silently shadowed** the TypeScript config.
+- **Diagnostics:** `netstat -ano | findstr :5173` showed `[::1]:5173` LISTENING; `Select-String 'host' vite.config.js` showed the artifact lacked the setting.
+- **Fix:** Deleted the artifacts, and set `"outDir": "node_modules/.tmp/tsc-node"` in `tsconfig.node.json` so composite emits can never land at the package root again. Also pinned `server.host: "127.0.0.1"` in `vite.config.ts`.
+- **Rule:** Never commit or hand-edit a compiled `vite.config.js` / `vite.config.d.ts` in `packages/frontend/`. If one appears at the package root, delete it and check the emit config.
+
 ---
 
 ## 8. Implementation History

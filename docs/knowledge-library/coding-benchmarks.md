@@ -7,7 +7,7 @@
 | Field | Value |
 |-------|-------|
 | **Service** | `tools/scripts/coding_benchmark.py` |
-| **CLI** | `python tools/scripts/coding_benchmark.py` |
+| **CLI** | `python scripts/run_coding_benchmark.py` |
 | **Output** | `output/coding-benchmarks.json` |
 
 ## Why This Benchmark Exists
@@ -97,13 +97,13 @@ This benchmark measures those skills directly so the harness can pick the best m
 
 ```bash
 # Default: benchmark the project's standard coding models
-python tools/scripts/coding_benchmark.py
+python scripts/run_coding_benchmark.py
 
 # Specific model
-python tools/scripts/coding_benchmark.py --model qwen2.5:7b
+python scripts/run_coding_benchmark.py --model qwen2.5:7b
 
 # All available models (capped at 12)
-python tools/scripts/coding_benchmark.py --all
+python scripts/run_coding_benchmark.py --all
 ```
 
 ## Output Format

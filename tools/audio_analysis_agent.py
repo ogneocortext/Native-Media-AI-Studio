@@ -21,7 +21,7 @@ import requests  # type: ignore
 
 logger = logging.getLogger(__name__)
 
-_BASE: str = os.environ.get("AUDIO_AGENT_BASE_URL", "http://127.0.0.1:8001/api/audio")
+_AUDIO_AGENT_BASE_URL: str = os.environ.get("AUDIO_AGENT_BASE_URL", "http://127.0.0.1:8000/api/audio")
 
 
 def backends() -> dict[str, Any]:

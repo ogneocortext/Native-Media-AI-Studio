@@ -89,6 +89,7 @@ export default defineConfig(({ mode }) => {
       dedupe: ["three"],
     },
     server: {
+      host: "127.0.0.1",
       port: portConfig.frontend_port,
       proxy: {
         "/api": {

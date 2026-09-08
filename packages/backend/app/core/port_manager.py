@@ -70,6 +70,46 @@ class PortManager:
                 return port
         raise RuntimeError(f"No available ports found from {start_port}")
 
+    async def _is_service_running(self, service: str, port: int) -> bool:
+        """Return True when the *expected* service is already responding on ``port``.
+
+        This is the key sticky-port guard: when a port is occupied we first check
+        whether it is already serving *our* backend. If it is, we reuse that
+        instance instead of spawning a duplicate on a different port.
+        """
+        if service != "backend":
+            return False
+
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection("127.0.0.1", port),
+                timeout=2.0,
+            )
+        except Exception:
+            return False
+
+        try:
+            # Minimal HTTP/1.1 GET to the health endpoint.
+            request = (
+                "GET /api/health HTTP/1.1\r\n"
+                "Host: 127.0.0.1\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+            )
+            writer.write(request.encode())
+            await writer.drain()
+
+            response = await asyncio.wait_for(reader.read(1024), timeout=2.0)
+            return b"200" in response or b"healthy" in response.lower()
+        except Exception:
+            return False
+        finally:
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
+
     def cleanup_orphaned_processes(self, port: int) -> bool:
         """
         Kill orphaned Python processes from previous crashes that are
@@ -163,10 +203,12 @@ class PortManager:
 
     async def resolve_port(self, service: str, default_port: int) -> int:
         """
-        Resolve the port for a service following the dynamic port resolution logic:
-        1. Try default port first
-        2. If occupied, try to kill orphaned Python processes
-        3. If still occupied, find next available port
+        Resolve the port for a service following sticky-port logic:
+        1. Try default port first.
+        2. If occupied, check whether *our* service is already running there.
+           If so, reuse it instead of spawning a duplicate instance.
+        3. If occupied by another service, try to clean up orphaned Python processes.
+        4. Only as a last resort find the next available port.
         """
         # Step 1: Try default port first
         if self.is_port_available(default_port):
@@ -174,8 +216,24 @@ class PortManager:
             self._save_state()
             return default_port
 
-        # Step 2: Port is occupied - try to cleanup orphaned Python processes
-        logger.info(f"Port {default_port} is occupied, attempting to clean up orphaned processes...")
+        # Step 2: Port is occupied — check if our service is already there.
+        # This is the "sticky port" guard that prevents duplicate instances
+        # and stops the port from drifting when a server is already running.
+        if await self._is_service_running(service, default_port):
+            logger.info(
+                "%s already running on port %d; reusing existing instance",
+                service,
+                default_port,
+            )
+            self._ports[service] = default_port
+            self._save_state()
+            return default_port
+
+        # Step 3: Port is occupied by something else — try to cleanup orphaned Python processes
+        logger.info(
+            "Port %d is occupied by another service, attempting to clean up orphaned processes...",
+            default_port,
+        )
         if self.cleanup_orphaned_processes(default_port):
             # Give the system a moment to release the port
             await asyncio.sleep(0.5)
@@ -186,14 +244,19 @@ class PortManager:
                 self._save_state()
                 return default_port
 
-        # Step 3: Port still occupied - find next available port
-        logger.info(f"Port {default_port} still occupied, finding available port...")
+        # Step 4: Port still occupied — find next available port
+        logger.info("Port %d still occupied, finding available port...", default_port)
         new_port = self.find_available_port(default_port)
         self._ports[service] = new_port
         self._save_state()
 
         if new_port != default_port:
-            logger.info(f"Assigned {service} to port {new_port} (default {default_port} was unavailable)")
+            logger.warning(
+                "Assigned %s to port %d (default %d was unavailable)",
+                service,
+                new_port,
+                default_port,
+            )
 
         return new_port
 

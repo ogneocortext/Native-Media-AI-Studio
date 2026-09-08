@@ -40,6 +40,7 @@ $ServiceConfig = @{
     backend = @{
         Name = 'Backend'
         Port = 8000
+        HealthPath = '/api/health'
         Python = $backendPython
         WorkingDir = Join-Path $ProjectRoot 'packages\backend'
         Args = @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000', '--reload')
@@ -48,6 +49,7 @@ $ServiceConfig = @{
     frontend = @{
         Name = 'Frontend'
         Port = 5173
+        HealthPath = '/'
         WorkingDir = Join-Path $ProjectRoot 'packages\frontend'
         LogFile = 'frontend.log'
         # Preferred: npm run dev
@@ -60,6 +62,7 @@ $ServiceConfig = @{
     comfyui = @{
         Name = 'ComfyUI'
         Port = 8188
+        HealthPath = '/'
         Python = 'D:\conda-envs\comfyui-cuda\Scripts\python.exe'
         WorkingDir = 'D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI'
         Args = @('main.py', '--port', '8188', '--disable-pinned-memory')
@@ -68,6 +71,7 @@ $ServiceConfig = @{
     video = @{
         Name = 'Video Editor'
         Port = 8080
+        HealthPath = '/'
         WorkingDir = Join-Path $ProjectRoot 'packages\video-editor'
         LogFile = 'video.log'
         # Preferred: npm run dev
@@ -125,12 +129,34 @@ function Get-ServiceStatus {
     param([string]$ServiceName)
     $config = $ServiceConfig[$ServiceName]
     $port = $config.Port
+    $healthPath = $config.HealthPath
 
     $listening = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
     if ($listening) {
-        return @{ Running = $true; Port = $port }
+        # Verify the service is actually responding, not just the port being bound.
+        if (Test-ServiceRunning -Port $port -HealthPath $healthPath) {
+            return @{ Running = $true; Port = $port }
+        }
+        return @{ Running = $false; Port = $port; Note = "Port bound but service not responding" }
     }
     return @{ Running = $false; Port = $port }
+}
+
+function Test-ServiceRunning {
+    param([int]$Port, [string]$HealthPath = "/api/health")
+    try {
+        # The backend /api/health handler probes adapters live (ComfyUI alone can
+        # take >2s when offline), so allow enough time for a truthful result.
+        $response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port$HealthPath" -UseBasicParsing -TimeoutSec 6
+        return $response.StatusCode -eq 200
+    } catch {
+        return $false
+    }
+}
+
+function Test-PortInUse {
+    param([int]$Port)
+    return [bool](Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
 }
 
 function Stop-Service {
@@ -138,24 +164,55 @@ function Stop-Service {
     $config = $ServiceConfig[$ServiceName]
     $port = $config.Port
 
-    $pids = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty OwningProcess -Unique
+    # uvicorn --reload spawns a reloader parent (cmdline contains `app.main:app`)
+    # plus a child that actually binds the port. Killing only the child lets the
+    # parent respawn it — so kill the reloader parents first, then reap listeners.
+    if ($ServiceName -eq 'backend') {
+        $reloaders = Get-CimInstance Win32_Process -Filter 'Name="python.exe"' -ErrorAction SilentlyContinue |
+                     Where-Object { $_.CommandLine -match 'app\.main:app' }
+        if ($reloaders) {
+            Write-Warn "Stopping $($config.Name) reloader PIDs: $(($reloaders | Select-Object -ExpandProperty ProcessId) -join ', ')"
+            $reloaders | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+        }
+    }
 
-    if ($pids) {
-        Write-Warn "Stopping $($config.Name) (PIDs: $($pids -join ', '))"
+    # Reap all remaining listeners on the service port. Repeated passes tolerate
+    # Windows stale sockets (netstat can still show a LISTENING entry for a dead
+    # PID until the socket is released) and any respawned reloader children.
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        $pids = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
+                Select-Object -ExpandProperty OwningProcess -Unique
+        if (-not $pids) { break }
+        Write-Warn "Stopping $($config.Name) (PIDs: $($pids -join ', '), attempt $attempt)"
         $pids | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
-        Start-Sleep -Seconds 2
+        Start-Sleep -Seconds 1
+    }
+
+    if (Test-PortInUse -Port $port) {
+        Write-Warn "$($config.Name): port $port still bound after stop (stale socket may take a few seconds to release)"
+    } else {
+        Write-Ok "$($config.Name) stopped (port $port free)"
     }
 }
 
 function Start-Service {
     param([string]$ServiceName)
     $config = $ServiceConfig[$ServiceName]
+    $port = $config.Port
 
-    # Check if already running
+    # Check if already running (our service responding)
     $status = Get-ServiceStatus $ServiceName
     if ($status.Running) {
-        Write-Ok "$($config.Name) already running on port $($config.Port)"
+        Write-Ok "$($config.Name) already running on port $port"
+        return
+    }
+
+    # Port is either free or bound by something else. If it is bound by a
+    # non-responding process, do NOT start a duplicate on a different port —
+    # the user must free the port manually.
+    if (Test-PortInUse -Port $port) {
+        Write-Err "$($config.Name) cannot start: port $port is occupied by a non-responding process"
+        Write-Err "Recovery: run 'scripts\manage-servers.ps1 -Action stop -Services $ServiceName' to free the port, then start again"
         return
     }
 

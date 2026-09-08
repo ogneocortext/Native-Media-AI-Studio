@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
@@ -15,6 +16,12 @@ from ..adapters.registry import adapter_registry
 from ..core.config import PROJECT_ROOT, config
 from ..models.job import JobCreateRequest, JobType
 from ..queue.manager import queue_manager
+
+# tools/scripts lives at the project root, outside the backend package.
+# PROJECT_ROOT is the repo root (packages/backend/app/core/config.py), so the
+# repo root itself must be on sys.path for `tools.scripts.*` to resolve.
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 class ImageGenerationRequest(BaseModel):
@@ -1367,4 +1374,123 @@ async def delete_visualizer_preset(preset_id: str) -> dict:
         except Exception:
             pass
     return {"deleted": preset_id}
+
+
+# ============================================================================
+# Benchmark Endpoints (restored — frontend still calls these)
+# ============================================================================
+
+
+@router.get("/ollama/benchmark/results")
+async def get_benchmark_results() -> dict:
+    """Get cached Ollama Three.js scene benchmark results."""
+    try:
+        from tools.scripts.ollama_benchmark import get_all_results
+        return get_all_results()
+    except Exception as e:
+        logger.error("Failed to load benchmark results: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ollama/benchmark/run")
+async def run_benchmark(body: dict | None = None) -> dict:
+    """Run Ollama Three.js scene benchmark and return results."""
+    adapter = adapter_registry.get("ollama")
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Ollama not available")
+
+    try:
+        from tools.scripts.ollama_benchmark import run_benchmark
+        models = None
+        max_models = 8
+        if body:
+            if isinstance(body, dict):
+                models = body.get("models")
+                if models and isinstance(models, list):
+                    models = [str(m) for m in models if str(m).strip()]
+                max_models = int(body.get("max_models", max_models))
+        results = await run_benchmark(models=models, adapter=adapter, max_models=max_models)
+        return results
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Benchmark run failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ollama/benchmark/best")
+async def get_best_benchmark() -> dict:
+    """Get the best model from cached Ollama Three.js scene benchmarks."""
+    try:
+        from tools.scripts.ollama_benchmark import get_all_results, get_best_model
+        data = get_all_results()
+        best = get_best_model()
+        return {
+            "best": best,
+            "result": data.get("results", {}).get(best) if best else None,
+            "results": data,
+        }
+    except Exception as e:
+        logger.error("Failed to get best benchmark model: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ollama/coding-benchmark/results")
+async def get_coding_benchmark_results() -> dict:
+    """Get cached coding benchmark results."""
+    try:
+        from tools.scripts.coding_benchmark import get_all_results
+        return get_all_results()
+    except Exception as e:
+        logger.error("Failed to load coding benchmark results: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ollama/coding-benchmark/run")
+async def run_coding_benchmark(body: dict | None = None) -> dict:
+    """Run coding benchmark and return results."""
+    adapter = adapter_registry.get("ollama")
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Ollama not available")
+
+    try:
+        from tools.scripts.coding_benchmark import run_benchmark
+        models = None
+        max_models = 12
+        quick = False
+        num_ctx = None
+        if body:
+            if isinstance(body, dict):
+                models = body.get("models")
+                if models and isinstance(models, list):
+                    models = [str(m) for m in models if str(m).strip()]
+                max_models = int(body.get("max_models", max_models))
+                quick = bool(body.get("quick", quick))
+                num_ctx = body.get("num_ctx")
+                if num_ctx is not None:
+                    num_ctx = int(num_ctx)
+        results = await run_benchmark(models=models, adapter=adapter, max_models=max_models, quick=quick, num_ctx=num_ctx)
+        return results
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Coding benchmark run failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ollama/coding-benchmark/best")
+async def get_best_coding_benchmark() -> dict:
+    """Get the best model from cached coding benchmarks."""
+    try:
+        from tools.scripts.coding_benchmark import get_all_results, get_best_model
+        data = get_all_results()
+        best = get_best_model()
+        return {
+            "best": best,
+            "result": data.get("results", {}).get(best) if best else None,
+            "results": data,
+        }
+    except Exception as e:
+        logger.error("Failed to get best coding benchmark model: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 

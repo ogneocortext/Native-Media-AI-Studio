@@ -1,11 +1,13 @@
 {
   "compilerOptions": {
     "composite": true,
+    "outDir": "./node_modules/.tmp/tsc-node",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
-    "lib": ["ES2020"],
+    "lib": ["ES2023"],
     "types": ["node"],
     "strict": true
   },

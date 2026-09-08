@@ -57,7 +57,7 @@ Native-Media-AI-Studio/
 ├── config/                 # Shared configuration (ports, settings, tracks)
 ├── docs/                   # All documentation
 ├── packages/               # Monorepo packages
-│   ├── frontend/           # React + Vite UI (dynamic port, usually 5174)
+│   ├── frontend/           # React + Vite UI (dev server on 5173, binds 127.0.0.1)
 │   │   └── src/features/   # Feature-based modules
 │   │       ├── ai-tools/         # AI chat + tool registry
 │   │       ├── image-generation/ # ComfyUI image gen
@@ -65,7 +65,7 @@ Native-Media-AI-Studio/
 │   │       ├── settings/         # App settings
 │   │       ├── video-generation/ # ComfyUI video gen
 │   │       └── visualizer/       # 3D audio visualizer (types + hooks + scene)
-│   ├── backend/            # FastAPI backend (dynamic port, usually 8001)
+│   ├── backend/            # FastAPI backend (serves on 8000, sticky-port)
 │   │   └── app/api/        # Modular API routes
 │   │       ├── integrations_config.py    # Config/settings endpoints
 │   │       ├── integrations_generation.py # ComfyUI/Ollama/VRAM/Audio
@@ -127,7 +127,7 @@ python -c "from app.services.cuda import cuda_audio; import numpy as np; print(c
 # POST /api/health/3d/generate {"prompt": "a robot", "steps": 15}
 
 # GPU monitoring
-curl http://localhost:8001/api/health/gpu
+curl http://localhost:8000/api/health/gpu
 ```
 
 See [GPU Pipeline Guide](docs/guides/GPU_PIPELINE.md) for full documentation.
@@ -150,8 +150,8 @@ pnpm db:migrate          # Initialize SQLite database
 
 | Service      | Port | Description                                      |
 | ------------ | ---- | ------------------------------------------------ |
-| Backend      | 8000/8001 (dynamic) | FastAPI + SSE (`/api/events`) + SQLite           |
-| Frontend     | 5173/5174 (dynamic) | React + Vite UI                                  |
+| Backend      | 8000 | FastAPI + SSE (`/api/events`) + SQLite — sticky-port: reuses a healthy instance instead of spawning duplicates |
+| Frontend     | 5173 | React + Vite UI (binds `127.0.0.1`)              |
 | ComfyUI      | 8188 | AI image/video generation                        |
 | Video Editor | 8080 | Remotion studio (`config/ports.json` dynamic)    |
 
@@ -170,6 +170,12 @@ pnpm db:migrate          # Initialize SQLite database
 | `/api/integrations/music-video/styles`    | GET      | Music video visual styles                                                                                                 |
 | `/api/integrations/music-video/templates` | GET      | Video generation workflow templates                                                                                       |
 | `/api/integrations/vram/offload-ollama`   | POST     | Unload Ollama models to free VRAM                                                                                         |
+| `/api/integrations/ollama/benchmark/results` | GET   | Cached Three.js scene benchmark results                                                                                   |
+| `/api/integrations/ollama/benchmark/run`  | POST     | Run scene benchmark (`{models?, max_models?}`)                                                                            |
+| `/api/integrations/ollama/benchmark/best` | GET      | Best model for Three.js scene generation (`{best, result, results}`)                                                      |
+| `/api/integrations/ollama/coding-benchmark/results` | GET | Cached coding benchmark results                                                                                      |
+| `/api/integrations/ollama/coding-benchmark/run` | POST | Run coding benchmark (`{models?, max_models?, quick?, num_ctx?}`)                                                     |
+| `/api/integrations/ollama/coding-benchmark/best` | GET | Best coding model                                                                                                    |
 | `/api/audio/upload`                       | POST     | Upload audio (500 MB, MP3/WAV/FLAC) → `stored_path`                                                                       |
 | `/api/audio/analyze`                      | POST     | Real `librosa` analyze → `tempo_bpm`, `beat_times[800]`, `energy_curve[100]`, `sections[8]`                               |
 | `/api/audio/files`                        | GET      | List uploaded audio                                                                                                       |

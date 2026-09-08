@@ -114,17 +114,22 @@ Local Ollama models are available for vision analysis and tool-assisted generati
 
 ## Development Guidelines
 
-### Server Management
+### Shell / Process Management
 
-Backend and frontend must be started as **detached background services** so they survive after the terminal closes. Use the project scripts instead of running servers inline.
+> [!warning] CRITICAL: PowerShell frequently fails on quoting, variable parsing, and path-with-spaces handling in this project. When any PowerShell command misbehaves, **fall back to Python immediately** — do not retry with more PowerShell variations. Prefer inline Python one-liners or small `.py` scripts over complex PowerShell chains for process management, HTTP probing, file ops, and service control.
 
 - **Start background services:** `scripts\start-services.ps1`
-  - Backend (`http://localhost:8001`) + Frontend (`http://localhost:5174`) are started hidden and detached.
+  - Backend (`http://localhost:8000`) + Frontend (`http://localhost:5173`) are started hidden and detached.
   - Add `-ComfyUI` to also start ComfyUI (`http://localhost:8188`).
   - Safe to run repeatedly: if a port is already in use, that service is skipped.
 - **Check status / restart individually:** `scripts\manage-servers.ps1 -Action status`
 - **Full interactive mode** (foreground, with live monitor and auto-restart): `scripts\start-studio.ps1`
 - Ports are managed dynamically by `packages/backend/app/core/port_manager.py`
+- **Port inspection:** `scripts\check_ports.ps1` — maps every LISTENING port to its owning process (fast triage for stale/zombie servers)
+- **Stale port recovery:** if a service can't start because a non-responding process holds its port, run `scripts\manage-servers.ps1 -Action stop -Services <backend|frontend|comfyui|video>`, then start again. `Stop-Service` kills the full uvicorn `--reload` tree (reloader parent + bound child, several passes) and tolerates Windows stale-socket entries that outlive a killed PID.
+- **Status truthfulness:** `-Action status` probes `/api/health` with a 6 s timeout because the backend checks adapters live (a down ComfyUI alone can take >2 s to report).
+
+> [!warning] CRITICAL: Never commit or hand-edit a compiled `vite.config.js` / `vite.config.d.ts` in `packages/frontend/` — Vite resolves `.js` before `.ts`, so an emitted artifact **silently shadows** `vite.config.ts` (this once reverted the IPv4 `server.host` binding, leaving Vite unreachable on 127.0.0.1). `tsconfig.node.json` redirects its composite emit to `node_modules/.tmp/`; if a `vite.config.js` ever reappears at the package root, delete it and investigate the emit config.
 
 ### Music Video Pipeline
 
@@ -158,7 +163,7 @@ The Visualizer (`packages/frontend/src/features/visualizer/`) includes:
 - Start interactive mode: `scripts\start-studio.ps1`
 - Check server status: `scripts\manage-servers.ps1 -Action status`
 - Unity health: `curl -X POST http://127.0.0.1:7800/api/exec -H "Authorization: Bearer <token>" -d '{"command":"editor_status","parameters":{}}'`
-- Backend health: `http://127.0.0.1:8001/api/health` (check `config/ports.json` for current port)
+- Backend health: `http://127.0.0.1:8000/api/health` (check `config/ports.json` for current port)
 - ComfyUI: `http://127.0.0.1:8188`
 
 ## Dependencies
