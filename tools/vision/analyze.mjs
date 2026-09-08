@@ -99,24 +99,69 @@ function buildPrompt(args) {
 
   switch (args.mode) {
     case 'music-video':
-      return `Analyze this music video frame${section} for:
-1. COMPOSITION: Is the subject well-framed? Apply rule of thirds. Is there depth (foreground, midground, background)?
-2. LIGHTING: What is the mood created by lighting? Is it consistent with a${section || ' music video'} section?
-3. COLOR: What is the dominant color palette? Does it match the intended mood?
-4. ENERGY: On a scale of 1-10, how energetic does this frame feel? Is that appropriate${section}?
-5. IMPACT: What is the strongest visual element? What draws the eye first?
-6. ISSUES: What are the top 3 things that could be improved?
-7. BEAT SYNC: Would this frame work for a hard cut on a beat? Why or why not?`;
+      return `You are a professional music-video director reviewing a rendered frame${section}.
+
+Evaluate this frame against broadcast-quality standards:
+1. COMPOSITION: Rule of thirds, leading lines, head room, look room, depth layers (foreground/midground/background)
+2. LIGHTING: Key light, rim light, color temperature consistency, exposure balance
+3. COLOR: Dominant palette, mood alignment, saturation vs. intended genre${section}
+4. ENERGY: Rate 1-10. Is this appropriate${section}?
+5. IMPACT: Strongest visual element and first gaze target
+6. ISSUES: Top 3 improvements ranked by impact
+7. BEAT SYNC: Would this frame cut cleanly on a strong beat? Why or why not?`;
+
     case 'responsive':
-      return 'Analyze this UI for responsive layout issues. Check if elements fit within the viewport, text is readable, and layout adapts well. List top 3 issues.';
+      return `You are a senior frontend engineer auditing a Native Media AI Studio UI screenshot.
+
+Report ONLY actionable findings:
+1. VIEWPORT FIT: Is content clipped, overflowing, or crammed? Name the offending element and its CSS fix (e.g., overflow-x, flex-wrap, grid-template).
+2. TOUCH TARGETS: Are buttons/inputs smaller than 44x44px? List each offender with its current size estimate.
+3. READABILITY: Is text below 14px or low-contrast? Give the exact text, size, and contrast issue.
+4. NAVIGATION: Is content hidden behind menus, tabs, or scroll? Identify the hidden feature and how to expose it.
+5. FIX: One concrete CSS/layout change that would have the biggest impact.`;
+
     case 'regression':
-      return 'Compare this render against the provided source code. Identify any visual discrepancies, missing elements, or layout issues. List top 3 fixes.';
+      return `You are a code reviewer comparing a rendered UI against its source implementation.
+
+For each discrepancy found:
+1. WHAT CHANGED: Element, style, or layout shift from the source code
+2. SEVERITY: critical (breaks functionality), minor (visual polish), or cosmetic
+3. FIX: Shortest revert or patch path. Reference the likely source file/component if identifiable.
+4. CONFIDENCE: high / medium / low
+
+Focus on regressions that affect user-facing functionality or visual polish in Native Media AI Studio.`;
+
     case 'compare':
-      return 'Compare these two images. Identify differences, improvements, or regressions. Summarize the key changes.';
+      return `You are a design lead comparing two versions of a Native Media AI Studio screen.
+
+For every difference:
+1. LOCATION: Where on screen (top-left, center, bottom-right, full-width, etc.)
+2. CHANGE: What moved, resized, recolored, appeared, or disappeared
+3. IMPACT: UX improvement, regression, or neutral
+4. FIX/PROMOTE: If it is a regression, what is the shortest fix. If it is an improvement, what principle does it demonstrate?
+
+Prioritize differences that affect usability, readability, or visual hierarchy.`;
+
     case 'consistency':
-      return 'Analyze these frames for consistency. Check if the color palette, lighting style, and visual grammar are consistent across all frames. Identify any jarring transitions or inconsistencies.';
+      return `You are a design systems auditor checking visual consistency across Native Media AI Studio frames.
+
+Audit for:
+1. COLOR PALETTE DRIFT: Compare primary/secondary/accent colors across frames. Flag any deviation from the project palette.
+2. TYPOGRAPHY: Font sizes, weights, line heights, and heading styles. Are they uniform?
+3. ASSET REUSE: Are icons, logos, or illustrations inconsistent in style or treatment?
+4. SCENE CONTINUITY: For 3D/music-video frames, does lighting, camera angle, or mood break between consecutive shots?
+5. RECOMMENDATION: keep / recut / reframe with a one-line rationale.`;
+
     default:
-      return 'Describe this scene in detail. What objects are present? What is the lighting quality like? What materials are visible? What is the overall composition and mood?';
+      return `You are a senior frontend engineer auditing a Native Media AI Studio UI screenshot.
+
+Do NOT give generic descriptions. Give ONLY actionable feedback organized as:
+
+1. ELEMENTS: List visible UI elements with their approximate positions and role in the app
+2. TEXT: Transcribe visible labels, buttons, headings, and status text
+3. LAYOUT: Spacing, alignment, overflow, and responsiveness issues. Reference specific CSS properties or components where possible.
+4. ERRORS: Visible errors, warnings, broken images, empty states, loading skeletons, or missing content
+5. NEXT_ACTION: The single highest-impact fix a coding agent should make first. Explain WHY it matters for this project's user experience.`;
   }
 }
 

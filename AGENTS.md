@@ -21,8 +21,10 @@ packages/
 tools/                  # MCP bridges and demo scripts
   ├── mcp/                  # MCP server bridges
   │   ├── unity-mcp-bridge.mjs   # Unity MCP server (Node.js, stdio)
-  │   ├── vision-mcp.mjs         # Vision MCP (Ollama VLM)
-  │   └── vision.mjs             # Standalone vision analyzer
+  │   ├── vision-mcp.mjs         # Vision MCP (Ollama VLM) — primary
+  │   └── ollama-tools-mcp.mjs   # Ollama tools MCP
+  ├── vision/               # Standalone vision utilities
+  │   └── analyze.mjs       # Direct CLI: node tools/vision/analyze.mjs <image> [prompt] [--mode ui|responsive|regression|compare|ocr|table|chart]
   ├── demos/                # Demo scripts
   │   ├── demo_all_features.py   # Full feature demonstration
   │   └── demo_audio_analysis.py # Audio analysis demo
@@ -57,6 +59,13 @@ All MCP servers are configured in `opencode.json` (6 servers — Vision is addit
 > This model cannot see image attachments directly. Every screenshot must be routed
 > through the local Ollama vision model using the project's vision script.
 
+> [!warning] CRITICAL: Never send generic placeholder prompts to Ollama.
+> Prompts like "describe this image" or "what is in this screenshot" produce
+> non-actionable, generic output that wastes local GPU time and does not help
+> improve Native Media AI Studio. Always use the project's mode-specific prompts
+> or write a task-specific prompt that asks for concrete, prioritized fixes the
+> coding agent can implement immediately.
+
 **Proper vision analysis workflow:**
 
 1. **Capture screenshot** with Playwright:
@@ -67,11 +76,13 @@ All MCP servers are configured in `opencode.json` (6 servers — Vision is addit
 
 2. **Analyze with vision script** (resizes + sends to Ollama gemma4):
 
-   ```bash
-   node tools/mcp/vision.mjs analyze shot.png "optional prompt"
-   # or for code-grounded analysis:
-   node tools/mcp/vision.mjs analyze shot.png src/components/Foo.tsx --mode regression --lines
-   ```
+    ```bash
+    node tools/vision/analyze.mjs shot.png "optional prompt"
+    # or for code-grounded analysis:
+    node tools/vision/analyze.mjs shot.png src/components/Foo.tsx --mode regression
+    ```
+
+    For MCP-driven analysis (agents), the `vision-mcp.mjs` server exposes `vision_describe`, `vision_compare`, `vision_ocr`, and `vision_batch_analyze` tools.
 
 3. **Verify findings** against ground truth (check actual DOM, API responses)
 

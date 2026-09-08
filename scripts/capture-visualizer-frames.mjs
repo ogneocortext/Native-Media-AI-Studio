@@ -4,7 +4,7 @@
  *
  * Captures a burst of canvas frames while the visualizer plays continuously,
  * so frames have real temporal continuity (unlike seek-then-screenshot tests).
- * Output frames can be analyzed "in motion" with scripts/vision.mjs.
+ * Output frames can be analyzed "in motion" with tools/vision/analyze.mjs.
  *
  * Usage:
  *   node scripts/capture-visualizer-frames.mjs [options]
@@ -16,7 +16,7 @@
  *   --interval <ms>    Milliseconds between frames (default: 250 -> ~4fps)
  *   --track <name>     Track name substring to search/select in the library
  *   --seek <sec>       Seek playback to this time before capturing (default: 5)
- *   --analyze [prompt] After capture, run scripts/vision.mjs analyze on all frames
+ *   --analyze [prompt] After capture, run tools/vision/analyze.mjs on all frames
  *   --full-page        Capture full page instead of the canvas element only
  *
  * Examples:
@@ -25,7 +25,7 @@
  *   node scripts/capture-visualizer-frames.mjs --analyze "Judge motion quality: is the animation smooth and beat-synced?"
  *
  * After capture, analyze in motion:
- *   node scripts/vision.mjs analyze output/frames/frame_*.png "Describe the motion across these consecutive frames."
+ *   node tools/vision/analyze.mjs output/frames/frame_*.png "Describe the motion across these consecutive frames."
  */
 
 import { chromium } from 'playwright';
@@ -35,6 +35,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, '..');
 
 // ─── CLI Parsing ───
 const args = process.argv.slice(2);
@@ -157,11 +158,11 @@ console.log(`\nSaved ${framePaths.length} frames to: ${options.out}/`);
 
 await browser.close();
 
-// 6. Optional motion analysis via the existing vision script
+// 6. Optional motion analysis via the canonical vision script
 if (options.analyze) {
-  const visionScript = path.resolve(__dirname, 'vision.mjs');
+  const visionScript = path.resolve(PROJECT_ROOT, 'tools', 'vision', 'analyze.mjs');
   if (!fs.existsSync(visionScript)) {
-    console.error('\n[analyze] scripts/vision.mjs not found — skipping analysis.');
+    console.error('\n[analyze] tools/vision/analyze.mjs not found — skipping analysis.');
     process.exit(0);
   }
   const prompt = options.analyzePrompt ||
@@ -169,9 +170,9 @@ if (options.analyze) {
     'Analyze the MOTION across the sequence: Is the animation smooth or jittery? ' +
     'What is moving (particles, waveform, camera, colors)? Is there a sense of rhythmic/beat-synced movement? ' +
     'List any visual glitches, stuttering, or dead frames.';
-  console.log('\n6. Analyzing frames in motion via vision.mjs...\n');
+  console.log('\n6. Analyzing frames in motion via tools/vision/analyze.mjs...\n');
   try {
-    const out = execFileSync('node', [visionScript, 'analyze', ...framePaths, prompt], {
+    const out = execFileSync('node', [visionScript, ...framePaths, prompt], {
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
     });

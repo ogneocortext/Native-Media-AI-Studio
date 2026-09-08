@@ -83,7 +83,7 @@ See `docs/setup/CONDA_SETUP.md`, `docs/setup/VIDEO_SETUP.md`, `docs/setup/MODEL_
 - `scripts/start-studio.ps1` — Start all services (canonical)
 - `scripts/manage-servers.ps1` — Individual control (start/stop/status/restart)
 - `scripts/start_comfyui.ps1` — ComfyUI launcher
-- `scripts/capture-visualizer-frames.mjs` — Frame capture utility (→ `tools/mcp/vision.mjs` for analysis)
+- `scripts/capture-visualizer-frames.mjs` — Frame capture utility (→ `tools/vision/analyze.mjs` for analysis)
 
 ### Output (gitignored)
 - `output/images/`, `output/video/`, `output/audio/`, `output/generated_3d/`, `output/audio_analysis/`

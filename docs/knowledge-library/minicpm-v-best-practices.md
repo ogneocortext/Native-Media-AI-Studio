@@ -56,7 +56,7 @@ res = chat(model="minicpm-v:8b", messages=[{
 ```
 
 ```js
-// our tools/mcp/vision.mjs path
+// our tools/vision/analyze.mjs path
 await ollama.chat({ model:"minicpm-v:8b", messages:[{role:"user", content:"Transcribe all text, preserve layout.", images:[b64]}] })
 ```
 
@@ -90,7 +90,7 @@ await ollama.chat({ model:"minicpm-v:8b", messages:[{role:"user", content:"Trans
 
 | # | Feature | File | How it uses the research |
 |---|---|---|---|
-| **A** | **Vision MCP upgrade** | `tools/mcp/vision.mjs:22` — new `VISION_MODES: ocr/table/chart/multicomp/regression` + `ensureVisionModel()` VRAM unload + model-aware dispatch (`temperature:0`, no `tools`/`think` for `minicpm-v`) | Uses the 640-token efficiency + OCR SOTA + no-hallucination prompts |
+| **A** | **Vision MCP upgrade** | `tools/vision/analyze.mjs` — `VISION_MODES: ocr/table/chart/multicomp/regression` + `ensureVisionModel()` VRAM unload + model-aware dispatch (`temperature:0`, no `tools`/`think` for `minicpm-v`) | Uses the 640-token efficiency + OCR SOTA + no-hallucination prompts |
 | **B** | **Backend OCR endpoint** | `packages/backend/app/api/vision.py` — `POST /api/vision/ocr` (file → `ollama/chat` with `minicpm-v:8b`, `temperature:0`, fallback to `qwen3-vl`) | Media Library “Scan Text (MiniCPM)” button → auto-tags from covers/lyrics without manual OCR service |
 | **C** | **GPU chart reader** | `packages/frontend/src/features/gpu/GpuMonitorPage.tsx` — “AI Chart Summary” button sends canvas PNG to `minicpm-v:8b` via `/api/vision/chart` with chart-trend prompt (not exact-value extraction) | Leverages RLAIF-V trustworthy behavior for GPU telemetry patterns |
 
