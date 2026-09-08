@@ -41,7 +41,7 @@ All timed lookups go through the interpolated, latency-compensated clock (`audio
 
 ## 6. Capture harness (methodology notes — read before trusting captures)
 
-- `packages/frontend/browser-test/capture-viz-timing.mjs` — headed Chromium + autoplay flag, verified playback (`currentTime` advancing), verified seeks (±1.5 s retry), full-page screenshot cropped per-frame to the canvas box, overlay chrome hidden.
+- `packages/frontend/tests/browser/capture-viz-timing.mjs` — headed Chromium + autoplay flag, verified playback (`currentTime` advancing), verified seeks (±1.5 s retry), full-page screenshot cropped per-frame to the canvas box, overlay chrome hidden.
 - **Element screenshots of non-preserved WebGL canvases return STALE bitmaps.** Always full-page + crop.
 - **`audio.play()` resolves before media loads.** Wait for `currentTime > 0.5` and verify seeks land, or bursts capture silence.
 - **Vision-model frame comparisons hallucinate on near-identical inputs.** Cross-check motion claims with pixel stats (sharp resize → raw → mean/inter-frame diff) or 64-wide ASCII renders; use vision for content/aesthetics, not diffs.

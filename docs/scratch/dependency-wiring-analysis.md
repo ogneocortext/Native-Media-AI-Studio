@@ -88,7 +88,7 @@
 
 | Dependency | Status | Evidence |
 |------------|--------|----------|
-| `sharp` | **USED** | `scripts/vision.mjs`, `scripts/vision-quick.mjs`, `scripts/analyze-visualizer-frames.mjs`, `scripts/verify-shader-motion.mjs`, `scripts/vision/analyze.mjs` |
+| `sharp` | **USED** | `scripts/vision.mjs`, `scripts/vision-quick.mjs`, `scripts/analyze-visualizer-frames.mjs`, `scripts/verify-shader-motion.mjs`, `tools/vision/analyze.mjs` |
 | `turbo` | **LOW** | `turbo.json` exists, but **zero** script in `package.json` invokes `turbo`. Build uses `pnpm -r build`. Likely vestigial. |
 | `@modelcontextprotocol/server` | **USED** | `tools/mcp/ollama-tools-mcp.mjs`, `tools/mcp/vision-mcp.mjs`, `tools/mcp/unity-mcp-bridge.mjs` |
 | `zod` | **USED** | `tools/mcp/unity-mcp-bridge.mjs` |

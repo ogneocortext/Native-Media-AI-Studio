@@ -6,7 +6,7 @@
 
 Two character paths exist; both are dead ends for polished real-time results:
 
-1. **`packages/backend/app/services/blender/builder.py::create_character`** — 5-bone stick rig skinned to a single beige cylinder. Cannot produce anything but placeholders.
+1. **`tools/blender/builder.py::create_character`** — 5-bone stick rig skinned to a single beige cylinder. Cannot produce anything but placeholders.
 2. **Hunyuan3D image→mesh (`gen3d_service.py`)** — unrigged static meshes ("visibly voxelized, blocky" per its own comments). A static mesh cannot perform to beats.
 
 ## Decision (2026-09-03)

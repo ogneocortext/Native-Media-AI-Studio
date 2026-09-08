@@ -71,7 +71,7 @@ python scripts/ai-test-generator.py --all --model qwen2.5:14b
 
 ---
 
-## 2. Visual Regression (`tests/visual/run_visual_tests.py`)
+## 2. Visual Regression (`packages/frontend/tests/visual/run_visual_tests.py`)
 
 **Purpose:** Captures screenshots of every frontend page and uses a local Ollama vision model to detect UI breakage, missing components, and rendering regressions that unit tests miss.
 
@@ -83,24 +83,24 @@ python scripts/ai-test-generator.py --all --model qwen2.5:14b
 - Runs a pixel-diff against the baseline screenshot (if one exists)
 - Sends the screenshot to Ollama vision (`gemma4:e2b-it-qat` by default) with a structured QA prompt
 - Parses the vision model's JSON response for `status: pass|fail|warn` and `issues[]`
-- Writes a timestamped JSON report to `tests/visual/reports/`
+- Writes a timestamped JSON report to `packages/frontend/tests/visual/reports/`
 
 **Usage:**
 
 ```bash
 # First run: capture baselines (do this when UI is known-good)
-python tests/visual/run_visual_tests.py --update-baselines
+python packages/frontend/tests/visual/run_visual_tests.py --update-baselines
 
 # Subsequent runs: compare against baselines + vision analysis
-python tests/visual/run_visual_tests.py
+python packages/frontend/tests/visual/run_visual_tests.py
 
 # Use a different vision model
-python tests/visual/run_visual_tests.py --model qwen3-vl:4b
+python packages/frontend/tests/visual/run_visual_tests.py --model qwen3-vl:4b
 ```
 
 **Output:**
-- `tests/visual/baselines/<PageName>.png` — reference screenshots
-- `tests/visual/reports/visual_report_<timestamp>.json` — per-page results with pixel-diff percentages and vision model findings
+- `packages/frontend/tests/visual/baselines/<PageName>.png` — reference screenshots
+- `packages/frontend/tests/visual/reports/visual_report_<timestamp>.json` — per-page results with pixel-diff percentages and vision model findings
 
 **Interpreting results:**
 - `pixel_diff < 2%` → pass
@@ -116,7 +116,7 @@ python tests/visual/run_visual_tests.py --model qwen3-vl:4b
 
 ---
 
-## 3. Backend Integration Harness (`tests/integration/run_integration_tests.py`)
+## 3. Backend Integration Harness (`packages/backend/tests/integration/run_integration_tests.py`)
 
 **Purpose:** Exercises real end-to-end flows against the FastAPI app that unit tests can't cover — job lifecycle, SSE streaming under load, health endpoint resilience, WebSocket fallback, concurrent job creation, and queue stats accuracy.
 
@@ -145,13 +145,13 @@ python tests/visual/run_visual_tests.py --model qwen3-vl:4b
 
 ```bash
 # Run all integration tests
-pytest tests/integration/run_integration_tests.py -v
+pytest packages/backend/tests/integration/run_integration_tests.py -v
 
 # Run a specific class
-pytest tests/integration/run_integration_tests.py::TestJobLifecycleIntegration -v
+pytest packages/backend/tests/integration/run_integration_tests.py::TestJobLifecycleIntegration -v
 
 # Run with coverage
-pytest tests/integration/run_integration_tests.py --cov=app --cov-report=term-missing
+pytest packages/backend/tests/integration/run_integration_tests.py --cov=app --cov-report=term-missing
 ```
 
 **Output:** 20 passing integration tests (as of current run). Failures indicate real behavioral regressions.
@@ -191,13 +191,13 @@ cd packages/backend
 pytest tests/ -v --tb=short
 
 # 2. Integration tests (new)
-pytest tests/integration/run_integration_tests.py -v --tb=short
+pytest packages/backend/tests/integration/run_integration_tests.py -v --tb=short
 
 # 3. AI-generated tests (new)
 python ../../scripts/ai-test-generator.py --all --verify
 
 # 4. Visual regression (new, requires frontend server on :5173)
-python ../../tests/visual/run_visual_tests.py
+python ../../packages/frontend/tests/visual/run_visual_tests.py
 
 # 5. If any test fails, analyze with AI
 python ../../scripts/ai-test-analyzer.py --last-failure

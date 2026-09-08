@@ -96,7 +96,7 @@ Options:
   --quant-only          Skip vision analysis
   --vision-only         Skip quantitative analysis
   --keep-video          Keep captured video file
-  --output <dir>        Output directory (default: browser-test/out/visualizer_analysis)
+  --output <dir>        Output directory (default: packages/frontend/tests/browser/out/visualizer_analysis)
   --dry-run             Analyze existing frames in output directory
   --canvas-capture      Use Playwright canvas capture (no video file)
   --json                Also emit JSON to stdout (in addition to report.json)
@@ -128,7 +128,7 @@ function parseArgs() {
     dryRun: false,
     canvasCapture: false,
     jsonStdout: false,
-    output: "browser-test/out/visualizer_analysis",
+    output: "packages/frontend/tests/browser/out/visualizer_analysis",
   };
 
   const needVal = new Set(["--duration","--fps","--track","--mode","--seek","--crop","--threshold","--model","--prompt-type","--output"]);

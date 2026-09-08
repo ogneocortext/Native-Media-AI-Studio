@@ -111,7 +111,6 @@ packages/backend/output/
 # Model binaries (large files)
 stable-diffusion/models/
 text_encoder/
-text_encoder2/
 vae/
 hunyuan_vae/
 diffusion_models/
@@ -139,12 +138,6 @@ unity-project-mcp/Logs/
 unity-project-mcp/Temp/
 unity-project-mcp/obj/
 unity-project-mcp/%SystemDrive%/
-unity-project/Library/
-unity-project/Logs/
-unity-project/Temp/
-unity-project/obj/
-unity-project/UnityLibrary/
-unity-project/%SystemDrive%/
 **/Library/
 **/Logs/
 **/Temp/
@@ -184,8 +177,6 @@ hermes_system_prompt.txt
 .hugo/
 
 # Generated config duplicates (canonical is config/ports.json)
-packages/backend/config/ports.json
-packages/backend/config/settings.json
 packages/frontend/public/config/ports.json
 
 # Obsidian vault (any nesting)
@@ -213,7 +204,6 @@ stable-diffusion/vae/
 
 # Test/cache directories
 .pytest_cache/
-browser-test/
 .playwright-report/
 playwright-report/
 test-results/

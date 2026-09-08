@@ -16,7 +16,7 @@ The Blender-generated character is universally described as a **low-poly placeho
 
 ### 1.2 Root Cause in Code
 
-File: `packages/backend/app/services/blender/builder.py` (lines 325-401)
+File: `tools/blender/builder.py` (lines 325-401)
 
 The `create_character()` method generates:
 - An armature with bone hierarchy (Spine → Chest → Head, UpperArm_L/R, LowerArm_L/R, UpperLeg_L/R, LowerLeg_L/R)
@@ -209,7 +209,7 @@ Concrete 2026 technique mappings:
 
 | File | Role |
 |------|------|
-| `packages/backend/app/services/blender/builder.py` | Blender character generation (lines 325-480) |
+| `tools/blender/builder.py` | Blender character generation (lines 325-480) |
 | `packages/frontend/src/features/three-js-studio/ThreeJSStudio.tsx` | Main 3D canvas + render loop |
 | `packages/frontend/src/features/three-js-studio/types.ts` | AnimObject / SceneConfig types |
 | `packages/frontend/src/features/three-js-studio/sceneTemplates.ts` | 6 template definitions |

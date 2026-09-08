@@ -13,7 +13,7 @@ const PLAYWRIGHT_DIR = path.join(REPO_ROOT, 'packages', 'frontend', 'node_module
 const playwrightMod = await import(pathToFileURL(path.join(PLAYWRIGHT_DIR, 'index.mjs')).href);
 const { chromium } = playwrightMod;
 
-const OUT_DIR = path.resolve('browser-test', 'out');
+const OUT_DIR = path.resolve('packages/frontend/tests/browser', 'out');
 const FRAMES_DIR = path.join(OUT_DIR, 'shader_frames');
 fs.mkdirSync(FRAMES_DIR, { recursive: true });
 

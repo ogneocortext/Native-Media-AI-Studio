@@ -62,7 +62,7 @@ All MCP servers are configured in `opencode.json` (6 servers — Vision is addit
 1. **Capture screenshot** with Playwright:
 
    ```js
-   await page.screenshot({ path: "browser-test/out/shot.png", fullPage: true });
+   await page.screenshot({ path: "packages/frontend/tests/browser/out/shot.png", fullPage: true });
    ```
 
 2. **Analyze with vision script** (resizes + sends to Ollama gemma4):

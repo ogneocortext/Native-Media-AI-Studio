@@ -83,7 +83,7 @@ const { chromium } = playwrightMod;
   const canvas = await page.$('canvas');
   if (canvas) {
     const buffer = await canvas.screenshot({ type: 'png' });
-    fs.writeFileSync(path.join(REPO_ROOT, 'browser-test', 'out', 'debug_canvas.png'), buffer);
+    fs.writeFileSync(path.join(REPO_ROOT, 'packages/frontend/tests/browser', 'out', 'debug_canvas.png'), buffer);
     console.log('Canvas screenshot saved');
   }
   
