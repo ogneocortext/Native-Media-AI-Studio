@@ -1,3 +1,4 @@
+import type React from "react";
 import * as THREE from "three";
 import type { AnimObject, CameraMode, ParticleConfig, SceneConfig } from "../types";
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useDeferredValue, useRef, memo } from "react";
+import React, { useState, useEffect, useMemo, useDeferredValue, useRef, memo } from "react";
 import { useOutputStore, OutputFile } from "../../state/outputStore";
 import { formatFileSize, formatDate, formatDateTime } from "../../utils/format";
 import { getOutputUrl } from "../../utils/url";

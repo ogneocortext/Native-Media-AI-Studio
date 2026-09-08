@@ -1,3 +1,4 @@
+import type React from "react";
 import type { LyricLine } from "../components/LyricOverlay";
 import type { AudioAnalysisData, AudioData, VizParams } from "../types";
 

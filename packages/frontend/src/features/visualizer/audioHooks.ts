@@ -1,3 +1,4 @@
+import type React from "react";
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { AudioData, AudioAnalysisData } from "./types";

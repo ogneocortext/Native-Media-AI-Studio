@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { ChevronRight, ChevronLeft, AlertCircle, Check } from "lucide-react";
 import { STEPS } from "./types";
 import type { WizardStep, AudioAnalysis, GenerationConfig } from "./types";

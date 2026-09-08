@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Image, Play, Clock, Settings2, Sparkles, Download, RefreshCw, Zap, Square, Gem, RectangleVertical, RectangleHorizontal, Crown } from "lucide-react";
 import { Card, LoadingSpinner, EmptyState, StatusBadge } from "../../components/common";
 import * as api from "../../services/api";

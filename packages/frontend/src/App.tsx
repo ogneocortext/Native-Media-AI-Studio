@@ -4,7 +4,6 @@ import { Layout } from "./components/layout/Layout";
 import { Dashboard } from "./features/dashboard/Dashboard";
 import { Queue } from "./features/queue/Queue";
 import { Settings } from "./features/settings/Settings";
-import { LogViewer } from "./features/logs/LogViewer";
 import { NotFound } from "./features/not-found/NotFound";
 import { ErrorBoundary } from "./components/common";
 import { ToastProvider } from "./components/common/Toast";
@@ -64,7 +63,7 @@ function App() {
             <Route path="/visualizer" element={<ErrorBoundary><Visualizer /></ErrorBoundary>} />
             <Route path="/library" element={<ErrorBoundary><MediaLibrary /></ErrorBoundary>} />
             <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
-            <Route path="/logs" element={<ErrorBoundary><LogViewer /></ErrorBoundary>} />
+            <Route path="/logs" element={<Navigate to="/log-analytics" replace />} />
             <Route path="/log-analytics" element={<ErrorBoundary><LogAnalyticsPage /></ErrorBoundary>} />
             <Route path="/health" element={<ErrorBoundary><HealthPage /></ErrorBoundary>} />
             <Route path="/kinetic-typography" element={<ErrorBoundary><KineticTypographyPage /></ErrorBoundary>} />

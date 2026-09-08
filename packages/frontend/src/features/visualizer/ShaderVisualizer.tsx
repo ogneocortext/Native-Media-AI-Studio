@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import { ShaderCanvas } from "./components/ShaderCanvas";
 import { SHADER_PRESETS, type ShaderPresetName } from "./shaders";
 import { getShaderPresetForTrack, SHADER_PRESET_INFO } from "./shaderPresets";

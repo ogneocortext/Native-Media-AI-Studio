@@ -13,7 +13,7 @@
  *
  * All effects are additive-blend friendly and react to the shared AudioData ref.
  */
-import { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";

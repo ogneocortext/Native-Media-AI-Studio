@@ -1,20 +1,31 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Upload, Music, Zap, Play, Loader2, AlertCircle, BarChart3,
   Database, RefreshCw, ChevronDown, ChevronRight, Activity,
-  Clock, TrendingUp, Music2, Pencil,
+  Clock, TrendingUp, Music2, Pencil, Download,
 } from "lucide-react";
-import {
-  generateVideoSection,
-  listAudioFiles, renameAudioFile, getCudaStatus,
-  getApiBase, type AudioAnalysisResult, separateAudioStems,
-} from "../../services/api";
+import { getApiBase, getCudaStatus, listAudioFiles, separateAudioStems, renameAudioFile, generateVideoSection } from "../../services/api";
 import { useAudioAnalysis } from "../../hooks/useAudioAnalysis";
 import { DS } from "../../styles/designSystem";
 import {
-  AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
-  ReferenceLine, BarChart, Bar, Cell,
+  ResponsiveContainer,
+  AreaChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ReferenceLine,
+  Area,
+  BarChart,
+  Bar,
+  Cell,
 } from "recharts";
+
+interface AudioFile {
+  filename: string;
+  path: string;
+  size_bytes: number;
+}
 
 interface BeatDensityPoint {
   bar: number;
@@ -24,41 +35,45 @@ interface BeatDensityPoint {
   energy: number;
 }
 
-function buildBeatDensity(beatTimes: number[], sections: AudioAnalysisResult["sections"], energyCurve: number[], duration: number, tempoBpm: number): BeatDensityPoint[] {
-  if (!beatTimes.length) return [];
-  const beatInterval = 60 / tempoBpm;
-  const barInterval = beatInterval * 4;
-  const bars: Map<number, { count: number; beats: number[] }> = new Map();
-
-  for (const t of beatTimes) {
-    const barIdx = Math.floor(t / barInterval);
-    if (!bars.has(barIdx)) bars.set(barIdx, { count: 0, beats: [] });
-    const b = bars.get(barIdx)!;
-    b.count++;
-    b.beats.push(t);
-  }
-
-  const getSection = (t: number) => sections.find(s => t >= s.start && s.end)?.type ?? "full";
-
-  const energyAtTime = (t: number) => {
-    if (!energyCurve.length) return 0.5;
-    const idx = Math.min(Math.floor((t / duration) * energyCurve.length), energyCurve.length - 1);
-    return energyCurve[idx];
-  };
-
-  return Array.from(bars.entries()).map(([barIdx, { count, beats }]) => ({
-    bar: barIdx,
-    time: barIdx * barInterval,
-    count,
-    section: getSection(beats[0]),
-    energy: energyAtTime(beats[0]),
-  }));
-}
-
 const SECTION_HEX: Record<string, string> = {
   intro: "#3b82f6", verse: "#22c55e", chorus: "#8b5cf6",
   bridge: "#f97316", outro: "#ef4444", full: "#6b7280",
 };
+
+function buildBeatDensity(
+  beats: number[], sections: { type: string; start: number; end: number; energy: number }[],
+  energyCurve: number[], duration: number, bpm: number
+): BeatDensityPoint[] {
+  const barInterval = 60 / bpm;
+  if (!beats.length || !duration) return [];
+  const totalBars = Math.floor(duration / barInterval);
+  const bars = new Map<number, { count: number; beatTimes: number[] }>();
+  for (const bt of beats) {
+    const b = Math.min(Math.floor(bt / barInterval), totalBars - 1);
+    const prev = bars.get(b);
+    if (prev) { prev.count++; prev.beatTimes.push(bt); }
+    else bars.set(b, { count: 1, beatTimes: [bt] });
+  }
+  function getSection(t: number) { const s = sections.find(s => t >= s.start && t <= s.end); return s ? s.type : "full"; }
+  function energyAtTime(t: number) {
+    if (!energyCurve.length) return 0;
+    const idx = Math.round((t / duration) * (energyCurve.length - 1));
+    return energyCurve[Math.max(0, Math.min(idx, energyCurve.length - 1))];
+  }
+  return Array.from(bars.entries()).map(([barIdx, { count, beatTimes: _beatTimes }]) => ({
+    bar: barIdx,
+    time: barIdx * barInterval,
+    count,
+    section: getSection(barIdx * barInterval),
+    energy: energyAtTime(barIdx * barInterval),
+  }));
+}
+
+function getEnergyColor(energy: number): string {
+  if (energy < 0.3) return "#3b82f6";
+  if (energy < 0.6) return "#f59e0b";
+  return "#ef4444";
+}
 
 const BeatDensityTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: BeatDensityPoint }> }) => {
   if (active && payload && payload.length) {
@@ -84,19 +99,6 @@ const EnergyBeatTooltip = ({ active, payload, label }: { active?: boolean; paylo
   }
   return null;
 };
-
-
-interface AudioFile {
-  filename: string;
-  path: string;
-  size_bytes: number;
-}
-
-function getEnergyColor(energy: number): string {
-  if (energy < 0.3) return "#3b82f6";
-  if (energy < 0.6) return "#f59e0b";
-  return "#ef4444";
-}
 
 export function AudioAnalysisPage() {
   const audio = useAudioAnalysis();
@@ -305,6 +307,60 @@ export function AudioAnalysisPage() {
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
   const formatFileSize = (b: number) => b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${(b / 1024).toFixed(0)} KB`;
 
+  const exportAnalysis = () => {
+    if (!analysis) return;
+    const blob = new Blob([JSON.stringify(analysis, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(file?.name || analysis.stored_path?.split(/[/\\]/).pop() || "analysis").replace(/\.[^.]+$/, "")}-analysis.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const waveformRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!analysis?.amplitude_envelope || !waveformRef.current) return;
+    const envelope = analysis.amplitude_envelope;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = waveformRef.current.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = 80 * dpr;
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `80px`;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, rect.width, 80);
+    const mid = 40;
+    const step = rect.width / envelope.length;
+    ctx.beginPath();
+    ctx.moveTo(0, mid);
+    for (let i = 0; i < envelope.length; i++) {
+      const x = i * step;
+      const y = mid - envelope[i] * 36;
+      ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = "#8b5cf6";
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, mid);
+    for (let i = 0; i < envelope.length; i++) {
+      const x = i * step;
+      const y = mid + envelope[i] * 36;
+      ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = "#8b5cf6";
+    ctx.globalAlpha = 0.35;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    waveformRef.current.innerHTML = "";
+    waveformRef.current.appendChild(canvas);
+  }, [analysis]);
+
   return (
     <div className={DS.pageWide}>
       <div className={DS.pageTitle}><Music size={22} /> Audio Analysis</div>
@@ -372,7 +428,17 @@ export function AudioAnalysisPage() {
             </div>
           )}
 
-          {error && <div className={DS.cardError} role="alert"><AlertCircle size={20} /><div className="flex-1"><p className="text-sm font-medium">{error}</p><button onClick={() => setError(null)} className="text-xs underline mt-1">Dismiss</button></div></div>}
+           {error && <div className={DS.cardError} role="alert"><AlertCircle size={20} /><div className="flex-1"><p className="text-sm font-medium">{error}</p><button onClick={() => setError(null)} className="text-xs underline mt-1">Dismiss</button></div></div>}
+
+           {!analysis && !analyzing && (
+             <div className={DS.card + " border-dashed"}>
+               <div className={DS.flexCenter + " flex-col py-8"}>
+                 <BarChart3 size={32} className="text-gray-600 mb-2" />
+                 <p className="text-sm text-gray-400">No analysis yet</p>
+                 <p className={DS.textXs}>Upload a file and click <strong className="text-white">Analyze</strong> to see tempo, beats, sections, and energy.</p>
+               </div>
+             </div>
+           )}
 
           {analysis && (
             <div className={DS.section}>
@@ -381,6 +447,17 @@ export function AudioAnalysisPage() {
                 <div className={DS.card}><div className={DS.flexCenter}><div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center mr-2"><Clock size={16} className="text-blue-400" /></div><span className={DS.textBold}>{formatTime(analysis.duration_seconds)}</span></div><p className={DS.textXs}>Duration</p></div>
                 <div className={DS.card}><div className={DS.flexCenter}><div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center mr-2"><Zap size={16} className="text-amber-400" /></div><span className={DS.textBold}>{analysis.beat_count}</span></div><p className={DS.textXs}>Beats</p></div>
                 <div className={DS.card}><div className={DS.flexCenter}><div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center mr-2"><TrendingUp size={16} className="text-emerald-400" /></div><span className={DS.textBold}>{(analysis.confidence * 100).toFixed(0)}%</span></div><p className={DS.textXs}>Confidence</p></div>
+              </div>
+
+              {/* Mini waveform + quick actions */}
+              <div className={DS.card}>
+                <div className={DS.flexBetween}>
+                  <h3 className={DS.sectionTitle}>Waveform</h3>
+                  <div className="flex gap-2">
+                    <button onClick={exportAnalysis} className={DS.btnSecondarySm} title="Download analysis JSON"><Download size={14} /> Export</button>
+                  </div>
+                </div>
+                <div ref={waveformRef} className="w-full h-20 bg-gray-900/40 rounded-lg border border-gray-700 overflow-hidden" />
               </div>
 
               {/* Energy + Beats combined chart */}
@@ -439,6 +516,17 @@ export function AudioAnalysisPage() {
                     </div>
                   ))}
                 </div>
+                <div className="flex flex-wrap gap-3 mt-2">
+                  {(() => {
+                    const seen = new Set<string>();
+                    return analysis.sections.filter(s => { if (seen.has(s.type)) return false; seen.add(s.type); return true; }).map(s => (
+                      <span key={s.type} className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: SECTION_HEX[s.type] || SECTION_HEX.full }} />
+                        <span className="text-xs capitalize text-gray-300">{s.type}</span>
+                      </span>
+                    ));
+                  })()}
+                </div>
                 <div className="flex justify-between mt-1">
                   <span className={DS.textXs}>0:00</span>
                   <span className={DS.textXs}>Purple = energy · Amber = beats (sampled) · Dashed = sections</span>
@@ -476,6 +564,7 @@ export function AudioAnalysisPage() {
                   <h3 className={DS.sectionTitle}><Activity size={14} />Detected Sections<span className={DS.textXs}>({analysis.sections.length}) · check to batch-generate</span></h3>
                   <div className="flex gap-2">
                     {analysis.sections.length > 1 && <button onClick={() => setSelectedSections(new Set(analysis!.sections.map((_, i) => i)))} className={DS.btnSecondarySm}>Select all</button>}
+                    <button onClick={exportAnalysis} className={DS.btnSecondarySm} title="Export analysis JSON"><Download size={14} />Export</button>
                     {selectedSections.size > 0 && <button onClick={() => { setPendingGenerateSection(null); setShowGenerateDialog(true); }} className={DS.btnPrimarySm}>Generate Selected ({selectedSections.size})</button>}
                   </div>
                 </div>

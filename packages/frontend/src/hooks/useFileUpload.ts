@@ -3,6 +3,7 @@
  * Used across all pages that accept file uploads.
  */
 
+import type React from "react";
 import { useState, useCallback, useRef } from "react";
 
 interface UseFileUploadOptions {

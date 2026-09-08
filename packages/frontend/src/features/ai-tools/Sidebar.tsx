@@ -1,3 +1,4 @@
+import React from "react";
 import {
   Plus, Trash2, Settings, Wrench, Sparkles, Cpu, MessageSquare,
 } from "lucide-react";

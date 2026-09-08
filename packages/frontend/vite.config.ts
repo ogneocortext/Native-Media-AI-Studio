@@ -124,7 +124,9 @@ export default defineConfig(({ mode }) => {
         overlay: false,
       },
     },
-    // Pre-bundle large dependencies for faster dev startup
+    // Pre-bundle common dependencies for faster dev startup.
+    // Heavy optional deps (@theatre/studio, @react-three/drei) are intentionally
+    // omitted so the optimizer doesn't spend minutes scanning their large trees.
     optimizeDeps: {
       include: [
         "react",
@@ -132,12 +134,9 @@ export default defineConfig(({ mode }) => {
         "react-dom/client",
         "three",
         "@react-three/fiber",
-        "@react-three/drei",
         "animejs",
         "lucide-react",
         "zustand",
-        "@theatre/core",
-        "@theatre/studio",
       ],
     },
     build: {

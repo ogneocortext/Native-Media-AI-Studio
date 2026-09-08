@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import type { AnimObject } from "../types";
 import { SliderRow } from "./SliderRow";
 

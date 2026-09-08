@@ -3,7 +3,7 @@
  * One primary action, 3 steps, nothing else.
  */
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Music2, Wand2, ArrowRight, Sparkles, Check, Image, Film, Trash2 } from "lucide-react";
 import { Card } from "../../components/common";

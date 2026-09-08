@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import type { AudioData } from "../types";
 import type { StoryBeat, StoryMotif } from "../storyboard";
 

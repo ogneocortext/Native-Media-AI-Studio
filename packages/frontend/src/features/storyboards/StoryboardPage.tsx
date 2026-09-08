@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   BookOpen, FileText, Search, ChevronRight, Box, Sparkles,
   Music, Clock, Zap, Layers, Quote, Palette, Crown, Film,

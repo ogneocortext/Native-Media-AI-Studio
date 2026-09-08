@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   Upload, Music, Wand2, Sparkles, Play, ChevronRight, Download,
   Loader2, Zap, Layers,

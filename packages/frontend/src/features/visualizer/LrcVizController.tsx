@@ -1,3 +1,4 @@
+import type React from "react";
 import { useFrame } from "@react-three/fiber";
 import { createContext, useContext, useRef } from "react";
 import * as THREE from "three";

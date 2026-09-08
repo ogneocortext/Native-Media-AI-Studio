@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import { FileJson, X, Clipboard } from "lucide-react";
 import type { VisualPreset } from "../visualPreset";
 import { importPresetFromString } from "../visualPreset";
