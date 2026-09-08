@@ -7,8 +7,22 @@ import (
 	"time"
 )
 
+func corsMiddleware(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type")
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+}
+
 func main() {
 	http.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
+		corsMiddleware(w, r)
+		if r.Method == "OPTIONS" {
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"status":  "ok",
@@ -17,10 +31,13 @@ func main() {
 	})
 
 	http.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
+		corsMiddleware(w, r)
+		if r.Method == "OPTIONS" {
+			return
+		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
 
 		flusher, ok := w.(http.Flusher)
 		if !ok {

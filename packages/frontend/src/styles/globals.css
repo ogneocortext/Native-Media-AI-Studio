@@ -1547,6 +1547,50 @@
   flex: 1;
 }
 
+.viz-empty-hero {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: radial-gradient(600px 400px at 50% 20%, rgba(124, 58, 237, 0.15), transparent 70%), #0a0a0f;
+}
+.viz-empty-card {
+  max-width: 520px;
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 2rem;
+  text-align: center;
+  backdrop-filter: blur(12px);
+}
+.viz-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: #7c3aed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+  color: white;
+  box-shadow: 0 8px 24px rgba(124,58,237,0.3);
+}
+.viz-empty-card h3 { font-size: 1.25rem; font-weight: 800; color: white; }
+.viz-empty-sub { font-size: 0.875rem; color: #9ca3af; margin-top: 0.5rem; line-height: 1.5; }
+.viz-empty-steps { text-align: left; margin: 1.25rem 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.6rem; }
+.viz-empty-steps li { font-size: 0.8125rem; color: #d1d5db; display: flex; align-items: center; gap: 0.6rem; }
+.viz-empty-n { width: 22px; height: 22px; border-radius: 9999px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: white; flex-shrink: 0; }
+.viz-empty-actions { display: flex; gap: 0.75rem; justify-content: center; margin-top: 1rem; flex-wrap: wrap; }
+.viz-empty-cta { padding: 0.6rem 1.25rem; background: #7c3aed; color: white; border-radius: 9999px; font-size: 0.8125rem; font-weight: 600; border: none; cursor: pointer; }
+.viz-empty-cta:hover { background: #6d28d9; }
+.viz-empty-link { padding: 0.6rem 1rem; color: #a78bfa; font-size: 0.8125rem; text-decoration: none; }
+.viz-empty-link:hover { color: white; text-decoration: underline; }
+.viz-empty-tip { font-size: 11px; color: #6b7280; margin-top: 1rem; }
+
 .viz-track-hint {
   font-size: 0.75rem;
   color: #6b7280;

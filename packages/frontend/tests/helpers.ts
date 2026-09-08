@@ -158,8 +158,30 @@ export interface MockComfyUIStatusResponse {
   url: string;
 }
 
+export interface MockGoServiceHealthResponse {
+  status: string;
+  timestamp?: string;
+}
+
 // ---------------------------------------------------------------------------
-// Default mock data
+// Go sidecar mock data
+// ---------------------------------------------------------------------------
+
+const GO_SERVICE_PORTS: Record<string, number> = {
+  'go-dashboard': 3847,
+  'go-media': 3848,
+  'go-worker': 3849,
+  'go-gateway': 3850,
+  'go-ports': 3851,
+};
+
+const DEFAULT_GO_HEALTH_RESPONSE: MockGoServiceHealthResponse = {
+  status: 'ok',
+  timestamp: new Date().toISOString(),
+};
+
+// ---------------------------------------------------------------------------
+// API mocking helpers (COMPOSABLE)
 // ---------------------------------------------------------------------------
 
 const DEFAULT_HEALTH_RESPONSE: MockHealthResponse = {
@@ -524,6 +546,52 @@ export function isFilteredError(error: string): boolean {
     ...consoleErrorFilters.vite,
   ];
   return allExcludes.some((ex) => error.includes(ex));
+}
+
+/**
+ * Mock health endpoints for all Go sidecars.
+ * COMPOSABLE: Does NOT call cleanupRoutes().
+ */
+export async function mockGoServiceHealth(
+  page: Page,
+  overrides: Record<string, Partial<MockGoServiceHealthResponse>> = {}
+): Promise<void> {
+  registerRouteHandler(page, async (route) => {
+    const url = route.request().url();
+    for (const [name, port] of Object.entries(GO_SERVICE_PORTS)) {
+      if (url.includes(`127.0.0.1:${port}`) || url.includes(`localhost:${port}`)) {
+        const body = JSON.stringify({ ...DEFAULT_GO_HEALTH_RESPONSE, ...(overrides[name] || {}) });
+        await route.fulfill({ status: 200, contentType: 'application/json', body });
+        return;
+      }
+    }
+    await route.continue();
+  });
+}
+
+/**
+ * Mock health endpoints for Go sidecars with some services offline.
+ * COMPOSABLE: Does NOT call cleanupRoutes().
+ */
+export async function mockGoServiceHealthDegraded(
+  page: Page,
+  offlineServices: string[] = []
+): Promise<void> {
+  registerRouteHandler(page, async (route) => {
+    const url = route.request().url();
+    for (const [name, port] of Object.entries(GO_SERVICE_PORTS)) {
+      if (url.includes(`127.0.0.1:${port}`) || url.includes(`localhost:${port}`)) {
+        const isOffline = offlineServices.includes(name);
+        const body = JSON.stringify({
+          status: isOffline ? 'error' : 'ok',
+          timestamp: new Date().toISOString(),
+        });
+        await route.fulfill({ status: isOffline ? 503 : 200, contentType: 'application/json', body });
+        return;
+      }
+    }
+    await route.continue();
+  });
 }
 
 // ---------------------------------------------------------------------------

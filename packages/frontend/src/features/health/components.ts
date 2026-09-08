@@ -7,3 +7,4 @@ export { PerformanceHistoryCard } from "./PerformanceHistoryCard";
 export { ServiceChecksCard } from "./ServiceChecksCard";
 export { ComfyUICard, type ComfyUICardProps } from "./ComfyUICard";
 export { ActionLog, type ActionLogProps, type ActionLogEntry } from "./ActionLog";
+export { GoServicesCard } from "./GoServicesCard";

@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added - Frontend UX Polish & Build Optimization (2026-09-08)
+
+- **Sidebar** (`packages/frontend/src/components/layout/Sidebar.tsx`): Progressive disclosure — `Generate` collapsible (default open), `System` collapsible (default closed, auto-opens when route active), `External` demoted to subtle footer link. Reduces expanded nav 22→16 rows; addresses `docs/ux-audit/audit-report.md` #8 progressive disclosure.
+- **Wizard** (`packages/frontend/src/features/music-video/steps.tsx`): `ConfigureStep` now hides `Steps/CFG/Seed` inside `<details>` (summary `Steps 20 • CFG 7 • Seed random`). Vertical-first checkbox retains safe-zone hint `top 100 / bottom 200`. Defaults tuned for Wan 2.2 5B 8GB.
+- **Visualizer** (`packages/frontend/src/features/visualizer/Visualizer.tsx`, `packages/frontend/src/styles/globals.css`): Empty hero overlay when `!audioUrl && libraryFiles.length===0` — 3-step guide (`Dashboard drop → Visualizer pick → Play`), CTA `Browse audio…` + link to Audio Analysis, radial violet backdrop. Adds `viz-empty-*` styles.
+- **Remotion** (`packages/video-editor/src/Root.tsx`): Added vertical-first compositions `StillIRiseVertical`, `SiliconDreamsPreviewVertical`, `TakeTheCrownVertical` at `1080×1920` (per `ai-video-trends-2026.md` vertical-first master + `VISUAL_STORYTELLING_2026.md:97`).
+- **Build** (`packages/frontend/vite.config.ts`): `resolve.alias: three/addons → three/examples/jsm` + `dedupe: [three, three-stdlib]` to eliminate duplicate `GLTFLoader×2 / OrbitControls×2` (~100KB gz per `frontend-build-pipeline.md:144`).
+- **Health** (`packages/frontend/src/features/health/GoServicesCard.tsx`): Poll `5000→15000ms`; removed dead imports `WifiOff`, `getDashboardUrl` (`tsc -b` clean, `vite build` 33.64KB css / 50.77KB Visualizer gz).
+
 ### Fixed - Service Management, Port Standardization & Vite Config Shadowing (2026-09-07)
 
 - **Scripts** (`scripts/manage-servers.ps1`): Defined missing `Test-PortInUse` — `Start-Service` crashed with `CommandNotFoundException` under `$ErrorActionPreference = 'Stop'`, making services unstartable through the script

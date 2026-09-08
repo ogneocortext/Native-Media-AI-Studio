@@ -80,7 +80,7 @@ $ServiceConfig = @{
         LocalCmd = Join-Path $ProjectRoot 'packages\video-editor\node_modules\.bin\remotion.cmd'
         LocalArgs = @('studio')
     }
-    go-dashboard = @{
+    'go-dashboard' = @{
         Name = 'Go Dashboard'
         Port = 3847
         HealthPath = '/api/health'
@@ -88,7 +88,7 @@ $ServiceConfig = @{
         LogFile = 'go-dashboard.log'
         LocalCmd = Join-Path $ProjectRoot 'bin\go-dashboard.exe'
     }
-    go-media = @{
+    'go-media' = @{
         Name = 'Go Media'
         Port = 3848
         HealthPath = '/api/health'
@@ -97,7 +97,7 @@ $ServiceConfig = @{
         LocalCmd = Join-Path $ProjectRoot 'bin\go-media.exe'
         LocalArgs = @('--server', '--port', '3848')
     }
-    go-worker = @{
+    'go-worker' = @{
         Name = 'Go Worker'
         Port = 3849
         HealthPath = '/health'
@@ -105,7 +105,7 @@ $ServiceConfig = @{
         LogFile = 'go-worker.log'
         LocalCmd = Join-Path $ProjectRoot 'bin\go-worker.exe'
     }
-    go-gateway = @{
+    'go-gateway' = @{
         Name = 'Go Gateway'
         Port = 3850
         HealthPath = '/health'
@@ -113,7 +113,7 @@ $ServiceConfig = @{
         LogFile = 'go-gateway.log'
         LocalCmd = Join-Path $ProjectRoot 'bin\go-gateway.exe'
     }
-    go-ports = @{
+    'go-ports' = @{
         Name = 'Go Ports'
         Port = 3851
         HealthPath = '/api/health'

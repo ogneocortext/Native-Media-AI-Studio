@@ -254,7 +254,7 @@ Or use `go env GOROOT` to find the active install.
 | `go-worker` | ✅ Done | Binary at `bin/go-worker.exe`. Queue I/O worker with job + sidecar endpoints. |
 | `go-gateway` | ✅ Done | Binary at `bin/go-gateway.exe`. MCP bridge router with `/proxy/:bridge/*path` on `:3850`. **Fix applied:** response proxy now uses `io.Copy` instead of single `Read` call (was truncating responses). |
 | `go-ports` | ✅ Done | Binary at `bin/go-ports.exe`. Port availability checker on `:3851` (`/api/health`, `/check/<port>`, `/scan?ports=...`). |
-| Frontend integration | ✅ Done | `config/ports.json` includes `dashboard_port`/`dashboard_url`. `portConfig.ts` exposes `getDashboardUrl()`. `GoServicesCard` component added to HealthPage, polls all 5 Go sidecars every 5s. |
+| Frontend integration | ✅ Done | `config/ports.json` includes `dashboard_port`/`dashboard_url`. `portConfig.ts` exposes `getDashboardUrl()`. `GoServicesCard` component added to HealthPage, polls all 5 Go sidecars every 15s (was 5s, throttled 2026-09-08). |
 | Service lifecycle | ✅ Done | All Go sidecars start automatically with `scripts\start-services.ps1`. Managed via `scripts\manage-servers.ps1 -Action status` (supports `go-dashboard`, `go-media`, `go-worker`, `go-gateway`, `go-ports`). |
 | Technical reference | ✅ Done | Service map updated in `docs/knowledge-library/technical-reference.md`. |
 
@@ -275,7 +275,7 @@ Or use `go env GOROOT` to find the active install.
 1. **Proxy bodies fully.** The initial `go-gateway` proxy used `resp.Body.Read(buf)` once, which only reads one chunk. Use `io.Copy(c.Writer, resp.Body)` for full response transfer.
 2. **CLI + server duality.** `go-media` started as CLI-only, but the backend needs programmatic access. Adding `--server` mode makes it callable from FastAPI without shell-outs.
 3. **Port probing from Go.** `go-ports` replaces ad-hoc PowerShell port checks with a tiny cross-platform binary. Frontend can poll it directly.
-4. **Frontend polling pattern.** `GoServicesCard` uses `AbortSignal.timeout(2000)` + 5s interval. This is more reliable than `useHealth` for non-FastAPI services.
+4. **Frontend polling pattern.** `GoServicesCard` uses `AbortSignal.timeout(2000)` + 15s interval (was 5s, raised 2026-09-08 to match `healthStore` 15/30s). This is more reliable than `useHealth` for non-FastAPI services.
 
 ## 11. Related Documents
 

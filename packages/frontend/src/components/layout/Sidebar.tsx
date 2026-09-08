@@ -2,6 +2,8 @@ import {
   Activity,
   BookOpen,
   Box,
+  ChevronDown,
+  ChevronRight,
   Circle,
   Cpu,
   Film,
@@ -72,8 +74,13 @@ const systemNav: NavItem[] = [
   { path: "/docs", label: "Docs", icon: <BookOpen size={18} /> },
 ];
 
-function NavSection({ title, items, location, collapsed }: { title: string; items: NavItem[]; location: ReturnType<typeof useLocation>; collapsed?: boolean }) {
+function NavSection({ title, items, location, collapsed, collapsible, defaultOpen }: { title: string; items: NavItem[]; location: ReturnType<typeof useLocation>; collapsed?: boolean; collapsible?: boolean; defaultOpen?: boolean }) {
   const isExternal = (path: string) => path.startsWith("http");
+  const [open, setOpen] = useState(defaultOpen ?? true);
+  // Auto-open if current route is inside this section
+  const containsActive = items.some((i) => location.pathname === i.path || location.pathname.startsWith(i.path + "/"));
+  useEffect(() => { if (containsActive && collapsible) setOpen(true); }, [containsActive, collapsible]);
+
   if (collapsed) {
     return (
       <div className="nav-section">
@@ -103,39 +110,55 @@ function NavSection({ title, items, location, collapsed }: { title: string; item
       </div>
     );
   }
+
+  const header = collapsible ? (
+    <button
+      onClick={() => setOpen((v: boolean) => !v)}
+      className="nav-section-title nav-section-toggle w-full flex items-center justify-between hover:text-white transition-colors"
+      aria-expanded={open}
+    >
+      <span>{title}</span>
+      {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+    </button>
+  ) : (
+    <p className="nav-section-title">{title}</p>
+  );
+
   return (
     <div className="nav-section">
-      <p className="nav-section-title">{title}</p>
-      <ul>
-        {items.map((item) => {
-          const isActive = location.pathname === item.path;
-          const external = isExternal(item.path);
-          return (
-            <li key={item.path}>
-              {external ? (
-                <a href={item.path} target="_blank" rel="noopener noreferrer" className="nav-item">
-                  <span className="nav-item-icon inactive">{item.icon}</span>
-                  <span className="nav-item-text">{item.label}</span>
-                  <span style={{ marginLeft: "auto", opacity: 0.5, fontSize: 10 }}>↗</span>
-                </a>
-              ) : (
-                <Link
-                  to={item.path}
-                  className={`nav-item ${isActive ? "active" : ""}`}
-                >
-                  <span className={`nav-item-icon ${isActive ? "active" : "inactive"}`}>{item.icon}</span>
-                  <span className="nav-item-text">{item.label}</span>
-                  {item.badge && (
-                    <span className={`nav-badge ${isActive ? "active" : "inactive"}`}>
-                      {item.badge}
-                    </span>
-                  )}
-                </Link>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      {header}
+      {(!collapsible || open) && (
+        <ul>
+          {items.map((item) => {
+            const isActive = location.pathname === item.path;
+            const external = isExternal(item.path);
+            return (
+              <li key={item.path}>
+                {external ? (
+                  <a href={item.path} target="_blank" rel="noopener noreferrer" className="nav-item">
+                    <span className="nav-item-icon inactive">{item.icon}</span>
+                    <span className="nav-item-text">{item.label}</span>
+                    <span style={{ marginLeft: "auto", opacity: 0.5, fontSize: 10 }}>↗</span>
+                  </a>
+                ) : (
+                  <Link
+                    to={item.path}
+                    className={`nav-item ${isActive ? "active" : ""}`}
+                  >
+                    <span className={`nav-item-icon ${isActive ? "active" : "inactive"}`}>{item.icon}</span>
+                    <span className="nav-item-text">{item.label}</span>
+                    {item.badge && (
+                      <span className={`nav-badge ${isActive ? "active" : "inactive"}`}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </Link>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
@@ -260,14 +283,30 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* Navigation */}
+        {/* Navigation — progressive disclosure: Create+Manage open, System collapsed by default */}
         <nav className="sidebar-nav">
           <NavSection title="Start" items={primaryNav} location={location} collapsed={collapsed && !isMobile} />
           <NavSection title="Create" items={createNav} location={location} collapsed={collapsed && !isMobile} />
-          <NavSection title="Generate" items={generateNav} location={location} collapsed={collapsed && !isMobile} />
-          <NavSection title="External" items={externalNav} location={location} collapsed={collapsed && !isMobile} />
+          <NavSection title="Generate" items={generateNav} location={location} collapsed={collapsed && !isMobile} collapsible defaultOpen={true} />
           <NavSection title="Manage" items={manageNav} location={location} collapsed={collapsed && !isMobile} />
-          <NavSection title="System" items={systemNav} location={location} collapsed={collapsed && !isMobile} />
+          {/* External is a single link — render as subtle footer link instead of full section */}
+          {!collapsed || isMobile ? (
+            <div className="nav-section">
+              <a
+                href={getVideoEditorUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="nav-item nav-external-link"
+                title="Open Remotion Studio in new tab"
+              >
+                <span className="nav-item-icon inactive"><Film size={14} /></span>
+                <span className="nav-item-text text-xs">Remotion Studio ↗</span>
+              </a>
+            </div>
+          ) : (
+            <NavSection title="External" items={externalNav} location={location} collapsed={true} />
+          )}
+          <NavSection title="System" items={systemNav} location={location} collapsed={collapsed && !isMobile} collapsible defaultOpen={false} />
         </nav>
 
         {/* Health */}

@@ -18,6 +18,14 @@ export const RemotionRoot: React.FC = () => {
         height={1080}
       />
       <Composition
+        id="StillIRiseVertical"
+        component={StillIRiseComposition}
+        durationInFrames={StillIRiseDuration}
+        fps={StillIRiseFps}
+        width={1080}
+        height={1920}
+      />
+      <Composition
         id="SiliconDreamsPreview"
         component={SiliconDreamsPreview}
         durationInFrames={SiliconDreamsDuration}
@@ -26,12 +34,28 @@ export const RemotionRoot: React.FC = () => {
         height={1080}
       />
       <Composition
+        id="SiliconDreamsPreviewVertical"
+        component={SiliconDreamsPreview}
+        durationInFrames={SiliconDreamsDuration}
+        fps={SiliconDreamsFps}
+        width={1080}
+        height={1920}
+      />
+      <Composition
         id="TakeTheCrown"
         component={TakeTheCrownComposition}
         durationInFrames={TakeTheCrownDuration}
         fps={TakeTheCrownFps}
         width={1920}
         height={1080}
+      />
+      <Composition
+        id="TakeTheCrownVertical"
+        component={TakeTheCrownComposition}
+        durationInFrames={TakeTheCrownDuration}
+        fps={TakeTheCrownFps}
+        width={1080}
+        height={1920}
       />
     </>
   );

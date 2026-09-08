@@ -141,7 +141,21 @@ func main() {
 func runMediaServer(port string) {
 	r := http.NewServeMux()
 
+	cors := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
+
 	r.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
+		cors(w, r)
+		if r.Method == "OPTIONS" {
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"status":  "ok",
@@ -151,6 +165,10 @@ func runMediaServer(port string) {
 	})
 
 	r.HandleFunc("/process", func(w http.ResponseWriter, r *http.Request) {
+		cors(w, r)
+		if r.Method == "OPTIONS" {
+			return
+		}
 		if r.Method != http.MethodPost {
 			http.Error(w, "POST only", http.StatusMethodNotAllowed)
 			return

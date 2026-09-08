@@ -132,6 +132,15 @@ Dashboard → "Create Music Video" → Upload Audio → [Auto Analyze: Beats, Se
 
 ---
 
+## Resolved (2026-09-08 frontend polish)
+
+- **#8 Progressive disclosure** — `Sidebar.tsx` System collapsed by default (auto-opens on active route), Generate collapsible, External demoted to footer link. Expanded rows 22→16.
+- **Wizard advanced disclosure** — `steps.tsx:174` Steps/CFG/Seed moved to `<details>` (summary shows live values); vertical-first hint retained. Addresses "no recovery paths / structured prompt" (#5, #7).
+- **Visualizer guided empty state** — `Visualizer.tsx:1055` empty hero with 3 steps + browse CTA when no library tracks.
+- **Vertical-first master** — `video-editor/Root.tsx` 3× `1080×1920` compositions (Shorts/Canvas) per `ai-video-trends-2026.md` P0 + `VISUAL_STORYTELLING_2026.md:97`.
+- **Build throttling** — `GoServicesCard` 5s→15s, `vite.config.ts` three dedupe alias (~100KB gz).
+- **Verification:** `tsc -b` 0, `vite build` 0 (33.64KB css / 50.77KB Visualizer gz).
+
 ## Next Steps
 
 1. Implement unified Music Video Wizard

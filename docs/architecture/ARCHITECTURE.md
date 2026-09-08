@@ -113,10 +113,17 @@ _(None — all components now source media data from the library API)_
 
 ### Frontend Stores (Zustand)
 - `jobStore` — Job queue state, SSE connection
-- `healthStore` — System health, adapter status
+- `healthStore` — System health, adapter status (15/30s polls, SSE primary)
 - `outputStore` — Generated media files, filters
 - `gpuStore` — GPU snapshot polling
 - `uiStore` — Shared UI state (focus mode toggle)
+
+### Frontend UX (2026-09-08 polish)
+- `Sidebar.tsx` — Progressive disclosure: `Generate`/`System` collapsible (System default closed, auto-opens on active route), External demoted to footer link. `GoServicesCard` throttled 5s→15s.
+- `MusicVideoWizard/steps.tsx` — `ConfigureStep` Steps/CFG/Seed hidden in `<details>` (summary shows live values); vertical-first checkbox retains safe-zone hint.
+- `Visualizer.tsx` + `globals.css` — Empty hero overlay when no library tracks (3-step guide, CTA browse, radial violet backdrop).
+- `vite.config.ts` — `three/addons` alias + `dedupe: [three, three-stdlib]` eliminates duplicate loaders (~100KB gz).
+- `video-editor/Root.tsx` — Vertical-first compositions `*Vertical` at `1080×1920` for Shorts/Canvas per `ai-video-trends-2026.md`.
 
 ### Three.js Studio
 - **Paste Code Panel** — Insert AI-generated JavaScript or JSON directly into the 3D scene. Supports `function applyScene(scene, camera, renderer) { ... }` or JSON scene descriptions.

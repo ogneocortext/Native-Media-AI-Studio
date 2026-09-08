@@ -223,6 +223,10 @@ node scripts/analyze-bundle-stats.mjs
 | 2026-09-07 | Added 30s TTL cache to `/api/logs/analytics/summary` | Lower DB hit rate |
 | 2026-09-07 | Split `three-vendor` → `three-core` + `three-examples` | Smaller initial JS payload |
 | 2026-09-07 | Added `vite-plugin-compression` + `rollup-plugin-visualizer` | gzip/brotli artifacts, bundle insights |
+| 2026-09-08 | `GoServicesCard` poll `5s→15s`, removed dead imports (`WifiOff`) | `tsc -b` clean, aligns with healthStore 15/30s |
+| 2026-09-08 | `vite.config.ts` alias `three/addons → three/examples/jsm` + dedupe `three-stdlib` | Eliminates duplicate GLTFLoader/OrbitControls (~100KB gz) |
+| 2026-09-08 | Wizard `ConfigureStep` `<details>` for Steps/CFG/Seed | Progressive disclosure, defaults 20/7.0/random for Wan 2.2 5B |
+| 2026-09-08 | Visualizer empty hero + Remotion 3× vertical `1080×1920` | Vertical-first master per ai-video-trends P0 |
 
 ---
 

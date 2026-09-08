@@ -17,8 +17,21 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
+	cors := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
 
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
+		cors(w, r)
+		if r.Method == "OPTIONS" {
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"status":  "ok",
@@ -27,6 +40,10 @@ func main() {
 	})
 
 	mux.HandleFunc("/check/", func(w http.ResponseWriter, r *http.Request) {
+		cors(w, r)
+		if r.Method == "OPTIONS" {
+			return
+		}
 		parts := strings.Split(r.URL.Path, "/")
 		if len(parts) < 4 {
 			http.Error(w, "usage: /check/<port>", http.StatusBadRequest)
@@ -47,6 +64,10 @@ func main() {
 	})
 
 	mux.HandleFunc("/scan", func(w http.ResponseWriter, r *http.Request) {
+		cors(w, r)
+		if r.Method == "OPTIONS" {
+			return
+		}
 		portsParam := r.URL.Query().Get("ports")
 		if portsParam == "" {
 			http.Error(w, "?ports=8000,5173,3847 required", http.StatusBadRequest)

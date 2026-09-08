@@ -1053,6 +1053,25 @@ export function Visualizer() {
       />
 
       <div className="viz-content">
+        {!audioUrl && libraryFiles.length === 0 && (
+          <div className="viz-empty-hero">
+            <div className="viz-empty-card">
+              <div className="viz-empty-icon"><Music size={28} /></div>
+              <h3>Drop a song to see it</h3>
+              <p className="viz-empty-sub">Three steps — no setup. Pick a track, pick a vibe, hit play. Beat-synced shader + 3D + lyrics.</p>
+              <ol className="viz-empty-steps">
+                <li><span className="viz-empty-n">1</span> <b>Dashboard</b> → drop MP3/WAV (analyzed on your GPU)</li>
+                <li><span className="viz-empty-n">2</span> <b>Visualizer</b> → choose track here, or drag a file below</li>
+                <li><span className="viz-empty-n">3</span> Press <b>Play</b> — cuts land on beats, chorus = maximal</li>
+              </ol>
+              <div className="viz-empty-actions">
+                <button className="viz-empty-cta" onClick={() => document.querySelector<HTMLInputElement>('.upload-prompt input[type=file]')?.click()}>Browse audio…</button>
+                <a href="/audio-analysis" className="viz-empty-link">Open Audio Analysis →</a>
+              </div>
+              <p className="viz-empty-tip">Tip: Visualizer gets 2-5× more rec than static art — first 3s are the hook.</p>
+            </div>
+          </div>
+        )}
         <div className="viz-canvas-wrap" ref={containerRef}>
           {visualsVisible ? (
             vizMode === "shader" ? (

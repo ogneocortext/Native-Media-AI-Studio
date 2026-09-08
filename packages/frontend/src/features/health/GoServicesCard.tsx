@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Card } from "../../components/common";
-import { CheckCircle, XCircle, WifiOff } from "lucide-react";
-import { getDashboardUrl } from "../../services/portConfig";
+import { CheckCircle, XCircle } from "lucide-react";
 
 interface GoService {
   name: string;
@@ -50,7 +49,7 @@ export function GoServicesCard() {
       }
     };
     check();
-    const interval = setInterval(check, 5000);
+    const interval = setInterval(check, 15000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 

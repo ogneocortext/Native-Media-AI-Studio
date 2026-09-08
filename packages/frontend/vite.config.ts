@@ -85,8 +85,10 @@ export default defineConfig(({ mode }) => {
       alias: {
         "@": path.resolve(__dirname, "./src"),
         "@shared": path.resolve(__dirname, "../../shared"),
+        // Dedupe three-stdlib loaders to canonical three/examples/jsm (saves ~100KB gz)
+        "three/addons": path.resolve(__dirname, "./node_modules/three/examples/jsm"),
       },
-      dedupe: ["three"],
+      dedupe: ["three", "three-stdlib"],
     },
     server: {
       host: "127.0.0.1",
