@@ -1,0 +1,280 @@
+{
+  "lyrics": [
+    {
+      "text": "Blue light's the only thing still awake in here",
+      "start": 5.8,
+      "end": 11.68,
+      "section": "intro"
+    },
+    {
+      "text": "Everyone else went home hours ago, it's clear",
+      "start": 11.68,
+      "end": 16.96,
+      "section": "intro"
+    },
+    {
+      "text": "I keep staring at the same broken little piece",
+      "start": 16.96,
+      "end": 23.32,
+      "section": "intro"
+    },
+    {
+      "text": "Telling myself just one more try before I sleep",
+      "start": 23.32,
+      "end": 33.36,
+      "section": "intro"
+    },
+    {
+      "text": "Started this thing back when the leaves were green",
+      "start": 33.36,
+      "end": 35.84,
+      "section": "intro"
+    },
+    {
+      "text": "Now there's frost outside and I'm still stuck between",
+      "start": 35.84,
+      "end": 39.0,
+      "section": "intro"
+    },
+    {
+      "text": "What I pictured and this half-built, stubborn machine",
+      "start": 39.0,
+      "end": 42.2,
+      "section": "intro"
+    },
+    {
+      "text": "That only works when nobody else can see",
+      "start": 42.2,
+      "end": 44.88,
+      "section": "intro"
+    },
+    {
+      "text": "Every time I fix one thing, something else gives out",
+      "start": 44.88,
+      "end": 48.36,
+      "section": "intro"
+    },
+    {
+      "text": "But I've learned to love the problem, not the doubt",
+      "start": 48.36,
+      "end": 51.24,
+      "section": "intro"
+    },
+    {
+      "text": "My friends ask when it's done, I just laugh and say",
+      "start": 51.24,
+      "end": 54.92,
+      "section": "intro"
+    },
+    {
+      "text": "It's ready when it's ready, not a day",
+      "start": 54.92,
+      "end": 57.8,
+      "section": "intro"
+    },
+    {
+      "text": "So I sit with the mess until it makes sense",
+      "start": 57.8,
+      "end": 61.32,
+      "section": "intro"
+    },
+    {
+      "text": "Trade my weekends for a little more evidence",
+      "start": 61.32,
+      "end": 64.6,
+      "section": "intro"
+    },
+    {
+      "text": "That the thing I see isn't just in my head",
+      "start": 64.6,
+      "end": 68.28,
+      "section": "intro"
+    },
+    {
+      "text": "One more late night, one more thread",
+      "start": 68.28,
+      "end": 71.96000000000001,
+      "section": "intro"
+    },
+    {
+      "text": "(Piece by piece - piece by piece - watch it grow)",
+      "start": 71.96000000000001,
+      "end": 75.28,
+      "section": "intro"
+    },
+    {
+      "text": "(Break it down - break it down - then I know)",
+      "start": 75.28,
+      "end": 78.56,
+      "section": "intro"
+    },
+    {
+      "text": "(Start again - start again - till it's clean)",
+      "start": 78.56,
+      "end": 81.64,
+      "section": "intro"
+    },
+    {
+      "text": "(I built this - built this - from a dream)",
+      "start": 81.64,
+      "end": 97.88,
+      "section": "intro"
+    },
+    {
+      "text": "I've rebuilt the same idea a dozen times",
+      "start": 97.88,
+      "end": 100.75999999999999,
+      "section": "intro"
+    },
+    {
+      "text": "Thrown out the parts that only looked good on paper lines",
+      "start": 100.75999999999999,
+      "end": 103.84,
+      "section": "intro"
+    },
+    {
+      "text": "Nobody claps when something quietly works right",
+      "start": 103.84,
+      "end": 107.08,
+      "section": "intro"
+    },
+    {
+      "text": "But I felt that click at two in the morning light",
+      "start": 107.08,
+      "end": 110.4,
+      "section": "intro"
+    },
+    {
+      "text": "My family thinks I'm just staring at a screen",
+      "start": 110.4,
+      "end": 113.68,
+      "section": "intro"
+    },
+    {
+      "text": "They don't see the little world I'm trying to build between",
+      "start": 113.68,
+      "end": 116.96000000000001,
+      "section": "intro"
+    },
+    {
+      "text": "The failures, and the one time that it holds",
+      "start": 116.96000000000001,
+      "end": 120.88,
+      "section": "intro"
+    },
+    {
+      "text": "That's the part of me that nobody's told",
+      "start": 120.88,
+      "end": 123.56,
+      "section": "intro"
+    },
+    {
+      "text": "So I sit with the mess until it makes sense",
+      "start": 123.56,
+      "end": 127.04,
+      "section": "intro"
+    },
+    {
+      "text": "Trade my weekends for a little more evidence",
+      "start": 127.04,
+      "end": 130.32,
+      "section": "intro"
+    },
+    {
+      "text": "That the thing I see isn't just in my head",
+      "start": 130.32,
+      "end": 134.04,
+      "section": "intro"
+    },
+    {
+      "text": "One more late night, one more thread",
+      "start": 134.04,
+      "end": 137.92000000000002,
+      "section": "intro"
+    },
+    {
+      "text": "(Piece by piece - piece by piece - watch it grow)",
+      "start": 137.92000000000002,
+      "end": 141.0,
+      "section": "intro"
+    },
+    {
+      "text": "(Break it down - break it down - then I know)",
+      "start": 141.0,
+      "end": 144.28,
+      "section": "intro"
+    },
+    {
+      "text": "(Start again - start again - till it's clean)",
+      "start": 144.28,
+      "end": 147.36,
+      "section": "intro"
+    },
+    {
+      "text": "(I built this - built this - from a dream)",
+      "start": 147.36,
+      "end": 151.48,
+      "section": "intro"
+    },
+    {
+      "text": "Maybe it takes a year to make one thing feel true",
+      "start": 151.48,
+      "end": 157.84,
+      "section": "intro"
+    },
+    {
+      "text": "Maybe that's the cost of building something new",
+      "start": 157.84,
+      "end": 163.36,
+      "section": "intro"
+    },
+    {
+      "text": "But when it finally runs the way I always dreamed",
+      "start": 163.36,
+      "end": 170.12,
+      "section": "intro"
+    },
+    {
+      "text": "Every quiet hour will have meant exactly what it seemed",
+      "start": 170.12,
+      "end": 177.24,
+      "section": "intro"
+    },
+    {
+      "text": "(Piece by piece - piece by piece - watch it grow)",
+      "start": 177.24,
+      "end": 180.36,
+      "section": "intro"
+    },
+    {
+      "text": "(Break it down - break it down - then I know)",
+      "start": 180.36,
+      "end": 183.64,
+      "section": "intro"
+    },
+    {
+      "text": "(Start again - start again - till it's clean)",
+      "start": 183.64,
+      "end": 186.68,
+      "section": "intro"
+    },
+    {
+      "text": "(I built this - built this - from a dream)",
+      "start": 186.68,
+      "end": 199.76,
+      "section": "intro"
+    },
+    {
+      "text": "(It finally works, and it was worth it)",
+      "start": 199.76,
+      "end": 212.84,
+      "section": "intro"
+    },
+    {
+      "text": "(It finally works, and it was worth it)",
+      "start": 212.84,
+      "end": 217.84,
+      "section": "intro"
+    }
+  ]
+}

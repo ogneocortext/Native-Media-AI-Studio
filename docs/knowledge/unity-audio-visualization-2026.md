@@ -30,6 +30,7 @@ sources: 15
 > [!tip] Companion Docs
 > - [[../knowledge/audio-visualization-techniques-2026|General Audio Visualization Techniques]]
 > - [[../knowledge-library/visualization-effects.md|Visualization Effects Library (WebGPU/TSL)]]
+> - [[../knowledge-library/lyric-beat-visualization-2026|Code-Driven Lyric + Beat Visualization (HyperFrames/HTML)]]
 
 ---
 
