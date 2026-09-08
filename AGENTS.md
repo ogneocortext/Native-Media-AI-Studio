@@ -10,6 +10,7 @@ Native Media AI Studio is a full-stack music-video creation suite combining:
 - **Blender MCP**: Blender 5.2 integration for 3D rendering and scene building
 - **ComfyUI MCP**: ComfyUI integration for AI image/video generation via custom workflows
 - **Remotion MCP**: Documentation and best-practices integration for video compositing
+- **Go Sidecars**: Infrastructure binaries (dashboard SSE, media workers, gateway, port checker)
 
 ## Directory Structure
 
@@ -18,11 +19,18 @@ packages/
 ├── frontend/           # React + Vite + Remotion frontend
 ├── backend/            # FastAPI backend (app.main, app.services.*, app.models.*, app.core.*)
 └── video-editor/       # Video editor package
-tools/                  # MCP bridges and demo scripts
+tools/                  # MCP bridges, demo scripts, and Go infrastructure sidecars
   ├── mcp/                  # MCP server bridges
   │   ├── unity-mcp-bridge.mjs   # Unity MCP server (Node.js, stdio)
   │   ├── vision-mcp.mjs         # Vision MCP (Ollama VLM) — primary
   │   └── ollama-tools-mcp.mjs   # Ollama tools MCP
+  ├── go/                   # Go sidecar utilities
+  │   ├── go-dashboard/     # SSE + health server on :3847
+  │   ├── go-media/         # FFmpeg wrapper + HTTP server on :3848
+  │   ├── go-worker/        # Queue I/O worker on :3849
+  │   ├── go-gateway/       # MCP bridge router on :3850
+  │   ├── go-ports/         # Port availability checker on :3851
+  │   └── README.md         # Go tools documentation
   ├── vision/               # Standalone vision utilities
   │   └── analyze.mjs       # Direct CLI: node tools/vision/analyze.mjs <image> [prompt] [--mode ui|responsive|regression|compare|ocr|table|chart]
   ├── demos/                # Demo scripts
@@ -165,6 +173,7 @@ The Visualizer (`packages/frontend/src/features/visualizer/`) includes:
 - Unity health: `curl -X POST http://127.0.0.1:7800/api/exec -H "Authorization: Bearer <token>" -d '{"command":"editor_status","parameters":{}}'`
 - Backend health: `http://127.0.0.1:8000/api/health` (check `config/ports.json` for current port)
 - ComfyUI: `http://127.0.0.1:8188`
+- Go dashboard: `http://127.0.0.1:3847` (SSE + health, started automatically)
 
 ## Dependencies
 

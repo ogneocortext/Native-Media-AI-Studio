@@ -46,7 +46,8 @@ date: 2026-09-05
 - [[kilo-code-subagent-orchestration|🤖 Kilo Code Subagent Orchestration]] — Subagent architecture, provider errors, optimization strategies
 - [[kilo-code-subagent-optimization|🚀 Kilo Code Subagent Optimization]] — Config implementations, concurrency limits, retry jitter, verification
 - [[python-environment-management|🐍 Python Environment Management]] — venv mechanics, decoupling graph, PyTorch×Pascal (sm_61) wheel matrix, env migration recipes (NEW 2026-09-06)
-- [[stack-extensions-2026|🔧 Stack Extensions 2026]] — Optional languages (CUDA C++, Rust/PyO3, WGSL) + high-value Python tools for audio/video/3D (core-flux, madmom-infer, sonara, MovieLite, essentia, audiofeat, videopython, BeatSync Engine, gsplat) — benchmark-first adoption (NEW 2026-09-07)
+- [[stack-extensions-2026|🔧 Stack Extensions 2026]] — Optional languages (CUDA C++, Rust/PyO3, WGSL, **Go**) + high-value Python tools for audio/video/3D (core-flux, madmom-infer, sonara, MovieLite, essentia, audiofeat, videopython, BeatSync Engine, gsplat) — benchmark-first adoption (NEW 2026-09-07)
+- [[go-integration-2026|🔀 Go Integration 2026]] — Split-stack architecture: Go for dashboard/SSE, media workers, gateway; Python for AI/model layer (NEW 2026-09-08)
 
 ### 🎯 Specialized Guides
 
@@ -105,6 +106,7 @@ date: 2026-09-05
 | `#ollama`        | Ollama thinking / structured outputs      | 2 documents |
 | `#python`        | Python envs, venv decoupling, CUDA wheels | 1 document  |
 | `#stack-extensions` | Optional languages + audio/video/3D Python tools | 1 document  |
+| `#go`               | Go integration: dashboard, media workers, gateway | 1 document  |
 | `#pascal-gpu`    | GTX 10xx Pascal architecture              | 1 document  |
 | `#vram-optimization` | 8GB VRAM optimization techniques       | 1 document  |
 
@@ -176,8 +178,8 @@ graph LR
 | Total Documents | 34                                                                                 |
 | Total Tags      | 27                                                                                 |
 | Total Links     | 90+                                                                                |
-| Last Updated    | 2026-09-07 (text-to-3d-options-2026 — open-source text-to-3D for 8GB VRAM)         |
-| Latest Add      | 2026-09-07 (stack-extensions-2026 — optional languages + audio/video/3D Python tools) |
+| Last Updated    | 2026-09-08 (go-integration-2026 — Go split-stack integration plan)         |
+| Latest Add      | 2026-09-08 (go-integration-2026 — Go split-stack integration plan)         |
 
 ---
 

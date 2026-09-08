@@ -32,6 +32,7 @@ import {
   ServiceChecksCard,
   OllamaModelsCard,
   LogsViewer,
+  GoServicesCard,
 } from "./components";
 
 export function HealthPage() {
@@ -394,6 +395,9 @@ export function HealthPage() {
           </div>
         )}
       </Card>
+
+      {/* Go Sidecars */}
+      <GoServicesCard />
 
       {/* Ollama Models */}
       <OllamaModelsCard />

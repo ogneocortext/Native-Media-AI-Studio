@@ -21,6 +21,12 @@
 │  ├── SSE: EventSource → :8000/api/events                                    │
 │  └── Features: Dashboard, Music Video, 3D Studio, Image Generation         │
 │                                                                             │
+│  Go Sidecars (infrastructure layer)                                          │
+│  ├── go-dashboard   :3847  Utility API + health + optional SSE              │
+│  ├── go-media       CLI    FFmpeg wrapper (thumbnail / normalize / concat)  │
+│  ├── go-worker      :3849  Queue I/O worker                                 │
+│  └── go-gateway     :3850  MCP bridge router                                │
+│                                                                             │
 │  Backend (FastAPI + uvicorn)                                                │
 │  ├── Port: 8000                                                             │
 │  ├── SSE: /api/events (Server-Sent Events)                                  │
@@ -194,6 +200,9 @@ Invoke-WebRequest -Uri "http://localhost:8188/system_stats" -UseBasicParsing
 
 > [!note] Backend Startup Resilience
 > `scripts/start-studio.ps1` now retries backend launch twice with backoff and warns if port 8000 is occupied before bind. `packages/backend/app/main.py` logs a pre-flight port check at import time.
+
+> [!note] Go Sidecars (2026)
+> `go-dashboard` runs on `:3847` and is started automatically by `scripts/start-services.ps1`. `go-worker` (`:3849`) and `go-gateway` (`:3850`) are available under `bin/` for queue I/O and MCP routing. Frontend can read `dashboard_url` from `config/ports.json` via `portConfig.ts`.
 
 ---
 

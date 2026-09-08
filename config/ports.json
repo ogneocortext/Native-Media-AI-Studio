@@ -5,6 +5,8 @@
   "video_editor_port": 8080,
   "comfyui_port": 8188,
   "comfyui_url": "http://127.0.0.1:8188",
+  "dashboard_port": 3847,
+  "dashboard_url": "http://127.0.0.1:3847",
   "events_url": "http://localhost:8000/api/events",
   "sse_url": "http://localhost:8000/api/events",
   "ws_port": 8000,

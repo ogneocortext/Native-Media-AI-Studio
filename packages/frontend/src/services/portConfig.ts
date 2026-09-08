@@ -19,6 +19,8 @@ export interface PortConfig {
   video_editor_port?: number;
   comfyui_port?: number;
   comfyui_url?: string;
+  dashboard_port?: number;
+  dashboard_url?: string;
 }
 
 // Cache for the port configuration
@@ -58,6 +60,8 @@ export async function fetchPortConfig(): Promise<PortConfig> {
         video_editor_port: config.video_editor_port,
         comfyui_port: config.comfyui_port,
         comfyui_url: config.comfyui_url,
+        dashboard_port: config.dashboard_port,
+        dashboard_url: config.dashboard_url || `http://localhost:${config.dashboard_port || 3847}`,
       };
       return cachedConfig;
     }
@@ -92,6 +96,8 @@ export function getPortConfigFromEnv(): PortConfig {
     // Deprecated WS alias — retained for compatibility
     ws_port: parseInt(wsPort, 10),
     ws_url: getEnvVar("VITE_WS_URL", `ws://127.0.0.1:${wsPort}/ws`),
+    dashboard_port: parseInt(getEnvVar("VITE_DASHBOARD_PORT", "3847"), 10),
+    dashboard_url: getEnvVar("VITE_DASHBOARD_URL", `http://127.0.0.1:${getEnvVar("VITE_DASHBOARD_PORT", "3847")}`),
   };
 
   return cachedConfig;
@@ -176,4 +182,12 @@ export function getWsUrl(): string {
 export function getComfyuiWsUrl(): string {
   const baseUrl = getComfyuiUrl();
   return baseUrl.replace(/^http/, "ws") + "/ws";
+}
+
+/**
+ * Get the Go Dashboard URL (utility SSE + health server).
+ */
+export function getDashboardUrl(): string {
+  if (cachedConfig?.dashboard_url) return cachedConfig.dashboard_url;
+  return getEnvVar("VITE_DASHBOARD_URL", "http://127.0.0.1:3847");
 }

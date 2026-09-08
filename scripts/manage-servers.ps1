@@ -2,7 +2,7 @@
 .SYNOPSIS
     Unified server management for Native Media AI Studio.
 .DESCRIPTION
-    Manages all services: Backend, Frontend, ComfyUI, Video Editor.
+    Manages all services: Backend, Frontend, ComfyUI, Video Editor, Go Dashboard.
     Provides start, stop, restart, and status commands.
 .PARAMETER Action
     Action to perform: start, stop, restart, status
@@ -17,7 +17,7 @@ param(
     [ValidateSet('start', 'stop', 'restart', 'status')]
     [string]$Action,
 
-    [ValidateSet('all', 'backend', 'frontend', 'comfyui', 'video')]
+    [ValidateSet('all', 'backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports')]
     [string]$Services = 'all'
 )
 
@@ -79,6 +79,47 @@ $ServiceConfig = @{
         # Fallback: the package-local remotion CLI does not need a global npm.
         LocalCmd = Join-Path $ProjectRoot 'packages\video-editor\node_modules\.bin\remotion.cmd'
         LocalArgs = @('studio')
+    }
+    go-dashboard = @{
+        Name = 'Go Dashboard'
+        Port = 3847
+        HealthPath = '/api/health'
+        WorkingDir = $ProjectRoot
+        LogFile = 'go-dashboard.log'
+        LocalCmd = Join-Path $ProjectRoot 'bin\go-dashboard.exe'
+    }
+    go-media = @{
+        Name = 'Go Media'
+        Port = 3848
+        HealthPath = '/api/health'
+        WorkingDir = $ProjectRoot
+        LogFile = 'go-media.log'
+        LocalCmd = Join-Path $ProjectRoot 'bin\go-media.exe'
+        LocalArgs = @('--server', '--port', '3848')
+    }
+    go-worker = @{
+        Name = 'Go Worker'
+        Port = 3849
+        HealthPath = '/health'
+        WorkingDir = $ProjectRoot
+        LogFile = 'go-worker.log'
+        LocalCmd = Join-Path $ProjectRoot 'bin\go-worker.exe'
+    }
+    go-gateway = @{
+        Name = 'Go Gateway'
+        Port = 3850
+        HealthPath = '/health'
+        WorkingDir = $ProjectRoot
+        LogFile = 'go-gateway.log'
+        LocalCmd = Join-Path $ProjectRoot 'bin\go-gateway.exe'
+    }
+    go-ports = @{
+        Name = 'Go Ports'
+        Port = 3851
+        HealthPath = '/api/health'
+        WorkingDir = $ProjectRoot
+        LogFile = 'go-ports.log'
+        LocalCmd = Join-Path $ProjectRoot 'bin\go-ports.exe'
     }
 }
 
@@ -234,7 +275,21 @@ function Start-Service {
             -RedirectStandardOutput $logFile `
             -RedirectStandardError $errFile `
             -PassThru
-    } else {
+    }
+    elseif ($config.LocalCmd) {
+        # Native binary service (Go dashboard, etc.)
+        if (-not (Test-Path $config.LocalCmd)) {
+            Write-Err "Binary not found: $($config.LocalCmd)"
+            return
+        }
+        $proc = Start-Process -FilePath $config.LocalCmd `
+            -WorkingDirectory $config.WorkingDir `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput $logFile `
+            -RedirectStandardError $errFile `
+            -PassThru
+    }
+    else {
         # Node-based service. Try a working npm first, then fall back to
         # launching the package-local CLI directly (npm can be broken under fnm).
         $npm = Resolve-Npm
@@ -330,7 +385,7 @@ function Start-Service {
 }
 
 # Determine which services to manage
-$serviceList = if ($Services -eq 'all') { @('backend', 'frontend', 'comfyui', 'video') } else { @($Services) }
+    $serviceList = if ($Services -eq 'all') { @('backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports') } else { @($Services) }
 
 switch ($Action) {
     'status' {

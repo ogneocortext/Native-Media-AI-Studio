@@ -13,6 +13,8 @@ skills-lock.json
 dist/
 build/
 .next/
+bin/
+
 
 # IDE
 .vscode/

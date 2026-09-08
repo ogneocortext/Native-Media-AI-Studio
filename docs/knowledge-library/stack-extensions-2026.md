@@ -1,7 +1,7 @@
 # Stack Extensions: Languages & Python Tools (2026)
 
 > **Scope:** Optional programming languages and Python packages that can add measurable value to the Native Media AI Studio stack without bloating it.
-> **Current stack:** TypeScript/JS (frontend, Remotion, MCP bridges), Python (FastAPI, Blender MCP, ComfyUI, audio analysis), C# (Unity), implicit GLSL/HLSL via Three.js/Remotion.
+> **Current stack:** TypeScript/JS (frontend, Remotion, MCP bridges), Python (FastAPI, Blender MCP, ComfyUI, audio analysis), C# (Unity), **Go (dashboard/SSE, media workers, gateway — NEW 2026-09-08)**, implicit GLSL/HLSL via Three.js/Remotion.
 > **Last updated:** 2026-09-07
 
 ---
@@ -60,7 +60,25 @@ Do **not** add languages speculatively. The project already has 3 active languag
 
 ---
 
-### 2.4 NOT Recommended
+### 2.4 Go — OPTIONAL, HIGH IMPACT (Infrastructure Layer)
+
+| Use case | When to reach for it |
+|----------|----------------------|
+| Dashboard / SSE server | Replace Python SSE server with single binary, lower memory |
+| Media post-processing | Typed FFmpeg pipelines via `ffgo` or MovieGo; HTTP server mode for programmatic access |
+| Job queue workers | Parallelize non-AI I/O stages (file moves, JSON sidecars, health checks) |
+| MCP bridge gateway | Fan-out, auth, rate-limiting, timeouts with minimal per-connection memory |
+| Port/service supervisor | Tiny cross-compiled binaries (`go-ports`) for port checking instead of PowerShell |
+
+**Current state:** Go 1.27.0 is already installed and on PATH. All 5 Go sidecars built and registered: `go-dashboard` (:3847), `go-media` (:3848), `go-worker` (:3849), `go-gateway` (:3850), `go-ports` (:3851).
+
+**Recommendation:** Add Go for infrastructure only. Keep FastAPI, audio analysis, ComfyUI, and Blender MCP in Python. See [[go-integration-2026]] for the full split-stack architecture and first deliverable (`go-dashboard`).
+
+**Why Go wins here:** Single static binary, ~10–20 MB RAM vs Python's 100–200 MB, goroutines handle 500+ concurrent SSE connections cheaply, and compile-time type safety catches integration bugs before they ship.
+
+---
+
+### 2.5 NOT Recommended
 
 | Language | Why skip |
 |----------|----------|
@@ -223,6 +241,11 @@ Tools are grouped by pipeline stage. Each entry includes a **try-first** recomme
 
 | Tool | Pipeline stage | Drop-in? | Measurable gain | Install cost | Try? |
 |------|---------------|----------|-----------------|--------------|------|
+| go-dashboard | Infrastructure / SSE | Yes | Lower memory, faster startup, single binary | Low | ✅ Done |
+| go-media | Media post-processing | Partial | Typed FFmpeg pipelines + HTTP server | Low | ✅ Done |
+| go-worker | Queue I/O | Partial | Parallelize safe stages | Low | ✅ Done |
+| go-gateway | MCP bridge routing | Partial | Lower per-connection memory, fixed proxy | Low | ✅ Done |
+| go-ports | Port management | Yes | Cross-platform port checker | Low | ✅ Done |
 | core-flux | Video render | Partial | 3–6× render speed | Low | ✅ First |
 | madmom-infer | Audio / beats | No | Better beat accuracy | Low | ✅ First |
 | sonara | Audio analysis | No | ~4 ms latency | Low | ✅ Second |
@@ -270,6 +293,7 @@ Tools are grouped by pipeline stage. Each entry includes a **try-first** recomme
 ## 6. What This Does NOT Change
 
 - We do **not** rewrite existing services in Rust/C++.
+- We do **not** rewrite the FastAPI backend, ComfyUI integration, or audio analysis in Go.
 - We do **not** add Elixir, Zig, Nim, or general C++ to the stack.
 - We do **not** replace librosa unless madmom-infer or sonara prove measurably better on our actual track library.
 - We do **not** switch frontend runtime to WGSL until Three.js WebGPU is production-ready for our scenes.
@@ -278,6 +302,7 @@ Tools are grouped by pipeline stage. Each entry includes a **try-first** recomme
 
 ## 7. Related Documents
 
+- [[go-integration-2026]] — Go split-stack integration plan (dashboard, media workers, gateway)
 - [[python-environment-management]] — venv mechanics, PyTorch×Pascal wheel matrix
 - [[audio-reactive-production]] — beat sync, amplitude mapping
 - [[3d-rendering]] — GPU rendering optimization
