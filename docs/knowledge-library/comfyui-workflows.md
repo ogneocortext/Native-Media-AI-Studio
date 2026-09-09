@@ -32,18 +32,25 @@ date: 2026-08-24
 
 ---
 
-## Model Inventory — Updated Aug 2026
+## Model Inventory — Updated Sep 2026 (8GB GTX 1070 Ti capped)
+
+> **Sep 2026 add**: Native ComfyUI now ships **Gemma 4** (E2B/E4B/31B) as built-in text encoder with `TextGenerate` node (128K E2B/E4B, 256K 31B, multimodal text+image+audio+video, thinking mode). Hunyuan3D updated to **3.0** (see §4d). New Sep 2026 API nodes: **VOID** (video object deletion) & **BiRefNet** (hair/fur segmentation). **Subgraphs** beta (June 2026) replaces group nodes. Model table respects **8GB local** limit:
+
+### Installed Models (8GB-local only)
 
 ### Installed Models
 
 | Model | Type | Path | VRAM Usage | Status |
 |-------|------|------|------------|--------|
-| hunyuan3D-2mini | 3D Diffusion | `models/diffusion_models/hunyuan3d-2mini/` | ~4 GB | ✅ Active (geometry) |
-| ~~Wan 2.2 5B~~ | Video T2V/I2V (MoE) | ~~`models/diffusion_models/wan2.2_ti2v_5B/`~~ | **~16 GB ❌ Needs 16GB+ GPU** | ⚠️ Deleted — too large for 8GB |
-| Wan 2.2 14B | Video T2V/I2V MoE (dual: high+low noise) | `models/diffusion_models/wan2.2_t2v_14B/` | 24 GB+ (A6000/48GB) | Cloud option |
-| [AnimateDiff Evolved] | Stylized motion 2-16s | `custom_nodes/ComfyUI-AnimateDiff-Evolved/models/` | 8GB with `--lowvram` | ✅ Active |
-| [SVD] | Image→Video 2-4s | `models/checkpoints/` | 12GB+ | Optional |
-| [Add your SD1.5/SDXL] | Checkpoint | `models/checkpoints/` | Varies | Add as needed |
+| hunyuan3D-2mini / **3.0 8GB** | 3D Diffusion | `models/diffusion_models/hunyuan3d-2mini/` or `hunyuan3d-3.0/` | ~4-5 GB | ✅ Active (geometry, 3.0 adds segmentation/UV/optimization) |
+| ~~Wan 2.2 5B~~ | Video T2V/I2V (MoE) | ~~`models/diffusion_models/wan2.2_ti2v_5B/`~~ | **~16 GB ❌ Exceeds 8GB** | ⚠️ Deleted — too large for 8GB |
+| Wan 2.2 14B | Video T2V/I2V MoE (dual) | `models/diffusion_models/wan2.2_t2v_14B/` | 24 GB+ (A6000/48GB) | **Cloud-only** — not for GTX 1070 Ti |
+| **Gemma 4 E2B** | LLM text encoder (ComfyUI native) | `models/text_encoders/gemma-4-E2B-it` | ~2.9 GB | ✅ New Sep 2026 — fits 8GB, TextGenerate node |
+| [AnimateDiff Evolved] | Stylized motion 2-16s | `custom_nodes/ComfyUI-AnimateDiff-Evolved/models/` | 8GB with `--lowvram` | ✅ Active — **primary video for 8GB** |
+| [SVD] | Image→Video 2-4s | `models/checkpoints/` | 12GB+ | ❌ Not for 8GB — exceeds |
+| [Add SD1.5/SDXL/SD3] | Checkpoint | `models/checkpoints/` | 2-7 GB | ✅ Add as needed (8GB-safe) |
+| **BiRefNet** | Background removal (hair/fur) | `models/background_removal/birefnet.safetensors` | <2 GB | ✅ New Sep 2026 — fits 8GB |
+| **VOID** | Video object deletion | API node | <4 GB | ✅ New Sep 2026 — fits 8GB |
 
 > [!warning] Wan 2.2 5B/14B models deleted — too large for 8GB GPU
 > The Wan 2.2 5B model (`wan2.2_ti2v_5B_fp16.safetensors`, 9.5GB), UMT5 XXL text encoder (`umt5_xxl_fp8_e4m3fn_scaled.safetensors`, 6.4GB), and associated text encoder (`model.safetensors`, 8.9GB) have been deleted. They require 16-24GB VRAM and will OOM on GTX 1070 Ti (8GB). **Do not re-download these models.** Use AnimateDiff Evolved for video generation instead — it works with your 8GB GPU using `--lowvram` mode.
@@ -129,7 +136,7 @@ comfyui_generate_image(
 
 ```python
 # Via API endpoint
-POST /api/health/3d/generate
+POST /api/3d/generate
 {
     "prompt": "a futuristic robot",
     "steps": 15
@@ -177,6 +184,18 @@ POST /api/health/3d/generate
 - FPS: 12 anime, 24 film, 30 smooth. Use closed-loop setting for perfect loops.
 
 > [!note] Audio: ComfyUI doesn't handle audio — export video then add audio in Remotion/FFmpeg. See [[technical-reference#audio-analysis-service]].
+
+### 4d. Native Hunyuan3D 3.0 (Sep 2026 — 8GB-compatible)
+
+> Hunyuan3D 3.0 adds production post-processing in ComfyUI: **asset segmentation** (split into plates/attachments), **UV map preparation**, **intelligent mesh optimization**. Templates in ComfyUI ≥0.34 nightly: `HunYuan3D: Text to Model`, `HY 3D: Image to Model` (2-4 multi-view). Local 8GB geometry + segmentation fits; full PBR texture still needs 12GB+ (cloud). Download `hunyuan3d-dit-v2-0-fp16.safetensors` to `models/unet/`, `hunyuan3d-delight/paint-v2-0` to `models/diffusers/`.
+
+### 4e. Gemma 4 Native LLM (Sep 2026 — 8GB E2B)
+
+> ComfyUI now includes Gemma 4 as built-in text encoder: `CLIPLoader` + `TextGenerate` node. **E2B (2.9GB) fits 8GB**; E4B (10GB) is cloud-only. Use for workflow description → JSON, image captioning (8 presets: tags/simple/detailed/cinematic/OCR), multimodal reasoning (image+audio+video context). Workflow: `Gemma4: Text Generation` template. Ollama alternative: `artokun/gemma4-comfyui-mcp:e2b` (8GB) for fine-tuning.
+
+### 4f. Subgraphs & API Nodes (Sep 2026)
+
+> **Subgraphs** (beta June 2026): collapse workflow to super-node with Input/Output slots, widget integration — replaces group nodes. **62 New API Nodes** (Flux Ultra, Veo2, etc.) — not for 8GB local but available via Comfy Cloud.
 
 ### 5. Upscaling
 
@@ -236,18 +255,22 @@ comfyui_generate_image(
 > [!warning] VRAM Management
 > For 8GB VRAM (GTX 1070 Ti):
 
-### Safe Settings — Updated for 2026 Models
+### Safe Settings — Updated Sep 2026 (8GB GTX 1070 Ti)
 
 ```python
-# Images
-# 512x512 - Always safe       ~4 GB  (hunyan3D, SD1.5)
+# Images (8GB local)
+# 512x512 - Always safe       ~4 GB  (Hunyuan3D 3.0, SD1.5, Gemma 4 E2B)
 # 768x768 - With optimization ~6 GB  (use --disable-pinned-memory)
 # 1024x1024 - Risky            ~8+ GB (only if nothing else on GPU)
 
-# Video (Wan 2.2)
-# 480p 832x480 81f — 5B ~6-8GB ✅ primary on 1070 Ti (GGUF+offload)
-# 720p 1280x720 81f — 5B ~8GB tight / 14B 24GB+ (needs cloud A6000)
-# 720p on A6000 — 3-5 min (480p) / 8-15 min (720p); $0.02-0.09/clip
+# Video (8GB local ONLY AnimateDiff; Wan is cloud)
+# 512x512 32f @8fps — AnimateDiff ~5GB ✅ primary on 1070 Ti (--lowvram)
+# 480p 832x480 81f — Wan 5B ~16GB ❌ NOT for 8GB (deleted)
+# 720p on A6000 cloud — 3-5 min (480p) / 8-15 min (720p); $0.02-0.09/clip
+
+# LLM (8GB local)
+# Gemma 4 E2B QLoRA — 8GB ✅ (E4B 10GB ❌)
+# Phi-4 mini QLoRA — ~5-6.5GB ✅
 ```
 
 ### Optimization Flags
@@ -496,4 +519,4 @@ Generation requests are validated at the API layer:
 
 ---
 
-*Last updated: 2026-09-04*
+*Last updated: 2026-09-09 — Sep 2026 sweep: Gemma 4 native (E2B 8GB), Hunyuan3D 3.0, VOID/BiRefNet, Subgraphs, 8GB-capped tables*

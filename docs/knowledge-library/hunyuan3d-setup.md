@@ -447,6 +447,28 @@ Multiple Python processes = uvicorn spawned a child with the wrong interpreter.
 
 ---
 
+*Last updated: 2026-09-09 — Sep 2026: Hunyuan3D 3.0 added (8GB geometry+segmentation/UV local), 2mini stays fallback*
+
+## Sep 2026 Update — Hunyuan3D 3.0 (8GB-local)
+
+> **Hunyuan3D 3.0** (Mar 2026) replaces 2.1 wrapper (`visualbruno/ComfyUI-Hunyuan3d-2-1`) and adds to ComfyUI nightly:
+> - **3.0 assets**: `hunyuan3d-dit-v2-0-fp16.safetensors` → `models/unet/`, `hunyuan3d-delight-v2-0`/`hunyuan3d-paint-v2-0` → `models/diffusers/`
+> - **New post-processing (fits 8GB)**: asset segmentation (split plates/attachments), UV preparation, mesh optimization — all local; full PBR texture still 12GB+ (cloud)
+> - Templates: `HunYuan3D: Text to Model`, `HY 3D: Image to Model` (2-4 multi-view improves fidelity, ~4-5GB)
+> - **Migration for this GPU**: Keep `2mini-turbo` as fast 8GB fallback; use 3.0 for production (same VRAM). No PyTorch version change.
+
+### Sep 2026 Node Mapping
+
+| Goal | 2mini nodes | 3.0 nodes (nightly) |
+|------|-------------|---------------------|
+| Text→3D | `EmptyImage` → `Hy3DGenerateMesh` | `HunYuan3D: Text to Model` template (handles text→image→mesh) |
+| Image→3D | `Hy3DGenerateMesh` | `HY 3D: Image to Model` | 
+| Segmentation | — | `HY 3D: 3D Parts Decomposition` |
+| UV prep | `Hy3DMeshUVWrap` | `HY 3D: UV Map Preparation` |
+| Optimization | — | `HY 3D: Intelligent Mesh Optimization` |
+
+> **8GB rule**: Segmentation/UV/optimization are now **8GB-local** (unlike texture). Only PBR texture (`Hy3DSampleMultiView`/`Hy3DBake`) is cloud on GTX 1070 Ti.
+
 *Last updated: 2026-08-27 — Added Fixes 4-6 for ComfyUI pipeline tensor format and dictionary unpacking issues*
 
 ---
@@ -456,7 +478,7 @@ Multiple Python processes = uvicorn spawned a child with the wrong interpreter.
 ### Fix: VRAM manager import error
 **File:** `packages/backend/app/adapters/ollama.py`
 
-**Symptom:** `500 Internal Server Error` on `POST /api/health/3d/generate`; backend error log shows:
+**Symptom:** `500 Internal Server Error` on `POST /api/3d/generate`; backend error log shows:
 ```
 ImportError: cannot import name 'ollama_adapter' from 'app.adapters.ollama'
 ```

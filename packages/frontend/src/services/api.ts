@@ -1273,7 +1273,7 @@ export interface GPUProcessInfo {
 
 export async function get3DStatus(): Promise<Record<string, unknown>> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health/3d/status`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/3d/status`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get 3D status");
   return res.json();
 }
@@ -1287,7 +1287,7 @@ export async function generate3D(request: {
   params?: Record<string, unknown>;
 }): Promise<Record<string, unknown>> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health/3d/generate`, {
+  const res = await fetchWithTimeout(`${base}/api/3d/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
@@ -1308,7 +1308,7 @@ export async function generate3DFromImage(
   const params = new URLSearchParams();
   if (opts?.steps) params.set("steps", String(opts.steps));
   if (opts?.output_name) params.set("output_name", opts.output_name);
-  const res = await fetchWithTimeout(`${base}/api/health/3d/generate-image?${params.toString()}`, {
+  const res = await fetchWithTimeout(`${base}/api/3d/generate-image?${params.toString()}`, {
     method: "POST",
     body: form,
     timeout: 600000,
@@ -2009,4 +2009,222 @@ export async function renderHyperFramesComposition(params: {
   }
   return res.json();
 }
+
+// ============================================================================
+// Video render engine abstraction (stack-extensions-2026.md Phase 2)
+// ============================================================================
+
+export interface RenderEngineInfo {
+  id: string;
+  label: string;
+  notes: string;
+  available: boolean;
+  detail: string;
+}
+
+export interface RenderResponse {
+  success: boolean;
+  engine: string;
+  output_path: string;
+  relative_path: string | null;
+  render_s: number;
+  size_bytes: number;
+  error: string | null;
+  notes: string;
+}
+
+export async function getRenderEngines(): Promise<RenderEngineInfo[]> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/video/render/engines`, { timeout: 30000 });
+  if (!res.ok) throw new Error("Failed to list render engines");
+  const data = await res.json();
+  return data.engines;
+}
+
+export async function renderClip(params: {
+  kind: "color" | "frames" | "image";
+  engine?: string;
+  width?: number;
+  height?: number;
+  duration?: number;
+  fps?: number;
+  output_path?: string;
+  color?: string;
+  frames_dir?: string;
+  frame_pattern?: string;
+  image_path?: string;
+  audio_path?: string;
+}): Promise<RenderResponse> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/video/render`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+    timeout: 600000,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Render request failed");
+  }
+  return res.json();
+}
+
+// ============================================================================
+// Export Matrix (ai-video-trends-2026.md Trend 5)
+// ============================================================================
+
+export interface MatrixArtifact {
+  kind: "vertical" | "loop" | "thumbnail";
+  path: string;
+  relative_path: string;
+  width: number;
+  height: number;
+  duration: number;
+  notes: string;
+}
+
+export interface ExportMatrixResponse {
+  success: boolean;
+  source: string;
+  artifacts: MatrixArtifact[];
+  errors: { kind: string; error: string }[];
+  render_s: number;
+  manifest_path: string | null;
+  message: string;
+}
+
+export async function buildExportMatrix(params: {
+  source_path: string;
+  beat_times?: number[];
+  sections?: { type: string; start: number; end: number; energy?: number }[];
+  loop_seconds?: number;
+}): Promise<ExportMatrixResponse> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/video/export-matrix`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+    timeout: 600000,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Export matrix failed");
+  }
+  return res.json();
+}
+
+// ============================================================================
+// Prompt History — version history + repair log (ai-video-trends-2026 §5 P2)
+// ============================================================================
+
+export interface PromptHistoryEntry {
+  id: string;
+  track_filename: string;
+  section: string;
+  section_index: number;
+  prompt: string;
+  negative_prompt: string;
+  parent_id: string | null;
+  version: number;
+  action: "create" | "repair" | "restore" | "import";
+  repair_reason: string;
+  failure_notes: string;
+  generation_params: Record<string, unknown>;
+  outcome: "draft" | "generated" | "failed" | "approved";
+  created_at: string;
+}
+
+export async function getPromptHistory(params?: {
+  track_filename?: string;
+  section?: string;
+  limit?: number;
+}): Promise<PromptHistoryEntry[]> {
+  const base = getApiBase();
+  const qs = new URLSearchParams();
+  if (params?.track_filename) qs.set("track_filename", params.track_filename);
+  if (params?.section) qs.set("section", params.section);
+  if (params?.limit) qs.set("limit", String(params.limit));
+  const res = await fetchWithTimeout(`${base}/api/data/prompt-history?${qs.toString()}`, { timeout: 30000 });
+  if (!res.ok) throw new Error("Failed to load prompt history");
+  return res.json();
+}
+
+export async function savePromptVersion(entry: {
+  track_filename?: string;
+  section?: string;
+  section_index?: number;
+  prompt: string;
+  negative_prompt?: string;
+  parent_id?: string | null;
+  action?: "create" | "repair" | "restore" | "import";
+  repair_reason?: string;
+  failure_notes?: string;
+  generation_params?: Record<string, unknown>;
+  outcome?: "draft" | "generated" | "failed" | "approved";
+}): Promise<{ success: boolean; entry: PromptHistoryEntry }> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/data/prompt-history`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(entry),
+    timeout: 30000,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to save prompt version");
+  }
+  return res.json();
+}
+
+export async function getPromptChain(entryId: string): Promise<PromptHistoryEntry[]> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/data/prompt-history/${entryId}/chain`, { timeout: 30000 });
+  if (!res.ok) throw new Error("Failed to load prompt chain");
+  return res.json();
+}
+
+export async function deletePromptVersion(entryId: string): Promise<{ success: boolean }> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/data/prompt-history/${entryId}`, { method: "DELETE", timeout: 30000 });
+  if (!res.ok) throw new Error("Failed to delete prompt version");
+  return res.json();
+}
+
+// ============================================================================
+// Upscale — 4x post-process pass (ai-video-trends-2026 Trend 4)
+// ============================================================================
+
+export interface UpscaleResponse {
+  success: boolean;
+  engine: "comfyui" | "ffmpeg";
+  model: string;
+  scale: number;
+  source: string;
+  output_path: string;
+  relative_path: string | null;
+  elapsed_s: number;
+  warnings: string[];
+  error: string | null;
+}
+
+export async function upscaleImage(params: {
+  image: string;
+  model?: string;
+  scale?: 2 | 4;
+  prefer_comfyui?: boolean;
+}): Promise<UpscaleResponse> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/integrations/upscale`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+    timeout: 600000,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Upscale failed");
+  }
+  return res.json();
+}
+
 

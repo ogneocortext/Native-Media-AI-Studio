@@ -261,10 +261,12 @@ from .api import (  # noqa: E402
     transcription,
     video,
     vision,
+    gen3d,
 )
 
 app.include_router(jobs.router)
 app.include_router(health.router)
+app.include_router(gen3d.router)
 app.include_router(integrations.router)
 app.include_router(outputs.router)
 app.include_router(audio.router)

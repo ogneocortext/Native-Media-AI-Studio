@@ -345,7 +345,7 @@ Returns real-time GPU stats including VRAM, utilization, temperature, and per-pr
 ### 3D Generation Status
 
 ```
-GET /api/health/3d/status
+GET /api/3d/status
 ```
 
 Returns 3D generation service status and model availability.
@@ -353,7 +353,7 @@ Returns 3D generation service status and model availability.
 ### Generate 3D Model
 
 ```
-POST /api/health/3d/generate
+POST /api/3d/generate
 Content-Type: application/json
 
 {
@@ -496,8 +496,8 @@ GET  /api/health/gpu/stats?range=1h    → aggregated avg/min/max/cur + linear-r
 DELETE /api/health/gpu/history?keep_days=0 → purge (0 = wipe all, else keep N days; 14-day auto-retention)
 GET  /api/health/gpu/processes         → per-process VRAM via Windows Performance Counters (GeForce WDDM, no admin)
 GET  /api/health/ffmpeg                → FFmpeg 8.1 probe
-GET  /api/health/3d/models             → list Hunyuan3D/Wan 2.2 model availability
-POST /api/health/3d/generate-image     → image-to-3D variant
+GET  /api/3d/models             → list Hunyuan3D/Wan 2.2 model availability
+POST /api/3d/generate-image     → image-to-3D variant
 GET  /api/health/diagnostics           → full diagnostics
 GET  /api/health/diagnostics/services
 GET  /api/health/diagnostics/system    → CPU/RAM/disk + system memory breakdown

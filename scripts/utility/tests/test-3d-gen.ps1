@@ -5,7 +5,7 @@ $logPath = 'D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI S
 Write-Output 'Starting 3D generation test...' | Out-File -FilePath $logPath -Encoding utf8
 
 try {
-    $r = Invoke-WebRequest -Uri 'http://localhost:8000/api/health/3d/generate' -Method POST -ContentType 'application/json' -Body $body -TimeoutSec 300
+    $r = Invoke-WebRequest -Uri 'http://localhost:8000/api/3d/generate' -Method POST -ContentType 'application/json' -Body $body -TimeoutSec 300
     $result = "SUCCESS: $($r.Content)"
     Write-Output $result | Out-File -FilePath $logPath -Append -Encoding utf8
 } catch {

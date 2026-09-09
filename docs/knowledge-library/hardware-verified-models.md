@@ -1,6 +1,6 @@
 # Hardware-Vetted Model Inventory & Expansion Guide
 
-> **Last Updated:** 2026-09-04  
+> **Last Updated:** 2026-09-09  
 > **Status:** Active reference for model selection, quantization, and AnimateDiff expansion on the local workstation  
 > **Hardware baseline:** GTX 1070 Ti 8 GB VRAM / Ryzen 5 5500 / 32 GB RAM / Windows 11
 
@@ -131,7 +131,7 @@ For structure/pose guidance on AnimateDiff clips:
 ### 4.2 Safe-to-run model tiers
 
 | Tier | Model examples | VRAM estimate | Status |
-|---|---|---|---|
+|---|---|---|
 | **Tier 1 — Safe** | 2B–3B LLMs, 4B VL, AnimateDiff SD1.5 + motion LoRA | <4 GB | ✅ Run now |
 | **Tier 2 — Workable** | 4B LLMs, SD1.5 + AnimateDiff + 1× ControlNet LoRA | 4–6 GB | ✅ Run now |
 | **Tier 3 — Tight** | 7B LLMs, SD1.5 + AnimateDiff + fp16 ControlNet | 6–8 GB | ⚠️ May OOM under load |
@@ -158,9 +158,64 @@ For structure/pose guidance on AnimateDiff clips:
 
 ---
 
-## 6. Next Steps
+## 6. Ornith 1.5 — Local Status & Tool-Calling Setup
+
+**Local install:** `ornith-1.5:9b` is already present in Ollama (`6.6 GB`, unquantized fp16).  
+**Benchmark result:** Failed with timeout/empty output after ~300 s on this hardware (`ollama-benchmarks.md`).  
+**Verdict:** Not practical for interactive coding assistance on the current 8 GB GPU. Use only when converted to GGUF Q4_K_S/Q5_K_S via llama.cpp, or run on a 16+ GB GPU.
+
+**If you want to wire it up later:**
+
+1. **Local OpenAI-compatible endpoint** (Ollama already exposes this by default):
+   - Base URL: `http://localhost:11434/v1`
+   - Model id: `ornith-1.5:9b`
+   - No API key required
+
+2. **OpenCode provider registration** (`~/.config/opencode/opencode.json`):
+   ```json
+   {
+     "provider": {
+       "ornith": {
+         "npm": "@ai-sdk/openai-compatible",
+         "name": "Ornith (local)",
+         "options": { "baseURL": "http://localhost:11434/v1", "apiKey": "EMPTY" },
+         "models": { "ornith-ai/Ornith-1.5-9B": { "name": "Ornith-1.5-9B" } }
+       }
+     }
+   }
+   ```
+
+3. **Proper tool-calling / reasoning parser** — requires vLLM or SGLang, not raw Ollama:
+   ```bash
+   vllm serve ornith-ai/Ornith-1.5-9B \
+     --served-model-name Ornith-1.5-9B \
+     --host 0.0.0.0 --port 8000 \
+     --max-model-len 262144 \
+     --gpu-memory-utilization 0.90 \
+     --enable-auto-tool-choice \
+     --tool-call-parser qwen3_xml \
+     --reasoning-parser qwen3 \
+     --trust-remote-code
+   ```
+   Then point OpenCode at `http://localhost:8000/v1` instead of Ollama.
+
+4. **Quantized path for 8 GB VRAM** — use AtomicChat GGUF builds:
+   - Repo: `AtomicChat/Ornith-1.5-9B-GGUF`
+   - Pick `AD-Q5_K-Q4_K` (~6.4 GB on disk; fits 8 GB GPU with 8K context)
+   - Run via `llama-server` with `--jinja -fa on -ngl 99 -c 8192`
+   - Exposes OpenAI-compatible API on chosen port for OpenCode / Cline
+
+5. **Vision:** Ornith 1.5 9B ships a vision encoder; download `mmproj-Ornith-1.5-9B-F16.gguf` and pass it alongside the model weights if you want multimodal input.
+
+---
+
+## 7. Next Steps
 
 1. **Test motion LoRAs** end-to-end in the AnimateDiff-Evolved UI with `mm_sd_v15_v2.ckpt` for best compatibility.
 2. **If ControlNet is needed**, download the LoRA variants (~136 MB each) rather than full models.
 3. **If 9B LLM quality is required**, convert `qwen3.5:9b` or `ornith-1.5:9b` to GGUF Q4_K_S using llama.cpp; this is the only way to fit 9B-class models in 8 GB VRAM.
 4. **Avoid downloading** WAN 2.2, LTX 2.3, or SDXL AnimateDiff packs — they require 12–24 GB VRAM and will not run on this hardware.
+
+---
+
+*Last updated: 2026-09-09*

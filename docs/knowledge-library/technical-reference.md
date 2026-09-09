@@ -104,7 +104,7 @@ GET http://localhost:8000/api/health/gpu/processes
 GET http://localhost:8000/api/events  # Accept: text/event-stream
 
 # 3D generation status
-GET http://localhost:8000/api/health/3d/status
+GET http://localhost:8000/api/3d/status
 # Response: {"available": true, "model_exists": true, "generated_count": 0}
 
 # ComfyUI system stats (direct)
@@ -116,7 +116,7 @@ GET http://localhost:8188/system_stats
 
 ```bash
 # Generate 3D model from text
-POST http://localhost:8000/api/health/3d/generate
+POST http://localhost:8000/api/3d/generate
 Content-Type: application/json
 
 {
@@ -511,7 +511,7 @@ viz = processor.generate_fft_visualization("path/to/audio.mp3")
 
 ```bash
 # Via API
-curl -X POST http://localhost:8000/api/health/3d/generate \
+curl -X POST http://localhost:8000/api/3d/generate \
   -H "Content-Type: application/json" \
   -d '{"prompt": "a futuristic robot", "steps": 15}'
 

@@ -181,7 +181,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added - Three.js Studio Modernization (2026-08-27)
 
 - **Three.js Studio**: Compact 2-row header + canvas + bottom drawer (Objects/Inspector/Scene), 6 production templates (Concert Stage, Cosmic Void, Equalizer Wall, Geometric City, Vinyl Spin, Pulse Orb), selective bloom dual-composer + post-FX chain (chromatic aberration, film grain, vignette), real beat timeline via `useBeatTimeline` (`GET /api/audio/analysis/by-filename/{filename}`) + beat-punch shake, image-as-background with 12-cover quick-pick, `audioDriven` bars/pillars for Equalizer Wall/City — see `docs/implementation-summary.md` §2026-08-27
-- **3D Gen fix**: `Generation3DPage.tsx` `404 /api/3d/models` → `/api/health/3d/models`, CORS `getApiBase()` → relative URL, clickable model list + preview, `_repatriate_orphans()` surfaces 4 GLBs (`output/generated_3d/`)
+- **3D Gen fix**: `Generation3DPage.tsx` `404 /api/3d/models` → `/api/3d/models`, CORS `getApiBase()` → relative URL, clickable model list + preview, `_repatriate_orphans()` surfaces 4 GLBs (`output/generated_3d/`)
 - **Docs**: `docs/guides/MUSIC_VIDEO_GUIDE.md` new Three.js Studio section (§8), `MUSIC_VIDEO_GUIDE.md` now primary over classic `/music-video`
 
 ### Fixed - Server Startup & Monitoring (2026-08-31)
@@ -482,7 +482,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CUDA audio analysis**: `app.services.cuda.processor` — torch.stft() GPU FFT, spectral features, onset detection; image preprocessing (resize/normalize); visualization FFT
 - **Hunyuan3D-2mini model**: Downloaded to `ComfyUI/models/diffusion_models/hunyuan3d-2mini` (~2.5GB)
 - **ComfyUI-Hunyuan3DWrapper**: Custom node installed for ComfyUI integration
-- **API endpoints**: `/api/health/gpu` (GPU snapshot), `/api/health/3d/status`, `/api/health/3d/generate`
+- **API endpoints**: `/api/health/gpu` (GPU snapshot), `/api/3d/status`, `/api/3d/generate`
 - **Research docs**: `docs/notes/GPU_UTILIZATION_RESEARCH.md` and `docs/notes/3D_MODELS_8GB_VRAM.md`
 - **GPU Pipeline Guide**: `docs/guides/GPU_PIPELINE.md` — full documentation for the 3D/GPU workflow
 

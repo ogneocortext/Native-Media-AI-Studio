@@ -1,7 +1,7 @@
 # Text-to-3D Options for 8GB VRAM / Pascal (2026)
 
 > **Scope:** open-source or free-to-use models you can run locally on a GTX 1070 Ti (8 GB VRAM, sm_61) or similar Pascal cards.  
-> **Last updated:** 2026-09-07
+> **Last updated:** 2026-09-09 — Sep 2026: Hunyuan3D **3.0** added, 2mini stays 8GB primary, BiRefNet/VOID for post-processing
 
 ---
 
@@ -276,31 +276,36 @@ pip install -r requirements.txt
 
 ---
 
-## Decision Matrix for 8 GB VRAM
+## 0. Hunyuan3D 3.0 (Tencent) — NEW Sep 2026, still 8GB
+
+> **Sep 2026**: Hunyuan3D **3.0** released with same ~4-5GB geometry footprint as 2mini, plus new **post-processing**: asset segmentation (split plates/attachments), UV map preparation, intelligent mesh optimization (edge-flow cleanup for game engines). ComfyUI templates: `HunYuan3D: Text to Model`, `HY 3D: Image to Model` (2-4 multi-view). Local 8GB fits geometry+segmentation; full PBR texture still needs 12GB+ (cloud). Download `hunyuan3d-dit-v2-0-fp16.safetensors` → `models/unet/`, `hunyuan3d-delight/paint-v2-0` → `models/diffusers/`. Upgrades from 2mini are drop-in for this GPU.
+
+## Decision Matrix for 8 GB VRAM (Sep 2026 — 8GB-local only)
 
 | Model | Text-to-3D | Open Source | License | Runs on 8 GB? | ComfyUI? |
 |-------|-----------|-------------|---------|---------------|----------|
+| **Hunyuan3D-3.0** | Yes | Yes | Tencent Community | ✅ shape+segmentation+UV | ✅ native 3.0 (new) |
 | Hunyuan3D-2mini | Yes | Yes | Tencent Community | ✅ shape only | ✅ native |
 | Hunyuan3D-2GP | Yes | Yes | Tencent Community | ✅ shape + low texture | ❌ standalone |
-| TRELLIS-text-large | Yes | Yes | MIT | ⚠️ tight | ✅ Modly extension |
-| Point-E | Yes | Yes | MIT | ✅ | ❌ |
-| Shap-E | Yes | Yes | MIT | ✅ | ❌ |
-| GSGEN | Yes | Yes | MIT | ⚠️ | ❌ |
-| Super-3D-Pro | Yes | Yes | MIT | ✅ | ❌ |
-| MyMeshy (SDXL→TripoSR) | Yes (2-stage) | Yes | MIT | ✅ | ❌ |
+| TRELLIS-text-large | Yes | Yes | MIT | ❌ 10-12GB — cloud on 8GB | ✅ Modly extension (cloud) |
+| Point-E | Yes | Yes | MIT | ✅ ~4-6GB | ❌ |
+| Shap-E | Yes | Yes | MIT | ✅ ~6-8GB tight | ❌ |
+| GSGEN | Yes | Yes | MIT | ❌ 8-12GB — exceeds | ❌ cloud |
+| Super-3D-Pro | Yes | Yes | MIT | ✅ 4GB+ (hybrid) | ❌ |
+| MyMeshy (SDXL→TripoSR) | Yes (2-stage) | Yes | MIT | ✅ ~5-7GB | ❌ |
 | TripoSG | No (image→3D) | Yes | MIT | ✅ | ✅ ComfyUI-3D-Pack |
-| InstantMesh | No (image→3D) | Yes | Apache 2.0 | ⚠️ 16 GB | ✅ ComfyUI-3D-Pack |
+| InstantMesh | No (image→3D) | Yes | Apache 2.0 | ❌ 16GB — cloud | ✅ ComfyUI-3D-Pack (cloud) |
 
 ---
 
-## Recommended Setup for This Project
+## Recommended Setup for This Project (Sep 2026 — 8GB strict)
 
 Given the current stack (PyTorch 2.14 + CUDA 12.6 + ComfyUI v0.34+ + 8 GB VRAM):
 
-1. **Primary text-to-3D:** Hunyuan3D-2mini with `--enable_t23d` + `--profile 3` (geometry-only output).
+1. **Primary text-to-3D:** **Hunyuan3D 3.0** with `--enable_t23d` + `--profile 3` (geometry-only, ~4-5GB, segmentation/UV post-processing now local). Fallback: 2mini-turbo `profile 4` (<6GB).
 2. **Fallback fast path:** MyMeshy two-stage (SDXL-Turbo → TripoSR) at ~5–7 GB VRAM.
-3. **ComfyUI integration:** Use native Hunyuan3D nodes (geometry only) + ComfyUI-3D-Pack for TripoSR.
-4. **Texture upgrade path:** When VRAM allows, add Hunyuan3D-2 paint or TRELLIS mesh decoder.
+3. **ComfyUI integration:** Use **native Hunyuan3D 3.0** nodes (geometry+segmentation/UV) + ComfyUI-3D-Pack for TripoSR. TRELLIS-large and TRELLIS 3.0 large are **cloud** on this GPU.
+4. **Texture upgrade path:** Hunyuan3D 3.0 paint still needs 12GB+ — use cloud/A40, not local.
 
 ---
 

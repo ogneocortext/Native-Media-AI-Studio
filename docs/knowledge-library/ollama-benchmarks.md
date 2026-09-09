@@ -283,7 +283,7 @@ The `get_best_model()` function selects the winner using:
 | `llama3.2:3b` | **82** | 24.8s | ✅ Success | Fastest successful model; good balance |
 | `gemma4:e2b-it-qat` | **77** | 38.1s | ✅ Success | Default vision model; decent code gen |
 | `qwen3.5:4b` | **77** | 42.1s | ✅ Success | Similar to gemma4; slightly slower |
-| `ornith-1.5:9b` | 0 | 300.4s | ❌ Failed | Timeout / empty output |
+| `ornith-1.5:9b` | 0 | 300.4s | ❌ Failed | Timeout / empty output — 9B unquantized too slow on 8 GB VRAM |
 | `qwen3-vl:4b` | 35 | 180.9s | ❌ Failed | Vision-only; wrong task fit |
 | `qwen3-vl:2b` | 35 | 158.4s | ❌ Failed | Vision-only; wrong task fit |
 | `deepseek-r1:7b` | 0 | 300.9s | ❌ Failed | Timeout / empty output |

@@ -6,6 +6,9 @@
 
 import { AbsoluteFill, Audio, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { useAudioAnalysis, LyricDisplay, AudioWaveform, SpectrumBars, SceneTransition, TrackInfo } from "../components";
+import { blur } from "@remotion/effects/blur";
+import { chromaticAberration } from "@remotion/effects/chromatic-aberration";
+import { vignette } from "@remotion/effects/vignette";
 
 // ============================================================================
 // Configuration - Edit these for your track
@@ -55,6 +58,11 @@ export const MyMusicVideoComposition: React.FC = () => {
             filter: `brightness(0.85) contrast(1.05)`,
             opacity: 0.7
           }}
+          effects={[
+            blur({ radius: 0.5 + analysis.bass * 1.5 }),
+            chromaticAberration({ amount: 0.3 + analysis.bass * 0.8 }),
+            vignette({ amount: 0.35, radius: 0.7, feather: 0.3 }),
+          ]}
         />
         <AbsoluteFill style={{
           background: `linear-gradient(180deg, transparent 38%, rgba(0,0,0,0.5) 88%), radial-gradient(800px 500px at 50% 40%, ${CONFIG.accentColor}15 0%, transparent 60%)`

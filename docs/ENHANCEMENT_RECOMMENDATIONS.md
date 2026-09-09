@@ -7,14 +7,43 @@ Based on research into open-source tools and best practices (2026), here are rec
 
 Add `@remotion/effects` package for post-processing:
 - `blur()` - Gaussian blur effect
-- Combine multiple effects via `effects` prop
-- Apply to `<Video>`, `<Solid>`, `<Img>`, `<HtmlInCanvas>` components
+- `chromaticAberration()` - RGB channel shift
+- `vignette()` - Edge darkening
+- Combine multiple effects via `effects` prop on `<Img>`, `<Video>`, `<AnimatedImage>`
+- Reactive parameters driven by audio analysis (`bass`, `energy`, `isBeat`)
 
 ```tsx
-import { blur } from '@remotion/effects/blur';
+import { blur, chromaticAberration, vignette } from "@remotion/effects";
 
-<Video src={src} effects={[blur({ radius: 40 })]} />
+<Img
+  src={staticFile("bg.png")}
+  effects={[
+    blur({ radius: 0.5 + bass * 1.5 }),
+    chromaticAberration({ strength: 0.3 + bass * 0.8 }),
+    vignette({ amount: 0.35, radius: 0.7, feather: 0.3 }),
+  ]}
+/>
 ```
+
+**Status**: ✅ Implemented in `packages/video-editor/src/compositions/Template.tsx`
+
+## 1b. CSS/SVG Reactive Effects Layer
+For DOM-based compositions (no `<Video>/<Img>`), apply reactive post-processing via CSS `filter` + SVG `feTurbulence`:
+
+```tsx
+// In Composition.tsx
+const blurAmount = isChorus ? 0.6 + bass * 1.2 : 0.2 + bass * 0.4;
+const brightness = 1 + bass * 0.08;
+const contrast = isChorus ? 1.1 : 1 + bass * 0.04;
+
+<AbsoluteFill style={{
+  filter: `blur(${blurAmount}px) brightness(${brightness}) contrast(${contrast})`,
+  opacity: 0.35 + pulse * 0.25,
+  mixBlendMode: "screen",
+}} />
+```
+
+**Status**: ✅ Implemented in `packages/video-editor/src/Composition.tsx`
 
 ## 2. Ollama Tool-Use Integration for Video Creation
 **Source**: github.com/rezauljerza/jarvis, backblaze-labs/awesome-video-generator

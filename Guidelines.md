@@ -188,5 +188,5 @@ The following were deferred in v2 and have since shipped — kept here for trace
 - **Custom ComfyUI Workflow Integration:** ✅ `comfyui-mcp` custom workflows, Hunyuan3D-2mini (Wan 2.2 5B 480p fits 8GB) + ComfyUI-Hunyuan3DWrapper
 
 Remaining future scope (Phase 3+):
-- **Advanced Video Effects:** Chromatic aberration, motion blur, film grain overlays (partially done via `PostFX` but not full Remotion `@remotion/effects` chain)
+- **Advanced Video Effects:** ✅ Implemented with `@remotion/effects` chain (`blur`, `chromaticAberration`, `vignette`) in `packages/video-editor/src/compositions/Template.tsx` plus CSS/SVG reactive effects layer in `packages/video-editor/src/Composition.tsx`
 - **Multi-user / Cloud:** Still out of scope per §1.1

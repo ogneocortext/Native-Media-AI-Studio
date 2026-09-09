@@ -240,7 +240,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
-      const res = await fetch(`/api/health/3d/models`);
+      const res = await fetch(`/api/3d/models`);
       if (res.ok) {
         const models = await res.json();
         if (Array.isArray(models) && models.length > 0) {

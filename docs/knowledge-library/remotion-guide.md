@@ -271,12 +271,61 @@ const hints = generateTimingHints(contract);
 
 ## Post-Processing Effects
 
-```tsx
-import { blur } from "@remotion/effects/blur";
+### Using `@remotion/effects` with Media Components
 
-// Apply blur effect
-<Video src={src} effects={[blur({ radius: 40 })]} />
+```tsx
+import { blur, chromaticAberration, vignette } from "@remotion/effects";
+
+// Apply effects to <Img>, <Video>, or <AnimatedImage>
+<Img
+  src={staticFile("bg.png")}
+  effects={[
+    blur({ radius: 0.5 + bass * 1.5 }),
+    chromaticAberration({ amount: 0.3 + bass * 0.8 }),
+    vignette({ amount: 0.35, radius: 0.7, feather: 0.3 }),
+  ]}
+/>
 ```
+
+### Reactive CSS/SVG Effects Layer (DOM compositions)
+
+For compositions using `<AbsoluteFill>` + custom DOM elements instead of `<Video>/<Img>`, apply audio-reactive filters via CSS `filter` and SVG noise:
+
+```tsx
+const blurAmount = isChorus ? 0.6 + bass * 1.2 : 0.2 + bass * 0.4;
+const brightness = 1 + bass * 0.08;
+const contrast = isChorus ? 1.1 : 1 + bass * 0.04;
+
+<AbsoluteFill style={{
+  filter: `blur(${blurAmount}px) brightness(${brightness}) contrast(${contrast})`,
+  opacity: 0.35 + pulse * 0.25,
+  mixBlendMode: "screen",
+}} />
+
+{/* Film grain */}
+<AbsoluteFill style={{ opacity: 0.06 + bass * 0.04, mixBlendMode: "overlay" }}>
+  <svg width="100%" height="100%">
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves="3" />
+      <feColorMatrix type="saturate" values="0" />
+    </filter>
+    <rect width="100%" height="100%" filter="url(#grain)" />
+  </svg>
+</AbsoluteFill>
+```
+
+### Available Effects
+
+| Effect | Import | Key Params |
+|--------|--------|-----------|
+| `blur` | `@remotion/effects/blur` | `radius` |
+| `chromaticAberration` | `@remotion/effects/chromatic-aberration` | `amount`, `angle` |
+| `vignette` | `@remotion/effects/vignette` | `amount`, `radius`, `feather` |
+| `noise` | `@remotion/effects/noise` | `amount`, `seed` |
+| `lightLeak` | `@remotion/effects/light-leak` | `progress`, `hueShift` |
+| `brightness` | `@remotion/effects/brightness` | `brightness` |
+| `contrast` | `@remotion/effects/contrast` | `contrast` |
+| `saturate` | `@remotion/effects/saturation` | `saturation` |
 
 ## Best Practices
 

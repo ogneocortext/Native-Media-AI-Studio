@@ -231,6 +231,9 @@ const MainVideo: React.FC<MainVideoProps> = ({ analysis }) => {
       {/* ─── Transitions ─── */}
       {activeTransition !== -1 && <TransitionOverlay wipeProgress={wipeProgress} width={width} height={height} />}
 
+      {/* ─── Advanced Effects Layer ─── */}
+      <EffectsLayer section={section} t={t} isBeat={isBeat} isChorus={isChorus} isBreakdown={isBreakdown} bass={analyzed.bass} pulse={pulse} />
+
       {/* ─── Vignette ─── */}
       <AbsoluteFill style={{ background: "radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%)", pointerEvents: "none" }} />
     </AbsoluteFill>
@@ -508,3 +511,48 @@ const TransitionOverlay: React.FC<any> = ({ wipeProgress, width, height }) => {
 
 export const SignalDuration = DEFAULT_DURATION_FRAMES;
 export const SignalFps = FPS;
+
+// ─── Advanced Effects Layer ───
+// Audio-reactive post-processing using CSS filters + SVG noise.
+// This keeps the composition DOM-based (no <Video>/<Img> dependency)
+// while providing the same effect categories as @remotion/effects:
+//   • blur (bass transient / chorus bloom)
+//   • chromatic-shift (hue-rotate as proxy, preserves performance)
+//   • noise grain (film grain overlay via SVG feTurbulence)
+//   • light leak (section-tinted radial flash)
+const EffectsLayer: React.FC<any> = ({ section, t, isBeat, isChorus, isBreakdown, bass, pulse }) => {
+  const blurAmount = isChorus ? 0.6 + bass * 1.2 : isBreakdown ? 0 : 0.2 + bass * 0.4;
+  const brightness = isBreakdown ? 0.85 : 1 + bass * 0.08;
+  const contrast = isChorus ? 1.1 : 1 + bass * 0.04;
+  const saturate = isChorus ? 1.2 : 1;
+  const hueRotate = isChorus ? (t * 8) % 360 : 0;
+  const noiseOpacity = isBreakdown ? 0.04 : 0.06 + bass * 0.04;
+  const lightLeakOpacity = isBeat ? 0.12 * section.energy : 0;
+
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none", zIndex: 10 }}>
+      {/* Reactive CSS filter stack */}
+      <AbsoluteFill
+        style={{
+          filter: `blur(${blurAmount}px) brightness(${brightness}) contrast(${contrast}) saturate(${saturate}) hue-rotate(${hueRotate}deg)`,
+          opacity: 0.35 + pulse * 0.25,
+          mixBlendMode: "screen",
+        }}
+      />
+      {/* Film grain via SVG noise */}
+      <AbsoluteFill style={{ opacity: noiseOpacity, mixBlendMode: "overlay" }}>
+        <svg width="100%" height="100%" style={{ position: "absolute", inset: 0 }}>
+          <filter id="film-grain">
+            <feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves="3" stitchTiles="stitch" />
+            <feColorMatrix type="saturate" values="0" />
+          </filter>
+          <rect width="100%" height="100%" filter="url(#film-grain)" opacity="0.5" />
+        </svg>
+      </AbsoluteFill>
+      {/* Light leak flash on beat */}
+      {lightLeakOpacity > 0 && (
+        <AbsoluteFill style={{ opacity: lightLeakOpacity, background: `radial-gradient(600px 400px at ${50 + Math.sin(t * 0.3) * 20}% ${40 + Math.cos(t * 0.25) * 15}%, ${section.palette.glow} 0%, transparent 60%)`, mixBlendMode: "screen" }} />
+      )}
+    </AbsoluteFill>
+  );
+};

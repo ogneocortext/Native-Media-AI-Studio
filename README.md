@@ -126,7 +126,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -
 python -c "from app.services.cuda import cuda_audio; import numpy as np; print(cuda_audio.analyze(np.random.randn(22050)))"
 
 # 3D model generation (Hunyuan3D-2mini)
-# POST /api/health/3d/generate {"prompt": "a robot", "steps": 15}
+# POST /api/3d/generate {"prompt": "a robot", "steps": 15}
 
 # GPU monitoring
 curl http://localhost:8000/api/health/gpu

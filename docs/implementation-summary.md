@@ -112,7 +112,7 @@ Moved 7 service files from `packages/backend/app/services/` to `tools/` and `too
 
 ### ComfyUI 3D generation: list + preview fixed
 - **Root cause:** `Generation3DPage.tsx` called `/api/3d/models` (404) and built all GLB URLs via `getApiBase()` (cross-origin → CORS block). The 4 generated models existed on disk but never reached the UI.
-- **Fix:** point to `/api/health/3d/models`; switch all 4 fetch URLs to relative paths (`/output/generated_3d/...`).
+- **Fix:** point to `/api/3d/models`; switch all 4 fetch URLs to relative paths (`/output/generated_3d/...`).
 - **Bonus:** list items are now clickable to populate the `ModelPreview` pane without re-running generation; download icon per item.
 - **Discovered:** backend's `_repatriate_orphans()` already copies orphaned GLBs from ComfyUI's `output/3d/` into `output/generated_3d/` on first list. The 4 models now appear: `gen3d_test_robot_00001_.glb` (44 MB), `gen3d_a_futuristic_robot__chrome_met_00002_.glb` (13 MB), and 2 more.
 
