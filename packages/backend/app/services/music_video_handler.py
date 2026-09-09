@@ -512,8 +512,8 @@ class MusicVideoHandler:
             video_path = result.get("video_path")
             if video_path and Path(video_path).exists():
                 import shutil
-import subprocess
-import sys
+                import subprocess
+                import sys
                 shutil.move(str(video_path), str(output_path))
             else:
                 raise RuntimeError("ComfyUI generation failed: no video path returned")

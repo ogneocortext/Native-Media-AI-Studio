@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+</head>
+<body>
+<template>
+  <style>
+    #root {
+      position: relative; width: 1920px; height: 1080px;
+      overflow: hidden; background: transparent;
+      z-index: 5;
+    }
+    
+    .vignette {
+      position: absolute; inset: 0; z-index: 5; pointer-events: none;
+      background: radial-gradient(ellipse 65% 60% at 50% 50%, transparent 35%, rgba(0,0,0,0.75) 100%);
+    }
+    .grain {
+      position: absolute; inset: 0; z-index: 6; pointer-events: none; opacity: 0.1;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+    .color-grade {
+      position: absolute; inset: 0; z-index: 7; pointer-events: none; mix-blend-mode: overlay; opacity: 0.35;
+      background: linear-gradient(180deg, rgba(20,40,80,0.4), rgba(80,20,60,0.25), rgba(10,30,60,0.35));
+    }
+    .beat-flash {
+      position: absolute; inset: 0; z-index: 8; pointer-events: none;
+      background: radial-gradient(circle at 50% 40%, rgba(200,230,255,0.28), transparent 55%);
+      opacity: 0; mix-blend-mode: screen;
+    }
+    .light-sweep {
+      position: absolute; inset: 0; z-index: 9; pointer-events: none; opacity: 0;
+      background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.06) 44%, rgba(255,255,255,0.14) 50%, rgba(255,255,255,0.06) 56%, transparent 65%);
+      mix-blend-mode: overlay; transition: background 0.6s;
+    }
+
+  </style>
+  <div data-hf-id="hf-ix6i" id="root" data-composition-id="overlays" data-width="1920" data-height="1080">
+    
+    <div data-hf-id="hf-q7bi" class="vignette"></div>
+    <div data-hf-id="hf-h60x" class="grain"></div>
+    <div data-hf-id="hf-gu2b" class="color-grade" id="colorGrade"></div>
+    <div data-hf-id="hf-xkfr" class="beat-flash" id="beatFlash"></div>
+    <div data-hf-id="hf-swp1" class="light-sweep" id="lightSweep"></div>
+
+  </div>
+  <script>
+    
+    const DATA = window.DATA;
+    const ENERGY = DATA.energy_curve;
+    const BEATS = DATA.beat_times;
+    const { getEnergy, nextBeat, currentSection, getStoryState } = window.HF;
+    const SECTION_COLORS = {
+      intro:     { orb: 'rgba(180,220,255,0.95)', ring: 'rgba(140,200,255,0.4)', bar1: 'rgba(60,150,255,0.85)', bar2: 'rgba(140,100,255,0.55)', grade: 'rgba(20,40,80,0.5)' },
+      verse:     { orb: 'rgba(200,240,220,0.95)', ring: 'rgba(120,220,180,0.4)',  bar1: 'rgba(60,200,160,0.85)', bar2: 'rgba(120,200,140,0.55)', grade: 'rgba(20,60,40,0.45)' },
+      chorus:    { orb: 'rgba(220,200,255,0.95)', ring: 'rgba(160,120,255,0.45)', bar1: 'rgba(140,100,255,0.9)', bar2: 'rgba(180,120,255,0.6)', grade: 'rgba(50,20,80,0.5)' },
+      drop:      { orb: 'rgba(255,200,180,0.98)', ring: 'rgba(255,140,100,0.5)',  bar1: 'rgba(255,100,80,0.9)',  bar2: 'rgba(255,160,80,0.65)', grade: 'rgba(80,25,15,0.55)' },
+      final_drop:{ orb: 'rgba(255,225,180,0.98)', ring: 'rgba(255,180,100,0.55)', bar1: 'rgba(255,160,60,0.95)', bar2: 'rgba(255,200,100,0.7)', grade: 'rgba(80,50,10,0.6)' },
+      outro:     { orb: 'rgba(180,200,220,0.9)',  ring: 'rgba(120,160,200,0.35)', bar1: 'rgba(100,160,220,0.75)', bar2: 'rgba(120,160,200,0.5)', grade: 'rgba(10,20,40,0.45)' },
+    };
+
+    let activeSection = currentSection(0);
+    let targetColors = SECTION_COLORS[activeSection] || SECTION_COLORS.intro;
+    if (!window.COLOR_STATE) {
+      window.COLOR_STATE = { liveColors: { ...targetColors } };
+    }
+
+    const colorGrade = document.getElementById('colorGrade');
+    const flash = document.getElementById('beatFlash');
+    const lightSweep = document.getElementById('lightSweep');
+
+    function applyFrame(t) {
+      const energy = getEnergy(t);
+      const beatHit = nextBeat(t, 0.14);
+      const section = currentSection(t);
+      const state = getStoryState(t);
+
+      if (section !== activeSection) {
+        activeSection = section;
+        targetColors = SECTION_COLORS[section] || SECTION_COLORS.intro;
+      }
+      window.HF.updateLiveColors(targetColors, 0.05);
+
+      colorGrade.style.background =
+        'linear-gradient(180deg, ' + window.COLOR_STATE.liveColors.grade + ', rgba(0,0,0,0.2), ' + window.COLOR_STATE.liveColors.grade + ')';
+
+      if (beatHit) {
+        flash.style.opacity = 0.65 + energy * 0.35;
+        setTimeout(() => { flash.style.opacity = 0; }, 110);
+      }
+
+      if (state && state.cinematic) {
+        const cycle = (t % 4) / 4;
+        const angle = 105 + cycle * 40;
+        lightSweep.style.background = 'linear-gradient(' + angle + 'deg, transparent 35%, ' + state.palette.accent + ' 44%, rgba(255,255,255,0.14) 50%, ' + state.palette.accent + ' 56%, transparent 65%)';
+        lightSweep.style.opacity = (0.25 + energy * 0.45).toFixed(3);
+      } else {
+        lightSweep.style.opacity = 0;
+      }
+    }
+
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.to({}, {
+      duration: window.DATA.duration,
+      ease: 'none',
+      onUpdate: function() { applyFrame(this.time()); }
+    });
+    window.__timelines['overlays'] = tl;
+  </script>
+</template>
+</body>
+</html>

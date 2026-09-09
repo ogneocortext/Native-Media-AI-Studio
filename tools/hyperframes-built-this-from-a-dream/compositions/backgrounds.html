@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+<template>
+  <style>
+    #root {
+      position: relative; width: 1920px; height: 1080px;
+      overflow: hidden; background: transparent;
+      z-index: 0;
+    }
+    
+    .bg-deep {
+      position: absolute; inset: -160px; z-index: 0;
+      background:
+        radial-gradient(ellipse 180% 120% at 50% 25%, rgba(8,18,50,0.95), transparent 55%),
+        radial-gradient(ellipse 140% 100% at 15% 75%, rgba(0,30,70,0.7), transparent 50%),
+        radial-gradient(ellipse 120% 80% at 90% 15%, rgba(30,8,55,0.65), transparent 50%);
+      filter: blur(50px) saturate(1.4);
+    }
+    .bg-aurora {
+      position: absolute; inset: -100px; z-index: 1;
+      background:
+        radial-gradient(ellipse 130% 80% at 50% 35%, rgba(15,90,170,0.4), transparent 50%),
+        radial-gradient(ellipse 100% 60% at 20% 65%, rgba(0,140,120,0.28), transparent 45%),
+        radial-gradient(ellipse 90% 55% at 85% 20%, rgba(80,40,160,0.32), transparent 45%);
+      filter: blur(32px) saturate(1.7); opacity: 0.95;
+    }
+    .bg-haze {
+      position: absolute; inset: -60px; z-index: 2;
+      background:
+        radial-gradient(ellipse 100% 60% at 50% 50%, rgba(180,210,255,0.08), transparent 60%),
+        radial-gradient(ellipse 80% 40% at 30% 80%, rgba(255,255,255,0.04), transparent 50%);
+      filter: blur(18px); opacity: 0.7;
+    }
+    .bg-grid {
+      position: absolute; inset: 0; z-index: 3; opacity: 0.04;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.7) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.7) 1px, transparent 1px);
+      background-size: 100px 100px;
+    }
+    .bg-pulse {
+      position: absolute; inset: -80px; z-index: 2; opacity: 0;
+      background: radial-gradient(ellipse 100% 80% at 50% 50%, rgba(99,102,241,0.35), transparent 60%);
+      filter: blur(40px); transition: background 0.8s, opacity 0.3s;
+    }
+
+  </style>
+  <div data-hf-id="hf-1xo8" id="root" data-composition-id="bg" data-width="1920" data-height="1080" data-layout-allow-overflow>
+    
+    <div data-hf-id="hf-qhcd" class="bg-deep" id="bgDeep"></div>
+    <div data-hf-id="hf-81id" class="bg-aurora" id="bgAurora"></div>
+    <div data-hf-id="hf-ec2d" class="bg-haze" id="bgHaze"></div>
+    <div data-hf-id="hf-yqqm" class="bg-grid"></div>
+    <div data-hf-id="hf-pulse1" class="bg-pulse" id="bgPulse"></div>
+
+  </div>
+  <script>
+    
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.to({}, {
+      duration: window.DATA.duration,
+      ease: 'none',
+      onUpdate: function() { applyFrame(this.time()); }
+    });
+    window.__timelines['bg'] = tl;
+  </script>
+
+  <script>
+    const { getEnergy, nextBeat, getStoryState } = window.HF;
+    const bgPulse = document.getElementById('bgPulse');
+    function applyFrame(t) {
+      const state = getStoryState(t);
+      if (state && bgPulse) {
+        const energy = getEnergy(t);
+        const beatHit = nextBeat(t, 0.14);
+        bgPulse.style.background = 'radial-gradient(ellipse 100% 80% at 50% 50%, ' + state.palette.primary + ', transparent 60%)';
+        bgPulse.style.opacity = (0.12 + energy * 0.35 + (beatHit ? 0.2 : 0)).toFixed(3);
+      }
+    }
+  </script>
+</template>
+</body>
+</html>

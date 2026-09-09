@@ -250,6 +250,7 @@ from .api import (  # noqa: E402
     data,
     docs,
     health,
+    hyperframes,
     integrations,
     jobs,
     log_analytics,
@@ -277,6 +278,7 @@ app.include_router(video.router)
 app.include_router(vision.router)
 app.include_router(native_open.router)
 app.include_router(docs.router)
+app.include_router(hyperframes.router)
 
 # Additional root-level routes
 @app.get("/api/services/status")

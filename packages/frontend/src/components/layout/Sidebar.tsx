@@ -24,6 +24,7 @@ import {
   Wand2,
   Type,
   Thermometer,
+  Play,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
@@ -45,6 +46,7 @@ const createNav: NavItem[] = [
   { path: "/audio-analysis", label: "Audio Analysis", icon: <BarChart3 size={18} /> },
   { path: "/visualizer", label: "Visualizer", icon: <Zap size={18} /> },
   { path: "/kinetic-typography", label: "Kinetic Type", icon: <Type size={18} /> },
+  { path: "/hyperframes", label: "HyperFrames", icon: <Play size={18} /> },
   { path: "/ai-tools", label: "AI Tools", icon: <Brain size={18} /> },
 ];
 

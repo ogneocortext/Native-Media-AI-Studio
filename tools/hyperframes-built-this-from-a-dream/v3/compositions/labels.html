@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+</head>
+<body>
+<template>
+  <style>
+    #root {
+      position: relative; width: 1920px; height: 1080px;
+      overflow: hidden; background: transparent;
+      z-index: 20;
+    }
+    
+    .section-label {
+      position: absolute; top: 48px; right: 80px; z-index: 20;
+      font-size: 14px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase;
+      color: rgba(255,255,255,0.75); font-family: ui-monospace, monospace;
+    }
+    .bpm-label {
+      position: absolute; bottom: 48px; left: 80px; z-index: 20;
+      font-size: 14px; font-weight: 500; letter-spacing: 0.14em;
+      color: rgba(255,255,255,0.9); font-family: ui-monospace, monospace;
+    }
+    .time-label {
+      position: absolute; top: 48px; left: 80px; z-index: 20;
+      font-size: 13px; font-weight: 500; letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.6); font-family: ui-monospace, monospace;
+    }
+    .act-card {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 20; pointer-events: none;
+      display: none; flex-direction: column; align-items: center; justify-content: flex-start;
+      padding-top: 120px;
+      opacity: 0; transition: opacity 0.7s ease;
+    }
+    .act-card.active { opacity: 1; display: flex; }
+    .act-title {
+      font-size: 76px; font-weight: 700; letter-spacing: 0.06em;
+      color: rgba(255,255,255,0.95); text-shadow: 0 0 50px rgba(255,255,255,0.25);
+      margin-bottom: 18px;
+    }
+    .act-hook {
+      font-size: 30px; font-weight: 400; font-style: italic;
+      color: rgba(255,255,255,0.82); text-shadow: 0 0 24px rgba(255,255,255,0.18);
+      max-width: 1200px; text-align: center; line-height: 1.5;
+    }
+
+  </style>
+  <div data-hf-id="hf-gk38" id="root" data-composition-id="labels" data-width="1920" data-height="1080" data-layout-allow-overlap>
+    
+    <div data-hf-id="hf-iadz" class="section-label" id="sectionLabel">INTRO</div>
+    <div data-hf-id="hf-u2l9" class="time-label" id="timeLabel">0:00</div>
+    <div data-hf-id="hf-k0ve" class="bpm-label" id="bpmLabel">143.6 BPM</div>
+    <div data-hf-id="hf-story1" id="storyContainer" data-layout-allow-overlap></div>
+
+  </div>
+  <script>
+    
+    const DATA = window.DATA;
+    const LYRICS = DATA.lyrics;
+    const { currentSection, getStoryState } = window.HF;
+
+    const sectionLabel = document.getElementById('sectionLabel');
+    const timeLabel = document.getElementById('timeLabel');
+    const storyContainer = document.getElementById('storyContainer');
+
+    const STORYBOARD = window.STORYBOARD;
+    const actCards = [];
+    if (STORYBOARD && STORYBOARD.beats) {
+      STORYBOARD.beats.forEach((beat) => {
+        const card = document.createElement('div');
+        card.className = 'act-card';
+        card.id = 'act-' + beat.id;
+        card.setAttribute('data-layout-allow-overlap', '');
+        card.innerHTML = '<div class="act-title">' + beat.actTitle + '</div><div class="act-hook">' + beat.hook + '</div>';
+        storyContainer.appendChild(card);
+        actCards.push({ id: beat.id, el: card });
+      });
+    }
+
+    let lastBeatId = null;
+    function applyFrame(t) {
+      sectionLabel.textContent = currentSection(t).toUpperCase().replace('_', ' ');
+      const mins = Math.floor(t / 60);
+      const secs = Math.floor(t % 60);
+      timeLabel.textContent = mins + ':' + (secs < 10 ? '0' : '') + secs;
+
+      const state = getStoryState(t);
+      if (state && state.id !== lastBeatId) {
+        actCards.forEach(c => c.el.classList.remove('active'));
+        const match = actCards.find(c => c.id === state.id);
+        if (match) match.el.classList.add('active');
+        lastBeatId = state.id;
+      }
+    }
+
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.to({}, {
+      duration: window.DATA.duration,
+      ease: 'none',
+      onUpdate: function() { applyFrame(this.time()); }
+    });
+    window.__timelines['labels'] = tl;
+  </script>
+</template>
+</body>
+</html>

@@ -1,0 +1,132 @@
+{
+  "track": "Built This From A Dream",
+  "duration": 218.76,
+  "source": "concept narrative arc + lyric assignment",
+  "beats": [
+    {
+      "id": "act-1",
+      "index": 0,
+      "act": 1,
+      "actTitle": "I. THE LONG NIGHT",
+      "section": "SOLITUDE",
+      "start": 0.0,
+      "end": 33.0,
+      "rawMood": 0.35,
+      "palette": {
+        "base": "#050510",
+        "primary": "#6366f1",
+        "accent": "#a5b4fc"
+      },
+      "camera": {
+        "dolly": 0.15,
+        "orbit": -0.2,
+        "lift": 0
+      },
+      "motif": "solitude",
+      "hook": "Blue light's the only thing still awake in here",
+      "lineCount": 4,
+      "cinematic": false,
+      "mood": 0.05
+    },
+    {
+      "id": "act-2",
+      "index": 1,
+      "act": 2,
+      "actTitle": "II. FRICTION",
+      "section": "STRUGGLE",
+      "start": 33.0,
+      "end": 72.0,
+      "rawMood": 0.475,
+      "palette": {
+        "base": "#0a0a12",
+        "primary": "#f59e0b",
+        "accent": "#fbbf24"
+      },
+      "camera": {
+        "dolly": -0.2,
+        "orbit": 0.5,
+        "lift": -0.1
+      },
+      "motif": "struggle",
+      "hook": "Now there's frost outside and I'm still stuck between",
+      "lineCount": 12,
+      "cinematic": false,
+      "mood": 0.275
+    },
+    {
+      "id": "act-3",
+      "index": 2,
+      "act": 3,
+      "actTitle": "III. ASSEMBLY",
+      "section": "ASSEMBLY",
+      "start": 72.0,
+      "end": 104.0,
+      "rawMood": 0.6,
+      "palette": {
+        "base": "#061014",
+        "primary": "#06b6d4",
+        "accent": "#67e8f9"
+      },
+      "camera": {
+        "dolly": 0.5,
+        "orbit": 0.3,
+        "lift": 0.2
+      },
+      "motif": "assembly",
+      "hook": "Thrown out the parts that only looked good on paper lines",
+      "lineCount": 6,
+      "cinematic": false,
+      "mood": 0.5
+    },
+    {
+      "id": "act-4",
+      "index": 3,
+      "act": 4,
+      "actTitle": "IV. THE CLICK",
+      "section": "PAYOFF",
+      "start": 104.0,
+      "end": 151.0,
+      "rawMood": 0.725,
+      "palette": {
+        "base": "#12060a",
+        "primary": "#ef4444",
+        "accent": "#fca5a5"
+      },
+      "camera": {
+        "dolly": 0.85,
+        "orbit": 0.4,
+        "lift": 0.3
+      },
+      "motif": "payoff",
+      "hook": "They don't see the little world I'm trying to build between",
+      "lineCount": 14,
+      "cinematic": true,
+      "mood": 0.7250000000000001
+    },
+    {
+      "id": "act-5",
+      "index": 4,
+      "act": 5,
+      "actTitle": "V. ARRIVAL",
+      "section": "TRIUMPH",
+      "start": 151.0,
+      "end": 218.0,
+      "rawMood": 0.85,
+      "palette": {
+        "base": "#0a0f1e",
+        "primary": "#f97316",
+        "accent": "#fdba74"
+      },
+      "camera": {
+        "dolly": 0.4,
+        "orbit": 0.6,
+        "lift": 0.6
+      },
+      "motif": "triumph",
+      "hook": "Every quiet hour will have meant exactly what it seemed",
+      "lineCount": 10,
+      "cinematic": true,
+      "mood": 0.9500000000000001
+    }
+  ]
+}

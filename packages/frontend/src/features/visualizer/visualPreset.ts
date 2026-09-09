@@ -5,7 +5,7 @@
  * camera, post-processing, lyrics animation, and audio reactivity.
  */
 
-import type { TimingHint } from "../../../shared/timing";
+import type { TimingHint } from "../../shared/timing";
 
 // =============================================================================
 // Color Theme

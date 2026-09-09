@@ -11,6 +11,9 @@
     },
     "vision": {
       "enabled": true
+    },
+    "hyperframes": {
+      "enabled": true
     }
   }
 }

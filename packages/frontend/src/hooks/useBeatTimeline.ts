@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AudioAnalysisResult } from "../services/api";
-import { getBeatNearTimeFromArray, getNextBeatInFromArray } from "../../shared/timing";
+import { getBeatNearTimeFromArray, getNextBeatInFromArray } from "../shared/timing";
 
 export interface BeatState {
   /** True for the configured window (default 100ms) after a beat onset. */

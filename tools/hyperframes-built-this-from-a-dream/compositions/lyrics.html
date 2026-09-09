@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+<template>
+  <style>
+    #root {
+      position: relative; width: 1920px; height: 1080px;
+      overflow: hidden; background: transparent;
+      z-index: 12;
+    }
+    
+    .lyric-wrap {
+      position: absolute; inset: 0; z-index: 12;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      pointer-events: none; padding: 0 200px; text-align: center;
+    }
+    .lyric-line {
+      display: none;
+      font-size: 68px; font-weight: 600; line-height: 1.35; letter-spacing: 0.01em;
+      color: rgba(255,255,255,0.94);
+      text-shadow: 0 0 50px rgba(140,200,255,0.7), 0 0 100px rgba(80,120,255,0.4);
+      margin: 0.14em 0;
+      will-change: transform, opacity;
+    }
+    .lyric-line.active {
+      display: block;
+      opacity: 1; transform: translateY(0) scale(1);
+    }
+    .lyric-line .word {
+      display: inline-block; opacity: 0.25; transform: scale(0.94);
+      transition: opacity 0.22s, transform 0.22s, color 0.22s, text-shadow 0.22s;
+      margin: 0 0.24em;
+    }
+    .lyric-line .word.lit {
+      opacity: 1; transform: scale(1.1); color: #fff;
+      text-shadow: 0 0 28px rgba(220,240,255,1), 0 0 56px rgba(120,180,255,0.9);
+    }
+
+  </style>
+  <div data-hf-id="hf-x2bj" id="root" data-composition-id="lyrics" data-width="1920" data-height="1080" data-layout-allow-overflow data-layout-allow-overlap>
+    
+    <div data-hf-id="hf-98wp" class="lyric-wrap" id="lyricWrap"></div>
+
+  </div>
+  <script>
+    
+    const DATA = window.DATA;
+    const LYRICS = DATA.lyrics;
+
+    const lyricWrap = document.getElementById('lyricWrap');
+    const lineEls = [];
+    LYRICS.forEach((lyric) => {
+      const el = document.createElement('div');
+      el.className = 'lyric-line';
+      el.setAttribute('data-layout-allow-overlap', '');
+      const words = lyric.text.split(' ');
+      el.innerHTML = words.map((w, wi) => '<span class="word" data-wi="' + wi + '">' + w + '</span>').join(' ');
+      lyricWrap.appendChild(el);
+      lineEls.push(el);
+    });
+
+    function applyFrame(t) {
+      for (let i = 0; i < LYRICS.length; i++) {
+        const lyric = LYRICS[i];
+        const active = t >= lyric.start && t <= lyric.end;
+        lineEls[i].classList.toggle('active', active);
+        if (active) {
+          const progress = (t - lyric.start) / (lyric.end - lyric.start);
+          const words = lineEls[i].querySelectorAll('.word');
+          const wordCount = words.length;
+          const litCount = Math.floor(progress * wordCount);
+          words.forEach((w, wi) => {
+            w.classList.toggle('lit', wi < litCount);
+          });
+        }
+      }
+    }
+
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.to({}, {
+      duration: window.DATA.duration,
+      ease: 'none',
+      onUpdate: function() { applyFrame(this.time()); }
+    });
+    window.__timelines['lyrics'] = tl;
+  </script>
+</template>
+</body>
+</html>

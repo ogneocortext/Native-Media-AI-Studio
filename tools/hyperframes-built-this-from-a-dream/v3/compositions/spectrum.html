@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+</head>
+<body>
+<template>
+  <style>
+    #root {
+      position: relative; width: 1920px; height: 1080px;
+      overflow: hidden; background: transparent;
+      z-index: 11;
+    }
+    
+    .spectrum {
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 11; pointer-events: none;
+      height: 280px; display: flex; align-items: flex-end; gap: 4px; padding: 0 90px;
+    }
+    .bar {
+      flex: 1; border-radius: 4px 4px 0 0; min-height: 3px;
+      background: linear-gradient(to top, rgba(60,150,255,0.8), rgba(140,100,255,0.5));
+      box-shadow: 0 0 14px rgba(100,180,255,0.55);
+      transform-origin: bottom; opacity: 0.92;
+      will-change: height;
+    }
+
+  </style>
+  <div data-hf-id="hf-x890" id="root" data-composition-id="spectrum" data-width="1920" data-height="1080">
+    
+    <div data-hf-id="hf-ynuu" class="spectrum" id="spectrum"></div>
+
+  </div>
+  <script>
+    
+    const DATA = window.DATA;
+    const ENERGY = DATA.energy_curve;
+    const { getEnergy, getBandFrame, currentSection } = window.HF;
+    const SECTION_COLORS = {
+      intro:     { bar1: 'rgba(60,150,255,0.85)', bar2: 'rgba(140,100,255,0.55)' },
+      verse:     { bar1: 'rgba(60,200,160,0.85)', bar2: 'rgba(120,200,140,0.55)' },
+      chorus:    { bar1: 'rgba(140,100,255,0.9)', bar2: 'rgba(180,120,255,0.6)' },
+      drop:      { bar1: 'rgba(255,100,80,0.9)',  bar2: 'rgba(255,160,80,0.65)' },
+      final_drop:{ bar1: 'rgba(255,160,60,0.95)', bar2: 'rgba(255,200,100,0.7)' },
+      outro:     { bar1: 'rgba(100,160,220,0.75)', bar2: 'rgba(120,160,200,0.5)' },
+    };
+
+    const spectrumEl = document.getElementById('spectrum');
+    const BAR_COUNT = 64;
+    const barEls = [];
+    for (let i = 0; i < BAR_COUNT; i++) {
+      const b = document.createElement('div');
+      b.className = 'bar';
+      b.style.height = '3px';
+      spectrumEl.appendChild(b);
+      barEls.push(b);
+    }
+
+    function applyFrame(t) {
+      const energy = getEnergy(t);
+      const bands = getBandFrame(t);
+      const section = currentSection(t);
+      const colors = window.COLOR_STATE.liveColors || (SECTION_COLORS[section] || SECTION_COLORS.intro);
+
+      for (let i = 0; i < BAR_COUNT; i++) {
+        const idx = Math.floor((i / BAR_COUNT) * bands.length);
+        const val = bands[Math.min(idx, bands.length - 1)] || 0;
+        const h = 4 + val * 260;
+        barEls[i].style.height = h + 'px';
+        barEls[i].style.background = 'linear-gradient(to top, ' + colors.bar1 + ', ' + colors.bar2 + ')';
+        barEls[i].style.boxShadow = '0 0 16px ' + colors.bar1;
+      }
+    }
+
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.to({}, {
+      duration: window.DATA.duration,
+      ease: 'none',
+      onUpdate: function() { applyFrame(this.time()); }
+    });
+    window.__timelines['spectrum'] = tl;
+  </script>
+</template>
+</body>
+</html>

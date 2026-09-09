@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+</head>
+<body>
+<template>
+  <style>
+    #root {
+      position: relative; width: 1920px; height: 1080px;
+      overflow: hidden; background: transparent;
+      z-index: 9;
+    }
+    
+    .center-orb {
+      position: absolute; left: 50%; top: 50%; z-index: 9; pointer-events: none;
+      width: 420px; height: 420px; border-radius: 50%;
+      transform: translate(-50%, -50%) scale(0.8); opacity: 0;
+      background: radial-gradient(circle at 35% 30%, rgba(230,245,255,0.95) 0%, rgba(100,160,255,0.5) 28%, rgba(30,60,180,0.18) 58%, transparent 100%);
+      filter: blur(26px); mix-blend-mode: screen;
+      will-change: transform, opacity;
+    }
+    .orb-trail {
+      position: absolute; left: 50%; top: 50%; z-index: 8; pointer-events: none;
+      width: 640px; height: 640px; border-radius: 50%;
+      transform: translate(-50%, -50%) scale(0.8); opacity: 0;
+      background: radial-gradient(circle at 35% 30%, rgba(180,220,255,0.35) 0%, rgba(80,140,255,0.12) 35%, transparent 65%);
+      filter: blur(50px); mix-blend-mode: screen;
+      will-change: transform, opacity;
+    }
+    .orb-ring {
+      position: absolute; left: 50%; top: 50%; z-index: 10; pointer-events: none;
+      width: 520px; height: 520px; border-radius: 50%;
+      transform: translate(-50%, -50%) scale(0.85); opacity: 0;
+      border: 1.2px solid rgba(140,200,255,0.3);
+      box-shadow: 0 0 40px rgba(80,140,255,0.3), inset 0 0 40px rgba(80,140,255,0.12);
+      transition: border-color 0.8s ease, box-shadow 0.8s ease;
+    }
+
+  </style>
+  <div data-hf-id="hf-05f0" id="root" data-composition-id="orb" data-width="1920" data-height="1080">
+    
+    <div data-hf-id="hf-2e6r" class="orb-trail" id="orbTrail"></div>
+    <div data-hf-id="hf-ugpw" class="center-orb" id="orb"></div>
+    <div data-hf-id="hf-j8il" class="orb-ring" id="orbRing"></div>
+
+  </div>
+  <script>
+    
+    const DATA = window.DATA;
+    const ENERGY = DATA.energy_curve;
+    const BEATS = DATA.beat_times;
+    const { mulberry32, getEnergy, nextBeat, currentSection } = window.HF;
+    const SECTION_COLORS = {
+      intro:     { orb: 'rgba(180,220,255,0.95)', ring: 'rgba(140,200,255,0.4)' },
+      verse:     { orb: 'rgba(200,240,220,0.95)', ring: 'rgba(120,220,180,0.4)' },
+      chorus:    { orb: 'rgba(220,200,255,0.95)', ring: 'rgba(160,120,255,0.45)' },
+      drop:      { orb: 'rgba(255,200,180,0.98)', ring: 'rgba(255,140,100,0.5)' },
+      final_drop:{ orb: 'rgba(255,225,180,0.98)', ring: 'rgba(255,180,100,0.55)' },
+      outro:     { orb: 'rgba(180,200,220,0.9)',  ring: 'rgba(120,160,200,0.35)' },
+    };
+
+    const orb = document.getElementById('orb');
+    const orbTrail = document.getElementById('orbTrail');
+    const orbRing = document.getElementById('orbRing');
+
+    function applyFrame(t) {
+      const energy = getEnergy(t);
+      const beatHit = nextBeat(t, 0.14);
+      const section = currentSection(t);
+      const colors = window.COLOR_STATE.liveColors || (SECTION_COLORS[section] || SECTION_COLORS.intro);
+
+      const orbX = Math.sin(t * 0.4) * 18;
+      const orbY = Math.cos(t * 0.55) * 14;
+      const scale = 0.8 + energy * 0.6 + (beatHit ? 0.14 : 0);
+      orb.style.transform = 'translate(calc(-50% + ' + orbX + 'px), calc(-50% + ' + orbY + 'px)) scale(' + scale + ')';
+      orb.style.opacity = 0.6 + energy * 0.4;
+      orb.style.background = 'radial-gradient(circle at 35% 30%, ' + colors.orb + ', transparent 70%)';
+
+      const trailX = Math.sin(t * 0.35 + 0.6) * 22;
+      const trailY = Math.cos(t * 0.5 + 0.6) * 18;
+      const trailScale = scale * 1.35;
+      orbTrail.style.transform = 'translate(calc(-50% + ' + trailX + 'px), calc(-50% + ' + trailY + 'px)) scale(' + trailScale + ')';
+      orbTrail.style.opacity = Math.max(0, (0.35 + energy * 0.35 - 0.15));
+      orbTrail.style.background = 'radial-gradient(circle at 35% 30%, ' + colors.orb + ', transparent 65%)';
+
+      const ringX = Math.cos(t * 0.35) * 12;
+      const ringY = Math.sin(t * 0.45) * 10;
+      orbRing.style.transform = 'translate(calc(-50% + ' + ringX + 'px), calc(-50% + ' + ringY + 'px)) scale(' + (0.85 + energy * 0.28) + ')';
+      orbRing.style.opacity = 0.4 + energy * 0.5;
+      orbRing.style.borderColor = colors.ring;
+      orbRing.style.boxShadow = '0 0 40px ' + colors.ring + ', inset 0 0 40px ' + colors.ring;
+    }
+
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.to({}, {
+      duration: window.DATA.duration,
+      ease: 'none',
+      onUpdate: function() { applyFrame(this.time()); }
+    });
+    window.__timelines['orb'] = tl;
+  </script>
+</template>
+</body>
+</html>

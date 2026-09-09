@@ -3,7 +3,7 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { AudioData, AudioAnalysisData } from "./types";
 import { ATTACK, RELEASE } from "./audioTiming";
-import { getBeatNearTimeFromArray, getNextBeatInFromArray } from "../../../shared/timing";
+import { getBeatNearTimeFromArray, getNextBeatInFromArray } from "../../shared/timing";
 
 // Demo fallback — synthetic audio for when no track is playing
 export function useDemoAudio(enabled: boolean, bpm: number) {
