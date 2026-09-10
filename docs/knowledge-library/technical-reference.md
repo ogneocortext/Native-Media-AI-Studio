@@ -638,7 +638,17 @@ Windows Performance Counters work without admin on all WDDM GPUs (GeForce, Quadr
 
 ### Frontend Display
 
-The GPU card in System Health fetches from both `/api/health/gpu` (total VRAM, utilization, temperature) and `/api/health/gpu/processes` (per-process breakdown), then displays the top 8 processes by memory usage with human-readable formatting (MB/GB).
+The GPU card in System Health fetches from both `/api/health/gpu` (total VRAM, utilization, temperature) and `/api/health/gpu/processes` (per-process breakdown), then displays the top 8 processes by memory usage with human-readable formatting (MB/GB). The badge and row share one decimal (`12.4%`), and a "Details →" link opens the full `/gpu` monitor.
+
+## System Health Page (`/health`)
+
+> **Last Updated:** 2026-09-10
+
+- **Status banner** combines host status (`GET /api/render/health`) with adapter states (`GET /api/health`): any unreachable adapter forces "Degraded" and names it (e.g. "comfyui is unreachable"). Previously it read host status only and said "Healthy" while ComfyUI was offline.
+- **Service Checks** probes only `comfyui` + `ollama` — the two services with a backend probe endpoint (`POST /api/health/services/:id/check`). `backend` renders from live store state (no probe; the page couldn't load without it). Blender/Unity are editor MCP bridges with no HTTP check and were removed after verifying the endpoint returns `Unknown service` for them (permanent false "offline").
+- **ComfyUI start** uses a non-blocking two-step confirm when VRAM > 80% (inline banner, no `window.confirm`/`alert`); failures stay in the Action Log. The offline fix hint points at `scripts\start-services.ps1 -ComfyUI` (the old `third_party/ComfyUI` path doesn't exist).
+- **Performance History** gives Temp its own tab + dynamic °C axis (it was plotted on the 0–100% axis) and uses a numeric time axis; metric tabs expose `aria-pressed`.
+- Header has Refresh-all + "Updated Xs ago" (`healthStore.fetchSystemStatus` stamps `lastUpdated`).
 
 ## Vision Analysis (Ollama)
 

@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card } from "../../components/common";
-import { CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, XCircle, RefreshCw } from "lucide-react";
 
 interface GoService {
   name: string;
@@ -25,39 +25,71 @@ interface ServiceStatus {
 export function GoServicesCard() {
   const [services, setServices] = useState<ServiceStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastChecked, setLastChecked] = useState<number | null>(null);
+
+  const check = useCallback(async (signal?: AbortSignal) => {
+    const results = await Promise.allSettled(
+      GO_SERVICES.map(async (svc) => {
+        try {
+          const res = await fetch(`http://127.0.0.1:${svc.port}${svc.healthPath}`, {
+            method: "GET",
+            headers: { Accept: "application/json" },
+            signal: signal ?? AbortSignal.timeout(2000),
+          });
+          return { name: svc.name, running: res.ok, port: svc.port };
+        } catch {
+          return { name: svc.name, running: false, port: svc.port };
+        }
+      }),
+    );
+    return results.map((r) => (r.status === "fulfilled" ? r.value : { name: "?", running: false, port: 0 }));
+  }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
     let cancelled = false;
-    const check = async () => {
-      const results = await Promise.allSettled(
-        GO_SERVICES.map(async (svc) => {
-          try {
-            const res = await fetch(`http://127.0.0.1:${svc.port}${svc.healthPath}`, {
-              method: "GET",
-              headers: { Accept: "application/json" },
-              signal: AbortSignal.timeout(2000),
-            });
-            return { name: svc.name, running: res.ok, port: svc.port };
-          } catch {
-            return { name: svc.name, running: false, port: svc.port };
-          }
-        }),
-      );
+    const run = async () => {
+      const list = await check(controller.signal);
       if (!cancelled) {
-        setServices(results.map((r) => (r.status === "fulfilled" ? r.value : { name: "?", running: false, port: 0 })));
+        setServices(list);
         setLoading(false);
+        setLastChecked(Date.now());
       }
     };
-    check();
-    const interval = setInterval(check, 15000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, []);
+    run();
+    const interval = setInterval(run, 15000);
+    return () => { cancelled = true; controller.abort(); clearInterval(interval); };
+  }, [check]);
 
   const online = services.filter((s) => s.running).length;
   const total = services.length;
+  const ago = lastChecked ? Math.max(0, Math.round((Date.now() - lastChecked) / 1000)) : null;
+
+  const handleRefresh = async () => {
+    setLoading(true);
+    setServices(await check());
+    setLoading(false);
+    setLastChecked(Date.now());
+  };
 
   return (
-    <Card title={`Go Sidecars (${online}/${total} online)`}>
+    <Card
+      title={`Go Sidecars (${online}/${total} online)`}
+      headerActions={
+        <div className="flex items-center gap-2">
+          {ago != null && ago >= 2 && (
+            <span className="text-[11px] text-muted/60 tabular-nums">{ago}s ago</span>
+          )}
+          <button
+            onClick={handleRefresh}
+            className="p-1.5 rounded-lg bg-white/5 text-muted hover:text-white"
+            title="Re-check Go services now"
+          >
+            <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
+      }
+    >
       {loading ? (
         <p className="text-xs text-muted">Checking Go services...</p>
       ) : (

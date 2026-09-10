@@ -42,7 +42,7 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
             <h3 className="font-semibold text-sm">ComfyUI</h3>
             <p className="text-xs text-muted">
               {status.running ? `Running on port ${status.port}` : "Not running"}
-              {status.version?.version && ` • v${status.version.version}`}
+              {status.version?.version && ` • v${status.version.version.replace(/^v+/, "")}`}
             </p>
           </div>
         </div>

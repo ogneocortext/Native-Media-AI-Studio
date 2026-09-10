@@ -12,6 +12,9 @@ import {
   Cpu,
   HardDrive,
   Database,
+  RefreshCw,
+  Loader2,
+  Clock3,
 } from "lucide-react";
 import { useHealth } from "../../hooks";
 import { useHealthStore } from "../../state/healthStore";
@@ -42,10 +45,34 @@ export function HealthPage() {
   const [comfyuiAction, setComfyuiAction] = useState<string | null>(null);
   const [vramStatus, setVramStatus] = useState<Record<string, unknown> | null>(null);
   const [actionLog, setActionLog] = useState<Array<{ time: string; message: string; type: string }>>([]);
+  const [pendingHighVram, setPendingHighVram] = useState<number | null>(null);
+  const [refreshingAll, setRefreshingAll] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   const fetchComfyUI = useHealthStore((s) => s.fetchComfyUIStatus);
   const fetchVRAM = useHealthStore((s) => s.fetchVRAMStatus);
   const granular = useHealthStore((s) => s.granular);
+  const lastUpdated = useHealthStore((s) => s.lastUpdated);
+  const refreshAll = useHealthStore((s) => s.refreshAll);
+
+  // ticking clock for "updated Xs ago"
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  const handleRefreshAll = async () => {
+    setRefreshingAll(true);
+    try {
+      await refreshAll();
+      addLog("Refreshed all health data", "success");
+    } catch (e) {
+      addLog(`Refresh failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+    } finally {
+      setRefreshingAll(false);
+      setNowTick(Date.now());
+    }
+  };
 
   // Sync ComfyUI status from granular store
   useEffect(() => {
@@ -78,18 +105,15 @@ export function HealthPage() {
           {
             const vramData = await fetchVRAM();
             const _vram = (vramData as unknown as { vram?: { percent: number } })?.vram;
-            if (_vram && _vram.percent > 80) {
-              addLog(`Warning: VRAM is at ${_vram.percent}%`, "warning");
-              const proceed = window.confirm(
-                `VRAM is at ${_vram.percent}%. Starting ComfyUI may cause performance issues. Continue?`,
-              );
-              if (!proceed) {
-                addLog("Start cancelled by user", "warning");
-                setComfyuiLoading(false);
-                setComfyuiAction(null);
-                return;
-              }
+            if (_vram && _vram.percent > 80 && pendingHighVram !== _vram.percent) {
+              // Non-blocking two-step confirm: arm the inline banner, let the user decide.
+              setPendingHighVram(_vram.percent);
+              addLog(`Warning: VRAM is at ${_vram.percent}% — confirm Start below to proceed`, "warning");
+              setComfyuiLoading(false);
+              setComfyuiAction(null);
+              return;
             }
+            setPendingHighVram(null);
           }
           addLog("Starting ComfyUI...", "info");
           result = await startComfyUI();
@@ -99,7 +123,6 @@ export function HealthPage() {
             addLog(`Failed: ${result.message}`, "error");
             if (result.suggestion) {
               addLog(`Suggestion: ${result.suggestion}`, "warning");
-              alert(`${result.message}\n\n${result.suggestion}`);
             }
           }
           break;
@@ -188,13 +211,59 @@ export function HealthPage() {
   const cpuUsage = health?.cpu?.usage_percent || 0;
   const memUsage = health?.memory?.percent || 0;
   const diskUsage = health?.disk?.percent || 0;
-  const overallHealth = health?.status || "unknown";
+
+  // Banner reflects BOTH host resources and adapter services — previously it only
+  // read health.status (host), so it said "Healthy" while ComfyUI was offline.
+  const offlineAdapters = Object.entries(serviceStatus?.adapters || {})
+    .filter(([, s]) => s !== "connected" && s !== "online" && s !== "healthy")
+    .map(([name]) => name.replace(/_/g, " "));
+  const hostStatus = health?.status || "unknown";
+  const overallHealth =
+    offlineAdapters.length > 0 ? "degraded" : hostStatus;
+  const overallDetail =
+    offlineAdapters.length > 0
+      ? `${offlineAdapters.join(", ")} ${offlineAdapters.length === 1 ? "is" : "are"} unreachable`
+      : hostStatus === "healthy"
+        ? "All systems operational"
+        : hostStatus === "degraded"
+          ? "Some services experiencing issues"
+          : hostStatus === "unknown"
+            ? "Waiting for health data…"
+            : "Critical issues detected";
+
+  // Backend sends platform="Windows" + platform_version="Windows 11 ..." — dedupe the prefix.
+  const platformLabel = (() => {
+    const p = (health?.platform || "").trim();
+    const v = (health?.platform_version || "").trim();
+    if (!p) return v || "Unknown platform";
+    if (!v) return p;
+    return v.toLowerCase().startsWith(p.toLowerCase()) ? v : `${p} ${v}`;
+  })();
+
+  const updatedAgoSec =
+    lastUpdated != null ? Math.max(0, Math.round((nowTick - lastUpdated.getTime()) / 1000)) : null;
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">System Health</h1>
-        <p className="text-muted mt-1">System health and service status</p>
+    <div className="p-6 max-w-[1200px] mx-auto pb-24">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">System Health</h1>
+          <p className="text-muted mt-1">System health and service status</p>
+          {updatedAgoSec != null && (
+            <p className="text-[11px] text-muted/60 mt-1 flex items-center gap-1.5">
+              <Clock3 size={11} />
+              {updatedAgoSec >= 2 ? `Updated ${updatedAgoSec}s ago` : "Updated just now"}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={handleRefreshAll}
+          disabled={refreshingAll || loading}
+          className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-50"
+        >
+          {refreshingAll ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+          Refresh all
+        </button>
       </div>
 
       {/* Overall Status Banner */}
@@ -220,23 +289,41 @@ export function HealthPage() {
             </div>
             <div>
               <h3 className="font-semibold text-lg capitalize">{overallHealth}</h3>
-              <p className="text-sm text-muted">
-                {overallHealth === "healthy"
-                  ? "All systems operational"
-                  : overallHealth === "degraded"
-                    ? "Some services experiencing issues"
-                    : "Critical issues detected"}
-              </p>
+              <p className="text-sm text-muted">{overallDetail}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Monitor size={16} className="text-muted" />
-            <span className="text-sm text-muted">
-              {health?.platform} {health?.platform_version}
-            </span>
+            <span className="text-sm text-muted">{platformLabel}</span>
           </div>
         </div>
       </Card>
+
+      {/* High-VRAM start confirmation (non-blocking — replaces window.confirm) */}
+      {pendingHighVram != null && (
+        <div className="rounded-lg bg-amber-500/10 border border-amber-500/25 px-3 py-2.5 mb-6 flex flex-wrap items-center gap-2" role="alert">
+          <AlertTriangle size={14} className="text-amber-400" />
+          <span className="text-xs text-amber-200 flex-1 min-w-[220px]">
+            VRAM is at {pendingHighVram}%. Starting ComfyUI may cause performance issues — close a heavy app first, or confirm below.
+          </span>
+          <button
+            onClick={() => handleComfyUIAction("start")}
+            disabled={comfyuiLoading}
+            className="text-[11px] px-2.5 py-1.5 rounded-md bg-amber-600 text-white hover:bg-amber-500 disabled:opacity-50"
+          >
+            Start anyway
+          </button>
+          <button
+            onClick={() => {
+              setPendingHighVram(null);
+              addLog("Start cancelled by user", "warning");
+            }}
+            className="text-[11px] px-2.5 py-1.5 rounded-md bg-white/5 border border-white/10 text-muted hover:text-white"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* FFmpeg Status */}
       <FFmpegStatus />
@@ -376,8 +463,8 @@ export function HealthPage() {
                       <p className="text-xs text-muted">To fix:</p>
                       <ol className="text-xs text-muted list-decimal list-inside space-y-1">
                         <li>
-                          Start ComfyUI:{" "}
-                          <code className="bg-background px-1 rounded">cd third_party/ComfyUI && python main.py</code>
+                          Start ComfyUI from this page (Start button above), or run{" "}
+                          <code className="bg-background px-1 rounded">scripts\start-services.ps1 -ComfyUI</code>
                         </li>
                         <li>Or update URL in Settings if using a different port</li>
                       </ol>

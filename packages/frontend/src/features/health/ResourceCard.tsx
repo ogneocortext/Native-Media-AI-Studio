@@ -1,6 +1,6 @@
 import React from "react";
 import { Card } from "../../components/common";
-import { getUsageColor } from "./utils";
+import { getUsageColor, getUsageLabel } from "./utils";
 
 export interface ResourceCardProps {
   icon: React.ComponentType<{ size?: number; className?: string }>;
@@ -46,8 +46,8 @@ export function ResourceCard({ icon: Icon, iconColor, label, cores, usage, subte
       </div>
       <div className="space-y-2">
         <div className="flex justify-between text-sm">
-          <span className="text-muted">Usage</span>
-          <span className="font-bold">{usage.toFixed(1)}%</span>
+          <span className="text-muted">{getUsageLabel(usage)}</span>
+          <span className="font-bold tabular-nums">{usage.toFixed(1)}%</span>
         </div>
         <div className="h-2 bg-background rounded-full overflow-hidden">
           <div

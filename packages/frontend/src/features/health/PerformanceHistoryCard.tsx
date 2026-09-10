@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { Card } from "../../components/common";
 import { TrendingUp, Play, Pause } from "lucide-react";
-import { useHealthStore, useSystemHealth } from "../../state/healthStore";
+import { useHealthStore } from "../../state/healthStore";
 
 interface DataPoint {
   time: number;
@@ -71,12 +71,25 @@ export function PerformanceHistoryCard() {
   }, [loadData, autoRefresh]);
 
   const metrics = [
-    { key: "gpu", label: "GPU", color: "#8b5cf6" },
-    { key: "vram", label: "VRAM", color: "#06b6d4" },
-    { key: "cpu", label: "CPU", color: "#10b981" },
-    { key: "memory", label: "Memory", color: "#f59e0b" },
+    { key: "gpu", label: "GPU", color: "#8b5cf6", unit: "%", domain: [0, 100] as [number, number] },
+    { key: "vram", label: "VRAM", color: "#06b6d4", unit: "%", domain: [0, 100] as [number, number] },
+    { key: "cpu", label: "CPU", color: "#10b981", unit: "%", domain: [0, 100] as [number, number] },
+    { key: "memory", label: "Memory", color: "#f59e0b", unit: "%", domain: [0, 100] as [number, number] },
+    { key: "temp", label: "Temp", color: "#f87171", unit: "°C", domain: "temp" as const },
   ];
   const activeMetric = metrics.find((m) => m.key === activeChart) || metrics[0];
+
+  // Temperature needs its own scale — plotting °C on a 0–100% axis flattens the line.
+  const tempDomain: [number, number] = (() => {
+    const vals = history.map((d) => d.temp ?? 0).filter((v) => v > 0);
+    if (!vals.length) return [0, 100];
+    const lo = Math.floor((Math.min(...vals) - 5) / 10) * 10;
+    const hi = Math.ceil((Math.max(...vals) + 5) / 10) * 10;
+    return [Math.max(0, lo), Math.max(hi, lo + 20)];
+  })();
+  const yDomain: [number, number] =
+    activeMetric.domain === "temp" ? tempDomain : activeMetric.domain;
+  const yTick = (v: number | string) => `${v}${activeMetric.unit}`;
 
   return (
     <Card
@@ -96,11 +109,12 @@ export function PerformanceHistoryCard() {
     >
       {history.length > 1 ? (
         <>
-          <div className="flex items-center gap-1 mb-4">
+          <div className="flex items-center gap-1 mb-4 flex-wrap" role="group" aria-label="Performance metric">
             {metrics.map((m) => (
               <button
                 key={m.key}
                 onClick={() => setActiveChart(m.key)}
+                aria-pressed={activeChart === m.key}
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
                   activeChart === m.key ? "text-white" : "bg-gray-700/50 text-gray-400 hover:bg-gray-700"
                 }`}
@@ -112,7 +126,7 @@ export function PerformanceHistoryCard() {
           </div>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={history} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+              <AreaChart data={history} margin={{ top: 5, right: 8, left: -8, bottom: 5 }}>
                 <defs>
                   <linearGradient id="perfGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={activeMetric.color} stopOpacity={0.5} />
@@ -122,27 +136,41 @@ export function PerformanceHistoryCard() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
                 <XAxis
-                  dataKey="label"
+                  dataKey="time"
+                  type="number"
+                  scale="time"
+                  domain={["dataMin", "dataMax"]}
+                  tickFormatter={(ms: number) =>
+                    new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+                  }
                   tick={{ fontSize: 10, fill: "#9ca3af" }}
-                  interval="preserveStartEnd"
+                  tickCount={4}
+                  tickMargin={6}
                   axisLine={{ stroke: "#374151" }}
                   tickLine={false}
                 />
                 <YAxis
                   tick={{ fontSize: 10, fill: "#9ca3af" }}
-                  domain={[0, 100]}
+                  domain={yDomain}
                   axisLine={false}
                   tickLine={false}
-                  tickFormatter={(v) => `${v}%`}
+                  tickFormatter={yTick}
                 />
                 <Tooltip
                   contentStyle={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "8px" }}
                   labelStyle={{ color: "#9ca3af" }}
+                  labelFormatter={(ms) =>
+                    typeof ms === "number"
+                      ? new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+                      : String(ms)
+                  }
+                  formatter={(value) => [`${value}${activeMetric.unit}`, activeMetric.label]}
                 />
                 <Area
                   type="monotone"
                   dataKey={activeChart}
-                  name={`${activeMetric.label} %`}
+                  name={activeMetric.label}
+                  unit={activeMetric.unit}
                   stroke={activeMetric.color}
                   strokeWidth={2}
                   fill="url(#perfGradient)"
@@ -152,18 +180,19 @@ export function PerformanceHistoryCard() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-white/5">
+          <div className="grid grid-cols-5 gap-2 mt-3 pt-3 border-t border-white/5">
             {metrics.map((m) => {
               const last = history[history.length - 1]?.[m.key as keyof DataPoint] as number;
               return (
                 <button
                   key={m.key}
                   onClick={() => setActiveChart(m.key)}
+                  aria-pressed={activeChart === m.key}
                   className={`text-left p-2 rounded-lg ${activeChart === m.key ? "bg-white/5" : "hover:bg-white/5"}`}
                 >
                   <span className="text-[10px] text-gray-400 block">{m.label}</span>
-                  <span className="text-sm font-bold" style={{ color: m.color }}>
-                    {last?.toFixed(0) ?? "—"}%
+                  <span className="text-sm font-bold tabular-nums" style={{ color: m.color }}>
+                    {last?.toFixed(0) ?? "—"}{m.unit}
                   </span>
                 </button>
               );

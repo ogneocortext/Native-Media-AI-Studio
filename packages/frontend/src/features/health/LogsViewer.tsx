@@ -200,8 +200,18 @@ export function LogsViewer() {
   return (
     <Card className="mt-6">
       <div
-        className="flex items-center justify-between cursor-pointer"
+        className="flex items-center justify-between cursor-pointer rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
         onClick={() => setExpanded(!expanded)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        aria-label={expanded ? "Collapse application logs" : "Expand application logs"}
       >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">

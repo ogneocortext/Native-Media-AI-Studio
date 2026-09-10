@@ -140,6 +140,7 @@ export const useHealthStore = create<HealthState>((set, get) => ({
       set({
         ...(systemHealth ? { systemHealth } : {}),
         ...(serviceStatus ? { serviceStatus } : {}),
+        ...(hasPartialData ? { lastUpdated: new Date() } : {}),
         error: hasErrors
           ? hasPartialData
             ? "Some health data could not be loaded"
