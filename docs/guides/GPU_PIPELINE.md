@@ -135,6 +135,18 @@ curl http://localhost:11434/api/generate -d '{"model":"gemma3:4b","prompt":"Desc
 
 *Outputs rename/duplicates/cover extraction: `docs/guides/FILE_MANAGEMENT.md`.*
 
+## Frontend `/gpu` Monitor Page (`packages/frontend/src/features/gpu/GpuMonitorPage.tsx`)
+
+> **Last Updated:** 2026-09-10
+
+- **Header:** poll interval (5/10/30s), Pause/Resume, manual Refresh. "Updated Xs ago" ticks every 5s; tab-hidden pauses polling with a `(tab hidden — polling paused)` note. Overlapping polls are skipped via in-flight guard.
+- **Metric cards:** Temperature (°C + Cool/Normal/Warm/Hot/Critical), VRAM (`1.2G / 8.0G` + `%` + free), GPU Utilization (+ mem-controller %), Thermal Headroom (High/Medium/Low + `N°C to throttle`, throttle point `83°C`). Sparklines follow the selected time window.
+- **Trending controls:** window `5m/15m/1h/6h/12h/24h`, `N points in view • M stored • DB ✓ / local only`, Export CSV (needs ≥2 points), two-step Clear (first click arms "Confirm wipe?", wipes local cache + DB `14-day retention`).
+- **Charts:** Temperature (throttle reference line) and VRAM % + GPU % with color legends, tooltips, and brush zoom when `>40` points. Stats row shows cur/avg/min–max + linear-regression trend (`flat/up/down`) and a one-line pattern summary (load building, VRAM creep, compute burst, thermal climb, easing, stable).
+- **VRAM attribution:** stacked bar + legend show each process's share of *total* VRAM plus an "Unattributed" segment (driver reserve, caches, untracked PIDs). Header shows `N shown • X attributed • Y used`. Per-process rows show `% of VRAM` and `GB/MB` formatting.
+- **Long-term overview:** collapsed by default (Show/Hide) to keep Processes above the fold; up to `17280` points (`24h` at `5s`), persisted throttled to `localStorage` (every `15s`) + DB hydration deduped by timestamp.
+- **Errors:** banner shows message + attempt count (`auto-retries every Ns`) with a "Retry now" button.
+
 ## Configuration
 
 ```

@@ -121,6 +121,20 @@ function getUsageColor(pct: number): string {
   return "#ef4444";
 }
 
+const THROTTLE_TEMP = 83;
+
+function formatMB(mb?: number | null): string {
+  if (mb == null || Number.isNaN(mb)) return "—";
+  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
+  return `${Math.round(mb).toLocaleString()} MB`;
+}
+
+function formatMBPair(used?: number | null, total?: number | null): string {
+  if (used == null || total == null) return "—";
+  const fmt = (v: number) => (v >= 1024 ? `${(v / 1024).toFixed(1)}G` : `${Math.round(v)}M`);
+  return `${fmt(used)} / ${fmt(total)}`;
+}
+
 const MAX_HISTORY = 17280; // 24h at 5s poll (~500KB JSON)
 const HISTORY_KEY = "gpu:history:v2";
 const POLL_OPTIONS = [5, 10, 30] as const;
@@ -202,10 +216,15 @@ export function GpuMonitorPage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [consecutiveErrors, setConsecutiveErrors] = useState(0);
   const [history, setHistory] = useState<DataPoint[]>(() => loadHistory());
   const [showIdle, setShowIdle] = useState(false);
   const [query, setQuery] = useState("");
   const [paused, setPaused] = useState(false);
+  const [tabHidden, setTabHidden] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const [showOverview, setShowOverview] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const [range, setRange] = useState<RangeId>(() => {
     const v = localStorage.getItem("gpu:range") as RangeId | null;
     return (RANGE_OPTIONS.some((r) => r.id === v) ? v : "1h") as RangeId;
@@ -224,9 +243,13 @@ export function GpuMonitorPage() {
   useEffect(() => {
     localStorage.setItem("gpu:range", range);
   }, [range]);
-  // persist history (debounced via effect)
+  // persist history (throttled — stringify at most every 15s, not every poll)
+  const persistAtRef = useRef(0);
   useEffect(() => {
     if (history.length === 0) return;
+    const now = Date.now();
+    if (now - persistAtRef.current < 15000) return;
+    persistAtRef.current = now;
     try {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-MAX_HISTORY)));
     } catch {
@@ -235,19 +258,27 @@ export function GpuMonitorPage() {
     }
   }, [history]);
 
-  // visibility pause (don't waste NVML while tab hidden)
+  // visibility pause (don't waste NVML while tab hidden) — mirrored to state for render
   useEffect(() => {
     const onVis = () => {
       isHiddenRef.current = document.hidden;
+      setTabHidden(document.hidden);
     };
+    onVis();
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
 
+  // ticking clock so "updated Xs ago" and range windows stay fresh while paused
+  useEffect(() => {
+    if (paused) return;
+    const id = setInterval(() => setNowTick(Date.now()), 5000);
+    return () => clearInterval(id);
+  }, [paused]);
+
   const [dbSynced, setDbSynced] = useState(false);
   const hasLoadedRef = useRef(false);
 
-  // Database-backed history hydration (survives reloads / reboots / across devices if DB shared)
   const hydrateFromDB = useCallback(async (rangeId: RangeId) => {
     try {
       const { points } = await getGPUHistory(rangeId, 4000);
@@ -260,11 +291,15 @@ export function GpuMonitorPage() {
         util: p.gpu_util,
       }));
       setHistory((prev) => {
-        // merge DB points + any newer live points not yet in DB (last 30s)
+        // merge DB points + any newer live points not yet in DB (last 30s), deduped by timestamp
         const newestDb = dbPoints[dbPoints.length - 1]?.time ?? 0;
         const liveTail = prev.filter((x) => x.time > newestDb);
-        const merged = [...dbPoints, ...liveTail].sort((a, b) => a.time - b.time).slice(-MAX_HISTORY);
-        // also refresh localStorage cache from merged
+        const seen = new Set<number>();
+        const merged = [...dbPoints, ...liveTail]
+          .sort((a, b) => a.time - b.time)
+          .filter((p) => (seen.has(p.time) ? false : (seen.add(p.time), true)))
+          .slice(-MAX_HISTORY);
+        persistAtRef.current = 0; // force a persist after merge
         try { localStorage.setItem(HISTORY_KEY, JSON.stringify(merged.slice(-MAX_HISTORY))); } catch { /* ignore */ }
         return merged;
       });
@@ -277,9 +312,12 @@ export function GpuMonitorPage() {
 
   useEffect(() => { hydrateFromDB(range); }, [hydrateFromDB, range]);
 
+  const inFlightRef = useRef(false);
   const fetchAll = useCallback(
     async (isManual = false) => {
       if (isHiddenRef.current && !isManual) return;
+      if (inFlightRef.current) return; // skip overlapping polls when backend is slow
+      inFlightRef.current = true;
       if (!hasLoadedRef.current) setInitialLoading(true);
       else setRefreshing(true);
       setError(null);
@@ -291,10 +329,14 @@ export function GpuMonitorPage() {
         setSnapshot(gpu);
         setProcesses(procs.processes || []);
         setLastUpdated(Date.now());
+        setNowTick(Date.now());
+        setConsecutiveErrors(0);
         hasLoadedRef.current = true;
         if (gpu.available) {
           setHistory((prev) => {
             const now = Date.now();
+            // avoid duplicate points from rapid manual refresh (<2s apart)
+            if (prev.length && now - prev[prev.length - 1].time < 2000) return prev;
             const point: DataPoint = {
               time: now,
               label: new Date(now).toLocaleTimeString([], {
@@ -311,9 +353,11 @@ export function GpuMonitorPage() {
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to fetch GPU telemetry");
+        setConsecutiveErrors((c) => c + 1);
       } finally {
         setInitialLoading(false);
         setRefreshing(false);
+        inFlightRef.current = false;
       }
     },
     [],
@@ -360,16 +404,20 @@ export function GpuMonitorPage() {
 
   const hiddenIdleCount = processes.length - processes.filter((p) => (p.mem_mb ?? 0) > 1).length;
   const totalAccounted = processes.reduce((a, p) => a + (p.mem_mb || 0), 0);
+  const vramTotal = snapshot?.memory_total_mb ?? 0;
+  const unaccountedMb = Math.max(0, (snapshot?.memory_used_mb ?? 0) - totalAccounted);
+  const unaccountedShare = vramTotal ? (unaccountedMb / vramTotal) * 100 : 0;
 
-  // ---- Trending history: window + downsample + stats ----
+  // ---- Trending history: window + downsample + stats (nowTick keeps cutoff fresh while paused) ----
   const rangeMs = useMemo(() => RANGE_OPTIONS.find((r) => r.id === range)?.ms ?? 3600000, [range]);
   const windowHistory = useMemo(() => {
     if (history.length === 0) return [];
-    const cutoff = Date.now() - rangeMs;
+    const cutoff = nowTick - rangeMs;
     // keep at least 2 points even if range is small and history sparse
     const win = history.filter((p) => p.time >= cutoff);
     return win.length >= 2 ? win : history.slice(-20);
-  }, [history, rangeMs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [history, rangeMs, range, nowTick]);
   const chartData = useMemo(() => downsample(windowHistory, 300), [windowHistory]);
   const tempStats = useMemo(() => calcStats(windowHistory.map((d) => d.temp)), [windowHistory]);
   const vramStats = useMemo(() => calcStats(windowHistory.map((d) => d.vram)), [windowHistory]);
@@ -388,21 +436,28 @@ export function GpuMonitorPage() {
     URL.revokeObjectURL(url);
   }, [windowHistory, range]);
   const handleClear = useCallback(async () => {
-    if (!confirm(`Clear ${history.length} stored points? This wipes local cache + database (14-day retention).`)) return;
+    if (!confirmClear) {
+      setConfirmClear(true);
+      setTimeout(() => setConfirmClear(false), 4000);
+      return;
+    }
+    setConfirmClear(false);
     setHistory([]);
     localStorage.removeItem(HISTORY_KEY);
     try { await clearGPUHistory(0); hydrateFromDB(range); } catch { /* ignore */ }
-  }, [history.length, hydrateFromDB, range]);
+  }, [confirmClear, hydrateFromDB, range]);
+
+  const lastUpdatedAgo = lastUpdated ? Math.max(0, Math.round((nowTick - lastUpdated) / 1000)) : null;
 
   return (
-    <div className="max-w-[1100px] mx-auto p-6 space-y-4">
+    <div className="max-w-[1100px] mx-auto p-6 pb-24 space-y-4">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <CpuIcon size={22} className="text-violet-400" />
             GPU Monitor
-            {refreshing && <Loader2 size={14} className="animate-spin text-violet-400" />}
+            {refreshing && <Loader2 size={14} className="animate-spin text-violet-400" aria-label="Refreshing" />}
             {paused && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/20">Paused</span>}
           </h1>
           <p className="text-xs text-muted mt-1">
@@ -411,7 +466,11 @@ export function GpuMonitorPage() {
           {lastUpdated && (
             <p className="text-[11px] text-muted/60 mt-1 flex items-center gap-1.5">
               <Clock3 size={11} />
-              Last updated {new Date(lastUpdated).toLocaleTimeString()} • every {intervalSec}s{paused ? " (paused)" : isHiddenRef.current ? " (tab hidden)" : ""}
+              {lastUpdatedAgo != null && lastUpdatedAgo >= 2 ? (
+                <>Updated {lastUpdatedAgo}s ago • every {intervalSec}s{paused ? " (paused)" : tabHidden ? " (tab hidden — polling paused)" : ""}</>
+              ) : (
+                <>Last updated {new Date(lastUpdated).toLocaleTimeString()} • every {intervalSec}s{paused ? " (paused)" : tabHidden ? " (tab hidden)" : ""}</>
+              )}
             </p>
           )}
         </div>
@@ -447,8 +506,18 @@ export function GpuMonitorPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-300 flex items-center gap-2">
-          <AlertTriangle size={14} /> {error}
+        <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-300 flex flex-wrap items-center gap-2" role="alert">
+          <AlertTriangle size={14} />
+          <span className="flex-1 min-w-[200px]">
+            {error}
+            {consecutiveErrors > 1 && ` (attempt ${consecutiveErrors} — auto-retries every ${intervalSec}s)`}
+          </span>
+          <button
+            onClick={() => fetchAll(true)}
+            className="text-[11px] px-2.5 py-1 rounded-md bg-red-500/15 border border-red-500/25 text-red-200 hover:bg-red-500/25"
+          >
+            Retry now
+          </button>
         </div>
       )}
 
@@ -483,7 +552,7 @@ export function GpuMonitorPage() {
               </p>
               <div className="h-[36px] mt-2 -mx-1 opacity-90">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={history.slice(-30)} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+                  <AreaChart data={windowHistory.slice(-30)} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
                     <Area type="monotone" dataKey="temp" stroke={tempColor} strokeWidth={1.5} fill={tempColor + "33"} dot={false} isAnimationActive={false} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -495,7 +564,7 @@ export function GpuMonitorPage() {
               <div className="flex items-center gap-2 mb-2">
                 <MemoryStick size={14} className="text-violet-400" />
                 <span className="text-xs text-muted">VRAM</span>
-                <span className="ml-auto text-[11px] text-muted">{snapshot.memory_used_mb} / {snapshot.memory_total_mb} MB</span>
+                <span className="ml-auto text-[11px] text-muted tabular-nums">{formatMBPair(snapshot.memory_used_mb, snapshot.memory_total_mb)}</span>
               </div>
               <div className="flex items-center gap-3">
                 <p className="text-2xl font-bold" style={{ color: getUsageColor(memPct) }}>
@@ -513,11 +582,11 @@ export function GpuMonitorPage() {
                 <div className="absolute top-0 bottom-0 w-0.5 bg-white/30" style={{ left: "75%" }} title="75% warn" />
               </div>
               <p className="text-[11px] text-muted mt-1.5 flex items-center gap-1">
-                <Zap size={11} className="text-violet-400" /> {snapshot.memory_free_mb} MB free
+                <Zap size={11} className="text-violet-400" /> {formatMB(snapshot.memory_free_mb)} free
               </p>
               <div className="h-[28px] mt-1 -mx-1 opacity-90">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={history.slice(-30)} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+                  <AreaChart data={windowHistory.slice(-30)} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
                     <Area type="monotone" dataKey="vram" stroke="#a855f7" strokeWidth={1.5} fill="#a855f733" dot={false} isAnimationActive={false} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -539,7 +608,7 @@ export function GpuMonitorPage() {
               <p className="text-xs text-muted mt-1.5">Mem ctrl: {snapshot.memory_controller_utilization ?? 0}%</p>
               <div className="h-[36px] mt-2 -mx-1 opacity-90">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={history.slice(-30)} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+                  <AreaChart data={windowHistory.slice(-30)} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
                     <Area type="monotone" dataKey="util" stroke="#22c55e" strokeWidth={1.5} fill="#22c55e33" dot={false} isAnimationActive={false} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -551,12 +620,13 @@ export function GpuMonitorPage() {
               <div className="flex items-center gap-2 mb-2">
                 <Activity size={14} className="text-amber-400" />
                 <span className="text-xs text-muted">Thermal Headroom</span>
+                <span className="ml-auto text-[11px] text-muted tabular-nums">{Math.max(0, THROTTLE_TEMP - temp).toFixed(0)}°C to throttle</span>
               </div>
               <p className="text-2xl font-bold text-white">{temp >= 85 ? "Low" : temp >= 70 ? "Medium" : "High"}</p>
-              <div className="mt-2 flex gap-1">
-                <div className={`h-1.5 flex-1 rounded-full ${temp < 65 ? "bg-emerald-500" : "bg-white/10"}`} />
-                <div className={`h-1.5 flex-1 rounded-full ${temp >= 65 && temp < 85 ? "bg-amber-500" : temp >= 85 ? "bg-amber-500/40" : "bg-white/10"}`} />
-                <div className={`h-1.5 flex-1 rounded-full ${temp >= 85 ? "bg-red-500" : "bg-white/10"}`} />
+              <div className="mt-2 flex gap-1" role="img" aria-label={`Thermal headroom ${temp >= 85 ? "low" : temp >= 70 ? "medium" : "high"}, ${Math.max(0, THROTTLE_TEMP - temp).toFixed(0)} degrees below ${THROTTLE_TEMP} degree throttle point`}>
+                <div className={`h-1.5 flex-1 rounded-full ${temp < 65 ? "bg-emerald-500" : "bg-emerald-500/25"}`} title="Cool zone (<65°C)" />
+                <div className={`h-1.5 flex-1 rounded-full ${temp >= 85 ? "bg-amber-500/30" : temp >= 65 ? "bg-amber-500" : "bg-white/10"}`} title="Warm zone (65–85°C)" />
+                <div className={`h-1.5 flex-1 rounded-full ${temp >= 85 ? "bg-red-500" : "bg-white/10"}`} title={`Hot zone (≥85°C, throttle at ${THROTTLE_TEMP}°C)`} />
               </div>
               <p className="text-xs text-muted mt-1.5">
                 {temp >= 85
@@ -570,17 +640,24 @@ export function GpuMonitorPage() {
 
           {/* Trending controls */}
           <Card className="!p-3">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <span className="text-xs text-muted flex items-center gap-1.5"><History size={12} /> Window</span>
-              <div className="flex items-center gap-1 rounded-lg bg-white/5 border border-white/10 p-1">
+              <div className="flex items-center gap-1 rounded-lg bg-white/5 border border-white/10 p-1" role="group" aria-label="History time window">
                 {RANGE_OPTIONS.map((r) => (
-                  <button key={r.id} onClick={() => setRange(r.id)} className={`text-[11px] px-2.5 py-1 rounded-md transition ${range === r.id ? "bg-violet-600 text-white" : "text-muted hover:text-white hover:bg-white/10"}`}>{r.label}</button>
+                  <button key={r.id} onClick={() => setRange(r.id)} aria-pressed={range === r.id} className={`text-[11px] px-2.5 py-1 rounded-md transition ${range === r.id ? "bg-violet-600 text-white" : "text-muted hover:text-white hover:bg-white/10"}`}>{r.label}</button>
                 ))}
               </div>
-              <span className="text-[11px] text-muted/70">{windowHistory.length} points • {history.length} stored • {rangeLabel} window{dbSynced ? " • DB ✓" : " • local only"}</span>
+              <span className="text-[11px] text-muted/70 tabular-nums">{windowHistory.length} points in view • {history.length} stored • {rangeLabel} window{dbSynced ? " • DB ✓" : " • local only"}</span>
               <div className="ml-auto flex items-center gap-1.5">
-                <button onClick={handleExport} disabled={windowHistory.length < 2} className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 disabled:opacity-40"><Download size={12} /> Export CSV</button>
-                <button onClick={handleClear} disabled={history.length === 0} className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-muted hover:text-red-300 disabled:opacity-40"><Trash2 size={12} /> Clear</button>
+                <button onClick={handleExport} disabled={windowHistory.length < 2} title={windowHistory.length < 2 ? "Need at least 2 points to export" : `Export ${windowHistory.length} points as CSV`} className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 disabled:opacity-40"><Download size={12} /> Export CSV</button>
+                <button
+                  onClick={handleClear}
+                  disabled={history.length === 0}
+                  title={confirmClear ? "Click again to confirm wipe of local cache + database" : "Clear local cache + database history"}
+                  className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border disabled:opacity-40 transition ${confirmClear ? "bg-red-500/20 border-red-500/40 text-red-200" : "bg-white/5 border-white/10 text-muted hover:text-red-300"}`}
+                >
+                  <Trash2 size={12} /> {confirmClear ? "Confirm wipe?" : "Clear"}
+                </button>
               </div>
             </div>
             {/* inline stats — responsive: 1 col on <640px */}
@@ -613,7 +690,11 @@ export function GpuMonitorPage() {
           {/* Charts — now range-aware */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Temperature history */}
-            <Card title={`Temperature — ${rangeLabel}`} className="!p-4">
+            <Card
+              title={`Temperature — ${rangeLabel}`}
+              className="!p-4"
+              headerActions={<span className="flex items-center gap-1.5 text-[11px] text-muted"><span className="w-2 h-2 rounded-full bg-[#ef4444]" />Temp °C<span className="text-muted/50">• throttle {THROTTLE_TEMP}°C</span></span>}
+            >
               {chartData.length < 2 ? (
                 <div className="h-48 flex items-center justify-center text-xs text-muted">Collecting data… {chartData.length}/2 points ({history.length} stored)</div>
               ) : (
@@ -633,7 +714,7 @@ export function GpuMonitorPage() {
                         contentStyle={{ background: "rgba(15,15,20,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 12 }}
                         labelStyle={{ color: "#e5e7eb" }}
                       />
-                      <ReferenceLine y={83} stroke="#f97316" strokeDasharray="4 4" label={{ value: "throttle", position: "insideTopRight", fill: "#fb923c", fontSize: 9 }} />
+                      <ReferenceLine y={THROTTLE_TEMP} stroke="#f97316" strokeDasharray="4 4" label={{ value: "throttle", position: "insideTopRight", fill: "#fb923c", fontSize: 9 }} />
                       <Area type="monotone" dataKey="temp" stroke="#ef4444" strokeWidth={2} fill="url(#tempGrad)" name="Temp °C" dot={false} activeDot={{ r: 3, strokeWidth: 1 }} isAnimationActive={false} />
                       {chartData.length > 40 && <Brush dataKey="label" height={18} stroke="#ef4444" fill="rgba(255,255,255,0.03)" tickFormatter={() => ""} aria-label="Brush to zoom temperature history" />}
                     </AreaChart>
@@ -643,7 +724,16 @@ export function GpuMonitorPage() {
             </Card>
 
             {/* VRAM & Utilization history */}
-            <Card title={`VRAM & Utilization — ${rangeLabel}`} className="!p-4">
+            <Card
+              title={`VRAM & Utilization — ${rangeLabel}`}
+              className="!p-4"
+              headerActions={
+                <span className="flex items-center gap-3 text-[11px] text-muted">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#a855f7]" />VRAM %</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#22c55e]" />GPU %</span>
+                </span>
+              }
+            >
               {chartData.length < 2 ? (
                 <div className="h-48 flex items-center justify-center text-xs text-muted">Collecting data… {chartData.length}/2 points</div>
               ) : (
@@ -678,10 +768,26 @@ export function GpuMonitorPage() {
             </Card>
           </div>
 
-          {/* Long-term overview when we have >15m of data */}
+          {/* Long-term overview when we have >15m of data — collapsed by default to keep processes above the fold */}
           {history.length > 30 && (
-            <Card title="Long-term overview (all stored)" className="!p-4"
-              headerActions={<span className="text-[11px] text-muted">{history.length} points • ~{((history[history.length-1].time - history[0].time)/60000).toFixed(0)} min</span>}>
+            <Card
+              title="Long-term overview (all stored)"
+              className="!p-4"
+              headerActions={
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-muted tabular-nums">{history.length} points • ~{((history[history.length-1].time - history[0].time)/60000).toFixed(0)} min</span>
+                  <button
+                    onClick={() => setShowOverview((v) => !v)}
+                    aria-expanded={showOverview}
+                    className="text-[11px] px-2 py-1 rounded-md bg-white/5 border border-white/10 text-muted hover:text-white"
+                  >
+                    {showOverview ? "Hide" : "Show"}
+                  </button>
+                </div>
+              }
+            >
+              {showOverview ? (
+              <>
               <div className="h-36" role="img" aria-label="Long-term overview of all stored GPU history, drag brush to zoom">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={downsample(history, 200)} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
@@ -697,6 +803,10 @@ export function GpuMonitorPage() {
                 </ResponsiveContainer>
               </div>
               <p className="text-[11px] text-muted/60 mt-2">Persisted in database ({dbSynced ? "DB + local cache" : "local fallback"}) — 14-day retention, survives reloads & reboots. Background logger snapshots every 10s even when page closed.</p>
+              </>
+              ) : (
+                <p className="text-[11px] text-muted/60">Collapsed to keep processes visible — expand for the full {history.length}-point history.</p>
+              )}
             </Card>
           )}
 
@@ -705,35 +815,37 @@ export function GpuMonitorPage() {
             title="GPU Processes"
             className="!p-4"
             headerActions={
-              <span className="text-[11px] text-muted">
-                {filtered.length} shown • {totalAccounted.toLocaleString()} MB accounted • {snapshot.memory_used_mb} MB total
+              <span className="text-[11px] text-muted tabular-nums" title={vramTotal ? `${formatMB(totalAccounted)} attributed of ${formatMB(snapshot.memory_used_mb)} used (${formatMB(vramTotal)} total)` : undefined}>
+                {filtered.length} shown • {formatMB(totalAccounted)} attributed • {formatMB(snapshot.memory_used_mb)} used
               </span>
             }
           >
-            {/* Stacked attribution bar — top 6 share */}
-            {filtered.length > 1 && (
+            {/* Stacked attribution bar — top 6 share of total VRAM */}
+            {filtered.length > 0 && vramTotal > 0 && (
               <div className="mb-3">
-                <div className="flex h-2 rounded-full overflow-hidden bg-white/10">
-                  {filtered.slice(0, 6).map((p, i) => {
+                <div className="flex h-2 rounded-full overflow-hidden bg-white/10" role="img" aria-label={`VRAM attribution: ${formatMB(totalAccounted)} attributed, ${formatMB(unaccountedMb)} unaccounted`}>
+                  {filtered.slice(0, 6).map((p) => {
                     const colors = ["bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-sky-500", "bg-rose-500", "bg-teal-500"];
-                    const share = totalAccounted ? ((p.mem_mb || 0) / totalAccounted) * 100 : 0;
+                    const idx = filtered.indexOf(p);
+                    const share = ((p.mem_mb || 0) / vramTotal) * 100;
                     if (share < 1) return null;
-                    return <div key={p.pid} className={`${colors[i % colors.length]} transition-all`} style={{ width: `${share}%` }} title={`${labelForProcess(p.name)} ${share.toFixed(1)}%`} />;
+                    return <div key={p.pid} className={`${colors[idx % colors.length]} transition-all`} style={{ width: `${share}%` }} title={`${labelForProcess(p.name)} ${share.toFixed(1)}% of VRAM`} />;
                   })}
-                  {(() => {
-                    const top6 = filtered.slice(0, 6).reduce((a, p) => a + (p.mem_mb || 0), 0);
-                    const rest = totalAccounted - top6;
-                    const restShare = totalAccounted ? (rest / totalAccounted) * 100 : 0;
-                    return restShare > 1 ? <div className="bg-white/20" style={{ width: `${restShare}%` }} title={`Other ${restShare.toFixed(1)}%`} /> : null;
-                  })()}
+                  {unaccountedShare > 1 ? <div className="bg-white/20" style={{ width: `${Math.min(unaccountedShare, 100)}%` }} title={`Unattributed / driver reserve ${unaccountedShare.toFixed(1)}%`} /> : null}
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-                  {filtered.slice(0, 6).map((p, i) => {
+                  {filtered.slice(0, 6).map((p) => {
                     const colors = ["bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-sky-500", "bg-rose-500", "bg-teal-500"];
-                    const share = totalAccounted ? ((p.mem_mb || 0) / totalAccounted) * 100 : 0;
+                    const idx = filtered.indexOf(p);
+                    const share = vramTotal ? ((p.mem_mb || 0) / vramTotal) * 100 : 0;
                     if (share < 2) return null;
-                    return <span key={p.pid} className="flex items-center gap-1 text-[11px] text-muted"><span className={`w-2 h-2 rounded-full ${colors[i % colors.length]}`} />{labelForProcess(p.name).split(" —")[0]} {share.toFixed(0)}%</span>;
+                    return <span key={p.pid} className="flex items-center gap-1 text-[11px] text-muted"><span className={`w-2 h-2 rounded-full ${colors[idx % colors.length]}`} />{labelForProcess(p.name).split(" —")[0]} {share.toFixed(0)}%</span>;
                   })}
+                  {unaccountedShare >= 2 && (
+                    <span className="flex items-center gap-1 text-[11px] text-muted/70" title="VRAM used but not attributed to a listed process (driver reserve, caches, untracked PIDs)">
+                      <span className="w-2 h-2 rounded-full bg-white/25" />Unattributed {unaccountedShare.toFixed(0)}%
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -772,28 +884,28 @@ export function GpuMonitorPage() {
                   const label = labelForProcess(proc.name);
                   const mem = proc.mem_mb ?? 0;
                   const isLarge = mem >= 1024;
-                  const share = snapshot.memory_total_mb ? (mem / snapshot.memory_total_mb) * 100 : 0;
+                  const share = vramTotal ? (mem / vramTotal) * 100 : 0;
                     return (
                     <div
                       key={`${proc.pid}-${proc.name}`}
                       className="flex items-center gap-3 rounded-lg bg-white/[0.02] border border-white/5 px-3 py-2 hover:bg-white/[0.04] transition border-l-2"
                       style={{ borderLeftColor: isLarge ? "#f59e0b" : share > 5 ? "#a855f7" : "rgba(255,255,255,0.08)" }}
-                      title={`PID ${proc.pid} — ${proc.name} — ${mem} MB (${share.toFixed(1)}% of VRAM)`}
+                      title={`PID ${proc.pid} — ${proc.name} — ${formatMB(mem)} (${share.toFixed(1)}% of VRAM)`}
                     >
                       <span className="text-sm leading-none shrink-0" aria-hidden>
                         {iconForProcess(proc.name)}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-white truncate">{label}</p>
-                        <p className="text-[11px] text-muted truncate">
-                          PID {proc.pid} • {proc.name}
+                        <p className="text-[11px] text-muted truncate tabular-nums">
+                          PID {proc.pid} • {proc.name} • {share.toFixed(1)}% of VRAM
                         </p>
                         <div className="mt-1 h-1 rounded-full bg-white/10 overflow-hidden max-w-[220px]">
-                          <div className="h-full rounded-full" style={{ width: `${Math.min(share, 100)}%`, background: getUsageColor(share * 2) }} />
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(share, 100)}%`, background: getUsageColor(Math.min(share * 2.5, 100)) }} />
                         </div>
                       </div>
-                      <span className={`font-mono text-xs shrink-0 ${isLarge ? "text-amber-300" : "text-gray-300"}`}>
-                        {isLarge ? `${(mem / 1024).toFixed(1)} GB` : `${mem} MB`}
+                      <span className={`font-mono text-xs shrink-0 tabular-nums ${isLarge ? "text-amber-300" : "text-gray-300"}`}>
+                        {formatMB(mem)}
                       </span>
                     </div>
                   );
