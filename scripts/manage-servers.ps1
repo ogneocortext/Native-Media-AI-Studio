@@ -14,7 +14,7 @@
 #>
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet('start', 'stop', 'restart', 'status')]
+    [ValidateSet('start', 'stop', 'restart', 'status', 'health', 'update-comfyui')]
     [string]$Action,
 
     [ValidateSet('all', 'backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports')]
@@ -436,5 +436,43 @@ switch ($Action) {
             }
         }
         Write-Host "`nAll requested services restarted." -ForegroundColor Green
+    }
+    'health' {
+        Write-Host "`nHealth Check" -ForegroundColor Cyan
+        Write-Host "============" -ForegroundColor Cyan
+        foreach ($svc in $serviceList) {
+            $config = $ServiceConfig[$svc]
+            $status = Get-ServiceStatus $svc
+            if ($status.Running) {
+                $health = Test-ServiceRunning -Port $config.Port -HealthPath $config.HealthPath
+                $color = if ($health) { 'Green' } else { 'Yellow' }
+                $state = if ($health) { 'HEALTHY' } else { 'PORT OPEN BUT NOT RESPONDING' }
+                Write-Host "  $($config.Name): " -NoNewline
+                Write-Host $state -ForegroundColor $color -NoNewline
+                Write-Host " (port $($config.Port))"
+            } else {
+                Write-Host "  $($config.Name): " -NoNewline
+                Write-Host "DOWN" -ForegroundColor Red -NoNewline
+                Write-Host " (port $($config.Port))"
+            }
+        }
+        Write-Host ""
+    }
+    'update-comfyui' {
+        Write-Host "`nTriggering ComfyUI Update" -ForegroundColor Cyan
+        Write-Host "=========================" -ForegroundColor Cyan
+        $comfyui = $ServiceConfig['comfyui']
+        if (-not (Get-ServiceStatus 'comfyui').Running) {
+            Write-Err "ComfyUI is not running. Start it first with: scripts\manage-servers.ps1 -Action start -Services comfyui"
+            break
+        }
+        try {
+            $body = @{} | ConvertTo-Json
+            $response = Invoke-RestMethod -Uri "http://127.0.0.1:$($comfyui.Port)/api/services/comfyui/update" -Method POST -ContentType 'application/json' -Body $body -TimeoutSec 120
+            $response | ConvertTo-Json -Depth 10 | Write-Host
+            Write-Ok "ComfyUI update request sent. Monitor logs for progress."
+        } catch {
+            Write-Err "Update request failed: $_"
+        }
     }
 }

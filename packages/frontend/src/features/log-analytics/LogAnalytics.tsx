@@ -35,11 +35,15 @@ import {
   getLogAnalyticsSummary,
   getLogAnalyticsTrends,
   getLogAnalyticsPatterns,
+  getLogAnalyticsErrors,
+  getLogAnalyticsEvents,
   ingestLogsForAnalytics,
   cleanupLogAnalytics,
   type LogAnalyticsSummary,
   type LogAnalyticsTrendPoint,
   type LogAnalyticsPatterns,
+  type LogAnalyticsErrorPattern,
+  type LogAnalyticsEvent,
 } from "../../services/api";
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -59,54 +63,48 @@ const RANGES = [
 
 export function LogAnalytics() {
   const [summary, setSummary] = useState<LogAnalyticsSummary | null>(null);
-  const [trends, setTrends] = useState<LogAnalyticsTrendPoint[]>([]);
+  const [events, setEvents] = useState<LogAnalyticsEvent[]>([]);
   const [patterns, setPatterns] = useState<LogAnalyticsPatterns | null>(null);
+  const [errorPatterns, setErrorPatterns] = useState<LogAnalyticsErrorPattern[]>([]);
   const [range, setRange] = useState<string>("All");
   const [loading, setLoading] = useState(true);
   const [ingesting, setIngesting] = useState(false);
   const [ingestResult, setIngestResult] = useState<string | null>(null);
   const [selectedLog, setSelectedLog] = useState<string>("app");
+  const [eventLevelFilter, setEventLevelFilter] = useState<string>("ALL");
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
-  const fetchSummary = useCallback(async () => {
+  const refreshAll = useCallback(async () => {
     try {
-      const data = await getLogAnalyticsSummary();
-      setSummary(data);
+      const [summaryData, patternsData, errorsData, eventsData] = await Promise.all([
+        getLogAnalyticsSummary(),
+        getLogAnalyticsPatterns(20),
+        getLogAnalyticsErrors(20),
+        getLogAnalyticsEvents({
+          level: eventLevelFilter === "ALL" ? undefined : eventLevelFilter,
+          limit: 2000,
+        }),
+      ]);
+      setSummary(summaryData);
+      setPatterns(patternsData);
+      setErrorPatterns(errorsData.errors || []);
+      setEvents(eventsData.events || []);
+      setLastRefreshed(new Date());
     } catch (e) {
-      console.error("Failed to fetch log analytics summary:", e);
+      console.error("Failed to refresh log analytics:", e);
     }
-  }, []);
-
-  const fetchPatterns = useCallback(async () => {
-    try {
-      const data = await getLogAnalyticsPatterns(20);
-      setPatterns(data);
-    } catch (e) {
-      console.error("Failed to fetch log analytics patterns:", e);
-    }
-  }, []);
-
-  const fetchTrends = useCallback(async () => {
-    setLoading(true);
-    try {
-      const selected = RANGES.find((r) => r.label === range);
-      const sinceMs = selected?.ms ?? undefined;
-      const data = await getLogAnalyticsTrends(sinceMs, 20000);
-      setTrends(data.points || []);
-    } catch (e) {
-      console.error("Failed to fetch log analytics trends:", e);
-    } finally {
-      setLoading(false);
-    }
-  }, [range]);
+  }, [eventLevelFilter]);
 
   useEffect(() => {
-    fetchSummary();
-    fetchPatterns();
-  }, [fetchSummary, fetchPatterns]);
+    refreshAll();
+  }, [refreshAll]);
 
   useEffect(() => {
-    fetchTrends();
-  }, [fetchTrends]);
+    if (!autoRefresh) return;
+    const id = setInterval(refreshAll, 30000);
+    return () => clearInterval(id);
+  }, [autoRefresh, refreshAll]);
 
   const getRelativeTime = (iso?: string | null) => {
     if (!iso) return "No data";
@@ -126,7 +124,7 @@ export function LogAnalytics() {
     try {
       const result = await ingestLogsForAnalytics({ source: selectedLog, log_name: selectedLog, limit: 20000 });
       setIngestResult(`Ingested ${result.inserted} events from ${result.path}`);
-      await Promise.all([fetchSummary(), fetchPatterns(), fetchTrends()]);
+      await refreshAll();
     } catch (e) {
       setIngestResult(`Ingest failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -139,7 +137,7 @@ export function LogAnalytics() {
     try {
       const result = await cleanupLogAnalytics(30);
       setIngestResult(`Cleaned up ${result.deleted} old events`);
-      await Promise.all([fetchSummary(), fetchPatterns(), fetchTrends()]);
+      await refreshAll();
     } catch (e) {
       setIngestResult(`Cleanup failed: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -147,7 +145,7 @@ export function LogAnalytics() {
 
   const timelineData = useMemo(() => {
     const buckets = new Map<string, { time: string; count: number; errors: number }>();
-    for (const entry of trends) {
+    for (const entry of events) {
       const minute = entry.ts_iso.slice(0, 16);
       const existing = buckets.get(minute) || { time: minute, count: 0, errors: 0 };
       existing.count += 1;
@@ -155,7 +153,7 @@ export function LogAnalytics() {
       buckets.set(minute, existing);
     }
     return Array.from(buckets.values()).slice(-60);
-  }, [trends]);
+  }, [events]);
 
   const levelCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -174,11 +172,8 @@ export function LogAnalytics() {
   );
 
   const topErrors = useMemo(
-    () =>
-      (patterns?.messages || [])
-        .filter((m) => m.level === "ERROR" || m.level === "CRITICAL")
-        .slice(0, 10),
-    [patterns],
+    () => (errorPatterns || []).slice(0, 10),
+    [errorPatterns],
   );
 
   return (
@@ -207,11 +202,7 @@ export function LogAnalytics() {
           </button>
           <button
             className="btn btn-sm btn-ghost"
-            onClick={() => {
-              fetchSummary();
-              fetchPatterns();
-              fetchTrends();
-            }}
+            onClick={refreshAll}
           >
             <RefreshCw size={14} />
           </button>
@@ -325,14 +316,24 @@ export function LogAnalytics() {
         </button>
         <button
           className="btn btn-sm btn-ghost"
-          onClick={() => {
-            fetchSummary();
-            fetchPatterns();
-            fetchTrends();
-          }}
+          onClick={refreshAll}
         >
           <RefreshCw size={14} />
         </button>
+        <label className="flex items-center gap-1.5 text-[10px] text-muted cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={autoRefresh}
+            onChange={(e) => setAutoRefresh(e.target.checked)}
+            className="accent-primary"
+          />
+          Auto-refresh (30s)
+        </label>
+        {lastRefreshed && (
+          <span className="text-[10px] text-muted tabular-nums">
+            Updated {lastRefreshed.toLocaleTimeString()}
+          </span>
+        )}
       </div>
 
       {/* Range controls */}
@@ -554,11 +555,7 @@ export function LogAnalytics() {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-red-300 break-all line-clamp-2">{err.message}</p>
                     <p className="text-[10px] text-muted mt-0.5 tabular-nums">
-                      {err.count}x — last:{" "}
-                      {(() => {
-                        const matches = trends.filter((t) => t.message === err.message);
-                        return matches.length > 0 ? matches[matches.length - 1].ts_iso : "recent";
-                      })()}
+                      {err.count}x — last: {err.last_seen || "recent"}
                     </p>
                   </div>
                 </div>
@@ -580,14 +577,28 @@ export function LogAnalytics() {
             <FileText size={14} className="text-accent" />
             Recent Events
           </h3>
-          <span className="text-[10px] text-muted bg-white/5 px-2 py-0.5 rounded-full">
-            {trends.length.toLocaleString()} total
-          </span>
+          <div className="flex items-center gap-2">
+            <select
+              value={eventLevelFilter}
+              onChange={(e) => setEventLevelFilter(e.target.value)}
+              className="bg-background border border-border rounded-lg px-2 py-1 text-[10px]"
+            >
+              <option value="ALL">All Levels</option>
+              <option value="DEBUG">Debug</option>
+              <option value="INFO">Info</option>
+              <option value="WARNING">Warning</option>
+              <option value="ERROR">Error</option>
+              <option value="CRITICAL">Critical</option>
+            </select>
+            <span className="text-[10px] text-muted bg-white/5 px-2 py-0.5 rounded-full">
+              {events.length.toLocaleString()} total
+            </span>
+          </div>
         </div>
         <div className="overflow-y-auto max-h-96">
           {loading ? (
             <div className="text-muted text-xs text-center py-4">Loading...</div>
-          ) : trends.length === 0 ? (
+          ) : events.length === 0 ? (
             <div className="text-muted text-xs text-center py-4">No events. Click Ingest Logs to populate.</div>
           ) : (
             <table className="w-full text-xs">
@@ -600,28 +611,30 @@ export function LogAnalytics() {
                 </tr>
               </thead>
               <tbody>
-                {trends.slice(-200).map((entry, idx) => (
-                  <tr key={idx} className="border-b border-border/50 hover:bg-white/5">
-                    <td className="py-1.5 pr-2 text-muted tabular-nums whitespace-nowrap">
-                      {entry.ts_iso.slice(5)}
-                    </td>
-                    <td className="py-1.5 pr-2">
-                      <span
-                        className="px-1.5 py-0.5 rounded text-[10px] font-medium"
-                        style={{
-                          color: LEVEL_COLORS[entry.level] || "#6b7280",
-                          background: `${LEVEL_COLORS[entry.level] || "#6b7280"}20`,
-                        }}
-                      >
-                        {entry.level}
-                      </span>
-                    </td>
-                    <td className="py-1.5 pr-2 text-cyan-400 max-w-[140px] truncate" title={entry.logger}>
-                      {entry.logger.split(".").pop()}
-                    </td>
-                    <td className="py-1.5 break-all">{entry.message}</td>
-                  </tr>
-                ))}
+                {events
+                  .slice(-200)
+                  .map((entry, idx) => (
+                    <tr key={idx} className="border-b border-border/50 hover:bg-white/5">
+                      <td className="py-1.5 pr-2 text-muted tabular-nums whitespace-nowrap">
+                        {entry.ts_iso.slice(5)}
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <span
+                          className="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                          style={{
+                            color: LEVEL_COLORS[entry.level] || "#6b7280",
+                            background: `${LEVEL_COLORS[entry.level] || "#6b7280"}20`,
+                          }}
+                        >
+                          {entry.level}
+                        </span>
+                      </td>
+                      <td className="py-1.5 pr-2 text-cyan-400 max-w-[140px] truncate" title={entry.logger}>
+                        {entry.logger.split(".").pop()}
+                      </td>
+                      <td className="py-1.5 break-all">{entry.message}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           )}

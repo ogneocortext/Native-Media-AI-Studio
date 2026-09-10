@@ -14,6 +14,7 @@ import { ANALYSER_SMOOTHING, ATTACK, RELEASE, createAudioClock, estimateOutputLa
 import { ShaderVisualizer } from "./ShaderVisualizer";
 import { ACESFilmicToneMapping } from "three";
 import { SpectrumBar } from "./components/SpectrumBar";
+import { StemMixerPanel } from "./components/StemMixer";
 import { StylePicker } from "./components/StylePicker";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UploadPrompt } from "./components/UploadPrompt";
@@ -1190,11 +1191,13 @@ export function Visualizer() {
 
       {audioUrl && (
         <div className="viz-audio-player">
-          <audio key={audioUrl} ref={audioElRef} controls src={audioUrl} className="viz-audio" crossOrigin={audioUrl?.startsWith('http://') || audioUrl?.startsWith('https://') ? "anonymous" : undefined}
+          <audio key={audioUrl} ref={audioElRef} controls src={audioUrl} data-main-player className="viz-audio" crossOrigin={audioUrl?.startsWith('http://') || audioUrl?.startsWith('https://') ? "anonymous" : undefined}
             onPlay={() => { setIsPlaying(true); setIsPaused(false); if (audioElRef.current) void setupAudio(audioElRef.current); }}
             onPause={() => { setIsPlaying(false); setIsPaused(true); }}
             onEnded={() => { setIsPlaying(false); setIsPaused(false); resetAudioDerivedState(); }}
           />
+          {/* Per-stem mixing (Trend 2: drums→pulse, bass→camera shake, vocals→lyric, other→palette) */}
+          <StemMixerPanel audioFilename={currentFilename} compact />
         </div>
       )}
 

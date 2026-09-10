@@ -20,34 +20,57 @@ class Logger {
   private flushInterval: number = 5000;
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private traceId: string;
+  private retryCount: number = 0;
+  private maxRetries: number = 3;
+  private baseDelay: number = 1000;
 
   constructor(source: string) {
     this.source = source;
     this.traceId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     this.startFlushInterval();
+    this.installUnloadHook();
+  }
+
+  private installUnloadHook() {
+    if (typeof window === "undefined") return;
+    const flushNow = () => this.flush(true);
+    window.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flushNow();
+    });
+    window.addEventListener("beforeunload", flushNow);
   }
 
   private startFlushInterval() {
     this.intervalId = setInterval(() => this.flush(), this.flushInterval);
   }
 
-  private async flush() {
+  private async flush(isUnload: boolean = false) {
     if (this.queue.length === 0) return;
 
     const entries = [...this.queue];
     this.queue = [];
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), isUnload ? 4000 : 8000);
       await fetch("/api/logs/frontend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ entries }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
+      this.retryCount = 0;
     } catch {
-      // Backend not available, keep in queue for next flush
+      // Backend not available, keep in queue for next flush (cap size).
       this.queue.unshift(...entries);
-      if (this.queue.length > 100) {
-        this.queue = this.queue.slice(-100);
+      if (this.queue.length > 200) {
+        this.queue = this.queue.slice(-200);
+      }
+      this.retryCount += 1;
+      if (this.retryCount <= this.maxRetries) {
+        const delay = this.baseDelay * Math.pow(2, this.retryCount - 1);
+        setTimeout(() => this.flush(), delay);
       }
     }
   }
@@ -88,8 +111,9 @@ class Logger {
   destroy() {
     if (this.intervalId) {
       clearInterval(this.intervalId);
+      this.intervalId = null;
     }
-    this.flush();
+    this.flush(true);
   }
 }
 

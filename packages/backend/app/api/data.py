@@ -134,6 +134,71 @@ def list_prompts(
     )
 
 
+# =============================================================================
+# Prompt History — version history + repair log per track/section
+# (ai-video-trends-2026.md §5 P2 "Prompt repair log + version history per
+#  song section"; music-video-production.md Phase 2 "save fails + repairs,
+#  versioned")
+#
+# NOTE: these routes are declared BEFORE the `GET /{prompt_id}` catch-all
+# below — FastAPI matches in registration order, so declaring them after
+# would make "prompt-history" be captured as a prompt_id (observed as 404
+# "Prompt not found").
+# =============================================================================
+
+class SavePromptHistoryRequest(BaseModel):
+    """Request body for saving one prompt version / repair entry."""
+    track_filename: str = ""
+    section: str = "full"
+    section_index: int = -1
+    prompt: str = ""
+    negative_prompt: str = ""
+    parent_id: str | None = None
+    action: str = "create"       # create | repair | restore | import
+    repair_reason: str = ""
+    failure_notes: str = ""
+    generation_params: dict | None = None
+    outcome: str = "draft"       # draft | generated | failed | approved
+
+
+@router.get("/prompt-history")
+def list_prompt_history(
+    track_filename: str | None = None,
+    section: str | None = None,
+    limit: int = 100,
+):
+    """List prompt-history entries (newest first), optionally filtered."""
+    return database.get_prompt_history(
+        track_filename=track_filename, section=section, limit=limit
+    )
+
+
+@router.get("/prompt-history/{entry_id}/chain")
+def get_prompt_history_chain(entry_id: str):
+    """Return the full ancestry chain of a prompt entry (v1 → current)."""
+    chain = database.get_prompt_chain(entry_id)
+    if not chain:
+        raise HTTPException(status_code=404, detail="Prompt history entry not found")
+    return chain
+
+
+@router.post("/prompt-history")
+def create_prompt_history(request: SavePromptHistoryRequest):
+    """Save one prompt version. Version auto-increments per track+section."""
+    if not request.prompt.strip():
+        raise HTTPException(status_code=400, detail="prompt is required")
+    entry = database.save_prompt_version(request.model_dump(exclude_none=True))
+    return {"success": True, "entry": entry}
+
+
+@router.delete("/prompt-history/{entry_id}")
+def delete_prompt_history_entry(entry_id: str):
+    """Delete one prompt-history entry."""
+    if not database.delete_prompt_history(entry_id):
+        raise HTTPException(status_code=404, detail="Prompt history entry not found")
+    return {"success": True}
+
+
 @router.get("/{prompt_id}")
 def get_prompt(prompt_id: str):
     """Get a prompt by ID."""

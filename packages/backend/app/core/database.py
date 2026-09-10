@@ -6,6 +6,7 @@ generation sessions, and user preferences.
 
 import json
 import logging
+import re
 import sqlite3
 import time as _time
 import uuid
@@ -221,7 +222,7 @@ class OllamaAnalysisRow:
 DB_PATH = PROJECT_ROOT / "storage" / "studio.db"
 
 # Database schema version for migrations
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 15
 
 
 def _safe_json_loads(val: str | None, default: Any = None) -> Any:
@@ -336,6 +337,198 @@ def _migrate_v13(conn: sqlite3.Connection):
     """)
 
 
+def _migrate_v14(conn: sqlite3.Connection):
+    """Add prompt_history — per-track prompt version history + repair log.
+
+    Implements the documented-but-missing "Prompt repair log + version history
+    per song section" (ai-video-trends-2026.md §5 P2; music-video-production.md
+    Phase 2: "save fails + 'no drums' style repairs, versioned").
+    """
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS prompt_history (
+            id TEXT PRIMARY KEY,
+            track_filename TEXT DEFAULT '',
+            section TEXT DEFAULT 'full',
+            section_index INTEGER DEFAULT -1,
+            prompt TEXT NOT NULL,
+            negative_prompt TEXT DEFAULT '',
+            parent_id TEXT,
+            version INTEGER NOT NULL DEFAULT 1,
+            action TEXT NOT NULL DEFAULT 'create',
+            repair_reason TEXT DEFAULT '',
+            failure_notes TEXT DEFAULT '',
+            generation_params TEXT DEFAULT '{}',
+            outcome TEXT DEFAULT 'draft',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_prompt_history_track
+            ON prompt_history(track_filename, section, created_at);
+        CREATE INDEX IF NOT EXISTS idx_prompt_history_parent
+            ON prompt_history(parent_id);
+    """)
+
+
+def _migrate_v15(conn: sqlite3.Connection):
+    """Improve log analytics: relax duplicate index, add normalized index."""
+    # Deduplicate by the new unique-index columns before rebuilding the index.
+    conn.execute("""
+        DELETE FROM log_events
+        WHERE id NOT IN (
+            SELECT MIN(id)
+            FROM log_events
+            GROUP BY level, logger, message, source
+        )
+    """)
+    # Relax the unique index: drop the old ts_iso-based constraint and recreate
+    # it without ts_iso so repeated events within the same second are allowed.
+    try:
+        conn.execute("DROP INDEX IF EXISTS uq_log_events_unique")
+    except Exception:
+        pass
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_log_events_unique
+        ON log_events(level, logger, message, source)
+        """
+    )
+    # Add index on normalized message for faster error-pattern queries.
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_log_events_message
+        ON log_events(message)
+        """
+    )
+
+
+# =============================================================================
+# Prompt History Repository (version history + repair log)
+# =============================================================================
+
+def save_prompt_version(entry: dict) -> dict:
+    """Insert one prompt-history row and return the stored record.
+
+    `version` auto-increments within the (track_filename, section) scope
+    unless the caller pins it explicitly.
+    """
+    pid = entry.get("id") or str(uuid.uuid4())
+    track = entry.get("track_filename", "")
+    section = entry.get("section", "full")
+    now = datetime.now().isoformat()
+
+    with get_db() as conn:
+        if entry.get("version"):
+            version = int(entry["version"])
+        else:
+            row = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) AS v FROM prompt_history "
+                "WHERE track_filename = ? AND section = ?",
+                (track, section),
+            ).fetchone()
+            version = int(row["v"]) + 1
+        conn.execute(
+            """
+            INSERT INTO prompt_history (
+                id, track_filename, section, section_index, prompt, negative_prompt,
+                parent_id, version, action, repair_reason, failure_notes,
+                generation_params, outcome, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                pid,
+                track,
+                section,
+                int(entry.get("section_index", -1) or -1),
+                entry.get("prompt", ""),
+                entry.get("negative_prompt", ""),
+                entry.get("parent_id"),
+                version,
+                entry.get("action", "create"),
+                entry.get("repair_reason", ""),
+                entry.get("failure_notes", ""),
+                json.dumps(entry.get("generation_params") or {}, ensure_ascii=False),
+                entry.get("outcome", "draft"),
+                now,
+            ),
+        )
+    return {
+        "id": pid, "track_filename": track, "section": section,
+        "section_index": int(entry.get("section_index", -1) or -1),
+        "prompt": entry.get("prompt", ""),
+        "negative_prompt": entry.get("negative_prompt", ""),
+        "parent_id": entry.get("parent_id"),
+        "version": version,
+        "action": entry.get("action", "create"),
+        "repair_reason": entry.get("repair_reason", ""),
+        "failure_notes": entry.get("failure_notes", ""),
+        "generation_params": entry.get("generation_params") or {},
+        "outcome": entry.get("outcome", "draft"),
+        "created_at": now,
+    }
+
+
+def _history_row_to_dict(r: sqlite3.Row) -> dict:
+    return {
+        "id": r["id"], "track_filename": r["track_filename"],
+        "section": r["section"], "section_index": r["section_index"],
+        "prompt": r["prompt"], "negative_prompt": r["negative_prompt"],
+        "parent_id": r["parent_id"], "version": r["version"],
+        "action": r["action"], "repair_reason": r["repair_reason"],
+        "failure_notes": r["failure_notes"],
+        "generation_params": _safe_json_loads(r["generation_params"], {}),
+        "outcome": r["outcome"], "created_at": r["created_at"],
+    }
+
+
+def get_prompt_history(
+    track_filename: str | None = None,
+    section: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    """List prompt-history entries, newest first, optionally filtered."""
+    q = "SELECT * FROM prompt_history WHERE 1=1"
+    args: list = []
+    if track_filename:
+        q += " AND track_filename = ?"
+        args.append(track_filename)
+    if section:
+        q += " AND section = ?"
+        args.append(section)
+    q += " ORDER BY created_at DESC, version DESC LIMIT ?"
+    args.append(max(1, min(int(limit), 500)))
+    with get_db() as conn:
+        rows = conn.execute(q, args).fetchall()
+    return [_history_row_to_dict(r) for r in rows]
+
+
+def get_prompt_chain(entry_id: str) -> list[dict]:
+    """Return an entry's ancestry chain (oldest ancestor → this entry).
+
+    Guards against corrupted parent loops with a depth cap.
+    """
+    chain: list[dict] = []
+    with get_db() as conn:
+        current_id: str | None = entry_id
+        guard = 0
+        while current_id and guard < 200:
+            guard += 1
+            row = conn.execute(
+                "SELECT * FROM prompt_history WHERE id = ?", (current_id,)
+            ).fetchone()
+            if not row:
+                break
+            chain.append(_history_row_to_dict(row))
+            current_id = row["parent_id"]
+    chain.reverse()
+    return chain
+
+
+def delete_prompt_history(entry_id: str) -> bool:
+    """Delete one history entry (children keep parent_id as a dangling ref)."""
+    with get_db() as conn:
+        cur = conn.execute("DELETE FROM prompt_history WHERE id = ?", (entry_id,))
+        return cur.rowcount > 0
+
+
 # =============================================================================
 # Log Analytics Repository
 # =============================================================================
@@ -351,18 +544,82 @@ class LogEventRow:
     source: str
 
 
+# Pre-compiled patterns for log message normalization.
+_NORMALIZE_UUID_RE = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
+_NORMALIZE_WINDOWS_PATH_RE = re.compile(r"[A-Za-z]:\\(?:[^\"'\n\r]+\\)*[^\"'\n\r:]+")
+_NORMALIZE_LINE_NUMBER_RE = re.compile(r"\b\d+(?=\.py[:\s])")
+_NORMALIZE_IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+_NORMALIZE_HEX_RE = re.compile(r"0x[0-9a-fA-F]{4,}")
+_NORMALIZE_TRACE_ID_RE = re.compile(r"\[trace_id=([^\]]+)\]")
+
+# Map logger name prefixes to analytics source labels.
+_SOURCE_MAP: dict[str, str] = {
+    "app.adapters.comfyui": "comfyui",
+    "app.adapters.ollama": "ollama",
+    "app.adapters.base": "adapters",
+    "app.queue": "queue",
+    "app.stdout": "stdout",
+    "frontend": "frontend",
+    "asyncio": "asyncio",
+    "uvicorn": "uvicorn",
+}
+
+
+def _derive_source(logger_name: str, default: str = "app") -> str:
+    """Derive an analytics source label from a Python logger name."""
+    for prefix, source in _SOURCE_MAP.items():
+        if logger_name == prefix or logger_name.startswith(prefix + "."):
+            return source
+    return default
+
+
+def _normalize_log_message(message: str) -> str:
+    """Normalize variable parts of a log message so identical errors group together.
+
+    Replaces:
+    - UUIDs with ``<uuid>``
+    - Windows absolute paths with ``<path>``
+    - Line numbers in Python tracebacks with ``<line>``
+    - IPv4 addresses with ``<ip>``
+    - Hex literal tokens with ``<hex>``
+    """
+    normalized = _NORMALIZE_UUID_RE.sub("<uuid>", message)
+    normalized = _NORMALIZE_WINDOWS_PATH_RE.sub("<path>", normalized)
+    normalized = _NORMALIZE_LINE_NUMBER_RE.sub("<line>", normalized)
+    normalized = _NORMALIZE_IP_RE.sub("<ip>", normalized)
+    normalized = _NORMALIZE_HEX_RE.sub("<hex>", normalized)
+    return normalized
+
+
+def _extract_trace_id(message: str) -> tuple[str, str]:
+    """Extract trace_id from message if present. Returns (message_without_trace_id, trace_id)."""
+    m = _NORMALIZE_TRACE_ID_RE.search(message)
+    if m:
+        return message[: m.start()].rstrip() + message[m.end() :].lstrip(), m.group(1)
+    return message, ""
+
+
 def _parse_log_line(line: str) -> LogEventRow | None:
-    """Parse a single log line into a LogEventRow."""
-    # Expected format: YYYY-MM-DD HH:MM:SS | LEVEL | logger | func | message
+    """Parse a single log line into a LogEventRow.
+
+    Expected format: YYYY-MM-DD HH:MM:SS | LEVEL | logger | func | message
+    func may be empty; message may contain [trace_id=...] metadata.
+    """
     try:
+        # maxsplit=4 so message itself may contain " | " (e.g. data payloads)
         parts = line.split(" | ", 4)
-        if len(parts) < 5:
+        if len(parts) < 4:
             return None
         ts_str = parts[0].strip()
         level = parts[1].strip()
         logger = parts[2].strip()
-        # parts[3] is funcName, ignore
-        message = parts[4].strip()
+        # parts[3] is funcName, may be empty/blank when missing
+        func = parts[3].strip() if len(parts) > 3 else ""
+        message_raw = parts[4].strip() if len(parts) > 4 else ""
+        message, trace_id = _extract_trace_id(message_raw)
+        message = _normalize_log_message(message)
         try:
             dt = datetime.fromisoformat(ts_str)
             ts_ms = int(dt.timestamp() * 1000)
@@ -375,10 +632,33 @@ def _parse_log_line(line: str) -> LogEventRow | None:
             level=level,
             logger=logger,
             message=message,
-            source="app",
+            source=_derive_source(logger),
         )
     except Exception:
         return None
+
+
+def _join_multiline_log_entries(lines: list[str]) -> list[str]:
+    """Join continuation lines with their parent log entry.
+
+    Log handlers emit one header line that starts with a timestamp, then
+    zero or more continuation lines (tracebacks, FFmpeg stderr, etc.).
+    This folds continuations back into the parent so analytics sees the
+    full message instead of dropping every non-header line.
+    """
+    joined: list[str] = []
+    current: str | None = None
+    for line in lines:
+        if re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \| ", line):
+            if current is not None:
+                joined.append(current)
+            current = line.rstrip("\n")
+        elif current is not None and line.strip():
+            # Indented continuation or bare traceback line
+            current += "\n" + line.rstrip("\n")
+    if current is not None:
+        joined.append(current)
+    return joined
 
 
 def ingest_log_file(path: Path, source: str = "app", limit: int = 20000) -> int:
@@ -393,13 +673,20 @@ def ingest_log_file(path: Path, source: str = "app", limit: int = 20000) -> int:
     rows: list[LogEventRow] = []
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
-            for line in f:
-                row = _parse_log_line(line)
-                if row and row.ts_ms > last_ts:
+            raw_lines = f.readlines()
+        # Fold multiline tracebacks / stderr blocks into single entries so
+        # the full context is preserved instead of dropped.
+        joined_lines = _join_multiline_log_entries(raw_lines)
+        for line in joined_lines:
+            row = _parse_log_line(line)
+            if row and row.ts_ms > last_ts:
+                # Only override source when caller explicitly sets one; otherwise
+                # keep the source derived from the logger name.
+                if source != "app":
                     row.source = source
-                    rows.append(row)
-                    if len(rows) >= limit:
-                        break
+                rows.append(row)
+                if len(rows) >= limit:
+                    break
     except Exception:
         return 0
     if not rows:
@@ -432,14 +719,18 @@ def get_log_trends(since_ms: int | None = None, limit: int = 5000) -> list[dict]
                 "ts_ms": r["ts_ms"],
                 "level": r["level"],
                 "logger": r["logger"],
-                "message": r["message"],
+                "message": _normalize_log_message(r["message"]),
             }
             for r in rows
         ]
 
 
 def get_log_patterns(limit: int = 20) -> dict:
-    """Aggregate common log patterns: top loggers, level counts, top messages."""
+    """Aggregate common log patterns: top loggers, level counts, top messages.
+
+    Messages are normalized so variable tokens (UUIDs, paths, IPs) collapse
+    into countable recurring patterns.
+    """
     with get_db() as conn:
         level_rows = conn.execute(
             "SELECT level, COUNT(*) as cnt FROM log_events GROUP BY level ORDER BY cnt DESC"
@@ -448,7 +739,8 @@ def get_log_patterns(limit: int = 20) -> dict:
             "SELECT logger, COUNT(*) as cnt FROM log_events GROUP BY logger ORDER BY cnt DESC LIMIT ?",
             (limit,),
         ).fetchall()
-        message_rows = conn.execute(
+        # Normalize messages in Python so regex-based collapsing applies.
+        raw_messages = conn.execute(
             """
             SELECT message, COUNT(*) as cnt, MIN(level) as level
             FROM log_events
@@ -456,15 +748,66 @@ def get_log_patterns(limit: int = 20) -> dict:
             ORDER BY cnt DESC
             LIMIT ?
             """,
-            (limit,),
+            (limit * 4,),
         ).fetchall()
-        return {
-            "levels": [{"level": r["level"], "count": r["cnt"]} for r in level_rows],
-            "loggers": [{"logger": r["logger"], "count": r["cnt"]} for r in logger_rows],
-            "messages": [
-                {"message": r["message"], "count": r["cnt"], "level": r["level"]} for r in message_rows
-            ],
-        }
+    aggregated: dict[str, dict] = {}
+    for r in raw_messages:
+        normalized = _normalize_log_message(r["message"])
+        entry = aggregated.get(normalized)
+        if entry is None:
+            aggregated[normalized] = {"message": normalized, "count": r["cnt"], "level": r["level"]}
+        else:
+            entry["count"] += r["cnt"]
+    messages = sorted(aggregated.values(), key=lambda x: x["count"], reverse=True)[:limit]
+    return {
+        "levels": [{"level": r["level"], "count": r["cnt"]} for r in level_rows],
+        "loggers": [{"logger": r["logger"], "count": r["cnt"]} for r in logger_rows],
+        "messages": messages,
+    }
+
+
+def get_error_patterns(limit: int = 20) -> dict:
+    """Return recurring ERROR/CRITICAL patterns with UUID/path/line normalization.
+
+    Unlike the global ``get_log_patterns``, this normalizes variable tokens so
+    job-specific errors like ``Job <uuid> failed: boom`` aggregate into a single
+    recurring pattern.
+    """
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT message, COUNT(*) as cnt, MIN(ts_iso) as first_seen, MAX(ts_iso) as last_seen
+            FROM log_events
+            WHERE level IN ('ERROR', 'CRITICAL')
+            GROUP BY message
+            ORDER BY cnt DESC
+            LIMIT ?
+            """,
+            (limit * 4,),
+        ).fetchall()
+
+    # Normalize and aggregate.  We over-fetch from SQL and collapse in Python
+    # because SQLite lacks a robust regex-replace function.
+    aggregated: dict[str, dict] = {}
+    for r in rows:
+        normalized = _normalize_log_message(r["message"])
+        entry = aggregated.get(normalized)
+        if entry is None:
+            aggregated[normalized] = {
+                "message": normalized,
+                "count": r["cnt"],
+                "first_seen": r["first_seen"],
+                "last_seen": r["last_seen"],
+            }
+        else:
+            entry["count"] += r["cnt"]
+            if r["last_seen"] > entry["last_seen"]:
+                entry["last_seen"] = r["last_seen"]
+            if r["first_seen"] < entry["first_seen"]:
+                entry["first_seen"] = r["first_seen"]
+
+    results = sorted(aggregated.values(), key=lambda x: x["count"], reverse=True)[:limit]
+    return {"errors": results}
 
 
 LOG_ANALYTICS_LAST_CLEANUP_KEY = "log_analytics_last_cleanup_at"
@@ -566,6 +909,10 @@ def init_db():
             _migrate_v12(conn)
         if current_version < 13:
             _migrate_v13(conn)
+        if current_version < 14:
+            _migrate_v14(conn)
+        if current_version < 15:
+            _migrate_v15(conn)
 
         set_schema_version(conn, SCHEMA_VERSION)
         logger.info("Database initialized at version %d", SCHEMA_VERSION)

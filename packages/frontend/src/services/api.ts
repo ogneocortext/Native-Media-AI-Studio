@@ -468,6 +468,48 @@ export interface LogAnalyticsPatterns {
   messages: Array<{ message: string; count: number; level: string }>;
 }
 
+export interface LogAnalyticsErrorPattern {
+  message: string;
+  count: number;
+  first_seen: string;
+  last_seen: string;
+}
+
+export interface LogAnalyticsErrors {
+  errors: LogAnalyticsErrorPattern[];
+}
+
+export async function getLogAnalyticsErrors(limit = 20): Promise<LogAnalyticsErrors> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/logs/analytics/errors?limit=${limit}`, { timeout: 30000 });
+  if (!res.ok) throw new Error("Failed to get log analytics errors");
+  return res.json();
+}
+
+export interface LogAnalyticsEvent {
+  ts_iso: string;
+  ts_ms: number;
+  level: string;
+  logger: string;
+  message: string;
+  source: string;
+}
+
+export async function getLogAnalyticsEvents(params: {
+  level?: string;
+  source?: string;
+  limit?: number;
+} = {}): Promise<{ count: number; events: LogAnalyticsEvent[] }> {
+  const base = getApiBase();
+  const qs = new URLSearchParams();
+  if (params.level) qs.set("level", params.level);
+  if (params.source) qs.set("source", params.source);
+  qs.set("limit", String(params.limit ?? 200));
+  const res = await fetchWithTimeout(`${base}/api/logs/analytics/events?${qs.toString()}`, { timeout: 30000 });
+  if (!res.ok) throw new Error("Failed to get log analytics events");
+  return res.json();
+}
+
 export async function getLogAnalyticsSummary(): Promise<LogAnalyticsSummary> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/logs/analytics/summary`, { timeout: 30000 });

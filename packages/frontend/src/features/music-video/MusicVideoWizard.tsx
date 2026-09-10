@@ -3,6 +3,8 @@ import { ChevronRight, ChevronLeft, AlertCircle, Check } from "lucide-react";
 import { STEPS } from "./types";
 import type { WizardStep, AudioAnalysis, GenerationConfig } from "./types";
 import { UploadStep, AnalyzeStep, ConfigureStep, GenerateStep, ReviewStep } from "./steps";
+import { savePromptVersion } from "../../services/api";
+import { PromptHistoryPanel } from "./PromptHistoryPanel";
 
 const DEFAULT_CONFIG: GenerationConfig = {
   prompt: "",
@@ -115,10 +117,34 @@ export function MusicVideoWizard() {
         if (!jobId) throw new Error(`No job_id for ${section.type}`);
         const out = await pollJob(jobId, section.type);
         results.push(out);
+        // Auto-log the successful generation — versioned per track+section
+        void savePromptVersion({
+          track_filename: audioFile?.name || undefined,
+          section: section.type,
+          section_index: i,
+          prompt: sectionPrompt,
+          negative_prompt: config.negativePrompt,
+          action: "create",
+          generation_params: { steps: config.steps, cfg_scale: config.cfgScale, seed: config.seed },
+          outcome: "generated",
+        }).catch(() => {});
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setError(`Section ${section.type}: ${msg}`);
         results.push(`FAILED:${section.type}`);
+        // Log the failed attempt as a repair entry (repair log)
+        void savePromptVersion({
+          track_filename: audioFile?.name || undefined,
+          section: section.type,
+          section_index: i,
+          prompt: sectionPrompt,
+          negative_prompt: config.negativePrompt,
+          action: "repair",
+          repair_reason: "generation failed",
+          failure_notes: msg,
+          generation_params: { steps: config.steps, cfg_scale: config.cfgScale, seed: config.seed },
+          outcome: "failed",
+        }).catch(() => {});
       }
       setGenerationProgress(((i + 1) / sections.length) * 100);
     }
@@ -138,7 +164,19 @@ export function MusicVideoWizard() {
       case "analyze": return analysis ? <AnalyzeStep analysis={analysis} audioUrl={audioUrl} onNext={() => setCurrentStep("configure")} /> : null;
       case "configure": return <ConfigureStep config={config} composedPrompt={composedPrompt} onConfigChange={setConfig} onSuggestionClick={addPromptSuggestion} onNext={() => setCurrentStep("generate")} />;
       case "generate": return <GenerateStep generating={generating} progress={generationProgress} analysis={analysis} config={config} onStart={generateVideo} />;
-      case "review": return <ReviewStep generatedSections={generatedSections} audioUrl={audioUrl} analysis={analysis} />;
+      case "review": return (
+        <>
+          <ReviewStep generatedSections={generatedSections} audioUrl={audioUrl} analysis={analysis} />
+          {audioFile?.name && (
+            <PromptHistoryPanel
+              trackFilename={audioFile.name}
+              onApplyPrompt={(prompt, negative) => {
+                setConfig((prev) => ({ ...prev, prompt, negativePrompt: negative || prev.negativePrompt }));
+              }}
+            />
+          )}
+        </>
+      );
       default: return null;
     }
   };

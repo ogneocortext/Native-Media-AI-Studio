@@ -82,8 +82,9 @@ See `docs/setup/CONDA_SETUP.md`, `docs/setup/VIDEO_SETUP.md`, `docs/setup/MODEL_
 
 ### Scripts
 - `scripts/start-studio.ps1` — Start all services (canonical)
-- `scripts/manage-servers.ps1` — Individual control (start/stop/status/restart)
-- `scripts/start_comfyui.ps1` — ComfyUI launcher
+- `scripts/manage-servers.ps1` — Individual control (start/stop/status/restart/health/update-comfyui)
+- `scripts/start-services.ps1` — Detached background launcher (backend + frontend + Go sidecars)
+- `scripts/check-env-health.ps1` — Python env decoupling & CUDA validation
 - `scripts/capture-visualizer-frames.mjs` — Frame capture utility (→ `tools/vision/analyze.mjs` for analysis)
 
 ### Output (gitignored)

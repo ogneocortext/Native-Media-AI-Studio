@@ -5,6 +5,7 @@ Provides endpoints to view and manage application logs from the frontend.
 
 from __future__ import annotations
 
+import json
 import logging
 
 from fastapi import APIRouter, Query
@@ -88,21 +89,16 @@ async def receive_frontend_logs(body: FrontendLogRequest) -> dict:
         timestamp = entry.get("timestamp", "")
         trace_id = entry.get("trace_id", "")
 
-        # Build a structured line that LogViewer.tsx can parse:
-        #   timestamp | LEVEL | logger | funcName | message [trace_id] | data
-        # Fall back to a frontend-only format when no timestamp is present.
-        if timestamp:
-            log_line = f"{timestamp} | {level.upper():<7} | frontend.{source:<35} | receive_frontend_logs | {message}"
-        else:
-            log_line = f"[frontend.{source}] {message}"
-
-        if trace_id:
-            log_line += f" [trace_id={trace_id}]"
-
+        # Build a flat message. The app log formatter adds its own
+        # timestamp / level / logger / funcName prefix, so we only pass the
+        # payload here. trace_id is appended as metadata that the log parser
+        # can extract later for correlation.
         if data:
-            log_line += f" | {data}"
+            message = f"{message} | data={json.dumps(data, ensure_ascii=False)}"
+        if trace_id:
+            message = f"{message} [trace_id={trace_id}]"
 
         log_level = getattr(logging, level.upper(), logging.INFO)
-        logger.log(log_level, log_line)
+        logger.log(log_level, message)
 
     return {"received": len(entries)}

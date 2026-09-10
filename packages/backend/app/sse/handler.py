@@ -11,9 +11,37 @@ import logging
 from datetime import datetime
 from typing import Any
 
+import httpx
+
+from ..core.config import config
 from ..models.job import Job
 
 logger = logging.getLogger(__name__)
+
+_go_dashboard_client: httpx.AsyncClient | None = None
+
+
+def _get_go_dashboard_client() -> httpx.AsyncClient | None:
+    global _go_dashboard_client
+    if _go_dashboard_client is None:
+        url = getattr(config, 'go_dashboard_url', '')
+        if url:
+            _go_dashboard_client = httpx.AsyncClient(
+                base_url=url,
+                timeout=httpx.Timeout(2.0, connect=1.0),
+            )
+    return _go_dashboard_client
+
+
+async def _broadcast_to_go_dashboard(message: dict[str, Any]) -> None:
+    """Fire-and-forget POST to go-dashboard /publish."""
+    client = _get_go_dashboard_client()
+    if client is None:
+        return
+    try:
+        await client.post("/publish", json=message)
+    except Exception:
+        pass  # go-dashboard is optional infra
 
 
 class SSEManager:
@@ -82,6 +110,9 @@ class SSEManager:
             for queue in dead_connections:
                 if queue in self._active_connections:
                     self._active_connections.remove(queue)
+
+        # Fan out to go-dashboard without blocking the main path
+        asyncio.create_task(_broadcast_to_go_dashboard(message))
 
     async def send_job_update(self, job: Job):
         """Send job update to all clients"""

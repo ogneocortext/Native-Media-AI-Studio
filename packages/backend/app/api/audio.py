@@ -1010,9 +1010,41 @@ async def get_stems(filename: str) -> dict:
                 stems[stem_name] = str(stem_path)
     return {
         "audio_file": filename,
-        "stems": stems,
+        "stems": {
+            # HTTP URLs for the Visualizer / wizard (relative to API base)
+            name: f"/api/audio/stem-file/{Path(p).parent.name}/{Path(p).stem}"
+            for name, p in stems.items()
+        },
+        "stems_absolute": stems,
         "found": bool(stems),
     }
+
+
+@router.get("/stem-file/{track_name}/{stem_name}")
+async def serve_stem_file(track_name: str, stem_name: str):
+    """Serve a separated stem WAV over HTTP for per-stem playback/analysis.
+
+    Per ai-video-trends-2026 Trend 2 (music-native per-stem mapping):
+    the Visualizer / wizard fetch individual stems to map drums→pulse,
+    bass→camera shake, vocals→lyric glow, other→palette.
+    """
+    import urllib.parse
+    import re
+
+    track_name = urllib.parse.unquote(track_name)
+    stem_name = urllib.parse.unquote(stem_name)
+    if stem_name not in {"vocals", "drums", "bass", "other"}:
+        raise HTTPException(status_code=400, detail="stem_name must be vocals|drums|bass|other")
+    # Track dirs are derived from source stems — sanitize aggressively.
+    safe_track = re.sub(r"[^A-Za-z0-9_\- .()\[\]]", "", track_name).strip()
+    if not safe_track or ".." in safe_track:
+        raise HTTPException(status_code=400, detail="Invalid track name")
+
+    stem_path = (SEPARATION_DIR / "htdemucs" / safe_track / f"{stem_name}.wav").resolve()
+    if not str(stem_path).startswith(str(SEPARATION_DIR.resolve())) or not stem_path.exists():
+        raise HTTPException(status_code=404, detail=f"Stem not found: {safe_track}/{stem_name}.wav — run POST /api/audio/separate first")
+
+    return FileResponse(str(stem_path), media_type="audio/wav", filename=f"{safe_track}_{stem_name}.wav")
 
 
 @router.get("/file/{filename:path}")

@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,33 @@ class VideoGenerateResponse(BaseModel):
     section: str
     error: str | None = None
     message: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Render engine abstraction (stack-extensions-2026.md Phase 2)
+# ---------------------------------------------------------------------------
+
+class RenderRequest(BaseModel):
+    """Engine-agnostic render request.
+
+    kind: "color" (solid test/underlay clip), "frames" (image sequence),
+          "image" (still held for duration).
+    engine: "auto" | "coreflux" | "movielite" | "ffmpeg" | "moviepy"
+    output_path: relative paths resolve against the project root
+                 (defaults into output/video/).
+    """
+    kind: str = "color"
+    engine: str = "auto"
+    width: int = Field(default=1280, ge=16, le=7680)
+    height: int = Field(default=720, ge=16, le=4320)
+    duration: float = Field(default=5.0, gt=0, le=3600)
+    fps: int = Field(default=24, ge=1, le=120)
+    output_path: str | None = None
+    color: str = "#000000"
+    frames_dir: str | None = None
+    frame_pattern: str = "frame_%04d.png"
+    image_path: str | None = None
+    audio_path: str | None = None
 
 
 @router.post("/generate-section", response_model=VideoGenerateResponse)
@@ -101,3 +128,117 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class ExportMatrixRequest(BaseModel):
+    """Export Matrix request — one master video → publishing derivatives.
+
+    source_path: absolute or project-relative path to a master video
+                 (typically output/video/*.mp4).
+    beat_times / sections: optional audio-analysis data for beat-aligned
+                 loop starts (from POST /api/audio/analyze).
+    loop_seconds: Spotify Canvas range 3-8s (default 4.0).
+    """
+    source_path: str
+    beat_times: list[float] | None = None
+    sections: list[dict] | None = None
+    loop_seconds: float = Field(default=4.0, ge=2.0, le=8.0)
+
+
+@router.get("/render/engines")
+async def list_render_engines() -> dict:
+    """List available video render engines with live availability."""
+    from ..services.video import available_engines
+
+    return {"engines": available_engines()}
+
+
+@router.post("/render")
+async def render_video(request: RenderRequest) -> dict:
+    """Render a clip with the selected engine (VideoRenderer abstraction).
+
+    Unlike /generate-section (full music-video queue jobs), this is the direct
+    render path for quick composites — matches stack-extensions-2026.md:
+    `/api/video/render?engine=moviepy|coreflux|movielite`.
+    """
+    from ..core.config import PROJECT_ROOT
+    from ..services.video import get_renderer, RenderSpec
+
+    try:
+        renderer = get_renderer(request.engine)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    output_path = request.output_path or f"output/video/render_{request.kind}_{renderer.engine_id}.mp4"
+    if not Path(output_path).is_absolute():
+        # Anchor on project root (the API process runs with CWD=packages/backend)
+        output_path = str(Path(PROJECT_ROOT) / output_path)
+    spec = RenderSpec(
+        kind=request.kind,
+        width=request.width,
+        height=request.height,
+        duration=request.duration,
+        fps=request.fps,
+        output_path=output_path,
+        color=request.color,
+        frames_dir=request.frames_dir or "",
+        frame_pattern=request.frame_pattern,
+        image_path=request.image_path or "",
+        audio_path=request.audio_path,
+    )
+    try:
+        result = await renderer.render(spec)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    rel = None
+    try:
+        rel = Path(result.output_path).resolve().relative_to(Path(PROJECT_ROOT).resolve()).as_posix()
+    except ValueError:
+        pass
+    return {
+        "success": result.success,
+        "engine": result.engine,
+        "output_path": result.output_path,
+        "relative_path": rel,
+        "render_s": result.render_s,
+        "size_bytes": result.size_bytes,
+        "error": result.error,
+        "notes": result.notes,
+    }
+
+
+@router.post("/export-matrix")
+async def export_matrix(request: ExportMatrixRequest) -> dict:
+    """Build the Export Matrix for one master video (ai-video-trends-2026 Trend 5).
+
+    Derives: 1080x1920 vertical master, 3-8s beat-aligned Canvas loop,
+    3 thumbnail variants (A/B/C), and a manifest sidecar. Artifacts land in
+    output/video and output/images so they appear in the Media Library.
+    """
+    from ..services.export_matrix import build_export_matrix
+
+    try:
+        result = await build_export_matrix(
+            request.source_path,
+            beat_times=request.beat_times,
+            sections=request.sections,
+            loop_seconds=request.loop_seconds,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return {
+        "success": bool(result.artifacts) and not result.errors,
+        "source": result.source,
+        "artifacts": [a.__dict__ for a in result.artifacts],
+        "errors": result.errors,
+        "render_s": result.render_s,
+        "manifest_path": result.manifest_path,
+        "message": f"Export matrix built: {len(result.artifacts)} artifact(s)"
+        + (f", {len(result.errors)} error(s)" if result.errors else ""),
+    }

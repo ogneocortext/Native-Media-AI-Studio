@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -44,12 +45,8 @@ func main() {
 		if r.Method == "OPTIONS" {
 			return
 		}
-		parts := strings.Split(r.URL.Path, "/")
-		if len(parts) < 4 {
-			http.Error(w, "usage: /check/<port>", http.StatusBadRequest)
-			return
-		}
-		p, err := strconv.Atoi(parts[3])
+		portStr := strings.TrimPrefix(r.URL.Path, "/check/")
+		p, err := strconv.Atoi(strings.TrimSpace(portStr))
 		if err != nil {
 			http.Error(w, "invalid port", http.StatusBadRequest)
 			return
@@ -98,10 +95,10 @@ func main() {
 
 func isPortInUse(port int) bool {
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	ln, err := net.Listen("tcp", addr)
+	conn, err := net.DialTimeout("tcp", addr, 1*time.Second)
 	if err != nil {
-		return true
+		return false
 	}
-	ln.Close()
-	return false
+	conn.Close()
+	return true
 }

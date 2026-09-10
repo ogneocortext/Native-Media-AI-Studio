@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Activity, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Activity, Loader2, CheckCircle, XCircle, Play, Pause } from "lucide-react";
 import { Card } from "../../components/common";
 import { checkService } from "../../services/api";
 
@@ -10,11 +10,13 @@ interface ServiceCheck {
 }
 
 const SERVICES = ["backend", "comfyui", "ollama", "blender", "unity"] as const;
+const CHECK_INTERVAL_MS = 30000;
 
 export function ServiceChecksCard() {
   const [checks, setChecks] = useState<Record<string, ServiceCheck>>({});
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
-  const handleCheck = async (service: string) => {
+  const handleCheck = useCallback(async (service: string) => {
     setChecks((prev) => ({ ...prev, [service]: { service, status: "checking" } }));
     try {
       const result = await checkService(service);
@@ -24,10 +26,31 @@ export function ServiceChecksCard() {
     } catch {
       setChecks((prev) => ({ ...prev, [service]: { service, status: "offline", lastChecked: Date.now() } }));
     }
-  };
+  }, []);
+
+  const checkAll = useCallback(async () => {
+    await Promise.all(SERVICES.map((service) => handleCheck(service)));
+  }, [handleCheck]);
+
+  useEffect(() => {
+    checkAll();
+    if (!autoRefresh) return;
+    const interval = setInterval(checkAll, CHECK_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [checkAll, autoRefresh]);
 
   return (
-    <Card className="service-checks-card" title="Service Checks" icon={<Activity size={16} className="text-emerald-400" />}>
+    <Card className="service-checks-card" title="Service Checks" icon={<Activity size={16} className="text-emerald-400" />} headerActions={
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setAutoRefresh(!autoRefresh)}
+          className={`p-1.5 rounded-lg ${autoRefresh ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-700 text-gray-400"}`}
+          title={autoRefresh ? "Auto-refresh ON" : "Auto-refresh OFF"}
+        >
+          {autoRefresh ? <Play size={12} /> : <Pause size={12} />}
+        </button>
+      </div>
+    }>
       <div className="space-y-2">
         {SERVICES.map((service) => {
           const check = checks[service];

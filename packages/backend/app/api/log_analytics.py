@@ -11,6 +11,8 @@ from pydantic import BaseModel
 
 from ..core.database import (
     cleanup_old_log_events,
+    get_db,
+    get_error_patterns,
     get_log_analytics_last_cleanup,
     get_log_analytics_sources,
     get_log_patterns,
@@ -100,6 +102,51 @@ async def get_trends(
 async def get_patterns(limit: int = Query(20, ge=1, le=100)) -> dict:
     """Aggregated patterns: levels, top loggers, top messages."""
     return get_log_patterns(limit=limit)
+
+
+@router.get("/events")
+async def get_events(
+    level: str | None = Query(None, description="Filter by level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"),
+    source: str | None = Query(None, description="Filter by source label"),
+    limit: int = Query(200, ge=1, le=2000),
+) -> dict:
+    """Return recent log events with optional level/source filters."""
+    with get_db() as conn:
+        q = "SELECT ts_iso, ts_ms, level, logger, message, source FROM log_events WHERE 1=1"
+        params: list[Any] = []
+        if level:
+            q += " AND level = ?"
+            params.append(level.upper())
+        if source:
+            q += " AND source = ?"
+            params.append(source)
+        q += " ORDER BY ts_ms DESC LIMIT ?"
+        params.append(limit)
+        rows = conn.execute(q, params).fetchall()
+    return {
+        "count": len(rows),
+        "events": [
+            {
+                "ts_iso": r["ts_iso"],
+                "ts_ms": r["ts_ms"],
+                "level": r["level"],
+                "logger": r["logger"],
+                "message": r["message"],
+                "source": r["source"],
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.get("/errors")
+async def get_errors(limit: int = Query(20, ge=1, le=100)) -> dict:
+    """Recurring ERROR/CRITICAL patterns with normalized messages.
+
+    UUIDs, Windows paths, and line numbers are normalized so job-specific
+    errors collapse into countable recurring patterns.
+    """
+    return get_error_patterns(limit=limit)
 
 
 @router.get("/summary")

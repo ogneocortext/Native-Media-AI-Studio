@@ -67,7 +67,6 @@ scripts/archive/
 !scripts/start.bat
 !scripts/start_dev.ps1
 !scripts/start-studio.ps1
-!scripts/start_comfyui.ps1
 !scripts/manage-servers.ps1
 
 # Test

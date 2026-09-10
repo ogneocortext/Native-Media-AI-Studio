@@ -5,6 +5,8 @@ import { getOutputUrl } from "../../utils/url";
 import { StatCard } from "./MediaLibraryStats";
 import { ModelPreview } from "../generate3d/ModelPreview";
 import { openInBlender, openInUnity } from "../../services/api";
+import { ExportMatrixPanel } from "./ExportMatrixPanel";
+import { UpscalePanel } from "./UpscalePanel";
 import {
   Image,
   Video,
@@ -520,6 +522,12 @@ export function MediaLibrary() {
                       {openingApp==="unity" ? <RefreshCw size={14} className="animate-spin" /> : <Layers size={14} />} Open in Unity
                     </button>
                   </div>
+                )}
+                {selectedOutput.file_type === "video" && (
+                  <ExportMatrixPanel sourcePath={selectedOutput.relative_path} onComplete={fetchOutputs} />
+                )}
+                {selectedOutput.file_type === "image" && (
+                  <UpscalePanel imagePath={selectedOutput.relative_path} onComplete={fetchOutputs} />
                 )}
               </div>
             </div>

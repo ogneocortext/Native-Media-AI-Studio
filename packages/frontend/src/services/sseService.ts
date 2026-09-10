@@ -94,64 +94,75 @@ class SSEService {
   private open(): void {
     if (this.eventSource || !this.wantsConnection) return;
 
-    // Prefer the explicit backend events URL from ports.json / env.
-    // Fall back to the Vite proxy path so local dev still works without a
-    // ports.json refresh after backend restart.
+    // Prefer go-dashboard when configured; fall back to backend SSE.
     const configuredUrl = getEventsUrl();
     const proxyUrl = `${window.location.protocol}//${window.location.host}/api/events`;
-    const sseUrl = configuredUrl && configuredUrl !== proxyUrl ? configuredUrl : proxyUrl;
+    const fallbackUrl = proxyUrl;
+    const primaryUrl =
+      configuredUrl && configuredUrl !== proxyUrl ? configuredUrl : proxyUrl;
 
-    this.eventSource = new EventSource(sseUrl);
+    const attempt = (url: string) => {
+      this.eventSource = new EventSource(url);
 
-    this.eventSource.onopen = () => {
-      this.reconnectDelay = 1000;
-      if (this.reconnectTimer) {
-        clearTimeout(this.reconnectTimer);
-        this.reconnectTimer = null;
-      }
-      this.emitState(true);
-    };
+      this.eventSource.onopen = () => {
+        this.reconnectDelay = 1000;
+        if (this.reconnectTimer) {
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = null;
+        }
+        this.emitState(true);
+      };
 
-    this.eventSource.onmessage = (event) => {
-      let message: Record<string, unknown>;
-      try {
-        message = JSON.parse(event.data);
-      } catch {
-        return; // ignore non-JSON messages
-      }
-      this.listeners.forEach((listener) => {
+      this.eventSource.onmessage = (event) => {
+        let message: Record<string, unknown>;
         try {
-          listener(message);
-        } catch (error) {
-          console.error("[SSE] listener error:", error);
+          message = JSON.parse(event.data);
+        } catch {
+          return; // ignore non-JSON messages
+        }
+        this.listeners.forEach((listener) => {
+          try {
+            listener(message);
+          } catch (error) {
+            console.error("[SSE] listener error:", error);
+          }
+        });
+      };
+
+      // Handle named events
+      this.eventSource.addEventListener("connected", (event) => {
+        let message: Record<string, unknown>;
+        try {
+          message = JSON.parse((event as MessageEvent).data);
+          this.listeners.forEach((listener) => listener(message));
+        } catch {
+          // ignore
         }
       });
+
+      this.eventSource.addEventListener("keepalive", () => {
+        // Keepalive received - connection is alive
+      });
+
+      this.eventSource.onerror = () => {
+        this.emitState(false);
+        const es = this.eventSource;
+        const closed = es?.readyState === EventSource.CLOSED;
+        if (closed && es) {
+          const wasUsingPrimary = url === primaryUrl;
+          es.close();
+          this.eventSource = null;
+          if (wasUsingPrimary && primaryUrl !== fallbackUrl) {
+            console.warn(`[SSE] go-dashboard unreachable, falling back to ${fallbackUrl}`);
+            attempt(fallbackUrl);
+          } else {
+            this.scheduleReconnect();
+          }
+        }
+      };
     };
 
-    // Handle named events
-    this.eventSource.addEventListener("connected", (event) => {
-      let message: Record<string, unknown>;
-      try {
-        message = JSON.parse((event as MessageEvent).data);
-        this.listeners.forEach((listener) => listener(message));
-      } catch {
-        // ignore
-      }
-    });
-
-    this.eventSource.addEventListener("keepalive", () => {
-      // Keepalive received - connection is alive
-    });
-
-    this.eventSource.onerror = () => {
-      this.emitState(false);
-      // EventSource auto-reconnects, but if it closed we schedule manual reconnect
-      if (this.eventSource?.readyState === EventSource.CLOSED) {
-        this.eventSource.close();
-        this.eventSource = null;
-        this.scheduleReconnect();
-      }
-    };
+    attempt(primaryUrl);
   }
 
   private emitState(connected: boolean): void {

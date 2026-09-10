@@ -27,6 +27,11 @@ class AppConfig(BaseModel):
     comfyui_url: str = "http://127.0.0.1:8188"
     comfyui_output_dir: Path | None = None  # Defaults to <PROJECT_ROOT>/../ComfyUI/output if unset
     ollama_url: str = "http://127.0.0.1:11434"
+    go_dashboard_url: str = "http://127.0.0.1:3847"
+    go_media_url: str = "http://127.0.0.1:3848"
+    go_worker_url: str = "http://127.0.0.1:3849"
+    go_gateway_url: str = "http://127.0.0.1:3850"
+    go_ports_url: str = "http://127.0.0.1:3851"
     max_queue_workers: int = 1
     output_dir: Path = OUTPUT_DIR
     log_level: str = "INFO"
@@ -52,15 +57,15 @@ class AppConfig(BaseModel):
             raise ValueError('Host cannot be empty')
         return v.strip()
 
-    @field_validator('comfyui_url', 'ollama_url')
+    @field_validator('comfyui_url', 'ollama_url', 'go_dashboard_url', 'go_media_url', 'go_worker_url', 'go_gateway_url', 'go_ports_url')
     @classmethod
     def validate_url(cls, v: str) -> str:
         """Validate that URL is properly formatted"""
         if not v or not v.strip():
-            raise ValueError('URL cannot be empty')
+            raise ValueError(f"URL cannot be empty")
         v = v.strip()
         if not v.startswith(('http://', 'https://')):
-            raise ValueError(f'URL must start with http:// or https://, got {v}')
+            raise ValueError(f"URL must start with http:// or https://, got {v}")
         return v
 
     @field_validator('log_level')

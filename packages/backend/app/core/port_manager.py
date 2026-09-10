@@ -13,6 +13,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 from .config import PROJECT_ROOT, config
 
 logger = logging.getLogger(__name__)
@@ -62,11 +64,36 @@ class PortManager:
         except Exception:
             return False  # Error means we couldn't check - assume unavailable
 
+    async def _check_port_via_go_ports(self, port: int) -> bool | None:
+        """Query go-ports for port availability. Returns True/False, or None if go-ports is unreachable."""
+        go_ports_url = getattr(config, 'go_ports_url', '')
+        if not go_ports_url:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                resp = await client.get(f"{go_ports_url}/check/{port}")
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return not bool(data.get("in_use", True))
+        except Exception:
+            pass
+        return None
+
     def find_available_port(self, start_port: int, max_attempts: int = 10) -> int:
         """Find an available port starting from start_port"""
         for offset in range(max_attempts):
             port = start_port + offset
             if self.is_port_available(port):
+                return port
+        raise RuntimeError(f"No available ports found from {start_port}")
+
+    async def find_available_port_async(self, start_port: int, max_attempts: int = 10) -> int:
+        """Find an available port starting from start_port, preferring go-ports if available."""
+        for offset in range(max_attempts):
+            port = start_port + offset
+            go_ports_result = await self._check_port_via_go_ports(port)
+            available = go_ports_result if go_ports_result is not None else self.is_port_available(port)
+            if available:
                 return port
         raise RuntimeError(f"No available ports found from {start_port}")
 
@@ -210,8 +237,10 @@ class PortManager:
         3. If occupied by another service, try to clean up orphaned Python processes.
         4. Only as a last resort find the next available port.
         """
-        # Step 1: Try default port first
-        if self.is_port_available(default_port):
+        # Step 1: Try default port first — prefer go-ports if available
+        go_ports_result = await self._check_port_via_go_ports(default_port)
+        port_available = go_ports_result if go_ports_result is not None else self.is_port_available(default_port)
+        if port_available:
             self._ports[service] = default_port
             self._save_state()
             return default_port
@@ -239,14 +268,16 @@ class PortManager:
             await asyncio.sleep(0.5)
 
             # Check again after cleanup
-            if self.is_port_available(default_port):
+            go_ports_result = await self._check_port_via_go_ports(default_port)
+            port_available = go_ports_result if go_ports_result is not None else self.is_port_available(default_port)
+            if port_available:
                 self._ports[service] = default_port
                 self._save_state()
                 return default_port
 
         # Step 4: Port still occupied — find next available port
         logger.info("Port %d still occupied, finding available port...", default_port)
-        new_port = self.find_available_port(default_port)
+        new_port = await self.find_available_port_async(default_port)
         self._ports[service] = new_port
         self._save_state()
 
@@ -286,18 +317,30 @@ class PortManager:
 
         # Build the resolved configuration
         # Canonical realtime transport is SSE at /api/events (EventSource).
+        # When go-dashboard is configured, prefer it for lower memory + higher concurrency.
         # WebSocket at /ws is a compatibility shim (same port as backend).
         ws_url = f"ws://localhost:{backend_port}/ws"
-        events_url = f"http://localhost:{backend_port}/api/events"
+        go_dashboard_url = getattr(config, 'go_dashboard_url', 'http://127.0.0.1:3847')
+        events_url = f"{go_dashboard_url}/events"
+        backend_events_url = f"http://localhost:{backend_port}/api/events"
         self._resolved_config = {
             "frontend_port": frontend_port,
             "backend_port": backend_port,
             # Legacy alias — prefer `events_url` / `sse_url`
             "ws_port": backend_port,
             "ws_url": ws_url,
-            # Canonical
+            # Canonical — prefer go-dashboard when configured
             "events_url": events_url,
             "sse_url": events_url,
+            "backend_events_url": backend_events_url,
+            # Go sidecars
+            "dashboard_port": 3847,
+            "dashboard_url": go_dashboard_url,
+            "go_dashboard_url": go_dashboard_url,
+            "go_media_url": getattr(config, 'go_media_url', 'http://127.0.0.1:3848'),
+            "go_worker_url": getattr(config, 'go_worker_url', 'http://127.0.0.1:3849'),
+            "go_gateway_url": getattr(config, 'go_gateway_url', 'http://127.0.0.1:3850'),
+            "go_ports_url": getattr(config, 'go_ports_url', 'http://127.0.0.1:3851'),
         }
 
         # Write to config/ports.json for frontend consumption
@@ -349,6 +392,7 @@ class PortManager:
         backend_port = config.backend_port
         ws_url = f"ws://localhost:{backend_port}/ws"
         events_url = f"http://localhost:{backend_port}/api/events"
+        go_dashboard_url = getattr(config, 'go_dashboard_url', 'http://127.0.0.1:3847')
         self._resolved_config = {
             "frontend_port": config.frontend_port,
             "backend_port": backend_port,
@@ -358,6 +402,14 @@ class PortManager:
             # Canonical
             "events_url": events_url,
             "sse_url": events_url,
+            # Go sidecars
+            "dashboard_port": 3847,
+            "dashboard_url": go_dashboard_url,
+            "go_dashboard_url": go_dashboard_url,
+            "go_media_url": getattr(config, 'go_media_url', 'http://127.0.0.1:3848'),
+            "go_worker_url": getattr(config, 'go_worker_url', 'http://127.0.0.1:3849'),
+            "go_gateway_url": getattr(config, 'go_gateway_url', 'http://127.0.0.1:3850'),
+            "go_ports_url": getattr(config, 'go_ports_url', 'http://127.0.0.1:3851'),
         }
         self.write_ports_config()
         return self._resolved_config

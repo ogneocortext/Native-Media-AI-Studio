@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { Card } from "../../components/common";
 import { TrendingUp, Play, Pause } from "lucide-react";
-import { useHealthStore } from "../../state/healthStore";
+import { useHealthStore, useSystemHealth } from "../../state/healthStore";
 
 interface DataPoint {
   time: number;
@@ -42,21 +42,24 @@ export function PerformanceHistoryCard() {
       });
       const { granular: currentGranular } = useHealthStore.getState();
       const gpuData = currentGranular.gpu.snapshot;
-      const vramData = currentGranular.vram as { vram?: { percent?: number }; gpu?: { utilization?: number }; cpu?: { usage_percent?: number }; memory?: { percent?: number }; temperature?: number } | null;
-      setHistory((prev) => [
-        ...prev.slice(-MAX_HISTORY_POINTS),
-        {
-          time: now,
-          label: timeLabel,
-          gpu: gpuData?.gpu_utilization ?? 0,
-          vram: gpuData?.memory_percent ?? vramData?.vram?.percent ?? 0,
-          cpu: vramData?.cpu?.usage_percent ?? 0,
-          memory: vramData?.memory?.percent ?? 0,
-          temp: gpuData?.temperature_c ?? vramData?.temperature ?? 0,
-        },
-      ]);
-    } catch {
-      // ignore
+      const vramData = currentGranular.vram as { vram?: { percent?: number; gpu_utilization?: number; temperature?: number } } | null;
+      const systemHealth = useHealthStore.getState().systemHealth;
+      setHistory((prev) => {
+        return [
+          ...prev.slice(-MAX_HISTORY_POINTS),
+          {
+            time: now,
+            label: timeLabel,
+            gpu: gpuData?.gpu_utilization ?? vramData?.vram?.gpu_utilization ?? 0,
+            vram: gpuData?.memory_percent ?? vramData?.vram?.percent ?? 0,
+            cpu: systemHealth?.cpu?.usage_percent ?? 0,
+            memory: systemHealth?.memory?.percent ?? 0,
+            temp: gpuData?.temperature_c ?? vramData?.vram?.temperature ?? 0,
+          },
+        ];
+      });
+    } catch (err) {
+      console.error('[PerfHistory] loadData error', err);
     }
   }, [fetchGPUData, fetchVRAMStatus]);
 
