@@ -18,6 +18,7 @@ export const getApiBase = (): string => {
 async function withDirectBackendFallback<T>(
   proxyCall: () => Promise<T>,
   directPath: string,
+  options?: { method?: string; body?: unknown; timeout?: number },
 ): Promise<T> {
   try {
     return await proxyCall();
@@ -26,8 +27,15 @@ async function withDirectBackendFallback<T>(
     const backendUrl = cached?.backend_url || getBackendUrl();
     const directUrl = `${backendUrl.replace(/\/$/, "")}${directPath}`;
     console.warn(`[api] proxy call failed, falling back to direct backend URL: ${directUrl}`, error);
-    return fetchWithTimeout(directUrl, { timeout: 30000 }).then((res) => {
-      if (!res.ok) throw new Error("Health check failed");
+    const init: RequestInit = {
+      method: options?.method || "GET",
+      ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
+    };
+    if (options?.method === "POST") {
+      init.headers = { "Content-Type": "application/json", ...(init.headers || {}) };
+    }
+    return fetchWithTimeout(directUrl, { timeout: options?.timeout || 30000, ...init }).then((res) => {
+      if (!res.ok) throw new Error(`Direct backend request failed: ${res.status}`);
       return res.json();
     });
   }
@@ -330,12 +338,37 @@ export async function separateAudioStems(
 
 export async function getAudioStems(filename: string): Promise<{ audio_file: string; stems: Record<string, string>; found: boolean }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/audio/stems/${encodeURIComponent(filename)}`, { timeout: 30000 });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to load stems");
-  }
-  return res.json();
+  return withDirectBackendFallback(
+    () =>
+      fetchWithTimeout(`${base}/api/audio/stems/${encodeURIComponent(filename)}`, { timeout: 30000 }).then((res) => {
+        if (!res.ok) throw new Error("Failed to load stems");
+        return res.json();
+      }),
+    `/api/audio/stems/${encodeURIComponent(filename)}`,
+    { timeout: 30000 },
+  );
+}
+
+export async function separateAudioFile(
+  filename: string,
+  model: string = "htdemucs",
+): Promise<StemSeparationResponse> {
+  const base = getApiBase();
+  const payload = { filename, model };
+  return withDirectBackendFallback(
+    () =>
+      fetchWithTimeout(`${base}/api/audio/separate-file`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        timeout: 600000,
+      }).then((res) => {
+        if (!res.ok) throw new Error("Stem separation failed");
+        return res.json();
+      }),
+    "/api/audio/separate-file",
+    { method: "POST", body: payload, timeout: 600000 },
+  );
 }
 
 // ============================================================================
@@ -1138,6 +1171,41 @@ export async function renameAudioFile(oldFilename: string, newFilename: string):
     throw new Error(err.detail || "Failed to rename file");
   }
   return res.json();
+}
+
+export interface ExtractAudioResponse {
+  success: boolean;
+  filename: string;
+  relative_path: string; // output-relative, e.g. "audio/song.m4a"
+  stored_path: string;
+  size_bytes: number;
+  render_s: number;
+  lossless: boolean;
+  source_codec: string | null;
+  source_sample_rate: string | null;
+  message: string;
+}
+
+export async function extractVideoAudio(params: {
+  source_path: string;
+  format?: "original" | "mp3";
+  bitrate?: "128k" | "192k" | "320k";
+}): Promise<ExtractAudioResponse> {
+  const base = getApiBase();
+  return withDirectBackendFallback(
+    () =>
+      fetchWithTimeout(`${base}/api/audio/extract`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+        timeout: 600000,
+      }).then((res) => {
+        if (!res.ok) throw new Error("Audio extraction failed");
+        return res.json();
+      }),
+    "/api/audio/extract",
+    { method: "POST", body: params, timeout: 600000 },
+  );
 }
 
 // =============================================================================

@@ -5,6 +5,7 @@ import {
   Clock, TrendingUp, Music2, Pencil, Download, SkipForward, ListMusic,
 } from "lucide-react";
 import { getApiBase, getCudaStatus, listAudioFiles, separateAudioStems, renameAudioFile, generateVideoSection } from "../../services/api";
+import { isAudioFile } from "../../utils/audioProbe";
 import { useAudioAnalysis } from "../../hooks/useAudioAnalysis";
 import { DS } from "../../styles/designSystem";
 import {
@@ -239,9 +240,10 @@ export function AudioAnalysisPage() {
   }, [showGenerateDialog]);
 
   const validateFile = (f: File): string | null => {
-    const validTypes = ["audio/mpeg", "audio/wav", "audio/x-wav", "audio/flac", "audio/ogg", "audio/mp4", "audio/x-m4a"];
-    const extOk = /\.(mp3|wav|flac|ogg|m4a|mp4)$/i.test(f.name);
-    if (!validTypes.includes(f.type) && !extOk) return `Unsupported format: ${f.name.split(".").pop()}. Use MP3, WAV, FLAC, OGG, M4A.`;
+    // Shared probe util (MIME may be empty/unreliable on Windows) + explicit
+    // extension check covering everything the backend accepts.
+    const extOk = /\.(mp3|wav|flac|ogg|oga|opus|m4a|aac|wma|mp4)$/i.test(f.name);
+    if (!isAudioFile(f) && !extOk) return `Unsupported format: ${f.name.split(".").pop()}. Use MP3, WAV, FLAC, OGG, OPUS, M4A, AAC, WMA.`;
     if (f.size > 500 * 1024 * 1024) return `File too large (${(f.size / 1048576).toFixed(1)} MB). Max 500 MB.`;
     if (f.size === 0) return `File is empty.`;
     return null;
@@ -504,9 +506,9 @@ export function AudioAnalysisPage() {
                 <button onClick={e => { e.stopPropagation(); clearFile(); }} className={DS.btnSecondarySm + " mt-2 mx-auto"} aria-label="Clear selected file">Clear</button>
               </div>
             ) : (
-              <div><p className={DS.textSm}>Drop audio file here or click to browse</p><p className={DS.textXs}>Supports MP3, WAV, FLAC, OGG, M4A · Max 500 MB</p></div>
+              <div><p className={DS.textSm}>Drop audio file here or click to browse</p><p className={DS.textXs}>Supports MP3, WAV, FLAC, OGG, OPUS, M4A, AAC, WMA · Max 500 MB</p></div>
             )}
-            <input id="audio-analysis-file-input" type="file" accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a" onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); }} className="hidden" />
+            <input id="audio-analysis-file-input" type="file" accept="audio/*,.mp3,.wav,.flac,.ogg,.opus,.m4a,.aac,.wma" onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); }} className="hidden" />
           </div>
           {fileError && <div className={DS.cardError} role="alert"><AlertCircle size={16} /><span className="text-sm">{fileError}</span></div>}
 
@@ -834,7 +836,7 @@ export function AudioAnalysisPage() {
             </summary>
             <ul className={DS.textSm + " mt-2 space-y-1.5"}>
               <li>• <strong>Analyze:</strong> click a library file (cached results load instantly) or upload + Analyze. The green badge marks what's loaded.</li>
-              <li>• <strong>Uploads:</strong> drag & drop MP3/WAV/FLAC/OGG/M4A (≤500 MB) onto the upload zone.</li>
+              <li>• <strong>Uploads:</strong> drag & drop MP3/WAV/FLAC/OGG/OPUS/M4A/AAC/WMA (≤500 MB) onto the upload zone.</li>
               <li>• <strong>Rename:</strong> pencil icon on any row; <kbd className="px-1 rounded bg-gray-700">Esc</kbd> cancels.</li>
               <li>• <strong>Stems:</strong> Separate Stems is slow (Demucs) — results land back in the library.</li>
               <li>• <strong>Batch generate:</strong> check sections → “Generate Selected”, or play per row.</li>

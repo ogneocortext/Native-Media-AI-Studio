@@ -543,8 +543,13 @@ export function Visualizer() {
           setAnalysisData(prev => ({ ...prev, [filename]: ensuredAnalysis }));
           realBpm = ensuredAnalysis.tempo_bpm ? Math.round(ensuredAnalysis.tempo_bpm) : undefined;
           if (realBpm) setTrackMetadata(prev => ({ ...prev, [filename]: { bpm: realBpm } }));
+        } else if (result && !result.analysis) {
+          showToast("Analysis came back empty — visuals use live audio only", "warning");
         }
-      } catch { /* fallback */ }
+      } catch {
+        // Never fail silently: without analysis there is no beat sync.
+        showToast("Track analysis failed — visuals use live audio only", "warning");
+      }
     }
     if (isStale()) return;
     if (csvContent) {
@@ -1183,7 +1188,7 @@ export function Visualizer() {
               {/* Storyboard grammar: letterbox bars on cinematic beats + act cards */}
               {visualsVisible && <div className={`viz-letterbox top ${storyState.beat?.cinematic ? "on" : ""}`} />}
               {visualsVisible && <div className={`viz-letterbox bottom ${storyState.beat?.cinematic ? "on" : ""}`} />}
-              {visualsVisible && <StoryActCard beat={storyState.beat} elapsed={elapsed} />}
+              {visualsVisible && <StoryActCard beat={storyState.beat} elapsed={elapsed} showHook={lyricsVisible} />}
               {/* Builder silhouette — separate layer, independent of lyrics (user-toggleable) */}
               <BuilderFigure audioData={liveAudioDataRef} storyBeat={storyState.beat} visible={characterVisible} />
         </div>

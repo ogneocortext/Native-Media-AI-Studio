@@ -143,7 +143,9 @@ class FFmpegRenderer(VideoRenderer):
 
         venc = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(spec.fps)]
         if has_audio:
-            cmd += ["-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-shortest", *venc]
+            # Pin 192k like every other pipeline path — bare `-c:a aac` falls
+            # back to ffmpeg's ~128k default and needlessly caps render audio.
+            cmd += ["-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-b:a", "192k", "-shortest", *venc]
         else:
             cmd += [*venc]
         cmd += [str(out)]

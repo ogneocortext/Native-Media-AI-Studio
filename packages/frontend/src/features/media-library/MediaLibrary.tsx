@@ -6,8 +6,9 @@ import { StatCard } from "./MediaLibraryStats";
 import { ModelPreview } from "../generate3d/ModelPreview";
 import { openInBlender, openInUnity, probeMedia, getMediaLoudness, getMediaWaveform, extractThumbnailAtTime, regenerateAudioCover } from "../../services/api";
 import { ExportMatrixPanel } from "./ExportMatrixPanel";
+import { ExtractAudioPanel } from "./ExtractAudioPanel";
 import { UpscalePanel } from "./UpscalePanel";
-import { WaveformDisplay } from "./WaveformDisplay";
+import { WaveformDisplay, MediaDetailModal, MediaInfoPayload, MediaProbe, LoudnessResult, WaveformResult } from "./MediaDetailModal";
 import {
   Image,
   Video,
@@ -25,11 +26,9 @@ import {
   ChevronRight,
   SlidersHorizontal,
   Clock,
-  Tag,
   Trash2,
   AlertTriangle,
   Maximize2,
-  Activity,
   Pencil,
   Copy,
   CheckSquare,
@@ -41,7 +40,6 @@ import {
   Box,
   Sparkles,
   Eye,
-  ExternalLink,
   Play,
 } from "lucide-react";
 
@@ -199,12 +197,14 @@ export function MediaLibrary() {
   const [lightboxZoom, setLightboxZoom] = useState(1);
   const [openingApp, setOpeningApp] = useState<null | "blender" | "unity" | "studio">(null);
   const [studioToast, setStudioToast] = useState<string | null>(null);
-  const [mediaInfo, setMediaInfo] = useState<Record<string, unknown> | null>(null);
+  const [mediaInfo, setMediaInfo] = useState<MediaInfoPayload | null>(null);
   const [mediaInfoLoading, setMediaInfoLoading] = useState(false);
   const [mediaInfoError, setMediaInfoError] = useState<string | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbnailLoading, setThumbnailLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const mediaInfoCache = useRef<Map<string, MediaInfoPayload>>(new Map());
+  const MEDIA_INFO_CACHE_MAX = 50;
 
   useEffect(() => { fetchOutputs(); fetchRecent(12); }, [fetchOutputs, fetchRecent, filter.type]);
   useEffect(() => { if (deferredSearch !== filter.search) setFilter({ search: deferredSearch }); }, [deferredSearch]);
@@ -219,6 +219,8 @@ export function MediaLibrary() {
   }, []);
   useEffect(() => {
     if (!selectedOutput || !["audio","video"].includes(selectedOutput.file_type)) { setMediaInfo(null); setMediaInfoError(null); setThumbnailUrl(null); return; }
+    const cached = mediaInfoCache.current.get(selectedOutput.relative_path);
+    if (cached) { setMediaInfo(cached); setMediaInfoLoading(false); setMediaInfoError(null); return; }
     let cancelled = false;
     setMediaInfoLoading(true); setMediaInfoError(null); setMediaInfo(null); setThumbnailUrl(null);
     (async () => {
@@ -229,7 +231,14 @@ export function MediaLibrary() {
           selectedOutput.file_type === "audio" ? getMediaWaveform(selectedOutput.relative_path, 120).catch(() => ({ peaks: [] } as Record<string, unknown>)) : Promise.resolve(null),
         ]);
         if (cancelled) return;
-        setMediaInfo({ probe, loudness, waveform });
+        const payload: MediaInfoPayload = { probe: probe as MediaInfoPayload["probe"], loudness: loudness as LoudnessResult | null, waveform: waveform as WaveformResult | null };
+        const cache = mediaInfoCache.current;
+        if (cache.size >= MEDIA_INFO_CACHE_MAX) {
+          const firstKey = cache.keys().next().value;
+          if (firstKey) cache.delete(firstKey);
+        }
+        cache.set(selectedOutput.relative_path, payload);
+        setMediaInfo(payload);
       } catch (err) {
         if (!cancelled) setMediaInfoError(err instanceof Error ? err.message : "Failed to load media info");
       } finally {
@@ -552,151 +561,33 @@ export function MediaLibrary() {
         )}
 
         {selectedOutput && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={()=> setSelectedOutput(null)}>
-            <div className="card max-w-4xl w-full max-h-[90vh] overflow-auto shadow-2xl shadow-black/50 animate-in zoom-in-95 duration-200" onClick={e=> e.stopPropagation()}>
-              <div className="flex items-center justify-between p-4 border-b border-white/10 sticky top-0 bg-black/60 backdrop-blur z-10">
-                <h3 className="text-lg font-semibold text-white truncate pr-4 flex items-center gap-2"><Tag size={16} className="text-primary" />{selectedOutput.filename}</h3>
-                <div className="flex items-center gap-1">
-                  <a href={getOutputUrl(selectedOutput.relative_path)} target="_blank" rel="noopener" className="p-2 hover:bg-white/10 rounded-xl text-muted hover:text-white" title="Open in new tab"><ExternalLink size={18} /></a>
-                  <a href={getOutputUrl(selectedOutput.relative_path)} download className="p-2 hover:bg-white/10 rounded-xl text-muted hover:text-white" title="Download"><Download size={18} /></a>
-                  <button onClick={()=> setSelectedOutput(null)} className="p-2 hover:bg-white/10 rounded-xl text-muted hover:text-white"><X size={20} /></button>
-                </div>
-              </div>
-              <div className="p-4">
-                <div className="rounded-xl overflow-hidden bg-black/40 mb-4 border border-white/5 relative group">
-                  {selectedOutput.file_type==="image" ? (
-                    <img src={getOutputUrl(selectedOutput.relative_path)} alt={selectedOutput.filename} className="w-full max-h-[60vh] object-contain cursor-zoom-in" onClick={()=> setShowFullImage(true)} />
-                  ) : selectedOutput.file_type==="video" ? (
-                    <video src={getOutputUrl(selectedOutput.relative_path)} controls autoPlay className="w-full max-h-[60vh] bg-black" />
-                   ) : selectedOutput.file_type==="audio" ? (
-                     <div className="flex flex-col">
-                       {selectedOutput.cover_image && <img src={getOutputUrl(selectedOutput.cover_image)} alt={selectedOutput.filename} className="w-full max-h-[50vh] object-contain bg-black" />}
-                       <audio ref={audioRef} src={getOutputUrl(selectedOutput.relative_path)} controls autoPlay className="w-full" />
-                       {!selectedOutput.cover_image && <div className="py-3 flex items-center justify-center gap-2 text-muted text-sm"><Music size={16} />No embedded cover</div>}
-                     </div>
-                  ) : is3DModelFile(selectedOutput.filename) ? (
-                    <ModelPreview url={getOutputUrl(selectedOutput.relative_path)} />
-                  ) : (
-                    <div className="h-64 flex items-center justify-center text-muted"><div className="text-center"><FileType className="w-16 h-16 mx-auto mb-2 opacity-50" /><p>Preview not available</p></div></div>
-                  )}
-                  {selectedOutput.file_type==="image" && <button onClick={()=> setShowFullImage(true)} className="absolute bottom-3 right-3 p-2 bg-black/60 backdrop-blur rounded-xl text-white hover:bg-black/80 flex items-center gap-1.5 text-xs"><Maximize2 size={14} />Fullscreen</button>}
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><FileType size={12} />Type</div><p className="text-sm text-white capitalize font-medium">{selectedOutput.file_type}</p></div>
-                  <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><HardDrive size={12} />Size</div><p className="text-sm text-white font-medium">{formatFileSize(selectedOutput.size_bytes)}</p></div>
-                  <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Clock size={12} />Created</div><p className="text-sm text-white text-xs">{formatDateTime(selectedOutput.created_at)}</p></div>
-                  <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Copy size={12} />Path</div><p className="text-sm text-white truncate text-xs font-mono" title={selectedOutput.relative_path}>{selectedOutput.relative_path}</p></div>
-                </div>
-
-                {["audio","video"].includes(selectedOutput.file_type) && (
-                  <div className="mt-4">
-                    <h4 className="text-sm font-semibold text-white mb-2 flex items-center gap-2"><Activity size={14} className="text-primary" />Media Inspection</h4>
-                    {mediaInfoLoading && <p className="text-xs text-muted">Loading media info…</p>}
-                    {mediaInfoError && <p className="text-xs text-red-400">{mediaInfoError}</p>}
-                    {mediaInfo && (
-                      <div className="space-y-3">
-                        {(() => {
-                          const probe = (mediaInfo.probe as Record<string, unknown> | null)?.probe as Record<string, unknown> | undefined;
-                          if (!probe) return null;
-                          const format = probe.format as Record<string, string | number | undefined> | undefined;
-                          const streams = probe.streams as Array<Record<string, string | number | undefined>> | undefined;
-                          const videoStream = streams?.find((s: Record<string, string | number | undefined>) => s.codec_type === "video");
-                          const audioStream = streams?.find((s: Record<string, string | number | undefined>) => s.codec_type === "audio");
-                          const duration = typeof format?.duration === "string" ? format.duration : undefined;
-                          const bitRate = typeof format?.bit_rate === "string" ? format.bit_rate : undefined;
-                          const formatName = typeof format?.format_name === "string" ? format.format_name : undefined;
-                          return (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                              {duration && <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Clock size={12} />Duration</div><p className="text-sm text-white font-medium">{Number(duration).toFixed(2)}s</p></div>}
-                              {bitRate && <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><HardDrive size={12} />Bitrate</div><p className="text-sm text-white font-medium">{(Number(bitRate) / 1000).toFixed(0)} kbps</p></div>}
-                              {formatName && <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><FileType size={12} />Format</div><p className="text-sm text-white font-medium">{formatName}</p></div>}
-                              {videoStream && <><div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Video size={12} />Resolution</div><p className="text-sm text-white font-medium">{String(videoStream.width || "")}×{String(videoStream.height || "")}</p></div><div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><FileType size={12} />Video Codec</div><p className="text-sm text-white font-medium">{String(videoStream.codec_name || "")}</p></div></>}
-                              {audioStream && <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Music size={12} />Audio Codec</div><p className="text-sm text-white font-medium">{String(audioStream.codec_name || "")}</p></div>}
-                            </div>
-                          );
-                        })()}
-                        {selectedOutput.file_type === "audio" && (mediaInfo.loudness as Record<string, unknown> | null) && (
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {(mediaInfo.loudness as Record<string, unknown>).integrated_lufs !== undefined && (mediaInfo.loudness as Record<string, unknown>).integrated_lufs !== null && (
-                              <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Activity size={12} />Integrated LUFS</div><p className="text-sm text-white font-medium">{Number((mediaInfo.loudness as Record<string, unknown>).integrated_lufs).toFixed(1)}</p></div>
-                            )}
-                            {(mediaInfo.loudness as Record<string, unknown>).loudness_range !== undefined && (mediaInfo.loudness as Record<string, unknown>).loudness_range !== null && (
-                              <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Activity size={12} />LRA</div><p className="text-sm text-white font-medium">{Number((mediaInfo.loudness as Record<string, unknown>).loudness_range).toFixed(1)}</p></div>
-                            )}
-                            {(mediaInfo.loudness as Record<string, unknown>).true_peak !== undefined && (mediaInfo.loudness as Record<string, unknown>).true_peak !== null && (
-                              <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Activity size={12} />True Peak</div><p className="text-sm text-white font-medium">{Number((mediaInfo.loudness as Record<string, unknown>).true_peak).toFixed(1)} dB</p></div>
-                            )}
-                          </div>
-                        )}
-                          {selectedOutput.file_type === "audio" && (() => {
-                             const wf = (mediaInfo.waveform as Record<string, unknown> | null);
-                             const peaks = wf?.peaks as number[] | undefined;
-                             const probeData = (mediaInfo.probe as Record<string, unknown> | null)?.probe as Record<string, unknown> | undefined;
-                             const format = probeData?.format as Record<string, unknown> | undefined;
-                             const duration = typeof format?.duration === "string" || typeof format?.duration === "number" ? Number(format.duration) : undefined;
-                             if (!peaks?.length) return null;
-                             return (
-                               <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5">
-                                 <p className="text-xs text-muted mb-1">Waveform</p>
-                                 <WaveformDisplay peaks={peaks} duration={duration ?? undefined} audioElement={audioRef.current} className="bg-black/40 rounded-lg border border-white/5" />
-                               </div>
-                             );
-                           })()}
-                         {(selectedOutput.file_type === "video" || selectedOutput.file_type === "audio") && (
-                           <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5">
-                             <p className="text-xs text-muted mb-2">{selectedOutput.file_type === "video" ? "Thumbnail" : "Cover Art"}</p>
-                             <div className="flex items-center gap-3">
-                               {thumbnailUrl ? (
-                                 <img src={thumbnailUrl} alt={selectedOutput.file_type === "video" ? "Thumbnail" : "Cover"} className="w-24 h-24 object-cover rounded-lg border border-white/10 bg-black" />
-                               ) : (
-                                 <div className="w-24 h-24 flex items-center justify-center rounded-lg border border-white/10 bg-black/40 text-muted text-xs">No preview</div>
-                               )}
-                               <div className="flex flex-col gap-2">
-                                 <button onClick={selectedOutput.file_type === "video" ? handleExtractThumbnail : handleRegenerateCover} disabled={thumbnailLoading} className="btn btn-secondary text-xs flex items-center gap-1.5">
-                                   {thumbnailLoading ? <RefreshCw size={12} className="animate-spin" /> : selectedOutput.file_type === "video" ? <Play size={12} /> : <Music size={12} />}
-                                   {selectedOutput.file_type === "video" ? "Extract Thumbnail" : "Regenerate Cover"}
-                                 </button>
-                                 {selectedOutput.file_type === "audio" && selectedOutput.cover_image && (
-                                   <img src={getOutputUrl(selectedOutput.cover_image)} alt="Current cover" className="w-10 h-10 object-cover rounded border border-white/10" title="Current cover" />
-                                 )}
-                               </div>
-                             </div>
-                           </div>
-                         )}
-                      </div>
-                    )}
-                  </div>
-                )}
-                <div className="flex gap-2 mt-4">
-                  <button onClick={()=>{ setRenameTarget(selectedOutput); setRenameValue(selectedOutput.filename);}} className="btn btn-secondary flex-1"><Pencil size={14} />Rename</button>
-                  <a href={getOutputUrl(selectedOutput.relative_path)} download className="btn btn-secondary flex-1 flex items-center justify-center gap-2"><Download size={14} />Download</a>
-                  <button onClick={()=> setOutputToDelete(selectedOutput)} className="btn btn-danger flex-1"><Trash2 size={14} />Delete</button>
-                </div>
-                {is3DModelFile(selectedOutput.filename) && (
-                  <div className="flex gap-2 mt-3 flex-wrap">
-                    <button onClick={()=> handleAddToStudio(selectedOutput, false)} disabled={openingApp==="studio"} className="btn flex-1 flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-50">
-                      {openingApp==="studio" ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />} Add to Studio
-                    </button>
-                    <button onClick={()=> handleAddToStudio(selectedOutput, true)} disabled={openingApp==="studio"} className="btn flex-1 flex items-center justify-center gap-2 bg-violet-600/80 hover:bg-violet-500 text-white border border-violet-500/30 disabled:opacity-50">
-                      <ExternalLink size={14} /> Add & Open
-                    </button>
-                    <button onClick={()=> handleOpenBlender(selectedOutput)} disabled={openingApp==="blender"} className="btn flex-1 flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-500 text-white disabled:opacity-50">
-                      {openingApp==="blender" ? <RefreshCw size={14} className="animate-spin" /> : <Box size={14} />} Open in Blender
-                    </button>
-                    <button onClick={()=> handleOpenUnity(selectedOutput)} disabled={openingApp==="unity"} className="btn flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50">
-                      {openingApp==="unity" ? <RefreshCw size={14} className="animate-spin" /> : <Layers size={14} />} Open in Unity
-                    </button>
-                  </div>
-                )}
-                {selectedOutput.file_type === "video" && (
-                  <ExportMatrixPanel sourcePath={selectedOutput.relative_path} onComplete={fetchOutputs} />
-                )}
-                {selectedOutput.file_type === "image" && (
-                  <UpscalePanel imagePath={selectedOutput.relative_path} onComplete={fetchOutputs} />
-                )}
-              </div>
-            </div>
-          </div>
+          <MediaDetailModal
+            output={selectedOutput}
+            onClose={() => setSelectedOutput(null)}
+            audioRef={audioRef}
+            mediaInfo={mediaInfo}
+            mediaInfoLoading={mediaInfoLoading}
+            mediaInfoError={mediaInfoError}
+            thumbnailUrl={thumbnailUrl}
+            thumbnailLoading={thumbnailLoading}
+            onExtractThumbnail={handleExtractThumbnail}
+            onRegenerateCover={handleRegenerateCover}
+            onAddToStudio={handleAddToStudio}
+            onOpenBlender={handleOpenBlender}
+            onOpenUnity={handleOpenUnity}
+            onRename={(output) => { setRenameTarget(output); setRenameValue(output.filename); }}
+            onDelete={(output) => { setOutputToDelete(output); }}
+            onShowFullImage={() => setShowFullImage(true)}
+            is3DModelFile={is3DModelFile}
+            getOutputUrl={getOutputUrl}
+            formatFileSize={formatFileSize}
+            formatDateTime={formatDateTime}
+            onFetchOutputs={fetchOutputs}
+            openingApp={openingApp}
+            setOutputToDelete={setOutputToDelete}
+            setRenameTarget={setRenameTarget}
+            setRenameValue={setRenameValue}
+          />
         )}
 
         {showFullImage && selectedOutput && selectedOutput.file_type==="image" && (

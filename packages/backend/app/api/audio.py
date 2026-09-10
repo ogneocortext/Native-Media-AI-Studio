@@ -73,7 +73,7 @@ def _cache_get(key: str) -> dict | None:
     return _analysis_cache.get(key)
 
 
-ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".m4a", ".wma", ".aac"}
+ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".opus", ".m4a", ".wma", ".aac"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 
 
@@ -398,8 +398,8 @@ def _build_analysis_result(
                     "time": round(float(bt), 3),
                     "drumType": None,
                     "energy": round(float(
-                        next((e for e in (rms_energy or []) if e > 0), 0.5)
-                    ), 4) if rms_energy else 0.5,
+                        next((e for e in (rms or []) if e > 0), 0.5)
+                    ), 4) if rms else 0.5,
                     "isDownbeat": i == 0 or (i > 0 and (bt - beat_times[i - 1]) > 60.0 / max(tempo, 1) * 1.5),
                     "bpm": round(float(tempo), 1),
                 }
@@ -933,9 +933,10 @@ class RenameAudioRequest(BaseModel):
 
 
 class ExtractAudioRequest(BaseModel):
-    """Extract the audio track from a video file into the audio library as MP3."""
+    """Extract the audio track from a video file into the audio library."""
     source_path: str  # output-relative ("video/foo.mp4") or absolute under PROJECT_ROOT
-    bitrate: str = "192k"  # one of 128k, 192k, 320k
+    format: str = "original"  # "original" = lossless stream copy (best quality); "mp3" = re-encode
+    bitrate: str = "192k"  # only used when format == "mp3": one of 128k, 192k, 320k
 
 
 def _find_ffmpeg() -> str | None:
@@ -946,17 +947,44 @@ def _find_ffmpeg() -> str | None:
     return None
 
 
+# Source audio codec -> container that supports a lossless stream copy.
+_COPY_CONTAINER = {
+    "aac": ".m4a",
+    "alac": ".m4a",
+    "mp3": ".mp3",
+    "opus": ".opus",
+    "vorbis": ".ogg",
+    "flac": ".flac",
+    "pcm_s16le": ".wav",
+    "pcm_s24le": ".wav",
+    "pcm_s32le": ".wav",
+    "pcm_f32le": ".wav",
+    "ac3": ".ac3",
+    "eac3": ".eac3",
+}
+
+
 @router.post("/extract", response_model=dict)
 async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
-    """Extract a video's audio track to `output/audio/<name>.mp3` (libmp3lame).
+    """Extract a video's audio track to `output/audio/<name>.<ext>`.
 
-    Powers the Media Library "Extract MP3" panel — the result lands in the
-    audio library so it can be analyzed on the Audio Analysis page.
+    `format="original"` (default) probes the source audio codec first and
+    remuxes it bit-for-bit into a matching container — no quality loss,
+    near-instant, no wasted runs. `format="mp3"` re-encodes with libmp3lame
+    at `bitrate`. Powers the Media Library "Extract Audio" panel — the result
+    lands in the audio library so it can be analyzed on the Audio Analysis page.
     """
+    from ..services.ffmpeg_tools import probe_media
+
     raw = (body.source_path or "").strip()
     if not raw:
         raise HTTPException(status_code=400, detail="source_path is required")
-    if body.bitrate not in ("128k", "192k", "320k"):
+    fmt = (body.format or "original").lower()
+    if fmt not in ("original", "m4a", "mp3"):
+        raise HTTPException(status_code=400, detail='format must be "original" or "mp3"')
+    if fmt == "m4a":
+        fmt = "original"  # legacy alias from the first iteration
+    if fmt == "mp3" and body.bitrate not in ("128k", "192k", "320k"):
         raise HTTPException(status_code=400, detail="bitrate must be 128k, 192k or 320k")
 
     root = PROJECT_ROOT.resolve()
@@ -973,33 +1001,70 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
     if not ffmpeg:
         raise HTTPException(status_code=500, detail="ffmpeg not found on PATH")
 
+    # Detect — don't guess: probe the actual audio codec before choosing a container.
+    probe = await probe_media(src)
+    audio_codec: str | None = None
+    audio_rate: str | None = None
+    for st in (probe.get("streams") or []):
+        if st.get("codec_type") == "audio":
+            audio_codec = (st.get("codec_name") or "").lower() or None
+            sr = st.get("sample_rate")
+            audio_rate = str(sr) if sr else None
+            break
+    if not audio_codec:
+        raise HTTPException(status_code=400, detail=f"No audio track in {src.name}")
+
     stem = re.sub(r"[^A-Za-z0-9_\- .()\[\]]", "", src.stem).strip() or "extracted"
-    dst = AUDIO_DIR / f"{stem}.mp3"
+    lossless = False
+    if fmt == "mp3":
+        ext, cmd_mode = ".mp3", "encode"
+    else:
+        ext = _COPY_CONTAINER.get(audio_codec)
+        cmd_mode = "copy" if ext else "encode-fallback"
+        if not ext:
+            ext = ".m4a"  # AAC-encode fallback below
+    dst = AUDIO_DIR / f"{stem}{ext}"
     n = 1
     while dst.exists():
         n += 1
-        dst = AUDIO_DIR / f"{stem}_{n}.mp3"
+        dst = AUDIO_DIR / f"{stem}_{n}{ext}"
+
+    def _cmd(mode: str) -> list[str]:
+        base = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-i", str(src), "-vn"]
+        if mode == "copy":
+            return [*base, "-c:a", "copy", str(dst)]
+        if mode == "encode":
+            return [*base, "-c:a", "libmp3lame", "-b:a", body.bitrate, str(dst)]
+        return [*base, "-c:a", "aac", "-b:a", "192k", str(dst)]
 
     started = time.perf_counter()
     try:
         proc = await asyncio.to_thread(
-            subprocess.run,
-            [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-             "-i", str(src), "-vn", "-c:a", "libmp3lame", "-b:a", body.bitrate, str(dst)],
-            capture_output=True, text=True, timeout=600,
+            subprocess.run, _cmd(cmd_mode), capture_output=True, text=True, timeout=600,
         )
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Audio extraction timed out")
+    if proc.returncode == 0:
+        lossless = cmd_mode == "copy"
+    elif cmd_mode == "copy":
+        # Container rejected the codec despite the map (e.g. odd muxer limits) —
+        # one AAC-encode fallback so the user still gets audio.
+        try:
+            proc = await asyncio.to_thread(
+                subprocess.run, _cmd("encode-fallback"), capture_output=True, text=True, timeout=600,
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(status_code=504, detail="Audio extraction timed out")
     if proc.returncode != 0:
         tail = (proc.stderr or "").strip().splitlines()[-3:]
         detail = "; ".join(tail) if tail else "ffmpeg failed"
-        if "does not contain any stream" in detail or "Output file is empty" in detail:
-            detail = f"No audio track in {src.name}"
         raise HTTPException(status_code=400, detail=detail)
     if not dst.exists() or dst.stat().st_size == 0:
         raise HTTPException(status_code=400, detail=f"No audio track in {src.name}")
 
     rel = dst.resolve().relative_to(root).as_posix()
+    if rel.startswith("output/"):
+        rel = rel[len("output/"):]  # output-relative, e.g. "audio/x.m4a" (getOutputUrl convention)
     return {
         "success": True,
         "filename": dst.name,
@@ -1007,6 +1072,9 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
         "stored_path": str(dst),
         "size_bytes": dst.stat().st_size,
         "render_s": round(time.perf_counter() - started, 1),
+        "lossless": lossless,
+        "source_codec": audio_codec,
+        "source_sample_rate": audio_rate,
         "message": f"Extracted {dst.name}",
     }
 
@@ -1096,9 +1164,9 @@ async def get_stems(filename: str) -> dict:
     """Get previously separated stems for an audio file, if available."""
     import urllib.parse
     filename = urllib.parse.unquote(filename)
-    stem_dir = SEPARATION_DIR / "htdemucs" / Path(filename).stem
+    stem_dir = _find_stem_dir(filename)
     stems = {}
-    if stem_dir.exists():
+    if stem_dir is not None and stem_dir.exists():
         for stem_name in ["vocals", "drums", "bass", "other"]:
             stem_path = stem_dir / f"{stem_name}.wav"
             if stem_path.exists():
@@ -1110,9 +1178,86 @@ async def get_stems(filename: str) -> dict:
             name: f"/api/audio/stem-file/{Path(p).parent.name}/{Path(p).stem}"
             for name, p in stems.items()
         },
-        "stems_absolute": stems,
         "found": bool(stems),
     }
+
+
+def _find_stem_dir(filename: str) -> Path | None:
+    """Locate the Demucs output dir for a library file, tolerating renames.
+
+    Separation output dirs are created from the *source* filename at separation
+    time (`output/stems/htdemucs/<stem>/`), so hash prefixes (`85a406ef_…`),
+    renames, and case/spacing differences all break an exact lookup. Resolve:
+    exact → normalized equality → normalized containment (deterministic order).
+    """
+    base = SEPARATION_DIR / "htdemucs"
+    stem = Path(filename).stem
+    exact = base / stem
+    if exact.exists():
+        return exact
+    if not base.exists():
+        return None
+
+    def norm(s: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", s.lower())
+
+    stripped = re.sub(r"^([0-9a-f]{8}_)+", "", stem, flags=re.IGNORECASE)
+    targets = {norm(stripped), norm(stem)} - {""}
+    try:
+        dirs = sorted([d for d in base.iterdir() if d.is_dir()], key=lambda d: d.name)
+    except OSError:
+        return None
+    for d in dirs:
+        if norm(d.name) in targets:
+            return d
+    for d in dirs:
+        dn = norm(d.name)
+        if dn and any(t in dn or dn in t for t in targets):
+            return d
+    return None
+
+
+class SeparateFileRequest(BaseModel):
+    """Separate an existing library file (no re-upload)."""
+    filename: str
+    model: str = "htdemucs"
+
+
+@router.post("/separate-file", response_model=StemSeparationResponse)
+async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResponse:
+    """Separate a file already in the audio library via Demucs.
+
+    Powers Visualizer "Load Stems": separating a 2–4 min track takes a few
+    minutes (CUDA) — the request stays open up to 10 min like Demucs itself.
+    """
+    from ..services.source_separation import SourceSeparator
+
+    if not body.filename or ".." in body.filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    if body.model not in SourceSeparator.SUPPORTED_MODELS:
+        raise HTTPException(
+            status_code=400, detail=f"Unknown model: {body.model}. Choose: {', '.join(SourceSeparator.SUPPORTED_MODELS)}"
+        )
+    path = AUDIO_DIR / body.filename
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail=f"Audio file not found: {body.filename}")
+    if path.suffix.lower() not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid file type: {path.suffix}")
+
+    try:
+        result = await source_separator.separate(audio_path=str(path), model=body.model)
+        return StemSeparationResponse(
+            success=bool(result.stems) and not result.error,
+            audio_file=result.audio_file,
+            model=result.model,
+            stems=result.stems,
+            duration=result.duration,
+            computed_at=result.computed_at,
+            error=result.error,
+        )
+    except Exception as e:
+        logger.exception("Stem separation failed")
+        raise HTTPException(status_code=500, detail=f"Separation failed: {e}")
 
 
 @router.get("/stem-file/{track_name}/{stem_name}")
@@ -1170,6 +1315,7 @@ async def serve_audio_file(request: Request, filename: str):
         ".wav": "audio/wav",
         ".flac": "audio/flac",
         ".ogg": "audio/ogg",
+        ".opus": "audio/ogg",
         ".m4a": "audio/mp4",
         ".wma": "audio/x-ms-wma",
         ".aac": "audio/aac",

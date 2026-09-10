@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getApiBase, getAudioStems, separateAudioFile } from "../../../services/api";
 
 export type StemName = "vocals" | "drums" | "bass" | "other";
 export const STEM_NAMES: StemName[] = ["vocals", "drums", "bass", "other"];
@@ -53,38 +54,82 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
   const [stems, setStems] = useState<Record<StemName, string> | null>(null);
   const [status, setStatus] = useState<"idle" | "checking" | "separating" | "ready" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [separateElapsed, setSeparateElapsed] = useState(0);
   const [volumes, setVolumes] = useState<Record<StemName, number>>({ vocals: 1, drums: 1, bass: 1, other: 1 });
   const [muted, setMuted] = useState<Record<StemName, boolean>>({ vocals: false, drums: false, bass: false, other: false });
   const loadedRef = useRef<LoadedStem[]>([]);
   const ctxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number>(0);
   const startedRef = useRef(false);
+  const trackRef = useRef<string | null>(null);
 
-  // Look up existing stems for the track (fetch URL map from backend)
+  // New track → drop previous stems/graph so nothing stale survives a switch.
+  useEffect(() => {
+    if (trackRef.current === audioFilename) return;
+    trackRef.current = audioFilename;
+    startedRef.current = false;
+    setStems(null);
+    setStatus("idle");
+    setError(null);
+    setSeparateElapsed(0);
+  }, [audioFilename]);
+
+  // Elapsed timer while Demucs runs (separation takes minutes — show it's alive).
+  useEffect(() => {
+    if (status !== "separating") return;
+    setSeparateElapsed(0);
+    const t0 = Date.now();
+    const id = setInterval(() => setSeparateElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [status]);
+
+  const resolveStemUrl = (u: string) => (u.startsWith("http") ? u : `${getApiBase()}${u}`);
+
   const ensureStems = useCallback(async () => {
+    // Look up existing stems; if missing, separate them automatically (Demucs).
     if (!audioFilename || startedRef.current) return;
     startedRef.current = true;
     setStatus("checking");
     setError(null);
     try {
-      const res = await fetch(`/api/audio/stems/${encodeURIComponent(audioFilename)}`);
-      let urls: Record<StemName, string> | null = null;
-      if (res.ok) {
-        const data = await res.json();
-        if (data.found) urls = data.stems;
-      }
-      if (!urls) {
-        setStatus("error");
-        setError("No separated stems for this track — run POST /api/audio/separate (Demucs) first");
+      const data = await getAudioStems(audioFilename);
+      if (data.found && Object.keys(data.stems).length > 0) {
+        setStems(data.stems);
+        setStatus("ready");
         return;
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setStatus("error");
+      startedRef.current = false;
+      return;
+    }
+    // No stems yet — trigger separation instead of dead-ending.
+    setStatus("separating");
+    try {
+      const result = await separateAudioFile(audioFilename);
+      if (!result.success || Object.keys(result.stems || {}).length === 0) {
+        throw new Error(result.error || "Separation produced no stems");
+      }
+      const data = await getAudioStems(audioFilename);
+      const urls = data.found ? data.stems : null;
+      if (!urls || Object.keys(urls).length === 0) {
+        throw new Error("Separation finished but stems are not readable yet — retry in a moment");
       }
       setStems(urls);
       setStatus("ready");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus("error");
+      startedRef.current = false;
     }
   }, [audioFilename]);
+
+  const retry = useCallback(() => {
+    startedRef.current = false;
+    setError(null);
+    void ensureStems();
+  }, [ensureStems]);
 
   // Load + wire audio graph when stems resolve
   useEffect(() => {
@@ -96,8 +141,9 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
         const ctx = new AudioContext();
         ctxRef.current = ctx;
         for (const name of STEM_NAMES) {
-          const url = stems[name];
-          if (!url) continue;
+          const raw = stems[name];
+          if (!raw) continue;
+          const url = resolveStemUrl(raw);
           const el = new Audio(url);
           el.crossOrigin = "anonymous";
           el.preload = "auto";

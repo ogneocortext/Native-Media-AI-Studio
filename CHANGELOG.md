@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added - Media Library Extraction + Typed Inspection + Stem Mixer Resilience (2026-09-10)
+
+- **Audio extraction from video**: `POST /api/audio/extract` now probes the source audio codec first and supports `format="original"` (lossless stream copy into a matching container — `.m4a`/`.mp3`/`.ogg`/`.flac`/`.wav`/`.opus`/etc.) or `format="mp3"` (re-encode at `bitrate`). Powers new `ExtractAudioPanel` in the Media Library video detail view.
+- **Expanded audio format support**: Backend `ALLOWED_EXTENSIONS` and frontend upload validation now include `.opus`, `.aac`, `.wma`; `AudioAnalysisPage.tsx` hints updated.
+- **Media detail modal extracted**: `MediaLibrary.tsx` detail view moved to `MediaDetailModal.tsx` with strongly-typed payloads (`MediaProbe`, `MediaProbeFormat`, `MediaProbeStream`, `LoudnessResult`, `WaveformResult`, `MediaInfoPayload`). `mediaInfo` state now typed; LRU cache (max 50) added to avoid redundant probe/loudness/waveform fetches.
+- **Waveform error handling**: `WaveformDisplay.tsx` accepts optional `onError` prop for WaveSurfer initialization failures.
+- **Stem mixer auto-separation**: `StemMixer.tsx` (`useStemMixer`) now calls `getAudioStems` and, if missing, automatically triggers `POST /api/audio/separate-file` (Demucs) instead of dead-ending. Includes elapsed timer, track-switch cleanup, and retry button.
+- **Backend stem lookup hardened**: `get_stems` uses `_find_stem_dir` to tolerate renamed/hash-prefixed separation output dirs; removed unused `stems_absolute` from response.
+- **Backend new endpoint**: `POST /api/audio/separate-file` separates an existing library file via Demucs (`htdemucs`/`htdemucs_6s`/etc.).
+- **FFmpeg renderer audio bitrate**: `ffmpeg_renderer.py` video mux now pins `-b:a 192k` (was bare `-c:a aac` → ffmpeg default ~128k).
+- **Outputs type detection**: `outputs.py` recognizes `.m4v`, `.opus`, `.aac`, `.wma` as video/audio.
+
 ### Added - Waveform Visualization + Port Centralization (2026-09-10)
 
 - **Media Library waveform**: `packages/frontend/src/features/media-library/WaveformDisplay.tsx` wraps `wavesurfer.js` v7 with pre-computed peaks, duration, and optional audio element binding for interactive seek/play.
