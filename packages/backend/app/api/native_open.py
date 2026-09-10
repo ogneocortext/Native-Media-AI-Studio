@@ -11,6 +11,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 from ..core.config import PROJECT_ROOT, config
+from ..services.go_gateway_client import proxy_request
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/native", tags=["Native Open"])
@@ -201,34 +202,25 @@ async def open_in_unity(payload: dict):
             pass
         raise HTTPException(status_code=500, detail=f"Copy failed: {e}")
 
-    # Try Unity MCP refresh (optional) — Unity auto-imports on file change, but we can ping the bridge
+    # Try Unity MCP refresh via go-gateway (falls back to direct HTTP if gateway is down)
     unity_refreshed = False
     try:
-        import json
-        import socket
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2.0)
-        # Unity MCP bridge REST at 7800, but also try socket
-        sock.connect(("127.0.0.1", 7800))
-        # The bridge expects HTTP POST /api/exec — try that instead via http
-        sock.close()
-        import urllib.request
-        req = urllib.request.Request("http://127.0.0.1:7800/api/exec", data=json.dumps({"command": "editor_status", "parameters": {}}).encode(), headers={"Content-Type": "application/json", "Authorization": "Bearer unity-token-placeholder"}, method="POST")
-        # Don't fail if token wrong — just try to trigger refresh via AssetDatabase.Refresh if available
-        try:
-            with urllib.request.urlopen(req, timeout=3) as resp:
-                unity_refreshed = resp.status == 200
-        except Exception:
-            pass
-        # Try explicit refresh command if editor_status worked
-        try:
-            refresh_req = urllib.request.Request("http://127.0.0.1:7800/api/exec", data=json.dumps({"command": "execute_code", "parameters": {"code": "UnityEditor.AssetDatabase.Refresh();"}}).encode(), headers={"Content-Type": "application/json"}, method="POST")
-            with urllib.request.urlopen(refresh_req, timeout=3):
+        # Ping Unity bridge through go-gateway
+        ping_resp = await proxy_request("unity", "/api/exec", method="POST", json_body={
+            "command": "editor_status",
+            "parameters": {}
+        })
+        if ping_resp is not None and ping_resp.status_code == 200:
+            unity_refreshed = True
+            # Trigger AssetDatabase refresh if editor is responsive
+            refresh_resp = await proxy_request("unity", "/api/exec", method="POST", json_body={
+                "command": "execute_code",
+                "parameters": {"code": "UnityEditor.AssetDatabase.Refresh();"}
+            })
+            if refresh_resp is not None and refresh_resp.status_code == 200:
                 unity_refreshed = True
-        except Exception:
-            pass
     except Exception as e:
-        logger.debug("Unity MCP refresh not available: %s", e)
+        logger.debug("Unity MCP refresh via go-gateway not available: %s", e)
 
     return {
         "success": True,

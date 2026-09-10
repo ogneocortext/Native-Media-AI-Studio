@@ -14,8 +14,8 @@
 │                    Zustand Stores + API Client                   │
 │                              │                                   │
 └──────────────────────────────┼───────────────────────────────────┘
-                               │ HTTP + SSE
-                               │
+                                │ HTTP + SSE
+                                │
 
 ┌──────────────────────────────┼───────────────────────────────────┐
 │                    Backend (FastAPI)                              │
@@ -52,6 +52,21 @@
 │  │  │ ComfyUI  │ │ Ollama   │ │ Unity    │                  │  │
 │  │  └──────────┘ └──────────┘ └──────────┘                  │  │
 │  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                      Go Sidecars (Infrastructure)                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │ go-dashboard │  │ go-gateway   │  │ go-worker            │  │
+│  │   :3847      │  │   :3850      │  │   :3849              │  │
+│  │ SSE + health │  │ MCP bridge   │  │ Sidecar I/O + jobs   │  │
+│  │              │  │ proxy        │  │                      │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
+│  ┌──────────────┐  ┌──────────────┐                             │
+│  │ go-media     │  │ go-ports     │                             │
+│  │   :3848      │  │   :3851      │                             │
+│  │ FFmpeg pipe  │  │ Port checker │                             │
+│  └──────────────┘  └──────────────┘                             │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -118,6 +133,13 @@ _(None — all components now source media data from the library API)_
 - `gpuStore` — GPU snapshot polling
 - `uiStore` — Shared UI state (focus mode toggle)
 
+### Go Sidecar Services
+- `go-dashboard` — SSE stream hub (`/events`) + health aggregation on `:3847`
+- `go-gateway` — MCP bridge proxy on `:3850`; routes Unity/Blender/ComfyUI/Ollama bridge calls through a single HTTP gateway
+- `go-worker` — Async sidecar I/O on `:3849`; writes JSON sidecars for generated outputs so Python job handlers stay non-blocking
+- `go-media` — FFmpeg post-processing worker on `:3848`
+- `go-ports` — Port availability checker on `:3851`
+
 ### Frontend UX (2026-09-08 polish)
 - `Sidebar.tsx` — Progressive disclosure: `Generate`/`System` collapsible (System default closed, auto-opens on active route), External demoted to footer link. `GoServicesCard` throttled 5s→15s.
 - `MusicVideoWizard/steps.tsx` — `ConfigureStep` Steps/CFG/Seed hidden in `<details>` (summary shows live values); vertical-first checkbox retains safe-zone hint.
@@ -151,6 +173,8 @@ _(None — all components now source media data from the library API)_
 - `VRAMManager` — GPU memory coordination between Ollama and ComfyUI
 - `CUDAProcessor` — GPU-accelerated FFT and audio analysis
 - `Gen3DService` — 3D model generation (Hunyuan3D-2mini)
+- `GoGatewayClient` — Async HTTP client for `go-gateway` proxy calls (Unity/Blender/ComfyUI/Ollama)
+- `GoWorkerClient` — Async HTTP client for `go-worker` sidecar writes (image/video/audio JSON metadata)
 - **Tooling** (moved to `tools/`): `audio_analysis_agent`, `audio_fingerprinting`, `structure_analysis`, `blender/builder`, `blender/lyrics_sync`, `coding_benchmark`, `ollama_benchmark`
 
 ### Shared Timing Layer (`shared/timing.ts`)

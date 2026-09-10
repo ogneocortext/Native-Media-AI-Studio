@@ -57,7 +57,7 @@ export function HyperFramesPage() {
       setError(null);
       setPreviewing(true);
       const res = await launchHyperFramesPreview();
-      const url = (res.url as string) || "http://localhost:3000";
+      const url = (res.url as string) || "http://127.0.0.1:3000";
       setPreviewUrl(url);
     } catch (e) {
       setError("Failed to start preview server");

@@ -7,18 +7,17 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from pathlib import Path
+from typing import Any
 
-# In-memory cache for analysis data (avoids DB hits on every frontend poll)
-_analysis_cache: dict[str, dict] = {}
-_cache_max_size = 200  # Max files to cache in memory
-
+import aiohttp
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from ..core.config import PROJECT_ROOT
+from ..core.config import PROJECT_ROOT, config
 from ..services.source_separation import SEPARATION_DIR, source_separator
 
 logger = logging.getLogger(__name__)
@@ -52,6 +51,23 @@ def _save_analysis_index(index: dict) -> None:
 def _get_analysis_path(job_id: str) -> Path:
     """Get the path to an analysis JSON file."""
     return ANALYSIS_DIR / f"{job_id}_analysis.json"
+
+# In-memory cache for analysis data (avoids DB hits on every frontend poll)
+_analysis_cache: dict[str, dict] = {}
+_cache_max_size = 200  # Max files to cache in memory
+
+
+def _cache_set(key: str, value: dict) -> None:
+    """Store value in cache, evicting oldest entry if over limit."""
+    if len(_analysis_cache) >= _cache_max_size:
+        _analysis_cache.pop(next(iter(_analysis_cache)), None)
+    _analysis_cache[key] = value
+
+
+def _cache_get(key: str) -> dict | None:
+    """Get cached value by key."""
+    return _analysis_cache.get(key)
+
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".m4a", ".wma", ".aac"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
@@ -92,6 +108,12 @@ class AudioAnalysisResult(BaseModel):
     suggested_visualization: str | None = None
     suggested_kinetic_preset: str | None = None
     suggested_theme_seed: str | None = None
+
+
+class EnsureAnalysisRequest(BaseModel):
+    """Request model for ensuring cached analysis exists for an audio file."""
+    filename: str
+    backend: str = "sonara"
 
 
 @router.get("/backends")
@@ -230,7 +252,6 @@ async def analyze_audio(
         # Save full analysis
         analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
         with open(analysis_file, "w") as f:
-            import json
             json.dump(analysis_result, f, indent=2)
 
         return AudioAnalysisResult(**analysis_result)
@@ -297,7 +318,6 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
         # Save full analysis
         analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
         with open(analysis_file, "w") as f:
-            import json
             json.dump(analysis_result, f, indent=2)
 
         return AudioAnalysisResult(**analysis_result)
@@ -554,11 +574,8 @@ async def _generate_sections_llm(
 ) -> list[dict] | None:
     """Try LLM (deepseek-r1:7b → qwen3.5:4b fallback) to label sections semantically.
     Returns None on failure so caller can fall back to heuristic."""
-    import json
-
-    import aiohttp
-
     from ..core.config import config as app_config
+
     # Summarize energy curve (downsample to ~20 points for prompt)
     if rms_energy and len(rms_energy) > 20:
         step = len(rms_energy) / 20
@@ -575,9 +592,9 @@ async def _generate_sections_llm(
         "energy 0-1 correlates with loudness. Use chorus for peaks, intro/outro for edges."
     )
     user = f"tempo: {tempo:.1f} BPM, beats: {beat_count}, duration: {duration:.1f}s, energy: [{energy_str}]{' lyrics: '+lyrics_hint[:200] if lyrics_hint else ''}"
-    for model in ["deepseek-r1:7b", app_config.default_model, "qwen3.5:4b"]:
-        try:
-            async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession() as session:
+        for model in ["deepseek-r1:7b", app_config.default_model, "qwen3.5:4b"]:
+            try:
                 async with session.post(
                     f"{app_config.ollama_url}/api/chat",
                     json={
@@ -622,8 +639,8 @@ async def _generate_sections_llm(
                         out[0]["start"] = 0.0
                         out[-1]["end"] = round(duration, 2)
                         return out
-        except Exception:
-            continue
+            except Exception:
+                continue
     return None
 
 
@@ -680,15 +697,16 @@ async def get_analysis_by_filename(filename: str):
         raise HTTPException(status_code=400, detail="Invalid filename")
 
     # Check in-memory cache first (fastest)
-    if filename in _analysis_cache:
-        return _analysis_cache[filename]
+    cached = _cache_get(filename)
+    if cached is not None:
+        return cached
 
     # Check database second
     from ..core import database
     db_analysis = database.get_audio_analysis(filename)
     if db_analysis:
         # Populate cache
-        _analysis_cache[filename] = db_analysis
+        _cache_set(filename, db_analysis)
         return db_analysis
 
     # Fallback to JSON file index
@@ -835,7 +853,7 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
         from ..core import database
         database.update_audio_analysis(filename, analysis_result)
         # Populate in-memory cache
-        _analysis_cache[filename] = analysis_result
+        _cache_set(filename, analysis_result)
 
         return {"status": "analyzed", "analysis": analysis_result}
     except HTTPException:
@@ -902,12 +920,6 @@ async def analyze_all_pending(backend: str = "sonara"):
         except Exception as e:
             errors.append({"filename": filename, "error": str(e)})
             logger.warning(f"Failed to analyze '{filename}': {e}")
-
-
-class EnsureAnalysisRequest(BaseModel):
-    """Request model for ensuring cached analysis exists for an audio file."""
-    filename: str
-    backend: str = "sonara"
 
 
 class RenameAudioRequest(BaseModel):
@@ -1081,18 +1093,21 @@ async def serve_audio_file(request: Request, filename: str):
     }
     media_type = media_types.get(ext, "application/octet-stream")
 
-    # CORS: allowlist local origins only (no reflection)
-    allowed_origins = {"http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:8000", "http://localhost:8000"}
+    # CORS: allowlist local origins only; omit ACAO for untrusted origins.
+    from ..core.cors import is_local_origin
+
     origin = request.headers.get("origin", "")
-    cors_origin = origin if origin in allowed_origins else "http://127.0.0.1:5173"
+    cors_origin = origin if is_local_origin(origin) else ""
+    headers: dict[str, str] = {
+         "Accept-Ranges": "bytes",
+         "Cache-Control": "public, max-age=3600",
+    }
+    if cors_origin:
+        headers["Access-Control-Allow-Origin"] = cors_origin
     return FileResponse(
         str(file_path),
         media_type=media_type,
         filename=file_path.name,
-        headers={
-             "Accept-Ranges": "bytes",
-             "Cache-Control": "public, max-age=3600",
-             "Access-Control-Allow-Origin": cors_origin,
-        },
-     )
+        headers=headers,
+    )
 

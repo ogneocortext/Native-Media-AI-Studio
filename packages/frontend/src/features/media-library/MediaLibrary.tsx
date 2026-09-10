@@ -412,7 +412,7 @@ export function MediaLibrary() {
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3 text-red-300 backdrop-blur">
             <AlertTriangle className="w-5 h-5 shrink-0" />
-            <div className="flex-1"><span className="font-medium">Backend Unavailable</span><p className="text-sm text-red-300/80 mt-1">{error.includes("fetch")||error.includes("refused")?"Cannot connect to backend at localhost:8000. Start with: cd packages/backend && python -m uvicorn app.main:app --reload":error}</p></div>
+            <div className="flex-1"><span className="font-medium">Backend Unavailable</span><p className="text-sm text-red-300/80 mt-1">{error.includes("fetch")||error.includes("refused")?"Cannot connect to backend at 127.0.0.1:8000. Start with: cd packages/backend && python -m uvicorn app.main:app --reload":error}</p></div>
             <button onClick={handleRefresh} className="btn btn-sm btn-secondary">Retry</button>
           </div>
         )}

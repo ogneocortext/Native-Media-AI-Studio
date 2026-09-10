@@ -1,7 +1,9 @@
 /**
  * Port Configuration Service
  *
- * Reads backend URL from config/ports.json at runtime.
+ * Reads backend URL from the backend API first, then falls back to the
+ * static config/ports.json asset, then to Vite environment variables.
+ *
  * Per Guidelines section 6: "No hardcoded API URLs. Always read from ports.json or Vite env vars."
  */
 
@@ -32,49 +34,74 @@ function getEnvVar(key: string, fallback: string): string {
 }
 
 /**
- * Fetch port configuration from config/ports.json
- * Falls back to environment variables or defaults if fetch fails
+ * Normalize a raw ports.json payload into the PortConfig shape the frontend expects.
+ * Falls back to safe defaults for any missing fields.
+ */
+function normalizePortConfig(raw: Record<string, unknown>): PortConfig {
+  const backendPort = (raw.backend_port as number) || 8000;
+  const frontendPort = (raw.frontend_port as number) || 5173;
+  const dashboardPort = (raw.dashboard_port as number) || 3847;
+  const dashboardUrl = (raw.dashboard_url as string) || `http://127.0.0.1:${dashboardPort}`;
+  const eventsUrl = (raw.events_url as string) || (raw.sse_url as string) || `http://127.0.0.1:${backendPort}/api/events`;
+  const sseUrl = (raw.sse_url as string) || (raw.events_url as string) || eventsUrl;
+  const wsPort = (raw.ws_port as number) || backendPort;
+  const wsUrl = (raw.ws_url as string) || `ws://127.0.0.1:${wsPort}/ws`;
+
+  return {
+    backend_url: (raw.backend_url as string) || `http://127.0.0.1:${backendPort}`,
+    backend_port: backendPort,
+    frontend_port: frontendPort,
+    events_url: eventsUrl,
+    sse_url: sseUrl,
+    ws_port: wsPort,
+    ws_url: wsUrl,
+    video_editor_port: (raw.video_editor_port as number) || undefined,
+    comfyui_port: (raw.comfyui_port as number) || undefined,
+    comfyui_url: (raw.comfyui_url as string) || undefined,
+    dashboard_port: dashboardPort,
+    dashboard_url: dashboardUrl,
+  };
+}
+
+/**
+ * Fetch port configuration from the backend API, then static asset, then env vars.
  */
 export async function fetchPortConfig(): Promise<PortConfig> {
   if (cachedConfig) {
     return cachedConfig;
   }
 
+  // 1) Preferred: backend API (always reflects actual bound ports)
   try {
-    const response = await fetch("/config/ports.json");
+    const response = await fetch("/api/integrations/config/ports");
     if (response.ok) {
-      const config = await response.json();
-      const backendPort = config.backend_port || 8000;
-      cachedConfig = {
-        backend_url:
-          config.backend_url ||
-          `http://localhost:${backendPort}`,
-        backend_port: backendPort,
-        frontend_port: config.frontend_port || 5173,
-        // Canonical SSE endpoint; fall back to ws alias or synthesize from backend
-        events_url: config.events_url || config.sse_url || `http://localhost:${backendPort}/api/events`,
-        sse_url: config.sse_url || config.events_url || `http://localhost:${backendPort}/api/events`,
-        // Deprecated WS alias — still populated so old code doesn't break
-        ws_port: config.ws_port || backendPort,
-        ws_url: config.ws_url || `ws://localhost:${backendPort}/ws`,
-        video_editor_port: config.video_editor_port,
-        comfyui_port: config.comfyui_port,
-        comfyui_url: config.comfyui_url,
-        dashboard_port: config.dashboard_port,
-        dashboard_url: config.dashboard_url || `http://localhost:${config.dashboard_port || 3847}`,
-      };
+      const raw = await response.json();
+      cachedConfig = normalizePortConfig(raw as Record<string, unknown>);
       return cachedConfig;
     }
   } catch {
-    // Fetch failed, fall through to env vars
+    // Backend unreachable — fall through to static asset
   }
 
-  // Fallback to environment variables or defaults
-  return getPortConfigFromEnv();
+  // 2) Fallback: static asset bundled with the frontend
+  try {
+    const response = await fetch("/config/ports.json");
+    if (response.ok) {
+      const raw = await response.json();
+      cachedConfig = normalizePortConfig(raw as Record<string, unknown>);
+      return cachedConfig;
+    }
+  } catch {
+    // Static asset missing — fall through to env vars
+  }
+
+  // 3) Final fallback: environment variables or hardcoded defaults
+  cachedConfig = getPortConfigFromEnv();
+  return cachedConfig;
 }
 
 /**
- * Get port configuration from environment variables
+ * Get port configuration from environment variables.
  * Priority: VITE_ prefixed env vars > defaults
  */
 export function getPortConfigFromEnv(): PortConfig {
@@ -83,21 +110,20 @@ export function getPortConfigFromEnv(): PortConfig {
   const wsPort = getEnvVar("VITE_WS_PORT", "8000");
 
   const backendPortInt = parseInt(backendPort, 10);
+  const eventsUrl = getEnvVar("VITE_EVENTS_URL", `http://127.0.0.1:${backendPortInt}/api/events`);
+  const sseUrl = getEnvVar("VITE_SSE_URL", eventsUrl);
+  const dashboardPort = parseInt(getEnvVar("VITE_DASHBOARD_PORT", "3847"), 10);
+
   cachedConfig = {
-    backend_url: getEnvVar(
-      "VITE_BACKEND_URL",
-      `http://127.0.0.1:${backendPort}`,
-    ),
+    backend_url: getEnvVar("VITE_BACKEND_URL", `http://127.0.0.1:${backendPort}`),
     backend_port: backendPortInt,
     frontend_port: parseInt(frontendPort, 10),
-    // Canonical SSE endpoint
-    events_url: getEnvVar("VITE_EVENTS_URL", `http://127.0.0.1:${backendPortInt}/api/events`),
-    sse_url: getEnvVar("VITE_SSE_URL", getEnvVar("VITE_EVENTS_URL", `http://127.0.0.1:${backendPortInt}/api/events`)),
-    // Deprecated WS alias — retained for compatibility
+    events_url: eventsUrl,
+    sse_url: sseUrl,
     ws_port: parseInt(wsPort, 10),
     ws_url: getEnvVar("VITE_WS_URL", `ws://127.0.0.1:${wsPort}/ws`),
-    dashboard_port: parseInt(getEnvVar("VITE_DASHBOARD_PORT", "3847"), 10),
-    dashboard_url: getEnvVar("VITE_DASHBOARD_URL", `http://127.0.0.1:${getEnvVar("VITE_DASHBOARD_PORT", "3847")}`),
+    dashboard_port: dashboardPort,
+    dashboard_url: getEnvVar("VITE_DASHBOARD_URL", `http://127.0.0.1:${dashboardPort}`),
   };
 
   return cachedConfig;
@@ -137,10 +163,10 @@ export function getApiBaseUrl(): string {
  */
 export function getVideoEditorUrl(): string {
   if (!cachedConfig) {
-    return "http://localhost:8080";
+    return "http://127.0.0.1:8080";
   }
   const port = cachedConfig.video_editor_port ?? 8080;
-  return `http://localhost:${port}`;
+  return `http://127.0.0.1:${port}`;
 }
 
 /**

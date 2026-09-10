@@ -558,6 +558,11 @@ export async function mockGoServiceHealth(
 ): Promise<void> {
   registerRouteHandler(page, async (route) => {
     const url = route.request().url();
+    // Allow go-dashboard SSE through so EventSource gets text/event-stream.
+    if (url.includes('/events')) {
+      await route.continue();
+      return;
+    }
     for (const [name, port] of Object.entries(GO_SERVICE_PORTS)) {
       if (url.includes(`127.0.0.1:${port}`) || url.includes(`localhost:${port}`)) {
         const body = JSON.stringify({ ...DEFAULT_GO_HEALTH_RESPONSE, ...(overrides[name] || {}) });
@@ -579,6 +584,11 @@ export async function mockGoServiceHealthDegraded(
 ): Promise<void> {
   registerRouteHandler(page, async (route) => {
     const url = route.request().url();
+    // Allow go-dashboard SSE through so EventSource gets text/event-stream.
+    if (url.includes('/events')) {
+      await route.continue();
+      return;
+    }
     for (const [name, port] of Object.entries(GO_SERVICE_PORTS)) {
       if (url.includes(`127.0.0.1:${port}`) || url.includes(`localhost:${port}`)) {
         const isOffline = offlineServices.includes(name);

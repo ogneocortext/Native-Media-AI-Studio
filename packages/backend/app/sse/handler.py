@@ -4,6 +4,17 @@ SSE (Server-Sent Events) handler for real-time updates.
 Replaces WebSocket with a simpler, more reliable HTTP-based protocol.
 SSE provides one-way server-to-client push with automatic reconnection
 and event resumption built into the browser's EventSource API.
+
+Standard wire format
+--------------------
+Every outbound SSE message is serialized as::
+
+    id: <monotonic-integer>
+    event: message
+    data: <json({type, data, timestamp})>
+
+Frontend listeners receive the parsed ``data`` object (a dict with at
+least ``type`` and ``data`` keys, plus ``timestamp``).
 """
 import asyncio
 import json
@@ -53,6 +64,15 @@ class SSEManager:
         self._event_id = 0
         self._max_connections = 50
         self._queue_put_timeout = 5.0  # Drop slow clients after 5s
+
+    @staticmethod
+    def _format_message(message_type: str, data: dict[str, Any]) -> dict[str, Any]:
+        """Wrap a payload in the standard SSE envelope."""
+        return {
+            "type": message_type,
+            "data": data,
+            "timestamp": datetime.now().isoformat(),
+        }
 
     async def connect(self) -> asyncio.Queue:
         """Create a new SSE connection queue"""
@@ -117,45 +137,37 @@ class SSEManager:
     async def send_job_update(self, job: Job):
         """Send job update to all clients"""
         logger.debug("Broadcasting job update: %s", job.id)
-        await self.send_message({
-            "type": "job_update",
-            "data": job.model_dump(mode='json'),
-            "timestamp": datetime.now().isoformat()
-        })
+        await self.send_message(self._format_message(
+            "job_update",
+            {"job": job.model_dump(mode='json')},
+        ))
 
     async def send_health_update(self, health: dict[str, Any]):
         """Send health update to all clients"""
-        await self.send_message({
-            "type": "health_update",
-            "data": health,
-            "timestamp": datetime.now().isoformat()
-        })
+        await self.send_message(self._format_message(
+            "health_update",
+            health,
+        ))
 
     async def broadcast_health_status(self, status: dict[str, Any]):
         """Broadcast health status to all connected clients"""
         logger.debug("Broadcasting health status: %s", status.get("overall", "unknown"))
-        await self.send_message({
-            "type": "system.health_changed",
-            "data": status,
-            "timestamp": datetime.now().isoformat()
-        })
+        await self.send_message(self._format_message(
+            "system.health_changed",
+            status,
+        ))
 
     async def send_queue_update(self, stats: dict[str, Any]):
         """Send queue stats update to all clients"""
-        await self.send_message({
-            "type": "queue_update",
-            "data": stats,
-            "timestamp": datetime.now().isoformat()
-        })
+        await self.send_message(self._format_message(
+            "queue_update",
+            stats,
+        ))
 
     async def broadcast(self, type: str, data: dict[str, Any]):
         """Broadcast a message to all clients"""
         logger.debug("Broadcasting SSE message: type=%s", type)
-        await self.send_message({
-            "type": type,
-            "data": data,
-            "timestamp": datetime.now().isoformat()
-        })
+        await self.send_message(self._format_message(type, data))
 
     def connection_count(self) -> int:
         """Get number of active connections"""

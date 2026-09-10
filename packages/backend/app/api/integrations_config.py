@@ -2,50 +2,25 @@
 Integrations API - for external service integration.
 """
 
+import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..adapters.registry import adapter_registry
+from ..models.generation import ImageGenerationRequest, VideoGenerationRequest
+from ..core.config import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
 
 # Router without prefix - included by main integrations.py with prefix "/api/integrations"
 router = APIRouter(tags=["Integrations-Config"])
 
-
-class ImageGenerationRequest(BaseModel):
-    """Request for image generation via ComfyUI or other backends"""
-
-    prompt: str
-    negative_prompt: str = ""
-    steps: int = 20
-    cfg_scale: float = 7.0
-    width: int = 512
-    height: int = 512
-    seed: int = -1
-    sampler: str = "Euler a"
-    backend: str = "comfyui"
-    ckpt_name: str = ""
-
-
-class VideoGenerationRequest(BaseModel):
-    """Request for video generation using AnimateDiff"""
-
-    prompt: str
-    negative_prompt: str = ""
-    steps: int = 20
-    cfg_scale: float = 7.0
-    width: int = 512
-    height: int = 512
-    seed: int = -1
-    sampler: str = "Euler a"
-    num_frames: int = 16  # Number of video frames
-    fps: int = 8  # Frames per second
-    motion_module: str = "mm_sd_v15_v2.safetensors"
+CONFIG_PORTS_PATH = PROJECT_ROOT / "config" / "ports.json"
 
 
 @router.get("/")
@@ -338,5 +313,33 @@ async def update_settings(req: SettingsUpdateRequest) -> dict:
 
     save_config(config)
     return {"updated": updates, "message": "Settings saved. Restart may be required for some changes."}
+
+
+@router.get("/config/ports")
+async def get_ports_config() -> dict:
+    """Serve the resolved port configuration written by the port manager.
+
+    Frontend consumers should call this endpoint first; it always reflects
+    the backend's actual bound ports.  Falls back to the static
+    ``config/ports.json`` file when the port manager has not yet run.
+    """
+    if CONFIG_PORTS_PATH.exists():
+        try:
+            with open(CONFIG_PORTS_PATH) as f:
+                return json.load(f)
+        except Exception as exc:
+            logger.warning("Failed to read ports config: %s", exc)
+
+    # Minimal fallback so the frontend is never blocked on boot
+    return {
+        "backend_port": 8000,
+        "frontend_port": 5173,
+        "ws_port": 8000,
+        "ws_url": "ws://127.0.0.1:8000/ws",
+        "events_url": "http://127.0.0.1:8000/api/events",
+        "sse_url": "http://127.0.0.1:8000/api/events",
+        "dashboard_port": 3847,
+        "dashboard_url": "http://127.0.0.1:3847",
+    }
 
 

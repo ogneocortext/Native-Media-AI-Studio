@@ -11,6 +11,7 @@ from typing import Any
 from ..core.config import PROJECT_ROOT
 from ..models.job import Job, JobType
 from ..services.audio_analyzer import AudioAnalyzer, extract_amplitude_envelope_simple
+from ..services.go_worker_client import write_sidecar as go_write_sidecar
 
 OUTPUT_DIR = PROJECT_ROOT / "output" / "video"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -563,8 +564,11 @@ class MusicVideoHandler:
         }
         # Write a JSON sidecar with analysis data
         sidecar_path = output_path.with_suffix(".json")
-        with open(sidecar_path, "w") as f:
-            json.dump(placeholder, f, indent=2)
+        sidecar_name = sidecar_path.stem
+        worker_result = await go_write_sidecar(job.id, placeholder, filename=sidecar_name)
+        if worker_result is None or not worker_result.get("written"):
+            with open(sidecar_path, "w") as f:
+                json.dump(placeholder, f, indent=2)
 
 
 class MusicVideoPreviewHandler(MusicVideoHandler):

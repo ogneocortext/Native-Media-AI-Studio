@@ -2,7 +2,7 @@
 
 > **Scope:** Where Go adds measurable value to the studio stack, with concrete integration points and code examples.
 > **Current stack:** TypeScript/JS (frontend, Remotion, MCP bridges), Python (FastAPI, Blender MCP, ComfyUI, audio analysis), C# (Unity), GLSL/HLSL.
-> **Last updated:** 2026-09-08
+> **Last updated:** 2026-09-10
 > **Go version:** 1.27.0 (windows/amd64) — already on PATH.
 
 ---
@@ -245,18 +245,20 @@ Or use `go env GOROOT` to find the active install.
 
 ---
 
-## 8. Implementation Status (2026-09-08)
+## 8. Implementation Status (2026-09-10)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| `go-dashboard` | ✅ Done | Binary at `bin/go-dashboard.exe`, registered in `start-services.ps1` and `manage-servers.ps1`. Health at `/api/health`, SSE at `/events`. |
+| `go-dashboard` | ✅ Done | Binary at `bin/go-dashboard.exe`, registered in `start-services.ps1` and `manage-servers.ps1`. Health at `/api/health`, SSE at `/events`. **Fix:** stream `"events"` is now created in `main()`; missing-stream 500s eliminated. Frontend falls back to go-dashboard SSE when backend SSE is unreachable. |
 | `go-media` | ✅ Done | Binary at `bin/go-media.exe`. Typed FFmpeg wrapper (thumbnail/normalize/concat). |
-| `go-worker` | ✅ Done | Binary at `bin/go-worker.exe`. Queue I/O worker with job + sidecar endpoints. |
-| `go-gateway` | ✅ Done | Binary at `bin/go-gateway.exe`. MCP bridge router with `/proxy/:bridge/*path` on `:3850`. **Fix applied:** response proxy now uses `io.Copy` instead of single `Read` call (was truncating responses). |
+| `go-worker` | ✅ Done | Binary at `bin/go-worker.exe`. Queue I/O worker with job + sidecar endpoints. **New:** `POST /jobs/:id/sidecar?filename=` supports custom output filenames. Backend `GoWorkerClient` writes JSON sidecars asynchronously for image/video/audio outputs. |
+| `go-gateway` | ✅ Done | Binary at `bin/go-gateway.exe`. MCP bridge router with `/proxy/:bridge/*path` on `:3850`. **Fix applied:** response proxy now uses `io.Copy` instead of single `Read` call (was truncating responses). **New:** Unity MCP refresh in `native_open.py` routes through go-gateway; Blender MCP still uses raw socket. |
 | `go-ports` | ✅ Done | Binary at `bin/go-ports.exe`. Port availability checker on `:3851` (`/api/health`, `/check/<port>`, `/scan?ports=...`). |
-| Frontend integration | ✅ Done | `config/ports.json` includes `dashboard_port`/`dashboard_url`. `portConfig.ts` exposes `getDashboardUrl()`. `GoServicesCard` component added to HealthPage, polls all 5 Go sidecars every 15s (was 5s, throttled 2026-09-08). |
+| Frontend integration | ✅ Done | `config/ports.json` includes `dashboard_port`/`dashboard_url`. `portConfig.ts` exposes `getDashboardUrl()`. `GoServicesCard` component added to HealthPage, polls all 5 Go sidecars every 15s (was 5s, throttled 2026-09-08). SSE fallback: frontend `sseService.ts` uses go-dashboard as primary, backend as fallback. Playwright test helpers preserve real SSE `/events` passthrough. |
+| Backend integration | ✅ Done | `go_gateway_client.py` + `go_worker_client.py` added under `packages/backend/app/services/`. Sidecar writes offloaded to go-worker in `image_generator.py`, `comfyui_workflow_handler.py`, `music_video_handler.py`, `export_matrix.py`, `storyboard_generator.py`. Health diagnostics `/api/health/diagnostics/services` now returns `sidecars` block with live go-sidecar status. |
+| CORS / URL hardening | ✅ Done | `packages/backend/app/core/cors.py` allowlist centralized to `127.0.0.1` only. `hyperframes.py` URL parsing fixed to `127.0.0.1`. All service URLs standardized to `127.0.0.1` in frontend/backend configs. |
 | Service lifecycle | ✅ Done | All Go sidecars start automatically with `scripts\start-services.ps1`. Managed via `scripts\manage-servers.ps1 -Action status` (supports `go-dashboard`, `go-media`, `go-worker`, `go-gateway`, `go-ports`). |
-| Technical reference | ✅ Done | Service map updated in `docs/knowledge-library/technical-reference.md`. |
+| Technical reference | ✅ Done | Service map updated in `docs/knowledge-library/technical-reference.md`. Architecture diagram updated in `docs/architecture/ARCHITECTURE.md`. API reference updated in `docs/api/API_REFERENCE.md`. |
 
 ## 9. Decision Record
 
@@ -276,6 +278,10 @@ Or use `go env GOROOT` to find the active install.
 2. **CLI + server duality.** `go-media` started as CLI-only, but the backend needs programmatic access. Adding `--server` mode makes it callable from FastAPI without shell-outs.
 3. **Port probing from Go.** `go-ports` replaces ad-hoc PowerShell port checks with a tiny cross-platform binary. Frontend can poll it directly.
 4. **Frontend polling pattern.** `GoServicesCard` uses `AbortSignal.timeout(2000)` + 15s interval (was 5s, raised 2026-09-08 to match `healthStore` 15/30s). This is more reliable than `useHealth` for non-FastAPI services.
+5. **SSE stream must be created before client connects.** go-dashboard `/events` returned 500 "Stream not found!" because `eventServer.CreateStream("events")` was missing from `main()`. Always create streams at startup, not lazily on first subscribe.
+6. **CORS allowlist should be exact, not generous.** Centralizing CORS to `127.0.0.1` only eliminated cross-origin failures when frontend/backend ran on loopback. Avoid `localhost` entries; some Windows hosts-file setups resolve it unexpectedly.
+7. **Async sidecar I/O keeps job handlers responsive.** Offloading JSON sidecar writes to `go-worker` removed file-system I/O from the Python job processor. During long renders, progress updates and UI interactions stay smooth.
+8. **Unity MCP via gateway, Blender via raw socket.** go-gateway cleanly proxies Unity MCP REST calls. Blender MCP stays on raw TCP because its addon protocol is not HTTP-based. Mixing both in the same gateway client requires per-bridge transport selection.
 
 ## 11. Related Documents
 

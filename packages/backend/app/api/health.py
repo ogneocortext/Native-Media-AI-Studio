@@ -10,10 +10,20 @@ from ..adapters.registry import adapter_registry
 from ..core.config import config
 from ..diagnostics.health import health_monitor
 from ..diagnostics.resources import resource_monitor
+from ..services.go_gateway_client import health as go_gateway_health
+from ..services.go_worker_client import health as go_worker_health
+
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/health", tags=["Health"])
+
+
+async def _check_sidecar(name: str, health_fn) -> dict[str, Any]:
+    result = await health_fn()
+    if result is None:
+        return {"name": name, "status": "offline", "url": None, "error": "not configured or unreachable"}
+    return {"name": name, "status": "online", "url": result.get("url"), "data": result}
 
 
 @router.get("/ping")
@@ -229,8 +239,16 @@ async def get_diagnostics() -> dict:
 
 @router.get("/diagnostics/services")
 async def check_services() -> dict:
-    """Check all external services"""
-    return await health_monitor.check_all_services(config)
+    """Check all external services including sidecars."""
+    adapter_results = await health_monitor.check_all_services(config)
+    sidecar_results = {
+        "go-gateway": await _check_sidecar("go-gateway", go_gateway_health),
+        "go-worker": await _check_sidecar("go-worker", go_worker_health),
+    }
+    return {
+        "adapters": adapter_results,
+        "sidecars": sidecar_results,
+    }
 
 
 @router.get("/diagnostics/system")

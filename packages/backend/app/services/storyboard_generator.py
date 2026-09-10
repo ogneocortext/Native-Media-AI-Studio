@@ -9,6 +9,7 @@ from typing import Any
 from ..adapters.ollama import OllamaAdapter
 from ..core.config import PROJECT_ROOT
 from ..models.job import Job
+from ..services.go_worker_client import write_sidecar as go_write_sidecar
 
 OUTPUT_DIR = PROJECT_ROOT / "output" / "storyboards"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -65,8 +66,11 @@ class StoryboardGeneratorHandler:
             "mock": result.get("mock", False),
         }
 
-        with open(storyboard_path, "w", encoding="utf-8") as f:
-            json.dump(storyboard_data, f, indent=2)
+        # Persist through go-worker when available; fall back to direct write.
+        worker_result = await go_write_sidecar(job.id, storyboard_data, filename=filename)
+        if worker_result is None or not worker_result.get("written"):
+            with open(storyboard_path, "w", encoding="utf-8") as f:
+                json.dump(storyboard_data, f, indent=2)
 
         return {"storyboard": str(storyboard_path)}
 

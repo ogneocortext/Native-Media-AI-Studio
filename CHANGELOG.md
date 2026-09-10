@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added - Go Sidecars + CORS/SSE Hardening (2026-09-10)
+
+- **Go sidecars integrated into backend service layer**: `go_gateway_client.py` + `go_worker_client.py` under `packages/backend/app/services/`
+- **Unity MCP via go-gateway**: `native_open.py` now routes Unity MCP refresh through `go-gateway` `/proxy/unity/...`; Blender MCP remains on raw TCP socket
+- **Async sidecar I/O**: Offloaded JSON sidecar writes from Python job handlers to `go-worker` in `image_generator.py`, `comfyui_workflow_handler.py`, `music_video_handler.py`, `export_matrix.py`, `storyboard_generator.py` with direct-write fallback
+- **go-gateway proxy fix**: response body now uses `io.Copy` instead of single `Read` call (was truncating responses)
+- **go-worker sidecar endpoint**: `POST /jobs/:id/sidecar` accepts optional `?filename=` query param for custom output filenames
+- **Health diagnostics extended**: `GET /api/health/diagnostics/services` now returns `sidecars` block with live status for go-dashboard, go-gateway, go-worker, go-media, go-ports
+- **go-dashboard SSE fix**: Added missing `eventServer.CreateStream("events")` in `main()`; `/events` no longer returns 500 "Stream not found!"
+- **CORS centralized**: `packages/backend/app/core/cors.py` allowlist reduced to `127.0.0.1` only; removed `localhost` entries
+- **URL standardization**: All local service URLs standardized to `127.0.0.1` across backend (`hyperframes.py`, CORS) and frontend (`portConfig.ts`, `sseService.ts`)
+- **Playwright test helpers fixed**: `mockGoServiceHealth` and `mockGoServiceHealthDegraded` now allow `/events` requests through to real go-dashboard to preserve `text/event-stream` MIME type
+- **SSE fallback**: Frontend `sseService.ts` uses go-dashboard as primary SSE source, backend as fallback
+- **Verification**: 28 Playwright smoke tests pass (dashboard, health, queue, SSE, Go sidecars); 0 console errors on frontend reload
+
 ### Added - Frontend UX Polish & Build Optimization (2026-09-08)
 
 - **Sidebar** (`packages/frontend/src/components/layout/Sidebar.tsx`): Progressive disclosure — `Generate` collapsible (default open), `System` collapsible (default closed, auto-opens when route active), `External` demoted to subtle footer link. Reduces expanded nav 22→16 rows; addresses `docs/ux-audit/audit-report.md` #8 progressive disclosure.

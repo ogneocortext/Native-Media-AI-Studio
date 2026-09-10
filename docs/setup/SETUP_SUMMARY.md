@@ -4,7 +4,7 @@
 
 ## ✅ Current System Status
 
-### Running Services (2026-09-07)
+### Running Services (2026-09-10)
 
 | Service | Port | Health Check | Notes |
 |---------|------|--------------|-------|
@@ -15,6 +15,11 @@
 | Unity MCP Bridge | 7800 (REST) | `POST http://127.0.0.1:7800/api/exec {command:"editor_status"}` | `tools/mcp/unity-mcp-bridge.mjs` |
 | Blender MCP | 9876 (TCP) | Blender addon sidebar “Start MCP Server” | `uvx blender-mcp`, executable `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe` |
 | Ollama | 11434 | `GET http://127.0.0.1:11434/api/tags` | `gemma4:e2b-it-qat`, `qwen3-vl:4b` |
+| go-dashboard | 3847 | `GET http://127.0.0.1:3847/api/health` | SSE hub, frontend fallback for `/events` |
+| go-gateway | 3850 | `GET http://127.0.0.1:3850/api/health` | MCP bridge proxy (Unity via gateway, Blender raw socket) |
+| go-worker | 3849 | `GET http://127.0.0.1:3849/api/health` | Async sidecar writes for generated outputs |
+| go-media | 3848 | `GET http://127.0.0.1:3848/api/health` | FFmpeg pipeline worker |
+| go-ports | 3851 | `GET http://127.0.0.1:3851/api/health` | Port availability checker |
 
 ### Python Environments
 
@@ -75,7 +80,7 @@ See `docs/setup/CONDA_SETUP.md`, `docs/setup/VIDEO_SETUP.md`, `docs/setup/MODEL_
 ## 📁 Key Files Reference (Current)
 
 ### Configuration
-- `config/ports.json` — Dynamic port map (backend 8001, frontend 5174, video 8080, comfyui 8188, SSE `events_url`/`sse_url`, legacy `ws_url`)
+- `config/ports.json` — Dynamic port map (backend 8001, frontend 5174, video 8080, comfyui 8188, SSE `events_url`/`sse_url`, legacy `ws_url`, go sidecars 3847–3851)
 - `config/settings.json` — AppConfig
 - `opencode.json` — MCP servers (6: ollama-tools, vision, remotion, comfyui --force-remote, blender 9876, unity 7800)
 - `kilo.jsonc` — Kilo Code instructions (`AGENTS.md`, `Guidelines.md`)

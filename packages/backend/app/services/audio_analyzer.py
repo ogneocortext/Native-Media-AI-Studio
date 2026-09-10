@@ -1,6 +1,7 @@
 """Audio analysis service for extracting waveform and beat features from audio files."""
 
 import logging
+import sys
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -35,6 +36,16 @@ except ImportError:
 
 OUTPUT_DIR = Path(__file__).parent.parent.parent / "output" / "audio_analysis"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# ---------------------------------------------------------------------------
+# Shared audio core (tools/lib/audio.py) — imported lazily to avoid a hard
+# cross-package dependency at module load time.  The project root is on
+# sys.path when the backend runs under uvicorn / the service scripts.
+# ---------------------------------------------------------------------------
+
+def _import_shared_audio():
+    from tools.lib.audio import load_audio, analyze_beats, save_beat_data  # type: ignore[import]
+    return load_audio, analyze_beats, save_beat_data
 
 
 class AudioAnalyzerError(Exception):
@@ -153,19 +164,19 @@ class AudioAnalyzer:
         )
 
     def _extract_beat_features(self, y, sr):
-        tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr, hop_length=self.hop_length)
-        onset_frames = librosa.onset.onset_detect(y=y, sr=sr, hop_length=self.hop_length)
-        try:
-            tempo_val = float(tempo.item() if hasattr(tempo, "item") else tempo)
-        except Exception:
-            import numpy as _np
-            tempo_val = float(_np.asarray(tempo).flat[0]) if _np.asarray(tempo).size else 120.0
+        load_audio, analyze_beats, _ = _import_shared_audio()
+        beat_result = analyze_beats(y, sr, use_gpu=False)
+        tempo_val = beat_result["tempo"]
+        beat_times = beat_result["beat_times"]
+        beat_frames = librosa.time_to_frames(beat_times, sr=sr, hop_length=self.hop_length).tolist()
+        onset_frames = librosa.onset.onset_detect(y=y, sr=sr, hop_length=self.hop_length).tolist()
+        onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length).tolist()
         return BeatFeatures(
             tempo_bpm=tempo_val,
-            beat_frames=beat_frames.tolist(),
-            beat_times=librosa.frames_to_time(beat_frames, sr=sr, hop_length=self.hop_length).tolist(),
-            onset_frames=onset_frames.tolist(),
-            onset_times=librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length).tolist(),
+            beat_frames=beat_frames,
+            beat_times=beat_times,
+            onset_frames=onset_frames,
+            onset_times=onset_times,
             confidence=1.0,
         )
 
@@ -182,7 +193,8 @@ class AudioAnalyzer:
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         try:
-            y, sr = librosa.load(audio_path, sr=None, mono=True)
+            load_audio, _, _ = _import_shared_audio()
+            y, sr = load_audio(audio_path, sr=None)
 
             if len(y) == 0:
                 raise ValueError("Audio file is empty or could not be loaded")
@@ -334,7 +346,7 @@ def extract_amplitude_envelope_simple(audio_path: str) -> dict[str, Any]:
     Useful for quick analysis without full feature extraction.
 
     Args:
-        audio_path: Path to audio file
+        audio_path: Path to the audio file
 
     Returns:
         Dictionary with amplitude envelope and basic info
@@ -342,8 +354,8 @@ def extract_amplitude_envelope_simple(audio_path: str) -> dict[str, Any]:
     if not LIBROSA_AVAILABLE:
         raise RuntimeError("librosa not installed")
 
-    # Load audio
-    y, sr = librosa.load(audio_path, sr=None, mono=True)
+    load_audio, analyze_beats, _ = _import_shared_audio()
+    y, sr = load_audio(audio_path, sr=22050)
     duration = len(y) / sr
 
     # Calculate RMS energy per frame
@@ -358,15 +370,10 @@ def extract_amplitude_envelope_simple(audio_path: str) -> dict[str, Any]:
     indices = np.linspace(0, len(rms_norm) - 1, target_points).astype(int)
     envelope = rms_norm[indices].tolist()
 
-    # Get beat times — librosa 1.x returns tempo as ndarray (even for mono)
-    tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=hop_length)
-    beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=hop_length).tolist()
-    try:
-        tempo_val = float(tempo.item() if hasattr(tempo, "item") else tempo)
-    except Exception:
-        # tempo may be 0-d array or 1-d array; handle both
-        import numpy as _np
-        tempo_val = float(_np.asarray(tempo).flat[0]) if _np.asarray(tempo).size else 120.0
+    # Get beat times via shared beat tracker
+    beat_result = analyze_beats(y, sr, use_gpu=False)
+    beat_times = beat_result["beat_times"]
+    tempo_val = beat_result["tempo"]
 
     return {
         "audio_file": str(audio_path),
@@ -391,9 +398,8 @@ def analyze_with_cuda(audio_path: str) -> dict[str, Any]:
     Returns:
         Dict with amplitude_envelope, spectral features, and metadata.
     """
-    import librosa
-
-    y, sr = librosa.load(audio_path, sr=22050, mono=True)
+    load_audio, analyze_beats, _ = _import_shared_audio()
+    y, sr = load_audio(audio_path, sr=22050)
 
     try:
         from .cuda import cuda_audio, cuda_available
@@ -410,19 +416,12 @@ def analyze_with_cuda(audio_path: str) -> dict[str, Any]:
         result["cuda"] = False
         result["computed_on"] = "CPU"
         # Re-load audio for beat tracking
-        y, sr = librosa.load(audio_path, sr=22050, mono=True)
+        y, sr = load_audio(audio_path, sr=22050)
 
     # Add beat tracking (still CPU — librosa beat_track has no GPU equivalent)
-    try:
-        tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=512)
-        result["tempo_bpm"] = float(tempo.item() if hasattr(tempo, "item") else tempo)
-        result["beat_times"] = librosa.frames_to_time(
-            beats, sr=sr, hop_length=512
-        ).tolist()
-    except Exception as e:
-        logger.warning(f"Beat tracking failed ({e}), using defaults")
-        result["tempo_bpm"] = 120.0
-        result["beat_times"] = []
+    beat_result = analyze_beats(y, sr, use_gpu=False)
+    result["tempo_bpm"] = beat_result["tempo"]
+    result["beat_times"] = beat_result["beat_times"]
 
     result["sample_rate"] = sr
     result["audio_file"] = str(audio_path)

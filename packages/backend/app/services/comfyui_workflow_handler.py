@@ -8,6 +8,7 @@ from typing import Any
 from ..adapters.registry import adapter_registry
 from ..core.config import PROJECT_ROOT
 from ..models.job import Job
+from ..services.go_worker_client import write_sidecar as go_write_sidecar
 
 
 class ComfyUIWorkflowHandler:
@@ -55,6 +56,18 @@ class ComfyUIWorkflowHandler:
         )
         filepath = output_dir / filename
         filepath.write_bytes(base64.b64decode(image_b64))
+
+        # Write JSON sidecar via go-worker when available.
+        sidecar_data = {
+            "job_id": job.id,
+            "prompt_id": prompt_id,
+            "seed": seed,
+            "output_path": str(filepath),
+            "is_video": is_video,
+            "info": result.get("info", f"Generation completed. seed: {seed}"),
+        }
+        sidecar_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{job.id[:8]}"
+        await go_write_sidecar(job.id, sidecar_data, filename=sidecar_name)
 
         return {
             "output_path": str(filepath),

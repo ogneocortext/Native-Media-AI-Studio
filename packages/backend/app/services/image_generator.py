@@ -10,6 +10,7 @@ from typing import Any
 # SD WebUI removed - using ComfyUI only
 from ..core.config import PROJECT_ROOT
 from ..models.job import Job
+from ..services.go_worker_client import write_sidecar as go_write_sidecar
 
 logger = logging.getLogger(__name__)
 
@@ -124,8 +125,11 @@ class ImageGenerationHandler:
         }
 
         sidecar_path = OUTPUT_DIR / f"{filename}.json"
-        with open(sidecar_path, "w") as f:
-            json.dump(sidecar_data, f, indent=2)
+        # Persist sidecar through go-worker when available; fall back to direct write.
+        worker_result = await go_write_sidecar(job.id, sidecar_data, filename=filename)
+        if worker_result is None or not worker_result.get("written"):
+            with open(sidecar_path, "w") as f:
+                json.dump(sidecar_data, f, indent=2)
 
         return {
             "image": str(image_path),

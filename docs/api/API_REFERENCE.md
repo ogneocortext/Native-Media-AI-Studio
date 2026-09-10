@@ -1,7 +1,7 @@
 # API Reference
 
-> **Base URL:** `http://localhost:8000`
-> **Last Updated:** 2026-09-05 (SSE, audio covers, duplicate detection)
+> **Base URL:** `http://127.0.0.1:8000`
+> **Last Updated:** 2026-09-10 (Go sidecars, CORS/SSE fixes, diagnostics/services sidecars)
 
 ## Jobs
 
@@ -373,12 +373,12 @@ Generates a 3D model from text prompt using Hunyuan3D-2mini. Returns `{success, 
 ### Connect
 
 ```
-GET http://localhost:8000/api/events
+GET http://127.0.0.1:8000/api/events
 Accept: text/event-stream
 # Browser: const es = new EventSource('/api/events'); es.onmessage = (e) => { JSON.parse(e.data) }
 ```
 
-Legacy `ws://localhost:8000/ws` returns `426 Upgrade Required` (compat shim for old clients) — use SSE `events_url`/`sse_url` from `config/ports.json`. Vite proxy `/ws` entry is legacy compat.
+Legacy `ws://127.0.0.1:8000/ws` returns `426 Upgrade Required` (compat shim for old clients) — use SSE `events_url`/`sse_url` from `config/ports.json`. Vite proxy `/ws` entry is legacy compat.
 
 ### Event types received
 
@@ -391,6 +391,10 @@ Legacy `ws://localhost:8000/ws` returns `426 Upgrade Required` (compat shim for 
 - `system.health_changed` — Health status changed
 - `system.resource_warning` — VRAM/resource warning (`system.resource_warning`)
 - `heartbeat` — Keep-alive ping (every 30s)
+
+### Go-dashboard SSE fallback
+
+If backend SSE is unavailable, the frontend falls back to `http://127.0.0.1:3847/events` (go-dashboard). The backend also fans out events to go-dashboard via `POST /publish` so subscribers on either stream see the same updates.
 
 ## Transcription & Lyrics
 
@@ -499,7 +503,7 @@ GET  /api/health/ffmpeg                → FFmpeg 8.1 probe
 GET  /api/3d/models             → list Hunyuan3D/Wan 2.2 model availability
 POST /api/3d/generate-image     → image-to-3D variant
 GET  /api/health/diagnostics           → full diagnostics
-GET  /api/health/diagnostics/services
+GET  /api/health/diagnostics/services  → service status including Go sidecars (go-dashboard, go-gateway, go-worker, go-media, go-ports)
 GET  /api/health/diagnostics/system    → CPU/RAM/disk + system memory breakdown
 POST /api/health/diagnostics/memory/cleanup
 GET  /api/health/context               → agent context snapshot
@@ -507,6 +511,26 @@ POST /api/health/context
 GET  /api/health/ollama/models         → loaded Ollama models + VRAM
 POST /api/health/ollama/clear-activity
 GET  /api/ping
+```
+
+### `/api/health/diagnostics/services` response shape
+
+```json
+{
+  "backend": { "status": "ok", "port": 8000 },
+  "frontend": { "status": "ok", "port": 5173 },
+  "comfyui": { "status": "ok", "port": 8188 },
+  "unity": { "status": "ok", "port": 7800 },
+  "blender": { "status": "ok", "port": 9876 },
+  "ollama": { "status": "ok", "port": 11434 },
+  "sidecars": {
+    "go-dashboard": { "status": "ok", "port": 3847 },
+    "go-gateway":   { "status": "ok", "port": 3850 },
+    "go-worker":    { "status": "ok", "port": 3849 },
+    "go-media":     { "status": "ok", "port": 3848 },
+    "go-ports":     { "status": "ok", "port": 3851 }
+  }
+}
 ```
 
 ---

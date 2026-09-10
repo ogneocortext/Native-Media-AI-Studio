@@ -304,36 +304,25 @@ class PortManager:
         self._ports[service] = port
         self._save_state()
 
-    async def resolve_all_ports(self) -> dict[str, Any]:
-        """
-        Resolve all required ports and write the configuration to config/ports.json.
-        Returns the full resolved port configuration.
-        """
-        # Resolve backend port (WebSocket runs on same port)
-        backend_port = await self.resolve_port("backend", config.backend_port)
+    def _build_resolved_config(self, backend_port: int) -> dict[str, Any]:
+        """Build the resolved port configuration dict for a given backend port.
 
-        # Frontend port is typically handled by Vite, but we store the default
-        frontend_port = config.frontend_port
-
-        # Build the resolved configuration
-        # Canonical realtime transport is SSE at /api/events (EventSource).
-        # When go-dashboard is configured, prefer it for lower memory + higher concurrency.
-        # WebSocket at /ws is a compatibility shim (same port as backend).
-        ws_url = f"ws://localhost:{backend_port}/ws"
+        This is the single source of truth for URL construction — used by both
+        :meth:`resolve_all_ports` (dynamic resolution) and :meth:`set_default_config`
+        (static config at startup) so the two paths cannot drift.
+        """
+        ws_url = f"ws://127.0.0.1:{backend_port}/ws"
         go_dashboard_url = getattr(config, 'go_dashboard_url', 'http://127.0.0.1:3847')
         events_url = f"{go_dashboard_url}/events"
-        backend_events_url = f"http://localhost:{backend_port}/api/events"
-        self._resolved_config = {
-            "frontend_port": frontend_port,
+        backend_events_url = f"http://127.0.0.1:{backend_port}/api/events"
+        return {
+            "frontend_port": config.frontend_port,
             "backend_port": backend_port,
-            # Legacy alias — prefer `events_url` / `sse_url`
             "ws_port": backend_port,
             "ws_url": ws_url,
-            # Canonical — prefer go-dashboard when configured
             "events_url": events_url,
             "sse_url": events_url,
             "backend_events_url": backend_events_url,
-            # Go sidecars
             "dashboard_port": 3847,
             "dashboard_url": go_dashboard_url,
             "go_dashboard_url": go_dashboard_url,
@@ -343,9 +332,14 @@ class PortManager:
             "go_ports_url": getattr(config, 'go_ports_url', 'http://127.0.0.1:3851'),
         }
 
-        # Write to config/ports.json for frontend consumption
+    async def resolve_all_ports(self) -> dict[str, Any]:
+        """
+        Resolve all required ports and write the configuration to config/ports.json.
+        Returns the full resolved port configuration.
+        """
+        backend_port = await self.resolve_port("backend", config.backend_port)
+        self._resolved_config = self._build_resolved_config(backend_port)
         self.write_ports_config()
-
         return self._resolved_config
 
     def write_ports_config(self) -> None:
@@ -390,27 +384,7 @@ class PortManager:
         dynamic resolution would see the port "occupied" by ourselves.
         """
         backend_port = config.backend_port
-        ws_url = f"ws://localhost:{backend_port}/ws"
-        events_url = f"http://localhost:{backend_port}/api/events"
-        go_dashboard_url = getattr(config, 'go_dashboard_url', 'http://127.0.0.1:3847')
-        self._resolved_config = {
-            "frontend_port": config.frontend_port,
-            "backend_port": backend_port,
-            # Legacy alias — prefer `events_url` / `sse_url`
-            "ws_port": backend_port,
-            "ws_url": ws_url,
-            # Canonical
-            "events_url": events_url,
-            "sse_url": events_url,
-            # Go sidecars
-            "dashboard_port": 3847,
-            "dashboard_url": go_dashboard_url,
-            "go_dashboard_url": go_dashboard_url,
-            "go_media_url": getattr(config, 'go_media_url', 'http://127.0.0.1:3848'),
-            "go_worker_url": getattr(config, 'go_worker_url', 'http://127.0.0.1:3849'),
-            "go_gateway_url": getattr(config, 'go_gateway_url', 'http://127.0.0.1:3850'),
-            "go_ports_url": getattr(config, 'go_ports_url', 'http://127.0.0.1:3851'),
-        }
+        self._resolved_config = self._build_resolved_config(backend_port)
         self.write_ports_config()
         return self._resolved_config
 

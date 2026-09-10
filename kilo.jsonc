@@ -14,6 +14,9 @@
     },
     "hyperframes": {
       "enabled": true
+    },
+    "comfyui": {
+      "enabled": true
     }
   }
 }

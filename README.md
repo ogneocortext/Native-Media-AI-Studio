@@ -28,6 +28,7 @@ A full-stack AI-powered creative production environment for music-driven media g
 
 ## Recent Changes
 
+- **Go Sidecars + CORS/SSE Hardening (2026-09-10)** — Integrated `go-gateway` (Unity MCP proxy) and `go-worker` (async sidecar I/O) into backend service layer. Fixed go-dashboard SSE stream creation (`/events` now stays open). Centralized CORS allowlist to `127.0.0.1` only. Added `sidecars` health block to `/api/health/diagnostics/services`. Standardized all local URLs to `127.0.0.1`. 28 Playwright smoke tests pass.
 - **Backend Service Relocation & Dead Code Removal (2026-09-07)** — Moved 7 service files from `packages/backend/app/services/` to `tools/` and `tools/scripts/` (`audio_analysis_agent`, `audio_fingerprinting`, `structure_analysis`, `blender/builder`, `blender/lyrics_sync`, `coding_benchmark`, `ollama_benchmark`). Removed dead benchmark API endpoints from `integrations_generation.py`. Trimmed unused dependencies. All 34 backend tests pass.
 - **Media Library 3D Count + Layout Fix (2026-09-06)** — Backend `list_outputs` now returns `models_3d_count`; frontend Library stats grid shows **3D Models** count. File size/date in `MediaCard` footers use `whitespace-nowrap` to prevent wrapping.
 - **Backend Auto-Reload for Dev (2026-09-06)** — `scripts/manage-servers.ps1` and `scripts/start-services.ps1` now start uvicorn with `--reload` so backend code changes reload automatically.
@@ -70,11 +71,18 @@ Native-Media-AI-Studio/
 │   │       ├── integrations_config.py    # Config/settings endpoints
 │   │       ├── integrations_generation.py # ComfyUI/Ollama/VRAM/Audio
 │   │       ├── integrations_music_video.py # Music video endpoints
-│   │       └── integrations_misc.py      # CUDA/system/misc endpoints
-│   └── video-editor/       # Remotion video editor (port 3000)
+│   │       ├── integrations_misc.py      # CUDA/system/misc endpoints
+│   │       └── services/                 # Job handlers + Go sidecar clients
+│   └── video-editor/       # Remotion video editor (port 8080)
 ├── scripts/                # Server management scripts
 ├── shared/                 # Shared TypeScript types
-├── tools/                  # External tool integrations
+├── tools/                  # Go sidecars + MCP bridges + demos
+│   ├── go-dashboard/       # SSE server + health (:3847)
+│   ├── go-gateway/         # MCP bridge proxy (:3850)
+│   ├── go-media/           # FFmpeg pipeline worker (:3848)
+│   ├── go-ports/           # Port availability checker (:3851)
+│   ├── go-worker/          # Sidecar I/O + job worker (:3849)
+│   └── mcp/                # MCP server bridges (unity-mcp-bridge.mjs, vision.mjs, ollama-tools-mcp.mjs)
 ├── .vscode/                # VS Code settings
 ├── package.json            # Root package.json (pnpm workspace)
 ├── pnpm-workspace.yaml     # PNPM workspace config
@@ -156,6 +164,11 @@ pnpm db:migrate          # Initialize SQLite database
 | Frontend     | 5173 | React + Vite UI (binds `127.0.0.1`)              |
 | ComfyUI      | 8188 | AI image/video generation                        |
 | Video Editor | 8080 | Remotion studio (`config/ports.json` dynamic)    |
+| go-dashboard | 3847 | SSE stream hub + health aggregation              |
+| go-gateway   | 3850 | MCP bridge proxy (Unity/Blender/ComfyUI/Ollama)  |
+| go-worker    | 3849 | Async sidecar I/O + JSON metadata writes         |
+| go-media     | 3848 | FFmpeg post-processing worker                    |
+| go-ports     | 3851 | Port availability checker                        |
 
 ## API Endpoints
 

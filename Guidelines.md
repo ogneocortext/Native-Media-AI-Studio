@@ -35,8 +35,9 @@ To prevent decision fatigue, the following stack choices are finalized:
  - **Backend:** FastAPI, SSE (`GET /api/events`, `sse-starlette`) for live events — WebSocket `/ws` is a legacy 426 shim.
  - **Queue/Persistence:** SQLite for lightweight job tracking, JSON sidecars for output metadata.
  - **Visuals:** Three.js / `@react-three/fiber` + Canvas2D (`Canvas2DVisualizer` bars/waveform/radial) + Remotion; WebGL accelerated.
- - **Integrations:** API adapters for local ComfyUI, Ollama, Blender MCP (port 9876), Unity MCP (port 7800).
- - **Ports:** Backend resolves dynamically at startup via `port_manager.py`; current live config is in `config/ports.json`. Frontend falls back to 5174 when 5173 is occupied. Backend falls back to 8001 when 8000 is occupied.
+ - **Integrations:** API adapters for local ComfyUI, Ollama, Blender MCP (port 9876), Unity MCP (via go-gateway on 3850).
+ - **Go Sidecars:** `go-dashboard` (3847 SSE), `go-gateway` (3850 MCP proxy), `go-worker` (3849 async I/O), `go-media` (3848 FFmpeg), `go-ports` (3851 port checker).
+ - **Ports:** Backend resolves dynamically at startup via `port_manager.py`; current live config is in `config/ports.json`. Frontend falls back to 5174 when 5173 is occupied. Backend falls back to 8001 when 8000 is occupied. Go sidecars use fixed ports 3847–3851.
 
 ---
 
@@ -81,14 +82,14 @@ Native-Media-AI-Studio/
 ├── packages/backend/     # FastAPI Server (dynamic port, usually 8001) — ComfyUI on 8188
 │   ├── app/api/          # REST routes (jobs, health, audio, outputs, docs, sse)
 │   ├── app/sse/          # SSE handler (canonical); app/websocket/ is legacy shim
-│   ├── app/core/         # Port manager, Health monitor, SQLite setup
-│   ├── app/services/     # Job orchestration, audio, blender, cuda, gen3d, vram_manager
+│   ├── app/core/         # Port manager, Health monitor, SQLite setup, CORS
+│   ├── app/services/     # Job orchestration, audio, blender, cuda, gen3d, vram_manager, go_gateway_client, go_worker_client
 │   ├── app/diagnostics/  # resources / health diagnostics
 │   └── app/adapters/     # ComfyUI, Ollama, Blender, Unity wrappers
 ├── shared/               # TypeScript types (Job, QueueStats, OutputFile, ...)
 ├── config/               # ports.json (dynamic) + settings.json
 ├── output/               # Generative outputs (images, video, audio, generated_3d) — gitignored
-├── tools/                # MCP bridges (unity-mcp-bridge.mjs, vision.mjs) + demos
+├── tools/                # Go sidecars (go-dashboard, go-gateway, go-worker, go-media, go-ports) + MCP bridges + demos
 └── scripts/              # start-studio.ps1, manage-servers.ps1
 ```
 
@@ -98,6 +99,13 @@ To avoid conflicts, the app must resolve ports at startup:
 2. If occupied, safely kill orphaned Python processes from previous crashes.
 3. If still occupied, increment port number.
 4. Write final configuration to `config/ports.json` for the UI to consume before mounting.
+
+Go sidecars use fixed ports and do not conflict with the dynamic port system:
+- `go-dashboard`: 3847
+- `go-gateway`: 3850
+- `go-worker`: 3849
+- `go-media`: 3848
+- `go-ports`: 3851
 
 ---
 
@@ -111,6 +119,7 @@ To avoid conflicts, the app must resolve ports at startup:
 ### Feature 2: Health & Diagnostics
 - **AC1:** `GET /api/health` returns aggregate status of the backend and all configured adapters.
  - **AC2:** If ComfyUI/Ollama crashes, the frontend health badge updates from "Online" to "Offline" within 5 seconds via SSE (`GET /api/events`).
+ - **AC3:** `GET /api/health/diagnostics/services` returns live status for all Go sidecars (go-dashboard, go-gateway, go-worker, go-media, go-ports).
 
 ### Feature 3: Universal Job Queue
 - **AC1:** User can submit an image generation job, which enters `PENDING` state.

@@ -137,7 +137,7 @@ async def lifespan(app: FastAPI):
         else:
             port_config = port_manager.get_resolved_config()
         logger.info(f"Backend port: {port_config['backend_port']}")
-        logger.info(f"SSE port: {port_config['backend_port']}")
+        logger.info(f"SSE/events URL: {port_config.get('events_url') or port_config.get('sse_url')}")
         logger.info(f"Frontend port: {port_config['frontend_port']}")
     except Exception as e:
         logger.error(f"Port configuration failed: {e}")
@@ -225,20 +225,11 @@ app = FastAPI(
 
 # Local-first app: allow the dev frontend origins explicitly. A wildcard origin
 # combined with allow_credentials=True is rejected by browsers per the CORS spec.
-_local_origins = {
-    f"http://localhost:{config.frontend_port}",
-    f"http://127.0.0.1:{config.frontend_port}",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    f"http://localhost:{config.backend_port}",
-    f"http://127.0.0.1:{config.backend_port}",
-}
+from .core.cors import get_local_origins
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=sorted(_local_origins),
+    allow_origins=sorted(get_local_origins()),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -460,11 +451,4 @@ def run():
 
 
 if __name__ == "__main__":
-    # Windows: ensure Proactor for subprocess (ffmpeg) — Selector does not support create_subprocess_exec
-    import sys
-    if sys.platform == "win32":
-        try:
-            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        except Exception:
-            pass
     run()

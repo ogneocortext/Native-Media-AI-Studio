@@ -85,7 +85,11 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		path := filepath.Join(outputDir, c.Param("id")+".json")
+		filename := c.Query("filename")
+		if filename == "" {
+			filename = c.Param("id")
+		}
+		path := filepath.Join(outputDir, filename+".json")
 		b, _ := json.MarshalIndent(sidecar.Data, "", "  ")
 		if err := os.WriteFile(path, b, 0644); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

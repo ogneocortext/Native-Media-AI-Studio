@@ -9,6 +9,7 @@ for robust structural analysis.
 
 import json
 import logging
+import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -17,6 +18,12 @@ logger = logging.getLogger(__name__)
 
 STRUCTURE_DIR = Path(__file__).resolve().parent.parent / "output" / "structure"
 STRUCTURE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Ensure project root is on sys.path so we can import the shared audio core
+if str(Path(__file__).resolve().parent.parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from tools.lib.audio import load_audio, analyze_beats  # type: ignore[import]
 
 
 @dataclass
@@ -85,16 +92,17 @@ class StructureAnalyzer:
             StructureResult with all analysis data.
         """
         try:
-            import librosa
-
-            y, sr = librosa.load(audio_path, sr=22050, mono=True)
+            y, sr = load_audio(audio_path, sr=22050)
             duration = len(y) / sr
 
-            # Tempo
-            tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=512)
-            tempo_val = float(tempo.item() if hasattr(tempo, "item") else tempo)
+            # Tempo and beat times from shared core
+            beat_result = analyze_beats(y, sr, use_gpu=False)
+            tempo_val = beat_result["tempo"]
+            beat_times = beat_result["beat_times"]
 
             # Harmonic-percussive separation
+            import librosa
+
             y_harmonic, y_percussive = librosa.effects.hpss(y)
 
             # Chromagram for key/chord detection
@@ -279,8 +287,8 @@ class StructureAnalyzer:
         zcr_norm = float(np.mean(zcr) / 0.1)
         energy_norm = float(np.mean(rms) / 0.3)
 
-        tempo, _ = librosa.beat.beat_track(y=y, sr=sr, hop_length=512)
-        tempo_val = float(tempo.item() if hasattr(tempo, "item") else tempo)
+        beat_result = analyze_beats(y, sr, use_gpu=False)
+        tempo_val = beat_result["tempo"]
         tempo_norm = min(1.0, max(0.0, (tempo_val - 60) / 120))
 
         harmonic_ratio = float(np.sum(y_harmonic ** 2) / (np.sum(y ** 2) + 1e-10))

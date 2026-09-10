@@ -122,9 +122,9 @@ async def hyperframes_preview() -> dict[str, Any]:
             check=False,
             env=env,
         )
-        url = "http://localhost:3000"
+        url = "http://127.0.0.1:3000"
         for line in proc.stdout.splitlines():
-            if "http://" in line or "localhost" in line:
+            if "http://" in line or "127.0.0.1" in line:
                 url = line.strip()
                 break
         return {

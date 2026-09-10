@@ -1,10 +1,11 @@
 """
 Base adapter interface for external AI services.
 """
+import functools
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any
+from typing import Any, Callable, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,37 @@ class AdapterStatus(str, Enum):
     CONNECTED = "connected"
     DISCONNECTED = "disconnected"
     ERROR = "error"
+
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def _handle_adapter_error(status_on_error: AdapterStatus = AdapterStatus.ERROR) -> Callable[[F], F]:
+    """Decorator for adapter methods that standardizes error handling.
+
+    Wraps an async adapter method so that:
+
+    * Any exception is logged with the adapter name.
+    * The adapter status is updated to ``status_on_error``.
+    * The exception is re-raised so the caller can decide how to respond.
+
+    Usage::
+
+        @_handle_adapter_error()
+        async def some_method(self, ...):
+            ...
+    """
+    def decorator(func: F) -> F:
+        @functools.wraps(func)
+        async def wrapper(self: BaseAdapter, *args: Any, **kwargs: Any) -> Any:
+            try:
+                return await func(self, *args, **kwargs)
+            except Exception as exc:
+                self.set_status(status_on_error)
+                logger.error("%s: %s failed: %s", self.name, func.__name__, exc)
+                raise
+        return wrapper  # type: ignore[return-value]
+    return decorator
 
 
 class BaseAdapter(ABC):
@@ -77,7 +109,7 @@ class BaseAdapter(ABC):
             params: Dictionary of generation parameters
 
         Returns:
-            Mock response matching the real generate() output format
+            Mock response matching the real generate() method output format
         """
         pass
 
