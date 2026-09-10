@@ -13,7 +13,7 @@ from pathlib import Path
 
 import aiohttp
 
-from ..core.config import PROJECT_ROOT
+from ..core.config import PROJECT_ROOT, config
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ async def _run_subprocess(args: list[str], **kwargs) -> subprocess.CompletedProc
 # "D:\\Backup of Important Data for Windows 11 Upgrade\\ComfyUI".
 COMFYUI_DIR = PROJECT_ROOT.parent / "ComfyUI"
 COMFYUI_MAIN = COMFYUI_DIR / "main.py"
-DEFAULT_PORT = 8188
+DEFAULT_PORT = getattr(config, 'comfyui_port', 8188)
 
 # ComfyUI MUST run in its own dedicated environment. Using the project venv or
 # sys.executable risks inheriting a parent bootstrapped from another project

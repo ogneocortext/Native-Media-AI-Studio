@@ -406,6 +406,12 @@ export function Visualizer() {
     let rafId: number;
     let lastUpdate = 0;
     const track = () => {
+      // Hidden tabs: rAF usually pauses, but detached/PiP windows keep
+      // firing — skip sampling and re-check at low frequency.
+      if (typeof document !== "undefined" && document.hidden) {
+        rafId = requestAnimationFrame(track);
+        return;
+      }
       const heard = audioClockRef.current.sample(el, latencyRef.current);
       audioElapsedRef.current = heard;
       // Full-rate LRC state for frame-critical visuals (phrase pulses are 150 ms —
@@ -619,6 +625,11 @@ export function Visualizer() {
     let raf: number;
     let lastUiUpdate = 0;
     const analyse = () => {
+      // Skip FFT + setState while hidden; keep the loop alive for resume.
+      if (typeof document !== "undefined" && document.hidden) {
+        raf = requestAnimationFrame(analyse);
+        return;
+      }
       const analyser = analyserRef.current;
       if (analyser) {
         const freqArray = freqArrayRef.current ?? new Uint8Array(analyser.frequencyBinCount);

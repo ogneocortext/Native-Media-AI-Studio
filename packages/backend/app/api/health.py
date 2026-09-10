@@ -213,22 +213,24 @@ async def clear_ollama_activity() -> dict:
 @router.get("/ffmpeg")
 async def ffmpeg_status() -> dict:
     """Check for running ffmpeg processes."""
-    import subprocess
     try:
-        result = subprocess.run(
-            ["powershell", "-NoProfile", "-Command",
-             "Get-Process -Name ffmpeg -ErrorAction SilentlyContinue | Select-Object Id, CPU, WorkingSet64 | ConvertTo-Json"],
-            capture_output=True, text=True, timeout=5
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            import json
-            processes = json.loads(result.stdout)
-            if not isinstance(processes, list):
-                processes = [processes]
-            return {"running": True, "count": len(processes), "processes": processes}
+        import psutil
+
+        procs = []
+        for proc in psutil.process_iter(["pid", "name", "cpu_percent", "memory_info"]):
+            try:
+                if "ffmpeg" in (proc.info.get("name") or "").lower():
+                    mem = proc.info.get("memory_info")
+                    procs.append({
+                        "pid": proc.info.get("pid"),
+                        "cpu": proc.info.get("cpu_percent"),
+                        "working_set_mb": round(mem.rss / (1024 * 1024), 1) if mem else 0,
+                    })
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        return {"running": bool(procs), "count": len(procs), "processes": procs}
     except Exception:
-        pass
-    return {"running": False, "count": 0, "processes": []}
+        return {"running": False, "count": 0, "processes": []}
 
 
 @router.get("/diagnostics")

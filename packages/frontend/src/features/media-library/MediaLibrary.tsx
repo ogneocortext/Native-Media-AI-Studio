@@ -4,9 +4,10 @@ import { formatFileSize, formatDate, formatDateTime } from "../../utils/format";
 import { getOutputUrl } from "../../utils/url";
 import { StatCard } from "./MediaLibraryStats";
 import { ModelPreview } from "../generate3d/ModelPreview";
-import { openInBlender, openInUnity } from "../../services/api";
+import { openInBlender, openInUnity, probeMedia, getMediaLoudness, getMediaWaveform, extractThumbnailAtTime, regenerateAudioCover } from "../../services/api";
 import { ExportMatrixPanel } from "./ExportMatrixPanel";
 import { UpscalePanel } from "./UpscalePanel";
+import { WaveformDisplay } from "./WaveformDisplay";
 import {
   Image,
   Video,
@@ -28,6 +29,7 @@ import {
   Trash2,
   AlertTriangle,
   Maximize2,
+  Activity,
   Pencil,
   Copy,
   CheckSquare,
@@ -73,14 +75,37 @@ const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSe
   output: OutputFile; index: number; selected: boolean; isDup: boolean;
   onSelect: () => void; onToggle: (e: React.MouseEvent) => void; onDelete: (e: React.MouseEvent) => void; onRename: (e: React.MouseEvent) => void; onOpenBlender?: (e: React.MouseEvent) => void; onOpenUnity?: (e: React.MouseEvent) => void; onAddToStudio?: (e: React.MouseEvent) => void;
 }) {
-  const [hover, setHover] = useState(false);
+  const [previewArmed, setPreviewArmed] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const armPreview = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    // Hover intent: only mount <video> after 180ms dwell — avoids
+    // fetching every clip skimmed on the way to another card.
+    hoverTimer.current = setTimeout(() => setPreviewArmed(true), 180);
+  };
+  const disarmPreview = () => {
+    if (hoverTimer.current) { clearTimeout(hoverTimer.current); hoverTimer.current = null; }
+    setPreviewArmed(false);
+  };
+  useEffect(() => () => { if (hoverTimer.current) clearTimeout(hoverTimer.current); }, []);
+
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={`${output.file_type} ${output.filename}${selected ? " (selected)" : ""}`}
+      aria-pressed={selected}
       onClick={onSelect}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); }
+      }}
+      onMouseEnter={armPreview}
+      onMouseLeave={disarmPreview}
+      onFocus={armPreview}
+      onBlur={disarmPreview}
       style={{ animationDelay: `${Math.min(index * 40, 400)}ms` }}
-      className={`group card overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-1 animate-in fade-in slide-in-from-bottom-2 fill-mode-both ${typeAccent[output.file_type] || ""}`}
+      className={`group card overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/30 focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:outline-none transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-1 animate-in fade-in slide-in-from-bottom-2 fill-mode-both ${typeAccent[output.file_type] || ""}`}
     >
       <div className="aspect-square bg-surface flex items-center justify-center relative overflow-hidden">
         <button onClick={onToggle} className={`absolute top-2 right-2 z-10 w-7 h-7 rounded-lg flex items-center justify-center border backdrop-blur transition-all ${selected ? "bg-violet-600 border-violet-500 text-white shadow-lg" : "bg-black/40 border-white/20 text-white/70 hover:bg-black/60"}`} title={selected ? "Deselect" : "Select for bulk"}><span className="transition-transform group-hover:scale-110">{selected ? <CheckSquare size={14} /> : <Square size={14} />}</span></button>
@@ -94,7 +119,7 @@ const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSe
         ) : output.file_type === "video" && output.metadata?.corrupted ? (
           <div className="flex flex-col items-center gap-2 text-red-400"><AlertTriangle className="w-10 h-10 animate-pulse" /><span className="text-xs uppercase tracking-widest">Corrupted</span></div>
         ) : output.file_type === "video" ? (
-          hover ? <video src={getOutputUrl(output.relative_path)} muted loop playsInline autoPlay className="w-full h-full object-cover" /> : <div className="flex flex-col items-center gap-2 text-muted group-hover:text-blue-400 transition-colors"><Video className="w-12 h-12" /><span className="text-xs uppercase tracking-widest">Video</span><span className="absolute bottom-2 left-2 flex items-center gap-1 text-[11px] bg-black/60 px-1.5 py-0.5 rounded text-white"><Play size={10} /> hover to preview</span></div>
+          previewArmed ? <video src={getOutputUrl(output.relative_path)} muted loop playsInline autoPlay preload="metadata" disablePictureInPicture className="w-full h-full object-cover" /> : <div className="flex flex-col items-center gap-2 text-muted group-hover:text-blue-400 transition-colors"><Video className="w-12 h-12" /><span className="text-xs uppercase tracking-widest">Video</span><span className="absolute bottom-2 left-2 flex items-center gap-1 text-[11px] bg-black/60 px-1.5 py-0.5 rounded text-white"><Play size={10} /> hover to preview</span></div>
         ) : output.file_type === "audio" && output.cover_image ? (
           <img src={getOutputUrl(output.cover_image)} alt={output.filename} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
         ) : output.file_type === "audio" ? (
@@ -174,6 +199,12 @@ export function MediaLibrary() {
   const [lightboxZoom, setLightboxZoom] = useState(1);
   const [openingApp, setOpeningApp] = useState<null | "blender" | "unity" | "studio">(null);
   const [studioToast, setStudioToast] = useState<string | null>(null);
+  const [mediaInfo, setMediaInfo] = useState<Record<string, unknown> | null>(null);
+  const [mediaInfoLoading, setMediaInfoLoading] = useState(false);
+  const [mediaInfoError, setMediaInfoError] = useState<string | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [thumbnailLoading, setThumbnailLoading] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => { fetchOutputs(); fetchRecent(12); }, [fetchOutputs, fetchRecent, filter.type]);
   useEffect(() => { if (deferredSearch !== filter.search) setFilter({ search: deferredSearch }); }, [deferredSearch]);
@@ -186,6 +217,27 @@ export function MediaLibrary() {
     };
     window.addEventListener("keydown", onKey); return ()=> window.removeEventListener("keydown", onKey);
   }, []);
+  useEffect(() => {
+    if (!selectedOutput || !["audio","video"].includes(selectedOutput.file_type)) { setMediaInfo(null); setMediaInfoError(null); setThumbnailUrl(null); return; }
+    let cancelled = false;
+    setMediaInfoLoading(true); setMediaInfoError(null); setMediaInfo(null); setThumbnailUrl(null);
+    (async () => {
+      try {
+        const [probe, loudness, waveform] = await Promise.all([
+          probeMedia(selectedOutput.relative_path).catch(() => ({ probe: null }) as Record<string, unknown>),
+          selectedOutput.file_type === "audio" ? getMediaLoudness(selectedOutput.relative_path).catch(() => ({ integrated_lufs: null, loudness_range: null, true_peak: null } as Record<string, unknown>)) : Promise.resolve(null),
+          selectedOutput.file_type === "audio" ? getMediaWaveform(selectedOutput.relative_path, 120).catch(() => ({ peaks: [] } as Record<string, unknown>)) : Promise.resolve(null),
+        ]);
+        if (cancelled) return;
+        setMediaInfo({ probe, loudness, waveform });
+      } catch (err) {
+        if (!cancelled) setMediaInfoError(err instanceof Error ? err.message : "Failed to load media info");
+      } finally {
+        if (!cancelled) setMediaInfoLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedOutput]);
 
   const handleRefresh = async () => { setIsRefreshing(true); await fetchOutputs(); await fetchRecent(12); setIsRefreshing(false); };
   const handleFilterChange = (type: "all"|"image"|"video"|"audio"|"3d") => {
@@ -201,6 +253,21 @@ export function MediaLibrary() {
     setIsRenaming(true); try { await useOutputStore.getState().renameOutput(renameTarget.relative_path, renameValue.trim()); setRenameTarget(null); setRenameValue(""); setSelectedOutput(null);} catch(e){ alert(e instanceof Error?e.message:"Rename failed");} finally{ setIsRenaming(false); }
   };
   const toggleSelect = (path:string)=> setSelectedPaths(prev=>{const n=new Set(prev); if(n.has(path)) n.delete(path); else n.add(path); return n;});
+  const lastSelectedIdx = useRef<number | null>(null);
+  /** Shift+click selects the range since the last toggle (flat view). */
+  const toggleSelectRange = (e: React.MouseEvent, idx: number, path: string, list: OutputFile[]) => {
+    if (e.shiftKey && lastSelectedIdx.current !== null && list[lastSelectedIdx.current]) {
+      const [a, b] = [Math.min(lastSelectedIdx.current, idx), Math.max(lastSelectedIdx.current, idx)];
+      setSelectedPaths(prev => {
+        const n = new Set(prev);
+        for (let k = a; k <= b; k++) n.add(list[k].relative_path);
+        return n;
+      });
+    } else {
+      toggleSelect(path);
+    }
+    lastSelectedIdx.current = idx;
+  };
   const handleBulkDelete = async () => {
     if(selectedPaths.size===0) return; if(!confirm(`Delete ${selectedPaths.size} selected file(s)? This also removes sidecars and cannot be undone.`)) return;
     setIsDeleting(true); try{ await useOutputStore.getState().bulkDelete(Array.from(selectedPaths)); setSelectedPaths(new Set()); setSelectedOutput(null);}catch(e){ alert(e instanceof Error?e.message:"Bulk delete failed");} finally{ setIsDeleting(false); }
@@ -228,6 +295,24 @@ export function MediaLibrary() {
       console.log("Unity open:", res);
     } catch (e) { alert(e instanceof Error ? e.message : "Failed to open in Unity"); } finally { setOpeningApp(null); }
   };
+  const handleExtractThumbnail = async () => {
+    if (!selectedOutput || selectedOutput.file_type !== "video") return;
+    setThumbnailLoading(true);
+    try {
+      const res = await extractThumbnailAtTime({ path: selectedOutput.relative_path, time_sec: 1.0, width: 480 });
+      if (res.thumbnail_path) setThumbnailUrl(getOutputUrl(res.thumbnail_path));
+      else if (res.error) alert(res.error);
+    } catch (e) { alert(e instanceof Error ? e.message : "Thumbnail extraction failed"); } finally { setThumbnailLoading(false); }
+  };
+  const handleRegenerateCover = async () => {
+    if (!selectedOutput || selectedOutput.file_type !== "audio") return;
+    setThumbnailLoading(true);
+    try {
+      const res = await regenerateAudioCover(selectedOutput.relative_path);
+      if (res.cover_image) setThumbnailUrl(getOutputUrl(res.cover_image));
+      else if (res.error) alert(res.error);
+    } catch (e) { alert(e instanceof Error ? e.message : "Cover regeneration failed"); } finally { setThumbnailLoading(false); }
+  };
   const handleAddToStudio = async (output: OutputFile, openInNewTab = false) => {
     if (!is3DModelFile(output.filename)) { alert("Only 3D models (.glb/.gltf/.fbx/.obj) can be added to Studio"); return; }
     setOpeningApp("studio");
@@ -235,9 +320,9 @@ export function MediaLibrary() {
       const servable = output.relative_path.startsWith("generated_3d/") ? `/output/${output.relative_path}` : getOutputUrl(output.relative_path);
       // Queue for Three.js Studio handoff (read on next mount, without leaving page) + live dispatch for same-tab open Studio
       const payload = { modelUrl: servable, name: output.filename.replace(/\.(glb|gltf|fbx|obj)$/i, ""), bible: output.filename };
-      try { localStorage.setItem("pendingCharacter", JSON.stringify(payload)); } catch {}
-      try { window.dispatchEvent(new CustomEvent("pendingCharacter", { detail: JSON.stringify(payload) })); } catch {}
-      try { const { updateMCPContext } = await import("../../services/api"); await updateMCPContext({ character: { name: payload.name, notes: payload.bible, visible: true } } as any); } catch {}
+      try { localStorage.setItem("pendingCharacter", JSON.stringify(payload)); } catch { /* private mode — ignore */ }
+      try { window.dispatchEvent(new CustomEvent("pendingCharacter", { detail: JSON.stringify(payload) })); } catch { /* ignore */ }
+      try { const { updateMCPContext } = await import("../../services/api"); await updateMCPContext({ character: { name: payload.name, notes: payload.bible, visible: true } } as any); } catch { /* MCP optional — ignore */ }
       setStudioToast(`Queued “${output.filename}” for Studio — ${openInNewTab ? "opening in new tab…" : "stay here, open Studio when ready"}`);
       setTimeout(() => setStudioToast(null), 3000);
       if (openInNewTab) window.open("/three-js-studio", "_blank");
@@ -422,7 +507,7 @@ export function MediaLibrary() {
             {!groupByType && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {visibleOutputs.map((output, i)=> (
-                  <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelect(output.relative_path);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} onOpenBlender={(e)=>{e.stopPropagation(); handleOpenBlender(output);}} onOpenUnity={(e)=>{e.stopPropagation(); handleOpenUnity(output);}} onAddToStudio={(e)=>{e.stopPropagation(); handleAddToStudio(output, false);}} />
+                  <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelectRange(e, i, output.relative_path, visibleOutputs);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} onOpenBlender={(e)=>{e.stopPropagation(); handleOpenBlender(output);}} onOpenUnity={(e)=>{e.stopPropagation(); handleOpenUnity(output);}} onAddToStudio={(e)=>{e.stopPropagation(); handleAddToStudio(output, false);}} />
                 ))}
               </div>
             )}
@@ -438,7 +523,7 @@ export function MediaLibrary() {
                     <div key={type}>
                       <h3 className="flex items-center gap-2 text-sm font-bold text-white mb-3"><Icon size={16} className={color} />{label} <span className="text-xs font-normal text-muted">({items.length})</span><span className="flex-1 h-px bg-white/5 ml-2" /></h3>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                        {visible.map((output,i)=> <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelect(output.relative_path);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} onOpenBlender={(e)=>{e.stopPropagation(); handleOpenBlender(output);}} onOpenUnity={(e)=>{e.stopPropagation(); handleOpenUnity(output);}} onAddToStudio={(e)=>{e.stopPropagation(); handleAddToStudio(output, false);}} />)}
+                        {visible.map((output,i)=> <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelectRange(e, i, output.relative_path, visible);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} onOpenBlender={(e)=>{e.stopPropagation(); handleOpenBlender(output);}} onOpenUnity={(e)=>{e.stopPropagation(); handleOpenUnity(output);}} onAddToStudio={(e)=>{e.stopPropagation(); handleAddToStudio(output, false);}} />)}
                       </div>
                     </div>
                   );
@@ -483,12 +568,12 @@ export function MediaLibrary() {
                     <img src={getOutputUrl(selectedOutput.relative_path)} alt={selectedOutput.filename} className="w-full max-h-[60vh] object-contain cursor-zoom-in" onClick={()=> setShowFullImage(true)} />
                   ) : selectedOutput.file_type==="video" ? (
                     <video src={getOutputUrl(selectedOutput.relative_path)} controls autoPlay className="w-full max-h-[60vh] bg-black" />
-                  ) : selectedOutput.file_type==="audio" ? (
-                    <div className="flex flex-col">
-                      {selectedOutput.cover_image && <img src={getOutputUrl(selectedOutput.cover_image)} alt={selectedOutput.filename} className="w-full max-h-[50vh] object-contain bg-black" />}
-                      <audio src={getOutputUrl(selectedOutput.relative_path)} controls autoPlay className="w-full" />
-                      {!selectedOutput.cover_image && <div className="py-3 flex items-center justify-center gap-2 text-muted text-sm"><Music size={16} />No embedded cover</div>}
-                    </div>
+                   ) : selectedOutput.file_type==="audio" ? (
+                     <div className="flex flex-col">
+                       {selectedOutput.cover_image && <img src={getOutputUrl(selectedOutput.cover_image)} alt={selectedOutput.filename} className="w-full max-h-[50vh] object-contain bg-black" />}
+                       <audio ref={audioRef} src={getOutputUrl(selectedOutput.relative_path)} controls autoPlay className="w-full" />
+                       {!selectedOutput.cover_image && <div className="py-3 flex items-center justify-center gap-2 text-muted text-sm"><Music size={16} />No embedded cover</div>}
+                     </div>
                   ) : is3DModelFile(selectedOutput.filename) ? (
                     <ModelPreview url={getOutputUrl(selectedOutput.relative_path)} />
                   ) : (
@@ -502,6 +587,86 @@ export function MediaLibrary() {
                   <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Clock size={12} />Created</div><p className="text-sm text-white text-xs">{formatDateTime(selectedOutput.created_at)}</p></div>
                   <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Copy size={12} />Path</div><p className="text-sm text-white truncate text-xs font-mono" title={selectedOutput.relative_path}>{selectedOutput.relative_path}</p></div>
                 </div>
+
+                {["audio","video"].includes(selectedOutput.file_type) && (
+                  <div className="mt-4">
+                    <h4 className="text-sm font-semibold text-white mb-2 flex items-center gap-2"><Activity size={14} className="text-primary" />Media Inspection</h4>
+                    {mediaInfoLoading && <p className="text-xs text-muted">Loading media info…</p>}
+                    {mediaInfoError && <p className="text-xs text-red-400">{mediaInfoError}</p>}
+                    {mediaInfo && (
+                      <div className="space-y-3">
+                        {(() => {
+                          const probe = (mediaInfo.probe as Record<string, unknown> | null)?.probe as Record<string, unknown> | undefined;
+                          if (!probe) return null;
+                          const format = probe.format as Record<string, string | number | undefined> | undefined;
+                          const streams = probe.streams as Array<Record<string, string | number | undefined>> | undefined;
+                          const videoStream = streams?.find((s: Record<string, string | number | undefined>) => s.codec_type === "video");
+                          const audioStream = streams?.find((s: Record<string, string | number | undefined>) => s.codec_type === "audio");
+                          const duration = typeof format?.duration === "string" ? format.duration : undefined;
+                          const bitRate = typeof format?.bit_rate === "string" ? format.bit_rate : undefined;
+                          const formatName = typeof format?.format_name === "string" ? format.format_name : undefined;
+                          return (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                              {duration && <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Clock size={12} />Duration</div><p className="text-sm text-white font-medium">{Number(duration).toFixed(2)}s</p></div>}
+                              {bitRate && <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><HardDrive size={12} />Bitrate</div><p className="text-sm text-white font-medium">{(Number(bitRate) / 1000).toFixed(0)} kbps</p></div>}
+                              {formatName && <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><FileType size={12} />Format</div><p className="text-sm text-white font-medium">{formatName}</p></div>}
+                              {videoStream && <><div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Video size={12} />Resolution</div><p className="text-sm text-white font-medium">{String(videoStream.width || "")}×{String(videoStream.height || "")}</p></div><div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><FileType size={12} />Video Codec</div><p className="text-sm text-white font-medium">{String(videoStream.codec_name || "")}</p></div></>}
+                              {audioStream && <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Music size={12} />Audio Codec</div><p className="text-sm text-white font-medium">{String(audioStream.codec_name || "")}</p></div>}
+                            </div>
+                          );
+                        })()}
+                        {selectedOutput.file_type === "audio" && (mediaInfo.loudness as Record<string, unknown> | null) && (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {(mediaInfo.loudness as Record<string, unknown>).integrated_lufs !== undefined && (mediaInfo.loudness as Record<string, unknown>).integrated_lufs !== null && (
+                              <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Activity size={12} />Integrated LUFS</div><p className="text-sm text-white font-medium">{Number((mediaInfo.loudness as Record<string, unknown>).integrated_lufs).toFixed(1)}</p></div>
+                            )}
+                            {(mediaInfo.loudness as Record<string, unknown>).loudness_range !== undefined && (mediaInfo.loudness as Record<string, unknown>).loudness_range !== null && (
+                              <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Activity size={12} />LRA</div><p className="text-sm text-white font-medium">{Number((mediaInfo.loudness as Record<string, unknown>).loudness_range).toFixed(1)}</p></div>
+                            )}
+                            {(mediaInfo.loudness as Record<string, unknown>).true_peak !== undefined && (mediaInfo.loudness as Record<string, unknown>).true_peak !== null && (
+                              <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5"><div className="flex items-center gap-2 text-xs text-muted mb-1"><Activity size={12} />True Peak</div><p className="text-sm text-white font-medium">{Number((mediaInfo.loudness as Record<string, unknown>).true_peak).toFixed(1)} dB</p></div>
+                            )}
+                          </div>
+                        )}
+                          {selectedOutput.file_type === "audio" && (() => {
+                             const wf = (mediaInfo.waveform as Record<string, unknown> | null);
+                             const peaks = wf?.peaks as number[] | undefined;
+                             const probeData = (mediaInfo.probe as Record<string, unknown> | null)?.probe as Record<string, unknown> | undefined;
+                             const format = probeData?.format as Record<string, unknown> | undefined;
+                             const duration = typeof format?.duration === "string" || typeof format?.duration === "number" ? Number(format.duration) : undefined;
+                             if (!peaks?.length) return null;
+                             return (
+                               <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5">
+                                 <p className="text-xs text-muted mb-1">Waveform</p>
+                                 <WaveformDisplay peaks={peaks} duration={duration ?? undefined} audioElement={audioRef.current} className="bg-black/40 rounded-lg border border-white/5" />
+                               </div>
+                             );
+                           })()}
+                         {(selectedOutput.file_type === "video" || selectedOutput.file_type === "audio") && (
+                           <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5">
+                             <p className="text-xs text-muted mb-2">{selectedOutput.file_type === "video" ? "Thumbnail" : "Cover Art"}</p>
+                             <div className="flex items-center gap-3">
+                               {thumbnailUrl ? (
+                                 <img src={thumbnailUrl} alt={selectedOutput.file_type === "video" ? "Thumbnail" : "Cover"} className="w-24 h-24 object-cover rounded-lg border border-white/10 bg-black" />
+                               ) : (
+                                 <div className="w-24 h-24 flex items-center justify-center rounded-lg border border-white/10 bg-black/40 text-muted text-xs">No preview</div>
+                               )}
+                               <div className="flex flex-col gap-2">
+                                 <button onClick={selectedOutput.file_type === "video" ? handleExtractThumbnail : handleRegenerateCover} disabled={thumbnailLoading} className="btn btn-secondary text-xs flex items-center gap-1.5">
+                                   {thumbnailLoading ? <RefreshCw size={12} className="animate-spin" /> : selectedOutput.file_type === "video" ? <Play size={12} /> : <Music size={12} />}
+                                   {selectedOutput.file_type === "video" ? "Extract Thumbnail" : "Regenerate Cover"}
+                                 </button>
+                                 {selectedOutput.file_type === "audio" && selectedOutput.cover_image && (
+                                   <img src={getOutputUrl(selectedOutput.cover_image)} alt="Current cover" className="w-10 h-10 object-cover rounded border border-white/10" title="Current cover" />
+                                 )}
+                               </div>
+                             </div>
+                           </div>
+                         )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="flex gap-2 mt-4">
                   <button onClick={()=>{ setRenameTarget(selectedOutput); setRenameValue(selectedOutput.filename);}} className="btn btn-secondary flex-1"><Pencil size={14} />Rename</button>
                   <a href={getOutputUrl(selectedOutput.relative_path)} download className="btn btn-secondary flex-1 flex items-center justify-center gap-2"><Download size={14} />Download</a>

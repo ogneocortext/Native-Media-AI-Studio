@@ -46,7 +46,7 @@
         "-y",
         "comfyui-mcp",
         "--comfyui-url",
-        "http://localhost:8188",
+        "http://127.0.0.1:8188",
         "--force-remote"
       ],
       "enabled": true

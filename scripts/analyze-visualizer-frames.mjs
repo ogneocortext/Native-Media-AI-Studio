@@ -29,7 +29,16 @@ process.chdir(REPO_ROOT);
 
 const DEFAULT_MODEL = process.env.VISION_MODEL || "gemma4:e2b-it-qat";
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
-const VITE_URL = process.env.VITE_URL || "http://localhost:5173";
+
+// Load central port configuration for the frontend dev server URL.
+const PORTS_PATH = path.join(REPO_ROOT, 'config', 'ports.json');
+let ports = {};
+try {
+    if (fs.existsSync(PORTS_PATH)) {
+        ports = JSON.parse(fs.readFileSync(PORTS_PATH, 'utf-8'));
+    }
+} catch { /* ignore */ }
+const VITE_URL = process.env.VITE_URL || ports.frontend_url || `http://127.0.0.1:${ports.frontend_port || 5173}`;
 
 // Normalize legacy model aliases (vision.mjs uses qwen3-vl-optimized etc.)
 const MODEL_ALIASES = {

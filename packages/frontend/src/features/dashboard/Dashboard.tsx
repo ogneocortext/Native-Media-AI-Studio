@@ -3,12 +3,17 @@
  * One primary action, 3 steps, nothing else.
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Music2, Wand2, ArrowRight, Sparkles, Check, Image, Film, Trash2 } from "lucide-react";
+import { Music2, Wand2, ArrowRight, Sparkles, Check, Image, Film, Trash2, AlertCircle, Loader2 } from "lucide-react";
 import { Card } from "../../components/common";
 import { useJobs } from "../../hooks";
 import { useOutputStore, formatFileSize, getOutputUrl } from "../../state/outputStore";
+import { setPendingAudioFile } from "../../utils/pendingAudio";
+import { isAudioFile, probeAudioFile, formatDuration } from "../../utils/audioProbe";
+
+const AUDIO_ACCEPT = "audio/*,.mp3,.wav,.flac,.ogg,.m4a";
+const MAX_AUDIO_MB = 500;
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -16,6 +21,11 @@ export function Dashboard() {
   const { recentOutputs, fetchRecent, deleteOutput } = useOutputStore();
   const [dragOver, setDragOver] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [dropError, setDropError] = useState<string | null>(null);
+  const [probing, setProbing] = useState(false);
+  const [probeHint, setProbeHint] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const dragCounter = useRef(0);
 
   useEffect(() => { fetchRecent(4); }, [fetchRecent]);
 
@@ -37,14 +47,43 @@ export function Dashboard() {
     }
   };
 
-  const handleFiles = (files: FileList | null) => {
+  const handleFiles = async (files: FileList | File[] | null) => {
     if (!files || files.length === 0) return;
     const f = files[0];
-    // Handoff via window global — wizard picks it up on mount (no second drop)
-    (window as unknown as { __pendingAudioFile?: File }).__pendingAudioFile = f;
-    try { sessionStorage.setItem("__pendingAudioName", f.name); } catch { /* ignore */ }
+    setDropError(null);
+    setProbeHint(null);
+    if (!isAudioFile(f, AUDIO_ACCEPT)) {
+      setDropError(`"${f.name}" is not an audio file (MP3, WAV, FLAC, OGG, M4A)`);
+      return;
+    }
+    if (f.size > MAX_AUDIO_MB * 1024 * 1024) {
+      setDropError(`"${f.name}" exceeds ${MAX_AUDIO_MB}MB (${(f.size / 1024 / 1024).toFixed(1)}MB)`);
+      return;
+    }
+    if (f.size === 0) {
+      setDropError(`"${f.name}" is empty`);
+      return;
+    }
+    // Fast client-side decode: catches corrupt headers + shows duration before GPU upload
+    setProbing(true);
+    try {
+      const meta = await probeAudioFile(f);
+      if (meta.durationSeconds !== null) {
+        setProbeHint(`${formatDuration(meta.durationSeconds)} • ready to analyze`);
+      }
+      if (meta.durationSeconds !== null && meta.durationSeconds < 1) {
+        setDropError(`"${f.name}" decoded to ${meta.durationSeconds.toFixed(2)}s — file looks corrupt`);
+        return;
+      }
+    } finally {
+      setProbing(false);
+    }
+    // Handoff via shared pending-audio slot — wizard consumes on mount (no second drop)
+    setPendingAudioFile(f);
     navigate("/music-video-wizard");
   };
+
+  const openPicker = () => fileInputRef.current?.click();
 
   return (
     <div className="max-w-[900px] mx-auto p-6">
@@ -63,26 +102,30 @@ export function Dashboard() {
       </div>
 
       {/* ONE drop zone — the whole action */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={AUDIO_ACCEPT}
+        className="hidden"
+        onChange={(e) => { void handleFiles(e.target.files); e.target.value = ""; }}
+      />
       <div
         role="button"
         tabIndex={0}
-        aria-label="Drop audio file here or click to browse"
+        aria-label="Drop audio file here or click to browse. You can also paste an audio file."
+        onDragEnter={(e) => { e.preventDefault(); dragCounter.current += 1; setDragOver(true); }}
         onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
-        onClick={() => {
-          const input = document.createElement("input");
-          input.type = "file"; input.accept = "audio/*,.mp3,.wav,.flac,.ogg,.m4a";
-          input.onchange = () => handleFiles(input.files);
-          input.click();
+        onDragLeave={(e) => { e.preventDefault(); dragCounter.current = Math.max(0, dragCounter.current - 1); if (dragCounter.current === 0) setDragOver(false); }}
+        onDrop={e => { e.preventDefault(); dragCounter.current = 0; setDragOver(false); void handleFiles(e.dataTransfer.files); }}
+        onPaste={(e) => {
+          const pasted = Array.from(e.clipboardData?.files ?? []);
+          if (pasted.length > 0) { e.preventDefault(); void handleFiles(pasted); }
         }}
+        onClick={openPicker}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            const input = document.createElement("input");
-            input.type = "file"; input.accept = "audio/*,.mp3,.wav,.flac,.ogg,.m4a";
-            input.onchange = () => handleFiles(input.files);
-            input.click();
+            openPicker();
           }
         }}
         className={`group relative rounded-2xl border-2 border-dashed p-10 text-center cursor-pointer transition-all ${dragOver ? "border-violet-500 bg-violet-500/10" : "border-white/10 bg-white/[0.02] hover:border-violet-500/40 hover:bg-violet-500/5"}`}
@@ -91,7 +134,16 @@ export function Dashboard() {
           <Music2 size={24} className="text-white" />
         </div>
         <p className="text-lg font-bold text-white mt-4">Drop audio file here</p>
-        <p className="text-sm text-muted mt-1">MP3, WAV, FLAC • max 500 MB • or click to browse</p>
+        <p className="text-sm text-muted mt-1">MP3, WAV, FLAC • max 500 MB • or click to browse • paste works too</p>
+        {probing && (
+          <p className="text-xs text-violet-300 mt-3 inline-flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Checking audio…</p>
+        )}
+        {!probing && probeHint && (
+          <p className="text-xs text-emerald-400 mt-3">{probeHint}</p>
+        )}
+        {dropError && (
+          <p role="alert" className="text-xs text-amber-300 mt-3 inline-flex items-center gap-1.5 max-w-[480px] mx-auto"><AlertCircle size={12} className="shrink-0" /> {dropError}</p>
+        )}
         <p className="text-xs text-muted mt-3 inline-flex items-center gap-1.5"><Check size={12} className="text-emerald-400" /> Analyzed on your GPU — beats, tempo, sections auto-detected</p>
         <div className="mt-6">
           <span className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-violet-600 text-white font-semibold shadow-md">

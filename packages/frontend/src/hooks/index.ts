@@ -6,6 +6,7 @@
 export { useJobs, useHealth } from "./useJobs";
 export { useSSE } from "./useWebSocket";
 export { useFileUpload } from "./useFileUpload";
+export { usePolling } from "./usePolling";
 
 // Re-export Zustand stores for convenience
 export { useJobStore, startAutoRefresh, stopAutoRefresh } from "../state/jobStore";

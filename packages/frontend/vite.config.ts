@@ -29,7 +29,7 @@ function getPortConfig(mode: string): PortConfig {
   
   const configPath = path.resolve(__dirname, "../../config/ports.json");
   let config: PortConfig = {
-    backend_url: env.VITE_BACKEND_URL || "http://localhost:8000",
+    backend_url: env.VITE_BACKEND_URL || "http://127.0.0.1:8000",
     backend_port: parseInt(env.VITE_BACKEND_PORT || "8000", 10),
     frontend_port: parseInt(env.VITE_FRONTEND_PORT || "5173", 10),
     ws_port: parseInt(env.VITE_WS_PORT || "8000", 10),

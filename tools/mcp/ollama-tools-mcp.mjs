@@ -8,10 +8,19 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 const CONTEXT_PATH = path.join(PROJECT_ROOT, "output", "mcp-context.json");
+const PORTS_PATH = path.join(PROJECT_ROOT, "config", "ports.json");
 
-const BASE_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
-const COMFYUI_URL = process.env.COMFYUI_URL || "http://127.0.0.1:8188";
-const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
+// Load central port configuration. Falls back to env vars, then hardcoded defaults.
+let ports = {};
+try {
+    if (existsSync(PORTS_PATH)) {
+        ports = JSON.parse(readFileSync(PORTS_PATH, "utf-8"));
+    }
+} catch { /* ignore */ }
+
+const BASE_URL = process.env.OLLAMA_URL || ports.ollama_url || "http://127.0.0.1:11434";
+const COMFYUI_URL = process.env.COMFYUI_URL || ports.comfyui_url || "http://127.0.0.1:8188";
+const BACKEND_URL = process.env.BACKEND_URL || ports.backend_url || "http://127.0.0.1:8000";
 const MAX_IMAGE_BASE64_BYTES = 20 * 1024 * 1024; // 20 MB safety cap
 
 function generateRequestId() {

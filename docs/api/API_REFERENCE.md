@@ -1,7 +1,7 @@
 # API Reference
 
-> **Base URL:** `http://127.0.0.1:8000`
-> **Last Updated:** 2026-09-10 (Go sidecars, CORS/SSE fixes, diagnostics/services sidecars)
+> **Base URL:** `http://127.0.0.1:8000` (see `config/ports.json` for current port)
+> **Last Updated:** 2026-09-10 (Go sidecars, CORS/SSE fixes, diagnostics/services sidecars, media endpoints)
 
 ## Jobs
 
@@ -532,6 +532,68 @@ GET  /api/ping
   }
 }
 ```
+
+---
+
+## Media
+
+### Probe media file
+
+```
+GET /api/media/probe?path={relative_path}
+```
+
+Returns FFprobe metadata for a file under the output directory.
+
+### Get waveform peaks
+
+```
+GET /api/media/waveform?path={relative_path}&max_points={n}
+```
+
+Returns a downsampled amplitude envelope for waveform visualization:
+
+```json
+{
+  "path": "output/audio/abc123_song.mp3",
+  "peaks": [0.12, 0.34, ...],
+  "duration": 234.12,
+  "sample_rate": 22050,
+  "max_points": 200
+}
+```
+
+`max_points` defaults to 200 and controls the number of returned amplitude buckets.
+
+### Get loudness
+
+```
+GET /api/media/loudness?path={relative_path}
+```
+
+Returns EBU R128 loudness metrics (LUFS).
+
+### Extract thumbnail
+
+```
+POST /api/media/thumbnail
+Content-Type: application/json
+
+{ "path": "output/video/abc123_clip.mp4", "timestamp": 5.0 }
+```
+
+Extracts a frame at the given timestamp.
+
+### Regenerate cover
+
+```
+POST /api/media/cover
+Content-Type: application/json
+
+{ "path": "output/audio/abc123_song.mp3" }
+```
+
+Re-extracts embedded cover art (`attached pic`) via FFmpeg.
 
 ---
 

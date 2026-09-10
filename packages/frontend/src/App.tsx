@@ -64,6 +64,7 @@ function App() {
             <Route path="/visualizer" element={<ErrorBoundary><Visualizer /></ErrorBoundary>} />
             <Route path="/hyperframes" element={<ErrorBoundary><HyperFramesPage /></ErrorBoundary>} />
             <Route path="/library" element={<ErrorBoundary><MediaLibrary /></ErrorBoundary>} />
+            <Route path="/media-library" element={<Navigate to="/library" replace />} />
             <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
             <Route path="/logs" element={<Navigate to="/log-analytics" replace />} />
             <Route path="/log-analytics" element={<ErrorBoundary><LogAnalyticsPage /></ErrorBoundary>} />

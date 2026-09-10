@@ -74,7 +74,8 @@ def capture_screenshot(page, url: str, name: str, width: int = 1400, height: int
     """Navigate to a URL and capture a full-page screenshot."""
     try:
         page.set_viewport_size({"width": width, "height": height})
-        page.goto(f"http://localhost:5173{url}", wait_until="domcontentloaded", timeout=30000)
+        base_url = os.environ.get("VITE_URL") or os.environ.get("BASE_URL") or "http://127.0.0.1:5173"
+        page.goto(f"{base_url}{url}", wait_until="domcontentloaded", timeout=30000)
         # Wait for React hydration + lazy components
         time.sleep(3)
         # Wait for network idle to catch lazy-loaded chunks

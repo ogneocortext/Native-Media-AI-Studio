@@ -283,11 +283,11 @@ async def agent_bootstrap():
 
     # System config
     try:
-        app_config = AppConfig.load()
+        from ..core.config import config
         ports = {
-            "backend": app_config.backend_port,
-            "frontend": app_config.frontend_port,
-            "comfyui": 8188,
+            "backend": config.backend_port,
+            "frontend": config.frontend_port,
+            "comfyui": getattr(config, 'comfyui_port', 8188),
         }
     except Exception:
         ports = {"backend": 8000, "frontend": 5173, "comfyui": 8188}

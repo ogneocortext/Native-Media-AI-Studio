@@ -1,6 +1,21 @@
 import { chromium } from 'playwright';
 
-const BASE_URL = 'http://localhost:5173';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+
+// Load central port configuration for the frontend dev server URL.
+const PORTS_PATH = path.join(PROJECT_ROOT, 'config', 'ports.json');
+let ports = {};
+try {
+    if (fs.existsSync(PORTS_PATH)) {
+        ports = JSON.parse(fs.readFileSync(PORTS_PATH, 'utf-8'));
+    }
+} catch { /* ignore */ }
+const BASE_URL = process.env.VITE_URL || ports.frontend_url || `http://127.0.0.1:${ports.frontend_port || 5173}`;
 const TRACK_NAME = 'NeoCortext - Built This From A Dream';
 
 const browser = await chromium.launch({ headless: false });

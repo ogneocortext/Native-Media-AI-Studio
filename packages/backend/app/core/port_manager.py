@@ -234,8 +234,11 @@ class PortManager:
         1. Try default port first.
         2. If occupied, check whether *our* service is already running there.
            If so, reuse it instead of spawning a duplicate instance.
-        3. If occupied by another service, try to clean up orphaned Python processes.
-        4. Only as a last resort find the next available port.
+        3. If occupied by a stale/non-responding process, attempt cleanup and
+           retry the default port. For the backend service, do NOT fall back
+           to a different port.
+        4. If the default port is still unavailable after cleanup, raise instead
+           of silently reassigning. Non-backend services may still fall back.
         """
         # Step 1: Try default port first — prefer go-ports if available
         go_ports_result = await self._check_port_via_go_ports(default_port)
@@ -246,8 +249,6 @@ class PortManager:
             return default_port
 
         # Step 2: Port is occupied — check if our service is already there.
-        # This is the "sticky port" guard that prevents duplicate instances
-        # and stops the port from drifting when a server is already running.
         if await self._is_service_running(service, default_port):
             logger.info(
                 "%s already running on port %d; reusing existing instance",
@@ -258,7 +259,7 @@ class PortManager:
             self._save_state()
             return default_port
 
-        # Step 3: Port is occupied by something else — try to cleanup orphaned Python processes
+        # Step 3: Port is occupied by something else — try to cleanup orphaned processes
         logger.info(
             "Port %d is occupied by another service, attempting to clean up orphaned processes...",
             default_port,
@@ -275,8 +276,15 @@ class PortManager:
                 self._save_state()
                 return default_port
 
-        # Step 4: Port still occupied — find next available port
-        logger.info("Port %d still occupied, finding available port...", default_port)
+        # Step 4: Port still occupied — fall back to an alternate port so the
+        # user does not have to reboot or manually free the port. This is the
+        # only viable no-reboot path on Windows when a zombie listener has
+        # active client connections that prevent force-release.
+        logger.warning(
+            "Port %d still occupied after cleanup; finding alternate port for %s",
+            default_port,
+            service,
+        )
         new_port = await self.find_available_port_async(default_port)
         self._ports[service] = new_port
         self._save_state()
@@ -312,10 +320,12 @@ class PortManager:
         (static config at startup) so the two paths cannot drift.
         """
         ws_url = f"ws://127.0.0.1:{backend_port}/ws"
-        go_dashboard_url = getattr(config, 'go_dashboard_url', 'http://127.0.0.1:3847')
+        go_dashboard_url = getattr(config, 'go_dashboard_url', '') or "http://127.0.0.1:3847"
         events_url = f"{go_dashboard_url}/events"
         backend_events_url = f"http://127.0.0.1:{backend_port}/api/events"
+        backend_url = f"http://127.0.0.1:{backend_port}"
         return {
+            "backend_url": backend_url,
             "frontend_port": config.frontend_port,
             "backend_port": backend_port,
             "ws_port": backend_port,
@@ -326,10 +336,10 @@ class PortManager:
             "dashboard_port": 3847,
             "dashboard_url": go_dashboard_url,
             "go_dashboard_url": go_dashboard_url,
-            "go_media_url": getattr(config, 'go_media_url', 'http://127.0.0.1:3848'),
-            "go_worker_url": getattr(config, 'go_worker_url', 'http://127.0.0.1:3849'),
-            "go_gateway_url": getattr(config, 'go_gateway_url', 'http://127.0.0.1:3850'),
-            "go_ports_url": getattr(config, 'go_ports_url', 'http://127.0.0.1:3851'),
+            "go_media_url": getattr(config, 'go_media_url', '') or "http://127.0.0.1:3848",
+            "go_worker_url": getattr(config, 'go_worker_url', '') or "http://127.0.0.1:3849",
+            "go_gateway_url": getattr(config, 'go_gateway_url', '') or "http://127.0.0.1:3850",
+            "go_ports_url": getattr(config, 'go_ports_url', '') or "http://127.0.0.1:3851",
         }
 
     async def resolve_all_ports(self) -> dict[str, Any]:

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useMemo } from "react";
+import { lintVideoPrompt } from "../../utils/promptLint";
 import {
   Upload, Music, Wand2, Sparkles, Play, ChevronRight, Download,
   Loader2, Zap, Layers,
@@ -13,13 +14,21 @@ export function UploadStep({ audioFile, audioUrl, onDrop, onFileSelect, onNext, 
   onFileSelect: (file: File) => void; onNext: () => void; analyzing: boolean;
 }) {
   const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-2xl mx-auto text-center">
         <div className="w-12 h-12 rounded-xl bg-violet-600 flex items-center justify-center mx-auto mb-3"><Music size={22} className="text-white" /></div>
         <h2 className="text-2xl font-bold text-white tracking-tight">Upload Your Track</h2>
         <p className="text-sm text-gray-400 mt-2">We analyze tempo, beats, sections & mood <em>before</em> generating — SunoMV &ldquo;analyze first, generate second&rdquo;. Supports MP3, WAV, FLAC, OGG, M4A (max 500 MB).</p>
-        <div onDrop={onDrop} onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} className={`mt-6 border-2 border-dashed rounded-xl p-8 md:p-10 transition-all cursor-pointer group ${dragOver ? "border-violet-500 bg-violet-500/5" : "border-gray-600 hover:border-violet-500 hover:bg-violet-500/5"}`} onClick={() => { const input = document.createElement("input"); input.type = "file"; input.accept = "audio/*,.mp3,.wav,.flac,.ogg,.m4a"; input.onchange = (e) => { const file = (e.target as HTMLInputElement).files?.[0]; if (file) onFileSelect(file); }; input.click(); }}>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) onFileSelect(f); e.target.value = ""; }}
+        />
+        <div role="button" tabIndex={0} onDrop={onDrop} onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onPaste={(e) => { const f = Array.from(e.clipboardData?.files ?? [])[0]; if (f) onFileSelect(f); }} className={`mt-6 border-2 border-dashed rounded-xl p-8 md:p-10 transition-all cursor-pointer group ${dragOver ? "border-violet-500 bg-violet-500/5" : "border-gray-600 hover:border-violet-500 hover:bg-violet-500/5"}`} onClick={() => inputRef.current?.click()} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); inputRef.current?.click(); } }}>
           <Upload size={40} className={`mx-auto mb-3 transition-transform group-hover:scale-110 ${audioFile ? "text-violet-400" : "text-gray-500"}`} />
           {audioFile ? (
             <div className="space-y-1">
@@ -109,6 +118,7 @@ export function ConfigureStep({ config, composedPrompt, onConfigChange, onSugges
 }) {
   const [activeCategory, setActiveCategory] = useState("happy");
   const applyStructured = () => onConfigChange({ ...config, prompt: composedPrompt });
+  const lint = useMemo(() => lintVideoPrompt(config.prompt), [config.prompt]);
   const SHOT_SIZES = ["Extreme Wide", "Wide", "Medium", "Close-up", "Extreme Close-up"];
   const CAMERA_ANGLES = ["Eye Level", "Low Angle", "High Angle", "Bird's Eye", "Dutch Angle"];
   const PROMPT_SUGGESTIONS: Record<string, string[]> = {
@@ -157,8 +167,16 @@ export function ConfigureStep({ config, composedPrompt, onConfigChange, onSugges
             </div>
           </div>
           <div>
-            <label className="text-sm font-semibold text-white">Positive Prompt</label>
+            <label className="text-sm font-semibold text-white">Positive Prompt <span className="ml-1 text-[11px] font-normal text-gray-500">{lint.wordCount}/75 words • {lint.score}/{lint.checks.length} checks</span></label>
             <textarea value={config.prompt} onChange={e => onConfigChange({ ...config, prompt: e.target.value })} rows={3} className="w-full mt-2 px-3 py-2.5 bg-gray-900 border border-gray-600 rounded-xl text-sm text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none resize-none" placeholder="Describe your video scene..." />
+            <ul className="mt-2 space-y-1" aria-live="polite">
+              {lint.checks.map(c => (
+                <li key={c.key} className={`flex items-start gap-1.5 text-[11px] ${c.pass ? "text-emerald-400" : "text-gray-500"}`}>
+                  <span aria-hidden>{c.pass ? "✓" : "○"}</span>
+                  <span><b className="font-semibold">{c.label}</b>{!c.pass && <span className="text-gray-500"> — {c.hint}</span>}</span>
+                </li>
+              ))}
+            </ul>
           </div>
           <div>
             <label className="text-sm font-semibold text-white flex items-center gap-1"><FileWarning size={12} /> Negative Prompt</label>

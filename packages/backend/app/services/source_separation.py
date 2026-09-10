@@ -156,8 +156,18 @@ class SourceSeparator:
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(), timeout=600
             )
+        except NotImplementedError:
+            # Windows SelectorEventLoop fallback: run in a thread via subprocess.run
+            def _run() -> tuple[int, bytes, bytes]:
+                completed = subprocess.run(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                return completed.returncode, completed.stdout, completed.stderr
 
-            if process.returncode != 0:
+            returncode, stdout, stderr = await asyncio.to_thread(_run)
+            if returncode != 0:
                 error_msg = stderr.decode("utf-8", errors="replace").strip()
                 return SeparationResult(
                     audio_file=audio_path,
@@ -233,8 +243,18 @@ class SourceSeparator:
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(), timeout=600
             )
+        except NotImplementedError:
+            # Windows SelectorEventLoop fallback: run in a thread via subprocess.run
+            def _run() -> tuple[int, bytes, bytes]:
+                completed = subprocess.run(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                return completed.returncode, completed.stdout, completed.stderr
 
-            if process.returncode != 0:
+            returncode, stdout, stderr = await asyncio.to_thread(_run)
+            if returncode != 0:
                 error_msg = stderr.decode("utf-8", errors="replace").strip()
                 return SeparationResult(
                     audio_file=audio_path,

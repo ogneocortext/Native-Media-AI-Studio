@@ -1,10 +1,12 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { ChevronRight, ChevronLeft, AlertCircle, Check } from "lucide-react";
 import { STEPS } from "./types";
 import type { WizardStep, AudioAnalysis, GenerationConfig } from "./types";
 import { UploadStep, AnalyzeStep, ConfigureStep, GenerateStep, ReviewStep } from "./steps";
 import { savePromptVersion } from "../../services/api";
 import { PromptHistoryPanel } from "./PromptHistoryPanel";
+import { consumePendingAudioFile, peekPendingAudioName } from "../../utils/pendingAudio";
+import { isAudioFile } from "../../utils/audioProbe";
 
 const DEFAULT_CONFIG: GenerationConfig = {
   prompt: "",
@@ -29,19 +31,39 @@ export function MusicVideoWizard() {
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generatedSections, setGeneratedSections] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [pendingHint, setPendingHint] = useState<string | null>(() => peekPendingAudioName());
+  const objectUrlRef = useRef<string | null>(null);
 
   const currentStepIndex = STEPS.findIndex((s) => s.id === currentStep);
 
   const handleFileUpload = useCallback((file: File) => {
+    if (!isAudioFile(file)) {
+      setError(`"${file.name}" is not an audio file (MP3, WAV, FLAC, OGG, M4A)`);
+      return;
+    }
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    const url = URL.createObjectURL(file);
+    objectUrlRef.current = url;
     setAudioFile(file);
-    setAudioUrl(URL.createObjectURL(file));
+    setAudioUrl(url);
     setError(null);
+    setPendingHint(null);
   }, []);
+
+  // Dashboard handoff: consume a dropped track exactly once on mount.
+  useEffect(() => {
+    const pending = consumePendingAudioFile();
+    if (pending) handleFileUpload(pending);
+    else setPendingHint(null);
+    return () => {
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    };
+  }, [handleFileUpload]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("audio/")) handleFileUpload(file);
+    if (file && isAudioFile(file)) handleFileUpload(file);
     else setError("Please upload an audio file (MP3, WAV, FLAC)");
   }, [handleFileUpload]);
 
@@ -204,6 +226,11 @@ export function MusicVideoWizard() {
       </div>
 
       {error && <div className="mb-4 p-3 bg-amber-900/20 border border-amber-700/50 rounded-lg flex items-start gap-2 text-amber-200 text-sm"><AlertCircle size={16} className="mt-0.5 shrink-0" /><span>{error}</span><button onClick={() => setError(null)} className="ml-auto text-amber-300 hover:text-white text-xs">Dismiss</button></div>}
+      {pendingHint && !audioFile && (
+        <div className="mb-4 p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg text-violet-200 text-sm">
+          Last drop (“{pendingHint}”) didn’t survive a reload — drop the file again to continue.
+        </div>
+      )}
 
       <div className="bg-gray-800 rounded-xl border border-gray-700 shadow-xl overflow-hidden">{renderStep()}</div>
 

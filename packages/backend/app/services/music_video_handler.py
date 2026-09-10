@@ -12,6 +12,7 @@ from ..core.config import PROJECT_ROOT
 from ..models.job import Job, JobType
 from ..services.audio_analyzer import AudioAnalyzer, extract_amplitude_envelope_simple
 from ..services.go_worker_client import write_sidecar as go_write_sidecar
+from ..services.video import RenderSpec
 
 OUTPUT_DIR = PROJECT_ROOT / "output" / "video"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -129,7 +130,6 @@ class MusicVideoHandler:
 
         # Check if ffmpeg is available
         ffmpeg_cmd = self._find_ffmpeg()
-
         if not ffmpeg_cmd:
             raise RuntimeError(
                 "FFmpeg not found in PATH. Install FFmpeg (https://ffmpeg.org/download.html) and ensure 'ffmpeg' is in PATH. "
@@ -137,7 +137,7 @@ class MusicVideoHandler:
 
         try:
             await self._render_with_ffmpeg(
-                job, audio_path, output_path, width, height, fps, duration_seconds, analysis, viz_config, method
+                job, ffmpeg_cmd, audio_path, output_path, width, height, fps, duration_seconds, analysis, viz_config, method
             )
         except Exception as e:
             logger.error("FFmpeg rendering failed for job %s: %s", job.id, str(e))
@@ -220,6 +220,7 @@ class MusicVideoHandler:
     async def _render_with_ffmpeg(
         self,
         job: Job,
+        ffmpeg_cmd: str,
         audio_path: str,
         output_path: Path,
         width: int,
@@ -246,7 +247,7 @@ class MusicVideoHandler:
         # For preview jobs without audio, generate a test pattern video
         if not audio_path:
             cmd = [
-                self._find_ffmpeg(),
+                ffmpeg_cmd,
                 "-y",
                 "-f", "lavfi",
                 "-i", f"testsrc=duration={duration}:size={width}x{height}:rate={fps}",
@@ -263,7 +264,7 @@ class MusicVideoHandler:
             vf_filter = f"[0:a]showwaves=s={width}x{height}:mode=cline:rate={fps}:colors=#8b5cf6|#06b6d4:scale=sqrt[vid]"
             input_args = ["-i", audio_path]
             cmd = [
-                self._find_ffmpeg(),
+                ffmpeg_cmd,
                 "-y",
                 *input_args,
                 "-filter_complex", vf_filter,
@@ -280,7 +281,7 @@ class MusicVideoHandler:
             vf_filter = f"[0:a]showspectrum=s={width}x{height}:mode=combined:color=intensity:scale=log[vid]"
             input_args = ["-i", audio_path]
             cmd = [
-                self._find_ffmpeg(),
+                ffmpeg_cmd,
                 "-y",
                 *input_args,
                 "-filter_complex", vf_filter,
@@ -330,7 +331,7 @@ class MusicVideoHandler:
             vf_filter = f"[0:a]showwaves=s={width}x{height}:mode=p2p:rate={fps}:colors={palette}:scale=sqrt,format=yuv420p,eq=contrast={contrast:.2f}:saturation={saturation:.2f}:brightness=0.03[vid]"
             input_args = ["-i", audio_path]
             cmd = [
-                self._find_ffmpeg(),
+                ffmpeg_cmd,
                 "-y",
                 *input_args,
                 "-filter_complex", vf_filter,
@@ -523,36 +524,6 @@ class MusicVideoHandler:
         except Exception as e:
             raise RuntimeError(f"ComfyUI generation failed: {e}")
 
-    def _build_visualization_filter(self, style: str, color_scheme: str, width: int, height: int) -> str:
-        """Build FFmpeg filter string for the visualization style."""
-        # Use testsrc as input and apply color/effects based on style
-        # These are simplified but reliable filters that work with FFmpeg 8.x
-        if style == "waveform":
-            return (
-                "geq=lum='128+127*sin(X/30+T*2)*cos(Y/20+T*1.5)':"
-                "cb=128:cr=128,"
-                "format=yuv420p[outv]"
-            )
-        elif style == "particles":
-            return (
-                "geq=lum='255*abs(sin(X/20+T*3)*cos(Y/15+T*2))':"
-                "cb=128:cr=128,"
-                "format=yuv420p[outv]"
-            )
-        elif style == "geometric":
-            return (
-                "geq=lum='if(bitor(lt(mod(X+T*50,100),50),lt(mod(Y+T*30,100),50)),255,50)':"
-                "cb=128:cr=128,"
-                "format=yuv420p[outv]"
-            )
-        else:  # abstract
-            return (
-                "geq=lum='128+127*sin(X/30+T*2)*cos(Y/20+T*1.5)':"
-                "cb='128+127*sin(X/25+T)':"
-                "cr='128+127*cos(Y/25+T)',"
-                "format=yuv420p[outv]"
-            )
-
     async def _create_placeholder_output(self, job: Job, output_path: Path, analysis: dict):
         """Create a placeholder output file when ffmpeg is not available."""
         placeholder = {
@@ -569,6 +540,26 @@ class MusicVideoHandler:
         if worker_result is None or not worker_result.get("written"):
             with open(sidecar_path, "w") as f:
                 json.dump(placeholder, f, indent=2)
+
+        # Best-effort: try alternate engines for a 1s color placeholder so the
+        # frontend has a playable file instead of a missing MP4.
+        try:
+            from ..services.video import get_renderer
+            renderer = get_renderer("auto")
+            result = await renderer.render(RenderSpec(
+                kind="color",
+                color="#111111",
+                width=1280,
+                height=720,
+                duration=1.0,
+                fps=24,
+                output_path=str(output_path),
+            ))
+            if result.success and result.output_path and Path(result.output_path).exists():
+                return
+        except Exception:
+            pass
+        # If no engine can render, the JSON sidecar is the fallback artifact.
 
 
 class MusicVideoPreviewHandler(MusicVideoHandler):

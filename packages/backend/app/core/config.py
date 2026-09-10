@@ -25,6 +25,8 @@ class AppConfig(BaseModel):
     # backend_port. Kept for config/ports.json compat.
     ws_port: int = 8000
     comfyui_url: str = "http://127.0.0.1:8188"
+    comfyui_port: int = 8188
+    video_editor_port: int = 8080
     comfyui_output_dir: Path | None = None  # Defaults to <PROJECT_ROOT>/../ComfyUI/output if unset
     ollama_url: str = "http://127.0.0.1:11434"
     go_dashboard_url: str = "http://127.0.0.1:3847"
@@ -90,19 +92,47 @@ class AppConfig(BaseModel):
 
 
 def load_config() -> AppConfig:
-    config_file = CONFIG_DIR / "settings.json"
-    if config_file.exists():
+    # Load non-port settings from settings.json first.
+    settings_file = CONFIG_DIR / "settings.json"
+    data: dict[str, Any] = {}
+    if settings_file.exists():
         try:
-            with open(config_file) as f:
+            with open(settings_file) as f:
                 data = json.load(f)
-                return AppConfig(**data)
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in config file {config_file}: {e}")
+            logger.error(f"Invalid JSON in config file {settings_file}: {e}")
             logger.warning("Using default configuration")
         except Exception as e:
-            logger.error(f"Error loading config from {config_file}: {e}")
+            logger.error(f"Error loading config from {settings_file}: {e}")
             logger.warning("Using default configuration")
-    return AppConfig()
+
+    # config/ports.json is the single source of truth for all port/URL defaults.
+    # It is written by port_manager at startup with resolved values, and also
+    # contains the project-wide defaults when the backend has not yet run.
+    ports_file = CONFIG_DIR / "ports.json"
+    if ports_file.exists():
+        try:
+            with open(ports_file) as f:
+                ports_data = json.load(f)
+                if isinstance(ports_data, dict):
+                    # Ports/URLs always come from ports.json; settings.json overrides
+                    # are ignored for these fields to prevent drift.
+                    data.setdefault("backend_port", ports_data.get("backend_port", 8000))
+                    data.setdefault("frontend_port", ports_data.get("frontend_port", 5173))
+                    data.setdefault("ws_port", ports_data.get("ws_port", data.get("backend_port", 8000)))
+                    data.setdefault("comfyui_url", ports_data.get("comfyui_url", "http://127.0.0.1:8188"))
+                    data.setdefault("comfyui_port", ports_data.get("comfyui_port", 8188))
+                    data.setdefault("video_editor_port", ports_data.get("video_editor_port", 8080))
+                    data.setdefault("ollama_url", ports_data.get("ollama_url", "http://127.0.0.1:11434"))
+                    data.setdefault("go_dashboard_url", ports_data.get("go_dashboard_url", "http://127.0.0.1:3847"))
+                    data.setdefault("go_media_url", ports_data.get("go_media_url", "http://127.0.0.1:3848"))
+                    data.setdefault("go_worker_url", ports_data.get("go_worker_url", "http://127.0.0.1:3849"))
+                    data.setdefault("go_gateway_url", ports_data.get("go_gateway_url", "http://127.0.0.1:3850"))
+                    data.setdefault("go_ports_url", ports_data.get("go_ports_url", "http://127.0.0.1:3851"))
+        except Exception as e:
+            logger.warning(f"Could not load port defaults from {ports_file}: {e}")
+
+    return AppConfig(**data)
 
 
 def save_config(config: AppConfig) -> None:

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import subprocess
 import time
 from pathlib import Path
 
@@ -44,14 +45,43 @@ class FFmpegRenderer(VideoRenderer):
         cmd = self._build_cmd(spec, ffmpeg, out)
         t0 = time.perf_counter()
         try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
+            except NotImplementedError:
+                # Windows SelectorEventLoop fallback: run FFmpeg in a thread via subprocess.Popen
+                # so we can enforce the same timeout/kill semantics as the async path.
+                import threading
+
+                def _run_ffmpeg() -> tuple[int, bytes, bytes]:
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
+                    try:
+                        stdout, stderr = proc.communicate(timeout=600)
+                        return proc.returncode, stdout, stderr
+                    except subprocess.TimeoutExpired:
+                        try:
+                            proc.kill()
+                        except Exception:
+                            pass
+                        try:
+                            proc.wait(timeout=10)
+                        except Exception:
+                            pass
+                        return -1, b"", b"FFmpeg timed out after 600s (thread fallback)"
+
+                returncode, stdout, stderr = await asyncio.wait_for(asyncio.to_thread(_run_ffmpeg), timeout=620)
+                proc = None
         except asyncio.TimeoutError:
-            proc.kill()  # type: ignore[union-attr]
+            if "proc" in locals() and proc is not None:
+                proc.kill()  # type: ignore[union-attr]
             return RenderResult(
                 engine=self.engine_id,
                 output_path=str(out),
@@ -68,6 +98,18 @@ class FFmpegRenderer(VideoRenderer):
                 size_bytes=0,
                 success=False,
                 error=str(exc),
+            )
+
+        if proc is None:
+            ok = returncode == 0 and out.exists() and out.stat().st_size > 0
+            return RenderResult(
+                engine=self.engine_id,
+                output_path=str(out),
+                render_s=round(time.perf_counter() - t0, 3),
+                size_bytes=out.stat().st_size if out.exists() else 0,
+                success=ok,
+                error=None if ok else (stderr or b"").decode(errors="replace")[-800:] or f"ffmpeg exited {returncode}",
+                notes="filter-graph",
             )
 
         ok = proc.returncode == 0 and out.exists() and out.stat().st_size > 0

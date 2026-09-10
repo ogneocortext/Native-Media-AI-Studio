@@ -8,6 +8,17 @@ import { spawn } from "child_process";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
+const PORTS_PATH = path.join(PROJECT_ROOT, "config", "ports.json");
+
+// Load central port configuration for default frontend URL.
+let ports = {};
+try {
+    if (existsSync(PORTS_PATH)) {
+        ports = JSON.parse(readFileSync(PORTS_PATH, "utf-8"));
+    }
+} catch { /* ignore */ }
+
+const DEFAULT_FRONTEND_URL = process.env.FRONTEND_URL || ports.frontend_url || `http://127.0.0.1:${ports.frontend_port || 5173}`;
 const ANALYZE_MJS = path.join(PROJECT_ROOT, "tools", "vision", "analyze.mjs");
 const ANALYZE_PY = path.join(PROJECT_ROOT, "tools", "tests", "vision_analyze.py");
 
@@ -487,7 +498,7 @@ const TOOL_DEFS = [
         properties: {
           url: {
             type: "string",
-            description: "URL to capture (default: http://localhost:5173)",
+             description: "URL to capture (default: frontend dev server)",
           },
           full_page: {
             type: "boolean",
@@ -661,7 +672,7 @@ const TOOL_IMPLEMENTATIONS = {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     try {
-      const target = url || "http://localhost:5173";
+      const target = url || DEFAULT_FRONTEND_URL;
       await page.goto(target, { waitUntil: "networkidle", timeout: 30000 });
       const outPath = path.resolve(PROJECT_ROOT, "output", "vision-screenshot.png");
       await page.screenshot({ path: outPath, fullPage: full_page === "true" || full_page === true });

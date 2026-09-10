@@ -41,6 +41,9 @@ __all__ = [
     "get_renderer",
 ]
 
+_ENGINE_AVAILABILITY_CACHE: dict[str, tuple[float, dict]] = {}
+ENGINE_AVAILABILITY_TTL_S = 30.0
+
 
 def _ffmpeg_renderer() -> "VideoRenderer":
     from .ffmpeg_renderer import FFmpegRenderer
@@ -93,6 +96,13 @@ RENDER_ENGINES: dict[str, dict] = {
 
 def available_engines() -> list[dict]:
     """List render engines with live availability (import probe per engine)."""
+    import time
+
+    now = time.time()
+    cached = _ENGINE_AVAILABILITY_CACHE.get("__all__")
+    if cached and now - cached[0] < ENGINE_AVAILABILITY_TTL_S:
+        return cached[1]
+
     out: list[dict] = []
     for engine_id, meta in RENDER_ENGINES.items():
         try:
@@ -111,6 +121,7 @@ def available_engines() -> list[dict]:
                 "detail": detail,
             }
         )
+    _ENGINE_AVAILABILITY_CACHE["__all__"] = (now, out)
     return out
 
 

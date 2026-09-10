@@ -36,9 +36,28 @@ $VideoDir = Join-Path $ProjectRoot 'packages\video-editor'
 $LogDir = Join-Path $ProjectRoot 'output\logs'
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
-$BackendPort = 8000
-$FrontendPort = 5173
-$ComfyUIPort = 8188
+# Load central port configuration from config/ports.json.
+$portsFile = Join-Path $ProjectRoot 'config\ports.json'
+if (Test-Path $portsFile) {
+    try {
+        $portsJson = Get-Content $portsFile -Raw | ConvertFrom-Json
+        $BackendPort = [int]$portsJson.backend_port
+        $FrontendPort = [int]$portsJson.frontend_port
+        $ComfyUIPort = [int]$portsJson.comfyui_port
+        $VideoEditorPort = [int]$portsJson.video_editor_port
+    } catch {
+        Write-Warn2 "Failed to parse config/ports.json, using defaults"
+        $BackendPort = 8000
+        $FrontendPort = 5173
+        $ComfyUIPort = 8188
+        $VideoEditorPort = 8080
+    }
+} else {
+    $BackendPort = 8000
+    $FrontendPort = 5173
+    $ComfyUIPort = 8188
+    $VideoEditorPort = 8080
+}
 $started = @()   # @{ Name; Process }
 
 if ($Clean) {
@@ -353,7 +372,7 @@ if ($VideoEditor) {
     $remotionCmd = Join-Path $VideoDir 'node_modules\.bin\remotion.cmd'
     if (Test-Path $remotionCmd) {
         $proc = Start-Process -FilePath 'cmd.exe' `
-            -ArgumentList '/c', "`"$remotionCmd`" studio" `
+            -ArgumentList @('/c', "`"$remotionCmd`" studio") `
             -WorkingDirectory $VideoDir `
             -WindowStyle Hidden `
             -RedirectStandardOutput (Join-Path $LogDir 'video.log') `
@@ -362,13 +381,16 @@ if ($VideoEditor) {
     } else {
         Write-Warn2 'Local remotion CLI missing - falling back to npm run dev'
         $proc = Start-Process -FilePath 'cmd.exe' `
-            -ArgumentList '/c', 'npm run dev' `
+            -ArgumentList @('/c', 'npm run dev') `
             -WorkingDirectory $VideoDir `
             -WindowStyle Hidden `
             -RedirectStandardOutput (Join-Path $LogDir 'video.log') `
             -RedirectStandardError (Join-Path $LogDir 'video.err.log') `
             -PassThru
     }
+    $script:started += @{ Name = 'VideoEditor'; Process = $proc }
+    Write-Ok "Video editor studio starting (default http://localhost:$VideoEditorPort)"
+}
     $script:started += @{ Name = 'VideoEditor'; Process = $proc }
     Write-Ok 'Video editor studio starting (default http://localhost:3000)'
 }
@@ -380,8 +402,8 @@ Write-Host '  Native Media AI Studio is running' -ForegroundColor Green
 Write-Host '==============================================' -ForegroundColor Green
 if (-not $NoBackend)  { Write-Host "  Backend : http://localhost:$BackendPort  (docs: /docs)" -ForegroundColor White }
 if (-not $NoFrontend) { Write-Host "  Frontend: http://localhost:$FrontendPort" -ForegroundColor White }
-if (-not $NoComfyUI)  { Write-Host '  ComfyUI : http://localhost:8188' -ForegroundColor White }
-if ($VideoEditor)     { Write-Host '  Video   : http://localhost:3000' -ForegroundColor White }
+if (-not $NoComfyUI)  { Write-Host "  ComfyUI : http://localhost:$ComfyUIPort" -ForegroundColor White }
+if ($VideoEditor)     { Write-Host "  Video   : http://localhost:$VideoEditorPort" -ForegroundColor White }
 Write-Host "  Logs    : $LogDir" -ForegroundColor Gray
 Write-Host ''
 

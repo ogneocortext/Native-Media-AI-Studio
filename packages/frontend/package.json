@@ -28,6 +28,7 @@
     "react-router-dom": "^7.18.3",
     "recharts": "^3.10.1",
     "three": "^0.185.1",
+    "wavesurfer.js": "^7.12.11",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

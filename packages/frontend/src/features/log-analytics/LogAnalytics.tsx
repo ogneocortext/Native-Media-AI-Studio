@@ -33,14 +33,12 @@ import {
 import { Card } from "../../components/common";
 import {
   getLogAnalyticsSummary,
-  getLogAnalyticsTrends,
   getLogAnalyticsPatterns,
   getLogAnalyticsErrors,
   getLogAnalyticsEvents,
   ingestLogsForAnalytics,
   cleanupLogAnalytics,
   type LogAnalyticsSummary,
-  type LogAnalyticsTrendPoint,
   type LogAnalyticsPatterns,
   type LogAnalyticsErrorPattern,
   type LogAnalyticsEvent,
@@ -67,7 +65,7 @@ export function LogAnalytics() {
   const [patterns, setPatterns] = useState<LogAnalyticsPatterns | null>(null);
   const [errorPatterns, setErrorPatterns] = useState<LogAnalyticsErrorPattern[]>([]);
   const [range, setRange] = useState<string>("All");
-  const [loading, setLoading] = useState(true);
+  const [loading] = useState(true);
   const [ingesting, setIngesting] = useState(false);
   const [ingestResult, setIngestResult] = useState<string | null>(null);
   const [selectedLog, setSelectedLog] = useState<string>("app");

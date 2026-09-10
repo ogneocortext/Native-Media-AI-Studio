@@ -5,9 +5,13 @@ Handles file uploads for music video creation and audio analysis.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
+import shutil
+import subprocess
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -926,6 +930,85 @@ class RenameAudioRequest(BaseModel):
     """Request model for renaming an audio file."""
     old_filename: str
     new_filename: str
+
+
+class ExtractAudioRequest(BaseModel):
+    """Extract the audio track from a video file into the audio library as MP3."""
+    source_path: str  # output-relative ("video/foo.mp4") or absolute under PROJECT_ROOT
+    bitrate: str = "192k"  # one of 128k, 192k, 320k
+
+
+def _find_ffmpeg() -> str | None:
+    for name in ("ffmpeg", "ffmpeg.exe"):
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+
+@router.post("/extract", response_model=dict)
+async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
+    """Extract a video's audio track to `output/audio/<name>.mp3` (libmp3lame).
+
+    Powers the Media Library "Extract MP3" panel — the result lands in the
+    audio library so it can be analyzed on the Audio Analysis page.
+    """
+    raw = (body.source_path or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="source_path is required")
+    if body.bitrate not in ("128k", "192k", "320k"):
+        raise HTTPException(status_code=400, detail="bitrate must be 128k, 192k or 320k")
+
+    root = PROJECT_ROOT.resolve()
+    candidate = Path(raw)
+    src = (candidate if candidate.is_absolute() else (root / "output" / raw)).resolve()
+    if not str(src).startswith(str(root)) or ".." in Path(raw).parts:
+        raise HTTPException(status_code=400, detail="Invalid source_path")
+    if not src.exists() or not src.is_file():
+        raise HTTPException(status_code=404, detail=f"Source file not found: {body.source_path}")
+    if src.suffix.lower() not in (".mp4", ".mov", ".mkv", ".webm", ".m4v", ".avi"):
+        raise HTTPException(status_code=400, detail=f"Not a video file: {src.name}")
+
+    ffmpeg = _find_ffmpeg()
+    if not ffmpeg:
+        raise HTTPException(status_code=500, detail="ffmpeg not found on PATH")
+
+    stem = re.sub(r"[^A-Za-z0-9_\- .()\[\]]", "", src.stem).strip() or "extracted"
+    dst = AUDIO_DIR / f"{stem}.mp3"
+    n = 1
+    while dst.exists():
+        n += 1
+        dst = AUDIO_DIR / f"{stem}_{n}.mp3"
+
+    started = time.perf_counter()
+    try:
+        proc = await asyncio.to_thread(
+            subprocess.run,
+            [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+             "-i", str(src), "-vn", "-c:a", "libmp3lame", "-b:a", body.bitrate, str(dst)],
+            capture_output=True, text=True, timeout=600,
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Audio extraction timed out")
+    if proc.returncode != 0:
+        tail = (proc.stderr or "").strip().splitlines()[-3:]
+        detail = "; ".join(tail) if tail else "ffmpeg failed"
+        if "does not contain any stream" in detail or "Output file is empty" in detail:
+            detail = f"No audio track in {src.name}"
+        raise HTTPException(status_code=400, detail=detail)
+    if not dst.exists() or dst.stat().st_size == 0:
+        raise HTTPException(status_code=400, detail=f"No audio track in {src.name}")
+
+    rel = dst.resolve().relative_to(root).as_posix()
+    return {
+        "success": True,
+        "filename": dst.name,
+        "relative_path": rel,
+        "stored_path": str(dst),
+        "size_bytes": dst.stat().st_size,
+        "render_s": round(time.perf_counter() - started, 1),
+        "message": f"Extracted {dst.name}",
+    }
 
 
 @router.post("/rename", response_model=dict)

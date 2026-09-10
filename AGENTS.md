@@ -63,7 +63,7 @@ All MCP servers are configured in `opencode.json` (6 servers — Vision is addit
 | Vision       | `node tools/mcp/vision-mcp.mjs`                                  | stdio         | ✅ Configured |
 | Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                            | 7800 (REST)   | ✅ Running    |
 | Blender MCP  | `uvx blender-mcp`                                                | 9876 (socket) | ✅ Running    |
-| ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://localhost:8188 --force-remote` | 8188      | ✅ Running    |
+| ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://127.0.0.1:8188 --force-remote` | 8188      | ✅ Running    |
 | Remotion MCP | `npx -y @remotion/mcp@latest`                                    | stdio         | ✅ Configured |
 
 ### Vision Analysis Workflow
@@ -134,8 +134,8 @@ Local Ollama models are available for vision analysis and tool-assisted generati
 > [!warning] CRITICAL: PowerShell frequently fails on quoting, variable parsing, and path-with-spaces handling in this project. When any PowerShell command misbehaves, **fall back to Python immediately** — do not retry with more PowerShell variations. Prefer inline Python one-liners or small `.py` scripts over complex PowerShell chains for process management, HTTP probing, file ops, and service control.
 
 - **Start background services:** `scripts\start-services.ps1`
-  - Backend (`http://localhost:8000`) + Frontend (`http://localhost:5173`) are started hidden and detached.
-  - Add `-ComfyUI` to also start ComfyUI (`http://localhost:8188`).
+  - Backend (`http://127.0.0.1:8000`) + Frontend (`http://127.0.0.1:5173`) are started hidden and detached.
+  - Add `-ComfyUI` to also start ComfyUI (`http://127.0.0.1:8188`).
   - Safe to run repeatedly: if a port is already in use, that service is skipped.
 - **Check status / restart individually:** `scripts\manage-servers.ps1 -Action status`
 - **Full interactive mode** (foreground, with live monitor and auto-restart): `scripts\start-studio.ps1`

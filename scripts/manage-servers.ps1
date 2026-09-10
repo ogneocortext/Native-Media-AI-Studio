@@ -24,6 +24,47 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 
+# Load central port configuration from config/ports.json.
+# This is the single source of truth for all service ports.
+function Get-PortsConfig {
+    param([string]$ProjectRoot)
+    $portsFile = Join-Path $ProjectRoot 'config\ports.json'
+    if (Test-Path $portsFile) {
+        try {
+            $json = Get-Content $portsFile -Raw | ConvertFrom-Json
+            return @{
+                backend_port = [int]$json.backend_port
+                frontend_port = [int]$json.frontend_port
+                comfyui_port = [int]$json.comfyui_port
+                video_editor_port = [int]$json.video_editor_port
+                dashboard_port = [int]$json.dashboard_port
+                go_dashboard_port = [int]$json.dashboard_port
+                go_media_port = [int]$json.go_media_url.Split(':')[-1]
+                go_worker_port = [int]$json.go_worker_url.Split(':')[-1]
+                go_gateway_port = [int]$json.go_gateway_url.Split(':')[-1]
+                go_ports_port = [int]$json.go_ports_url.Split(':')[-1]
+            }
+        } catch {
+            Write-Warn2 "Failed to parse config/ports.json, using hardcoded defaults"
+        }
+    }
+    # Fallback defaults if ports.json is missing
+    return @{
+        backend_port = 8000
+        frontend_port = 5173
+        comfyui_port = 8188
+        video_editor_port = 8080
+        dashboard_port = 3847
+        go_dashboard_port = 3847
+        go_media_port = 3848
+        go_worker_port = 3849
+        go_gateway_port = 3850
+        go_ports_port = 3851
+    }
+}
+
+$Ports = Get-PortsConfig -ProjectRoot $ProjectRoot
+
 # Service configuration
 # Backend/GPU: dedicated studio env (standalone venv, decoupled from
 # space-analyzer-cuda and from ComfyUI). ComfyUI service uses comfyui-cuda.
@@ -39,38 +80,38 @@ $backendPython = if (Test-Path $studioPython) { $studioPython }
 $ServiceConfig = @{
     backend = @{
         Name = 'Backend'
-        Port = 8000
+        Port = $Ports.backend_port
         HealthPath = '/api/health'
         Python = $backendPython
         WorkingDir = Join-Path $ProjectRoot 'packages\backend'
-        Args = @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000', '--reload')
+        Args = @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', "$($Ports.backend_port)")
         LogFile = 'backend.log'
     }
     frontend = @{
         Name = 'Frontend'
-        Port = 5173
+        Port = $Ports.frontend_port
         HealthPath = '/'
         WorkingDir = Join-Path $ProjectRoot 'packages\frontend'
         LogFile = 'frontend.log'
         # Preferred: npm run dev
         Args = @('run', 'dev')
         # Fallback when npm is broken (fnm v26 ships incomplete npm):
-        # node <packages/frontend>\node_modules\vite\bin\vite.js --port 5173
+        # node <packages/frontend>\node_modules\vite\bin\vite.js --port <frontend_port>
         NodeScript = Join-Path $ProjectRoot 'packages\frontend\node_modules\vite\bin\vite.js'
-        NodeArgs = @('--port', '5173')
+        NodeArgs = @('--port', "$($Ports.frontend_port)")
     }
     comfyui = @{
         Name = 'ComfyUI'
-        Port = 8188
+        Port = $Ports.comfyui_port
         HealthPath = '/'
         Python = 'D:\conda-envs\comfyui-cuda\Scripts\python.exe'
         WorkingDir = 'D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI'
-        Args = @('main.py', '--port', '8188', '--disable-pinned-memory')
+        Args = @('main.py', '--port', "$($Ports.comfyui_port)", '--disable-pinned-memory')
         LogFile = 'comfyui.log'
     }
     video = @{
         Name = 'Video Editor'
-        Port = 8080
+        Port = $Ports.video_editor_port
         HealthPath = '/'
         WorkingDir = Join-Path $ProjectRoot 'packages\video-editor'
         LogFile = 'video.log'
@@ -82,7 +123,7 @@ $ServiceConfig = @{
     }
     'go-dashboard' = @{
         Name = 'Go Dashboard'
-        Port = 3847
+        Port = $Ports.dashboard_port
         HealthPath = '/api/health'
         WorkingDir = $ProjectRoot
         LogFile = 'go-dashboard.log'
@@ -90,16 +131,16 @@ $ServiceConfig = @{
     }
     'go-media' = @{
         Name = 'Go Media'
-        Port = 3848
+        Port = $Ports.go_media_port
         HealthPath = '/api/health'
         WorkingDir = $ProjectRoot
         LogFile = 'go-media.log'
         LocalCmd = Join-Path $ProjectRoot 'bin\go-media.exe'
-        LocalArgs = @('--server', '--port', '3848')
+        LocalArgs = @('--server', '--port', "$($Ports.go_media_port)")
     }
     'go-worker' = @{
         Name = 'Go Worker'
-        Port = 3849
+        Port = $Ports.go_worker_port
         HealthPath = '/health'
         WorkingDir = $ProjectRoot
         LogFile = 'go-worker.log'
@@ -107,7 +148,7 @@ $ServiceConfig = @{
     }
     'go-gateway' = @{
         Name = 'Go Gateway'
-        Port = 3850
+        Port = $Ports.go_gateway_port
         HealthPath = '/health'
         WorkingDir = $ProjectRoot
         LogFile = 'go-gateway.log'
@@ -115,7 +156,7 @@ $ServiceConfig = @{
     }
     'go-ports' = @{
         Name = 'Go Ports'
-        Port = 3851
+        Port = $Ports.go_ports_port
         HealthPath = '/api/health'
         WorkingDir = $ProjectRoot
         LogFile = 'go-ports.log'

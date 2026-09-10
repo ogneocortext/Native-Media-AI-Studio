@@ -7,7 +7,7 @@ A full-stack AI-powered creative production environment for music-driven media g
 - **Guided Music Video Wizard** — 5-step flow (Upload → Analyze → Style → Generate per-section → Export 16:9 + 9:16) with energy-aware sections, beat-synced cuts, and vertical-first safe zones
 - **Real Audio Analysis** — `librosa` beat/tempo/onset + RMS energy curve → 8 sections with `energy 0.2-1.0`, beat_times, confidence, and `stored_path` (no mocks)
 - **Video Generation (Real)** — `POST /api/video/generate-section` queues `MUSIC_VIDEO` jobs via `queue_manager` → `MusicVideoHandler` (FFmpeg 8.1 `testsrc` + `geq` filter) polling via `GET /api/jobs/{id}`
-- **Media Library — File Management** — Grid/list views with **embedded cover art** (FFmpeg extracts `attached pic` from MP3/FLAC → `audio/*.jpg`), **play inline** (`<video controls>` / `<audio controls>` + cover), **rename** (`POST /api/outputs/{path}/rename`), **delete** (removes `.json` + cover sidecar), **bulk delete**, and **duplicate detection** (`GET /api/outputs/duplicates/groups` by hash)
+ - **Media Library — File Management** — Grid/list views with **embedded cover art** (FFmpeg extracts `attached pic` from MP3/FLAC → `audio/*.jpg`), **play inline** (`<video controls>` / `<audio controls>` + cover), **rename** (`POST /api/outputs/{path}/rename`), **delete** (removes `.json` + cover sidecar), **bulk delete**, **duplicate detection** (`GET /api/outputs/duplicates/groups` by hash), and **detailed waveform preview** (`wavesurfer.js` v7 with pre-computed peaks via `GET /api/media/waveform`)
 - **3D Scene Generation** — Blender MCP integration for building 3D stages, characters, and beat-synced animation (now LRC `isPhraseStart`/`sectionProgress` reactive via `LrcVizController` + `PostFX` bloom)
 - **Unity MCP** — Direct Unity Editor control for scene creation, GameObjects, animation, and rendering
 - **3D Model Creation** — Text/image-to-3D via Hunyuan3D-2mini (optimized for 8GB VRAM) + Wan 2.2 5B 480p fits 8GB
@@ -28,6 +28,7 @@ A full-stack AI-powered creative production environment for music-driven media g
 
 ## Recent Changes
 
+- **Waveform Visualization + Port Centralization (2026-09-10)** — Media Library detail view now renders detailed waveforms via `wavesurfer.js` v7 (`WaveformDisplay.tsx`) using pre-computed peaks from `GET /api/media/waveform`. Backend waveform extraction upgraded from RMS to per-bucket max amplitude for richer envelope detail. All port management centralized into `config/ports.json` — backend, frontend, PowerShell scripts, Node MCP tools, and video editor all read from the single source of truth. `config/settings.json` stripped of duplicate port fields.
 - **Go Sidecars + CORS/SSE Hardening (2026-09-10)** — Integrated `go-gateway` (Unity MCP proxy) and `go-worker` (async sidecar I/O) into backend service layer. Fixed go-dashboard SSE stream creation (`/events` now stays open). Centralized CORS allowlist to `127.0.0.1` only. Added `sidecars` health block to `/api/health/diagnostics/services`. Standardized all local URLs to `127.0.0.1`. 28 Playwright smoke tests pass.
 - **Backend Service Relocation & Dead Code Removal (2026-09-07)** — Moved 7 service files from `packages/backend/app/services/` to `tools/` and `tools/scripts/` (`audio_analysis_agent`, `audio_fingerprinting`, `structure_analysis`, `blender/builder`, `blender/lyrics_sync`, `coding_benchmark`, `ollama_benchmark`). Removed dead benchmark API endpoints from `integrations_generation.py`. Trimmed unused dependencies. All 34 backend tests pass.
 - **Media Library 3D Count + Layout Fix (2026-09-06)** — Backend `list_outputs` now returns `models_3d_count`; frontend Library stats grid shows **3D Models** count. File size/date in `MediaCard` footers use `whitespace-nowrap` to prevent wrapping.
@@ -137,7 +138,7 @@ python -c "from app.services.cuda import cuda_audio; import numpy as np; print(c
 # POST /api/3d/generate {"prompt": "a robot", "steps": 15}
 
 # GPU monitoring
-curl http://localhost:8000/api/health/gpu
+curl http://127.0.0.1:8000/api/health/gpu
 ```
 
 See [GPU Pipeline Guide](docs/guides/GPU_PIPELINE.md) for full documentation.
@@ -228,15 +229,17 @@ Track data is imported from `docs/track-prompts-lyrics.csv` via `POST /api/data/
 
 ## Configuration
 
-Environment variables:
+All ports and service URLs are centralized in `config/ports.json`. Environment variables can override defaults:
 
 | Variable        | Default  | Description              |
 | --------------- | -------- | ------------------------ |
 | `BACKEND_PORT`  | 8000     | Backend server port      |
 | `FRONTEND_PORT` | 5173     | Frontend dev server port |
 | `COMFYUI_PORT`  | 8188     | ComfyUI port             |
-| `VIDEO_PORT`    | 3000     | Video editor port        |
+| `VIDEO_PORT`    | 8080     | Video editor port        |
 | `OUTPUT_DIR`    | ./output | Output directory         |
+
+See `config/ports.json` for the full URL map (backend, frontend, Go sidecars, SSE, WebSocket).
 
 ## Documentation
 

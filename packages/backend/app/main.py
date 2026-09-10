@@ -1,18 +1,20 @@
 """Native Media AI Studio - Main FastAPI Application"""
 
 import asyncio
+import json
+import logging
+import socket
 import sys
+import time
+from contextlib import asynccontextmanager
+from datetime import datetime
+from pathlib import Path
+
 if sys.platform == "win32":
     try:
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
     except Exception:
         pass
-import json
-import logging
-import socket
-from contextlib import asynccontextmanager
-from datetime import datetime
-from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -48,11 +50,97 @@ def _is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
         return False
 
 
+def _wait_for_port_free(port: int, host: str = "127.0.0.1", timeout: float = 5.0) -> bool:
+    """Poll until the port is no longer accepting connections."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if not _is_port_in_use(port, host):
+            return True
+        time.sleep(0.25)
+    return not _is_port_in_use(port, host)
+
+
+def _release_zombie_port(port: int, host: str = "127.0.0.1") -> bool:
+    """Last-resort attempt to clear a kernel zombie listener on Windows.
+
+    Tries a temporary SO_REUSEADDR bind/close cycle. This does NOT move the
+    backend to a different port; it only attempts to nudge the TCP stack to
+    release the orphaned listener.
+    """
+    try:
+        temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        temp_sock.bind((host, port))
+        temp_sock.listen(1)
+        temp_sock.close()
+        return True
+    except Exception as exc:
+        logger.warning("Zombie port release failed on %s:%d - %s", host, port, exc)
+        return False
+
+
+def _ensure_backend_port_free(port: int) -> None:
+    """If ``port`` is occupied but our backend is not responding there,
+    attempt to free it before uvicorn tries to bind.
+
+    This avoids silently drifting to another port and prevents the
+    classic Windows stale-socket bind failure.
+    """
+    if not _is_port_in_use(port):
+        return
+
+    # Check if our backend is already serving on this port.
+    if _is_backend_responding(port):
+        logger.info("Backend already running on port %d; no cleanup needed", port)
+        return
+
+    logger.warning(
+        "Port %d is occupied but backend is not responding; attempting cleanup before bind", port
+    )
+    port_manager.cleanup_orphaned_processes(port)
+    freed = _wait_for_port_free(port, timeout=5.0)
+    if not freed:
+        logger.warning(
+            "Normal cleanup did not free backend port %d; attempting zombie release", port
+        )
+        if _release_zombie_port(port):
+            freed = _wait_for_port_free(port, timeout=5.0)
+
+    if not freed:
+        logger.error(
+            "Failed to free backend port %d after cleanup. Falling back to alternate port.", port
+        )
+    else:
+        logger.info("Backend port %d is now free", port)
+
+
+def _is_backend_responding(port: int, host: str = "127.0.0.1") -> bool:
+    """Return True when our backend is already serving on ``port``."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(2.0)
+            sock.connect((host, port))
+            sock.sendall(
+                b"GET /api/health HTTP/1.1\r\n"
+                b"Host: 127.0.0.1\r\n"
+                b"Connection: close\r\n"
+                b"\r\n"
+            )
+            response = sock.recv(1024)
+            return b"200" in response or b"healthy" in response.lower()
+    except Exception:
+        return False
+
+
+# Run cleanup at import time, before uvicorn binds.
+_ensure_backend_port_free(config.backend_port)
+
+
 if _is_port_in_use(config.backend_port):
     logger.warning(
         "Backend port %d appears occupied before bind; if startup fails, check for a stale process or change config/ports.json",
         config.backend_port,
-    )
+)
 else:
     logger.info("Backend port %d is available", config.backend_port)
 
@@ -247,6 +335,7 @@ from .api import (  # noqa: E402
     log_analytics,
     logs,
     lyrics,
+    media,
     native_open,
     outputs,
     transcription,
@@ -272,6 +361,7 @@ app.include_router(vision.router)
 app.include_router(native_open.router)
 app.include_router(docs.router)
 app.include_router(hyperframes.router)
+app.include_router(media.router)
 
 # Additional root-level routes
 @app.get("/api/services/status")
@@ -429,11 +519,16 @@ async def main():
     # instead of binding a second instance. This is the "sticky port"
     # guard that prevents duplicate backends when an agent re-invokes the
     # server while it is already running.
-    if _is_port_in_use(port) and await port_manager._is_service_running("backend", port):
+    if await port_manager._is_service_running("backend", port):
         logger.info(
             "Backend already running on port %d; skipping duplicate bind.", port
         )
         return
+
+    # If the port is occupied by a stale/non-responding process, try to
+    # free it before uvicorn attempts the bind. If cleanup fails, the port
+    # manager will fall back to an alternate port instead of raising.
+    _ensure_backend_port_free(port)
 
     uvicorn_config = uvicorn.Config(
         app,

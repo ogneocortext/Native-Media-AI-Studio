@@ -1,14 +1,34 @@
 import { getRemotionEnvironment } from "remotion";
+import { useState, useEffect } from "react";
 
 export const StudioBackButton: React.FC = () => {
   const env = getRemotionEnvironment();
   // Only in Remotion Studio preview, not in final renders or Player
   if (!env.isStudio) return null;
 
-  const frontendUrl =
-    typeof window !== "undefined"
-      ? `${window.location.protocol}//${window.location.hostname}:5173`
-      : "http://localhost:5173";
+  const [frontendUrl, setFrontendUrl] = useState<string>("");
+
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const res = await fetch("/config/ports.json");
+        if (res.ok) {
+          const data = await res.json();
+          setFrontendUrl(data.frontend_url || `http://127.0.0.1:${data.frontend_port || 5173}`);
+          return;
+        }
+      } catch { /* ignore */ }
+      // Fallback: use same hostname with default frontend port
+      if (typeof window !== "undefined") {
+        setFrontendUrl(`${window.location.protocol}//${window.location.hostname}:5173`);
+      } else {
+        setFrontendUrl("http://localhost:5173");
+      }
+    }
+    loadConfig();
+  }, []);
+
+  if (!frontendUrl) return null;
 
   return (
     <a

@@ -28,10 +28,12 @@ import { test, expect, type Page, type Route } from '@playwright/test';
  * Playwright's configured baseURL is automatically prepended when navigating
  * with a relative URL (e.g. page.goto('/health')).
  */
-export function getBaseUrl(_page: Page): string {
+export function getBaseUrl(page: Page): string {
   // Playwright's configured baseURL is automatically prepended when navigating
   // with a relative URL. We return a fallback for any manual URL construction.
-  return 'http://localhost:5173';
+  const baseUrl = page.context().baseURL();
+  if (baseUrl) return baseUrl.replace(/\/$/, '');
+  return 'http://127.0.0.1:5173';
 }
 
 // ---------------------------------------------------------------------------

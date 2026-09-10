@@ -210,6 +210,83 @@ function calcStats(values: (number | undefined)[]) {
   return { avg, min, max, cur, trend: trend as "up" | "down" | "flat", slope };
 }
 
+// ---------------------------------------------------------------------------
+// Chart readability helpers
+// ---------------------------------------------------------------------------
+const AXIS_TICK = { fontSize: 11, fill: "#a8b0bd" } as const;
+const TOOLTIP_STYLE = {
+  background: "rgba(13,14,19,0.97)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 10,
+  fontSize: 12,
+  padding: "8px 10px",
+  boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+} as const;
+
+function formatFullTime(ms: number): string {
+  const d = new Date(ms);
+  const date = d.toLocaleDateString([], { month: "short", day: "numeric" });
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return `${date} ${time}`;
+}
+
+/** Range-aware X tick: short windows show HH:MM:SS, long windows show HH:MM (+day when spanning midnight). */
+function makeTimeTick(rangeMs: number) {
+  const long = rangeMs >= 6 * 60 * 60 * 1000;
+  return (ms: number) => {
+    const d = new Date(ms);
+    const hm = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (!long) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const day = d.toLocaleDateString([], { month: "numeric", day: "numeric" });
+    return `${day} ${hm}`;
+  };
+}
+
+interface ChartTipProps {
+  active?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: any[];
+  label?: number | string;
+  unit?: string;
+}
+
+/** Nice round-number ticks (every 10°C) spanning the visible temp domain. */
+function niceTempTicks(min: number, max: number): number[] {
+  const lo = Math.floor(Math.min(min, max) / 10) * 10;
+  const hi = Math.ceil(Math.max(min, max) / 10) * 10;
+  const ticks: number[] = [];
+  for (let t = lo; t <= hi; t += 10) ticks.push(t);
+  return ticks.length ? ticks : [lo];
+}
+
+/** Shared tooltip: full timestamp + one row per series with color dot and unit. */
+function ChartTooltip({ active, payload, label }: ChartTipProps) {
+  if (!active || !payload?.length) return null;
+  const ms = typeof label === "number" ? label : payload[0]?.payload?.time;
+  return (
+    <div style={TOOLTIP_STYLE}>
+      {typeof ms === "number" && (
+        <p style={{ color: "#e5e7eb", fontSize: 11, marginBottom: 6, whiteSpace: "nowrap" }}>{formatFullTime(ms)}</p>
+      )}
+      {payload.map((p, i) => (
+        <p key={i} style={{ color: "#e5e7eb", fontSize: 12, margin: "2px 0", whiteSpace: "nowrap" }}>
+          <span
+            style={{
+              display: "inline-block",
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              background: p.color || p.stroke,
+              marginRight: 6,
+            }}
+          />
+          {p.name}: <strong style={{ fontVariantNumeric: "tabular-nums" }}>{p.value}{p.unit}</strong>
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export function GpuMonitorPage() {
   const [snapshot, setSnapshot] = useState<GPUSnapshot | null>(null);
   const [processes, setProcesses] = useState<GPUProcessInfo[]>([]);
@@ -420,6 +497,12 @@ export function GpuMonitorPage() {
   }, [history, rangeMs, range, nowTick]);
   const chartData = useMemo(() => downsample(windowHistory, 300), [windowHistory]);
   const tempStats = useMemo(() => calcStats(windowHistory.map((d) => d.temp)), [windowHistory]);
+  const tempDomain = useMemo<[number, number]>(() => {
+    const lo = tempStats.min > 0 ? Math.max(0, Math.floor(tempStats.min - 5)) : 0;
+    const hi = Math.min(100, Math.ceil(Math.max(tempStats.max, THROTTLE_TEMP - 15) + 5));
+    return [lo, hi];
+  }, [tempStats]);
+  const tempTicks = useMemo(() => niceTempTicks(tempDomain[0], tempDomain[1]), [tempDomain]);
   const vramStats = useMemo(() => calcStats(windowHistory.map((d) => d.vram)), [windowHistory]);
   const utilStats = useMemo(() => calcStats(windowHistory.map((d) => d.util)), [windowHistory]);
   const rangeLabel = useMemo(() => RANGE_OPTIONS.find((r) => r.id === range)?.label ?? range, [range]);
@@ -687,40 +770,58 @@ export function GpuMonitorPage() {
             )}
           </Card>
 
-          {/* Charts — now range-aware */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Charts — range-aware, numeric time axis, custom tooltips */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             {/* Temperature history */}
             <Card
               title={`Temperature — ${rangeLabel}`}
               className="!p-4"
-              headerActions={<span className="flex items-center gap-1.5 text-[11px] text-muted"><span className="w-2 h-2 rounded-full bg-[#ef4444]" />Temp °C<span className="text-muted/50">• throttle {THROTTLE_TEMP}°C</span></span>}
+              headerActions={<span className="flex items-center gap-1.5 text-[11px] text-muted"><span className="w-2 h-2 rounded-full bg-[#f87171]" />Temp °C<span className="text-muted/50">• throttle {THROTTLE_TEMP}°C</span></span>}
             >
               {chartData.length < 2 ? (
                 <div className="h-48 flex items-center justify-center text-xs text-muted">Collecting data… {chartData.length}/2 points ({history.length} stored)</div>
               ) : (
-                <div className="h-52" role="img" aria-label={`Temperature trend over ${rangeLabel}, drag brush handles to zoom, throttle at 83°C`}>
+                <div className="h-64" role="img" aria-label={`Temperature trend over ${rangeLabel}, throttle at ${THROTTLE_TEMP} degrees`}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }} syncId="gpu">
+                    <AreaChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }} syncId="gpu">
                       <defs>
                         <linearGradient id="tempGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.35} />
-                          <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#f87171" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#f87171" stopOpacity={0.02} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} interval="preserveStartEnd" minTickGap={50} />
-                      <YAxis domain={[30, 100]} tick={{ fontSize: 10, fill: "#9ca3af" }} label={{ value: "°C", angle: -90, position: "insideLeft", fill: "#9ca3af", fontSize: 10 }} />
-                      <Tooltip
-                        contentStyle={{ background: "rgba(15,15,20,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 12 }}
-                        labelStyle={{ color: "#e5e7eb" }}
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" vertical={false} />
+                      <XAxis
+                        dataKey="time"
+                        type="number"
+                        scale="time"
+                        domain={["dataMin", "dataMax"]}
+                        tickFormatter={makeTimeTick(rangeMs)}
+                        tick={AXIS_TICK}
+                        tickCount={5}
+                        tickMargin={8}
+                        stroke="rgba(255,255,255,0.15)"
                       />
-                      <ReferenceLine y={THROTTLE_TEMP} stroke="#f97316" strokeDasharray="4 4" label={{ value: "throttle", position: "insideTopRight", fill: "#fb923c", fontSize: 9 }} />
-                      <Area type="monotone" dataKey="temp" stroke="#ef4444" strokeWidth={2} fill="url(#tempGrad)" name="Temp °C" dot={false} activeDot={{ r: 3, strokeWidth: 1 }} isAnimationActive={false} />
-                      {chartData.length > 40 && <Brush dataKey="label" height={18} stroke="#ef4444" fill="rgba(255,255,255,0.03)" tickFormatter={() => ""} aria-label="Brush to zoom temperature history" />}
+                      <YAxis
+                        domain={tempDomain}
+                        ticks={tempTicks}
+                        interval={0}
+                        tick={AXIS_TICK}
+                        width={44}
+                        stroke="rgba(255,255,255,0.15)"
+                        label={{ value: "°C", angle: -90, position: "insideLeft", fill: "#a8b0bd", fontSize: 11 }}
+                      />
+                      <Tooltip content={<ChartTooltip />} cursor={{ stroke: "rgba(255,255,255,0.25)", strokeWidth: 1 }} />
+                      <ReferenceLine y={THROTTLE_TEMP} stroke="#f97316" strokeWidth={1.5} strokeDasharray="6 4" label={{ value: `${THROTTLE_TEMP}°C throttle`, position: "insideTopRight", fill: "#fb923c", fontSize: 10 }} />
+                      <Area type="monotone" dataKey="temp" stroke="#f87171" strokeWidth={2.5} fill="url(#tempGrad)" name="Temp" unit="°C" dot={false} activeDot={{ r: 4, strokeWidth: 1, stroke: "#fff" }} isAnimationActive={false} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
               )}
+              <p className="text-[11px] text-muted/60 mt-2 tabular-nums">
+                {chartData.length} samples • {tempStats.min.toFixed(0)}–{tempStats.max.toFixed(0)}°C in view
+                {rangeMs < 6 * 60 * 60 * 1000 ? " • zoom with the window buttons above" : " • zoom with the overview brush below"}
+              </p>
             </Card>
 
             {/* VRAM & Utilization history */}
@@ -729,42 +830,47 @@ export function GpuMonitorPage() {
               className="!p-4"
               headerActions={
                 <span className="flex items-center gap-3 text-[11px] text-muted">
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#a855f7]" />VRAM %</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#22c55e]" />GPU %</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#c084fc]" />VRAM %</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-4 rounded-full bg-[#4ade80]" style={{ height: 2, width: 12, borderRadius: 2 }} />GPU %</span>
                 </span>
               }
             >
               {chartData.length < 2 ? (
                 <div className="h-48 flex items-center justify-center text-xs text-muted">Collecting data… {chartData.length}/2 points</div>
               ) : (
-                <div className="h-52" role="img" aria-label={`VRAM and GPU utilization over ${rangeLabel}, drag brush handles to zoom, warn at 75%`}>
+                <div className="h-64" role="img" aria-label={`VRAM and GPU utilization over ${rangeLabel}, warning at 75 percent`}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }} syncId="gpu">
+                    <AreaChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }} syncId="gpu">
                       <defs>
                         <linearGradient id="vramGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="utilGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#c084fc" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#c084fc" stopOpacity={0.02} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} interval="preserveStartEnd" minTickGap={50} />
-                      <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#9ca3af" }} label={{ value: "%", angle: -90, position: "insideLeft", fill: "#9ca3af", fontSize: 10 }} />
-                      <Tooltip
-                        contentStyle={{ background: "rgba(15,15,20,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 12 }}
-                        labelStyle={{ color: "#e5e7eb" }}
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" vertical={false} />
+                      <XAxis
+                        dataKey="time"
+                        type="number"
+                        scale="time"
+                        domain={["dataMin", "dataMax"]}
+                        tickFormatter={makeTimeTick(rangeMs)}
+                        tick={AXIS_TICK}
+                        tickCount={5}
+                        tickMargin={8}
+                        stroke="rgba(255,255,255,0.15)"
                       />
-                      <ReferenceLine y={75} stroke="#f59e0b" strokeDasharray="3 3" strokeOpacity={0.5} />
-                      <Area type="monotone" dataKey="vram" stroke="#a855f7" strokeWidth={2} fill="url(#vramGrad)" name="VRAM %" dot={false} activeDot={{ r: 3 }} isAnimationActive={false} />
-                      <Area type="monotone" dataKey="util" stroke="#22c55e" strokeWidth={2} fill="url(#utilGrad)" name="GPU %" dot={false} activeDot={{ r: 3 }} isAnimationActive={false} />
-                      {chartData.length > 40 && <Brush dataKey="label" height={18} stroke="#a855f7" fill="rgba(255,255,255,0.03)" tickFormatter={() => ""} aria-label="Brush to zoom VRAM and utilization history" />}
+                      <YAxis domain={[0, 100]} tick={AXIS_TICK} tickCount={6} width={44} stroke="rgba(255,255,255,0.15)" label={{ value: "%", angle: -90, position: "insideLeft", fill: "#a8b0bd", fontSize: 11 }} />
+                      <Tooltip content={<ChartTooltip />} cursor={{ stroke: "rgba(255,255,255,0.25)", strokeWidth: 1 }} />
+                      <ReferenceLine y={75} stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="6 4" strokeOpacity={0.8} label={{ value: "75% warn", position: "insideTopRight", fill: "#fbbf24", fontSize: 10 }} />
+                      <Area type="monotone" dataKey="vram" stroke="#c084fc" strokeWidth={2.5} fill="url(#vramGrad)" name="VRAM" unit="%" dot={false} activeDot={{ r: 4, strokeWidth: 1, stroke: "#fff" }} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="util" stroke="#4ade80" strokeWidth={2} name="GPU" unit="%" dot={false} activeDot={{ r: 4, strokeWidth: 1, stroke: "#fff" }} isAnimationActive={false} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
               )}
+              <p className="text-[11px] text-muted/60 mt-2 tabular-nums">
+                VRAM {vramStats.min.toFixed(0)}–{vramStats.max.toFixed(0)}% • GPU {utilStats.min.toFixed(0)}–{utilStats.max.toFixed(0)}% in view
+              </p>
             </Card>
           </div>
 

@@ -12,11 +12,21 @@ const PLAYWRIGHT_DIR = path.join(REPO_ROOT, 'packages', 'frontend', 'node_module
 const playwrightMod = await import(pathToFileURL(path.join(PLAYWRIGHT_DIR, 'index.mjs')).href);
 const { chromium } = playwrightMod;
 
+// Load central port configuration for the frontend dev server URL.
+const PORTS_PATH = path.join(REPO_ROOT, 'config', 'ports.json');
+let ports = {};
+try {
+    if (fs.existsSync(PORTS_PATH)) {
+        ports = JSON.parse(fs.readFileSync(PORTS_PATH, 'utf-8'));
+    }
+} catch { /* ignore */ }
+const FRONTEND_URL = process.env.VITE_URL || ports.frontend_url || `http://127.0.0.1:${ports.frontend_port || 5173}`;
+
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
-  await page.goto('http://localhost:5173/visualizer', { waitUntil: 'domcontentloaded' });
+  await page.goto(`${FRONTEND_URL}/visualizer`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(3000);
   
   // Check initial mode

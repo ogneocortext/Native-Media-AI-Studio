@@ -47,7 +47,7 @@ For 2026, the most viable **open source 2D** stacks for audio-reactive visuals a
 |-----|----------|-----|
 | **meyda 2026** `meyda/meyda` | Audio feature extraction (`mfcc`, `chroma`, `spectralCentroid`) | Replace hand-rolled `trackFeatures.ts:76` with `meyda` features for LRC section color |
 | **web-audio-beat-detector 2026** `chrisguttandin/web-audio-beat-detector` | Beat detection via Web Audio API | More accurate than `librosa.beat_track` for 2D `Lissajous` radial |
-| **wavesurfer.js 2026** | Waveform + `jsmediatags` ID3 | Already in `visual-flux` for 2D waveform — use for `MediaLibrary` waveform preview |
+| **wavesurfer.js 2026** | Waveform + `jsmediatags` ID3 | Implemented in `MediaLibrary.tsx` via `WaveformDisplay.tsx` — pre-computed peaks from `GET /api/media/waveform`, max-amplitude envelope, interactive seek/play |
 | **Clubber.js 2026** `wizgrav/clubber` | Music theory → visualization | Map LRC sections `CHORUS/DROP` to key-aware hue |
 
 ---

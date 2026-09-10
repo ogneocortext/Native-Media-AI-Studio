@@ -330,16 +330,17 @@ async def get_ports_config() -> dict:
         except Exception as exc:
             logger.warning("Failed to read ports config: %s", exc)
 
-    # Minimal fallback so the frontend is never blocked on boot
+    # Minimal fallback derived from the central config so values never drift.
+    from ..core.config import config
     return {
-        "backend_port": 8000,
-        "frontend_port": 5173,
-        "ws_port": 8000,
-        "ws_url": "ws://127.0.0.1:8000/ws",
-        "events_url": "http://127.0.0.1:8000/api/events",
-        "sse_url": "http://127.0.0.1:8000/api/events",
+        "backend_port": config.backend_port,
+        "frontend_port": config.frontend_port,
+        "ws_port": config.ws_port,
+        "ws_url": f"ws://127.0.0.1:{config.ws_port}/ws",
+        "events_url": f"http://127.0.0.1:{config.backend_port}/api/events",
+        "sse_url": f"http://127.0.0.1:{config.backend_port}/api/events",
         "dashboard_port": 3847,
-        "dashboard_url": "http://127.0.0.1:3847",
+        "dashboard_url": config.go_dashboard_url,
     }
 
 

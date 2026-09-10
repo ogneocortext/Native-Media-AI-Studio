@@ -394,6 +394,9 @@ export function startAutoRefresh() {
   if (autoRefreshInterval) return;
 
   autoRefreshInterval = setInterval(() => {
+    // Visibility/offline-aware: skip ticks while hidden to cut DB load
+    if (typeof document !== "undefined" && document.hidden) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     const state = useJobStore.getState();
     // Only refresh if not currently loading and SSE is disconnected
     if (!state.isLoading && !state.sseConnected) {

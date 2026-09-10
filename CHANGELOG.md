@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added - Waveform Visualization + Port Centralization (2026-09-10)
+
+- **Media Library waveform**: `packages/frontend/src/features/media-library/WaveformDisplay.tsx` wraps `wavesurfer.js` v7 with pre-computed peaks, duration, and optional audio element binding for interactive seek/play.
+- **Backend waveform endpoint**: `GET /api/media/waveform` returns downsampled amplitude envelope via new `packages/backend/app/api/media.py` router.
+- **Waveform extraction improved**: `packages/backend/app/services/ffmpeg_tools.py` `extract_waveform` now uses per-bucket max amplitude instead of RMS for more detailed envelope rendering.
+- **Frontend integration**: `MediaLibrary.tsx` imports `WaveformDisplay` and replaces basic canvas waveform with wavesurfer.js rendering; `api.ts` adds `duration` to `WaveformResponse`.
+- **Port centralization**: `config/ports.json` is now the single source of truth for all ports and service URLs across backend (`config.py`, `port_manager.py`, `integrations_config.py`, `comfyui_manager.py`), PowerShell scripts (`manage-servers.ps1`, `start-studio.ps1`), Node MCP tools (`ollama-tools-mcp.mjs`, `vision-mcp.mjs`), Node scripts, and video editor (`StudioBackButton.tsx`).
+- **Config cleanup**: `config/settings.json` stripped of duplicate port fields — only holds non-port settings (models, workers, Ollama URL).
+- **Verification**: TypeScript compiles cleanly (`npx tsc --noEmit`); backend builds and tests pass; frontend dev server confirmed on 5173.
+
 ### Added - Go Sidecars + CORS/SSE Hardening (2026-09-10)
 
 - **Go sidecars integrated into backend service layer**: `go_gateway_client.py` + `go_worker_client.py` under `packages/backend/app/services/`
