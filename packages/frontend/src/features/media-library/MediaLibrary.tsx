@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useMemo, useDeferredValue, useRef, memo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useOutputStore, OutputFile } from "../../state/outputStore";
 import { formatFileSize, formatDate, formatDateTime } from "../../utils/format";
 import { getOutputUrl } from "../../utils/url";
 import { StatCard } from "./MediaLibraryStats";
-import { ModelPreview } from "../generate3d/ModelPreview";
-import { openInBlender, openInUnity, probeMedia, getMediaLoudness, getMediaWaveform, extractThumbnailAtTime, regenerateAudioCover } from "../../services/api";
-import { ExportMatrixPanel } from "./ExportMatrixPanel";
-import { ExtractAudioPanel } from "./ExtractAudioPanel";
-import { UpscalePanel } from "./UpscalePanel";
-import { WaveformDisplay, MediaDetailModal, MediaInfoPayload, MediaProbe, LoudnessResult, WaveformResult } from "./MediaDetailModal";
+import { openInBlender, openInUnity, probeMedia, getMediaLoudness, getMediaWaveform, extractThumbnailAtTime, regenerateAudioCover, ensureAnalysis } from "../../services/api";
+import { setPendingTrack } from "../../utils/pendingTrack";
+import { MediaDetailModal, MediaInfoPayload, LoudnessResult, WaveformResult } from "./MediaDetailModal";
 import {
   Image,
   Video,
@@ -28,7 +26,6 @@ import {
   Clock,
   Trash2,
   AlertTriangle,
-  Maximize2,
   Pencil,
   Copy,
   CheckSquare,
@@ -41,6 +38,8 @@ import {
   Sparkles,
   Eye,
   Play,
+  Activity,
+  MoreHorizontal,
 } from "lucide-react";
 
 const categoryConfig = [
@@ -69,24 +68,35 @@ const typeAccent: Record<string, string> = {
 
 function is3DModelFile(filename: string) { return /\.(glb|gltf|fbx|obj)$/i.test(filename || ""); }
 
-const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSelect, onToggle, onDelete, onRename, onOpenBlender, onOpenUnity, onAddToStudio }: {
+const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSelect, onToggle, onDelete, onRename, onOpenBlender, onOpenUnity, onAddToStudio, onAnalyze, onSendToVisualizer, onSendToWizard }: {
   output: OutputFile; index: number; selected: boolean; isDup: boolean;
-  onSelect: () => void; onToggle: (e: React.MouseEvent) => void; onDelete: (e: React.MouseEvent) => void; onRename: (e: React.MouseEvent) => void; onOpenBlender?: (e: React.MouseEvent) => void; onOpenUnity?: (e: React.MouseEvent) => void; onAddToStudio?: (e: React.MouseEvent) => void;
+  onSelect: () => void; onToggle: (e: React.MouseEvent) => void; onDelete: (e: React.MouseEvent) => void; onRename: (e: React.MouseEvent) => void; onOpenBlender?: (e: React.MouseEvent) => void; onOpenUnity?: (e: React.MouseEvent) => void; onAddToStudio?: (e: React.MouseEvent) => void; onAnalyze?: (e: React.MouseEvent) => void; onSendToVisualizer?: (output: OutputFile) => void; onSendToWizard?: (output: OutputFile) => void;
 }) {
   const [previewArmed, setPreviewArmed] = useState(false);
+  const [showActions, setShowActions] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const actionsRef = useRef<HTMLDivElement | null>(null);
 
   const armPreview = () => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    // Hover intent: only mount <video> after 180ms dwell — avoids
-    // fetching every clip skimmed on the way to another card.
     hoverTimer.current = setTimeout(() => setPreviewArmed(true), 180);
   };
   const disarmPreview = () => {
     if (hoverTimer.current) { clearTimeout(hoverTimer.current); hoverTimer.current = null; }
     setPreviewArmed(false);
+    setShowActions(false);
   };
   useEffect(() => () => { if (hoverTimer.current) clearTimeout(hoverTimer.current); }, []);
+  useEffect(() => {
+    if (!showActions) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) setShowActions(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [showActions]);
+
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
 
   return (
     <div
@@ -106,8 +116,8 @@ const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSe
       className={`group card overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/30 focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:outline-none transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-1 animate-in fade-in slide-in-from-bottom-2 fill-mode-both ${typeAccent[output.file_type] || ""}`}
     >
       <div className="aspect-square bg-surface flex items-center justify-center relative overflow-hidden">
-        <button onClick={onToggle} className={`absolute top-2 right-2 z-10 w-7 h-7 rounded-lg flex items-center justify-center border backdrop-blur transition-all ${selected ? "bg-violet-600 border-violet-500 text-white shadow-lg" : "bg-black/40 border-white/20 text-white/70 hover:bg-black/60"}`} title={selected ? "Deselect" : "Select for bulk"}><span className="transition-transform group-hover:scale-110">{selected ? <CheckSquare size={14} /> : <Square size={14} />}</span></button>
-        {isDup && <div className="absolute top-2 right-10 z-10 w-6 h-6 rounded-full bg-amber-500 border border-amber-600 flex items-center justify-center animate-pulse" title="Duplicate"><Copy size={10} className="text-white" /></div>}
+        <button onClick={onToggle} className={`absolute top-2 right-2 z-20 w-7 h-7 rounded-lg flex items-center justify-center border backdrop-blur transition-all ${selected ? "bg-violet-600 border-violet-500 text-white shadow-lg" : "bg-black/40 border-white/20 text-white/70 hover:bg-black/60"}`} title={selected ? "Deselect" : "Select for bulk"}><span className="transition-transform group-hover:scale-110">{selected ? <CheckSquare size={14} /> : <Square size={14} />}</span></button>
+        {isDup && <div className="absolute top-2 left-2 z-20 w-6 h-6 rounded-full bg-amber-500/90 border border-amber-600 flex items-center justify-center" title="Duplicate"><Copy size={10} className="text-white" /></div>}
         {output.file_type === "image" ? (
           <img src={getOutputUrl(output.relative_path)} alt={output.filename} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
         ) : is3DModelFile(output.filename) ? (
@@ -126,19 +136,38 @@ const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSe
           <div className="flex flex-col items-center gap-2 text-muted"><FileType className="w-12 h-12" /><span className="text-xs uppercase">{output.file_type}</span></div>
         )}
         {output.file_type === "audio" && output.cover_image && <div className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-black/60 backdrop-blur flex items-center justify-center border border-white/10"><Music size={12} className="text-white" /></div>}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-1.5 flex-wrap p-2">
-          <a href={getOutputUrl(output.relative_path)} download onClick={e => e.stopPropagation()} className="p-2.5 bg-white/10 backdrop-blur rounded-xl hover:bg-white/20 text-white hover:scale-110 transition-all" title="Download"><Download size={16} /></a>
-          <button onClick={onRename} className="p-2.5 bg-white/10 backdrop-blur rounded-xl hover:bg-white/20 text-white hover:scale-110 transition-all" title="Rename"><Pencil size={16} /></button>
-          <button onClick={onDelete} className="p-2.5 bg-red-500/20 backdrop-blur rounded-xl hover:bg-red-500/40 text-red-300 hover:text-red-200 hover:scale-110 transition-all" title="Delete"><Trash2 size={16} /></button>
-          <button onClick={(e)=>{e.stopPropagation(); onSelect();}} className="p-2.5 bg-white/10 backdrop-blur rounded-xl hover:bg-white/20 text-white hover:scale-110 transition-all" title="Quick view"><Eye size={16} /></button>
-          {is3DModelFile(output.filename) && (
+
+        {/* Primary hover actions */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-2 p-2">
+          <a href={getOutputUrl(output.relative_path)} download onClick={stop} className="p-2.5 bg-white/10 backdrop-blur rounded-xl hover:bg-white/20 text-white hover:scale-110 transition-all" title="Download"><Download size={16} /></a>
+          {output.file_type === "audio" && (
             <>
-              <button onClick={onAddToStudio} className="p-2.5 bg-violet-600/80 backdrop-blur rounded-xl hover:bg-violet-500 text-white hover:scale-110 transition-all shadow-lg" title="Add to Studio without leaving page"><Sparkles size={16} /></button>
-              <button onClick={onOpenBlender} className="p-2.5 bg-orange-500/20 backdrop-blur rounded-xl hover:bg-orange-500/40 text-orange-300 hover:text-orange-200 hover:scale-110 transition-all" title="Open in Blender"><Box size={16} /></button>
-              <button onClick={onOpenUnity} className="p-2.5 bg-blue-500/20 backdrop-blur rounded-xl hover:bg-blue-500/40 text-blue-300 hover:text-blue-200 hover:scale-110 transition-all" title="Open in Unity"><Layers size={16} /></button>
+              <button onClick={(e) => { stop(e); onAnalyze?.(e as any); }} className="p-2.5 bg-emerald-500/20 backdrop-blur rounded-xl hover:bg-emerald-500/40 text-emerald-300 hover:text-emerald-200 hover:scale-110 transition-all" title="Analyze audio"><Activity size={16} /></button>
+              <button onClick={(e) => { stop(e); onSendToVisualizer?.(output); }} className="p-2.5 bg-violet-500/20 backdrop-blur rounded-xl hover:bg-violet-500/40 text-violet-300 hover:text-violet-200 hover:scale-110 transition-all" title="Send to Visualizer"><Sparkles size={16} /></button>
+              <button onClick={(e) => { stop(e); onSendToWizard?.(output); }} className="p-2.5 bg-blue-500/20 backdrop-blur rounded-xl hover:bg-blue-500/40 text-blue-300 hover:text-blue-200 hover:scale-110 transition-all" title="Send to Music Video Wizard"><Video size={16} /></button>
             </>
           )}
+          {is3DModelFile(output.filename) && onAddToStudio && (
+            <button onClick={onAddToStudio} className="p-2.5 bg-violet-600/80 backdrop-blur rounded-xl hover:bg-violet-500 text-white hover:scale-110 transition-all shadow-lg" title="Add to Studio"><Sparkles size={16} /></button>
+          )}
+          <div className="relative" ref={actionsRef}>
+            <button onClick={(e) => { stop(e); setShowActions(v => !v); }} className="p-2.5 bg-white/10 backdrop-blur rounded-xl hover:bg-white/20 text-white hover:scale-110 transition-all" title="More actions"><MoreHorizontal size={16} /></button>
+            {showActions && (
+              <div className="absolute bottom-full mb-2 right-0 bg-gray-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden min-w-[180px] z-30">
+                <button onClick={(e) => { stop(e); onRename(e); setShowActions(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-white/10"><Pencil size={14} />Rename</button>
+                <button onClick={(e) => { stop(e); onDelete(e); setShowActions(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-300 hover:bg-red-500/10"><Trash2 size={14} />Delete</button>
+                <button onClick={(e) => { stop(e); onSelect(); setShowActions(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-white/10"><Eye size={14} />Quick view</button>
+                {is3DModelFile(output.filename) && (
+                  <>
+                    {onOpenBlender && <button onClick={(e) => { stop(e); onOpenBlender(e); setShowActions(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-orange-300 hover:bg-orange-500/10"><Box size={14} />Open in Blender</button>}
+                    {onOpenUnity && <button onClick={(e) => { stop(e); onOpenUnity(e); setShowActions(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-300 hover:bg-blue-500/10"><Layers size={14} />Open in Unity</button>}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
+
         <div className="absolute top-2 left-2 flex gap-1.5">
           <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium border backdrop-blur ${output.file_type==="video"?"bg-blue-500/20 text-blue-300 border-blue-500/30":output.file_type==="audio"?"bg-emerald-500/20 text-emerald-300 border-emerald-500/30":output.file_type==="image"?"bg-purple-500/20 text-purple-300 border-purple-500/30":"bg-gray-500/20 text-gray-300 border-gray-500/30"}`}>{output.file_type}</span>
         </div>
@@ -150,6 +179,12 @@ const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSe
           <span className="flex items-center gap-1 whitespace-nowrap"><HardDrive size={11} />{formatFileSize(output.size_bytes)}</span>
           <span className="flex items-center gap-1 whitespace-nowrap"><Clock size={11} />{formatDate(output.created_at)}</span>
         </div>
+        {output.file_type === "audio" && onAnalyze && (
+          <button onClick={(e) => { stop(e); onAnalyze(e); }} className="mt-2 w-full py-1.5 px-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200 transition-all flex items-center justify-center gap-1.5">
+            <Activity size={12} />
+            <span>Analyze audio</span>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -169,6 +204,7 @@ function SkeletonGrid() {
 }
 
 export function MediaLibrary() {
+  const navigate = useNavigate();
   const { outputs, isLoading, error, filter, counts, fetchOutputs, fetchRecent, setFilter, fetchByType, deleteOutput } = useOutputStore();
   const [viewMode, setViewMode] = useState<"grid"|"list">("grid");
   const [selectedOutput, setSelectedOutput] = useState<OutputFile|null>(null);
@@ -321,6 +357,29 @@ export function MediaLibrary() {
       if (res.cover_image) setThumbnailUrl(getOutputUrl(res.cover_image));
       else if (res.error) alert(res.error);
     } catch (e) { alert(e instanceof Error ? e.message : "Cover regeneration failed"); } finally { setThumbnailLoading(false); }
+  };
+  const handleAnalyzeAudio = async (output: OutputFile) => {
+    if (output.file_type !== "audio") return;
+    try {
+      const filename = output.filename;
+      const res = await ensureAnalysis(filename, "sonara");
+      if (res.status === "already_analyzed" || res.analysis) {
+        alert(`Analysis complete for ${filename}`);
+      } else {
+        alert(`Analysis started for ${filename} — check the Audio Analysis page for results.`);
+      }
+      navigate(`/audio-analysis?file=${encodeURIComponent(filename)}`);
+    } catch (e) { alert(e instanceof Error ? e.message : "Audio analysis failed"); }
+  };
+  const handleSendToVisualizer = (output: OutputFile) => {
+    if (output.file_type !== "audio") return;
+    setPendingTrack(output.filename);
+    navigate("/visualizer");
+  };
+  const handleSendToWizard = (output: OutputFile) => {
+    if (output.file_type !== "audio") return;
+    setPendingTrack(output.filename);
+    navigate("/music-video-wizard");
   };
   const handleAddToStudio = async (output: OutputFile, openInNewTab = false) => {
     if (!is3DModelFile(output.filename)) { alert("Only 3D models (.glb/.gltf/.fbx/.obj) can be added to Studio"); return; }
@@ -516,7 +575,7 @@ export function MediaLibrary() {
             {!groupByType && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {visibleOutputs.map((output, i)=> (
-                  <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelectRange(e, i, output.relative_path, visibleOutputs);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} onOpenBlender={(e)=>{e.stopPropagation(); handleOpenBlender(output);}} onOpenUnity={(e)=>{e.stopPropagation(); handleOpenUnity(output);}} onAddToStudio={(e)=>{e.stopPropagation(); handleAddToStudio(output, false);}} />
+                  <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelectRange(e, i, output.relative_path, visibleOutputs);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} onOpenBlender={(e)=>{e.stopPropagation(); handleOpenBlender(output);}} onOpenUnity={(e)=>{e.stopPropagation(); handleOpenUnity(output);}} onAddToStudio={(e)=>{e.stopPropagation(); handleAddToStudio(output, false);}} onAnalyze={(e)=>{e.stopPropagation(); handleAnalyzeAudio(output);}} onSendToVisualizer={(output)=> handleSendToVisualizer(output)} onSendToWizard={(output)=> handleSendToWizard(output)} />
                 ))}
               </div>
             )}
@@ -532,7 +591,7 @@ export function MediaLibrary() {
                     <div key={type}>
                       <h3 className="flex items-center gap-2 text-sm font-bold text-white mb-3"><Icon size={16} className={color} />{label} <span className="text-xs font-normal text-muted">({items.length})</span><span className="flex-1 h-px bg-white/5 ml-2" /></h3>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                        {visible.map((output,i)=> <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelectRange(e, i, output.relative_path, visible);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} onOpenBlender={(e)=>{e.stopPropagation(); handleOpenBlender(output);}} onOpenUnity={(e)=>{e.stopPropagation(); handleOpenUnity(output);}} onAddToStudio={(e)=>{e.stopPropagation(); handleAddToStudio(output, false);}} />)}
+                        {visible.map((output,i)=> <MediaCard key={output.path} output={output} index={i} selected={selectedPaths.has(output.relative_path)} isDup={duplicatePaths.has(output.relative_path)} onSelect={()=> setSelectedOutput(output)} onToggle={(e)=>{e.stopPropagation(); toggleSelectRange(e, i, output.relative_path, visible);}} onDelete={(e)=>{e.stopPropagation(); setOutputToDelete(output);}} onRename={(e)=>{e.stopPropagation(); setRenameTarget(output); setRenameValue(output.filename);}} onOpenBlender={(e)=>{e.stopPropagation(); handleOpenBlender(output);}} onOpenUnity={(e)=>{e.stopPropagation(); handleOpenUnity(output);}} onAddToStudio={(e)=>{e.stopPropagation(); handleAddToStudio(output, false);}} onAnalyze={(e)=>{e.stopPropagation(); handleAnalyzeAudio(output);}} onSendToVisualizer={(output)=> handleSendToVisualizer(output)} onSendToWizard={(output)=> handleSendToWizard(output)} />)}
                       </div>
                     </div>
                   );
@@ -575,8 +634,6 @@ export function MediaLibrary() {
             onAddToStudio={handleAddToStudio}
             onOpenBlender={handleOpenBlender}
             onOpenUnity={handleOpenUnity}
-            onRename={(output) => { setRenameTarget(output); setRenameValue(output.filename); }}
-            onDelete={(output) => { setOutputToDelete(output); }}
             onShowFullImage={() => setShowFullImage(true)}
             is3DModelFile={is3DModelFile}
             getOutputUrl={getOutputUrl}

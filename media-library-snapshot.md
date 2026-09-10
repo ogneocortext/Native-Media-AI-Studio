@@ -1,0 +1,30 @@
+- generic [ref=f8e2]:
+  - generic [ref=f8e3]:
+    - complementary [ref=f8e4]:
+      - generic [ref=f8e5]:
+        - link "Native Media AI Studio • 2026 Pipeline" [ref=f8e7] [cursor=pointer]:
+          - /url: /
+        - link "New Music Video" [ref=f8e17] [cursor=pointer]:
+          - /url: /music-video-wizard
+      - navigation [ref=f8e21]:
+        - generic [ref=f8e22]
+        - generic [ref=f8e32]
+        - generic [ref=f8e85]
+        - generic [ref=f8e112]
+        - link "Remotion Studio ↗" [ref=f8e135] [cursor=pointer]:
+          - /url: http://127.0.0.1:8080
+        - button "System" [ref=f8e141]
+      - generic [ref=f8e145]:
+        - generic [ref=f8e146]
+        - generic [ref=f8e151]
+        - button "ComfyUI OFF" [ref=f8e171] [cursor=pointer]
+        - generic [ref=f8e176]: No model loaded
+        - link "Diagnostics" [ref=f8e180] [cursor=pointer]:
+          - /url: /health
+    - generic [ref=f8e184]:
+      - main [ref=f8e185]:
+        - generic [ref=f8e186]
+      - contentinfo [ref=f8e1217]:
+        - generic [ref=f8e1218]: v1.0.0
+        - generic [ref=f8e1219]: © 2026 InterGalactic Media Productions LLC
+  - button "DEBUG" [ref=f8e1220]

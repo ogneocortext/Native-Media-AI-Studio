@@ -7,7 +7,6 @@ export interface WaveformDisplayProps {
   audioElement?: HTMLAudioElement | null;
   height?: number;
   className?: string;
-  onError?: (error: Error) => void;
 }
 
 export function WaveformDisplay({
@@ -16,7 +15,6 @@ export function WaveformDisplay({
   audioElement,
   height = 80,
   className = "",
-  onError,
 }: WaveformDisplayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);

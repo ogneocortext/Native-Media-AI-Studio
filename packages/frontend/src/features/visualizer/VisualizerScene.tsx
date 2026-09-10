@@ -1,8 +1,25 @@
 import { Environment, Lightformer, OrbitControls } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { LrcVizController } from "./LrcVizController";
 import { PostFX } from "./VisualizationFX";
+import { WebGPUPostFX } from "./webgpu/WebGPUPostFX";
+
+// ---------------------------------------------------------------------------
+// PostFX selector — chooses TSL (WebGPU) or GLSL (WebGL) pipeline
+// ---------------------------------------------------------------------------
+function PostFXSelector({ audioData, lrcSync, lrcSyncRef }: {
+  audioData: React.MutableRefObject<AudioData>;
+  lrcSync?: { isPhraseStart: boolean; currentSection: string } | null;
+  lrcSyncRef?: { current: { isPhraseStart: boolean; currentSection: string } | null };
+}) {
+  const { gl } = useThree();
+  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+  if (isWebGPU) {
+    return <WebGPUPostFX audioData={audioData} lrcSync={lrcSync} />;
+  }
+  return <PostFX audioData={audioData} lrcSync={lrcSync} lrcSyncRef={lrcSyncRef} />;
+}
 import {
   AudioReactiveCore,
   AuroraRibbon,
@@ -16,6 +33,7 @@ import {
   PulseRings,
   SpectrumBars,
   StormViz,
+  ThreeParticlesDemo,
   VinylDisc,
 } from "./viz-styles";
 import { useDemoAudio, useRealAudio } from "./audioHooks";
@@ -26,7 +44,7 @@ import type { StoryBeat, Storyboard } from "./storyboard";
 import type { LyricLine } from "./components/LyricOverlay";
 import { getSectionIntensity } from "./sectionHelpers";
 import { updateTrackFeatures } from "./trackFeatures";
-import type { VisualizerSceneProps } from "./types";
+import type { AudioData, VisualizerSceneProps } from "./types";
 
 interface Props extends VisualizerSceneProps {
   /** LRC lyric data for phrase-synchronized visuals */
@@ -137,6 +155,8 @@ export function VisualizerScene({
         case "geometric":
         default:
           return <GeometricViz {...props} />;
+        case "three-particles":
+          return <ThreeParticlesDemo {...props} />;
       }
     })();
 
@@ -242,7 +262,7 @@ export function VisualizerScene({
       )}
 
       {/* Post pipeline: bloom + film grade — now LRC-reactive (phrase pulse boosts bloom) */}
-      <PostFX audioData={audioData} lrcSync={lrcSync} lrcSyncRef={lrcSyncLiveRef} />
+      <PostFXSelector audioData={audioData} lrcSync={lrcSync} lrcSyncRef={lrcSyncLiveRef} />
 
       <OrbitControls
         enablePan={false}

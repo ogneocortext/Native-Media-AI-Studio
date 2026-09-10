@@ -66,7 +66,7 @@ export function Canvas2DVisualizer({ audioData, analyserRef, isPlaying, mode = "
     };
 
     // Simple 2D particle system for particles mode
-    const particles: { x: number; y: number; vx: number; vy: number; life: number; hue: number }[] = [];
+    const particles: { x: number; y: number; vx: number; vy: number; life: number; hue: number; size: number }[] = [];
     const MAX_PARTICLES = 300;
     function spawnParticle(w: number, h: number, energy: number, beat: boolean) {
       if (particles.length >= MAX_PARTICLES) return;
@@ -79,6 +79,7 @@ export function Canvas2DVisualizer({ audioData, analyserRef, isPlaying, mode = "
         vy: Math.sin(angle) * speed,
         life: 1,
         hue: Math.random() * 360,
+        size: 0.6 + Math.random() * 2.0,
       });
     }
 
@@ -275,9 +276,27 @@ export function Canvas2DVisualizer({ audioData, analyserRef, isPlaying, mode = "
           ctx.stroke();
         }
         ctx.globalAlpha = 1;
+        // Enhanced center anchor with glow and pulsing core (vision feedback)
+        const coreR = baseR * 0.35 * (1 + phraseFlash * 0.5 + d.bass * 0.3);
+        const glowR = coreR * 3;
+        const grd = ctx.createRadialGradient(cx, cy, coreR * 0.2, cx, cy, glowR);
+        grd.addColorStop(0, colors[0] + "cc");
+        grd.addColorStop(0.4, colors[1] + "66");
+        grd.addColorStop(1, "transparent");
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
+        ctx.fill();
+        // Secondary orbital ring
+        ctx.strokeStyle = colors[2] + "55";
+        ctx.lineWidth = 1.5 * dpr;
+        ctx.beginPath();
+        ctx.arc(cx, cy, coreR * 1.8 + d.energy * 8 * dpr, 0, Math.PI * 2);
+        ctx.stroke();
+        // Solid core
         ctx.fillStyle = colors[0];
         ctx.beginPath();
-        ctx.arc(cx, cy, baseR * 0.35 * (1 + phraseFlash * 0.5 + d.bass * 0.3), 0, Math.PI * 2);
+        ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
         ctx.fill();
       } else if (mode === "spectrogram") {
         const specW = w;
@@ -300,6 +319,21 @@ export function Canvas2DVisualizer({ audioData, analyserRef, isPlaying, mode = "
           ctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
           ctx.fillRect(specW - sliceW, y, sliceW, Math.ceil(binH));
         }
+        // Axis labels (frequency Hz on Y, time on X)
+        ctx.fillStyle = colors[0] + "90";
+        ctx.font = `${10 * dpr}px monospace`;
+        ctx.textAlign = "right";
+        const nyquist = 22050; // assume 44.1kHz sample rate
+        const maxFreq = Math.floor(nyquist / 2);
+        const labelCount = 5;
+        for (let i = 0; i <= labelCount; i++) {
+          const freqHz = Math.round((maxFreq / labelCount) * i);
+          const y = specH - (specH / labelCount) * i;
+          ctx.fillText(`${freqHz}Hz`, 28 * dpr, y + 3 * dpr);
+          ctx.fillRect(30 * dpr, y, specW - 32 * dpr, 0.5);
+        }
+        ctx.textAlign = "center";
+        ctx.fillText("Time →", specW / 2, specH - 4 * dpr);
         if (phraseFlash > 0.05) {
           ctx.fillStyle = `rgba(255,255,255,${phraseFlash * 0.1})`;
           ctx.fillRect(0, 0, w, h);
@@ -383,6 +417,13 @@ export function Canvas2DVisualizer({ audioData, analyserRef, isPlaying, mode = "
         for (let i = 0; i < spawnCount; i++) spawnParticle(w, h, energy, beat);
         for (let i = particles.length - 1; i >= 0; i--) {
           const p = particles[i];
+          // Audio-reactive velocity: particles accelerate outward on beat/energy
+          const accel = 1 + energy * 0.5 + (beat ? 1.5 : 0);
+          p.vx *= accel;
+          p.vy *= accel;
+          // Slight drag to prevent runaway speeds
+          p.vx *= 0.995;
+          p.vy *= 0.995;
           p.x += p.vx;
           p.y += p.vy;
           p.life -= 0.012 + energy * 0.01;
@@ -396,7 +437,7 @@ export function Canvas2DVisualizer({ audioData, analyserRef, isPlaying, mode = "
           ctx.shadowColor = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha * 0.8})`;
           ctx.shadowBlur = 6 * dpr + d.bass * 8 * dpr;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, 2 * dpr + d.bass * 3 * dpr, 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, p.size * dpr + d.bass * 2 * dpr, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.shadowBlur = 0;

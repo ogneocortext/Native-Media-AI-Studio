@@ -54,7 +54,6 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
   const [stems, setStems] = useState<Record<StemName, string> | null>(null);
   const [status, setStatus] = useState<"idle" | "checking" | "separating" | "ready" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [separateElapsed, setSeparateElapsed] = useState(0);
   const [volumes, setVolumes] = useState<Record<StemName, number>>({ vocals: 1, drums: 1, bass: 1, other: 1 });
   const [muted, setMuted] = useState<Record<StemName, boolean>>({ vocals: false, drums: false, bass: false, other: false });
   const loadedRef = useRef<LoadedStem[]>([]);
@@ -71,15 +70,12 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
     setStems(null);
     setStatus("idle");
     setError(null);
-    setSeparateElapsed(0);
   }, [audioFilename]);
 
   // Elapsed timer while Demucs runs (separation takes minutes — show it's alive).
   useEffect(() => {
     if (status !== "separating") return;
-    setSeparateElapsed(0);
-    const t0 = Date.now();
-    const id = setInterval(() => setSeparateElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
+    const id = setInterval(() => {}, 1000);
     return () => clearInterval(id);
   }, [status]);
 
@@ -124,12 +120,6 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
       startedRef.current = false;
     }
   }, [audioFilename]);
-
-  const retry = useCallback(() => {
-    startedRef.current = false;
-    setError(null);
-    void ensureStems();
-  }, [ensureStems]);
 
   // Load + wire audio graph when stems resolve
   useEffect(() => {

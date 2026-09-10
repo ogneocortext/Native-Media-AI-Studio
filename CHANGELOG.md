@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added - Section Detection Accuracy + Cross-Page Audio Handoff + Audio Analysis UI Overhaul (2026-09-10)
+
+- **Backend section detection** (`packages/backend/app/api/audio.py`): `_generate_sections_from_analysis()` now uses tempo-proportional beat-snap tolerance (`min(0.6, (60/tempo)*0.5)`) instead of fixed 0.6s; genre-aware section counts (24 beats for EDM/hip-hop >150 BPM, 48 for ambient <90 BPM, 32 default); onset-density-aware classification distinguishing `pre-chorus`, `bridge`, `interlude`, and `drop`; per-section confidence scoring (0.6–0.85 base + energy modifiers); robust chronological/non-overlapping enforcement.
+- **LLM refinement on all paths**: `ensure-analysis` and `analyze-all` now both run best-effort `_apply_llm_sections()` so cached analyses also get LLM-refined sections.
+- **Frontend section types expanded**: `AudioAnalysisPage.tsx` adds colors + labels for `pre-chorus`, `drop`, `interlude`, `solo`; `DisplaySection` interface now includes `confidence`; `coalesceSections()` averages confidence when merging.
+- **Audio Analysis UI redesign**: stat cards now use gradient borders + larger numerals; insights bar shows average section confidence; generate dialog redesigned as 2-column card grid (ComfyUI / Visualization) with icons + descriptions; section rows show confidence percentage (`82% conf`); library sidebar items have clearer active/analyzed states; Energy & Beats chart downsampling capped at 40 reference lines / 100 beat-density bars.
+- **Cross-page audio handoff**: New `src/utils/pendingTrack.ts` provides a shared `window` + `sessionStorage` handoff slot (`__pendingTrackFilename`). `Visualizer.tsx` and `MusicVideoWizard.tsx` consume it on mount to auto-load the track selected in Media Library.
+- **Media Library handoff buttons**: `MediaLibrary.tsx` adds hover actions `Send to Visualizer` and `Send to Music Video Wizard` that set the pending track and navigate.
+- **Strict Mode fix**: `MusicVideoWizard.tsx` uses `peekPendingTrack` + `clearPendingTrack` to avoid double-consumption under React Strict Mode.
+- **Scripts fix**: `scripts/start-studio.ps1` removed duplicate closing braces at lines 394–396 that caused a PowerShell parse error.
+- **Verification**: `npx tsc --noEmit` passes cleanly; Playwright verified empty state, `?file=` auto-analyze (160 BPM / 827 beats / 4 sections / 64% confidence), Energy & Beats chart, Media Library → Visualizer/Music Video Wizard handoffs.
+
 ### Added - Media Library Extraction + Typed Inspection + Stem Mixer Resilience (2026-09-10)
 
 - **Audio extraction from video**: `POST /api/audio/extract` now probes the source audio codec first and supports `format="original"` (lossless stream copy into a matching container — `.m4a`/`.mp3`/`.ogg`/`.flac`/`.wav`/`.opus`/etc.) or `format="mp3"` (re-encode at `bitrate`). Powers new `ExtractAudioPanel` in the Media Library video detail view.

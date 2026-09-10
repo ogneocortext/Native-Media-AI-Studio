@@ -129,9 +129,9 @@ Local Ollama models are available for vision analysis and tool-assisted generati
 
 ### Shell / Process Management
 
-> [!warning] CRITICAL: Long-running terminal sessions **must** run in the background. This includes servers, watchers, render jobs, batch scripts, and any process expected to stay alive across turns. If a command is long-running, use the `background_process` tool with `action: "start"` and never require the user to reissue it.
+> [!warning] CRITICAL: This project requires **PowerShell 7.6+**. Older PowerShell versions fail on quoting, variable parsing, `&&` statement separators, and path-with-spaces handling. Always verify `$PSVersionTable.PSVersion.Major -ge 7` before running shell commands. When any PowerShell command misbehaves, **fall back to Python immediately** — do not retry with more PowerShell variations. Prefer inline Python one-liners or small `.py` scripts over complex PowerShell chains for process management, HTTP probing, file ops, and service control.
 
-> [!warning] CRITICAL: PowerShell frequently fails on quoting, variable parsing, and path-with-spaces handling in this project. When any PowerShell command misbehaves, **fall back to Python immediately** — do not retry with more PowerShell variations. Prefer inline Python one-liners or small `.py` scripts over complex PowerShell chains for process management, HTTP probing, file ops, and service control.
+> [!warning] CRITICAL: Long-running terminal sessions **must** run in the background. This includes servers, watchers, render jobs, batch scripts, and any process expected to stay alive across turns. If a command is long-running, use the `background_process` tool with `action: "start"` and never require the user to reissue it.
 
 - **Start background services:** `scripts\start-services.ps1`
   - Backend (`http://127.0.0.1:8000`) + Frontend (`http://127.0.0.1:5173`) are started hidden and detached.

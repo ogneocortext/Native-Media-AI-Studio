@@ -22,7 +22,8 @@ export type VisualizationStyle =
   | "synthwave"
   | "aurora"
   | "inferno"
-  | "ocean";
+  | "ocean"
+  | "three-particles";
 
 export interface VisualizationOption {
   id: VisualizationStyle;
@@ -123,6 +124,13 @@ export const VISUALIZATION_OPTIONS: VisualizationOption[] = [
     description: "Calming ocean waves with fluid motion",
     icon: "waves",
     bestFor: ["peaceful", "calm", "chill", "lo-fi"],
+  },
+  {
+    id: "three-particles",
+    name: "Three Particles",
+    description: "GPU-accelerated particles with trail renderer (@newkrok/three-particles)",
+    icon: "sparkles",
+    bestFor: ["experimental", "preview", "vfx", "trails"],
   },
 ];
 

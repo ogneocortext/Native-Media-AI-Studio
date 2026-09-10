@@ -1,0 +1,76 @@
+- generic [ref=f9e2]:
+  - generic [ref=f9e3]:
+    - complementary [ref=f9e4]:
+      - generic [ref=f9e5]:
+        - link "Native Media AI Studio • 2026 Pipeline" [ref=f9e7] [cursor=pointer]:
+          - /url: /
+          - generic [ref=f9e14]:
+            - heading "Native Media AI" [level=1] [ref=f9e15]
+            - paragraph [ref=f9e16]: Studio • 2026 Pipeline
+        - link "New Music Video" [ref=f9e17] [cursor=pointer]:
+          - /url: /music-video-wizard
+      - navigation [ref=f9e21]:
+        - generic [ref=f9e22]:
+          - paragraph [ref=f9e23]: Start
+          - list [ref=f9e24]:
+            - listitem [ref=f9e25]
+        - generic [ref=f9e32]:
+          - paragraph [ref=f9e33]: Create
+          - list [ref=f9e34]:
+            - listitem [ref=f9e35]
+            - listitem [ref=f9e42]
+            - listitem [ref=f9e49]
+            - listitem [ref=f9e55]
+            - listitem [ref=f9e61]
+            - listitem [ref=f9e67]
+            - listitem [ref=f9e73]
+        - generic [ref=f9e85]:
+          - button "Generate" [expanded] [ref=f9e86]
+          - list [ref=f9e90]:
+            - listitem [ref=f9e91]
+            - listitem [ref=f9e99]
+            - listitem [ref=f9e105]
+        - generic [ref=f9e112]:
+          - paragraph [ref=f9e113]: Manage
+          - list [ref=f9e114]:
+            - listitem [ref=f9e115]
+            - listitem [ref=f9e121]
+            - listitem [ref=f9e128]
+        - link "Remotion Studio ↗" [ref=f9e135] [cursor=pointer]:
+          - /url: http://127.0.0.1:8080
+        - button "System" [ref=f9e141]
+      - generic [ref=f9e145]:
+        - generic [ref=f9e146]:
+          - generic [ref=f9e147]: System Health
+          - generic [ref=f9e148]: Degraded
+        - generic [ref=f9e151]:
+          - generic [ref=f9e152]:
+            - generic [ref=f9e153]: Backend
+            - generic [ref=f9e157]: online
+          - generic [ref=f9e158]:
+            - generic [ref=f9e159]: ComfyUI
+            - generic [ref=f9e163]: offline
+          - generic [ref=f9e164]:
+            - generic [ref=f9e165]: Ollama
+            - generic [ref=f9e169]: online
+        - button "ComfyUI OFF" [ref=f9e171] [cursor=pointer]
+        - generic [ref=f9e176]: No model loaded
+        - link "Diagnostics" [ref=f9e180] [cursor=pointer]:
+          - /url: /health
+    - generic [ref=f9e184]:
+      - main [ref=f9e185]:
+        - generic [ref=f9e186]:
+          - generic [ref=f9e187]:
+            - button "Collapse" [ref=f9e189]
+            - navigation [ref=f9e194]
+          - generic [ref=f9e229]:
+            - generic [ref=f9e230]
+            - generic [ref=f9e248]
+            - generic [ref=f9e296]
+            - generic [ref=f9e319]
+            - generic [ref=f9e343]
+            - button "Load more 26 remaining" [ref=f9e1215] [cursor=pointer]
+      - contentinfo [ref=f9e1217]:
+        - generic [ref=f9e1218]: v1.0.0
+        - generic [ref=f9e1219]: © 2026 InterGalactic Media Productions LLC
+  - button "DEBUG" [ref=f9e1220]

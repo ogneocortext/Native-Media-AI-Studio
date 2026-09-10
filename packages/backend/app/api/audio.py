@@ -474,17 +474,23 @@ def _generate_sections_from_analysis(
 ) -> list[dict]:
     """Energy-aware section generation from real librosa features.
 
-    Uses RMS energy percentiles + positional priors + beat snapping.
-    Falls back to uniform heuristic if energy unavailable.
+    Uses RMS energy percentiles + positional priors + beat snapping +
+    onset-density transitions. Falls back to uniform heuristic if energy unavailable.
     """
     if duration <= 0:
-        return [{"type": "full", "start": 0.0, "end": 10.0, "energy": 0.5}]
+        return [{"type": "full", "start": 0.0, "end": 10.0, "energy": 0.5, "confidence": 0.5}]
+
+    # Tempo-proportional beat-snap tolerance: half a beat, capped at 0.6s
+    beat_tolerance = min(0.6, (60.0 / max(tempo, 1.0)) * 0.5) if tempo > 0 else 0.6
 
     # Estimate num sections from duration (~25s per section) + beat heuristic
     # Cap 8 to keep wizard manageable
     if beat_times and tempo > 0:
-        # Prefer beat-based: ~32 beats per section (8 bars)
-        num_sections = max(4, min(8, round(len(beat_times) / 32)))
+        # Prefer beat-based: ~32 beats per section (8 bars), adjusted for genre feel
+        beats_per_section = 32.0
+        if tempo > 150: beats_per_section = 24.0      # EDM/hip-hop: shorter sections
+        elif tempo < 90: beats_per_section = 48.0     # Ambient: longer sections
+        num_sections = max(4, min(8, round(len(beat_times) / beats_per_section)))
     else:
         num_sections = max(4, min(8, round(duration / 25))) or 4
 
@@ -497,11 +503,11 @@ def _generate_sections_from_analysis(
             s, e = i * sec_dur, min((i + 1) * sec_dur, duration)
             # snap to nearest beat
             if beat_times:
-                s = min(beat_times, key=lambda b: abs(b - s)) if abs(min(beat_times, key=lambda b: abs(b - s)) - s) < 0.6 else s
-                e = min(beat_times, key=lambda b: abs(b - e)) if abs(min(beat_times, key=lambda b: abs(b - e)) - e) < 0.6 else e
+                s = min(beat_times, key=lambda b: abs(b - s)) if abs(min(beat_times, key=lambda b: abs(b - s)) - s) < beat_tolerance else s
+                e = min(beat_times, key=lambda b: abs(b - e)) if abs(min(beat_times, key=lambda b: abs(b - e)) - e) < beat_tolerance else e
             t = section_types[min(i, len(section_types) - 1)]
             energy = 0.85 if "chorus" in t else 0.55 if "verse" in t else 0.35
-            out.append({"type": t, "start": round(float(s), 2), "end": round(float(e), 2), "energy": round(float(energy), 3)})
+            out.append({"type": t, "start": round(float(s), 2), "end": round(float(e), 2), "energy": round(float(energy), 3), "confidence": 0.6})
         return out
 
     # Compute mean energy per provisional section
@@ -527,37 +533,76 @@ def _generate_sections_from_analysis(
     p33 = sorted_e[len(sorted_e) // 3] if sorted_e else 0
     p66 = sorted_e[(len(sorted_e) * 2) // 3] if sorted_e else 0
 
+    # Compute onset density per provisional section for transition detection
+    def onset_density(t_start: float, t_end: float) -> int:
+        if not onset_times:
+            return 0
+        return sum(1 for ot in onset_times if t_start <= ot <= t_end)
+
+    onset_densities = [onset_density(s, e) for s, e, _ in provisional]
+    max_onset = max(onset_densities) if onset_densities else 1
+
     sections = []
     for i, (s, e, mean_e) in enumerate(provisional):
+        confidence = 0.7  # base confidence
+
         # Snap to nearest beat for clean cuts (except intro/outro boundaries)
         if beat_times and 0 < i < num_sections - 1:
             nearest_s = min(beat_times, key=lambda b: abs(b - s))
-            if abs(nearest_s - s) < 0.6:
+            if abs(nearest_s - s) < beat_tolerance:
                 s = nearest_s
         if beat_times and i < num_sections - 1:
             nearest_e = min(beat_times, key=lambda b: abs(b - e))
-            if abs(nearest_e - e) < 0.6:
+            if abs(nearest_e - e) < beat_tolerance:
                 e = nearest_e
 
         # Normalize energy 0-1
         norm = (mean_e - emin) / erange
+
         # Positional prior
         if i == 0:
             typ = "intro"
+            confidence = 0.85
         elif i == num_sections - 1:
             typ = "outro"
+            confidence = 0.85
         elif norm >= 0.66 or mean_e >= p66:
             typ = "chorus"
+            confidence = 0.75 + norm * 0.2
         elif norm <= 0.33 or mean_e <= p33:
-            # In middle, low energy is bridge, else verse
-            typ = "bridge" if i in (num_sections // 2, num_sections // 2 + 1) and norm < 0.4 else "verse"
+            # In middle, low energy + low onset density = bridge/interlude
+            # High onset density + low energy = pre-chorus/build
+            od = onset_densities[i] / max_onset if max_onset > 0 else 0
+            mid_pos = i >= num_sections // 3 and i <= 2 * num_sections // 3
+            if mid_pos and od < 0.4:
+                typ = "bridge"
+                confidence = 0.7
+            elif od > 0.6:
+                typ = "pre-chorus"
+                confidence = 0.65
+            else:
+                typ = "interlude" if mid_pos else "verse"
+                confidence = 0.6
         else:
-            typ = "verse"
+            # Medium energy: verse or pre-chorus based on onset density
+            od = onset_densities[i] / max_onset if max_onset > 0 else 0
+            if od > 0.65 and i > 0 and i < num_sections - 1:
+                typ = "pre-chorus"
+                confidence = 0.65
+            else:
+                typ = "verse"
+                confidence = 0.7
 
-        # Energy for UI (0-1 normalized + boost for chorus)
-        ui_energy = round(min(1.0, max(0.05, (norm * 0.7 + 0.3) if typ == "chorus" else norm * 0.6 + 0.2)), 3)
+        # Energy for UI (0-1 normalized + boost for chorus/drop)
+        ui_energy = round(min(1.0, max(0.05, (norm * 0.7 + 0.3) if typ in ("chorus", "drop") else norm * 0.6 + 0.2)), 3)
 
-        sections.append({"type": typ, "start": round(float(s), 2), "end": round(float(e), 2), "energy": ui_energy})
+        sections.append({
+            "type": typ,
+            "start": round(float(s), 2),
+            "end": round(float(e), 2),
+            "energy": ui_energy,
+            "confidence": round(min(1.0, confidence), 2),
+        })
 
     # Ensure chronological and non-overlapping
     for i in range(1, len(sections)):
@@ -843,6 +888,13 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
         result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
         analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
 
+        # Best-effort LLM section refinement
+        try:
+            rms_for_llm = result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []
+            await _apply_llm_sections(analysis_result, result, rms_for_llm)
+        except Exception as e:
+            logger.debug("LLM section refinement failed for ensure-analysis: %s", e, exc_info=True)
+
         # Save to index and file
         index[filename] = unique_id
         _save_analysis_index(index)
@@ -903,6 +955,13 @@ async def analyze_all_pending(backend: str = "sonara"):
             unique_id = str(uuid.uuid4())[:8]
             result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
             analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
+
+            # Best-effort LLM section refinement
+            try:
+                rms_for_llm = result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []
+                await _apply_llm_sections(analysis_result, result, rms_for_llm)
+            except Exception as e:
+                logger.debug("LLM section refinement failed for analyze-all: %s", e, exc_info=True)
 
             # Save to database
             database.update_audio_analysis(filename, analysis_result)

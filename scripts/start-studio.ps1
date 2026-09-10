@@ -391,9 +391,6 @@ if ($VideoEditor) {
     $script:started += @{ Name = 'VideoEditor'; Process = $proc }
     Write-Ok "Video editor studio starting (default http://localhost:$VideoEditorPort)"
 }
-    $script:started += @{ Name = 'VideoEditor'; Process = $proc }
-    Write-Ok 'Video editor studio starting (default http://localhost:3000)'
-}
 
 # --- Monitor until user quits ---
 Write-Host ''

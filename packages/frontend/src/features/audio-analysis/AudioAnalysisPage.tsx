@@ -3,6 +3,7 @@ import {
   Upload, Music, Zap, Play, Loader2, AlertCircle, BarChart3,
   Database, RefreshCw, ChevronDown, ChevronRight, Activity,
   Clock, TrendingUp, Music2, Pencil, Download, SkipForward, ListMusic,
+  Sparkles,
 } from "lucide-react";
 import { getApiBase, getCudaStatus, listAudioFiles, separateAudioStems, renameAudioFile, generateVideoSection } from "../../services/api";
 import { isAudioFile } from "../../utils/audioProbe";
@@ -40,6 +41,7 @@ interface BeatDensityPoint {
 const SECTION_HEX: Record<string, string> = {
   intro: "#3b82f6", verse: "#22c55e", chorus: "#8b5cf6",
   bridge: "#f97316", outro: "#ef4444", full: "#6b7280",
+  "pre-chorus": "#06b6d4", drop: "#ec4899", interlude: "#84cc16", solo: "#f59e0b",
 };
 
 function buildBeatDensity(
@@ -83,6 +85,7 @@ interface DisplaySection {
   end: number;
   energy: number;
   parts: number;
+  confidence: number;
 }
 
 /**
@@ -91,7 +94,7 @@ interface DisplaySection {
  * (and generating five overlapping clips) is noise. Energy is part-averaged.
  */
 function coalesceSections(
-  sections: { type: string; start: number; end: number; energy: number }[],
+  sections: { type: string; start: number; end: number; energy: number; confidence?: number }[],
 ): DisplaySection[] {
   const out: DisplaySection[] = [];
   for (const s of sections) {
@@ -100,8 +103,9 @@ function coalesceSections(
       last.energy = (last.energy * last.parts + s.energy) / (last.parts + 1);
       last.end = s.end;
       last.parts += 1;
+      last.confidence = (last.confidence * (last.parts - 1) + (s.confidence ?? 0.7)) / last.parts;
     } else {
-      out.push({ ...s, parts: 1 });
+      out.push({ ...s, parts: 1, confidence: s.confidence ?? 0.7 });
     }
   }
   return out;
@@ -171,13 +175,14 @@ export function AudioAnalysisPage() {
   const { setAnalysis, setError } = audio;
 
   // Playback of the analyzed track (upload object-URL or library stream) + section seeking
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const uploadAudioRef = useRef<HTMLAudioElement | null>(null);
+  const libraryAudioRef = useRef<HTMLAudioElement | null>(null);
   const analyzedFilename = analysis?.stored_path?.split(/[/\\]/).pop() ?? file?.name ?? null;
   const libraryStreamUrl = analyzedFilename && !file
     ? `${getApiBase()}/api/audio/file/${encodeURIComponent(analyzedFilename)}`
     : null;
   const seekTo = useCallback((t: number) => {
-    const el = audioRef.current;
+    const el = uploadAudioRef.current || libraryAudioRef.current;
     if (!el) return;
     try {
       el.currentTime = Math.max(0, t);
@@ -192,7 +197,7 @@ export function AudioAnalysisPage() {
   );
 
   // Stale selection carried across analyses pointed at wrong rows — reset per track
-  const analysisKey = analysis?.stored_path ?? analysis?.job_id ?? null;
+  const analysisKey = analysis?.stored_path ?? null;
   useEffect(() => { setSelectedSections(new Set()); }, [analysisKey]);
 
   // One-line insights derived from the real data
@@ -216,7 +221,7 @@ export function AudioAnalysisPage() {
         if (!s.available) setUseCuda(false);
         fetch(`${getApiBase()}/api/health/gpu`).then(r => r.json()).then(g => {
           if (g.available) setGpuVram({ used: g.memory_used_mb ?? 0, total: g.memory_total_mb ?? 8192, percent: g.memory_percent ?? 0 });
-        }).catch(() => {});
+        }).catch((e) => console.warn("GPU health check failed:", e));
       })
       .catch(() => { setCudaAvailable(false); setUseCuda(false); });
   }, []);
@@ -339,6 +344,22 @@ export function AudioAnalysisPage() {
     finally { setSelectedLibraryFile(null); }
   };
 
+  // Media Library preselection: auto-analyze ?file=filename on mount.
+  const hasAutoAnalyzed = useRef(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fileParam = params.get("file");
+    if (!fileParam || hasAutoAnalyzed.current) return;
+    if (audioFiles.length === 0) return;
+
+    hasAutoAnalyzed.current = true;
+    const match = audioFiles.find(f => f.filename === fileParam);
+    if (match) {
+      handleAnalyzeLibraryFile(match.path);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [audioFiles, handleAnalyzeLibraryFile]);
+
   const startEditing = (path: string, currentName: string) => {
     setEditingFile(path);
     setEditName(currentName);
@@ -455,7 +476,7 @@ export function AudioAnalysisPage() {
     const ro = new ResizeObserver(draw);
     ro.observe(host);
     return () => ro.disconnect();
-  }, [analysis]);
+  }, [analysis?.amplitude_envelope]);
 
   return (
     <div className={DS.pageWide}>
@@ -487,26 +508,26 @@ export function AudioAnalysisPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
+        <div className="lg:col-span-2 space-y-5">
           <div
             onDragOver={e => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFileSelect(f); setDragOver(false); }}
             onClick={() => !file && (document.getElementById("audio-analysis-file-input") as HTMLInputElement)?.click()}
-            className={`${DS.card} text-center transition-colors ${file ? "border-violet-500/30 bg-violet-500/5" : dragOver ? "border-violet-500 bg-violet-500/10" : "border-dashed hover:border-gray-500 cursor-pointer"}`}
+            className={`${DS.card} text-center transition-all duration-200 ${file ? "border-violet-500/30 bg-violet-500/5" : dragOver ? "border-violet-500 bg-violet-500/10 scale-[1.01]" : "border-dashed border-2 hover:border-gray-500 cursor-pointer hover:bg-gray-800/50"}`}
             role="button" aria-label="Upload audio file" tabIndex={0}
             onKeyDown={e => { if (e.key === "Enter" && !file) (document.getElementById("audio-analysis-file-input") as HTMLInputElement)?.click(); }}
           >
-            <Upload size={40} className="mx-auto mb-3 text-gray-500" />
+            <Upload size={36} className="mx-auto mb-3 text-gray-500" />
             {file ? (
               <div>
                 <p className={DS.textBold}>{file.name}</p>
                 <p className={DS.textXs}>{(file.size / 1048576).toFixed(2)} MB · {file.type || "audio/*"}</p>
-                {previewUrl && <audio ref={audioRef} controls src={previewUrl} className="w-full mt-3 rounded" aria-label={`Preview ${file.name}`} />}
-                <button onClick={e => { e.stopPropagation(); clearFile(); }} className={DS.btnSecondarySm + " mt-2 mx-auto"} aria-label="Clear selected file">Clear</button>
+                {previewUrl && <audio ref={uploadAudioRef} controls src={previewUrl} className="w-full mt-3 rounded" aria-label={`Preview ${file.name}`} />}
+                <button onClick={e => { e.stopPropagation(); clearFile(); }} className={DS.btnSecondarySm + " mt-3 mx-auto"} aria-label="Clear selected file">Clear</button>
               </div>
             ) : (
-              <div><p className={DS.textSm}>Drop audio file here or click to browse</p><p className={DS.textXs}>Supports MP3, WAV, FLAC, OGG, OPUS, M4A, AAC, WMA · Max 500 MB</p></div>
+              <div><p className="text-sm text-gray-300 font-medium">Drop audio file here or click to browse</p><p className={DS.textXs + " mt-1"}>Supports MP3, WAV, FLAC, OGG, OPUS, M4A, AAC, WMA · Max 500 MB</p></div>
             )}
             <input id="audio-analysis-file-input" type="file" accept="audio/*,.mp3,.wav,.flac,.ogg,.opus,.m4a,.aac,.wma" onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); }} className="hidden" />
           </div>
@@ -540,20 +561,44 @@ export function AudioAnalysisPage() {
           {analysis && (
             <div className={DS.section}>
               <div className={DS.grid4}>
-                <div className={DS.card}><div className={DS.flexCenter}><div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center mr-2"><Music2 size={16} className="text-violet-400" /></div><span className={DS.textBold}>{analysis.tempo_bpm.toFixed(0)}</span></div><p className={DS.textXs}>BPM</p></div>
-                <div className={DS.card}><div className={DS.flexCenter}><div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center mr-2"><Clock size={16} className="text-blue-400" /></div><span className={DS.textBold}>{formatTime(analysis.duration_seconds)}</span></div><p className={DS.textXs}>Duration</p></div>
-                <div className={DS.card}><div className={DS.flexCenter}><div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center mr-2"><Zap size={16} className="text-amber-400" /></div><span className={DS.textBold}>{analysis.beat_count}</span></div><p className={DS.textXs}>Beats</p></div>
-                <div className={DS.card}><div className={DS.flexCenter}><div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center mr-2"><TrendingUp size={16} className="text-emerald-400" /></div><span className={DS.textBold}>{(analysis.confidence * 100).toFixed(0)}%</span></div><p className={DS.textXs}>Confidence</p></div>
+                <div className={`${DS.card} border-violet-500/20 bg-gradient-to-br from-violet-500/10 to-transparent`}>
+                  <div className={DS.flexCenter}>
+                    <div className="w-9 h-9 rounded-xl bg-violet-500/20 flex items-center justify-center mr-3"><Music2 size={18} className="text-violet-400" /></div>
+                    <span className={DS.textBoldXl}>{analysis.tempo_bpm.toFixed(0)}</span>
+                  </div>
+                  <p className={DS.textXs + " mt-1.5"}>BPM</p>
+                </div>
+                <div className={`${DS.card} border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-transparent`}>
+                  <div className={DS.flexCenter}>
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/20 flex items-center justify-center mr-3"><Clock size={18} className="text-blue-400" /></div>
+                    <span className={DS.textBoldXl}>{formatTime(analysis.duration_seconds)}</span>
+                  </div>
+                  <p className={DS.textXs + " mt-1.5"}>Duration</p>
+                </div>
+                <div className={`${DS.card} border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-transparent`}>
+                  <div className={DS.flexCenter}>
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center mr-3"><Zap size={18} className="text-amber-400" /></div>
+                    <span className={DS.textBoldXl}>{analysis.beat_count}</span>
+                  </div>
+                  <p className={DS.textXs + " mt-1.5"}>Beats</p>
+                </div>
+                <div className={`${DS.card} border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-transparent`}>
+                  <div className={DS.flexCenter}>
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center mr-3"><TrendingUp size={18} className="text-emerald-400" /></div>
+                    <span className={DS.textBoldXl}>{(analysis.confidence * 100).toFixed(0)}%</span>
+                  </div>
+                  <p className={DS.textXs + " mt-1.5"}>Confidence</p>
+                </div>
               </div>
 
               {/* Insights + playback */}
               {insights && (
-                <div className={DS.cardTight + " border-violet-500/25 bg-violet-500/5"}>
-                  <p className="text-xs text-gray-300 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <ListMusic size={13} className="text-violet-400 shrink-0" />
-                    <span className="capitalize">{insights.structure}</span>
+                <div className={`${DS.cardTight} border-l-4 border-l-violet-500 bg-violet-500/5`}>
+                  <p className="text-sm text-gray-200 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <ListMusic size={14} className="text-violet-400 shrink-0" />
+                    <span className="capitalize font-medium">{insights.structure}</span>
                   </p>
-                  <p className={DS.textXs + " mt-1.5 tabular-nums"}>
+                  <p className={DS.textXs + " mt-1.5 tabular-nums text-gray-400"}>
                     {insights.bps.toFixed(1)} beats/s
                     {insights.peak && (
                       <> · Peak <strong className="text-white capitalize">{insights.peak.type}</strong> {formatTime(insights.peak.start)}–{formatTime(insights.peak.end)} ({(insights.peak.energy * 100).toFixed(0)}%)</>
@@ -561,6 +606,7 @@ export function AudioAnalysisPage() {
                     {displaySections.some((s) => s.parts > 1) && (
                       <> · {analysis.sections.length} raw sections merged into {displaySections.length} blocks</>
                     )}
+                    <> · Avg confidence <strong className="text-white">{(displaySections.reduce((a, s) => a + s.confidence, 0) / displaySections.length * 100).toFixed(0)}%</strong></>
                   </p>
                 </div>
               )}
@@ -575,7 +621,7 @@ export function AudioAnalysisPage() {
                 </div>
                 {libraryStreamUrl && (
                   <audio
-                    ref={audioRef}
+                    ref={libraryAudioRef}
                     controls
                     src={libraryStreamUrl}
                     className="w-full mt-2 rounded"
@@ -629,10 +675,15 @@ export function AudioAnalysisPage() {
                           }));
                         })()}
                       />
-                      {/* Sample beats to avoid 400+ lines clutter — show every Nth */}
-                      {analysis.beat_times.filter((_, i) => analysis.beat_times.length <= 80 || i % Math.ceil(analysis.beat_times.length / 80) === 0).map((bt, i) => (
-                        <ReferenceLine key={`b${i}`} x={bt} stroke="#fbbf24" strokeWidth={1} strokeOpacity={0.35} />
-                      ))}
+                       {/* Sample beats to avoid clutter — show fewer lines on longer tracks */}
+                       {analysis.beat_times.filter((_, i) => {
+                         const len = analysis.beat_times.length;
+                         if (len <= 40) return true;
+                         const step = Math.max(1, Math.floor(len / 40));
+                         return i % step === 0;
+                       }).map((bt, i) => (
+                         <ReferenceLine key={`b${i}`} x={bt} stroke="#fbbf24" strokeWidth={1} strokeOpacity={0.25} />
+                       ))}
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -664,7 +715,10 @@ export function AudioAnalysisPage() {
 
               {/* Beat Density by Section */}
               {analysis.beat_times.length > 0 && (() => {
-                const density = buildBeatDensity(analysis.beat_times, analysis.sections, analysis.energy_curve, analysis.duration_seconds, analysis.tempo_bpm);
+                const raw = buildBeatDensity(analysis.beat_times, analysis.sections, analysis.energy_curve, analysis.duration_seconds, analysis.tempo_bpm);
+                const maxBars = 100;
+                const step = Math.max(1, Math.floor(raw.length / maxBars));
+                const density = raw.filter((_, i) => i % step === 0);
                 return density.length > 0 ? (
                   <div className={DS.card}>
                     <h3 className={DS.sectionTitle}><BarChart3 size={14} />Beat Density<span className={DS.textXs}>(beats per bar, opacity = energy)</span></h3>
@@ -694,33 +748,34 @@ export function AudioAnalysisPage() {
               {/* Detected Sections */}
               <div className={DS.card}>
                 <div className={DS.flexBetween}>
-                  <h3 className={DS.sectionTitle}><Activity size={14} />Detected Sections<span className={DS.textXs}>({displaySections.length}{displaySections.length !== analysis.sections.length ? ` · ${analysis.sections.length} merged` : ""}) · check to batch-generate</span></h3>
+                  <h3 className={DS.sectionTitle}><Activity size={16} />Detected Sections<span className={DS.textXs + " ml-2"}>({displaySections.length}{displaySections.length !== analysis.sections.length ? ` · ${analysis.sections.length} merged` : ""}) · check to batch-generate</span></h3>
                   <div className="flex gap-2">
                     {displaySections.length > 1 && <button onClick={() => setSelectedSections(new Set(displaySections.map((_, i) => i)))} className={DS.btnSecondarySm}>Select all</button>}
                     <button onClick={exportAnalysis} className={DS.btnSecondarySm} title="Export analysis JSON"><Download size={14} />Export</button>
                     {selectedSections.size > 0 && <button onClick={() => { setPendingGenerateSection(null); setShowGenerateDialog(true); }} className={DS.btnPrimarySm}>Generate Selected ({selectedSections.size})</button>}
                   </div>
                 </div>
-                <div className="space-y-2" role="list" aria-label="Song sections">
+                <div className="space-y-1.5" role="list" aria-label="Song sections">
                   {displaySections.map((section, i) => (
-                    <div key={i} role="listitem" className={`flex items-center gap-3 py-2 border-b border-gray-700 last:border-0 ${selectedSections.has(i) ? "bg-violet-500/10 rounded px-2 -mx-2" : ""}`}>
-                      <input type="checkbox" checked={selectedSections.has(i)} onChange={e => { const n = new Set(selectedSections); if (e.target.checked) n.add(i); else n.delete(i); setSelectedSections(n); }} className="rounded border-gray-600 bg-gray-700 text-violet-500 focus:ring-violet-500" aria-label={`Select ${section.type} ${formatTime(section.start)} to ${formatTime(section.end)}`} />
-                      <span className="px-2 py-1 rounded text-xs font-medium shrink-0 text-white" style={{ backgroundColor: SECTION_HEX[section.type] || SECTION_HEX.full }}>
+                    <div key={i} role="listitem" className={`flex items-center gap-3 py-2.5 px-3 rounded-lg border transition-colors ${selectedSections.has(i) ? "bg-violet-500/10 border-violet-500/30" : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600"}`}>
+                      <input type="checkbox" checked={selectedSections.has(i)} onChange={e => { const n = new Set(selectedSections); if (e.target.checked) n.add(i); else n.delete(i); setSelectedSections(n); }} className="rounded border-gray-600 bg-gray-700 text-violet-500 focus:ring-violet-500 shrink-0" aria-label={`Select ${section.type} ${formatTime(section.start)} to ${formatTime(section.end)}`} />
+                      <span className="px-2 py-1 rounded-md text-xs font-semibold shrink-0 text-white" style={{ backgroundColor: SECTION_HEX[section.type] || SECTION_HEX.full }}>
                         {section.type}{section.parts > 1 ? ` ×${section.parts}` : ""}
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className={DS.textXs}>
-                          <button onClick={() => seekTo(section.start)} className="hover:text-violet-300 underline decoration-dotted underline-offset-2 tabular-nums" title={`Play from ${formatTime(section.start)}`}>
+                          <button onClick={() => seekTo(section.start)} className="hover:text-violet-300 underline decoration-dotted underline-offset-2 tabular-nums font-medium" title={`Play from ${formatTime(section.start)}`}>
                             {formatTime(section.start)} → {formatTime(section.end)}
                           </button>
                           <span className="ml-2 text-gray-500 tabular-nums">({formatTime(section.end - section.start)})</span>
+                          <span className="ml-2 text-gray-500 tabular-nums">· {(section.confidence * 100).toFixed(0)}% conf</span>
                         </div>
-                        <div className="flex items-center gap-2 mt-1" aria-label={`Energy ${Math.round(section.energy * 100)}%`}><div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${section.energy * 100}%`, backgroundColor: getEnergyColor(section.energy) }} /></div><span className={DS.textXs + " tabular-nums"}>{(section.energy * 100).toFixed(0)}%</span></div>
+                        <div className="flex items-center gap-2 mt-1" aria-label={`Energy ${Math.round(section.energy * 100)}%`}><div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all" style={{ width: `${section.energy * 100}%`, backgroundColor: getEnergyColor(section.energy) }} /></div><span className={DS.textXs + " tabular-nums text-gray-400"}>{(section.energy * 100).toFixed(0)}%</span></div>
                       </div>
-                      <button onClick={() => seekTo(section.start)} className="p-2 rounded-lg text-muted hover:text-white hover:bg-white/10 shrink-0" title={`Preview from ${formatTime(section.start)}`} aria-label={`Preview ${section.type} from ${formatTime(section.start)}`}>
-                        <SkipForward size={13} />
+                      <button onClick={() => seekTo(section.start)} className="p-2 rounded-lg text-muted hover:text-white hover:bg-white/10 shrink-0 transition-colors" title={`Preview from ${formatTime(section.start)}`} aria-label={`Preview ${section.type} from ${formatTime(section.start)}`}>
+                        <SkipForward size={14} />
                       </button>
-                      <button onClick={() => handleGenerateSection(section.type, section.start, section.end)} disabled={generating === `${section.type}@${section.start}` || generating === "selected" || !analysis?.stored_path} className={DS.btnSecondary} title={`Generate video for ${section.type}`} aria-label={`Generate ${section.type}`}>
+                      <button onClick={() => handleGenerateSection(section.type, section.start, section.end)} disabled={generating === `${section.type}@${section.start}` || generating === "selected" || !analysis?.stored_path} className={`${DS.btnSecondarySm} shrink-0`} title={`Generate video for ${section.type}`} aria-label={`Generate ${section.type}`}>
                         {generating === `${section.type}@${section.start}` ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
                       </button>
                     </div>
@@ -732,7 +787,7 @@ export function AudioAnalysisPage() {
           )}
         </div>
 
-        <div className="lg:col-span-1 space-y-4 min-w-0">
+        <div className="lg:col-span-1 space-y-5 min-w-0">
           <div className={DS.card} style={{ overflow: "hidden" }}>
             <div onClick={() => setShowLibrary(!showLibrary)} className={DS.flexBetween}>
               <span className={DS.sectionTitle}><Database size={14} />Audio Library ({audioFiles.length})</span>
@@ -769,51 +824,51 @@ export function AudioAnalysisPage() {
                   <>
                     <p className={DS.textXs + " mb-2"}>{filtered.length} file{filtered.length !== 1 ? "s" : ""} {filterText ? "matching filter" : "in library"}</p>
                     <div className="space-y-1" role="list" aria-label="Audio files">
-                      {paged.map((f) => {
-                        const isActive = selectedLibraryFile === f.path && !editingFile;
-                        const isAnalyzed = analyzedName === f.filename;
-                        return (
-                        <div
-                          key={f.path}
-                          role="listitem"
-                          tabIndex={0}
-                          aria-label={`Analyze ${f.filename}`}
-                          title={isAnalyzed ? `${f.filename} — currently analyzed` : `Analyze ${f.filename} (cached when available)`}
-                          className={`p-2 rounded-lg cursor-pointer transition-colors ${isActive ? "bg-violet-500/20 border border-violet-500/30" : isAnalyzed ? "border border-emerald-500/25 bg-emerald-500/5 hover:bg-emerald-500/10" : "hover:bg-gray-700 border border-transparent"}`}
-                          onClick={() => handleAnalyzeLibraryFile(f.path)}
-                          onKeyDown={e => { if ((e.key === "Enter" || e.key === " ") && editingFile !== f.path) { e.preventDefault(); handleAnalyzeLibraryFile(f.path); } }}
-                        >
-                          <div className={DS.flexBetween}>
-                            <div className={DS.flexCenter} style={{ minWidth: 0, flex: 1 }}>
-                              {isActive && analyzing
-                                ? <Loader2 size={14} className="animate-spin text-violet-400 shrink-0" />
-                                : <Music size={14} className={`shrink-0 ${isAnalyzed ? "text-emerald-400" : ""}`} />}
-                              {editingFile === f.path ? (
-                                <form onSubmit={async (e) => { e.preventDefault(); e.stopPropagation(); await saveEdit(f.filename); }} onClick={e => e.stopPropagation()} className="flex-1 min-w-0">
-                                  <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setEditingFile(null); }} className="ml-2 px-1 py-0.5 bg-gray-700 border border-violet-500 rounded text-sm text-white w-full focus:outline-none" aria-label="New file name" />
-                                </form>
-                              ) : (
-                                <span className="text-sm truncate ml-2" title={f.filename}>{f.filename}</span>
-                              )}
-                              {isAnalyzed && editingFile !== f.path && (
-                                <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 shrink-0">Analyzed</span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                              <span className={DS.textXs + " tabular-nums"}>{formatFileSize(f.size_bytes)}</span>
-                              <button
-                                onClick={e => { e.stopPropagation(); startEditing(f.path, f.filename); }}
-                                className="p-1.5 rounded text-muted hover:text-white hover:bg-white/10"
-                                title={`Rename ${f.filename}`}
-                                aria-label={`Rename ${f.filename}`}
-                              >
-                                <Pencil size={12} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        );
-                      })}
+                       {paged.map((f) => {
+                         const isActive = selectedLibraryFile === f.path && !editingFile;
+                         const isAnalyzed = analyzedName === f.filename;
+                         return (
+                         <div
+                           key={f.path}
+                           role="listitem"
+                           tabIndex={0}
+                           aria-label={`Analyze ${f.filename}`}
+                           title={isAnalyzed ? `${f.filename} — currently analyzed` : `Analyze ${f.filename} (cached when available)`}
+                           className={`p-2.5 rounded-lg cursor-pointer transition-all ${isActive ? "bg-violet-500/15 border border-violet-500/30 shadow-sm" : isAnalyzed ? "border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10" : "border border-transparent hover:bg-gray-700/50"}`}
+                           onClick={() => handleAnalyzeLibraryFile(f.path)}
+                           onKeyDown={e => { if ((e.key === "Enter" || e.key === " ") && editingFile !== f.path) { e.preventDefault(); handleAnalyzeLibraryFile(f.path); } }}
+                         >
+                           <div className={DS.flexBetween}>
+                             <div className={DS.flexCenter} style={{ minWidth: 0, flex: 1 }}>
+                               {isActive && analyzing
+                                 ? <Loader2 size={14} className="animate-spin text-violet-400 shrink-0" />
+                                 : <Music size={14} className={`shrink-0 ${isAnalyzed ? "text-emerald-400" : "text-gray-500"}`} />}
+                               {editingFile === f.path ? (
+                                 <form onSubmit={async (e) => { e.preventDefault(); e.stopPropagation(); await saveEdit(f.filename); }} onClick={e => e.stopPropagation()} className="flex-1 min-w-0">
+                                   <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setEditingFile(null); }} className="ml-2 px-1.5 py-0.5 bg-gray-700 border border-violet-500 rounded text-sm text-white w-full focus:outline-none" aria-label="New file name" />
+                                 </form>
+                               ) : (
+                                 <span className="text-sm truncate ml-2 text-gray-200" title={f.filename}>{f.filename}</span>
+                               )}
+                               {isAnalyzed && editingFile !== f.path && (
+                                 <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-medium shrink-0">Analyzed</span>
+                               )}
+                             </div>
+                             <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                               <span className={DS.textXs + " tabular-nums text-gray-500"}>{formatFileSize(f.size_bytes)}</span>
+                               <button
+                                 onClick={e => { e.stopPropagation(); startEditing(f.path, f.filename); }}
+                                 className="p-1.5 rounded text-muted hover:text-white hover:bg-white/10 transition-colors"
+                                 title={`Rename ${f.filename}`}
+                                 aria-label={`Rename ${f.filename}`}
+                               >
+                                 <Pencil size={12} />
+                               </button>
+                             </div>
+                           </div>
+                         </div>
+                         );
+                       })}
                     </div>
                     {filtered.length > pageSize && (
                       <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-gray-700">
@@ -847,26 +902,44 @@ export function AudioAnalysisPage() {
 
       {showGenerateDialog && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
           onClick={() => { setShowGenerateDialog(false); setPendingGenerateSection(null); }}
           role="presentation"
         >
           <div
             className={DS.card}
-            style={{ maxWidth: 480, width: "90%" }}
+            style={{ maxWidth: 520, width: "92%" }}
             role="dialog"
             aria-modal="true"
             aria-label="Generate video"
             onClick={e => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-white mb-2">Generate Video</h3>
-            <p className="text-sm text-gray-400 mb-4">
+            <h3 className="text-lg font-bold text-white mb-1">Generate Video</h3>
+            <p className="text-sm text-gray-400 mb-5">
               {pendingGenerateSection ? `Generate video for "${pendingGenerateSection.type}" section (${formatTime(pendingGenerateSection.end - pendingGenerateSection.start)})?` : `Generate video for ${selectedSections.size} selected sections?`}
             </p>
-            <p className="text-xs text-gray-500 mb-6">ComfyUI creates AI-generated video. Visualization creates audio-reactive video with waveforms.</p>
-            <div className="flex gap-3">
-              <button onClick={() => pendingGenerateSection ? confirmGenerate("comfyui") : handleGenerateSelected("comfyui")} className={DS.btnPrimary}>ComfyUI</button>
-              <button onClick={() => pendingGenerateSection ? confirmGenerate("visualization") : handleGenerateSelected("visualization")} className={DS.btnSecondary}>Visualization</button>
+            <p className="text-xs text-gray-500 mb-5">Choose a generation method. ComfyUI uses AI image models; Visualization creates audio-reactive motion graphics.</p>
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <button onClick={() => pendingGenerateSection ? confirmGenerate("comfyui") : handleGenerateSelected("comfyui")} className={`${DS.card} hover:border-violet-500/40 text-left p-4 transition-colors group`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center group-hover:bg-violet-500/30 transition-colors">
+                    <Sparkles size={16} className="text-violet-400" />
+                  </div>
+                  <span className="text-sm font-bold text-white">ComfyUI</span>
+                </div>
+                <p className="text-xs text-gray-400">AI-generated visuals from text prompts. Best for cinematic, stylized scenes.</p>
+              </button>
+              <button onClick={() => pendingGenerateSection ? confirmGenerate("visualization") : handleGenerateSelected("visualization")} className={`${DS.card} hover:border-blue-500/40 text-left p-4 transition-colors group`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center group-hover:bg-blue-500/30 transition-colors">
+                    <Activity size={16} className="text-blue-400" />
+                  </div>
+                  <span className="text-sm font-bold text-white">Visualization</span>
+                </div>
+                <p className="text-xs text-gray-400">Audio-reactive waveforms and particles. Best for lyric videos and abstract visuals.</p>
+              </button>
+            </div>
+            <div className="flex justify-end">
               <button onClick={() => { setShowGenerateDialog(false); setPendingGenerateSection(null); }} className={DS.btnSecondary}>Cancel</button>
             </div>
           </div>

@@ -13,6 +13,7 @@ import type { LrcSyncData } from "./useLrcSync";
 import { ANALYSER_SMOOTHING, ATTACK, RELEASE, createAudioClock, estimateOutputLatency } from "./audioTiming";
 import { ShaderVisualizer } from "./ShaderVisualizer";
 import { ACESFilmicToneMapping } from "three";
+import type * as THREE from "three";
 import { SpectrumBar } from "./components/SpectrumBar";
 import { StemMixerPanel } from "./components/StemMixer";
 import { StylePicker } from "./components/StylePicker";
@@ -27,12 +28,14 @@ import { AnimationDemo } from "./components/AnimationDemo";
 import { TheatreStudioPanel } from "./components/TheatreStudioPanel";
 import type { VisualPreset } from "./visualPreset";
 import { showToast } from "../../utils/toast";
+import { consumePendingTrack } from "../../utils/pendingTrack";
 import { visualPresets, selectVisualPreset } from "./visualPresets";
 import { selectPresetForTrack } from "./components/KineticPresets";
 import { buildStoryboard, getStoryState, EMPTY_STORYBOARD } from "./storyboard";
 import { StoryActCard } from "./components/StoryActCard";
 import { BuilderFigure } from "./components/BuilderFigure";
 import { useMCPContextSync } from "./useMCPContextSync";
+import { useWebGPUDector, createWebGPURenderer } from "./webgpu/WebGPURendererDetector";
 
 /** Clamp a number into [min, max]; falls back to `fallback` when not finite. */
 function clampNum(value: unknown, min: number, max: number, fallback: number): number {
@@ -115,13 +118,14 @@ export function Visualizer() {
   const [showSettings, setShowSettings] = useState(false);
   const [rendererReady, setRendererReady] = useState(false);
   const [rendererBackend, setRendererBackend] = useState("");
+  const [gpuBackend, setGpuBackend] = useState<"webgpu" | "webgl" | "checking">("checking");
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [lyricsVisible, setLyricsVisible] = useState(true);
   const [visualsVisible, setVisualsVisible] = useState(true);
-  const [characterVisible, setCharacterVisible] = useState(true);
+  const [characterVisible, setCharacterVisible] = useState(false);
   const [kineticPreset, setKineticPreset] = useState("cinematic");
   const [showAnimDemo, setShowAnimDemo] = useState(false);
   const [showTheatreStudio, setShowTheatreStudio] = useState(false);
@@ -181,6 +185,21 @@ export function Visualizer() {
       beat: false,
     },
   });
+  // WebGPU detection (non-blocking — falls back to WebGL).
+  const { backend: detectedBackend } = useWebGPUDector();
+  useEffect(() => {
+    setGpuBackend(detectedBackend);
+  }, [detectedBackend]);
+
+  // Handle Canvas onCreated
+  const handleCanvasCreated = useCallback(({ gl }: { gl: THREE.WebGLRenderer }) => {
+    // ACES filmic tone mapping — the 2026 standard for cinematic color
+    gl.toneMapping = ACESFilmicToneMapping;
+    gl.toneMappingExposure = 1.05;
+    const backend = gpuBackend === "webgpu" ? "WebGPU" : "WebGL2";
+    setRendererBackend(backend);
+    setRendererReady(true);
+  }, [gpuBackend]);
   // Interpolated, latency-compensated audio clock (see audioTiming.ts).
   const audioClockRef = useRef(createAudioClock());
   const latencyRef = useRef(0);
@@ -916,6 +935,12 @@ export function Visualizer() {
     return () => { delete (window as any).__VIZ_TEST__; };
   }, [handleSelectLibraryTrack]);
 
+  // Media Library handoff: auto-select a pending track exactly once on mount.
+  useEffect(() => {
+    const pending = consumePendingTrack();
+    if (pending) handleSelectLibraryTrack(pending);
+  }, [handleSelectLibraryTrack]);
+
   return (
     <div className={`viz-page ${focusMode ? "viz-focus-mode" : ""}`}>
       {showTestPanel && (
@@ -1114,15 +1139,13 @@ export function Visualizer() {
               />
             ) : (
               <>
-                <Canvas camera={{ position: [0, 0, 7], fov: 55 }} dpr={[1, 1.5]} frameloop={rendererReady ? "always" : "never"}
-                  gl={{ antialias: true }}
-                  onCreated={({ gl }) => {
-                    // ACES filmic tone mapping — the 2026 standard for cinematic color
-                    gl.toneMapping = ACESFilmicToneMapping;
-                    gl.toneMappingExposure = 1.05;
-                    setRendererBackend("WebGL2");
-                    setRendererReady(true);
-                  }}
+                <Canvas 
+                  key={gpuBackend}
+                  camera={{ position: [0, 0, 7], fov: 55 }} 
+                  dpr={[1, 1.5]} 
+                  frameloop={rendererReady ? "always" : "never"}
+                  gl={gpuBackend === "webgpu" ? (createWebGPURenderer as any) : { antialias: true }}
+                  onCreated={handleCanvasCreated}
                 >
                   <color attach="background" args={[bgColor]} />
                   <VisualizerScene

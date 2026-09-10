@@ -6,6 +6,7 @@ import { UploadStep, AnalyzeStep, ConfigureStep, GenerateStep, ReviewStep } from
 import { savePromptVersion } from "../../services/api";
 import { PromptHistoryPanel } from "./PromptHistoryPanel";
 import { consumePendingAudioFile, peekPendingAudioName } from "../../utils/pendingAudio";
+import { peekPendingTrack, clearPendingTrack } from "../../utils/pendingTrack";
 import { isAudioFile } from "../../utils/audioProbe";
 
 const DEFAULT_CONFIG: GenerationConfig = {
@@ -58,6 +59,28 @@ export function MusicVideoWizard() {
     return () => {
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     };
+  }, [handleFileUpload]);
+
+  // Media Library handoff: resume with an existing output/audio file.
+  useEffect(() => {
+    let cancelled = false;
+    const pending = peekPendingTrack();
+    if (!pending) return;
+    fetch(`/api/audio/file/${encodeURIComponent(pending)}`)
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.blob();
+      })
+      .then(blob => {
+        if (cancelled) return;
+        const ext = pending.split(".").pop()?.toLowerCase() || "mp3";
+        const mime = ext === "wav" ? "audio/wav" : ext === "ogg" ? "audio/ogg" : ext === "m4a" ? "audio/mp4" : ext === "flac" ? "audio/flac" : "audio/mpeg";
+        const file = new File([blob], pending, { type: mime });
+        clearPendingTrack();
+        handleFileUpload(file);
+      })
+      .catch(() => { if (!cancelled) setError("Failed to load track from Media Library"); });
+    return () => { cancelled = true; };
   }, [handleFileUpload]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {

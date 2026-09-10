@@ -1,6 +1,5 @@
 import React from "react";
 import { OutputFile } from "../../state/outputStore";
-import { getOutputUrl } from "../../utils/url";
 import { WaveformDisplay } from "./WaveformDisplay";
 import { ExportMatrixPanel } from "./ExportMatrixPanel";
 import { ExtractAudioPanel } from "./ExtractAudioPanel";
@@ -78,8 +77,6 @@ export interface MediaDetailModalProps {
   onAddToStudio: (output: OutputFile, openInNewTab?: boolean) => void;
   onOpenBlender: (output: OutputFile) => void;
   onOpenUnity: (output: OutputFile) => void;
-  onRename: (output: OutputFile) => void;
-  onDelete: (output: OutputFile) => void;
   onShowFullImage: () => void;
   is3DModelFile: (filename: string) => boolean;
   getOutputUrl: (path: string) => string;
@@ -106,8 +103,6 @@ export function MediaDetailModal({
   onAddToStudio,
   onOpenBlender,
   onOpenUnity,
-  onRename,
-  onDelete,
   onShowFullImage,
   is3DModelFile,
   getOutputUrl,
