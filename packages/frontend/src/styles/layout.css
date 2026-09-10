@@ -26,20 +26,39 @@
 }
 
 
-/* ===== LAYOUT ===== */
-.sidebar {
-  width: 260px;
-  min-width: 260px;
-  background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-primary) 100%);
-  border-inline-end: 1px solid var(--border-color);
+/* ===== APP LAYOUT ===== */
+/* Base layout structure — restores side-by-side flex layout lost during CSS modularization */
+
+.layout-root {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  block-size: 100vh;
+  inline-size: 100vw;
+  overflow: hidden;
+  background: var(--bg-primary);
 }
 
-.main-content {
+.layout-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+.layout-main {
   flex: 1;
   overflow: auto;
-  background: var(--bg-primary);
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+
+.layout-footer {
+  flex-shrink: 0;
+  padding: 0.5rem 1rem;
+  border-block-start: 1px solid var(--border-subtle);
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
 }
 
 
@@ -90,42 +109,42 @@
 
 /* Large displays (desktops) */
 @media (min-width: 1920px) {
-  .sidebar { width: 280px; min-width: 280px; }
+  .sidebar-container { inline-size: 280px; min-inline-size: 280px; }
 }
 
 /* Medium displays (laptops) */
 @media (max-width: 1400px) {
-  .sidebar { width: 220px; min-width: 220px; }
+  .sidebar-container { inline-size: 220px; min-inline-size: 220px; }
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 1100px) {
-  .sidebar { width: 200px; min-width: 200px; }
+  .sidebar-container { inline-size: 200px; min-inline-size: 200px; }
   .grid-3 { grid-template-columns: repeat(2, 1fr); }
   .card { padding: 16px; margin-bottom: 12px; }
 }
 
 /* Tablet + phone: sidebar becomes overlay drawer (handled in Sidebar.tsx isMobile) */
 @media (max-width: 900px) {
-  #root { flex-direction: row; } /* keep row — drawer overlays, not top bar */
-  .main-content { height: 100vh; height: 100dvh; }
+  .layout-root { flex-direction: row; } /* keep row — drawer overlays, not top bar */
+  .layout-main { block-size: 100vh; block-size: 100dvh; }
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
   /* Ensure sidebar nav scrolls and health never pushes offscreen */
-  .sidebar { max-height: 100vh; max-height: 100dvh; }
-  .sidebar nav { -webkit-overflow-scrolling: touch; }
+  .sidebar-container { max-block-size: 100vh; max-block-size: 100dvh; }
+  .sidebar-container nav { -webkit-overflow-scrolling: touch; }
 }
 
 /* Very narrow (320-600px) — tighter padding, still all content fits via scroll */
 @media (max-width: 600px) {
   .card { padding: 12px; border-radius: 12px; }
   .btn-lg { padding: 12px 20px; font-size: 14px; }
-  .main-content { padding-block-end: env(safe-area-inset-bottom); }
+  .layout-main { padding-block-end: env(safe-area-inset-bottom); }
 }
 
 /* Vertical portrait monitors (height >> width) — keep sidebar narrow, not top bar */
 @media (max-height: 700px) {
-  .sidebar .p-3 { padding-block-start: 0.5rem; padding-block-end: 0.5rem; }
-  .sidebar nav { gap: 0; }
+  .sidebar-container .p-3 { padding-block-start: 0.5rem; padding-block-end: 0.5rem; }
+  .sidebar-container nav { gap: 0; }
 }
 
 
@@ -164,5 +183,5 @@
 }
 
 .layout-focus-mode .layout-main {
-  height: 100vh;
+  block-size: 100vh;
 }
