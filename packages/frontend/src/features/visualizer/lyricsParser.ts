@@ -433,3 +433,65 @@ export function generateTimedLyrics(
 
   return result;
 }
+
+/**
+ * Parse lyrics from standard LRC format.
+ * Handles:
+ * - [mm:ss.xx]lyrics text
+ * - [mm:ss.xx][section]section name (inline section markers)
+ * - Metadata tags [ar:...], [ti:...], [al:...] (ignored)
+ */
+export function parseLrc(lrcContent: string): LyricLine[] {
+  if (!lrcContent || !lrcContent.trim()) return [];
+
+  const lines = lrcContent.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  const result: LyricLine[] = [];
+  let lastTime = 0;
+  let currentSection = "VERSE";
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    // Skip metadata tags
+    if (/^\[(ar|ti|al|au|length|by|offset|re|ve|no|wp|sz):/i.test(line)) continue;
+
+    // Match LRC timestamps: [mm:ss.xx] or [mm:ss.xx][mm:ss.xx]...
+    const timestampRegex = /\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]/g;
+    const textMatch = line.replace(timestampRegex, "").trim();
+    const timestamps: number[] = [];
+
+    let tsMatch;
+    while ((tsMatch = timestampRegex.exec(line)) !== null) {
+      const minutes = parseInt(tsMatch[1], 10);
+      const seconds = parseInt(tsMatch[2], 10);
+      const centis = tsMatch[3] ? parseInt(tsMatch[3].padEnd(3, "0"), 10) : 0;
+      timestamps.push(minutes * 60 + seconds + centis / 1000);
+    }
+
+    if (timestamps.length === 0) continue;
+
+    // Check for inline section markers like [00:33.92][Drop]
+    const sectionMatch = line.match(/\]\[([A-Za-z\s]+)\]$/);
+    if (sectionMatch) {
+      currentSection = sectionMatch[1].trim().toUpperCase();
+    }
+
+    for (let i = 0; i < timestamps.length; i++) {
+      const start = timestamps[i];
+      const end = i + 1 < timestamps.length ? timestamps[i + 1] : start + 4;
+      result.push({
+        start: Math.round(start * 100) / 100,
+        end: Math.round(end * 100) / 100,
+        text: textMatch || "",
+        section: currentSection,
+      });
+      lastTime = end;
+    }
+  }
+
+  // If no lyrics were parsed, return empty
+  if (result.length === 0) return [];
+
+  return result;
+}

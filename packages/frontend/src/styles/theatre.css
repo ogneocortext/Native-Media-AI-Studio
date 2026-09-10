@@ -1,0 +1,451 @@
+/* ============================================================
+   THEATRE.JS STUDIO — Animation editor panel
+   ============================================================ */
+
+/* Scope the entire theatre studio to prevent style leakage */
+@scope (.theatre-studio-overlay) to (.theatre-studio-panel) {
+  /* Container query context for the modal panel */
+  .theatre-studio-panel {
+    container-type: inline-size;
+    container-name: theatre;
+  }
+
+  .theatre-studio-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: oklch(0% 0 0 / 0.85);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .theatre-studio-panel {
+    width: 100%;
+    max-width: 1100px;
+    max-height: 90vh;
+    background: linear-gradient(180deg, oklch(20% 0.02 260) 0%, oklch(14% 0.02 260) 100%);
+    border: 1px solid oklch(30% 0.02 260 / 0.8);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 60px oklch(0% 0 0 / 0.6);
+  }
+
+  .theatre-studio-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-block-end: 1px solid oklch(30% 0.02 260 / 0.8);
+    flex-shrink: 0;
+
+    & h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: oklch(85% 0.01 260);
+      margin: 0;
+    }
+  }
+
+  .theatre-studio-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .theatre-preset-select {
+    background: oklch(16% 0.02 260);
+    border: 1px solid oklch(35% 0.02 260);
+    color: oklch(85% 0.01 260);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .theatre-phase-tabs {
+    display: flex;
+    gap: 2px;
+    background: oklch(16% 0.02 260);
+    border-radius: 6px;
+    padding: 2px;
+  }
+
+  .theatre-phase-tab {
+    padding: 5px 12px;
+    border: none;
+    background: transparent;
+    color: oklch(70% 0.02 260);
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+
+    &:hover {
+      color: oklch(85% 0.01 260);
+    }
+
+    &.active {
+      background: oklch(55% 0.18 260);
+      color: white;
+    }
+
+    &.disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+  }
+
+  .theatre-studio-close {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: oklch(100% 0 0 / 0.05);
+    color: oklch(70% 0.02 260);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+      background: oklch(55% 0.15 25 / 0.2);
+      color: oklch(65% 0.15 25);
+    }
+  }
+
+  .theatre-studio-body {
+    display: flex;
+    flex: 1;
+    min-block-size: 0;
+    overflow: hidden;
+  }
+
+  .theatre-preview-area {
+    inline-size: 320px;
+    flex-shrink: 0;
+    border-inline-end: 1px solid oklch(30% 0.02 260 / 0.8);
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .theatre-preview-label {
+    padding: 10px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    color: oklch(60% 0.02 260);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-block-end: 1px solid oklch(30% 0.02 260 / 0.8);
+  }
+
+  .theatre-preview-stage {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 200px;
+    background: radial-gradient(ellipse at center, oklch(20% 0.02 260) 0%, oklch(10% 0.02 260) 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .theatre-preview-element {
+    font-size: 28px;
+    font-weight: 800;
+    color: oklch(75% 0.15 290);
+    text-shadow: 0 0 20px oklch(75% 0.15 290 / 0.5);
+    will-change: transform, opacity, filter;
+    user-select: none;
+  }
+
+  .theatre-preview-controls {
+    padding: 12px 16px;
+    border-block-start: 1px solid oklch(30% 0.02 260 / 0.8);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .theatre-play-btn {
+    padding: 6px 14px;
+    background: linear-gradient(135deg, oklch(55% 0.18 260), oklch(60% 0.2 270));
+    border: none;
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  .theatre-reset-btn {
+    padding: 6px 10px;
+    background: oklch(100% 0 0 / 0.05);
+    border: 1px solid oklch(35% 0.02 260);
+    color: oklch(70% 0.02 260);
+    font-size: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:hover {
+      background: oklch(100% 0 0 / 0.1);
+    }
+  }
+
+  .theatre-duration-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-inline-start: auto;
+
+    & label {
+      font-size: 10px;
+      color: oklch(60% 0.02 260);
+      text-transform: uppercase;
+    }
+
+    & input[type="range"] {
+      inline-size: 80px;
+      accent-color: oklch(55% 0.18 260);
+    }
+
+    & span {
+      font-size: 11px;
+      color: oklch(70% 0.02 260);
+      min-inline-size: 45px;
+    }
+  }
+
+  .theatre-timeline-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-inline-size: 0;
+    overflow: hidden;
+  }
+
+  .theatre-timeline-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-block-end: 1px solid oklch(30% 0.02 260 / 0.8);
+    flex-shrink: 0;
+  }
+
+  .theatre-timeline-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: oklch(60% 0.02 260);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .theatre-timeline-time {
+    font-size: 11px;
+    color: oklch(60% 0.02 260);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .theatre-tracks {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+
+  .theatre-track {
+    display: flex;
+    align-items: center;
+    padding: 6px 16px;
+    gap: 12px;
+    border-block-end: 1px solid oklch(100% 0 0 / 0.02);
+
+    &:hover {
+      background: oklch(100% 0 0 / 0.02);
+    }
+  }
+
+  .theatre-track-label {
+    inline-size: 100px;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: oklch(70% 0.02 260);
+    font-weight: 500;
+  }
+
+  .theatre-track-slider {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .theatre-track-input {
+    flex: 1;
+    accent-color: oklch(55% 0.18 260);
+    block-size: 4px;
+  }
+
+  .theatre-track-value {
+    inline-size: 50px;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: oklch(85% 0.01 260);
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+  }
+
+  .theatre-track-keyframe-bar {
+    inline-size: 100%;
+    block-size: 3px;
+    background: oklch(100% 0 0 / 0.05);
+    border-radius: 2px;
+    position: relative;
+    margin-block-start: 2px;
+  }
+
+  .theatre-track-keyframe-marker {
+    position: absolute;
+    inset-block-start: -2px;
+    inline-size: 7px;
+    block-size: 7px;
+    background: oklch(55% 0.18 260);
+    border-radius: 50%;
+    transform: translateX(-50%);
+    box-shadow: 0 0 6px oklch(55% 0.18 260 / 0.6);
+  }
+
+  .theatre-studio-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-block-start: 1px solid oklch(30% 0.02 260 / 0.8);
+    flex-shrink: 0;
+  }
+
+  .theatre-studio-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .theatre-lib-badge {
+    padding: 3px 8px;
+    background: oklch(55% 0.18 260 / 0.15);
+    border: 1px solid oklch(55% 0.18 260 / 0.3);
+    border-radius: 4px;
+    font-size: 10px;
+    color: oklch(80% 0.1 260);
+    font-weight: 600;
+  }
+
+  .theatre-hint {
+    font-size: 11px;
+    color: oklch(60% 0.02 260);
+  }
+
+  .theatre-export-btn {
+    padding: 6px 14px;
+    background: oklch(55% 0.12 150 / 0.15);
+    border: 1px solid oklch(55% 0.12 150 / 0.3);
+    color: oklch(75% 0.12 150);
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:hover {
+      background: oklch(55% 0.12 150 / 0.25);
+    }
+  }
+}
+
+/* Responsive container-adaptive layout */
+@media (max-inline-size: 900px) {
+  .theatre-studio-panel {
+    max-inline-size: 95vw;
+    max-block-size: 90vh;
+  }
+}
+
+@media (max-inline-size: 700px) {
+  .theatre-studio-panel {
+    max-inline-size: 100%;
+    max-block-size: 100vh;
+    border-radius: 0;
+  }
+
+  .theatre-studio-body {
+    flex-direction: column;
+  }
+
+  .theatre-preview-area {
+    inline-size: 100%;
+    border-inline-end: none;
+    border-block-end: 1px solid oklch(30% 0.02 260 / 0.8);
+  }
+
+  .theatre-preview-stage {
+    min-block-size: 100px;
+  }
+
+  .theatre-preview-element {
+    font-size: 18px;
+  }
+
+  .theatre-track-label {
+    inline-size: 60px;
+    font-size: 9px;
+  }
+
+  .theatre-track-value {
+    inline-size: 40px;
+    font-size: 10px;
+  }
+
+  .theatre-studio-controls {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .theatre-preset-select {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
+  .theatre-phase-tab {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+
+  .theatre-play-btn,
+  .theatre-reset-btn {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+
+  .theatre-duration-control {
+    display: none;
+  }
+}
+
+/* Accessibility: respect reduced motion preferences */
+@media not (prefers-reduced-motion: reduce) {
+  .theatre-preview-element {
+    animation: none;
+  }
+}

@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music, Sparkles, Type, Palette, Sliders, Eye, RotateCcw, Mic, Loader2, Edit3 } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music, Sparkles, Type, Palette, Sliders, Eye, RotateCcw, Mic, Loader2, Edit3, Film } from "lucide-react";
 import { kineticPresets, kineticPresetList, selectPresetForTrack, type LyricLine } from "../visualizer/components/KineticPresets";
 import { listAudioFiles, ensureAnalysis, transcribeAudio, getLyricsByFilename } from "../../services/api";
-import { parseLyricsFromCsv } from "../visualizer/lyricsParser";
-import { createDefaultLyricsData, lyricsDataToLegacy } from "../visualizer/lyricsData";
+import { parseLyricsFromCsv, parseLrc } from "../visualizer/lyricsParser";
+import { createDefaultLyricsData, lyricsDataToLegacy, legacyToLyricsData } from "../visualizer/lyricsData";
 import { LyricsEditorModal } from "./components/LyricsEditorModal";
 import { PresetSelector, type VisualPreset } from "../visualizer/PresetSelector";
+import { consumePendingTrack } from "../../utils/pendingTrack";
+import { generateKineticVideo, type KineticVideoResponse } from "../../services/api";
 
 // Word-level highlight component for karaoke-style display
 function WordHighlight({ line, time, color, glowIntensity }: {
@@ -29,11 +31,11 @@ function WordHighlight({ line, time, color, glowIntensity }: {
             key={i}
             className={`kt-word ${isCurrent ? "current" : ""} ${isPast ? "past" : ""}`}
             style={{
-              color: isPast || isCurrent ? color : `${color}80`,
+              color: isPast || isCurrent ? color : `${color}60`,
               textShadow: isCurrent && glowIntensity > 0
-                ? `0 0 ${20 * glowIntensity}px ${color}, 0 0 ${40 * glowIntensity}px ${color}80`
+                ? `0 0 ${18 * glowIntensity}px ${color}, 0 0 ${36 * glowIntensity}px ${color}80`
                 : "none",
-              transition: "color 0.1s, text-shadow 0.1s",
+              transition: "color 0.12s ease, text-shadow 0.12s ease",
             }}
           >
             {word.word}{" "}
@@ -99,14 +101,24 @@ export function KineticTypographyPage() {
   const [showLyricsEditor, setShowLyricsEditor] = useState(false);
   const [lyricsData, setLyricsData] = useState(createDefaultLyricsData());
   const [visualPresetId, setVisualPresetId] = useState("default");
+  const [lyricsSource, setLyricsSource] = useState<string>("none");
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [videoJob, setVideoJob] = useState<KineticVideoResponse | null>(null);
+  const [videoJobError, setVideoJobError] = useState<string | null>(null);
 
   const previewRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastBeatIdxRef = useRef(-1);
+  const pendingTrackRef = useRef<string | null>(null);
   const preset = kineticPresets[activePreset] || kineticPresets.cinematic;
+  const lyricsContainerRef = useRef<HTMLDivElement>(null);
 
   // Audio URL for selected track
   const audioUrl = selectedTrack ? `/api/audio/file/${encodeURIComponent(selectedTrack.filename)}` : null;
+
+  // Compute current line and its index for distance-based effects
+  const currentLineIndex = lyrics.findIndex(l => elapsed >= l.start && elapsed < l.end);
+  const currentLine = currentLineIndex >= 0 ? lyrics[currentLineIndex] : null;
 
   // Load library files and normalized lyrics CSV
   useEffect(() => {
@@ -126,6 +138,14 @@ export function KineticTypographyPage() {
         // Fallback to legacy CSV
         fetch("/track-prompts-lyrics.csv").then(r => r.text()).then(setCsvContent).catch(() => {});
       });
+  }, []);
+
+  // Auto-select pending track from Audio Analysis handoff
+  useEffect(() => {
+    const pending = consumePendingTrack();
+    if (!pending) return;
+    // Store in ref so we can match it once libraryFiles loads
+    pendingTrackRef.current = pending;
   }, []);
 
   // Real audio playback — drive elapsed from audio currentTime
@@ -161,9 +181,19 @@ export function KineticTypographyPage() {
     const idx = findBeatIndex(selectedTrack.beatTimes, elapsed);
     if (idx >= 0 && idx !== lastBeatIdxRef.current) {
       lastBeatIdxRef.current = idx;
-      const el = previewRef.current?.querySelector(".kt-preview-line");
-      if (el && preset.beatAnimation) {
-        preset.beatAnimation(el as HTMLElement);
+      const lineEl = previewRef.current?.querySelector(".kt-preview-line--active");
+      if (lineEl && preset.beatAnimation) {
+        preset.beatAnimation(lineEl as HTMLElement);
+      }
+      const bassEl = previewRef.current?.querySelector(".kt-bass-bar");
+      if (bassEl) {
+        bassEl.style.transform = "scaleY(1.25)";
+        bassEl.style.transition = "transform 0.08s ease-out";
+        setTimeout(() => {
+          if (bassEl) {
+            bassEl.style.transform = "scaleY(1)";
+          }
+        }, 100);
       }
     }
   }, [elapsed, beatPulse, isPlaying, selectedTrack, preset]);
@@ -206,15 +236,30 @@ export function KineticTypographyPage() {
   }, [selectedTrack]);
 
   // Trigger enter animation on line change
-  const currentLine = lyrics.find(l => elapsed >= l.start && elapsed < l.end);
   const prevLineRef = useRef<LyricLine | null>(null);
+  const prevLineIndexRef = useRef<number>(-1);
   useEffect(() => {
     if (currentLine && currentLine !== prevLineRef.current) {
       prevLineRef.current = currentLine;
+      prevLineIndexRef.current = currentLineIndex;
       const el = previewRef.current?.querySelector(".kt-preview-line");
       if (el) preset.enterAnimation(el as HTMLElement);
     }
-  }, [currentLine, preset]);
+  }, [currentLine, currentLineIndex, preset]);
+
+  // Auto-scroll lyrics to keep current line centered
+  useEffect(() => {
+    if (!lyricsContainerRef.current || currentLineIndex < 0) return;
+    const container = lyricsContainerRef.current;
+    const activeEl = container.querySelector<HTMLElement>(`[data-line-index="${currentLineIndex}"]`);
+    if (activeEl) {
+      const containerHeight = container.clientHeight;
+      const elementTop = activeEl.offsetTop;
+      const elementHeight = activeEl.offsetHeight;
+      const targetScroll = elementTop - containerHeight / 2 + elementHeight / 2;
+      container.scrollTo({ top: Math.max(0, targetScroll), behavior: "smooth" });
+    }
+  }, [currentLineIndex, lyrics]);
 
   // Parse lyrics from CSV for a track (fallback)
   const loadLyricsForTrack = useCallback(async (trackName: string, filename: string, duration: number) => {
@@ -228,16 +273,46 @@ export function KineticTypographyPage() {
           section: l.section || "VERSE",
         }));
         setLyrics(lines);
+        setLyricsData(legacyToLyricsData(lines));
+        setLyricsSource("database");
         return;
       }
     } catch {
-      // No database lyrics found, try CSV
+      // No database lyrics found, try LRC
+    }
+
+    // Try bundled LRC file (prefer over CSV when available)
+    try {
+      // Try exact track name first, then with spaces normalized
+      const candidates = [
+        `${trackName}.lrc`,
+        `${trackName.replace(/[^a-z0-9]+/gi, " ").trim()}.lrc`,
+      ];
+      for (const lrcFile of candidates) {
+        const lrcResponse = await fetch(`/audio/${encodeURIComponent(lrcFile)}`);
+        if (lrcResponse.ok) {
+          const lrcContent = await lrcResponse.text();
+          const lrcLines = parseLrc(lrcContent);
+          if (lrcLines.length > 0) {
+            setLyrics(lrcLines);
+            setLyricsData(legacyToLyricsData(lrcLines));
+            setLyricsSource("lrc");
+            return;
+          }
+        }
+      }
+    } catch {
+      // No LRC file found, try CSV
     }
 
     // Fallback to CSV parsing
     const parsedLyrics = parseLyricsFromCsv(csvContent, trackName, duration);
     if (parsedLyrics.length > 0) {
       setLyrics(parsedLyrics);
+      setLyricsData(legacyToLyricsData(parsedLyrics));
+      setLyricsSource("csv");
+    } else {
+      setLyricsSource("none");
     }
   }, [csvContent]);
 
@@ -300,6 +375,7 @@ export function KineticTypographyPage() {
     setElapsed(0);
     lastBeatIdxRef.current = -1;
     setIsLoadingAnalysis(true);
+    setLyricsSource("loading");
 
     try {
       // Ensure analysis exists (runs if not cached)
@@ -334,6 +410,23 @@ export function KineticTypographyPage() {
     }
   }, [libraryFiles, autoPreset, loadLyricsForTrack]);
 
+  // When library files load, check for pending track from Audio Analysis
+  // or auto-select the first real track
+  useEffect(() => {
+    if (pendingTrackRef.current && libraryFiles.length > 0) {
+      const match = libraryFiles.find(f => f.filename === pendingTrackRef.current);
+      if (match) {
+        handleTrackSelect(match.filename);
+        pendingTrackRef.current = null;
+        return;
+      }
+    }
+    // Auto-select first real track when library loads and nothing is selected
+    if (!selectedTrack && libraryFiles.length > 0) {
+      handleTrackSelect(libraryFiles[0].filename);
+    }
+  }, [libraryFiles.length, handleTrackSelect, selectedTrack]);
+
   const handlePresetChange = useCallback((id: string) => {
     setAutoPreset(false);
     setActivePreset(id);
@@ -349,6 +442,28 @@ export function KineticTypographyPage() {
     setVolume(0.8);
     setIsMuted(false);
   }, []);
+
+  const handleGenerateVideo = useCallback(async () => {
+    if (!selectedTrack) return;
+    setIsGeneratingVideo(true);
+    setVideoJob(null);
+    setVideoJobError(null);
+    try {
+      const result = await generateKineticVideo({
+        audio_filename: selectedTrack.filename,
+        duration: selectedTrack.duration || 60,
+        preset_id: activePreset,
+        lyrics: lyrics,
+        prompt: `Kinetic typography lyric video with ${activePreset} preset`,
+      });
+      setVideoJob(result);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setVideoJobError(msg);
+    } finally {
+      setIsGeneratingVideo(false);
+    }
+  }, [selectedTrack, activePreset, lyrics]);
 
   const togglePlay = useCallback(() => {
     if (audioRef.current) {
@@ -398,35 +513,54 @@ export function KineticTypographyPage() {
         {/* Preview Panel */}
         <div className="kt-preview-panel" ref={previewRef}>
           <div className="kt-preview-stage">
-            <div className="kt-preview-bg">
-              <div className="kt-preview-grid" />
-              {/* Audio visualizer bars */}
-              <div className="kt-audio-bass">
-                <div className="kt-bass-bar" style={{ height: `${Math.min(100, (selectedTrack?.energy || 0.5) * 100 * (isPlaying ? 1.2 : 0.3))}%` }} />
-              </div>
-            </div>
-             <div className={`kt-preview-lyrics ${preset.containerClass}`}>
+             <div className="kt-preview-bg">
+               <div className="kt-preview-grid" />
+               {/* Audio visualizer bars */}
+               <div className="kt-audio-bass">
+                 <div className="kt-bass-bar" style={{ height: `${Math.min(100, (selectedTrack?.energy || 0.5) * 100 * (isPlaying ? 1.2 : 0.3))}%` }} />
+               </div>
+             </div>
+             <div
+               className="kt-preview-lyrics"
+               ref={lyricsContainerRef}
+             >
                {showSectionLabel && currentLine && (
                  <div className="kt-preview-section" style={{ color: currentColor }}>{currentLine.section}</div>
                )}
-               <div
-                 key={currentLine?.text || "empty"}
-                 className="kt-preview-line"
-                 style={{
-                   color: currentColor,
-                   fontSize: `${fontSize}px`,
-                   textShadow: glowIntensity > 0 ? `0 0 ${20 * glowIntensity}px ${currentColor}, 0 0 ${40 * glowIntensity}px ${currentColor}40` : "none",
-                 }}
-               >
-                 {currentLine?.words && currentLine.words.length > 0 ? (
-                   <WordHighlight line={currentLine} time={elapsed} color={currentColor} glowIntensity={glowIntensity} />
-                 ) : (
-                   currentLine?.text || (selectedTrack ? "Press Play to start" : "Select a track and press Play")
-                 )}
+               <div className="kt-preview-lines">
+                 {lyrics.map((line, idx) => {
+                   const isCurrent = idx === currentLineIndex;
+                   const distance = currentLineIndex >= 0 ? Math.abs(idx - currentLineIndex) : 99;
+                   const opacity = distance === 0 ? 1 : distance <= 1 ? 0.55 : distance <= 2 ? 0.25 : 0.08;
+                   const scale = distance === 0 ? 1 : distance <= 1 ? 0.97 : 0.94;
+                   const filter = distance >= 3 ? "blur(2px)" : distance === 2 ? "blur(1px)" : "none";
+                   const isPast = currentLineIndex >= 0 && idx < currentLineIndex;
+                   const lineColor = isCurrent ? currentColor : isPast ? `${currentColor}60` : "#52525b";
+                   return (
+                     <div
+                       key={idx}
+                       data-line-index={idx}
+                       className={`kt-preview-line ${isCurrent ? "kt-preview-line--active" : ""} ${isPast ? "kt-preview-line--past" : ""}`}
+                       style={{
+                         color: lineColor,
+                         fontSize: `${fontSize * scale}px`,
+                         opacity,
+                         filter,
+                         textShadow: isCurrent && glowIntensity > 0
+                           ? `0 0 ${20 * glowIntensity}px ${currentColor}, 0 0 ${40 * glowIntensity}px ${currentColor}40`
+                           : "none",
+                         transition: "opacity 0.35s ease, transform 0.35s ease, filter 0.35s ease, color 0.35s ease, font-size 0.2s ease",
+                       }}
+                     >
+                       {line.words && line.words.length > 0 ? (
+                         <WordHighlight line={line} time={elapsed} color={lineColor} glowIntensity={isCurrent ? glowIntensity : 0} />
+                       ) : (
+                         line.text || (selectedTrack ? "Press Play to start" : "Select a track and press Play")
+                       )}
+                     </div>
+                   );
+                 })}
                </div>
-               {currentLine && (
-                 <div className="kt-preview-next">{lyrics[lyrics.indexOf(currentLine) + 1]?.text || ""}</div>
-               )}
              </div>
           </div>
 
@@ -505,6 +639,11 @@ export function KineticTypographyPage() {
                 {selectedTrack.beatTimes && <span className="kt-badge">{selectedTrack.beatTimes.length} beats</span>}
               </div>
             )}
+            {selectedTrack && lyricsSource !== "none" && lyricsSource !== "loading" && (
+              <span className={`kt-transcription-status ${lyricsSource === "lrc" ? "text-emerald-400" : lyricsSource === "database" ? "text-blue-400" : "text-amber-400"}`}>
+                Lyrics: {lyricsSource === "lrc" ? "LRC file" : lyricsSource === "database" ? "Saved lyrics" : "CSV fallback"}
+              </span>
+            )}
             {selectedTrack && (
               <button
                 className="kt-transcribe-btn"
@@ -525,6 +664,27 @@ export function KineticTypographyPage() {
               >
                 <><Edit3 size={12} /> Edit Lyrics</>
               </button>
+            )}
+            {selectedTrack && (
+              <button
+                className="kt-btn kt-btn-primary"
+                onClick={handleGenerateVideo}
+                disabled={isGeneratingVideo}
+              >
+                {isGeneratingVideo ? (
+                  <><Loader2 size={12} className="kt-spin" /> Generating...</>
+                ) : (
+                  <><Film size={12} /> Generate Lyric Video</>
+                )}
+              </button>
+            )}
+            {videoJob && (
+              <span className="kt-transcription-status text-emerald-400">
+                {videoJob.message || `Queued job ${videoJob.job_id?.slice(0, 8)}`}
+              </span>
+            )}
+            {videoJobError && (
+              <span className="kt-transcription-status text-red-400">{videoJobError}</span>
             )}
             {transcriptionStatus && (
               <span className="kt-transcription-status">{transcriptionStatus}</span>

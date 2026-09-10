@@ -1,0 +1,175 @@
+/* ===== MINIMALIST AMBIENT BACKGROUND — complements dark studio without distraction ===== */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(900px 600px at 12% 8%, color-mix(in oklch, var(--color-primary) 7%, transparent), transparent 62%),
+    radial-gradient(700px 500px at 88% 92%, color-mix(in oklch, var(--color-accent) 5%, transparent), transparent 60%),
+    radial-gradient(600px 400px at 50% 50%, color-mix(in oklch, var(--color-cyan) 3%, transparent), transparent 70%);
+  opacity: 1;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  position: relative;
+  z-index: 0;
+}
+
+[data-theme="light"] body::before {
+  background:
+    radial-gradient(900px 600px at 12% 8%, color-mix(in oklch, var(--color-primary) 6%, transparent), transparent 62%),
+    radial-gradient(700px 500px at 88% 92%, color-mix(in oklch, var(--color-accent) 4%, transparent), transparent 60%),
+    radial-gradient(600px 400px at 50% 50%, color-mix(in oklch, var(--color-cyan) 2%, transparent), transparent 70%);
+}
+
+[data-theme="light"] body::after { opacity: 0.015; }
+
+
+/* ===== ANIMATIONS ===== */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 5px var(--glow-primary), 0 0 10px color-mix(in oklch, var(--color-primary) 20%, transparent); }
+  50% { box-shadow: 0 0 15px var(--glow-primary), 0 0 30px color-mix(in oklch, var(--color-primary) 30%, transparent); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes ripple {
+  0% { transform: scale(0); opacity: 0.5; }
+  100% { transform: scale(4); opacity: 0; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { filter: drop-shadow(0 0 3px var(--glow-primary)); }
+  50% { filter: drop-shadow(0 0 12px var(--glow-primary)); }
+}
+
+@keyframes progress-stripe {
+  0% { background-position: 0 0; }
+  100% { background-position: 40px 0; }
+}
+
+@keyframes flash {
+  0% { background-color: color-mix(in oklch, var(--color-accent) 15%, transparent); }
+  100% { background-color: transparent; }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes draw-line {
+  from { stroke-dashoffset: 1000; }
+  to { stroke-dashoffset: 0; }
+}
+
+.animate-flash { animation: flash 1.5s ease-out; }
+.animate-slide-down { animation: slide-down 0.4s ease-out; }
+.animate-draw-line { stroke-dasharray: 1000; animation: draw-line 1s ease-out forwards; }
+
+.animate-fade-in { animation: fade-in var(--duration-normal) ease-out; }
+.animate-slide-in { animation: slide-in-right var(--duration-normal) ease-out; }
+.animate-slide-up { animation: slide-in-up var(--duration-slow) ease-out; }
+.animate-scale-in { animation: scale-in var(--duration-fast) ease-out; }
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-shimmer { animation: shimmer 2s linear infinite; }
+.animate-spin-slow { animation: spin-slow 3s linear infinite; }
+.animate-bounce-subtle { animation: bounce-subtle 2s ease-in-out infinite; }
+.animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
+
+
+/* ===== GLOW EFFECTS ===== */
+.glow-primary { box-shadow: 0 0 20px var(--glow-primary); }
+.glow-accent { box-shadow: 0 0 20px var(--glow-accent); }
+.glow-cyan { box-shadow: 0 0 20px var(--glow-cyan); }
+
+
+/* ===== GRADIENT TEXT ===== */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent), var(--color-cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+
+/* ===== GLASS EFFECT ===== */
+.glass {
+  background: color-mix(in oklch, var(--text-primary) 3%, transparent);
+  backdrop-filter: blur(10px);
+  border: 1px solid color-mix(in oklch, var(--text-primary) 8%, transparent);
+}
+
+
+/* ===== CONTAINER QUERY UTILITIES ===== */
+/* These allow child elements to respond to their container's size */
+.cq-contain {
+  container-type: inline-size;
+  container-name: auto;
+}
+
+@supports not (container-type: inline-size) {
+  /* Graceful fallback: container queries degrade to viewport media queries */
+  .cq-contain {
+    /* No special fallback needed — existing media queries still apply */
+  }
+}

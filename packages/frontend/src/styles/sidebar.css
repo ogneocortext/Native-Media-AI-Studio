@@ -1,0 +1,415 @@
+/* ===== SIDEBAR STYLES (Tailwind v4 fallback) ===== */
+/* Modernized September 2026 — native CSS nesting, OKLCH, container queries */
+
+.sidebar-container {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-primary) 100%);
+  border-inline-end: 1px solid var(--border-color);
+  position: relative;
+  z-index: 30;
+  transition: inline-size 0.3s ease;
+  container-type: inline-size;
+  container-name: sidebar;
+
+  &.collapsed {
+    inline-size: 64px;
+    min-inline-size: 64px;
+  }
+
+  &.expanded {
+    inline-size: 260px;
+    min-inline-size: 260px;
+  }
+}
+
+/* Layout focus mode - hide sidebar and footer */
+.layout-focus-mode .sidebar-container {
+  display: none;
+}
+
+.layout-focus-mode .layout-footer {
+  display: none;
+}
+
+.layout-focus-mode .layout-main {
+  block-size: 100vh;
+}
+
+/* Three.js Studio focus mode */
+.focus-mode {
+  .header-bar,
+  .track-info-bar,
+  .ai-panel,
+  .code-panel,
+  .hud,
+  .playback-controls,
+  .bottom-drawer {
+    display: none;
+  }
+}
+
+.sidebar-header {
+  padding: 12px;
+  border-block-end: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.sidebar-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-logo {
+  inline-size: 36px;
+  block-size: 36px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar-title {
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-subtitle {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-block-start: -2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-block-size: 0;
+}
+
+.nav-section {
+  margin-bottom: 16px;
+}
+
+.nav-section-title {
+  padding: 0 12px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all 0.2s;
+
+  &:hover {
+    color: var(--text-primary);
+    background: color-mix(in oklch, var(--text-primary) 5%, transparent);
+  }
+
+  &.active {
+    background: var(--color-primary);
+    color: var(--text-inverse);
+    box-shadow: 0 4px 12px var(--glow-primary);
+  }
+
+  &-icon {
+    flex-shrink: 0;
+
+    &.active { color: var(--text-inverse); }
+    &.inactive { color: var(--text-tertiary); }
+  }
+
+  &-text {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-inline-size: 0;
+  }
+}
+
+.sidebar-footer {
+  padding: 10px;
+  border-block-start: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  background: oklch(0% 0 0 / 0.8);
+}
+
+/* ComfyUI Quick Control */
+.comfyui-quick {
+  margin: 6px 0;
+  display: flex;
+
+  &.center {
+    justify-content: center;
+  }
+}
+
+.comfyui-quick-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  inline-size: 100%;
+  justify-content: center;
+
+  &.running {
+    background: color-mix(in oklch, oklch(70% 0.15 145) 15%, transparent);
+    color: oklch(80% 0.15 145);
+    border-color: color-mix(in oklch, oklch(70% 0.15 145) 30%, transparent);
+  }
+
+  &.running:hover {
+    background: color-mix(in oklch, oklch(70% 0.15 145) 25%, transparent);
+  }
+
+  &.stopped {
+    background: color-mix(in oklch, var(--color-danger) 15%, transparent);
+    color: oklch(70% 0.2 25);
+    border-color: color-mix(in oklch, var(--color-danger) 30%, transparent);
+  }
+
+  &.stopped:hover {
+    background: color-mix(in oklch, var(--color-danger) 25%, transparent);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.comfyui-quick-text {
+  white-space: nowrap;
+}
+
+/* Loaded Ollama Models in sidebar */
+.sidebar-loaded-models {
+  padding: 6px 10px;
+  border-block-start: 1px solid var(--border-subtle);
+
+  &.empty { opacity: 0.5; }
+  &.collapsed {
+    padding: 6px 0;
+    display: flex;
+    justify-content: center;
+  }
+}
+
+.loaded-models-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+
+.loaded-models-icon {
+  color: oklch(75% 0.18 290);
+  flex-shrink: 0;
+}
+
+.loaded-models-title {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: color-mix(in oklch, oklch(75% 0.18 290) 70%, transparent);
+  font-weight: 600;
+}
+
+.loaded-models-clear-btn {
+  margin-inline-start: auto;
+  padding: 1px 6px;
+  font-size: 0.58rem;
+  color: color-mix(in oklch, oklch(80% 0.15 85) 70%, transparent);
+  background: color-mix(in oklch, oklch(80% 0.15 85) 10%, transparent);
+  border: 1px solid color-mix(in oklch, oklch(80% 0.15 85) 20%, transparent);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    color: oklch(80% 0.15 85);
+    background: color-mix(in oklch, oklch(80% 0.15 85) 20%, transparent);
+    border-color: color-mix(in oklch, oklch(80% 0.15 85) 40%, transparent);
+  }
+}
+
+.loaded-models-label {
+  font-size: 0.7rem;
+  color: oklch(100% 0 0 / 0.4);
+}
+
+.loaded-model-item {
+  padding: 3px 0;
+
+  &.active {
+    background: color-mix(in oklch, oklch(75% 0.18 290) 8%, transparent);
+    border-radius: 4px;
+    padding: 4px 6px;
+    margin: 2px -6px;
+  }
+}
+
+.loaded-model-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.loaded-model-status-dot {
+  inline-size: 5px;
+  block-size: 5px;
+  border-radius: 50%;
+  background: oklch(70% 0.15 145);
+  box-shadow: 0 0 4px oklch(70% 0.15 145 / 0.5);
+  flex-shrink: 0;
+
+  &.busy {
+    background: oklch(80% 0.15 85);
+    box-shadow: 0 0 4px oklch(80% 0.15 85 / 0.5);
+    animation: pulse-glow 1.5s ease-in-out infinite;
+  }
+}
+
+.loaded-model-name {
+  flex: 1;
+  font-size: 0.7rem;
+  color: oklch(100% 0 0 / 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loaded-model-name-collapsed {
+  font-size: 0.6rem;
+  color: oklch(100% 0 0 / 0.6);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+.loaded-model-vram {
+  font-size: 0.62rem;
+  color: oklch(75% 0.18 290);
+  background: color-mix(in oklch, oklch(75% 0.18 290) 10%, transparent);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.loaded-model-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-block-start: 3px;
+  padding-inline-start: 11px;
+}
+
+.loaded-model-activity-task {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: oklch(80% 0.15 85);
+  font-weight: 600;
+}
+
+.loaded-model-activity-desc {
+  font-size: 0.62rem;
+  color: oklch(100% 0 0 / 0.45);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-inline-size: 100%;
+}
+
+.loaded-model-activity-time {
+  font-size: 0.58rem;
+  color: color-mix(in oklch, oklch(80% 0.15 85) 70%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.health-section {
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.health-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.health-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.health-dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  display: inline-block;
+
+  &.online {
+    background: oklch(70% 0.15 145);
+    box-shadow: 0 0 8px oklch(70% 0.15 145 / 0.5);
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  &.offline {
+    background: var(--color-danger);
+    box-shadow: 0 0 8px oklch(55% 0.22 25 / 0.5);
+  }
+
+  &.unknown {
+    background: var(--text-tertiary);
+  }
+}
+
+.health-text {
+  font-size: 12px;
+  font-weight: 700;
+
+  &.online { color: oklch(75% 0.15 145); }
+  &.offline { color: oklch(65% 0.2 25); }
+  &.unknown { color: var(--text-tertiary); }
+}

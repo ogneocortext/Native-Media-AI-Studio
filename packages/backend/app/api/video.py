@@ -5,6 +5,7 @@ Handles music video generation per section.
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -27,6 +28,8 @@ class VideoGenerateRequest(BaseModel):
     audio_path: str | None = None
     audio_filename: str | None = None
     method: str = "visualization"
+    model: str = ""
+    visualization: dict[str, Any] | None = None
 
 
 class VideoGenerateResponse(BaseModel):
@@ -78,16 +81,27 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
             raise ValueError("prompt is required")
 
         # Use the real MUSIC_VIDEO job type (VIDEO_GENERATE does not exist in JobType)
-        # Require audio_path for real handler — no silent placeholder
+        # Resolve audio_path from audio_filename when not provided directly
         if not request.audio_path:
-            # Try to find most recent uploaded audio as fallback
             from ..core.config import PROJECT_ROOT as _PR
             audio_dir = _PR / "output" / "audio"
-            candidates = sorted(audio_dir.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True) if audio_dir.exists() else []
-            fallback = str(candidates[0]) if candidates else None
-            if not fallback:
-                raise ValueError("audio_path is required — upload audio first via /api/audio/upload or /api/audio/analyze")
-            request.audio_path = fallback
+            if request.audio_filename and audio_dir.exists():
+                candidate = audio_dir / request.audio_filename
+                if candidate.exists():
+                    request.audio_path = str(candidate)
+            if not request.audio_path:
+                # Fallback: most recent uploaded audio
+                candidates = sorted(audio_dir.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True) if audio_dir.exists() else []
+                fallback = str(candidates[0]) if candidates else None
+                if not fallback:
+                    raise ValueError("audio_path is required — upload audio first via /api/audio/upload or /api/audio/analyze")
+                request.audio_path = fallback
+
+        viz_config = (request.visualization or {}).copy()
+        viz_config.setdefault("style", "abstract")
+        viz_config.setdefault("duration", f"{int(request.duration)}s" if request.duration < 60 else "full")
+        viz_config.setdefault("resolution", "1080p")
+        viz_config.setdefault("fps", 30)
 
         job_request = {
             "job_type": JobType.MUSIC_VIDEO,
@@ -102,12 +116,7 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
                 "duration_seconds": request.duration,
                 "audio_path": request.audio_path,
                 "audio_filename": request.audio_filename or Path(request.audio_path).name if request.audio_path else "track.mp3",
-                "visualization": {
-                    "style": "abstract",
-                    "duration": f"{int(request.duration)}s" if request.duration < 60 else "full",
-                    "resolution": "1080p",
-                    "fps": 30,
-                },
+                "visualization": viz_config,
                 "method": request.method,
                 "vertical_first": request.vertical_first,
             },

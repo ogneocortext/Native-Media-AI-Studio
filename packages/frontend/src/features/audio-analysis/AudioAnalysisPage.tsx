@@ -3,12 +3,14 @@ import {
   Upload, Music, Zap, Play, Loader2, AlertCircle, BarChart3,
   Database, RefreshCw, ChevronDown, ChevronRight, Activity,
   Clock, TrendingUp, Music2, Pencil, Download, SkipForward, ListMusic,
-  Sparkles,
+  Sparkles, Type,
 } from "lucide-react";
 import { getApiBase, getCudaStatus, listAudioFiles, separateAudioStems, renameAudioFile, generateVideoSection } from "../../services/api";
 import { isAudioFile } from "../../utils/audioProbe";
 import { useAudioAnalysis } from "../../hooks/useAudioAnalysis";
 import { DS } from "../../styles/designSystem";
+import { useNavigate } from "react-router-dom";
+import { setPendingTrack } from "../../utils/pendingTrack";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -173,6 +175,7 @@ export function AudioAnalysisPage() {
   const analysis = audio.analysis;
   const error = audio.error;
   const { setAnalysis, setError } = audio;
+  const navigate = useNavigate();
 
   // Playback of the analyzed track (upload object-URL or library stream) + section seeking
   const uploadAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -181,6 +184,13 @@ export function AudioAnalysisPage() {
   const libraryStreamUrl = analyzedFilename && !file
     ? `${getApiBase()}/api/audio/file/${encodeURIComponent(analyzedFilename)}`
     : null;
+
+  const goToKineticTypography = useCallback(() => {
+    const filename = analyzedFilename || file?.name;
+    if (!filename) return;
+    setPendingTrack(filename);
+    navigate("/kinetic-typography");
+  }, [analyzedFilename, file?.name, navigate]);
   const seekTo = useCallback((t: number) => {
     const el = uploadAudioRef.current || libraryAudioRef.current;
     if (!el) return;
@@ -608,6 +618,22 @@ export function AudioAnalysisPage() {
                     )}
                     <> · Avg confidence <strong className="text-white">{(displaySections.reduce((a, s) => a + s.confidence, 0) / displaySections.length * 100).toFixed(0)}%</strong></>
                   </p>
+                </div>
+              )}
+
+              {/* Next step: Kinetic Typography */}
+              {analysis && (
+                <div className={`${DS.card} border-violet-500/20 bg-gradient-to-br from-violet-500/10 to-transparent hover:border-violet-500/40 transition-colors cursor-pointer`} onClick={goToKineticTypography} role="button" tabIndex={0} onKeyDown={e => { if (e.key === "Enter") goToKineticTypography(); }}>
+                  <div className={DS.flexBetween}>
+                    <div className={DS.flexCenter}>
+                      <div className="w-9 h-9 rounded-xl bg-violet-500/20 flex items-center justify-center mr-3"><Type size={18} className="text-violet-400" /></div>
+                      <div>
+                        <p className="text-sm font-bold text-white">Kinetic Typography</p>
+                        <p className={DS.textXs + " text-gray-400"}>Create animated lyric visuals for this track</p>
+                      </div>
+                    </div>
+                    <span className="text-violet-300 text-sm font-medium">Open →</span>
+                  </div>
                 </div>
               )}
 

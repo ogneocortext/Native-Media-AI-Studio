@@ -1247,6 +1247,56 @@ export async function generateVideoSection(request: VideoGenerateRequest): Promi
   return res.json();
 }
 
+export interface KineticVideoRequest {
+  audio_filename: string;
+  duration: number;
+  preset_id: string;
+  lyrics?: LyricLine[];
+  prompt?: string;
+}
+
+export interface KineticVideoResponse {
+  success: boolean;
+  job_id: string | null;
+  output_path: string | null;
+  section: string;
+  error: string | null;
+  message: string | null;
+}
+
+export async function generateKineticVideo(request: KineticVideoRequest): Promise<KineticVideoResponse> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/video/generate-section`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      prompt: request.prompt || `Kinetic typography lyric video with ${request.preset_id} preset`,
+      negative_prompt: "blurry, low quality, distorted text, unreadable",
+      steps: 20,
+      cfg_scale: 7.0,
+      seed: -1,
+      section: "full",
+      duration: request.duration,
+      vertical_first: false,
+      audio_filename: request.audio_filename,
+      method: "visualization",
+      visualization: {
+        style: "kinetic",
+        duration: request.duration < 60 ? `${Math.round(request.duration)}s` : "full",
+        resolution: "1080p",
+        fps: 30,
+        preset_id: request.preset_id,
+        lyrics: request.lyrics || [],
+      },
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to generate kinetic video");
+  }
+  return res.json();
+}
+
 // =============================================================================
 // GPU & 3D Health API
 // =============================================================================

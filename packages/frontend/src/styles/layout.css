@@ -1,0 +1,168 @@
+/* ===== SCROLLBAR ===== */
+/* Use native scrollbar styling where supported */
+@supports (scrollbar-width: thin) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4a4a5a;
+}
+
+
+/* ===== LAYOUT ===== */
+.sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-primary) 100%);
+  border-inline-end: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+}
+
+.main-content {
+  flex: 1;
+  overflow: auto;
+  background: var(--bg-primary);
+}
+
+
+/* ===== GRID LAYOUTS ===== */
+/* Container query contexts enable component-level responsive behavior */
+.grid-2,
+.grid-3,
+.grid-4 {
+  container-type: inline-size;
+  container-name: grid;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+/* Fallback viewport-based grid rules (retained for layout-level breakpoints) */
+@media (max-width: 1200px) {
+  .grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .grid-2,
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ===== RESPONSIVE LAYOUT — rewired for vertical + small windows ===== */
+
+/* Large displays (desktops) */
+@media (min-width: 1920px) {
+  .sidebar { width: 280px; min-width: 280px; }
+}
+
+/* Medium displays (laptops) */
+@media (max-width: 1400px) {
+  .sidebar { width: 220px; min-width: 220px; }
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 1100px) {
+  .sidebar { width: 200px; min-width: 200px; }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .card { padding: 16px; margin-bottom: 12px; }
+}
+
+/* Tablet + phone: sidebar becomes overlay drawer (handled in Sidebar.tsx isMobile) */
+@media (max-width: 900px) {
+  #root { flex-direction: row; } /* keep row — drawer overlays, not top bar */
+  .main-content { height: 100vh; height: 100dvh; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  /* Ensure sidebar nav scrolls and health never pushes offscreen */
+  .sidebar { max-height: 100vh; max-height: 100dvh; }
+  .sidebar nav { -webkit-overflow-scrolling: touch; }
+}
+
+/* Very narrow (320-600px) — tighter padding, still all content fits via scroll */
+@media (max-width: 600px) {
+  .card { padding: 12px; border-radius: 12px; }
+  .btn-lg { padding: 12px 20px; font-size: 14px; }
+  .main-content { padding-block-end: env(safe-area-inset-bottom); }
+}
+
+/* Vertical portrait monitors (height >> width) — keep sidebar narrow, not top bar */
+@media (max-height: 700px) {
+  .sidebar .p-3 { padding-block-start: 0.5rem; padding-block-end: 0.5rem; }
+  .sidebar nav { gap: 0; }
+}
+
+
+/* ===== SECTION HEADERS ===== */
+.section-header {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+
+/* ===== RESPONSIVE GRID EXTENSIONS ===== */
+.grid-1 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+@media (min-width: 768px) {
+  .md\:grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+
+/* ===== LAYOUT FOCUS MODE ===== */
+.layout-focus-mode .sidebar-container {
+  display: none;
+}
+
+.layout-focus-mode .layout-footer {
+  display: none;
+}
+
+.layout-focus-mode .layout-main {
+  height: 100vh;
+}
