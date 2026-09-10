@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Music, AlertCircle, Maximize2, Minimize2, Video, Square, Download, Settings, Snowflake, MessageSquare, Sparkles, Play, Wand2, Accessibility, EyeOff, User, Layers } from "lucide-react";
+import { Music, AlertCircle, Maximize2, Minimize2, Video, Square, Download, Settings, Snowflake, MessageSquare, Sparkles, Play, Wand2, Accessibility, EyeOff, User, Layers, MoreHorizontal } from "lucide-react";
 import { listAudioFiles, ensureAnalysis } from "../../services/api";
 import type { AudioAnalysisData, AudioData, VizParams } from "./types";
 import { DEFAULT_VIZ_PARAMS } from "./types";
@@ -135,6 +135,7 @@ export function Visualizer() {
   const [vizMode, setVizMode] = useState<"3d" | "shader" | "2d">("shader"); // 2d = Canvas2D (2026 visual-flux/Waviz)
   const [canvas2DMode, setCanvas2DMode] = useState<"bars" | "waveform" | "radial" | "spectrogram" | "lissajous" | "constellation" | "particles">("bars");
   const [aiEnhancing, setAiEnhancing] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   // Single source of truth for which visual preset is currently active (fixes
   // "multiple presets appear selected" when they share visualizationStyle).
   const [activeVisualPresetId, setActiveVisualPresetId] = useState<string | null>(null);
@@ -903,6 +904,18 @@ export function Visualizer() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.viz-more-menu') && !target.closest('.viz-more-menu-toggle')) {
+        setShowMoreMenu(false);
+      }
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, [showMoreMenu]);
+
   // Respect OS reduced-motion preference and allow manual toggle
   useEffect(() => {
     const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -1023,41 +1036,8 @@ export function Visualizer() {
             loadedPresetName={loadedPreset?.name ?? null}
             onClearPreset={handleClearPreset}
           />
-          {isRecording && <span className="viz-rec"><span className="viz-rec-dot" /> {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}</span>}
-          <div className="viz-btn-group">
-            <button
-              onClick={isRecording ? stopRecording : startRecording}
-              className={`viz-icon-btn ${isRecording ? "rec" : ""}`}
-              aria-label={isRecording ? "Stop recording" : "Start recording"}
-              title={isRecording ? "Stop recording" : "Start recording"}
-            >
-              {isRecording ? <Square size={14} /> : <Video size={14} />}
-            </button>
-            {recordedBlob && !isRecording && (
-              <button onClick={downloadRecording} className="viz-icon-btn" aria-label="Download recording" title="Download recording">
-                <Download size={14} />
-              </button>
-            )}
-          </div>
-          <div className="viz-btn-group">
-            <button onClick={() => setSceneFrozen(!sceneFrozen)} className={`viz-icon-btn ${sceneFrozen ? "active" : ""}`} aria-label={sceneFrozen ? "Unfreeze scene" : "Freeze scene"} title={sceneFrozen ? "Unfreeze scene" : "Freeze scene"}>
-              <Snowflake size={14} />
-            </button>
-            <button onClick={toggleFocusMode} className="viz-icon-btn" aria-label={focusMode ? "Exit focus mode" : "Enter focus mode"} title={focusMode ? "Exit focus mode" : "Enter focus mode"}>{focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
-          </div>
           <div className="viz-btn-group">
             <button onClick={() => setVizMode(vizMode === "3d" ? "shader" : vizMode === "shader" ? "2d" : "3d")} className={`viz-icon-btn ${vizMode !== "3d" ? "active" : ""}`} title={`Mode: ${vizMode}`}>{vizMode === "3d" ? <span style={{ fontSize: 11 }}>3D</span> : vizMode === "shader" ? <span style={{ fontSize: 11 }}>FX</span> : <span style={{ fontSize: 11 }}>2D</span>}</button>
-            {vizMode === "2d" && (
-              <select value={canvas2DMode} onChange={e => setCanvas2DMode(e.target.value as any)} className="viz-2d-mode-select" title="2D mode (2026 visual-flux inspired)">
-                <option value="bars">Bars</option>
-                <option value="waveform">Wave</option>
-                <option value="radial">Radial</option>
-                <option value="spectrogram">Spectrogram</option>
-                <option value="lissajous">Lissajous</option>
-                <option value="constellation">Constellation</option>
-                <option value="particles">Particles</option>
-              </select>
-            )}
           </div>
           <div className="viz-btn-group viz-layers-group" title="Layers">
             <button onClick={() => setVisualsVisible(v => !v)} className={`viz-icon-btn ${visualsVisible ? "active" : ""}`} aria-label={visualsVisible ? "Hide visuals" : "Show visuals"} title={`Visuals: ${visualsVisible ? "on" : "off"} — 3D/shader/2D`}>
@@ -1071,17 +1051,48 @@ export function Visualizer() {
             </button>
           </div>
           <div className="viz-btn-group">
-            <button onClick={() => setShowSettings(!showSettings)} className={`viz-icon-btn ${showSettings ? "active" : ""}`} aria-label={showSettings ? "Close settings" : "Open settings"} title={showSettings ? "Close settings" : "Open settings"}><Settings size={14} /></button>
-            <button onClick={() => setShowAnimDemo(!showAnimDemo)} className={`viz-icon-btn ${showAnimDemo ? "active" : ""}`} aria-label="Animation demo" title="Animation demo">
-              <Play size={14} />
+            <button onClick={() => setShowMoreMenu((v) => !v)} className={`viz-icon-btn viz-more-menu-toggle ${showMoreMenu ? "active" : ""}`} aria-label="More controls" title="More controls">
+              <MoreHorizontal size={14} />
             </button>
-            <button onClick={() => setShowTheatreStudio(!showTheatreStudio)} className={`viz-icon-btn ${showTheatreStudio ? "active" : ""}`} aria-label="Theatre.js Studio" title="Theatre.js Studio — Visual animation editor">
-              <Wand2 size={14} />
-            </button>
-            <button onClick={() => setShowAIPanel(!showAIPanel)} className={`viz-icon-btn viz-ai-toggle ${showAIPanel ? "active" : ""}`} aria-label="AI generate preset" title="AI generate preset"><Sparkles size={14} /></button>
-            <button onClick={() => setPrefersReducedMotion(p => !p)} className={`viz-icon-btn ${prefersReducedMotion ? "active" : ""}`} aria-label={prefersReducedMotion ? "Motion on" : "Motion off"} title={prefersReducedMotion ? "Reduced motion: ON (click to disable)" : "Reduced motion: OFF (click to enable)"}>
-              <Accessibility size={14} />
-            </button>
+            {showMoreMenu && (
+              <div className="viz-more-menu">
+                {vizMode === "2d" && (
+                  <select value={canvas2DMode} onChange={e => setCanvas2DMode(e.target.value as any)} className="viz-2d-mode-select viz-more-item" title="2D mode">
+                    <option value="bars">Bars</option>
+                    <option value="waveform">Wave</option>
+                    <option value="radial">Radial</option>
+                    <option value="spectrogram">Spectrogram</option>
+                    <option value="lissajous">Lissajous</option>
+                    <option value="constellation">Constellation</option>
+                    <option value="particles">Particles</option>
+                  </select>
+                )}
+                {isRecording && <span className="viz-rec viz-more-item"><span className="viz-rec-dot" /> {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}</span>}
+                <button onClick={isRecording ? stopRecording : startRecording} className={`viz-icon-btn viz-more-item ${isRecording ? "rec" : ""}`} aria-label={isRecording ? "Stop recording" : "Start recording"} title={isRecording ? "Stop recording" : "Start recording"}>
+                  {isRecording ? <Square size={14} /> : <Video size={14} />}
+                </button>
+                {recordedBlob && !isRecording && (
+                  <button onClick={downloadRecording} className="viz-icon-btn viz-more-item" aria-label="Download recording" title="Download recording">
+                    <Download size={14} />
+                  </button>
+                )}
+                <button onClick={() => setSceneFrozen(!sceneFrozen)} className={`viz-icon-btn viz-more-item ${sceneFrozen ? "active" : ""}`} aria-label={sceneFrozen ? "Unfreeze scene" : "Freeze scene"} title={sceneFrozen ? "Unfreeze scene" : "Freeze scene"}>
+                  <Snowflake size={14} />
+                </button>
+                <button onClick={toggleFocusMode} className={`viz-icon-btn viz-more-item`} aria-label={focusMode ? "Exit focus mode" : "Enter focus mode"} title={focusMode ? "Exit focus mode" : "Enter focus mode"}>{focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
+                <button onClick={() => setShowSettings(!showSettings)} className={`viz-icon-btn viz-more-item ${showSettings ? "active" : ""}`} aria-label={showSettings ? "Close settings" : "Open settings"} title={showSettings ? "Close settings" : "Open settings"}><Settings size={14} /></button>
+                <button onClick={() => setShowAnimDemo(!showAnimDemo)} className={`viz-icon-btn viz-more-item ${showAnimDemo ? "active" : ""}`} aria-label="Animation demo" title="Animation demo">
+                  <Play size={14} />
+                </button>
+                <button onClick={() => setShowTheatreStudio(!showTheatreStudio)} className={`viz-icon-btn viz-more-item ${showTheatreStudio ? "active" : ""}`} aria-label="Theatre.js Studio" title="Theatre.js Studio — Visual animation editor">
+                  <Wand2 size={14} />
+                </button>
+                <button onClick={() => setShowAIPanel(!showAIPanel)} className={`viz-icon-btn viz-more-item viz-ai-toggle ${showAIPanel ? "active" : ""}`} aria-label="AI generate preset" title="AI generate preset"><Sparkles size={14} /></button>
+                <button onClick={() => setPrefersReducedMotion(p => !p)} className={`viz-icon-btn viz-more-item ${prefersReducedMotion ? "active" : ""}`} aria-label={prefersReducedMotion ? "Motion on" : "Motion off"} title={prefersReducedMotion ? "Reduced motion: ON (click to disable)" : "Reduced motion: OFF (click to enable)"}>
+                  <Accessibility size={14} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>

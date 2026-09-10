@@ -188,6 +188,8 @@ export function Sidebar() {
 
   useEffect(() => { if (isMobile) setMobileOpen(false); }, [location.pathname, isMobile]);
 
+  const [systemFooterOpen, setSystemFooterOpen] = useState(false);
+
   const getOverallStatus = (): "online" | "offline" | "unknown" => {
     if (isLoading && Object.keys(adapters).length === 0) return "unknown";
     switch (overall) { case "healthy": return "online"; case "degraded": return "online"; case "unhealthy": return "offline"; default: return "unknown"; }
@@ -315,39 +317,48 @@ export function Sidebar() {
         <div className="sidebar-footer">
           {showText ? (
             <>
-              <div className="health-section">
-                <span className="health-label">System Health</span>
-                <div className="health-status">
-                  <div
-                    className={`health-dot ${overallStatus}`}
-                    style={{ animation: overallStatus === "online" ? "pulse-glow 2s ease-in-out infinite" : "none" }}
-                  />
-                  <span className={`health-text ${overallStatus}`}>{getStatusLabel()}</span>
-                </div>
-              </div>
-              <div className="adapter-list">
-                {adapterList.slice(0, 3).map((adapter) => (
-                  <div key={adapter.name} className="adapter-item">
-                    <div className="adapter-name">
-                      <Circle size={6} fill="currentColor" className={`adapter-status ${adapter.status}`} />
-                      <span className="adapter-name-text">{adapter.name}</span>
+              <button
+                onClick={() => setSystemFooterOpen((v) => !v)}
+                className="sidebar-footer-toggle"
+                aria-expanded={systemFooterOpen}
+                aria-label="Toggle system status"
+              >
+                <span className="health-label">System</span>
+                <span className="sidebar-footer-toggle-indicator">
+                  {systemFooterOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </span>
+              </button>
+              {systemFooterOpen && (
+                <>
+                  <div className="health-section">
+                    <div className="health-status">
+                      <div
+                        className={`health-dot ${overallStatus}`}
+                        style={{ animation: overallStatus === "online" ? "pulse-glow 2s ease-in-out infinite" : "none" }}
+                      />
+                      <span className={`health-text ${overallStatus}`}>{getStatusLabel()}</span>
                     </div>
-                    <span className={`adapter-status ${adapter.status}`}>{adapter.status}</span>
                   </div>
-                ))}
-                 {adapterList.length > 3 && <p className="adapter-more">+{adapterList.length - 3} more</p>}
-              </div>
+                  <div className="adapter-list">
+                    {adapterList.slice(0, 3).map((adapter) => (
+                      <div key={adapter.name} className="adapter-item">
+                        <div className="adapter-name">
+                          <Circle size={6} fill="currentColor" className={`adapter-status ${adapter.status}`} />
+                          <span className="adapter-name-text">{adapter.name}</span>
+                        </div>
+                        <span className={`adapter-status ${adapter.status}`}>{adapter.status}</span>
+                      </div>
+                    ))}
+                     {adapterList.length > 3 && <p className="adapter-more">+{adapterList.length - 3} more</p>}
+                  </div>
 
-              {/* ComfyUI Quick Control */}
-              <ComfyUIQuickControl collapsed={collapsed && !isMobile} />
+                  {/* ComfyUI Quick Control */}
+                  <ComfyUIQuickControl collapsed={collapsed && !isMobile} />
 
-              {/* Loaded Ollama Models */}
-              <LoadedModels collapsed={collapsed && !isMobile} />
-
-              <Link to="/health" className="sidebar-diagnostics-link">
-                <Activity size={16} style={{ flexShrink: 0 }} />
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Diagnostics</span>
-              </Link>
+                  {/* Loaded Ollama Models */}
+                  <LoadedModels collapsed={collapsed && !isMobile} />
+                </>
+              )}
             </>
           ) : (
             <div className="sidebar-footer-collapsed">
