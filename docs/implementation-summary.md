@@ -104,7 +104,26 @@ Moved 7 service files from `packages/backend/app/services/` to `tools/` and `too
 
 ---
 
-*Last updated: 2026-09-06*
+*Last updated: 2026-09-11*
+
+---
+
+## ✅ 2026-09-11 — Sidebar simplification + TypeScript fixes
+
+### Sidebar redesign
+- **Collapsible nav sections**: `Start`, `Create`, `Generate`, `Manage`, and `System` are now individually collapsible; `Generate`, `Manage`, and `System` default to collapsed.
+- **Header/footer cleanup**: Removed redundant subtitle (`Studio • 2026 Pipeline`) and redundant collapsed CTA link; footer now shows all adapters instead of slicing to 3.
+- **Mobile hamburger fix**: Hamburger icon now renders only on mobile (`{isMobile && (...)}`) so it no longer appears as a non-functional element on desktop.
+- **CSS additions**: `.sidebar-hamburger`, `.sidebar-backdrop`, `.sidebar-mobile`, `.sidebar-mobile.open`, and `.sidebar-toggle` added to `sidebar.css`.
+- **System container refined**: status summary with indicator dot + label + adapter count; adapter list with hover states and separators; `View Diagnostics` link; improved collapsed footer touch target.
+
+### TypeScript fixes
+- **`KineticTypographyPage.tsx`**: Cast `bassEl` to `HTMLElement` before accessing `style` to satisfy strict TS checks.
+- **`lyricsParser.ts`**: Removed unused `lastTime` variable.
+
+### Verification
+- `npx tsc --noEmit` passes cleanly.
+- Dev server confirmed on port 5174.
 
 ---
 

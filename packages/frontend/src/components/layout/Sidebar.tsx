@@ -4,7 +4,6 @@ import {
   Box,
   ChevronDown,
   ChevronRight,
-  Circle,
   Film,
   FileText,
   FolderOpen,
@@ -218,14 +217,15 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile hamburger */}
-      <button
-        onClick={() => setMobileOpen(!mobileOpen)}
-        aria-label="Toggle navigation"
-        className="sidebar-hamburger"
-      >
-        {mobileOpen ? <X size={16} /> : <Menu size={16} />}
-      </button>
+      {isMobile && (
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          aria-label="Toggle navigation"
+          className="sidebar-hamburger"
+        >
+          {mobileOpen ? <X size={16} /> : <Menu size={16} />}
+        </button>
+      )}
 
       {/* Backdrop for mobile drawer */}
       {isMobile && mobileOpen && (
@@ -303,7 +303,7 @@ export function Sidebar() {
           <NavSection title="System" items={systemNav} location={location} collapsed={collapsed && !isMobile} collapsible defaultOpen={false} />
         </nav>
 
-        {/* Health */}
+        {/* Health / System */}
         <div className="sidebar-footer">
           {showText ? (
             <>
@@ -320,26 +320,28 @@ export function Sidebar() {
               </button>
               {systemFooterOpen && (
                 <>
-                  <div className="health-section">
-                    <div className="health-status">
-                      <div
-                        className={`health-dot ${overallStatus}`}
-                        style={{ animation: overallStatus === "online" ? "pulse-glow 2s ease-in-out infinite" : "none" }}
-                      />
-                      <span className={`health-text ${overallStatus}`}>{getStatusLabel()}</span>
+                  <div className="system-status-summary">
+                    <div className={`system-status-indicator ${overallStatus}`} />
+                    <div className="system-status-text">
+                      <div className={`system-status-label ${overallStatus}`}>{getStatusLabel()}</div>
+                      <div className="system-status-count">{adapterList.length} adapter{adapterList.length === 1 ? "" : "s"}</div>
                     </div>
                   </div>
                   <div className="adapter-list">
                     {adapterList.map((adapter) => (
                       <div key={adapter.name} className="adapter-item">
                         <div className="adapter-name">
-                          <Circle size={6} fill="currentColor" className={`adapter-status ${adapter.status}`} />
+                          <span className={`adapter-status-dot ${adapter.status}`} />
                           <span className="adapter-name-text">{adapter.name}</span>
                         </div>
-                        <span className={`adapter-status ${adapter.status}`}>{adapter.status}</span>
+                        <span className={`adapter-status-text ${adapter.status}`}>{adapter.status}</span>
                       </div>
                     ))}
                   </div>
+                  <Link to="/health" className="sidebar-diagnostics-link">
+                    <Activity size={14} />
+                    <span>View Diagnostics</span>
+                  </Link>
                 </>
               )}
             </>

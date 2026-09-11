@@ -187,11 +187,12 @@ export function KineticTypographyPage() {
       }
       const bassEl = previewRef.current?.querySelector(".kt-bass-bar");
       if (bassEl) {
-        bassEl.style.transform = "scaleY(1.25)";
-        bassEl.style.transition = "transform 0.08s ease-out";
+        const el = bassEl as HTMLElement;
+        el.style.transform = "scaleY(1.25)";
+        el.style.transition = "transform 0.08s ease-out";
         setTimeout(() => {
           if (bassEl) {
-            bassEl.style.transform = "scaleY(1)";
+            (bassEl as HTMLElement).style.transform = "scaleY(1)";
           }
         }, 100);
       }

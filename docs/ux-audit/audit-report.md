@@ -132,6 +132,13 @@ Dashboard → "Create Music Video" → Upload Audio → [Auto Analyze: Beats, Se
 
 ---
 
+## Resolved (2026-09-11 sidebar simplification)
+
+- **Progressive disclosure** — Sidebar nav sections (`Start`, `Create`, `Generate`, `Manage`, `System`) are now individually collapsible; `Generate`, `Manage`, and `System` default to collapsed. Addresses #8.
+- **Mobile hamburger** — Icon now renders only on mobile so it no longer appears as a non-functional element on desktop.
+- **Header/footer redundancy** — Removed duplicate subtitle and redundant CTA link; footer lists all adapters instead of slicing to 3.
+- **System footer touch target** — Collapsed system container now has an enlarged hit area and explicit `View Diagnostics` link.
+
 ## Resolved (2026-09-08 frontend polish)
 
 - **#8 Progressive disclosure** — `Sidebar.tsx` System collapsed by default (auto-opens on active route), Generate collapsible, External demoted to footer link. Expanded rows 22→16.

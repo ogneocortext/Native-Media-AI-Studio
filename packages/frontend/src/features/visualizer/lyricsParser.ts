@@ -446,7 +446,6 @@ export function parseLrc(lrcContent: string): LyricLine[] {
 
   const lines = lrcContent.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
   const result: LyricLine[] = [];
-  let lastTime = 0;
   let currentSection = "VERSE";
 
   for (const rawLine of lines) {
@@ -486,7 +485,6 @@ export function parseLrc(lrcContent: string): LyricLine[] {
         text: textMatch || "",
         section: currentSection,
       });
-      lastTime = end;
     }
   }
 

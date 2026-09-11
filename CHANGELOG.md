@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added - Sidebar Simplification + TypeScript Fixes (2026-09-11)
+
+- **Sidebar nav sections collapsible**: `Start`, `Create`, `Generate`, `Manage`, and `System` sections now have individual toggle controls; `Generate`, `Manage`, and `System` default to collapsed. Addresses progressive disclosure (`docs/ux-audit/audit-report.md` #8).
+- **Header/footer cleanup**: Removed redundant subtitle (`Studio • 2026 Pipeline`) and redundant collapsed CTA link; footer now lists all adapters instead of slicing to 3.
+- **Mobile hamburger fix**: Hamburger icon now renders only on mobile (`{isMobile && (...)}`) so it no longer appears as a non-functional element on desktop.
+- **CSS additions**: `.sidebar-hamburger`, `.sidebar-backdrop`, `.sidebar-mobile`, `.sidebar-mobile.open`, and `.sidebar-toggle` added to `packages/frontend/src/styles/sidebar.css`.
+- **System container refined**: status summary with indicator dot + label + adapter count; adapter list with hover states and separators; `View Diagnostics` link; improved collapsed footer touch target.
+- **TypeScript fixes**:
+  - `packages/frontend/src/features/kinetic-typography/KineticTypographyPage.tsx`: cast `bassEl` to `HTMLElement` before accessing `style`.
+  - `packages/frontend/src/features/visualizer/lyricsParser.ts`: removed unused `lastTime` variable.
+- **Verification**: `npx tsc --noEmit` passes cleanly; dev server confirmed on port 5174.
+
 ### Added - Section Detection Accuracy + Cross-Page Audio Handoff + Audio Analysis UI Overhaul (2026-09-10)
 
 - **Backend section detection** (`packages/backend/app/api/audio.py`): `_generate_sections_from_analysis()` now uses tempo-proportional beat-snap tolerance (`min(0.6, (60/tempo)*0.5)`) instead of fixed 0.6s; genre-aware section counts (24 beats for EDM/hip-hop >150 BPM, 48 for ambient <90 BPM, 32 default); onset-density-aware classification distinguishing `pre-chorus`, `bridge`, `interlude`, and `drop`; per-section confidence scoring (0.6–0.85 base + energy modifiers); robust chronological/non-overlapping enforcement.

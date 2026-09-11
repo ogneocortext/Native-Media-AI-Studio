@@ -158,55 +158,80 @@
 }
 
 .sidebar-footer {
-  padding: 12px;
-  border-block-start: 2px solid var(--border-subtle);
+  padding: 10px;
+  border-block-start: 1px solid var(--border-subtle);
   flex-shrink: 0;
-  background: oklch(0% 0 0 / 0.85);
-  margin-block-start: 8px;
+  background: linear-gradient(180deg, color-mix(in oklch, var(--bg-primary) 92%, transparent), var(--bg-primary));
+  margin-block-start: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-/* Health section styles... */
-.health-section {
-  margin-bottom: 8px;
+/* System footer toggle — elevated section header */
+.sidebar-footer-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-}
-
-.health-label {
-  font-size: 11px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--text-primary) 3%, transparent);
+  color: var(--text-primary);
+  font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-tertiary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: color-mix(in oklch, var(--text-primary) 6%, transparent);
+    border-color: color-mix(in oklch, var(--text-primary) 12%, transparent);
+  }
 }
 
-.health-status {
+.sidebar-footer-toggle-indicator {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
+  color: var(--text-tertiary);
+  transition: transform 0.2s;
 }
 
-.health-dot {
-  inline-size: 8px;
-  block-size: 8px;
+/* System status summary */
+.system-status-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--text-primary) 3%, transparent);
+  border: 1px solid color-mix(in oklch, var(--text-primary) 10%, transparent);
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: color-mix(in oklch, var(--text-primary) 18%, transparent);
+    background: color-mix(in oklch, var(--text-primary) 5%, transparent);
+  }
+}
+
+.system-status-indicator {
+  position: relative;
+  inline-size: 10px;
+  block-size: 10px;
   border-radius: 50%;
-  display: inline-block;
+  flex-shrink: 0;
 
   &.online {
     background: oklch(70% 0.15 145);
-    box-shadow: 0 0 8px oklch(70% 0.15 145 / 0.5);
+    box-shadow: 0 0 10px oklch(70% 0.15 145 / 0.6);
     animation: pulse-glow 2s ease-in-out infinite;
   }
 
   &.offline {
     background: var(--color-danger);
-    box-shadow: 0 0 8px oklch(55% 0.22 25 / 0.5);
+    box-shadow: 0 0 10px oklch(55% 0.22 25 / 0.5);
   }
 
   &.unknown {
@@ -214,39 +239,37 @@
   }
 }
 
-.health-text {
-  font-size: 12px;
+.system-status-text {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.system-status-label {
+  font-size: 13px;
   font-weight: 700;
+  color: var(--text-primary);
 
   &.online { color: oklch(75% 0.15 145); }
   &.offline { color: oklch(65% 0.2 25); }
   &.unknown { color: var(--text-tertiary); }
 }
 
-/* Collapsible system footer */
-.sidebar-footer-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 8px 10px;
-  border: none;
-  background: transparent;
-  color: var(--text-tertiary);
+.system-status-count {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: color 0.15s;
-
-  &:hover { color: var(--text-primary); }
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin-block-start: 2px;
 }
 
-.sidebar-footer-toggle-indicator {
+/* Adapter list */
+.adapter-list {
   display: flex;
-  align-items: center;
-  color: var(--text-tertiary);
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--text-primary) 3%, transparent);
+  border: 1px solid color-mix(in oklch, var(--text-primary) 8%, transparent);
 }
 
 .adapter-item {
@@ -254,46 +277,190 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 4px 10px;
+  padding: 7px 10px;
+  border-radius: 6px;
   font-size: 12px;
   color: var(--text-secondary);
+  transition: all 0.15s;
+
+  &:hover {
+    background: color-mix(in oklch, var(--text-primary) 6%, transparent);
+  }
+
+  &:not(:last-child) {
+    border-block-end: 1px solid color-mix(in oklch, var(--text-primary) 5%, transparent);
+  }
 }
 
 .adapter-name {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-inline-size: 0;
+  flex: 1;
 }
 
 .adapter-name-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 500;
 }
 
-.adapter-status {
-  font-size: 11px;
-  font-weight: 600;
+.adapter-status-dot {
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &.online {
+    background: oklch(70% 0.15 145);
+    box-shadow: 0 0 6px oklch(70% 0.15 145 / 0.4);
+  }
+
+  &.offline {
+    background: var(--color-danger);
+    box-shadow: 0 0 6px oklch(55% 0.22 25 / 0.4);
+  }
+
+  &.unknown {
+    background: var(--text-tertiary);
+  }
+}
+
+.adapter-status-text {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
 
   &.online { color: oklch(75% 0.15 145); }
   &.offline { color: oklch(65% 0.2 25); }
   &.unknown { color: var(--text-tertiary); }
 }
 
+/* Diagnostics quick-link */
 .sidebar-diagnostics-link {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
   text-decoration: none;
   transition: all 0.15s;
+  margin-block-start: 4px;
 
   &:hover {
     color: var(--text-primary);
     background: color-mix(in oklch, var(--text-primary) 5%, transparent);
+  }
+}
+
+/* Collapsed footer */
+.sidebar-footer-collapsed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 4px;
+}
+
+.sidebar-footer-collapsed-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
+  transition: all 0.15s;
+
+  &:hover {
+    color: var(--text-primary);
+    background: color-mix(in oklch, var(--text-primary) 8%, transparent);
+  }
+}
+
+/* ===== MOBILE SIDEBAR DRAWER ===== */
+.sidebar-hamburger {
+  display: none;
+  position: fixed;
+  inset-block-start: 12px;
+  inset-inline-start: 12px;
+  z-index: 40;
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(12px);
+}
+
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  background: oklch(0% 0 0 / 0.6);
+  backdrop-filter: blur(4px);
+}
+
+.sidebar-mobile {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: 30;
+  inline-size: min(280px, 85vw);
+  block-size: 100vh;
+  block-size: 100dvh;
+  transform: translateX(-100%);
+  transition: transform 0.3s var(--ease-out);
+  box-shadow: var(--shadow-lg);
+
+  &.open {
+    transform: translateX(0);
+  }
+}
+
+.sidebar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    color: var(--text-primary);
+    background: color-mix(in oklch, var(--text-primary) 8%, transparent);
+  }
+}
+
+@media (max-width: 900px) {
+  .sidebar-hamburger {
+    display: flex;
+  }
+
+  .sidebar-backdrop {
+    display: block;
+  }
+
+  .sidebar-mobile {
+    display: flex;
   }
 }
