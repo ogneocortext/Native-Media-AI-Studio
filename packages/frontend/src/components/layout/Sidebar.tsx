@@ -5,7 +5,6 @@ import {
   ChevronDown,
   ChevronRight,
   Circle,
-  Cpu,
   Film,
   FileText,
   FolderOpen,
@@ -13,7 +12,6 @@ import {
   Image,
   LayoutDashboard,
   ListOrdered,
-  Loader2,
   Menu,
   X,
   BarChart3,
@@ -30,9 +28,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useHealthStore } from "../../state/healthStore";
 import { useUIStore } from "../../state/uiStore";
-import { getApiBase } from "../../services/api";
 import { getVideoEditorUrl } from "../../services/portConfig";
-import { formatElapsed } from "../../utils/format";
 
 interface NavItem { path: string; label: string; icon: React.ReactNode; badge?: string; }
 
@@ -252,7 +248,6 @@ export function Sidebar() {
               {showText && (
                 <div style={{ minWidth: 0 }}>
                   <h1 className="sidebar-title">Native Media AI</h1>
-                  <p className="sidebar-subtitle">Studio • 2026 Pipeline</p>
                 </div>
               )}
             </Link>
@@ -280,19 +275,14 @@ export function Sidebar() {
               <Sparkles size={14} /> New Music Video
             </Link>
           )}
-          {collapsed && !isMobile && (
-            <Link to="/music-video-wizard" title="New Music Video" className="sidebar-cta-collapsed">
-              <Sparkles size={14} />
-            </Link>
-          )}
         </div>
 
         {/* Navigation — progressive disclosure: Create+Manage open, System collapsed by default */}
         <nav className="sidebar-nav">
-          <NavSection title="Start" items={primaryNav} location={location} collapsed={collapsed && !isMobile} />
-          <NavSection title="Create" items={createNav} location={location} collapsed={collapsed && !isMobile} />
-          <NavSection title="Generate" items={generateNav} location={location} collapsed={collapsed && !isMobile} collapsible defaultOpen={true} />
-          <NavSection title="Manage" items={manageNav} location={location} collapsed={collapsed && !isMobile} />
+          <NavSection title="Start" items={primaryNav} location={location} collapsed={collapsed && !isMobile} collapsible defaultOpen={true} />
+          <NavSection title="Create" items={createNav} location={location} collapsed={collapsed && !isMobile} collapsible defaultOpen={false} />
+          <NavSection title="Generate" items={generateNav} location={location} collapsed={collapsed && !isMobile} collapsible defaultOpen={false} />
+          <NavSection title="Manage" items={manageNav} location={location} collapsed={collapsed && !isMobile} collapsible defaultOpen={false} />
           {/* External is a single link — render as subtle footer link instead of full section */}
           {!collapsed || isMobile ? (
             <div className="nav-section">
@@ -340,7 +330,7 @@ export function Sidebar() {
                     </div>
                   </div>
                   <div className="adapter-list">
-                    {adapterList.slice(0, 3).map((adapter) => (
+                    {adapterList.map((adapter) => (
                       <div key={adapter.name} className="adapter-item">
                         <div className="adapter-name">
                           <Circle size={6} fill="currentColor" className={`adapter-status ${adapter.status}`} />
@@ -349,21 +339,13 @@ export function Sidebar() {
                         <span className={`adapter-status ${adapter.status}`}>{adapter.status}</span>
                       </div>
                     ))}
-                     {adapterList.length > 3 && <p className="adapter-more">+{adapterList.length - 3} more</p>}
                   </div>
-
-                  {/* ComfyUI Quick Control */}
-                  <ComfyUIQuickControl collapsed={collapsed && !isMobile} />
-
-                  {/* Loaded Ollama Models */}
-                  <LoadedModels collapsed={collapsed && !isMobile} />
                 </>
               )}
             </>
           ) : (
             <div className="sidebar-footer-collapsed">
               <div className={`health-dot ${overallStatus}`} />
-              <ComfyUIQuickControl collapsed={collapsed && !isMobile} />
               <Link to="/health" className="sidebar-footer-collapsed-inner">
                 <Activity size={14} />
               </Link>
@@ -372,154 +354,5 @@ export function Sidebar() {
         </div>
       </aside>
     </>
-  );
-}
-
-// Loaded Ollama Models component for sidebar
-
-function LoadedModels({ collapsed }: { collapsed: boolean }) {
-  const [now, setNow] = useState(Date.now());
-  const fetchOllamaModels = useHealthStore((s) => s.fetchOllamaModels);
-  const granular = useHealthStore((s) => s.granular);
-  const data = granular.ollamaModels || { loaded: false, models: [], activity: {} };
-
-  useEffect(() => {
-    fetchOllamaModels();
-    const interval = setInterval(fetchOllamaModels, 15000); // Increased from 5s to 15s
-    const clock = setInterval(() => setNow(Date.now()), 1000);
-    return () => { clearInterval(interval); clearInterval(clock); };
-  }, [fetchOllamaModels]);
-
-  const models = data.models || [];
-  const activity = data.activity || {};
-
-  if (models.length === 0 && !granular.ollamaModels) {
-    return collapsed ? null : (
-      <div className="sidebar-loaded-models">
-        <Cpu size={12} className="loaded-models-icon" />
-        <span className="loaded-models-label">Checking models…</span>
-      </div>
-    );
-  }
-
-  if (models.length === 0) {
-    return collapsed ? null : (
-      <div className="sidebar-loaded-models empty">
-        <Cpu size={12} className="loaded-models-icon" />
-        <span className="loaded-models-label">No model loaded</span>
-      </div>
-    );
-  }
-
-  const hasActive = models.some(m => activity[m.name]);
-
-  return (
-    <div className={`sidebar-loaded-models ${collapsed ? "collapsed" : ""}`}>
-      {!collapsed && (
-        <div className="loaded-models-header">
-          <Cpu size={12} className="loaded-models-icon" />
-          <span className="loaded-models-title">Loaded in VRAM</span>
-          {hasActive && (
-            <button
-              className="loaded-models-clear-btn"
-              onClick={async () => {
-                try {
-                  await fetch(`${getApiBase()}/api/health/ollama/clear-activity`, { method: "POST" });
-                } catch { /* ignore */ }
-              }}
-              title="Clear stuck activity"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      )}
-      {models.map((m) => {
-        const active = activity[m.name];
-        return (
-          <div key={m.name} className={`loaded-model-item ${active ? "active" : ""}`} title={`${m.name} — ${m.vram_mb}MB VRAM${active ? ` — ${active.task}: ${active.description}` : ""}`}>
-            <div className="loaded-model-info">
-              <div className={`loaded-model-status-dot ${active ? "busy" : ""}`} />
-              {collapsed ? (
-                <span className="loaded-model-name-collapsed">{m.name.split(":")[0]}</span>
-              ) : (
-                <>
-                  <span className="loaded-model-name">{m.name}</span>
-                  <span className="loaded-model-vram">{m.vram_mb}MB</span>
-                </>
-              )}
-            </div>
-            {active && !collapsed && (
-              <div className="loaded-model-activity">
-                <span className="loaded-model-activity-task">{active.task}</span>
-                {active.description && <span className="loaded-model-activity-desc">{active.description}</span>}
-                {active && active.started_at && (
-                  <span className="loaded-model-activity-time">{formatElapsed(Math.floor((now / 1000) - active.started_at))}</span>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ComfyUI Quick Control component for sidebar
-function ComfyUIQuickControl({ collapsed }: { collapsed: boolean }) {
-  const [loading, setLoading] = useState(false);
-  const fetchComfyUI = useHealthStore((s) => s.fetchComfyUIStatus);
-  const { fetchHealth } = useHealthStore();
-  const granular = useHealthStore((s) => s.granular);
-
-  useEffect(() => {
-    fetchComfyUI();
-    const interval = setInterval(fetchComfyUI, 30000); // Increased from 15s to 30s
-    return () => clearInterval(interval);
-  }, [fetchComfyUI]);
-
-  const comfyui = granular.comfyui;
-
-  const handleToggle = async () => {
-    if (!comfyui?.installed) return;
-    setLoading(true);
-    try {
-      const base = getApiBase();
-      const action = comfyui.running ? 'stop' : 'start';
-      await fetch(`${base}/api/services/comfyui/${action}`, { method: 'POST' });
-      await fetchComfyUI();
-      // Refresh global health store so "System Health" section updates
-      fetchHealth();
-      // Schedule a second refresh after delay to catch slow startup
-      setTimeout(() => {
-        fetchComfyUI();
-        fetchHealth();
-      }, 5000);
-    } catch { /* ignore */ }
-    setLoading(false);
-  };
-
-  if (!comfyui?.installed) return null;
-
-  return (
-    <div className={`comfyui-quick ${collapsed ? 'center' : ''}`}>
-      <button
-        onClick={handleToggle}
-        disabled={loading}
-        className={`comfyui-quick-btn ${comfyui.running ? 'running' : 'stopped'}`}
-        title={comfyui.running ? 'ComfyUI running - click to stop' : 'ComfyUI stopped - click to start'}
-      >
-        {loading ? (
-          <Loader2 size={12} className="animate-spin" />
-        ) : (
-          <Box size={12} />
-        )}
-        {!collapsed && (
-          <span className="comfyui-quick-text">
-            ComfyUI {comfyui.running ? 'ON' : 'OFF'}
-          </span>
-        )}
-      </button>
-    </div>
   );
 }

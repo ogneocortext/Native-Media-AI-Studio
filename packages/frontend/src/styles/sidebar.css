@@ -83,15 +83,6 @@
   text-overflow: ellipsis;
 }
 
-.sidebar-subtitle {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  margin-block-start: -2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .sidebar-nav {
   flex: 1;
   padding: 8px;
@@ -101,24 +92,36 @@
 }
 
 .nav-section {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
+  padding-block-end: 12px;
+  border-block-end: 1px solid var(--border-subtle);
+
+  &:last-child {
+    border-block-end: none;
+    margin-bottom: 0;
+    padding-block-end: 0;
+  }
 }
 
 .nav-section-title {
-  padding: 0 12px;
+  padding: 8px 12px;
   margin-bottom: 6px;
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-weight: 800;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-tertiary);
+  background: color-mix(in oklch, var(--text-primary) 4%, transparent);
+  border-radius: 6px;
+  border-inline-start: 2px solid var(--color-accent);
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
+  gap: 12px;
+  padding: 12px 14px;
+  margin: 4px 0;
   border-radius: 8px;
   font-size: 14px;
   color: var(--text-secondary);
@@ -127,13 +130,15 @@
 
   &:hover {
     color: var(--text-primary);
-    background: color-mix(in oklch, var(--text-primary) 5%, transparent);
+    background: color-mix(in oklch, var(--text-primary) 6%, transparent);
   }
 
   &.active {
     background: var(--color-primary);
     color: var(--text-inverse);
-    box-shadow: 0 4px 12px var(--glow-primary);
+    box-shadow: 0 4px 16px var(--glow-primary);
+    border-inline-start: 3px solid var(--color-accent);
+    padding-inline-start: 11px;
   }
 
   &-icon {
@@ -153,210 +158,14 @@
 }
 
 .sidebar-footer {
-  padding: 10px;
-  border-block-start: 1px solid var(--border-subtle);
+  padding: 12px;
+  border-block-start: 2px solid var(--border-subtle);
   flex-shrink: 0;
-  background: oklch(0% 0 0 / 0.8);
+  background: oklch(0% 0 0 / 0.85);
+  margin-block-start: 8px;
 }
 
-/* ComfyUI Quick Control */
-.comfyui-quick {
-  margin: 6px 0;
-  display: flex;
-
-  &.center {
-    justify-content: center;
-  }
-}
-
-.comfyui-quick-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: all 0.2s;
-  inline-size: 100%;
-  justify-content: center;
-
-  &.running {
-    background: color-mix(in oklch, oklch(70% 0.15 145) 15%, transparent);
-    color: oklch(80% 0.15 145);
-    border-color: color-mix(in oklch, oklch(70% 0.15 145) 30%, transparent);
-  }
-
-  &.running:hover {
-    background: color-mix(in oklch, oklch(70% 0.15 145) 25%, transparent);
-  }
-
-  &.stopped {
-    background: color-mix(in oklch, var(--color-danger) 15%, transparent);
-    color: oklch(70% 0.2 25);
-    border-color: color-mix(in oklch, var(--color-danger) 30%, transparent);
-  }
-
-  &.stopped:hover {
-    background: color-mix(in oklch, var(--color-danger) 25%, transparent);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
-.comfyui-quick-text {
-  white-space: nowrap;
-}
-
-/* Loaded Ollama Models in sidebar */
-.sidebar-loaded-models {
-  padding: 6px 10px;
-  border-block-start: 1px solid var(--border-subtle);
-
-  &.empty { opacity: 0.5; }
-  &.collapsed {
-    padding: 6px 0;
-    display: flex;
-    justify-content: center;
-  }
-}
-
-.loaded-models-header {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-bottom: 4px;
-}
-
-.loaded-models-icon {
-  color: oklch(75% 0.18 290);
-  flex-shrink: 0;
-}
-
-.loaded-models-title {
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: color-mix(in oklch, oklch(75% 0.18 290) 70%, transparent);
-  font-weight: 600;
-}
-
-.loaded-models-clear-btn {
-  margin-inline-start: auto;
-  padding: 1px 6px;
-  font-size: 0.58rem;
-  color: color-mix(in oklch, oklch(80% 0.15 85) 70%, transparent);
-  background: color-mix(in oklch, oklch(80% 0.15 85) 10%, transparent);
-  border: 1px solid color-mix(in oklch, oklch(80% 0.15 85) 20%, transparent);
-  border-radius: 3px;
-  cursor: pointer;
-  transition: all 0.15s;
-
-  &:hover {
-    color: oklch(80% 0.15 85);
-    background: color-mix(in oklch, oklch(80% 0.15 85) 20%, transparent);
-    border-color: color-mix(in oklch, oklch(80% 0.15 85) 40%, transparent);
-  }
-}
-
-.loaded-models-label {
-  font-size: 0.7rem;
-  color: oklch(100% 0 0 / 0.4);
-}
-
-.loaded-model-item {
-  padding: 3px 0;
-
-  &.active {
-    background: color-mix(in oklch, oklch(75% 0.18 290) 8%, transparent);
-    border-radius: 4px;
-    padding: 4px 6px;
-    margin: 2px -6px;
-  }
-}
-
-.loaded-model-info {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.loaded-model-status-dot {
-  inline-size: 5px;
-  block-size: 5px;
-  border-radius: 50%;
-  background: oklch(70% 0.15 145);
-  box-shadow: 0 0 4px oklch(70% 0.15 145 / 0.5);
-  flex-shrink: 0;
-
-  &.busy {
-    background: oklch(80% 0.15 85);
-    box-shadow: 0 0 4px oklch(80% 0.15 85 / 0.5);
-    animation: pulse-glow 1.5s ease-in-out infinite;
-  }
-}
-
-.loaded-model-name {
-  flex: 1;
-  font-size: 0.7rem;
-  color: oklch(100% 0 0 / 0.7);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.loaded-model-name-collapsed {
-  font-size: 0.6rem;
-  color: oklch(100% 0 0 / 0.6);
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-}
-
-.loaded-model-vram {
-  font-size: 0.62rem;
-  color: oklch(75% 0.18 290);
-  background: color-mix(in oklch, oklch(75% 0.18 290) 10%, transparent);
-  padding: 1px 5px;
-  border-radius: 3px;
-  flex-shrink: 0;
-}
-
-.loaded-model-activity {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin-block-start: 3px;
-  padding-inline-start: 11px;
-}
-
-.loaded-model-activity-task {
-  font-size: 0.6rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: oklch(80% 0.15 85);
-  font-weight: 600;
-}
-
-.loaded-model-activity-desc {
-  font-size: 0.62rem;
-  color: oklch(100% 0 0 / 0.45);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-inline-size: 100%;
-}
-
-.loaded-model-activity-time {
-  font-size: 0.58rem;
-  color: color-mix(in oklch, oklch(80% 0.15 85) 70%, transparent);
-  font-variant-numeric: tabular-nums;
-}
-
+/* Health section styles... */
 .health-section {
   margin-bottom: 8px;
   display: flex;
@@ -470,12 +279,6 @@
   &.online { color: oklch(75% 0.15 145); }
   &.offline { color: oklch(65% 0.2 25); }
   &.unknown { color: var(--text-tertiary); }
-}
-
-.adapter-more {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  padding: 2px 10px;
 }
 
 .sidebar-diagnostics-link {
