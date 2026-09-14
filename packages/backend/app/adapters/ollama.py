@@ -55,7 +55,8 @@ Respond ONLY with valid JSON in this exact format:
 Generate 3-8 scenes based on the input theme or concept."""
 
     def __init__(
-        self, base_url: str = "http://127.0.0.1:11434", mock_mode: bool = False
+        self, base_url: str = "http://127.0.0.1:11434", mock_mode: bool = False,
+        atomic_chat_url: str | None = None,
     ):
         """
         Initialize the Ollama adapter.
@@ -63,23 +64,22 @@ Generate 3-8 scenes based on the input theme or concept."""
         Args:
             base_url: Base URL for the Ollama API
             mock_mode: If True, skip service checks and use mock generation
+            atomic_chat_url: Optional Atomic Chat OpenAI-compatible API URL.
+                When provided and enabled via config/UI, chat/generate route
+                through Atomic Chat's TurboQuant backend instead of base Ollama.
         """
         super().__init__(base_url, "Ollama", mock_mode=mock_mode)
         self._available_models: list[str] = []
-        # Use models that actually exist in this install (gemma4:e2b-it-qat is always available)
-        # Import here to avoid circular init — fallback to gemma4:e2b-it-qat
         try:
             from ..core.config import config as _cfg
             _def = _cfg.default_model
         except Exception:
             _def = "gemma4:e2b-it-qat"
         self._default_model: str = _def
-        self._last_model: str = self._default_model  # Track last used model for VRAM manager
+        self._last_model: str = self._default_model
         self._last_health_log: str | None = None
         self._session: aiohttp.ClientSession | None = None
-        # Activity tracking: model name -> {task, description, started_at}
         self._active_tasks: dict[str, dict[str, Any]] = {}
-        # Scene state for AI tool-driven generation
         self._scene_state: dict[str, Any] = {
             "objects": [],
             "lights": [],
@@ -89,6 +89,7 @@ Generate 3-8 scenes based on the input theme or concept."""
             "duration": 30,
             "keyframes": [],
         }
+        self._atomic_chat_url = atomic_chat_url
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create a shared aiohttp session for this adapter."""
@@ -371,6 +372,39 @@ Generate 3-8 scenes based on the input theme or concept."""
             self.set_status(AdapterStatus.ERROR)
         return False
 
+    async def _atomic_chat_health_check(self) -> bool:
+        """Check if Atomic Chat OpenAI-compatible endpoint is available and can serve inference."""
+        if not self._atomic_chat_url:
+            return False
+        try:
+            session = await self._get_session()
+            target = f"{self._atomic_chat_url.rstrip('/')}/v1/models"
+            async with session.get(target, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status != 200:
+                    return False
+                data = await resp.json()
+                models = data.get("data") or data.get("models") or []
+                if not models:
+                    return False
+                model_id = (models[0].get("id") or models[0].get("name") or "").strip()
+                if not model_id:
+                    return False
+
+            chat_target = f"{self._atomic_chat_url.rstrip('/')}/v1/chat/completions"
+            async with session.post(
+                chat_target,
+                json={"model": model_id, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 2},
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                if resp.status == 200:
+                    if self._status != AdapterStatus.CONNECTED:
+                        logger.info("Atomic Chat backend is online")
+                    self.set_status(AdapterStatus.CONNECTED)
+                    return True
+        except Exception as e:
+            logger.warning(f"Atomic Chat health check failed: {e}")
+        return False
+
     async def generate(self, params: dict[str, Any]) -> dict[str, Any]:
         """
         Generate text using Ollama.
@@ -516,10 +550,165 @@ Generate 3-8 scenes based on the input theme or concept."""
         logger.info("Ollama chat request: model=%s, stream=%s, tools=%d, think=%s",
                      model, stream, len(tools) if tools else 0, think)
 
+        try:
+            if self._use_atomic_chat():
+                if stream:
+                    return self._atomic_chat_stream(messages, model, tools, think, format, keep_alive, options)
+                return await self._atomic_chat_request(messages, model, tools, think, format, keep_alive, options)
+        except Exception as e:
+            logger.error("Atomic Chat request failed, falling back to Ollama: %s", e)
+
         if stream:
             return self._stream_chat(payload)
         else:
             return await self._chat_request(payload)
+
+    def _use_atomic_chat(self) -> bool:
+        """Return True when Atomic Chat is configured and enabled."""
+        try:
+            from ..core.config import config as _cfg
+            if not getattr(_cfg, "atomic_chat_enabled", False):
+                return False
+        except Exception:
+            return False
+        return bool(self._atomic_chat_url)
+
+    @staticmethod
+    def _to_atomic_chat_model(model: str) -> str:
+        """Translate Ollama model IDs to Atomic Chat format."""
+        if not model or not isinstance(model, str):
+            return model
+        if model.startswith("ollama/"):
+            return model
+        if ":" in model:
+            return "ollama/" + model.replace(":", "-")
+        return model
+
+    async def _atomic_chat_request(
+        self,
+        messages: list[dict[str, str]],
+        model: str,
+        tools: list[dict[str, Any]] | None,
+        think: bool | str | None,
+        format: Any | None,
+        keep_alive: str | int | None,
+        options: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Non-streaming chat request via Atomic Chat OpenAI-compatible API."""
+        if not self._atomic_chat_url:
+            raise RuntimeError("Atomic Chat URL is not configured")
+
+        openai_messages: list[dict[str, Any]] = []
+        for m in messages:
+            entry: dict[str, Any] = {"role": m.get("role", "user"), "content": m.get("content", "")}
+            if m.get("tool_calls"):
+                entry["tool_calls"] = m["tool_calls"]
+            if m.get("tool_call_id"):
+                entry["tool_call_id"] = m["tool_call_id"]
+            openai_messages.append(entry)
+
+        payload: dict[str, Any] = {
+            "model": self._to_atomic_chat_model(model),
+            "messages": openai_messages,
+            "stream": False,
+        }
+        if tools:
+            payload["tools"] = tools
+        if think is not None:
+            payload["think"] = think
+        if format is not None:
+            payload["response_format"] = {"type": "json_object"} if format == "json" else format
+        if keep_alive is not None:
+            payload["keep_alive"] = keep_alive
+        if options:
+            payload["options"] = options
+
+        session = await self._get_session()
+        target = f"{self._atomic_chat_url.rstrip('/')}/v1/chat/completions"
+        async with session.post(target, json=payload, timeout=aiohttp.ClientTimeout(total=300)) as resp:
+            if resp.status != 200:
+                error = await resp.text()
+                raise RuntimeError(f"Atomic Chat error: {error}")
+            data = await resp.json()
+            choice = (data.get("choices") or [{}])[0]
+            message = choice.get("message", {}) or {}
+            return {
+                "model": data.get("model", model),
+                "created_at": data.get("created"),
+                "message": {
+                    "role": message.get("role", "assistant"),
+                    "content": message.get("content", ""),
+                    "tool_calls": message.get("tool_calls"),
+                },
+                "done": True,
+            }
+
+    async def _atomic_chat_stream(
+        self,
+        messages: list[dict[str, str]],
+        model: str,
+        tools: list[dict[str, Any]] | None,
+        think: bool | str | None,
+        format: Any | None,
+        keep_alive: str | int | None,
+        options: dict[str, Any] | None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Streaming chat request via Atomic Chat OpenAI-compatible API."""
+        if not self._atomic_chat_url:
+            raise RuntimeError("Atomic Chat URL is not configured")
+
+        openai_messages: list[dict[str, Any]] = []
+        for m in messages:
+            entry: dict[str, Any] = {"role": m.get("role", "user"), "content": m.get("content", "")}
+            if m.get("tool_calls"):
+                entry["tool_calls"] = m["tool_calls"]
+            if m.get("tool_call_id"):
+                entry["tool_call_id"] = m["tool_call_id"]
+            openai_messages.append(entry)
+
+        payload: dict[str, Any] = {
+            "model": self._to_atomic_chat_model(model),
+            "messages": openai_messages,
+            "stream": True,
+        }
+        if tools:
+            payload["tools"] = tools
+        if think is not None:
+            payload["think"] = think
+        if format is not None:
+            payload["response_format"] = {"type": "json_object"} if format == "json" else format
+        if keep_alive is not None:
+            payload["keep_alive"] = keep_alive
+        if options:
+            payload["options"] = options
+
+        session = await self._get_session()
+        target = f"{self._atomic_chat_url.rstrip('/')}/v1/chat/completions"
+        async with session.post(target, json=payload, timeout=aiohttp.ClientTimeout(total=300)) as resp:
+            if resp.status != 200:
+                error = await resp.text()
+                raise RuntimeError(f"Atomic Chat stream error: {error}")
+            async for line in resp.content:
+                if not line.strip():
+                    continue
+                text = line.decode("utf-8", errors="ignore") if isinstance(line, (bytes, bytearray)) else line
+                if text.startswith("data: "):
+                    text = text[6:]
+                if text == "[DONE]":
+                    yield {"done": True}
+                    continue
+                try:
+                    chunk = json.loads(text)
+                    choice = (chunk.get("choices") or [{}])[0]
+                    delta = choice.get("delta") or {}
+                    yield {
+                        "model": chunk.get("model"),
+                        "created_at": chunk.get("created"),
+                        "message": {"role": delta.get("role"), "content": delta.get("content", "")},
+                        "done": choice.get("finish_reason") is not None,
+                    }
+                except Exception:
+                    continue
 
     async def _chat_request(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Non-streaming chat request."""

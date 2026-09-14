@@ -270,8 +270,8 @@ async def lifespan(app: FastAPI):
     _background_tasks.append(asyncio.create_task(health_broadcast_loop()))
     logger.info("Health broadcast background task started")
 
-    _background_tasks.append(asyncio.create_task(resource_monitoring_loop(interval_seconds=10.0)))
-    logger.info("Resource monitoring task started")
+    _background_tasks.append(asyncio.create_task(resource_monitoring_loop()))
+    logger.info("Resource monitoring task started (30s interval)")
 
     yield
 
@@ -342,6 +342,7 @@ from .api import (  # noqa: E402
     video,
     vision,
     gen3d,
+    music_prompts,
 )
 
 app.include_router(jobs.router)
@@ -362,6 +363,7 @@ app.include_router(native_open.router)
 app.include_router(docs.router)
 app.include_router(hyperframes.router)
 app.include_router(media.router)
+app.include_router(music_prompts.router)
 
 # Additional root-level routes
 @app.get("/api/services/status")

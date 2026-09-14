@@ -205,7 +205,7 @@ function SkeletonGrid() {
 
 export function MediaLibrary() {
   const navigate = useNavigate();
-  const { outputs, isLoading, error, filter, counts, fetchOutputs, fetchRecent, setFilter, fetchByType, deleteOutput } = useOutputStore();
+  const { outputs, isLoading, error, filter, counts, fetchOutputs, fetchRecent, setFilter, deleteOutput } = useOutputStore();
   const [viewMode, setViewMode] = useState<"grid"|"list">("grid");
   const [selectedOutput, setSelectedOutput] = useState<OutputFile|null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -242,7 +242,7 @@ export function MediaLibrary() {
   const mediaInfoCache = useRef<Map<string, MediaInfoPayload>>(new Map());
   const MEDIA_INFO_CACHE_MAX = 50;
 
-  useEffect(() => { fetchOutputs(); fetchRecent(12); }, [fetchOutputs, fetchRecent, filter.type]);
+  useEffect(() => { fetchOutputs(); fetchRecent(12); }, [fetchOutputs, fetchRecent]);
   useEffect(() => { if (deferredSearch !== filter.search) setFilter({ search: deferredSearch }); }, [deferredSearch]);
   useEffect(() => { setVisibleCount(ITEMS_PER_PAGE); }, [filter.type, deferredSearch, sortBy, groupByType, outputs.length]);
   useEffect(() => {
@@ -284,9 +284,19 @@ export function MediaLibrary() {
     return () => { cancelled = true; };
   }, [selectedOutput]);
 
-  const handleRefresh = async () => { setIsRefreshing(true); await fetchOutputs(); await fetchRecent(12); setIsRefreshing(false); };
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      // Bust the backend list cache first so nested-folder additions show up.
+      try { await fetch("/api/outputs?limit=200&refresh=true"); } catch { /* fallback below */ }
+      await fetchOutputs();
+      await fetchRecent(12);
+    } finally { setIsRefreshing(false); }
+  };
   const handleFilterChange = (type: "all"|"image"|"video"|"audio"|"3d") => {
-    setFilter({ type }); if (type!=="all") fetchByType(type==="image"?"images": type==="video"?"video": type==="3d"?"3d":"audio" as any); else fetchOutputs();
+    // Category tabs filter client-side (see filteredOutputs) so header
+    // StatCards keep global counts and no fetch race can clobber the list.
+    setFilter({ type });
   };
   const handleSearch = () => setFilter({ search: searchTerm, dateFrom, dateTo });
   const handleClearFilters = () => { setSearchTerm(""); setDateFrom(""); setDateTo(""); setFilter({ search:"", dateFrom:"", dateTo:"" }); };
@@ -401,22 +411,32 @@ export function MediaLibrary() {
   const duplicatePaths = useMemo(()=> new Set(duplicateGroups?.flatMap(g=> g.files.map(f=>f.relative_path))||[]),[duplicateGroups]);
 
   const filteredOutputs = useMemo(()=>{
-    const sorted=[...outputs];
+    let list=[...outputs];
+    // Category tab filters client-side (independent of backend file_type spelling).
+    if (filter.type !== "all") list = list.filter(o => o.file_type === filter.type);
+    if (filter.dateFrom) {
+      const from = new Date(filter.dateFrom + "T00:00:00").getTime();
+      if (Number.isFinite(from)) list = list.filter(o => new Date(o.created_at).getTime() >= from);
+    }
+    if (filter.dateTo) {
+      const to = new Date(filter.dateTo + "T23:59:59").getTime();
+      if (Number.isFinite(to)) list = list.filter(o => new Date(o.created_at).getTime() <= to);
+    }
     switch(sortBy){
-      case "newest": sorted.sort((a,b)=> new Date(b.created_at).getTime()-new Date(a.created_at).getTime()); break;
-      case "oldest": sorted.sort((a,b)=> new Date(a.created_at).getTime()-new Date(b.created_at).getTime()); break;
-      case "name-asc": sorted.sort((a,b)=> a.filename.localeCompare(b.filename)); break;
-      case "name-desc": sorted.sort((a,b)=> b.filename.localeCompare(a.filename)); break;
-      case "size-desc": sorted.sort((a,b)=> b.size_bytes-a.size_bytes); break;
-      case "size-asc": sorted.sort((a,b)=> a.size_bytes-b.size_bytes); break;
-      case "type": { const order={video:0,audio:1,image:2,other:3} as const; sorted.sort((a,b)=>{const ao=(order as any)[a.file_type]??3; const bo=(order as any)[b.file_type]??3; if(ao!==bo) return ao-bo; return new Date(b.created_at).getTime()-new Date(a.created_at).getTime();}); break; }
+      case "newest": list.sort((a,b)=> new Date(b.created_at).getTime()-new Date(a.created_at).getTime()); break;
+      case "oldest": list.sort((a,b)=> new Date(a.created_at).getTime()-new Date(b.created_at).getTime()); break;
+      case "name-asc": list.sort((a,b)=> a.filename.localeCompare(b.filename)); break;
+      case "name-desc": list.sort((a,b)=> b.filename.localeCompare(a.filename)); break;
+      case "size-desc": list.sort((a,b)=> b.size_bytes-a.size_bytes); break;
+      case "size-asc": list.sort((a,b)=> a.size_bytes-b.size_bytes); break;
+      case "type": { const order={video:0,audio:1,image:2,other:3} as const; list.sort((a,b)=>{const ao=(order as any)[a.file_type]??3; const bo=(order as any)[b.file_type]??3; if(ao!==bo) return ao-bo; return new Date(b.created_at).getTime()-new Date(a.created_at).getTime();}); break; }
     }
     if(deferredSearch){
       const q=deferredSearch.toLowerCase();
-      return sorted.filter(o=> o.filename.toLowerCase().includes(q) || o.relative_path.toLowerCase().includes(q) || (o.job_id||"").toLowerCase().includes(q));
+      return list.filter(o=> o.filename.toLowerCase().includes(q) || o.relative_path.toLowerCase().includes(q) || (o.job_id||"").toLowerCase().includes(q));
     }
-    return sorted;
-  },[outputs,sortBy,deferredSearch]);
+    return list;
+  },[outputs,sortBy,deferredSearch,filter.type,filter.dateFrom,filter.dateTo]);
 
   const groupedOutputs = useMemo(()=>{
     if(!groupByType) return null;

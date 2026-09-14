@@ -3,11 +3,12 @@ import {
   Upload, Music, Zap, Play, Loader2, AlertCircle, BarChart3,
   Database, RefreshCw, ChevronDown, ChevronRight, Activity,
   Clock, TrendingUp, Music2, Pencil, Download, SkipForward, ListMusic,
-  Sparkles, Type,
+  Sparkles, Type, Scissors,
 } from "lucide-react";
 import { getApiBase, getCudaStatus, listAudioFiles, separateAudioStems, renameAudioFile, generateVideoSection } from "../../services/api";
 import { isAudioFile } from "../../utils/audioProbe";
 import { useAudioAnalysis } from "../../hooks/useAudioAnalysis";
+import { AudioTrimModal } from "./components/AudioTrimModal";
 import { DS } from "../../styles/designSystem";
 import { useNavigate } from "react-router-dom";
 import { setPendingTrack } from "../../utils/pendingTrack";
@@ -28,6 +29,8 @@ import {
 interface AudioFile {
   filename: string;
   path: string;
+  relative_path: string;
+  folder: string;
   size_bytes: number;
   modified?: number;
 }
@@ -50,12 +53,12 @@ function buildBeatDensity(
   beats: number[], sections: { type: string; start: number; end: number; energy: number }[],
   energyCurve: number[], duration: number, bpm: number
 ): BeatDensityPoint[] {
-  const barInterval = 60 / bpm;
-  if (!beats.length || !duration) return [];
-  const totalBars = Math.floor(duration / barInterval);
+  const barInterval = bpm > 0 ? 60 / bpm : 0;
+  if (!beats.length || !duration || barInterval <= 0) return [];
+  const totalBars = Math.max(1, Math.floor(duration / barInterval));
   const bars = new Map<number, { count: number; beatTimes: number[] }>();
   for (const bt of beats) {
-    const b = Math.min(Math.floor(bt / barInterval), totalBars - 1);
+    const b = Math.max(0, Math.min(Math.floor(bt / barInterval), totalBars - 1));
     const prev = bars.get(b);
     if (prev) { prev.count++; prev.beatTimes.push(bt); }
     else bars.set(b, { count: 1, beatTimes: [bt] });
@@ -149,7 +152,11 @@ export function AudioAnalysisPage() {
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [libraryError, setLibraryError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  // Transient: row currently being analyzed (spinner). Persisted: last library
+  // file successfully analyzed — keeps the inline player + row highlight alive
+  // after analysis finishes (previously the player unmounted on completion).
   const [selectedLibraryFile, setSelectedLibraryFile] = useState<string | null>(null);
+  const [analyzedLibraryPath, setAnalyzedLibraryPath] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(true);
   const [generating, setGenerating] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"name" | "size" | "date">("date");
@@ -160,6 +167,7 @@ export function AudioAnalysisPage() {
   const [editName, setEditName] = useState("");
   const [selectedSections, setSelectedSections] = useState<Set<number>>(new Set());
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [showTrimModal, setShowTrimModal] = useState(false);
   const [pendingGenerateSection, setPendingGenerateSection] = useState<{ type: string; start: number; end: number } | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [jobProgress, setJobProgress] = useState<{ progress: number; message: string } | null>(null);
@@ -181,8 +189,11 @@ export function AudioAnalysisPage() {
   const uploadAudioRef = useRef<HTMLAudioElement | null>(null);
   const libraryAudioRef = useRef<HTMLAudioElement | null>(null);
   const analyzedFilename = analysis?.stored_path?.split(/[/\\]/).pop() ?? file?.name ?? null;
-  const libraryStreamUrl = analyzedFilename && !file
-    ? `${getApiBase()}/api/audio/file/${encodeURIComponent(analyzedFilename)}`
+  // Library stream only applies when no upload file is active; derives from the
+  // persisted analyzed-library path so the player survives analysis completion.
+  const activeLibraryPath = !file ? analyzedLibraryPath : null;
+  const libraryStreamUrl = activeLibraryPath
+    ? `${getApiBase()}/api/audio/file/${encodeURIComponent(activeLibraryPath)}`
     : null;
 
   const goToKineticTypography = useCallback(() => {
@@ -202,7 +213,7 @@ export function AudioAnalysisPage() {
 
   // Coalesced section blocks for display + generation (see coalesceSections)
   const displaySections = useMemo(
-    () => (analysis ? coalesceSections(analysis.sections) : []),
+    () => (analysis ? coalesceSections(analysis.sections ?? []) : []),
     [analysis],
   );
 
@@ -212,10 +223,9 @@ export function AudioAnalysisPage() {
 
   // One-line insights derived from the real data
   const insights = useMemo(() => {
-    if (!analysis || analysis.duration_seconds <= 0) return null;
-    const bps = analysis.beat_count / analysis.duration_seconds;
-    let peak = displaySections[0];
-    for (const s of displaySections) if (!peak || s.energy > peak.energy) peak = s;
+    if (!analysis || (analysis.duration_seconds ?? 0) <= 0) return null;
+    const bps = (analysis.beat_count ?? 0) / analysis.duration_seconds;
+    const peak = displaySections.reduce<DisplaySection | null>((acc, s) => (!acc || s.energy > acc.energy ? s : acc), null);
     const structure = displaySections
       .map((s) => `${s.type}${s.parts > 1 ? ` ×${s.parts}` : ""}`)
       .join(" → ");
@@ -268,9 +278,13 @@ export function AudioAnalysisPage() {
     const err = validateFile(f);
     if (err) { setFileError(err); setFile(null); return; }
     setFileError(null); setFile(f); audio.reset();
+    // Uploaded file supersedes any previously analyzed library track.
+    setAnalyzedLibraryPath(null);
   };
 
-  const clearFile = () => { setFile(null); setPreviewUrl(null); setFileError(null); audio.reset(); };
+  const clearFile = () => { setFile(null); setPreviewUrl(null); setFileError(null); audio.reset(); setAnalyzedLibraryPath(null); };
+
+  const [jobDoneNote, setJobDoneNote] = useState<string | null>(null);
 
   useEffect(() => {
     if (!activeJobId) return;
@@ -280,7 +294,18 @@ export function AudioAnalysisPage() {
         if (res.ok) {
           const job = await res.json();
           setJobProgress({ progress: job.progress ?? 0, message: job.message ?? "" });
-          if (job.is_terminal) { setActiveJobId(null); setGenerating(null); if (job.has_error) setError(job.error || "Job failed"); }
+          if (job.is_terminal) {
+            setActiveJobId(null);
+            setGenerating(null);
+            setJobProgress(null);
+            if (job.has_error) {
+              setError(job.error || "Job failed");
+            } else {
+              // Brief success flash so the user sees the batch finished.
+              setJobDoneNote(job.message || "Generation complete");
+              window.setTimeout(() => setJobDoneNote(null), 5000);
+            }
+          }
         }
       } catch { /* */ }
     };
@@ -339,15 +364,26 @@ export function AudioAnalysisPage() {
 
   const handleAnalyzeLibraryFile = async (storedPath: string) => {
     if (!storedPath || editingFile) return;
-    setSelectedLibraryFile(storedPath);
+    // Normalize to relative path from output/audio/ (handles both relative and absolute paths)
+    let relativePath = storedPath;
+    const audioDirMarker = "output/audio/";
+    const audioDirMarkerWin = "output\\audio\\";
+    if (relativePath.includes(audioDirMarker)) {
+      relativePath = relativePath.split(audioDirMarker)[1];
+    } else if (relativePath.includes(audioDirMarkerWin)) {
+      relativePath = relativePath.split(audioDirMarkerWin)[1];
+    }
+    setSelectedLibraryFile(relativePath);
     setAnalysisStep("Loading audio file...");
     try {
-      const filename = storedPath.split(/[/\\]/).pop() || "audio.mp3";
-      // ensure-analysis returns cached analysis immediately when available
-      const ensured = await audio.ensure(filename, "sonara");
+      // Pass relative path so backend can find files in subdirectories
+      const ensured = await audio.ensure(relativePath, "sonara");
       if (ensured && ensured.analysis) {
         setAnalysisStep("Detecting song structure...");
         setAnalysis(ensured.analysis);
+        // Persist so the inline player + highlight survive completion
+        // (selectedLibraryFile is cleared below — it is the spinner only).
+        setAnalyzedLibraryPath(relativePath);
       }
       setAnalysisStep("");
     } catch (err: unknown) { setError(err instanceof Error ? err.message : "Analysis failed"); setAnalysisStep(""); }
@@ -363,9 +399,9 @@ export function AudioAnalysisPage() {
     if (audioFiles.length === 0) return;
 
     hasAutoAnalyzed.current = true;
-    const match = audioFiles.find(f => f.filename === fileParam);
+    const match = audioFiles.find(f => f.filename === fileParam || f.relative_path === fileParam);
     if (match) {
-      handleAnalyzeLibraryFile(match.path);
+      handleAnalyzeLibraryFile(match.relative_path || match.path);
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [audioFiles, handleAnalyzeLibraryFile]);
@@ -430,7 +466,10 @@ export function AudioAnalysisPage() {
     finally { setGenerating(null); setSelectedSections(new Set()); }
   };
 
-  const formatTime = (s: number) => `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
+  const formatTime = (s: number) => {
+    if (!Number.isFinite(s) || s <= 0) return "0:00";
+    return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
+  };
   const formatFileSize = (b: number) => b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${(b / 1024).toFixed(0)} KB`;
 
   const exportAnalysis = () => {
@@ -445,6 +484,11 @@ export function AudioAnalysisPage() {
   };
 
   const waveformRef = useRef<HTMLDivElement>(null);
+  const waveformMetaRef = useRef<{ duration: number; sections: DisplaySection[] }>({ duration: 0, sections: [] });
+  waveformMetaRef.current = {
+    duration: analysis?.duration_seconds ?? 0,
+    sections: displaySections,
+  };
 
   useEffect(() => {
     const envelope = analysis?.amplitude_envelope;
@@ -469,7 +513,8 @@ export function AudioAnalysisPage() {
         ctx.beginPath();
         ctx.moveTo(0, mid);
         for (let i = 0; i < envelope.length; i++) {
-          ctx.lineTo(i * step, mid + mirror * envelope[i] * 36);
+          const amp = Math.max(0, Math.min(1, envelope[i] ?? 0));
+          ctx.lineTo(i * step, mid + mirror * amp * 36);
         }
         ctx.strokeStyle = "#8b5cf6";
         ctx.globalAlpha = alpha;
@@ -479,6 +524,20 @@ export function AudioAnalysisPage() {
       };
       trace(-1, 1);
       trace(1, 0.35);
+      // Section structure bands along the bottom of the waveform
+      const { duration, sections } = waveformMetaRef.current;
+      if (duration > 0 && sections.length) {
+        const bandH = 5;
+        for (const s of sections) {
+          const x0 = Math.max(0, (s.start / duration) * rect.width);
+          const x1 = Math.min(rect.width, (s.end / duration) * rect.width);
+          if (x1 <= x0) continue;
+          ctx.fillStyle = SECTION_HEX[s.type] ?? SECTION_HEX.full;
+          ctx.globalAlpha = 0.85;
+          ctx.fillRect(x0, 80 - bandH, x1 - x0, bandH);
+        }
+        ctx.globalAlpha = 1;
+      }
       host.innerHTML = "";
       host.appendChild(canvas);
     };
@@ -487,6 +546,16 @@ export function AudioAnalysisPage() {
     ro.observe(host);
     return () => ro.disconnect();
   }, [analysis?.amplitude_envelope]);
+
+  // Click-to-seek on the waveform (mirrors the section timestamp buttons)
+  const handleWaveformSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const { duration } = waveformMetaRef.current;
+    if (!duration || duration <= 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const t = ((e.clientX - rect.left) / rect.width) * duration;
+    seekTo(Math.max(0, Math.min(t, duration)));
+  }, [seekTo]);
 
   return (
     <div className={DS.pageWide}>
@@ -566,7 +635,13 @@ export function AudioAnalysisPage() {
             </div>
           )}
 
-           {error && <div className={DS.cardError} role="alert"><AlertCircle size={20} /><div className="flex-1"><p className="text-sm font-medium">{error}</p><button onClick={() => setError(null)} className="text-xs underline mt-1">Dismiss</button></div></div>}
+           {jobDoneNote && !analyzing && (
+            <div className={DS.cardTight + " border-green-500/30 bg-green-500/5"} role="status">
+              <div className={DS.flexCenter}><span className="text-sm text-green-300">✓ {jobDoneNote}</span></div>
+            </div>
+          )}
+
+          {error && <div className={DS.cardError} role="alert"><AlertCircle size={20} /><div className="flex-1"><p className="text-sm font-medium">{error}</p><button onClick={() => setError(null)} className="text-xs underline mt-1">Dismiss</button></div></div>}
 
           {analysis && (
             <div className={DS.section}>
@@ -574,28 +649,28 @@ export function AudioAnalysisPage() {
                 <div className={`${DS.card} border-violet-500/20 bg-gradient-to-br from-violet-500/10 to-transparent`}>
                   <div className={DS.flexCenter}>
                     <div className="w-9 h-9 rounded-xl bg-violet-500/20 flex items-center justify-center mr-3"><Music2 size={18} className="text-violet-400" /></div>
-                    <span className={DS.textBoldXl}>{analysis.tempo_bpm.toFixed(0)}</span>
+                    <span className={DS.textBoldXl}>{(analysis.tempo_bpm ?? 0).toFixed(0)}</span>
                   </div>
                   <p className={DS.textXs + " mt-1.5"}>BPM</p>
                 </div>
                 <div className={`${DS.card} border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-transparent`}>
                   <div className={DS.flexCenter}>
                     <div className="w-9 h-9 rounded-xl bg-blue-500/20 flex items-center justify-center mr-3"><Clock size={18} className="text-blue-400" /></div>
-                    <span className={DS.textBoldXl}>{formatTime(analysis.duration_seconds)}</span>
+                    <span className={DS.textBoldXl}>{formatTime(analysis.duration_seconds ?? 0)}</span>
                   </div>
                   <p className={DS.textXs + " mt-1.5"}>Duration</p>
                 </div>
                 <div className={`${DS.card} border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-transparent`}>
                   <div className={DS.flexCenter}>
                     <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center mr-3"><Zap size={18} className="text-amber-400" /></div>
-                    <span className={DS.textBoldXl}>{analysis.beat_count}</span>
+                    <span className={DS.textBoldXl}>{analysis.beat_count ?? 0}</span>
                   </div>
                   <p className={DS.textXs + " mt-1.5"}>Beats</p>
                 </div>
                 <div className={`${DS.card} border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-transparent`}>
                   <div className={DS.flexCenter}>
                     <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center mr-3"><TrendingUp size={18} className="text-emerald-400" /></div>
-                    <span className={DS.textBoldXl}>{(analysis.confidence * 100).toFixed(0)}%</span>
+                    <span className={DS.textBoldXl}>{((analysis.confidence ?? 0) * 100).toFixed(0)}%</span>
                   </div>
                   <p className={DS.textXs + " mt-1.5"}>Confidence</p>
                 </div>
@@ -616,7 +691,7 @@ export function AudioAnalysisPage() {
                     {displaySections.some((s) => s.parts > 1) && (
                       <> · {analysis.sections.length} raw sections merged into {displaySections.length} blocks</>
                     )}
-                    <> · Avg confidence <strong className="text-white">{(displaySections.reduce((a, s) => a + s.confidence, 0) / displaySections.length * 100).toFixed(0)}%</strong></>
+                    <> · Avg confidence <strong className="text-white">{displaySections.length ? (displaySections.reduce((a, s) => a + s.confidence, 0) / displaySections.length * 100).toFixed(0) : 0}%</strong></>
                   </p>
                 </div>
               )}
@@ -632,7 +707,6 @@ export function AudioAnalysisPage() {
                         <p className={DS.textXs + " text-gray-400"}>Create animated lyric visuals for this track</p>
                       </div>
                     </div>
-                    <span className="text-violet-300 text-sm font-medium">Open →</span>
                   </div>
                 </div>
               )}
@@ -642,6 +716,9 @@ export function AudioAnalysisPage() {
                 <div className={DS.flexBetween}>
                   <h3 className={DS.sectionTitle}>Waveform</h3>
                   <div className="flex gap-2">
+                    {analyzedFilename && (analysis?.duration_seconds ?? 0) > 0 && (
+                      <button onClick={() => setShowTrimModal(true)} className={DS.btnSecondarySm} title="Trim sections and save as a new file"><Scissors size={14} /> Trim</button>
+                    )}
                     <button onClick={exportAnalysis} className={DS.btnSecondarySm} title="Download analysis JSON"><Download size={14} /> Export</button>
                   </div>
                 </div>
@@ -654,9 +731,19 @@ export function AudioAnalysisPage() {
                     aria-label={`Play ${analyzedFilename}`}
                   />
                 )}
-                <div ref={waveformRef} className="w-full h-20 bg-gray-900/40 rounded-lg border border-gray-700 overflow-hidden mt-2" />
+                <div
+                  ref={waveformRef}
+                  onClick={handleWaveformSeek}
+                  title={analysis?.duration_seconds ? "Click to seek" : undefined}
+                  className={`w-full h-20 bg-gray-900/40 rounded-lg border border-gray-700 overflow-hidden mt-2 ${analysis?.duration_seconds ? "cursor-pointer" : ""}`}
+                  role={analysis?.duration_seconds ? "slider" : undefined}
+                  aria-label={analysis?.duration_seconds ? "Waveform — click to seek" : undefined}
+                  aria-valuemin={0}
+                  aria-valuemax={analysis?.duration_seconds ?? 0}
+                  aria-valuetext={`0:00 to ${formatTime(analysis?.duration_seconds ?? 0)}`}
+                />
                 {libraryStreamUrl && (
-                  <p className={DS.textXs + " mt-1.5"}>Tip: section timestamps below seek this player.</p>
+                  <p className={DS.textXs + " mt-1.5"}>Tip: click the waveform or section timestamps below to seek.</p>
                 )}
               </div>
 
@@ -671,7 +758,7 @@ export function AudioAnalysisPage() {
                       <XAxis
                         type="number"
                         dataKey="time"
-                        domain={[0, analysis.duration_seconds]}
+                        domain={[0, analysis.duration_seconds ?? 0]}
                         tick={{ fontSize: 10, fill: "#9ca3af" }}
                         axisLine={{ stroke: "#374151" }}
                         tickLine={false}
@@ -691,7 +778,8 @@ export function AudioAnalysisPage() {
                         animationDuration={600}
                         dot={false}
                         data={(() => {
-                          const curve = analysis.energy_curve;
+                          const curve = analysis.energy_curve ?? [];
+                          if (!curve.length || !(analysis.duration_seconds > 0)) return [];
                           const maxPts = 120;
                           const step = Math.max(1, Math.floor(curve.length / maxPts));
                           const sampled = curve.filter((_, i) => i % step === 0);
@@ -702,7 +790,7 @@ export function AudioAnalysisPage() {
                         })()}
                       />
                        {/* Sample beats to avoid clutter — show fewer lines on longer tracks */}
-                       {analysis.beat_times.filter((_, i) => {
+                       {(analysis.beat_times ?? []).filter((_, i) => {
                          const len = analysis.beat_times.length;
                          if (len <= 40) return true;
                          const step = Math.max(1, Math.floor(len / 40));
@@ -735,13 +823,13 @@ export function AudioAnalysisPage() {
                 <div className="flex justify-between mt-1">
                   <span className={DS.textXs}>0:00</span>
                   <span className={DS.textXs}>Purple = energy · Amber = beats (sampled) · Dashed = sections</span>
-                  <span className={DS.textXs}>{formatTime(analysis.duration_seconds)}</span>
+                  <span className={DS.textXs}>{formatTime(analysis.duration_seconds ?? 0)}</span>
                 </div>
               </div>
 
               {/* Beat Density by Section */}
-              {analysis.beat_times.length > 0 && (() => {
-                const raw = buildBeatDensity(analysis.beat_times, analysis.sections, analysis.energy_curve, analysis.duration_seconds, analysis.tempo_bpm);
+              {(analysis.beat_times ?? []).length > 0 && (() => {
+                const raw = buildBeatDensity(analysis.beat_times ?? [], analysis.sections ?? [], analysis.energy_curve ?? [], analysis.duration_seconds ?? 0, analysis.tempo_bpm ?? 0);
                 const maxBars = 100;
                 const step = Math.max(1, Math.floor(raw.length / maxBars));
                 const density = raw.filter((_, i) => i % step === 0);
@@ -812,16 +900,17 @@ export function AudioAnalysisPage() {
             </div>
           )}
         </div>
+      </div>
 
-        <div className="lg:col-span-1 space-y-5 min-w-0">
-          <div className={DS.card} style={{ overflow: "hidden" }}>
-            <div onClick={() => setShowLibrary(!showLibrary)} className={DS.flexBetween}>
-              <span className={DS.sectionTitle}><Database size={14} />Audio Library ({audioFiles.length})</span>
-              <div className="flex items-center gap-2">
-                <button onClick={e => { e.stopPropagation(); loadAudioFiles(); }} className={DS.btnSecondary}><RefreshCw size={14} /></button>
-                {showLibrary ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              </div>
+      <div className="lg:col-span-1 space-y-5 min-w-0">
+        <div className={DS.card} style={{ overflow: "hidden" }}>
+          <div onClick={() => setShowLibrary(!showLibrary)} className={DS.flexBetween}>
+            <span className={DS.sectionTitle}><Database size={14} />Audio Library ({audioFiles.length})</span>
+            <div className="flex items-center gap-2">
+              <button onClick={e => { e.stopPropagation(); loadAudioFiles(); }} className={DS.btnSecondary}><RefreshCw size={14} /></button>
+              {showLibrary ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             </div>
+          </div>
             {showLibrary && (
               <div className="mt-3">
                 <div className="flex gap-2 mb-3">
@@ -837,79 +926,84 @@ export function AudioAnalysisPage() {
                     if (sortBy === "size") return b.size_bytes - a.size_bytes;
                     return (b.modified ?? 0) - (a.modified ?? 0);
                   });
-                  const analyzedName = analysis?.stored_path?.split(/[/\\]/).pop();
-                  const paged = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-                  if (libraryLoading && audioFiles.length === 0) {
-                    return <p className={DS.textXs + " py-4 text-center"}><Loader2 size={14} className="animate-spin inline mr-1" />Loading library…</p>;
-                  }
-                  if (libraryError && audioFiles.length === 0) {
-                    return <p className={DS.cardWarning}>Library failed to load: {libraryError}. <button onClick={loadAudioFiles} className="underline">Retry</button></p>;
-                  }
-                  if (filtered.length === 0 && audioFiles.length > 0) return <p className={DS.cardWarning}>No files match “{filterText}”. <button onClick={() => setFilterText("")} className="underline">Clear filter</button></p>;
-                  return filtered.length > 0 ? (
-                  <>
-                    <p className={DS.textXs + " mb-2"}>{filtered.length} file{filtered.length !== 1 ? "s" : ""} {filterText ? "matching filter" : "in library"}</p>
-                    <div className="space-y-1" role="list" aria-label="Audio files">
-                       {paged.map((f) => {
-                         const isActive = selectedLibraryFile === f.path && !editingFile;
-                         const isAnalyzed = analyzedName === f.filename;
-                         return (
-                         <div
-                           key={f.path}
-                           role="listitem"
-                           tabIndex={0}
-                           aria-label={`Analyze ${f.filename}`}
-                           title={isAnalyzed ? `${f.filename} — currently analyzed` : `Analyze ${f.filename} (cached when available)`}
-                           className={`p-2.5 rounded-lg cursor-pointer transition-all ${isActive ? "bg-violet-500/15 border border-violet-500/30 shadow-sm" : isAnalyzed ? "border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10" : "border border-transparent hover:bg-gray-700/50"}`}
-                           onClick={() => handleAnalyzeLibraryFile(f.path)}
-                           onKeyDown={e => { if ((e.key === "Enter" || e.key === " ") && editingFile !== f.path) { e.preventDefault(); handleAnalyzeLibraryFile(f.path); } }}
-                         >
-                           <div className={DS.flexBetween}>
-                             <div className={DS.flexCenter} style={{ minWidth: 0, flex: 1 }}>
-                               {isActive && analyzing
-                                 ? <Loader2 size={14} className="animate-spin text-violet-400 shrink-0" />
-                                 : <Music size={14} className={`shrink-0 ${isAnalyzed ? "text-emerald-400" : "text-gray-500"}`} />}
-                               {editingFile === f.path ? (
-                                 <form onSubmit={async (e) => { e.preventDefault(); e.stopPropagation(); await saveEdit(f.filename); }} onClick={e => e.stopPropagation()} className="flex-1 min-w-0">
-                                   <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setEditingFile(null); }} className="ml-2 px-1.5 py-0.5 bg-gray-700 border border-violet-500 rounded text-sm text-white w-full focus:outline-none" aria-label="New file name" />
-                                 </form>
-                               ) : (
-                                 <span className="text-sm truncate ml-2 text-gray-200" title={f.filename}>{f.filename}</span>
-                               )}
-                               {isAnalyzed && editingFile !== f.path && (
-                                 <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-medium shrink-0">Analyzed</span>
-                               )}
-                             </div>
-                             <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                               <span className={DS.textXs + " tabular-nums text-gray-500"}>{formatFileSize(f.size_bytes)}</span>
-                               <button
-                                 onClick={e => { e.stopPropagation(); startEditing(f.path, f.filename); }}
-                                 className="p-1.5 rounded text-muted hover:text-white hover:bg-white/10 transition-colors"
-                                 title={`Rename ${f.filename}`}
-                                 aria-label={`Rename ${f.filename}`}
-                               >
-                                 <Pencil size={12} />
-                               </button>
-                             </div>
-                           </div>
-                         </div>
-                         );
-                       })}
-                    </div>
-                    {filtered.length > pageSize && (
-                      <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-gray-700">
-                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className={DS.btnSecondarySm + " shrink-0"}>← Prev</button>
-                        <span className={DS.textXs + " tabular-nums whitespace-nowrap"}>Page {currentPage} of {Math.ceil(filtered.length / pageSize)}</span>
-                        <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= Math.ceil(filtered.length / pageSize)} className={DS.btnSecondarySm + " shrink-0"}>Next →</button>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <p className={DS.textXs}>No audio files in library.<br />Upload a file to add it.</p>
-                ); })()}
+                   const analyzedName = analysis?.stored_path?.split(/[/\\]/).pop();
+                   const paged = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+                   if (libraryLoading && audioFiles.length === 0) {
+                     return <p className={DS.textXs + " py-4 text-center"}><Loader2 size={14} className="animate-spin inline mr-1" />Loading library…</p>;
+                   }
+                   if (libraryError && audioFiles.length === 0) {
+                     return <p className={DS.cardWarning}>Library failed to load: {libraryError}. <button onClick={loadAudioFiles} className="underline">Retry</button></p>;
+                   }
+                   if (filtered.length === 0 && audioFiles.length > 0) return <p className={DS.cardWarning}>No files match “{filterText}”. <button onClick={() => setFilterText("")} className="underline">Clear filter</button></p>;
+                   return filtered.length > 0 ? (
+                   <>
+                     <p className={DS.textXs + " mb-2"}>{filtered.length} file{filtered.length !== 1 ? "s" : ""} {filterText ? "matching filter" : "in library"}</p>
+                     <div className="space-y-1" role="list" aria-label="Audio files">
+                        {paged.map((f) => {
+                          const normalizedStored = (analysis?.stored_path ?? "").replace(/\\/g, "/");
+                          // Prefer exact stored-path match (handles duplicate
+                          // filenames across subdirectories); fall back to name.
+                          const isAnalyzed = (f.relative_path && normalizedStored.endsWith(`/${f.relative_path}`)) || analyzedName === f.filename;
+                          const isActive = (selectedLibraryFile === f.relative_path || analyzedLibraryPath === f.relative_path) && !editingFile;
+                          return (
+                          <div
+                            key={f.relative_path}
+                            role="listitem"
+                            tabIndex={0}
+                            aria-label={`Analyze ${f.filename}`}
+                            title={isAnalyzed ? `${f.filename} — currently analyzed` : `Analyze ${f.filename} (cached when available)`}
+                            className={`p-2.5 rounded-lg cursor-pointer transition-all ${isActive ? "bg-violet-500/15 border border-violet-500/30 shadow-sm" : isAnalyzed ? "border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10" : "border border-transparent hover:bg-gray-700/50"}`}
+                            onClick={() => handleAnalyzeLibraryFile(f.relative_path)}
+                            onKeyDown={e => { if ((e.key === "Enter" || e.key === " ") && editingFile !== f.relative_path) { e.preventDefault(); handleAnalyzeLibraryFile(f.relative_path); } }}
+                          >
+                            <div className={DS.flexBetween}>
+                              <div className={DS.flexCenter} style={{ minWidth: 0, flex: 1 }}>
+                                {isActive && analyzing
+                                  ? <Loader2 size={14} className="animate-spin text-violet-400 shrink-0" />
+                                  : <Music size={14} className={`shrink-0 ${isAnalyzed ? "text-emerald-400" : "text-gray-500"}`} />}
+                                {editingFile === f.relative_path ? (
+                                  <form onSubmit={async (e) => { e.preventDefault(); e.stopPropagation(); await saveEdit(f.relative_path); }} onClick={e => e.stopPropagation()} className="flex-1 min-w-0">
+                                    <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setEditingFile(null); }} className="ml-2 px-1.5 py-0.5 bg-gray-700 border border-violet-500 rounded text-sm text-white w-full focus:outline-none" aria-label="New file name" />
+                                  </form>
+                                ) : (
+                                  <>
+                                    <span className="text-sm truncate ml-2 text-gray-200" title={f.filename}>{f.folder ? <span className="text-gray-500 mr-1">{f.folder}/</span> : null}{f.filename}</span>
+                                    {isAnalyzed && editingFile !== f.relative_path && (
+                                      <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-medium shrink-0">Analyzed</span>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                <span className={DS.textXs + " tabular-nums text-gray-500"}>{formatFileSize(f.size_bytes)}</span>
+                                <button
+                                  onClick={e => { e.stopPropagation(); startEditing(f.relative_path, f.filename); }}
+                                  className="p-1.5 rounded text-muted hover:text-white hover:bg-white/10 transition-colors"
+                                  title={`Rename ${f.filename}`}
+                                  aria-label={`Rename ${f.filename}`}
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                              </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        </div>
+                       {filtered.length > pageSize && (
+                        <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-gray-700">
+                          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className={DS.btnSecondarySm + " shrink-0"}>← Prev</button>
+                          <span className={DS.textXs + " tabular-nums whitespace-nowrap"}>Page {currentPage} of {Math.ceil(filtered.length / pageSize)}</span>
+                          <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= Math.ceil(filtered.length / pageSize)} className={DS.btnSecondarySm + " shrink-0"}>Next →</button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className={DS.textXs}>No audio files in library.<br />Upload a file to add it.</p>
+                  );
+                })()}
               </div>
             )}
-          </div>
           <details className={DS.card} style={{ overflow: "hidden" }}>
             <summary className={DS.sectionTitle + " cursor-pointer list-none flex items-center justify-between"}>
               <span>Tips</span>
@@ -970,6 +1064,20 @@ export function AudioAnalysisPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showTrimModal && analyzedFilename && (analysis?.duration_seconds ?? 0) > 0 && (libraryStreamUrl || previewUrl) && (
+        <AudioTrimModal
+          isOpen={showTrimModal}
+          onClose={() => setShowTrimModal(false)}
+          filename={analyzedFilename}
+          audioUrl={libraryStreamUrl ?? previewUrl ?? ""}
+          duration={analysis?.duration_seconds ?? 60}
+          sections={(analysis?.sections ?? []).map(s => ({ type: String(s.type), start: Number(s.start), end: Number(s.end) }))}
+          onSaved={() => loadAudioFiles()}
+          onAnalyzeFile={(_fn, storedPath) => { setShowTrimModal(false); setFile(null); void handleAnalyzeLibraryFile(storedPath); }}
+          onSendToKinetic={(fn) => { setPendingTrack(fn); navigate("/kinetic-typography"); }}
+        />
       )}
     </div>
   );

@@ -3,7 +3,7 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { AudioData, AudioAnalysisData } from "./types";
 import { ATTACK, RELEASE } from "./audioTiming";
-import { getBeatNearTimeFromArray, getNextBeatInFromArray } from "../../shared/timing";
+import { getBeatNearTimeFromArray, getBeatPhase, getNextBeatInFromArray } from "../../shared/timing";
 
 // Demo fallback — synthetic audio for when no track is playing
 export function useDemoAudio(enabled: boolean, bpm: number) {
@@ -25,6 +25,7 @@ export function useDemoAudio(enabled: boolean, bpm: number) {
       energy: (bass + mid + treble) / 3,
       drumType: null,
       nextBeatIn: 0,
+      beatPhase: beatPhase,
     };
   });
   return data;
@@ -187,11 +188,19 @@ export function useRealAudio(
     }
     lastBass.current = bass;
 
+    // Continuous beat phase for fluid motion (the boolean `beat` above only
+    // snaps on onset frames). Null without an analyzed grid — consumers fall
+    // back to onset pulses.
+    const phaseInfo = analysisData && analysisData.beat_times.length > 0 && elapsed > 0
+      ? getBeatPhase(analysisData.beat_times, elapsed)
+      : null;
+
     data.current = {
       bass, mid, treble, overall, beat: isBeat, peak: peakHold.current,
       energy: (bass + mid + treble) / 3,
       drumType,
       nextBeatIn: nextBeatInRef.current,
+      beatPhase: phaseInfo?.phase,
     };
   });
   return data;

@@ -146,12 +146,14 @@ class AudioAnalyzer:
         return list(value)
 
     def _extract_waveform_features(self, y, sr):
-        rms = librosa.feature.rms(y=y, hop_length=self.hop_length)[0]
+        hop_length = self.hop_length
+        frame_length = self.frame_length
+        rms = librosa.feature.rms(y=y, hop_length=hop_length, frame_length=frame_length)[0]
         rms_norm = (rms - rms.min()) / (rms.max() - rms.min() + 1e-10)
-        zcr = librosa.feature.zero_crossing_rate(y=y, hop_length=self.hop_length)[0]
-        centroid = librosa.feature.spectral_centroid(y=y, sr=sr, hop_length=self.hop_length)[0]
-        rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr, hop_length=self.hop_length)[0]
-        bandwidth = librosa.feature.spectral_bandwidth(y=y, sr=sr, hop_length=self.hop_length)[0]
+        zcr = librosa.feature.zero_crossing_rate(y=y, hop_length=hop_length, frame_length=frame_length)[0]
+        centroid = librosa.feature.spectral_centroid(y=y, sr=sr, hop_length=hop_length, n_fft=frame_length)[0]
+        rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr, hop_length=hop_length, n_fft=frame_length)[0]
+        bandwidth = librosa.feature.spectral_bandwidth(y=y, sr=sr, hop_length=hop_length, n_fft=frame_length)[0]
         return WaveformFeatures(
             sample_rate=int(sr),
             duration_seconds=float(len(y) / sr),
@@ -169,8 +171,25 @@ class AudioAnalyzer:
         tempo_val = beat_result["tempo"]
         beat_times = beat_result["beat_times"]
         beat_frames = librosa.time_to_frames(beat_times, sr=sr, hop_length=self.hop_length).tolist()
-        onset_frames = librosa.onset.onset_detect(y=y, sr=sr, hop_length=self.hop_length).tolist()
-        onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length).tolist()
+
+        # Superflux-style onset parameters improve accuracy for vibrato/complex music.
+        hop_length = self.hop_length
+        frame_length = self.frame_length
+        onset_envelope = librosa.onset.onset_strength(
+            y=y,
+            sr=sr,
+            hop_length=hop_length,
+            n_fft=frame_length,
+            fmin=27.5,
+            fmax=16000.0,
+        )
+        onset_frames = librosa.onset.onset_detect(
+            onset_envelope=onset_envelope,
+            sr=sr,
+            hop_length=hop_length,
+            units="frames",
+        ).tolist()
+        onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=hop_length).tolist()
         return BeatFeatures(
             tempo_bpm=tempo_val,
             beat_frames=beat_frames,
@@ -234,11 +253,20 @@ class AudioAnalyzer:
             beat_times = _madmom_infer.beats(audio_path)
             downbeat_times = _madmom_infer.downbeats(audio_path)
 
-            y, sr = librosa.load(audio_path, sr=None, mono=True)
+            load_audio, _, _ = _import_shared_audio()
+            y, sr = load_audio(audio_path, sr=None)
             waveform = self._extract_waveform_features(y, sr)
 
             beat_frames = librosa.time_to_frames(beat_times, sr=sr, hop_length=self.hop_length).tolist()
             downbeat_frames = librosa.time_to_frames(downbeat_times, sr=sr, hop_length=self.hop_length).tolist()
+
+            # Compute tempo from beat intervals when madmom does not provide it.
+            tempo_val = 0.0
+            if len(beat_times) >= 2:
+                intervals = [beat_times[i+1] - beat_times[i] for i in range(len(beat_times) - 1)]
+                median_interval = sorted(intervals)[len(intervals) // 2]
+                if median_interval > 0:
+                    tempo_val = 60.0 / median_interval
 
             return AudioAnalysisResult(
                 job_id=job_id,
@@ -246,7 +274,7 @@ class AudioAnalyzer:
                 analysis_timestamp=datetime.now().isoformat(),
                 waveform=waveform,
                 beats=BeatFeatures(
-                    tempo_bpm=0.0,
+                    tempo_bpm=round(float(tempo_val), 1),
                     beat_frames=beat_frames,
                     beat_times=beat_times.tolist() if hasattr(beat_times, "tolist") else list(beat_times),
                     onset_frames=downbeat_frames,
@@ -279,7 +307,8 @@ class AudioAnalyzer:
         try:
             result = _sonara.analyze_file(audio_path, mode="compact")
 
-            y, sr = librosa.load(audio_path, sr=None, mono=True)
+            load_audio, _, _ = _import_shared_audio()
+            y, sr = load_audio(audio_path, sr=None)
             waveform = self._extract_waveform_features(y, sr)
 
             beat_frames = list(result.get("beats", []))
@@ -335,8 +364,48 @@ class AudioAnalyzer:
             Tuple of (AudioAnalysisResult, output_path)
         """
         result = self.analyze_file(audio_path, job_id, backend)
-        output_path = self.save_to_json(result)
+        output_path = self._save_to_json(result)
         return result, output_path
+
+    def _save_to_json(self, result: AudioAnalysisResult) -> str:
+        """Save analysis result to JSON file.
+
+        Args:
+            result: AudioAnalysisResult to save
+
+        Returns:
+            Absolute path of the written JSON file.
+        """
+        import json
+
+        path = OUTPUT_DIR / f"{result.job_id}_analysis.json"
+        payload = {
+            "job_id": result.job_id,
+            "audio_file": result.audio_file,
+            "analysis_timestamp": result.analysis_timestamp,
+            "waveform": {
+                "sample_rate": result.waveform.sample_rate,
+                "duration_seconds": result.waveform.duration_seconds,
+                "amplitude_envelope": self._to_list(result.waveform.amplitude_envelope),
+                "rms_energy": self._to_list(result.waveform.rms_energy),
+                "zero_crossing_rate": self._to_list(result.waveform.zero_crossing_rate),
+                "centroid": self._to_list(result.waveform.centroid),
+                "spectral_rolloff": self._to_list(result.waveform.spectral_rolloff),
+                "spectral_bandwidth": self._to_list(result.waveform.spectral_bandwidth),
+            },
+            "beats": {
+                "tempo_bpm": result.beats.tempo_bpm,
+                "beat_frames": result.beats.beat_frames,
+                "beat_times": result.beats.beat_times,
+                "onset_frames": result.beats.onset_frames,
+                "onset_times": result.beats.onset_times,
+                "confidence": result.beats.confidence,
+            },
+            "metadata": result.metadata,
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+        return str(path.resolve())
 
 
 def extract_amplitude_envelope_simple(audio_path: str) -> dict[str, Any]:
@@ -401,24 +470,31 @@ def analyze_with_cuda(audio_path: str) -> dict[str, Any]:
     load_audio, analyze_beats, _ = _import_shared_audio()
     y, sr = load_audio(audio_path, sr=22050)
 
+    cuda_ok = False
     try:
         from .cuda import cuda_audio, cuda_available
         if cuda_available():
-            result = cuda_audio.analyze(y)
+            result = dict(cuda_audio.analyze(y))
             result["cuda"] = True
             result["computed_on"] = "GPU"
-        else:
-            raise RuntimeError("CUDA not available")
+            cuda_ok = True
     except Exception as e:
         logger.warning(f"CUDA analysis failed ({e}), falling back to CPU")
-        # Fallback to CPU analysis
-        result = extract_amplitude_envelope_simple(audio_path)
-        result["cuda"] = False
-        result["computed_on"] = "CPU"
-        # Re-load audio for beat tracking
-        y, sr = load_audio(audio_path, sr=22050)
 
-    # Add beat tracking (still CPU — librosa beat_track has no GPU equivalent)
+    if not cuda_ok:
+        # CPU fallback — reuse already-loaded audio for RMS + beats
+        rms = librosa.feature.rms(y=y, hop_length=512)[0]
+        rms_norm = (rms - rms.min()) / (rms.max() - rms.min() + 1e-10)
+        target_points = 60
+        indices = np.linspace(0, len(rms_norm) - 1, target_points).astype(int)
+        envelope = rms_norm[indices].tolist()
+        result = {
+            "amplitude_envelope": envelope,
+            "cuda": False,
+            "computed_on": "CPU",
+        }
+
+    # Beat tracking (still CPU — librosa beat_track has no GPU equivalent)
     beat_result = analyze_beats(y, sr, use_gpu=False)
     result["tempo_bpm"] = beat_result["tempo"]
     result["beat_times"] = beat_result["beat_times"]

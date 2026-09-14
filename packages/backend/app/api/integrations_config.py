@@ -272,6 +272,8 @@ class SettingsUpdateRequest(BaseModel):
     """Request to update application settings"""
     comfyui_url: str | None = None
     ollama_url: str | None = None
+    atomic_chat_url: str | None = None
+    atomic_chat_enabled: bool | None = None
     log_level: str | None = None
     max_queue_workers: int | None = None
     default_workflow: str | None = None
@@ -286,6 +288,8 @@ async def get_settings() -> dict:
     return {
         "comfyui_url": config.comfyui_url,
         "ollama_url": config.ollama_url,
+        "atomic_chat_url": config.atomic_chat_url,
+        "atomic_chat_enabled": config.atomic_chat_enabled,
         "log_level": config.log_level,
         "max_queue_workers": config.max_queue_workers,
         "backend_port": config.backend_port,
@@ -304,6 +308,12 @@ async def update_settings(req: SettingsUpdateRequest) -> dict:
     if req.ollama_url is not None:
         config.ollama_url = req.ollama_url
         updates["ollama_url"] = req.ollama_url
+    if req.atomic_chat_url is not None:
+        config.atomic_chat_url = req.atomic_chat_url
+        updates["atomic_chat_url"] = req.atomic_chat_url
+    if req.atomic_chat_enabled is not None:
+        config.atomic_chat_enabled = req.atomic_chat_enabled
+        updates["atomic_chat_enabled"] = req.atomic_chat_enabled
     if req.log_level is not None:
         config.log_level = req.log_level
         updates["log_level"] = req.log_level

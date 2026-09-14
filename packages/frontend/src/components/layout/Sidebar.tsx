@@ -4,17 +4,18 @@ import {
   Box,
   ChevronDown,
   ChevronRight,
-  Film,
+  ChevronsLeft,
+  Clapperboard,
   FileText,
   FolderOpen,
   Home,
   Image,
-  LayoutDashboard,
   ListOrdered,
   Menu,
   X,
   BarChart3,
   Brain,
+  Search,
   Settings,
   Sparkles,
   Zap,
@@ -22,138 +23,184 @@ import {
   Type,
   Thermometer,
   Play,
+  Mic,
 } from "lucide-react";
-import React, { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { useHealthStore } from "../../state/healthStore";
 import { useUIStore } from "../../state/uiStore";
 import { getVideoEditorUrl } from "../../services/portConfig";
 
-interface NavItem { path: string; label: string; icon: React.ReactNode; badge?: string; }
+interface NavItem {
+  path: string;
+  label: string;
+  icon: React.ReactNode;
+  badge?: string;
+  keywords?: string;
+  external?: boolean;
+}
 
-const primaryNav: NavItem[] = [
-  { path: "/", label: "Dashboard", icon: <Home size={18} /> },
+interface NavGroup {
+  id: string;
+  title: string;
+  /** Groups collapsed by default (still one click, but out of the way). */
+  collapsedByDefault?: boolean;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    id: "home",
+    title: "Home",
+    items: [
+      { path: "/", label: "Dashboard", icon: <Home size={18} />, keywords: "home overview start" },
+    ],
+  },
+  {
+    id: "create",
+    title: "Create",
+    items: [
+      { path: "/music-video-wizard", label: "Music Video", icon: <Wand2 size={18} />, keywords: "wizard song video maker" },
+      { path: "/three-js-studio", label: "Three.js Studio", icon: <Sparkles size={18} />, keywords: "3d scene studio character" },
+      { path: "/audio-analysis", label: "Audio Analysis", icon: <BarChart3 size={18} />, keywords: "audio beat bpm analyze" },
+      { path: "/visualizer", label: "Visualizer", icon: <Zap size={18} />, keywords: "visualizer shader realtime" },
+      { path: "/kinetic-typography", label: "Kinetic Type", icon: <Type size={18} />, keywords: "lyrics kinetic typography text" },
+      { path: "/hyperframes", label: "HyperFrames", icon: <Play size={18} />, keywords: "hyperframes animation frames" },
+      { path: "/ai-tools", label: "AI Tools", icon: <Brain size={18} />, keywords: "ai tools models chat" },
+      { path: "/music-prompts", label: "Music Prompts", icon: <Mic size={18} />, keywords: "music prompts lyrics suno" },
+    ],
+  },
+  {
+    id: "generate",
+    title: "Generate",
+    items: [
+      { path: "/image-generation", label: "Image Gen", icon: <Image size={18} />, keywords: "image picture comfyui" },
+      { path: "/video-generation", label: "Video Gen", icon: <Clapperboard size={18} />, keywords: "video generate motion" },
+      { path: "/generate-3d", label: "3D Gen", icon: <Box size={18} />, keywords: "3d model mesh generate" },
+    ],
+  },
+  {
+    id: "manage",
+    title: "Manage",
+    items: [
+      { path: "/library", label: "Media Library", icon: <FolderOpen size={18} />, keywords: "library media files audio video image" },
+      { path: "/queue", label: "Queue", icon: <ListOrdered size={18} />, keywords: "queue jobs tasks" },
+      { path: "/storyboards", label: "Storyboards", icon: <BookOpen size={18} />, keywords: "storyboard plan scenes" },
+    ],
+  },
+  {
+    id: "system",
+    title: "System",
+    collapsedByDefault: true,
+    items: [
+      { path: "/health", label: "Health", icon: <Activity size={18} />, keywords: "health status diagnostics adapters" },
+      { path: "/gpu", label: "GPU", icon: <Thermometer size={18} />, keywords: "gpu vram cuda temperature" },
+      { path: "/log-analytics", label: "Log Analytics", icon: <BarChart3 size={18} />, keywords: "logs analytics charts" },
+      { path: "/settings", label: "Settings", icon: <Settings size={18} />, keywords: "settings config preferences" },
+      { path: "/docs", label: "Docs", icon: <FileText size={18} />, keywords: "docs help guide documentation" },
+    ],
+  },
 ];
 
-const createNav: NavItem[] = [
-  { path: "/music-video-wizard", label: "Music Video", icon: <Wand2 size={18} /> },
-  { path: "/three-js-studio", label: "Three.js Studio", icon: <Sparkles size={18} /> },
-  { path: "/audio-analysis", label: "Audio Analysis", icon: <BarChart3 size={18} /> },
-  { path: "/visualizer", label: "Visualizer", icon: <Zap size={18} /> },
-  { path: "/kinetic-typography", label: "Kinetic Type", icon: <Type size={18} /> },
-  { path: "/hyperframes", label: "HyperFrames", icon: <Play size={18} /> },
-  { path: "/ai-tools", label: "AI Tools", icon: <Brain size={18} /> },
-];
+function isPathActive(current: string, target: string) {
+  if (target === "/") return current === "/";
+  return current === target || current.startsWith(target + "/");
+}
 
-// External links (dynamic ports)
-const externalNav: NavItem[] = [
-  { path: getVideoEditorUrl(), label: "Remotion Studio", icon: <Film size={18} /> },
-];
+function NavEntry({ item, active, collapsed, onNavigate }: {
+  item: NavItem;
+  active: boolean;
+  collapsed: boolean;
+  onNavigate: () => void;
+}) {
+  const className = `nav-item${collapsed ? " collapsed" : ""}${active ? " active" : ""}`;
+  const label = collapsed ? item.label : undefined;
+  const body = (
+    <>
+      <span className={`nav-item-icon ${active ? "active" : "inactive"}`}>{item.icon}</span>
+      {!collapsed && <span className="nav-item-text">{item.label}</span>}
+      {!collapsed && item.badge && (
+        <span className={`nav-badge ${active ? "active" : "inactive"}`}>{item.badge}</span>
+      )}
+      {!collapsed && item.external && <span className="nav-external-hint" aria-hidden>↗</span>}
+    </>
+  );
+  if (item.external) {
+    return (
+      <li>
+        <a href={item.path} target="_blank" rel="noopener noreferrer" title={label} className={className}>
+          {body}
+        </a>
+      </li>
+    );
+  }
+  return (
+    <li>
+      <NavLink to={item.path} title={label} className={className} onClick={onNavigate} end={item.path === "/"}>
+        {body}
+      </NavLink>
+    </li>
+  );
+}
 
-const generateNav: NavItem[] = [
-  { path: "/image-generation", label: "Image Gen", icon: <Image size={18} /> },
-  { path: "/video-generation", label: "Video Gen", icon: <Film size={18} /> },
-  { path: "/generate-3d", label: "3D Gen", icon: <Box size={18} /> },
-];
-
-const manageNav: NavItem[] = [
-  { path: "/library", label: "Media Library", icon: <FolderOpen size={18} /> },
-  { path: "/queue", label: "Queue", icon: <ListOrdered size={18} /> },
-  { path: "/storyboards", label: "Storyboards", icon: <BookOpen size={18} /> },
-];
-
-const systemNav: NavItem[] = [
-  { path: "/health", label: "Health", icon: <Activity size={18} /> },
-  { path: "/gpu", label: "GPU", icon: <Thermometer size={18} /> },
-  { path: "/logs", label: "Logs", icon: <FileText size={18} /> },
-  { path: "/log-analytics", label: "Log Analytics", icon: <BarChart3 size={18} /> },
-  { path: "/settings", label: "Settings", icon: <Settings size={18} /> },
-  { path: "/docs", label: "Docs", icon: <BookOpen size={18} /> },
-];
-
-function NavSection({ title, items, location, collapsed, collapsible, defaultOpen }: { title: string; items: NavItem[]; location: ReturnType<typeof useLocation>; collapsed?: boolean; collapsible?: boolean; defaultOpen?: boolean }) {
-  const isExternal = (path: string) => path.startsWith("http");
-  const [open, setOpen] = useState(defaultOpen ?? true);
-  // Auto-open if current route is inside this section
-  const containsActive = items.some((i) => location.pathname === i.path || location.pathname.startsWith(i.path + "/"));
-  useEffect(() => { if (containsActive && collapsible) setOpen(true); }, [containsActive, collapsible]);
+function SidebarGroup({ group, location, collapsed, onNavigate, forceOpen }: {
+  group: NavGroup;
+  location: ReturnType<typeof useLocation>;
+  collapsed: boolean;
+  onNavigate: () => void;
+  forceOpen: boolean;
+}) {
+  const groupActive = group.items.some((i) => !i.external && isPathActive(location.pathname, i.path));
+  const [userToggled, setUserToggled] = useState<boolean | null>(null);
+  // Default: everything visible. Only groups flagged collapsedByDefault
+  // (System) start folded; the active group always opens itself.
+  const open = forceOpen || (userToggled ?? !group.collapsedByDefault) || groupActive;
+  const toggle = () => setUserToggled((v) => !(v ?? !group.collapsedByDefault));
 
   if (collapsed) {
+    // Slim icon rail: no headers, every destination one click away.
     return (
-      <div className="nav-section">
+      <div className="nav-section nav-section-rail">
         <ul>
-          {items.map((item) => {
-            const isActive = location.pathname === item.path;
-            const external = isExternal(item.path);
-            return (
-              <li key={item.path}>
-                {external ? (
-                  <a href={item.path} target="_blank" rel="noopener noreferrer" title={item.label} className="nav-item collapsed">
-                    {item.icon}
-                  </a>
-                ) : (
-                  <Link
-                    to={item.path}
-                    title={item.label}
-                    className={`nav-item collapsed ${isActive ? "active" : ""}`}
-                  >
-                    {item.icon}
-                  </Link>
-                )}
-              </li>
-            );
-          })}
+          {group.items.map((item) => (
+            <NavEntry
+              key={item.path + item.label}
+              item={item}
+              active={!item.external && isPathActive(location.pathname, item.path)}
+              collapsed
+              onNavigate={onNavigate}
+            />
+          ))}
         </ul>
       </div>
     );
   }
 
-  const header = collapsible ? (
-    <button
-      onClick={() => setOpen((v: boolean) => !v)}
-      className="nav-section-title nav-section-toggle w-full flex items-center justify-between hover:text-white transition-colors"
-      aria-expanded={open}
-    >
-      <span>{title}</span>
-      {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-    </button>
-  ) : (
-    <p className="nav-section-title">{title}</p>
-  );
-
   return (
-    <div className="nav-section">
-      {header}
-      {(!collapsible || open) && (
-        <ul>
-          {items.map((item) => {
-            const isActive = location.pathname === item.path;
-            const external = isExternal(item.path);
-            return (
-              <li key={item.path}>
-                {external ? (
-                  <a href={item.path} target="_blank" rel="noopener noreferrer" className="nav-item">
-                    <span className="nav-item-icon inactive">{item.icon}</span>
-                    <span className="nav-item-text">{item.label}</span>
-                    <span style={{ marginLeft: "auto", opacity: 0.5, fontSize: 10 }}>↗</span>
-                  </a>
-                ) : (
-                  <Link
-                    to={item.path}
-                    className={`nav-item ${isActive ? "active" : ""}`}
-                  >
-                    <span className={`nav-item-icon ${isActive ? "active" : "inactive"}`}>{item.icon}</span>
-                    <span className="nav-item-text">{item.label}</span>
-                    {item.badge && (
-                      <span className={`nav-badge ${isActive ? "active" : "inactive"}`}>
-                        {item.badge}
-                      </span>
-                    )}
-                  </Link>
-                )}
-              </li>
-            );
-          })}
+    <div className={`nav-section${groupActive ? " nav-section-active" : ""}`}>
+      <button
+        onClick={toggle}
+        className="nav-section-title nav-section-toggle w-full flex items-center justify-between hover:text-white transition-colors"
+        aria-expanded={open}
+        aria-controls={`nav-group-${group.id}`}
+        title={open ? `Collapse ${group.title}` : `Expand ${group.title}`}
+      >
+        <span>{group.title}</span>
+        <span className="nav-section-toggle-icon">
+          {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        </span>
+      </button>
+      {open && (
+        <ul id={`nav-group-${group.id}`}>
+          {group.items.map((item) => (
+            <NavEntry
+              key={item.path + item.label}
+              item={item}
+              active={!item.external && isPathActive(location.pathname, item.path)}
+              collapsed={false}
+              onNavigate={onNavigate}
+            />
+          ))}
         </ul>
       )}
     </div>
@@ -167,18 +214,25 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [filter, setFilter] = useState("");
+  const searchRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => { fetchHealth(); }, [fetchHealth]);
 
   useEffect(() => {
+    // Single source of truth for the mobile drawer breakpoint — must match
+    // the `@media (max-width: 900px)` rules in sidebar.css. Width-only: an
+    // aspect-ratio check here would disagree with CSS on tall/narrow desktop
+    // windows and hide the sidebar with no visible hamburger to reopen it.
+    const mq = window.matchMedia("(max-width: 900px)");
     const check = () => {
-      const mobile = window.innerWidth < 900 || window.innerHeight > window.innerWidth * 1.2;
+      const mobile = mq.matches;
       setIsMobile(mobile);
       if (mobile) setCollapsed(false);
     };
     check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
+    mq.addEventListener("change", check);
+    return () => mq.removeEventListener("change", check);
   }, []);
 
   useEffect(() => { if (isMobile) setMobileOpen(false); }, [location.pathname, isMobile]);
@@ -214,6 +268,49 @@ export function Sidebar() {
   }
   const overallStatus = getOverallStatus();
   const showText = !collapsed || isMobile;
+  const rail = collapsed && !isMobile;
+  const closeMobile = () => setMobileOpen(false);
+
+  // "/" keyboard shortcut focuses the nav filter (unless typing elsewhere).
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      if (e.key === "/" && !typing && !rail) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [rail]);
+
+  const q = filter.trim().toLowerCase();
+  // Remotion Studio URL is dynamic (ports.json) so it can't be a static const.
+  const remotionItem: NavItem = useMemo(
+    () => ({
+      path: getVideoEditorUrl(),
+      label: "Remotion Studio",
+      icon: <Clapperboard size={18} />,
+      keywords: "remotion studio editor render external",
+      external: true,
+    }),
+    [],
+  );
+  const visibleGroups = useMemo(() => {
+    const withExternal = NAV_GROUPS.map((g) =>
+      g.id === "manage" ? { ...g, items: [...g.items, remotionItem] } : g,
+    );
+    if (!q) return withExternal;
+    const terms = q.split(/\s+/).filter(Boolean);
+    const matches = (i: NavItem) => {
+      const hay = `${i.label} ${(i.keywords ?? "")}`.toLowerCase();
+      return terms.every((t) => hay.includes(t));
+    };
+    return withExternal
+      .map((g) => ({ ...g, items: g.items.filter(matches) }))
+      .filter((g) => g.items.length > 0);
+  }, [q, remotionItem]);
 
   return (
     <>
@@ -235,20 +332,22 @@ export function Sidebar() {
       <aside
         className={`sidebar-container ${collapsed && !isMobile ? "collapsed" : "expanded"} ${isMobile ? "sidebar-mobile" : ""} ${isMobile && mobileOpen ? "open" : ""} ${focusMode ? "focus-mode-hidden" : ""}`}
       >
-        {/* Header */}
+        {/* Brand header */}
         <div className="sidebar-header">
           <div className="sidebar-header-inner">
             <Link
               to="/"
-              className={`sidebar-header-link ${collapsed && !isMobile ? "center" : ""}`}
+              className={`sidebar-brand${collapsed && !isMobile ? " sidebar-brand-centered" : ""}`}
+              title="Native Media AI Studio — home"
             >
-              <div className="sidebar-logo">
-                <LayoutDashboard size={18} color="white" />
-              </div>
+              <span className="sidebar-logo" aria-hidden>
+                <Sparkles size={18} color="white" strokeWidth={2.2} />
+              </span>
               {showText && (
-                <div style={{ minWidth: 0 }}>
-                  <h1 className="sidebar-title">Native Media AI</h1>
-                </div>
+                <span className="sidebar-brand-text">
+                  <span className="sidebar-title">Native Media AI</span>
+                  <span className="sidebar-tagline">Studio · 2026 Pipeline</span>
+                </span>
               )}
             </Link>
             {!isMobile && (
@@ -256,8 +355,9 @@ export function Sidebar() {
                 onClick={() => setCollapsed(!collapsed)}
                 className="sidebar-toggle"
                 aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
-                {collapsed ? <Menu size={12} /> : <X size={12} />}
+                {collapsed ? <Menu size={12} /> : <ChevronsLeft size={12} />}
               </button>
             )}
             {isMobile && (
@@ -277,30 +377,46 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* Navigation — progressive disclosure: Create+Manage open, System collapsed by default */}
-        <nav className="sidebar-nav">
-          <NavSection title="Start" items={primaryNav} location={location} collapsed={collapsed && !isMobile} collapsible defaultOpen={true} />
-          <NavSection title="Create" items={createNav} location={location} collapsed={collapsed && !isMobile} collapsible defaultOpen={false} />
-          <NavSection title="Generate" items={generateNav} location={location} collapsed={collapsed && !isMobile} collapsible defaultOpen={false} />
-          <NavSection title="Manage" items={manageNav} location={location} collapsed={collapsed && !isMobile} collapsible defaultOpen={false} />
-          {/* External is a single link — render as subtle footer link instead of full section */}
-          {!collapsed || isMobile ? (
-            <div className="nav-section">
-              <a
-                href={getVideoEditorUrl()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="nav-item nav-external-link"
-                title="Open Remotion Studio in new tab"
-              >
-                <span className="nav-item-icon inactive"><Film size={14} /></span>
-                <span className="nav-item-text text-xs">Remotion Studio ↗</span>
-              </a>
+        {/* Navigation — all groups visible; only System starts folded. */}
+        <nav className="sidebar-nav" aria-label="Primary">
+          {showText && (
+            <div className="sidebar-search">
+              <Search size={14} className="sidebar-search-icon" aria-hidden />
+              <input
+                ref={searchRef}
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Escape") setFilter(""); }}
+                placeholder="Filter…  ( / )"
+                aria-label="Filter navigation"
+                className="sidebar-search-input"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {filter && (
+                <button
+                  onClick={() => setFilter("")}
+                  className="sidebar-search-clear"
+                  aria-label="Clear filter"
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
-          ) : (
-            <NavSection title="External" items={externalNav} location={location} collapsed={true} />
           )}
-          <NavSection title="System" items={systemNav} location={location} collapsed={collapsed && !isMobile} collapsible defaultOpen={false} />
+          {visibleGroups.map((group) => (
+            <SidebarGroup
+              key={group.id}
+              group={group}
+              location={location}
+              collapsed={rail}
+              onNavigate={closeMobile}
+              forceOpen={q.length > 0}
+            />
+          ))}
+          {visibleGroups.length === 0 && (
+            <p className="sidebar-no-results">No matches for “{filter.trim()}”.</p>
+          )}
         </nav>
 
         {/* Health / System */}

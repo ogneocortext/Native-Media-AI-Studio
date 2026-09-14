@@ -73,12 +73,16 @@ async function getBackendUrl(): Promise<string> {
 
 export async function fetchOutputsFromAPI(
   fileType?: string,
-  limit = 50,
+  limit = 200,
   offset = 0,
+  extra?: { search?: string; dateFrom?: string; dateTo?: string },
 ): Promise<OutputsAPIResponse> {
   const base = await getBackendUrl();
   let url = base + "/api/outputs?limit=" + limit + "&offset=" + offset;
   if (fileType && fileType !== "all") url += "&file_type=" + fileType;
+  if (extra?.search) url += "&search=" + encodeURIComponent(extra.search);
+  if (extra?.dateFrom) url += "&date_from=" + encodeURIComponent(extra.dateFrom);
+  if (extra?.dateTo) url += "&date_to=" + encodeURIComponent(extra.dateTo);
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch outputs");
   return res.json();
@@ -95,7 +99,7 @@ export async function fetchRecentOutputsFromAPI(
 
 export async function fetchOutputsByTypeFromAPI(
   fileType: "images" | "video" | "audio" | "3d",
-  limit = 50,
+  limit = 200,
 ): Promise<OutputFile[]> {
   const base = await getBackendUrl();
   const res = await fetch(
@@ -112,7 +116,7 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
     selectedOutput: null,
     isLoading: false,
     error: null,
-    filter: { type: "all", limit: 50, offset: 0 },
+    filter: { type: "all", limit: 200, offset: 0 },
     counts: { total: 0, images: 0, videos: 0, audio: 0, models_3d: 0 },
     setOutputs: (outputs) => set({ outputs, error: null }),
     setRecentOutputs: (recentOutputs) => set({ recentOutputs, error: null }),
@@ -129,8 +133,9 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
         const fileType = filter.type === "all" ? undefined : filter.type;
         const response = await fetchOutputsFromAPI(
           fileType,
-          filter.limit,
+          filter.limit || 200,
           filter.offset,
+          { search: filter.search, dateFrom: filter.dateFrom, dateTo: filter.dateTo },
         );
         set({
           outputs: response.outputs,
@@ -190,10 +195,10 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
     deleteOutput: async (relativePath: string) => {
       try {
         const base = await getBackendUrl();
-        const res = await fetch(
-          base + "/api/outputs/" + encodeURIComponent(relativePath),
-          { method: "DELETE" },
-        );
+        // Preserve "/" separators in nested paths (audio/Suno-V6-Mini/x.m4a):
+        // encode each segment so the router's {file_path:path} still matches.
+        const encoded = relativePath.split("/").map(encodeURIComponent).join("/");
+        const res = await fetch(base + "/api/outputs/" + encoded, { method: "DELETE" });
         if (!res.ok) throw new Error("Failed to delete output");
         set((state) => ({
           outputs: state.outputs.filter((o) => o.relative_path !== relativePath),
@@ -211,9 +216,8 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
 
     renameOutput: async (relativePath: string, newName: string) => {
       const base = await getBackendUrl();
-      const res = await fetch(
-        base + "/api/outputs/" + encodeURIComponent(relativePath) + "/rename",
-        {
+      const encoded = relativePath.split("/").map(encodeURIComponent).join("/");
+      const res = await fetch(base + "/api/outputs/" + encoded + "/rename", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ new_name: newName }),

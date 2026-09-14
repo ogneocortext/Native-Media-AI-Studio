@@ -216,6 +216,25 @@ export async function getServiceStatus(): Promise<ServiceStatus> {
   );
 }
 
+export interface AppSettings {
+  comfyui_url: string;
+  ollama_url: string;
+  atomic_chat_url: string;
+  atomic_chat_enabled: boolean;
+  log_level: string;
+  max_queue_workers: number;
+  backend_port: number;
+  frontend_port: number;
+  default_model?: string;
+}
+
+export async function getSettings(): Promise<AppSettings> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/integrations/config/settings`, { timeout: 30000 });
+  if (!res.ok) throw new Error("Failed to get settings");
+  return res.json();
+}
+
 // Image generation (uses ComfyUI)
 export async function generateImage(
   prompt: string,
@@ -934,7 +953,7 @@ export async function getTimingMetadata(filename: string): Promise<any> {
 }
 
 export async function listAudioFiles(): Promise<Array<{
-  filename: string; path: string; size_bytes: number;
+  filename: string; path: string; relative_path: string; folder: string; size_bytes: number;
 }>> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/audio/files`, { timeout: 30000 });
@@ -1169,6 +1188,46 @@ export async function renameAudioFile(oldFilename: string, newFilename: string):
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "Failed to rename file");
+  }
+  return res.json();
+}
+
+export interface TrimRange {
+  start: number;
+  end: number;
+}
+
+export interface TrimAudioResponse {
+  success: boolean;
+  filename: string;
+  stored_path: string;
+  relative_path: string;
+  size_bytes: number;
+  duration: number;
+  source_filename: string;
+  source_duration: number;
+  mode: "keep" | "remove";
+  kept: TrimRange[];
+  lossless: boolean;
+  render_s: number;
+  message: string;
+}
+
+export async function trimAudioFile(params: {
+  filename: string;
+  mode: "keep" | "remove";
+  ranges: TrimRange[];
+}): Promise<TrimAudioResponse> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/audio/trim`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+    timeout: 600000,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to trim audio");
   }
   return res.json();
 }

@@ -89,9 +89,16 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
                 candidate = audio_dir / request.audio_filename
                 if candidate.exists():
                     request.audio_path = str(candidate)
+                else:
+                    # Search subdirectories for the audio file
+                    for match in audio_dir.rglob(request.audio_filename):
+                        if match.is_file():
+                            request.audio_path = str(match)
+                            break
             if not request.audio_path:
                 # Fallback: most recent uploaded audio
-                candidates = sorted(audio_dir.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True) if audio_dir.exists() else []
+                candidates = sorted(audio_dir.rglob("*"), key=lambda p: p.stat().st_mtime, reverse=True) if audio_dir.exists() else []
+                candidates = [c for c in candidates if c.is_file()]
                 fallback = str(candidates[0]) if candidates else None
                 if not fallback:
                     raise ValueError("audio_path is required — upload audio first via /api/audio/upload or /api/audio/analyze")

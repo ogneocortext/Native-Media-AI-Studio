@@ -409,7 +409,9 @@
 }
 .viz-canvas-wrap canvas { display: block; width: 100%; height: 100%; }
 
-/* Builder silhouette figure — story anchor, bottom-left, above canvas below chrome */
+/* Builder silhouette figure — story anchor, bottom-left, above canvas below chrome.
+   The width:auto rule must beat `.viz-canvas-wrap canvas` (which sets
+   width/height 100%): without it the figure stretches fullscreen. */
 .viz-builder-figure {
   position: absolute;
   left: 2%;
@@ -419,6 +421,10 @@
   z-index: 4;
   pointer-events: none;
   overflow: visible;
+}
+.viz-canvas-wrap canvas.viz-builder-figure {
+  width: auto;
+  height: 52%;
 }
 
 /* Cinematic letterbox bars — driven by storyboard beats (drops/payoffs).
@@ -626,9 +632,97 @@
   transition: background 0.2s;
 }
 .viz-upload:hover { background: rgba(10, 10, 12, 0.8); }
+.viz-upload:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.viz-upload.drag-over { background: rgba(20, 20, 32, 0.88); border: 1px dashed color-mix(in oklch, var(--color-primary) 60%, transparent); }
 .viz-upload svg { color: #404040; }
+.viz-upload.drag-over svg { color: var(--color-primary); }
 .viz-upload span { color: #808080; font-size: 0.9rem; }
 .viz-upload-hint { font-size: 0.75rem; color: #555; }
+/* Quiet mode: dim drop layer under the guided hero card (no icon/text of its own) */
+.viz-upload.quiet { background: rgba(10, 10, 12, 0.55); }
+.viz-upload.quiet.drag-over { background: rgba(20, 20, 32, 0.75); }
+
+/* Guided empty state — overlay card above the quiet drop layer */
+.viz-empty-hero {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  pointer-events: none;
+  overflow-y: auto;
+}
+.viz-empty-card {
+  pointer-events: auto;
+  inline-size: 100%;
+  max-inline-size: 460px;
+  background: rgba(18, 18, 24, 0.94);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 1.75rem;
+  text-align: center;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+.viz-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 56px;
+  block-size: 56px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--color-primary) 15%, transparent);
+  color: var(--color-primary);
+}
+.viz-empty-card h3 { margin: 0 0 0.5rem; font-size: 1.25rem; font-weight: 600; color: var(--text-primary); }
+.viz-empty-sub { margin: 0 0 1.25rem; font-size: 0.85rem; color: var(--text-secondary); }
+.viz-empty-steps { margin: 0 0 1.25rem; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.6rem; text-align: left; }
+.viz-empty-steps li { display: flex; align-items: baseline; gap: 0.6rem; font-size: 0.8rem; color: var(--text-secondary); }
+.viz-empty-steps li b { color: var(--text-primary); font-weight: 600; }
+.viz-empty-n {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 22px;
+  block-size: 22px;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--color-primary) 20%, transparent);
+  color: var(--color-primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.viz-empty-actions { display: flex; align-items: center; justify-content: center; gap: 0.75rem; flex-wrap: wrap; margin-block-end: 1rem; }
+.viz-empty-cta {
+  padding: 0.6rem 1.25rem;
+  border-radius: 8px;
+  border: none;
+  background: var(--color-primary);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+.viz-empty-cta:hover { filter: brightness(1.15); }
+.viz-empty-secondary {
+  padding: 0.6rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.viz-empty-secondary:hover { background: oklch(100% 0 0 / 0.06); }
+.viz-empty-link { font-size: 0.8rem; color: var(--color-primary); text-decoration: none; }
+.viz-empty-link:hover { text-decoration: underline; }
+.viz-empty-tip { margin: 0; font-size: 0.75rem; color: var(--text-tertiary); }
 
 /* Error bar */
 .viz-error-bar {
@@ -1124,6 +1218,14 @@
 
 
 /* ============================================================
+   NOTE: @scope (.viz-page) ends here. Everything below (Kinetic
+   Typography page + shared kt-preset-* rules used by Visualizer's
+   PresetSelector) must stay UNSCOPED — the KT page renders .kt-page,
+   not .viz-page, so scoping these rules hides them from the page.
+   ============================================================ */
+} /* end @scope (.viz-page) */
+
+/* ============================================================
    KINETIC TYPOGRAPHY PAGE
    ============================================================ */
 .kt-page {
@@ -1138,25 +1240,25 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem 1.5rem;
+  padding: 0.75rem 1.25rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   background: rgba(12, 12, 12, 0.95);
 }
-.kt-title-row { display: flex; align-items: center; gap: 0.75rem; }
+.kt-title-row { display: flex; align-items: center; gap: 0.6rem; }
 .kt-title-icon { color: #c084fc; }
-.kt-title { font-size: 1.25rem; font-weight: 600; margin: 0; color: #f0f0f0; }
-.kt-subtitle { font-size: 0.75rem; color: #666; margin: 0; }
+.kt-title { font-size: 1.1rem; font-weight: 600; margin: 0; color: #f0f0f0; }
+.kt-subtitle { font-size: 0.7rem; color: #666; margin: 0; }
 .kt-header-actions { display: flex; gap: 0.5rem; }
 .kt-btn {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1rem;
+  gap: 0.35rem;
+  padding: 0.4rem 0.85rem;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   color: #a1a1aa;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -1212,18 +1314,21 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
   max-height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  padding: 0.5rem 0;
   mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
 }
 .kt-preview-section {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.18em;
   opacity: 0.75;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.6rem;
   transition: color 0.35s ease;
 }
 .kt-preview-line {
@@ -1246,15 +1351,15 @@
 .kt-preview-next {
   font-size: 1rem;
   color: #404040;
-  margin-top: 2rem;
+  margin-top: 1.5rem;
   font-style: italic;
 }
 
 .kt-transport {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1rem 1.5rem;
+  gap: 0.6rem;
+  padding: 0.75rem 1.25rem;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   background: rgba(12, 12, 12, 0.95);
 }
@@ -1262,8 +1367,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
@@ -1278,29 +1383,30 @@
 .kt-scrubber-input { width: 100%; accent-color: #c084fc; }
 .kt-time {
   font-family: monospace;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: #666;
-  min-width: 40px;
+  min-width: 88px;
   text-align: right;
+  white-space: nowrap;
 }
 
 .kt-controls {
-  width: 320px;
+  width: 300px;
   flex-shrink: 0;
   border-left: 1px solid rgba(255, 255, 255, 0.05);
   background: rgba(12, 12, 12, 0.95);
-  padding: 1rem;
+  padding: 0.75rem;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 0.75rem;
 }
-.kt-section { display: flex; flex-direction: column; gap: 0.5rem; }
+.kt-section { display: flex; flex-direction: column; gap: 0.35rem; }
 .kt-section-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.7rem;
+  gap: 0.4rem;
+  font-size: 0.6rem;
   font-weight: 600;
   color: #666;
   text-transform: uppercase;
@@ -1311,7 +1417,7 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   color: #666;
   text-transform: none;
   letter-spacing: 0;
@@ -1320,17 +1426,17 @@
 .kt-auto-toggle input { accent-color: #c084fc; }
 .kt-select {
   width: 100%;
-  padding: 0.5rem 0.75rem;
+  padding: 0.4rem 0.65rem;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   color: #e0e0e0;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
 }
 .kt-select option { background: #121212; }
 .kt-track-meta { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .kt-badge {
-  font-size: 0.6rem;
+  font-size: 0.55rem;
   padding: 2px 6px;
   border-radius: 3px;
   background: rgba(192, 132, 252, 0.1);
@@ -1341,14 +1447,14 @@
 .kt-preset-grid {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 .kt-preset-card {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  border-radius: 6px;
+  gap: 1px;
+  padding: 5px 8px;
+  border-radius: 5px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
@@ -1360,65 +1466,60 @@
   background: rgba(192, 132, 252, 0.15);
   border-color: #c084fc;
 }
-.kt-preset-name { font-size: 0.75rem; font-weight: 600; color: #e0e0e0; }
+.kt-preset-name { font-size: 0.7rem; font-weight: 600; color: #e0e0e0; }
 .kt-preset-card.active .kt-preset-name { color: #c084fc; }
-.kt-preset-desc { font-size: 0.65rem; color: #666; }
-.kt-preset-genres { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 2px; }
+.kt-preset-desc { font-size: 0.6rem; color: #666; }
+.kt-preset-genres { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 1px; }
 .kt-preset-genre {
-  font-size: 0.55rem;
+  font-size: 0.5rem;
   padding: 1px 4px;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.05);
   color: #808080;
 }
 
-.kt-slider-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
-.kt-slider-row label { font-size: 0.7rem; color: #a0a0a0; width: 45px; flex-shrink: 0; }
+.kt-slider-row { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.35rem; }
+.kt-slider-row label { font-size: 0.65rem; color: #a0a0a0; width: 40px; flex-shrink: 0; }
 .kt-slider-row input[type="range"] { flex: 1; accent-color: #c084fc; }
-.kt-slider-val { font-size: 0.65rem; color: #666; width: 32px; text-align: right; font-family: monospace; }
+.kt-slider-val { font-size: 0.6rem; color: #666; width: 28px; text-align: right; font-family: monospace; }
 
-.kt-toggle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.7rem; color: #a0a0a0; cursor: pointer; margin-bottom: 0.5rem; }
+.kt-toggle { display: flex; align-items: center; gap: 0.4rem; font-size: 0.65rem; color: #a0a0a0; cursor: pointer; margin-bottom: 0.35rem; }
 .kt-toggle input { accent-color: #c084fc; }
-.kt-preset-detail { font-size: 0.7rem; color: #808080; margin: 0; line-height: 1.4; }
+.kt-preset-detail { font-size: 0.65rem; color: #808080; margin: 0; line-height: 1.4; }
 .kt-reset-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  padding: 0.5rem;
+  gap: 0.35rem;
+  padding: 0.4rem;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   color: #a1a1aa;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   cursor: pointer;
   transition: all 0.15s;
 }
 .kt-reset-btn:hover { background: rgba(255, 255, 255, 0.06); color: #e0e0e0; }
 
-/* Preview line animation initial state */
-.kt-preview-line {
-  opacity: 0;
-  animation: kt-fade-in 0.1s forwards;
-}
-@keyframes kt-fade-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+/* NOTE: no blanket opacity/animation on .kt-preview-line — per-line opacity,
+   blur and enter animations are driven by inline styles + preset.enterAnimation().
+   A fill-mode keyframe here would override the distance fade (all lines opaque). */
 
 /* Keyboard hints */
 .kt-keyboard-hints {
   display: flex;
-  gap: 0.75rem;
-  padding: 0.5rem 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.6rem;
+  padding: 0.4rem 1.25rem;
   border-top: 1px solid rgba(255, 255, 255, 0.03);
   background: rgba(12, 12, 12, 0.6);
 }
 .kt-keyboard-hint {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.6rem;
+  gap: 0.2rem;
+  font-size: 0.55rem;
   color: #555;
 }
 .kt-keyboard-hint kbd {
@@ -1428,7 +1529,7 @@
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: #808080;
-  font-size: 0.55rem;
+  font-size: 0.5rem;
 }
 
 /* Hidden audio element */
@@ -1445,6 +1546,44 @@
 @keyframes kt-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+/* Collapsible sections */
+.kt-section-collapsible {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.kt-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #666;
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.kt-section-toggle:hover { color: #a0a0a0; }
+.kt-section-toggle svg {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.2s;
+}
+.kt-section-toggle[data-open="false"] svg { transform: rotate(-90deg); }
+.kt-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.kt-section-body[data-open="false"] {
+  display: none;
 }
 
 /* Audio bass visualizer */
@@ -1804,6 +1943,45 @@
   opacity: 1;
 }
 
+/* Field label for labeled controls */
+.kt-field-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Keyboard focus visibility */
+.kt-transport-btn:focus-visible,
+.kt-preset-card:focus-visible,
+.kt-btn:focus-visible,
+.kt-reset-btn:focus-visible,
+.kt-section-toggle:focus-visible {
+  outline: 2px solid #c084fc;
+  outline-offset: 2px;
+}
+
+/* Narrow screens: stack preview above controls so neither is squeezed */
+@media (max-width: 960px) {
+  .kt-content {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .kt-preview-stage {
+    min-height: 320px;
+  }
+  .kt-controls {
+    width: auto;
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    overflow-y: visible;
+  }
+  .kt-keyboard-hints {
+    display: none;
+  }
+}
+
 
 /* ============================================================
    PRESET SELECTOR
@@ -2035,6 +2213,4 @@
 @keyframes ai-pulse {
   0%, 100% { box-shadow: 0 0 8px rgba(99, 102, 241, 0.3); }
   50% { box-shadow: 0 0 16px rgba(99, 102, 241, 0.6); }
-}
-
 }

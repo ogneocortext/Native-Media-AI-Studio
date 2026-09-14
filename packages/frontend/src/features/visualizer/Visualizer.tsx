@@ -11,6 +11,7 @@ import { VisualizerScene } from "./VisualizerScene";
 import { useLrcSync, computeLrcSync, computeSectionBounds } from "./useLrcSync";
 import type { LrcSyncData } from "./useLrcSync";
 import { ANALYSER_SMOOTHING, ATTACK, RELEASE, createAudioClock, estimateOutputLatency } from "./audioTiming";
+import { getBeatPhase } from "../../shared/timing";
 import { ShaderVisualizer } from "./ShaderVisualizer";
 import { ACESFilmicToneMapping } from "three";
 import type * as THREE from "three";
@@ -23,7 +24,7 @@ import { PresetFileUpload } from "./components/PresetFileUpload";
 import { AIVisualizerPrompt } from "./components/AIVisualizerPrompt";
 import type { LyricLine } from "./components/LyricOverlay";
 import { KineticLyricOverlay } from "./components/KineticLyricOverlay";
-import { parseLyricsFromCsv, parseLrcContent } from "./lyricsParser";
+import { parseLrcContent } from "./lyricsParser";
 import { AnimationDemo } from "./components/AnimationDemo";
 import { TheatreStudioPanel } from "./components/TheatreStudioPanel";
 import type { VisualPreset } from "./visualPreset";
@@ -32,47 +33,55 @@ import { consumePendingTrack } from "../../utils/pendingTrack";
 import { visualPresets, selectVisualPreset } from "./visualPresets";
 import { selectPresetForTrack } from "./components/KineticPresets";
 import { buildStoryboard, getStoryState, EMPTY_STORYBOARD } from "./storyboard";
-import { StoryActCard } from "./components/StoryActCard";
 import { BuilderFigure } from "./components/BuilderFigure";
 import { useMCPContextSync } from "./useMCPContextSync";
 import { useWebGPUDector, createWebGPURenderer } from "./webgpu/WebGPURendererDetector";
+
+/** A library entry — `filename` is the bare name; the playable/analyzable
+ *  reference is `relative_path` (subfolder-aware). Most of the library lives
+ *  in subfolders, so bare names 404 on /api/audio/file/*. */
+interface LibraryFile {
+  filename: string;
+  path?: string;
+  relative_path?: string;
+  folder?: string;
+}
+
+/** Canonical backend reference for a library file (POSIX, subfolder-aware). */
+function audioRefForFile(f: LibraryFile): string {
+  return (f.relative_path || f.path || f.filename).replace(/\\/g, "/");
+}
+
+/** Strip any folder prefix: "Suno-V6-Mini/track.m4a" → "track.m4a". */
+function baseNameOfRef(ref: string): string {
+  const base = ref.split("/").pop() ?? ref;
+  return base || ref;
+}
+
+/** Human display name: no folders, hash prefixes, or extension. */
+function displayNameForFile(f: LibraryFile): string {
+  return baseNameOfRef(audioRefForFile(f)).replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "");
+}
+
+/** Encode a backend file reference segment-wise (keeps folder slashes intact). */
+function encodeAudioRef(ref: string): string {
+  return ref.split("/").map((seg) => encodeURIComponent(seg)).join("/");
+}
+
+/** How long a beat stays lit for throttled (React-state) consumers.
+ *  Per-frame producers raise `beat` for a single 16 ms frame (shader/2D loop)
+ *  while state mirrors update at ~10 Hz — without latching, the footer beat
+ *  dot and lyric beat pulses miss most beats and fire up to 100 ms late.
+ *  Kept at 80 ms (not longer): measured beat grids run dense double-time
+ *  (~190–270 ms spacing), so a longer latch saturates the dot instead of
+ *  flashing per beat. */
+const BEAT_LATCH_MS = 80;
 
 /** Clamp a number into [min, max]; falls back to `fallback` when not finite. */
 function clampNum(value: unknown, min: number, max: number, fallback: number): number {
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, n));
-}
-
-/** Select visualization style based on audio analysis data (pure — safe outside render). */
-function selectVisualizationForTrack(analysis: AudioAnalysisData): VisualizationStyle | null {
-  const bpm = analysis.tempo_bpm;
-  const energyAvg = analysis.energy_curve?.length
-    ? analysis.energy_curve.reduce((a, b) => a + b, 0) / analysis.energy_curve.length
-    : 0.5;
-  const sectionCount = analysis.sections?.length || 0;
-  const hasChorus = analysis.sections?.some(s => s.type === "chorus") || false;
-
-  // High energy + fast tempo → Geometric (vortex) or Pulse
-  if (energyAvg > 0.6 && bpm > 130) return "geometric";
-  // High energy + slower → Storm (reuse geometric)
-  if (energyAvg > 0.6 && bpm <= 130) return "pulse";
-  // Medium energy + fast → Particles (galaxy)
-  if (energyAvg > 0.4 && bpm > 120) return "particles";
-  // Low energy + slow → Aurora (dreamy) or Ocean (deterministic by energy value)
-  if (energyAvg < 0.4 && bpm < 100) {
-    return Math.floor(energyAvg * 100) % 2 === 0 ? "aurora" : "ocean";
-  }
-  // Many sections → Neural (network)
-  if (sectionCount > 6) return "neural";
-  // Has chorus with high energy → Synthwave (spectrum)
-  if (hasChorus && energyAvg > 0.5) return "synthwave";
-  // Low energy → Cosmic (nebula)
-  if (energyAvg < 0.35) return "cosmic";
-  // Default based on tempo
-  if (bpm > 140) return "pulse";
-  if (bpm < 90) return "aurora";
-  return "geometric";
 }
 
 /** Narrow an unknown backend payload to AudioAnalysisData; null when unusable. */
@@ -105,7 +114,7 @@ export function Visualizer() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [libraryFiles, setLibraryFiles] = useState<Array<{ filename: string; path: string }>>([]);
+  const [libraryFiles, setLibraryFiles] = useState<LibraryFile[]>([]);
   const [liveAudioData, setLiveAudioData] = useState<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0, drumType: null, nextBeatIn: 0 });
   const liveAudioDataRef = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0, drumType: null, nextBeatIn: 0 });
   const [visualizationStyle, setVisualizationStyle] = useState<VisualizationStyle>("geometric");
@@ -162,7 +171,7 @@ export function Visualizer() {
   // Storyboard: LRC sections + analysis energy → narrative beats (acts).
   // Rebuilds per track/lyrics/analysis; state lookup below runs at lyric-DOM rate.
   const storyboard = useMemo(() => buildStoryboard(
-    currentFilename?.replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a|lrc)$/i, "") || "untitled",
+    baseNameOfRef(currentFilename ?? "").replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a|lrc)$/i, "") || "untitled",
     lyrics,
     currentAnalysisData,
   ), [currentFilename, lyrics, currentAnalysisData]);
@@ -231,46 +240,58 @@ export function Visualizer() {
   const lastBassRef = useRef(0);
   const beatCooldownRef = useRef(0);
   const lastBeatIdxRef = useRef(-1);
+  const lastBeatAtRef = useRef(0);
+  // Wall-clock of the last beat frame — latches `beat: true` for throttled
+  // state consumers (see BEAT_LATCH_MS). Reset per track with the other detectors.
 
   // Load CSV and library
   useEffect(() => { fetch("/track-prompts-lyrics.csv").then(r => r.text()).then(setCsvContent).catch(() => {}); }, []);
   useEffect(() => { listAudioFiles().then(files => { if (Array.isArray(files) && files.length > 0) setLibraryFiles(files); }).catch(() => {}); }, []);
 
-  // Parse lyrics - tries LRC first (precise timing), then CSV fallback
-  const parseLyricsForTrack = useCallback(async (trackName: string, duration: number): Promise<LyricLine[]> => {
-    if (!trackName) return parseLyricsFromCsv(csvContent, trackName, duration);
+  // Parse lyrics — LRC files ONLY. No LRC means no words on the canvas:
+  // the old CSV fallback painted synthetic, mistimed lines (e.g. prompt-theme
+  // excerpts) over tracks that simply have no lyrics.
+  // trackName is the bare base name; folder scopes the lookup to the track's
+  // subfolder first (most library tracks live beside their .lrc, if any).
+  const parseLyricsForTrack = useCallback(async (trackName: string, folder?: string): Promise<LyricLine[]> => {
+    if (!trackName) return [];
 
     // Ensure the filename has .lrc extension
-    const lrcFilename = trackName.endsWith(".lrc") ? trackName :
+    const lrcBase = trackName.endsWith(".lrc") ? trackName :
       trackName.replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "") + ".lrc";
+    const candidates = folder ? [`${folder}/${lrcBase}`, lrcBase] : [lrcBase];
 
     // Try public directory first (fast, no backend needed)
-    try {
-      const publicLrc = await fetch(`/audio/${encodeURIComponent(lrcFilename)}`);
-      if (publicLrc.ok) {
-        const lrcContent = await publicLrc.text();
-        const lrcLyrics = parseLrcContent(lrcContent);
-        if (lrcLyrics.length > 0) return lrcLyrics;
+    for (const candidate of candidates) {
+      try {
+        const publicLrc = await fetch(`/audio/${encodeAudioRef(candidate)}`);
+        if (publicLrc.ok) {
+          const lrcContent = await publicLrc.text();
+          const lrcLyrics = parseLrcContent(lrcContent);
+          if (lrcLyrics.length > 0) return lrcLyrics;
+        }
+      } catch {
+        // Fall through
       }
-    } catch {
-      // Fall through
     }
 
     // Try backend API
-    try {
-      const apiLrc = await fetch(`/api/audio/file/${encodeURIComponent(lrcFilename)}`);
-      if (apiLrc.ok) {
-        const lrcContent = await apiLrc.text();
-        const lrcLyrics = parseLrcContent(lrcContent);
-        if (lrcLyrics.length > 0) return lrcLyrics;
+    for (const candidate of candidates) {
+      try {
+        const apiLrc = await fetch(`/api/audio/file/${encodeAudioRef(candidate)}`);
+        if (apiLrc.ok) {
+          const lrcContent = await apiLrc.text();
+          const lrcLyrics = parseLrcContent(lrcContent);
+          if (lrcLyrics.length > 0) return lrcLyrics;
+        }
+      } catch {
+        // Fall through
       }
-    } catch {
-      // Fall through
     }
 
-    // Fall back to CSV parsing
-    return parseLyricsFromCsv(csvContent, trackName, duration);
-  }, [csvContent]);
+    // No LRC found — return empty so the canvas stays text-free.
+    return [];
+  }, []);
 
   // Apply preset callback - defined early because handlePresetLoaded depends on it.
   // Never mutates the input preset: shared catalog entries (visualPresets) and
@@ -399,6 +420,10 @@ export function Visualizer() {
     setElapsed(0);
     audioClockRef.current.reset();
     lrcSyncLiveRef.current = null;
+    // Lyrics are strictly LRC-derived: a new track starts wordless so stale
+    // lines can never linger on the canvas when the next track has no LRC.
+    setLyrics([]);
+    setLyricsVisible(false);
     smoothedBassRef.current = 0;
     smoothedMidRef.current = 0;
     smoothedTrebleRef.current = 0;
@@ -407,6 +432,7 @@ export function Visualizer() {
     lastBassRef.current = 0;
     beatCooldownRef.current = 0;
     lastBeatIdxRef.current = -1;
+    lastBeatAtRef.current = 0;
     last3DUiUpdateRef.current = 0;
     const idle: AudioData = { bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0, drumType: null, nextBeatIn: 0 };
     liveAudioDataRef.current = idle;
@@ -450,11 +476,13 @@ export function Visualizer() {
   }, [audioUrl, isPlaying]);
 
   // Sync one final elapsed value on pause so lyrics don't freeze up to a throttle-window stale.
+  // Uses the same latency-compensated clock as the playing loop — raw currentTime
+  // would jump the lyrics/beat state forward by the output latency on every pause.
   useEffect(() => {
     if (!isPlaying && audioElRef.current) {
-      const t = audioElRef.current.currentTime;
-      audioElapsedRef.current = t;
-      setElapsed(t);
+      const heard = audioClockRef.current.sample(audioElRef.current, latencyRef.current);
+      audioElapsedRef.current = heard;
+      setElapsed(heard);
     }
   }, [isPlaying]);
 
@@ -536,60 +564,56 @@ export function Visualizer() {
     setIsPaused(false);
   }, [resetAudioDerivedState]);
 
-  const handleSelectLibraryTrack = useCallback(async (filename: string) => {
-    if (!filename) return;
+  const handleSelectLibraryTrack = useCallback(async (fileRef: string) => {
+    if (!fileRef) return;
     const requestId = ++trackRequestRef.current;
     const isStale = () => requestId !== trackRequestRef.current;
     const presetLockAtStart = visualPresetLockRef.current;
     setError(null);
     resetAudioDerivedState();
-    setCurrentFilename(filename);
-    setAudioUrl(`/api/audio/file/${encodeURIComponent(filename)}`);
+    setCurrentFilename(fileRef);
+    // Segment-wise encoding keeps subfolder slashes intact for :path routes.
+    setAudioUrl(`/api/audio/file/${encodeAudioRef(fileRef)}`);
     setDemoEnabled(false);
     setIsPaused(false);
     // New track: clear manual preset lock so auto-apply is allowed to run.
     setActiveVisualPresetId(null);
-    const cleanName = filename.replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "");
-    let analysis: AudioAnalysisData | null = analysisData[filename] ?? null;
-    let realBpm = trackMetadata[filename]?.bpm;
+    const trackFolder = fileRef.includes("/") ? fileRef.slice(0, fileRef.lastIndexOf("/")) : "";
+    const cleanName = baseNameOfRef(fileRef).replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "");
+    let analysis: AudioAnalysisData | null = analysisData[fileRef] ?? null;
+    let realBpm = trackMetadata[fileRef]?.bpm;
     if (!analysis) {
+      // Surface progress: a fresh analysis can take a while, during which the
+      // visualizer runs on the fallback (threshold) beat detector — visibly
+      // looser timing than analysis beat_times. The Analyze button doubles as
+      // the progress indicator via the shared `analyzing` flag.
+      setAnalyzing(true);
       try {
         // Try to get cached analysis first, then ensure analysis (runs if needed)
-        const result = await ensureAnalysis(filename);
+        const result = await ensureAnalysis(fileRef);
         if (isStale()) return;
         const ensuredAnalysis = toAnalysisData(result?.analysis);
         if (ensuredAnalysis) {
           analysis = ensuredAnalysis;
-          setAnalysisData(prev => ({ ...prev, [filename]: ensuredAnalysis }));
+          setAnalysisData(prev => ({ ...prev, [fileRef]: ensuredAnalysis }));
           realBpm = ensuredAnalysis.tempo_bpm ? Math.round(ensuredAnalysis.tempo_bpm) : undefined;
-          if (realBpm) setTrackMetadata(prev => ({ ...prev, [filename]: { bpm: realBpm } }));
+          if (realBpm) setTrackMetadata(prev => ({ ...prev, [fileRef]: { bpm: realBpm } }));
         } else if (result && !result.analysis) {
           showToast("Analysis came back empty — visuals use live audio only", "warning");
         }
       } catch {
         // Never fail silently: without analysis there is no beat sync.
         showToast("Track analysis failed — visuals use live audio only", "warning");
+      } finally {
+        if (!isStale()) setAnalyzing(false);
       }
     }
     if (isStale()) return;
-    if (csvContent) {
-      const concept = getVisualizationForTrack(cleanName, csvContent);
-      if (concept) {
-        if (realBpm) concept.bpm = realBpm;
-        setVisualizationStyle(concept.recommendedViz);
-      }
-    }
 
-    // Auto-select visualization based on analysis data
-    if (analysis) {
-      const viz = selectVisualizationForTrack(analysis);
-      if (viz) setVisualizationStyle(viz);
-    }
-
-    // Load lyrics for this track (LRC preferred, CSV fallback)
+    // Load lyrics for this track (LRC only — no LRC means a text-free canvas)
     const duration = analysis?.duration_seconds || 240;
     console.log('[LRC] Loading lyrics for:', cleanName, 'duration:', duration);
-    const trackLyrics = await parseLyricsForTrack(cleanName, duration);
+    const trackLyrics = await parseLyricsForTrack(cleanName, trackFolder);
     if (isStale()) return;
     console.log('[LRC] Loaded', trackLyrics.length, 'lyric lines');
     setLyrics(trackLyrics);
@@ -627,7 +651,7 @@ export function Visualizer() {
     (window as any).__pendingAIAnalysis = analysis;
     (window as any).__pendingAICleanName = cleanName;
     (window as any).__pendingAIRealBpm = realBpm;
-  }, [csvContent, analysisData, trackMetadata, parseLyricsForTrack, resetAudioDerivedState]);
+  }, [analysisData, trackMetadata, parseLyricsForTrack, resetAudioDerivedState]);
 
   /** Extract track metadata for AI prompt context */
   const deriveTrackMeta = useCallback((analysis: AudioAnalysisData | null) => {
@@ -775,12 +799,18 @@ export function Visualizer() {
           energy,
           drumType: null,
           nextBeatIn,
+          beatPhase: analysis?.beat_times?.length
+            ? getBeatPhase(analysis.beat_times, elapsed)?.phase
+            : undefined,
         };
         liveAudioDataRef.current = newData;
         const now = performance.now();
+        // Latch the beat for throttled consumers: a single-frame `beat` is
+        // invisible to the 10 Hz state mirror (missed beats, late flashes).
+        if (isBeat) lastBeatAtRef.current = now;
         if (now - lastUiUpdate > 100) {
           lastUiUpdate = now;
-          setLiveAudioData(newData);
+          setLiveAudioData({ ...newData, beat: isBeat || (now - lastBeatAtRef.current < BEAT_LATCH_MS) });
         }
       }
       raf = requestAnimationFrame(analyse);
@@ -826,7 +856,7 @@ export function Visualizer() {
     setAiEnhancing(true);
     setError(null);
     try {
-      const cleanName = currentFilename?.replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "") || "track";
+      const cleanName = baseNameOfRef(currentFilename ?? "").replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "") || "track";
       const concept = csvContent ? getVisualizationForTrack(cleanName, csvContent) : null;
       const desc = (concept as any)?.prompt || (concept as any)?.visualConcept || cleanName;
       const genre = (concept as any)?.genre?.join(", ") || "";
@@ -948,11 +978,22 @@ export function Visualizer() {
     return () => { delete (window as any).__VIZ_TEST__; };
   }, [handleSelectLibraryTrack]);
 
-  // Media Library handoff: auto-select a pending track exactly once on mount.
+  // Media Library handoff: auto-select a pending track exactly once. The handoff
+  // may carry a bare filename while the library entry lives in a subfolder, so
+  // resolve against the loaded library (by ref or bare name) before selecting.
+  const [pendingTrack, setPendingTrack] = useState<string | null>(null);
   useEffect(() => {
     const pending = consumePendingTrack();
-    if (pending) handleSelectLibraryTrack(pending);
-  }, [handleSelectLibraryTrack]);
+    if (pending) setPendingTrack(pending);
+  }, []);
+  useEffect(() => {
+    if (!pendingTrack || libraryFiles.length === 0) return;
+    const match = libraryFiles.find(
+      (f) => audioRefForFile(f) === pendingTrack || f.filename === pendingTrack
+    );
+    handleSelectLibraryTrack(match ? audioRefForFile(match) : pendingTrack);
+    setPendingTrack(null);
+  }, [pendingTrack, libraryFiles, handleSelectLibraryTrack]);
 
   return (
     <div className={`viz-page ${focusMode ? "viz-focus-mode" : ""}`}>
@@ -962,9 +1003,10 @@ export function Visualizer() {
             <label>Track
               <select onChange={(e) => handleSelectLibraryTrack(e.target.value)} value={currentFilename || ""}>
                 <option value="" disabled>Select a track...</option>
-                {libraryFiles.map((f) => (
-                  <option key={f.filename} value={f.filename}>{f.filename.replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "")}{trackMetadata[f.filename]?.bpm ? ` (${trackMetadata[f.filename]?.bpm} BPM)` : ""}{analysisData[f.filename] ? " ✓" : ""}</option>
-                ))}
+                {libraryFiles.map((f) => {
+                  const ref = audioRefForFile(f);
+                  return <option key={ref} value={ref}>{displayNameForFile(f)}{trackMetadata[ref]?.bpm ? ` (${trackMetadata[ref]?.bpm} BPM)` : ""}{analysisData[ref] ? " ✓" : ""}</option>;
+                })}
               </select>
             </label>
             <label>Mode
@@ -1004,14 +1046,15 @@ export function Visualizer() {
       <header className="viz-topbar">
         <div className="viz-brand"><Music size={20} /><span>Visualizer</span></div>
         <div className="viz-track-selector">
-          <select data-testid="viz-track-select" onChange={(e) => handleSelectLibraryTrack(e.target.value)} value={currentFilename || ""} className="viz-track-select">
+          <select data-testid="viz-track-select" id="viz-track-select" aria-label="Select a track" onChange={(e) => handleSelectLibraryTrack(e.target.value)} value={currentFilename || ""} className="viz-track-select">
             <option value="" disabled>Select a track...</option>
             {libraryFiles.map((f) => {
-              const name = f.filename.replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "");
-              const meta = trackMetadata[f.filename];
-              const badge = analysisData[f.filename] ? " ✓" : "";
+              const ref = audioRefForFile(f);
+              const name = displayNameForFile(f);
+              const meta = trackMetadata[ref];
+              const badge = analysisData[ref] ? " ✓" : "";
               const metaStr = meta?.bpm ? ` (${meta.bpm} BPM)` : "";
-              return <option key={f.filename} value={f.filename}>{name}{metaStr}{badge}</option>;
+              return <option key={ref} value={ref}>{name}{metaStr}{badge}</option>;
             })}
           </select>
           {currentFilename && !currentAnalysisData && (
@@ -1019,9 +1062,9 @@ export function Visualizer() {
               {analyzing ? "Analyzing..." : "Analyze"}
             </button>
           )}
-          {currentFilename && visualPresets[kineticPreset] && (
-            <span className="viz-preset-badge" title={`Active preset: ${visualPresets[kineticPreset]?.name || kineticPreset}`}>
-              {visualPresets[kineticPreset]?.name || kineticPreset}
+          {currentFilename && activeVisualPresetId && visualPresets[activeVisualPresetId] && (
+            <span className="viz-preset-badge" title={`Active preset: ${visualPresets[activeVisualPresetId].name}`}>
+              {visualPresets[activeVisualPresetId].name}
             </span>
           )}
           {currentAnalysisData && !loadedPreset && (
@@ -1030,28 +1073,28 @@ export function Visualizer() {
             </button>
           )}
         </div>
-        <div className="viz-actions">
+        <div className="viz-actions" role="toolbar" aria-label="Visualizer controls">
           <PresetFileUpload
             onPresetLoaded={handlePresetLoaded}
             loadedPresetName={loadedPreset?.name ?? null}
             onClearPreset={handleClearPreset}
           />
           <div className="viz-btn-group">
-            <button onClick={() => setVizMode(vizMode === "3d" ? "shader" : vizMode === "shader" ? "2d" : "3d")} className={`viz-icon-btn ${vizMode !== "3d" ? "active" : ""}`} title={`Mode: ${vizMode}`}>{vizMode === "3d" ? <span style={{ fontSize: 11 }}>3D</span> : vizMode === "shader" ? <span style={{ fontSize: 11 }}>FX</span> : <span style={{ fontSize: 11 }}>2D</span>}</button>
+            <button onClick={() => setVizMode(vizMode === "3d" ? "shader" : vizMode === "shader" ? "2d" : "3d")} className={`viz-icon-btn ${vizMode !== "3d" ? "active" : ""}`} title={`Mode: ${vizMode}`} aria-label={`Visualization mode: ${vizMode}. Activate to switch mode.`} aria-pressed={vizMode !== "3d"}>{vizMode === "3d" ? <span style={{ fontSize: 11 }}>3D</span> : vizMode === "shader" ? <span style={{ fontSize: 11 }}>FX</span> : <span style={{ fontSize: 11 }}>2D</span>}</button>
           </div>
           <div className="viz-btn-group viz-layers-group" title="Layers">
-            <button onClick={() => setVisualsVisible(v => !v)} className={`viz-icon-btn ${visualsVisible ? "active" : ""}`} aria-label={visualsVisible ? "Hide visuals" : "Show visuals"} title={`Visuals: ${visualsVisible ? "on" : "off"} — 3D/shader/2D`}>
+            <button onClick={() => setVisualsVisible(v => !v)} className={`viz-icon-btn ${visualsVisible ? "active" : ""}`} aria-label={visualsVisible ? "Hide visuals" : "Show visuals"} aria-pressed={visualsVisible} title={`Visuals: ${visualsVisible ? "on" : "off"} — 3D/shader/2D`}>
               {visualsVisible ? <Layers size={14} /> : <EyeOff size={14} />}
             </button>
-            <button onClick={() => setLyricsVisible(v => !v)} className={`viz-icon-btn viz-lyrics-btn ${lyricsVisible ? "active" : ""}`} aria-label={lyricsVisible ? "Hide lyrics" : "Show lyrics"} title={`Lyrics: ${lyricsVisible ? "on" : "off"}${lyrics.length === 0 ? " — no lyrics loaded" : ""}`}>
+            <button onClick={() => setLyricsVisible(v => !v)} className={`viz-icon-btn viz-lyrics-btn ${lyricsVisible ? "active" : ""}`} aria-label={lyricsVisible ? "Hide lyrics" : "Show lyrics"} aria-pressed={lyricsVisible} title={`Lyrics: ${lyricsVisible ? "on" : "off"}${lyrics.length === 0 ? " — no lyrics loaded" : ""}`}>
               <MessageSquare size={14} />
             </button>
-            <button onClick={() => setCharacterVisible(v => !v)} className={`viz-icon-btn ${characterVisible ? "active" : ""}`} aria-label={characterVisible ? "Hide character" : "Show character"} title={`Character: ${characterVisible ? "on" : "off"}`}>
+            <button onClick={() => setCharacterVisible(v => !v)} className={`viz-icon-btn ${characterVisible ? "active" : ""}`} aria-label={characterVisible ? "Hide character" : "Show character"} aria-pressed={characterVisible} title={`Character: ${characterVisible ? "on" : "off"}`}>
               <User size={14} />
             </button>
           </div>
           <div className="viz-btn-group">
-            <button onClick={() => setShowMoreMenu((v) => !v)} className={`viz-icon-btn viz-more-menu-toggle ${showMoreMenu ? "active" : ""}`} aria-label="More controls" title="More controls">
+            <button onClick={() => setShowMoreMenu((v) => !v)} className={`viz-icon-btn viz-more-menu-toggle ${showMoreMenu ? "active" : ""}`} aria-label="More controls" aria-expanded={showMoreMenu} aria-pressed={showMoreMenu} title="More controls">
               <MoreHorizontal size={14} />
             </button>
             {showMoreMenu && (
@@ -1068,7 +1111,7 @@ export function Visualizer() {
                   </select>
                 )}
                 {isRecording && <span className="viz-rec viz-more-item"><span className="viz-rec-dot" /> {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}</span>}
-                <button onClick={isRecording ? stopRecording : startRecording} className={`viz-icon-btn viz-more-item ${isRecording ? "rec" : ""}`} aria-label={isRecording ? "Stop recording" : "Start recording"} title={isRecording ? "Stop recording" : "Start recording"}>
+                <button onClick={isRecording ? stopRecording : startRecording} className={`viz-icon-btn viz-more-item ${isRecording ? "rec" : ""}`} aria-label={isRecording ? "Stop recording" : "Start recording"} aria-pressed={isRecording} title={isRecording ? "Stop recording" : "Start recording"}>
                   {isRecording ? <Square size={14} /> : <Video size={14} />}
                 </button>
                 {recordedBlob && !isRecording && (
@@ -1076,19 +1119,19 @@ export function Visualizer() {
                     <Download size={14} />
                   </button>
                 )}
-                <button onClick={() => setSceneFrozen(!sceneFrozen)} className={`viz-icon-btn viz-more-item ${sceneFrozen ? "active" : ""}`} aria-label={sceneFrozen ? "Unfreeze scene" : "Freeze scene"} title={sceneFrozen ? "Unfreeze scene" : "Freeze scene"}>
+                <button onClick={() => setSceneFrozen(!sceneFrozen)} className={`viz-icon-btn viz-more-item ${sceneFrozen ? "active" : ""}`} aria-label={sceneFrozen ? "Unfreeze scene" : "Freeze scene"} aria-pressed={sceneFrozen} title={sceneFrozen ? "Unfreeze scene" : "Freeze scene"}>
                   <Snowflake size={14} />
                 </button>
-                <button onClick={toggleFocusMode} className={`viz-icon-btn viz-more-item`} aria-label={focusMode ? "Exit focus mode" : "Enter focus mode"} title={focusMode ? "Exit focus mode" : "Enter focus mode"}>{focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
-                <button onClick={() => setShowSettings(!showSettings)} className={`viz-icon-btn viz-more-item ${showSettings ? "active" : ""}`} aria-label={showSettings ? "Close settings" : "Open settings"} title={showSettings ? "Close settings" : "Open settings"}><Settings size={14} /></button>
-                <button onClick={() => setShowAnimDemo(!showAnimDemo)} className={`viz-icon-btn viz-more-item ${showAnimDemo ? "active" : ""}`} aria-label="Animation demo" title="Animation demo">
+                <button onClick={toggleFocusMode} className={`viz-icon-btn viz-more-item`} aria-label={focusMode ? "Exit focus mode" : "Enter focus mode"} aria-pressed={focusMode} title={focusMode ? "Exit focus mode" : "Enter focus mode"}>{focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
+                <button onClick={() => setShowSettings(!showSettings)} className={`viz-icon-btn viz-more-item ${showSettings ? "active" : ""}`} aria-label={showSettings ? "Close settings" : "Open settings"} aria-pressed={showSettings} title={showSettings ? "Close settings" : "Open settings"}><Settings size={14} /></button>
+                <button onClick={() => setShowAnimDemo(!showAnimDemo)} className={`viz-icon-btn viz-more-item ${showAnimDemo ? "active" : ""}`} aria-label="Animation demo" aria-pressed={showAnimDemo} title="Animation demo">
                   <Play size={14} />
                 </button>
-                <button onClick={() => setShowTheatreStudio(!showTheatreStudio)} className={`viz-icon-btn viz-more-item ${showTheatreStudio ? "active" : ""}`} aria-label="Theatre.js Studio" title="Theatre.js Studio — Visual animation editor">
+                <button onClick={() => setShowTheatreStudio(!showTheatreStudio)} className={`viz-icon-btn viz-more-item ${showTheatreStudio ? "active" : ""}`} aria-label="Theatre.js Studio" aria-pressed={showTheatreStudio} title="Theatre.js Studio — Visual animation editor">
                   <Wand2 size={14} />
                 </button>
-                <button onClick={() => setShowAIPanel(!showAIPanel)} className={`viz-icon-btn viz-more-item viz-ai-toggle ${showAIPanel ? "active" : ""}`} aria-label="AI generate preset" title="AI generate preset"><Sparkles size={14} /></button>
-                <button onClick={() => setPrefersReducedMotion(p => !p)} className={`viz-icon-btn viz-more-item ${prefersReducedMotion ? "active" : ""}`} aria-label={prefersReducedMotion ? "Motion on" : "Motion off"} title={prefersReducedMotion ? "Reduced motion: ON (click to disable)" : "Reduced motion: OFF (click to enable)"}>
+                <button onClick={() => setShowAIPanel(!showAIPanel)} className={`viz-icon-btn viz-more-item viz-ai-toggle ${showAIPanel ? "active" : ""}`} aria-label="AI generate preset" aria-pressed={showAIPanel} title="AI generate preset"><Sparkles size={14} /></button>
+                <button onClick={() => setPrefersReducedMotion(p => !p)} className={`viz-icon-btn viz-more-item ${prefersReducedMotion ? "active" : ""}`} aria-label={prefersReducedMotion ? "Motion on" : "Motion off"} aria-pressed={prefersReducedMotion} title={prefersReducedMotion ? "Reduced motion: ON (click to disable)" : "Reduced motion: OFF (click to enable)"}>
                   <Accessibility size={14} />
                 </button>
               </div>
@@ -1106,31 +1149,33 @@ export function Visualizer() {
       />
 
       <div className="viz-content">
-        {!audioUrl && libraryFiles.length === 0 && (
-          <div className="viz-empty-hero">
-            <div className="viz-empty-card">
-              <div className="viz-empty-icon"><Music size={28} /></div>
-              <h3>Drop a song to see it</h3>
-              <p className="viz-empty-sub">Three steps — no setup. Pick a track, pick a vibe, hit play. Beat-synced shader + 3D + lyrics.</p>
-              <ol className="viz-empty-steps">
-                <li><span className="viz-empty-n">1</span> <b>Dashboard</b> → drop MP3/WAV (analyzed on your GPU)</li>
-                <li><span className="viz-empty-n">2</span> <b>Visualizer</b> → choose track here, or drag a file below</li>
-                <li><span className="viz-empty-n">3</span> Press <b>Play</b> — cuts land on beats, chorus = maximal</li>
-              </ol>
-              <div className="viz-empty-actions">
-                <button className="viz-empty-cta" onClick={() => document.querySelector<HTMLInputElement>('.upload-prompt input[type=file]')?.click()}>Browse audio…</button>
-                <a href="/audio-analysis" className="viz-empty-link">Open Audio Analysis →</a>
-              </div>
-              <p className="viz-empty-tip">Tip: Visualizer gets 2-5× more rec than static art — first 3s are the hook.</p>
-            </div>
-          </div>
-        )}
         <div className="viz-canvas-wrap" ref={containerRef}>
+          {!audioUrl && !currentFilename && (
+            <div className="viz-empty-hero" role="status" aria-label="Get started with the visualizer">
+              <div className="viz-empty-card">
+                <div className="viz-empty-icon"><Music size={28} /></div>
+                <h3>Drop a song to see it</h3>
+                <p className="viz-empty-sub">Three steps — no setup. Pick a track, pick a vibe, hit play. Beat-synced shader + 3D + lyrics.</p>
+                <ol className="viz-empty-steps">
+                  <li><span className="viz-empty-n">1</span> <b>Pick a track</b> → choose from the library above{libraryFiles.length > 0 ? ` (${libraryFiles.length} tracks ready)` : ", or upload an MP3/WAV"}</li>
+                  <li><span className="viz-empty-n">2</span> <b>Pick a vibe</b> → shader, 3D, or 2D from the toolbar</li>
+                  <li><span className="viz-empty-n">3</span> Press <b>Play</b> — cuts land on beats, chorus = maximal</li>
+                </ol>
+                <div className="viz-empty-actions">
+                  <button className="viz-empty-cta" onClick={() => document.getElementById("viz-track-select")?.focus()}>Choose a track…</button>
+                  <button className="viz-empty-secondary" onClick={() => document.getElementById("viz-file-input")?.click()}>Browse files…</button>
+                  <a href="/audio-analysis" className="viz-empty-link">Open Audio Analysis →</a>
+                </div>
+                <p className="viz-empty-tip">Tip: first 3s are the hook — start on the chorus for Shorts.</p>
+              </div>
+            </div>
+          )}
+          <UploadPrompt hasAudio={!!audioUrl} quiet={!audioUrl && !currentFilename} onFile={handleFile} />
           {visualsVisible ? (
             vizMode === "shader" ? (
               <ShaderVisualizer
                 audioData={liveAudioDataRef}
-                trackName={currentFilename?.replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "") ?? ""}
+                trackName={baseNameOfRef(currentFilename ?? "").replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "") ?? ""}
                 isPlaying={isPlaying}
                 lrcSync={lrcSync}
                 lrcSyncLive={lrcSyncLiveRef}
@@ -1168,11 +1213,14 @@ export function Visualizer() {
                     onAudioData={(data) => {
                       // Full-rate ref for visuals, throttled React state for UI chrome —
                       // the unthrottled setState re-rendered the whole page ~60fps.
+                      // Beat is latched like the shader/2D loop: a single-frame beat
+                      // is missed by the 10 Hz mirror (late/erratic beat flashes).
                       liveAudioDataRef.current = data;
                       const now = performance.now();
+                      if (data.beat) lastBeatAtRef.current = now;
                       if (now - last3DUiUpdateRef.current > 100) {
                         last3DUiUpdateRef.current = now;
-                        setLiveAudioData(data);
+                        setLiveAudioData({ ...data, beat: data.beat || (now - lastBeatAtRef.current < BEAT_LATCH_MS) });
                       }
                     }}
                     visualizationStyle={visualizationStyle}
@@ -1219,12 +1267,14 @@ export function Visualizer() {
                 beat={liveAudioData.beat}
                 lrcSync={lrcSync}
               />
-              {/* Storyboard grammar: letterbox bars on cinematic beats + act cards */}
+              {/* Storyboard grammar: letterbox bars on cinematic beats.
+                  Act title cards are storyboard-building UI, not visualization —
+                  they never render here (see StoryActCard, used by storyboard
+                  tooling). Letterbox bars are non-text visuals and stay. */}
               {visualsVisible && <div className={`viz-letterbox top ${storyState.beat?.cinematic ? "on" : ""}`} />}
               {visualsVisible && <div className={`viz-letterbox bottom ${storyState.beat?.cinematic ? "on" : ""}`} />}
-              {visualsVisible && <StoryActCard beat={storyState.beat} elapsed={elapsed} showHook={lyricsVisible} />}
               {/* Builder silhouette — separate layer, independent of lyrics (user-toggleable) */}
-              <BuilderFigure audioData={liveAudioDataRef} storyBeat={storyState.beat} visible={characterVisible} />
+              <BuilderFigure audioData={liveAudioDataRef} storyBeat={storyState.beat} visible={characterVisible} calm={prefersReducedMotion} />
         </div>
         {showSettings && <SettingsPanel params={vizParams} onChange={setVizParams} bgColor={bgColor} meshColor={meshColor} onBgChange={setBgColor} onMeshChange={setMeshColor} demoEnabled={demoEnabled} onDemoToggle={setDemoEnabled} kineticPreset={kineticPreset} onKineticPresetChange={setKineticPreset} visualizationStyle={visualizationStyle} onVisualizationStyleChange={setVisualizationStyle} vizMode={vizMode} onVizModeChange={setVizMode} activeVisualPresetId={activeVisualPresetId} onVisualPresetSelect={handleVisualPresetSelect} />}
         {showAIPanel && <AIVisualizerPrompt onApplyPreset={handlePresetLoaded} trackMeta={deriveTrackMeta(currentAnalysisData)} trackName={currentFilename ?? undefined} />}
@@ -1245,14 +1295,14 @@ export function Visualizer() {
             onPlay={() => { setIsPlaying(true); setIsPaused(false); if (audioElRef.current) void setupAudio(audioElRef.current); }}
             onPause={() => { setIsPlaying(false); setIsPaused(true); }}
             onEnded={() => { setIsPlaying(false); setIsPaused(false); resetAudioDerivedState(); }}
+            onError={() => { setIsPlaying(false); setError(`Couldn't load audio — the file may have moved. Pick another track or re-upload.`); }}
           />
           {/* Per-stem mixing (Trend 2: drums→pulse, bass→camera shake, vocals→lyric, other→palette) */}
           <StemMixerPanel audioFilename={currentFilename} compact />
         </div>
       )}
 
-      {!demoEnabled && <UploadPrompt hasAudio={!!audioUrl} onFile={handleFile} />}
-      {error && <div className="viz-error-bar"><AlertCircle size={14} /><span>{error}</span></div>}
+      {error && <div className="viz-error-bar" role="alert"><AlertCircle size={14} /><span>{error}</span></div>}
     </div>
   );
 }

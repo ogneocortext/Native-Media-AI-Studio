@@ -286,6 +286,14 @@
   }
 }
 
+select, option {
+  background-color: #1a1a2e !important;
+  color: var(--text-primary) !important;
+  color-scheme: dark;
+  font-weight: 500;
+  font-size: 15px;
+}
+
 
 /* ===== FOCUS & ACTIVE STATES ===== */
 .focus-glow {

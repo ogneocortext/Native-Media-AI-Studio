@@ -1,0 +1,144 @@
+{
+  "title": "2026 Lyric Writing Techniques",
+  "version": "2026-09-14",
+  "description": "Lyric-writing techniques used by popular artists in 2026 for each target genre. Used by the music prompt generator to steer the local LLM toward lyrics that match current hit patterns.",
+  "sources": "Compiled from industry observation; not a formal research database. Verify against chart analysis before treating as authoritative.",
+  "techniques": {
+    "melodic rap": {
+      "techniques": [
+        "Internal rhyme chains: rhyme inside the bar, not just at the end.",
+        "4-bar verse structure with a 1-bar ad-lib tag at the end of every 4th bar.",
+        "Hook repeats a 2-line motif with slight melodic variation each time.",
+        "Use parenthetical ad-libs: (yeah), (go), (shit) — short, punchy.",
+        "Syllable density: 8-12 syllables per bar; stretch vowels for melody.",
+        "Pre-chorus builds tension with shorter lines (5-7 syllables)."
+      ],
+      "vocal_delivery": "Auto-tuned melodic rap, half-sung half-rapped, dynamic range soft verse → loud hook."
+    },
+    "alt R&B": {
+      "techniques": [
+        "Fragmented phrases: break sentences into 3-5 word chunks with rests.",
+        "Vocal layering: harmonies in the hook, whisper-track ad-libs in verses.",
+        "Ambiguous storytelling: suggest emotions rather than state them directly.",
+        "Pre-chorus as a question or half-finished thought, not a full sentence.",
+        "Bridge strips back to voice + one instrument before final hook.",
+        "Use onomatopoeia and breath sounds as percussion: (ah), (mm), (shh)."
+      ],
+      "vocal_delivery": "Breathy falsetto top, spoken-word mid-range, whispered ad-libs; reverb-heavy mix."
+    },
+    "phonk": {
+      "techniques": [
+        "Aggressive repetition: 1-2 line motif repeated 4-8 times per section.",
+        "Short phrases (3-6 words) over 808 slides; leave space for the beat.",
+        "Chant-like hooks: monosyllabic or bisyllabic words, call-and-response.",
+        "Use bracket cues for delivery: [aggressive], [whispered], [screamed].",
+        "Verse tells a street story in present tense, no metaphors needed.",
+        "Outro fades on a repeated ad-lib or vocal chop."
+      ],
+      "vocal_delivery": "Distorted, aggressive, layered with reverb and delay; deep 808-tuned bass vocals."
+    },
+    "pop": {
+      "techniques": [
+        "Hook-first structure: strongest 2-line motif in the first 8 seconds.",
+        "AABB or ABAB rhyme scheme; simple, predictable, catchy.",
+        "Pre-chorus builds with a question or rising action, resolves in the chorus.",
+        "Bridge provides contrast: softer dynamics, fewer words, longer notes.",
+        "Use universal emotions (love, heartbreak, freedom) with specific details.",
+        "Outro repeats the hook 2-4 times with production fading."
+      ],
+      "vocal_delivery": "Belty chorus, soft verse, mixed harmonies; polished, radio-ready tone."
+    },
+    "drill": {
+      "techniques": [
+        "Syncopated triplet flows over 140-150 BPM; off-beat emphasis.",
+        "Violent imagery, street narratives, braggadocio — direct, unapologetic.",
+        "Ad-libs on every bar end: (grrah), (skrrt), (bang), (free), (whoa).",
+        "Short verses (8-12 bars), longer hooks (4-8 bars repeating).",
+        "Use of local slang / regional dialect for authenticity.",
+        "Beat drops on the first syllable of the hook after a 1-bar silence."
+      ],
+      "vocal_delivery": "Aggressive, distorted, layered with ad-libs; deep bass, fast flows."
+    },
+    "afrobeat": {
+      "techniques": [
+        "Polyrhythmic vocal phrasing: 3-over-2 rhythm, off-beat entrances.",
+        "Call-and-response between lead vocal and backing vocals.",
+        "Pidgin English or local language mixed with English for flavor.",
+        "Shorter phrases (4-6 words) leaving room for percussion.",
+        "Hook is a repetitive chant or phrase with a danceable groove.",
+        "Bridge often features a key change or tempo shift (log drum drop)."
+      ],
+      "vocal_delivery": "Smooth, melodic, layered harmonies; percussive vocal attacks on off-beats."
+    },
+    "country": {
+      "techniques": [
+        "Storytelling arc: setup → conflict → resolution in 3 verses + chorus.",
+        "Specific details: small-town names, brands, landmarks, seasons.",
+        "AABB rhyme scheme with occasional internal rhymes.",
+        "Chorus is the emotional core — repeat verbatim, same words every time.",
+        "Bridge shifts perspective or reveals a twist.",
+        "Outro fades on a repeated hook or a final lyrical punchline."
+      ],
+      "vocal_delivery": "Twangy, nasal, honest; often slightly broken or strained on emotional lines."
+    },
+    "latin": {
+      "techniques": [
+        "Spanglish mixing: Spanish phrases for emotional emphasis, English for flow.",
+        "Reggaeton dembow rhythm: syllables lock to the 4/4 kick pattern.",
+        "Perreo / dance call-and-response: vocal line → crowd response → vocal line.",
+        "Hook in Spanish if targeting Latin markets; bilingual for crossover.",
+        "Short verses (4-8 bars), long repetitive hooks with dance breaks.",
+        "Use of vocal effects: pitch-shifted ad-libs, reverb sweeps."
+      ],
+      "vocal_delivery": "Smooth, rhythmic, playful; auto-tune for melodic hooks, raw for verses."
+    },
+    "indie folk": {
+      "techniques": [
+        "Narrative lyrics: specific characters, places, seasons, sensory details.",
+        "Stream-of-consciousness verses; less rigid rhyme, more internal assonance.",
+        "Chorus is a 1-2 line mantra or question that ties the story together.",
+        "Use nature and domestic imagery as emotional metaphors.",
+        "Bridge often strips to just guitar + voice before building back.",
+        "Fingerpicking or strumming patterns inform syllable pacing."
+      ],
+      "vocal_delivery": "Raw, unpolished, breathy; close-miked, minimal reverb, natural tone."
+    },
+    "edm": {
+      "techniques": [
+        "Instrumental-first: vocals are a texture, not the lead — short phrases over drops.",
+        "Hook is a 1-4 word vocal chop repeated and processed (reversed, pitched).",
+        "Build-up: 4-8 bars of rising tension with repeated vocal fragments.",
+        "Drop has no lyrics — pure energy. Post-drop uses processed vocal shots.",
+        "Verse is minimal: 1-2 lines repeated, leaving space for synths.",
+        "Use vocal effects: reverb tails, delay echoes, formant shifts."
+      ],
+      "vocal_delivery": "Processed, layered, ethereal; often pitched up or down; wide stereo image."
+    }
+  },
+  "generic_styles": {
+    "poetic": [
+      "Use vivid imagery, metaphor, and assonance; compress meaning into short phrases.",
+      "Avoid clichés; prefer unexpected word pairings."
+    ],
+    "conversational": [
+      "Write as if talking to a friend; simple words, natural rhythm, no forced rhymes.",
+      "Use contractions, fragments, and honest emotion."
+    ],
+    "storytelling": [
+      "Tell a complete mini-story: setup → conflict → resolution across verses.",
+      "Include specific characters, places, and sensory details."
+    ],
+    "minimal": [
+      "Strip to 1-2 idea words per line; let the beat breathe.",
+      "Repeat key phrases; fewer unique words = more memorable."
+    ],
+    "fragmented": [
+      "Break phrases into 3-5 word chunks with rests; layer vocal textures.",
+      "Use breath sounds and ad-libs as percussion."
+    ],
+    "narrative": [
+      "Linear timeline: past → present → future; clear scenes.",
+      "Use specific times, locations, and objects as anchors."
+    ]
+  }
+}

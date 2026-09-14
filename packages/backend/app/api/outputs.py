@@ -42,7 +42,7 @@ async def _run_subprocess_thread(args: list[str], **kwargs) -> subprocess.Comple
 
 
 def _get_dir_mtime() -> float:
-    """Get the latest mtime across all output subdirectories."""
+    """Get the latest mtime across all output subdirectories (recursive)."""
     output_base = Path(config.output_dir)
     latest = 0.0
     for subdir in ["images", "video", "audio", "generated_3d"]:
@@ -51,13 +51,62 @@ def _get_dir_mtime() -> float:
             try:
                 mtime = dir_path.stat().st_mtime
                 latest = max(latest, mtime)
-                # Also check files inside
-                for f in dir_path.iterdir():
-                    if f.is_file():
-                        latest = max(latest, f.stat().st_mtime)
+                # Check files recursively (includes nested folders like audio/Suno-V6-Mini/)
+                for f in dir_path.rglob("*"):
+                    try:
+                        if f.is_file():
+                            latest = max(latest, f.stat().st_mtime)
+                    except OSError:
+                        continue
             except OSError:
                 pass
     return latest
+
+
+def _is_cover_sidecar(file_path: Path) -> bool:
+    """True if an image file is a cover/thumbnail sidecar of a sibling media file.
+
+    A sidecar shares its stem with a sibling audio/video file, e.g.
+    ``track.mp3`` + ``track.jpg``. Standalone artwork (no matching media
+    sibling) is NOT a sidecar and must be listed as an image.
+    """
+    if file_path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"}:
+        return False
+    parent = file_path.parent
+    stem = file_path.stem
+    media_exts = {
+        ".mp3", ".wav", ".flac", ".ogg", ".oga", ".opus", ".m4a", ".aac",
+        ".wma", ".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi",
+    }
+    try:
+        for sibling in parent.iterdir():
+            try:
+                is_file = sibling.is_file()
+            except OSError:
+                continue
+            if (
+                is_file
+                and sibling.stem == stem
+                and sibling.suffix.lower() in media_exts
+            ):
+                return True
+    except OSError:
+        pass
+    return False
+
+
+def _iter_media_files(dir_path: Path):
+    """Yield media files under dir_path, recursing into subdirectories."""
+    try:
+        for file_path in sorted(dir_path.rglob("*")):
+            try:
+                if not file_path.is_file():
+                    continue
+            except OSError:
+                continue
+            yield file_path
+    except OSError:
+        return
 
 
 def _scan_with_cache() -> list[dict]:
@@ -77,23 +126,22 @@ def _scan_with_cache() -> list[dict]:
         ):
             return cache["files"]
 
-    # Cache miss - scan directory (without FFmpeg - fast metadata only)
+    # Cache miss - scan directory recursively (without FFmpeg - fast metadata only)
     all_outputs: list[OutputFile] = []
     output_base = Path(config.output_dir)
 
-    # Scan standard output directories
+    # Scan standard output directories (recursive: nested folders included)
     for subdir in ["images", "video", "audio", "generated_3d"]:
         dir_path = output_base / subdir
         if not dir_path.exists():
             continue
 
-        for file_path in dir_path.iterdir():
-            if not file_path.is_file():
-                continue
+        for file_path in _iter_media_files(dir_path):
             if file_path.suffix.lower() == ".json":
                 continue
-            # Skip cover sidecars in audio/video folders
-            if subdir in ("audio", "video") and file_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}:
+            # Skip cover/thumbnail sidecars in audio/video folders (they share
+            # a stem with a sibling media file). Standalone artwork is kept.
+            if subdir in ("audio", "video") and _is_cover_sidecar(file_path):
                 continue
 
             try:
@@ -154,8 +202,30 @@ def _scan_with_cache() -> list[dict]:
     return all_outputs
 
 
+def _invalidate_cache() -> None:
+    """Clear the directory-listing cache (call after delete/rename/bulk ops)."""
+    try:
+        with _output_cache_lock:
+            _output_cache["files"] = []
+            _output_cache["mtime"] = 0
+            _output_cache["timestamp"] = 0
+    except Exception:
+        pass
+
+
 def _has_cover_cached(file_path: Path, subdir: str) -> bool:
-    """Check if a cover image exists (without FFmpeg)."""
+    """Check if a cover image exists (without FFmpeg).
+
+    Only top-level audio/video files get FFmpeg cover extraction (see
+    ``scan_output_directory``), so only those report has_cover=True.
+    """
+    if subdir not in ("audio", "video"):
+        return False
+    try:
+        if file_path.parent.name != subdir:
+            return False
+    except Exception:
+        pass
     for ext in (".jpg", ".jpeg", ".png", ".webp"):
         if file_path.with_suffix(ext).exists():
             return True
@@ -194,9 +264,9 @@ class OutputsResponse(BaseModel):
 def get_file_type(filename: str) -> str:
     """Determine file type from extension"""
     ext = Path(filename).suffix.lower()
-    image_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
-    video_exts = {".mp4", ".webm", ".avi", ".mov", ".mkv", ".m4v"}
-    audio_exts = {".mp3", ".wav", ".flac", ".ogg", ".opus", ".m4a", ".aac", ".wma"}
+    image_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".tiff", ".tif", ".avif", ".heic", ".heif"}
+    video_exts = {".mp4", ".webm", ".avi", ".mov", ".mkv", ".m4v", ".ogv"}
+    audio_exts = {".mp3", ".wav", ".flac", ".ogg", ".oga", ".opus", ".m4a", ".aac", ".wma", ".aiff", ".aif", ".alac", ".amr"}
     model_exts = {".glb", ".gltf", ".obj", ".fbx", ".ply", ".stl"}
 
     if ext in image_exts:
@@ -392,24 +462,23 @@ async def extract_audio_cover(audio_path: Path, relative_base: Path) -> str | No
 
 
 async def scan_output_directory(subdir: str, relative_base: Path) -> list[OutputFile]:
-    """Scan a subdirectory for output files"""
+    """Scan a subdirectory for output files (recursive)."""
     outputs = []
     dir_path = Path(config.output_dir) / subdir
 
     if not dir_path.exists():
         return outputs
 
-    # Only process files (not directories)
-    for file_path in dir_path.iterdir():
-        if not file_path.is_file():
-            continue
+    # Process files recursively (includes nested folders like audio/Suno-V6-Mini/)
+    for file_path in _iter_media_files(dir_path):
 
         # Skip JSON sidecars in listing (they're metadata only)
         if file_path.suffix.lower() == ".json":
             continue
 
-        # Skip cover sidecars in audio/video folders (they are thumbnails, not standalone images)
-        if subdir in ("audio", "video") and file_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}:
+        # Skip cover sidecars in audio/video folders only when they share a
+        # stem with a sibling media file (standalone artwork is listed).
+        if subdir in ("audio", "video") and _is_cover_sidecar(file_path):
             continue
 
         # Get file stats
@@ -469,8 +538,9 @@ async def list_outputs(
     date_to: str | None = Query(
         None, description="Filter by creation date to (ISO format)"
     ),
-    limit: int = Query(50, ge=1, le=200, description="Maximum number of results"),
+    limit: int = Query(200, ge=1, le=500, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
+    refresh: bool = Query(False, description="Bypass the in-memory list cache"),
 ) -> OutputsResponse:
     """List all output files with their metadata.
 
@@ -478,16 +548,22 @@ async def list_outputs(
     thumbnails are generated on-demand when opening a file.
     """
     # Fast cached scan (no FFmpeg)
+    if refresh:
+        _invalidate_cache()
     all_outputs = _scan_with_cache()
 
-    if file_type:
-        all_outputs = [o for o in all_outputs if o.file_type == file_type]
+    if file_type and file_type != "all":
+        # Accept both singular ("image") and plural ("images") spellings.
+        plural_map = {"images": "image", "videos": "video", "audios": "audio", "models": "3d", "model": "3d"}
+        canonical = plural_map.get(file_type, file_type)
+        all_outputs = [o for o in all_outputs if o.file_type == canonical]
 
     if search:
         search_lower = search.lower()
         all_outputs = [
             o for o in all_outputs
             if search_lower in o.filename.lower()
+            or search_lower in o.relative_path.lower()
             or (o.job_id and search_lower in o.job_id.lower())
             or (o.metadata and any(
                 search_lower in str(v).lower()
@@ -516,6 +592,8 @@ async def list_outputs(
         except ValueError:
             pass
 
+    # Counts reflect the FULL result set (before pagination) so the header
+    # StatCards stay accurate when only one page is returned.
     total = len(all_outputs)
     images_count = len([o for o in all_outputs if o.file_type == "image"])
     videos_count = len([o for o in all_outputs if o.file_type == "video"])
@@ -545,7 +623,7 @@ async def get_recent_outputs(
     all_outputs: list[OutputFile] = []
 
     output_base = Path(config.output_dir)
-    for subdir in ["images", "video", "audio", "previews"]:
+    for subdir in ["images", "video", "audio", "previews", "generated_3d"]:
         outputs = await scan_output_directory(subdir, output_base)
         all_outputs.extend(outputs)
 
@@ -568,13 +646,16 @@ async def find_duplicate_groups(
 
     output_base = Path(config.output_dir)
     all_files: list[Path] = []
-    for subdir in ["images", "video", "audio", "previews"]:
+    for subdir in ["images", "video", "audio", "previews", "generated_3d"]:
         d = output_base / subdir
         if d.exists():
-            for p in d.iterdir():
-                if p.is_file() and p.suffix.lower() not in {".json", ".jpg", ".jpeg", ".png", ".webp"}:
-                    # Skip cover sidecars themselves; they are .jpg in audio — already filtered
-                    all_files.append(p)
+            for p in _iter_media_files(d):
+                if p.suffix.lower() == ".json":
+                    continue
+                # Skip cover sidecars; keep standalone artwork.
+                if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and _is_cover_sidecar(p):
+                    continue
+                all_files.append(p)
 
     # Also include .jpg in images/video as standalone? No, only media files
     # Compute hash groups
@@ -714,6 +795,7 @@ async def bulk_delete(body: BulkDeleteRequest) -> dict:
             deleted.append(fp)
         except Exception as e:
             failed.append({"path": fp, "error": str(e)})
+    _invalidate_cache()
     return {"success": True, "deleted": deleted, "failed": failed, "deleted_count": len(deleted)}
 
 
@@ -759,6 +841,8 @@ async def delete_output(file_path: str) -> dict:
         return {"success": True, "message": f"Deleted {full_path.name} (+ sidecars)"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
+    finally:
+        _invalidate_cache()
 
 
 class RenameRequest(BaseModel):
@@ -826,6 +910,8 @@ async def rename_output(file_path: str, body: RenameRequest) -> dict:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Rename failed: {str(e)}")
+    finally:
+        _invalidate_cache()
 
 
 @router.post("/regenerate-thumbnails")
@@ -844,10 +930,8 @@ async def regenerate_thumbnails() -> dict:
     generated = 0
     total = 0
 
-    for video_path in video_dir.iterdir():
-        if not video_path.is_file():
-            continue
-        if video_path.suffix.lower() not in {".mp4", ".webm", ".mov", ".mkv"}:
+    for video_path in _iter_media_files(video_dir):
+        if video_path.suffix.lower() not in {".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi"}:
             continue
 
         total += 1

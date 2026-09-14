@@ -13,6 +13,14 @@ export interface AudioData {
   drumType: "kick" | "snare" | "hat" | null;
   /** Predicted seconds until the next beat (0 = beat happening now / no prediction). */
   nextBeatIn: number;
+  /**
+   * Continuous beat phase in [0, 1): 0 = on the previous beat, →1 as the next
+   * beat nears (see getBeatPhase in shared/timing). Lets motion follow the
+   * musical grid fluidly instead of snapping on boolean onsets. Optional —
+   * producers without an analyzed grid leave it unset and consumers fall back
+   * to onset pulses.
+   */
+  beatPhase?: number;
 }
 
 export interface AudioAnalysisData {

@@ -870,6 +870,8 @@ def cleanup_old_log_events(keep_days: int = 30, conn: sqlite3.Connection | None 
         set_log_analytics_last_cleanup(ts_iso, conn=conn)
         if deleted:
             logger.info("Cleaned up %d log analytics events older than %d days", deleted, keep_days)
+            if deleted >= 1000:
+                conn.execute("VACUUM")
         else:
             logger.debug("Log analytics cleanup ran at %s; no events older than %d days", ts_iso, keep_days)
         return deleted
@@ -916,6 +918,14 @@ def init_db():
 
         set_schema_version(conn, SCHEMA_VERSION)
         logger.info("Database initialized at version %d", SCHEMA_VERSION)
+
+        # Ensure performance indexes exist on hot telemetry tables (idempotent).
+        conn.executescript("""
+            CREATE INDEX IF NOT EXISTS idx_gpu_telemetry_name
+                ON gpu_telemetry(gpu_name);
+            CREATE INDEX IF NOT EXISTS idx_gpu_telemetry_ts_name
+                ON gpu_telemetry(ts_ms, gpu_name);
+        """)
 
         # Prune stale log analytics rows on startup so the store stays lean.
         # Reuse the same connection to avoid nested SQLite writer locks.
@@ -2068,35 +2078,83 @@ def get_gpu_history(since_ms: int | None = None, limit: int = 2000, include_proc
 
 def get_gpu_stats(since_ms: int | None = None) -> dict:
     """Aggregate stats over window. Returns avg/min/max/current + trend slope per metric."""
-    hist = get_gpu_history(since_ms=since_ms, limit=10000)
-    if not hist:
-        return {"count": 0}
-    def _stats(key: str):
-        vals = [h[key] for h in hist if isinstance(h[key], (int, float))]
-        if not vals: return {"avg": 0, "min": 0, "max": 0, "cur": 0, "trend": "flat", "slope": 0}
-        avg = sum(vals)/len(vals); mn = min(vals); mx = max(vals); cur = vals[-1]
-        n = min(len(vals), 40); sl = vals[-n:]
-        sx = sy = sxy = sx2 = 0
-        for i, v in enumerate(sl): sx+=i; sy+=v; sxy+=i*v; sx2+=i*i
-        slope = (n*sxy - sx*sy)/(n*sx2 - sx*sx or 1)
-        trend = "up" if slope > 0.08 else "down" if slope < -0.08 else "flat"
-        return {"avg": avg, "min": mn, "max": mx, "cur": cur, "trend": trend, "slope": slope}
-    return {
-        "count": len(hist),
-        "since_ms": since_ms,
-        "since_iso": hist[0]["ts_iso"] if hist else None,
-        "until_iso": hist[-1]["ts_iso"] if hist else None,
-        "temperature_c": _stats("temperature_c"),
-        "memory_percent": _stats("memory_percent"),
-        "gpu_util": _stats("gpu_util"),
-    }
+    with get_db() as conn:
+        row = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS count,
+                MIN(ts_iso) AS since_iso,
+                MAX(ts_iso) AS until_iso,
+                AVG(temperature_c) AS temperature_c_avg,
+                MIN(temperature_c) AS temperature_c_min,
+                MAX(temperature_c) AS temperature_c_max,
+                MAX(CASE WHEN temperature_c IS NOT NULL THEN temperature_c END) AS temperature_c_cur,
+                AVG(memory_percent) AS memory_percent_avg,
+                MIN(memory_percent) AS memory_percent_min,
+                MAX(memory_percent) AS memory_percent_max,
+                MAX(CASE WHEN memory_percent IS NOT NULL THEN memory_percent END) AS memory_percent_cur,
+                AVG(gpu_util) AS gpu_util_avg,
+                MIN(gpu_util) AS gpu_util_min,
+                MAX(gpu_util) AS gpu_util_max,
+                MAX(CASE WHEN gpu_util IS NOT NULL THEN gpu_util END) AS gpu_util_cur
+            FROM gpu_telemetry
+            WHERE (? IS NULL OR ts_ms >= ?)
+            """,
+            (since_ms, since_ms),
+        ).fetchone()
+        if not row or row["count"] == 0:
+            return {"count": 0}
+
+        def _stats(col: str):
+            avg = row[f"{col}_avg"] or 0
+            mn = row[f"{col}_min"] or 0
+            mx = row[f"{col}_max"] or 0
+            cur = row[f"{col}_cur"] or 0
+            # Fetch last 40 non-null values for slope calc
+            sl = [
+                r[0]
+                for r in conn.execute(
+                    f"SELECT {col} FROM gpu_telemetry WHERE (? IS NULL OR ts_ms >= ?) AND {col} IS NOT NULL ORDER BY ts_ms ASC LIMIT 40"
+                ).fetchall()
+            ]
+            n = len(sl)
+            if n < 2:
+                return {"avg": avg, "min": mn, "max": mx, "cur": cur, "trend": "flat", "slope": 0}
+            sx = sy = sxy = sx2 = 0
+            for i, v in enumerate(sl):
+                sx += i
+                sy += v
+                sxy += i * v
+                sx2 += i * i
+            slope = (n * sxy - sx * sy) / (n * sx2 - sx * sx or 1)
+            trend = "up" if slope > 0.08 else "down" if slope < -0.08 else "flat"
+            return {"avg": avg, "min": mn, "max": mx, "cur": cur, "trend": trend, "slope": slope}
+
+        return {
+            "count": row["count"],
+            "since_ms": since_ms,
+            "since_iso": row["since_iso"],
+            "until_iso": row["until_iso"],
+            "temperature_c": _stats("temperature_c"),
+            "memory_percent": _stats("memory_percent"),
+            "gpu_util": _stats("gpu_util"),
+        }
 
 
 def cleanup_old_gpu_telemetry(keep_days: int = 14) -> int:
     """Purge points older than keep_days. Returns deleted count."""
     with get_db() as conn:
-        cur = conn.execute("DELETE FROM gpu_telemetry WHERE ts_ms < ?", (int((__import__("time").time() - keep_days*86400)*1000),))
-        return cur.rowcount
+        cur = conn.execute(
+            "DELETE FROM gpu_telemetry WHERE ts_ms < ?",
+            (int((__import__("time").time() - keep_days * 86400) * 1000),),
+        )
+        deleted = cur.rowcount
+        if deleted:
+            logger.info("Cleaned up %d GPU telemetry rows older than %d days", deleted, keep_days)
+            # Opportunistic VACUUM when a meaningful chunk was removed
+            if deleted >= 500:
+                conn.execute("VACUUM")
+        return deleted
 
 
 def _migrate_v9(conn: sqlite3.Connection):

@@ -60,6 +60,43 @@ export function getBeatNearTimeFromArray(
 }
 
 /**
+ * Continuous beat phase in [0, 1) for `elapsedSec`: 0 = exactly on the previous
+ * beat, approaching 1 as the next beat nears. Derived from analyzed beat_times
+ * via binary search (same O(log n) strategy as the beat lookups above).
+ *
+ * Why phase, not a boolean: motion research (beat-tracking literature models a
+ * beat as tempo + phase trajectories; motion practice drives curves from beat
+ * markers, not on/off flashes) shows continuous phase produces fluid,
+ * anticipatory movement, while boolean onsets can only snap. A 16 ms `beat:
+ * true` frame is also invisible to throttled UI consumers. Returns null when
+ * no grid exists (caller should fall back to its own onset pulse).
+ */
+export function getBeatPhase(
+  beats: number[],
+  elapsedSec: number,
+): { phase: number; nextBeatIn: number } | null {
+  if (!beats.length || elapsedSec < 0) return null;
+
+  let lo = 0;
+  let hi = beats.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (beats[mid] <= elapsedSec) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  const next = beats[lo];
+  const prev = lo > 0 ? beats[lo - 1] : undefined;
+  const nextBeatIn = next !== undefined ? Math.max(0, next - elapsedSec) : 0;
+  if (prev === undefined || next === undefined) {
+    return { phase: next === undefined ? 1 : 0, nextBeatIn };
+  }
+  const span = Math.max(1e-3, next - prev);
+  return {
+    phase: Math.min(1, Math.max(0, (elapsedSec - prev) / span)),
+    nextBeatIn,
+  };
+}
+/**
  * Seconds until the next beat onset after `elapsedSec`.
  *
  * Returns `0` when currently inside a beat window, or when no future beat

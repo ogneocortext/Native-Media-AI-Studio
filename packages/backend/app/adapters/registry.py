@@ -31,7 +31,8 @@ class AdapterRegistry:
             )
             self._adapters["ollama"] = OllamaAdapter(
                 config.ollama_url,
-                mock_mode=False  # Ollama doesn't need mock mode
+                mock_mode=False,  # Ollama doesn't need mock mode
+                atomic_chat_url=getattr(config, "atomic_chat_url", None),
             )
             self._initialized = True
 

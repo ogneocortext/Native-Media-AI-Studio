@@ -8,6 +8,8 @@ import { getApiBaseUrl } from "../../services/portConfig";
 interface AppSettings {
   comfyui_url: string;
   ollama_url: string;
+  atomic_chat_url: string;
+  atomic_chat_enabled: boolean;
   log_level: string;
   max_queue_workers: number;
   backend_port: number;
@@ -25,6 +27,8 @@ export function Settings() {
   const [settings, setSettings] = useState<AppSettings>({
     comfyui_url: "http://127.0.0.1:8188",
     ollama_url: "http://127.0.0.1:11434",
+    atomic_chat_url: "http://127.0.0.1:1337",
+    atomic_chat_enabled: false,
     log_level: "INFO",
     max_queue_workers: 1,
     backend_port: 8000,
@@ -61,6 +65,8 @@ export function Settings() {
         body: JSON.stringify({
           comfyui_url: settings.comfyui_url,
           ollama_url: settings.ollama_url,
+          atomic_chat_url: settings.atomic_chat_url,
+          atomic_chat_enabled: settings.atomic_chat_enabled,
           log_level: settings.log_level,
           max_queue_workers: settings.max_queue_workers,
           default_model: settings.default_model,
@@ -203,7 +209,7 @@ export function Settings() {
                 </button>
               </div>
               <p className="text-xs text-muted mt-1">
-                Ollama server for LLM text generation
+                Base Ollama server for LLM text generation
               </p>
             </div>
 
@@ -222,6 +228,50 @@ export function Settings() {
               <StatusBadge
                 status={serviceStatus?.adapters?.ollama || "offline"}
               />
+            </div>
+
+            <div className="border-t border-border pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="font-medium">Atomic Chat TurboQuant</p>
+                  <p className="text-xs text-muted">
+                    Route through Atomic Chat's faster OpenAI-compatible backend
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={settings.atomic_chat_enabled}
+                    onChange={(e) => setSettings(prev => ({ ...prev, atomic_chat_enabled: e.target.checked }))}
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+              </div>
+              <div>
+                <label className="label">Atomic Chat URL</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="input flex-1"
+                    value={settings.atomic_chat_url}
+                    onChange={(e) => setSettings(prev => ({ ...prev, atomic_chat_url: e.target.value }))}
+                    placeholder="http://127.0.0.1:1337"
+                    disabled={!settings.atomic_chat_enabled}
+                  />
+                  <button
+                    className="btn btn-secondary"
+                    title="Test Connection"
+                    disabled={!settings.atomic_chat_enabled}
+                    onClick={() => testConnection(settings.atomic_chat_url, "ollama")}
+                  >
+                    <Link2 size={16} />
+                  </button>
+                </div>
+                <p className="text-xs text-muted mt-1">
+                  Atomic Chat OpenAI-compatible API endpoint
+                </p>
+              </div>
             </div>
 
             <div>

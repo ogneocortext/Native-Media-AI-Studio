@@ -7,8 +7,8 @@ import { useJobStore } from "../../state/jobStore";
 
 interface LayoutProps { children: React.ReactNode; }
 
-const APP_VERSION = "1.0.0";
-const COPYRIGHT = "InterGalactic Media Productions LLC";
+const APP_VERSION = "1.5";
+const COPYRIGHT = "Internext Ventures LLC";
 
 // Expose stores on window for test harnesses / debug tooling.
 import { sseService } from "../../services/sseService";
@@ -54,7 +54,7 @@ export function Layout({ children }: LayoutProps) {
           {children}
         </main>
         <footer className="layout-footer">
-          <span className="layout-footer-version">v{APP_VERSION}</span>
+          <span className="layout-footer-version">V{APP_VERSION}</span>
           <span className="layout-footer-copyright">© 2026 {COPYRIGHT}</span>
         </footer>
       </div>

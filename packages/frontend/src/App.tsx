@@ -31,6 +31,7 @@ const Preview = lazyNamed(import("./features/preview/Preview"), "Preview");
 const GpuMonitorPage = lazyNamed(import("./features/gpu/GpuMonitorPage"), "GpuMonitorPage");
 const LogAnalyticsPage = lazyNamed(import("./features/log-analytics/LogAnalytics"), "LogAnalytics");
 const HyperFramesPage = lazyNamed(import("./features/hyperframes/HyperFramesPage"), "HyperFramesPage");
+const MusicPromptGenerator = lazyNamed(import("./features/music-prompts/MusicPromptGenerator"), "MusicPromptGenerator");
 
 function App() {
   useEffect(() => {
@@ -63,6 +64,7 @@ function App() {
             <Route path="/image-generation" element={<ErrorBoundary><ImageGeneration /></ErrorBoundary>} />
             <Route path="/visualizer" element={<ErrorBoundary><Visualizer /></ErrorBoundary>} />
             <Route path="/hyperframes" element={<ErrorBoundary><HyperFramesPage /></ErrorBoundary>} />
+            <Route path="/music-prompts" element={<ErrorBoundary><MusicPromptGenerator /></ErrorBoundary>} />
             <Route path="/library" element={<ErrorBoundary><MediaLibrary /></ErrorBoundary>} />
             <Route path="/media-library" element={<Navigate to="/library" replace />} />
             <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />

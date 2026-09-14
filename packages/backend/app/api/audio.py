@@ -349,6 +349,22 @@ def _check_backend_available(backend: str) -> None:
         raise HTTPException(status_code=400, detail=f"Unknown backend: {backend}. Choose sonara, madmom, or librosa.")
 
 
+def _downsample_curve(curve, max_points):
+    """Downsample a curve to at most `max_points` points via uniform sampling."""
+    if not curve or len(curve) <= max_points:
+        return curve or []
+    indices = [int(round(i * (len(curve) - 1) / (max_points - 1))) for i in range(max_points)]
+    return [curve[i] for i in indices]
+
+
+def _rms_at_time(rms, sr, hop_length, time):
+    if not rms:
+        return 0.5
+    frame = int(round(time * sr / hop_length))
+    frame = max(0, min(frame, len(rms) - 1))
+    return rms[frame]
+
+
 def _build_analysis_result(
     result,
     unique_id: str,
@@ -364,6 +380,8 @@ def _build_analysis_result(
     confidence = result.beats.confidence if result.beats else 0.0
     energy_curve = result.waveform.amplitude_envelope if result.waveform else []
     rms = result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []
+    sr = result.waveform.sample_rate if result.waveform else 22050
+    hop = analyzer.hop_length
 
     sections = _generate_sections_from_analysis(
         duration=duration,
@@ -372,7 +390,7 @@ def _build_analysis_result(
         onset_times=onset_times,
         rms_energy=rms,
         hop_length=analyzer.hop_length,
-        sample_rate=result.waveform.sample_rate if result.waveform else 22050,
+        sample_rate=sr,
     )
 
     return {
@@ -382,10 +400,11 @@ def _build_analysis_result(
         "sections": sections,
         "beat_times": [round(float(t), 3) for t in beat_times[:800]],
         "onset_times": [round(float(t), 3) for t in onset_times[:800]],
-        "energy_curve": [round(float(v), 4) for v in energy_curve],
+        "energy_curve": [round(float(v), 4) for v in _downsample_curve(energy_curve, 100)],
         "confidence": round(float(confidence), 3),
         "amplitude_envelope": [round(float(v), 4) for v in energy_curve],
         "stored_path": str(file_path),
+        "relative_path": file_path.relative_to(AUDIO_DIR).as_posix(),
         "job_id": unique_id,
         # Timing contract for frontend + Remotion + AI agents
         "timing_contract": {
@@ -397,9 +416,7 @@ def _build_analysis_result(
                 {
                     "time": round(float(bt), 3),
                     "drumType": None,
-                    "energy": round(float(
-                        next((e for e in (rms or []) if e > 0), 0.5)
-                    ), 4) if rms else 0.5,
+                    "energy": round(float(_rms_at_time(rms, sr, hop, bt)), 4),
                     "isDownbeat": i == 0 or (i > 0 and (bt - beat_times[i - 1]) > 60.0 / max(tempo, 1) * 1.5),
                     "bpm": round(float(tempo), 1),
                 }
@@ -644,16 +661,17 @@ async def _generate_sections_llm(
     async with aiohttp.ClientSession() as session:
         for model in ["deepseek-r1:7b", app_config.default_model, "qwen3.5:4b"]:
             try:
+                payload = {
+                    "model": model,
+                    "messages": [{"role": "system", "content": sys}, {"role": "user", "content": user}],
+                    "stream": False,
+                    "format": "json",
+                    "options": {"temperature": 0.2, "num_ctx": 4096},
+                }
+                # Some Ollama builds reject unknown keys like `think`; omit it.
                 async with session.post(
                     f"{app_config.ollama_url}/api/chat",
-                    json={
-                        "model": model,
-                        "messages": [{"role": "system", "content": sys}, {"role": "user", "content": user}],
-                        "stream": False,
-                        "format": "json",
-                        "think": False,
-                        "options": {"temperature": 0.2, "num_ctx": 4096},
-                    },
+                    json=payload,
                     timeout=aiohttp.ClientTimeout(total=25),
                 ) as resp:
                     if resp.status != 200:
@@ -674,6 +692,8 @@ async def _generate_sections_llm(
                         # Validate and clamp
                         out = []
                         for s in secs:
+                            if not isinstance(s, dict):
+                                continue
                             typ = str(s.get("type", "verse")).lower()
                             if typ not in ("intro","verse","chorus","bridge","outro","pre-chorus","drop"):
                                 typ = "verse"
@@ -683,6 +703,8 @@ async def _generate_sections_llm(
                                 "end": round(float(s.get("end", duration)), 2),
                                 "energy": round(max(0.05, min(1.0, float(s.get("energy", 0.5)))), 3),
                             })
+                        if not out:
+                            continue
                         out.sort(key=lambda x: x["start"])
                         # Ensure coverage
                         out[0]["start"] = 0.0
@@ -736,7 +758,7 @@ async def get_timing_metadata(filename: str):
     return tc
 
 
-@router.get("/analysis/by-filename/{filename}")
+@router.get("/analysis/by-filename/{filename:path}")
 async def get_analysis_by_filename(filename: str):
     """Get cached analysis for an audio file by filename."""
     import urllib.parse
@@ -745,47 +767,61 @@ async def get_analysis_by_filename(filename: str):
     if ".." in filename or filename.startswith("/"):
         raise HTTPException(status_code=400, detail="Invalid filename")
 
+    # Normalize to relative POSIX path from AUDIO_DIR for subdirectory support
+    normalized = filename.replace("\\", "/")
+    if normalized.startswith(str(AUDIO_DIR).replace("\\", "/")):
+        normalized = str(Path(normalized).relative_to(AUDIO_DIR).as_posix())
+
     # Check in-memory cache first (fastest)
-    cached = _cache_get(filename)
+    cached = _cache_get(normalized)
     if cached is not None:
         return cached
 
     # Check database second
     from ..core import database
-    db_analysis = database.get_audio_analysis(filename)
+    db_analysis = database.get_audio_analysis(normalized)
     if db_analysis:
         # Populate cache
-        _cache_set(filename, db_analysis)
+        _cache_set(normalized, db_analysis)
         return db_analysis
+
+    # Fallback: try basename for backward compatibility with old entries
+    if "/" in normalized:
+        basename = Path(normalized).name
+        if basename != normalized:
+            db_analysis = database.get_audio_analysis(basename)
+            if db_analysis:
+                _cache_set(normalized, db_analysis)
+                return db_analysis
 
     # Fallback to JSON file index
     index = _load_analysis_index()
 
     # Try exact match first
-    job_id = index.get(filename)
+    job_id = index.get(normalized)
 
     # Fallback: try matching by display name (strip hash prefixes)
     if not job_id:
         import re
-        display_name = re.sub(r'^([0-9a-f]{8}_)+', '', filename, flags=re.IGNORECASE)
+        display_name = re.sub(r'^([0-9a-f]{8}_)+', '', normalized, flags=re.IGNORECASE)
         for key, val in index.items():
             key_display = re.sub(r'^([0-9a-f]{8}_)+', '', key, flags=re.IGNORECASE)
             if key_display == display_name:
                 job_id = val
-                logger.info(f"Analysis fallback match: '{filename}' -> '{key}'")
+                logger.info(f"Analysis fallback match: '{normalized}' -> '{key}'")
                 break
 
     # Fallback 2: try partial match (filename without extension)
     if not job_id:
-        stem = Path(filename).stem
+        stem = Path(normalized).stem
         for key, val in index.items():
             if stem in key or key.startswith(stem[:20]):
                 job_id = val
-                logger.info(f"Analysis partial match: '{filename}' -> '{key}'")
+                logger.info(f"Analysis partial match: '{normalized}' -> '{key}'")
                 break
 
     if not job_id:
-        logger.warning(f"No cached analysis for '{filename}'. Index keys: {list(index.keys())[:5]}...")
+        logger.warning(f"No cached analysis for '{normalized}'. Index keys: {list(index.keys())[:5]}...")
         raise HTTPException(status_code=404, detail="No cached analysis found for this file")
 
     analysis_path = _get_analysis_path(job_id)
@@ -824,8 +860,8 @@ async def list_uploaded_audio():
     files = []
     if AUDIO_DIR.exists():
         seen_names = set()
-        for f in sorted(AUDIO_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-            if f.is_file() and f.suffix.lower() in ALLOWED_EXTENSIONS:
+        for f in sorted(AUDIO_DIR.rglob("*"), key=lambda x: x.stat().st_mtime, reverse=True):
+            if f.is_file() and f.suffix.lower() in ALLOWED_EXTENSIONS and not f.name.startswith("."):
                 # Deduplicate by display name — strip ALL 8-hex hash prefixes (files may have 2-3)
                 import re
                 display_name = re.sub(r'^([0-9a-f]{8}_)+', '', f.name, flags=re.IGNORECASE)
@@ -833,11 +869,14 @@ async def list_uploaded_audio():
                     continue
                 seen_names.add(display_name)
                 stat = f.stat()
+                relative = f.relative_to(AUDIO_DIR).as_posix()
+                parent = str(Path(relative).parent) if Path(relative).parent != Path(".") else ""
                 files.append({
                     "filename": f.name,
+                    "relative_path": relative,
                     "size_bytes": stat.st_size,
                     "modified": stat.st_mtime,
-                    "path": str(f),
+                    "folder": parent,
                 })
     return {"files": files}
 
@@ -854,26 +893,46 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
     if ".." in filename or filename.startswith("/"):
         raise HTTPException(status_code=400, detail="Invalid filename")
 
+    # Normalize to relative POSIX path from AUDIO_DIR (supports subdirectory files)
+    normalized = filename.replace("\\", "/")
+    if normalized.startswith(str(AUDIO_DIR).replace("\\", "/")):
+        normalized = str(Path(normalized).relative_to(AUDIO_DIR).as_posix())
+
     # Check database first (persistent across restarts)
     from ..core import database
-    db_analysis = database.get_audio_analysis(filename)
+    db_analysis = database.get_audio_analysis(normalized)
     if db_analysis:
         return {"status": "cached", "analysis": db_analysis}
 
+    # Backward compatibility: try basename for old entries
+    if "/" in normalized:
+        basename = Path(normalized).name
+        if basename != normalized:
+            db_analysis = database.get_audio_analysis(basename)
+            if db_analysis:
+                return {"status": "cached", "analysis": db_analysis}
+
     # Check if already cached in JSON index
     index = _load_analysis_index()
-    job_id = index.get(filename)
+    job_id = index.get(normalized)
+
+    # Backward compatibility: try basename in index
+    if not job_id and "/" in normalized:
+        basename = Path(normalized).name
+        if basename != normalized:
+            job_id = index.get(basename)
+
     if job_id:
         analysis_path = _get_analysis_path(job_id)
         if analysis_path.exists():
             with open(analysis_path, encoding="utf-8") as f:
                 data = json.load(f)
                 # Also save to database for future requests
-                database.update_audio_analysis(filename, data)
+                database.update_audio_analysis(normalized, data)
                 return {"status": "cached", "analysis": data}
 
     # Find the audio file
-    file_path = AUDIO_DIR / filename
+    file_path = AUDIO_DIR / normalized
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"Audio file not found: {filename}")
 
@@ -896,26 +955,26 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
             logger.debug("LLM section refinement failed for ensure-analysis: %s", e, exc_info=True)
 
         # Save to index and file
-        index[filename] = unique_id
+        index[normalized] = unique_id
         _save_analysis_index(index)
 
         analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
         with open(analysis_file, "w") as f:
             json.dump(analysis_result, f, indent=2)
 
-        logger.info(f"Analysis completed for '{filename}': {analysis_result['tempo_bpm']} BPM, {analysis_result['beat_count']} beats")
+        logger.info(f"Analysis completed for '{normalized}': {analysis_result['tempo_bpm']} BPM, {analysis_result['beat_count']} beats")
 
         # Save to database for persistence between server restarts
         from ..core import database
-        database.update_audio_analysis(filename, analysis_result)
+        database.update_audio_analysis(normalized, analysis_result)
         # Populate in-memory cache
-        _cache_set(filename, analysis_result)
+        _cache_set(normalized, analysis_result)
 
         return {"status": "analyzed", "analysis": analysis_result}
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Analysis failed for '{filename}': {e}")
+        logger.error(f"Analysis failed for '{normalized}': {e}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
@@ -992,10 +1051,17 @@ class RenameAudioRequest(BaseModel):
 
 
 class ExtractAudioRequest(BaseModel):
-    """Extract the audio track from a video file into the audio library."""
+    """Extract the audio track from a video file into the audio library.
+
+    Optional `start`/`end` (seconds) extract only that segment directly,
+    saving a round-trip through the trim endpoint. Omit both for the full
+    audio track.
+    """
     source_path: str  # output-relative ("video/foo.mp4") or absolute under PROJECT_ROOT
     format: str = "original"  # "original" = lossless stream copy (best quality); "mp3" = re-encode
     bitrate: str = "192k"  # only used when format == "mp3": one of 128k, 192k, 320k
+    start: float | None = None  # segment start in seconds (default 0)
+    end: float | None = None    # segment end in seconds (default: end of stream)
 
 
 def _find_ffmpeg() -> str | None:
@@ -1032,6 +1098,9 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
     near-instant, no wasted runs. `format="mp3"` re-encodes with libmp3lame
     at `bitrate`. Powers the Media Library "Extract Audio" panel — the result
     lands in the audio library so it can be analyzed on the Audio Analysis page.
+
+    Optional `start`/`end` (seconds) extract only that segment in one ffmpeg
+    pass, avoiding a second trim call.
     """
     from ..services.ffmpeg_tools import probe_media
 
@@ -1060,6 +1129,14 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
     if not ffmpeg:
         raise HTTPException(status_code=500, detail="ffmpeg not found on PATH")
 
+    # Segment bounds (None = full stream).
+    seg_start: float | None = body.start if body.start is not None else None
+    seg_end: float | None = body.end if body.end is not None else None
+    if seg_start is not None and seg_start < 0:
+        raise HTTPException(status_code=400, detail="start must be >= 0")
+    if seg_start is not None and seg_end is not None and seg_end <= seg_start:
+        raise HTTPException(status_code=400, detail="end must be > start")
+
     # Detect — don't guess: probe the actual audio codec before choosing a container.
     probe = await probe_media(src)
     audio_codec: str | None = None
@@ -1073,7 +1150,16 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
     if not audio_codec:
         raise HTTPException(status_code=400, detail=f"No audio track in {src.name}")
 
+    def _fmt_ts(seconds: float | None) -> str:
+        if seconds is None:
+            return "end"
+        m = int(seconds // 60)
+        s = int(seconds % 60)
+        return f"{m:02d}-{s:02d}"
+
     stem = re.sub(r"[^A-Za-z0-9_\- .()\[\]]", "", src.stem).strip() or "extracted"
+    if seg_start is not None or seg_end is not None:
+        stem = f"{stem}_{_fmt_ts(seg_start)}_to_{_fmt_ts(seg_end)}"
     lossless = False
     if fmt == "mp3":
         ext, cmd_mode = ".mp3", "encode"
@@ -1089,12 +1175,22 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
         dst = AUDIO_DIR / f"{stem}_{n}{ext}"
 
     def _cmd(mode: str) -> list[str]:
-        base = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-i", str(src), "-vn"]
+        # Segment flags go before -i for fast seek; for stream copy this is
+        # accurate enough (cuts on packet boundaries). For re-encode we could
+        # place -ss after -i for frame accuracy, but the current use cases
+        # (music/voice) tolerate sub-frame drift at the edges.
+        cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error"]
+        if seg_start is not None:
+            cmd.extend(["-ss", str(seg_start)])
+        cmd.extend(["-i", str(src)])
+        if seg_end is not None:
+            cmd.extend(["-to", str(seg_end)])
+        cmd.extend(["-vn"])
         if mode == "copy":
-            return [*base, "-c:a", "copy", str(dst)]
+            return [*cmd, "-c:a", "copy", str(dst)]
         if mode == "encode":
-            return [*base, "-c:a", "libmp3lame", "-b:a", body.bitrate, str(dst)]
-        return [*base, "-c:a", "aac", "-b:a", "192k", str(dst)]
+            return [*cmd, "-c:a", "libmp3lame", "-b:a", body.bitrate, str(dst)]
+        return [*cmd, "-c:a", "aac", "-b:a", "192k", str(dst)]
 
     started = time.perf_counter()
     try:
@@ -1121,6 +1217,18 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
     if not dst.exists() or dst.stat().st_size == 0:
         raise HTTPException(status_code=400, detail=f"No audio track in {src.name}")
 
+    # Best-effort segment duration: probe the output or derive from bounds.
+    seg_duration: float | None = None
+    try:
+        out_probe = await probe_media(dst)
+        seg_duration = float((out_probe.get("format") or {}).get("duration") or 0) or None
+    except Exception:
+        if seg_start is not None and seg_end is not None:
+            seg_duration = max(0.0, seg_end - seg_start)
+        elif seg_start is not None:
+            src_dur = float((probe.get("format") or {}).get("duration") or 0)
+            seg_duration = max(0.0, src_dur - seg_start)
+
     rel = dst.resolve().relative_to(root).as_posix()
     if rel.startswith("output/"):
         rel = rel[len("output/"):]  # output-relative, e.g. "audio/x.m4a" (getOutputUrl convention)
@@ -1134,6 +1242,9 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
         "lossless": lossless,
         "source_codec": audio_codec,
         "source_sample_rate": audio_rate,
+        "segment_start": seg_start,
+        "segment_end": seg_end,
+        "segment_duration": seg_duration,
         "message": f"Extracted {dst.name}",
     }
 
@@ -1150,20 +1261,193 @@ async def rename_audio(body: RenameAudioRequest) -> dict:
     if ".." in old_filename or ".." in new_filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
-    old_path = AUDIO_DIR / old_filename
-    if not old_path.exists() or not old_path.is_file():
+    # Security: resolve both paths and ensure they stay within AUDIO_DIR
+    old_path = (AUDIO_DIR / old_filename).resolve()
+    new_path = (AUDIO_DIR / new_filename).resolve()
+    if not str(old_path).startswith(str(AUDIO_DIR.resolve())) or not old_path.is_file():
         raise HTTPException(status_code=404, detail=f"Audio file not found: {old_filename}")
-
-    ext = old_path.suffix
-    new_filename_with_ext = new_filename if new_filename.endswith(ext) else new_filename + ext
-    new_path = AUDIO_DIR / new_filename_with_ext
+    if not str(new_path).startswith(str(AUDIO_DIR.resolve())):
+        raise HTTPException(status_code=400, detail="New path escapes audio directory")
 
     if new_path.exists():
-        raise HTTPException(status_code=409, detail=f"A file with that name already exists: {new_filename_with_ext}")
+        raise HTTPException(status_code=409, detail=f"A file with that name already exists: {new_filename}")
 
     old_path.rename(new_path)
 
-    return {"success": True, "old_filename": old_filename, "new_filename": new_filename_with_ext}
+    return {"success": True, "old_filename": old_filename, "new_filename": new_filename}
+
+
+class TrimRange(BaseModel):
+    """One [start, end) interval in seconds."""
+    start: float
+    end: float
+
+
+class TrimAudioRequest(BaseModel):
+    """Cut or keep time ranges of an audio library file, saving the result as new file."""
+    filename: str  # existing file in output/audio
+    mode: str = "keep"  # "keep" = save only ranges[0]; "remove" = cut ranges out, keep the rest
+    ranges: list[TrimRange]
+
+
+def _clamp_merge_ranges(ranges: list[tuple[float, float]], duration: float) -> list[tuple[float, float]]:
+    """Clamp intervals to [0, duration], drop empties, sort and merge overlaps."""
+    cleaned: list[tuple[float, float]] = []
+    for start, end in ranges:
+        s = max(0.0, min(float(start), duration))
+        e = max(0.0, min(float(end), duration))
+        if e - s > 0.01:
+            cleaned.append((s, e))
+    cleaned.sort()
+    merged: list[tuple[float, float]] = []
+    for s, e in cleaned:
+        if merged and s <= merged[-1][1] + 0.01:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+        else:
+            merged.append((s, e))
+    return merged
+
+
+@router.post("/trim", response_model=dict)
+async def trim_audio(body: TrimAudioRequest) -> dict:
+    """Trim an audio library file and save the edit as a NEW file in `output/audio`.
+
+    `mode="keep"` saves a single `[start, end)` interval; `mode="remove"` cuts
+    the given intervals out and concatenates what remains. Same container/codec
+    via stream copy (`-c:a copy`) — fast and lossless; cuts land on packet
+    boundaries. Powers the Audio Analysis "Trim" editor — the result lands back
+    in the audio library so it can be analyzed or sent to Kinetic Typography.
+    """
+    from ..services.ffmpeg_tools import probe_media
+
+    mode = (body.mode or "keep").lower()
+    if mode not in ("keep", "remove"):
+        raise HTTPException(status_code=400, detail='mode must be "keep" or "remove"')
+    if not body.ranges:
+        raise HTTPException(status_code=400, detail="At least one range is required")
+    if mode == "keep" and len(body.ranges) != 1:
+        raise HTTPException(status_code=400, detail='mode "keep" needs exactly one range')
+    for r in body.ranges:
+        if r.end <= r.start:
+            raise HTTPException(status_code=400, detail="Each range needs end > start")
+        if r.start < 0:
+            raise HTTPException(status_code=400, detail="Range start must be >= 0")
+
+    if not body.filename or ".." in body.filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    src = (AUDIO_DIR / body.filename).resolve()
+    if not str(src).startswith(str(AUDIO_DIR.resolve())) or not src.exists() or not src.is_file():
+        raise HTTPException(status_code=404, detail=f"Audio file not found: {body.filename}")
+    if src.suffix.lower() not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Unsupported audio type: {src.suffix}")
+
+    ffmpeg = _find_ffmpeg()
+    if not ffmpeg:
+        raise HTTPException(status_code=500, detail="ffmpeg not found on PATH")
+
+    try:
+        probe = await probe_media(src)
+        duration = float((probe.get("format") or {}).get("duration") or 0)
+    except Exception:
+        duration = 0.0
+    if duration <= 0:
+        raise HTTPException(status_code=400, detail=f"Could not probe duration of {src.name}")
+
+    merged = _clamp_merge_ranges([(r.start, r.end) for r in body.ranges], duration)
+    if not merged:
+        raise HTTPException(status_code=400, detail="Ranges fall outside the audio duration")
+    if mode == "keep":
+        kept = merged
+    else:
+        kept = []
+        cursor = 0.0
+        for s, e in merged:
+            if s - cursor > 0.01:
+                kept.append((cursor, s))
+            cursor = max(cursor, e)
+        if duration - cursor > 0.01:
+            kept.append((cursor, duration))
+        if not kept:
+            raise HTTPException(status_code=400, detail="Removal covers the entire file — nothing left to save")
+    if len(kept) == 1 and kept[0][0] <= 0.01 and kept[0][1] >= duration - 0.01:
+        raise HTTPException(status_code=400, detail="Edit covers the full file — nothing to change")
+
+    stem = re.sub(r"[^A-Za-z0-9_\- .()\[\]]", "", src.stem).strip() or "trimmed"
+    ext = src.suffix.lower()
+    dst = AUDIO_DIR / f"{stem}_trim{ext}"
+    n = 1
+    while dst.exists():
+        n += 1
+        dst = AUDIO_DIR / f"{stem}_trim_{n}{ext}"
+
+    async def _run(cmd: list[str]) -> None:
+        try:
+            proc = await asyncio.to_thread(
+                subprocess.run, cmd, capture_output=True, text=True, timeout=600,
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(status_code=504, detail="Audio trim timed out")
+        if proc.returncode != 0:
+            tail = (proc.stderr or "").strip().splitlines()[-3:]
+            detail = "; ".join(tail) if tail else "ffmpeg failed"
+            raise HTTPException(status_code=400, detail=detail)
+
+    started = time.perf_counter()
+    tmpdir: Path | None = None
+    try:
+        if len(kept) == 1:
+            s, e = kept[0]
+            await _run([
+                ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+                "-i", str(src), "-ss", f"{s:.3f}", "-t", f"{e - s:.3f}",
+                "-vn", "-c:a", "copy", str(dst),
+            ])
+        else:
+            import tempfile
+            tmpdir = Path(tempfile.mkdtemp(prefix="trim_"))
+            parts: list[str] = []
+            for i, (s, e) in enumerate(kept):
+                part = tmpdir / f"part{i:03d}{ext}"
+                await _run([
+                    ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+                    "-i", str(src), "-ss", f"{s:.3f}", "-t", f"{e - s:.3f}",
+                    "-vn", "-c:a", "copy", str(part),
+                ])
+                parts.append(str(part))
+            lst = tmpdir / "concat.txt"
+            lst.write_text("".join(f"file '{p}'\n" for p in parts), encoding="utf-8")
+            await _run([
+                ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "concat", "-safe", "0", "-i", str(lst),
+                "-c", "copy", str(dst),
+            ])
+    finally:
+        if tmpdir is not None:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+    if not dst.exists() or dst.stat().st_size == 0:
+        raise HTTPException(status_code=400, detail="Trim produced no audio")
+
+    try:
+        out_probe = await probe_media(dst)
+        out_duration = float((out_probe.get("format") or {}).get("duration") or 0)
+    except Exception:
+        out_duration = 0.0
+
+    return {
+        "success": True,
+        "filename": dst.name,
+        "stored_path": str(dst),
+        "relative_path": dst.relative_to(AUDIO_DIR).as_posix(),
+        "size_bytes": dst.stat().st_size,
+        "duration": round(out_duration, 2),
+        "source_filename": src.name,
+        "source_duration": round(duration, 2),
+        "mode": mode,
+        "kept": [{"start": round(s, 2), "end": round(e, 2)} for s, e in kept],
+        "lossless": True,
+        "render_s": round(time.perf_counter() - started, 1),
+        "message": f"Saved {dst.name}",
+    }
 
 
 class StemSeparationResponse(BaseModel):
@@ -1297,8 +1581,8 @@ async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResp
         raise HTTPException(
             status_code=400, detail=f"Unknown model: {body.model}. Choose: {', '.join(SourceSeparator.SUPPORTED_MODELS)}"
         )
-    path = AUDIO_DIR / body.filename
-    if not path.exists() or not path.is_file():
+    path = (AUDIO_DIR / body.filename).resolve()
+    if not str(path).startswith(str(AUDIO_DIR.resolve())) or not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail=f"Audio file not found: {body.filename}")
     if path.suffix.lower() not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Invalid file type: {path.suffix}")

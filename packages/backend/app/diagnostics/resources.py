@@ -582,7 +582,35 @@ class ResourceMonitor:
                         "memory_available": memory_available,
                     }
 
-                return await asyncio.to_thread(_nvml_snapshot)
+                snap = await asyncio.to_thread(_nvml_snapshot)
+                # Hybrid enrichment: if NVML couldn't attribute per-process VRAM
+                # on WDDM, use the Ollama API for llama-server / Ollama processes.
+                # This runs AFTER the snapshot thread so it never perturbs NVML reads.
+                if not snap.get("memory_available"):
+                    try:
+                        ollama_vram = await self._get_ollama_vram_usage()
+                        if ollama_vram > 0:
+                            attributed = False
+                            for proc in snap.get("processes", []):
+                                name = (proc.get("name") or "").lower()
+                                if "llama" in name or "ollama" in name:
+                                    proc["used_mb"] = ollama_vram
+                                    proc["enriched"] = "ollama-api"
+                                    attributed = True
+                                    break
+                            if not attributed:
+                                snap.setdefault("processes", []).append({
+                                    "pid": 0,
+                                    "used_mb": ollama_vram,
+                                    "name": "ollama (model)",
+                                    "kind": "compute",
+                                    "enriched": "ollama-api",
+                                })
+                            snap["memory_available"] = True
+                            logger.info("Ollama VRAM enrichment applied: %s MB", ollama_vram)
+                    except Exception as _e:
+                        logger.debug("Ollama enrichment skipped: %s", _e)
+                return snap
             except Exception as e:
                 logger.warning(f"Failed to get GPU snapshot via NVML: {e}")
 
@@ -771,12 +799,12 @@ class ResourceMonitor:
 resource_monitor = ResourceMonitor()
 
 
-async def resource_monitoring_loop(interval_seconds: float = 10.0):
+async def resource_monitoring_loop(interval_seconds: float = 30.0):
     """
     Background loop that monitors resources and broadcasts warnings.
     
     Args:
-        interval_seconds: How often to check resources (default: 10 seconds)
+        interval_seconds: How often to check resources (default: 30 seconds)
     """
     logger.info(f"Resource monitoring started (interval: {interval_seconds}s)")
 
@@ -791,9 +819,9 @@ async def resource_monitoring_loop(interval_seconds: float = 10.0):
                 if snap.get("available"):
                     from ..core.database import cleanup_old_gpu_telemetry, log_gpu_telemetry
                     await asyncio.to_thread(log_gpu_telemetry, snap)
-                    # opportunistic retention: keep 14 days, prune every ~100 cycles (~16 min at 10s)
+                    # opportunistic retention: keep 7 days, prune every ~100 cycles (~50 min at 30s)
                     if int(asyncio.get_event_loop().time()) % 1000 < 10:
-                        await asyncio.to_thread(cleanup_old_gpu_telemetry, 14)
+                        await asyncio.to_thread(cleanup_old_gpu_telemetry, 7)
             except Exception as _e:
                 logger.debug(f"GPU telemetry log skipped: {_e}")
         except Exception as e:

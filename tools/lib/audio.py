@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import threading
 from pathlib import Path
 from typing import Any
@@ -51,30 +52,58 @@ def _log_gpu_status() -> None:
 # Low-level helpers
 # ---------------------------------------------------------------------------
 
-def load_audio(audio_path: str | Path, sr: int = 22050):
+def load_audio(audio_path: str | Path, sr: int | None = 22050):
     """Load an audio file with librosa.
+
+    Falls back to ffmpeg for formats librosa/soundfile cannot decode
+    (e.g. .m4a on platforms where libsndfile lacks MP4 support).
 
     Returns:
         Tuple of (y, sr).
 
     Raises:
         FileNotFoundError: If the file does not exist.
-        Exception: Propagated from librosa.load.
+        Exception: Propagated from librosa.load or ffmpeg fallback.
     """
     import librosa
     p = Path(audio_path)
     if not p.exists():
         raise FileNotFoundError(f"Audio file not found: {p}")
-    return librosa.load(str(p), sr=sr, mono=True)
+    try:
+        return librosa.load(str(p), sr=sr, mono=True)
+    except Exception as exc:
+        # Fallback: transcode through ffmpeg when librosa cannot decode the
+        # container/codec (common for .m4a on Windows where libsndfile lacks
+        # MP4 support).
+        suffix = p.suffix.lower()
+        if suffix not in {".m4a", ".mp4", ".aac"}:
+            raise
+        import subprocess
+        import tempfile
+        ffmpeg = shutil.which("ffmpeg") or shutil.which("ffmpeg.exe")
+        if not ffmpeg:
+            raise RuntimeError(f"librosa failed to decode {suffix} and ffmpeg is not available") from exc
+        tmp = Path(tempfile.gettempdir()) / f"kilo_audio_{p.stem}_{suffix.lstrip('.')}.wav"
+        cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-i", str(p), "-ac", "2", str(tmp)]
+        if sr is not None:
+            cmd.insert(-2, "-ar")
+            cmd.insert(-2, str(sr))
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        try:
+            return librosa.load(str(tmp), sr=sr, mono=True)
+        finally:
+            tmp.unlink(missing_ok=True)
 
 
-def analyze_beats(y, sr, *, use_gpu: bool = True) -> dict[str, Any]:
+def analyze_beats(y, sr, *, use_gpu: bool = True, start_bpm: float = 120.0, tightness: float = 100.0) -> dict[str, Any]:
     """Run beat tracking, optionally overlapping GPU analysis.
 
     Args:
         y: Audio time series.
         sr: Sample rate.
         use_gpu: If True, attempt CUDA-accelerated analysis.
+        start_bpm: Initial tempo guess for the beat tracker (default 120).
+        tightness: Beat distribution tightness around tempo (default 100).
 
     Returns:
         Dict with keys: tempo, beat_times, duration, gpu_result.
@@ -96,7 +125,7 @@ def analyze_beats(y, sr, *, use_gpu: bool = True) -> dict[str, Any]:
             gpu_thread = threading.Thread(target=_gpu_worker)
             gpu_thread.start()
 
-            tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=512)
+            tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=512, start_bpm=start_bpm, tightness=tightness)
             beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=512).tolist()
 
             gpu_thread.join()
@@ -113,7 +142,7 @@ def analyze_beats(y, sr, *, use_gpu: bool = True) -> dict[str, Any]:
             logger.debug("GPU analysis skipped: %s", exc)
 
     if gpu_result is None:
-        tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=512)
+        tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=512, start_bpm=start_bpm, tightness=tightness)
         beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=512).tolist()
 
     duration = len(y) / sr

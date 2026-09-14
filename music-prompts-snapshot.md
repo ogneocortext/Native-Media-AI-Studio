@@ -1,0 +1,167 @@
+- generic [ref=f15e2]:
+  - generic [ref=f15e3]:
+    - complementary [ref=f15e4]:
+      - generic [ref=f15e5]:
+        - generic [ref=f15e6]:
+          - link "Native Media AI Studio · 2026 Pipeline" [ref=f15e7] [cursor=pointer]:
+            - /url: /
+            - generic [ref=f15e12]:
+              - generic [ref=f15e13]: Native Media AI
+              - generic [ref=f15e14]: Studio · 2026 Pipeline
+          - button "Collapse sidebar" [ref=f15e15] [cursor=pointer]
+        - link "New Music Video" [ref=f15e19] [cursor=pointer]:
+          - /url: /music-video-wizard
+      - navigation "Primary" [ref=f15e23]:
+        - textbox "Filter navigation" [ref=f15e25]:
+          - /placeholder: Filter…  ( / )
+        - generic [ref=f15e26]:
+          - button "Home" [expanded] [ref=f15e27] [cursor=pointer]
+          - list [ref=f15e32]:
+            - listitem [ref=f15e33]:
+              - link "Dashboard" [ref=f15e34] [cursor=pointer]:
+                - /url: /
+        - generic [ref=f15e40]:
+          - button "Create" [expanded] [ref=f15e41] [cursor=pointer]
+          - list [ref=f15e46]:
+            - listitem [ref=f15e47]:
+              - link "Music Video" [ref=f15e48] [cursor=pointer]:
+                - /url: /music-video-wizard
+            - listitem [ref=f15e54]:
+              - link "Three.js Studio" [ref=f15e55] [cursor=pointer]:
+                - /url: /three-js-studio
+            - listitem [ref=f15e61]:
+              - link "Audio Analysis" [ref=f15e62] [cursor=pointer]:
+                - /url: /audio-analysis
+            - listitem [ref=f15e67]:
+              - link "Visualizer" [ref=f15e68] [cursor=pointer]:
+                - /url: /visualizer
+            - listitem [ref=f15e73]:
+              - link "Kinetic Type" [ref=f15e74] [cursor=pointer]:
+                - /url: /kinetic-typography
+            - listitem [ref=f15e79]:
+              - link "HyperFrames" [ref=f15e80] [cursor=pointer]:
+                - /url: /hyperframes
+            - listitem [ref=f15e85]:
+              - link "AI Tools" [ref=f15e86] [cursor=pointer]:
+                - /url: /ai-tools
+            - listitem [ref=f15e97]:
+              - link "Music Prompts" [ref=f15e98] [cursor=pointer]:
+                - /url: /music-prompts
+        - generic [ref=f15e104]:
+          - button "Generate" [expanded] [ref=f15e105] [cursor=pointer]
+          - list [ref=f15e110]:
+            - listitem [ref=f15e111]:
+              - link "Image Gen" [ref=f15e112] [cursor=pointer]:
+                - /url: /image-generation
+            - listitem [ref=f15e119]:
+              - link "Video Gen" [ref=f15e120] [cursor=pointer]:
+                - /url: /video-generation
+            - listitem [ref=f15e128]:
+              - link "3D Gen" [ref=f15e129] [cursor=pointer]:
+                - /url: /generate-3d
+        - generic [ref=f15e135]:
+          - button "Manage" [expanded] [ref=f15e136] [cursor=pointer]
+          - list [ref=f15e141]:
+            - listitem [ref=f15e142]:
+              - link "Media Library" [ref=f15e143] [cursor=pointer]:
+                - /url: /library
+            - listitem [ref=f15e148]:
+              - link "Queue" [ref=f15e149] [cursor=pointer]:
+                - /url: /queue
+            - listitem [ref=f15e155]:
+              - link "Storyboards" [ref=f15e156] [cursor=pointer]:
+                - /url: /storyboards
+            - listitem [ref=f15e161]:
+              - link "Remotion Studio" [ref=f15e162] [cursor=pointer]:
+                - /url: http://127.0.0.1:8080
+                - generic [aria-hidden] [ref=f15e170]: ↗
+        - button "System" [ref=f15e172] [cursor=pointer]
+      - button "Toggle system status" [ref=f15e178] [cursor=pointer]:
+        - generic [ref=f15e179]: System
+    - generic [ref=f15e183]:
+      - main [ref=f15e184]:
+        - generic [ref=f15e185]:
+          - heading "Music Prompt Generator" [level=1] [ref=f15e192]
+          - paragraph [ref=f15e193]: Local qwen3.5:9b writes copy-paste prompts + lyrics tuned per engine. Genre+Era, Mood, 2-3 Instruments, Vocal, Production
+          - paragraph [ref=f15e194]: Suno v6 / v6-wild / v6-mini
+          - generic [ref=f15e196]:
+            - group "Engine" [ref=f15e197]:
+              - generic [ref=f15e199]:
+                - button "Suno v6" [pressed] [ref=f15e200]
+                - button "MiniMax 3.0" [ref=f15e201]
+                - button "HappyShrimp 1.0" [ref=f15e202]
+                - button "Lyria 3.5 Pro" [ref=f15e203]
+            - list [ref=f15e204]:
+              - listitem [ref=f15e205]: • Sound goes in Style box, story+structure go in Lyrics box — never mix.
+              - listitem [ref=f15e206]: • 4-7 descriptors ideal; max ~10. Front-load genre + vocal (early tags weigh most).
+              - listitem [ref=f15e207]: "• Identity in style (gender, age, register, texture); PERFORMANCE in lyrics: short parenthetical delivery cues after section tags like [Chorus] (belted, open vowels, wide) — physical cues (soft, whispered, belted, close-mic, falsetto) work, emotion words (heartfelt, passionate) don't."
+            - generic [ref=f15e208]:
+              - generic [ref=f15e209]:
+                - generic [ref=f15e210]: Theme / story / scene
+                - textbox "Theme / story / scene" [ref=f15e211]:
+                  - /placeholder: Theme / story / scene *
+              - generic [ref=f15e212]:
+                - generic [ref=f15e213]: Genre
+                - textbox "Genre" [ref=f15e214]:
+                  - /placeholder: Genre (e.g. melodic techno, alt R&B)
+              - generic [ref=f15e215]:
+                - generic [ref=f15e216]: Mood
+                - textbox "Mood" [ref=f15e217]:
+                  - /placeholder: Mood (e.g. melancholic yet defiant)
+              - generic [ref=f15e218]:
+                - generic [ref=f15e219]: Tempo
+                - textbox "Tempo" [ref=f15e220]:
+                  - /placeholder: Tempo (e.g. 124 BPM, driving)
+              - generic [ref=f15e221]:
+                - generic [ref=f15e222]: Key
+                - textbox "Key" [ref=f15e223]:
+                  - /placeholder: Key (e.g. G major, D minor)
+              - generic [ref=f15e224]:
+                - generic [ref=f15e225]: Vocal
+                - textbox "Vocal" [ref=f15e226]:
+                  - /placeholder: Vocal (e.g. breathy female soprano)
+              - generic [ref=f15e227]:
+                - generic [ref=f15e228]: Instruments
+                - textbox "Instruments" [ref=f15e229]:
+                  - /placeholder: Instruments (e.g. analog bass, brushed drums)
+              - generic [ref=f15e230]:
+                - generic [ref=f15e231]: Language
+                - textbox "Language" [ref=f15e232]: English
+              - generic [ref=f15e233]:
+                - generic [ref=f15e234]: Sung dialect
+                - combobox "Sung dialect" [ref=f15e235]: General American
+              - generic [ref=f15e236]:
+                - generic [ref=f15e237]: Lyric style / technique
+                - generic [ref=f15e238]:
+                  - combobox "Lyric style / technique" [ref=f15e239]
+                  - button "Techniques" [ref=f15e240]
+              - generic [ref=f15e241]:
+                - generic [ref=f15e242]: Words that stumbled before
+                - textbox "Words that stumbled before" [ref=f15e243]:
+                  - /placeholder: Words that stumbled before (comma-separated — model respells or replaces them)
+              - generic [ref=f15e244]:
+                - generic [ref=f15e245]: Duration
+                - textbox "Duration" [ref=f15e246]:
+                  - /placeholder: Duration (e.g. 2-minute song)
+              - generic [ref=f15e247]:
+                - generic [ref=f15e248]: Exclude
+                - textbox "Exclude" [ref=f15e249]:
+                  - /placeholder: "Exclude (Suno: no autotune, no EDM drop)"
+              - generic [ref=f15e250]:
+                - generic [ref=f15e251]: Use case
+                - textbox "Use case" [ref=f15e252]:
+                  - /placeholder: Use case (e.g. steady loop for study video, no big drops)
+            - generic [ref=f15e254] [cursor=pointer]:
+              - checkbox "Instrumental (no vocals)" [ref=f15e255]
+              - text: Instrumental (no vocals)
+            - generic [ref=f15e256]:
+              - generic [ref=f15e257]:
+                - generic [ref=f15e258]: Ollama model
+                - combobox "Ollama model" [ref=f15e259]: qwen3.5:9b
+              - button "Generate" [disabled] [ref=f15e260]
+              - generic [ref=f15e264]: Enter a theme to enable generation
+              - button "Reset" [ref=f15e265]
+      - contentinfo [ref=f15e266]:
+        - generic [ref=f15e267]: V1.5
+        - generic [ref=f15e268]: © 2026 Internext Ventures LLC
+  - button "DEBUG" [ref=f15e269]

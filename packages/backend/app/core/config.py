@@ -1,6 +1,7 @@
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -29,6 +30,8 @@ class AppConfig(BaseModel):
     video_editor_port: int = 8080
     comfyui_output_dir: Path | None = None  # Defaults to <PROJECT_ROOT>/../ComfyUI/output if unset
     ollama_url: str = "http://127.0.0.1:11434"
+    atomic_chat_url: str = "http://127.0.0.1:1337"
+    atomic_chat_enabled: bool = False
     go_dashboard_url: str = "http://127.0.0.1:3847"
     go_media_url: str = "http://127.0.0.1:3848"
     go_worker_url: str = "http://127.0.0.1:3849"
@@ -59,7 +62,7 @@ class AppConfig(BaseModel):
             raise ValueError('Host cannot be empty')
         return v.strip()
 
-    @field_validator('comfyui_url', 'ollama_url', 'go_dashboard_url', 'go_media_url', 'go_worker_url', 'go_gateway_url', 'go_ports_url')
+    @field_validator('comfyui_url', 'ollama_url', 'atomic_chat_url', 'go_dashboard_url', 'go_media_url', 'go_worker_url', 'go_gateway_url', 'go_ports_url')
     @classmethod
     def validate_url(cls, v: str) -> str:
         """Validate that URL is properly formatted"""
@@ -124,6 +127,8 @@ def load_config() -> AppConfig:
                     data.setdefault("comfyui_port", ports_data.get("comfyui_port", 8188))
                     data.setdefault("video_editor_port", ports_data.get("video_editor_port", 8080))
                     data.setdefault("ollama_url", ports_data.get("ollama_url", "http://127.0.0.1:11434"))
+                    data.setdefault("atomic_chat_url", ports_data.get("atomic_chat_url", "http://127.0.0.1:1337"))
+                    data.setdefault("atomic_chat_enabled", ports_data.get("atomic_chat_enabled", False))
                     data.setdefault("go_dashboard_url", ports_data.get("go_dashboard_url", "http://127.0.0.1:3847"))
                     data.setdefault("go_media_url", ports_data.get("go_media_url", "http://127.0.0.1:3848"))
                     data.setdefault("go_worker_url", ports_data.get("go_worker_url", "http://127.0.0.1:3849"))

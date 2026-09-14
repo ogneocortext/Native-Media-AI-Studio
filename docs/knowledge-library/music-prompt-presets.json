@@ -1,0 +1,307 @@
+{
+  "title": "2026 AI Music Prompt Presets — Community-Proven Banger Formulas",
+  "version": "2026-09-14",
+  "description": "Copy-paste-ready brief presets compiled from real Suno v6, MiniMax Music 3.0, HappyShrimp 1.0, and Lyria 3.5 community formulas and official docs (Sep 2026). Each preset pre-fills the form and maps to the target engine's paste-box format.",
+  "sources": [
+    "Undetectr Suno AI Prompts Guide 2026 (7-element formula, 4-7 descriptors, vocal delivery levers)",
+    "PopularAiTools.ai Suno V6 Vocal Prompts (syllable counts, sustain spelling, delivery cues)",
+    "Undetectr Suno V6 Intro/Outro Prompts (boundary templates, Exclude field usage)",
+    "MiniMax-AI/MiniMax-Music3 README + HF docs (Structured Caption: Global Metadata / Vocal Details / Arrangement)",
+    "MiniMax Music 3.0 Prompt Guide — minimax-music.com (Use Case + Genre + Mood + Instruments + Energy + Vocals)",
+    "Google DeepMind Lyria Prompt Guide (Genre+Era + Mood + Instrumentation + Tempo + Vocal + Lyrics)",
+    "Google Cloud Lyria 3.5 docs (timestamp prompting, six-element framework, negative prompts)",
+    "AI Learning Guides Lyria 3.5 Stem Export Recipes (four-block skeleton, negative-instrument tags)",
+    "Suno V6 Rock Prompts — Undetectr (instrument map, per-section instructions)"
+  ],
+  "disclaimer": "Formulas are compiled from community observation and official docs, not from a formal experimental database. Results vary by engine version, model tier, and seed. Generate multiple variations and keep keepers.",
+  "presets": {
+    "suno_v6": [
+      {
+        "id": "suno_phonk_drift",
+        "name": "Phonk Drift",
+        "description": "Dark phonk with 808 slides and aggressive delivery. Based on Undetectr + r/SunoAI launch-week patterns.",
+        "tags": ["phonk", "dark", "aggressive", "viral"],
+        "form_values": {
+          "theme": "Night drive through rain-lit city streets, neon reflections on wet asphalt, no dialogue just atmosphere",
+          "genre": "phonk",
+          "mood": "dark, aggressive, hypnotic",
+          "tempo": "140 BPM",
+          "vocal": "distorted male vocal, deep, 808-tuned, aggressive",
+          "instruments": "808 bass, cowbell, distorted piano, brass stabs",
+          "lyric_style": "phonk",
+          "duration": "2-minute song"
+        }
+      },
+      {
+        "id": "suno_melodic_rap_uk",
+        "name": "UK Melodic Rap",
+        "description": "Melodic rap with internal rhymes and autotune hook. Based on 2026 pop-rap formula.",
+        "tags": ["melodic rap", "uk", "autotune", "hook"],
+        "form_values": {
+          "theme": "Late-night city energy, coming up, loyalty and loss in the trenches",
+          "genre": "melodic rap, UK drill",
+          "mood": "gritty yet melodic, introspective then aggressive",
+          "tempo": "144 BPM",
+          "vocal": "auto-tuned male vocal, half-sung half-rapped, soft verse then loud hook",
+          "instruments": "808 bass, sliding piano, rapid hi-hats, dark brass",
+          "lyric_style": "melodic rap",
+          "duration": "2-minute song"
+        }
+      },
+      {
+        "id": "suno_indie_folk_warm",
+        "name": "Indie Folk Warmth",
+        "description": "Fingerpicked acoustic, breathy vocal, melancholic storytelling. Suno v6 sweet spot.",
+        "tags": ["indie folk", "acoustic", "melancholic", "warm"],
+        "form_values": {
+          "theme": "Solitary walk through autumn leaves, small-town memories, quiet acceptance",
+          "genre": "indie folk, 2010s indie",
+          "mood": "melancholic yet warm, nostalgic",
+          "tempo": "92 BPM",
+          "vocal": "breathy female vocal, intimate, close-mic, unpolished",
+          "instruments": "fingerstyle acoustic guitar, warm upright bass, brushed drums, soft piano",
+          "lyric_style": "indie folk",
+          "duration": "3-minute song"
+        }
+      },
+      {
+        "id": "suno_synthwave_retro",
+        "name": "Synthwave Retro",
+        "description": "Retro-futuristic synth-pop with driving arpeggios and polished vocals.",
+        "tags": ["synthwave", "retro", "80s", "polished"],
+        "form_values": {
+          "theme": "Neon-lit highway at night, chrome dreams, digital nostalgia for analog futures",
+          "genre": "synthwave, retro futuristic",
+          "mood": "euphoric, nostalgic, high-energy",
+          "tempo": "118 BPM",
+          "vocal": "bright female vocal, polished, layered harmonies, reverb-drenched",
+          "instruments": "analog synth leads, gated reverb drums, rolling bass, arpeggiated pads",
+          "lyric_style": "pop",
+          "duration": "3-minute song"
+        }
+      },
+      {
+        "id": "suno_rock_anthem",
+        "name": "Rock Anthem",
+        "description": "Guitar-driven rock with instrument map ensuring verse energy holds. Based on Undetectr V6 Rock guide.",
+        "tags": ["rock", "anthem", "guitar", "energetic"],
+        "form_values": {
+          "theme": "Breaking free, defiance, collective roar, summer festival energy",
+          "genre": "90s alternative rock, arena rock",
+          "mood": "raw, angry, triumphant",
+          "tempo": "130 BPM",
+          "vocal": "gritty male vocal, powerful, raspy, wide dynamics",
+          "instruments": "distorted guitar, punchy drums, moving bass, anthemic hooks",
+          "lyric_style": "rock",
+          "duration": "3-minute song"
+        }
+      },
+      {
+        "id": "suno_lofi_study",
+        "name": "Lo-Fi Study Bed",
+        "description": "Dusty vinyl lo-fi hip-hop for focus. Based on community-tested Suno patterns.",
+        "tags": ["lo-fi", "hip-hop", "study", "chill"],
+        "form_values": {
+          "theme": "Rain on window, late-night coding session, warm lamp light, steady focus",
+          "genre": "lo-fi hip hop, chillhop",
+          "mood": "peaceful, focused, nostalgic",
+          "tempo": "82 BPM",
+          "vocal": "no vocal, instrumental only",
+          "instruments": "dusty jazz piano samples, mellow boom-bap drums, vinyl crackle, soft bass",
+          "duration": "2-minute song"
+        }
+      },
+      {
+        "id": "suno_phunk_funk",
+        "name": "Modern Funk",
+        "description": "Groove-first funk with tight rhythm section and soulful vocals.",
+        "tags": ["funk", "groove", "soul", "upbeat"],
+        "form_values": {
+          "theme": "Dance floor unity, body-moving rhythm, Saturday night energy",
+          "genre": "funk, modern soul",
+          "mood": "playful, energetic, infectious",
+          "tempo": "110 BPM",
+          "vocal": "soulful male vocal, gritty, call-and-response, dynamic",
+          "instruments": "slap bass, wah guitar, brass stabs, tight drums, clavinet",
+          "lyric_style": "funk",
+          "duration": "3-minute song"
+        }
+      },
+      {
+        "id": "suno_ballad_piano",
+        "name": "Piano Ballad",
+        "description": "Emotional piano ballad with belted chorus and sparse arrangement.",
+        "tags": ["ballad", "piano", "emotional", "sparse"],
+        "form_values": {
+          "theme": "Lost connection, goodbye letter, standing in the rain",
+          "genre": "piano ballad, pop",
+          "mood": "heartbreaking, tender, raw",
+          "tempo": "72 BPM",
+          "vocal": "emotional female vocal, soft verse, belted chorus, strained highs",
+          "instruments": "solo piano, minimal strings, brushed drums only in chorus",
+          "lyric_style": "storytelling",
+          "duration": "3-minute song"
+        }
+      }
+    ],
+    "minimax_30": [
+      {
+        "id": "minimax_indie_folk",
+        "name": "Indie Folk Narrative",
+        "description": "Structured Caption format with Global Metadata / Vocal Details / Arrangement. Based on MiniMax Music 3 docs.",
+        "tags": ["indie folk", "narrative", "structured caption"],
+        "form_values": {
+          "theme": "A walk through old neighborhood streets, specific sensory details, meeting an old friend",
+          "genre": "indie folk, acoustic pop",
+          "mood": "wistful, warm, introspective",
+          "tempo": "96 BPM",
+          "vocal": "warm natural male vocal, close-miked, slight cracks on emotional lines",
+          "instruments": "fingerpicked acoustic guitar, light piano, gentle percussion, upright bass",
+          "lyric_style": "indie folk",
+          "duration": "full song"
+        }
+      },
+      {
+        "id": "minimax_cinematic_orchestral",
+        "name": "Cinematic Orchestral",
+        "description": "Full orchestral bed with emotional arc. Based on Vertex AI Lyria + MiniMax docs.",
+        "tags": ["cinematic", "orchestral", "epic"],
+        "form_values": {
+          "theme": "Epic journey across vast landscapes, sunrise over mountains, quiet then triumphant",
+          "genre": "cinematic orchestral, trailer music",
+          "mood": "building, awe-inspiring, hopeful",
+          "tempo": "88 BPM, then 120 BPM in climax",
+          "vocal": "no vocal, instrumental only",
+          "instruments": "string orchestra, French horns, timpani, ethereal pads, piano",
+          "duration": "full song"
+        }
+      },
+      {
+        "id": "minimax_edm_drop",
+        "name": "EDM Drop",
+        "description": "Progressive house with vocal chops and build-drop structure.",
+        "tags": ["edm", "progressive house", "drop"],
+        "form_values": {
+          "theme": "Festival mainstage, collective euphoria, lights and lasers",
+          "genre": "progressive house, EDM",
+          "mood": "euphoric, energetic, building",
+          "tempo": "126 BPM",
+          "vocal": "processed female vocal, ethereal, wide stereo, chopped",
+          "instruments": "supersaw synths, sidechained pads, punchy drums, sub bass, vocal chops",
+          "lyric_style": "edm",
+          "duration": "full song"
+        }
+      },
+      {
+        "id": "minimax_rnb_soul",
+        "name": "R&B Slow Burn",
+        "description": "Alt R&B with fragmented phrases and vocal layering. Based on community R&B formulas.",
+        "tags": ["r&b", "soul", "slow", "layered"],
+        "form_values": {
+          "theme": "Intimate late-night conversation, vulnerability, wanting more but playing it cool",
+          "genre": "alternative R&B, neo-soul",
+          "mood": "intimate, warm, restrained",
+          "tempo": "94 BPM",
+          "vocal": "breathy falsetto male vocal, half-sung, layered harmonies, whispered ad-libs",
+          "instruments": "warm electric piano, rolling hi-hats, deep 808 bass, soft strings",
+          "lyric_style": "alt R&B",
+          "duration": "full song"
+        }
+      }
+    ],
+    "happyshrimp_10": [
+      {
+        "id": "happyshrimp_chinese_pop",
+        "name": "Chinese Pop Ballad",
+        "description": "Mandopop ballad with bilingual hooks. HappyShrimp's reported strength.",
+        "tags": ["mandopop", "ballad", "bilingual"],
+        "form_values": {
+          "theme": "City lights and quiet longing, waiting for a message that never comes, bittersweet",
+          "genre": "Mandopop ballad",
+          "mood": "melancholic yet warm, tender",
+          "tempo": "78 BPM",
+          "vocal": "mature male baritone-tenor, delicate expression, natural vibrato",
+          "instruments": "guzheng, soft strings, gentle acoustic guitar, light percussion",
+          "duration": "full song"
+        }
+      },
+      {
+        "id": "happyshrimp_rnb_soul",
+        "name": "R&B Groove",
+        "description": "Clean stereo R&B with danceable groove. HappyShrimp's sweet spot.",
+        "tags": ["r&b", "soul", "groove", "danceable"],
+        "form_values": {
+          "theme": "Weekend rooftop party, golden hour, confidence and connection",
+          "genre": "R&B, soul",
+          "mood": "confident, warm, playful",
+          "tempo": "100 BPM",
+          "vocal": "smooth female lead, playful tone, layered harmonies",
+          "instruments": " Rhodes piano, deep bass, brushed drums, subtle strings",
+          "duration": "full song"
+        }
+      }
+    ],
+    "lyria_35": [
+      {
+        "id": "lyria_lofi_hiphop",
+        "name": "Lo-Fi Hip-Hop Bed",
+        "description": "Four-block skeleton with exclusions. Based on AI Learning Guides + DeepMind docs.",
+        "tags": ["lo-fi", "hip-hop", "instrumental", "study"],
+        "form_values": {
+          "theme": "Rainy afternoon study session, warm crackle, gentle focus",
+          "genre": "lo-fi hip hop",
+          "mood": "nostalgic, unhurried, warm",
+          "tempo": "85 BPM",
+          "vocal": "instrumental only, no vocals",
+          "instruments": "dusty Fender Rhodes, muted trumpet, soft kick and snare, vinyl crackle",
+          "duration": "2-minute song"
+        }
+      },
+      {
+        "id": "lyria_bossa_rnb",
+        "name": "Bossa Nova x R&B",
+        "description": "Bilingual duet with timestamp timeline. Based on DeepMind + Google Cloud examples.",
+        "tags": ["bossa nova", "r&b", "bilingual", "duet"],
+        "form_values": {
+          "theme": "Cross-cultural connection, intimate conversation, Parisian evening",
+          "genre": "bossa nova fused with modern R&B",
+          "mood": "intimate, warm, deeply affectionate",
+          "tempo": "92 BPM",
+          "vocal": "smooth male vocal English, soft breathy female vocal French, harmonizing",
+          "instruments": "nylon-string guitar, warm electric piano, laid-back hip-hop drums",
+          "duration": "2-minute song"
+        }
+      },
+      {
+        "id": "lyria_cinematic_underscore",
+        "name": "Cinematic Underscore",
+        "description": "Timestamped instrumental with stem-friendly exclusions. Based on Lyria 3.5 stem recipes.",
+        "tags": ["cinematic", "instrumental", "underscore", "stems"],
+        "form_values": {
+          "theme": "Documentary nature sequence, dawn over wetlands, tension then release",
+          "genre": "cinematic ambient, modern orchestral",
+          "mood": "atmospheric, building, hopeful",
+          "tempo": "72 BPM",
+          "vocal": "instrumental only, no vocals",
+          "instruments": "warm piano, subtle string pads, soft percussion, environmental textures",
+          "duration": "90-second clip"
+        }
+      },
+      {
+        "id": "lyria_jpop_upbeat",
+        "name": "J-Pop Upbeat",
+        "description": "High-energy J-pop with layered vocals. Based on Google AI developer guide.",
+        "tags": ["j-pop", "upbeat", "layered", "japanese"],
+        "form_values": {
+          "theme": "Summer festival, youth, running through golden fields, pure joy",
+          "genre": "J-pop, city pop",
+          "mood": "bright, energetic, joyful",
+          "tempo": "128 BPM",
+          "vocal": "clear expressive male tenor, fast-paced melodic, sweet polished texture, Japanese",
+          "instruments": "bright synths, clean electric guitar, driving bassline, crisp drums",
+          "duration": "full song"
+        }
+      }
+    ]
+  }
+}
