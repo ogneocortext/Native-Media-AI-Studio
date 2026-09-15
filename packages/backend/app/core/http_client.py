@@ -18,7 +18,6 @@ _async_client: httpx.AsyncClient | None = None
 def get_sync_client(**kwargs) -> httpx.Client:
     """
     Get a synchronous HTTP client with sensible defaults.
-    
     Usage:
         client = get_sync_client()
         response = client.get("https://api.example.com/data")
@@ -35,7 +34,6 @@ def get_sync_client(**kwargs) -> httpx.Client:
 async def get_async_client(**kwargs) -> httpx.AsyncClient:
     """
     Get or create a shared async HTTP client.
-    
     Usage:
         client = await get_async_client()
         response = await client.get("https://api.example.com/data")
@@ -56,7 +54,6 @@ async def get_async_client(**kwargs) -> httpx.AsyncClient:
 async def async_http_client(**kwargs):
     """
     Async context manager for HTTP requests.
-    
     Usage:
         async with async_http_client() as client:
             response = await client.get("https://api.example.com/data")
@@ -143,7 +140,6 @@ class ResponseCompat:
 def requests_get(url: str, **kwargs) -> ResponseCompat:
     """
     Drop-in replacement for requests.get()
-    
     Usage:
         response = requests_get("https://api.example.com/data")
         if response.status_code == 200:
@@ -157,7 +153,6 @@ def requests_get(url: str, **kwargs) -> ResponseCompat:
 def requests_post(url: str, **kwargs) -> ResponseCompat:
     """
     Drop-in replacement for requests.post()
-    
     Usage:
         response = requests_post("https://api.example.com/submit", json={"key": "value"})
     """

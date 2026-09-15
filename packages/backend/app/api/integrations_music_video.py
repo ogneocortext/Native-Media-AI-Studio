@@ -267,7 +267,7 @@ async def generate_style_preview(style_id: str) -> dict:
         raise
     except Exception as e:
         logger.error("Style preview error for %s: %s", style_id, str(e))
-        raise HTTPException(status_code=500, detail=f"Preview generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Preview generation error: {str(e)}") from e
 
 
 @router.get("/music-video/job/{job_id}/progress")
@@ -307,7 +307,7 @@ async def get_job_progress(job_id: str) -> dict:
         raise
     except Exception as e:
         logger.error("Error getting job progress: %s", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 class QuickVideoPreviewRequest(BaseModel):

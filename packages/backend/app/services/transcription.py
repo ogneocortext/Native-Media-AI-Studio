@@ -56,10 +56,10 @@ def get_model(model_size: str = DEFAULT_MODEL_SIZE):
     if _model is None or _model_size != model_size:
         try:
             from faster_whisper import WhisperModel
-        except ImportError:
+        except ImportError as exc:
             raise RuntimeError(
                 "faster-whisper not installed. Run: pip install faster-whisper"
-            )
+            ) from exc
 
         # Use GPU if available, fall back to CPU with int8
         device = "cuda"

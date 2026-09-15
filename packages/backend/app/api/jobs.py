@@ -17,7 +17,6 @@ router = APIRouter(prefix="/api/jobs", tags=["Jobs"])
 @router.post("/", response_model=Job, status_code=201)
 async def create_job(request: JobCreateRequest) -> Job:
     """Create a new job and add it to the queue.
-    
     Creates the job with QUEUED status and broadcasts an SSE event
     (done inside queue_manager.enqueue).
     """
@@ -38,7 +37,7 @@ async def list_jobs(
             job_status = JobStatus(status.lower())
             return await queue_manager.get_jobs_by_status(job_status)
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+            raise HTTPException(status_code=400, detail=f"Invalid status: {status}") from None
     return await queue_manager.get_all_jobs()
 
 
@@ -66,7 +65,6 @@ async def get_job(job_id: str) -> Job:
 @router.post("/{job_id}/cancel", response_model=dict)
 async def cancel_job(job_id: str) -> dict:
     """Cancel a pending, queued, or running job.
-    
     Returns success if the job was successfully cancelled.
     Raises 404 if job not found, 400 if job cannot be cancelled.
     """
@@ -94,7 +92,6 @@ async def cancel_job(job_id: str) -> dict:
 @router.post("/{job_id}/retry", response_model=Job)
 async def retry_job(job_id: str) -> Job:
     """Retry a failed job.
-    
     Requeues the job for processing. Returns the updated job.
     Raises 404 if job not found, 400 if job is not failed or max retries exceeded.
     """

@@ -1,10 +1,15 @@
-import { Audio, AbsoluteFill, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig, Easing } from "remotion";
+import { Audio, AbsoluteFill, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig, Easing } from "remotion";
 import { visualizeAudio, visualizeAudioWaveform, useWindowedAudioData } from "@remotion/media-utils";
 import { StudioBackButton } from "./components/StudioBackButton";
 
 const FPS = 30;
 const DURATION_SECONDS = 234;
 const DURATION_FRAMES = FPS * DURATION_SECONDS;
+
+// Fractal-noise film-grain texture, inlined as an SVG data URI so the grain
+// needs no network fetch and is identical on every rendered frame.
+const GRAIN_SVG_DATA_URI =
+  "data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E";
 
 interface LyricLine { start: number; end: number; text: string; section: string; }
 
@@ -88,7 +93,6 @@ export const StillIRiseComposition: React.FC = () => {
   const isVerse = currentLyric.section.includes("VERSE");
   const isBridge = currentLyric.section.includes("BRIDGE");
   const isIntro = currentLyric.section.includes("INTRO");
-  const isFinal = currentLyric.section.includes("FINAL");
 
   const beatPulse = bass > 0.35 ? spring({ frame: frame % 15, fps, config: { damping: 12, stiffness: 200, mass: 0.5 } }) : 0;
   const sectionIntensity = isChorus ? 1.0 : isBridge ? 0.85 : isIntro ? 0.5 : 0.75;
@@ -101,7 +105,6 @@ export const StillIRiseComposition: React.FC = () => {
   const hasMap = visualModes.includes("map") || isIntro || (isVerse && t < 30);
   const hasHorizon = visualModes.includes("horizon") || (isVerse && t >= 47 && t < 67);
   const hasRiver = visualModes.includes("river") || (isVerse && t >= 97 && t < 115);
-  const hasDawn = visualModes.includes("dawn") || (isBridge && t >= 195);
 
   let wipeProgress = 0;
   let activeTransition = -1;
@@ -119,7 +122,6 @@ export const StillIRiseComposition: React.FC = () => {
   const camRotate = Math.sin(t * 0.015) * 0.8;
 
   /* ── Aurora (richer, deeper) ── */
-  const auroraHue = interpolate(energy, [0, 1], [180, 280]);
   const auroraShift1 = Math.sin(t * 0.06) * 25;
   const auroraShift2 = Math.cos(t * 0.04) * 18;
 
@@ -570,13 +572,18 @@ export const StillIRiseComposition: React.FC = () => {
           position: "absolute", inset: 0,
           background: `radial-gradient(ellipse 60% 55% at 50% 48%, transparent 40%, rgba(0,0,0,0.7) 100%)`,
         }} />
-        {/* Film grain */}
-        <div style={{
-          position: "absolute", inset: 0,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E")`,
-          opacity: 0.35 + bass * 0.1,
-          mixBlendMode: "overlay",
-        }} />
+        {/* Film grain — inlined SVG texture rendered via <Img>.
+            `background-image` is avoided because Remotion cannot guarantee
+            background-image resources are painted at render time
+            (@remotion/no-background-image). */}
+        <Img
+          src={GRAIN_SVG_DATA_URI}
+          style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%",
+            opacity: 0.35 + bass * 0.1,
+            mixBlendMode: "overlay",
+          }}
+        />
         {/* Letterbox */}
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 16, background: "rgba(0,0,0,0.8)", opacity: isChorus ? 0.2 : 0.7 }} />
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 16, background: "rgba(0,0,0,0.8)", opacity: isChorus ? 0.2 : 0.7 }} />

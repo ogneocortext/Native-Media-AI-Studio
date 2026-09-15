@@ -2,7 +2,7 @@ import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Music, AlertCircle, Maximize2, Minimize2, Video, Square, Download, Settings, Snowflake, MessageSquare, Sparkles, Play, Wand2, Accessibility, EyeOff, User, Layers, MoreHorizontal } from "lucide-react";
 import { listAudioFiles, ensureAnalysis } from "../../services/api";
-import type { AudioAnalysisData, AudioData, VizParams } from "./types";
+import type { AudioAnalysisData, AudioData, VizParams, PerceptualScale } from "./types";
 import { DEFAULT_VIZ_PARAMS } from "./types";
 import { useUIStore } from "../../state/uiStore";
 import { getVisualizationForTrack, VisualizationStyle } from "./trackConceptAnalyzer";
@@ -35,7 +35,6 @@ import { selectPresetForTrack } from "./components/KineticPresets";
 import { buildStoryboard, getStoryState, EMPTY_STORYBOARD } from "./storyboard";
 import { BuilderFigure } from "./components/BuilderFigure";
 import { useMCPContextSync } from "./useMCPContextSync";
-import { useWebGPUDector, createWebGPURenderer } from "./webgpu/WebGPURendererDetector";
 
 /** A library entry — `filename` is the bare name; the playable/analyzable
  *  reference is `relative_path` (subfolder-aware). Most of the library lives
@@ -127,7 +126,6 @@ export function Visualizer() {
   const [showSettings, setShowSettings] = useState(false);
   const [rendererReady, setRendererReady] = useState(false);
   const [rendererBackend, setRendererBackend] = useState("");
-  const [gpuBackend, setGpuBackend] = useState<"webgpu" | "webgl" | "checking">("checking");
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
@@ -143,6 +141,7 @@ export function Visualizer() {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [vizMode, setVizMode] = useState<"3d" | "shader" | "2d">("shader"); // 2d = Canvas2D (2026 visual-flux/Waviz)
   const [canvas2DMode, setCanvas2DMode] = useState<"bars" | "waveform" | "radial" | "spectrogram" | "lissajous" | "constellation" | "particles">("bars");
+  const [perceptualScale, setPerceptualScale] = useState<PerceptualScale>("mel");
   const [aiEnhancing, setAiEnhancing] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   // Single source of truth for which visual preset is currently active (fixes
@@ -153,7 +152,7 @@ export function Visualizer() {
   // clobbered by the pending auto-apply.
   const visualPresetLockRef = useRef(0);
 
-  const { focusMode, toggleFocusMode } = useUIStore();
+  const { focusMode, toggleFocusMode, autoPlay, toggleAutoPlay } = useUIStore();
 
   const currentAnalysisData = currentFilename ? analysisData[currentFilename] ?? null : null;
   const currentAnalysisDataRef = useRef(currentAnalysisData);
@@ -195,21 +194,14 @@ export function Visualizer() {
       beat: false,
     },
   });
-  // WebGPU detection (non-blocking — falls back to WebGL).
-  const { backend: detectedBackend } = useWebGPUDector();
-  useEffect(() => {
-    setGpuBackend(detectedBackend);
-  }, [detectedBackend]);
-
   // Handle Canvas onCreated
   const handleCanvasCreated = useCallback(({ gl }: { gl: THREE.WebGLRenderer }) => {
     // ACES filmic tone mapping — the 2026 standard for cinematic color
     gl.toneMapping = ACESFilmicToneMapping;
     gl.toneMappingExposure = 1.05;
-    const backend = gpuBackend === "webgpu" ? "WebGPU" : "WebGL2";
-    setRendererBackend(backend);
+    setRendererBackend("WebGL2");
     setRendererReady(true);
-  }, [gpuBackend]);
+  }, []);
   // Interpolated, latency-compensated audio clock (see audioTiming.ts).
   const audioClockRef = useRef(createAudioClock());
   const latencyRef = useRef(0);
@@ -247,6 +239,24 @@ export function Visualizer() {
   // Load CSV and library
   useEffect(() => { fetch("/track-prompts-lyrics.csv").then(r => r.text()).then(setCsvContent).catch(() => {}); }, []);
   useEffect(() => { listAudioFiles().then(files => { if (Array.isArray(files) && files.length > 0) setLibraryFiles(files); }).catch(() => {}); }, []);
+
+  // Auto-play when a track is selected, if the setting is enabled.
+  // Uses a small delay so the <audio key={audioUrl}> remount completes
+  // and the browser sees the play() as part of the active user gesture chain.
+  useEffect(() => {
+    if (!audioUrl || !autoPlay) return;
+    const timer = setTimeout(() => {
+      const el = audioElRef.current;
+      if (el) {
+        el.play().then(() => {
+          // onPlay will fire and run setupAudio()
+        }).catch(() => {
+          // Autoplay blocked by browser policy — user can still press Play manually.
+        });
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [audioUrl, autoPlay]);
 
   // Parse lyrics — LRC files ONLY. No LRC means no words on the canvas:
   // the old CSV fallback painted synthetic, mistimed lines (e.g. prompt-theme
@@ -1057,6 +1067,9 @@ export function Visualizer() {
               return <option key={ref} value={ref}>{name}{metaStr}{badge}</option>;
             })}
           </select>
+          <button onClick={toggleAutoPlay} className={`viz-icon-btn ${autoPlay ? "active" : ""}`} aria-label={autoPlay ? "Auto-play ON" : "Auto-play OFF"} aria-pressed={autoPlay} title={autoPlay ? "Auto-play ON — tracks start automatically" : "Auto-play OFF — pick a track then press Play"}>
+            <Play size={14} />
+          </button>
           {currentFilename && !currentAnalysisData && (
             <button className="viz-analyze-btn" onClick={() => handleAnalyzeTrack(currentFilename)} disabled={analyzing}>
               {analyzing ? "Analyzing..." : "Analyze"}
@@ -1171,81 +1184,80 @@ export function Visualizer() {
             </div>
           )}
           <UploadPrompt hasAudio={!!audioUrl} quiet={!audioUrl && !currentFilename} onFile={handleFile} />
-          {visualsVisible ? (
-            vizMode === "shader" ? (
-              <ShaderVisualizer
-                audioData={liveAudioDataRef}
-                trackName={baseNameOfRef(currentFilename ?? "").replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "") ?? ""}
-                isPlaying={isPlaying}
-                lrcSync={lrcSync}
-                lrcSyncLive={lrcSyncLiveRef}
-                lyrics={lyrics}
-                className="absolute inset-0"
-              />
-            ) : vizMode === "2d" ? (
-              <Canvas2DVisualizer
-                audioData={liveAudioDataRef}
-                analyserRef={analyserRef}
-                isPlaying={isPlaying}
-                mode={canvas2DMode}
-                lrcSync={lrcSync}
-                lrcSyncLive={lrcSyncLiveRef}
-                lyrics={lyrics}
-                bgColor={bgColor}
-              />
-            ) : (
-              <>
-                <Canvas 
-                  key={gpuBackend}
-                  camera={{ position: [0, 0, 7], fov: 55 }} 
-                  dpr={[1, 1.5]} 
-                  frameloop={rendererReady ? "always" : "never"}
-                  gl={gpuBackend === "webgpu" ? (createWebGPURenderer as any) : { antialias: true }}
-                  onCreated={handleCanvasCreated}
-                >
-                  <color attach="background" args={[bgColor]} />
-                  <VisualizerScene
-                    analyserRef={analyserRef}
-                    isPlaying={isPlaying}
-                    isPaused={isPaused}
-                    demoEnabled={demoEnabled}
-                    demoBpm={demoBpm}
-                    onAudioData={(data) => {
-                      // Full-rate ref for visuals, throttled React state for UI chrome —
-                      // the unthrottled setState re-rendered the whole page ~60fps.
-                      // Beat is latched like the shader/2D loop: a single-frame beat
-                      // is missed by the 10 Hz mirror (late/erratic beat flashes).
-                      liveAudioDataRef.current = data;
-                      const now = performance.now();
-                      if (data.beat) lastBeatAtRef.current = now;
-                      if (now - last3DUiUpdateRef.current > 100) {
-                        last3DUiUpdateRef.current = now;
-                        setLiveAudioData({ ...data, beat: data.beat || (now - lastBeatAtRef.current < BEAT_LATCH_MS) });
-                      }
-                    }}
-                    visualizationStyle={visualizationStyle}
-                    vizParams={vizParams}
-                    bgColor={bgColor}
-                    meshColor={meshColor}
-                    analysisData={currentAnalysisData}
-                    audioElapsedRef={audioElapsedRef}
-                    sceneFrozen={sceneFrozen}
-                    lyrics={lyrics}
-                    lrcSync={lrcSync}
-                    storyboard={storyboard}
-                    prefersReducedMotion={prefersReducedMotion}
-                  />
-                </Canvas>
-                {!rendererReady && <div className="viz-loading-overlay"><div className="viz-loading-spinner" /><span>Initializing {rendererBackend || "renderer"}...</span></div>}
-                {rendererReady && <div className="viz-backend-badge">{rendererBackend}</div>}
-                <StylePicker active={visualizationStyle} onChange={setVisualizationStyle} />
-              </>
-            )
-          ) : (
-            <div className="viz-layer-hidden" style={{ background: bgColor, width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, letterSpacing: 1 }}>Visuals hidden</span>
-            </div>
-          )}
+           {/* Always-mounted Canvas preserves WebGL context across mode/visibility toggles */}
+           <Canvas
+             className="absolute inset-0"
+             camera={{ position: [0, 0, 7], fov: 55 }}
+             dpr={[1, 1.5]}
+             frameloop="always"
+             gl={{ antialias: true }}
+             onCreated={handleCanvasCreated}
+           >
+             <color attach="background" args={[bgColor]} />
+             <VisualizerScene
+               analyserRef={analyserRef}
+               isPlaying={isPlaying}
+               isPaused={isPaused}
+               demoEnabled={demoEnabled}
+               demoBpm={demoBpm}
+               onAudioData={(data) => {
+                 liveAudioDataRef.current = data;
+                 const now = performance.now();
+                 if (data.beat) lastBeatAtRef.current = now;
+                 if (now - last3DUiUpdateRef.current > 100) {
+                   last3DUiUpdateRef.current = now;
+                   setLiveAudioData({ ...data, beat: data.beat || (now - lastBeatAtRef.current < BEAT_LATCH_MS) });
+                 }
+               }}
+               visualizationStyle={visualizationStyle}
+               vizParams={vizParams}
+               bgColor={bgColor}
+               meshColor={meshColor}
+               analysisData={currentAnalysisData}
+               audioElapsedRef={audioElapsedRef}
+               sceneFrozen={sceneFrozen}
+               lyrics={lyrics}
+               lrcSync={lrcSync}
+               storyboard={storyboard}
+               prefersReducedMotion={prefersReducedMotion}
+               perceptualScale={perceptualScale}
+               active={visualsVisible && vizMode === "3d"}
+             />
+           </Canvas>
+           {visualsVisible ? (
+             <>
+               {vizMode === "shader" && (
+                 <ShaderVisualizer
+                   audioData={liveAudioDataRef}
+                   trackName={baseNameOfRef(currentFilename ?? "").replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "") ?? ""}
+                   isPlaying={isPlaying}
+                   lrcSync={lrcSync}
+                   lrcSyncLive={lrcSyncLiveRef}
+                   lyrics={lyrics}
+                   className="absolute inset-0"
+                 />
+               )}
+               {vizMode === "2d" && (
+                 <Canvas2DVisualizer
+                   audioData={liveAudioDataRef}
+                   analyserRef={analyserRef}
+                   isPlaying={isPlaying}
+                   mode={canvas2DMode}
+                   lrcSync={lrcSync}
+                   lrcSyncLive={lrcSyncLiveRef}
+                   lyrics={lyrics}
+                   bgColor={bgColor}
+                 />
+               )}
+               {vizMode === "3d" && !rendererReady && <div className="viz-loading-overlay"><div className="viz-loading-spinner" /><span>Initializing {rendererBackend || "renderer"}...</span></div>}
+               {vizMode === "3d" && rendererReady && <div className="viz-backend-badge">{rendererBackend}</div>}
+               {vizMode === "3d" && rendererReady && <StylePicker active={visualizationStyle} onChange={setVisualizationStyle} />}
+             </>
+           ) : (
+             <div className="viz-layer-hidden" style={{ background: bgColor, width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+               <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, letterSpacing: 1 }}>Visuals hidden</span>
+             </div>
+           )}
           {/* Show AI preset as a custom button when loaded - visible in both modes */}
           {loadedPreset?.name && (
             <div className="viz-ai-preset-row">
@@ -1276,7 +1288,7 @@ export function Visualizer() {
               {/* Builder silhouette — separate layer, independent of lyrics (user-toggleable) */}
               <BuilderFigure audioData={liveAudioDataRef} storyBeat={storyState.beat} visible={characterVisible} calm={prefersReducedMotion} />
         </div>
-        {showSettings && <SettingsPanel params={vizParams} onChange={setVizParams} bgColor={bgColor} meshColor={meshColor} onBgChange={setBgColor} onMeshChange={setMeshColor} demoEnabled={demoEnabled} onDemoToggle={setDemoEnabled} kineticPreset={kineticPreset} onKineticPresetChange={setKineticPreset} visualizationStyle={visualizationStyle} onVisualizationStyleChange={setVisualizationStyle} vizMode={vizMode} onVizModeChange={setVizMode} activeVisualPresetId={activeVisualPresetId} onVisualPresetSelect={handleVisualPresetSelect} />}
+        {showSettings && <SettingsPanel params={vizParams} onChange={setVizParams} bgColor={bgColor} meshColor={meshColor} onBgChange={setBgColor} onMeshChange={setMeshColor} demoEnabled={demoEnabled} onDemoToggle={setDemoEnabled} kineticPreset={kineticPreset} onKineticPresetChange={setKineticPreset} visualizationStyle={visualizationStyle} onVisualizationStyleChange={setVisualizationStyle} vizMode={vizMode} onVizModeChange={setVizMode} activeVisualPresetId={activeVisualPresetId} onVisualPresetSelect={handleVisualPresetSelect} perceptualScale={perceptualScale} onPerceptualScaleChange={setPerceptualScale} />}
         {showAIPanel && <AIVisualizerPrompt onApplyPreset={handlePresetLoaded} trackMeta={deriveTrackMeta(currentAnalysisData)} trackName={currentFilename ?? undefined} />}
       </div>
 

@@ -225,8 +225,7 @@ export function GpuMonitorPage() {
     const cutoff = nowTick - rangeMs;
     const win = history.filter((p) => p.time >= cutoff);
     return win.length >= 2 ? win : history.slice(-20);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history, rangeMs, range, nowTick]);
+  }, [history, rangeMs, nowTick]);
   const chartData = useMemo(() => downsample(windowHistory, 300), [windowHistory]);
   const tempStats = useMemo(() => calcStats(windowHistory.map((d) => d.temp)), [windowHistory]);
   const vramStats = useMemo(() => calcStats(windowHistory.map((d) => d.vram)), [windowHistory]);

@@ -53,6 +53,8 @@ interface Props extends VisualizerSceneProps {
   lrcSync?: VisualizerSceneProps["lrcSync"];
   /** Narrative storyboard (acts) for story-driven modulation */
   storyboard?: Storyboard | null;
+  /** When false, the scene is hidden but kept mounted to preserve graph stability */
+  active?: boolean;
 }
 
 export function VisualizerScene({
@@ -73,6 +75,8 @@ export function VisualizerScene({
   lrcSync = null,
   storyboard = null,
   prefersReducedMotion = false,
+  perceptualScale = "mel",
+  active = true,
 }: Props) {
   // Pass elapsed ref to hook so it reads live value inside useFrame
   const realData = useRealAudio(
@@ -81,10 +85,12 @@ export function VisualizerScene({
     isPaused,
     analysisData,
     audioElapsedRef,
+    perceptualScale,
   );
   const demoData = useDemoAudio(
     demoEnabled && !isPlaying && !isPaused,
     demoBpm,
+    perceptualScale,
   );
   const audioData = isPlaying ? realData : demoData;
 
@@ -177,102 +183,104 @@ export function VisualizerScene({
   };
 
   return (
-    <>
-      {vizParams.fogEnabled && (
-        <fogExp2
-          attach="fog"
-          args={[bgColor ?? "#050505", vizParams.fogDensity]}
+    <group visible={active}>
+      <>
+        {vizParams.fogEnabled && (
+          <fogExp2
+            attach="fog"
+            args={[bgColor ?? "#050505", vizParams.fogDensity]}
+          />
+        )}
+        {/* IBL studio environment (local Lightformers — no HDR fetch) gives metals
+            and clearcoat materials real reflections; 2026 standard lighting rig. */}
+        <Environment resolution={64} frames={1}>
+          <Lightformer
+            form="rect"
+            intensity={
+              2.2 * (lrcSync ? getSectionIntensity(lrcSync.currentSection) : 1)
+            }
+            position={[0, 5, -4]}
+            rotation={[Math.PI / 2.4, 0, 0]}
+            scale={[9, 4, 1]}
+            color="#dfe8ff"
+          />
+          <Lightformer
+            form="circle"
+            intensity={1.6}
+            position={[-5, 2, 3]}
+            scale={3}
+            color="#8ea2ff"
+          />
+          <Lightformer
+            form="circle"
+            intensity={1.1}
+            position={[5, -1, 2]}
+            scale={2.4}
+            color={meshColor}
+          />
+          <Lightformer
+            form="rect"
+            intensity={0.9}
+            position={[0, -4, 2]}
+            rotation={[-Math.PI / 2.6, 0, 0]}
+            scale={[8, 3, 1]}
+            color="#2a2f45"
+          />
+        </Environment>
+        {/* Key/fill/rim — physical falloff (decay 2) instead of legacy decay-0 */}
+        <ambientLight
+          intensity={vizParams.lightIntensity * 0.35}
+          color={vizParams.ambientColor}
         />
-      )}
-      {/* IBL studio environment (local Lightformers — no HDR fetch) gives metals
-          and clearcoat materials real reflections; 2026 standard lighting rig. */}
-      <Environment resolution={64} frames={1}>
-        <Lightformer
-          form="rect"
-          intensity={
-            2.2 * (lrcSync ? getSectionIntensity(lrcSync.currentSection) : 1)
-          }
-          position={[0, 5, -4]}
-          rotation={[Math.PI / 2.4, 0, 0]}
-          scale={[9, 4, 1]}
-          color="#dfe8ff"
+        <pointLight
+          position={[6, 6, 6]}
+          intensity={vizParams.lightIntensity * (prefersReducedMotion ? 15 : 40)}
+          decay={2}
+          color="#fff"
         />
-        <Lightformer
-          form="circle"
-          intensity={1.6}
-          position={[-5, 2, 3]}
-          scale={3}
-          color="#8ea2ff"
+        <pointLight
+          position={[-5, -3, 4]}
+          intensity={vizParams.lightIntensity * (prefersReducedMotion ? 8 : 22)}
+          decay={2}
+          color="#4da6ff"
         />
-        <Lightformer
-          form="circle"
-          intensity={1.1}
-          position={[5, -1, 2]}
-          scale={2.4}
+        <pointLight
+          position={[0, 4, -6]}
+          intensity={vizParams.lightIntensity * (prefersReducedMotion ? 6 : 16)}
+          decay={2}
           color={meshColor}
         />
-        <Lightformer
-          form="rect"
-          intensity={0.9}
-          position={[0, -4, 2]}
-          rotation={[-Math.PI / 2.6, 0, 0]}
-          scale={[8, 3, 1]}
-          color="#2a2f45"
+
+        {renderVisualization()}
+
+        {vizParams.showGround && (
+          <mesh
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[0, -3, 0]}
+            receiveShadow={false}
+          >
+            <planeGeometry args={[20, 20]} />
+            <meshStandardMaterial
+              color="#111111"
+              metalness={0.9}
+              roughness={0.15}
+            />
+          </mesh>
+        )}
+
+        {/* Post pipeline: bloom + film grade — now LRC-reactive (phrase pulse boosts bloom) */}
+        <PostFXSelector audioData={audioData} lrcSync={lrcSync} lrcSyncRef={lrcSyncLiveRef} />
+
+        <OrbitControls
+          enablePan={false}
+          enableZoom={true}
+          minDistance={3}
+          maxDistance={15}
+          autoRotate={false}
+          dampingFactor={0.05}
+          enableDamping
         />
-      </Environment>
-      {/* Key/fill/rim — physical falloff (decay 2) instead of legacy decay-0 */}
-      <ambientLight
-        intensity={vizParams.lightIntensity * 0.35}
-        color={vizParams.ambientColor}
-      />
-      <pointLight
-        position={[6, 6, 6]}
-        intensity={vizParams.lightIntensity * (prefersReducedMotion ? 15 : 40)}
-        decay={2}
-        color="#fff"
-      />
-      <pointLight
-        position={[-5, -3, 4]}
-        intensity={vizParams.lightIntensity * (prefersReducedMotion ? 8 : 22)}
-        decay={2}
-        color="#4da6ff"
-      />
-      <pointLight
-        position={[0, 4, -6]}
-        intensity={vizParams.lightIntensity * (prefersReducedMotion ? 6 : 16)}
-        decay={2}
-        color={meshColor}
-      />
-
-      {renderVisualization()}
-
-      {vizParams.showGround && (
-        <mesh
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[0, -3, 0]}
-          receiveShadow={false}
-        >
-          <planeGeometry args={[20, 20]} />
-          <meshStandardMaterial
-            color="#111111"
-            metalness={0.9}
-            roughness={0.15}
-          />
-        </mesh>
-      )}
-
-      {/* Post pipeline: bloom + film grade — now LRC-reactive (phrase pulse boosts bloom) */}
-      <PostFXSelector audioData={audioData} lrcSync={lrcSync} lrcSyncRef={lrcSyncLiveRef} />
-
-      <OrbitControls
-        enablePan={false}
-        enableZoom={true}
-        minDistance={3}
-        maxDistance={15}
-        autoRotate={false}
-        dampingFactor={0.05}
-        enableDamping
-      />
-    </>
+      </>
+    </group>
   );
 }

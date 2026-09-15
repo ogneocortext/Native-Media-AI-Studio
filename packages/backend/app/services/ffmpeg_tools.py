@@ -12,10 +12,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import shutil
 import struct
 import subprocess
-import math
 from pathlib import Path
 from typing import Any
 
@@ -351,7 +351,7 @@ async def regenerate_cover(file_path: str | Path) -> str | None:
 
     Returns the relative cover path, or None on failure.
     """
-    from ..api.outputs import extract_audio_cover, PROJECT_ROOT
+    from ..api.outputs import extract_audio_cover
 
     path = Path(file_path)
     if not path.exists():
@@ -368,4 +368,4 @@ async def regenerate_cover(file_path: str | Path) -> str | None:
 
 
 # Late import to avoid circulars at module load time.
-from ..core.config import PROJECT_ROOT, config  # noqa: E402
+from ..core.config import config  # noqa: E402

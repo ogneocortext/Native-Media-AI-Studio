@@ -55,8 +55,6 @@ class FFmpegRenderer(VideoRenderer):
             except NotImplementedError:
                 # Windows SelectorEventLoop fallback: run FFmpeg in a thread via subprocess.Popen
                 # so we can enforce the same timeout/kill semantics as the async path.
-                import threading
-
                 def _run_ffmpeg() -> tuple[int, bytes, bytes]:
                     proc = subprocess.Popen(
                         cmd,

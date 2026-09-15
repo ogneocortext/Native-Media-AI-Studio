@@ -1,16 +1,17 @@
-/* eslint-disable @remotion/no-background-image, @remotion/non-pure-animation */
+/* `non-pure-animation` is intentionally disabled: this composition intentionally
+   uses spring()/interpolate() driven purely by useCurrentFrame(), but some
+   decorative CSS animations remain. `no-background-image` was removed from the
+   suppression list — all backgrounds here are gradients, not url() resources. */
+/* eslint-disable @remotion/non-pure-animation */
 import {
   AbsoluteFill, Audio, interpolate, spring, staticFile,
-  useCurrentFrame, useVideoConfig, Easing, Composition
+  useCurrentFrame, useVideoConfig, Composition, Easing
 } from "remotion";
-import {
-  useWindowedAudioData, visualizeAudio, visualizeAudioWaveform,
-  createSmoothSvgPath
-} from "@remotion/media-utils";
+import { createSmoothSvgPath } from "@remotion/media-utils";
 import { ThreeCanvas } from "@remotion/three";
-import React, { useRef } from "react";
+import React from "react";
 import { useAnalyzedAudioData } from "./hooks/useAnalyzedAudioData";
-import type { AudioAnalysisData } from "../services/api";
+import type { AudioAnalysisData } from "./services/api";
 
 // ─────────────────────────────────────────────────────────────
 // Data-driven Remotion composition
@@ -23,6 +24,9 @@ import type { AudioAnalysisData } from "../services/api";
 const FPS = 30;
 const DEFAULT_DURATION_SECONDS = 242.32;
 const DEFAULT_DURATION_FRAMES = Math.ceil(DEFAULT_DURATION_SECONDS * FPS);
+
+// Shared easing curve for section-transition wipes.
+const EASE_SMOOTH = Easing.bezier(0.4, 0, 0.2, 1);
 
 // ─── Fallback storyboard (Signal Breaking Through The Noise) ───
 type Section = {
@@ -120,25 +124,36 @@ const MainVideo: React.FC<MainVideoProps> = ({ analysis }) => {
 
   // Fallback storyboard values when no analyzed data
   const sections = (analysis?.timing_contract?.sections?.length
-    ? analysis.timing_contract.sections.map((s, i) => ({
-        ...s,
-        id: `S${String(i + 1).padStart(2, "0")}`,
-        palette: {
-          primary: s.type.includes("CHORUS") ? "#c084fc" : s.type === "BREAKDOWN" ? "#b08a5a" : s.type === "BUILD_UP" ? "#fbbf24" : "#60a5fa",
-          secondary: s.type.includes("CHORUS") ? "#a855f7" : s.type === "BREAKDOWN" ? "#8a7048" : s.type === "BUILD_UP" ? "#f59e0b" : "#45a0c4",
-          glow: s.type.includes("CHORUS") ? "#d946ef" : s.type === "BREAKDOWN" ? "#f59e0b" : s.type === "BUILD_UP" ? "#fcd34d" : "#22d3ee",
-        },
-        typography: {
-          size: s.type.includes("CHORUS") ? 88 : s.type === "BREAKDOWN" ? 36 : s.type === "BUILD_UP" ? 72 : 48,
-          weight: s.type.includes("CHORUS") ? 800 : s.type === "BREAKDOWN" ? 400 : 600,
-          family: "Space Grotesk, sans-serif",
-          spacing: s.type.includes("CHORUS") ? "-0.04em" : s.type === "BREAKDOWN" ? "0.22em" : "0.02em",
-        },
-        camera: {
-          scale: 0.99 + s.energy * 0.05,
-          speed: 0.03 + s.energy * 0.12,
-        },
-      }))
+    ? analysis.timing_contract.sections.map((s, i) => {
+        // `SectionEvent.type` is lowercase in the shared timing contract, but the
+        // storyboard palette/typography tables key off uppercase names. Normalize
+        // once so the comparisons stay correct whichever case the backend emits.
+        const kind = String(s.type ?? "").toUpperCase();
+        const isChorus = kind.includes("CHORUS");
+        const isBreakdown = kind === "BREAKDOWN";
+        const isBuildUp = kind === "BUILD_UP";
+        return {
+          ...s,
+          id: `S${String(i + 1).padStart(2, "0")}`,
+          // Normalize `SectionEvent.type` to the local `Section.name` contract.
+          name: kind,
+          palette: {
+            primary: isChorus ? "#c084fc" : isBreakdown ? "#b08a5a" : isBuildUp ? "#fbbf24" : "#60a5fa",
+            secondary: isChorus ? "#a855f7" : isBreakdown ? "#8a7048" : isBuildUp ? "#f59e0b" : "#45a0c4",
+            glow: isChorus ? "#d946ef" : isBreakdown ? "#f59e0b" : isBuildUp ? "#fcd34d" : "#22d3ee",
+          },
+          typography: {
+            size: isChorus ? 88 : isBreakdown ? 36 : isBuildUp ? 72 : 48,
+            weight: isChorus ? 800 : isBreakdown ? 400 : 600,
+            family: "Space Grotesk, sans-serif",
+            spacing: isChorus ? "-0.04em" : isBreakdown ? "0.22em" : "0.02em",
+          },
+          camera: {
+            scale: 0.99 + s.energy * 0.05,
+            speed: 0.03 + s.energy * 0.12,
+          },
+        };
+      })
     : FALLBACK_SECTIONS
   ) as Section[];
 
@@ -163,9 +178,21 @@ const MainVideo: React.FC<MainVideoProps> = ({ analysis }) => {
   const lyricProgress = currentLyric ? (t - currentLyric.start) / (currentLyric.end - currentLyric.start) : 0;
 
   // ─── Current Section ───
+  // `SectionEvent` (lib/timing) keys sections by `type`, while the render layers
+  // below expect the local `Section` shape which uses `name`. Normalize here so
+  // the analyzed path cannot crash on a missing `name`.
+  const activeIdx = Math.max(0, sections.findIndex((s) => s.start <= t && s.end > t));
+  const activeMeta = sections[activeIdx] ?? FALLBACK_SECTIONS[0];
   const section = analyzed.section
-    ? { ...analyzed.section, id: sections[Math.max(0, sections.findIndex(s => s.start <= t && s.end > t))]?.id ?? "S01", palette: sections[Math.max(0, sections.findIndex(s => s.start <= t && s.end > t))]?.palette ?? FALLBACK_SECTIONS[0].palette, typography: sections[Math.max(0, sections.findIndex(s => s.start <= t && s.end > t))]?.typography ?? FALLBACK_SECTIONS[0].typography, camera: sections[Math.max(0, sections.findIndex(s => s.start <= t && s.end > t))]?.camera ?? FALLBACK_SECTIONS[0].camera }
-    : sections.find(s => t >= s.start && t < s.end) ?? sections[0];
+    ? {
+        ...analyzed.section,
+        name: String(analyzed.section.type ?? "").toUpperCase(),
+        id: activeMeta.id,
+        palette: activeMeta.palette,
+        typography: activeMeta.typography,
+        camera: activeMeta.camera,
+      }
+    : sections.find((s) => t >= s.start && t < s.end) ?? sections[0];
   const isChorus = section.name.includes("CHORUS") || section.name === "BUILD_UP";
   const isBreakdown = section.name === "BREAKDOWN";
 
@@ -241,7 +268,10 @@ const MainVideo: React.FC<MainVideoProps> = ({ analysis }) => {
 };
 
 // ─── Background Section ───
-const BackgroundSection: React.FC<any> = ({ section, t, bass, pulse, camScale, camX, camY }) => {
+const BackgroundSection: React.FC<{
+  section: Section; t: number; bass: number; pulse: number;
+  camScale: number; camX: number; camY: number;
+}> = ({ section, t, bass, pulse, camScale, camX, camY }) => {
   return (
     <AbsoluteFill style={{ transform: `scale(${camScale}) translate(${camX}px, ${camY}px)` }}>
       {/* Base gradient - vibrant, section-tinted */}
@@ -259,7 +289,10 @@ const BackgroundSection: React.FC<any> = ({ section, t, bass, pulse, camScale, c
 };
 
 // ─── Particles Layer Component ───
-const ParticlesLayer: React.FC<any> = ({ t, bass, isChorus, isBreakdown, isBeat, beatSpring, pulse, section }) => {
+const ParticlesLayer: React.FC<{
+  t: number; bass: number; isChorus: boolean; isBreakdown: boolean;
+  isBeat: boolean; beatSpring: number; pulse: number; section: Section;
+}> = ({ t, bass, isChorus, isBreakdown, isBeat, beatSpring, pulse, section }) => {
   const opacity = isBreakdown ? 0.25 : isChorus ? 0.75 : 0.55;
   const particleCount = isChorus ? 45 : 30;
   const beatBounce = isBeat ? (beatSpring - 0.5) * 10 : 0;
@@ -297,7 +330,12 @@ const ParticlesLayer: React.FC<any> = ({ t, bass, isChorus, isBreakdown, isBeat,
 };
 
 // ─── 3D Scene Section ───
-const Scene3DLayer: React.FC<any> = ({ section, t, bass, mid, treble, beatSpring, width, height, isBeat, pulse }) => {
+const Scene3DLayer: React.FC<{
+  section: Section; t: number; bass: number; mid: number; treble: number;
+  beatSpring: number; width: number; height: number; pulse: number;
+  /** Accepted for call-site symmetry; the 3D layer keys off bass/mid/treble. */
+  isBeat?: boolean;
+}> = ({ section, t, bass, mid, treble, beatSpring, width, height, pulse }) => {
   const opacity = section.name === "BREAKDOWN" ? 0 : Math.min(1, section.energy + 0.5);
   const scale = (1 + bass * 0.12 + pulse * 0.05) * (0.96 + (beatSpring - 0.5) * 0.08);
   // Position: centered hero object; off to the side only in mid-energy sections
@@ -311,7 +349,7 @@ const Scene3DLayer: React.FC<any> = ({ section, t, bass, mid, treble, beatSpring
         <directionalLight position={[3, 5, 4]} intensity={0.9 + section.energy * 0.7} />
         <pointLight position={[-3, -2, 3]} intensity={2.2 + treble * 3.5} color={section.palette.glow} />
         <pointLight position={[3, 2, -2]} intensity={1.6 + mid * 2.5} color={section.palette.primary} />
-        <group scale={scale} rotation={[t * 0.15 + bass * 0.1, t * 0.25 + bass * 0.2, Math.sin(t * 0.2) * 0.05]} position={[posX, posY, -1] as any}>
+        <group scale={scale} rotation={[t * 0.15 + bass * 0.1, t * 0.25 + bass * 0.2, Math.sin(t * 0.2) * 0.05]} position={[posX, posY, -1] as [number, number, number]}>
           <mesh>
             <icosahedronGeometry args={[0.9, 0]} />
             <meshStandardMaterial color={section.palette.primary} emissive={section.palette.glow} emissiveIntensity={0.8 + treble * 1.2 + pulse * 0.8} metalness={0.85} roughness={0.12} />
@@ -349,7 +387,9 @@ const Scene3DLayer: React.FC<any> = ({ section, t, bass, mid, treble, beatSpring
 // ─── Beat-synced Pulse Rings ───
 const phase = (t: number, dur: number) => (t % dur) / dur;
 
-const BeatRings: React.FC<any> = ({ section, t, isChorus, isBreakdown, bpm }) => {
+const BeatRings: React.FC<{
+  section: Section; t: number; isChorus: boolean; isBreakdown: boolean; bpm: number;
+}> = ({ section, t, isChorus, isBreakdown, bpm }) => {
   if (isBreakdown) return null;
   const BPM = bpm || 136;
   const beatDur = 60 / BPM;
@@ -370,7 +410,9 @@ const BeatRings: React.FC<any> = ({ section, t, isChorus, isBreakdown, bpm }) =>
 };
 
 // ─── Waveform Section ───
-const WaveformSection: React.FC<any> = ({ waveform, section, width, height, bass }) => {
+const WaveformSection: React.FC<{
+  waveform: number[]; section: Section; width: number; height: number; bass: number;
+}> = ({ waveform, section, width, height, bass }) => {
   // Gate the "stray horizontal line" artifact: when the analysis window is
   // near-silent the waveform collapses to a flat line — hide it entirely.
   const maxAmp = waveform.reduce((m: number, y: number) => Math.max(m, Math.abs(y)), 0);
@@ -402,7 +444,10 @@ const WaveformSection: React.FC<any> = ({ waveform, section, width, height, bass
 };
 
 // ─── Lyric Section ───
-const LyricSection: React.FC<any> = ({ currentLyric, lyricProgress, section, t, bass, width, height, typoScale }) => {
+const LyricSection: React.FC<{
+  currentLyric: LyricLine; lyricProgress: number; section: Section; t: number;
+  bass: number; width?: number; height?: number; typoScale: number;
+}> = ({ currentLyric, lyricProgress, section, t, bass, typoScale }) => {
   const words = currentLyric.text.split(" ");
   const isChorus = section.name.includes("CHORUS") || section.name === "BUILD_UP";
   const isBreakdown = section.name === "BREAKDOWN";
@@ -471,7 +516,10 @@ const LyricSection: React.FC<any> = ({ currentLyric, lyricProgress, section, t, 
 };
 
 // ─── Bento Section ───
-const BentoSection: React.FC<any> = ({ spectrum, section, t, progress, width, height, bass, bpm }) => {
+const BentoSection: React.FC<{
+  spectrum: number[]; section: Section; progress: number; bass: number;
+  bpm: number; t?: number; width?: number; height?: number;
+}> = ({ spectrum, section, progress, bass, bpm }) => {
   const isBreakdown = section.name === "BREAKDOWN";
   const cardWidth = isBreakdown ? 280 : 420;
   const cardHeight = isBreakdown ? 100 : 140;
@@ -489,7 +537,7 @@ const BentoSection: React.FC<any> = ({ spectrum, section, t, progress, width, he
           </div>
         )}
         <div style={{ width: cardWidth, height: cardHeight, borderRadius: 20, background: "rgba(18,22,34,0.6)", backdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.08)", padding: "12px 14px", display: "flex", alignItems: "flex-end", gap: 2 }}>
-          {spectrum.filter((_: any, i: number) => i % (64 / barCount) === 0).slice(0, barCount).map((v: number, i: number) => {
+          {spectrum.filter((_, i: number) => i % (64 / barCount) === 0).slice(0, barCount).map((v: number, i: number) => {
             const h = 4 + v * 60 + (i < 8 ? bass * 12 : 0);
             return <div key={i} style={{ flex: 1, height: h, backgroundColor: i < 6 ? section.palette.glow : "rgba(255,255,255,0.8)", borderRadius: 4, opacity: i < 6 ? 0.9 : 0.6 }} />;
           })}
@@ -500,7 +548,9 @@ const BentoSection: React.FC<any> = ({ spectrum, section, t, progress, width, he
 };
 
 // ─── Transition Overlay ───
-const TransitionOverlay: React.FC<any> = ({ wipeProgress, width, height }) => {
+const TransitionOverlay: React.FC<{
+  wipeProgress: number; width: number; height?: number;
+}> = ({ wipeProgress, width }) => {
   const wipeX = interpolate(wipeProgress, [0, 1], [-600, width + 600], { easing: EASE_SMOOTH, extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return (
     <AbsoluteFill style={{ pointerEvents: "none" }}>
@@ -520,7 +570,10 @@ export const SignalFps = FPS;
 //   • chromatic-shift (hue-rotate as proxy, preserves performance)
 //   • noise grain (film grain overlay via SVG feTurbulence)
 //   • light leak (section-tinted radial flash)
-const EffectsLayer: React.FC<any> = ({ section, t, isBeat, isChorus, isBreakdown, bass, pulse }) => {
+const EffectsLayer: React.FC<{
+  section: Section; t: number; isBeat: boolean; isChorus: boolean;
+  isBreakdown: boolean; bass: number; pulse: number;
+}> = ({ section, t, isBeat, isChorus, isBreakdown, bass, pulse }) => {
   const blurAmount = isChorus ? 0.6 + bass * 1.2 : isBreakdown ? 0 : 0.2 + bass * 0.4;
   const brightness = isBreakdown ? 0.85 : 1 + bass * 0.08;
   const contrast = isChorus ? 1.1 : 1 + bass * 0.04;

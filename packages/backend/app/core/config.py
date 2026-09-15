@@ -67,7 +67,7 @@ class AppConfig(BaseModel):
     def validate_url(cls, v: str) -> str:
         """Validate that URL is properly formatted"""
         if not v or not v.strip():
-            raise ValueError(f"URL cannot be empty")
+            raise ValueError("URL cannot be empty")
         v = v.strip()
         if not v.startswith(('http://', 'https://')):
             raise ValueError(f"URL must start with http:// or https://, got {v}")

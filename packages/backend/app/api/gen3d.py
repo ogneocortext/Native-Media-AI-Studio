@@ -97,7 +97,7 @@ async def gen3d_generate_image(
         )
     except ValueError as e:
         from fastapi import HTTPException
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     finally:
         if tmp_path is not None:
             try:

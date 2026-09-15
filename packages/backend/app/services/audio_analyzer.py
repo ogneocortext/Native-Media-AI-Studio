@@ -1,7 +1,6 @@
 """Audio analysis service for extracting waveform and beat features from audio files."""
 
 import logging
-import sys
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -44,7 +43,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # ---------------------------------------------------------------------------
 
 def _import_shared_audio():
-    from tools.lib.audio import load_audio, analyze_beats, save_beat_data  # type: ignore[import]
+    from tools.lib.audio import analyze_beats, load_audio, save_beat_data  # type: ignore[import]
     return load_audio, analyze_beats, save_beat_data
 
 
@@ -235,7 +234,7 @@ class AudioAnalyzer:
             )
         except Exception as e:
             logger.error(f"Audio analysis failed for {audio_path}: {e}")
-            raise AudioAnalyzerError(f"Failed to analyze audio file: {e}")
+            raise AudioAnalyzerError(f"Failed to analyze audio file: {e}") from e
 
     def _analyze_madmom(self, audio_path: str, job_id: str | None = None) -> AudioAnalysisResult:
         """Beat/downbeat analysis via madmom-infer.
@@ -290,7 +289,7 @@ class AudioAnalyzer:
             )
         except Exception as e:
             logger.error(f"madmom-infer analysis failed for {audio_path}: {e}")
-            raise AudioAnalyzerError(f"madmom-infer failed: {e}")
+            raise AudioAnalyzerError(f"madmom-infer failed: {e}") from e
 
     def _analyze_sonara(self, audio_path: str, job_id: str | None = None) -> AudioAnalysisResult:
         """Audio analysis via sonara (Rust-backed PyO3).
@@ -347,7 +346,7 @@ class AudioAnalyzer:
             )
         except Exception as e:
             logger.error(f"sonara analysis failed for {audio_path}: {e}")
-            raise AudioAnalyzerError(f"sonara failed: {e}")
+            raise AudioAnalyzerError(f"sonara failed: {e}") from e
 
     def analyze_and_save(
         self, audio_path: str, job_id: str | None = None, backend: str = "sonara"

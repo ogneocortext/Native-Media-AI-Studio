@@ -89,7 +89,7 @@ class AudioAnalysisHandler:
             raise
         except Exception as e:
             logger.error(f"Unexpected error processing audio analysis job: {e}")
-            raise AudioAnalyzerError(f"Job processing failed: {e}")
+            raise AudioAnalyzerError(f"Job processing failed: {e}") from e
 
     def save_analysis(
         self, job: Job, result: Any, output_path: str | None = None

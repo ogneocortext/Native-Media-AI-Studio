@@ -147,7 +147,10 @@ export function AudioTrimModal({
       wsRef.current = null;
       regionsPluginRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Deps intentionally narrowed to the two values that change what the
+    // waveform shows. The callbacks/props used inside are stable for the
+    // lifetime of the modal, so re-creating the wavesurfer instance on every
+    // parent render would be wasteful (and would discard the current region).
   }, [isOpen, audioUrl]);
 
   // Escape to close

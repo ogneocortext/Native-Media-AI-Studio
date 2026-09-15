@@ -5,6 +5,7 @@ Provides trend-analysis endpoints backed by the SQLite log_events store.
 """
 
 import time
+from typing import Any
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel

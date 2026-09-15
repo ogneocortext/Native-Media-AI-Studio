@@ -45,6 +45,19 @@ export interface EnergyCurvePoint {
   value: number;
 }
 
+export interface LyricTiming {
+  start: number;
+  end: number;
+  text: string;
+  /** Optional phrase grouping for kinetic typography */
+  phraseStart?: boolean;
+  words?: Array<{
+    word: string;
+    start: number;
+    end: number;
+  }>;
+}
+
 export interface TimingContract {
   filename: string;
   duration: number;
@@ -54,6 +67,8 @@ export interface TimingContract {
   sections: SectionEvent[];
   energyCurve: EnergyCurvePoint[];
   amplitudeEnvelope: number[];
+  /** Timed lyric lines for kinetic typography (mirrors shared/timing.ts). */
+  lyrics?: LyricTiming[];
 }
 
 // ─── Section helpers ───

@@ -114,3 +114,28 @@ export function getNextBeatInFromArray(beats: number[], elapsedSec: number): num
 
   return 0;
 }
+
+/**
+ * Linearly interpolate a value from an evenly-spaced curve at `elapsedSec`.
+ *
+ * Used to map the backend's `energy_curve` (60–100 points over track duration)
+ * to per-frame intensity for visualization.
+ */
+export function getEnergyAtTime(
+  energyCurve: number[],
+  durationSec: number,
+  elapsedSec: number,
+): number {
+  if (!energyCurve.length || durationSec <= 0 || elapsedSec < 0) return 0;
+
+  const idx = (elapsedSec / durationSec) * (energyCurve.length - 1);
+  const lower = Math.floor(idx);
+  const upper = Math.min(energyCurve.length - 1, Math.ceil(idx));
+
+  if (lower === upper) return energyCurve[lower] ?? 0;
+
+  const frac = idx - lower;
+  const a = energyCurve[lower] ?? 0;
+  const b = energyCurve[upper] ?? 0;
+  return a + (b - a) * frac;
+}

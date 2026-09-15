@@ -6,13 +6,11 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..adapters.registry import adapter_registry
-from ..models.generation import ImageGenerationRequest, VideoGenerationRequest
 from ..core.config import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)

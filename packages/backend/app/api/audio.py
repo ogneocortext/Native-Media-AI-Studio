@@ -14,14 +14,13 @@ import subprocess
 import time
 import uuid
 from pathlib import Path
-from typing import Any
 
 import aiohttp
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from ..core.config import PROJECT_ROOT, config
+from ..core.config import PROJECT_ROOT
 from ..services.source_separation import SEPARATION_DIR, source_separator
 
 logger = logging.getLogger(__name__)
@@ -141,7 +140,6 @@ async def list_audio_backends():
 @router.get("/analysis/summary/{filename}")
 async def get_analysis_summary(filename: str):
     """Agent-friendly summary of cached analysis for a file.
-    
     Returns a compact view optimized for AI consumption:
     - tempo, duration, beat count, confidence
     - section labels with start/end/energy
@@ -204,7 +202,7 @@ async def upload_audio(file: UploadFile = File(...)) -> AudioUploadResponse:
         raise
     except Exception as e:
         file_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}") from e
 
     return AudioUploadResponse(
         success=True,
@@ -262,7 +260,7 @@ async def analyze_audio(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}") from e
 
 
 @router.post("/analyze-cuda", response_model=AudioAnalysisResult)
@@ -328,7 +326,7 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}") from e
 
 
 def _check_backend_available(backend: str) -> None:
@@ -505,8 +503,10 @@ def _generate_sections_from_analysis(
     if beat_times and tempo > 0:
         # Prefer beat-based: ~32 beats per section (8 bars), adjusted for genre feel
         beats_per_section = 32.0
-        if tempo > 150: beats_per_section = 24.0      # EDM/hip-hop: shorter sections
-        elif tempo < 90: beats_per_section = 48.0     # Ambient: longer sections
+        if tempo > 150:
+            beats_per_section = 24.0  # EDM/hip-hop: shorter sections
+        elif tempo < 90:
+            beats_per_section = 48.0  # Ambient: longer sections
         num_sections = max(4, min(8, round(len(beat_times) / beats_per_section)))
     else:
         num_sections = max(4, min(8, round(duration / 25))) or 4
@@ -975,7 +975,7 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
         raise
     except Exception as e:
         logger.error(f"Analysis failed for '{normalized}': {e}")
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}") from e
 
 
 @router.post("/analyze-all")
@@ -1042,6 +1042,14 @@ async def analyze_all_pending(backend: str = "sonara"):
         except Exception as e:
             errors.append({"filename": filename, "error": str(e)})
             logger.warning(f"Failed to analyze '{filename}': {e}")
+
+    return {
+        "status": "completed",
+        "analyzed": len(analyzed_files),
+        "total": len(audio_files),
+        "files": analyzed_files,
+        "errors": errors,
+    }
 
 
 class RenameAudioRequest(BaseModel):
@@ -1198,7 +1206,7 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
             subprocess.run, _cmd(cmd_mode), capture_output=True, text=True, timeout=600,
         )
     except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="Audio extraction timed out")
+        raise HTTPException(status_code=504, detail="Audio extraction timed out") from None
     if proc.returncode == 0:
         lossless = cmd_mode == "copy"
     elif cmd_mode == "copy":
@@ -1209,7 +1217,7 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
                 subprocess.run, _cmd("encode-fallback"), capture_output=True, text=True, timeout=600,
             )
         except subprocess.TimeoutExpired:
-            raise HTTPException(status_code=504, detail="Audio extraction timed out")
+            raise HTTPException(status_code=504, detail="Audio extraction timed out") from None
     if proc.returncode != 0:
         tail = (proc.stderr or "").strip().splitlines()[-3:]
         detail = "; ".join(tail) if tail else "ffmpeg failed"
@@ -1386,7 +1394,7 @@ async def trim_audio(body: TrimAudioRequest) -> dict:
                 subprocess.run, cmd, capture_output=True, text=True, timeout=600,
             )
         except subprocess.TimeoutExpired:
-            raise HTTPException(status_code=504, detail="Audio trim timed out")
+            raise HTTPException(status_code=504, detail="Audio trim timed out") from None
         if proc.returncode != 0:
             tail = (proc.stderr or "").strip().splitlines()[-3:]
             detail = "; ".join(tail) if tail else "ffmpeg failed"
@@ -1499,7 +1507,7 @@ async def separate_audio(
         )
     except Exception as e:
         logger.exception("Stem separation failed")
-        raise HTTPException(status_code=500, detail=f"Separation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Separation failed: {e}") from e
 
 
 @router.get("/stems/{filename:path}")
@@ -1600,7 +1608,7 @@ async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResp
         )
     except Exception as e:
         logger.exception("Stem separation failed")
-        raise HTTPException(status_code=500, detail=f"Separation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Separation failed: {e}") from e
 
 
 @router.get("/stem-file/{track_name}/{stem_name}")
@@ -1611,8 +1619,8 @@ async def serve_stem_file(track_name: str, stem_name: str):
     the Visualizer / wizard fetch individual stems to map drums→pulse,
     bass→camera shake, vocals→lyric glow, other→palette.
     """
-    import urllib.parse
     import re
+    import urllib.parse
 
     track_name = urllib.parse.unquote(track_name)
     stem_name = urllib.parse.unquote(stem_name)
@@ -1682,4 +1690,3 @@ async def serve_audio_file(request: Request, filename: str):
         filename=file_path.name,
         headers=headers,
     )
-

@@ -76,7 +76,7 @@ async def probe(
     except ValueError:
         # Also allow absolute paths outside output when they exist (e.g. ComfyUI outputs).
         if not target.exists() or not target.is_file():
-            raise HTTPException(status_code=400, detail="path must point to an existing media file")
+            raise HTTPException(status_code=400, detail="path must point to an existing media file") from None
 
     data = await probe_media(target)
     rel = None

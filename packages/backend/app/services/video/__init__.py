@@ -45,25 +45,25 @@ _ENGINE_AVAILABILITY_CACHE: dict[str, tuple[float, dict]] = {}
 ENGINE_AVAILABILITY_TTL_S = 30.0
 
 
-def _ffmpeg_renderer() -> "VideoRenderer":
+def _ffmpeg_renderer() -> VideoRenderer:
     from .ffmpeg_renderer import FFmpegRenderer
 
     return FFmpegRenderer()
 
 
-def _coreflux_renderer() -> "VideoRenderer":
+def _coreflux_renderer() -> VideoRenderer:
     from .coreflux_renderer import CoreFluxRenderer
 
     return CoreFluxRenderer()
 
 
-def _movielite_renderer() -> "VideoRenderer":
+def _movielite_renderer() -> VideoRenderer:
     from .movielite_renderer import MovieLiteRenderer
 
     return MovieLiteRenderer()
 
 
-def _moviepy_renderer() -> "VideoRenderer":
+def _moviepy_renderer() -> VideoRenderer:
     from .moviepy_renderer import MoviePyRenderer
 
     return MoviePyRenderer()
@@ -125,7 +125,7 @@ def available_engines() -> list[dict]:
     return out
 
 
-def get_renderer(engine: str = "auto") -> "VideoRenderer":
+def get_renderer(engine: str = "auto") -> VideoRenderer:
     """Resolve an engine id to a ready renderer.
 
     engine: "ffmpeg" | "coreflux" | "movielite" | "moviepy" | "auto"

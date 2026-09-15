@@ -170,7 +170,9 @@ export function useTrackManager({
           ...(handoff.bible ? { characterBible: handoff.bible } : {}),
         });
         localStorage.removeItem("pendingCharacter");
-      } catch {}
+      } catch {
+        // Malformed handoff payload — drop it rather than blocking scene load.
+      }
     };
     const onStorage = (e: StorageEvent) => {
       if (e.key === "pendingCharacter" && e.newValue) handleQueue(e.newValue);

@@ -289,7 +289,7 @@ function MarkdownView({ text, filePath }: { text: string; filePath?: string }) {
               : "text-sm font-semibold text-gray-200 mt-3 mb-1";
       const TagName = `h${Math.min(level, 4)}` as keyof React.JSX.IntrinsicElements;
       elements.push(
-        // @ts-ignore
+        // @ts-expect-error — dynamic heading tag; JSX cannot narrow the union here
         <TagName key={`h-${elements.length}`} className={cls} dangerouslySetInnerHTML={{ __html: content }} />,
       );
       continue;
@@ -405,7 +405,8 @@ export function DocsPage() {
   useEffect(() => {
     // reload structure when depth changes (skip initial)
     loadStructure(structureDepth);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Only `structureDepth` is a real input. `loadStructure` is re-created on
+    // every render, so listing it would re-fetch the tree on each render.
   }, [structureDepth]);
 
   // reset pagination when filter changes

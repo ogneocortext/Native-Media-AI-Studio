@@ -6,7 +6,6 @@ import bpy
 
 def decimate_glb(input_path: str, output_path: str, target_faces: int = 50000) -> dict:
     """Import a GLB, decimate to target face count, and export.
-    
     Returns dict with original_faces, final_faces, success.
     """
     try:

@@ -12,8 +12,8 @@ import {
   visualizeAudio,
   visualizeAudioWaveform,
 } from "@remotion/media-utils";
-import type { TimingContract } from "../../../shared/timing";
-import { generateTimingHints, getSectionAtTime } from "../../../shared/timing";
+import type { TimingContract } from "../lib/timing";
+import { getSectionAtTime } from "../lib/timing";
 
 interface AudioReactiveVisualizerProps {
   audioSrc: string;
@@ -97,9 +97,7 @@ export function AudioReactiveVisualizer({
         effectiveColors,
         width,
         height,
-        sensitivity,
-        frame,
-        fps
+        sensitivity
       )}
     </AbsoluteFill>
   );
@@ -112,9 +110,7 @@ function renderVisualization(
   colors: string[],
   width: number,
   height: number,
-  sensitivity: number,
-  frame: number,
-  fps: number
+  sensitivity: number
 ) {
   switch (style) {
     case "bars":
@@ -143,7 +139,6 @@ function renderVisualization(
                   height: barHeight,
                   backgroundColor: colors[colorIndex],
                   borderRadius: "2px 2px 0 0",
-                  transition: "height 0.05s ease",
                   boxShadow: `0 0 ${10 * value}px ${colors[colorIndex]}`,
                 }}
               />

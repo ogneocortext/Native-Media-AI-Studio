@@ -1,13 +1,30 @@
+import { useFrame } from "@react-three/fiber";
 import type React from "react";
 import { useRef } from "react";
-import { useFrame } from "@react-three/fiber";
-import type { AudioData, AudioAnalysisData } from "./types";
+import {
+  getBeatNearTimeFromArray,
+  getBeatPhase,
+  getEnergyAtTime,
+  getNextBeatInFromArray,
+} from "../../shared/timing";
 import { ATTACK, RELEASE } from "./audioTiming";
-import { getBeatNearTimeFromArray, getBeatPhase, getNextBeatInFromArray } from "../../shared/timing";
+import type { AudioAnalysisData, AudioData, PerceptualScale } from "./types";
+import { generatePerceptualBands, mapToPerceptualBands } from "./perceptualScales";
 
 // Demo fallback — synthetic audio for when no track is playing
-export function useDemoAudio(enabled: boolean, bpm: number) {
-  const data = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0, drumType: null, nextBeatIn: 0 });
+export function useDemoAudio(enabled: boolean, bpm: number, perceptualScale: PerceptualScale = "mel", numPerceptualBands: number = 40) {
+  const data = useRef<AudioData>({
+    bass: 0,
+    mid: 0,
+    treble: 0,
+    overall: 0,
+    beat: false,
+    peak: 0,
+    energy: 0,
+    drumType: null,
+    nextBeatIn: 0,
+    analyzedEnergy: 0,
+  });
   useFrame((state) => {
     if (!enabled) return;
     const t = state.clock.elapsedTime;
@@ -17,8 +34,12 @@ export function useDemoAudio(enabled: boolean, bpm: number) {
     const bass = (Math.sin(t * f * 2) + 1) / 2;
     const mid = (Math.sin(t * f * 3.5) + 1) / 2;
     const treble = (Math.sin(t * f * 5) + 1) / 2;
+    const bands = generatePerceptualBands(perceptualScale, numPerceptualBands, 20, 22050);
+    const perceptualBands = bands.map(() => (bass * 0.4 + mid * 0.35 + treble * 0.25));
     data.current = {
-      bass, mid, treble,
+      bass,
+      mid,
+      treble,
       overall: bass * 0.4 + mid * 0.35 + treble * 0.25,
       beat: isBeat,
       peak: Math.max(bass, mid, treble),
@@ -26,6 +47,8 @@ export function useDemoAudio(enabled: boolean, bpm: number) {
       drumType: null,
       nextBeatIn: 0,
       beatPhase: beatPhase,
+      perceptualBands,
+      perceptualScale,
     };
   });
   return data;
@@ -38,8 +61,21 @@ export function useRealAudio(
   isPaused: boolean,
   analysisData?: AudioAnalysisData | null,
   audioElapsedRef?: React.MutableRefObject<number>,
+  perceptualScale: PerceptualScale = "mel",
+  numPerceptualBands: number = 40,
 ) {
-  const data = useRef<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0, drumType: null, nextBeatIn: 0 });
+  const data = useRef<AudioData>({
+    bass: 0,
+    mid: 0,
+    treble: 0,
+    overall: 0,
+    beat: false,
+    peak: 0,
+    energy: 0,
+    drumType: null,
+    nextBeatIn: 0,
+    analyzedEnergy: 0,
+  });
   const freqArray = useRef<Uint8Array | null>(null);
   const lastBass = useRef(0);
   const beatCooldown = useRef(0);
@@ -53,19 +89,45 @@ export function useRealAudio(
   const smoothedTreble = useRef(0);
   const peakHold = useRef(0);
   const peakDecay = useRef(0);
+  // Smoothed continuous beat phase to reduce grid-jitter from analyzed beat_times.
+  const smoothedPhase = useRef(0);
+  // Cached analysis duration for energy-curve interpolation.
+  const analysisDurationRef = useRef(0);
 
   useFrame(() => {
     const analyser = analyserRef.current;
     if (!analyser) return;
     if (isPaused || !isPlaying) {
-      if (data.current.bass !== 0 || data.current.mid !== 0 || data.current.treble !== 0) {
-        data.current = { bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0, drumType: null, nextBeatIn: 0 };
+      if (
+        data.current.bass !== 0 ||
+        data.current.mid !== 0 ||
+        data.current.treble !== 0
+      ) {
+        data.current = {
+          bass: 0,
+          mid: 0,
+          treble: 0,
+          overall: 0,
+          beat: false,
+          peak: 0,
+          energy: 0,
+          drumType: null,
+          nextBeatIn: 0,
+          analyzedEnergy: 0,
+        };
         smoothedBass.current = 0;
         smoothedMid.current = 0;
         smoothedTreble.current = 0;
         peakHold.current = 0;
+        smoothedPhase.current = 0;
+        analysisDurationRef.current = 0;
       }
       return;
+    }
+
+    // Keep analysis duration in sync for energy-curve interpolation.
+    if (analysisData && analysisData.duration_seconds > 0) {
+      analysisDurationRef.current = analysisData.duration_seconds;
     }
 
     // Ensure AudioContext is running
@@ -75,8 +137,13 @@ export function useRealAudio(
       return;
     }
 
-    if (!freqArray.current || freqArray.current.length !== analyser.frequencyBinCount) {
-      freqArray.current = new Uint8Array(analyser.frequencyBinCount) as Uint8Array;
+    if (
+      !freqArray.current ||
+      freqArray.current.length !== analyser.frequencyBinCount
+    ) {
+      freqArray.current = new Uint8Array(
+        analyser.frequencyBinCount,
+      ) as Uint8Array;
     }
     analyser.getByteFrequencyData(freqArray.current as Uint8Array<ArrayBuffer>);
     const arr = freqArray.current;
@@ -89,9 +156,14 @@ export function useRealAudio(
     const bassBins = Math.max(1, Math.floor(bassMaxFreq / binSize));
     const midBins = Math.max(bassBins + 1, Math.floor(midMaxFreq / binSize));
 
-    const rawBass = arr.slice(0, bassBins).reduce((a, b) => a + b, 0) / (bassBins * 255 || 1);
-    const rawMid = arr.slice(bassBins, midBins).reduce((a, b) => a + b, 0) / ((midBins - bassBins) * 255 || 1);
-    const rawTreble = arr.slice(midBins).reduce((a, b) => a + b, 0) / ((arr.length - midBins) * 255 || 1);
+    const rawBass =
+      arr.slice(0, bassBins).reduce((a, b) => a + b, 0) / (bassBins * 255 || 1);
+    const rawMid =
+      arr.slice(bassBins, midBins).reduce((a, b) => a + b, 0) /
+      ((midBins - bassBins) * 255 || 1);
+    const rawTreble =
+      arr.slice(midBins).reduce((a, b) => a + b, 0) /
+      ((arr.length - midBins) * 255 || 1);
 
     // Attack/release smoothing from shared timing constants (kept in sync with
     // the shader-mode loop in Visualizer.tsx — see audioTiming.ts).
@@ -125,7 +197,11 @@ export function useRealAudio(
     const elapsed = audioElapsedRef?.current ?? 0;
     if (analysisData && analysisData.beat_times.length > 0 && elapsed > 0) {
       // Use shared timing helper for binary-search beat lookup
-      const near = getBeatNearTimeFromArray(analysisData.beat_times, elapsed, 0.06);
+      const near = getBeatNearTimeFromArray(
+        analysisData.beat_times,
+        elapsed,
+        0.06,
+      );
       if (near) {
         isBeat = true;
         // Drum classification: use current frequency energy ratios at the beat instant
@@ -138,20 +214,33 @@ export function useRealAudio(
             const trebleToMid = trebleEnergy / (midEnergy || 0.001);
             if (bassToMid > 1.8) drumType = "kick";
             else if (trebleToMid > 1.5) drumType = "hat";
-            else if (midEnergy > bassEnergy && midEnergy > trebleEnergy) drumType = "snare";
+            else if (midEnergy > bassEnergy && midEnergy > trebleEnergy)
+              drumType = "snare";
           }
-          if (!drumType && bassEnergy > midEnergy && bassEnergy > trebleEnergy) drumType = "kick";
-          if (!drumType && trebleEnergy > midEnergy && trebleEnergy > bassEnergy) drumType = "hat";
+          if (!drumType && bassEnergy > midEnergy && bassEnergy > trebleEnergy)
+            drumType = "kick";
+          if (
+            !drumType &&
+            trebleEnergy > midEnergy &&
+            trebleEnergy > bassEnergy
+          )
+            drumType = "hat";
         }
       }
       // Predictive next-beat countdown from analyzed beat_times
-      nextBeatInRef.current = getNextBeatInFromArray(analysisData.beat_times, elapsed);
+      nextBeatInRef.current = getNextBeatInFromArray(
+        analysisData.beat_times,
+        elapsed,
+      );
     } else {
       // Adaptive bass spike detection with dynamic threshold
       const avgEnergy = (bass + mid + treble) / 3;
       const threshold = 0.4 + avgEnergy * 0.3; // Adapt to track loudness
       beatCooldown.current = Math.max(0, beatCooldown.current - 1);
-      isBeat = bass > threshold && bass > lastBass.current * 1.1 && beatCooldown.current === 0;
+      isBeat =
+        bass > threshold &&
+        bass > lastBass.current * 1.1 &&
+        beatCooldown.current === 0;
       if (isBeat) {
         beatCooldown.current = 6;
         // Drum classification for fallback detector
@@ -164,22 +253,32 @@ export function useRealAudio(
             const trebleToMid = trebleEnergy / (midEnergy || 0.001);
             if (bassToMid > 1.8) drumType = "kick";
             else if (trebleToMid > 1.5) drumType = "hat";
-            else if (midEnergy > bassEnergy && midEnergy > trebleEnergy) drumType = "snare";
+            else if (midEnergy > bassEnergy && midEnergy > trebleEnergy)
+              drumType = "snare";
           }
-          if (!drumType && bassEnergy > midEnergy && bassEnergy > trebleEnergy) drumType = "kick";
-          if (!drumType && trebleEnergy > midEnergy && trebleEnergy > bassEnergy) drumType = "hat";
+          if (!drumType && bassEnergy > midEnergy && bassEnergy > trebleEnergy)
+            drumType = "kick";
+          if (
+            !drumType &&
+            trebleEnergy > midEnergy &&
+            trebleEnergy > bassEnergy
+          )
+            drumType = "hat";
         }
         // Predictive beat from recent intervals (BPM estimation)
         if (lastBeatTime.current > 0 && elapsed > 0) {
           const interval = elapsed - lastBeatTime.current;
           if (interval > 0.15 && interval < 2.0) {
             recentBeatIntervals.current.push(interval);
-            if (recentBeatIntervals.current.length > 8) recentBeatIntervals.current.shift();
+            if (recentBeatIntervals.current.length > 8)
+              recentBeatIntervals.current.shift();
           }
         }
         lastBeatTime.current = elapsed;
         if (recentBeatIntervals.current.length > 0) {
-          const avgInterval = recentBeatIntervals.current.reduce((a, b) => a + b, 0) / recentBeatIntervals.current.length;
+          const avgInterval =
+            recentBeatIntervals.current.reduce((a, b) => a + b, 0) /
+            recentBeatIntervals.current.length;
           nextBeatInRef.current = Math.max(0, avgInterval);
         }
       } else if (nextBeatInRef.current > 0) {
@@ -191,16 +290,55 @@ export function useRealAudio(
     // Continuous beat phase for fluid motion (the boolean `beat` above only
     // snaps on onset frames). Null without an analyzed grid — consumers fall
     // back to onset pulses.
-    const phaseInfo = analysisData && analysisData.beat_times.length > 0 && elapsed > 0
-      ? getBeatPhase(analysisData.beat_times, elapsed)
-      : null;
+    const phaseInfo =
+      analysisData && analysisData.beat_times.length > 0 && elapsed > 0
+        ? getBeatPhase(analysisData.beat_times, elapsed)
+        : null;
+
+    // Low-pass the analyzed phase to reduce jitter from imperfect beat grids.
+    // Handles wrap-around so a 0.97→0.03 crossing does not spin the phase back.
+    const targetPhase = phaseInfo?.phase ?? 0;
+    let phaseDelta = targetPhase - smoothedPhase.current;
+    if (phaseDelta > 0.5) phaseDelta -= 1;
+    if (phaseDelta < -0.5) phaseDelta += 1;
+    smoothedPhase.current += phaseDelta * 0.3;
+    smoothedPhase.current = ((smoothedPhase.current % 1) + 1) % 1;
+
+    // Interpolate analyzed energy curve at current elapsed time for intensity modulation.
+    const analyzedEnergy =
+      analysisData &&
+      analysisData.energy_curve.length > 0 &&
+      analysisDurationRef.current > 0 &&
+      elapsed > 0
+        ? getEnergyAtTime(
+            analysisData.energy_curve,
+            analysisDurationRef.current,
+            elapsed,
+          )
+        : 0;
+
+    // Perceptual frequency band mapping for more accurate visualization
+    const perceptualBands = mapToPerceptualBands(
+      arr,
+      sampleRate,
+      perceptualScale,
+      numPerceptualBands,
+    );
 
     data.current = {
-      bass, mid, treble, overall, beat: isBeat, peak: peakHold.current,
+      bass,
+      mid,
+      treble,
+      overall,
+      beat: isBeat,
+      peak: peakHold.current,
       energy: (bass + mid + treble) / 3,
       drumType,
       nextBeatIn: nextBeatInRef.current,
-      beatPhase: phaseInfo?.phase,
+      beatPhase: phaseInfo ? smoothedPhase.current : undefined,
+      analyzedEnergy,
+      perceptualBands,
+      perceptualScale,
     };
   });
   return data;

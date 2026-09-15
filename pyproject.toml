@@ -74,6 +74,14 @@ select = [
 ]
 ignore = ["E501"]  # Line too long (handled by formatter)
 
+[tool.ruff.lint.per-file-ignores]
+# Test suites inject the backend root into sys.path before importing `app.*`,
+# which necessarily places those imports after executable statements.
+"packages/backend/tests/**" = ["E402"]
+# Windows API constants in the process-enumeration helper mirror the Win32
+# names verbatim (TH32CS_SNAPPROCESS, PROCESSENTRY32, ...) for greppability.
+"packages/backend/app/diagnostics/resources.py" = ["N806"]
+
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI/Starlette inspect these callables inside argument defaults —
 # File(...)/Query(...)/Depends(...)/Path(...)/Header(...) are the supported idiom.

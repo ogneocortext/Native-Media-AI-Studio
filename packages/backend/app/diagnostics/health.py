@@ -284,7 +284,6 @@ class HealthMonitor:
 
     async def get_aggregate_health(self) -> dict[str, Any]:
         """Get the full aggregate health status.
-        
         Returns:
             dict with structure:
             {

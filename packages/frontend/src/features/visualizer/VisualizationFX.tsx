@@ -124,7 +124,10 @@ export function PostFX({ audioData, lrcSync, lrcSyncRef }: { audioData: React.Mu
     c.addPass(g);
     c.addPass(new OutputPass());
     return { composer: c, bloom: b, grade: g, lastW: 0, lastH: 0 };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // `size` is deliberately excluded: the composer is rebuilt only when the
+    // renderer/scene/camera change. Resizing is handled by the dedicated effect
+    // below via `lastW`/`lastH`, so including `size` here would recreate the
+    // entire post-processing chain on every resize tick.
   }, [gl, scene, camera]);
 
   useEffect(() => () => fx.composer.dispose(), [fx]);
@@ -274,6 +277,48 @@ export function updateTerrainMaterial(
   u.uEnergy.value = audio.energy ?? 0.5;
   u.uGlow.value = glow;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WebGPU terrain — MeshStandardMaterial fallback (no vertex displacement)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** WebGPU-safe terrain material (MeshStandardMaterial, no vertex displacement). */
+export function makeTerrainMaterialWebGPU(opts: TerrainMaterialOpts = {}): THREE.MeshStandardMaterial {
+  const o = {
+    colorA: "#0b1530",
+    colorB: "#7dd3fc",
+    rim: "#c4b5fd",
+    opacity: 1,
+    displace: 1.1,
+    freq1: 0.55,
+    freq2: 1.8,
+    speed: 0.6,
+    ripple: 0.35,
+    ...opts,
+  };
+  return new THREE.MeshStandardMaterial({
+    color: new THREE.Color(o.colorA),
+    emissive: new THREE.Color(o.colorB),
+    emissiveIntensity: 0.5,
+    transparent: o.opacity < 1,
+    opacity: o.opacity,
+    side: THREE.DoubleSide,
+    roughness: 0.4,
+    metalness: 0.3,
+  });
+}
+
+/** Per-frame update for WebGPU terrain material (JS-driven audio reactivity). */
+export function updateTerrainMaterialWebGPU(
+  mat: THREE.MeshStandardMaterial,
+  audio: { bass: number; mid: number; treble: number; energy?: number },
+  glow: number,
+) {
+  mat.emissiveIntensity = 0.4 + audio.bass * 1.5 + glow * 0.5;
+  mat.roughness = Math.max(0.1, 0.4 - audio.bass * 0.3);
+  mat.metalness = Math.min(1, 0.3 + audio.mid * 0.5);
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Streak material — velocity-stretched additive particles

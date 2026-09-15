@@ -174,7 +174,7 @@ async def get_doc_file(path: str = Query(..., description="Relative path from do
     try:
         full.relative_to(DOCS_ROOT.resolve())
     except ValueError:
-        raise HTTPException(status_code=400, detail="Path escapes docs")
+        raise HTTPException(status_code=400, detail="Path escapes docs") from None
 
     if not full.exists() or not full.is_file():
         raise HTTPException(status_code=404, detail=f"Doc not found: {clean}")
@@ -200,7 +200,7 @@ async def get_doc_file(path: str = Query(..., description="Relative path from do
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read doc: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to read doc: {e}") from e
 
 
 @router.get("/vault", response_model=list[DocEntry])
@@ -264,8 +264,6 @@ async def agent_bootstrap():
     """Single-call agent onboarding: returns manifest, codebase structure, API registry, MCP registry, and system health.
     Use this endpoint first when an agent connects — one call gives everything needed to operate."""
     import json
-
-    from ..core.config import AppConfig
 
     # Load all registry files
     def _load_json(name: str) -> dict | None:

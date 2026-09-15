@@ -208,8 +208,6 @@ export const StillIRiseV7Composition: React.FC = () => {
   const flameFlicker = Math.sin(t * 8.3) * 0.06 + Math.sin(t * 13.7) * 0.04;
   const flameY = hasRise ? interpolate(lyricProgress, [0, 1], [0, -40], { extrapolateRight: "clamp" }) : 0;
   const flameScale = 1 + bass * 0.25 + beatPulse * 0.15 + beatBurst * 0.1;
-  // Color shift on beat (brighter, more saturated)
-  const flameHueShift = beatBurst * 20;
 
   /* ── Fog ── */
   const fogOpacity = hasFog ? 0.35 + high * 0.15 : isVerse ? 0.12 : 0.05;

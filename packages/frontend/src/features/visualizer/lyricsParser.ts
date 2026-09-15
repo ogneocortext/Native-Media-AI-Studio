@@ -127,7 +127,7 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
     // Collect all timestamps on this line
     const stamps = [...line.matchAll(tsRegex)];
     if (stamps.length === 0) continue;
-    let text = line.replace(tsRegex, "").trim();
+    const text = line.replace(tsRegex, "").trim();
     // Word-level LRC: support <mm:ss.xx> inline tags (enhanced LRC) and 2026 karaoke style
     // e.g. "[00:05.80]Blue <00:06.10>light's <00:06.40>the" or "[00:05.80]word [00:06.10]word"
     const wordTagRegex = /<(\d{1,3}):(\d{2})[.:](\d{1,3})>/g;
@@ -149,10 +149,10 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
       const lineStart = lineStartMins * 60 + lineStartSecs + parseInt(lineStartFrac, 10) / lineStartDiv + offsetMs / 1000;
       // Split text by word tags to reconstruct words with timing
       const words: Array<{ word: string; start: number; end: number }> = [];
-      let lastTime = Math.max(0, lineStart);
+      const lastTime = Math.max(0, lineStart);
       // First word is before first <tag>
       const firstTagIdx = text.indexOf("<");
-      let firstWord = firstTagIdx > 0 ? text.slice(0, firstTagIdx).trim() : "";
+      const firstWord = firstTagIdx > 0 ? text.slice(0, firstTagIdx).trim() : "";
       if (firstWord) words.push({ word: firstWord, start: lastTime, end: lastTime + 0.4 });
       for (const wt of inlineWordTags) {
         const wMins = parseInt(wt[1], 10);
@@ -168,7 +168,6 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
           // Close previous word's end at this word's start
           if (words.length > 0) words[words.length - 1].end = Math.max(words[words.length - 1].start + 0.2, wStart);
           words.push({ word: wordText, start: Math.max(0, wStart), end: Math.max(0, wStart) + 0.5 });
-          lastTime = wStart;
         }
       }
       // Fix last word end to next line's start or +1.2s
@@ -371,7 +370,7 @@ export function generateTimedLyrics(
       const quotedText = quotedMatch[1];
       // Split by / or – or newlines
       const lyricLines = quotedText
-        .split(/[\/–—\n]/)
+        .split(/[/–—\n]/)
         .map((s) => s.trim())
         .filter((s) => s.length > 2);
 
@@ -381,7 +380,7 @@ export function generateTimedLyrics(
     } else {
       // Fallback: just split by common separators
       const lyricLines = lyricsText
-        .split(/[\/–—\n]/)
+        .split(/[/–—\n]/)
         .map((s) => s.trim())
         .filter(
           (s) =>
@@ -409,11 +408,7 @@ export function generateTimedLyrics(
 
   const timePerLine = duration / totalLines;
   const result: LyricLine[] = [];
-  for (let idx = 0; idx < sections.reduce((n,s)=>n+s.lines.length,0); idx++) {
-    // distribute exactly without accumulated rounding error
-  }
   let time = 0;
-  let lineIdx = 0;
   for (const section of sections) {
     for (const line of section.lines) {
       const start = time;
@@ -425,7 +420,6 @@ export function generateTimedLyrics(
         section: section.section,
       });
       time = end;
-      lineIdx++;
     }
   }
   // Clamp last end to duration

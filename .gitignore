@@ -198,6 +198,16 @@ env_check.txt
 docs/scratch/*.txt
 docs/scratch/*.csv
 
+# Root-level scratch / debug artifacts (one-off diagnostics, not project code)
+/out/
+unsloth_compiled_cache/
+tools/vision/screenshots/
+atomic_test.mjs
+tmp_portcheck.go
+check_backend.ps1
+check_backend_syntax.py
+check_server.ps1
+
 # Model weights (root-level duplicates - canonical paths in stable-diffusion/models/)
 stable-diffusion/checkpoints/
 stable-diffusion/loras/

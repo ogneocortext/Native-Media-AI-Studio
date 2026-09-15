@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 
 interface ShaderCanvasProps {
   fragmentShader: string;
@@ -16,27 +16,38 @@ interface ShaderCanvasProps {
  * Reads uniforms from a ref so the parent can update them every frame
  * without forcing React re-renders.
  */
-export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = false }: ShaderCanvasProps) {
+export function ShaderCanvas({
+  fragmentShader,
+  uniformsRef,
+  className,
+  debug = false,
+}: ShaderCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<WebGLRenderingContext | null>(null);
   const programRef = useRef<WebGLProgram | null>(null);
   const bufferRef = useRef<WebGLBuffer | null>(null);
   const vsRef = useRef<WebGLShader | null>(null);
   const fsRef = useRef<WebGLShader | null>(null);
-  const uniformLocsRef = useRef<Record<string, WebGLUniformLocation | null>>({});
+  const uniformLocsRef = useRef<Record<string, WebGLUniformLocation | null>>(
+    {},
+  );
   const rafRef = useRef<number>(0);
   const startTimeRef = useRef(Date.now());
   const debugRef = useRef(debug);
 
   // Sync debug prop into ref so the render loop sees live toggles
-  useEffect(() => { debugRef.current = debug; }, [debug]);
+  useEffect(() => {
+    debugRef.current = debug;
+  }, [debug]);
 
   // Toggle debug mode via URL hash (#shader-debug)
   useEffect(() => {
-    const onHash = () => { debugRef.current = window.location.hash === '#shader-debug'; };
-    window.addEventListener('hashchange', onHash);
+    const onHash = () => {
+      debugRef.current = window.location.hash === "#shader-debug";
+    };
+    window.addEventListener("hashchange", onHash);
     onHash();
-    return () => window.removeEventListener('hashchange', onHash);
+    return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
   // Compile shader and create program
@@ -44,14 +55,29 @@ export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = f
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const gl = canvas.getContext("webgl", { antialias: true, alpha: false });
-    if (!gl) return;
+    const gl = canvas.getContext("webgl", {
+      antialias: true,
+      alpha: false,
+      preserveDrawingBuffer: false,
+    });
+    if (!gl) {
+      console.error("WebGL not supported");
+      return;
+    }
     glRef.current = gl;
 
     // Clean up previous WebGL resources before recompiling new preset
     if (programRef.current) {
-      if (vsRef.current) { gl.detachShader(programRef.current, vsRef.current); gl.deleteShader(vsRef.current); vsRef.current = null; }
-      if (fsRef.current) { gl.detachShader(programRef.current, fsRef.current); gl.deleteShader(fsRef.current); fsRef.current = null; }
+      if (vsRef.current) {
+        gl.detachShader(programRef.current, vsRef.current);
+        gl.deleteShader(vsRef.current);
+        vsRef.current = null;
+      }
+      if (fsRef.current) {
+        gl.detachShader(programRef.current, fsRef.current);
+        gl.deleteShader(fsRef.current);
+        fsRef.current = null;
+      }
       gl.deleteProgram(programRef.current);
       programRef.current = null;
     }
@@ -109,7 +135,16 @@ export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = f
     gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 
     const uniformLocs: Record<string, WebGLUniformLocation | null> = {};
-    const uniformNames = ["u_time", "u_bass", "u_mid", "u_treble", "u_beat", "u_energy", "u_peak", "u_resolution"];
+    const uniformNames = [
+      "u_time",
+      "u_bass",
+      "u_mid",
+      "u_treble",
+      "u_beat",
+      "u_energy",
+      "u_peak",
+      "u_resolution",
+    ];
     for (const name of uniformNames) {
       uniformLocs[name] = gl.getUniformLocation(program, name);
     }
@@ -117,6 +152,12 @@ export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = f
   }, [fragmentShader]);
 
   // Initialize WebGL
+  // NOTE: intentionally NOT calling loseContext() here.
+  // StrictMode double-invokes effects; losing the context on cleanup
+  // makes the remount's getContext("webgl") return a permanently-lost
+  // context, causing shader compile/link to return null status+infoLog.
+  // Explicit shader/program/buffer deletion above is sufficient cleanup.
+  // HMR cache-buster: 2026-09-14
   useEffect(() => {
     initGL();
     return () => {
@@ -124,12 +165,23 @@ export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = f
       const gl = glRef.current;
       if (gl) {
         if (programRef.current) {
-          if (vsRef.current) { gl.detachShader(programRef.current, vsRef.current); gl.deleteShader(vsRef.current); vsRef.current = null; }
-          if (fsRef.current) { gl.detachShader(programRef.current, fsRef.current); gl.deleteShader(fsRef.current); fsRef.current = null; }
+          if (vsRef.current) {
+            gl.detachShader(programRef.current, vsRef.current);
+            gl.deleteShader(vsRef.current);
+            vsRef.current = null;
+          }
+          if (fsRef.current) {
+            gl.detachShader(programRef.current, fsRef.current);
+            gl.deleteShader(fsRef.current);
+            fsRef.current = null;
+          }
           gl.deleteProgram(programRef.current);
           programRef.current = null;
         }
-        if (bufferRef.current) { gl.deleteBuffer(bufferRef.current); bufferRef.current = null; }
+        if (bufferRef.current) {
+          gl.deleteBuffer(bufferRef.current);
+          bufferRef.current = null;
+        }
       }
     };
   }, [initGL]);
@@ -140,6 +192,20 @@ export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = f
     const program = programRef.current;
     const canvas = canvasRef.current;
     if (!gl || !program || !canvas) return;
+
+    // Handle WebGL context loss
+    const handleContextLost = (e: Event) => {
+      e.preventDefault();
+      console.warn("WebGL context lost, attempting recovery...");
+    };
+
+    const handleContextRestored = () => {
+      console.log("WebGL context restored, reinitializing...");
+      initGL();
+    };
+
+    canvas.addEventListener("webglcontextlost", handleContextLost);
+    canvas.addEventListener("webglcontextrestored", handleContextRestored);
 
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio, 2);
@@ -153,7 +219,7 @@ export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = f
     };
 
     let frameCount = 0;
-    let lastSample = new Uint8Array(9 * 4);
+    const lastSample = new Uint8Array(9 * 4);
 
     const render = () => {
       resize();
@@ -196,7 +262,9 @@ export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = f
             totalDiff += Math.abs(sample[i] - lastSample[i]);
           }
           const avgDiff = (totalDiff / (sample.length / 4)).toFixed(1);
-          console.log(`[ShaderCanvas debug] frame=${frameCount} time=${time.toFixed(1)}s avgPixelDiff=${avgDiff}`);
+          console.log(
+            `[ShaderCanvas debug] frame=${frameCount} time=${time.toFixed(1)}s avgPixelDiff=${avgDiff}`,
+          );
           lastSample.set(sample);
         }
       }
@@ -207,12 +275,20 @@ export function ShaderCanvas({ fragmentShader, uniformsRef, className, debug = f
     render();
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      canvas.removeEventListener("webglcontextlost", handleContextLost);
+      canvas.removeEventListener("webglcontextrestored", handleContextRestored);
     };
     // fragmentShader is an intentional dep: when the parent switches presets,
     // initGL recompiles (init effect above re-runs and cancels this loop), so
     // this effect MUST re-run to restart rendering on the new program.
     // Without it the canvas freezes on its last frame after any preset change.
-  }, [uniformsRef, fragmentShader]);
+  }, [uniformsRef, fragmentShader, initGL]);
 
-  return <canvas ref={canvasRef} className={className} style={{ width: "100%", height: "100%", display: "block" }} />;
+  return (
+    <canvas
+      ref={canvasRef}
+      className={className}
+      style={{ width: "100%", height: "100%", display: "block" }}
+    />
+  );
 }

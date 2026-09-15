@@ -16,7 +16,6 @@ class QueueManager:
     """
     Manages the job queue with serial execution by default.
     Designed for local hardware constraints.
-    
     Uses SQLite for persistence with in-memory cache for fast access.
     """
 
@@ -334,7 +333,6 @@ class QueueManager:
 
     async def _auto_cleanup_unlocked(self) -> int:
         """Auto-cleanup old completed/failed/cancelled jobs (must be called under lock).
-        
         Keeps the most recent completed jobs and removes older ones to prevent
         unbounded memory growth. Returns the number of jobs removed.
         """

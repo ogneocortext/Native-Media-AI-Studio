@@ -3,8 +3,6 @@
 import asyncio
 import json
 import shutil
-import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -297,7 +295,7 @@ class MusicVideoHandler:
         else:
             # abstract — now energy/beat-reactive + genre-aware + efficient
             # Palette selection based on style/section/energy; contrast/sat driven by analysis energy
-            PALETTES = {
+            palettes = {
                 "waveform": "#8b5cf6|#06b6d4",
                 "spectrum": "#ff00ff|#00ffff",
                 "abstract": "#ff00ff|#00ffff|#ffaa00|#ff0000",
@@ -309,19 +307,19 @@ class MusicVideoHandler:
             }
             # Pick palette by explicit style, else by section energy
             section = str(job.params.get("section", "")).lower() if isinstance(job.params.get("section"), str) else ""
-            if style in PALETTES:
-                palette = PALETTES[style]
-            elif section in PALETTES:
-                palette = PALETTES[section]
+            if style in palettes:
+                palette = palettes[style]
+            elif section in palettes:
+                palette = palettes[section]
             else:
                 # Fallback by energy: high→chorus, mid→verse, low→bridge
                 energy_peek = float(analysis.get("energy_curve", [0.5])[0]) if isinstance(analysis.get("energy_curve"), list) and analysis.get("energy_curve") else 0.5
                 if energy_peek > 0.65:
-                    palette = PALETTES["chorus"]
+                    palette = palettes["chorus"]
                 elif energy_peek < 0.35:
-                    palette = PALETTES["bridge"]
+                    palette = palettes["bridge"]
                 else:
-                    palette = PALETTES["abstract"]
+                    palette = palettes["abstract"]
 
             energy = float(analysis.get("energy_curve", [0.5])[0]) if isinstance(analysis.get("energy_curve"), list) and analysis.get("energy_curve") else 0.5
             # Map 0-1 energy → 1.2-1.6 contrast, 1.4-1.9 saturation
@@ -371,10 +369,10 @@ class MusicVideoHandler:
                     tail = stderr_text[-1500:] if len(stderr_text) > 1500 else stderr_text
                     import logging as _logging2
                     _logging2.getLogger(__name__).error("FFmpeg full stderr (thread fallback):\n%s", stderr_text)
-                    raise RuntimeError(f"FFmpeg failed: {tail}")
+                    raise RuntimeError(f"FFmpeg failed: {tail}") from _ne
                 # Ensure output exists
                 if not Path(output_path).exists():
-                    raise RuntimeError(f"FFmpeg failed: output not created at {output_path}")
+                    raise RuntimeError(f"FFmpeg failed: output not created at {output_path}") from _ne
                 # Skip the rest of streaming logic - jump to completion
                 await self._update_progress(job, 1.0, "Music video complete (thread fallback)")
                 return {
@@ -451,7 +449,7 @@ class MusicVideoHandler:
                     process.kill()
                 except Exception:
                     pass
-                raise RuntimeError(f"FFmpeg rendering timed out after {max(duration*3,90)}s")
+                raise RuntimeError(f"FFmpeg rendering timed out after {max(duration*3,90)}s") from None
 
             # Collect remaining stderr
             try:
@@ -514,15 +512,13 @@ class MusicVideoHandler:
             video_path = result.get("video_path")
             if video_path and Path(video_path).exists():
                 import shutil
-                import subprocess
-                import sys
                 shutil.move(str(video_path), str(output_path))
             else:
                 raise RuntimeError("ComfyUI generation failed: no video path returned")
         except ImportError:
-            raise RuntimeError("ComfyUI adapter not available")
+            raise RuntimeError("ComfyUI adapter not available") from None
         except Exception as e:
-            raise RuntimeError(f"ComfyUI generation failed: {e}")
+            raise RuntimeError(f"ComfyUI generation failed: {e}") from e
 
     async def _create_placeholder_output(self, job: Job, output_path: Path, analysis: dict):
         """Create a placeholder output file when ffmpeg is not available."""

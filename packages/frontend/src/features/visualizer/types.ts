@@ -1,5 +1,7 @@
 import type React from "react";
 import type { LyricLine } from "./components/LyricOverlay";
+import type { PerceptualScale } from "./perceptualScales";
+export type { PerceptualScale } from "./perceptualScales";
 
 export interface AudioData {
   bass: number;
@@ -21,6 +23,22 @@ export interface AudioData {
    * to onset pulses.
    */
   beatPhase?: number;
+  /**
+   * Interpolated analyzed energy at the current elapsed time (from backend
+   * `energy_curve`). 0 when no analysis is available. Lets visuals modulate
+   * intensity against the analyzed track energy rather than raw frequency only.
+   */
+  analyzedEnergy?: number;
+  /**
+   * Perceptual frequency band energies (ERB, Bark, Mel, etc.)
+   * Array of energy values mapped to perceptual frequency bands for more
+   * accurate visualization that matches human hearing perception.
+   */
+  perceptualBands?: number[];
+  /**
+   * The perceptual scale used for the current band mapping
+   */
+  perceptualScale?: PerceptualScale;
 }
 
 export interface AudioAnalysisData {
@@ -50,7 +68,12 @@ export interface AudioAnalysisData {
       isDownbeat?: boolean;
       bpm?: number;
     }>;
-    sections: Array<{ type: string; start: number; end: number; energy: number }>;
+    sections: Array<{
+      type: string;
+      start: number;
+      end: number;
+      energy: number;
+    }>;
     energyCurve: Array<{ time: number; value: number }>;
     amplitudeEnvelope: number[];
   };
@@ -153,4 +176,6 @@ export interface VisualizerSceneProps {
   } | null;
   /** Respect OS/user reduced-motion preference — reduces auto-rotation and bloom intensity. */
   prefersReducedMotion?: boolean;
+  /** Perceptual frequency scale for audio analysis */
+  perceptualScale?: PerceptualScale;
 }

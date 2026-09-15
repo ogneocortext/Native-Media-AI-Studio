@@ -4,8 +4,9 @@ Base adapter interface for external AI services.
 import functools
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from enum import Enum
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 

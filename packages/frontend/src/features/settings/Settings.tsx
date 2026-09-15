@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Card, StatusBadge } from "../../components/common";
 import { useHealth } from "../../hooks";
 import { useTheme } from "../../utils/theme";
-import { getApiBaseUrl } from "../../services/portConfig";
+import { getSettings } from "../../services/api";
 
 interface AppSettings {
   comfyui_url: string;
@@ -39,12 +39,8 @@ export function Settings() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const base = getApiBaseUrl();
-        const res = await fetch(`${base}/api/integrations/config/settings`);
-        if (res.ok) {
-          const data = await res.json();
-          setSettings(prev => ({ ...prev, ...data }));
-        }
+        const data = await getSettings();
+        setSettings(prev => ({ ...prev, ...data }));
       } catch {
         setError("Failed to load settings from backend");
       } finally {
@@ -58,8 +54,7 @@ export function Settings() {
     setSaving(true);
     setError(null);
     try {
-      const base = getApiBaseUrl();
-      const res = await fetch(`${base}/api/integrations/config/settings`, {
+      const res = await fetch("/api/integrations/config/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -87,8 +82,7 @@ export function Settings() {
 
   const testConnection = async (url: string, type: "comfyui" | "ollama") => {
     try {
-      const base = getApiBaseUrl();
-      const res = await fetch(`${base}/api/integrations/${type}/health`);
+      const res = await fetch(`/api/integrations/${type}/health`);
       if (res.ok) {
         const data = await res.json();
         alert(`${type.toUpperCase()} status: ${data.status}`);

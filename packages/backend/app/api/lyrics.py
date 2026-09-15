@@ -35,7 +35,7 @@ class LyricAnimationInput(BaseModel):
     enter: dict = {}
     exit: dict = {}
     loop: dict = {}
-    beatReact: dict = {}
+    beatReact: dict = {}  # noqa: N815 — camelCase mirrors the frontend payload contract
     style: dict = {}
 
 
@@ -190,7 +190,7 @@ async def delete_lyrics(track_id: str):
 @router.post("/import-lrc")
 async def import_lrc(request: LRCImportRequest):
     """Import lyrics from LRC format text."""
-    from ..services.lyricsParser import parse_lrc_to_lines
+    from ..services.lyrics_parser import parse_lrc_to_lines
 
     lines = parse_lrc_to_lines(request.lrc_content)
     if not lines:

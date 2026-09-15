@@ -143,7 +143,7 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
             message=f"Queued section {request.section} as job {job.id[:8]}",
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 class ExportMatrixRequest(BaseModel):
@@ -178,14 +178,14 @@ async def render_video(request: RenderRequest) -> dict:
     `/api/video/render?engine=moviepy|coreflux|movielite`.
     """
     from ..core.config import PROJECT_ROOT
-    from ..services.video import get_renderer, RenderSpec
+    from ..services.video import RenderSpec, get_renderer
 
     try:
         renderer = get_renderer(request.engine)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     output_path = request.output_path or f"output/video/render_{request.kind}_{renderer.engine_id}.mp4"
     if not Path(output_path).is_absolute():
@@ -207,7 +207,7 @@ async def render_video(request: RenderRequest) -> dict:
     try:
         result = await renderer.render(spec)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     rel = None
     try:
@@ -244,9 +244,9 @@ async def export_matrix(request: ExportMatrixRequest) -> dict:
             loop_seconds=request.loop_seconds,
         )
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {
         "success": bool(result.artifacts) and not result.errors,

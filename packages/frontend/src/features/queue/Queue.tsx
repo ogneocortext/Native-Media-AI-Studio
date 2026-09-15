@@ -63,7 +63,6 @@ export function Queue() {
   // (SSE is managed centrally by Layout.tsx).
   useEffect(() => {
     fetchJobs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchJobs]);
 
   // SSE is managed centrally by Layout.tsx; no per-component connect/disconnect.

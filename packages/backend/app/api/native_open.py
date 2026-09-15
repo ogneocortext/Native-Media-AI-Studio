@@ -161,7 +161,7 @@ except Exception as e:
         except Exception:
             pass
         logger.error("Failed to launch Blender: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/open/unity")
@@ -200,7 +200,7 @@ async def open_in_unity(payload: dict):
             await _asyncio5.to_thread(_logu2, rel, src.name if 'src' in locals() else rel, "unity", "copy", False)
         except Exception:
             pass
-        raise HTTPException(status_code=500, detail=f"Copy failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Copy failed: {e}") from e
 
     # Try Unity MCP refresh via go-gateway (falls back to direct HTTP if gateway is down)
     unity_refreshed = False

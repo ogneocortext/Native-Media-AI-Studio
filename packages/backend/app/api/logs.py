@@ -83,11 +83,16 @@ async def receive_frontend_logs(body: FrontendLogRequest) -> dict:
 
     for entry in entries:
         level = entry.get("level", "INFO")
-        source = entry.get("source", "unknown")
         message = entry.get("message", "")
         data = entry.get("data")
-        timestamp = entry.get("timestamp", "")
         trace_id = entry.get("trace_id", "")
+
+        # Attribute every entry to the originating frontend module so the logs
+        # UI and analytics can filter frontend noise by component. The entry's
+        # own `timestamp` is intentionally ignored — the app log formatter adds
+        # the authoritative receive-time prefix.
+        source = entry.get("source", "unknown")
+        message = f"[{source}] {message}"
 
         # Build a flat message. The app log formatter adds its own
         # timestamp / level / logger / funcName prefix, so we only pass the

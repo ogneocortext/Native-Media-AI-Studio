@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { kineticPresets } from "./KineticPresets";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  createTheatreProject,
   createAnimationTracks,
+  createTheatreProject,
   readObjectValues,
   writeObjectValues,
 } from "../services/theatreStudio";
+import { kineticPresets } from "./KineticPresets";
 
 interface Props {
   visible: boolean;
@@ -29,13 +29,24 @@ const TRACKS: AnimationTrack[] = [
   { label: "Scale", prop: "scale", min: 0, max: 3, step: 0.01 },
   { label: "Rotation", prop: "rotateZ", min: -180, max: 180, step: 1 },
   { label: "Skew X", prop: "skewX", min: -45, max: 45, step: 1 },
-  { label: "Letter Spacing", prop: "letterSpacing", min: -10, max: 50, step: 1 },
+  {
+    label: "Letter Spacing",
+    prop: "letterSpacing",
+    min: -10,
+    max: 50,
+    step: 1,
+  },
   { label: "Blur", prop: "blur", min: 0, max: 20, step: 0.5 },
 ];
 
 type AnimationPhase = "enter" | "beat" | "exit";
 
-export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetChange }: Props) {
+export function TheatreStudioPanel({
+  visible,
+  onClose,
+  activePresetId,
+  onPresetChange,
+}: Props) {
   const previewRef = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<AnimationPhase>("enter");
   const [duration, setDuration] = useState(600);
@@ -43,7 +54,9 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
   const [studioReady, setStudioReady] = useState(false);
   const [values, setValues] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
-    TRACKS.forEach(t => { init[t.prop] = 0; });
+    TRACKS.forEach((t) => {
+      init[t.prop] = 0;
+    });
     return init;
   });
   const rafRef = useRef<number>(0);
@@ -63,7 +76,7 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
     (async () => {
       try {
         const { sheet } = await createTheatreProject(
-          `Kinetic Studio — ${activePresetId}/${phase}`
+          `Kinetic Studio — ${activePresetId}/${phase}`,
         );
         if (cancelled) return;
 
@@ -73,42 +86,61 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
         // Sync initial values
         const initialValues = readObjectValues(objects);
         setValues(initialValues);
-      } catch {
+      } catch (err) {
         // Theatre.js not available - preview still works without it
+        console.warn("Theatre.js initialization failed:", err);
+        setStudioReady(true); // Allow preview even without Theatre.js
       }
 
       if (!cancelled) setStudioReady(true);
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [visible, activePresetId, phase]);
 
   // Apply animation values to preview element
-  const applyValues = useCallback((progress: number) => {
-    if (!previewRef.current) return;
-    const el = previewRef.current;
+  const applyValues = useCallback(
+    (progress: number) => {
+      if (!previewRef.current) return;
+      const el = previewRef.current;
 
-    const preset = kineticPresets[activePresetId];
-    if (!preset) return;
+      const preset = kineticPresets[activePresetId];
+      if (!preset) return;
 
-    const startValues = getPresetStartValues(phase, activePresetId);
-    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-    const t = Math.min(1, Math.max(0, progress));
+      const startValues = getPresetStartValues(phase, activePresetId);
+      const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+      const t = Math.min(1, Math.max(0, progress));
 
-    const finalTranslateX = lerp(startValues.translateX, values.translateX, t);
-    const finalTranslateY = lerp(startValues.translateY, values.translateY, t);
-    const finalOpacity = lerp(startValues.opacity, values.opacity, t);
-    const finalScale = lerp(startValues.scale, values.scale, t);
-    const finalRotateZ = lerp(startValues.rotateZ, values.rotateZ, t);
-    const finalSkewX = lerp(startValues.skewX, values.skewX, t);
-    const finalLetterSpacing = lerp(startValues.letterSpacing, values.letterSpacing, t);
-    const finalBlur = lerp(startValues.blur, values.blur, t);
+      const finalTranslateX = lerp(
+        startValues.translateX,
+        values.translateX,
+        t,
+      );
+      const finalTranslateY = lerp(
+        startValues.translateY,
+        values.translateY,
+        t,
+      );
+      const finalOpacity = lerp(startValues.opacity, values.opacity, t);
+      const finalScale = lerp(startValues.scale, values.scale, t);
+      const finalRotateZ = lerp(startValues.rotateZ, values.rotateZ, t);
+      const finalSkewX = lerp(startValues.skewX, values.skewX, t);
+      const finalLetterSpacing = lerp(
+        startValues.letterSpacing,
+        values.letterSpacing,
+        t,
+      );
+      const finalBlur = lerp(startValues.blur, values.blur, t);
 
-    el.style.transform = `translateX(${finalTranslateX}px) translateY(${finalTranslateY}px) scale(${finalScale}) rotateZ(${finalRotateZ}deg) skewX(${finalSkewX}deg)`;
-    el.style.opacity = `${finalOpacity}`;
-    el.style.letterSpacing = `${finalLetterSpacing}px`;
-    el.style.filter = finalBlur > 0 ? `blur(${finalBlur}px)` : "";
-  }, [activePresetId, phase, values]);
+      el.style.transform = `translateX(${finalTranslateX}px) translateY(${finalTranslateY}px) scale(${finalScale}) rotateZ(${finalRotateZ}deg) skewX(${finalSkewX}deg)`;
+      el.style.opacity = `${finalOpacity}`;
+      el.style.letterSpacing = `${finalLetterSpacing}px`;
+      el.style.filter = finalBlur > 0 ? `blur(${finalBlur}px)` : "";
+    },
+    [activePresetId, phase, values],
+  );
 
   // Play animation
   const playAnimation = useCallback(() => {
@@ -151,7 +183,7 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
 
   // Handle slider change
   const handleSliderChange = (prop: string, newValue: number) => {
-    setValues(prev => ({ ...prev, [prop]: newValue }));
+    setValues((prev) => ({ ...prev, [prop]: newValue }));
     // Also write to Theatre.js objects
     writeObjectValues(objectsRef.current, { [prop]: newValue });
   };
@@ -159,8 +191,8 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
   // Reset all values to defaults
   const resetAllValues = () => {
     const defaults: Record<string, number> = {};
-    TRACKS.forEach(t => {
-      defaults[t.prop] = t.prop === "opacity" ? 1 : (t.prop === "scale" ? 1 : 0);
+    TRACKS.forEach((t) => {
+      defaults[t.prop] = t.prop === "opacity" ? 1 : t.prop === "scale" ? 1 : 0;
     });
     setValues(defaults);
     writeObjectValues(objectsRef.current, defaults);
@@ -174,9 +206,18 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
     return (
       <div className="theatre-studio-overlay">
         <div className="theatre-studio-panel">
-          <div className="theatre-studio-header"><h3>Theatre.js Studio</h3></div>
-          <div className="theatre-studio-body" style={{ justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
-            <span style={{ color: '#94a3b8' }}>Initializing Theatre.js...</span>
+          <div className="theatre-studio-header">
+            <h3>Theatre.js Studio</h3>
+          </div>
+          <div
+            className="theatre-studio-body"
+            style={{
+              justifyContent: "center",
+              alignItems: "center",
+              minHeight: 200,
+            }}
+          >
+            <span style={{ color: "#94a3b8" }}>Initializing Theatre.js...</span>
           </div>
         </div>
       </div>
@@ -194,12 +235,14 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
               onChange={(e) => onPresetChange(e.target.value)}
               className="theatre-preset-select"
             >
-              {Object.values(kineticPresets).map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+              {Object.values(kineticPresets).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
               ))}
             </select>
             <div className="theatre-phase-tabs">
-              {(["enter", "beat", "exit"] as AnimationPhase[]).map(p => (
+              {(["enter", "beat", "exit"] as AnimationPhase[]).map((p) => (
                 <button
                   key={p}
                   className={`theatre-phase-tab ${phase === p ? "active" : ""} ${!preset?.beatAnimation && p === "beat" ? "disabled" : ""}`}
@@ -210,7 +253,9 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
                 </button>
               ))}
             </div>
-            <button onClick={onClose} className="theatre-studio-close">✕</button>
+            <button onClick={onClose} className="theatre-studio-close">
+              ✕
+            </button>
           </div>
         </div>
 
@@ -223,13 +268,21 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
               </div>
             </div>
             <div className="theatre-preview-controls">
-              <button onClick={playAnimation} className="theatre-play-btn" disabled={playingPhase}>
+              <button
+                onClick={playAnimation}
+                className="theatre-play-btn"
+                disabled={playingPhase}
+              >
                 {playingPhase ? "Playing..." : "▶ Play"}
               </button>
               <button onClick={resetPreview} className="theatre-reset-btn">
                 ↺ Reset
               </button>
-              <button onClick={resetAllValues} className="theatre-reset-btn" title="Reset all values to defaults">
+              <button
+                onClick={resetAllValues}
+                className="theatre-reset-btn"
+                title="Reset all values to defaults"
+              >
                 ⟲ All
               </button>
               <div className="theatre-duration-control">
@@ -250,10 +303,12 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
           <div className="theatre-timeline-area">
             <div className="theatre-timeline-header">
               <span className="theatre-timeline-title">Properties</span>
-              <span className="theatre-timeline-time">0s — {(duration / 1000).toFixed(1)}s</span>
+              <span className="theatre-timeline-time">
+                0s — {(duration / 1000).toFixed(1)}s
+              </span>
             </div>
             <div className="theatre-tracks">
-              {TRACKS.map(track => (
+              {TRACKS.map((track) => (
                 <div key={track.prop} className="theatre-track">
                   <div className="theatre-track-label">{track.label}</div>
                   <div className="theatre-track-slider">
@@ -263,13 +318,25 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
                       max={track.max}
                       step={track.step}
                       value={values[track.prop] ?? 0}
-                      onChange={(e) => handleSliderChange(track.prop, parseFloat(e.target.value))}
+                      onChange={(e) =>
+                        handleSliderChange(
+                          track.prop,
+                          parseFloat(e.target.value),
+                        )
+                      }
                       className="theatre-track-input"
                     />
-                    <span className="theatre-track-value">{(values[track.prop] ?? 0).toFixed(2)}</span>
+                    <span className="theatre-track-value">
+                      {(values[track.prop] ?? 0).toFixed(2)}
+                    </span>
                   </div>
                   <div className="theatre-track-keyframe-bar">
-                    <div className="theatre-track-keyframe-marker" style={{ left: `${(((values[track.prop] ?? 0) - track.min) / (track.max - track.min)) * 100}%` }} />
+                    <div
+                      className="theatre-track-keyframe-marker"
+                      style={{
+                        left: `${(((values[track.prop] ?? 0) - track.min) / (track.max - track.min)) * 100}%`,
+                      }}
+                    />
                   </div>
                 </div>
               ))}
@@ -280,10 +347,15 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
         <div className="theatre-studio-footer">
           <div className="theatre-studio-info">
             <span className="theatre-lib-badge">Theatre.js 0.7.2</span>
-            <span className="theatre-hint">Edit keyframes below. Changes apply to preview in real-time.</span>
+            <span className="theatre-hint">
+              Edit keyframes below. Changes apply to preview in real-time.
+            </span>
           </div>
           <div className="theatre-studio-actions">
-            <button className="theatre-export-btn" onClick={() => exportPreset(activePresetId, phase, values)}>
+            <button
+              className="theatre-export-btn"
+              onClick={() => exportPreset(activePresetId, phase, values)}
+            >
               Export JSON
             </button>
           </div>
@@ -294,53 +366,84 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
 }
 
 function getPresetStartValues(phase: AnimationPhase, presetId: string) {
-  const defaults = { translateX: 0, translateY: 0, opacity: 1, scale: 1, rotateZ: 0, skewX: 0, letterSpacing: 0, blur: 0 };
+  const defaults = {
+    translateX: 0,
+    translateY: 0,
+    opacity: 1,
+    scale: 1,
+    rotateZ: 0,
+    skewX: 0,
+    letterSpacing: 0,
+    blur: 0,
+  };
 
   switch (presetId) {
     case "phonk":
-      return phase === "enter" ? { ...defaults, opacity: 0, translateX: -30, scale: 1.3 }
-        : phase === "exit" ? { ...defaults, opacity: 1, translateX: 0, scale: 1 }
-        : defaults;
+      return phase === "enter"
+        ? { ...defaults, opacity: 0, translateX: -30, scale: 1.3 }
+        : phase === "exit"
+          ? { ...defaults, opacity: 1, translateX: 0, scale: 1 }
+          : defaults;
     case "synthwave":
-      return phase === "enter" ? { ...defaults, opacity: 0, translateY: 40 }
-        : phase === "exit" ? { ...defaults, opacity: 1, translateY: 0 }
-        : defaults;
+      return phase === "enter"
+        ? { ...defaults, opacity: 0, translateY: 40 }
+        : phase === "exit"
+          ? { ...defaults, opacity: 1, translateY: 0 }
+          : defaults;
     case "ambient":
-      return phase === "enter" ? { ...defaults, opacity: 0, translateY: 20, blur: 8 }
-        : phase === "exit" ? { ...defaults, opacity: 1, translateY: 0, blur: 0 }
-        : defaults;
+      return phase === "enter"
+        ? { ...defaults, opacity: 0, translateY: 20, blur: 8 }
+        : phase === "exit"
+          ? { ...defaults, opacity: 1, translateY: 0, blur: 0 }
+          : defaults;
     case "gfunk":
-      return phase === "enter" ? { ...defaults, opacity: 0, translateY: 30, rotateZ: -5 }
-        : phase === "exit" ? { ...defaults, opacity: 1, translateY: 0 }
-        : defaults;
+      return phase === "enter"
+        ? { ...defaults, opacity: 0, translateY: 30, rotateZ: -5 }
+        : phase === "exit"
+          ? { ...defaults, opacity: 1, translateY: 0 }
+          : defaults;
     case "grime":
-      return phase === "enter" ? { ...defaults, opacity: 0, translateX: -50, skewX: -10 }
-        : phase === "exit" ? { ...defaults, opacity: 1, translateX: 0 }
-        : defaults;
+      return phase === "enter"
+        ? { ...defaults, opacity: 0, translateX: -50, skewX: -10 }
+        : phase === "exit"
+          ? { ...defaults, opacity: 1, translateX: 0 }
+          : defaults;
     case "dubstep":
-      return phase === "enter" ? { ...defaults, opacity: 0, scale: 2 }
-        : phase === "exit" ? { ...defaults, opacity: 1, scale: 1 }
-        : defaults;
+      return phase === "enter"
+        ? { ...defaults, opacity: 0, scale: 2 }
+        : phase === "exit"
+          ? { ...defaults, opacity: 1, scale: 1 }
+          : defaults;
     case "lofi":
-      return phase === "enter" ? { ...defaults, opacity: 0 }
-        : phase === "exit" ? { ...defaults, opacity: 1 }
-        : defaults;
+      return phase === "enter"
+        ? { ...defaults, opacity: 0 }
+        : phase === "exit"
+          ? { ...defaults, opacity: 1 }
+          : defaults;
     case "cinematic":
     default:
-      return phase === "enter" ? { ...defaults, opacity: 0, letterSpacing: 20 }
-        : phase === "exit" ? { ...defaults, opacity: 1, letterSpacing: 8 }
-        : defaults;
+      return phase === "enter"
+        ? { ...defaults, opacity: 0, letterSpacing: 20 }
+        : phase === "exit"
+          ? { ...defaults, opacity: 1, letterSpacing: 8 }
+          : defaults;
   }
 }
 
-function exportPreset(presetId: string, phase: string, values: Record<string, number>) {
+function exportPreset(
+  presetId: string,
+  phase: string,
+  values: Record<string, number>,
+) {
   const exportData = {
     preset: presetId,
     phase,
     values,
     exportedAt: new Date().toISOString(),
   };
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+    type: "application/json",
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

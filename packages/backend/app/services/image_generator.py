@@ -22,12 +22,10 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 class ImageGenerationHandler:
     """
     Handler for image generation jobs.
-    
     This handler processes image generation jobs by:
     1. Receiving job parameters from the queue
     2. Using the SD WebUI adapter to generate images
     3. Saving generated images and JSON sidecars to output folder
-    
     Per Guidelines 3.3: Every generated media file gets a JSON sidecar:
     - output/images/2026-04-21_143022.png
     - output/images/2026-04-21_143022.json (Contains job_id, prompt, seed, model, generation_time)
@@ -36,7 +34,6 @@ class ImageGenerationHandler:
     def __init__(self, adapter=None):
         """
         Initialize the image generation handler.
-        
         Args:
             adapter: ComfyUI adapter instance. If None, creates one in mock mode.
         """
@@ -46,10 +43,8 @@ class ImageGenerationHandler:
     async def process_job(self, job: Job) -> dict[str, Any]:
         """
         Process an image generation job.
-        
         Args:
             job: The job to process
-            
         Returns:
             Dictionary containing:
             - output_path: Path to the generated image
@@ -75,14 +70,11 @@ class ImageGenerationHandler:
     async def save_output(self, job: Job, result: dict[str, Any]) -> dict[str, str]:
         """
         Save generated image and JSON sidecar.
-        
         Per Guidelines 3.3, saves both the image and a corresponding JSON sidecar
         containing job metadata.
-        
         Args:
             job: The completed job
             result: Generation result from adapter
-            
         Returns:
             Dictionary with paths to saved files:
             - image: Path to the saved image

@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
 from ..adapters.registry import adapter_registry
 from ..core.config import PROJECT_ROOT, config
@@ -34,11 +34,11 @@ router = APIRouter(tags=["Integrations-Generation"])
 async def get_models_status() -> dict:
     """Get status of model availability for all image generation services"""
     # PROJECT_ROOT is backend/, so project root is parent
-    NATIVE_MEDIA_ROOT = PROJECT_ROOT.parent
+    native_media_root = PROJECT_ROOT.parent
 
     # Check ComfyUI model paths
-    comfyui_models = NATIVE_MEDIA_ROOT / "stable-diffusion" / "models" / "checkpoints"
-    comfyui_builtin = NATIVE_MEDIA_ROOT / "third_party" / "ComfyUI" / "models" / "checkpoints"
+    comfyui_models = native_media_root / "stable-diffusion" / "models" / "checkpoints"
+    comfyui_builtin = native_media_root / "third_party" / "ComfyUI" / "models" / "checkpoints"
 
     comfyui_models_list = []
     if comfyui_models.exists():
@@ -213,7 +213,7 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
     except Exception as e:
         logger.debug("exception in generate_image: %s", e)
         logger.error("Generate endpoint error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{service_name}/result/{prompt_id}")
@@ -242,7 +242,7 @@ async def get_result(service_name: str, prompt_id: str) -> dict:
                 outputs = entry.get("outputs", {})
 
                 # Find the image output
-                for node_id, output in outputs.items():
+                for _node_id, output in outputs.items():
                     if "images" in output:
                         for img in output["images"]:
                             filename = img.get("filename")
@@ -450,7 +450,7 @@ async def view_preview(request: Request, prompt_id: str, filename: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch image: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch image: {e}") from e
 
 
 @router.post("/{service_name}/generate-video")
@@ -500,7 +500,7 @@ async def generate_video(service_name: str, request: VideoGenerationRequest) -> 
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/{service_name}/job")
@@ -553,7 +553,7 @@ async def ollama_embed(body: OllamaEmbedRequest) -> dict:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/ollama/search")
@@ -630,7 +630,7 @@ async def get_ollama_models() -> list:
         models = await adapter.list_models()
         return models
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/vram/status")
@@ -850,7 +850,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
     except Exception as e:
         adapter.clear_activity(model)
         logger.error("Ollama chat error: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/ollama/generate")
@@ -863,7 +863,7 @@ async def ollama_generate(prompt: str, model: str = "llama2") -> dict:
         result = await adapter.generate(prompt=prompt, model=model)
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ============================================================================
@@ -966,7 +966,7 @@ async def analyze_audio(request: AudioAnalysisRequest):
             "amplitude_points": len(result.waveform.amplitude_envelope),
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/audio/analyze/job")
@@ -1227,12 +1227,12 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
         }
     except json.JSONDecodeError as e:
         logger.error("Failed to parse Ollama JSON response: %s (raw: %s)", e, response_text[:200])
-        raise HTTPException(status_code=502, detail=f"Model returned invalid JSON: {e}")
+        raise HTTPException(status_code=502, detail=f"Model returned invalid JSON: {e}") from e
     except HTTPException:
         raise
     except Exception as e:
         logger.error("Visualizer preset generation failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
     finally:
         adapter.clear_activity(model)
 
@@ -1302,7 +1302,7 @@ async def get_benchmark_results() -> dict:
         return get_all_results()
     except Exception as e:
         logger.error("Failed to load benchmark results: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/ollama/benchmark/run")
@@ -1328,7 +1328,7 @@ async def run_benchmark(body: dict | None = None) -> dict:
         raise
     except Exception as e:
         logger.error("Benchmark run failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/ollama/benchmark/best")
@@ -1345,7 +1345,7 @@ async def get_best_benchmark() -> dict:
         }
     except Exception as e:
         logger.error("Failed to get best benchmark model: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/ollama/coding-benchmark/results")
@@ -1356,7 +1356,7 @@ async def get_coding_benchmark_results() -> dict:
         return get_all_results()
     except Exception as e:
         logger.error("Failed to load coding benchmark results: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/ollama/coding-benchmark/run")
@@ -1388,7 +1388,7 @@ async def run_coding_benchmark(body: dict | None = None) -> dict:
         raise
     except Exception as e:
         logger.error("Coding benchmark run failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/ollama/coding-benchmark/best")
@@ -1405,7 +1405,7 @@ async def get_best_coding_benchmark() -> dict:
         }
     except Exception as e:
         logger.error("Failed to get best coding benchmark model: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ---------------------------------------------------------------------------
@@ -1435,12 +1435,12 @@ async def upscale_image_endpoint(request: UpscaleRequest) -> dict:
             prefer_comfyui=request.prefer_comfyui,
         )
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Upscale failed: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return {
         "success": result.success,

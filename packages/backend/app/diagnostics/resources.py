@@ -76,7 +76,7 @@ class ResourceMonitor:
         """Initialize GPU monitoring if libraries are available"""
         # Try gpustat first (easier to use)
         try:
-            import gpustat
+            import gpustat  # noqa: F401  # availability probe, not used directly
             self._gpustat_available = True
             logger.info("GPU monitoring enabled via gpustat")
         except ImportError:
@@ -802,7 +802,6 @@ resource_monitor = ResourceMonitor()
 async def resource_monitoring_loop(interval_seconds: float = 30.0):
     """
     Background loop that monitors resources and broadcasts warnings.
-    
     Args:
         interval_seconds: How often to check resources (default: 30 seconds)
     """

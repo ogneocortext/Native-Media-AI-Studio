@@ -229,8 +229,7 @@ Return ONLY the function, no fences.`;
       else num_ctx = 3072; // low VRAM: still enough for pro prompt (~1800 tok) + 900 predict
       // safety cap via backend adapter (caps >16384 →16384)
     } catch {
-      // fallback 4096 if GPU probe fails — still fits professional prompt
-      num_ctx = 4096;
+      // GPU probe failed — keep the 4096 default (still fits a professional prompt).
     }
 
     await generate(

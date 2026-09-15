@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { Server } from "@modelcontextprotocol/server";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath, pathToFileURL } from "url";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { spawn } from "child_process";
+import { existsSync, readFileSync } from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
@@ -13,14 +13,24 @@ const PORTS_PATH = path.join(PROJECT_ROOT, "config", "ports.json");
 // Load central port configuration for default frontend URL.
 let ports = {};
 try {
-    if (existsSync(PORTS_PATH)) {
-        ports = JSON.parse(readFileSync(PORTS_PATH, "utf-8"));
-    }
-} catch { /* ignore */ }
+  if (existsSync(PORTS_PATH)) {
+    ports = JSON.parse(readFileSync(PORTS_PATH, "utf-8"));
+  }
+} catch {
+  /* ignore */
+}
 
-const DEFAULT_FRONTEND_URL = process.env.FRONTEND_URL || ports.frontend_url || `http://127.0.0.1:${ports.frontend_port || 5173}`;
+const DEFAULT_FRONTEND_URL =
+  process.env.FRONTEND_URL ||
+  ports.frontend_url ||
+  `http://127.0.0.1:${ports.frontend_port || 5173}`;
 const ANALYZE_MJS = path.join(PROJECT_ROOT, "tools", "vision", "analyze.mjs");
-const ANALYZE_PY = path.join(PROJECT_ROOT, "tools", "tests", "vision_analyze.py");
+const ANALYZE_PY = path.join(
+  PROJECT_ROOT,
+  "tools",
+  "tests",
+  "vision_analyze.py",
+);
 
 const ALLOWED_EXTENSIONS = /\.(png|jpe?g|webp|bmp|gif)$/i;
 const DEFAULT_MODEL = process.env.VISION_MODEL || "qwen3-vl:2b";
@@ -45,14 +55,15 @@ function runNode(script, args, timeoutMs = 300000) {
       env: { ...process.env },
       stdio: ["pipe", "pipe", "pipe"],
     });
-    let out = "", err = "";
+    let out = "",
+      err = "";
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
       reject(new Error(`vision request timed out after ${timeoutMs}ms`));
     }, timeoutMs);
-    child.stdout.on("data", d => out += d);
-    child.stderr.on("data", d => err += d);
-    child.on("close", code => {
+    child.stdout.on("data", (d) => (out += d));
+    child.stderr.on("data", (d) => (err += d));
+    child.on("close", (code) => {
       clearTimeout(timer);
       if (code !== 0) {
         const msg = err.trim() || `child process exited with code ${code}`;
@@ -71,14 +82,17 @@ function runAnalyzePy(imagePath, prompt, timeoutMs = 300000) {
       env: { ...process.env },
       stdio: ["pipe", "pipe", "pipe"],
     });
-    let out = "", err = "";
+    let out = "",
+      err = "";
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
-      reject(new Error(`python vision fallback timed out after ${timeoutMs}ms`));
+      reject(
+        new Error(`python vision fallback timed out after ${timeoutMs}ms`),
+      );
     }, timeoutMs);
-    child.stdout.on("data", d => out += d);
-    child.stderr.on("data", d => err += d);
-    child.on("close", code => {
+    child.stdout.on("data", (d) => (out += d));
+    child.stderr.on("data", (d) => (err += d));
+    child.on("close", (code) => {
       clearTimeout(timer);
       if (code !== 0) {
         const msg = err.trim() || `vision_analyze.py exited with code ${code}`;
@@ -99,7 +113,9 @@ function resolveImagePath(input) {
     throw new Error(`Image not found: ${abs}`);
   }
   if (!ALLOWED_EXTENSIONS.test(abs)) {
-    throw new Error(`Unsupported image format: ${path.extname(abs)}. Allowed: png, jpg, jpeg, webp, bmp, gif`);
+    throw new Error(
+      `Unsupported image format: ${path.extname(abs)}. Allowed: png, jpg, jpeg, webp, bmp, gif`,
+    );
   }
   return abs;
 }
@@ -140,7 +156,13 @@ async function resizeImage(inputPath, maxDim = 1024, quality = 80) {
 
 // ─── Ollama helpers ────────────────────────────────────────────────────────────
 
-async function callOllamaChat(messages, tools = [], model, think = false, retries = 2) {
+async function callOllamaChat(
+  messages,
+  tools = [],
+  model,
+  think = false,
+  retries = 2,
+) {
   const url = `${OLLAMA_URL}/api/chat`;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -160,7 +182,11 @@ async function callOllamaChat(messages, tools = [], model, think = false, retrie
         },
       };
 
-      logRequest(reqId, "ollama-chat", `attempt=${attempt + 1} model=${model} msgs=${messages.length} tools=${tools.length} think=${think}`);
+      logRequest(
+        reqId,
+        "ollama-chat",
+        `attempt=${attempt + 1} model=${model} msgs=${messages.length} tools=${tools.length} think=${think}`,
+      );
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 300000);
@@ -181,17 +207,31 @@ async function callOllamaChat(messages, tools = [], model, think = false, retrie
 
       const data = await res.json();
       const msg = data.message || {};
-      logRequest(reqId, "ollama-chat", `ok model=${model} len=${(msg.content || "").length} tool_calls=${(msg.tool_calls || []).length}`);
+      logRequest(
+        reqId,
+        "ollama-chat",
+        `ok model=${model} len=${(msg.content || "").length} tool_calls=${(msg.tool_calls || []).length}`,
+      );
       return msg;
     } catch (e) {
-      logRequest(reqId, "ollama-chat", `failed attempt=${attempt + 1}: ${e.message}`);
+      logRequest(
+        reqId,
+        "ollama-chat",
+        `failed attempt=${attempt + 1}: ${e.message}`,
+      );
       if (attempt === retries) throw e;
-      await new Promise(r => setTimeout(r, 5000));
+      await new Promise((r) => setTimeout(r, 5000));
     }
   }
 }
 
-async function callOllama(model, prompt, images = [], retries = 2, think = false) {
+async function callOllama(
+  model,
+  prompt,
+  images = [],
+  retries = 2,
+  think = false,
+) {
   const messages = [];
   if (images.length > 0) {
     messages.push({
@@ -287,7 +327,7 @@ async function getRunningModels() {
     const res = await fetch(`${OLLAMA_URL}/api/ps`);
     if (!res.ok) return [];
     const data = await res.json();
-    const models = (data.models || []).map(m => m.name);
+    const models = (data.models || []).map((m) => m.name);
     logRequest(reqId, "running-models", models.join(","));
     return models;
   } catch (e) {
@@ -315,7 +355,7 @@ async function ensureVisionModel(model) {
   const running = await getRunningModels();
   if (running.length === 0) return;
 
-  const toUnload = running.filter(m => m !== model);
+  const toUnload = running.filter((m) => m !== model);
   if (toUnload.length === 0) return;
 
   logRequest(generateRequestId(), "unloading-models", toUnload.join(","));
@@ -323,15 +363,15 @@ async function ensureVisionModel(model) {
     await unloadModel(m);
   }
 
-  await new Promise(r => setTimeout(r, 1500));
+  await new Promise((r) => setTimeout(r, 1500));
 
   const stillRunning = await getRunningModels();
-  const stillThere = stillRunning.filter(m => m !== model);
+  const stillThere = stillRunning.filter((m) => m !== model);
   if (stillThere.length > 0) {
     for (const m of stillThere) {
       await unloadModel(m);
     }
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 1500));
   }
 }
 
@@ -340,14 +380,15 @@ async function ollamaReady(timeoutMs = 10000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`${OLLAMA_URL}/api/tags`, { signal: AbortSignal.timeout(2000) });
+      const res = await fetch(`${OLLAMA_URL}/api/tags`, {
+        signal: AbortSignal.timeout(2000),
+      });
       if (res.ok) {
         logRequest(reqId, "ollama-ready", "");
         return true;
       }
-    } catch {
-    }
-    await new Promise(r => setTimeout(r, 1000));
+    } catch {}
+    await new Promise((r) => setTimeout(r, 1000));
   }
   logRequest(reqId, "ollama-not-ready", "");
   return false;
@@ -390,7 +431,9 @@ async function describeImage(imagePath, prompt, mode) {
       return result;
     } catch (e2) {
       logRequest(reqId, "vision_describe", `fallback-py-failed: ${e2.message}`);
-      throw new Error(`All vision backends failed. Last error: ${e2.message}. Ensure Ollama is running and a vision model is pulled.`);
+      throw new Error(
+        `All vision backends failed. Last error: ${e2.message}. Ensure Ollama is running and a vision model is pulled.`,
+      );
     }
   }
 }
@@ -398,7 +441,9 @@ async function describeImage(imagePath, prompt, mode) {
 async function compareImages(imageA, imageB, prompt) {
   const a = resolveImagePath(imageA);
   const b = resolveImagePath(imageB);
-  const finalPrompt = prompt || "Compare these two images. Identify differences, improvements, or regressions. Summarize key changes.";
+  const finalPrompt =
+    prompt ||
+    "Compare these two images. Identify differences, improvements, or regressions. Summarize key changes.";
   const reqId = generateRequestId();
 
   logRequest(reqId, "vision_compare", `start ${a} vs ${b}`);
@@ -421,13 +466,15 @@ const TOOL_DEFS = [
     type: "function",
     function: {
       name: "read_source",
-      description: "Read a source file from the project. Returns first 200 lines with path metadata. Use this to check what the code SHOULD look like when diagnosing UI issues.",
+      description:
+        "Read a source file from the project. Returns first 200 lines with path metadata. Use this to check what the code SHOULD look like when diagnosing UI issues.",
       parameters: {
         type: "object",
         properties: {
           path: {
             type: "string",
-            description: "Repo-relative path to the file, e.g. packages/frontend/src/features/generate3d/Generation3DPage.tsx",
+            description:
+              "Repo-relative path to the file, e.g. packages/frontend/src/features/generate3d/Generation3DPage.tsx",
           },
         },
         required: ["path"],
@@ -438,13 +485,15 @@ const TOOL_DEFS = [
     type: "function",
     function: {
       name: "search_files",
-      description: "Search for files matching a regex pattern in the project. Returns up to 50 matches.",
+      description:
+        "Search for files matching a regex pattern in the project. Returns up to 50 matches.",
       parameters: {
         type: "object",
         properties: {
           pattern: {
             type: "string",
-            description: "Regex pattern to match filenames, e.g. .*Generation3D.*\\.tsx$",
+            description:
+              "Regex pattern to match filenames, e.g. .*Generation3D.*\\.tsx$",
           },
           path: {
             type: "string",
@@ -459,7 +508,8 @@ const TOOL_DEFS = [
     type: "function",
     function: {
       name: "get_file_info",
-      description: "Get file size and modification time. Use this to verify a file exists before reading.",
+      description:
+        "Get file size and modification time. Use this to verify a file exists before reading.",
       parameters: {
         type: "object",
         properties: {
@@ -476,13 +526,23 @@ const TOOL_DEFS = [
     type: "function",
     function: {
       name: "compare_visuals",
-      description: "Compare two images via the vision model. Returns a detailed diff summary.",
+      description:
+        "Compare two images via the vision model. Returns a detailed diff summary.",
       parameters: {
         type: "object",
         properties: {
-          image_a: { type: "string", description: "Repo-relative path to first image" },
-          image_b: { type: "string", description: "Repo-relative path to second image" },
-          prompt: { type: "string", description: "Optional focus prompt for comparison" },
+          image_a: {
+            type: "string",
+            description: "Repo-relative path to first image",
+          },
+          image_b: {
+            type: "string",
+            description: "Repo-relative path to second image",
+          },
+          prompt: {
+            type: "string",
+            description: "Optional focus prompt for comparison",
+          },
         },
         required: ["image_a", "image_b"],
       },
@@ -492,13 +552,14 @@ const TOOL_DEFS = [
     type: "function",
     function: {
       name: "take_screenshot",
-      description: "Capture a screenshot of a URL using headless Playwright. Returns the saved image path.",
+      description:
+        "Capture a screenshot of a URL using headless Playwright. Returns the saved image path.",
       parameters: {
         type: "object",
         properties: {
           url: {
             type: "string",
-             description: "URL to capture (default: frontend dev server)",
+            description: "URL to capture (default: frontend dev server)",
           },
           full_page: {
             type: "boolean",
@@ -513,7 +574,8 @@ const TOOL_DEFS = [
     type: "function",
     function: {
       name: "list_outputs",
-      description: "List recent generated media files (images, video, audio) in output/ directory.",
+      description:
+        "List recent generated media files (images, video, audio) in output/ directory.",
       parameters: {
         type: "object",
         properties: {
@@ -530,17 +592,20 @@ const TOOL_DEFS = [
     type: "function",
     function: {
       name: "vision_ocr",
-      description: "Specialized OCR tool: transcribe all visible text from an image preserving line breaks and layout. Preferred over generic vision_describe when the goal is text extraction. Returns raw transcription with [unclear] markers for illegible regions.",
+      description:
+        "Specialized OCR tool: transcribe all visible text from an image preserving line breaks and layout. Preferred over generic vision_describe when the goal is text extraction. Returns raw transcription with [unclear] markers for illegible regions.",
       parameters: {
         type: "object",
         properties: {
           image_path: {
             type: "string",
-            description: "Absolute or repo-relative path to image (png/jpg/webp)",
+            description:
+              "Absolute or repo-relative path to image (png/jpg/webp)",
           },
           prompt: {
             type: "string",
-            description: "Optional additional instructions appended to the OCR preset",
+            description:
+              "Optional additional instructions appended to the OCR preset",
           },
         },
         required: ["image_path"],
@@ -551,7 +616,8 @@ const TOOL_DEFS = [
     type: "function",
     function: {
       name: "vision_batch_analyze",
-      description: "Analyze multiple images in one call. Each image gets the same prompt/mode. Useful for reviewing a set of screenshots or frames. Returns an array of {image, analysis} objects.",
+      description:
+        "Analyze multiple images in one call. Each image gets the same prompt/mode. Useful for reviewing a set of screenshots or frames. Returns an array of {image, analysis} objects.",
       parameters: {
         type: "object",
         properties: {
@@ -566,7 +632,17 @@ const TOOL_DEFS = [
           },
           mode: {
             type: "string",
-            enum: ["ui", "responsive", "regression", "compare", "music-video", "consistency", "ocr", "table", "chart"],
+            enum: [
+              "ui",
+              "responsive",
+              "regression",
+              "compare",
+              "music-video",
+              "consistency",
+              "ocr",
+              "table",
+              "chart",
+            ],
             description: "Vision mode preset (default: ui)",
           },
         },
@@ -579,7 +655,12 @@ const TOOL_DEFS = [
 async function executeTool(name, args) {
   const reqId = generateRequestId();
   const fn = TOOL_IMPLEMENTATIONS[name];
-  if (!fn) return { error: `Unknown tool: ${name}`, hint: "Available tools: " + TOOL_DEFS.map(t => t.function.name).join(", ") };
+  if (!fn)
+    return {
+      error: `Unknown tool: ${name}`,
+      hint:
+        "Available tools: " + TOOL_DEFS.map((t) => t.function.name).join(", "),
+    };
   try {
     return await fn(args, reqId);
   } catch (e) {
@@ -614,7 +695,11 @@ const TOOL_IMPLEMENTATIONS = {
       for (const entry of entries) {
         const full = path.join(current, entry.name);
         if (entry.isDirectory()) {
-          if (!entry.name.startsWith(".") && entry.name !== "node_modules" && entry.name !== "target") {
+          if (
+            !entry.name.startsWith(".") &&
+            entry.name !== "node_modules" &&
+            entry.name !== "target"
+          ) {
             await walk(full);
           }
         } else if (entry.name.match(pattern)) {
@@ -647,13 +732,14 @@ const TOOL_IMPLEMENTATIONS = {
     }
     const img1 = await resizeImage(a, 1024, 80);
     const img2 = await resizeImage(b, 1024, 80);
-    const finalPrompt = prompt || "Compare these two screenshots. Describe every difference.";
+    const finalPrompt =
+      prompt || "Compare these two screenshots. Describe every difference.";
     const response = await callOllama(
       process.env.VISION_MODEL || DEFAULT_MODEL,
       finalPrompt,
       [img1, img2],
       2,
-      false
+      false,
     );
     return { comparison: response };
   },
@@ -669,13 +755,22 @@ const TOOL_IMPLEMENTATIONS = {
         hint: "Or use the existing scripts/capture-visualizer-frames.mjs workflow.",
       };
     }
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+    });
     const page = await context.newPage();
     try {
       const target = url || DEFAULT_FRONTEND_URL;
       await page.goto(target, { waitUntil: "networkidle", timeout: 30000 });
-      const outPath = path.resolve(PROJECT_ROOT, "output", "vision-screenshot.png");
-      await page.screenshot({ path: outPath, fullPage: full_page === "true" || full_page === true });
+      const outPath = path.resolve(
+        PROJECT_ROOT,
+        "output",
+        "vision-screenshot.png",
+      );
+      await page.screenshot({
+        path: outPath,
+        fullPage: full_page === "true" || full_page === true,
+      });
       return { screenshot: outPath, url: target };
     } finally {
       await browser.close();
@@ -687,9 +782,11 @@ const TOOL_IMPLEMENTATIONS = {
     try {
       const entries = fs.readdirSync(outDir, { recursive: true });
       const media = entries
-        .filter(e => /\.(png|jpg|jpeg|webp|mp4|webm|mov|mp3|wav)$/i.test(e.name))
+        .filter((e) =>
+          /\.(png|jpg|jpeg|webp|mp4|webm|mov|mp3|wav)$/i.test(e.name),
+        )
         .slice(0, limit)
-        .map(e => e.fullPath.replace(outDir, "output"));
+        .map((e) => e.fullPath.replace(outDir, "output"));
       return { directory: "output", files: media };
     } catch {
       return { directory: "output", files: [] };
@@ -723,113 +820,169 @@ const TOOL_IMPLEMENTATIONS = {
 
 const server = new Server(
   { name: "native-media-vision", version: "2.0.0" },
-  { capabilities: { tools: {} } }
+  { capabilities: { tools: {} } },
 );
 
-server.setRequestHandler('tools/list', async () => ({
+server.setRequestHandler("tools/list", async () => ({
   tools: [
     {
       name: "vision_describe",
-      description: "Describe a screenshot/image using local Ollama vision model (qwen3-vl:2b fast, or gemma4 for detailed). For non-vision coding agents: pass image path, get text description back. Scoped strictly to Native Media AI Studio.",
+      description:
+        "Describe a screenshot/image using local Ollama vision model (qwen3-vl:2b fast, or gemma4 for detailed). For non-vision coding agents: pass image path, get text description back. Scoped strictly to Native Media AI Studio.",
       inputSchema: {
         type: "object",
         properties: {
           image_path: {
             type: "string",
-            description: "Absolute or repo-relative path to image (png/jpg/webp) under Native Media AI Studio. Example: output/logs/screenshot.png or D:\\...\\Native Media AI Studio\\output\\screenshot.png",
+            description:
+              "Absolute or repo-relative path to image (png/jpg/webp) under Native Media AI Studio. Example: output/logs/screenshot.png or D:\\...\\Native Media AI Studio\\output\\screenshot.png",
           },
           prompt: {
             type: "string",
-            description: "Custom prompt. Default: detailed UI description with element positions. Use for targeted questions.",
+            description:
+              "Custom prompt. Default: detailed UI description with element positions. Use for targeted questions.",
           },
           mode: {
             type: "string",
-            enum: ["ui", "responsive", "regression", "compare", "music-video", "consistency", "ocr", "table", "chart", "multicomp"],
-            description: "Preset prompt mode. 'ui' = detailed scene/elements. 'responsive' = layout issues. 'regression' = compare vs source. 'ocr' = text extraction. 'table' = markdown table. 'chart' = chart reading.",
+            enum: [
+              "ui",
+              "responsive",
+              "regression",
+              "compare",
+              "music-video",
+              "consistency",
+              "ocr",
+              "table",
+              "chart",
+              "multicomp",
+            ],
+            description:
+              "Preset prompt mode. 'ui' = detailed scene/elements. 'responsive' = layout issues. 'regression' = compare vs source. 'ocr' = text extraction. 'table' = markdown table. 'chart' = chart reading.",
           },
         },
-        required: ["image_path"]
-      }
+        required: ["image_path"],
+      },
     },
     {
       name: "vision_compare",
-      description: "Compare two images via local vision model. Provide two image paths, get diff summary.",
+      description:
+        "Compare two images via local vision model. Provide two image paths, get diff summary.",
       inputSchema: {
         type: "object",
         properties: {
           image_a: { type: "string", description: "First image path" },
           image_b: { type: "string", description: "Second image path" },
-          prompt: { type: "string", description: "Optional focus prompt" }
+          prompt: { type: "string", description: "Optional focus prompt" },
         },
-        required: ["image_a", "image_b"]
-      }
+        required: ["image_a", "image_b"],
+      },
     },
     {
       name: "vision_ui_audit",
-      description: "Structured UI audit: returns positioned element list, visible text, layout issues, errors. Optimized for feeding to non-vision coding agents.",
+      description:
+        "Structured UI audit: returns positioned element list, visible text, layout issues, errors. Optimized for feeding to non-vision coding agents.",
       inputSchema: {
         type: "object",
         properties: {
-          image_path: { type: "string", description: "Absolute or repo-relative path to image" },
+          image_path: {
+            type: "string",
+            description: "Absolute or repo-relative path to image",
+          },
           viewport: { type: "string", description: "e.g. 1280x800" },
-          label: { type: "string", description: "Screen label, e.g. Generation3DPage" }
+          label: {
+            type: "string",
+            description: "Screen label, e.g. Generation3DPage",
+          },
         },
-        required: ["image_path"]
-      }
+        required: ["image_path"],
+      },
     },
     {
       name: "vision_ocr",
-      description: "Specialized OCR: transcribe all visible text from an image preserving line breaks and layout. Preferred over vision_describe when the goal is text extraction. Returns raw transcription with [unclear] markers for illegible regions.",
+      description:
+        "Specialized OCR: transcribe all visible text from an image preserving line breaks and layout. Preferred over vision_describe when the goal is text extraction. Returns raw transcription with [unclear] markers for illegible regions.",
       inputSchema: {
         type: "object",
         properties: {
-          image_path: { type: "string", description: "Absolute or repo-relative path to image (png/jpg/webp)" },
-          prompt: { type: "string", description: "Optional additional instructions appended to the OCR preset" }
+          image_path: {
+            type: "string",
+            description:
+              "Absolute or repo-relative path to image (png/jpg/webp)",
+          },
+          prompt: {
+            type: "string",
+            description:
+              "Optional additional instructions appended to the OCR preset",
+          },
         },
-        required: ["image_path"]
-      }
+        required: ["image_path"],
+      },
     },
     {
       name: "vision_batch_analyze",
-      description: "Analyze multiple images in one call. Each image gets the same prompt/mode. Useful for reviewing a set of screenshots or frames. Returns an array of {image, analysis} objects.",
+      description:
+        "Analyze multiple images in one call. Each image gets the same prompt/mode. Useful for reviewing a set of screenshots or frames. Returns an array of {image, analysis} objects.",
       inputSchema: {
         type: "object",
         properties: {
           image_paths: {
             type: "array",
             items: { type: "string" },
-            description: "Array of repo-relative image paths to analyze"
+            description: "Array of repo-relative image paths to analyze",
           },
-          prompt: { type: "string", description: "Shared prompt for all images (optional)" },
+          prompt: {
+            type: "string",
+            description: "Shared prompt for all images (optional)",
+          },
           mode: {
             type: "string",
-            enum: ["ui", "responsive", "regression", "compare", "music-video", "consistency", "ocr", "table", "chart"],
-            description: "Vision mode preset (default: ui)"
-          }
+            enum: [
+              "ui",
+              "responsive",
+              "regression",
+              "compare",
+              "music-video",
+              "consistency",
+              "ocr",
+              "table",
+              "chart",
+            ],
+            description: "Vision mode preset (default: ui)",
+          },
         },
-        required: ["image_paths"]
-      }
+        required: ["image_paths"],
+      },
     },
-    ...TOOL_DEFS.map(t => ({
+    ...TOOL_DEFS.map((t) => ({
       name: t.function.name,
       description: t.function.description,
       inputSchema: t.function.parameters,
     })),
-  ]
+  ],
 }));
 
-server.setRequestHandler('tools/call', async (request) => {
+server.setRequestHandler("tools/call", async (request) => {
   const { name, arguments: args } = request.params;
   const reqId = generateRequestId();
 
   try {
     if (name === "vision_describe") {
-      const text = await describeImage(args?.image_path, args?.prompt || null, args?.mode || "ui");
+      const text = await describeImage(
+        args?.image_path,
+        args?.prompt || null,
+        args?.mode || "ui",
+      );
       return textResponse(text);
     }
     if (name === "vision_compare") {
-      const prompt = args?.prompt || "Compare these two images. Identify differences, improvements, or regressions. Summarize key changes.";
-      const combined = await compareImages(args?.image_a, args?.image_b, prompt);
+      const prompt =
+        args?.prompt ||
+        "Compare these two images. Identify differences, improvements, or regressions. Summarize key changes.";
+      const combined = await compareImages(
+        args?.image_a,
+        args?.image_b,
+        prompt,
+      );
       return textResponse(combined);
     }
     if (name === "vision_ui_audit") {
@@ -855,33 +1008,47 @@ Viewport: ${args?.viewport || "unknown"} Label: ${args?.label || "screen"}`;
     }
 
     // Tool-callable tools: execute directly
-    if (TOOL_DEFS.some(t => t.function?.name === name)) {
+    if (TOOL_DEFS.some((t) => t.function?.name === name)) {
       const result = await executeTool(name, args || {});
       return textResponse(JSON.stringify(result, null, 2));
     }
 
     logRequest(reqId, "tools/call", `unknown-tool ${name}`);
-    return textResponse(`Unknown tool ${name}. Available tools: vision_describe, vision_compare, vision_ui_audit, vision_ocr, vision_batch_analyze, read_source, search_files, get_file_info, compare_visuals, take_screenshot, list_outputs`, true);
+    return textResponse(
+      `Unknown tool ${name}. Available tools: vision_describe, vision_compare, vision_ui_audit, vision_ocr, vision_batch_analyze, read_source, search_files, get_file_info, compare_visuals, take_screenshot, list_outputs`,
+      true,
+    );
   } catch (e) {
     console.error(`[${reqId}] [vision-mcp] tool error: ${e.message}`);
     const hint = e.message.includes("Ollama")
       ? "Hint: ensure Ollama is running (ollama serve) and a vision model is pulled (ollama pull gemma4:e2b-it-qat)."
       : e.message.includes("not found")
-      ? "Hint: check the file path is correct and the file exists."
-      : "";
-    return textResponse(`Vision error: ${e.message}${hint ? "\n" + hint : ""}`, true);
+        ? "Hint: check the file path is correct and the file exists."
+        : "";
+    return textResponse(
+      `Vision error: ${e.message}${hint ? "\n" + hint : ""}`,
+      true,
+    );
   }
 });
 
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("native-media-vision MCP ready v2.0.0 (project root: " + PROJECT_ROOT + ")");
-  console.error("  Tools: vision_describe, vision_compare, vision_ui_audit, vision_ocr, vision_batch_analyze, read_source, search_files, get_file_info, compare_visuals, take_screenshot, list_outputs");
-  console.error("  Primary backend: tools/vision/analyze.mjs | Fallback: tools/tests/vision_analyze.py");
-  console.error("  Default model: " + DEFAULT_MODEL + " | Ollama: " + OLLAMA_URL);
+  console.error(
+    "native-media-vision MCP ready v2.0.0 (project root: " + PROJECT_ROOT + ")",
+  );
+  console.error(
+    "  Tools: vision_describe, vision_compare, vision_ui_audit, vision_ocr, vision_batch_analyze, read_source, search_files, get_file_info, compare_visuals, take_screenshot, list_outputs",
+  );
+  console.error(
+    "  Primary backend: tools/vision/analyze.mjs | Fallback: tools/tests/vision_analyze.py",
+  );
+  console.error(
+    "  Default model: " + DEFAULT_MODEL + " | Ollama: " + OLLAMA_URL,
+  );
 }
-main().catch(err => {
+main().catch((err) => {
   console.error(err);
   process.exit(1);
 });

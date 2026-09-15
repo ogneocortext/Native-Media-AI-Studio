@@ -540,7 +540,6 @@ class ComfyUIManager:
 
     async def update(self) -> dict:
         """Update ComfyUI via git pull.
-        
         Uses ComfyUI's own git repository for updates.
 
         Returns:
@@ -815,7 +814,7 @@ class ComfyUIManager:
                         history = await resp.json()
                         if prompt_id in history:
                             outputs = history[prompt_id].get("outputs", {})
-                            for node_id, output in outputs.items():
+                            for _node_id, output in outputs.items():
                                 if "gifs" in output:
                                     for gif in output["gifs"]:
                                         video_path = gif.get("filename")

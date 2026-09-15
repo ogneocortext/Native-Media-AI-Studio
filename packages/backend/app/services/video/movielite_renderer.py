@@ -47,7 +47,7 @@ class MovieLiteRenderer(VideoRenderer):
         out = self._output(spec)
         t0 = time.perf_counter()
         try:
-            result = await asyncio.to_thread(self._render_sync, spec, out)
+            await asyncio.to_thread(self._render_sync, spec, out)
         except Exception as exc:
             return RenderResult(
                 engine=self.engine_id,

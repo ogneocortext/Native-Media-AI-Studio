@@ -409,4 +409,4 @@ async def cuda_analyze_audio(body: CudaAnalyzeAudioRequest) -> dict:
             "note": "CUDA not available. Install cupy for GPU acceleration.",
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"CUDA analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"CUDA analysis failed: {str(e)}") from e

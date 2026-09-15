@@ -3,12 +3,12 @@ import { useState, useEffect } from "react";
 
 export const StudioBackButton: React.FC = () => {
   const env = getRemotionEnvironment();
-  // Only in Remotion Studio preview, not in final renders or Player
-  if (!env.isStudio) return null;
-
+  // Hooks must run on every render (Rules of Hooks) — the Studio-only gate is
+  // applied after they complete, not before.
   const [frontendUrl, setFrontendUrl] = useState<string>("");
 
   useEffect(() => {
+    if (!env.isStudio) return;
     async function loadConfig() {
       try {
         const res = await fetch("/config/ports.json");
@@ -26,8 +26,10 @@ export const StudioBackButton: React.FC = () => {
       }
     }
     loadConfig();
-  }, []);
+  }, [env.isStudio]);
 
+  // Only in Remotion Studio preview, not in final renders or Player
+  if (!env.isStudio) return null;
   if (!frontendUrl) return null;
 
   return (

@@ -8,12 +8,10 @@ global CORSMiddleware (``app.main``) and per-endpoint CORS headers
 
 from __future__ import annotations
 
-from typing import FrozenSet
-
 from .config import config
 
 
-def get_local_origins() -> FrozenSet[str]:
+def get_local_origins() -> frozenset[str]:
     """Return the set of trusted local origins for CORS.
 
     The set is built from the configured ports plus common dev-server
@@ -24,10 +22,14 @@ def get_local_origins() -> FrozenSet[str]:
     return frozenset({
         f"http://127.0.0.1:{frontend}",
         f"http://127.0.0.1:{backend}",
+        f"http://localhost:{frontend}",
+        f"http://localhost:{backend}",
         # Common dev-server fallbacks
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5174",
+        "http://localhost:5173",
+        "http://localhost:5174",
     })
 
 

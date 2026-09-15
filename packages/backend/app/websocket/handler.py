@@ -75,7 +75,6 @@ class ConnectionManager:
 
     async def broadcast_health_status(self, status: dict[str, Any]):
         """Broadcast health status to all connected clients.
-        
         Args:
             status: The aggregate health status dict containing:
                 - status: "healthy|degraded|unhealthy"

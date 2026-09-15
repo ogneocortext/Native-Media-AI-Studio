@@ -4,15 +4,16 @@ Health and diagnostics API routes.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from fastapi import APIRouter
+
 from ..adapters.registry import adapter_registry
 from ..core.config import config
 from ..diagnostics.health import health_monitor
 from ..diagnostics.resources import resource_monitor
 from ..services.go_gateway_client import health as go_gateway_health
 from ..services.go_worker_client import health as go_worker_health
-
 
 logger = logging.getLogger(__name__)
 

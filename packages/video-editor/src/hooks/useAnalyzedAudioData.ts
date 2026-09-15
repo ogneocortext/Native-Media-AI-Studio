@@ -96,13 +96,19 @@ export interface AnalyzedAudioState {
 
 export function useAnalyzedAudioData(
   audioSrc: string,
-  analysis: AudioAnalysisData | null,
+  analysis: AudioAnalysisData | null | undefined,
   options: {
     beatWindowMs?: number;
+    /**
+     * Reserved for future temporal smoothing. Remotion compositions must stay
+     * pure functions of the current frame, so smoothing cannot be implemented
+     * with a running filter across frames; it would need to re-sample
+     * `visualizeAudio` for previous frames. Accepted for API stability, currently a no-op.
+     */
     smoothing?: boolean;
   } = {}
 ): AnalyzedAudioState {
-  const { beatWindowMs = 100, smoothing = true } = options;
+  const { beatWindowMs = 100 } = options;
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -134,7 +140,6 @@ export function useAnalyzedAudioData(
   const contract = analysis.timing_contract as TimingContract;
   const beats = contract.beats || [];
   const sections = contract.sections || [];
-  const duration = contract.duration || 0;
 
   // Section lookup via shared binary search
   const section = getSectionAtTime(sections, t);
@@ -159,5 +164,3 @@ export function useAnalyzedAudioData(
     ready: true,
   };
 }
-
-export type { TimingContractState };

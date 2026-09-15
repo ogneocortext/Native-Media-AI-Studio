@@ -3,10 +3,12 @@ Output files API routes.
 Returns list of generated media and their JSON sidecar metadata.
 """
 
+import asyncio
 import json
 import logging
 import shutil
 import subprocess
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -20,9 +22,6 @@ from ..core.config import PROJECT_ROOT, config
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/outputs", tags=["Outputs"])
-
-import asyncio
-import threading
 
 # =============================================================================
 # In-memory cache for output directory listing
@@ -453,7 +452,8 @@ async def extract_audio_cover(audio_path: Path, relative_base: Path) -> str | No
                 return None
         # Cleanup tiny failed file
         if cover_path.exists() and cover_path.stat().st_size < 1024:
-            try: cover_path.unlink()  # type: ignore
+            try:
+                cover_path.unlink()
             except Exception:
                 pass
     except Exception:
@@ -704,7 +704,8 @@ async def find_duplicate_groups(
         for p in paths_sorted:
             try:
                 rel = p.relative_to(output_base).as_posix()
-            except Exception: rel = str(p)
+            except Exception:
+                rel = str(p)
             rels.append({"filename": p.name, "relative_path": rel, "size_bytes": p.stat().st_size, "created_at": datetime.fromtimestamp(p.stat().st_ctime).isoformat()})
         dup_groups.append({
             "hash": h[:16],
@@ -840,7 +841,7 @@ async def delete_output(file_path: str) -> dict:
 
         return {"success": True, "message": f"Deleted {full_path.name} (+ sidecars)"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}") from e
     finally:
         _invalidate_cache()
 
@@ -909,7 +910,7 @@ async def rename_output(file_path: str, body: RenameRequest) -> dict:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Rename failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Rename failed: {str(e)}") from e
     finally:
         _invalidate_cache()
 
@@ -1001,7 +1002,7 @@ async def get_3d_thumbnail(filename: str):
             raise HTTPException(status_code=500, detail="Failed to generate thumbnail")
 
     except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="Thumbnail generation timed out")
+        raise HTTPException(status_code=504, detail="Thumbnail generation timed out") from None
     except Exception as e:
         logger.error(f"Thumbnail generation error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

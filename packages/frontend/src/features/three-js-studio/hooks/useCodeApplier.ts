@@ -191,7 +191,8 @@ export function useCodeApplier({
         try {
           let jsonStr = stripFences(code);
           if (!jsonStr) jsonStr = code;
-          const startIdx = jsonStr.search(/[\[{]/);
+          // Match the first `[` or `{` that starts the JSON payload.
+          const startIdx = jsonStr.search(/[[{]/);
           if (startIdx >= 0) jsonStr = jsonStr.substring(startIdx);
           const sceneDesc = JSON.parse(jsonStr);
           {
@@ -254,7 +255,9 @@ export function useCodeApplier({
             if (c.geometry) {
               try {
                 c.geometry.dispose();
-              } catch {}
+              } catch {
+                // Geometry already disposed or locked by the renderer — safe to ignore.
+              }
             }
             if (c.material) {
               const mats = Array.isArray(c.material)
@@ -263,7 +266,9 @@ export function useCodeApplier({
               mats.forEach((m: any) => {
                 try {
                   m.dispose();
-                } catch {}
+                } catch {
+                  // Material shared across meshes or already disposed — safe to ignore.
+                }
               });
             }
           });
@@ -308,7 +313,7 @@ export function useCodeApplier({
             "/* setPixelRatio stripped */",
           )
           .replace(
-            /window\s*\.\s*addEventListener\s*\(\s*['\"]resize['\"][^)]+\)\s*;?/g,
+            /window\s*\.\s*addEventListener\s*\(\s*['"]resize['"][^)]+\)\s*;?/g,
             "/* resize listener stripped */",
           )
           .replace(
@@ -334,7 +339,7 @@ export function useCodeApplier({
             "/* sessionStorage stripped */(",
           )
           .replace(
-            /document\.getElementById\s*\(\s*['\"]three-container['\"]\s*\)/g,
+            /document\.getElementById\s*\(\s*['"]three-container['"]\s*\)/g,
             "null",
           );
 

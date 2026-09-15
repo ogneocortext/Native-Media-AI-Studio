@@ -64,7 +64,7 @@ async def transcribe_track(request: TranscriptionRequest):
         return result
     except Exception as e:
         logger.error(f"Transcription failed: {e}")
-        raise HTTPException(500, f"Transcription failed: {str(e)}")
+        raise HTTPException(500, f"Transcription failed: {str(e)}") from e
 
 
 # NOTE: More specific routes must come BEFORE the generic {filename:path} route

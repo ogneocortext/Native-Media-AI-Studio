@@ -3,6 +3,7 @@ import { DEFAULT_VIZ_PARAMS } from "../types";
 import { kineticPresetList } from "./KineticPresets";
 import { visualPresetList } from "../visualPresets";
 import type { VisualizationStyle } from "../trackConceptAnalyzer";
+import type { PerceptualScale } from "../perceptualScales";
 
 interface Props {
   params: VizParams;
@@ -21,9 +22,11 @@ interface Props {
   onVizModeChange?: (m: "3d" | "shader" | "2d") => void;
   activeVisualPresetId?: string | null;
   onVisualPresetSelect?: (id: string) => void;
+  perceptualScale?: PerceptualScale;
+  onPerceptualScaleChange?: (s: PerceptualScale) => void;
 }
 
-export function SettingsPanel({ params, onChange, bgColor, meshColor, onBgChange, onMeshChange, demoEnabled, onDemoToggle, kineticPreset, onKineticPresetChange, visualizationStyle, onVisualizationStyleChange, vizMode, onVizModeChange, activeVisualPresetId, onVisualPresetSelect }: Props) {
+export function SettingsPanel({ params, onChange, bgColor, meshColor, onBgChange, onMeshChange, demoEnabled, onDemoToggle, kineticPreset, onKineticPresetChange, visualizationStyle, onVisualizationStyleChange, vizMode, onVizModeChange, activeVisualPresetId, onVisualPresetSelect, perceptualScale, onPerceptualScaleChange }: Props) {
   return (
     <aside className="viz-settings">
       <div className="viz-settings-section">
@@ -72,6 +75,18 @@ export function SettingsPanel({ params, onChange, bgColor, meshColor, onBgChange
         <h4>Colors</h4>
         <div className="viz-color-row"><label>Background</label><input type="color" value={bgColor} onChange={(e) => onBgChange(e.target.value)} /></div>
         <div className="viz-color-row"><label>Mesh</label><input type="color" value={meshColor} onChange={(e) => onMeshChange(e.target.value)} /></div>
+      </div>
+      <div className="viz-settings-section">
+        <h4>Audio Analysis</h4>
+        <div className="viz-slider-row"><label>Frequency Scale</label>
+          <select value={perceptualScale ?? "mel"} onChange={(e) => onPerceptualScaleChange?.(e.target.value as PerceptualScale)}>
+            <option value="mel">Mel (pitch)</option>
+            <option value="log">Log (octaves)</option>
+            <option value="bark">Bark (critical bands)</option>
+            <option value="erb">ERB (auditory)</option>
+            <option value="linear">Linear (Hz)</option>
+          </select>
+        </div>
       </div>
       <div className="viz-settings-section">
         <h4>Lyric Animation</h4>

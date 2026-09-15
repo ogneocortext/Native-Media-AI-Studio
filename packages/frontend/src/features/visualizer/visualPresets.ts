@@ -512,6 +512,25 @@ export const visualPresets: Record<string, VisualPreset> = {
 
 export const visualPresetList = Object.values(visualPresets);
 
+/**
+ * Normalize text for matching: lowercase, collapse separators (hyphens,
+ * underscores, slashes) to spaces, squeeze whitespace. Keeps `&` and `+`
+ * so tokens like "r&b" and "k-pop"→"k pop" stay matchable on both sides.
+ */
+function normalizeSearchText(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9&+]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Padded-substring check on already-normalized text (no "rap"⊂"grape" bugs). */
+function includesToken(haystackNormalized: string, tokenNormalized: string): boolean {
+  if (!tokenNormalized) return false;
+  return ` ${haystackNormalized} `.includes(` ${tokenNormalized} `);
+}
+
 /** Auto-select preset based on track name, genre, and analysis data */
 export function selectVisualPreset(
   trackName: string,
@@ -519,29 +538,37 @@ export function selectVisualPreset(
   energy?: number,
   bpm?: number
 ): string {
-  const name = trackName.toLowerCase();
-  const g = (genre || "").toLowerCase();
-
-  // Check by genre first
+  // Combined normalized haystack: genre + track name. All catalog genres are
+  // matched longest-first so "trap metal" wins over "trap"/"metal" and
+  // "west coast" wins over generic single-word tags regardless of catalog order.
+  const haystack = normalizeSearchText(`${genre || ""} ${trackName}`);
+  const candidates: Array<{ presetId: string; phrase: string }> = [];
   for (const preset of visualPresetList) {
-    if (preset.genres.some(pg => g.includes(pg) || name.includes(pg))) {
-      return preset.id;
+    for (const pg of preset.genres) {
+      const phrase = normalizeSearchText(pg);
+      if (phrase) candidates.push({ presetId: preset.id, phrase });
     }
   }
+  candidates.sort((a, b) => b.phrase.length - a.phrase.length);
+  for (const c of candidates) {
+    if (includesToken(haystack, c.phrase)) return c.presetId;
+  }
 
-  // Check by track name keywords
-  if (name.includes("phonk") || name.includes("drift")) return "phonk";
-  if (name.includes("synthwave") || name.includes("neon") || name.includes("retro")) return "synthwave";
-  if (name.includes("ambient") || name.includes("trance") || name.includes("space")) return "ambient";
-  if (name.includes("g-funk") || name.includes("funk") || name.includes("west coast")) return "gfunk";
-  if (name.includes("grime") || name.includes("uk")) return "grime";
-  if (name.includes("dubstep") || name.includes("bass") || name.includes("heavy")) return "dubstep";
-  if (name.includes("lo-fi") || name.includes("lofi") || name.includes("chill")) return "lofi";
-  if (name.includes("cinematic") || name.includes("epic") || name.includes("trailer")) return "cinematic";
-  if (name.includes("r&b") || name.includes("rnb") || name.includes("soul") || name.includes("neo-soul")) return "rb";
-  if (name.includes("pop") || name.includes("dance-pop") || name.includes("electropop")) return "pop";
-  if (name.includes("indie") || name.includes("indie rock") || name.includes("indie folk") || name.includes("alternative")) return "indie";
-  if (name.includes("trap metal") || name.includes("trap-metal") || name.includes("nu metal")) return "trapMetal";
+  // Keyword fallback for track names (token-based, not substring).
+  const has = (...tokens: string[]) =>
+    tokens.some((t) => includesToken(haystack, normalizeSearchText(t)));
+  if (has("phonk", "drift")) return "phonk";
+  if (has("synthwave", "neon", "retro", "outrun")) return "synthwave";
+  if (has("ambient", "trance", "space")) return "ambient";
+  if (has("g funk", "funk", "west coast")) return "gfunk";
+  if (has("grime", "uk garage")) return "grime";
+  if (has("dubstep", "brostep", "bass", "heavy")) return "dubstep";
+  if (has("lo fi", "lofi", "chill")) return "lofi";
+  if (has("cinematic", "orchestral", "epic", "trailer")) return "cinematic";
+  if (has("r&b", "rnb", "soul", "neo soul", "slow jam")) return "rb";
+  if (has("dance pop", "electropop", "k pop", "j pop", "pop")) return "pop";
+  if (has("indie rock", "indie folk", "indie", "alternative", "folk")) return "indie";
+  if (has("trap metal", "rap metal", "nu metal", "metal")) return "trapMetal";
 
   // Fall back to energy/BPM-based selection
   if (energy !== undefined) {

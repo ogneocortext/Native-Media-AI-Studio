@@ -6,6 +6,104 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Fixed - Repo-wide review: broken toolchain, crash bugs, and lint debt (2026-09-15)
+
+A full review of frontend, backend, video-editor, and build tooling. Every gate
+(`pnpm -r lint`, `tsc`, `ruff`, `pytest`, `vite build`) now passes.
+
+**Build tooling (was silently broken)**
+- **`turbo.json` used the removed `pipeline` key** — turbo 2.x requires `tasks`.
+  Root `build` / `lint` / `test` tasks failed outright; renamed to `tasks`
+  (verified with `turbo build --dry=json`).
+- **`pnpm dev:backend` was unusable on Windows** — it embedded bash-only
+  `${BACKEND_PORT:-8000}` syntax that `cmd.exe` passes through literally, so
+  uvicorn received an invalid port. It now delegates to
+  `scripts\manage-servers.ps1 -Action start -Services backend`, matching
+  `dev:comfyui` and honouring `config/ports.json`.
+- **`.gitignore`** now covers root scratch/debug artifacts (`out/`,
+  `unsloth_compiled_cache/`, `tools/vision/screenshots/`, one-off `check_*` scripts).
+- **Ruff config** gained `per-file-ignores` so the intentional test-suite
+  `sys.path` bootstrap (`E402`) and the Win32 API constant names in
+  `diagnostics/resources.py` (`N806`) are documented exceptions instead of noise.
+
+**Backend crash bugs**
+- **`app/main.py` WebSocket handshake raised `NameError`** — the origin check
+  referenced a module-level `_local_origins` that no longer exists (the allowlist
+  moved to `app.core.cors`). Every origin-bearing WS connection died. Now uses
+  `is_local_origin()` for an exact match, which also closes a `startswith()`
+  bypass (`http://127.0.0.1:5173.evil.example.com` previously passed).
+- **Undefined names (`F821`)** in `api/health.py`, `api/log_analytics.py`
+  (`Any` used without import) and
+  `tests/integration/run_integration_tests.py` (`AsyncGenerator`).
+- **Backend test suite could not collect** — `tests/test_main_cors_origin.py`
+  still imported the removed `_local_origins` from `app.main`, aborting all 29
+  tests. Rewritten against `app.core.cors`, plus new regression tests for the
+  WS origin gate (reject 4001 / accept trusted).
+- **Frontend log attribution was dropped** — `api/logs.py` read the `source`
+  field from each frontend entry and discarded it, so log analytics could not
+  tell which component emitted an entry. It is now prefixed into the message;
+  the unused `timestamp` read (the app formatter adds the authoritative one) is gone.
+- **`ffmpeg_tools.py`** shadowed `PROJECT_ROOT` via two conflicting imports
+  (`F811`), neither used.
+- **`services/transcription.py`** chained the missing-dependency `ImportError`
+  into the raised `RuntimeError` so the root cause survives in tracebacks.
+- Module renamed `services/lyricsParser.py` → `services/lyrics_parser.py`
+  (PEP 8; single import site updated).
+
+**Backend lint debt**: `ruff check` went 230 errors → **0**. Removed ~20 unused
+imports/variables, sorted imports, stripped trailing whitespace, fixed
+ambiguous/misleading names, and added explicit `raise ... from <err>` chaining to
+58 exception translations (59 → 0 for `B904`) so tracebacks show the root cause.
+
+**Frontend (32 ESLint errors → 0, `tsc -b` clean, production build green)**
+- `services/fetchWithTimeout.ts` now attaches `cause` to the timeout error.
+- `visualizer/lyricsParser.ts`: removed a **dead no-op loop** that iterated all
+  lyric sections doing nothing, plus an unused counter, useless assignments and
+  needless regex escapes.
+- `visualizer/perceptualScales.ts`: `case` blocks wrapped in braces (lexical
+  declarations were leaking across cases).
+- `docs/DocsPage.tsx`: `@ts-ignore` → `@ts-expect-error` (fails loudly if the
+  suppression becomes unnecessary).
+- Six stale `// eslint-disable-next-line react-hooks/exhaustive-deps` comments
+  were **inert** (the `react-hooks` plugin is not installed in this package) and
+  were the source of 6 lint errors. Two were removed outright (the deps were
+  already correct); the four that encode real intent were replaced with
+  explanatory comments. **Recommendation:** add `eslint-plugin-react-hooks` to
+  the frontend to actually enforce hook dependency correctness — it was not
+  added here because it is not currently a dependency of the workspace.
+- `three-js-studio`: unnecessary regex escapes, and GPU-probe `catch` blocks
+  that redundantly reassigned the default.
+
+**video-editor (35 ESLint errors → 0, `tsc --noEmit` 17 errors → 0)**
+Its `lint` script is `eslint src && tsc`, and ESLint had always failed first —
+so **`tsc` had never run** and a set of real bugs was invisible:
+- **Rules of Hooks violation** in `components/StudioBackButton.tsx`: an early
+  `return null` sat *before* `useState`/`useEffect`. Hooks now run
+  unconditionally and the Studio gate is applied afterwards.
+- **`Composition.tsx` referenced an undefined `EASE_SMOOTH`** (`TS2304`) — a
+  guaranteed `ReferenceError` on every section-transition frame. Defined alongside
+  the other compositions' `EASE_ENTER`.
+- **Wrong import paths** — `../services/api` from `src/Composition.tsx` resolved
+  to `packages/video-editor/services/api` (nonexistent); corrected to
+  `./services/api`. `AudioReactiveVisualizer.tsx` pointed at a nonexistent
+  `../../../shared/timing`; it now uses the package's `../lib/timing` like the rest.
+- **`Section`/`SectionEvent` shape mismatch crashed the analyzed path** —
+  `lib/timing` keys sections by `type` while the render layers read `name`, so
+  passing an `analysis` prop raised `undefined.includes(...)`. Both mapping sites
+  now normalize `type` → uppercase `name`, and the palette/typography tables
+  compare case-insensitively so they work whichever case the backend emits.
+- `lib/timing.ts` `TimingContract` gained the missing `lyrics?: LyricTiming[]`
+  (already present in the canonical `shared/timing.ts`).
+- Duplicate `export type { TimingContractState }` removed (`TS2484`).
+- All 11 `React.FC<any>` layer components are now properly typed against the
+  existing local `Section` / `LyricLine` types.
+- Removed 21 unused variables/imports, and a CSS `transition` on a Remotion
+  element that broke frame purity (`@remotion/non-pure-animation` → removed).
+- Film grain now renders through `<Img>` instead of `background-image`, which
+  Remotion cannot guarantee is painted at render time
+  (`@remotion/no-background-image`).
+
 ### Added - Sidebar Simplification + TypeScript Fixes (2026-09-11)
 
 - **Sidebar nav sections collapsible**: `Start`, `Create`, `Generate`, `Manage`, and `System` sections now have individual toggle controls; `Generate`, `Manage`, and `System` default to collapsed. Addresses progressive disclosure (`docs/ux-audit/audit-report.md` #8).

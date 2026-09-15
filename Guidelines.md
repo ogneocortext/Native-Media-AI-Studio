@@ -1,6 +1,6 @@
 # Native Media AI Studio — Project Guidelines (v3)
 
-> **Last Updated:** 2026-09-05
+> **Last Updated:** 2026-09-15
 > **Status:** Active Development (Phase 1+2 — Music Video Wizard, 2D/LRC Visualizer, 3D Gen, Unity/Blender/Remotion)
 > **Purpose:** Living specification and implementation guide for the creative production environment.
 
@@ -167,11 +167,14 @@ Uploaded audio is analyzed using librosa for:
 - **Spectral features** (centroid, rolloff, bandwidth)
 
 ### 7.3 Video Generation
-Music video jobs support 4 visualization styles:
-- **Abstract** — Flowing color fields driven by audio
-- **Waveform** — Classic oscilloscope-style visualization
-- **Particles** — Swirling particle system
-- **Geometric** — Sharp geometric shapes pulsing to beat
+Music video jobs support 7 visualization styles:
+- **Cyberpunk Neon** — Synthwave cityscape, neon lights, purple and cyan, futuristic
+- **Organic Flow** — Flowing nature-inspired forms, water waves, smoke trails, earth tones
+- **Geometric Pulse** — Triangles, squares, hexagons pulsing to beat, sharp edges, neon outlines
+- **Particle Dance** — Swirling particles, bokeh depth, golden-ratio spiral, volumetric lighting
+- **Vinyl Retro** — Spinning vinyl, 1970s aesthetic, warm analog tones, grain texture
+- **Waveform Classic** — Oscilloscope waveform, green phosphor CRT, retro tech
+- **Fire Energy** — Dynamic flames, heat distortion, orange/red, intense dramatic lighting
 
 Plus 5 color schemes: auto, warm, cool, neon, monochrome.
 

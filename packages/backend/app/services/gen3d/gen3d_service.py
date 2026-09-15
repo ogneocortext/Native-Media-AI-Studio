@@ -887,7 +887,6 @@ class Gen3DService:
 
     def _decimate_if_needed(self, glb_path: Path, target_faces: int = 50000) -> dict:
         """Decimate a GLB mesh if it exceeds the target face count.
-        
         Uses Blender's Python API to reduce polygon count for manageable file sizes.
         """
         try:

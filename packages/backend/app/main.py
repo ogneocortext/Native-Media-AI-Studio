@@ -313,7 +313,7 @@ app = FastAPI(
 
 # Local-first app: allow the dev frontend origins explicitly. A wildcard origin
 # combined with allow_credentials=True is rejected by browsers per the CORS spec.
-from .core.cors import get_local_origins
+from .core.cors import get_local_origins, is_local_origin  # noqa: E402
 
 app.add_middleware(
     CORSMiddleware,
@@ -328,6 +328,7 @@ from .api import (  # noqa: E402
     comfyui,
     data,
     docs,
+    gen3d,
     health,
     hyperframes,
     integrations,
@@ -336,13 +337,12 @@ from .api import (  # noqa: E402
     logs,
     lyrics,
     media,
+    music_prompts,
     native_open,
     outputs,
     transcription,
     video,
     vision,
-    gen3d,
-    music_prompts,
 )
 
 app.include_router(jobs.router)
@@ -421,10 +421,10 @@ async def ws_http_fallback():
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket shim that mirrors SSE broadcasts for legacy clients."""
     # Origin validation: only accept connections from trusted local origins.
-    # Mirror the CORS allowlist so dynamic backend/frontend ports are accepted.
+    # Mirrors the CORS allowlist (app.core.cors) so dynamic backend/frontend
+    # ports stay in sync. Non-browser clients send no Origin header and pass.
     origin = websocket.headers.get("origin", "")
-    allowed_origins = _local_origins
-    if origin and not any(origin.startswith(allowed) for allowed in allowed_origins):
+    if origin and not is_local_origin(origin):
         await websocket.close(code=4001, reason="Origin not allowed")
         return
     await connection_manager.connect(websocket)
@@ -454,7 +454,6 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.get("/api/events")
 async def sse_endpoint(request: Request):
     """SSE endpoint for real-time server-to-client updates.
-    
     Provides health status, job progress, and resource warnings
     via Server-Sent Events (SSE). The browser's EventSource API
     handles automatic reconnection and event resumption.

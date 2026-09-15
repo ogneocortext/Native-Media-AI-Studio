@@ -388,7 +388,7 @@ class ComfyUIAdapter(BaseAdapter):
         if prompt_id in history:
             entry = history[prompt_id]
             if "outputs" in entry:
-                for node_id, output in entry["outputs"].items():
+                for _node_id, output in entry["outputs"].items():
                     if "images" in output:
                         for img in output["images"]:
                             image_data = await self._fetch_image(img["filename"], img.get("subfolder", ""))
@@ -589,7 +589,7 @@ class ComfyUIAdapter(BaseAdapter):
                     raise RuntimeError(f"ComfyUI generation failed: {error_msg}")
 
                 if "outputs" in entry:
-                    for node_id, output in entry["outputs"].items():
+                    for _node_id, output in entry["outputs"].items():
                         # Check for video/gif output (VideoHelperSuite)
                         if "gifs" in output:
                             for gif in output["gifs"]:

@@ -15,9 +15,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 from ..core.config import PROJECT_ROOT
+
+logger = logging.getLogger(__name__)
 
 SEPARATION_DIR = PROJECT_ROOT / "output" / "stems"
 SEPARATION_DIR.mkdir(parents=True, exist_ok=True)
@@ -159,11 +159,7 @@ class SourceSeparator:
         except NotImplementedError:
             # Windows SelectorEventLoop fallback: run in a thread via subprocess.run
             def _run() -> tuple[int, bytes, bytes]:
-                completed = subprocess.run(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                )
+                completed = subprocess.run(cmd, capture_output=True)
                 return completed.returncode, completed.stdout, completed.stderr
 
             returncode, stdout, stderr = await asyncio.to_thread(_run)
@@ -246,11 +242,7 @@ class SourceSeparator:
         except NotImplementedError:
             # Windows SelectorEventLoop fallback: run in a thread via subprocess.run
             def _run() -> tuple[int, bytes, bytes]:
-                completed = subprocess.run(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                )
+                completed = subprocess.run(cmd, capture_output=True)
                 return completed.returncode, completed.stdout, completed.stderr
 
             returncode, stdout, stderr = await asyncio.to_thread(_run)

@@ -89,7 +89,7 @@ export function KineticLyricOverlay({
     if (prevSectionRef.current !== activeSection && prevSectionRef.current) {
       const el = containerRef.current.querySelector(".kinetic-active-line");
       if (el) {
-        try { lineAnimRef.current?.pause(); } catch {}
+        try { lineAnimRef.current?.pause(); } catch { /* already finished */ }
         animateSectionTransition(el as HTMLElement, activeSection);
       }
     }
@@ -106,7 +106,7 @@ export function KineticLyricOverlay({
       if (el) {
         const intensity = getSectionIntensity(displayLine.section);
         (el as HTMLElement).style.setProperty("--section-intensity", String(intensity));
-        try { lineAnimRef.current?.pause(); } catch {}
+        try { lineAnimRef.current?.pause(); } catch { /* already finished */ }
         // `animate` returns a JSAnimatable; keep handle so beat/section don't pile up.
         // Cast to any — animejs v4 types are loose.
         lineAnimRef.current = preset.enterAnimation(el as HTMLElement) as any;
@@ -123,7 +123,7 @@ export function KineticLyricOverlay({
     if (el && preset.beatAnimation) {
       const intensity = 0.4 + features.energy * 0.4 + getSectionIntensity(displayLine!.section) * 0.2;
       (el as HTMLElement).style.setProperty("--beat-intensity", String(intensity));
-      try { beatAnimRef.current?.pause(); } catch {}
+      try { beatAnimRef.current?.pause(); } catch { /* already finished */ }
       beatAnimRef.current = preset.beatAnimation(el as HTMLElement) as any;
     }
   }, [beat, preset, features.energy, displayLine, isGapPreview]);

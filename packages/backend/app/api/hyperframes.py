@@ -96,7 +96,6 @@ async def hyperframes_examples() -> dict[str, Any]:
     result = _run_hyperframes(["compositions"])
     examples: list[dict[str, Any]] = []
     if result.get("returncode") == 0:
-        import shlex
         for line in (result.get("stdout") or "").splitlines():
             line = line.strip()
             if line and not line.startswith("—") and not line.startswith("No "):

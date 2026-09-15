@@ -1,9 +1,9 @@
 /**
  * Kinetic Typography Presets for Track-Specific Visuals
- * 
+ *
  * Each preset is designed for a specific genre/mood found in the track library:
  * - Phonk/Drift: Aggressive glitch, distortion
- * - Synthwave: Neon glow, retro aesthetics  
+ * - Synthwave: Neon glow, retro aesthetics
  * - Ambient/Trance: Ethereal, slow floating
  * - West Coast G-Funk: Smooth, groovy bounce
  * - UK Grime: Sharp, angular, fast
@@ -315,11 +315,142 @@ const cinematicPreset: KineticPreset = {
 };
 
 // ============================================================
+// PRESET: WAVY TEXT — Sine wave character animation
+// ============================================================
+const wavyPreset: KineticPreset = {
+  id: "wavy",
+  name: "Wavy Text",
+  description: "Sine wave character animation with strength control",
+  genres: ["electronic", "dreamy", "soft", "flow"],
+  containerClass: "kinetic-wavy",
+  wordClass: "kinetic-word-wavy",
+  enterAnimation: (el) => {
+    // Split text into characters for wave effect
+    const chars = el.textContent?.split("") || [];
+    el.innerHTML = chars.map((c) => `<span class="char">${c}</span>`).join("");
+
+    const charElements = el.querySelectorAll(".char");
+    animate(charElements, {
+      y: ["-50%", "50%"],
+      duration: 500,
+      loop: true,
+      alternate: true,
+      ease: "inOut(2)",
+      delay: (_el, i) => (i ?? 0) * 50,
+    });
+  },
+  exitAnimation: (el) => {
+    animate(el, {
+      opacity: [1, 0],
+      scale: [1, 0.8],
+      duration: 400,
+      ease: "inExpo",
+    });
+  },
+  beatAnimation: (el) => {
+    const charElements = el.querySelectorAll(".char");
+    animate(charElements, {
+      scale: [1, 1.3, 1],
+      duration: 150,
+      delay: (_el, i) => (i ?? 0) * 20,
+      ease: "outQuad",
+    });
+  },
+};
+
+// ============================================================
+// PRESET: RAINING LETTERS — Letters fall into place
+// ============================================================
+const rainingPreset: KineticPreset = {
+  id: "raining",
+  name: "Raining Letters",
+  description: "Letters fall into place from above",
+  genres: ["hip-hop", "trap", "heavy", "impact"],
+  containerClass: "kinetic-raining",
+  wordClass: "kinetic-word-raining",
+  enterAnimation: (el) => {
+    const chars = el.textContent?.split("") || [];
+    el.innerHTML = chars.map((c) => `<span class="char">${c}</span>`).join("");
+
+    const charElements = el.querySelectorAll(".char");
+    animate(charElements, {
+      y: ["100%", "0%"],
+      opacity: [0, 1],
+      duration: 600,
+      delay: (_el, i) => (i ?? 0) * 40,
+      ease: "outBounce",
+    });
+  },
+  exitAnimation: (el) => {
+    const charElements = el.querySelectorAll(".char");
+    animate(charElements, {
+      y: ["0%", "100%"],
+      opacity: [1, 0],
+      duration: 400,
+      delay: (_el, i) => (i ?? 0) * 30,
+      ease: "inQuad",
+    });
+  },
+  beatAnimation: (el) => {
+    const charElements = el.querySelectorAll(".char");
+    animate(charElements, {
+      translateY: [0, -10, 0],
+      duration: 200,
+      delay: (_el, i) => (i ?? 0) * 15,
+      ease: "outQuad",
+    });
+  },
+};
+
+// ============================================================
+// PRESET: 3D FLIP — 3D rotating word effect
+// ============================================================
+const flip3dPreset: KineticPreset = {
+  id: "flip3d",
+  name: "3D Flip",
+  description: "3D rotating word effect with depth",
+  genres: ["electronic", "future", "techno", "modern"],
+  containerClass: "kinetic-flip3d",
+  wordClass: "kinetic-word-flip3d",
+  enterAnimation: (el) => {
+    el.style.transformStyle = "preserve-3d";
+    el.style.perspective = "1000px";
+
+    animate(el, {
+      rotateX: [-90, 0],
+      opacity: [0, 1],
+      duration: 600,
+      ease: "outExpo",
+    });
+  },
+  exitAnimation: (el) => {
+    animate(el, {
+      rotateX: [0, 90],
+      opacity: [1, 0],
+      duration: 400,
+      ease: "inExpo",
+    });
+  },
+  beatAnimation: (el) => {
+    animate(el, {
+      rotateY: [0, 10, -10, 0],
+      scale: [1, 1.1, 1],
+      duration: 200,
+      ease: "outQuad",
+    });
+  },
+};
+
+// ============================================================
 // ENHANCED PRESETS WITH LRC TIMING SUPPORT
 // ============================================================
 
 /** Word-level animation - highlights individual words on beat */
-export function animateWordsOnBeat(_el: HTMLElement, words: HTMLElement[], currentWordIdx: number) {
+export function animateWordsOnBeat(
+  _el: HTMLElement,
+  words: HTMLElement[],
+  currentWordIdx: number,
+) {
   words.forEach((wordEl, idx) => {
     if (idx === currentWordIdx) {
       animate(wordEl, {
@@ -379,14 +510,21 @@ export function animateSectionTransition(el: HTMLElement, toSection: string) {
 }
 
 /** Estimate word-level timing from line timing — syllable/char-weighted, not even split (2026 fix) */
-export function estimateWordTiming(text: string, lineStart: number, lineEnd: number): Array<{ word: string; start: number; end: number }> {
-  const words = text.split(/\s+/).filter(w => w.length > 0);
+export function estimateWordTiming(
+  text: string,
+  lineStart: number,
+  lineEnd: number,
+): Array<{ word: string; start: number; end: number }> {
+  const words = text.split(/\s+/).filter((w) => w.length > 0);
   if (words.length === 0) return [];
   const duration = Math.max(0.6, lineEnd - lineStart);
   // Weight by visible length + syllable heuristic (longer words & those with more vowels take longer)
-  const weights = words.map(w => {
+  const weights = words.map((w) => {
     const clean = w.replace(/[^a-zA-Z0-9']/g, "");
-    const syllables = Math.max(1, (clean.match(/[aeiouy]{1,2}/gi) || []).length);
+    const syllables = Math.max(
+      1,
+      (clean.match(/[aeiouy]{1,2}/gi) || []).length,
+    );
     return Math.max(1.5, clean.length * 0.6 + syllables * 0.9);
   });
   const totalWeight = weights.reduce((a, b) => a + b, 0);
@@ -403,7 +541,10 @@ export function estimateWordTiming(text: string, lineStart: number, lineEnd: num
 }
 
 /** Find current word index based on elapsed time */
-export function findCurrentWord(words: Array<{ start: number; end: number }>, elapsed: number): number {
+export function findCurrentWord(
+  words: Array<{ start: number; end: number }>,
+  elapsed: number,
+): number {
   for (let i = 0; i < words.length; i++) {
     if (elapsed >= words[i].start && elapsed < words[i].end) {
       return i;
@@ -420,20 +561,69 @@ export const kineticPresets: Record<string, KineticPreset> = {
   dubstep: dubstepPreset,
   lofi: lofiPreset,
   cinematic: cinematicPreset,
+  wavy: wavyPreset,
+  raining: rainingPreset,
+  flip3d: flip3dPreset,
 };
 
 export const kineticPresetList = Object.values(kineticPresets);
 
-/** Auto-select preset based on track characteristics */
+/** Normalize for token matching: lowercase, separators → spaces. */
+function normalizeKineticText(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9&+]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function includesKineticToken(haystack: string, token: string): boolean {
+  const t = normalizeKineticText(token);
+  if (!t) return false;
+  return ` ${haystack} `.includes(` ${t} `);
+}
+
+/**
+ * Auto-select preset based on track characteristics. NOTE: callers pass the
+ * track *name* (not just genre), so matching is token-based with word
+ * boundaries — plain `includes()` misrouted "trap metal"→phonk (via "trap"),
+ * "grape soda"→gfunk (via "rap"), and any "…uk…" word → grime (via "uk").
+ * Catalog genres match longest-first; newer visual-preset genres map to the
+ * closest kinetic preset (mirrors visualPresets.ts kineticPreset choices).
+ */
 export function selectPresetForTrack(genre: string, energy: number): string {
-  const g = genre.toLowerCase();
-  if (g.includes("phonk") || g.includes("drift") || g.includes("trap")) return "phonk";
-  if (g.includes("synthwave") || g.includes("neon") || g.includes("retro")) return "synthwave";
-  if (g.includes("ambient") || g.includes("trance") || g.includes("progressive")) return "ambient";
-  if (g.includes("g-funk") || g.includes("funk") || g.includes("west coast")) return "gfunk";
-  if (g.includes("grime") || g.includes("uk")) return "grime";
-  if (g.includes("dubstep") || g.includes("brostep") || g.includes("bass")) return "dubstep";
-  if (g.includes("lo-fi") || g.includes("lofi") || g.includes("chill")) return "lofi";
+  const haystack = normalizeKineticText(genre);
+  const has = (...tokens: string[]) =>
+    tokens.some((t) => includesKineticToken(haystack, t));
+
+  // Specific multi-word genres first (longest-match wins over single words).
+  if (has("trap metal", "rap metal", "nu metal")) return "dubstep";
+  if (has("west coast", "g funk")) return "gfunk";
+  if (has("uk garage", "grime")) return "grime";
+  if (has("dance pop", "electropop", "k pop", "j pop")) return "synthwave";
+  if (has("r&b", "rnb", "soul", "slow jam", "neo soul")) return "cinematic";
+  if (has("indie rock", "indie folk")) return "ambient";
+  if (has("drum and bass", "brostep", "dubstep")) return "dubstep";
+  if (has("hip hop", "hiphop")) return "raining";
+  if (has("indie", "alternative", "folk", "pop")) return "wavy";
+
+  // Generic catalog match, longest genre phrase first.
+  const candidates: Array<{ id: string; phrase: string }> = [];
+  for (const preset of Object.values(kineticPresets)) {
+    for (const genreTag of preset.genres) {
+      const phrase = normalizeKineticText(genreTag);
+      if (phrase) candidates.push({ id: preset.id, phrase });
+    }
+  }
+  candidates.sort((a, b) => b.phrase.length - a.phrase.length);
+  for (const c of candidates) {
+    if (c.phrase === "trap") continue; // claimed by both phonk + raining; resolved explicitly above
+    if (includesKineticToken(haystack, c.phrase)) return c.id;
+  }
+  if (has("trap", "phonk", "drift")) return "phonk";
+  if (has("electronic", "dreamy", "soft", "flow")) return "wavy";
+  if (has("heavy", "impact")) return "raining";
+  if (has("future", "techno", "modern")) return "flip3d";
   if (energy > 0.7) return "dubstep";
   if (energy < 0.3) return "ambient";
   return "cinematic";

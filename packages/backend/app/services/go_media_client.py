@@ -6,7 +6,6 @@ All methods return a job dict accepted by go-media, or raise on transport errors
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 

@@ -615,8 +615,10 @@ def _parse_log_line(line: str) -> LogEventRow | None:
         ts_str = parts[0].strip()
         level = parts[1].strip()
         logger = parts[2].strip()
-        # parts[3] is funcName, may be empty/blank when missing
-        func = parts[3].strip() if len(parts) > 3 else ""
+        # parts[3] is funcName, may be empty/blank when missing.
+        # The analytics store does not index funcName, so it is intentionally
+        # parsed-but-discarded (bound to _ to document the layout).
+        _func = parts[3].strip() if len(parts) > 3 else ""
         message_raw = parts[4].strip() if len(parts) > 4 else ""
         message, trace_id = _extract_trace_id(message_raw)
         message = _normalize_log_message(message)
@@ -2389,8 +2391,7 @@ def save_visualization_preset(preset: dict) -> str:
 
         conn.execute(
             """
-            INSERT OR REPLACE INTO visualization_presets 
-            (id, track_name, track_hash, preset_name, visualization_style, params,
+            INSERT OR REPLACE INTO visualization_presets            (id, track_name, track_hash, preset_name, visualization_style, params,
              ollama_model, prompt, lyrics, mood_tags, genre_tags, bpm, energy_level,
              is_unique, usage_count, last_used, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -2510,8 +2511,7 @@ def log_system_resources(resources: dict) -> None:
     with get_db() as conn:
         conn.execute(
             """
-            INSERT INTO system_resources 
-            (gpu_name, gpu_memory_total, gpu_memory_used, gpu_memory_free,
+            INSERT INTO system_resources            (gpu_name, gpu_memory_total, gpu_memory_used, gpu_memory_free,
              gpu_utilization, cpu_percent, ram_total, ram_used, ram_free,
              ollama_available, ollama_models)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -2574,8 +2574,7 @@ def save_ollama_model(model: dict) -> None:
     with get_db() as conn:
         conn.execute(
             """
-            INSERT OR REPLACE INTO ollama_models 
-            (id, model_name, model_size, model_digest, is_tool_capable,
+            INSERT OR REPLACE INTO ollama_models            (id, model_name, model_size, model_digest, is_tool_capable,
              vram_required, last_checked, is_available, capabilities)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
@@ -2598,8 +2597,7 @@ def get_available_ollama_models(min_vram_free: int = 0) -> list[dict]:
     with get_db() as conn:
         rows = conn.execute(
             """
-            SELECT * FROM ollama_models 
-            WHERE is_available = 1 AND vram_required <= ?
+            SELECT * FROM ollama_models            WHERE is_available = 1 AND vram_required <= ?
             ORDER BY is_tool_capable DESC, vram_required ASC
             """,
             (min_vram_free,),

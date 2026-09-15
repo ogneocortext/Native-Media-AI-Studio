@@ -40,7 +40,6 @@ class GPUState(str, Enum):
 class VRAMManager:
     """
     Manages GPU VRAM allocation between competing workloads.
-    
     Coordinates Ollama and ComfyUI to prevent OOM errors by:
     1. Monitoring VRAM usage in real-time
     2. Offloading Ollama models when 3D rendering starts
@@ -80,7 +79,7 @@ class VRAMManager:
     def _init_gpu_monitoring(self):
         """Initialize GPU monitoring libraries."""
         try:
-            import gpustat
+            import gpustat  # noqa: F401  # availability probe, not used directly
             self._gpustat_available = True
             logger.info("VRAM Manager: GPU monitoring enabled via gpustat")
         except ImportError:
@@ -239,13 +238,11 @@ class VRAMManager:
     async def begin_3d_generation(self) -> dict[str, Any]:
         """
         Signal that 3D generation is starting.
-        
         Strategy (in order of preference):
         1. If enough VRAM free - proceed immediately
         2. Wait for VRAM to free up naturally (timeout)
         3. If system RAM is sufficient - offload Ollama to CPU
         4. If neither is safe - return error with guidance
-        
         Returns:
             Dict with status and actions taken
         """
@@ -359,7 +356,6 @@ class VRAMManager:
         """
         Signal that 3D generation is complete.
         Reloads Ollama models if they were offloaded.
-        
         Returns:
             Dict with status and actions taken
         """

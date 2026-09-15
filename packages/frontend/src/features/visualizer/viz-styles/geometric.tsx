@@ -8,47 +8,20 @@ import {
   makeTerrainMaterial,
   updateTerrainMaterial,
 } from "../VisualizationFX";
+import { InstancedParticles } from "./instancedParticles";
 
 export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReducedMotion }: VizProps) {
   const coreRef = useRef<THREE.Mesh>(null);
   const wireRef = useRef<THREE.Mesh>(null);
-  const pointsRef = useRef<THREE.Points>(null);
   const glowRef = useRef<THREE.Mesh>(null);
-  const orbitRef = useRef<THREE.Points>(null);
   const shockRef = useRef<THREE.Mesh>(null);
   const ringRef = useRef<THREE.Mesh>(null);
+  const orbitRef = useRef<THREE.Points>(null);
   const rotRef = useRef(0);
   const frameCount = useRef(0);
   const beatPulse = useRef(0);
   const shockScale = useRef(0);
   const hueRef = useRef(0.6);
-
-  // Layer 5: Outer particle sphere (radius 5-9)
-  const geom = useMemo(() => {
-    const n = 1500;
-    const pos = new Float32Array(n * 3);
-    const col = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) {
-      const r = 5 + Math.random() * 4;
-      const t = Math.random() * Math.PI * 2;
-      const ph = Math.acos(2 * Math.random() - 1);
-      pos[i * 3] = r * Math.sin(ph) * Math.cos(t);
-      pos[i * 3 + 1] = r * Math.sin(ph) * Math.sin(t);
-      pos[i * 3 + 2] = r * Math.cos(ph);
-      const c = new THREE.Color().setHSL(
-        0.6 + Math.random() * 0.2,
-        0.9,
-        0.5 + Math.random() * 0.2,
-      );
-      col[i * 3] = c.r;
-      col[i * 3 + 1] = c.g;
-      col[i * 3 + 2] = c.b;
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
-    return { g, pos, n };
-  }, []);
 
   // Layer 4: Orbital particles (radius 3.5-5)
   const orbitGeom = useMemo(() => {
@@ -85,10 +58,9 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
         frameCount.current,
       );
     const t = s.clock.elapsedTime;
-    const { bass, mid, treble, peak, beat } = audioData.current;
+    const { bass, mid, treble, beat } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
 
-    // Get track features (computed once per frame, shared across all visualizations)
     const features = getTrackFeatures();
 
     if (beat || features.onset > 0.5) {
@@ -99,7 +71,6 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
     shockScale.current *= 0.92;
     const pulseScale = 1 + beatPulse.current * 0.5;
 
-    // Hue cycles with energy + shifts with spectral brightness
     hueRef.current += features.energy * 0.002 + 0.0005;
     if (hueRef.current > 1.0) hueRef.current -= 1.0;
 
@@ -126,7 +97,6 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
         bass * vizParams.glowIntensity * 3 +
         beatPulse.current * 2 +
         features.onset * 3;
-      // Color shifts with spectral brightness from analysis
       m.color.setHSL(
         hueRef.current + features.brightness * 0.2,
         0.9,
@@ -177,22 +147,7 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
       om.size = 0.04 + treble * 0.05 + beatPulse.current * 0.03;
       om.opacity = 0.5 + features.energy * 0.4;
     }
-    // Layer 5: Outer particles (radius 5-9)
-    if (pointsRef.current) {
-      const pp = geom.pos;
-      const d = 1 + treble * 0.6 + (beat ? peak * 0.5 : 0);
-      const base = geom.g.attributes.position.array as Float32Array;
-      for (let i = 0; i < geom.n; i++) {
-        base[i * 3] = pp[i * 3] * d;
-        base[i * 3 + 1] = pp[i * 3 + 1] * d;
-        base[i * 3 + 2] = pp[i * 3 + 2] * d;
-      }
-      geom.g.attributes.position.needsUpdate = true;
-      pointsRef.current.rotation.y = rotRef.current * 0.2;
-      pointsRef.current.rotation.x = Math.sin(t * 0.1 * speedMul) * 0.05;
-      (pointsRef.current.material as THREE.PointsMaterial).size =
-        0.06 + treble * 0.06;
-    }
+    // Layer 5: Outer particles (radius 5-9) — now handled by InstancedParticles
     // Layer 6: Outer ring (radius 10)
     if (ringRef.current) {
       ringRef.current.rotation.x = Math.PI / 2 + Math.sin(t * 0.1) * 0.1;
@@ -270,19 +225,19 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
           depthWrite={false}
         />
       </points>
-      {/* Layer 5: Outer particle sphere */}
-      <points ref={pointsRef} geometry={geom.g}>
-        <pointsMaterial
-          map={getParticleTex()}
-          size={0.08}
-          vertexColors
-          transparent
-          opacity={0.8}
-          sizeAttenuation
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </points>
+      {/* Layer 5: Outer particle sphere — instanced quads */}
+      <InstancedParticles
+        audioData={audioData}
+        vizParams={vizParams}
+        sceneFrozen={sceneFrozen}
+        prefersReducedMotion={prefersReducedMotion}
+        count={1500}
+        baseSize={0.08}
+        spread={4}
+        hueBase={0.6}
+        hueRange={0.2}
+        stretch={1.5}
+      />
       {/* Layer 6: Outer ring */}
       <mesh ref={ringRef}>
         <torusGeometry args={[10, 0.02, 16, 128]} />
@@ -310,7 +265,6 @@ export function AudioReactiveCore({
   prefersReducedMotion,
 }: VizProps) {
   const meshRef = useRef<THREE.Mesh>(null);
-  // 2026: GPU simplex-noise terrain with finite-difference normals + fresnel rim
   const mat = useMemo(
     () =>
       makeTerrainMaterial({
