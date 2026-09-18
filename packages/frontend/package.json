@@ -24,6 +24,7 @@
     "@theatre/studio": "0.7.2",
     "animejs": "^4.5.0",
     "lucide-react": "^1.38.0",
+    "mp4-muxer": "^5.2.2",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-router-dom": "^7.18.3",

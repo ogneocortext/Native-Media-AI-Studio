@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed - Dependency upgrades across all stacks (2026-09-18)
+
+Routine dependency sweep across npm, Python, and Go ecosystems.
+
+**npm/pnpm**
+| Package | Before | After |
+|---------|--------|-------|
+| wavesurfer.js | 7.12.11 | 7.12.12 |
+| zod | 4.5.4 | 4.6.5 |
+| typescript-eslint (catalog) | 8.68.0 | 8.69.0 |
+
+**Python (19 packages)**
+| Package | Before | After |
+|---------|--------|-------|
+| attrs | 25.4.0 | 26.1.0 |
+| blessed | 1.49.0 | 1.50.0 |
+| coverage | 7.16.0 | 7.16.1 |
+| filelock | 3.32.3 | 4.0.0 |
+| idna | 3.19 | 3.20 |
+| multidict | 6.7.1 | 6.8.0 |
+| narwhals | 2.25.0 | 2.26.0 |
+| platformdirs | 4.11.7 | 4.11.10 |
+| propcache | 0.5.2 | 0.5.4 |
+| python-socketio | 5.16.4 | 5.17.0 |
+| regex | 2026.9.3 | 2026.9.10 |
+| scikit-learn | 1.9.0 | 1.9.1 |
+| setuptools | 78.1.0 | 84.0.0 |
+| threadpoolctl | 3.6.0 | 3.7.0 |
+| tqdm | 4.70.0 | 4.70.1 |
+| urllib3 | 2.7.0 | 2.8.0 |
+| uvicorn | 0.52.4 | 0.53.0 |
+| wcwidth | 0.8.3 | 0.8.4 |
+| yarl | 1.24.5 | 1.25.1 |
+
+**Go (all 5 services)**
+| Package | Before | After |
+|---------|--------|-------|
+| gin-gonic/gin | 1.10.0 | 1.12.0 |
+| gin-contrib/sse | 0.1.0 | 1.1.2 |
+| go-playground/validator | 10.20.0 | 10.30.4 |
+| bytedance/sonic | 1.11.6 | 1.15.4 |
+| goccy/go-json | 0.10.2 | 0.10.6 |
+| klauspost/cpuid/v2 | 2.2.7 | 2.4.0 |
+| mattn/go-isatty | 0.0.20 | 0.0.24 |
+| pelletier/go-toml/v2 | 2.2.2 | 2.4.3 |
+| ugorji/go/codec | 1.2.12 | 1.3.2 |
+| golang.org/x/arch | 0.8.0 | 0.31.0 |
+| golang.org/x/crypto | 0.23.0 | 0.57.0 |
+| golang.org/x/net | 0.25.0 | 0.59.0 |
+| golang.org/x/sys | 0.20.0 | 0.48.0 |
+| golang.org/x/text | 0.15.0 | 0.42.0 |
+| protobuf | 1.34.1 | 1.36.12 |
+
+**Code changes:**
+- `packages/backend/app/main.py`: Added `timeout_keep_alive=30` to uvicorn.Config (uvicorn 0.53.0 feature)
+
+**Intentionally skipped:**
+- `pydantic_core` — pinned by pydantic 2.13.5 (needs pydantic 2.14+ for upgrade)
+- `mpmath` — pinned by sympy 1.14.0 (<1.4)
+- `ruff` — locked by editor process (0.16.6→0.16.8; close editor to upgrade)
+- `mp4-muxer` — deprecated (Mediabunny replacement requires migration)
+- `eslint` (video-editor) — major version 9→10 breaking change
+
 ### Fixed - Repo-wide review: broken toolchain, crash bugs, and lint debt (2026-09-15)
 
 A full review of frontend, backend, video-editor, and build tooling. Every gate

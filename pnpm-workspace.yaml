@@ -26,7 +26,7 @@ onlyBuiltDependencies:
   - esbuild
 
 overrides:
-  typescript-eslint: 8.68.0
+  typescript-eslint: 8.69.0
 
 minimumReleaseAgeExclude:
   - '@remotion/bundler@4.0.519'

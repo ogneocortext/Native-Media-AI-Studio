@@ -132,17 +132,9 @@ def _is_backend_responding(port: int, host: str = "127.0.0.1") -> bool:
         return False
 
 
-# Run cleanup at import time, before uvicorn binds.
-_ensure_backend_port_free(config.backend_port)
-
-
-if _is_port_in_use(config.backend_port):
-    logger.warning(
-        "Backend port %d appears occupied before bind; if startup fails, check for a stale process or change config/ports.json",
-        config.backend_port,
-)
-else:
-    logger.info("Backend port %d is available", config.backend_port)
+# NOTE: Port cleanup is intentionally deferred to `main()` / `lifespan()`
+# so importing this module does not perform network I/O or mutate system state.
+# This keeps test imports and `python -c "import app.main"` side-effect free.
 
 
 output_dir = Path(config.output_dir)
@@ -537,6 +529,7 @@ async def main():
         port=port,
         log_level=config.log_level.lower(),
         ws="websockets",
+        timeout_keep_alive=30,
     )
     server = uvicorn.Server(uvicorn_config)
     await server.serve()

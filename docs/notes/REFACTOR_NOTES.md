@@ -67,15 +67,17 @@ This restores the project to its state before restructuring (with the old `/apps
 | Package | Before | After |
 |---------|--------|-------|
 | fastapi | 0.109.0 | 0.136.0 |
-| uvicorn | 0.27.0 | 0.45.0 |
+| uvicorn | 0.27.0 | 0.53.0 |
 | pydantic | 2.5.0 | 2.13.3 |
 | python-multipart | 0.0.6 | 0.0.26 |
 | Pillow | 10.0.0 | 12.2.0 |
 | aiohttp | 3.9.0 | 3.13.5 |
 | psutil | 5.9.0 | 7.2.2 |
-| python-socketio | 5.10.0 | 5.16.1 |
+| python-socketio | 5.10.0 | 5.17.0 |
 | librosa | 0.10.0 | 0.11.0 |
 | soundfile | 0.12.0 | 0.13.1 |
+
+> **Note (2026-09-18):** Additional patch upgrades applied: uvicorn 0.52.4→0.53.0, python-socketio 5.16.4→5.17.0, plus 17 other transitive Python deps. Go modules upgraded: gin 1.10.0→1.12.0 across all 5 services. See CHANGELOG.md for full list.
 
 ---
 

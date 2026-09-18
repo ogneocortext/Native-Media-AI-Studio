@@ -16,13 +16,13 @@
 | Dependency | Version Pin | Status | Evidence |
 |------------|-------------|--------|----------|
 | `fastapi` | `>=0.141.0` | **USED** | `app/main.py`, `app/api/*.py` |
-| `uvicorn[standard]` | `>=0.52.0` | **USED** | `app/main.py` |
+| `uvicorn[standard]` | `>=0.53.0` | **USED** | `app/main.py` |
 | `pydantic` | `>=2.13.3` | **USED** | `app/models/*.py`, `app/core/config.py`, `app/api/*.py` |
 | `pydantic-settings` | `>=2.0.0` | **USED** | `app/core/config.py` |
 | `python-multipart` | `>=0.0.20` | **USED** | Not directly imported, but required by FastAPI `UploadFile` / `Form()` parsing. |
 | `aiohttp` | `>=3.13.5` | **USED** | `app/adapters/ollama.py`, `app/adapters/comfyui.py`, `app/api/integrations_misc.py`, `app/api/audio.py` |
 | `psutil` | `>=7.2.2` | **USED** | `app/diagnostics/health.py`, `app/queue/manager.py`, `app/api/health.py`, `app/api/integrations_config.py`, `app/services/vram_manager.py`, `app/adapters/ollama.py` |
-| `python-socketio` | `>=5.16.1` | **VESTIGIAL** | **Zero import hits** in `packages/backend/app/`, `tools/`, or `scripts/`. Not referenced in code. |
+| `python-socketio` | `>=5.17.0` | **VESTIGIAL** | **Zero import hits** in `packages/backend/app/`, `tools/`, or `scripts/`. Not referenced in code. |
 | `Pillow` | `>=12.2.0` | **USED** | `app/services/cuda/processor.py`, `tools/design-feedback/design_feedback.py`, `tools/tests/vision_analyze.py` |
 | `librosa` | `>=0.11.0` | **USED** | `app/services/audio_analyzer.py` (conditional), `app/services/source_separation.py` (conditional) |
 | `soundfile` | `>=0.13.1` | **USED** | Not directly imported, but required by `librosa.load()`. |

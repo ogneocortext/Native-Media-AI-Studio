@@ -152,7 +152,7 @@ curl http://localhost:11434/api/generate -d '{"model":"gemma3:4b","prompt":"Desc
 ```
 # packages/backend/requirements.txt (key)
 fastapi>=0.141.0
-uvicorn[standard]>=0.52.0
+uvicorn[standard]>=0.53.0
 websockets>=17.0
 websockets-sansio
 nvidia-ml-py>=13.0
