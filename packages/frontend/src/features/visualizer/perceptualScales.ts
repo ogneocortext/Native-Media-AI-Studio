@@ -146,38 +146,45 @@ export function generatePerceptualBands(
  * @param sampleRate - Audio sample rate
  * @param scale - Perceptual scale to use
  * @param numBands - Number of output bands
+ * @param bands - Optional pre-computed band boundaries (Hz). When provided,
+ *   the function skips `generatePerceptualBands` and uses these directly.
  * @returns Array of energy values for each perceptual band
  */
 export function mapToPerceptualBands(
   freqData: Uint8Array,
   sampleRate: number,
   scale: 'bark' | 'erb' | 'mel' | 'log' | 'linear' = 'mel',
-  numBands: number = 40
+  numBands: number = 40,
+  bands?: number[]
 ): number[] {
-  const bands = generatePerceptualBands(scale, numBands, 20, sampleRate / 2);
-  // Size everything from the generated band count: generatePerceptualBands
-  // clamps the requested count (min 2), so the accumulators must match.
-  const bandCount = bands.length;
+  const centers = bands ?? generatePerceptualBands(scale, numBands, 20, sampleRate / 2);
+  // Convert band centers to upper-boundary list for the two-pointer sweep.
+  // Boundary i is the midpoint between center[i-1] and center[i], with the
+  // first boundary at minHz and the last at maxHz.
+  const minHz = 20;
+  const maxHz = sampleRate / 2;
+  const boundaries = [minHz];
+  for (let i = 0; i < centers.length - 1; i++) {
+    boundaries.push((centers[i] + centers[i + 1]) / 2);
+  }
+  boundaries.push(maxHz);
+
+  const bandCount = centers.length;
   const bandEnergies = new Array(bandCount).fill(0);
   const bandCounts = new Array(bandCount).fill(0);
   
   const binSize = sampleRate / (freqData.length * 2);
   
-  // Map each frequency bin to the nearest perceptual band
+  // Two-pointer sweep: both freq bins and band boundaries are sorted by Hz,
+  // so we advance the band index monotonically instead of rescanning from 0
+  // each frame. Reduces per-frame cost from O(n*m) to O(n+m).
+  let bandIdx = 0;
   for (let i = 0; i < freqData.length; i++) {
     const hz = i * binSize;
     const energy = freqData[i] / 255;
     
-    // Find the band this frequency belongs to
-    let bandIdx = 0;
-    for (let j = 0; j < bands.length - 1; j++) {
-      if (hz >= bands[j] && hz < bands[j + 1]) {
-        bandIdx = j;
-        break;
-      }
-    }
-    if (hz >= bands[bands.length - 1]) {
-      bandIdx = bands.length - 1;
+    while (bandIdx < bandCount - 1 && hz >= boundaries[bandIdx + 1]) {
+      bandIdx++;
     }
     
     bandEnergies[bandIdx] += energy;

@@ -27,6 +27,7 @@ const TRACK_SHADER_MAP: Record<string, ShaderPresetName> = {
   // Learning How to Stay → neon rain
   "Learning How to Stay": "neonRain",
   "Learning How to Stay V2 (variation)": "neonRain",
+  "NeoCortext - Learning How to Stay V2": "neonRain",
 };
 
 /**
@@ -39,11 +40,18 @@ export function getShaderPresetForTrack(trackName: string): ShaderPresetName {
   // canvas flashes the wrong preset, then recompiles on selection.
   if (!trackName || !trackName.trim()) return "abstractWaves";
 
-  // Exact match
+  // Normalize: strip artist prefix ("Artist - Track" → "Track") so fuzzy
+  // matching works for library filenames that include the artist name.
+  const normalized = trackName.split(" - ").slice(-1)[0].trim();
+
+  // Exact match on normalized name
+  if (TRACK_SHADER_MAP[normalized]) return TRACK_SHADER_MAP[normalized];
+
+  // Exact match on original name (fallback for bare track names)
   if (TRACK_SHADER_MAP[trackName]) return TRACK_SHADER_MAP[trackName];
 
-  // Fuzzy match by checking if any key is contained in the track name
-  const lower = trackName.toLowerCase();
+  // Fuzzy match by checking if any key is contained in the normalized track name
+  const lower = normalized.toLowerCase();
   for (const [key, preset] of Object.entries(TRACK_SHADER_MAP)) {
     if (lower.includes(key.toLowerCase()) || key.toLowerCase().includes(lower)) {
       return preset;
@@ -61,12 +69,20 @@ export function getShaderPresetForTrack(trackName: string): ShaderPresetName {
   return "abstractWaves";
 }
 
-export const SHADER_PRESET_INFO: Record<ShaderPresetName, { name: string; description: string; bestFor: string }> = {
-  electricHorizon: { name: "Electric Horizon", description: "Dawn landscape with electric blue signal waves", bestFor: "Progressive Trance, Euphoric" },
-  foggyNoir: { name: "Foggy Noir", description: "Layered fog with warm sub-bass glow", bestFor: "Future-garage, Nocturnal" },
-  neonRain: { name: "Neon Rain", description: "Rain-soaked neon reflections, cyberpunk", bestFor: "Neo-noir, Cyberpunk Synth" },
-  neonGrid: { name: "Neon Grid", description: "Retro-futuristic grid with glitch effects", bestFor: "Dubstep, Synthwave" },
-  fireCrown: { name: "Fire Crown", description: "Rising flames with ember particles", bestFor: "Drift Phonk, Triumphant" },
-  westCoastSunset: { name: "West Coast Sunset", description: "Sunset gradient with palm silhouettes", bestFor: "G-Funk, Laid-back" },
+export interface ShaderPresetFxDefaults {
+  speed?: number;
+  brightness?: number;
+  contrast?: number;
+  hue?: number;
+  saturation?: number;
+}
+
+export const SHADER_PRESET_INFO: Record<ShaderPresetName, { name: string; description: string; bestFor: string; fxDefaults?: ShaderPresetFxDefaults }> = {
+  electricHorizon: { name: "Electric Horizon", description: "Dawn landscape with electric blue signal waves", bestFor: "Progressive Trance, Euphoric", fxDefaults: { brightness: 1.1, saturation: 1.1 } },
+  foggyNoir: { name: "Foggy Noir", description: "Layered fog with warm sub-bass glow", bestFor: "Future-garage, Nocturnal", fxDefaults: { brightness: 0.9, contrast: 1.15, saturation: 0.85 } },
+  neonRain: { name: "Neon Rain", description: "Rain-soaked neon reflections, cyberpunk", bestFor: "Neo-noir, Cyberpunk Synth", fxDefaults: { brightness: 1.15, saturation: 1.2 } },
+  neonGrid: { name: "Neon Grid", description: "Retro-futuristic grid with glitch effects", bestFor: "Dubstep, Synthwave", fxDefaults: { contrast: 1.2, saturation: 1.15 } },
+  fireCrown: { name: "Fire Crown", description: "Rising flames with ember particles", bestFor: "Drift Phonk, Triumphant", fxDefaults: { brightness: 1.1, saturation: 1.1 } },
+  westCoastSunset: { name: "West Coast Sunset", description: "Sunset gradient with palm silhouettes", bestFor: "G-Funk, Laid-back", fxDefaults: { brightness: 1.05, saturation: 1.1 } },
   abstractWaves: { name: "Abstract Waves", description: "Flowing waveform interference patterns", bestFor: "Any genre" },
 };

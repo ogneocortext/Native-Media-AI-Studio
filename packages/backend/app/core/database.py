@@ -865,7 +865,7 @@ def cleanup_old_log_events(keep_days: int = 30, conn: sqlite3.Connection | None 
     try:
         cursor = conn.execute(
             "DELETE FROM log_events WHERE ts_ms < ?",
-            (int(__import__("time").time() - keep_days * 86400) * 1000,),
+            (int(_time.time() - keep_days * 86400) * 1000,),
         )
         deleted = cursor.rowcount
         ts_iso = datetime.now().isoformat()
@@ -927,6 +927,10 @@ def init_db():
                 ON gpu_telemetry(gpu_name);
             CREATE INDEX IF NOT EXISTS idx_gpu_telemetry_ts_name
                 ON gpu_telemetry(ts_ms, gpu_name);
+            CREATE INDEX IF NOT EXISTS idx_user_preferences_category
+                ON user_preferences(category);
+            CREATE INDEX IF NOT EXISTS idx_visualization_presets_track_name
+                ON visualization_presets(track_name);
         """)
 
         # Prune stale log analytics rows on startup so the store stays lean.
@@ -1585,7 +1589,14 @@ def get_all_preferences(category: str | None = None) -> dict[str, Any]:
             rows = conn.execute(
                 "SELECT key, value FROM user_preferences"
             ).fetchall()
-        return {row["key"]: json.loads(row["value"]) for row in rows}
+        result: dict[str, Any] = {}
+        for row in rows:
+            try:
+                result[row["key"]] = json.loads(row["value"])
+            except (json.JSONDecodeError, TypeError):
+                logger.warning("Skipping corrupted preference key=%s", row["key"])
+                result[row["key"]] = None
+        return result
 
 
 # =============================================================================
@@ -1715,11 +1726,21 @@ def save_track(
     visual_prompt: str = "",
     tags: list[str] | None = None,
 ) -> str:
-    """Save a track and return its ID."""
-    track_id = str(uuid.uuid4())
-    now = datetime.now().isoformat()
+    """Save a track and return its ID.
 
+    If a track with the same filename already exists, returns the existing ID
+    instead of creating a duplicate entry.
+    """
     with get_db() as conn:
+        existing = conn.execute(
+            "SELECT id FROM tracks WHERE filename = ?", (filename,)
+        ).fetchone()
+        if existing:
+            return existing["id"]
+
+        track_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+
         conn.execute(
             """
             INSERT INTO tracks
@@ -2148,7 +2169,7 @@ def cleanup_old_gpu_telemetry(keep_days: int = 14) -> int:
     with get_db() as conn:
         cur = conn.execute(
             "DELETE FROM gpu_telemetry WHERE ts_ms < ?",
-            (int((__import__("time").time() - keep_days * 86400) * 1000),),
+            (int((_time.time() - keep_days * 86400) * 1000),),
         )
         deleted = cur.rowcount
         if deleted:
@@ -2427,15 +2448,27 @@ def get_visualization_preset(track_hash: str) -> dict | None:
             "SELECT * FROM visualization_presets WHERE track_hash = ? AND is_unique = 1 ORDER BY usage_count DESC LIMIT 1",
             (track_hash,),
         ).fetchone()
-
         if row:
-            # Update usage count
-            conn.execute(
-                "UPDATE visualization_presets SET usage_count = usage_count + 1, last_used = ? WHERE id = ?",
-                (datetime.now().isoformat(), row["id"]),
-            )
             return _row_to_viz_preset(row)
     return None
+
+
+def increment_visualization_preset_usage(preset_id: str) -> None:
+    """Increment usage count for a visualization preset."""
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE visualization_presets SET usage_count = usage_count + 1, last_used = ? WHERE id = ?",
+            (datetime.now().isoformat(), preset_id),
+        )
+
+
+def delete_visualization_preset(preset_id: str) -> bool:
+    """Delete a visualization preset. Returns True if deleted."""
+    with get_db() as conn:
+        cursor = conn.execute(
+            "DELETE FROM visualization_presets WHERE id = ?", (preset_id,)
+        )
+        return cursor.rowcount > 0
 
 
 def get_all_visualization_presets() -> list[dict]:
@@ -3035,12 +3068,7 @@ def get_visualization_preset_typed(track_hash: str) -> VizPresetRow | None:
             "SELECT * FROM visualization_presets WHERE track_hash = ? AND is_unique = 1 ORDER BY usage_count DESC LIMIT 1",
             (track_hash,),
         ).fetchone()
-
         if row:
-            conn.execute(
-                "UPDATE visualization_presets SET usage_count = usage_count + 1, last_used = ? WHERE id = ?",
-                (datetime.now().isoformat(), row["id"]),
-            )
             return _row_to_viz_preset_typed(row)
     return None
 

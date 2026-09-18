@@ -201,18 +201,18 @@ export const SHADER_PRESETS = {
         rain += drop * (0.5 + u_mid * 0.5);
       }
 
-      // Neon reflections on wet ground
+      // Neon reflections on wet ground — use per-sign neon colors
       float ground = 1.0 - smoothstep(-0.3, 0.0, p.y);
-      float neonReflect = 0.0;
+      vec3 neonReflect = vec3(0.0);
       for (float i = 0.0; i < 8.0; i++) {
         float nx = hash(i * 7.0) * 2.0 - 1.0;
         float dist = length(vec2(p.x - nx, p.y + 0.5));
         vec3 neonColor = vec3(hash(i * 3.0), 0.2 + hash(i * 5.0) * 0.3, 0.8 + hash(i * 7.0) * 0.2);
-        neonReflect += exp(-dist * (4.0 - u_bass * 2.0)) * 0.15 * ground;
+        neonReflect += neonColor * exp(-dist * (4.0 - u_bass * 2.0)) * 0.15 * ground;
       }
 
-      // Background cyberpunk gradient
-      vec3 bg = mix(vec3(0.02, 0.01, 0.05), vec3(0.05, 0.02, 0.1), uv.y);
+      // Background cyberpunk gradient — brightened so the scene is never solid black
+      vec3 bg = mix(vec3(0.08, 0.04, 0.12), vec3(0.14, 0.06, 0.22), uv.y);
 
       // Neon signs
       float signs = 0.0;
@@ -227,7 +227,7 @@ export const SHADER_PRESETS = {
       // Bass pulse
       float bassPulse = u_bass * 0.15 * exp(-abs(p.y + 0.3) * 2.0);
 
-      vec3 color = bg + vec3(0.3, 0.5, 0.9) * rain + vec3(0.0, 0.5, 1.0) * neonReflect + signs + vec3(0.5, 0.2, 0.1) * bassPulse;
+      vec3 color = bg + vec3(0.4, 0.6, 1.0) * rain + neonReflect + vec3(0.0, 0.9, 1.0) * signs + vec3(0.6, 0.25, 0.15) * bassPulse;
 
       // Scanlines
       color *= 0.95 + 0.05 * sin(gl_FragCoord.y * 2.0);

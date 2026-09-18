@@ -7,6 +7,8 @@ import os
 import re
 from datetime import datetime
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
 
@@ -56,7 +58,7 @@ class UpdateSessionRequest(BaseModel):
 
 class SetPreferenceRequest(BaseModel):
     """Request body for setting a user preference."""
-    value: str | None = None
+    value: Any = None
     category: str = "general"
 
 
@@ -373,6 +375,15 @@ def set_preference(key: str, body: SetPreferenceRequest):
 # =============================================================================
 # Tracks API
 # =============================================================================
+
+
+@router.delete("/visualization-presets/{preset_id}")
+def delete_visualization_preset(preset_id: str):
+    """Delete a visualization preset."""
+    deleted = database.delete_visualization_preset(preset_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Visualization preset not found")
+    return {"success": True}
 
 
 @router.get("/tracks/")

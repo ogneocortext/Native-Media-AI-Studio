@@ -7,6 +7,8 @@ interface ShaderCanvasProps {
   height?: number;
   className?: string;
   debug?: boolean;
+  /** Time multiplier for speed control (1 = normal, 0.5 = half, 2 = double) */
+  timeScale?: number;
 }
 
 /**
@@ -21,6 +23,7 @@ export function ShaderCanvas({
   uniformsRef,
   className,
   debug = false,
+  timeScale = 1,
 }: ShaderCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<WebGLRenderingContext | null>(null);
@@ -242,7 +245,7 @@ export function ShaderCanvas({
     const pixelView = new Uint8Array(4);
 
     const render = () => {
-      const time = (Date.now() - startTimeRef.current) / 1000;
+      const time = ((Date.now() - startTimeRef.current) / 1000) * timeScale;
       // Skip frames while the canvas is effectively invisible (hidden tab or a
       // collapsed container) — the rAF loop stays alive for when it comes back.
       const visible =

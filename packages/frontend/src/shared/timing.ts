@@ -105,14 +105,15 @@ export function getBeatPhase(
 export function getNextBeatInFromArray(beats: number[], elapsedSec: number): number {
   if (!beats.length || elapsedSec < 0) return 0;
 
-  for (let i = 0; i < beats.length; i++) {
-    const t = beats[i];
-    if (t > elapsedSec) {
-      return t - elapsedSec;
-    }
+  let lo = 0;
+  let hi = beats.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (beats[mid] <= elapsedSec) lo = mid + 1;
+    else hi = mid - 1;
   }
-
-  return 0;
+  const next = beats[lo];
+  return next !== undefined ? Math.max(0, next - elapsedSec) : 0;
 }
 
 /**

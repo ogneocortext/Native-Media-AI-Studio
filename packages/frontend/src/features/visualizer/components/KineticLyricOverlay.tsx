@@ -29,6 +29,8 @@ interface Props {
     lineProgress: number;
     timeToNextPhrase: number;
   } | null;
+  /** Real-time audio amplitude (0..1) for lyric pulse reactivity */
+  audioAmplitude?: number;
 }
 
 export function KineticLyricOverlay({
@@ -38,6 +40,7 @@ export function KineticLyricOverlay({
   presetId,
   beat,
   lrcSync,
+  audioAmplitude = 0,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevLineRef = useRef<LyricLine | null>(null);
@@ -182,6 +185,7 @@ export function KineticLyricOverlay({
           "--section-glow": colors.glow,
           "--section-energy": colors.energy,
           "--phrase-pulse": phrasePulse ? "1" : "0",
+          "--audio-amplitude": audioAmplitude,
           position: "absolute",
           bottom: "14%",
           left: "50%",

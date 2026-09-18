@@ -95,6 +95,14 @@ export function useRealAudio(
   const smoothedPhase = useRef(0);
   // Cached analysis duration for energy-curve interpolation.
   const analysisDurationRef = useRef(0);
+  // Cache perceptual band boundaries so generatePerceptualBands only runs when
+  // the scale or band count changes, not every frame.
+  const perceptualBandCache = useRef<{
+    scale: PerceptualScale;
+    numBands: number;
+    sampleRate: number;
+    boundaries: number[];
+  } | null>(null);
 
   useFrame(() => {
     const analyser = analyserRef.current;
@@ -329,13 +337,39 @@ export function useRealAudio(
           )
         : 0;
 
-    // Perceptual frequency band mapping for more accurate visualization
+    // Perceptual frequency band mapping for more accurate visualization.
+    // Regenerate band boundaries only when the scale / band count / sample rate
+    // changes; the two-pointer mapper itself is already O(n+m).
+    const cache = perceptualBandCache.current;
+    if (
+      !cache ||
+      cache.scale !== perceptualScale ||
+      cache.numBands !== numPerceptualBands ||
+      cache.sampleRate !== sampleRate
+    ) {
+      perceptualBandCache.current = {
+        scale: perceptualScale,
+        numBands: numPerceptualBands,
+        sampleRate,
+        boundaries: generatePerceptualBands(perceptualScale, numPerceptualBands, 20, sampleRate / 2),
+      };
+    }
+    const bands = perceptualBandCache.current!.boundaries;
     const perceptualBands = mapToPerceptualBands(
       arr,
       sampleRate,
       perceptualScale,
       numPerceptualBands,
+      bands,
     );
+
+    const rawEnergy = (bass + mid + treble) / 3;
+    // Blend live energy with analyzed energy curve for stable, section-aware intensity.
+    // 60% live keeps transients; 40% analysis anchors to track structure.
+    const energy =
+      analyzedEnergy > 0
+        ? rawEnergy * 0.6 + analyzedEnergy * 0.4
+        : rawEnergy;
 
     data.current = {
       bass,
@@ -344,7 +378,7 @@ export function useRealAudio(
       overall,
       beat: isBeat,
       peak: peakHold.current,
-      energy: (bass + mid + treble) / 3,
+      energy,
       drumType,
       nextBeatIn: nextBeatInRef.current,
       beatPhase: phaseInfo ? smoothedPhase.current : undefined,

@@ -63,7 +63,7 @@ Plus: `ShaderVisualizer` (fullscreen GLSL modes), `Canvas2DVisualizer` (7 modes,
 - Single always-mounted `<Canvas>` (`camera [0,0,7] fov 55`, `dpr [1,1.5]`, `frameloop="always"`).
 - `onCreated`: ACESFilmic + exposure 1.05 on WebGL; WebGPU via `createWebGPURenderer`.
 - `LrcVizController` wraps every style (section color/intensity, phrase pulse).
-- 13 genre presets in `visualPresets.ts` (`bloom ≤ 1.0`, `glitch ≤ 0.7` on dubstep/trapMetal/phonk).
+- 13 genre presets in `visualPresets.ts` (`bloom ≤ 1.0`, `glitch ≤ 0.7` on dubstep/trapMetal/phonk). Each preset now carries a `description` string that is surfaced in the UI: the auto-apply toast reads `Applied "<name>" preset — <description>` and the active preset badge tooltip shows both name and description.
 
 ---
 

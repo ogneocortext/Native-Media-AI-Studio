@@ -1449,6 +1449,21 @@ export async function visionOCR(file: File, prompt: string = "ocr", model: strin
   return res.json();
 }
 
+export async function analyzeVisualizer(
+  file: File,
+  mode: string = "bars",
+  model: string = "minicpm-v:8b",
+): Promise<{ text: string; model: string; mode: string }> {
+  const base = getApiBase();
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("mode", mode);
+  fd.append("model", model);
+  const res = await fetchWithTimeout(`${base}/api/vision/analyze-visualizer`, { method: "POST", body: fd, timeout: 120000 });
+  if (!res.ok) throw new Error("Visualizer analysis failed");
+  return res.json();
+}
+
 // Native Open — Blender / Unity (local-first)
 export async function openInBlender(relativePath: string): Promise<{ success: boolean; method?: string; message?: string; path?: string }> {
   const base = getApiBase();

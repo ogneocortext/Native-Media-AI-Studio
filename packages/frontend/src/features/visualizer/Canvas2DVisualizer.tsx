@@ -1,6 +1,9 @@
-import React, { useEffect, useRef } from "react";
-import type { LyricLine } from "./components/LyricOverlay";
+import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState } from "react";
 import type { AudioData } from "./types";
+
+export interface Canvas2DVisualizerRef {
+  captureScreenshot: () => string | null;
+}
 
 interface Props {
   audioData: React.MutableRefObject<AudioData>;
@@ -8,6 +11,11 @@ interface Props {
   isPlaying: boolean;
   mode?:
     | "bars"
+    | "mirrored-bars"
+    | "segmented-led-bars"
+    | "stereo-split-bars"
+    | "stacked-frequency-bands"
+    | "dot-peak-matrix"
     | "waveform"
     | "radial"
     | "spectrogram"
@@ -27,13 +35,18 @@ interface Props {
    * Falls back to `lrcSync` when null (e.g. demo mode).
    */
   lrcSyncLive?: { current: Props["lrcSync"] };
-  lyrics?: LyricLine[];
   bgColor?: string;
+  onAnalysis?: (result: { text: string; model: string; mode: string }) => void;
 }
 
 /**
- * 2026 Canvas2D Visualizer — 7 modes inspired by visual-flux (Apache-2.0) + Waviz (MIT).
+ * 2026 Canvas2D Visualizer — 12 modes inspired by visual-flux (Apache-2.0) + Waviz (MIT).
  * - bars: frequency bars with LRC phrase flash + section palette lerp (Trollspace/Synthwave)
+ * - mirrored-bars: symmetrical bars mirrored from center baseline with fade
+ * - segmented-led-bars: horizontal LED strips with gaps, glow, and beat-driven brightness
+ * - stereo-split-bars: low/mid/high frequency bands split into stacked sections
+ * - stacked-frequency-bands: single composite bar split into stacked low/mid/high layers
+ * - dot-peak-matrix: frequency amplitude shown as a dot matrix equalizer
  * - waveform: time-domain oscilloscope with LRC lineProgress scrub
  * - radial: circular spectrum with sectionProgress rotation
  * - spectrogram: scrolling time-frequency heatmap
@@ -79,15 +92,20 @@ function lerpColor(a: string, b: string, t: number): string {
 // Component
 // ---------------------------------------------------------------------------
 
-export function Canvas2DVisualizer({
-  audioData,
-  analyserRef,
-  isPlaying,
-  mode = "bars",
-  lrcSync,
-  lrcSyncLive,
-  bgColor = "#050505",
-}: Props) {
+export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
+function Canvas2DVisualizer(
+  {
+    audioData,
+    analyserRef,
+    isPlaying,
+    mode = "bars",
+    lrcSync,
+    lrcSyncLive,
+    bgColor = "#050505",
+    onAnalysis,
+  }: Props,
+  ref,
+) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Stable holder for the live ref so the draw effect below never re-subscribes
   // on snapshot identity changes (~20 fps) — only on mode/config changes.
@@ -100,6 +118,41 @@ export function Canvas2DVisualizer({
   const currentPaletteRef = useRef<string[]>([]);
   const targetPaletteRef = useRef<string[]>([]);
   const paletteTRef = useRef(1);
+  // Cache bar gradients to avoid per-frame createLinearGradient allocation.
+  // Keyed by mode + palette + height so each gradient-using mode gets its own entry.
+  const barGradientsCacheRef = useRef<{ key: string; gradients: CanvasGradient[] } | null>(null);
+  const [analysis, setAnalysis] = useState<{ text: string; model: string; mode: string } | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+
+  useImperativeHandle(ref, () => ({
+    captureScreenshot: () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+      return canvas.toDataURL("image/png");
+    },
+  }));
+
+  const handleAnalyze = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas || analysisLoading) return;
+    setAnalysisLoading(true);
+    setAnalysis(null);
+    try {
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((b) => resolve(b), "image/png");
+      });
+      if (!blob) throw new Error("canvas capture returned no blob");
+      const file = new File([blob], `viz-${mode}-${Date.now()}.png`, { type: "image/png" });
+      const { analyzeVisualizer } = await import("../../services/api");
+      const result = await analyzeVisualizer(file, mode);
+      setAnalysis(result);
+      onAnalysis?.(result);
+    } catch (e) {
+      setAnalysis({ text: `Analysis failed: ${(e as Error).message}`, model: "error", mode });
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -111,6 +164,10 @@ export function Canvas2DVisualizer({
     let phraseFlash = 0;
     let freq: Uint8Array | null = null;
     let wave: Uint8Array | null = null;
+    let smoothed: Uint8Array | null = null;
+    // Falling peak indicators for bars mode
+    let barPeaks: number[] | null = null;
+    const PEAK_DECAY = 0.985;
 
     const palettes: Record<string, string[]> = {
       INTRO: ["#6366f1", "#818cf8", "#a5b4fc"],
@@ -184,6 +241,13 @@ export function Canvas2DVisualizer({
       const section = sync?.currentSection || "VERSE";
       const target = palettes[section] || palettes.VERSE;
 
+      // Prefer blended live+analysis energy for visual punch; fall back to raw
+      // analyzed energy only when the blended value is actually invalid (NaN /
+      // Infinity), not when it is legitimately 0 during silence.
+      const effectiveEnergy = Number.isFinite(d.energy) ? d.energy : (d.analyzedEnergy || 0);
+      const energyMod = 1 + effectiveEnergy * 0.4;
+      const analyzedPunch = d.analyzedEnergy || 0;
+
       // Lazy-size frequency/waveform buffers when the analyser config changes.
       // Always allocated (default 1024/2048) so downstream code never sees null —
       // buffers are only *filled* with real data while playing.
@@ -192,6 +256,9 @@ export function Canvas2DVisualizer({
       }
       if (!wave || wave.length !== (analyser?.fftSize ?? 2048)) {
         wave = new Uint8Array(analyser?.fftSize ?? 2048);
+      }
+      if (!smoothed || smoothed.length !== wave.length) {
+        smoothed = new Uint8Array(wave.length);
       }
 
       if (target.join("|") !== targetPaletteRef.current.join("|")) {
@@ -213,12 +280,31 @@ export function Canvas2DVisualizer({
       if (sync?.isPhraseStart) phraseFlash = 1;
       phraseFlash = Math.max(0, phraseFlash - 0.07);
 
-      const energyMod = 1 + (d.analyzedEnergy || 0) * 0.4;
-
       // Size the backing store only when the container changes (see applySize above).
       const bg = normalizeHex(bgColor);
       const w = canvas.width;
       const h = canvas.height;
+
+      // Cached gradient helper: keyed by mode + palette + height so each
+      // gradient-using mode avoids per-frame createLinearGradient allocation.
+      const getGradients = (m: string, cols: string[]): CanvasGradient[] => {
+        const key = `${m}|${cols.join("|")}|${h}`;
+        const cached = barGradientsCacheRef.current;
+        if (cached?.key === key) return cached.gradients;
+        const gradients = cols.map((c) => {
+          const grad = ctx.createLinearGradient(0, 0, 0, h);
+          grad.addColorStop(0, c);
+          grad.addColorStop(1, cols[0] + "60");
+          return grad;
+        });
+        barGradientsCacheRef.current = { key, gradients };
+        return gradients;
+      };
+
+      // Ensure particles don't survive a mode switch away from particles mode.
+      if (mode !== "particles" && particles.length > 0) {
+        particles.length = 0;
+      }
 
       // Skip painting while the tab is hidden — the parent's analyser loop also
       // pauses, so this only saves battery; the rAF loop stays alive.
@@ -279,6 +365,16 @@ export function Canvas2DVisualizer({
         const barCount = 64;
         const step = Math.floor(freq.length / barCount);
         const barW = w / barCount;
+        // Lazy-init falling-peak store
+        if (!barPeaks || barPeaks.length !== barCount) {
+          barPeaks = new Array(barCount).fill(0);
+        }
+        // Cache vertical gradients (one per palette color) — createLinearGradient
+        // is relatively expensive and the gradient only changes when the palette
+        // or canvas height changes.
+        const barGradients = getGradients(mode, colors);
+        // Baseline leaves room for reflections below the bars
+        const baseY = Math.round(h * 0.88);
         // Frequency-specific color semantics (vision: "does pink = bass?" → bass=warm, mid=primary, treble=cool)
         for (let i = 0; i < barCount; i++) {
           const v = freq[i * step] / 255;
@@ -286,44 +382,63 @@ export function Canvas2DVisualizer({
             v +
             phraseFlash * 0.35 +
             (sync?.lineProgress ?? 0) * 0.1 +
-            d.bass * 0.08;
-          const bh = boosted * h * 0.85 * energyMod;
-          const x = i * barW;
-          const y = h - bh;
+            d.bass * 0.08 +
+            // Continuous beat-phase anticipation: subtle lift as next beat nears
+            (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
+          const bh = boosted * h * 0.78 * energyMod;
+          const x = Math.round(i * barW);
+          const y = Math.round(baseY - bh);
+          const bw = Math.round(barW) - 2;
+          const radius = Math.min(bw / 2, 3 * dpr);
           // Depth shadow layer (vision: "add depth")
           ctx.fillStyle = "rgba(0,0,0,0.35)";
-          ctx.fillRect(x + 1 + 2 * dpr, h - bh + 2 * dpr, barW - 2, bh);
-          const grad = ctx.createLinearGradient(x, y, x, h);
+          ctx.fillRect(x + 1 + 2 * dpr, y + 2 * dpr, bw, bh);
           const cIdx = Math.floor((i / barCount) * colors.length);
           // Bass warmth, treble cool — clarify frequency mapping
           const warmMix = i / barCount < 0.3 ? d.bass * 0.35 : 0;
           const coolMix = i / barCount > 0.7 ? d.treble * 0.35 : 0;
-          grad.addColorStop(0, colors[cIdx % colors.length]);
-          // Mid stop: lighten the band's own color toward white as the bass
-          // warms it (the previous `+ (warmMix ? "" : "")` was a no-op).
-          grad.addColorStop(
-            0.6,
-            lerpColor(colors[cIdx % colors.length], "#ffffff", warmMix * 0.35),
-          );
-          grad.addColorStop(1, colors[0] + "60");
-          ctx.fillStyle = grad;
-          // Apply warm/cool tint via overlay (cheap)
-          ctx.fillRect(x + 1, y, barW - 2, bh);
+          ctx.fillStyle = barGradients[cIdx % barGradients.length];
+          // Rounded top bar
+          ctx.beginPath();
+          ctx.roundRect(x + 1, y, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
+          ctx.fill();
           if (warmMix > 0.1) {
             ctx.fillStyle = `rgba(255,120,40,${warmMix * 0.25})`;
-            ctx.fillRect(x + 1, y, barW - 2, bh);
+            ctx.beginPath();
+            ctx.roundRect(x + 1, y, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
+            ctx.fill();
           }
           if (coolMix > 0.1) {
             ctx.fillStyle = `rgba(60,160,255,${coolMix * 0.25})`;
-            ctx.fillRect(x + 1, y, barW - 2, bh);
+            ctx.beginPath();
+            ctx.roundRect(x + 1, y, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
+            ctx.fill();
           }
+          // Reflection below baseline
+          if (bh > 1) {
+            ctx.save();
+            ctx.globalAlpha = 0.18;
+            ctx.fillStyle = barGradients[cIdx % barGradients.length];
+            const refH = bh * 0.3;
+            const refY = baseY + 2 * dpr;
+            ctx.beginPath();
+            ctx.roundRect(x + 1, refY, bw, refH, [0, 0, radius, radius]);
+            ctx.fill();
+            ctx.restore();
+          }
+          // Falling peak indicator
+          if (bh > barPeaks[i]) barPeaks[i] = bh;
+          else barPeaks[i] = Math.max(bh, barPeaks[i] * PEAK_DECAY);
+          const peakY = Math.round(baseY - barPeaks[i]);
+          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
           if (d.beat && v > 0.55) {
             // Stronger beat particle burst (vision: "pulsing when music hits")
             ctx.fillStyle = "#ffffff";
-            ctx.fillRect(x + 1, y - 3 * dpr, barW - 2, 3 * dpr);
+            ctx.fillRect(x + 1, y - 3 * dpr, bw, 3 * dpr);
             ctx.shadowColor = colors[cIdx % colors.length];
-            ctx.shadowBlur = 10 * dpr;
-            ctx.fillRect(x + 1, y - 1 * dpr, barW - 2, 1 * dpr);
+            ctx.shadowBlur = 6 * dpr;
+            ctx.fillRect(x + 1, y - 1 * dpr, bw, 1 * dpr);
             ctx.shadowBlur = 0;
             // Tiny burst dots above peak
             if (i % 4 === 0) {
@@ -359,11 +474,280 @@ export function Canvas2DVisualizer({
           }
         }
         ctx.globalAlpha = 1;
+      } else if (mode === "mirrored-bars") {
+        const barCount = 64;
+        const step = Math.floor(freq.length / barCount);
+        const barW = w / barCount;
+        if (!barPeaks || barPeaks.length !== barCount) {
+          barPeaks = new Array(barCount).fill(0);
+        }
+        const barGradients = getGradients(mode, colors);
+        const centerY = Math.round(h * 0.5);
+        const maxBarH = h * 0.38;
+        for (let i = 0; i < barCount; i++) {
+          const v = freq[i * step] / 255;
+          const boosted =
+            v +
+            phraseFlash * 0.35 +
+            (sync?.lineProgress ?? 0) * 0.1 +
+            d.bass * 0.08 +
+            // Continuous beat-phase anticipation: subtle lift as next beat nears
+            (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
+          const bh = boosted * maxBarH * energyMod;
+          const x = Math.round(i * barW);
+          const bw = Math.round(barW) - 2;
+          const radius = Math.min(bw / 2, 3 * dpr);
+          const cIdx = Math.floor((i / barCount) * colors.length);
+          const warmMix = i / barCount < 0.3 ? d.bass * 0.35 : 0;
+          const coolMix = i / barCount > 0.7 ? d.treble * 0.35 : 0;
+          // Upper bar
+          const upY = Math.round(centerY - bh);
+          ctx.fillStyle = "rgba(0,0,0,0.25)";
+          ctx.fillRect(x + 1 + 2 * dpr, upY + 2 * dpr, bw, bh);
+          ctx.fillStyle = barGradients[cIdx % barGradients.length];
+          ctx.beginPath();
+          ctx.roundRect(x + 1, upY, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
+          ctx.fill();
+          if (warmMix > 0.1) {
+            ctx.fillStyle = `rgba(255,120,40,${warmMix * 0.25})`;
+            ctx.beginPath();
+            ctx.roundRect(x + 1, upY, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
+            ctx.fill();
+          }
+          if (coolMix > 0.1) {
+            ctx.fillStyle = `rgba(60,160,255,${coolMix * 0.25})`;
+            ctx.beginPath();
+            ctx.roundRect(x + 1, upY, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
+            ctx.fill();
+          }
+          // Lower mirrored bar
+          const lowY = centerY;
+          const lowH = bh * 0.6;
+          ctx.save();
+          ctx.globalAlpha = 0.35;
+          ctx.fillStyle = barGradients[cIdx % barGradients.length];
+          ctx.beginPath();
+          ctx.roundRect(x + 1, lowY, bw, lowH + 2 * dpr, [0, 0, radius, radius]);
+          ctx.fill();
+           ctx.restore();
+           // Peak indicator (upper)
+           if (bh > barPeaks[i]) barPeaks[i] = bh;
+           else barPeaks[i] = Math.max(bh, barPeaks[i] * PEAK_DECAY);
+           const peakY = Math.round(centerY - barPeaks[i]);
+           ctx.fillStyle = "rgba(255,255,255,0.85)";
+           ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
+           // Lower mirrored peak indicator
+           const lowPeakH = barPeaks[i] * 0.6;
+           const lowPeakY = Math.round(centerY + lowPeakH);
+           ctx.fillStyle = "rgba(255,255,255,0.55)";
+           ctx.fillRect(x + 1, lowPeakY, bw, 1.5 * dpr);
+          if (d.beat && v > 0.55) {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(x + 1, upY - 3 * dpr, bw, 3 * dpr);
+            ctx.shadowColor = colors[cIdx % colors.length];
+            ctx.shadowBlur = 6 * dpr;
+            ctx.fillRect(x + 1, upY - 1 * dpr, bw, 1 * dpr);
+            ctx.shadowBlur = 0;
+          }
+        }
+      } else if (mode === "segmented-led-bars") {
+        const barCount = 64;
+        const step = Math.floor(freq.length / barCount);
+        const barW = w / barCount;
+        const segmentsPerBar = 10;
+        const segH = 4 * dpr;
+        const gap = 2 * dpr;
+        const baseY = Math.round(h * 0.92);
+        const barGradients = getGradients(mode, colors);
+        for (let i = 0; i < barCount; i++) {
+          const v = freq[i * step] / 255;
+          const boosted =
+            v +
+            phraseFlash * 0.35 +
+            (sync?.lineProgress ?? 0) * 0.1 +
+            d.bass * 0.08 +
+            // Continuous beat-phase anticipation: subtle lift as next beat nears
+            (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
+          const activeSegments = Math.floor(boosted * segmentsPerBar * energyMod);
+          const x = Math.round(i * barW);
+          const bw = Math.round(barW) - 2;
+          const cIdx = Math.floor((i / barCount) * colors.length);
+          for (let s = 0; s < segmentsPerBar; s++) {
+            const y = baseY - (s + 1) * (segH + gap);
+            if (s >= activeSegments) continue;
+            ctx.fillStyle = barGradients[cIdx % barGradients.length];
+            ctx.beginPath();
+            ctx.roundRect(x + 1, y, bw, segH, [1 * dpr, 1 * dpr, 1 * dpr, 1 * dpr]);
+            ctx.fill();
+            if (d.beat && s === activeSegments - 1) {
+              ctx.shadowColor = colors[cIdx % colors.length];
+              ctx.shadowBlur = 8 * dpr;
+              ctx.fillRect(x + 1, y, bw, segH);
+              ctx.shadowBlur = 0;
+            }
+          }
+        }
+      } else if (mode === "stereo-split-bars") {
+        const barCount = 48;
+        const step = Math.floor(freq.length / barCount);
+        const barW = w / barCount;
+        const bands = [
+          { label: "low", start: 0, end: Math.floor(barCount * 0.25), color: colors[0] },
+          { label: "mid", start: Math.floor(barCount * 0.25), end: Math.floor(barCount * 0.65), color: colors[1] },
+          { label: "high", start: Math.floor(barCount * 0.65), end: barCount, color: colors[2] || colors[1] },
+        ];
+        const baseY = Math.round(h * 0.88);
+        // Lazy-init peaks for stereo-split
+        if (!barPeaks || barPeaks.length !== barCount) {
+          barPeaks = new Array(barCount).fill(0);
+        }
+        for (const band of bands) {
+          ctx.fillStyle = band.color + "18";
+          ctx.fillRect(0, baseY - 2 * dpr, w, 2 * dpr);
+          for (let i = band.start; i < band.end; i++) {
+            const v = freq[i * step] / 255;
+            const boosted =
+              v +
+              phraseFlash * 0.35 +
+              (sync?.lineProgress ?? 0) * 0.1 +
+              d.bass * 0.08 +
+              (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
+            const bh = boosted * h * 0.65 * energyMod;
+            const x = Math.round(i * barW);
+            const y = Math.round(baseY - bh);
+            const bw = Math.round(barW) - 2;
+            const radius = Math.min(bw / 2, 3 * dpr);
+            ctx.fillStyle = band.color;
+            ctx.beginPath();
+            ctx.roundRect(x + 1, y, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
+            ctx.fill();
+            ctx.fillStyle = "rgba(255,255,255,0.12)";
+            ctx.fillRect(x + 1, y, bw, Math.max(1, bh * 0.25));
+            // Falling peak indicator
+            if (bh > barPeaks[i]) barPeaks[i] = bh;
+            else barPeaks[i] = Math.max(bh, barPeaks[i] * PEAK_DECAY);
+            const peakY = Math.round(baseY - barPeaks[i]);
+            ctx.fillStyle = "rgba(255,255,255,0.7)";
+            ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
+            // Beat glow on active bar
+            if (d.beat && v > 0.4) {
+              ctx.shadowColor = band.color;
+              ctx.shadowBlur = 6 * dpr;
+              ctx.fillRect(x + 1, y, bw, bh + 2 * dpr);
+              ctx.shadowBlur = 0;
+            }
+          }
+        }
+      } else if (mode === "stacked-frequency-bands") {
+        const barCount = 48;
+        const step = Math.floor(freq.length / barCount);
+        const barW = w / barCount;
+        const baseY = Math.round(h * 0.88);
+        const layers = [
+          { name: "low", start: 0, end: Math.floor(step * barCount * 0.25), color: colors[0] },
+          { name: "mid", start: Math.floor(step * barCount * 0.25), end: Math.floor(step * barCount * 0.65), color: colors[1] },
+          { name: "high", start: Math.floor(step * barCount * 0.65), end: Math.floor(step * barCount * 1), color: colors[2] || colors[1] },
+        ];
+        // Lazy-init peaks for stacked bands (track tallest layer per bar)
+        if (!barPeaks || barPeaks.length !== barCount) {
+          barPeaks = new Array(barCount).fill(0);
+        }
+        for (let i = 0; i < barCount; i++) {
+          const x = Math.round(i * barW);
+          const bw = Math.round(barW) - 2;
+          const radius = Math.min(bw / 2, 3 * dpr);
+          let layerY = baseY;
+          let topY = baseY;
+          for (const layer of layers) {
+            const idx = Math.min(layer.start + i, freq.length - 1);
+            const v = freq[idx] / 255;
+            const boosted =
+              v +
+              phraseFlash * 0.35 +
+              (sync?.lineProgress ?? 0) * 0.1 +
+              d.bass * 0.08 +
+              (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
+            const lh = boosted * h * 0.22 * energyMod;
+            const ly = Math.round(layerY - lh);
+            ctx.fillStyle = layer.color;
+            ctx.beginPath();
+            ctx.roundRect(x + 1, ly, bw, lh + 2 * dpr, [radius, radius, 0, 0]);
+            ctx.fill();
+            ctx.fillStyle = "rgba(255,255,255,0.1)";
+            ctx.fillRect(x + 1, ly, bw, Math.max(1, lh * 0.25));
+            topY = ly;
+            layerY = ly;
+          }
+          // Falling peak at top of stack
+          const topH = baseY - topY;
+          if (topH > barPeaks[i]) barPeaks[i] = topH;
+          else barPeaks[i] = Math.max(topH, barPeaks[i] * PEAK_DECAY);
+          const peakY = Math.round(baseY - barPeaks[i]);
+          ctx.fillStyle = "rgba(255,255,255,0.7)";
+          ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
+          // Beat glow on top layer
+          if (d.beat) {
+            const topLayer = layers[layers.length - 1];
+            const idx = Math.min(topLayer.start + i, freq.length - 1);
+            const v = freq[idx] / 255;
+            if (v > 0.35) {
+              ctx.shadowColor = topLayer.color;
+              ctx.shadowBlur = 6 * dpr;
+              ctx.fillStyle = "rgba(255,255,255,0.15)";
+              ctx.fillRect(x + 1, topY, bw, baseY - topY);
+              ctx.shadowBlur = 0;
+            }
+          }
+        }
+      } else if (mode === "dot-peak-matrix") {
+        const barCount = 64;
+        const step = Math.floor(freq.length / barCount);
+        const cols = barCount;
+        const rows = 12;
+        const cellW = w / cols;
+        const cellH = h / rows;
+        const dotR = Math.min(cellW, cellH) * 0.35;
+        const barGradients = getGradients(mode, colors);
+        for (let i = 0; i < cols; i++) {
+          const v = freq[i * step] / 255;
+          const boosted =
+            v +
+            phraseFlash * 0.35 +
+            (sync?.lineProgress ?? 0) * 0.1 +
+            d.bass * 0.08 +
+            // Continuous beat-phase anticipation: subtle lift as next beat nears
+            (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
+          const activeRows = Math.floor(boosted * rows * energyMod);
+          const cIdx = Math.floor((i / cols) * colors.length);
+          for (let r = 0; r < rows; r++) {
+            const cx = Math.round(i * cellW + cellW / 2);
+            const cy = Math.round(h - (r + 0.5) * cellH);
+            if (r < activeRows) {
+              ctx.fillStyle = barGradients[cIdx % barGradients.length];
+              ctx.beginPath();
+              ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
+              ctx.fill();
+              if (d.beat && r === activeRows - 1) {
+                ctx.shadowColor = colors[cIdx % colors.length];
+                ctx.shadowBlur = 6 * dpr;
+                ctx.beginPath();
+                ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+              }
+            } else {
+              ctx.fillStyle = "rgba(255,255,255,0.08)";
+              ctx.beginPath();
+              ctx.arc(cx, cy, dotR * 0.6, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        }
       } else if (mode === "waveform") {
         // Depth grid behind waveform (vision: "faint 3D grid behind waves")
         ctx.strokeStyle = colors[0] + "18";
         ctx.lineWidth = dpr;
-        const gridStep = Math.floor(w / 12);
+        const gridStep = Math.max(1, Math.floor(w / 12));
         for (let gx = 0; gx < w; gx += gridStep) {
           ctx.beginPath();
           ctx.moveTo(gx, h * 0.2);
@@ -380,7 +764,9 @@ export function Canvas2DVisualizer({
           ctx.stroke();
         }
         // 2026 smooth: 3-point Gaussian-ish moving average (Ollama fix #2) + HSB hue drift
-        const smoothed = new Uint8Array(wave.length);
+        if (!smoothed || smoothed.length !== wave.length) {
+          smoothed = new Uint8Array(wave.length);
+        }
         for (let i = 0; i < wave.length; i++) {
           const prev = wave[Math.max(0, i - 1)];
           const next = wave[Math.min(wave.length - 1, i + 1)];
@@ -393,7 +779,7 @@ export function Canvas2DVisualizer({
           9 * dpr +
           phraseFlash * 14 +
           d.peak * 10 * dpr +
-          (d.analyzedEnergy || 0) * 8 * dpr;
+          effectiveEnergy * 8 * dpr;
         ctx.beginPath();
         const slice = w / smoothed.length;
         for (let i = 0; i < smoothed.length; i++) {
@@ -405,10 +791,9 @@ export function Canvas2DVisualizer({
               h *
               0.35 *
               (1 +
-                d.energy * 0.55 +
+                effectiveEnergy * 0.85 +
                 phraseFlash * 0.45 +
-                d.bass * 0.25 +
-                (d.analyzedEnergy || 0) * 0.3);
+                d.bass * 0.25);
           const xOff =
             (sync?.lineProgress ?? 0) *
             14 *
@@ -457,11 +842,11 @@ export function Canvas2DVisualizer({
           const angle = (i / 64) * Math.PI * 2 + sectionRot;
           const r0 = baseR;
           const r1 =
-            baseR +
-            v *
-              baseR *
-              1.2 *
-              (1 + phraseFlash * 0.6 + (d.analyzedEnergy || 0) * 0.4);
+           baseR +
+             v *
+               baseR *
+               1.2 *
+               (1 + phraseFlash * 0.6 + effectiveEnergy * 0.4);
           const x0 = cx + Math.cos(angle) * r0;
           const y0 = cy + Math.sin(angle) * r0;
           const x1 = cx + Math.cos(angle) * r1;
@@ -566,9 +951,9 @@ export function Canvas2DVisualizer({
           freq.slice(bassIdx, midIdx).reduce((a, b) => a + b, 0) /
           ((midIdx - bassIdx) * 255 || 1);
         const ampX =
-          w * 0.35 * (1 + bassV * 0.6 + (d.analyzedEnergy || 0) * 0.3);
+          w * 0.35 * (1 + bassV * 0.6 + effectiveEnergy * 0.3);
         const ampY =
-          h * 0.35 * (1 + midV * 0.6 + (d.analyzedEnergy || 0) * 0.3);
+          h * 0.35 * (1 + midV * 0.6 + effectiveEnergy * 0.3);
         const t = performance.now() * 0.001;
         ctx.strokeStyle = colors[1];
         ctx.lineWidth = 2 * dpr;
@@ -586,10 +971,9 @@ export function Canvas2DVisualizer({
         }
         ctx.stroke();
         ctx.shadowBlur = 0;
-        // Draw current-point glow
-        const curAngle =
-          t * (1 + d.bass) * (1 + bassV * 3) + performance.now() * 0.001;
-        const curX = cx + Math.sin(curAngle) * ampX;
+        // Draw current-point glow (must match the loop's angle math above)
+        const curAngle = t * (1 + d.bass);
+        const curX = cx + Math.sin(curAngle * (1 + bassV * 3)) * ampX;
         const curY = cy + Math.cos(curAngle * (1 + midV * 2)) * ampY;
         ctx.fillStyle = "#ffffff";
         ctx.beginPath();
@@ -655,29 +1039,29 @@ export function Canvas2DVisualizer({
             2 * dpr +
             p.v * 5 * dpr +
             (d.beat && p.v > 0.7 ? 3 * dpr : 0) +
-            (d.analyzedEnergy || 0) * 3 * dpr;
+            analyzedPunch * 3 * dpr;
           ctx.fillStyle =
             colors[Math.floor(p.v * colors.length) % colors.length];
           ctx.shadowColor = colors[0];
           ctx.shadowBlur =
-            4 * dpr + p.v * 8 * dpr + (d.analyzedEnergy || 0) * 6 * dpr;
+            4 * dpr + p.v * 8 * dpr + analyzedPunch * 6 * dpr;
           ctx.beginPath();
           ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.shadowBlur = 0;
       } else if (mode === "particles") {
-        const energy = d.energy;
+        const energy = effectiveEnergy;
         const beat = d.beat;
         const spawnCount = Math.floor(
-          energy * 6 + (d.analyzedEnergy || 0) * 8 + (beat ? 14 : 0),
+          energy * 6 + analyzedPunch * 8 + (beat ? 14 : 0),
         );
         for (let i = 0; i < spawnCount; i++) spawnParticle(w, h, energy, beat);
         for (let i = particles.length - 1; i >= 0; i--) {
           const p = particles[i];
           // Audio-reactive velocity: particles accelerate outward on beat/energy
           const accel =
-            1 + energy * 0.5 + (d.analyzedEnergy || 0) * 0.6 + (beat ? 1.5 : 0);
+            1 + energy * 0.5 + analyzedPunch * 0.6 + (beat ? 1.5 : 0);
           p.vx *= accel;
           p.vy *= accel;
           // Slight drag to prevent runaway speeds
@@ -695,7 +1079,7 @@ export function Canvas2DVisualizer({
           ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
           ctx.shadowColor = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha * 0.8})`;
           ctx.shadowBlur =
-            6 * dpr + d.bass * 8 * dpr + (d.analyzedEnergy || 0) * 6 * dpr;
+            6 * dpr + d.bass * 8 * dpr + analyzedPunch * 6 * dpr;
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size * dpr + d.bass * 2 * dpr, 0, Math.PI * 2);
           ctx.fill();
@@ -732,13 +1116,34 @@ export function Canvas2DVisualizer({
   }, [isPlaying, mode, bgColor, analyserRef, audioData]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 w-full h-full"
-      style={{ background: bgColor }}
-    />
+    <div className="absolute inset-0">
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full"
+        style={{ background: bgColor }}
+      />
+      <div className="absolute top-2 right-2 flex flex-col gap-2 z-10">
+        <button
+          onClick={handleAnalyze}
+          disabled={analysisLoading}
+          className="px-2 py-1 text-xs bg-black/50 hover:bg-black/70 text-white/80 rounded backdrop-blur-sm transition-colors disabled:opacity-50"
+          title="Analyze this visualizer frame with Ollama"
+        >
+          {analysisLoading ? "Analyzing..." : "Analyze"}
+        </button>
+      </div>
+      {analysis && (
+        <div className="absolute bottom-2 left-2 right-2 z-10 max-h-48 overflow-y-auto bg-gray-900/95 backdrop-blur-sm rounded-lg border border-white/10 shadow-xl p-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-white/60 font-medium">Vision feedback — {analysis.mode}</span>
+            <span className="text-[10px] text-white/40">{analysis.model}</span>
+          </div>
+          <pre className="text-xs text-white/80 whitespace-pre-wrap font-mono leading-relaxed">{analysis.text}</pre>
+        </div>
+      )}
+    </div>
   );
-}
+});
 
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   let r: number, g: number, b: number;

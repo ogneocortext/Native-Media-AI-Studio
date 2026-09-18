@@ -21,6 +21,14 @@ PROMPTS = {
     "ocr": "Transcribe all visible text preserving original line breaks, punctuation, and reading order. If a table is present, convert it to markdown. If a region is unclear write [unclear]. Do NOT invent text.",
     "table": 'Convert the table in this image to markdown, preserving headers, rows, and alignment. If no table exists reply "No table detected."',
     "chart": 'Describe the trend shown in this chart. Name axes, units, and relative heights. Compare peaks/valleys and flag any ambiguous value as "estimated". Do NOT invent exact numbers if labels are missing.',
+    "visualizer": (
+        "You are critiquing a real-time 2D music visualizer frame. "
+        "Be concise and actionable. Return 3-6 bullets grouped as:\n"
+        "- What works\n"
+        "- Issues (flicker, muddiness, low contrast, clipping, illegibility)\n"
+        "- Suggested fixes (colors, motion, readability)\n"
+        "Do not invent text that is not present in the image."
+    ),
 }
 
 
@@ -84,6 +92,38 @@ async def vision_ocr(
 async def vision_chart(file: UploadFile = File(...), model: str = Form(DEFAULT_MODEL)):
     """Convenience alias for chart reading."""
     return await vision_ocr(file=file, prompt="chart", model=model)
+
+
+@router.post("/analyze-visualizer")
+async def analyze_visualizer(
+    file: UploadFile = File(...),
+    mode: str = Form("bars"),
+    model: str = Form(DEFAULT_MODEL),
+):
+    """Analyze a 2D visualizer screenshot via Ollama vision model."""
+    if file.content_type and not file.content_type.startswith("image/"):
+        if file.content_type not in ("image/png", "image/jpeg", "image/webp", "image/jpg"):
+            pass
+    raw = await file.read()
+    if not raw:
+        return {"error": "empty file"}
+    if len(raw) > 15 * 1024 * 1024:
+        return {"error": "file too large (15MB max)"}
+    b64 = base64.b64encode(raw).decode()
+    prompt = (
+        f"2D visualizer screenshot in mode={mode}. "
+        + PROMPTS["visualizer"]
+    )
+    try:
+        text = await _run_in_thread(_ollama_chat, model, prompt, b64)
+    except Exception as e:
+        logger.warning(f"visualizer analysis with {model} failed: {e}; trying fallback {FALLBACK_MODEL}")
+        try:
+            text = await _run_in_thread(_ollama_chat, FALLBACK_MODEL, prompt, b64)
+            model = FALLBACK_MODEL
+        except Exception as e2:
+            return {"error": str(e2), "model": model}
+    return {"text": text, "model": model, "mode": mode}
 
 
 @router.get("/ocr/history")

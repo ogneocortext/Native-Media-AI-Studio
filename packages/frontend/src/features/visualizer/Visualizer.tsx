@@ -7,13 +7,11 @@ import type { AudioAnalysisData, AudioData, VizParams, PerceptualScale } from ".
 import { DEFAULT_VIZ_PARAMS } from "./types";
 import { useUIStore } from "../../state/uiStore";
 import { getVisualizationForTrack, VisualizationStyle } from "./trackConceptAnalyzer";
-import { mapToPerceptualBands } from "./perceptualScales";
 import { Canvas2DVisualizer } from "./Canvas2DVisualizer";
 import { VisualizerScene } from "./VisualizerScene";
 import { useLrcSync, computeLrcSync, computeSectionBounds } from "./useLrcSync";
 import type { LrcSyncData } from "./useLrcSync";
-import { ANALYSER_SMOOTHING, ATTACK, RELEASE, createAudioClock, estimateOutputLatency } from "./audioTiming";
-import { getBeatPhase } from "../../shared/timing";
+import { ANALYSER_SMOOTHING, createAudioClock, estimateOutputLatency } from "./audioTiming";
 import { ShaderVisualizer } from "./ShaderVisualizer";
 import { ACESFilmicToneMapping } from "three";
 import { useWebGPUDector, createVisualizerRenderer, isWebGPUOptIn } from "./webgpu/WebGPURendererDetector";
@@ -143,7 +141,7 @@ export function Visualizer() {
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [vizMode, setVizMode] = useState<"3d" | "shader" | "2d">("shader"); // 2d = Canvas2D (2026 visual-flux/Waviz)
-  const [canvas2DMode, setCanvas2DMode] = useState<"bars" | "waveform" | "radial" | "spectrogram" | "lissajous" | "constellation" | "particles">("bars");
+  const [canvas2DMode, setCanvas2DMode] = useState<"bars" | "mirrored-bars" | "segmented-led-bars" | "stereo-split-bars" | "stacked-frequency-bands" | "dot-peak-matrix" | "waveform" | "radial" | "spectrogram" | "lissajous" | "constellation" | "particles">("bars");
   const [perceptualScale, setPerceptualScale] = useState<PerceptualScale>("mel");
   // Adaptive pixel ratio (2026 perf best practice): PerformanceMonitor steps
   // down to 1x when fps regresses and restores the [1, 1.5] band on recovery.
@@ -239,7 +237,25 @@ export function Visualizer() {
   const last3DUiUpdateRef = useRef(0);
   // Latest snapshot for the __VIZ_TEST__ harness without re-registering per frame.
   const testStateRef = useRef({ vizMode, canvas2DMode, currentFilename, isPlaying, liveAudioData, visualizationStyle, kineticPreset, loadedPresetName: null as string | null, storyboard: EMPTY_STORYBOARD, activeVisualPresetId: null as string | null, visualsVisible: true, lyricsVisible: true, characterVisible: true });
-  testStateRef.current = { vizMode, canvas2DMode, currentFilename, isPlaying, liveAudioData, visualizationStyle, kineticPreset, loadedPresetName: loadedPreset?.name ?? null, storyboard, activeVisualPresetId, visualsVisible, lyricsVisible, characterVisible };
+  const prevTestState = useRef(testStateRef.current);
+  if (
+    prevTestState.current.vizMode !== vizMode ||
+    prevTestState.current.canvas2DMode !== canvas2DMode ||
+    prevTestState.current.currentFilename !== currentFilename ||
+    prevTestState.current.isPlaying !== isPlaying ||
+    prevTestState.current.liveAudioData !== liveAudioData ||
+    prevTestState.current.visualizationStyle !== visualizationStyle ||
+    prevTestState.current.kineticPreset !== kineticPreset ||
+    prevTestState.current.loadedPresetName !== (loadedPreset?.name ?? null) ||
+    prevTestState.current.storyboard !== storyboard ||
+    prevTestState.current.activeVisualPresetId !== activeVisualPresetId ||
+    prevTestState.current.visualsVisible !== visualsVisible ||
+    prevTestState.current.lyricsVisible !== lyricsVisible ||
+    prevTestState.current.characterVisible !== characterVisible
+  ) {
+    testStateRef.current = { vizMode, canvas2DMode, currentFilename, isPlaying, liveAudioData, visualizationStyle, kineticPreset, loadedPresetName: loadedPreset?.name ?? null, storyboard, activeVisualPresetId, visualsVisible, lyricsVisible, characterVisible };
+    prevTestState.current = testStateRef.current;
+  }
 
   // Smoothing + beat-detection state for shader-mode analyser (mirrors useRealAudio)
   const smoothedBassRef = useRef(0);
@@ -644,11 +660,8 @@ export function Visualizer() {
     if (isStale()) return;
 
     // Load lyrics for this track (LRC only — no LRC means a text-free canvas)
-    const duration = analysis?.duration_seconds || 240;
-    console.log('[LRC] Loading lyrics for:', cleanName, 'duration:', duration);
     const trackLyrics = await parseLyricsForTrack(cleanName, trackFolder);
     if (isStale()) return;
-    console.log('[LRC] Loaded', trackLyrics.length, 'lyric lines');
     setLyrics(trackLyrics);
     setLyricsVisible(trackLyrics.length > 0);
 
@@ -667,7 +680,7 @@ export function Visualizer() {
     const visualPreset = visualPresets[visualPresetId];
     if (visualPreset) {
       if (visualPresetLockRef.current !== presetLockAtStart || isStale()) {
-        console.log("[Visualizer] skip auto visual preset — manual override or stale", visualPresetId);
+        // Skip auto-apply: user manually picked a preset while we were awaiting analysis/lyrics.
       } else {
         setVizParams({ ...DEFAULT_VIZ_PARAMS, ...visualPreset.vizParams });
         setBgColor(visualPreset.bgColor);
@@ -675,7 +688,7 @@ export function Visualizer() {
         setVisualizationStyle(visualPreset.visualizationStyle);
         setKineticPreset(visualPreset.kineticPreset);
         setActiveVisualPresetId(visualPresetId);
-        showToast(`Applied "${visualPreset.name}" preset`, "info");
+        showToast(`Applied "${visualPreset.name}" preset — ${visualPreset.description}`, "info");
       }
     }
 
@@ -698,168 +711,6 @@ export function Visualizer() {
       duration_seconds: analysis.duration_seconds || undefined,
     };
   }, []);
-
-  // Audio analysis loop for shader & 2D modes (mirrors useRealAudio: attack/release smoothing + beat detection)
-  useEffect(() => {
-    if (vizMode !== "shader" && vizMode !== "2d") return;
-    if (!isPlaying) return;
-
-    let raf: number;
-    let lastUiUpdate = 0;
-    const analyse = () => {
-      // Skip FFT + setState while hidden; keep the loop alive for resume.
-      if (typeof document !== "undefined" && document.hidden) {
-        raf = requestAnimationFrame(analyse);
-        return;
-      }
-      const analyser = analyserRef.current;
-      if (analyser) {
-        const freqArray = freqArrayRef.current ?? new Uint8Array(analyser.frequencyBinCount);
-        freqArrayRef.current = freqArray;
-        analyser.getByteFrequencyData(freqArray as unknown as Uint8Array<ArrayBuffer>);
-        const arr = freqArray;
-
-        const sampleRate = audioCtxRef.current?.sampleRate ?? 44100;
-        const binSize = sampleRate / (arr.length * 2);
-        const bassBins = Math.max(1, Math.floor(250 / binSize));
-        const midBins = Math.max(bassBins + 1, Math.floor(4000 / binSize));
-
-        const rawBass = arr.slice(0, bassBins).reduce((a, b) => a + b, 0) / (bassBins * 255 || 1);
-        const rawMid = arr.slice(bassBins, midBins).reduce((a, b) => a + b, 0) / ((midBins - bassBins) * 255 || 1);
-        const rawTreble = arr.slice(midBins).reduce((a, b) => a + b, 0) / ((arr.length - midBins) * 255 || 1);
-
-        // Attack/release smoothing from shared timing constants (kept in sync with
-        // useRealAudio in audioHooks.ts — see audioTiming.ts).
-        const bassDiff = rawBass - smoothedBassRef.current;
-        smoothedBassRef.current += bassDiff * (bassDiff > 0 ? ATTACK : RELEASE);
-        const midDiff = rawMid - smoothedMidRef.current;
-        smoothedMidRef.current += midDiff * (midDiff > 0 ? ATTACK : RELEASE);
-        const trebleDiff = rawTreble - smoothedTrebleRef.current;
-        smoothedTrebleRef.current += trebleDiff * (trebleDiff > 0 ? ATTACK : RELEASE);
-
-        const bass = smoothedBassRef.current;
-        const mid = smoothedMidRef.current;
-        const treble = smoothedTrebleRef.current;
-        const overall = bass * 0.4 + mid * 0.35 + treble * 0.25;
-
-        // Peak hold with decay
-        const currentPeak = Math.max(bass, mid, treble);
-        if (currentPeak > peakHoldRef.current) {
-          peakHoldRef.current = currentPeak;
-          peakDecayRef.current = 0;
-        } else {
-          peakDecayRef.current++;
-          if (peakDecayRef.current > 30) {
-            peakHoldRef.current *= 0.95;
-          }
-        }
-
-        // Beat detection: use analyzed beat_times if available, else adaptive bass spike
-        let isBeat = false;
-        const elapsed = audioElapsedRef.current ?? 0;
-        const analysis = currentAnalysisDataRef.current;
-        if (analysis?.beat_times?.length) {
-          const beats = analysis.beat_times;
-          let lo = 0, hi = beats.length - 1;
-          while (lo <= hi) {
-            const midIdx = (lo + hi) >> 1;
-            if (beats[midIdx] < elapsed) lo = midIdx + 1;
-            else hi = midIdx - 1;
-          }
-          let closestIdx = -1;
-          let closestDist = Infinity;
-          for (let i = Math.max(0, hi); i <= Math.min(beats.length - 1, lo); i++) {
-            const dist = Math.abs(beats[i] - elapsed);
-            if (dist < closestDist) {
-              closestDist = dist;
-              closestIdx = i;
-            }
-          }
-          if (closestIdx >= 0 && closestDist < 0.06 && closestIdx !== lastBeatIdxRef.current) {
-            isBeat = true;
-            lastBeatIdxRef.current = closestIdx;
-          }
-          if (beats.length > 0 && elapsed < beats[Math.max(0, lastBeatIdxRef.current)]) {
-            lastBeatIdxRef.current = -1;
-          }
-        } else {
-          beatCooldownRef.current = Math.max(0, beatCooldownRef.current - 1);
-          const avgEnergy = (bass + mid + treble) / 3;
-          const threshold = 0.4 + avgEnergy * 0.3;
-          isBeat = bass > threshold && bass > lastBassRef.current * 1.1 && beatCooldownRef.current === 0;
-          if (isBeat) beatCooldownRef.current = 5;
-        }
-        lastBassRef.current = bass;
-
-        // --- Analysis-driven energy: blend live (reactive) with precomputed curve (stable, no lag) ---
-        let energy = (bass + mid + treble) / 3;
-        let nextBeatIn = 0;
-        let analyzedEnergy = 0;
-        if (analysis && analysis.energy_curve?.length && analysis.duration_seconds > 0) {
-          const p = Math.max(0, Math.min(1, elapsed / analysis.duration_seconds));
-          const idx = Math.min(Math.floor(p * analysis.energy_curve.length), analysis.energy_curve.length - 1);
-          const analysisEnergy = analysis.energy_curve[idx];
-          // 60% live + 40% analysis — keeps transients while anchoring to section energy
-          energy = energy * 0.6 + analysisEnergy * 0.4;
-          // Exposed for consumers (2D canvas uses analyzedEnergy for extra punch).
-          analyzedEnergy = analysisEnergy;
-          // nextBeatIn from beat_times for anticipation (mirrors audioHooks)
-          if (analysis.beat_times?.length) {
-            const beats = analysis.beat_times;
-            let lo2 = 0, hi2 = beats.length - 1;
-            while (lo2 <= hi2) {
-              const mid2 = (lo2 + hi2) >> 1;
-              if (beats[mid2] < elapsed) lo2 = mid2 + 1;
-              else hi2 = mid2 - 1;
-            }
-            const nxt = beats[lo2];
-            if (nxt !== undefined) nextBeatIn = Math.max(0, nxt - elapsed);
-          }
-        } else if (analysis?.beat_times?.length) {
-          // Fallback when no energy_curve but we have beats
-          const beats = analysis.beat_times;
-          let lo2 = 0, hi2 = beats.length - 1;
-          while (lo2 <= hi2) {
-            const mid2 = (lo2 + hi2) >> 1;
-            if (beats[mid2] < elapsed) lo2 = mid2 + 1;
-            else hi2 = mid2 - 1;
-          }
-          const nxt = beats[lo2];
-          if (nxt !== undefined) nextBeatIn = Math.max(0, nxt - elapsed);
-        }
-
-        const newData: AudioData = {
-          bass, mid, treble, overall,
-          beat: isBeat,
-          peak: peakHoldRef.current,
-          energy,
-          drumType: null,
-          nextBeatIn,
-          beatPhase: analysis?.beat_times?.length
-            ? getBeatPhase(analysis.beat_times, elapsed)?.phase
-            : undefined,
-          // Perceptual + analyzed-energy payload for parity with the 3D path
-          // (useRealAudio). Without these, shader/2D consumers that key off
-          // `analyzedEnergy`/`perceptualBands` silently saw zeros.
-          analyzedEnergy,
-          perceptualBands: mapToPerceptualBands(arr, sampleRate, perceptualScaleRef.current, 40),
-          perceptualScale: perceptualScaleRef.current,
-        };
-        liveAudioDataRef.current = newData;
-        const now = performance.now();
-        // Latch the beat for throttled consumers: a single-frame `beat` is
-        // invisible to the 10 Hz state mirror (missed beats, late flashes).
-        if (isBeat) lastBeatAtRef.current = now;
-        if (now - lastUiUpdate > 100) {
-          lastUiUpdate = now;
-          setLiveAudioData({ ...newData, beat: isBeat || (now - lastBeatAtRef.current < BEAT_LATCH_MS) });
-        }
-      }
-      raf = requestAnimationFrame(analyse);
-    };
-    raf = requestAnimationFrame(analyse);
-    return () => cancelAnimationFrame(raf);
-  }, [vizMode, isPlaying]);
 
   const handlePresetLoaded = useCallback((preset: VisualPreset) => {
     // Pass current track analysis so preset aligns to loaded track
@@ -1100,6 +951,11 @@ export function Visualizer() {
               <label>2D Mode
                 <select value={canvas2DMode} onChange={(e) => setCanvas2DMode(e.target.value as any)}>
                   <option value="bars">Bars</option>
+                  <option value="mirrored-bars">Mirrored Bars</option>
+                  <option value="segmented-led-bars">Segmented LED Bars</option>
+                  <option value="stereo-split-bands">Stereo Split Bands</option>
+                  <option value="stacked-frequency-bands">Stacked Frequency Bands</option>
+                  <option value="dot-peak-matrix">Dot Peak Matrix</option>
                   <option value="waveform">Wave</option>
                   <option value="radial">Radial</option>
                   <option value="spectrogram">Spectrogram</option>
@@ -1146,7 +1002,7 @@ export function Visualizer() {
             </button>
           )}
           {currentFilename && activeVisualPresetId && visualPresets[activeVisualPresetId] && (
-            <span className="viz-preset-badge" title={`Active preset: ${visualPresets[activeVisualPresetId].name}`}>
+            <span className="viz-preset-badge" title={`Active preset: ${visualPresets[activeVisualPresetId].name}\n${visualPresets[activeVisualPresetId].description}`}>
               {visualPresets[activeVisualPresetId].name}
             </span>
           )}
@@ -1185,6 +1041,11 @@ export function Visualizer() {
                 {vizMode === "2d" && (
                   <select value={canvas2DMode} onChange={e => setCanvas2DMode(e.target.value as any)} className="viz-2d-mode-select viz-more-item" title="2D mode">
                     <option value="bars">Bars</option>
+                    <option value="mirrored-bars">Mirrored Bars</option>
+                    <option value="segmented-led-bars">LED Bars</option>
+                    <option value="stereo-split-bars">Stereo Split</option>
+                    <option value="stacked-frequency-bands">Stacked Bands</option>
+                    <option value="dot-peak-matrix">Dot Matrix</option>
                     <option value="waveform">Wave</option>
                     <option value="radial">Radial</option>
                     <option value="spectrogram">Spectrogram</option>
@@ -1312,18 +1173,17 @@ export function Visualizer() {
                    className="absolute inset-0"
                  />
                )}
-               {vizMode === "2d" && (
-                 <Canvas2DVisualizer
-                   audioData={liveAudioDataRef}
-                   analyserRef={analyserRef}
-                   isPlaying={isPlaying}
-                   mode={canvas2DMode}
-                   lrcSync={lrcSync}
-                   lrcSyncLive={lrcSyncLiveRef}
-                   lyrics={lyrics}
-                   bgColor={bgColor}
-                 />
-               )}
+                {vizMode === "2d" && (
+                  <Canvas2DVisualizer
+                    audioData={liveAudioDataRef}
+                    analyserRef={analyserRef}
+                    isPlaying={isPlaying}
+                    mode={canvas2DMode}
+                    lrcSync={lrcSync}
+                    lrcSyncLive={lrcSyncLiveRef}
+                    bgColor={bgColor}
+                  />
+                )}
                 {vizMode === "3d" && !rendererReady && <div className="viz-loading-overlay"><div className="viz-loading-spinner" /><span>Initializing {rendererBackend || (gpuResult.supported && isWebGPUOptIn() ? "WebGPU" : "WebGL")}...</span></div>}
                {vizMode === "3d" && rendererReady && <div className="viz-backend-badge">{rendererBackend}</div>}
                {vizMode === "3d" && rendererReady && <StylePicker active={visualizationStyle} onChange={setVisualizationStyle} />}
@@ -1353,6 +1213,7 @@ export function Visualizer() {
                 presetId={kineticPreset}
                 beat={liveAudioData.beat}
                 lrcSync={lrcSync}
+                audioAmplitude={liveAudioData.energy}
               />
               {/* Storyboard grammar: letterbox bars on cinematic beats.
                   Act title cards are storyboard-building UI, not visualization —
