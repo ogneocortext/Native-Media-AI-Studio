@@ -46,3 +46,6 @@ export function getApiBaseUrl(): string {
   const fromConfig = getBackendUrl();
   return fromConfig || "/";
 }
+
+/** Re-exported for callers that already import from `utils/url`. */
+export { getBackendUrl } from "../services/portConfig";

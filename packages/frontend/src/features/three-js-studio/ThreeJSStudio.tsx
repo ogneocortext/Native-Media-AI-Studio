@@ -89,6 +89,9 @@ export function ThreeJSStudio() {
     });
 
   // ---- Three scene engine ----
+  // beatAnalysis is read via ref (set by useTrackManager below) to avoid
+  // hook-order conflict with useObjectManager which depends on useTrackManager.
+  const beatAnalysisRef = useRef<any>(null);
   const {
     sceneRef: _sceneRef,
     rendererRef,
@@ -107,7 +110,7 @@ export function ThreeJSStudio() {
     cameraMode,
     isPlaying,
     isAudioPlaying,
-    beatAnalysis: null,
+    beatAnalysis: beatAnalysisRef.current,
     activeTemplateId,
     backgroundImageUrl,
     backgroundImageVisible,
@@ -156,7 +159,7 @@ export function ThreeJSStudio() {
 
   // ---- Track manager ----
   const {
-    beatAnalysis,
+    beatAnalysis: beatAnalysisValue,
     beatLoading,
     beatError,
     handleSelectTrack,
@@ -180,6 +183,9 @@ export function ThreeJSStudio() {
     analyserRef: { current: null },
     audioSourceRef: { current: null },
   });
+
+  // Keep beatAnalysisRef in sync with latest value from useTrackManager
+  beatAnalysisRef.current = beatAnalysisValue;
 
   // ---- Effects that stay in main component ----
   
@@ -252,7 +258,7 @@ export function ThreeJSStudio() {
       <TrackInfoBar
         beatSync={beatSync}
         bpm={bpm}
-        beatAnalysis={beatAnalysis}
+        beatAnalysis={beatAnalysisValue}
         beatLoading={beatLoading}
         beatError={beatError}
         beatPunch={sceneConfig.beatPunch}

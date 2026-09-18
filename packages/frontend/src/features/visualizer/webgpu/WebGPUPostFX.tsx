@@ -86,9 +86,15 @@ const grainEffect = Fn(([input, amount, time]: [any, any, any]) => {
 interface WebGPUPostFXProps {
   audioData: { current: { bass: number; mid: number; treble: number; energy: number; beat: boolean } };
   lrcSync?: { isPhraseStart: boolean } | null;
+  /**
+   * Per-frame live LRC sync (written by the parent each frame from the
+   * compensated audio clock). Preferred over the ~20 fps React-state snapshot
+   * so the 150 ms phrase pulse is not missed — same contract as the WebGL PostFX.
+   */
+  lrcSyncRef?: { current: { isPhraseStart: boolean } | null };
 }
 
-export function WebGPUPostFX({ audioData, lrcSync }: WebGPUPostFXProps) {
+export function WebGPUPostFX({ audioData, lrcSync, lrcSyncRef }: WebGPUPostFXProps) {
   const { gl, scene, camera } = useThree();
   const beatPulse = useRef(0);
   const phrasePulse = useRef(0);
@@ -132,13 +138,24 @@ export function WebGPUPostFX({ audioData, lrcSync }: WebGPUPostFXProps) {
     }
   }, [scene, camera]);
 
-  // Apply the output node to the renderer once.
+  // Apply the output node to the renderer once, and restore the renderer's
+  // previous output on unmount/rebuild. Without the cleanup a rebuilt graph
+  // (scene/camera change) left the renderer pointing at a disposed pass node —
+  // the canvas then renders through a dead pipeline.
   useEffect(() => {
     const renderer = gl as any;
     if (!renderer || !postFXGraph) return;
 
     if (renderer.isWebGPURenderer) {
       renderer.outputNode = postFXGraph.output;
+      return () => {
+        if (renderer.outputNode === postFXGraph.output) renderer.outputNode = null;
+        try {
+          (postFXGraph.output as { dispose?: () => void }).dispose?.();
+        } catch {
+          /* node already released with the renderer */
+        }
+      };
     }
   }, [gl, postFXGraph]);
 
@@ -151,7 +168,7 @@ export function WebGPUPostFX({ audioData, lrcSync }: WebGPUPostFXProps) {
     if (beat) beatPulse.current = 1;
     beatPulse.current *= 0.88;
 
-    if (lrcSync?.isPhraseStart) phrasePulse.current = 1;
+    if ((lrcSyncRef?.current ?? lrcSync)?.isPhraseStart) phrasePulse.current = 1;
     phrasePulse.current *= 0.85;
 
     const bp = beatPulse.current;

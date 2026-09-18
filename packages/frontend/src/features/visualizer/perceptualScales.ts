@@ -80,14 +80,17 @@ export function generatePerceptualBands(
   minHz: number = 20,
   maxHz: number = 22050
 ): number[] {
+  // Band centers are interpolated with i / (numBands - 1): a single band would
+  // divide by zero and return NaN centers, poisoning every mapped band value.
   const bands: number[] = [];
+  const n = Math.max(2, Math.floor(numBands) || 2);
   
   switch (scale) {
     case 'bark': {
       const minBark = hzToBark(minHz);
       const maxBark = hzToBark(maxHz);
-      for (let i = 0; i < numBands; i++) {
-        const bark = minBark + (i / (numBands - 1)) * (maxBark - minBark);
+      for (let i = 0; i < n; i++) {
+        const bark = minBark + (i / (n - 1)) * (maxBark - minBark);
         bands.push(barkToHz(bark));
       }
       break;
@@ -96,8 +99,8 @@ export function generatePerceptualBands(
     case 'erb': {
       const minErb = hzToErb(minHz);
       const maxErb = hzToErb(maxHz);
-      for (let i = 0; i < numBands; i++) {
-        const erb = minErb + (i / (numBands - 1)) * (maxErb - minErb);
+      for (let i = 0; i < n; i++) {
+        const erb = minErb + (i / (n - 1)) * (maxErb - minErb);
         bands.push(erbToHz(erb));
       }
       break;
@@ -106,8 +109,8 @@ export function generatePerceptualBands(
     case 'mel': {
       const minMel = hzToMel(minHz);
       const maxMel = hzToMel(maxHz);
-      for (let i = 0; i < numBands; i++) {
-        const mel = minMel + (i / (numBands - 1)) * (maxMel - minMel);
+      for (let i = 0; i < n; i++) {
+        const mel = minMel + (i / (n - 1)) * (maxMel - minMel);
         bands.push(melToHz(mel));
       }
       break;
@@ -117,8 +120,8 @@ export function generatePerceptualBands(
       // Logarithmic (octave-based) scale
       const minLog = Math.log10(minHz);
       const maxLog = Math.log10(maxHz);
-      for (let i = 0; i < numBands; i++) {
-        const log = minLog + (i / (numBands - 1)) * (maxLog - minLog);
+      for (let i = 0; i < n; i++) {
+        const log = minLog + (i / (n - 1)) * (maxLog - minLog);
         bands.push(Math.pow(10, log));
       }
       break;
@@ -127,8 +130,8 @@ export function generatePerceptualBands(
     case 'linear':
     default:
       // Linear frequency spacing
-      for (let i = 0; i < numBands; i++) {
-        bands.push(minHz + (i / (numBands - 1)) * (maxHz - minHz));
+      for (let i = 0; i < n; i++) {
+        bands.push(minHz + (i / (n - 1)) * (maxHz - minHz));
       }
       break;
   }
@@ -152,8 +155,11 @@ export function mapToPerceptualBands(
   numBands: number = 40
 ): number[] {
   const bands = generatePerceptualBands(scale, numBands, 20, sampleRate / 2);
-  const bandEnergies = new Array(numBands).fill(0);
-  const bandCounts = new Array(numBands).fill(0);
+  // Size everything from the generated band count: generatePerceptualBands
+  // clamps the requested count (min 2), so the accumulators must match.
+  const bandCount = bands.length;
+  const bandEnergies = new Array(bandCount).fill(0);
+  const bandCounts = new Array(bandCount).fill(0);
   
   const binSize = sampleRate / (freqData.length * 2);
   

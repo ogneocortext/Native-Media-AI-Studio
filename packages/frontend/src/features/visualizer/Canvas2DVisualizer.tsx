@@ -42,6 +42,43 @@ interface Props {
  * - particles: simple 2D particle field driven by energy/beat
  * No extra deps — Canvas2D + Web Audio API only (2026 lightweight 2D stack).
  */
+/** Normalize a CSS color to 6-digit hex so an alpha suffix can be appended.
+ *  Preset bgColors are usually `#rrggbb`, but `#rgb` (or a non-hex value) would
+ *  have produced an invalid `fillStyle`, silently breaking the trail fade. */
+function normalizeHex(hex: string): string {
+  const m = /^#([0-9a-f]{3})$/i.exec(hex.trim());
+  if (m) {
+    const [r, g, b] = m[1].split("");
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  if (/^#[0-9a-f]{6}$/i.test(hex.trim())) return hex.trim().toLowerCase();
+  return "#050505"; // non-hex background: fall back to the default canvas bg
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const m = normalizeHex(hex).slice(1);
+  return [
+    parseInt(m.slice(0, 2), 16),
+    parseInt(m.slice(2, 4), 16),
+    parseInt(m.slice(4, 6), 16),
+  ];
+}
+
+function lerpColor(a: string, b: string, t: number): string {
+  const [ar, ag, ab] = hexToRgb(a);
+  const [br, bg, bb] = hexToRgb(b);
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return (
+    "#" + [r, g, bl].map((x) => x.toString(16).padStart(2, "0")).join("")
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export function Canvas2DVisualizer({
   audioData,
   analyserRef,
@@ -64,26 +101,6 @@ export function Canvas2DVisualizer({
   const targetPaletteRef = useRef<string[]>([]);
   const paletteTRef = useRef(1);
 
-  function hexToRgb(hex: string): [number, number, number] {
-    const m = hex.replace("#", "");
-    return [
-      parseInt(m.slice(0, 2), 16),
-      parseInt(m.slice(2, 4), 16),
-      parseInt(m.slice(4, 6), 16),
-    ];
-  }
-
-  function lerpColor(a: string, b: string, t: number): string {
-    const [ar, ag, ab] = hexToRgb(a);
-    const [br, bg, bb] = hexToRgb(b);
-    const r = Math.round(ar + (br - ar) * t);
-    const g = Math.round(ag + (bg - ag) * t);
-    const bl = Math.round(ab + (bb - ab) * t);
-    return (
-      "#" + [r, g, bl].map((x) => x.toString(16).padStart(2, "0")).join("")
-    );
-  }
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -92,8 +109,8 @@ export function Canvas2DVisualizer({
 
     let raf = 0;
     let phraseFlash = 0;
-    const freq = new Uint8Array(1024);
-    const wave = new Uint8Array(1024);
+    let freq: Uint8Array | null = null;
+    let wave: Uint8Array | null = null;
 
     const palettes: Record<string, string[]> = {
       INTRO: ["#6366f1", "#818cf8", "#a5b4fc"],
@@ -136,6 +153,28 @@ export function Canvas2DVisualizer({
       });
     }
 
+    // Backing-store sizing driven by ResizeObserver: reading clientWidth /
+    // clientHeight inside the 60 Hz draw loop forced a synchronous layout every
+    // frame (layout thrash). `dpr` is captured here and kept in sync.
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const applySize = () => {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // Min 1×1 so a hidden/collapsed canvas never gets a zero-sized backing
+      // store (and the idle text below can still be drawn on reveal).
+      const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+      const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+    };
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(applySize);
+      resizeObserver.observe(canvas);
+    }
+    applySize();
+
     const draw = () => {
       const analyser = analyserRef.current;
       const d = audioData.current;
@@ -144,6 +183,16 @@ export function Canvas2DVisualizer({
         lrcSyncLiveHolder.current?.current ?? lrcSyncPropHolder.current;
       const section = sync?.currentSection || "VERSE";
       const target = palettes[section] || palettes.VERSE;
+
+      // Lazy-size frequency/waveform buffers when the analyser config changes.
+      // Always allocated (default 1024/2048) so downstream code never sees null —
+      // buffers are only *filled* with real data while playing.
+      if (!freq || freq.length !== (analyser?.frequencyBinCount ?? 1024)) {
+        freq = new Uint8Array(analyser?.frequencyBinCount ?? 1024);
+      }
+      if (!wave || wave.length !== (analyser?.fftSize ?? 2048)) {
+        wave = new Uint8Array(analyser?.fftSize ?? 2048);
+      }
 
       if (target.join("|") !== targetPaletteRef.current.join("|")) {
         targetPaletteRef.current = target;
@@ -166,12 +215,16 @@ export function Canvas2DVisualizer({
 
       const energyMod = 1 + (d.analyzedEnergy || 0) * 0.4;
 
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const w = canvas.clientWidth * dpr;
-      const h = canvas.clientHeight * dpr;
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w;
-        canvas.height = h;
+      // Size the backing store only when the container changes (see applySize above).
+      const bg = normalizeHex(bgColor);
+      const w = canvas.width;
+      const h = canvas.height;
+
+      // Skip painting while the tab is hidden — the parent's analyser loop also
+      // pauses, so this only saves battery; the rAF loop stays alive.
+      if (typeof document !== "undefined" && document.hidden) {
+        raf = requestAnimationFrame(draw);
+        return;
       }
       // 2026 p5.js trail: background alpha 5-15 for ghostly persistence (visual-flux + p5js.ai 2026)
       // Each mode gets tuned alpha: bars need crisp bars (higher clear), particles need long trails
@@ -185,11 +238,11 @@ export function Canvas2DVisualizer({
                 : mode === "waveform"
                   ? "12"
                   : "0F";
-          ctx.fillStyle = bgColor + trailAlpha;
+          ctx.fillStyle = bg + trailAlpha;
           ctx.fillRect(0, 0, w, h);
         }
       } else {
-        ctx.fillStyle = bgColor;
+        ctx.fillStyle = bg;
         ctx.fillRect(0, 0, w, h);
       }
 
@@ -219,8 +272,8 @@ export function Canvas2DVisualizer({
         return;
       }
 
-      analyser.getByteFrequencyData(freq);
-      analyser.getByteTimeDomainData(wave);
+      analyser.getByteFrequencyData(freq as Uint8Array<ArrayBuffer>);
+      analyser.getByteTimeDomainData(wave as Uint8Array<ArrayBuffer>);
 
       if (mode === "bars") {
         const barCount = 64;
@@ -246,9 +299,11 @@ export function Canvas2DVisualizer({
           const warmMix = i / barCount < 0.3 ? d.bass * 0.35 : 0;
           const coolMix = i / barCount > 0.7 ? d.treble * 0.35 : 0;
           grad.addColorStop(0, colors[cIdx % colors.length]);
+          // Mid stop: lighten the band's own color toward white as the bass
+          // warms it (the previous `+ (warmMix ? "" : "")` was a no-op).
           grad.addColorStop(
             0.6,
-            colors[cIdx % colors.length] + (warmMix ? "" : ""),
+            lerpColor(colors[cIdx % colors.length], "#ffffff", warmMix * 0.35),
           );
           grad.addColorStop(1, colors[0] + "60");
           ctx.fillStyle = grad;
@@ -467,7 +522,7 @@ export function Canvas2DVisualizer({
           specH,
         );
         // Clear rightmost strip
-        ctx.fillStyle = bgColor;
+        ctx.fillStyle = bg;
         ctx.fillRect(specW - sliceW, 0, sliceW, specH);
         // Draw new slice on the right
         const binH = specH / binCount;
@@ -670,8 +725,11 @@ export function Canvas2DVisualizer({
       raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
-  }, [isPlaying, mode, bgColor, analyserRef, audioData, lrcSyncLive, lrcSync]);
+    return () => {
+      cancelAnimationFrame(raf);
+      resizeObserver?.disconnect();
+    };
+  }, [isPlaying, mode, bgColor, analyserRef, audioData]);
 
   return (
     <canvas

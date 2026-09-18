@@ -10,6 +10,7 @@ import {
 import { ATTACK, RELEASE } from "./audioTiming";
 import type { AudioAnalysisData, AudioData, PerceptualScale } from "./types";
 import { generatePerceptualBands, mapToPerceptualBands } from "./perceptualScales";
+import type { UseAudioAnalysisWorkerResult } from "./useAudioAnalysisWorker";
 
 // Demo fallback — synthetic audio for when no track is playing
 export function useDemoAudio(enabled: boolean, bpm: number, perceptualScale: PerceptualScale = "mel", numPerceptualBands: number = 40) {
@@ -63,6 +64,7 @@ export function useRealAudio(
   audioElapsedRef?: React.MutableRefObject<number>,
   perceptualScale: PerceptualScale = "mel",
   numPerceptualBands: number = 40,
+  worker?: UseAudioAnalysisWorkerResult | null,
 ) {
   const data = useRef<AudioData>({
     bass: 0,
@@ -147,6 +149,16 @@ export function useRealAudio(
     }
     analyser.getByteFrequencyData(freqArray.current as Uint8Array<ArrayBuffer>);
     const arr = freqArray.current;
+
+    if (worker) {
+      const elapsed = audioElapsedRef?.current ?? 0;
+      const duration = analysisData?.duration_seconds ?? 0;
+      const beatTimes = analysisData?.beat_times;
+      const energyCurve = analysisData?.energy_curve;
+      worker.send(arr, ctx.sampleRate, elapsed, duration, beatTimes, energyCurve);
+      data.current = worker.data.current;
+      return;
+    }
 
     // Frequency-based bin mapping using actual sample rate
     const sampleRate = ctx.sampleRate;

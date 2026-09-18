@@ -117,6 +117,19 @@ vec3 displaced = position + normal * noise * u_energy;
 
 ## WebGPU Performance Optimization
 
+### 0. MediaPipe WebGPU (2026)
+
+**Source:** MediaPipe WebGPU Tasks (2026 Interop)
+
+**Technique:**
+- MediaPipe landmarks + audio-reactive blending now run on WebGPU at 60fps in-browser
+- Offload CPU-heavy pose/gesture inference to GPU compute; free main thread for React/Three.js composition
+- Integrates with `@mediapipe/tasks-vision` WebGPU runtime
+
+**Adaptation:**
+- Use MediaPipe WebGPU for camera-driven audio-reactive overlays without stealing JS thread time
+- Combine with existing Three.js scene via `VideoTexture` + GPU-computed landmark uniforms
+
 ### 1. Compute Shader Audio Processing
 
 **Source:** [Three.js WebGPU Audio Example](https://github.com/mrdoob/three.js/blob/dev/examples/webgpu_compute_audio.html)
@@ -319,6 +332,19 @@ effect = {
 - Index-based delay for staggered character animations
 - 3D transform support for depth effects
 
+### 4. pretext-animate (2026)
+
+**Source:** pretext-animate (modern text animation library)
+
+**Technique:**
+- 120fps zero-layout-reflow text animation via `transform` + `opacity` only
+- Designed for high-DPI evergreen browsers; no jQuery, no layout thrash
+- Fits well alongside Anime.js/Motion where bundle size matters
+
+**Adaptation:**
+- Use for lightweight lyric-word reveals when Motion+ or Anime.js overhead is too high
+- Combine with `@media (prefers-reduced-motion)` for accessibility
+
 ---
 
 ## Real-Time Audio Analysis Algorithms
@@ -458,6 +484,7 @@ uniform float u_energy;
    - Add wavy text, raining letters, 3D flip effects from Anime.js examples
    - Implement Codrops letter effects (fx1-fx17) as additional presets
    - Timeline-based synchronization for complex word animations
+   - Evaluate pretext-animate for lightweight zero-layout-reflow lyric reveals
 
 2. **Perceptual Frequency Scales**
    - Integrate ERB/Bark scales from Cortix for more accurate frequency mapping
@@ -471,7 +498,12 @@ uniform float u_energy;
 
 ### Medium Priority (Performance Enhancements)
 
-4. **WebGPU Compute Shaders**
+4. **MediaPipe WebGPU Offload**
+   - Route camera/landmark inference to MediaPipe WebGPU runtime
+   - Keeps main thread free for React/Three.js composition
+   - Enables 60fps camera-driven overlays on GTX 1070 Ti class hardware
+
+5. **WebGPU Compute Shaders**
    - Move audio processing to GPU compute shaders for complex effects
    - Implement GPU-based age calculation for particle systems
    - Use partial buffer uploads for audio data
@@ -560,11 +592,13 @@ uniform float u_energy;
 - [AUDIO_PRIME Optimization](https://github.com/magicat777/AUDIO_PRIME/commit/8503eb46f2348a501968e13760b34e37b0c4f207)
 - [RippleOscilloscope](https://github.com/plantacerium/RippleOscilloscope)
 - [Signal Analyzer](https://cprimozic.net/blog/building-a-signal-analyzer-with-modern-web-tech/)
+- [MediaPipe WebGPU Tasks](https://ai.google.dev/mediapipe/solutions/vision/webgpu)
 
 ### Kinetic Typography
 - [Anime.js Text Animations](https://mintlify.wiki/juliangarnier/anime/examples/text-animations)
 - [Anime.js Rotating Text](https://webreaper.dev/posts/animejs-cycling-fading-text/)
 - [Codrops Letter Effects](https://tympanus.net/codrops/2016/10/18/inspiration-for-letter-effects/)
+- [pretext-animate](https://github.com/nicedoc/pretext-animate)
 
 ### Audio Analysis
 - [Cortix](https://github.com/dfl/cortix)

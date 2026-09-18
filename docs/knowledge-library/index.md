@@ -52,6 +52,7 @@ date: 2026-09-05
 ### 🎯 Specialized Guides
 
 - [[3d-rendering|🧊 3D Rendering]] — GPU rendering, Blender 5.2 EEVEE Next, optimization
+- [[3d-visualization-best-practices-2026|🎛️ 3D Visualization Best Practices 2026]] — Full audit of all 13 viz styles + 7 studio templates, R3F/WebGPU/perf/a11y rules (NEW 2026-09-16)
 - [[visualization-effects|✨ Visualization Effects]] — WebGPU/TSL, particles, shaders, post-processing, volumetrics (NEW 2026-08-29)
 - [[2d-visualization-2026|🎨 2D Visualization 2026]] — Canvas2D/PixiJS/p5.js/Waviz 2026 open source 2D stacks (UPDATED 2026-09-05: PixiJS 8.19, p5.js trails, Summer 2026 addendum)
 - [[character-animation-2026-summer-synthesis|🎭 Character Animation 2026 — Summer Synthesis]] — Story-first puppet, beatPhase sync, performance-driven (NEW 2026-09-05)

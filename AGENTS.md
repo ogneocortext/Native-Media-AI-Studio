@@ -1,5 +1,9 @@
 # AGENTS.md — Native Media AI Studio
 
+> **Last Updated:** 2026-09-18
+> **Status:** Active Development (Phase 1+2)
+> **Platform:** Windows 11 local development machine
+
 ## Project Overview
 
 Native Media AI Studio is a full-stack music-video creation suite combining:
@@ -15,56 +19,106 @@ Native Media AI Studio is a full-stack music-video creation suite combining:
 ## Directory Structure
 
 ```
-packages/
-├── frontend/           # React + Vite + Remotion frontend
-├── backend/            # FastAPI backend (app.main, app.services.*, app.models.*, app.core.*)
-└── video-editor/       # Video editor package
-tools/                  # MCP bridges, demo scripts, and Go infrastructure sidecars
-  ├── mcp/                  # MCP server bridges
-  │   ├── unity-mcp-bridge.mjs   # Unity MCP server (Node.js, stdio)
-  │   ├── vision-mcp.mjs         # Vision MCP (Ollama VLM) — primary
-  │   └── ollama-tools-mcp.mjs   # Ollama tools MCP
-  ├── go/                   # Go sidecar utilities
-  │   ├── go-dashboard/     # SSE + health server on :3847
-  │   ├── go-media/         # FFmpeg wrapper + HTTP server on :3848
-  │   ├── go-worker/        # Queue I/O worker on :3849
-  │   ├── go-gateway/       # MCP bridge router on :3850
-  │   ├── go-ports/         # Port availability checker on :3851
-  │   └── README.md         # Go tools documentation
-  ├── vision/               # Standalone vision utilities
-  │   └── analyze.mjs       # Direct CLI: node tools/vision/analyze.mjs <image> [prompt] [--mode ui|responsive|regression|compare|ocr|table|chart]
-  ├── demos/                # Demo scripts
-  │   ├── demo_all_features.py   # Full feature demonstration
-  │   └── demo_audio_analysis.py # Audio analysis demo
-  ├── tests/                # Test scripts
-  │   └── test_mcp*.py           # MCP connection tests
-  ├── blender_mcp_addon.py   # Blender MCP addon (Python, v1.5)
-  ├── analyze_and_sync.py    # Audio analysis → beat-synced JSON for Unity
-  └── audio_analysis_demo.py  # GPU-accelerated audio analysis demo
-.kilo/
-├── agents/data.md        # Data analysis agent configuration
-├── skills/unity-mcp/SKILL.md  # Unity MCP skill documentation
-└── package.json          # Kilo Code plugin dependencies
-unity-project-mcp/        # Unity project for music video generation
-unity-visualizer/          # Native Media Visualizer — standalone Unity audio visualization project
+Native-Media-AI-Studio/
+├── packages/
+│   ├── frontend/              # React + Vite + TypeScript + Remotion frontend
+│   │   ├── src/
+│   │   │   ├── features/      # Feature-organized UI (see src/features/README.md for index)
+│   │   │   ├── components/    # Shared React components
+│   │   │   ├── pages/         # Route-level pages
+│   │   │   ├── services/      # API clients and data fetching
+│   │   │   ├── hooks/         # Shared React hooks
+│   │   │   ├── state/         # Zustand stores
+│   │   │   ├── styles/        # Global styles
+│   │   │   └── utils/         # Frontend utilities
+│   │   ├── tests/
+│   │   │   └── browser/
+│   │   │       └── out/       # Playwright browser test screenshots (agent vision output goes here)
+│   │   ├── package.json
+│   │   └── vite.config.ts
+│   ├── backend/               # FastAPI backend
+│   │   ├── app/
+│   │   │   ├── api/           # REST routes
+│   │   │   ├── core/          # Port manager, health monitor, SQLite, CORS
+│   │   │   ├── models/        # Pydantic schemas (single source of truth)
+│   │   │   ├── services/      # Business logic
+│   │   │   ├── adapters/      # ComfyUI, Ollama, Blender, Unity wrappers
+│   │   │   ├── sse/           # Canonical SSE event handler
+│   │   │   ├── websocket/     # Legacy 426 shim — prefer SSE
+│   │   │   ├── queue/         # Job queue
+│   │   │   ├── diagnostics/   # Resource / health diagnostics
+│   │   │   └── main.py        # App factory and startup wiring
+│   │   └── tests/
+│   └── video-editor/          # Remotion video editor package
+├── tools/
+│   ├── mcp/                   # MCP server bridges (Node.js / stdio)
+│   │   ├── unity-mcp-bridge.mjs
+│   │   ├── vision-mcp.mjs
+│   │   ├── ollama-tools-mcp.mjs
+│   │   ├── hyperframes-mcp.mjs
+│   │   └── context-store.mjs
+│   ├── go-dashboard/          # SSE + health server on :3847
+│   ├── go-media/              # FFmpeg wrapper + HTTP server on :3848
+│   ├── go-worker/             # Queue I/O worker on :3849
+│   ├── go-gateway/            # MCP bridge router on :3850
+│   ├── go-ports/              # Port availability checker on :3851
+│   ├── vision/                # Standalone vision utilities
+│   │   └── analyze.mjs
+│   ├── blender/               # Blender MCP client helpers
+│   ├── ollama/                # Ollama helper scripts
+│   ├── demos/                 # Demo scripts
+│   ├── tests/                 # Tool-side tests
+│   ├── lib/                   # Shared tool libraries
+│   ├── utils/                 # Shared utilities
+│   ├── scripts/               # Tool-specific scripts
+│   ├── analyze_and_sync.py    # Audio analysis -> beat-synced JSON for Unity
+│   └── blender_mcp_addon.py   # Blender MCP addon (Python, v1.5)
+├── scripts/                   # PowerShell startup/management scripts
+├── docs/                      # Documentation and guides
+│   ├── guides/                # Production guides (GPU, visualizer, music video)
+│   ├── setup/                 # Environment setup docs
+│   ├── knowledge-library/     # Research and reference articles
+│   ├── scratch/               # Ad-hoc scratch outputs (not authoritative)
+│   └── README.md              # Documentation index
+├── config/                    # Runtime config (ports.json, settings.json, tracks.json)
+├── output/                    # Generative outputs (gitignored)
+├── shared/                    # Shared TypeScript types
+├── unity-project-mcp/         # Unity project for music video generation
+├── unity-visualizer/          # Native Media Visualizer — standalone Unity audio visualization project
+├── .kilo/                     # Kilo Code plugin config, skills, worktrees, knowledge
+├── .agents/                   # Agent skill configs
+├── logs/                      # Application logs
+├── AGENTS.md                  # This file
+└── Guidelines.md              # Project specification and implementation guide
 ```
 
-## Protected Directories
+### Protected Directories
 
-> [!warning] CRITICAL: Do not delete or move `unity-visualizer/` during directory audits or cleanup. This is a dedicated standalone Unity project for track audio visualization and must not be conflated with `unity-project-mcp/`.
+> [!warning] CRITIAL: Do not delete or move `unity-visualizer/` during directory audits or cleanup. This is a dedicated standalone Unity project for track audio visualization and must not be conflated with `unity-project-mcp/`.
+
+### Scratch / Generated Artifacts
+
+> [!note] One-off diagnostics, ad-hoc screenshots, regex test files, and generated logs should live under `docs/scratch/` or `packages/frontend/tests/browser/out/` rather than the repo root. Root-level scratch files are noise for agent navigation.
+
+### Screenshot Conventions
+
+> [!note] Agent-generated screenshots belong in `packages/frontend/tests/browser/out/` (already gitignored). This matches the Playwright harness layout and keeps browser artifacts out of the repo root.
 
 ## MCP Server Configuration
 
-All MCP servers are configured in `opencode.json` (6 servers — Vision is additional local MCP):
+> [!note] The table below shows the current configuration. Actual running status may change between sessions.
 
-| Server       | Command                                                          | Port          | Status        |
-| ------------ | ---------------------------------------------------------------- | ------------- | ------------- |
-| Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`                            | stdio         | ✅ Configured |
-| Vision       | `node tools/mcp/vision-mcp.mjs`                                  | stdio         | ✅ Configured |
-| Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                            | 7800 (REST)   | ✅ Running    |
-| Blender MCP  | `uvx blender-mcp`                                                | 9876 (socket) | ✅ Running    |
-| ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://127.0.0.1:8188 --force-remote` | 8188      | ✅ Running    |
-| Remotion MCP | `npx -y @remotion/mcp@latest`                                    | stdio         | ✅ Configured |
+| Server       | Command                                                          | Port          | Current Status        |
+| ------------ | ---------------------------------------------------------------- | ------------- | --------------------- |
+| Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`                            | stdio         | Configured            |
+| Vision       | `node tools/mcp/vision-mcp.mjs`                                  | stdio         | Configured            |
+| Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                            | 7800 (REST)   | Running               |
+| Blender MCP  | `uvx blender-mcp`                                                | 9876 (socket) | Running               |
+| ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://127.0.0.1:8188 --force-remote` | 8188  | Running               |
+| Remotion MCP | `npx -y @remotion/mcp@latest`                                    | stdio         | Configured            |
+| HyperFrames  | `node tools/mcp/hyperframes-mcp.mjs`                             | stdio         | Configured            |
+
+All MCP servers are configured in `opencode.json`.
 
 ### Vision Analysis Workflow
 
@@ -81,17 +135,19 @@ All MCP servers are configured in `opencode.json` (6 servers — Vision is addit
 
 **Proper vision analysis workflow:**
 
-1. **Capture screenshot** with Playwright:
+1. **Capture screenshot** with Playwright from the project root directory:
 
-   ```js
-   await page.screenshot({ path: "packages/frontend/tests/browser/out/shot.png", fullPage: true });
-   ```
+    ```js
+    await page.screenshot({ path: "packages/frontend/tests/browser/out/shot.png", fullPage: true });
+    ```
 
 2. **Analyze with vision script** (resizes + sends to Ollama gemma4):
 
     ```bash
+    # Basic analysis with optional prompt
     node tools/vision/analyze.mjs shot.png "optional prompt"
-    # or for code-grounded analysis:
+
+    # Code-grounded regression analysis (compares screenshot to source file)
     node tools/vision/analyze.mjs shot.png src/components/Foo.tsx --mode regression
     ```
 
@@ -120,9 +176,8 @@ All MCP servers are configured in `opencode.json` (6 servers — Vision is addit
 
 Local Ollama models are available for vision analysis and tool-assisted generation:
 
-- **Vision Models**: `gemma4:e2b-it-qat`, `qwen3-vl:4b`, `qwen3.5:9b`
+- **Vision Models**: `gemma4:e2b-it-qat` (recommended), `qwen3-vl:2b` (fast fallback)
 - **Tool Use**: Models support function calling for image generation, video creation, and music synthesis
-- **Recommended**: Use `qwen3-vl:4b` for vision tasks (fast, good accuracy)
 - **Vision Skill**: `/vision-feedback` skill for screenshot analysis with Ollama VLM
 
 ## Development Guidelines
@@ -149,7 +204,7 @@ Local Ollama models are available for vision analysis and tool-assisted generati
 ### Music Video Pipeline
 
 1. Analyze audio with `tools/analyze_and_sync.py` (GPU-accelerated via CUDA)
-2. Generate 3D scenes in Unity via MCP (`unity_command` → Unity Pipeline API)
+2. Generate 3D scenes in Unity via MCP (`unity_command` -> Unity Pipeline API)
 3. Render frames via AutoCapture.cs (360 frames = 15s @ 24fps)
 4. High-quality 3D renders via Blender MCP
 5. Composite final video with Remotion
@@ -172,17 +227,28 @@ The Visualizer (`packages/frontend/src/features/visualizer/`) includes:
 - TypeScript: Strict mode, explicit types
 - Unity C#: Unity coding conventions
 
+### Testing & Quality
+
+- **Frontend tests:** `pnpm test` in `packages/frontend/`
+- **Backend tests:** `pytest` in `packages/backend/`
+- **E2E browser tests:** Playwright harness under `packages/frontend/tests/browser/`
+- **Lint:** `pnpm lint` (frontend) / `ruff check` (backend)
+- **Format:** `pnpm format` (frontend) / `ruff format` (backend)
+
 ## Common Tasks
 
 - Start background services: `scripts\start-services.ps1`
 - Start interactive mode: `scripts\start-studio.ps1`
 - Check server status: `scripts\manage-servers.ps1 -Action status`
 - Unity health: `curl -X POST http://127.0.0.1:7800/api/exec -H "Authorization: Bearer <token>" -d '{"command":"editor_status","parameters":{}}'`
+  - Replace `<token>` with the actual Unity MCP bearer token from your environment.
 - Backend health: `http://127.0.0.1:8000/api/health` (check `config/ports.json` for current port)
 - ComfyUI: `http://127.0.0.1:8188`
 - Go dashboard: `http://127.0.0.1:3847` (SSE + health, started automatically)
 
 ## Dependencies
+
+> [!note] The paths below are examples from the primary development machine. Other developers should install dependencies in equivalent locations and update the paths in `.python-env`.
 
 - Node.js 22+ (via fnm)
 - Python 3.11+ (standalone venv at `D:\conda-envs\nma-studio-cuda\` for CUDA support)
@@ -206,9 +272,10 @@ The project has **three** Python environments. Do not assume `python` on PATH is
 Rules:
 - **Default to the studio env** (`nma-studio-cuda`) for backend + GPU work.
 - **Never** use `comfyui-cuda` for backend work; it is ComfyUI-only.
-- **Never** modify or delete `D:\conda-envs\space-analyzer-cuda`; it belongs to another project.
 
 ### Paths and metadata
+
+> [!note] Update these paths if your development environment differs from the primary machine.
 
 - **Primary Environment (backend + GPU)**: `D:\conda-envs\nma-studio-cuda\`
   - Python 3.11.9, PyTorch `2.14.0+cu126`
@@ -225,9 +292,21 @@ Rules:
 - `pyrightconfig.json` — points type checking to the studio env
 - `scripts\check-env-health.ps1` — validates decoupling and CUDA health (add `-Torch` for CUDA matmul test)
 
-> [!warning] Decoupling & ownership
-> - `nma-studio-cuda` is fully decoupled from `D:\conda-envs\space-analyzer-cuda` (that env belongs to a **different project** — never delete or modify it for this project's sake).
-> - `comfyui-cuda` was historically a venv bootstrapped *from* `space-analyzer-cuda`; it remains ComfyUI's runtime only. Do not use it for the backend.
-> - Scripts resolve: studio env → ComfyUI env → `venv/` fallback.
+> [!warning] Rules:
+> - `nma-studio-cuda` is the primary env — use it for all backend and GPU work.
+> - `comfyui-cuda` is ComfyUI-only — never use it for the backend.
+> - Scripts resolve: studio env -> ComfyUI env -> `venv/` fallback.
 
-AI agents should prefer the studio environment (`nma-studio-cuda`) for CUDA-dependent operations (audio analysis, ML features).
+## Quick Reference
+
+| What | Where |
+|------|-------|
+| Frontend source | `packages/frontend/src/` |
+| Backend source | `packages/backend/app/` |
+| Go sidecars | `tools/go-*` |
+| MCP bridges | `tools/mcp/` |
+| Unity project | `unity-project-mcp/` |
+| Visualizer | `unity-visualizer/` |
+| Port config | `config/ports.json` |
+| Logs | `logs/` |
+| Outputs | `output/` |

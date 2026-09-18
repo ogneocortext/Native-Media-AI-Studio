@@ -32,6 +32,18 @@ const VISION_MODEL = process.env.VISION_MODEL || 'gemma4:e2b-it-qat';
 const VISION_FALLBACK_MODEL = process.env.VISION_FALLBACK_MODEL || 'qwen3-vl:2b';
 const VISION_MAX_DIM = parseInt(process.env.VISION_MAX_DIM || '1280');
 const VISION_QUALITY = parseInt(process.env.VISION_QUALITY || '80');
+// keep_alive overrides the server default (5m): without it every call risks a
+// cold model load + VRAM churn against whatever else is resident.
+const VISION_KEEP_ALIVE = process.env.VISION_KEEP_ALIVE || '10m';
+// Image tokens eat context: 1280px screenshots + long prompts can exceed the
+// 4096 default and get server-side truncated. 8192 is the 8GB-VRAM-safe floor.
+const VISION_NUM_CTX = parseInt(process.env.VISION_NUM_CTX || '8192');
+const VISION_TIMEOUT_MS = parseInt(process.env.VISION_TIMEOUT_MS || '300000');
+// Modes where text legibility decides the result — research (DocVLM, CVPR'25)
+// shows reading-intensive VLM tasks need materially higher resolution.
+const TEXT_MODES = new Set(['ui', 'responsive', 'regression', 'compare', 'ocr', 'table', 'chart']);
+// Extractive modes get temperature 0 (deterministic transcription beats flair).
+const EXTRACT_MODES = new Set(['ocr', 'table', 'chart']);
 const ATOMIC_CHAT_READY_CACHE_TTL_MS = parseInt(process.env.ATOMIC_CHAT_READY_CACHE_TTL_MS || '10000');
 
 function parseArgs(argv) {
@@ -64,10 +76,16 @@ function parseArgs(argv) {
     else if (arg === '--high') { args.high = true; }
     else if (arg === '--json') { args.json = true; }
     else if (!arg.startsWith('--')) {
-      if (!args.prompt && args.images.length > 0) {
-        args.prompt = arg;
-      } else if (fs.existsSync(arg)) {
+      // Files always win: an existing path is an image, never prompt text.
+      // (The old order swallowed the 2nd+ image path as the prompt and dropped
+      // the real prompt silently — this broke multi-image and MCP compare.)
+      if (fs.existsSync(arg)) {
         args.images.push(arg);
+      } else if (!args.prompt) {
+        args.prompt = arg;
+      } else {
+        // Never silently drop positional text — append it.
+        args.prompt += ` ${arg}`;
       }
     }
   }
@@ -80,11 +98,19 @@ function parseArgs(argv) {
   return args;
 }
 
-async function encodeImage(imagePath) {
+async function encodeImage(imagePath, opts = {}) {
+  const { maxDim = VISION_MAX_DIM, quality = VISION_QUALITY, pngPassthrough = false } = opts;
   const buffer = fs.readFileSync(imagePath);
   // Small images can be sent directly
   if (buffer.length < 50000) return buffer.toString('base64');
-  
+  // Text-dense PNG screenshots: JPEG recompression smears glyphs, so pass
+  // through the original bytes when they fit a modest budget.
+  const ext = (imagePath.split('.').pop() || '').toLowerCase();
+  if (pngPassthrough && (ext === 'png' || ext === 'webp') && buffer.length < 400000) {
+    console.error(`[vision] PNG passthrough ${imagePath} (${buffer.length} bytes, no JPEG artifacts)`);
+    return buffer.toString('base64');
+  }
+
   // Resize large images to avoid Ollama 400 errors
   let sharp;
   try {
@@ -93,12 +119,12 @@ async function encodeImage(imagePath) {
     // sharp not available — fallback: still send raw (may fail on very large images)
     return buffer.toString('base64');
   }
-  
+
   const resized = await sharp(buffer)
-    .resize(VISION_MAX_DIM, VISION_MAX_DIM, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: VISION_QUALITY })
+    .resize(maxDim, maxDim, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality })
     .toBuffer();
-  
+
   console.error(`[vision] Resized ${imagePath}: ${buffer.length} -> ${resized.length} bytes`);
   return resized.toString('base64');
 }
@@ -296,17 +322,19 @@ async function isAtomicChatReady() {
   return atomicChatReady;
 }
 
-async function analyzeWithOllama(images, prompt, model, numPredict = 1024) {
-  const imageData = await Promise.all(images.map(encodeImage));
-   
+async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOpts = {}) {
+  const imageData = await Promise.all(images.map((p) => encodeImage(p, encOpts)));
+
   const body = {
     model: model,
     prompt: prompt,
     images: imageData,
     stream: false,
+    keep_alive: VISION_KEEP_ALIVE,
     options: {
-      temperature: 0.3,
+      temperature: encOpts.extractMode ? 0 : 0.3,
       num_predict: numPredict,
+      num_ctx: VISION_NUM_CTX,
     }
   };
 
@@ -314,6 +342,7 @@ async function analyzeWithOllama(images, prompt, model, numPredict = 1024) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(VISION_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -324,13 +353,13 @@ async function analyzeWithOllama(images, prompt, model, numPredict = 1024) {
   return result.response || '';
 }
 
-async function analyzeWithAtomicChat(images, prompt, model, maxTokens = 4096) {
+async function analyzeWithAtomicChat(images, prompt, model, maxTokens = 4096, encOpts = {}) {
   if (!(await isAtomicChatReady())) {
     throw new Error('Atomic Chat local API is not ready');
   }
 
-  const imageData = await Promise.all(images.map(encodeImage));
-  
+  const imageData = await Promise.all(images.map((p) => encodeImage(p, encOpts)));
+
   const imageParts = imageData.map((base64) => ({
     type: 'image_url',
     image_url: { url: `data:image/jpeg;base64,${base64}` },
@@ -378,11 +407,11 @@ async function main() {
   console.error('  --mode ui|responsive|regression|compare');
   console.error('  --viewport WxH  (intended window size)');
   console.error('  --label "name"  (screen/label name)');
-  console.error('  --prompt "text" (custom prompt)');
-  console.error('  --source file   (source code for regression)');
+  console.error('  --prompt "text" (custom prompt; or pass bare text positionally)');
+  console.error('  --source file   (repeatable; appended to the prompt for regression)');
   console.error('  --backend auto|ollama|atomic (vision backend, default auto)');
-  console.error('  --low           (640px, text-dense)');
-  console.error('  --high          (1280px)');
+  console.error('  --low           (768px, faster, worse for text)');
+  console.error('  --high          (1600px, text-dense detail)');
   console.error('  --json          (machine-readable output)');
     process.exit(1);
   }
@@ -395,9 +424,35 @@ async function main() {
     }
   }
 
+  // Encode settings: text-dense modes get higher resolution (reading needs
+  // pixels), extractive modes get deterministic temperature. --low/--high win.
+  const textMode = TEXT_MODES.has(args.mode);
+  const maxDim = args.low ? 768 : args.high ? 1600 : textMode ? Math.max(VISION_MAX_DIM, 1568) : VISION_MAX_DIM;
+  const encOpts = {
+    maxDim: Math.min(maxDim, 2048),
+    quality: EXTRACT_MODES.has(args.mode) ? 85 : VISION_QUALITY,
+    pngPassthrough: textMode && !args.low,
+    extractMode: EXTRACT_MODES.has(args.mode),
+  };
+
   const prompt = buildPrompt(args);
   const metadata = buildMetadata(args);
-  const fullPrompt = prompt + metadata;
+  let fullPrompt = prompt + metadata;
+
+  // --source was parsed but never used (regression mode got no code). Append
+  // the file contents so the mode prompt can actually compare against them.
+  if (args.sourceFiles.length > 0) {
+    const src = args.sourceFiles.slice(0, 3).map((f) => {
+      try {
+        const content = fs.readFileSync(f, 'utf-8');
+        return `--- ${f} ---\n${content.slice(0, 6000)}${content.length > 6000 ? '\n[... truncated]' : ''}`;
+      } catch {
+        return `--- ${f} (unreadable, skipped) ---`;
+      }
+    }).join('\n\n');
+    fullPrompt += `\n\nSOURCE CODE UNDER REVIEW:\n${src}`;
+    console.error(`[vision] Attached ${Math.min(args.sourceFiles.length, 3)} source file(s) to prompt`);
+  }
 
   console.error(`Analyzing ${args.images.length} image(s) with ${VISION_MODEL}...`);
   console.error(`Mode: ${args.mode}`);
@@ -411,7 +466,7 @@ async function main() {
     if (args.backend === 'atomic') {
       usedBackend = 'atomic';
       try {
-        analysis = await analyzeWithAtomicChat(args.images, fullPrompt, VISION_MODEL);
+        analysis = await analyzeWithAtomicChat(args.images, fullPrompt, VISION_MODEL, 4096, encOpts);
       } catch (atomicErr) {
         console.error(`[vision] Atomic Chat failed: ${atomicErr.message}`);
         analysis = '';
@@ -420,7 +475,7 @@ async function main() {
       if (looksTruncated(analysis)) {
         console.error(`[vision] Atomic Chat response looks truncated, falling back to direct Ollama...`);
         try {
-          analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_MODEL);
+          analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_MODEL, 1024, encOpts);
           usedBackend = 'ollama-fallback';
           console.error(`[vision] Direct Ollama fallback succeeded.`);
         } catch (ollamaErr) {
@@ -429,13 +484,13 @@ async function main() {
       }
     } else if (args.backend === 'ollama') {
       usedBackend = 'ollama';
-      analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_MODEL);
+      analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_MODEL, 1024, encOpts);
     } else {
       // auto
       if (ATOMIC_CHAT_ENABLED) {
         usedBackend = 'atomic';
         try {
-          analysis = await analyzeWithAtomicChat(args.images, fullPrompt, VISION_MODEL);
+          analysis = await analyzeWithAtomicChat(args.images, fullPrompt, VISION_MODEL, 4096, encOpts);
         } catch (atomicErr) {
           console.error(`[vision] Atomic Chat failed: ${atomicErr.message}`);
           analysis = '';
@@ -444,7 +499,7 @@ async function main() {
         if (looksTruncated(analysis)) {
           console.error(`[vision] Atomic Chat response looks truncated, falling back to direct Ollama...`);
           try {
-            analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_MODEL);
+            analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_MODEL, 1024, encOpts);
             usedBackend = 'ollama-fallback';
             console.error(`[vision] Direct Ollama fallback succeeded.`);
           } catch (ollamaErr) {
@@ -453,14 +508,29 @@ async function main() {
         }
       } else {
         usedBackend = 'ollama';
-        analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_MODEL);
+        analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_MODEL, 1024, encOpts);
       }
     }
 
-    if (looksTruncated(analysis) && usedBackend !== 'ollama' && usedBackend !== 'ollama-fallback') {
-      console.error(`[vision] Primary response looks truncated, retrying with ${VISION_FALLBACK_MODEL}...`);
+    // Truncation usually means the output budget (num_predict) ran out — so
+    // escalate the budget on the SAME model first. Swapping models churns
+    // VRAM (unload + cold load) and is strictly slower than a longer decode.
+    // (The old gate skipped this entirely on the common ollama path.)
+    if (looksTruncated(analysis)) {
+      console.error(`[vision] Response looks truncated, retrying ${VISION_MODEL} with larger output budget...`);
       try {
-        analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_FALLBACK_MODEL, 4096);
+        analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_MODEL, 4096, encOpts);
+        usedBackend += '+retry4096';
+        console.error(`[vision] Budget-escalated retry succeeded.`);
+      } catch (retryErr) {
+        console.error(`[vision] Budget-escalated retry failed: ${retryErr.message}`);
+      }
+    }
+
+    if (looksTruncated(analysis) && VISION_FALLBACK_MODEL !== VISION_MODEL) {
+      console.error(`[vision] Still truncated, retrying with ${VISION_FALLBACK_MODEL}...`);
+      try {
+        analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_FALLBACK_MODEL, 4096, encOpts);
         usedBackend = 'ollama-fallback-model';
         console.error(`[vision] Fallback model ${VISION_FALLBACK_MODEL} succeeded.`);
       } catch (fallbackErr) {
@@ -468,17 +538,25 @@ async function main() {
       }
     }
 
+    const ok = typeof analysis === 'string' && analysis.trim().length > 0;
     if (args.json) {
       console.log(JSON.stringify({
         images: args.images,
         mode: args.mode,
         model: VISION_MODEL,
         backend: usedBackend,
-        fallback_used: usedBackend.includes('fallback'),
-        analysis: analysis,
+        fallback_used: usedBackend.includes('fallback') || usedBackend.includes('retry'),
+        analysis: ok ? analysis : '',
+        error: ok ? undefined : 'empty-analysis',
       }, null, 2));
-    } else {
+    } else if (ok) {
       console.log(analysis);
+    }
+    if (!ok) {
+      // Nonzero exit matters: MCP runNode treats this as failure and actually
+      // runs the python fallback (previously empty output counted as success).
+      console.error(`[vision] ERROR: all backends returned empty analysis`);
+      process.exit(1);
     }
   } catch (err) {
     console.error(`Error: ${err.message}`);

@@ -1,11 +1,13 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
+import { PerformanceMonitor } from "@react-three/drei";
 import { Music, AlertCircle, Maximize2, Minimize2, Video, Square, Download, Settings, Snowflake, MessageSquare, Sparkles, Play, Wand2, Accessibility, EyeOff, User, Layers, MoreHorizontal } from "lucide-react";
 import { listAudioFiles, ensureAnalysis } from "../../services/api";
 import type { AudioAnalysisData, AudioData, VizParams, PerceptualScale } from "./types";
 import { DEFAULT_VIZ_PARAMS } from "./types";
 import { useUIStore } from "../../state/uiStore";
 import { getVisualizationForTrack, VisualizationStyle } from "./trackConceptAnalyzer";
+import { mapToPerceptualBands } from "./perceptualScales";
 import { Canvas2DVisualizer } from "./Canvas2DVisualizer";
 import { VisualizerScene } from "./VisualizerScene";
 import { useLrcSync, computeLrcSync, computeSectionBounds } from "./useLrcSync";
@@ -14,7 +16,7 @@ import { ANALYSER_SMOOTHING, ATTACK, RELEASE, createAudioClock, estimateOutputLa
 import { getBeatPhase } from "../../shared/timing";
 import { ShaderVisualizer } from "./ShaderVisualizer";
 import { ACESFilmicToneMapping } from "three";
-import type * as THREE from "three";
+import { useWebGPUDector, createVisualizerRenderer, isWebGPUOptIn } from "./webgpu/WebGPURendererDetector";
 import { SpectrumBar } from "./components/SpectrumBar";
 import { StemMixerPanel } from "./components/StemMixer";
 import { StylePicker } from "./components/StylePicker";
@@ -35,6 +37,7 @@ import { selectPresetForTrack } from "./components/KineticPresets";
 import { buildStoryboard, getStoryState, EMPTY_STORYBOARD } from "./storyboard";
 import { BuilderFigure } from "./components/BuilderFigure";
 import { useMCPContextSync } from "./useMCPContextSync";
+import { canRecordMp4, createMp4Recorder } from "./mp4Recording";
 
 /** A library entry — `filename` is the bare name; the playable/analyzable
  *  reference is `relative_path` (subfolder-aware). Most of the library lives
@@ -142,6 +145,9 @@ export function Visualizer() {
   const [vizMode, setVizMode] = useState<"3d" | "shader" | "2d">("shader"); // 2d = Canvas2D (2026 visual-flux/Waviz)
   const [canvas2DMode, setCanvas2DMode] = useState<"bars" | "waveform" | "radial" | "spectrogram" | "lissajous" | "constellation" | "particles">("bars");
   const [perceptualScale, setPerceptualScale] = useState<PerceptualScale>("mel");
+  // Adaptive pixel ratio (2026 perf best practice): PerformanceMonitor steps
+  // down to 1x when fps regresses and restores the [1, 1.5] band on recovery.
+  const [adaptiveDpr, setAdaptiveDpr] = useState<[number, number]>([1, 1.5]);
   const [aiEnhancing, setAiEnhancing] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   // Single source of truth for which visual preset is currently active (fixes
@@ -153,6 +159,9 @@ export function Visualizer() {
   const visualPresetLockRef = useRef(0);
 
   const { focusMode, toggleFocusMode, autoPlay, toggleAutoPlay } = useUIStore();
+
+  // WebGPU detection — prefer WebGPURenderer when available (r185 TSL-native path)
+  const gpuResult = useWebGPUDector();
 
   const currentAnalysisData = currentFilename ? analysisData[currentFilename] ?? null : null;
   const currentAnalysisDataRef = useRef(currentAnalysisData);
@@ -195,11 +204,14 @@ export function Visualizer() {
     },
   });
   // Handle Canvas onCreated
-  const handleCanvasCreated = useCallback(({ gl }: { gl: THREE.WebGLRenderer }) => {
-    // ACES filmic tone mapping — the 2026 standard for cinematic color
-    gl.toneMapping = ACESFilmicToneMapping;
-    gl.toneMappingExposure = 1.05;
-    setRendererBackend("WebGL2");
+  const handleCanvasCreated = useCallback(({ gl }: { gl: any }) => {
+    if ((gl as any)?.isWebGPURenderer) {
+      setRendererBackend("WebGPU");
+    } else {
+      gl.toneMapping = ACESFilmicToneMapping;
+      gl.toneMappingExposure = 1.05;
+      setRendererBackend("WebGL2");
+    }
     setRendererReady(true);
   }, []);
   // Interpolated, latency-compensated audio clock (see audioTiming.ts).
@@ -207,9 +219,11 @@ export function Visualizer() {
   const latencyRef = useRef(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mp4RecorderRef = useRef<ReturnType<typeof createMp4Recorder> | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const objectUrlRef = useRef<string | null>(null);
+  const recordingFormatRef = useRef<"webm" | "mp4">("webm");
   const freqArrayRef = useRef<Uint8Array | null>(null);
   const connectedElements = useRef<WeakSet<HTMLMediaElement>>(new WeakSet());
   // Monotonic id guarding async track-select flows against out-of-order resolves.
@@ -217,6 +231,10 @@ export function Visualizer() {
   // Latest vizParams for callbacks that must not re-subscribe on every slider tick.
   const vizParamsRef = useRef(vizParams);
   vizParamsRef.current = vizParams;
+  // Latest perceptual scale for the shader/2D rAF loop (which only re-subscribes
+  // on mode/playback changes, not on scale changes).
+  const perceptualScaleRef = useRef(perceptualScale);
+  perceptualScaleRef.current = perceptualScale;
   // Throttle for the 3D scene's per-frame audio callback (mirrors the shader loop).
   const last3DUiUpdateRef = useRef(0);
   // Latest snapshot for the __VIZ_TEST__ harness without re-registering per frame.
@@ -516,6 +534,11 @@ export function Visualizer() {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
       }
+      if (mp4RecorderRef.current) {
+        // Flush + mux is async now; fire-and-forget on unmount (the buffer is
+        // unusable once the page is going away anyway).
+        void mp4RecorderRef.current.stop().catch(() => undefined);
+      }
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     };
   }, []);
@@ -771,12 +794,15 @@ export function Visualizer() {
         // --- Analysis-driven energy: blend live (reactive) with precomputed curve (stable, no lag) ---
         let energy = (bass + mid + treble) / 3;
         let nextBeatIn = 0;
+        let analyzedEnergy = 0;
         if (analysis && analysis.energy_curve?.length && analysis.duration_seconds > 0) {
           const p = Math.max(0, Math.min(1, elapsed / analysis.duration_seconds));
           const idx = Math.min(Math.floor(p * analysis.energy_curve.length), analysis.energy_curve.length - 1);
           const analysisEnergy = analysis.energy_curve[idx];
           // 60% live + 40% analysis — keeps transients while anchoring to section energy
           energy = energy * 0.6 + analysisEnergy * 0.4;
+          // Exposed for consumers (2D canvas uses analyzedEnergy for extra punch).
+          analyzedEnergy = analysisEnergy;
           // nextBeatIn from beat_times for anticipation (mirrors audioHooks)
           if (analysis.beat_times?.length) {
             const beats = analysis.beat_times;
@@ -812,6 +838,12 @@ export function Visualizer() {
           beatPhase: analysis?.beat_times?.length
             ? getBeatPhase(analysis.beat_times, elapsed)?.phase
             : undefined,
+          // Perceptual + analyzed-energy payload for parity with the 3D path
+          // (useRealAudio). Without these, shader/2D consumers that key off
+          // `analyzedEnergy`/`perceptualBands` silently saw zeros.
+          analyzedEnergy,
+          perceptualBands: mapToPerceptualBands(arr, sampleRate, perceptualScaleRef.current, 40),
+          perceptualScale: perceptualScaleRef.current,
         };
         liveAudioDataRef.current = newData;
         const now = performance.now();
@@ -894,15 +926,29 @@ export function Visualizer() {
     }
   }, [currentAnalysisData, currentFilename, csvContent, aiEnhancing, applyPreset]);
 
-  const startRecording = useCallback(() => {
-    // canvasRef was never attached to any element, so recording silently no-op'd.
-    // Resolve the currently visible visualizer canvas at record time instead.
+  const startRecording = useCallback(async () => {
     const canvas = containerRef.current?.querySelector("canvas") ?? null;
     if (!canvas) {
       setError("Recording failed — no visualizer canvas found");
       return;
     }
     try {
+      // Prefer MP4 via WebCodecs when available; fall back to MediaRecorder/WebM.
+      // `canRecordMp4` actually probes the H.264 config — WebCodecs existing does
+      // not mean this profile is encodable.
+      const useMp4 = await canRecordMp4(canvas.width, canvas.height);
+      recordingFormatRef.current = useMp4 ? "mp4" : "webm";
+
+      if (useMp4) {
+        const recorder = createMp4Recorder({ bitrate: 8_000_000, fps: 60 });
+        recorder.start(canvas);
+        mp4RecorderRef.current = recorder;
+        setRecordedBlob(null);
+        setIsRecording(true);
+        recordingTimerRef.current = setInterval(() => setRecordingTime(p => p + 1), 1000);
+        return;
+      }
+
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
       const mediaRecorder = new MediaRecorder(canvas.captureStream(60), { mimeType, videoBitsPerSecond: 8000000 });
       recordedChunksRef.current = [];
@@ -912,10 +958,33 @@ export function Visualizer() {
       mediaRecorderRef.current = mediaRecorder;
       setIsRecording(true);
       recordingTimerRef.current = setInterval(() => setRecordingTime(p => p + 1), 1000);
-    } catch { setError("Recording failed"); }
+    } catch (e) {
+      setError(e instanceof Error ? `Recording failed — ${e.message}` : "Recording failed");
+    }
   }, []);
 
-  const stopRecording = useCallback(() => {
+  const stopRecording = useCallback(async () => {
+    const fmt = recordingFormatRef.current;
+
+    if (fmt === "mp4") {
+      const recorder = mp4RecorderRef.current;
+      mp4RecorderRef.current = null;
+      setIsRecording(false);
+      if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
+      if (recorder) {
+        // Await the encoder flush: the tail frames only reach the muxer after the
+        // flush resolves (see mp4Recording.ts).
+        try {
+          const buffer = await recorder.stop();
+          if (buffer) setRecordedBlob(new Blob([buffer], { type: "video/mp4" }));
+          else setError("MP4 export produced no data — try WebM (see console)");
+        } catch (e) {
+          setError(e instanceof Error ? `MP4 export failed — ${e.message}` : "MP4 export failed");
+        }
+      }
+      return;
+    }
+
     mediaRecorderRef.current?.stop();
     setIsRecording(false);
     if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
@@ -923,10 +992,11 @@ export function Visualizer() {
 
   const downloadRecording = useCallback(() => {
     if (!recordedBlob) return;
+    const ext = recordingFormatRef.current;
     const a = document.createElement("a");
     const url = URL.createObjectURL(recordedBlob);
     a.href = url;
-    a.download = `visualizer_${Date.now()}.webm`;
+    a.download = `visualizer_${Date.now()}.${ext}`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, [recordedBlob]);
@@ -1185,15 +1255,20 @@ export function Visualizer() {
           )}
           <UploadPrompt hasAudio={!!audioUrl} quiet={!audioUrl && !currentFilename} onFile={handleFile} />
            {/* Always-mounted Canvas preserves WebGL context across mode/visibility toggles */}
-           <Canvas
-             className="absolute inset-0"
-             camera={{ position: [0, 0, 7], fov: 55 }}
-             dpr={[1, 1.5]}
-             frameloop="always"
-             gl={{ antialias: true }}
-             onCreated={handleCanvasCreated}
-           >
-             <color attach="background" args={[bgColor]} />
+            <Canvas
+              className="absolute inset-0"
+              camera={{ position: [0, 0, 7], fov: 55 }}
+              dpr={adaptiveDpr}
+              frameloop="always"
+              gl={createVisualizerRenderer as any}
+              onCreated={handleCanvasCreated}
+            >
+              <PerformanceMonitor
+                onDecline={() => setAdaptiveDpr([1, 1])}
+                onIncline={() => setAdaptiveDpr([1, 1.5])}
+                onFallback={() => setAdaptiveDpr([1, 1])}
+              />
+              <color attach="background" args={[bgColor]} />
              <VisualizerScene
                analyserRef={analyserRef}
                isPlaying={isPlaying}
@@ -1249,7 +1324,7 @@ export function Visualizer() {
                    bgColor={bgColor}
                  />
                )}
-               {vizMode === "3d" && !rendererReady && <div className="viz-loading-overlay"><div className="viz-loading-spinner" /><span>Initializing {rendererBackend || "renderer"}...</span></div>}
+                {vizMode === "3d" && !rendererReady && <div className="viz-loading-overlay"><div className="viz-loading-spinner" /><span>Initializing {rendererBackend || (gpuResult.supported && isWebGPUOptIn() ? "WebGPU" : "WebGL")}...</span></div>}
                {vizMode === "3d" && rendererReady && <div className="viz-backend-badge">{rendererBackend}</div>}
                {vizMode === "3d" && rendererReady && <StylePicker active={visualizationStyle} onChange={setVisualizationStyle} />}
              </>

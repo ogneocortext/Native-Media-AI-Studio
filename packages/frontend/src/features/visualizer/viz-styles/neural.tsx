@@ -1,8 +1,17 @@
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { VizProps } from "./types";
 import { getTrackFeatures } from "../trackFeatures";
+import {
+  makeAudioReactiveMaterialTSL,
+  updateAudioReactiveMaterialTSL,
+} from "../VisualizationFX";
+import { setPositionAttribute, useDisposeOnUnmount } from "./helpers";
+
+/** Link radius (world units) for the connection graph. */
+const LINK_RANGE = 2.8;
+const LINK_RANGE_SQ = LINK_RANGE * LINK_RANGE;
 
 // =============================================================================
 // NEURAL — Network nodes with connection lines, dramatic audio reactivity
@@ -21,6 +30,37 @@ export function FrequencyRings({
   const rotRef = useRef(0);
   const beatPulse = useRef(0);
 
+  const { gl } = useThree();
+  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+
+  const nodeMat = useMemo(
+    () =>
+      isWebGPU
+        ? makeAudioReactiveMaterialTSL({
+            color: "#06b6d4",
+            emissive: "#6366f1",
+            opacity: 0.95,
+            roughness: 0.1,
+            metalness: 0.8,
+          })
+        : null,
+    [isWebGPU],
+  );
+
+  const shockMat = useMemo(
+    () =>
+      isWebGPU
+        ? makeAudioReactiveMaterialTSL({
+            color: "#a855f7",
+            emissive: "#7c3aed",
+            opacity: 0.4,
+            roughness: 0.2,
+            metalness: 0.1,
+          })
+        : null,
+    [isWebGPU],
+  );
+
   const nodePos = useMemo(() => {
     const arr: THREE.Vector3[] = [];
     for (let i = 0; i < nodeCount; i++) {
@@ -37,6 +77,18 @@ export function FrequencyRings({
     }
     return arr;
   }, []);
+
+  // Preallocated link vertex buffer (nodeCount choose 2 pairs × 2 verts × xyz).
+  // Rebuilt in place every frame: allocating a fresh Float32BufferAttribute per
+  // frame orphaned a GPU buffer every 16 ms (three's attribute cache is a
+  // WeakMap, so those buffers were never deleted).
+  const maxLinkVerts = (nodeCount * (nodeCount - 1)) / 2 * 2;
+  const linkPositions = useMemo(
+    () => new Float32Array(maxLinkVerts * 3),
+    [maxLinkVerts],
+  );
+
+  useDisposeOnUnmount(nodeMat, shockMat);
 
   useFrame((s) => {
     if (!groupRef.current) return;
@@ -69,50 +121,64 @@ export function FrequencyRings({
       const baseScale = 0.06 + freq * 0.15;
       const beatScale = beatPulse.current * 0.4 + features.onset * 0.3;
       node.scale.setScalar(baseScale + beatScale);
-      const m = node.material as THREE.MeshStandardMaterial;
-      // Emissive flashes on beat + onset
-      m.emissiveIntensity =
-        0.3 +
-        freq * vizParams.glowIntensity * 3 +
-        beatPulse.current * 2 +
-        features.onset * 2.5;
-      // Color shifts with spectral brightness from analysis
-      m.color.setHSL(
-        0.55 + freq * 0.3 + beatPulse.current * 0.1 + features.brightness * 0.2,
-        0.9,
-        0.5 + features.brightness * 0.2,
-      );
-      m.emissive.setHSL(
-        0.6 + freq * 0.2 + features.brightness * 0.15,
-        1.0,
-        0.4 + beatPulse.current * 0.4,
-      );
+      if (isWebGPU && nodeMat) {
+        updateAudioReactiveMaterialTSL(
+          nodeMat,
+          { bass, mid, treble, energy: 0.5 },
+          vizParams.glowIntensity,
+        );
+      } else {
+        const m = node.material as THREE.MeshStandardMaterial;
+        // Emissive flashes on beat + onset
+        m.emissiveIntensity =
+          0.3 +
+          freq * vizParams.glowIntensity * 3 +
+          beatPulse.current * 2 +
+          features.onset * 2.5;
+        // Color shifts with spectral brightness from analysis
+        m.color.setHSL(
+          0.55 + freq * 0.3 + beatPulse.current * 0.1 + features.brightness * 0.2,
+          0.9,
+          0.5 + features.brightness * 0.2,
+        );
+        m.emissive.setHSL(
+          0.6 + freq * 0.2 + features.brightness * 0.15,
+          1.0,
+          0.4 + beatPulse.current * 0.4,
+        );
+      }
     });
 
-    // Connection lines with dynamic opacity
+    // Connection lines with dynamic opacity.
+    // Distances are measured between the *animated* node positions, not the
+    // static spawn positions — otherwise links were drawn between nodes that
+    // had drifted apart (and missed pairs that had drifted together).
     if (lineRef.current) {
-      const pos: number[] = [];
+      const nodes = nodeRefs.current;
+      let vertex = 0;
       for (let i = 0; i < nodeCount; i++) {
+        const ni = nodes[i];
+        if (!ni) continue;
+        const a = ni.position;
         for (let j = i + 1; j < nodeCount; j++) {
-          if (nodePos[i].distanceTo(nodePos[j]) < 2.8) {
-            const ni = nodeRefs.current[i],
-              nj = nodeRefs.current[j];
-            if (ni && nj) {
-              pos.push(
-                ni.position.x,
-                ni.position.y,
-                ni.position.z,
-                nj.position.x,
-                nj.position.y,
-                nj.position.z,
-              );
-            }
-          }
+          const nj = nodes[j];
+          if (!nj) continue;
+          const b = nj.position;
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const dz = a.z - b.z;
+          if (dx * dx + dy * dy + dz * dz > LINK_RANGE_SQ) continue;
+          const o = vertex * 3;
+          linkPositions[o] = a.x;
+          linkPositions[o + 1] = a.y;
+          linkPositions[o + 2] = a.z;
+          linkPositions[o + 3] = b.x;
+          linkPositions[o + 4] = b.y;
+          linkPositions[o + 5] = b.z;
+          vertex += 2;
         }
       }
-      const geo = lineRef.current.geometry;
-      geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-      geo.attributes.position.needsUpdate = true;
+      setPositionAttribute(lineRef.current.geometry, linkPositions, vertex);
       (lineRef.current.material as THREE.LineBasicMaterial).opacity =
         0.1 + features.brightness * 0.5 + beatPulse.current * 0.3;
     }
@@ -121,9 +187,13 @@ export function FrequencyRings({
     if (shockRef.current) {
       const sScale = 0.3 + beatPulse.current * 4;
       shockRef.current.scale.setScalar(sScale);
-      const sm = shockRef.current.material as THREE.MeshStandardMaterial;
-      sm.opacity = (1 - beatPulse.current) * 0.4;
-      sm.emissiveIntensity = (1 - beatPulse.current) * 3;
+      if (isWebGPU && shockMat) {
+        updateAudioReactiveMaterialTSL(shockMat, { bass, mid, treble, energy: 0.5 }, vizParams.glowIntensity);
+      } else {
+        const sm = shockRef.current.material as THREE.MeshStandardMaterial;
+        sm.opacity = (1 - beatPulse.current) * 0.4;
+        sm.emissiveIntensity = (1 - beatPulse.current) * 3;
+      }
     }
 
     groupRef.current.rotation.y = rotRef.current;
@@ -144,27 +214,35 @@ export function FrequencyRings({
           }}
         >
           <sphereGeometry args={[0.1, 16, 16]} />
-          <meshStandardMaterial
-            color="#06b6d4"
-            emissive="#6366f1"
-            emissiveIntensity={0.6}
-            roughness={0.1}
-            metalness={0.95}
-          />
+          {isWebGPU && nodeMat ? (
+            <primitive object={nodeMat} attach="material" />
+          ) : (
+            <meshStandardMaterial
+              color="#06b6d4"
+              emissive="#6366f1"
+              emissiveIntensity={0.6}
+              roughness={0.1}
+              metalness={0.95}
+            />
+          )}
         </mesh>
       ))}
       <mesh ref={shockRef} rotation={[Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.98, 1.0, 64]} />
-        <meshStandardMaterial
-          color="#a855f7"
-          emissive="#7c3aed"
-          emissiveIntensity={2}
-          transparent
-          opacity={0.3}
-          side={THREE.DoubleSide}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
+        {isWebGPU && shockMat ? (
+          <primitive object={shockMat} attach="material" />
+        ) : (
+          <meshStandardMaterial
+            color="#a855f7"
+            emissive="#7c3aed"
+            emissiveIntensity={2}
+            transparent
+            opacity={0.3}
+            side={THREE.DoubleSide}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        )}
       </mesh>
     </group>
   );

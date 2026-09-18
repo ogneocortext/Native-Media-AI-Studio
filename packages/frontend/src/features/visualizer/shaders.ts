@@ -202,7 +202,7 @@ export const SHADER_PRESETS = {
       }
 
       // Neon reflections on wet ground
-      float ground = smoothstep(0.0, -0.3, p.y);
+      float ground = 1.0 - smoothstep(-0.3, 0.0, p.y);
       float neonReflect = 0.0;
       for (float i = 0.0; i < 8.0; i++) {
         float nx = hash(i * 7.0) * 2.0 - 1.0;
@@ -269,9 +269,9 @@ export const SHADER_PRESETS = {
       // Grid lines
       float grid = 0.0;
       float gridSize = 0.1 + u_bass * 0.05;
-      grid += smoothstep(gridSize, 0.0, abs(fract(gridUV.x) - 0.5));
-      grid += smoothstep(gridSize, 0.0, abs(fract(gridUV.y) - 0.5));
-      grid *= smoothstep(horizon, -0.5, p.y);
+      grid += (1.0 - smoothstep(0.0, gridSize, abs(fract(gridUV.x) - 0.5)));
+      grid += (1.0 - smoothstep(0.0, gridSize, abs(fract(gridUV.y) - 0.5)));
+      grid *= (1.0 - smoothstep(-0.5, horizon, p.y));
 
       // Glitch distortion
       float glitch = step(0.98, hash(floor(t * 10.0))) * u_beat;
@@ -283,9 +283,9 @@ export const SHADER_PRESETS = {
       // Secondary magenta grid
       vec2 gridUV2 = vec2(gp.x * perspective + 0.5, t * 0.3 + perspective * 0.3);
       float grid2 = 0.0;
-      grid2 += smoothstep(gridSize * 1.5, 0.0, abs(fract(gridUV2.x) - 0.5));
-      grid2 += smoothstep(gridSize * 1.5, 0.0, abs(fract(gridUV2.y) - 0.5));
-      grid2 *= smoothstep(horizon, -0.5, p.y);
+      grid2 += (1.0 - smoothstep(0.0, gridSize * 1.5, abs(fract(gridUV2.x) - 0.5)));
+      grid2 += (1.0 - smoothstep(0.0, gridSize * 1.5, abs(fract(gridUV2.y) - 0.5)));
+      grid2 *= (1.0 - smoothstep(-0.5, horizon, p.y));
       vec3 gridColor2 = vec3(1.0, 0.0, 0.5) * grid2 * (0.3 + u_mid);
 
       // Sky / sun
@@ -349,7 +349,7 @@ export const SHADER_PRESETS = {
         float offset = i * 0.3;
         vec2 fp = vec2(p.x * (2.0 + i), p.y + 1.0 - t * 0.2 + offset);
         float n = fbm(fp * 3.0 + vec2(offset, 0.0));
-        float flame = smoothstep(0.4, 0.8, n) * smoothstep(0.0, -0.8, p.y);
+        float flame = smoothstep(0.4, 0.8, n) * (1.0 - smoothstep(-0.8, 0.0, p.y));
         fire += flame * (0.5 + u_bass * 0.5);
       }
 
@@ -431,7 +431,7 @@ export const SHADER_PRESETS = {
       for (float i = 0.0; i < 8.0; i++) {
         float angle = i * 0.785 + t * 0.2;
         float ray = abs(sin(atan(p.y - 0.3, p.x) - angle));
-        ray = smoothstep(0.1, 0.0, ray);
+        ray = 1.0 - smoothstep(0.0, 0.1, ray);
         ray *= exp(-length(vec2(p.x, p.y - 0.3)) * 1.5);
         rays += ray * 0.05 * (1.0 + u_energy);
       }
@@ -440,12 +440,12 @@ export const SHADER_PRESETS = {
       float palms = 0.0;
       for (float i = 0.0; i < 4.0; i++) {
         float px = -0.8 + i * 0.5 + hash(vec2(i, 0.0)) * 0.2;
-        float trunk = smoothstep(0.02, 0.0, abs(p.x - px)) * smoothstep(-1.0, -0.2, p.y);
+        float trunk = (1.0 - smoothstep(0.0, 0.02, abs(p.x - px))) * smoothstep(-1.0, -0.2, p.y);
         palms += trunk * 0.8;
       }
 
       // Ocean reflection
-      float ocean = smoothstep(-0.3, -1.0, p.y);
+      float ocean = smoothstep(-1.0, -0.3, p.y);
       vec3 oceanColor = mix(vec3(0.0, 0.1, 0.3), vec3(0.8, 0.4, 0.1), ocean) * (0.5 + u_mid * 0.3);
 
       // Smooth wave motion
@@ -515,8 +515,8 @@ export const SHADER_PRESETS = {
       vec2 gridP = vec2(p.x * 1.2, p.y + 0.25) * 6.0;
       vec2 gp = fract(gridP) - 0.5;
       float gridLine = min(abs(gp.x), abs(gp.y));
-      float grid = smoothstep(0.48, 0.45, gridLine) * 0.12;
-      grid *= smoothstep(1.0, 0.0, length(p)) * 0.5; // fade to center/edges
+      float grid = (1.0 - smoothstep(0.45, 0.48, gridLine)) * 0.12;
+      grid *= (1.0 - smoothstep(0.0, 1.0, length(p))) * 0.5; // fade to center/edges
       grid *= (0.6 + u_mid * 0.6);
       float gridPersp = 1.0 / (abs(p.y + 0.45) + 0.25);
       grid *= clamp(gridPersp * 0.15, 0.0, 1.0);
@@ -532,7 +532,7 @@ export const SHADER_PRESETS = {
       palette = mix(palette, vec3(1.0, 0.45, 0.15), u_bass * 0.15); // bass warmth
 
       // Peak-highlight: brighter where wave curvature peaks (vision: "brighter peaks when loud")
-      float peakHl = smoothstep(0.08, 0.0, dist) * (0.5 + u_peak * 0.9);
+      float peakHl = (1.0 - smoothstep(0.0, 0.08, dist)) * (0.5 + u_peak * 0.9);
 
       // ── Peak particles: glowing dots along wave crest (vision: "dots along peaks") ──
       float particles = 0.0;

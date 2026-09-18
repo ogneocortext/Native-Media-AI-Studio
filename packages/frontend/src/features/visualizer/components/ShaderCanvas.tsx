@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 interface ShaderCanvasProps {
   fragmentShader: string;
@@ -31,6 +31,7 @@ export function ShaderCanvas({
   const uniformLocsRef = useRef<Record<string, WebGLUniformLocation | null>>(
     {},
   );
+  const [contextRestored, setContextRestored] = useState(0);
   const rafRef = useRef<number>(0);
   const startTimeRef = useRef(Date.now());
   const debugRef = useRef(debug);
@@ -193,50 +194,76 @@ export function ShaderCanvas({
     const canvas = canvasRef.current;
     if (!gl || !program || !canvas) return;
 
-    // Handle WebGL context loss
+    // Handle WebGL context loss — pause render loop, invalidate GL ref
     const handleContextLost = (e: Event) => {
       e.preventDefault();
-      console.warn("WebGL context lost, attempting recovery...");
+      console.warn("WebGL context lost, pausing render loop...");
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = 0;
+      }
+      glRef.current = null; // prevent render loop using stale context
     };
 
     const handleContextRestored = () => {
       console.log("WebGL context restored, reinitializing...");
       initGL();
+      setContextRestored((v) => v + 1);
     };
 
     canvas.addEventListener("webglcontextlost", handleContextLost);
     canvas.addEventListener("webglcontextrestored", handleContextRestored);
 
-    const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio, 2);
-      const w = canvas.clientWidth * dpr;
-      const h = canvas.clientHeight * dpr;
+    // Size the backing store from layout *only when the container actually
+    // changes* (ResizeObserver). Previously `resize()` ran inside every rAF
+    // frame, forcing a synchronous layout read (clientWidth/clientHeight) at
+    // 60 Hz — a classic layout-thrash cost on every visualizer frame.
+    let ro: ResizeObserver | null = null;
+    const applySize = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // Min 1×1: a collapsed/hidden container (clientWidth 0) would otherwise
+      // drive the backing store to 0×0 and log WebGL size warnings.
+      const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+      const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
       if (canvas.width !== w || canvas.height !== h) {
         canvas.width = w;
         canvas.height = h;
       }
       gl.viewport(0, 0, canvas.width, canvas.height);
     };
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(applySize);
+      ro.observe(canvas);
+    }
+    applySize();
 
     let frameCount = 0;
     const lastSample = new Uint8Array(9 * 4);
+    const pixelView = new Uint8Array(4);
 
     const render = () => {
-      resize();
       const time = (Date.now() - startTimeRef.current) / 1000;
-      const locs = uniformLocsRef.current;
-      const u = uniformsRef.current;
+      // Skip frames while the canvas is effectively invisible (hidden tab or a
+      // collapsed container) — the rAF loop stays alive for when it comes back.
+      const visible =
+        (typeof document === "undefined" || !document.hidden) &&
+        canvas.clientWidth > 0 &&
+        canvas.clientHeight > 0;
+      if (visible) {
+        const locs = uniformLocsRef.current;
+        const u = uniformsRef.current;
 
-      gl.uniform1f(locs["u_time"], time);
-      gl.uniform1f(locs["u_bass"], u.bass ?? 0);
-      gl.uniform1f(locs["u_mid"], u.mid ?? 0);
-      gl.uniform1f(locs["u_treble"], u.treble ?? 0);
-      gl.uniform1f(locs["u_beat"], u.beat ?? 0);
-      gl.uniform1f(locs["u_energy"], u.energy ?? 0);
-      gl.uniform1f(locs["u_peak"], u.peak ?? 0);
-      gl.uniform2f(locs["u_resolution"], canvas.width, canvas.height);
+        gl.uniform1f(locs["u_time"], time);
+        gl.uniform1f(locs["u_bass"], u.bass ?? 0);
+        gl.uniform1f(locs["u_mid"], u.mid ?? 0);
+        gl.uniform1f(locs["u_treble"], u.treble ?? 0);
+        gl.uniform1f(locs["u_beat"], u.beat ?? 0);
+        gl.uniform1f(locs["u_energy"], u.energy ?? 0);
+        gl.uniform1f(locs["u_peak"], u.peak ?? 0);
+        gl.uniform2f(locs["u_resolution"], canvas.width, canvas.height);
 
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
 
       if (debugRef.current) {
         frameCount++;
@@ -251,9 +278,8 @@ export function ShaderCanvas({
             for (let col = 0; col < 3; col++) {
               const x = Math.min(col * stepX, w - 1);
               const y = Math.min(row * stepY, h - 1);
-              const view = new Uint8Array(4);
-              gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, view);
-              sample.set(view, idx);
+              gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixelView);
+              sample.set(pixelView, idx);
               idx += 4;
             }
           }
@@ -275,6 +301,7 @@ export function ShaderCanvas({
     render();
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      ro?.disconnect();
       canvas.removeEventListener("webglcontextlost", handleContextLost);
       canvas.removeEventListener("webglcontextrestored", handleContextRestored);
     };
@@ -282,7 +309,7 @@ export function ShaderCanvas({
     // initGL recompiles (init effect above re-runs and cancels this loop), so
     // this effect MUST re-run to restart rendering on the new program.
     // Without it the canvas freezes on its last frame after any preset change.
-  }, [uniformsRef, fragmentShader, initGL]);
+  }, [uniformsRef, fragmentShader, initGL, contextRestored]);
 
   return (
     <canvas

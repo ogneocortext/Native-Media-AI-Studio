@@ -442,6 +442,121 @@ const flip3dPreset: KineticPreset = {
 };
 
 // ============================================================
+// PRESET: EXPLODE — Characters scatter outward (Codrops-inspired)
+// ============================================================
+const explodePreset: KineticPreset = {
+  id: "explode",
+  name: "Explode",
+  description: "Characters scatter outward from center",
+  genres: ["electronic", "glitch", "experimental"],
+  containerClass: "kinetic-explode",
+  wordClass: "kinetic-word-explode",
+  enterAnimation: (el) => {
+    const chars = el.textContent?.split("") || [];
+    el.innerHTML = chars.map((c) => `<span class="char" style="display:inline-block">${c}</span>`).join("");
+    const charEls = el.querySelectorAll(".char");
+    animate(charEls, {
+      opacity: [0, 1],
+      scale: [0, 1],
+      duration: 500,
+      delay: (_el, i) => (i ?? 0) * 30,
+      ease: "outExpo",
+    });
+  },
+  exitAnimation: (el) => {
+    const charEls = el.querySelectorAll(".char");
+    animate(charEls, {
+      opacity: [1, 0],
+      scale: [1, 0],
+      duration: 300,
+      delay: (_el, i) => (i ?? 0) * 20,
+      ease: "inExpo",
+    });
+  },
+  beatAnimation: (el) => {
+    const charEls = el.querySelectorAll(".char");
+    animate(charEls, {
+      translateX: () => Math.random() * 20 - 10,
+      translateY: () => Math.random() * 20 - 10,
+      scale: [1, 1.2, 1],
+      duration: 150,
+      ease: "outQuad",
+    });
+  },
+};
+
+// ============================================================
+// PRESET: BLUR REVEAL — Blur in/out with stagger (Codrops-inspired)
+// ============================================================
+const blurRevealPreset: KineticPreset = {
+  id: "blurReveal",
+  name: "Blur Reveal",
+  description: "Blur in with staggered delay",
+  genres: ["ambient", "dreamy", "cinematic"],
+  containerClass: "kinetic-blur-reveal",
+  wordClass: "kinetic-word-blur-reveal",
+  enterAnimation: (el) => {
+    animate(el, {
+      opacity: [0, 1],
+      filter: ["blur(12px)", "blur(0px)"],
+      duration: 800,
+      ease: "outExpo",
+    });
+  },
+  exitAnimation: (el) => {
+    animate(el, {
+      opacity: [1, 0],
+      filter: ["blur(0px)", "blur(10px)"],
+      duration: 600,
+      ease: "inExpo",
+    });
+  },
+  beatAnimation: (el) => {
+    animate(el, {
+      filter: ["blur(0px)", "blur(2px)", "blur(0px)"],
+      duration: 200,
+      ease: "outQuad",
+    });
+  },
+};
+
+// ============================================================
+// PRESET: CLIP UP — Slide up from hidden clip (Codrops fx-style)
+// ============================================================
+const clipUpPreset: KineticPreset = {
+  id: "clipUp",
+  name: "Clip Up",
+  description: "Slide up from overflow-hidden clip",
+  genres: ["pop", "indie", "folk"],
+  containerClass: "kinetic-clip-up",
+  wordClass: "kinetic-word-clip-up",
+  enterAnimation: (el) => {
+    el.style.overflow = "hidden";
+    animate(el, {
+      translateY: ["100%", "0%"],
+      opacity: [0, 1],
+      duration: 600,
+      ease: "outExpo",
+    });
+  },
+  exitAnimation: (el) => {
+    animate(el, {
+      translateY: ["0%", "-100%"],
+      opacity: [1, 0],
+      duration: 400,
+      ease: "inExpo",
+    });
+  },
+  beatAnimation: (el) => {
+    animate(el, {
+      translateY: [0, -6, 0],
+      duration: 200,
+      ease: "outQuad",
+    });
+  },
+};
+
+// ============================================================
 // ENHANCED PRESETS WITH LRC TIMING SUPPORT
 // ============================================================
 
@@ -564,6 +679,9 @@ export const kineticPresets: Record<string, KineticPreset> = {
   wavy: wavyPreset,
   raining: rainingPreset,
   flip3d: flip3dPreset,
+  explode: explodePreset,
+  blurReveal: blurRevealPreset,
+  clipUp: clipUpPreset,
 };
 
 export const kineticPresetList = Object.values(kineticPresets);
@@ -606,6 +724,8 @@ export function selectPresetForTrack(genre: string, energy: number): string {
   if (has("drum and bass", "brostep", "dubstep")) return "dubstep";
   if (has("hip hop", "hiphop")) return "raining";
   if (has("indie", "alternative", "folk", "pop")) return "wavy";
+  if (has("glitch", "experimental")) return "explode";
+  if (has("dreamy")) return "blurReveal";
 
   // Generic catalog match, longest genre phrase first.
   const candidates: Array<{ id: string; phrase: string }> = [];

@@ -98,7 +98,7 @@ Media queries are viewport-based; container queries let components adapt to thei
 
 ### Gotchas
 - **Nested container queries** work but performance degrades beyond 3 levels
-- **Style queries** for theming: check Safari traffic before removing fallbacks
+- **Style queries** (`@container card (--theme: dark)`) are available in Chromium 126+ / Safari 18+; check Safari traffic before removing `[data-theme]` fallbacks
 - **Grid + container queries** interaction: always give grid items an explicit starting size
 
 ### Application to This Project
@@ -111,8 +111,9 @@ Media queries are viewport-based; container queries let components adapt to thei
 ## 4. `@scope` Rule
 
 ### Status
-- **Baseline 2026**: Chrome 118+, Safari 17.4+, Firefox 146+
+- **Baseline Dec 2025**: Chrome 118+, Safari 17.4+, Firefox 146+
 - **Global usage**: ~91%+
+- **2026 note**: Safe to use for style isolation in production; pair with `@layer` for deterministic cascade
 
 ### What It Solves
 Target elements in specific DOM subtrees without overly-specific selectors or coupling to DOM structure. Prevents style leakage.

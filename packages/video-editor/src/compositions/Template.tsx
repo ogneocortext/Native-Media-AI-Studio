@@ -101,7 +101,7 @@ export const MyMusicVideoComposition: React.FC = () => {
             width: 500 + analysis.bass * 20,
             height: 650 + analysis.bass * 20,
             objectFit: "contain",
-            translate: `-50% -50%`,
+            transform: "translate(-50%, -50%)",
             scale: bgScale,
             filter: `drop-shadow(0 20px 30px rgba(0,0,0,0.5)) drop-shadow(0 0 15px ${CONFIG.accentColor}40)`,
             opacity: 0.95

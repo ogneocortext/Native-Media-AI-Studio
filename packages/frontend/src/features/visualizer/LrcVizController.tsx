@@ -65,6 +65,9 @@ interface LrcVizControllerProps {
 
 // Module-scope scratch color (single controller instance) — avoids per-frame alloc.
 const storyColorScratch = new THREE.Color("#6366f1");
+// Scratch vector for the per-frame group scale (allocating a Vector3 every frame
+// was pure GC churn inside the render loop).
+const groupScaleScratch = new THREE.Vector3(1, 1, 1);
 
 /**
  * Controller component that synchronizes 3D visualizations with LRC timing data.
@@ -120,7 +123,8 @@ export function LrcVizController({
 
     if (groupRef.current) {
       const targetScale = 1 + (intensity - 0.6) * 0.32 + vizState.current.phraseFlash * 0.28 + lineBoost * 0.2;
-      groupRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), delta * 4.5);
+      groupScaleScratch.setScalar(targetScale);
+      groupRef.current.scale.lerp(groupScaleScratch, delta * 4.5);
       // Phrase-advance nudges rotation; story orbit hint steers drift per act
       groupRef.current.rotation.y += delta * (0.15 + intensity * 0.25 + vizState.current.phraseFlash * 0.6 + orbitDrift);
       // SectionProgress drives subtle pitch for verse→chorus lift

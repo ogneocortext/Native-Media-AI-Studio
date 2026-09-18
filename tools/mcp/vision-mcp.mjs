@@ -2,7 +2,7 @@
 import { Server } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { spawn } from "child_process";
-import { existsSync, readFileSync } from "fs";
+import fs, { existsSync, readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -137,9 +137,10 @@ async function resizeImage(inputPath, maxDim = 1024, quality = 80) {
     const w = meta.width || 0;
     const h = meta.height || 0;
 
-    const ratio = Math.min(maxDim / w, maxDim / h);
-    const newW = Math.round(w * ratio);
-    const newH = Math.round(h * ratio);
+    // Clamp to <=1 (never upscale) and guard missing metadata (0 → NaN → throw).
+    const ratio = w > 0 && h > 0 ? Math.min(1, maxDim / w, maxDim / h) : 1;
+    const newW = Math.max(1, Math.round(w * ratio));
+    const newH = Math.max(1, Math.round(h * ratio));
 
     const resized = await img
       .resize(newW, newH, { fit: "inside", withoutEnlargement: true })
@@ -417,7 +418,7 @@ async function describeImage(imagePath, prompt, mode) {
 
   // Primary: use the standalone analyzer which has sharp + model-aware dispatch
   try {
-    const args = ["analyze", abs, finalPrompt, "--mode", finalMode];
+    const args = [abs, finalPrompt, "--mode", finalMode];
     const result = await runNode(ANALYZE_MJS, args);
     logRequest(reqId, "vision_describe", "primary-ok");
     return result;
@@ -450,7 +451,7 @@ async function compareImages(imageA, imageB, prompt) {
 
   // Use the standalone analyzer for compare/diff
   try {
-    const result = await runNode(ANALYZE_MJS, ["compare", a, b, finalPrompt]);
+    const result = await runNode(ANALYZE_MJS, [a, b, finalPrompt, "--mode", "compare"]);
     logRequest(reqId, "vision_compare", "ok");
     return result;
   } catch (e) {

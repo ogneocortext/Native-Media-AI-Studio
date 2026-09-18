@@ -34,7 +34,7 @@ To prevent decision fatigue, the following stack choices are finalized:
 - **Frontend:** React + Vite, Zustand for state management, Tailwind for styling.
  - **Backend:** FastAPI, SSE (`GET /api/events`, `sse-starlette`) for live events — WebSocket `/ws` is a legacy 426 shim.
  - **Queue/Persistence:** SQLite for lightweight job tracking, JSON sidecars for output metadata.
- - **Visuals:** Three.js / `@react-three/fiber` + Canvas2D (`Canvas2DVisualizer` bars/waveform/radial) + Remotion; WebGL accelerated.
+ - **Visuals:** Three.js / `@react-three/fiber` + Canvas2D (`Canvas2DVisualizer` bars/waveform/radial) + Remotion; WebGPU accelerated with TSL (`Three Shading Language`) for shader work, WebGL2 fallback via `WebGLNodesHandler`.
  - **Integrations:** API adapters for local ComfyUI, Ollama, Blender MCP (port 9876), Unity MCP (via go-gateway on 3850).
  - **Go Sidecars:** `go-dashboard` (3847 SSE), `go-gateway` (3850 MCP proxy), `go-worker` (3849 async I/O), `go-media` (3848 FFmpeg), `go-ports` (3851 port checker).
  - **Ports:** Backend resolves dynamically at startup via `port_manager.py`; current live config is in `config/ports.json`. Frontend falls back to 5174 when 5173 is occupied. Backend falls back to 8001 when 8000 is occupied. Go sidecars use fixed ports 3847–3851.

@@ -13,7 +13,6 @@ export function ThreeParticlesDemo({ audioData, sceneFrozen }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
 
   useEffect(() => {
-    console.log("[ThreeParticlesDemo] mount effect running");
     if (systemRef.current) return;
     const system = createParticleSystem({
       maxParticles: 800,
@@ -35,7 +34,6 @@ export function ThreeParticlesDemo({ audioData, sceneFrozen }: VizProps) {
         depthWrite: false,
       } as any,
     } as any);
-    console.log("[ThreeParticlesDemo] system created", system);
     systemRef.current = system;
     if (groupRef.current) {
       groupRef.current.add(system.instance);
@@ -43,19 +41,19 @@ export function ThreeParticlesDemo({ audioData, sceneFrozen }: VizProps) {
       if (system.instance.frustumCulled !== undefined) {
         system.instance.frustumCulled = false;
       }
-      console.log("[ThreeParticlesDemo] added to group", groupRef.current.children.length, {
-        type: system.instance.type,
-        frustumCulled: system.instance.frustumCulled,
-        geometry: system.instance.geometry?.attributes?.position?.count,
-        material: Array.isArray(system.instance.material) ? system.instance.material.map(m => m.type) : system.instance.material?.type,
-      });
     }
 
     return () => {
-      console.log("[ThreeParticlesDemo] cleanup");
+      // dispose() releases the emitter's geometry/material/state — removing the
+      // instance from the group alone leaked all of it on every style switch.
       systemRef.current = null;
       if (groupRef.current) {
         groupRef.current.remove(system.instance);
+      }
+      try {
+        system.dispose();
+      } catch {
+        /* already disposed */
       }
     };
   }, []);

@@ -4,22 +4,6 @@ import { useEffect, useMemo, useRef } from "react";
 import { LrcVizController } from "./LrcVizController";
 import { PostFX } from "./VisualizationFX";
 import { WebGPUPostFX } from "./webgpu/WebGPUPostFX";
-
-// ---------------------------------------------------------------------------
-// PostFX selector — chooses TSL (WebGPU) or GLSL (WebGL) pipeline
-// ---------------------------------------------------------------------------
-function PostFXSelector({ audioData, lrcSync, lrcSyncRef }: {
-  audioData: React.MutableRefObject<AudioData>;
-  lrcSync?: { isPhraseStart: boolean; currentSection: string } | null;
-  lrcSyncRef?: { current: { isPhraseStart: boolean; currentSection: string } | null };
-}) {
-  const { gl } = useThree();
-  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
-  if (isWebGPU) {
-    return <WebGPUPostFX audioData={audioData} lrcSync={lrcSync} />;
-  }
-  return <PostFX audioData={audioData} lrcSync={lrcSync} lrcSyncRef={lrcSyncRef} />;
-}
 import {
   AudioReactiveCore,
   AuroraRibbon,
@@ -37,6 +21,7 @@ import {
   VinylDisc,
 } from "./viz-styles";
 import { useDemoAudio, useRealAudio } from "./audioHooks";
+import { useAudioAnalysisWorker } from "./useAudioAnalysisWorker";
 import { computeLrcSync, computeSectionBounds, EMPTY_LRC_SYNC } from "./useLrcSync";
 import type { LrcSyncData } from "./useLrcSync";
 import { getStoryState } from "./storyboard";
@@ -45,6 +30,23 @@ import type { LyricLine } from "./components/LyricOverlay";
 import { getSectionIntensity } from "./sectionHelpers";
 import { updateTrackFeatures } from "./trackFeatures";
 import type { AudioData, VisualizerSceneProps } from "./types";
+
+// ---------------------------------------------------------------------------
+// PostFX selector — chooses TSL (WebGPU) or GLSL (WebGL) pipeline
+// ---------------------------------------------------------------------------
+function PostFXSelector({ audioData, lrcSync, lrcSyncRef, prefersReducedMotion }: {
+  audioData: React.MutableRefObject<AudioData>;
+  lrcSync?: { isPhraseStart: boolean; currentSection: string } | null;
+  lrcSyncRef?: { current: { isPhraseStart: boolean; currentSection: string } | null };
+  prefersReducedMotion?: boolean;
+}) {
+  const { gl } = useThree();
+  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+  if (isWebGPU) {
+    return <WebGPUPostFX audioData={audioData} lrcSync={lrcSync} lrcSyncRef={lrcSyncRef} />;
+  }
+  return <PostFX audioData={audioData} lrcSync={lrcSync} lrcSyncRef={lrcSyncRef} safeMode={prefersReducedMotion} />;
+}
 
 interface Props extends VisualizerSceneProps {
   /** LRC lyric data for phrase-synchronized visuals */
@@ -79,6 +81,10 @@ export function VisualizerScene({
   active = true,
 }: Props) {
   // Pass elapsed ref to hook so it reads live value inside useFrame
+  const audioWorker = useAudioAnalysisWorker({
+    enabled: true,
+    perceptualScale,
+  });
   const realData = useRealAudio(
     analyserRef,
     isPlaying,
@@ -86,6 +92,8 @@ export function VisualizerScene({
     analysisData,
     audioElapsedRef,
     perceptualScale,
+    undefined,
+    audioWorker,
   );
   const demoData = useDemoAudio(
     demoEnabled && !isPlaying && !isPaused,
@@ -113,13 +121,14 @@ export function VisualizerScene({
   const onAudioDataRef = useRef(onAudioData);
   onAudioDataRef.current = onAudioData;
   useEffect(() => {
+    if (!isPlaying) return;
     const interval = setInterval(() => {
       if (onAudioDataRef.current) {
         onAudioDataRef.current(audioData.current);
       }
     }, 50);
     return () => clearInterval(interval);
-  }, [audioData]);
+  }, [isPlaying, audioData]);
 
   const renderVisualization = () => {
     const props = {
@@ -269,7 +278,7 @@ export function VisualizerScene({
         )}
 
         {/* Post pipeline: bloom + film grade — now LRC-reactive (phrase pulse boosts bloom) */}
-        <PostFXSelector audioData={audioData} lrcSync={lrcSync} lrcSyncRef={lrcSyncLiveRef} />
+        <PostFXSelector audioData={audioData} lrcSync={lrcSync} lrcSyncRef={lrcSyncLiveRef} prefersReducedMotion={prefersReducedMotion} />
 
         <OrbitControls
           enablePan={false}

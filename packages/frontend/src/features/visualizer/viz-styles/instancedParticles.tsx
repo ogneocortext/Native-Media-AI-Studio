@@ -3,6 +3,7 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { VizProps } from "./types";
 import { getParticleTex } from "./textures";
+import { useDisposeOnUnmount } from "./helpers";
 
 // =============================================================================
 // Instanced quad particle system — replaces THREE.Points with real quads.
@@ -11,7 +12,7 @@ import { getParticleTex } from "./textures";
 //  - Are actual triangles (not gl_PointSize sprites)
 //  - Billboard toward the camera each frame (in vertex shader)
 //  - Support per-instance color, size, phase, and velocity stretch
-//  - Work under both WebGL and WebGPU renderers
+//  - Work under both WebGL and WebGPU renderers (GLSL transpiles to WGSL)
 // =============================================================================
 
 const QUAD_VERTS = new Float32Array([
@@ -52,6 +53,10 @@ export function InstancedParticles({
   stretch = 2.5,
 }: VizProps & InstancedParticlesOpts) {
   const meshRef = useRef<THREE.Mesh>(null);
+
+  // TODO: isWebGPU branch for TSL streak material (currently GLSL transpiles to WGSL)
+  // const { gl } = useThree();
+  // const isWebGPU = (gl as any)?.isWebGPURenderer === true;
 
   const state = useMemo<ParticleState>(() => {
     const pos = new Float32Array(count * 3);
@@ -132,7 +137,10 @@ export function InstancedParticles({
           attribute float instancePhase;
           attribute vec3 instanceVelocity;
 
-          uniform mat4 viewMatrix;
+          // NOTE: viewMatrix is a built-in three uniform — it must NOT be
+          // redeclared here (three's shader prefix already declares it, and
+          // the duplicate declaration failed the vertex compile, which left
+          // every draw through this program invalid: "program not valid").
           uniform float uTime;
           uniform float uBass;
           uniform float uPixelRatio;
@@ -161,9 +169,9 @@ export function InstancedParticles({
 
             // Quad corner offset with stretch
             vec2 corner = position.xy;
-            float alongStretch = dot(corner, stretchDir.xy) * stretchAmt;
-            vec2 perp = corner - alongStretch * stretchDir.xy;
-            vec2 finalOffset = alongStretch * stretchDir.xy + perp;
+            float along = dot(corner, stretchDir.xy);
+            vec2 perp = corner - along * stretchDir.xy;
+            vec2 finalOffset = perp + along * stretchDir.xy * stretchAmt;
 
             vec3 worldPos = instancePosition
               + cameraRight * finalOffset.x * s
@@ -174,7 +182,7 @@ export function InstancedParticles({
 
             // Distance attenuation
             float dist = length(mvPosition.xyz);
-            vAlpha = smoothstep(14.0, 2.0, dist);
+            vAlpha = 1.0 - smoothstep(2.0, 14.0, dist);
           }
         `,
         fragmentShader: /* glsl */ `
@@ -195,11 +203,21 @@ export function InstancedParticles({
     [stretch],
   );
 
+  // Geometry + material are created here and handed to R3F as props, so R3F
+  // will not dispose them (it only disposes JSX-created objects). The shared
+  // particle texture is module-scoped and deliberately left alone.
+  useDisposeOnUnmount(geometry, material);
+
   useFrame((state3f) => {
     if (!meshRef.current || sceneFrozen) return;
     const t = state3f.clock.elapsedTime;
     const { bass, mid, treble, energy } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
+
+    // Drive the shader uniform: the vertex shader sizes quads with
+    // instanceSize * (1 + uBass * 1.2), but nothing ever wrote uBass — the
+    // reactive particle size was dead (the uniform stayed 0 forever).
+    material.uniforms.uBass.value = bass;
 
     const posAttr = geometry.getAttribute("instancePosition") as THREE.InstancedBufferAttribute;
     const posArr = posAttr.array as Float32Array;

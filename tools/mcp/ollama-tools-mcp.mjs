@@ -532,7 +532,7 @@ Rules:
         ],
         stream: false,
         keep_alive: "60s",
-        chat_template_kwargs: { enable_thinking: false },
+        think: false,
         options: { num_ctx: 8192, num_predict: 8192, temperature: 0.2 },
       }),
     }, 180000);

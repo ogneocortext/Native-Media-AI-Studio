@@ -35,7 +35,6 @@ let cachedRolloff: Float32Array | null = null;
 let cachedZCR: Float32Array | null = null;
 let lastUpdateTime = -1;
 let cachedFeatures: TrackFeatures = DEFAULT_FEATURES;
-let cachedProgress = -1;
 
 function ensureCached(analysisData: AudioAnalysisData | null | undefined): boolean {
   if (analysisData === cachedData) return cachedData !== null;
@@ -72,6 +71,12 @@ function findBeatIndex(beatTimes: number[], t: number): number {
 /**
  * Updates track features once per frame. Call this from a single place
  * (e.g., the main Visualizer component) and read featuresRef in visualizations.
+ *
+ * Note: the only throttle is the ~16 ms elapsed check above. An earlier
+ * progress-based skip (`Math.round(progress * 1000)`) quantized updates to
+ * 1/1000 of the *track* — on a 4-minute song that is a 240 ms step, so the 80 ms
+ * onset window and the beat phase were sampled far too coarsely and reactive
+ * styles fired late or missed onsets entirely.
  */
 export function updateTrackFeatures(
   analysisData: AudioAnalysisData | null | undefined,
@@ -85,13 +90,9 @@ export function updateTrackFeatures(
   lastUpdateTime = elapsedRounded;
 
   const duration = cachedData!.duration_seconds;
+  if (!(duration > 0)) return DEFAULT_FEATURES;
   const t = Math.max(0, Math.min(elapsed, duration));
   const progress = t / duration;
-
-  // Skip recalculation if progress hasn't changed meaningfully
-  const progressRounded = Math.round(progress * 1000);
-  if (progressRounded === cachedProgress && cachedData) return cachedFeatures;
-  cachedProgress = progressRounded;
 
   // Energy from curve
   const energyIdx = Math.min(

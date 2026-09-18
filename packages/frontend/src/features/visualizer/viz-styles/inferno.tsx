@@ -1,22 +1,50 @@
-import { useFrame } from "@react-three/fiber";
-import { useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { VizProps } from "./types";
 import { InstancedParticles } from "./instancedParticles";
 import { DEFAULT_VIZ_PARAMS } from "../types";
+import {
+  makeAudioReactiveMaterialTSL,
+  updateAudioReactiveMaterialTSL,
+} from "../VisualizationFX";
+import { useDisposeOnUnmount } from "./helpers";
 
 // =============================================================================
 // INFERNO — Rising fire and ember particles
 // =============================================================================
-export function InfernoViz({ audioData, prefersReducedMotion }: VizProps) {
+export function InfernoViz({ audioData, vizParams, prefersReducedMotion }: VizProps) {
   const coreRef = useRef<THREE.Mesh>(null);
+  const { gl } = useThree();
+  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
 
-  useFrame(() => {
+  const coreMat = useMemo(
+    () =>
+      isWebGPU
+        ? makeAudioReactiveMaterialTSL({
+            color: "#f97316",
+            emissive: "#ea580c",
+            opacity: 0.75,
+            roughness: 0.25,
+            metalness: 0.1,
+          })
+        : null,
+    [isWebGPU],
+  );
+  useDisposeOnUnmount(coreMat);
+
+  useFrame((s) => {
+    if (!coreRef.current) return;
+    const t = s.clock.elapsedTime;
     const { bass, beat } = audioData.current;
+    const speedMul = prefersReducedMotion ? 0.35 : 1;
 
-    if (coreRef.current) {
-      const coreScale = 0.3 + bass * 0.6 + (beat ? 0.3 : 0);
-      coreRef.current.scale.setScalar(coreScale);
+    const coreScale = 0.3 + bass * 0.6 + (beat ? 0.3 : 0);
+    coreRef.current.scale.setScalar(coreScale);
+    if (isWebGPU && coreMat) {
+      updateAudioReactiveMaterialTSL(coreMat, { bass, mid: 0, treble: 0, energy: 0.5 }, vizParams.glowIntensity);
+      coreRef.current.rotation.y = t * 0.5 * vizParams.rotationSpeed * speedMul;
+    } else {
       const cm = coreRef.current.material as THREE.MeshStandardMaterial;
       cm.emissiveIntensity = 1 + bass * 4;
     }
@@ -38,15 +66,19 @@ export function InfernoViz({ audioData, prefersReducedMotion }: VizProps) {
       />
       <mesh ref={coreRef} position={[0, -2, 0]}>
         <sphereGeometry args={[0.3, 16, 16]} />
-        <meshStandardMaterial
-          color="#f97316"
-          emissive="#ea580c"
-          emissiveIntensity={3}
-          transparent
-          opacity={0.6}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
+        {isWebGPU && coreMat ? (
+          <primitive object={coreMat} attach="material" />
+        ) : (
+          <meshStandardMaterial
+            color="#f97316"
+            emissive="#ea580c"
+            emissiveIntensity={3}
+            transparent
+            opacity={0.6}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        )}
       </mesh>
     </group>
   );

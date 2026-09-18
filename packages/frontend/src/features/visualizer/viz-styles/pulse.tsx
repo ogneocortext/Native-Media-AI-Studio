@@ -1,7 +1,12 @@
-import { useFrame } from "@react-three/fiber";
-import { useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { VizProps } from "./types";
+import {
+  makeAudioReactiveMaterialTSL,
+  updateAudioReactiveMaterialTSL,
+} from "../VisualizationFX";
+import { useDisposeOnUnmount } from "./helpers";
 
 // =============================================================================
 // PULSE — Concentric rings emitting from center on beats
@@ -10,6 +15,24 @@ export function PulseRings({ audioData, vizParams, sceneFrozen, prefersReducedMo
   const groupRef = useRef<THREE.Group>(null);
   const ringRefs = useRef<(THREE.Mesh | null)[]>([]);
   const ringCount = 12;
+
+  const { gl } = useThree();
+  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+
+  const ringMat = useMemo(
+    () =>
+      isWebGPU
+        ? makeAudioReactiveMaterialTSL({
+            color: "#22d3ee",
+            emissive: "#06b6d4",
+            opacity: 0.55,
+            roughness: 0.2,
+            metalness: 0.7,
+          })
+        : null,
+    [isWebGPU],
+  );
+  useDisposeOnUnmount(ringMat);
 
   useFrame((s) => {
     if (!groupRef.current) return;
@@ -23,11 +46,17 @@ export function PulseRings({ audioData, vizParams, sceneFrozen, prefersReducedMo
       const offset = i * 0.08;
       const phase = (t * speed * speedMul + offset) % 1;
       ring.scale.setScalar(Math.max(0.1, phase * 8));
-      const m = ring.material as THREE.MeshStandardMaterial;
-      m.opacity = (1 - phase) * (0.5 + bass * 0.4);
-      m.emissiveIntensity = (1 - phase) * vizParams.glowIntensity * 2;
-      m.color.setHSL(0.5 + bass * 0.3, 0.8, 0.6);
-      if (beat && i === 0) {
+      if (isWebGPU && ringMat) {
+        const glow = (1 - phase) * vizParams.glowIntensity * 2;
+        updateAudioReactiveMaterialTSL(ringMat, { bass, mid: 0, treble: 0, energy: 0.5 }, glow);
+      } else {
+        const m = ring.material as THREE.MeshStandardMaterial;
+        m.opacity = (1 - phase) * (0.5 + bass * 0.4);
+        m.emissiveIntensity = (1 - phase) * vizParams.glowIntensity * 2;
+        m.color.setHSL(0.5 + bass * 0.3, 0.8, 0.6);
+      }
+      if (beat && i === 0 && !isWebGPU) {
+        const m = ring.material as THREE.MeshStandardMaterial;
         m.opacity = 0.9;
         m.emissiveIntensity = 2 + beatPeak * 3;
       }
@@ -47,16 +76,20 @@ export function PulseRings({ audioData, vizParams, sceneFrozen, prefersReducedMo
           rotation={[Math.PI / 2, 0, 0]}
         >
           <ringGeometry args={[0.98, 1.0, 128]} />
-          <meshStandardMaterial
-            color={`hsl(${200 + i * 12},85%,60%)`}
-            emissive={`hsl(${200 + i * 12},95%,50%)`}
-            emissiveIntensity={0.5}
-            transparent
-            opacity={0.5}
-            side={THREE.DoubleSide}
-            roughness={0.2}
-            metalness={0.8}
-          />
+          {isWebGPU && ringMat ? (
+            <primitive object={ringMat} attach="material" />
+          ) : (
+            <meshStandardMaterial
+              color={`hsl(${200 + i * 12},85%,60%)`}
+              emissive={`hsl(${200 + i * 12},95%,50%)`}
+              emissiveIntensity={0.5}
+              transparent
+              opacity={0.5}
+              side={THREE.DoubleSide}
+              roughness={0.2}
+              metalness={0.8}
+            />
+          )}
         </mesh>
       ))}
     </group>
@@ -72,6 +105,24 @@ export function SpectrumBars({ audioData, vizParams, sceneFrozen, prefersReduced
   const barCount = 48;
   const rotRef = useRef(0);
 
+  const { gl } = useThree();
+  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+
+  const barMat = useMemo(
+    () =>
+      isWebGPU
+        ? makeAudioReactiveMaterialTSL({
+            color: "#818cf8",
+            emissive: "#6366f1",
+            opacity: 0.9,
+            roughness: 0.18,
+            metalness: 0.7,
+          })
+        : null,
+    [isWebGPU],
+  );
+  useDisposeOnUnmount(barMat);
+
   useFrame((_s) => {
     if (!groupRef.current) return;
     const { bass, mid, treble, peak } = audioData.current;
@@ -86,13 +137,17 @@ export function SpectrumBars({ audioData, vizParams, sceneFrozen, prefersReduced
       const h = 0.1 + freq * 4.5;
       bar.scale.set(1, Math.max(0.01, h), 1);
       bar.position.y = h / 2 - 1.5;
-      const m = bar.material as THREE.MeshStandardMaterial;
-      const hue = 0.55 + (i / barCount) * 0.4;
-      m.color.setHSL(hue, 0.8, 0.5);
-      m.emissive.setHSL(hue, 0.9, 0.2 + freq * 0.6);
-      m.emissiveIntensity = 0.2 + freq * vizParams.glowIntensity * 1.5;
-      m.roughness = 0.3;
-      m.metalness = 0.7;
+      if (isWebGPU && barMat) {
+        updateAudioReactiveMaterialTSL(barMat, { bass, mid, treble, energy: 0.5 }, vizParams.glowIntensity);
+      } else {
+        const m = bar.material as THREE.MeshStandardMaterial;
+        const hue = 0.55 + (i / barCount) * 0.4;
+        m.color.setHSL(hue, 0.8, 0.5);
+        m.emissive.setHSL(hue, 0.9, 0.2 + freq * 0.6);
+        m.emissiveIntensity = 0.2 + freq * vizParams.glowIntensity * 1.5;
+        m.roughness = 0.3;
+        m.metalness = 0.7;
+      }
     });
     groupRef.current.rotation.y = rotRef.current;
   });
@@ -111,15 +166,19 @@ export function SpectrumBars({ audioData, vizParams, sceneFrozen, prefersReduced
             rotation={[0, -a, 0]}
           >
             <capsuleGeometry args={[0.045, 1, 4, 12]} />
-            <meshPhysicalMaterial
-              color={`hsl(${220 + i * 3},80%,55%)`}
-              emissive={`hsl(${220 + i * 3},90%,45%)`}
-              emissiveIntensity={0.3}
-              roughness={0.18}
-              metalness={0.85}
-              clearcoat={1}
-              clearcoatRoughness={0.15}
-            />
+            {isWebGPU && barMat ? (
+              <primitive object={barMat} attach="material" />
+            ) : (
+              <meshPhysicalMaterial
+                color={`hsl(${220 + i * 3},80%,55%)`}
+                emissive={`hsl(${220 + i * 3},90%,45%)`}
+                emissiveIntensity={0.3}
+                roughness={0.18}
+                metalness={0.85}
+                clearcoat={1}
+                clearcoatRoughness={0.15}
+              />
+            )}
           </mesh>
         );
       })}

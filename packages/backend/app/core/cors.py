@@ -19,18 +19,17 @@ def get_local_origins() -> frozenset[str]:
     """
     frontend = config.frontend_port
     backend = config.backend_port
-    return frozenset({
+    origins = {
         f"http://127.0.0.1:{frontend}",
         f"http://127.0.0.1:{backend}",
         f"http://localhost:{frontend}",
         f"http://localhost:{backend}",
-        # Common dev-server fallbacks
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5174",
-        "http://localhost:5173",
-        "http://localhost:5174",
-    })
+    }
+    # Include well-known dev-server fallbacks without double-counting.
+    for fallback in (5173, 5174, 3000, 8080):
+        origins.add(f"http://127.0.0.1:{fallback}")
+        origins.add(f"http://localhost:{fallback}")
+    return frozenset(origins)
 
 
 def is_local_origin(origin: str) -> bool:

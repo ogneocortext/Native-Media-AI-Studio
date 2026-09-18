@@ -17,18 +17,11 @@ export function OrbitalParticles({
   const shockRef = useRef<THREE.Mesh>(null);
   const rotRef = useRef(0);
   const beatPulse = useRef(0);
-  const featuresRef = useRef({
-    energy: 0.5,
-    onset: 0,
-    brightness: 0.5,
-    noisiness: 0.5,
-    sectionProgress: 0,
-  });
 
+  // TODO: add isWebGPU detection when TSL particle material is wired in
   useFrame((_s) => {
     const { bass } = audioData.current;
     const features = getTrackFeatures();
-    featuresRef.current = features;
 
     if (audioData.current.beat || features.onset > 0.5) beatPulse.current = 1.0;
     beatPulse.current *= 0.9;
@@ -90,6 +83,7 @@ export function EnergyWaves({ audioData, vizParams, sceneFrozen, prefersReducedM
   const rotRef = useRef(0);
   const suckRef = useRef(0);
 
+  // TODO: add isWebGPU detection when TSL material path is needed
   useFrame((_s) => {
     const { bass, peak, beat, energy } = audioData.current;
 

@@ -42,6 +42,17 @@ export interface SceneTemplate {
 // ----------------------------------------------------------------------------
 
 /**
+ * Deterministic 0..1 hash from an integer index (fract(sin(i) * 43758)).
+ * Authored scene randomness must be reproducible: same template → same scene,
+ * same MP4 export, same regression snapshot. Live animation randomness stays
+ * in the animation loop — never in scene definitions.
+ */
+export function templateRandom(i: number, salt = 0): number {
+  const x = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/**
  * Build N evenly-spaced vertical "bars" objects for equalizer / pillar
  * scenes. Each bar is a tall box centered at the origin and offset along
  * the X axis. They animate to live audio bass when `audioDriven: "bars"`.
@@ -254,7 +265,8 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
           const pz = z * spacing - offset;
           // Skip the very center so there's a clear focal point
           if (Math.abs(px) < 0.5 && Math.abs(pz) < 0.5) continue;
-          const h = 1 + Math.random() * 2;
+          // Deterministic height (see templateRandom): identical scene on every load.
+          const h = 1 + templateRandom(x * 10 + z, 1) * 2;
           pillars.push({
             id: `pillar-${idx++}`,
             name: `Pillar ${idx}`,

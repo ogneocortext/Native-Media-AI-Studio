@@ -17,11 +17,11 @@ Context: Native Media AI Studio — lyric/karaoke preview and future video gener
 - Use case: smooth React-driven lyric line transitions, auto-scroll reveals, distance-based opacity
 - Tradeoff: `splitText` is Motion+ paid add-on; core library is free and sufficient for most effects
 
-### GSAP
-- Size: ~73 KB core, Standard “no charge” license
+### GSAP (MIT — re-evaluated Nov 2024)
+- Size: ~73 KB core, MIT license (free for commercial use)
 - Strengths: industry-standard timelines, robust sequencing, strong text plugins, battle-tested
 - Use case: complex multi-layer lyric compositions, frame-accurate video previews
-- Tradeoff: license terms differ from MIT; heavier plugin surface than needed for simple karaoke
+- Tradeoff: heavier plugin surface than needed for simple karaoke; Standard "no charge" license legacy replaced by full MIT
 
 ### Remotion + remotion-typography (Zodiac)
 - Use case: deterministic video rendering, not live preview

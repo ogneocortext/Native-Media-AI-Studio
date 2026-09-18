@@ -20,6 +20,7 @@ import {
   isComfyUIAlive,
   type ComfyUIImage,
 } from "../../services/comfyui";
+import { getComfyuiUrl } from "../../services/portConfig";
 import {
   estimateImageGeneration,
 } from "../../services/generationEstimator";
@@ -210,7 +211,7 @@ export function AIVisualsPanel({
 
           try {
             const historyRes = await fetch(
-              `http://127.0.0.1:8188/history/${result.prompt_id}`
+              `${getComfyuiUrl()}/history/${result.prompt_id}`
             );
             if (historyRes.ok) {
               const history = await historyRes.json();
@@ -321,7 +322,7 @@ export function AIVisualsPanel({
 
         try {
           const historyRes = await fetch(
-            `http://127.0.0.1:8188/history/${result.prompt_id}`
+            `${getComfyuiUrl()}/history/${result.prompt_id}`
           );
           if (historyRes.ok) {
             const history = await historyRes.json();

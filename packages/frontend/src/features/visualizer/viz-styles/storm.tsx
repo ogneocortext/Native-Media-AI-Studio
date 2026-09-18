@@ -1,8 +1,13 @@
-import { useFrame } from "@react-three/fiber";
-import { useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { VizProps } from "./types";
 import { getTrackFeatures } from "../trackFeatures";
+import {
+  makeAudioReactiveMaterialTSL,
+  updateAudioReactiveMaterialTSL,
+} from "../VisualizationFX";
+import { useDisposeOnUnmount } from "./helpers";
 
 // =============================================================================
 // STORM — Lightning bolts and energy discharges
@@ -13,6 +18,38 @@ export function StormViz({ audioData, vizParams, sceneFrozen, prefersReducedMoti
   const glowRef = useRef<THREE.Mesh>(null);
   const rotRef = useRef(0);
   const boltFlash = useRef(0);
+
+  const { gl } = useThree();
+  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+
+  const boltMat = useMemo(
+    () =>
+      isWebGPU
+        ? makeAudioReactiveMaterialTSL({
+            color: "#38bdf8",
+            emissive: "#0ea5e9",
+            opacity: 0.7,
+            roughness: 0.2,
+            metalness: 0.1,
+          })
+        : null,
+    [isWebGPU],
+  );
+
+  const glowMat = useMemo(
+    () =>
+      isWebGPU
+        ? makeAudioReactiveMaterialTSL({
+            color: "#818cf8",
+            emissive: "#6366f1",
+            opacity: 0.5,
+            roughness: 0.2,
+            metalness: 0.1,
+          })
+        : null,
+    [isWebGPU],
+  );
+  useDisposeOnUnmount(boltMat, glowMat);
 
   useFrame(() => {
     if (!groupRef.current) return;
@@ -41,22 +78,34 @@ export function StormViz({ audioData, vizParams, sceneFrozen, prefersReducedMoti
         length,
         1 + boltFlash.current * 0.5,
       );
-      const m = bolt.material as THREE.MeshStandardMaterial;
-      m.emissiveIntensity = 0.5 + boltFlash.current * 4 + freq * 2;
-      m.opacity = 0.3 + boltFlash.current * 0.7;
-      m.color.setHSL(
-        0.6 + boltFlash.current * 0.1,
-        0.9,
-        0.5 + boltFlash.current * 0.3,
-      );
+      if (isWebGPU && boltMat) {
+        updateAudioReactiveMaterialTSL(
+          boltMat,
+          { bass, mid: 0, treble, energy: 0.5 },
+          vizParams.glowIntensity,
+        );
+      } else {
+        const m = bolt.material as THREE.MeshStandardMaterial;
+        m.emissiveIntensity = 0.5 + boltFlash.current * 4 + freq * 2;
+        m.opacity = 0.3 + boltFlash.current * 0.7;
+        m.color.setHSL(
+          0.6 + boltFlash.current * 0.1,
+          0.9,
+          0.5 + boltFlash.current * 0.3,
+        );
+      }
     });
 
     if (glowRef.current) {
       const glowScale = 0.3 + bass * 0.5 + boltFlash.current * 0.8;
       glowRef.current.scale.setScalar(glowScale);
-      const gm = glowRef.current.material as THREE.MeshStandardMaterial;
-      gm.emissiveIntensity = 1 + bass * 3 + boltFlash.current * 5;
-      gm.opacity = 0.3 + boltFlash.current * 0.4;
+      if (isWebGPU && glowMat) {
+        updateAudioReactiveMaterialTSL(glowMat, { bass, mid: 0, treble, energy: 0.5 }, vizParams.glowIntensity);
+      } else {
+        const gm = glowRef.current.material as THREE.MeshStandardMaterial;
+        gm.emissiveIntensity = 1 + bass * 3 + boltFlash.current * 5;
+        gm.opacity = 0.3 + boltFlash.current * 0.4;
+      }
     }
 
     groupRef.current.rotation.y = rotRef.current * 0.5;
@@ -72,28 +121,36 @@ export function StormViz({ audioData, vizParams, sceneFrozen, prefersReducedMoti
           }}
         >
           <boxGeometry args={[0.05, 1, 0.05]} />
-          <meshStandardMaterial
-            color="#38bdf8"
-            emissive="#0ea5e9"
-            emissiveIntensity={1}
-            transparent
-            opacity={0.5}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-          />
+          {isWebGPU && boltMat ? (
+            <primitive object={boltMat} attach="material" />
+          ) : (
+            <meshStandardMaterial
+              color="#38bdf8"
+              emissive="#0ea5e9"
+              emissiveIntensity={1}
+              transparent
+              opacity={0.5}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          )}
         </mesh>
       ))}
       <mesh ref={glowRef}>
         <sphereGeometry args={[0.3, 16, 16]} />
-        <meshStandardMaterial
-          color="#818cf8"
-          emissive="#6366f1"
-          emissiveIntensity={2}
-          transparent
-          opacity={0.4}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
+        {isWebGPU && glowMat ? (
+          <primitive object={glowMat} attach="material" />
+        ) : (
+          <meshStandardMaterial
+            color="#818cf8"
+            emissive="#6366f1"
+            emissiveIntensity={2}
+            transparent
+            opacity={0.4}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        )}
       </mesh>
     </group>
   );

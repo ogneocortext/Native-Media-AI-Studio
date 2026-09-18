@@ -72,10 +72,11 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
     setError(null);
   }, [audioFilename]);
 
-  // Elapsed timer while Demucs runs (separation takes minutes — show it's alive).
+  // Separation progress tick — triggers a re-render every second while Demucs runs
+  // (separation takes minutes — show it's alive).
   useEffect(() => {
     if (status !== "separating") return;
-    const id = setInterval(() => {}, 1000);
+    const id = setInterval(() => setStatus((s) => s), 1000);
     return () => clearInterval(id);
   }, [status]);
 

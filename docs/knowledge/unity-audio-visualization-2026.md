@@ -523,6 +523,11 @@ void Update()
 - **FMOD / Wwise**: Commercial-grade audio middleware with built-in beat detection, parameter curves, and Unity integration
 - **CRIWARE (ADX2)**: Alternative middleware, strong in game audio
 
+### 9.3 Production-Ready Integrations
+
+- **LaspVfx**: Keijiro's audio-reactive VFX Graph integration — ready-made binders that expose LASP audio bands directly to VFX without custom C# binders. Ideal for GTX 1070 Ti–class hardware when you want shader-driven particles/meshes driven by FFT without writing binder code.
+- **compute-audio-noise-grid**: Reference implementation for compute-shader audio→grid pattern on Unity. Validated pattern: audio FFT → 8 exponential frequency bands → decay-smoothed buffer → compute-shader grid with Perlin-noise height + beat-phase color. Maps directly to this project's GPU budget.
+
 ### 9.3 Research Tools
 
 - **librosa** (Python): Offline beat tracking, BPM detection, onset detection → export JSON for Unity

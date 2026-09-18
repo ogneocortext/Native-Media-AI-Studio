@@ -1,7 +1,7 @@
 # Ollama Thinking Mode & Structured Outputs
 
-> **Last Updated:** 2026-09-03
-> **Ollama Version:** 0.33.3+
+> **Last Updated:** 2026-09-18
+> **Ollama Version:** 0.34.2+
 > **Relevant Models:** Qwen3.5, Qwen3, Gemma4, DeepSeek R1
 
 ## Problem
@@ -19,9 +19,9 @@ Ollama's `/api/generate` endpoint does not honor `think: false` consistently for
 
 Reference: https://github.com/ollama/ollama/issues/10976
 
-## Solution: Use `/api/chat` with `chat_template_kwargs`
+## Solution: Use `/api/chat` with `think: false`
 
-The reliable way to disable thinking on Qwen3/Qwen3.5 is via the `/api/chat` endpoint with `chat_template_kwargs: {enable_thinking: false}`.
+The reliable way to disable thinking on Qwen3/Qwen3.5 is via the `/api/chat` endpoint with `think: false`.
 
 ### Working Request Pattern
 
@@ -34,7 +34,7 @@ The reliable way to disable thinking on Qwen3/Qwen3.5 is via the `/api/chat` end
   ],
   "stream": false,
   "keep_alive": "60s",
-  "chat_template_kwargs": {"enable_thinking": false},
+  "think": false,
   "options": {"num_ctx": 8192, "num_predict": 2048, "temperature": 0.2}
 }
 ```
@@ -83,14 +83,14 @@ Ollama supports constrained JSON generation via the `format` parameter.
 
 **Note:** Structured outputs may not work with all thinking models. Test with your target model.
 
-## Model Behavior Matrix (Tested 2026-09-03)
+## Model Behavior Matrix (Tested 2026-09-18)
 
 | Model | Endpoint | Thinking Disabled | JSON in Response | Notes |
 |-------|----------|-------------------|------------------|-------|
 | qwen3.5:9b | `/api/generate` | No | No | Outputs to `thinking` field |
-| qwen3.5:9b | `/api/chat` + `chat_template_kwargs:{enable_thinking:false}` | Yes | Yes | **Recommended for code gen** |
+| qwen3.5:9b | `/api/chat` + `think:false` | Yes | Yes | **Recommended for code gen** |
 | qwen3.5:4b | `/api/generate` | No | No | Same issue as 9b |
-| qwen3.5:4b | `/api/chat` + `chat_template_kwargs:{enable_thinking:false}` | Partial | Partial | Smaller model, less reliable |
+| qwen3.5:4b | `/api/chat` + `think:false` | Partial | Partial | Smaller model, less reliable |
 | llama3.2:3b | `/api/generate` | N/A | Yes | No thinking mode, reliable JSON |
 | llama3.2:3b | `/api/chat` | N/A | Yes | Good fallback for simple tasks |
 | gemma4:e2b-it-qat | `/api/generate` | N/A | Partial | JSON parse failures on complex output |
@@ -98,7 +98,7 @@ Ollama supports constrained JSON generation via the `format` parameter.
 
 ## Recommendations
 
-1. **Primary:** Use `/api/chat` with `chat_template_kwargs: {enable_thinking: false}` for Qwen3.5
+1. **Primary:** Use `/api/chat` with `think: false` for Qwen3.5
 2. **Fallback:** Use `llama3.2:3b` via `/api/chat` for simpler structured outputs
 3. **Alternative:** Use `format: "json"` or JSON schema with `/api/chat` for schema enforcement
 4. **Avoid:** `/api/generate` with `think: false` for Qwen3.5 - it does not work reliably
@@ -108,7 +108,7 @@ Ollama supports constrained JSON generation via the `format` parameter.
 ### For Planning Tools (`plan_blender_script`, `plan_unity_scene`)
 
 - Switch from `/api/generate` to `/api/chat`
-- Add `chat_template_kwargs: {enable_thinking: false}`
+- Add `think: false`
 - Keep `num_ctx: 8192`, `num_predict: 2048`, `temperature: 0.2`
 - Parse `data.message.content` instead of `data.response`
 - Check `data.message.thinking` only for debugging
