@@ -6,6 +6,7 @@ import logging
 import socket
 import sys
 import time
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -17,14 +18,16 @@ if sys.platform == "win32":
         pass
 
 import uvicorn
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from sse_starlette.sse import EventSourceResponse
 
 from .adapters.registry import adapter_registry
 from .core.config import PROJECT_ROOT, config
+from .core.cors import get_local_origins, is_local_origin
 from .core.database import init_db
 from .core.logging_config import setup_logging
 from .core.port_manager import port_manager
@@ -50,13 +53,13 @@ def _is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
         return False
 
 
-def _wait_for_port_free(port: int, host: str = "127.0.0.1", timeout: float = 5.0) -> bool:
+async def _wait_for_port_free(port: int, host: str = "127.0.0.1", timeout: float = 5.0) -> bool:
     """Poll until the port is no longer accepting connections."""
     deadline = time.time() + timeout
     while time.time() < deadline:
         if not _is_port_in_use(port, host):
             return True
-        time.sleep(0.25)
+        await asyncio.sleep(0.25)
     return not _is_port_in_use(port, host)
 
 
@@ -79,7 +82,7 @@ def _release_zombie_port(port: int, host: str = "127.0.0.1") -> bool:
         return False
 
 
-def _ensure_backend_port_free(port: int) -> None:
+async def _ensure_backend_port_free(port: int) -> None:
     """If ``port`` is occupied but our backend is not responding there,
     attempt to free it before uvicorn tries to bind.
 
@@ -98,13 +101,13 @@ def _ensure_backend_port_free(port: int) -> None:
         "Port %d is occupied but backend is not responding; attempting cleanup before bind", port
     )
     port_manager.cleanup_orphaned_processes(port)
-    freed = _wait_for_port_free(port, timeout=5.0)
+    freed = await _wait_for_port_free(port, timeout=5.0)
     if not freed:
         logger.warning(
             "Normal cleanup did not free backend port %d; attempting zombie release", port
         )
         if _release_zombie_port(port):
-            freed = _wait_for_port_free(port, timeout=5.0)
+            freed = await _wait_for_port_free(port, timeout=5.0)
 
     if not freed:
         logger.error(
@@ -293,6 +296,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to close adapter sessions: {e}")
 
+    # Shutdown music generation services
+    try:
+        from .adapters.music_gen import shutdown_music_gen_services
+        await shutdown_music_gen_services()
+        logger.info("Music generation services stopped")
+    except Exception as e:
+        logger.warning(f"Failed to stop music generation services: {e}")
+
     logger.info("Shutdown complete")
 
 
@@ -315,6 +326,68 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Inject X-Request-ID and X-Response-Time into every response."""
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        request.state.request_id = request_id
+        start = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - start) * 1000
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Response-Time"] = f"{duration_ms:.2f}ms"
+        return response
+
+
+app.add_middleware(RequestIDMiddleware)
+
+
+# ---------------------------------------------------------------------------
+# Uniform error envelope
+# ---------------------------------------------------------------------------
+_ERROR_ENVELOPE = {
+    "error": {
+        "code": "INTERNAL_ERROR",
+        "message": "An unexpected error occurred.",
+    }
+}
+
+
+def _error_response(status_code: int, code: str, message: str, details: object = None):
+    payload = {
+        "error": {
+            "code": code,
+            "message": message,
+        }
+    }
+    if details is not None:
+        payload["error"]["details"] = details
+    return JSONResponse(status_code=status_code, content=payload)
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    code = "VALIDATION_ERROR" if exc.status_code == 422 else "BAD_REQUEST"
+    if exc.status_code == 404:
+        code = "NOT_FOUND"
+    elif exc.status_code == 413:
+        code = "PAYLOAD_TOO_LARGE"
+    elif exc.status_code == 503:
+        code = "SERVICE_UNAVAILABLE"
+    elif exc.status_code == 504:
+        code = "GATEWAY_TIMEOUT"
+    elif exc.status_code >= 500:
+        code = "INTERNAL_ERROR"
+    return _error_response(exc.status_code, code, str(exc.detail) if exc.detail else "Request failed")
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled exception", exc_info=True)
+    return _error_response(500, "INTERNAL_ERROR", "An unexpected error occurred.")
+
 from .api import (  # noqa: E402
     audio,
     comfyui,
@@ -329,6 +402,7 @@ from .api import (  # noqa: E402
     logs,
     lyrics,
     media,
+    music_gen,
     music_prompts,
     native_open,
     outputs,
@@ -355,6 +429,7 @@ app.include_router(native_open.router)
 app.include_router(docs.router)
 app.include_router(hyperframes.router)
 app.include_router(media.router)
+app.include_router(music_gen.router)
 app.include_router(music_prompts.router)
 
 # Additional root-level routes
@@ -521,7 +596,7 @@ async def main():
     # If the port is occupied by a stale/non-responding process, try to
     # free it before uvicorn attempts the bind. If cleanup fails, the port
     # manager will fall back to an alternate port instead of raising.
-    _ensure_backend_port_free(port)
+    await _ensure_backend_port_free(port)
 
     uvicorn_config = uvicorn.Config(
         app,

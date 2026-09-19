@@ -31,6 +31,7 @@ class GPUWorkload(str, Enum):
     LLM_INFERENCE = "llm_inference"
     RENDER_3D = "render_3d"
     IMAGE_GENERATION = "image_generation"
+    MUSIC_GENERATION = "music_generation"
 
 
 class GPUState(str, Enum):
@@ -53,6 +54,7 @@ class VRAMManager:
         self._current_workload: GPUWorkload = GPUWorkload.IDLE
         self._ollama_loaded: bool = True
         self._comfyui_busy: bool = False
+        self._music_gen_running: bool = False
         self._lock = asyncio.Lock()
         self._nvml_available = False
         self._gpustat_available = False
@@ -66,6 +68,8 @@ class VRAMManager:
 
         # Minimum free VRAM needed for 3D generation (in MB)
         self.MIN_VRAM_FOR_3D = 4000  # 4GB for Hunyuan3D-2mini
+        # Minimum free VRAM for music generation (in MB)
+        self.MIN_VRAM_FOR_MUSIC = 6144  # 6GB for YuE2 Q4_0 GGUF
 
         # Safety margins for system stability
         # Don't offload to CPU if system RAM is below this threshold
@@ -464,6 +468,100 @@ class VRAMManager:
                 "ollama_loaded": self._ollama_loaded,
             }
 
+    async def begin_music_generation(self, engine: str = "yue2",
+                                     vram_budget_mb: int = 6144) -> dict[str, Any]:
+        """
+        Signal that music generation is starting.
+        Offloads Ollama and signals ComfyUI to pause if needed.
+
+        Args:
+            engine: Engine name ("yue2" or "ace") for logging
+            vram_budget_mb: Required VRAM in MB for this engine
+
+        Returns:
+            Dict with status and actions taken
+        """
+        async with self._lock:
+            logger.info("VRAM Manager: Music generation starting (engine=%s, need=%dMB)",
+                        engine, vram_budget_mb)
+            self._current_workload = GPUWorkload.MUSIC_GENERATION
+
+            vram = await self.get_vram_status()
+            actions = []
+
+            # Check if we have enough VRAM
+            free_mb = vram.get("free_mb", 0)
+            if free_mb >= vram_budget_mb:
+                logger.info("VRAM Manager: Sufficient VRAM for music gen (%dMB free)", free_mb)
+                return {
+                    "success": True,
+                    "vram_before": vram,
+                    "actions": actions,
+                    "ollama_loaded": self._ollama_loaded,
+                }
+
+            # Not enough VRAM - offload Ollama
+            if self._ollama_loaded and self._can_safely_offload():
+                logger.info("VRAM Manager: Offloading Ollama for music generation")
+                unloaded = await _unload_ollama_models()
+                self._ollama_loaded = False
+                actions.append({"action": "offload_ollama", "success": True, "models": unloaded})
+                vram = await self.get_vram_status()
+                free_mb = vram.get("free_mb", 0)
+                if free_mb >= vram_budget_mb:
+                    return {
+                        "success": True,
+                        "vram_before": vram,
+                        "actions": actions,
+                        "ollama_loaded": False,
+                    }
+
+            # Still not enough
+            self._current_workload = GPUWorkload.IDLE
+            return {
+                "success": False,
+                "error": f"Insufficient VRAM for music generation ({free_mb}MB free, {vram_budget_mb}MB required)",
+                "vram": vram,
+                "actions": actions,
+                "guidance": "Close other GPU applications or reduce VRAM budget",
+            }
+
+    async def end_music_generation(self) -> dict[str, Any]:
+        """
+        Signal that music generation is complete.
+        Reloads Ollama models if they were offloaded.
+
+        Returns:
+            Dict with status and actions taken
+        """
+        async with self._lock:
+            logger.info("VRAM Manager: Music generation complete")
+            self._current_workload = GPUWorkload.IDLE
+
+            vram = await self.get_vram_status()
+            actions = []
+
+            # Reload Ollama if it was offloaded
+            if not self._ollama_loaded:
+                free_mb = vram.get("free_mb", 0)
+                if free_mb > self.MIN_VRAM_FOR_3D:
+                    logger.info("VRAM Manager: Reloading Ollama after music gen (free=%dMB)", free_mb)
+                    from ..adapters.ollama import ollama_adapter
+                    from ..core.config import config as _cfg2
+                    last_model = getattr(ollama_adapter, '_last_model', _cfg2.default_model)
+                    if "llama" in last_model.lower() and last_model != _cfg2.default_model:
+                        last_model = _cfg2.default_model
+                    reload_ok = await _reload_ollama_models(last_model)
+                    self._ollama_loaded = reload_ok
+                    actions.append({"action": "reload_ollama", "success": reload_ok, "model": last_model})
+
+            return {
+                "success": True,
+                "vram_after": vram,
+                "actions": actions,
+                "ollama_loaded": self._ollama_loaded,
+            }
+
     async def check_and_prevent_oom(self) -> dict[str, Any] | None:
         """
         Check VRAM and take action if OOM is imminent.
@@ -508,10 +606,12 @@ class VRAMManager:
             "current_workload": self._current_workload.value,
             "ollama_loaded": self._ollama_loaded,
             "comfyui_busy": self._comfyui_busy,
+            "music_gen_running": self._music_gen_running,
             "nvml_available": self._nvml_available,
             "gpustat_available": self._gpustat_available,
             "thresholds": self.thresholds,
             "min_vram_for_3d_mb": self.MIN_VRAM_FOR_3D,
+            "min_vram_for_music_mb": self.MIN_VRAM_FOR_MUSIC,
             "safety_thresholds": {
                 "min_system_ram_for_offload_mb": self.MIN_SYSTEM_RAM_FOR_OFFLOAD,
             },

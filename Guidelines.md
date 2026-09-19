@@ -107,6 +107,10 @@ Go sidecars use fixed ports and do not conflict with the dynamic port system:
 - `go-media`: 3848
 - `go-ports`: 3851
 
+Music generation subprocess services also use fixed ports:
+- `music-gen yue2`: 8200 (YuE2-3B, ~6GB VRAM, CC-BY-NC-4.0)
+- `music-gen ace`: 8201 (ACE-Step 1.5, ~4GB VRAM, Apache-2.0)
+
 ---
 
 ## 5. Phase 1 Scope & Acceptance Criteria

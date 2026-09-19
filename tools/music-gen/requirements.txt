@@ -1,0 +1,22 @@
+# Music Generation Service Dependencies
+# Install into a dedicated venv to avoid conflicts with ComfyUI's torch
+
+# Core
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+aiohttp>=3.9.0
+
+# Audio
+soundfile>=0.12.0
+numpy>=1.24.0
+
+# YuE2 (install separately — pins torch==2.10.0)
+# pip install yue2  # See README.md for venv setup
+
+# ACE-Step (install separately — may conflict with YuE2)
+# pip install acestep  # See README.md for venv setup
+
+# GPU monitoring (optional)
+# gpustat
+# pynvml

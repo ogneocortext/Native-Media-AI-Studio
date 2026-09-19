@@ -1,6 +1,6 @@
 # AGENTS.md — Native Media AI Studio
 
-> **Last Updated:** 2026-09-18
+> **Last Updated:** 2026-09-19
 > **Status:** Active Development (Phase 1+2)
 > **Platform:** Windows 11 local development machine
 
@@ -62,6 +62,7 @@ Native-Media-AI-Studio/
 │   ├── go-worker/             # Queue I/O worker on :3849
 │   ├── go-gateway/            # MCP bridge router on :3850
 │   ├── go-ports/              # Port availability checker on :3851
+│   ├── music-gen/             # YuE2 + ACE-Step music generation (FastAPI, port 8200/8201)
 │   ├── vision/                # Standalone vision utilities
 │   │   └── analyze.mjs
 │   ├── blender/               # Blender MCP client helpers
