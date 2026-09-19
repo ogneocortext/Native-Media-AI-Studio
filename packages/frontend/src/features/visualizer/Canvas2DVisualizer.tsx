@@ -169,6 +169,13 @@ function Canvas2DVisualizer(
     let barPeaks: number[] | null = null;
     const PEAK_DECAY = 0.985;
 
+    // 2026 animation state: spring-physics bar smoothing, beat vignette, radial rotation
+    let barVelocities: number[] | null = null;
+    let beatVignette = 0;
+    // Waveform spring envelope state
+    let waveEnvelope: number[] | null = null;
+    let waveVelocities: number[] | null = null;
+
     const palettes: Record<string, string[]> = {
       INTRO: ["#6366f1", "#818cf8", "#a5b4fc"],
       VERSE: ["#06b6d4", "#22d3ee", "#67e8f9"],
@@ -267,7 +274,9 @@ function Canvas2DVisualizer(
       }
 
       paletteTRef.current = Math.min(1, paletteTRef.current + 0.04);
-      const t = paletteTRef.current;
+      const rawT = paletteTRef.current;
+      // Ease the palette transition so section changes feel organic, not linear.
+      const t = easeOutQuad(rawT);
       if (!currentPaletteRef.current.length)
         currentPaletteRef.current = [...target];
       const colors = currentPaletteRef.current.map((c, i) => {
@@ -279,6 +288,9 @@ function Canvas2DVisualizer(
 
       if (sync?.isPhraseStart) phraseFlash = 1;
       phraseFlash = Math.max(0, phraseFlash - 0.07);
+      // Beat vignette pulse — subtle screen-edge darkening on transients.
+      if (d.beat) beatVignette = Math.min(1, beatVignette + 0.35);
+      beatVignette = Math.max(0, beatVignette - 0.06);
 
       // Size the backing store only when the container changes (see applySize above).
       const bg = normalizeHex(bgColor);
@@ -304,6 +316,15 @@ function Canvas2DVisualizer(
       // Ensure particles don't survive a mode switch away from particles mode.
       if (mode !== "particles" && particles.length > 0) {
         particles.length = 0;
+      }
+      // Reset animation state on mode switch so bar-springs / radial rotation
+      // don't carry stale velocities across unrelated modes.
+      if (mode === "bars" || mode === "mirrored-bars" || mode === "stereo-split-bars" || mode === "stacked-frequency-bands" || mode === "dot-peak-matrix") {
+        if (!barVelocities || barVelocities.length !== (mode === "dot-peak-matrix" ? 64 : (mode === "stereo-split-bars" || mode === "stacked-frequency-bands" ? 48 : 64))) {
+          barVelocities = new Array(mode === "dot-peak-matrix" ? 64 : mode === "stereo-split-bars" || mode === "stacked-frequency-bands" ? 48 : 64).fill(0);
+        }
+      } else {
+        barVelocities = null;
       }
 
       // Skip painting while the tab is hidden — the parent's analyser loop also
@@ -336,6 +357,14 @@ function Canvas2DVisualizer(
         ctx.fillStyle = `rgba(255,255,255,${phraseFlash * 0.08})`;
         ctx.fillRect(0, 0, w, h);
       }
+      // Beat vignette — radial gradient darkening edges on strong beats.
+      if (beatVignette > 0.01) {
+        const vigGrd = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.72);
+        vigGrd.addColorStop(0, "rgba(0,0,0,0)");
+        vigGrd.addColorStop(1, `rgba(0,0,0,${beatVignette * 0.45})`);
+        ctx.fillStyle = vigGrd;
+        ctx.fillRect(0, 0, w, h);
+      }
 
       if (!analyser || !isPlaying) {
         // 2026 kinetic idle: variable-font-inspired — weight pulses with phraseFlash, not static
@@ -365,40 +394,44 @@ function Canvas2DVisualizer(
         const barCount = 64;
         const step = Math.floor(freq.length / barCount);
         const barW = w / barCount;
-        // Lazy-init falling-peak store
+        // Lazy-init falling-peak store + spring velocities
         if (!barPeaks || barPeaks.length !== barCount) {
           barPeaks = new Array(barCount).fill(0);
         }
-        // Cache vertical gradients (one per palette color) — createLinearGradient
-        // is relatively expensive and the gradient only changes when the palette
-        // or canvas height changes.
+        if (!barVelocities || barVelocities.length !== barCount) {
+          barVelocities = new Array(barCount).fill(0);
+        }
         const barGradients = getGradients(mode, colors);
-        // Baseline leaves room for reflections below the bars
         const baseY = Math.round(h * 0.88);
-        // Frequency-specific color semantics (vision: "does pink = bass?" → bass=warm, mid=primary, treble=cool)
         for (let i = 0; i < barCount; i++) {
-          const v = freq[i * step] / 255;
+          const rawV = freq[i * step] / 255;
           const boosted =
-            v +
+            rawV +
             phraseFlash * 0.35 +
             (sync?.lineProgress ?? 0) * 0.1 +
             d.bass * 0.08 +
-            // Continuous beat-phase anticipation: subtle lift as next beat nears
             (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
-          const bh = boosted * h * 0.78 * energyMod;
+          // Spring-physics smoothing: target → velocity → position with damping.
+          const targetH = boosted * h * 0.78 * energyMod;
+          const springK = 0.28;
+          const damping = 0.72;
+          const dt = 1;
+          const displacement = targetH - (barPeaks[i] || 0);
+          barVelocities[i] = (barVelocities[i] + springK * displacement * dt) * damping;
+          const smoothH = Math.max(0, (barPeaks[i] || 0) + barVelocities[i] * dt);
+          // Ease-out-back for punchy overshoot on rising transients.
+          const easeT = clamp(smoothH / Math.max(1, h * 0.78 * energyMod), 0, 1);
+          const easedH = smoothH * (1 + 0.08 * easeOutBack(easeT) * (barVelocities[i] > 0 ? 1 : 0));
+          barPeaks[i] = smoothH;
+          const bh = easedH;
           const x = Math.round(i * barW);
           const y = Math.round(baseY - bh);
           const bw = Math.round(barW) - 2;
           const radius = Math.min(bw / 2, 3 * dpr);
-          // Depth shadow layer (vision: "add depth")
-          ctx.fillStyle = "rgba(0,0,0,0.35)";
-          ctx.fillRect(x + 1 + 2 * dpr, y + 2 * dpr, bw, bh);
           const cIdx = Math.floor((i / barCount) * colors.length);
-          // Bass warmth, treble cool — clarify frequency mapping
           const warmMix = i / barCount < 0.3 ? d.bass * 0.35 : 0;
           const coolMix = i / barCount > 0.7 ? d.treble * 0.35 : 0;
           ctx.fillStyle = barGradients[cIdx % barGradients.length];
-          // Rounded top bar
           ctx.beginPath();
           ctx.roundRect(x + 1, y, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
           ctx.fill();
@@ -432,15 +465,13 @@ function Canvas2DVisualizer(
           const peakY = Math.round(baseY - barPeaks[i]);
           ctx.fillStyle = "rgba(255,255,255,0.85)";
           ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
-          if (d.beat && v > 0.55) {
-            // Stronger beat particle burst (vision: "pulsing when music hits")
+          if (d.beat && rawV > 0.55) {
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(x + 1, y - 3 * dpr, bw, 3 * dpr);
             ctx.shadowColor = colors[cIdx % colors.length];
             ctx.shadowBlur = 6 * dpr;
             ctx.fillRect(x + 1, y - 1 * dpr, bw, 1 * dpr);
             ctx.shadowBlur = 0;
-            // Tiny burst dots above peak
             if (i % 4 === 0) {
               ctx.fillStyle = `rgba(255,255,255,${0.85})`;
               ctx.beginPath();
@@ -455,7 +486,7 @@ function Canvas2DVisualizer(
             }
           }
         }
-        // Secondary harmonic overlay — faint ghost bars at 1.5x frequency (vision: "harmonic complexity")
+        // Secondary harmonic overlay
         ctx.globalAlpha = 0.22 + d.treble * 0.25;
         ctx.fillStyle = colors[2] || colors[1];
         for (let i = 0; i < barCount; i++) {
@@ -481,6 +512,9 @@ function Canvas2DVisualizer(
         if (!barPeaks || barPeaks.length !== barCount) {
           barPeaks = new Array(barCount).fill(0);
         }
+        if (!barVelocities || barVelocities.length !== barCount) {
+          barVelocities = new Array(barCount).fill(0);
+        }
         const barGradients = getGradients(mode, colors);
         const centerY = Math.round(h * 0.5);
         const maxBarH = h * 0.38;
@@ -491,9 +525,15 @@ function Canvas2DVisualizer(
             phraseFlash * 0.35 +
             (sync?.lineProgress ?? 0) * 0.1 +
             d.bass * 0.08 +
-            // Continuous beat-phase anticipation: subtle lift as next beat nears
             (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
-          const bh = boosted * maxBarH * energyMod;
+          const targetH = boosted * maxBarH * energyMod;
+          const springK = 0.26;
+          const damping = 0.73;
+          const displacement = targetH - barPeaks[i];
+          barVelocities[i] = (barVelocities[i] + springK * displacement) * damping;
+          const bh = Math.max(0, barPeaks[i] + barVelocities[i]);
+          if (bh > barPeaks[i]) barPeaks[i] = bh;
+          else barPeaks[i] = Math.max(bh, barPeaks[i] * PEAK_DECAY);
           const x = Math.round(i * barW);
           const bw = Math.round(barW) - 2;
           const radius = Math.min(bw / 2, 3 * dpr);
@@ -531,8 +571,6 @@ function Canvas2DVisualizer(
           ctx.fill();
            ctx.restore();
            // Peak indicator (upper)
-           if (bh > barPeaks[i]) barPeaks[i] = bh;
-           else barPeaks[i] = Math.max(bh, barPeaks[i] * PEAK_DECAY);
            const peakY = Math.round(centerY - barPeaks[i]);
            ctx.fillStyle = "rgba(255,255,255,0.85)";
            ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
@@ -559,6 +597,9 @@ function Canvas2DVisualizer(
         const gap = 2 * dpr;
         const baseY = Math.round(h * 0.92);
         const barGradients = getGradients(mode, colors);
+        if (!barVelocities || barVelocities.length !== barCount) {
+          barVelocities = new Array(barCount).fill(0);
+        }
         for (let i = 0; i < barCount; i++) {
           const v = freq[i * step] / 255;
           const boosted =
@@ -566,9 +607,13 @@ function Canvas2DVisualizer(
             phraseFlash * 0.35 +
             (sync?.lineProgress ?? 0) * 0.1 +
             d.bass * 0.08 +
-            // Continuous beat-phase anticipation: subtle lift as next beat nears
             (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
-          const activeSegments = Math.floor(boosted * segmentsPerBar * energyMod);
+          const targetSegs = boosted * segmentsPerBar * energyMod;
+          const springK = 0.24;
+          const damping = 0.74;
+          const displacement = targetSegs - barVelocities[i];
+          barVelocities[i] = (barVelocities[i] + springK * displacement) * damping;
+          const activeSegments = Math.max(0, Math.min(segmentsPerBar, Math.round(barVelocities[i])));
           const x = Math.round(i * barW);
           const bw = Math.round(barW) - 2;
           const cIdx = Math.floor((i / barCount) * colors.length);
@@ -597,9 +642,12 @@ function Canvas2DVisualizer(
           { label: "high", start: Math.floor(barCount * 0.65), end: barCount, color: colors[2] || colors[1] },
         ];
         const baseY = Math.round(h * 0.88);
-        // Lazy-init peaks for stereo-split
+        // Lazy-init peaks + spring velocities for stereo-split
         if (!barPeaks || barPeaks.length !== barCount) {
           barPeaks = new Array(barCount).fill(0);
+        }
+        if (!barVelocities || barVelocities.length !== barCount) {
+          barVelocities = new Array(barCount).fill(0);
         }
         for (const band of bands) {
           ctx.fillStyle = band.color + "18";
@@ -612,7 +660,15 @@ function Canvas2DVisualizer(
               (sync?.lineProgress ?? 0) * 0.1 +
               d.bass * 0.08 +
               (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
-            const bh = boosted * h * 0.65 * energyMod;
+            const targetH = boosted * h * 0.65 * energyMod;
+            const springK = 0.26;
+            const damping = 0.73;
+            const displacement = targetH - barPeaks[i];
+            barVelocities[i] = (barVelocities[i] + springK * displacement) * damping;
+            const bh = Math.max(0, barPeaks[i] + barVelocities[i]);
+            // Update peak store separately so fallback uses the smoothed value.
+            if (bh > barPeaks[i]) barPeaks[i] = bh;
+            else barPeaks[i] = Math.max(bh, barPeaks[i] * PEAK_DECAY);
             const x = Math.round(i * barW);
             const y = Math.round(baseY - bh);
             const bw = Math.round(barW) - 2;
@@ -623,9 +679,6 @@ function Canvas2DVisualizer(
             ctx.fill();
             ctx.fillStyle = "rgba(255,255,255,0.12)";
             ctx.fillRect(x + 1, y, bw, Math.max(1, bh * 0.25));
-            // Falling peak indicator
-            if (bh > barPeaks[i]) barPeaks[i] = bh;
-            else barPeaks[i] = Math.max(bh, barPeaks[i] * PEAK_DECAY);
             const peakY = Math.round(baseY - barPeaks[i]);
             ctx.fillStyle = "rgba(255,255,255,0.7)";
             ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
@@ -648,9 +701,12 @@ function Canvas2DVisualizer(
           { name: "mid", start: Math.floor(step * barCount * 0.25), end: Math.floor(step * barCount * 0.65), color: colors[1] },
           { name: "high", start: Math.floor(step * barCount * 0.65), end: Math.floor(step * barCount * 1), color: colors[2] || colors[1] },
         ];
-        // Lazy-init peaks for stacked bands (track tallest layer per bar)
+        // Lazy-init peaks + spring velocities for stacked bands
         if (!barPeaks || barPeaks.length !== barCount) {
           barPeaks = new Array(barCount).fill(0);
+        }
+        if (!barVelocities || barVelocities.length !== barCount) {
+          barVelocities = new Array(barCount).fill(0);
         }
         for (let i = 0; i < barCount; i++) {
           const x = Math.round(i * barW);
@@ -658,6 +714,7 @@ function Canvas2DVisualizer(
           const radius = Math.min(bw / 2, 3 * dpr);
           let layerY = baseY;
           let topY = baseY;
+          let stackH = 0;
           for (const layer of layers) {
             const idx = Math.min(layer.start + i, freq.length - 1);
             const v = freq[idx] / 255;
@@ -667,21 +724,26 @@ function Canvas2DVisualizer(
               (sync?.lineProgress ?? 0) * 0.1 +
               d.bass * 0.08 +
               (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
-            const lh = boosted * h * 0.22 * energyMod;
-            const ly = Math.round(layerY - lh);
+            const rawLh = boosted * h * 0.22 * energyMod;
+            const ly = Math.round(layerY - rawLh);
             ctx.fillStyle = layer.color;
             ctx.beginPath();
-            ctx.roundRect(x + 1, ly, bw, lh + 2 * dpr, [radius, radius, 0, 0]);
+            ctx.roundRect(x + 1, ly, bw, rawLh + 2 * dpr, [radius, radius, 0, 0]);
             ctx.fill();
             ctx.fillStyle = "rgba(255,255,255,0.1)";
-            ctx.fillRect(x + 1, ly, bw, Math.max(1, lh * 0.25));
+            ctx.fillRect(x + 1, ly, bw, Math.max(1, rawLh * 0.25));
             topY = ly;
             layerY = ly;
+            stackH += rawLh;
           }
-          // Falling peak at top of stack
-          const topH = baseY - topY;
-          if (topH > barPeaks[i]) barPeaks[i] = topH;
-          else barPeaks[i] = Math.max(topH, barPeaks[i] * PEAK_DECAY);
+          // Spring-smoothed total stack height for peak tracking only.
+          const springK = 0.24;
+          const damping = 0.74;
+          const displacement = stackH - barPeaks[i];
+          barVelocities[i] = (barVelocities[i] + springK * displacement) * damping;
+          const smoothStackH = Math.max(0, barPeaks[i] + barVelocities[i]);
+          if (smoothStackH > barPeaks[i]) barPeaks[i] = smoothStackH;
+          else barPeaks[i] = Math.max(smoothStackH, barPeaks[i] * PEAK_DECAY);
           const peakY = Math.round(baseY - barPeaks[i]);
           ctx.fillStyle = "rgba(255,255,255,0.7)";
           ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
@@ -708,6 +770,9 @@ function Canvas2DVisualizer(
         const cellH = h / rows;
         const dotR = Math.min(cellW, cellH) * 0.35;
         const barGradients = getGradients(mode, colors);
+        if (!barVelocities || barVelocities.length !== barCount) {
+          barVelocities = new Array(barCount).fill(0);
+        }
         for (let i = 0; i < cols; i++) {
           const v = freq[i * step] / 255;
           const boosted =
@@ -715,9 +780,13 @@ function Canvas2DVisualizer(
             phraseFlash * 0.35 +
             (sync?.lineProgress ?? 0) * 0.1 +
             d.bass * 0.08 +
-            // Continuous beat-phase anticipation: subtle lift as next beat nears
             (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
-          const activeRows = Math.floor(boosted * rows * energyMod);
+          const targetRows = boosted * rows * energyMod;
+          const springK = 0.22;
+          const damping = 0.75;
+          const displacement = targetRows - barVelocities[i];
+          barVelocities[i] = (barVelocities[i] + springK * displacement) * damping;
+          const activeRows = Math.max(0, Math.min(rows, Math.round(barVelocities[i])));
           const cIdx = Math.floor((i / cols) * colors.length);
           for (let r = 0; r < rows; r++) {
             const cx = Math.round(i * cellW + cellW / 2);
@@ -782,18 +851,24 @@ function Canvas2DVisualizer(
           effectiveEnergy * 8 * dpr;
         ctx.beginPath();
         const slice = w / smoothed.length;
+        // Spring-smoothed amplitude envelope for the waveform path.
+        const springK = 0.22;
+        const damping = 0.75;
+        if (!waveEnvelope || waveEnvelope.length !== smoothed.length) {
+          waveEnvelope = new Array(smoothed.length).fill(0);
+        }
+        if (!waveVelocities || waveVelocities.length !== smoothed.length) {
+          waveVelocities = new Array(smoothed.length).fill(0);
+        }
         for (let i = 0; i < smoothed.length; i++) {
           const x = i * slice;
           const v = (smoothed[i] - 128) / 128;
+          const targetAmp = v * h * 0.35 * (1 + effectiveEnergy * 0.85 + phraseFlash * 0.45 + d.bass * 0.25);
+          const displacement = targetAmp - waveEnvelope[i];
+          waveVelocities[i] = (waveVelocities[i] + springK * displacement) * damping;
+          waveEnvelope[i] = waveEnvelope[i] + waveVelocities[i];
           const y =
-            h / 2 +
-            v *
-              h *
-              0.35 *
-              (1 +
-                effectiveEnergy * 0.85 +
-                phraseFlash * 0.45 +
-                d.bass * 0.25);
+            h / 2 + waveEnvelope[i];
           const xOff =
             (sync?.lineProgress ?? 0) *
             14 *
@@ -837,16 +912,24 @@ function Canvas2DVisualizer(
           cy = h / 2;
         const baseR = Math.min(w, h) * 0.18;
         const sectionRot = (sync?.sectionProgress ?? 0) * Math.PI * 0.5;
+        if (!barVelocities || barVelocities.length !== 64) {
+          barVelocities = new Array(64).fill(0);
+        }
         for (let i = 0; i < 64; i++) {
           const v = freq[Math.floor((i / 64) * freq.length * 0.6)] / 255;
           const angle = (i / 64) * Math.PI * 2 + sectionRot;
           const r0 = baseR;
-          const r1 =
-           baseR +
-             v *
-               baseR *
-               1.2 *
-               (1 + phraseFlash * 0.6 + effectiveEnergy * 0.4);
+          const targetR1 =
+            baseR +
+            v *
+              baseR *
+              1.2 *
+              (1 + phraseFlash * 0.6 + effectiveEnergy * 0.4);
+          const springK = 0.24;
+          const damping = 0.74;
+          const displacement = targetR1 - (barVelocities[i] || 0);
+          barVelocities[i] = (barVelocities[i] + springK * displacement) * damping;
+          const r1 = Math.max(r0, barVelocities[i] + r0);
           const x0 = cx + Math.cos(angle) * r0;
           const y0 = cy + Math.sin(angle) * r0;
           const x1 = cx + Math.cos(angle) * r1;
@@ -1033,13 +1116,22 @@ function Canvas2DVisualizer(
           }
         }
         ctx.globalAlpha = 1;
-        // Draw nodes
-        for (const p of points) {
-          const r =
+        // Draw nodes with spring-smoothed radius per point.
+        const constellationSpringK = 0.22;
+        const constellationDamping = 0.75;
+        const pointVelocities = new Array(maxPoints).fill(0);
+        const pointRadii = new Array(maxPoints).fill(0);
+        for (let i = 0; i < maxPoints; i++) {
+          const p = points[i];
+          const targetR =
             2 * dpr +
             p.v * 5 * dpr +
             (d.beat && p.v > 0.7 ? 3 * dpr : 0) +
             analyzedPunch * 3 * dpr;
+          const displacement = targetR - pointRadii[i];
+          pointVelocities[i] = (pointVelocities[i] + constellationSpringK * displacement) * constellationDamping;
+          pointRadii[i] = Math.max(0, pointRadii[i] + pointVelocities[i]);
+          const r = pointRadii[i];
           ctx.fillStyle =
             colors[Math.floor(p.v * colors.length) % colors.length];
           ctx.shadowColor = colors[0];
@@ -1165,4 +1257,25 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
     b = hue2rgb(p, q, h - 1 / 3);
   }
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+// ============================================================================
+// Animation helpers (2026 2D visualizer improvements)
+// ============================================================================
+
+/** Ease-out with a subtle overshoot for punchy bar transitions. */
+function easeOutBack(t: number): number {
+  const c1 = 1.70158;
+  const c2 = c1 * 1.525;
+  return 1 + (c2 + 1) * Math.pow(t - 1, 3) + c2 * Math.pow(t - 1, 2);
+}
+
+/** Quadratic ease-out for smooth palette/section transitions. */
+function easeOutQuad(t: number): number {
+  return 1 - (1 - t) * (1 - t);
+}
+
+/** Clamp a value into [min, max]. */
+function clamp(v: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, v));
 }

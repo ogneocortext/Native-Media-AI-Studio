@@ -20,6 +20,6 @@
       "cache": false
     }
   },
-  "globalDependencies": ["pnpm-workspace.yaml", "package.json"],
+  "globalDependencies": ["pnpm-workspace.yaml", "package.json", "pnpm-lock.yaml"],
   "ui": "stream"
 }

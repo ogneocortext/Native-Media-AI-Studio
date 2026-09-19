@@ -1,9 +1,11 @@
 /**
  * URL helpers.
- * Single source of truth for resolving output file URLs, using the
- * dynamic port configuration instead of hardcoded hosts / localStorage.
+ *
+ * ``getOutputUrl`` is the only helper defined here because it is specific to
+ * output/media routing. All other URL getters live in ``services/portConfig.ts``
+ * and are re-exported below so callers can import from a single module.
  */
-import { getCachedConfig, getBackendUrl } from "../services/portConfig";
+import { getCachedConfig } from "../services/portConfig";
 
 /**
  * Build a browser URL for a stored output file.
@@ -36,16 +38,17 @@ export function getOutputUrl(relativePath: string): string {
   return `/output/${relativePath}`;
 }
 
-/**
- * Resolved backend API base URL. Prefer `getBackendUrl()` (portConfig) so all
- * HTTP calls agree on the same origin.
- */
-export function getApiBaseUrl(): string {
-  const cached = getCachedConfig();
-  if (cached?.backend_url) return cached.backend_url;
-  const fromConfig = getBackendUrl();
-  return fromConfig || "/";
-}
-
-/** Re-exported for callers that already import from `utils/url`. */
-export { getBackendUrl } from "../services/portConfig";
+// Re-export the canonical URL getters from portConfig so callers can use
+// `import { getBackendUrl } from "../../utils/url"` OR from portConfig.
+export {
+  getBackendUrl,
+  getApiBaseUrl,
+  getEventsUrl,
+  getVideoEditorUrl,
+  getComfyuiUrl,
+  getComfyuiWsUrl,
+  getDashboardUrl,
+  getCachedConfig,
+  fetchPortConfig,
+  getPortConfigFromEnv,
+} from "../services/portConfig";

@@ -68,9 +68,11 @@ class ComfyUIAdapter(BaseAdapter):
     """
 
     def __init__(
-        self, base_url: str = "http://127.0.0.1:8188", mock_mode: bool = False
+        self, base_url: str | None = None, mock_mode: bool = False
     ):
-        super().__init__(base_url, "ComfyUI", mock_mode=mock_mode)
+        from ..core.config import config as _cfg
+        _base = base_url or _cfg.comfyui_url
+        super().__init__(_base, "ComfyUI", mock_mode=mock_mode)
         self._current_prompt_id: str | None = None
         self._last_health_log: str | None = None
         self._available_checkpoints: list[str] = []

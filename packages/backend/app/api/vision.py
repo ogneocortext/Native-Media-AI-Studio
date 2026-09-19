@@ -10,12 +10,15 @@ import logging
 
 from fastapi import APIRouter, File, Form, UploadFile
 
+from ..core.urls import ollama_url
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vision", tags=["Vision"])
 
 DEFAULT_MODEL = "minicpm-v:8b"
 FALLBACK_MODEL = "qwen3-vl:4b"
-OLLAMA_URL = "http://127.0.0.1:11434"
+
+OLLAMA_URL = ollama_url()
 
 PROMPTS = {
     "ocr": "Transcribe all visible text preserving original line breaks, punctuation, and reading order. If a table is present, convert it to markdown. If a region is unclear write [unclear]. Do NOT invent text.",

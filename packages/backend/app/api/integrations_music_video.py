@@ -11,7 +11,8 @@ from pydantic import BaseModel
 from ..adapters.registry import adapter_registry
 from ..models.job import JobCreateRequest, JobType
 from ..queue.manager import queue_manager
-from .integrations_config import ensure_vram_available, estimate_generation_time
+from ..services.generation_estimator import estimate_generation_time
+from .integrations_config import ensure_vram_available
 
 logger = logging.getLogger(__name__)
 

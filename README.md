@@ -112,7 +112,7 @@ Native-Media-AI-Studio/
 pnpm start
 
 # Or with PowerShell directly
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\start-studio.ps1
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-studio.ps1
 ```
 
 ### Manage Individual Services
@@ -122,11 +122,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\start-studio.ps1
 pnpm servers status
 
 # Start/stop specific services
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services comfyui
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action stop -Services frontend
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services comfyui
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action stop -Services frontend
 
 # Restart a service
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action restart -Services backend
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action restart -Services backend
 ```
 
 ### GPU Pipeline (CUDA 12.4 / GTX 1070 Ti)

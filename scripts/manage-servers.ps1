@@ -9,9 +9,12 @@
 .PARAMETER Services
     Services to manage: all, backend, frontend, comfyui, video
 .EXAMPLE
-    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action status
-    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services all
+    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action status
+    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services all
 #>
+#Requires -Version 7.6
+[CmdletBinding()]
+
 param(
     [Parameter(Mandatory=$true)]
     [ValidateSet('start', 'stop', 'restart', 'status', 'health', 'update-comfyui')]
@@ -24,44 +27,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 
-# Load central port configuration from config/ports.json.
-# This is the single source of truth for all service ports.
-function Get-PortsConfig {
-    param([string]$ProjectRoot)
-    $portsFile = Join-Path $ProjectRoot 'config\ports.json'
-    if (Test-Path $portsFile) {
-        try {
-            $json = Get-Content $portsFile -Raw | ConvertFrom-Json
-            return @{
-                backend_port = [int]$json.backend_port
-                frontend_port = [int]$json.frontend_port
-                comfyui_port = [int]$json.comfyui_port
-                video_editor_port = [int]$json.video_editor_port
-                dashboard_port = [int]$json.dashboard_port
-                go_dashboard_port = [int]$json.dashboard_port
-                go_media_port = [int]$json.go_media_url.Split(':')[-1]
-                go_worker_port = [int]$json.go_worker_url.Split(':')[-1]
-                go_gateway_port = [int]$json.go_gateway_url.Split(':')[-1]
-                go_ports_port = [int]$json.go_ports_url.Split(':')[-1]
-            }
-        } catch {
-            Write-Warn2 "Failed to parse config/ports.json, using hardcoded defaults"
-        }
-    }
-    # Fallback defaults if ports.json is missing
-    return @{
-        backend_port = 8000
-        frontend_port = 5173
-        comfyui_port = 8188
-        video_editor_port = 8080
-        dashboard_port = 3847
-        go_dashboard_port = 3847
-        go_media_port = 3848
-        go_worker_port = 3849
-        go_gateway_port = 3850
-        go_ports_port = 3851
-    }
-}
+# Load shared utilities (Resolve-*, Write-*, port helpers)
+. (Join-Path $PSScriptRoot 'shared-utils.ps1')
 
 $Ports = Get-PortsConfig -ProjectRoot $ProjectRoot
 
@@ -70,7 +37,7 @@ $Ports = Get-PortsConfig -ProjectRoot $ProjectRoot
 # space-analyzer-cuda and from ComfyUI). ComfyUI service uses comfyui-cuda.
 $studioPython = 'D:\conda-envs\nma-studio-cuda\Scripts\python.exe'
 $condaPython = 'D:\conda-envs\comfyui-cuda\Scripts\python.exe'
-$venvPython = Join-Path $ProjectRoot 'venv\Scripts\python.exe'
+$venvPython = Join-Path -Path $ProjectRoot -ChildPath 'venv', 'Scripts', 'python.exe'
 
 # Prefer studio env > ComfyUI env > CPU fallback
 $backendPython = if (Test-Path $studioPython) { $studioPython }
@@ -97,7 +64,7 @@ $ServiceConfig = @{
         Args = @('run', 'dev')
         # Fallback when npm is broken (fnm v26 ships incomplete npm):
         # node <packages/frontend>\node_modules\vite\bin\vite.js --port <frontend_port>
-        NodeScript = Join-Path $ProjectRoot 'packages\frontend\node_modules\vite\bin\vite.js'
+        NodeScript = Join-Path -Path $ProjectRoot -ChildPath 'packages', 'frontend', 'node_modules', 'vite', 'bin', 'vite.js'
         NodeArgs = @('--port', "$($Ports.frontend_port)")
     }
     comfyui = @{
@@ -118,7 +85,7 @@ $ServiceConfig = @{
         # Preferred: npm run dev
         Args = @('run', 'dev')
         # Fallback: the package-local remotion CLI does not need a global npm.
-        LocalCmd = Join-Path $ProjectRoot 'packages\video-editor\node_modules\.bin\remotion.cmd'
+        LocalCmd = Join-Path -Path $ProjectRoot -ChildPath 'packages', 'video-editor', 'node_modules', '.bin', 'remotion.cmd'
         LocalArgs = @('studio')
     }
     'go-dashboard' = @{
@@ -167,45 +134,7 @@ $ServiceConfig = @{
 $LogDir = Join-Path $ProjectRoot 'output\logs'
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
-function Write-Step { param([string]$msg) Write-Host "`n[$msg]" -ForegroundColor Cyan }
-function Write-Ok   { param([string]$msg) Write-Host "  [OK] $msg" -ForegroundColor Green }
-function Write-Warn { param([string]$msg) Write-Host "  [!!] $msg" -ForegroundColor Yellow }
-function Write-Err  { param([string]$msg) Write-Host "  [ERR] $msg" -ForegroundColor Red }
-
-# Resolve a WORKING npm.cmd if one exists. On this machine npm can be broken
-# (fnm v26 ships incomplete npm), so we probe it before trusting it.
-function Resolve-Npm {
-    $candidates = @()
-    $fnmAlias = Join-Path $env:APPDATA 'fnm\aliases\default\npm.cmd'
-    if (Test-Path $fnmAlias) { $candidates += $fnmAlias }
-    $onPath = Get-Command npm.cmd -ErrorAction SilentlyContinue
-    if ($onPath) { $candidates += $onPath.Source }
-
-    foreach ($cand in $candidates) {
-        try {
-            $null = & $cand --version 2>&1 | ForEach-Object { "$_" }
-            if ($LASTEXITCODE -eq 0) { return $cand }
-        } catch { }
-    }
-    return $null
-}
-
-# Resolve a WORKING node.exe runtime. fnm's "default" alias path is stable.
-function Resolve-NodeExe {
-    $candidates = @()
-    $fnmAlias = Join-Path $env:APPDATA 'fnm\aliases\default\node.exe'
-    if (Test-Path $fnmAlias) { $candidates += $fnmAlias }
-    $onPath = Get-Command node.exe -ErrorAction SilentlyContinue
-    if ($onPath) { $candidates += $onPath.Source }
-
-    foreach ($cand in $candidates) {
-        try {
-            $null = & $cand --version 2>&1 | ForEach-Object { "$_" }
-            if ($LASTEXITCODE -eq 0) { return $cand }
-        } catch { }
-    }
-    return $null
-}
+$FrontendDir = Join-Path $ProjectRoot 'packages\frontend'
 
 function Get-ServiceStatus {
     param([string]$ServiceName)
@@ -224,24 +153,7 @@ function Get-ServiceStatus {
     return @{ Running = $false; Port = $port }
 }
 
-function Test-ServiceRunning {
-    param([int]$Port, [string]$HealthPath = "/api/health")
-    try {
-        # The backend /api/health handler probes adapters live (ComfyUI alone can
-        # take >2s when offline), so allow enough time for a truthful result.
-        $response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port$HealthPath" -UseBasicParsing -TimeoutSec 6
-        return $response.StatusCode -eq 200
-    } catch {
-        return $false
-    }
-}
-
-function Test-PortInUse {
-    param([int]$Port)
-    return [bool](Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
-}
-
-function Stop-Service {
+function Stop-StudioService {
     param([string]$ServiceName)
     $config = $ServiceConfig[$ServiceName]
     $port = $config.Port
@@ -277,7 +189,7 @@ function Stop-Service {
     }
 }
 
-function Start-Service {
+function Start-StudioService {
     param([string]$ServiceName)
     $config = $ServiceConfig[$ServiceName]
     $port = $config.Port
@@ -331,23 +243,26 @@ function Start-Service {
             -PassThru
     }
     else {
-        # Node-based service. Try a working npm first, then fall back to
+        # Node-based service. Prefer pnpm (workspace-aware), then npm, then fall back to
         # launching the package-local CLI directly (npm can be broken under fnm).
-        $npm = Resolve-Npm
-        if ($npm -and $npm -notmatch '\s') {
-            # Only use npm if its path has no spaces (spaces break cmd.exe /c quoting)
+        $packageManager = Resolve-Pnpm
+        if (-not $packageManager) { $packageManager = Resolve-Npm }
+        
+        if ($packageManager -and $packageManager -notmatch '\s') {
+            # Only use package manager if its path has no spaces (spaces break cmd.exe /c quoting)
             $argString = ($config.Args | ForEach-Object { "`"$_`"" }) -join ' '
             $proc = Start-Process -FilePath 'cmd.exe' `
-                -ArgumentList '/c', "`"$npm`" $argString" `
+                -ArgumentList '/c', "`"$packageManager`" $argString" `
                 -WorkingDirectory $config.WorkingDir `
                 -WindowStyle Hidden `
                 -RedirectStandardOutput $logFile `
                 -RedirectStandardError $errFile `
                 -PassThru
         }
-        elseif ($npm -and $npm -match '\s') {
-            # npm path has spaces — use node directly with the package script
-            Write-Warn "npm path has spaces ($npm), using node fallback"
+        elseif ($packageManager -and $packageManager -match '\s') {
+            # Package manager path has spaces — use node directly with the package script
+            $pmName = [System.IO.Path]::GetFileNameWithoutExtension($packageManager)
+            Write-Warn "$pmName path has spaces ($packageManager), using node fallback"
             $node = Resolve-NodeExe
             if ($config.LocalCmd -and (Test-Path $config.LocalCmd)) {
                 # e.g. video editor: node_modules\.bin\remotion.cmd studio
@@ -373,7 +288,7 @@ function Start-Service {
                     -PassThru
             }
             else {
-                Write-Err "No node fallback available for $($config.Name) (npm path has spaces)"
+                Write-Err "No node fallback available for $($config.Name) ($pmName path has spaces)"
                 return
             }
         }
@@ -406,7 +321,7 @@ function Start-Service {
                 -PassThru
         }
         else {
-            Write-Err "No working npm, local CLI, or node script available for $($config.Name)"
+            Write-Err "No working package manager, local CLI, or node script available for $($config.Name)"
             return
         }
     }
@@ -426,7 +341,8 @@ function Start-Service {
 }
 
 # Determine which services to manage
-    $serviceList = if ($Services -eq 'all') { @('backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports') } else { @($Services) }
+$allServices = @('backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports')
+$serviceList = if ($Services -eq 'all') { $allServices } else { @($Services) }
 
 switch ($Action) {
     'status' {
@@ -447,18 +363,19 @@ switch ($Action) {
         Write-Host "`nStarting services..." -ForegroundColor Cyan
         foreach ($svc in $serviceList) {
             try {
-                Start-Service $svc
+                Start-StudioService $svc
             } catch {
                 Write-Warn "Failed to start $($ServiceConfig[$svc].Name): $_"
             }
         }
+        Sync-PortsConfigToFrontend -ProjectRoot $ProjectRoot -FrontendDir $FrontendDir
         Write-Host "`nAll requested services started." -ForegroundColor Green
     }
     'stop' {
         Write-Host "`nStopping services..." -ForegroundColor Yellow
         foreach ($svc in $serviceList) {
             try {
-                Stop-Service $svc
+                Stop-StudioService $svc
             } catch {
                 Write-Warn "Failed to stop $($ServiceConfig[$svc].Name): $_"
             }
@@ -469,9 +386,9 @@ switch ($Action) {
         Write-Host "`nRestarting services..." -ForegroundColor Cyan
         foreach ($svc in $serviceList) {
             try {
-                Stop-Service $svc
+                Stop-StudioService $svc
                 Start-Sleep -Seconds 1
-                Start-Service $svc
+                Start-StudioService $svc
             } catch {
                 Write-Warn "Failed to restart $($ServiceConfig[$svc].Name): $_"
             }

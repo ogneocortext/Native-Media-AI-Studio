@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card } from "../../components/common";
 import { CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import { getDashboardUrl } from "../../services/portConfig";
 
 interface GoService {
   name: string;
@@ -28,10 +29,16 @@ export function GoServicesCard() {
   const [lastChecked, setLastChecked] = useState<number | null>(null);
 
   const check = useCallback(async (signal?: AbortSignal) => {
+    const dashboardBase = getDashboardUrl();
     const results = await Promise.allSettled(
       GO_SERVICES.map(async (svc) => {
         try {
-          const res = await fetch(`http://127.0.0.1:${svc.port}${svc.healthPath}`, {
+          // Prefer the go-dashboard aggregate endpoint when available.
+          const isDashboard = svc.port === 3847;
+          const url = isDashboard
+            ? `${dashboardBase}${svc.healthPath}`
+            : `http://127.0.0.1:${svc.port}${svc.healthPath}`;
+          const res = await fetch(url, {
             method: "GET",
             headers: { Accept: "application/json" },
             signal: signal ?? AbortSignal.timeout(2000),

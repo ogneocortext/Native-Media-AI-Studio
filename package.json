@@ -12,15 +12,15 @@
     "packages/video-editor"
   ],
   "scripts": {
-    "preinstall": "npx -y only-allow pnpm",
-    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\start-studio.ps1",
+    "preinstall": "pnpm dlx -y only-allow pnpm",
+    "dev": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\start-studio.ps1",
     "dev:frontend": "pnpm --filter=native-media-ai-studio-frontend dev",
-    "dev:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\manage-servers.ps1 -Action start -Services backend",
+    "dev:backend": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\manage-servers.ps1 -Action start -Services backend",
     "dev:video": "pnpm --filter=video-editor dev",
-    "dev:comfyui": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\manage-servers.ps1 -Action start -Services comfyui",
-    "start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\start-studio.ps1",
-    "start:all": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\start-studio.ps1 -VideoEditor",
-    "servers": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\manage-servers.ps1",
+    "dev:comfyui": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\manage-servers.ps1 -Action start -Services comfyui",
+    "start": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\start-studio.ps1",
+    "start:all": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\start-studio.ps1 -VideoEditor",
+    "servers": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\manage-servers.ps1",
     "build": "pnpm -r build",
     "build:frontend": "pnpm --filter=native-media-ai-studio-frontend build",
     "build:video": "pnpm --filter=video-editor build",
@@ -30,7 +30,6 @@
     "db:migrate": "cd packages/backend && D:\\conda-envs\\nma-studio-cuda\\Scripts\\python.exe -c \"from app.core.database import init_db; init_db()\""
   },
   "devDependencies": {
-    "@modelcontextprotocol/server": "^2.0.0",
     "@playwright/test": "^1.63.0",
     "playwright": "^1.63.0",
     "sharp": "^0.35.4",

@@ -59,7 +59,7 @@ pnpm dev:backend
 # Standalone tooling — Python 3.14 (no CUDA)
 D:\conda-envs\studio-tools\Scripts\python.exe tools\convert_blend_to_glb.py stage.blend
 # or via launcher:
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\run.ps1 scripts\utility\convert_lyrics_csv.py
+pwsh -NoProfile -ExecutionPolicy Bypass -File tools\run.ps1 scripts\utility\convert_lyrics_csv.py
 ```
 
 ## Studio Environment Details

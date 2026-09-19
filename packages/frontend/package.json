@@ -13,13 +13,14 @@
     "lint": "eslint src",
     "test": "playwright test",
     "test:headed": "playwright test --headed",
-    "test:debug": "playwright test --debug"
+    "test:debug": "playwright test --debug",
+    "clean": "node -e \"const fs=require('fs');['dist','node_modules/.vite'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true})}catch(e){}})\""
   },
   "dependencies": {
     "@newkrok/three-particles": "^3.0.0",
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
-    "@tailwindcss/vite": "^4.3.3",
+    "@tailwindcss/vite": "catalog:",
     "@theatre/core": "^0.7.2",
     "@theatre/studio": "0.7.2",
     "animejs": "^4.5.0",
@@ -45,8 +46,8 @@
     "eslint": "catalog:",
     "postcss": "^8.5.26",
     "rollup-plugin-visualizer": "^7.1.1",
-    "tailwindcss": "^4.3.3",
-    "typescript": "^5.9.3",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
     "typescript-eslint": "^8.69.0",
     "vite": "catalog:",
     "vite-plugin-compression": "^0.5.1"

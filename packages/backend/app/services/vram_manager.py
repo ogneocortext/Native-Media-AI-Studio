@@ -14,10 +14,13 @@ Strategy:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from enum import Enum
 from typing import Any
+
+from ..core.urls import ollama_url
 
 logger = logging.getLogger(__name__)
 
@@ -235,6 +238,73 @@ class VRAMManager:
             return GPUState.BUSY.value
         return GPUState.AVAILABLE.value
 
+    async def preflight_check(self, required_mb: int = 4096) -> dict[str, Any]:
+        """Advisory, read-only VRAM availability check.
+
+        Unlike :meth:`begin_3d_generation` this never marks ComfyUI busy and
+        never sets the workload state, so request handlers that only want to
+        warn the user before enqueuing work can call it without a matching
+        :meth:`end_3d_generation` cleanup call.
+
+        When free VRAM is below ``required_mb`` the Ollama models are offloaded
+        as a courtesy and ``_ollama_loaded`` is updated so a later
+        :meth:`end_3d_generation` (or the next 3D render) restores them.
+
+        Returns:
+            Dict with ``available``, ``free_mb``, ``total_mb``, ``required_mb``,
+            ``offloaded`` and ``message``.
+        """
+        status = await self.get_vram_status()
+        if not status.get("available"):
+            return {
+                "available": True,
+                "free_mb": 0,
+                "total_mb": 0,
+                "required_mb": required_mb,
+                "offloaded": False,
+                "message": "VRAM monitoring unavailable — proceeding",
+            }
+
+        free_mb = status.get("free_mb", status.get("memory_free_mb", 0))
+        total_mb = status.get("total_mb", status.get("memory_total_mb", 0))
+        result: dict[str, Any] = {
+            "available": True,
+            "free_mb": free_mb,
+            "total_mb": total_mb,
+            "required_mb": required_mb,
+            "offloaded": False,
+            "message": f"VRAM OK: {free_mb}MB free of {total_mb}MB",
+        }
+
+        if free_mb >= required_mb:
+            return result
+
+        # Not enough VRAM — offload Ollama as a courtesy before reporting failure.
+        try:
+            unloaded = await _unload_ollama_models()
+        except Exception as exc:
+            logger.warning("VRAM Manager: preflight offload failed: %s", exc)
+            unloaded = []
+
+        if unloaded:
+            # Truthful flag: the models really are unloaded now, so a later
+            # end_3d_generation() will reload them.
+            self._ollama_loaded = False
+            result["offloaded"] = True
+            recheck = await self.get_vram_status()
+            result["free_mb"] = recheck.get(
+                "free_mb", recheck.get("memory_free_mb", result["free_mb"])
+            )
+            if result["free_mb"] >= required_mb:
+                result["message"] = "Offloaded Ollama models to free VRAM"
+                return result
+
+        result["available"] = False
+        result["message"] = (
+            f"Insufficient VRAM: {result['free_mb']}MB free, {required_mb}MB required"
+        )
+        return result
+
     async def begin_3d_generation(self) -> dict[str, Any]:
         """
         Signal that 3D generation is starting.
@@ -450,13 +520,12 @@ class VRAMManager:
 
 def _unload_ollama_models_sync() -> list[str]:
     """Synchronous helper to unload Ollama models. Returns list of unloaded model names."""
-    import json
     import urllib.request
 
     # Get the list of loaded models
     loaded_models: list[str] = []
     try:
-        req = urllib.request.Request("http://127.0.0.1:11434/api/ps")
+        req = urllib.request.Request(ollama_url("/api/ps"))
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read())
             loaded_models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
@@ -482,7 +551,7 @@ def _unload_ollama_models_sync() -> list[str]:
                 "keep_alive": 0,
             }).encode()
             req = urllib.request.Request(
-                "http://127.0.0.1:11434/api/generate",
+                ollama_url("/api/generate"),
                 data=data,
                 headers={"Content-Type": "application/json"},
                 method="POST",
@@ -500,7 +569,6 @@ def _reload_ollama_models_sync(model_name: str) -> bool:
     """Synchronous helper to reload an Ollama model. Returns True on success.
     Uses keep_alive=5m (not -1) so model expires naturally; also skips reload
     if model_name is a legacy llama not in config.default_model."""
-    import json
     import urllib.request
 
     from ..core.config import config as _cfg
@@ -516,7 +584,7 @@ def _reload_ollama_models_sync(model_name: str) -> bool:
     }).encode()
 
     req = urllib.request.Request(
-        "http://127.0.0.1:11434/api/generate",
+        ollama_url("/api/generate"),
         data=data,
         headers={"Content-Type": "application/json"},
         method="POST",

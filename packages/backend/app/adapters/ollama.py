@@ -55,20 +55,22 @@ Respond ONLY with valid JSON in this exact format:
 Generate 3-8 scenes based on the input theme or concept."""
 
     def __init__(
-        self, base_url: str = "http://127.0.0.1:11434", mock_mode: bool = False,
+        self, base_url: str | None = None, mock_mode: bool = False,
         atomic_chat_url: str | None = None,
     ):
         """
         Initialize the Ollama adapter.
 
         Args:
-            base_url: Base URL for the Ollama API
+            base_url: Base URL for the Ollama API. Falls back to config.ollama_url.
             mock_mode: If True, skip service checks and use mock generation
             atomic_chat_url: Optional Atomic Chat OpenAI-compatible API URL.
                 When provided and enabled via config/UI, chat/generate route
                 through Atomic Chat's TurboQuant backend instead of base Ollama.
         """
-        super().__init__(base_url, "Ollama", mock_mode=mock_mode)
+        from ..core.config import config as _cfg
+        _base = base_url or _cfg.ollama_url
+        super().__init__(_base, "Ollama", mock_mode=mock_mode)
         self._available_models: list[str] = []
         try:
             from ..core.config import config as _cfg

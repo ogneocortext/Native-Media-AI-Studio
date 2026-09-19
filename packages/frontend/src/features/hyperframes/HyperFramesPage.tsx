@@ -7,6 +7,7 @@ import {
   renderHyperFramesComposition,
   type HyperFramesStatus,
 } from "../../services/api";
+import { getVideoEditorUrl } from "../../services/portConfig";
 
 export function HyperFramesPage() {
   const [status, setStatus] = useState<HyperFramesStatus | null>(null);
@@ -57,7 +58,7 @@ export function HyperFramesPage() {
       setError(null);
       setPreviewing(true);
       const res = await launchHyperFramesPreview();
-      const url = (res.url as string) || "http://127.0.0.1:3000";
+      const url = (res.url as string) || getVideoEditorUrl();
       setPreviewUrl(url);
     } catch (e) {
       setError("Failed to start preview server");

@@ -59,11 +59,11 @@ External install at `D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI`
 ```powershell
 # Start all services
 pnpm start
-# or: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\start-studio.ps1
+# or: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-studio.ps1
 
 # Check status
 pnpm servers status
-# or: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action status
+# or: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action status
 
 # Backend only (studio venv, CUDA) — dynamic port via port_manager.py
 D:\conda-envs\nma-studio-cuda\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --app-dir packages/backend
@@ -109,14 +109,14 @@ Get-NetTCPConnection -LocalPort 8001 -State Listen
 # or kill orphan python from previous crash:
 taskkill /F /IM python.exe
 # prefer managed restart:
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action restart -Services backend
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action restart -Services backend
 ```
 
 ### ComfyUI not responding
 ```powershell
 curl http://127.0.0.1:8188/system_stats
 # Restart
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action restart -Services comfyui
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action restart -Services comfyui
 ```
 
 ### Media Library not loading

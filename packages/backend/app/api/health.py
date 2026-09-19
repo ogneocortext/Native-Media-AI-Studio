@@ -170,8 +170,9 @@ async def ollama_models() -> dict:
     import urllib.request
 
     from ..adapters.registry import adapter_registry
+    from ..core.urls import ollama_url
     try:
-        req = urllib.request.Request("http://127.0.0.1:11434/api/ps")
+        req = urllib.request.Request(ollama_url("/api/ps"))
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read())
             models = data.get("models", [])

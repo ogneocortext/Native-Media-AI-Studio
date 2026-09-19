@@ -4,6 +4,7 @@ import { Card, StatusBadge } from "../../components/common";
 import { useHealth } from "../../hooks";
 import { useTheme } from "../../utils/theme";
 import { getSettings } from "../../services/api";
+import { getPortConfigFromEnv } from "../../services/portConfig";
 
 interface AppSettings {
   comfyui_url: string;
@@ -24,15 +25,18 @@ export function Settings() {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [settings, setSettings] = useState<AppSettings>({
-    comfyui_url: "http://127.0.0.1:8188",
-    ollama_url: "http://127.0.0.1:11434",
-    atomic_chat_url: "http://127.0.0.1:1337",
-    atomic_chat_enabled: false,
-    log_level: "INFO",
-    max_queue_workers: 1,
-    backend_port: 8000,
-    frontend_port: 5173,
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    const env = getPortConfigFromEnv();
+    return {
+      comfyui_url: env.comfyui_url || "http://127.0.0.1:8188",
+      ollama_url: "http://127.0.0.1:11434",
+      atomic_chat_url: "http://127.0.0.1:1337",
+      atomic_chat_enabled: false,
+      log_level: "INFO",
+      max_queue_workers: 1,
+      backend_port: env.backend_port || 8000,
+      frontend_port: env.frontend_port || 5173,
+    };
   });
 
   // Load current settings from backend on mount

@@ -1,6 +1,8 @@
 packages:
   - packages/frontend
   - packages/video-editor
+  - tools
+  - '!tools/hyperframes-*'
 
 # packages/backend is intentionally excluded — it's a Python (FastAPI) package, not a pnpm workspace member
 
@@ -13,7 +15,8 @@ catalog:
   react-dom: ^19.2.8
   typescript: ^5.9.3
   vite: ^8.2.2
-  tailwindcss: ^4.2.4
+  tailwindcss: ^4.3.3
+  '@tailwindcss/vite': ^4.3.3
   eslint: ^10.9.1
 
 # pnpm settings (moved from .npmrc to avoid npm warnings)

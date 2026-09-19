@@ -2,8 +2,8 @@
 # Launcher for standalone tools using the studio-tools Python 3.14 venv.
 #
 # Usage:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\run.ps1 tools\lib\paths.py
-#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\run.ps1 scripts\utility\convert_lyrics_csv.py -- --help
+#   pwsh -NoProfile -ExecutionPolicy Bypass -File tools\run.ps1 tools\lib\paths.py
+#   pwsh -NoProfile -ExecutionPolicy Bypass -File tools\run.ps1 scripts\utility\convert_lyrics_csv.py -- --help
 #
 # The double-dash (--) separates launcher args from the target script's args.
 param(

@@ -142,7 +142,7 @@ Go sidecars use fixed ports and do not conflict with the dynamic port system:
 
 ### Starting the App
 ```powershell
-pnpm start  # or: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\start-studio.ps1
+pnpm start  # or: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-studio.ps1
 pnpm servers status
 ```
 

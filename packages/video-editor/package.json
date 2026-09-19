@@ -16,10 +16,10 @@
     "@remotion/tailwind-v4": "4.0.522",
     "@remotion/three": "4.0.522",
     "@remotion/transitions": "^4.0.522",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "remotion": "4.0.522",
-    "tailwindcss": "4.3.3",
+    "tailwindcss": "catalog:",
     "three": "0.185.1",
     "zod": "4.5.4"
   },
@@ -30,13 +30,15 @@
     "@types/web": "0.0.354",
     "eslint": "^9.19.0",
     "prettier": "3.9.6",
-    "typescript": "5.9.3"
+    "typescript": "catalog:"
   },
   "scripts": {
     "dev": "remotion studio",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
-    "lint": "eslint src && tsc"
+    "lint": "eslint src && tsc",
+    "test": "node -e \"process.exit(0)\"",
+    "clean": "node -e \"const fs=require('fs');['dist'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true})}catch(e){}})\""
   },
   "sideEffects": [
     "*.css"

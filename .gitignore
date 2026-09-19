@@ -198,6 +198,10 @@ env_check.txt
 docs/scratch/*.txt
 docs/scratch/*.csv
 
+# Agent backup bundles and ad-hoc browser-test scratch (never part of the app)
+.openclaw-backup-publish-*/
+browser-test/
+
 # Root-level scratch / debug artifacts (one-off diagnostics, not project code)
 /out/
 unsloth_compiled_cache/

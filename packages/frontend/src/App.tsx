@@ -9,9 +9,32 @@ import { ErrorBoundary } from "./components/common";
 import { ToastProvider } from "./components/common/Toast";
 import { DebugPanel } from "./components/debug/DebugPanel";
 
-// Helper for lazy loading modules with named exports
+// Helper for lazy loading modules with named exports.
+// Retries once on transient network/HMR failures so a single flaky
+// dynamic-import fetch does not crash the route.
+const loadNamedModule = (
+  modulePromise: Promise<{ [key: string]: any }>,
+  name: string,
+  retries = 1,
+): Promise<{ default: any }> =>
+  modulePromise
+    .then(m => ({ default: m[name] as any }))
+    .catch(err => {
+      if (retries > 0) {
+        // Small delay gives Vite HMR / cache invalidation a chance to settle.
+        return new Promise<{ default: any }>((resolve, reject) => {
+          setTimeout(() => {
+            loadNamedModule(modulePromise, name, retries - 1)
+              .then(resolve)
+              .catch(reject);
+          }, 150);
+        });
+      }
+      return Promise.reject(err);
+    });
+
 const lazyNamed = (modulePromise: Promise<{ [key: string]: any }>, name: string) =>
-  lazy(() => modulePromise.then(m => ({ default: m[name] as any })));
+  lazy(() => loadNamedModule(modulePromise, name));
 
 // Heavy pages loaded on-demand
 const HealthPage = lazyNamed(import("./features/health/HealthPage"), "HealthPage");

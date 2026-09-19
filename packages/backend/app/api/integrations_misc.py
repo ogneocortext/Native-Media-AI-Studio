@@ -9,6 +9,8 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from ..core.urls import ollama_url
+
 logger = logging.getLogger(__name__)
 
 # Router without prefix - included by main integrations.py with prefix "/api/integrations"
@@ -129,7 +131,7 @@ Respond with ONLY the complete HTML code, no explanation."""
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                "http://127.0.0.1:11434/api/generate",
+                ollama_url("/api/generate"),
                 json={
                     "model": model_name,
                     "prompt": analysis_prompt,
@@ -274,7 +276,7 @@ Respond with ONLY the JSON object, no explanation."""
         # Call Ollama API
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                "http://127.0.0.1:11434/api/generate",
+                ollama_url("/api/generate"),
                 json={
                     "model": model_name,
                     "prompt": analysis_prompt,

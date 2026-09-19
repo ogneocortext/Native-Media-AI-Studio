@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed - PowerShell script modernization (2026-09-19)
+
+Consolidated and modernized all project PowerShell scripts to require PowerShell 7.6+,
+using shared utilities and native cmdlets.
+
+- **Removed duplicates**: `scripts/utility/check_status.ps1` (superseded by `manage-servers.ps1 -Action status`) and `scripts/utility/stop_ports.ps1` (superseded by `manage-servers.ps1 -Action stop`).
+- **Shared utilities**: Added `scripts/shared-utils.ps1` with `Get-PortsConfig`, `Start-ProcessSafe`, `Wait-ForPort`, `Stop-PortOwner`, `Sync-PortsConfigToFrontend`, `Resolve-Executable`, and console helpers (`Write-Step`, `Write-Ok`, `Write-Warn`, `Write-Err`).
+- **Scripts refactored**:
+  - `scripts/manage-servers.ps1` — dot-sources `shared-utils.ps1`, uses `Get-PortsConfig` + `Write-*` helpers, replaced `curl.exe` with `Invoke-WebRequest`/`Invoke-RestMethod`.
+  - `scripts/start-services.ps1` — reduced to 38-line thin wrapper delegating to `manage-servers.ps1`.
+  - `scripts/start-studio.ps1` — fixed duplicate `Stop-PortOwner` function name, added `SupportsShouldProcess`, optional `-ComfyUI`/`-VideoEditor`/`-Clean` params, auto-restart with exponential backoff, uses `Start-ProcessSafe`/`Wait-ForPort`/`Get-LogTail`.
+  - `scripts/start_dev.ps1` — added `[CmdletBinding()]` and comment-based help.
+  - `scripts/utility/tests/test-3d-gen.ps1` — dynamic backend port, dot-sources shared utils.
+- **Documentation**: Replaced `powershell -NoProfile ...` with `pwsh -NoProfile ...` across `README.md`, `Guidelines.md`, `docs/setup/SETUP_SUMMARY.md`, `docs/setup/python-environments.md`.
+- **Verification**: All 9 modernized scripts parse cleanly via `System.Management.Automation.Language.Parser`.
+
 ### Changed - Dependency upgrades across all stacks (2026-09-18)
 
 Routine dependency sweep across npm, Python, and Go ecosystems.

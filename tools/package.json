@@ -4,7 +4,7 @@
   "description": "MCP bridges and demo scripts for Native Media AI Studio",
   "main": "mcp/unity-mcp-bridge.mjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --check mcp/context-store.mjs && node --check mcp/hyperframes-mcp.mjs && node --check mcp/ollama-tools-mcp.mjs && node --check mcp/unity-mcp-bridge.mjs && node --check mcp/vision-mcp.mjs",
     "unity:bridge": "node mcp/unity-mcp-bridge.mjs"
   },
   "keywords": [

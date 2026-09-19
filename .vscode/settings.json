@@ -47,6 +47,12 @@
     "**/__pycache__"
   ],
 
+  // Terminal — this project requires PowerShell 7.6+ (see AGENTS.md).
+  // "PowerShell" is VS Code's auto-detected pwsh 7 profile;
+  // "Windows PowerShell" is the legacy 5.1 host and is NOT supported here.
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "terminal.integrated.shellIntegration.enabled": true,
+
   // Formatting
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",

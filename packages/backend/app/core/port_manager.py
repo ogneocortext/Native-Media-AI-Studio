@@ -16,6 +16,16 @@ from typing import Any
 import httpx
 
 from .config import PROJECT_ROOT, config
+from .urls import (
+    backend_events_url,
+    backend_url,
+    backend_ws_url,
+    go_dashboard_url,
+    go_gateway_url,
+    go_media_url,
+    go_ports_url,
+    go_worker_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -319,27 +329,25 @@ class PortManager:
         :meth:`resolve_all_ports` (dynamic resolution) and :meth:`set_default_config`
         (static config at startup) so the two paths cannot drift.
         """
-        ws_url = f"ws://127.0.0.1:{backend_port}/ws"
-        go_dashboard_url = getattr(config, 'go_dashboard_url', '') or "http://127.0.0.1:3847"
-        events_url = f"{go_dashboard_url}/events"
-        backend_events_url = f"http://127.0.0.1:{backend_port}/api/events"
-        backend_url = f"http://127.0.0.1:{backend_port}"
+        # Every backend-derived URL must use the *resolved* port, not
+        # config.backend_port — resolve_port() may have fallen back (8000 -> 8001)
+        # when the configured port was already occupied.
         return {
-            "backend_url": backend_url,
+            "backend_url": backend_url(port=backend_port),
             "frontend_port": config.frontend_port,
             "backend_port": backend_port,
             "ws_port": backend_port,
-            "ws_url": ws_url,
-            "events_url": events_url,
-            "sse_url": events_url,
-            "backend_events_url": backend_events_url,
+            "ws_url": backend_ws_url(port=backend_port),
+            "events_url": go_dashboard_url("/events"),
+            "sse_url": go_dashboard_url("/events"),
+            "backend_events_url": backend_events_url(port=backend_port),
             "dashboard_port": 3847,
-            "dashboard_url": go_dashboard_url,
-            "go_dashboard_url": go_dashboard_url,
-            "go_media_url": getattr(config, 'go_media_url', '') or "http://127.0.0.1:3848",
-            "go_worker_url": getattr(config, 'go_worker_url', '') or "http://127.0.0.1:3849",
-            "go_gateway_url": getattr(config, 'go_gateway_url', '') or "http://127.0.0.1:3850",
-            "go_ports_url": getattr(config, 'go_ports_url', '') or "http://127.0.0.1:3851",
+            "dashboard_url": go_dashboard_url(),
+            "go_dashboard_url": go_dashboard_url(),
+            "go_media_url": go_media_url(),
+            "go_worker_url": go_worker_url(),
+            "go_gateway_url": go_gateway_url(),
+            "go_ports_url": go_ports_url(),
         }
 
     async def resolve_all_ports(self) -> dict[str, Any]:

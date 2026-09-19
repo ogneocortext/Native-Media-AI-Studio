@@ -5,13 +5,13 @@ Integrations API - for external service integration.
 import json
 import logging
 import os
-from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..adapters.registry import adapter_registry
 from ..core.config import PROJECT_ROOT
+from ..core.urls import backend_events_url, backend_ws_url, go_dashboard_url, ollama_url
 
 logger = logging.getLogger(__name__)
 
@@ -32,88 +32,20 @@ async def list_integrations() -> dict:
     }
 
 
-def estimate_generation_time(steps: int, width: int, height: int, num_frames: int, fps: int, model_name: str) -> dict:
-    """Estimate video generation time based on parameters."""
-    # Base seconds per frame for a 512x512 image at 20 steps on GTX 1070 Ti
-    base_sec_per_frame = 2.5
-    # Scale by resolution
-    resolution_factor = (width * height) / (512 * 512)
-    # Scale by steps
-    step_factor = steps / 20
-    # Scale by model size (larger models are slower)
-    model_factor = 1.0
-    if "wan" in model_name.lower():
-        model_factor = 3.0  # Wan 2.2 5B is ~3x slower
-    elif "kandinsky" in model_name.lower():
-        model_factor = 2.0
-    elif "sd" in model_name.lower() or "v1-5" in model_name.lower():
-        model_factor = 1.0
-    elif "hunyuan" in model_name.lower():
-        model_factor = 1.5
-
-    sec_per_frame = base_sec_per_frame * resolution_factor * step_factor * model_factor
-    total_frames = num_frames if num_frames > 0 else int(fps * 5)
-    estimated_seconds = sec_per_frame * total_frames
-
-    # Add overhead for loading model, saving, etc.
-    overhead_seconds = 10
-    estimated_seconds += overhead_seconds
-
-    return {
-        "estimated_seconds": round(estimated_seconds, 1),
-        "estimated_minutes": round(estimated_seconds / 60, 1),
-        "estimated_end_time": (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=estimated_seconds)).isoformat() + "Z",
-        "sec_per_frame": round(sec_per_frame, 1),
-        "total_frames": total_frames,
-        "factors": {
-            "resolution_factor": round(resolution_factor, 2),
-            "step_factor": round(step_factor, 2),
-            "model_factor": model_factor,
-        }
-    }
-
-
 async def ensure_vram_available(required_mb: int = 4096) -> dict:
-    """Check VRAM availability and offload models if needed."""
+    """Advisory VRAM preflight for request handlers.
+
+    Delegates to ``vram_manager.preflight_check``, which is read-only with
+    respect to workload state. Using ``begin_3d_generation`` here would mark
+    ComfyUI busy / set workload=RENDER_3D with no matching
+    ``end_3d_generation`` cleanup (these call sites only enqueue work), leaving
+    the VRAM manager permanently reporting a 3D render in flight.
+    """
     try:
         from ..services.vram_manager import vram_manager
-        status = await vram_manager.get_vram_status()
-        if not status.get("available"):
-            return {"available": True, "free_mb": 0, "total_mb": 0, "required_mb": required_mb, "offloaded": False, "message": "VRAM monitoring unavailable — proceeding"}
-
-        free_mb = status.get("free_mb", status.get("memory_free_mb", 0))
-        total_mb = status.get("total_mb", status.get("memory_total_mb", 0))
-
-        result = {
-            "available": True,
-            "free_mb": free_mb,
-            "total_mb": total_mb,
-            "required_mb": required_mb,
-            "offloaded": False,
-            "message": f"VRAM OK: {free_mb}MB free of {total_mb}MB",
-        }
-
-        if free_mb < required_mb:
-            # Try to offload Ollama models first
-            from ..services.vram_manager import _unload_ollama_models
-            offload_result = await _unload_ollama_models()
-            if offload_result.get("success"):
-                result["offloaded"] = True
-                result["message"] = "Offloaded Ollama models to free VRAM"
-                # Re-check after offload
-                status = await vram_manager.get_vram_status()
-                free_mb = status.get("free_mb", status.get("memory_free_mb", 0))
-                result["free_mb"] = free_mb
-                if free_mb < required_mb:
-                    result["available"] = False
-                    result["message"] = f"Insufficient VRAM: {free_mb}MB free, {required_mb}MB required"
-            else:
-                result["available"] = False
-                result["message"] = f"Insufficient VRAM: {free_mb}MB free, {required_mb}MB required"
-
-        return result
-    except Exception as e:
-        logger.warning(f"VRAM check failed: {e}")
+        return await vram_manager.preflight_check(required_mb)
+    except Exception as exc:
+        logger.warning("VRAM check failed: %s", exc)
         return {"available": True, "free_mb": 0, "total_mb": 0, "required_mb": required_mb, "offloaded": False, "message": "VRAM check unavailable — proceeding"}
 
 
@@ -165,7 +97,7 @@ async def get_system_resources() -> dict:
     try:
         import aiohttp
         async with aiohttp.ClientSession() as session:
-            async with session.get("http://127.0.0.1:11434/api/tags", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            async with session.get(ollama_url("/api/tags"), timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     resources["ollama_available"] = True
@@ -194,7 +126,7 @@ async def get_ollama_models() -> dict:
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get("http://127.0.0.1:11434/api/tags", timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            async with session.get(ollama_url("/api/tags"), timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     models = []
@@ -344,11 +276,11 @@ async def get_ports_config() -> dict:
         "backend_port": config.backend_port,
         "frontend_port": config.frontend_port,
         "ws_port": config.ws_port,
-        "ws_url": f"ws://127.0.0.1:{config.ws_port}/ws",
-        "events_url": f"http://127.0.0.1:{config.backend_port}/api/events",
-        "sse_url": f"http://127.0.0.1:{config.backend_port}/api/events",
+        "ws_url": backend_ws_url(),
+        "events_url": backend_events_url(),
+        "sse_url": backend_events_url(),
         "dashboard_port": 3847,
-        "dashboard_url": config.go_dashboard_url,
+        "dashboard_url": go_dashboard_url(),
     }
 
 

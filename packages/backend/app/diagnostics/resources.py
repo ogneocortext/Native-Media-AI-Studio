@@ -494,8 +494,9 @@ class ResourceMonitor:
             try:
                 import json
                 import urllib.request
-                base = "http://127.0.0.1:11434"
-                req = urllib.request.Request(f"{base}/api/ps")
+
+                from ..core.urls import ollama_url
+                req = urllib.request.Request(ollama_url("/api/ps"))
                 with urllib.request.urlopen(req, timeout=5) as resp:
                     data = json.loads(resp.read())
                     models = data.get("models", [])
@@ -692,8 +693,10 @@ class ResourceMonitor:
                 def _sync_offload() -> str | None:
                     import json
                     import urllib.request
+
+                    from ..core.urls import ollama_url
                     try:
-                        req = urllib.request.Request("http://127.0.0.1:11434/api/ps")
+                        req = urllib.request.Request(ollama_url("/api/ps"))
                         with urllib.request.urlopen(req, timeout=3) as resp:
                             data = json.loads(resp.read())
                             for m in data.get("models", [])[:1]:  # offload at least one
@@ -701,7 +704,7 @@ class ResourceMonitor:
                                 if name:
                                     payload = json.dumps({"model": name, "keep_alive": 0}).encode()
                                     r = urllib.request.Request(
-                                        "http://127.0.0.1:11434/api/generate",
+                                        ollama_url("/api/generate"),
                                         data=payload,
                                         headers={"Content-Type": "application/json"},
                                     )
