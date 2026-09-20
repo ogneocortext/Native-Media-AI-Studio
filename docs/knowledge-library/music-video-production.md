@@ -62,18 +62,19 @@
 │  Visualizer lift: 2-5× over static album-art per Shimga May 2026           │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
 > See [[ai-video-trends-2026]] for 5 trends source detail and [[youtube-optimization#youtube-algorithm-factors—2026-update|YouTube 2026 algorithm]] for CTR/satisfaction/Shorts.
 
 ### Song Structure Mapping
 
-| Section | Typical Duration | Visual Treatment |
-|---------|-----------------|------------------|
-| Intro | 5-15s | Establish mood, slow builds, wide shots |
-| Verse | 15-30s | Narrative progression, medium shots |
-| Pre-Chorus | 5-10s | Building tension, closer shots |
-| Chorus | 15-30s | Peak energy, high impact, close-ups |
-| Bridge | 10-20s | Visual pivot, abstract/surprise |
-| Outro | 5-15s | Wind down, defocus, final frame |
+| Section    | Typical Duration | Visual Treatment                        |
+| ---------- | ---------------- | --------------------------------------- |
+| Intro      | 5-15s            | Establish mood, slow builds, wide shots |
+| Verse      | 15-30s           | Narrative progression, medium shots     |
+| Pre-Chorus | 5-10s            | Building tension, closer shots          |
+| Chorus     | 15-30s           | Peak energy, high impact, close-ups     |
+| Bridge     | 10-20s           | Visual pivot, abstract/surprise         |
+| Outro      | 5-15s            | Wind down, defocus, final frame         |
 
 ---
 
@@ -129,44 +130,44 @@ Energy
 
 ### Video Types
 
-| Type | Description | Best For |
-|------|-------------|----------|
-| **Lyric Video** | Words highlighted karaoke-style | Wordy songs, language learning |
-| **Visualizer** | Imagery pulses with music | Instrumentals, lo-fi, ambient |
-| **Narrative MV** | Continuous story sequence | Story-driven songs, concepts |
+| Type             | Description                     | Best For                       |
+| ---------------- | ------------------------------- | ------------------------------ |
+| **Lyric Video**  | Words highlighted karaoke-style | Wordy songs, language learning |
+| **Visualizer**   | Imagery pulses with music       | Instrumentals, lo-fi, ambient  |
+| **Narrative MV** | Continuous story sequence       | Story-driven songs, concepts   |
 
 ### Shot Size Guide
 
-| Shot Size | Description | Emotional Effect |
-|-----------|-------------|------------------|
-| Extreme Wide | Subject tiny in environment | Isolation, scale, awe |
-| Wide | Full subject + surroundings | Establishing, context |
-| Medium | Subject from waist up | Emotion, connection |
-| Close-up | Face or object detail | Intensity, importance |
-| Extreme Close-up | Eyes, hands, objects | Drama, intimacy |
+| Shot Size        | Description                 | Emotional Effect      |
+| ---------------- | --------------------------- | --------------------- |
+| Extreme Wide     | Subject tiny in environment | Isolation, scale, awe |
+| Wide             | Full subject + surroundings | Establishing, context |
+| Medium           | Subject from waist up       | Emotion, connection   |
+| Close-up         | Face or object detail       | Intensity, importance |
+| Extreme Close-up | Eyes, hands, objects        | Drama, intimacy       |
 
 ### Camera Movement Types
 
-| Movement | Description | Use Case |
-|----------|-------------|----------|
-| Static | No camera movement | Calm moments, performance |
-| Push In (Dolly) | Camera moves toward subject | Building intensity |
-| Pull Out (Dolly) | Camera moves away | Revelation, ending |
-| Pan | Camera rotates horizontally | Reveal, follow action |
-| Tilt | Camera rotates vertically | Reveal scale, power |
-| Tracking | Camera follows subject | Action, movement |
-| Orbit | Camera circles subject | Showcase, drama |
+| Movement         | Description                 | Use Case                  |
+| ---------------- | --------------------------- | ------------------------- |
+| Static           | No camera movement          | Calm moments, performance |
+| Push In (Dolly)  | Camera moves toward subject | Building intensity        |
+| Pull Out (Dolly) | Camera moves away           | Revelation, ending        |
+| Pan              | Camera rotates horizontally | Reveal, follow action     |
+| Tilt             | Camera rotates vertically   | Reveal scale, power       |
+| Tracking         | Camera follows subject      | Action, movement          |
+| Orbit            | Camera circles subject      | Showcase, drama           |
 
 ### Transition Types
 
-| Transition | Description | Best Placement |
-|------------|-------------|----------------|
-| Hard cut | Instant switch | Strong beats, chorus entry |
-| Dissolve | Gradual blend | Time passage, dream sequences |
-| Wipe | One image pushes off another | Location changes |
-| Zoom | Scale change between shots | Energy builds |
-| Morph | Subject transforms | Bridge, surreal moments |
-| Fade | To/from black | Intro, outro |
+| Transition | Description                  | Best Placement                |
+| ---------- | ---------------------------- | ----------------------------- |
+| Hard cut   | Instant switch               | Strong beats, chorus entry    |
+| Dissolve   | Gradual blend                | Time passage, dream sequences |
+| Wipe       | One image pushes off another | Location changes              |
+| Zoom       | Scale change between shots   | Energy builds                 |
+| Morph      | Subject transforms           | Bridge, surreal moments       |
+| Fade       | To/from black                | Intro, outro                  |
 
 ---
 
@@ -243,6 +244,7 @@ Examples:
 ### Visual Grammar
 
 Every video needs consistent visual grammar:
+
 - **Color palette**: 1-2 dominant colors throughout
 - **Lighting style**: Consistent across all shots
 - **Film grain/texture**: Apply uniformly
@@ -261,20 +263,23 @@ Every video needs consistent visual grammar:
 ### Examples by Genre
 
 **Happy/Upbeat Track:**
+
 ```
-"Medium shot, eye-level angle, a joyful shrimp character dancing, 
+"Medium shot, eye-level angle, a joyful shrimp character dancing,
 underwater disco club, colorful neon lighting, energetic and fun"
 ```
 
 **Electronic/Dance:**
+
 ```
-"Close-up, low angle, a futuristic DJ performing, 
+"Close-up, low angle, a futuristic DJ performing,
 massage festival stage, laser lights, high energy and euphoric"
 ```
 
 **Chill/Lo-fi:**
+
 ```
-"Wide shot, bird's eye view, a cat studying at desk, 
+"Wide shot, bird's eye view, a cat studying at desk,
 cozy bedroom at night, warm lamp lighting, peaceful and relaxed"
 ```
 
@@ -293,13 +298,13 @@ cozy bedroom at night, warm lamp lighting, peaceful and relaxed"
 
 ### Common Prompt Mistakes
 
-| Mistake | Fix |
-|---------|-----|
+| Mistake                                         | Fix                                                                 |
+| ----------------------------------------------- | ------------------------------------------------------------------- |
 | Generic adjectives ("beautiful", "atmospheric") | Specific descriptions ("golden hour backlight", "fog-filled alley") |
-| No shot size | Add "medium shot" or "close-up" |
-| No camera angle | Add "eye-level" or "low angle" |
-| Too many subjects | Focus on one main subject per shot |
-| Inconsistent style | Lock style with reference image |
+| No shot size                                    | Add "medium shot" or "close-up"                                     |
+| No camera angle                                 | Add "eye-level" or "low angle"                                      |
+| Too many subjects                               | Focus on one main subject per shot                                  |
+| Inconsistent style                              | Lock style with reference image                                     |
 
 ---
 
@@ -307,21 +312,21 @@ cozy bedroom at night, warm lamp lighting, peaceful and relaxed"
 
 ### Export Formats
 
-| Platform | Resolution | Aspect Ratio | Format |
-|----------|------------|--------------|--------|
-| YouTube | 1920x1080 or 3840x2160 | 16:9 | MP4 (H.264) |
-| YouTube Shorts | 1080x1920 | 9:16 | MP4 (H.264) |
-| TikTok | 1080x1920 | 9:16 | MP4 (H.264) |
-| Instagram Reels | 1080x1920 | 9:16 | MP4 (H.264) |
+| Platform        | Resolution             | Aspect Ratio | Format      |
+| --------------- | ---------------------- | ------------ | ----------- |
+| YouTube         | 1920x1080 or 3840x2160 | 16:9         | MP4 (H.264) |
+| YouTube Shorts  | 1080x1920              | 9:16         | MP4 (H.264) |
+| TikTok          | 1080x1920              | 9:16         | MP4 (H.264) |
+| Instagram Reels | 1080x1920              | 9:16         | MP4 (H.264) |
 
 ### Quality Settings
 
-| Use Case | Bitrate | FPS |
-|----------|---------|-----|
-| Casual sharing | 8-12 Mbps | 24-30 |
+| Use Case         | Bitrate    | FPS   |
+| ---------------- | ---------- | ----- |
+| Casual sharing   | 8-12 Mbps  | 24-30 |
 | Standard quality | 16-24 Mbps | 24-30 |
-| Professional | 35-48 Mbps | 24-30 |
-| Maximum | 68+ Mbps | 24-60 |
+| Professional     | 35-48 Mbps | 24-30 |
+| Maximum          | 68+ Mbps   | 24-60 |
 
 ### Thumbnail Creation
 
@@ -339,7 +344,7 @@ cozy bedroom at night, warm lamp lighting, peaceful and relaxed"
 
 ```
 [Artist] - [Song Name] (Official Music Video)
-[Song Name] [Genre] [Visual Style] 
+[Song Name] [Genre] [Visual Style]
 [Emotional Hook] | [Artist] - [Song Name]
 ```
 
@@ -368,8 +373,8 @@ Apple Music: [link]
 ### Tags
 
 ```
-music video, official music video, [artist name], [song name], 
-[genre], ai music video, ai generated, music visualizer, 
+music video, official music video, [artist name], [song name],
+[genre], ai music video, ai generated, music visualizer,
 [new music 2026], [mood] music
 ```
 
@@ -386,31 +391,31 @@ music video, official music video, [artist name], [song name],
 
 ### Common Issues
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| Visuals out of sync with music | No beat analysis | Add beat detection step |
-| Style changes between sections | No style lock | Use reference images |
-| Character face changes | No character lock | Upload reference image |
-| Location drifts | No scene lock | Build scene library |
-| Flat energy throughout | Same cut pace everywhere | Speed up chorus, slow down verses |
-| Subtitles overlap subject | Fixed position | Dynamic positioning |
-| Video feels like slideshow | No camera movement | Add Ken Burns or camera moves |
+| Issue                          | Cause                    | Solution                          |
+| ------------------------------ | ------------------------ | --------------------------------- |
+| Visuals out of sync with music | No beat analysis         | Add beat detection step           |
+| Style changes between sections | No style lock            | Use reference images              |
+| Character face changes         | No character lock        | Upload reference image            |
+| Location drifts                | No scene lock            | Build scene library               |
+| Flat energy throughout         | Same cut pace everywhere | Speed up chorus, slow down verses |
+| Subtitles overlap subject      | Fixed position           | Dynamic positioning               |
+| Video feels like slideshow     | No camera movement       | Add Ken Burns or camera moves     |
 
 ### GPU Issues
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| "GPU unavailable" display | nvidia-ml-py not installed | `pip install nvidia-ml-py3` |
-| Generation OOM | Model too large for VRAM | Reduce resolution or use smaller model |
-| Slow generation | CPU fallback | Check CUDA installation |
+| Issue                     | Cause                      | Solution                               |
+| ------------------------- | -------------------------- | -------------------------------------- |
+| "GPU unavailable" display | nvidia-ml-py not installed | `pip install nvidia-ml-py3`            |
+| Generation OOM            | Model too large for VRAM   | Reduce resolution or use smaller model |
+| Slow generation           | CPU fallback               | Check CUDA installation                |
 
 ### Blender MCP Issues
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| "Could not connect" | Addon not enabled | Enable in Preferences > Add-ons |
-| "Server not running" | MCP server stopped | Click "Start MCP Server" in sidebar |
-| Protocol version mismatch | Outdated addon | Run `uvx blender-mcp install-addon` |
+| Issue                     | Cause              | Solution                            |
+| ------------------------- | ------------------ | ----------------------------------- |
+| "Could not connect"       | Addon not enabled  | Enable in Preferences > Add-ons     |
+| "Server not running"      | MCP server stopped | Click "Start MCP Server" in sidebar |
+| Protocol version mismatch | Outdated addon     | Run `uvx blender-mcp install-addon` |
 
 ---
 
@@ -448,7 +453,8 @@ When creating a music video, ensure:
 - **Blender 5.1/5.2 + SuperRenders + iRendering**: EEVEE Next rewrite, +10% GPU perf, backend selection
 
 > Detailed synthesis: [[ai-video-trends-2026]]
+> See also: [[3d-visualization-best-practices-2026]] for 3D visualization performance rules and [[visualization-effects]] for shader/particle techniques
 
 ---
 
-*This knowledge library should be updated as new tools and techniques emerge.*
+_This knowledge library should be updated as new tools and techniques emerge._

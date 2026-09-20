@@ -225,6 +225,9 @@ The `/queue` endpoint returns:
 | wan2.2_ti2v_5B_fp16.safetensors | 9536MB | ~16GB | ❌ Deleted |
 | umt5_xxl_fp8_e4m3fn_scaled.safetensors | 6424MB | ~8GB | ❌ Deleted |
 
+> See [[pascal-gpu-optimization-2026|Pascal GPU Optimization 2026]] for environment
+> variables, torch version caps, and SDPA backend requirements on sm_61.
+
 ### Model Paths
 
 - Checkpoints: `ComfyUI/models/checkpoints/`

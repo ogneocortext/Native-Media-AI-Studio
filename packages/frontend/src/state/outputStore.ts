@@ -193,25 +193,19 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
     },
 
     deleteOutput: async (relativePath: string) => {
-      try {
-        const base = await getBackendUrl();
-        // Preserve "/" separators in nested paths (audio/Suno-V6-Mini/x.m4a):
-        // encode each segment so the router's {file_path:path} still matches.
-        const encoded = relativePath.split("/").map(encodeURIComponent).join("/");
-        const res = await fetch(base + "/api/outputs/" + encoded, { method: "DELETE" });
-        if (!res.ok) throw new Error("Failed to delete output");
-        set((state) => ({
-          outputs: state.outputs.filter((o) => o.relative_path !== relativePath),
-          recentOutputs: state.recentOutputs.filter(
-            (o) => o.relative_path !== relativePath,
-          ),
-        }));
-      } catch (error) {
-        set((state) => ({
-          outputs: state.outputs.filter((o) => o.relative_path !== relativePath),
-        }));
-        throw error;
-      }
+      const base = await getBackendUrl();
+      // Preserve "/" separators in nested paths (audio/Suno-V6-Mini/x.m4a):
+      // encode each segment so the router's {file_path:path} still matches.
+      const encoded = relativePath.split("/").map(encodeURIComponent).join("/");
+      const res = await fetch(base + "/api/outputs/" + encoded, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete output");
+      // Only remove from local state after successful server deletion
+      set((state) => ({
+        outputs: state.outputs.filter((o) => o.relative_path !== relativePath),
+        recentOutputs: state.recentOutputs.filter(
+          (o) => o.relative_path !== relativePath,
+        ),
+      }));
     },
 
     renameOutput: async (relativePath: string, newName: string) => {

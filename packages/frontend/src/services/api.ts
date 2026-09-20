@@ -864,7 +864,7 @@ export interface AudioAnalysisResult {
   suggested_theme_seed?: string;
 }
 
-export async function getAnalysis(filename: string): Promise<any> {
+export async function getAnalysis(filename: string): Promise<AudioAnalysisResult> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/audio/analysis/by-filename/${encodeURIComponent(filename)}`, { timeout: 30000 });
   if (!res.ok) {
@@ -874,8 +874,13 @@ export async function getAnalysis(filename: string): Promise<any> {
   return res.json();
 }
 
+export interface EnsureAnalysisResponse {
+  status: string;
+  analysis: AudioAnalysisResult;
+}
+
 /** Ensure analysis exists for a file — runs analysis if not cached */
-export async function ensureAnalysis(filename: string, backend: string = "sonara"): Promise<{ status: string; analysis: any }> {
+export async function ensureAnalysis(filename: string, backend: string = "sonara"): Promise<EnsureAnalysisResponse> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/audio/ensure-analysis`, {
     method: "POST",
@@ -941,8 +946,25 @@ export async function getAnalysisResult(jobId: string): Promise<AudioAnalysisRes
   return res.json();
 }
 
+export interface TimingMetadata {
+  filename: string;
+  duration: number;
+  bpm: number;
+  bpmConfidence: number;
+  beats: Array<{
+    time: number;
+    drumType: string | null;
+    energy: number;
+    isDownbeat?: boolean;
+    bpm?: number;
+  }>;
+  sections: Array<{ type: string; start: number; end: number; energy: number }>;
+  energyCurve: Array<{ time: number; value: number }>;
+  amplitudeEnvelope: number[];
+}
+
 /** Get Remotion-ready timing metadata (TimingContract) for a file. */
-export async function getTimingMetadata(filename: string): Promise<any> {
+export async function getTimingMetadata(filename: string): Promise<TimingMetadata> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/audio/timing-metadata/${encodeURIComponent(filename)}`, { timeout: 30000 });
   if (!res.ok) {
@@ -953,7 +975,8 @@ export async function getTimingMetadata(filename: string): Promise<any> {
 }
 
 export async function listAudioFiles(): Promise<Array<{
-  filename: string; path: string; relative_path: string; folder: string; size_bytes: number;
+  filename: string; relative_path: string; folder: string; size_bytes: number;
+  modified: number;
 }>> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/audio/files`, { timeout: 30000 });
@@ -1492,7 +1515,13 @@ export async function getNativeOpenStatus(): Promise<{ blender: { available: boo
   return res.json();
 }
 
-export async function getFFmpegStatus(): Promise<{ running: boolean; count: number; processes: any[] }> {
+export interface FFmpegProcessInfo {
+  pid: number;
+  command?: string;
+  start_time?: number;
+}
+
+export async function getFFmpegStatus(): Promise<{ running: boolean; count: number; processes: FFmpegProcessInfo[] }> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/health/ffmpeg`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get ffmpeg status");

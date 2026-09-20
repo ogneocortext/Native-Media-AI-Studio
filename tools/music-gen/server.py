@@ -1,39 +1,55 @@
 """Music Generation Subprocess Service
 
-FastAPI server wrapping YuE2 and ACE-Step as isolated GPU workloads.
+FastAPI server wrapping ACE-Step as an isolated GPU workload.
 Each engine runs in its own subprocess with pinned dependencies,
 communicating via HTTP. The main backend controls GPU allocation
 through VRAM manager coordination.
 
 Engines:
-- yue2:  YuE2-3B (CC-BY-NC-4.0) — best quality, non-commercial
 - ace:   ACE-Step 1.5 (Apache-2.0) — commercial-safe, good quality
 
+Pascal (sm_61) optimizations:
+- TORCH_CUDA_ARCH_LIST=6.1 for JIT kernel targeting
+- PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128 to reduce fragmentation
+- compile_model=False (Triton requires sm_70+)
+- use_flash_attention=False (auto-falls back to SDPA math on Pascal)
+
 Startup:
-    python server.py --port 8200 --engine yue2
     python server.py --port 8201 --engine ace
-    # Or both on separate ports:
-    python server.py --port 8200 --engine yue2 --vram-budget 6
-    python server.py --port 8201 --engine ace --vram-budget 4
 """
 
 from __future__ import annotations
 
-import argparse
-import asyncio
-import logging
 import os
-import random
-import time
-import uuid
-from contextlib import asynccontextmanager
-from enum import Enum
+import re
 from pathlib import Path
 
+# ---------------------------------------------------------------------------
+# Pascal (sm_61) environment hardening — must run before torch import
+# ---------------------------------------------------------------------------
+if "TORCH_CUDA_ARCH_LIST" not in os.environ:
+    os.environ["TORCH_CUDA_ARCH_LIST"] = "6.1"
+if "PYTORCH_CUDA_ALLOC_CONF" not in os.environ:
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
+# Triton (used by torch.compile inductor backend) requires sm >= 7.0.
+# On Pascal this would raise GPUTooOldForTriton; disable it defensively.
+os.environ.setdefault("TORCHINDUCTOR_USE_TRITON", "0")
+# Pre-Ampere GPUs (Pascal sm_61) can overflow in float16 during diffusion.
+# Force float32 compute to avoid NaN/Inf latents.
+os.environ.setdefault("ACESTEP_DTYPE", "float32")
+
+import asyncio
+import logging
+import random
+import uuid
+from contextlib import asynccontextmanager
+from typing import Any
+
+import soundfile as sf
+from acestep.handler import AceStepHandler
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, Field
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field, field_validator
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,9 +61,26 @@ logger = logging.getLogger("music-gen")
 # Engine abstraction
 # ---------------------------------------------------------------------------
 
-class EngineType(str, Enum):
-    YUE2 = "yue2"
-    ACE = "ace"
+# PROJECT_ROOT here is tools/, not the repo root: server.py lives in
+# tools/music-gen/, so parent = tools/music-gen, parent.parent = tools/.
+# The repo root (where output/ lives) is parent.parent.parent.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = PROJECT_ROOT.parent
+
+# Output names become on-disk directory/file names and URL path segments.
+# Restrict to a safe charset to prevent path traversal (e.g. "..%2F..%2F").
+_SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
+
+
+def _validate_output_name(name: str) -> str:
+    """Validate a user-supplied output name against a strict safe charset."""
+    if not _SAFE_NAME_RE.match(name):
+        raise HTTPException(
+            400,
+            "Invalid output_name. Use 1-100 chars: letters, digits, "
+            "'-', '_', '.', starting with a letter or digit.",
+        )
+    return name
 
 
 class SongRequest(BaseModel):
@@ -55,190 +88,31 @@ class SongRequest(BaseModel):
                        description="Genre, instruments, mood, tempo, vocal type")
     lyrics: str = Field(..., min_length=1, max_length=10000,
                         description="Full lyrics with [Verse]/[Chorus]/[Bridge] tags")
-    cot: str = Field("full", description="Chain-of-thought: full, melody, off")
     seed: int | None = Field(None, description="Deterministic seed")
-    abc: str | None = Field(None, description="Pre-made ABC score for covers/edits")
-    cfg_scale: float = Field(1.0, ge=0.5, le=3.0, description="Classifier-free guidance")
-    max_new_tokens: int = Field(3000, ge=100, le=8000)
+    cfg_scale: float = Field(7.0, ge=0.5, le=20.0, description="Classifier-free guidance")
+    inference_steps: int = Field(8, ge=1, le=200, description="Diffusion steps")
     output_name: str | None = Field(None, description="Custom output filename")
 
-
-class PlanRequest(BaseModel):
-    style: str
-    lyrics: str
-    cot: str = "full"
-    seed: int | None = None
-
-
-class EditScoreRequest(BaseModel):
-    abc: str = Field(..., description="ABC notation score to render")
-    style: str
-    lyrics: str
-    seed: int | None = None
-
-
-# ---------------------------------------------------------------------------
-# Engine implementations
-# ---------------------------------------------------------------------------
-
-class Yue2Engine:
-    """YuE2-3B engine wrapper."""
-
-    def __init__(self, model_id: str = "m-a-p/YuE2-3B",
-                 vae_id: str = "m-a-p/YuE2-Vae",
-                 vram_budget: int = 6,
-                 output_dir: str = "output/music"):
-        self.model_id = model_id
-        self.vae_id = vae_id
-        self.vram_budget = vram_budget
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.pipe = None
-        self._loaded = False
-
-    async def load(self):
-        """Load the YuE2 pipeline (blocking, run in thread)."""
-        if self._loaded:
-            return
-        logger.info("YuE2: Loading pipeline (model=%s, vram_budget=%dGB)...",
-                     self.model_id, self.vram_budget)
-        def _load():
-            from yue2 import YuE2Pipeline
-            self.pipe = YuE2Pipeline.from_pretrained(
-                self.model_id,
-                vae=self.vae_id,
-                device="cuda",
-                memory_budget_gib=self.vram_budget,
-                backend="torch-eager",
+    @field_validator("output_name")
+    @classmethod
+    def _check_output_name(cls, v: str | None) -> str | None:
+        if v is not None and not _SAFE_NAME_RE.match(v):
+            raise ValueError(
+                "output_name must be 1-100 chars: letters, digits, '-', '_', '.', "
+                "starting with a letter or digit"
             )
-        await asyncio.to_thread(_load)
-        self._loaded = True
-        logger.info("YuE2: Pipeline loaded successfully")
-
-    async def unload(self):
-        """Unload pipeline to free VRAM."""
-        if self.pipe is not None:
-            try:
-                self.pipe.close()
-            except Exception:
-                pass
-            self.pipe = None
-        self._loaded = False
-        # Force CUDA cache cleanup
-        try:
-            import torch
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                torch.cuda.synchronize()
-        except ImportError:
-            pass
-        logger.info("YuE2: Pipeline unloaded, VRAM freed")
-
-    @property
-    def is_loaded(self) -> bool:
-        return self._loaded
-
-    async def generate(self, req: SongRequest) -> dict[str, Any]:
-        """Generate a complete song."""
-        await self.load()
-        seed = req.seed or random.randint(0, 2**31 - 1)
-        output_name = req.output_name or f"yue2_{uuid.uuid4().hex[:8]}"
-        out_path = self.output_dir / output_name
-
-        def _gen():
-            kwargs: dict[str, Any] = {
-                "style": req.style,
-                "lyrics": req.lyrics,
-                "cot": req.cot,
-                "seed": seed,
-                "max_new_tokens": req.max_new_tokens,
-            }
-            if req.cfg_scale != 1.0:
-                kwargs["cfg_scale"] = req.cfg_scale
-            if req.abc:
-                kwargs["abc"] = req.abc
-            song = self.pipe(**kwargs)
-            out_path.mkdir(parents=True, exist_ok=True)
-            song.save(str(out_path / "audio.flac"))
-            song.save_artifacts(str(out_path))
-            return {
-                "audio_path": str(out_path / "audio.flac"),
-                "abc_path": str(out_path / "score.abc"),
-                "truncated": song.truncated,
-                "seed": seed,
-            }
-
-        result = await asyncio.to_thread(_gen)
-        result["output_name"] = output_name
-        result["engine"] = "yue2"
-        return result
-
-    async def plan(self, req: PlanRequest) -> dict[str, Any]:
-        """Generate score only (no audio)."""
-        await self.load()
-        seed = req.seed or random.randint(0, 2**31 - 1)
-        output_name = f"plan_{uuid.uuid4().hex[:8]}"
-        out_path = self.output_dir / output_name
-
-        def _plan():
-            plan_result = self.plan_internal(
-                style=req.style, lyrics=req.lyrics,
-                cot=req.cot, seed=seed,
-            )
-            out_path.mkdir(parents=True, exist_ok=True)
-            plan_result.save(str(out_path))
-            return {
-                "abc_path": str(out_path / "score.abc"),
-                "seed": seed,
-            }
-
-        result = await asyncio.to_thread(_plan)
-        result["output_name"] = output_name
-        result["engine"] = "yue2"
-        return result
-
-    def plan_internal(self, style: str, lyrics: str, cot: str = "full",
-                      seed: int = 0):
-        """Internal plan call (sync)."""
-        return self.pipe.plan(style=style, lyrics=lyrics, cot=cot, seed=seed)
-
-    async def render_from_score(self, req: EditScoreRequest) -> dict[str, Any]:
-        """Render audio from an edited ABC score."""
-        await self.load()
-        seed = req.seed or random.randint(0, 2**31 - 1)
-        output_name = f"edit_{uuid.uuid4().hex[:8]}"
-        out_path = self.output_dir / output_name
-
-        def _render():
-            song = self.pipe(
-                style=req.style, lyrics=req.lyrics,
-                cot="full", seed=seed, abc=req.abc,
-            )
-            out_path.mkdir(parents=True, exist_ok=True)
-            song.save(str(out_path / "audio.flac"))
-            song.save_artifacts(str(out_path))
-            return {
-                "audio_path": str(out_path / "audio.flac"),
-                "seed": seed,
-            }
-
-        result = await asyncio.to_thread(_render)
-        result["output_name"] = output_name
-        result["engine"] = "yue2"
-        return result
+        return v
 
 
 class ACEngine:
     """ACE-Step 1.5 engine wrapper."""
 
-    def __init__(self, model_id: str = "ACE-Step/ACE-Step-1.5-alpha",
-                 vram_budget: int = 4,
-                 output_dir: str = "output/music"):
+    def __init__(self, model_id: str = "acestep-v15-sft",
+                 output_dir: str | None = None):
         self.model_id = model_id
-        self.vram_budget = vram_budget
-        self.output_dir = Path(output_dir)
+        self.output_dir = Path(output_dir or REPO_ROOT / "output" / "music")
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.pipe = None
+        self.handler = AceStepHandler()
         self._loaded = False
 
     async def load(self):
@@ -246,24 +120,68 @@ class ACEngine:
         if self._loaded:
             return
         logger.info("ACE-Step: Loading pipeline (model=%s)...", self.model_id)
-        def _load():
-            from acestep import ACEStepPipeline
-            self.pipe = ACEStepPipeline.from_pretrained(
-                self.model_id,
-                device="cuda",
+
+        def _init():
+            msg, ok = self.handler.initialize_service(
+                project_root=str(PROJECT_ROOT),
+                config_path=self.model_id,
+                device="auto",
+                use_flash_attention=False,
+                compile_model=False,
+                offload_to_cpu=True,
+                offload_dit_to_cpu=True,
+                quantization="int8_weight_only",
             )
-        await asyncio.to_thread(_load)
+            # Pre-Ampere GPUs (Pascal sm_61) default to float16 inside ACE-Step,
+            # which can overflow during diffusion and produce NaN/Inf latents.
+            # Force float32 compute after init to keep generation numerically stable.
+            try:
+                import torch
+                if ok and hasattr(self.handler, "dtype"):
+                    self.handler.dtype = torch.float32
+                    logger.info("ACE-Step: Override dtype -> float32 for Pascal stability")
+                # Workaround: some model configs may expose tensor flags where bool is expected.
+                if ok and hasattr(self.handler, "config"):
+                    cfg = self.handler.config
+                    if hasattr(cfg, "is_turbo"):
+                        turbo_val = cfg.is_turbo
+                        if hasattr(turbo_val, "item"):
+                            cfg.is_turbo = bool(turbo_val.item())
+                        elif not isinstance(turbo_val, bool):
+                            cfg.is_turbo = bool(turbo_val)
+                    # Patch is_turbo_model to always return a plain bool.
+                    orig = getattr(self.handler, "is_turbo_model", None)
+                    if callable(orig):
+                        def _safe_turbo(*args, **kwargs):
+                            try:
+                                val = orig(*args, **kwargs)
+                                if hasattr(val, "item"):
+                                    return bool(val.item())
+                                return bool(val)
+                            except Exception:
+                                return False
+                        self.handler.is_turbo_model = _safe_turbo
+            except Exception as exc:
+                logger.warning("ACE-Step: post-init override failed: %s", exc)
+            return msg, ok
+
+        msg, ok = await asyncio.to_thread(_init)
+        if not ok:
+            raise RuntimeError(f"ACE-Step initialization failed: {msg}")
         self._loaded = True
         logger.info("ACE-Step: Pipeline loaded successfully")
 
     async def unload(self):
         """Unload pipeline to free VRAM."""
-        if self.pipe is not None:
-            try:
-                del self.pipe
-            except Exception:
-                pass
-            self.pipe = None
+        if not self._loaded:
+            return
+        try:
+            self.handler.model = None
+            self.handler.vae = None
+            self.handler.text_encoder = None
+            self.handler.text_tokenizer = None
+        except Exception:
+            pass
         self._loaded = False
         try:
             import torch
@@ -278,30 +196,104 @@ class ACEngine:
     def is_loaded(self) -> bool:
         return self._loaded
 
-    async def generate(self, req: SongRequest) -> dict[str, Any]:
+    async def generate(self, req: SongRequest) -> dict:
         """Generate a complete song."""
         await self.load()
-        seed = req.seed or random.randint(0, 2**31 - 1)
-        output_name = req.output_name or f"ace_{uuid.uuid4().hex[:8]}"
-        out_path = self.output_dir / output_name
+        seed = req.seed if req.seed is not None else random.randint(0, 2**31 - 1)
+        if req.output_name is not None:
+            output_name = _validate_output_name(req.output_name)
+        else:
+            output_name = f"ace_{uuid.uuid4().hex[:8]}"
+        out_path = (self.output_dir / output_name).resolve()
+        # Defense-in-depth: even with the charset check above, never let an
+        # output directory escape the configured output root.
+        if self.output_dir.resolve() not in out_path.parents:
+            raise HTTPException(400, "output_name escapes the output directory")
+        out_path.mkdir(parents=True, exist_ok=True)
 
         def _gen():
-            result = self.pipe.generate(
-                prompt=req.style,
+            result = self.handler.generate_music(
+                captions=req.style,
                 lyrics=req.lyrics,
-                seed=seed,
-                num_inference_steps=100,
+                inference_steps=req.inference_steps,
                 guidance_scale=req.cfg_scale,
+                seed=seed,
+                task_type="text2music",
+                use_tiled_decode=True,
             )
-            out_path.mkdir(parents=True, exist_ok=True)
+            # Extract audio tensor
+            audio = result.get("audio") or result.get("pred_wavs") or result.get("audios")
+            sample_rate = result.get("sample_rate", 48000)
+
+            if audio is None:
+                raise RuntimeError(f"No audio in generation result: {list(result.keys())}")
+
+            import torch
+            if isinstance(audio, dict):
+                audio = audio.get("tensor") or audio.get("wav") or audio.get("audio") or next(iter(audio.values()))
+                if isinstance(audio, dict):
+                    audio = audio.get("tensor") or audio.get("wav") or audio.get("audio") or next(iter(audio.values()))
+            if isinstance(audio, list):
+                if not audio:
+                    raise RuntimeError(f"Empty audios list in result: {result}")
+                first = audio[0]
+                if isinstance(first, dict):
+                    audio = first.get("tensor")
+                    if audio is None:
+                        audio = first.get("wav")
+                    if audio is None:
+                        audio = first.get("audio")
+                    if audio is None:
+                        audio = next(iter(first.values()))
+                else:
+                    audio = first
+            if isinstance(audio, dict):
+                raise RuntimeError(f"Unexpected dict audio after unwrap: {audio}")
+
+            import numpy as np
+
+            # Convert to a NumPy array (handles torch.Tensor transparently)
+            if isinstance(audio, torch.Tensor):
+                audio = audio.detach().cpu().numpy()
+            elif not isinstance(audio, np.ndarray):
+                audio = np.asarray(audio)
+
+            # Normalize dtype to float32 for soundfile
+            if audio.dtype != np.float32:
+                audio = audio.astype(np.float32)
+
+            # Normalize to a single (channels, samples) array:
+            #   (samples,)          -> (1, samples)
+            #   (batch, ch, samples)-> (ch, samples)
+            #   (samples, ch)      -> (ch, samples)   [soundfile native layout]
+            #   (ch, samples)      -> (ch, samples)   [already correct]
+            if audio.ndim == 1:
+                audio = audio.reshape(1, -1)
+            elif audio.ndim == 3:
+                audio = audio[0]
+            if audio.ndim == 2 and audio.shape[0] > 2 and audio.shape[1] <= 2:
+                # (samples, channels) -> (channels, samples)
+                audio = audio.T
+            if audio.ndim != 2:
+                audio = audio.reshape(1, -1)
+
+            if not np.isfinite(audio).all():
+                raise RuntimeError("Audio contains NaN or Inf values")
+            if not audio.flags["C_CONTIGUOUS"]:
+                audio = np.ascontiguousarray(audio)
+
+            # soundfile wants (samples, channels); mono stays 1-D.
+            if audio.shape[0] <= 2 and audio.shape[1] > 2:
+                write_audio = audio.T
+            else:
+                write_audio = audio[0] if audio.shape[0] == 1 else audio
+
             audio_path = out_path / "audio.wav"
-            # Save audio
-            import soundfile as sf
-            sf.write(str(audio_path), result.audio, result.sample_rate)
+            sf.write(str(audio_path), write_audio, sample_rate)
             return {
                 "audio_path": str(audio_path),
                 "seed": seed,
-                "sample_rate": result.sample_rate,
+                "sample_rate": sample_rate,
             }
 
         result = await asyncio.to_thread(_gen)
@@ -314,90 +306,47 @@ class ACEngine:
 # FastAPI app
 # ---------------------------------------------------------------------------
 
-# Global engine references (set at startup)
 _engines: dict[str, Any] = {}
 _active_engine: str = ""
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load engine on startup, unload on shutdown."""
     global _active_engine
     engine_type = app.state.engine_type
-    vram_budget = app.state.vram_budget
     output_dir = app.state.output_dir
 
-    # Validate engine imports at startup so failures are loud and early
-    if engine_type == "yue2":
-        try:
-            import yue2  # noqa: F401
-        except ImportError as exc:
-            raise RuntimeError(
-                "YuE2 is not installed in this environment. "
-                "Install it with: pip install yue2"
-            ) from exc
-        engine = Yue2Engine(vram_budget=vram_budget, output_dir=output_dir)
-    elif engine_type == "ace":
-        try:
-            import acestep  # noqa: F401
-        except ImportError as exc:
-            raise RuntimeError(
-                "ACE-Step is not installed in this environment. "
-                "Install it with: pip install acestep"
-            ) from exc
-        engine = ACEngine(vram_budget=vram_budget, output_dir=output_dir)
+    if engine_type == "ace":
+        model_id = os.environ.get("ACESTEP_MODEL_ID", "acestep-v15-sft")
+        engine = ACEngine(model_id=model_id, output_dir=output_dir)
     else:
         raise ValueError(f"Unknown engine: {engine_type}")
 
     _engines[engine_type] = engine
     _active_engine = engine_type
-    logger.info("Starting music-gen service: engine=%s, vram=%dGB, output=%s",
-                engine_type, vram_budget, output_dir)
-
-    # Shared aiohttp session for the lifetime of this process
-    import aiohttp
-    app.state.http_session = aiohttp.ClientSession()
-
-    # Pre-load the engine
-    try:
-        await engine.load()
-    except Exception as e:
-        logger.warning("Pre-load failed (will retry on first request): %s", e)
+    logger.info("Starting music-gen service: engine=%s, model=%s, output=%s",
+                engine_type, model_id, output_dir)
 
     yield
 
-    # Shutdown: unload engine and close shared HTTP session
     for eng in _engines.values():
         try:
             await eng.unload()
         except Exception:
             pass
-    try:
-        await app.state.http_session.close()
-    except Exception:
-        pass
     logger.info("Music-gen service stopped")
 
 
-def create_app(engine_type: str = "yue2", vram_budget: int = 6,
-               output_dir: str = "output/music") -> FastAPI:
+def create_app(engine_type: str = "ace",
+               output_dir: str | None = None) -> FastAPI:
     app = FastAPI(
         title="Music Generation Service",
-        description="Isolated GPU workload for YuE2 and ACE-Step music generation",
+        description="Isolated GPU workload for ACE-Step music generation",
         version="1.0.0",
         lifespan=lifespan,
     )
     app.state.engine_type = engine_type
-    app.state.vram_budget = vram_budget
-    app.state.output_dir = output_dir
-
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    app.state.output_dir = output_dir or str(REPO_ROOT / "output" / "music")
 
     @app.get("/health")
     async def health():
@@ -406,12 +355,11 @@ def create_app(engine_type: str = "yue2", vram_budget: int = 6,
             "status": "ok",
             "engine": _active_engine,
             "loaded": engine.is_loaded if engine else False,
-            "vram_budget_gb": vram_budget,
+            "model": getattr(engine, "model_id", ""),
         }
 
     @app.get("/vram")
     async def vram_status():
-        """Report current VRAM usage."""
         try:
             import torch
             if torch.cuda.is_available():
@@ -428,7 +376,6 @@ def create_app(engine_type: str = "yue2", vram_budget: int = 6,
 
     @app.post("/generate")
     async def generate(req: SongRequest):
-        """Generate a complete song."""
         engine = _engines.get(_active_engine)
         if not engine:
             raise HTTPException(503, "Engine not loaded")
@@ -437,37 +384,10 @@ def create_app(engine_type: str = "yue2", vram_budget: int = 6,
             return result
         except Exception as e:
             logger.error("Generation failed: %s", e, exc_info=True)
-            raise HTTPException(500, str(e))
-
-    @app.post("/plan")
-    async def plan(req: PlanRequest):
-        """Generate score only (no audio)."""
-        engine = _engines.get(_active_engine)
-        if not engine or _active_engine != "yue2":
-            raise HTTPException(503, "Plan only available for YuE2 engine")
-        try:
-            result = await engine.plan(req)
-            return result
-        except Exception as e:
-            logger.error("Plan failed: %s", e, exc_info=True)
-            raise HTTPException(500, str(e))
-
-    @app.post("/render")
-    async def render(req: EditScoreRequest):
-        """Render audio from edited ABC score."""
-        engine = _engines.get(_active_engine)
-        if not engine or _active_engine != "yue2":
-            raise HTTPException(503, "Score rendering only available for YuE2 engine")
-        try:
-            result = await engine.render_from_score(req)
-            return result
-        except Exception as e:
-            logger.error("Render failed: %s", e, exc_info=True)
-            raise HTTPException(500, str(e))
+            raise HTTPException(500, str(e)) from e
 
     @app.post("/unload")
     async def unload():
-        """Unload engine to free VRAM (for VRAM manager coordination)."""
         engine = _engines.get(_active_engine)
         if engine:
             await engine.unload()
@@ -476,7 +396,6 @@ def create_app(engine_type: str = "yue2", vram_budget: int = 6,
 
     @app.post("/reload")
     async def reload():
-        """Reload engine after VRAM freed."""
         engine = _engines.get(_active_engine)
         if engine:
             await engine.load()
@@ -485,29 +404,22 @@ def create_app(engine_type: str = "yue2", vram_budget: int = 6,
 
     @app.get("/audio/{output_name}")
     async def get_audio(output_name: str):
-        """Download generated audio file."""
-        audio_path = Path(app.state.output_dir) / output_name / "audio.flac"
-        if not audio_path.exists():
-            audio_path = Path(app.state.output_dir) / output_name / "audio.wav"
-        if not audio_path.exists():
-            raise HTTPException(404, "Audio file not found")
-        return FileResponse(
-            str(audio_path),
-            media_type="audio/flac",
-            filename=f"{output_name}.flac",
-        )
-
-    @app.get("/score/{output_name}")
-    async def get_score(output_name: str):
-        """Download ABC score file."""
-        score_path = Path(app.state.output_dir) / output_name / "score.abc"
-        if not score_path.exists():
-            raise HTTPException(404, "Score file not found")
-        return FileResponse(
-            str(score_path),
-            media_type="text/plain",
-            filename=f"{output_name}.abc",
-        )
+        output_name = _validate_output_name(output_name)
+        base = Path(app.state.output_dir) / output_name
+        # Try formats in preference order; use the correct media type for each.
+        candidates = [
+            (base / "audio.flac", "audio/flac"),
+            (base / "audio.wav", "audio/wav"),
+            (base / "audio.mp3", "audio/mpeg"),
+        ]
+        for audio_path, media_type in candidates:
+            if audio_path.exists():
+                return FileResponse(
+                    str(audio_path),
+                    media_type=media_type,
+                    filename=f"{output_name}.{audio_path.suffix.lstrip('.')}",
+                )
+        raise HTTPException(404, "Audio file not found")
 
     return app
 
@@ -517,23 +429,24 @@ def create_app(engine_type: str = "yue2", vram_budget: int = 6,
 # ---------------------------------------------------------------------------
 
 def main():
+    import argparse
+
+    import uvicorn
+
     parser = argparse.ArgumentParser(description="Music Generation Service")
-    parser.add_argument("--port", type=int, default=8200, help="Server port")
+    parser.add_argument("--port", type=int, default=8201, help="Server port")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Bind host")
-    parser.add_argument("--engine", choices=["yue2", "ace"], default="yue2",
+    parser.add_argument("--engine", choices=["ace"], default="ace",
                         help="Music generation engine")
-    parser.add_argument("--vram-budget", type=int, default=6,
-                        help="VRAM budget in GB for this engine")
-    parser.add_argument("--output-dir", type=str, default="output/music",
+    parser.add_argument("--output-dir", type=str, default=None,
                         help="Output directory for generated files")
     args = parser.parse_args()
 
-    import uvicorn
-    app = create_app(
-        engine_type=args.engine,
-        vram_budget=args.vram_budget,
-        output_dir=args.output_dir,
-    )
+    output_dir = args.output_dir
+    if output_dir is None:
+        output_dir = str(REPO_ROOT / "output" / "music")
+
+    app = create_app(engine_type=args.engine, output_dir=output_dir)
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 

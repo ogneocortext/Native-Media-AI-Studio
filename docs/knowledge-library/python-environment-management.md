@@ -203,6 +203,8 @@ Checks performed:
 
 ## 7. Related documents
 
+- [[pascal-gpu-optimization-2026|🐴 Pascal GPU Optimization 2026]] — GTX 1070 Ti / sm_61 constraints: torch version caps, SDPA backends, torch.compile limits, ACE-Step Tier 3 env hardening
+- [[3d-generation-options-2026|🧊 3D Generation Options 2026]] — Complete image-to-3D landscape for 8GB VRAM (PyTorch 2.14, Pascal capstone)
 - [[hunyuan3d-setup]] — custom_rasterizer wheel ABI incident & ComfyUI env rules
 - [[hardware-verified-models]] — 8 GB VRAM (GTX 1070 Ti) model matrix
 - [[backend-debugging-guide]] — service debugging patterns

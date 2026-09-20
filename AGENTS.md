@@ -62,7 +62,7 @@ Native-Media-AI-Studio/
 │   ├── go-worker/             # Queue I/O worker on :3849
 │   ├── go-gateway/            # MCP bridge router on :3850
 │   ├── go-ports/              # Port availability checker on :3851
-│   ├── music-gen/             # YuE2 + ACE-Step music generation (FastAPI subprocess, ports 8200/8201)
+│   ├── music-gen/             # ACE-Step 1.5 music generation (FastAPI subprocess, port 8201)
 │   │   └── server.py          # Shared aiohttp session, startup engine validation, graceful shutdown
 │   ├── vision/                # Standalone vision utilities
 │   │   └── analyze.mjs

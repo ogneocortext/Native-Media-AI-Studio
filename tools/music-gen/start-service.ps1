@@ -4,29 +4,27 @@
     Start the Music Generation subprocess service.
 
 .DESCRIPTION
-    Launches the FastAPI server for YuE2 or ACE-Step music generation.
-    Each engine runs on its own port as a separate process.
+    Launches the FastAPI server for ACE-Step music generation.
 
 .PARAMETER Engine
-    Music generation engine: yue2 or ace (default: yue2)
+    Music generation engine: ace
 
 .PARAMETER Port
-    Port to listen on (default: 8200 for yue2, 8201 for ace)
+    Port to listen on (default: 8201)
 
 .PARAMETER VramBudget
-    VRAM budget in GB (default: 6 for yue2, 4 for ace)
+    VRAM budget in GB (default: 6 for ace on 8 GB hardware)
 
 .PARAMETER Background
     Run as detached background process
 
 .EXAMPLE
-    .\start-service.ps1 -Engine yue2 -Background
-    .\start-service.ps1 -Engine ace -Port 8201
+    .\start-service.ps1 -Engine ace -Background
 #>
 
 param(
-    [ValidateSet("yue2", "ace")]
-    [string]$Engine = "yue2",
+    [ValidateSet("ace")]
+    [string]$Engine = "ace",
 
     [int]$Port = 0,
 
@@ -40,18 +38,27 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Resolve defaults
 if ($Port -eq 0) {
-    $Port = if ($Engine -eq "yue2") { 8200 } else { 8201 }
+    $Port = 8201
 }
 if ($VramBudget -eq 0) {
-    $VramBudget = if ($Engine -eq "yue2") { 6 } else { 4 }
+    # ACE-Step Tier 3 on GTX 1070 Ti (8 GB / Pascal): 2B turbo + 0.6B LM, INT8, CPU offload
+    $VramBudget = 6
 }
 
 # Find Python
 $Python = $null
 
+# Check for ACE-Step dedicated venv first (contains the `acestep` package)
+if (-not $Python) {
+    $aceVenv = Join-Path $ScriptDir "ACE-Step-1.5\.venv\Scripts\python.exe"
+    if (Test-Path $aceVenv) { $Python = $aceVenv }
+}
+
 # Check MUSIC_GEN_PYTHON env var
-if ($env:MUSIC_GEN_PYTHON -and (Test-Path $env:MUSIC_GEN_PYTHON)) {
-    $Python = $env:MUSIC_GEN_PYTHON
+if (-not $Python) {
+    if ($env:MUSIC_GEN_PYTHON -and (Test-Path $env:MUSIC_GEN_PYTHON)) {
+        $Python = $env:MUSIC_GEN_PYTHON
+    }
 }
 
 # Check for conda env
@@ -80,20 +87,21 @@ Write-Host "Music Gen Service: engine=$Engine port=$Port vram=${VramBudget}GB" -
 Write-Host "Python: $Python" -ForegroundColor DarkGray
 
 $ServerScript = Join-Path $ScriptDir "server.py"
-$OutputDir = Join-Path (Split-Path -Parent $ScriptDir) "output\music"
+# ScriptDir is tools\music-gen — the repo root (where output/ lives) is two levels up.
+$RepoRoot = Split-Path -Parent (Split-Path -Parent $ScriptDir)
+$OutputDir = Join-Path $RepoRoot "output\music"
 
 # Build command
-$Args = @(
+$ServerArgs = @(
     $ServerScript,
     "--port", $Port,
     "--engine", $Engine,
-    "--vram-budget", $VramBudget,
     "--output-dir", $OutputDir
 )
 
 if ($Background) {
     Write-Host "Starting in background..." -ForegroundColor Yellow
-    $proc = Start-Process -FilePath $Python -ArgumentList $Args `
+    $proc = Start-Process -FilePath $Python -ArgumentList $ServerArgs `
         -WorkingDirectory $ScriptDir `
         -WindowStyle Hidden `
         -PassThru
@@ -101,5 +109,5 @@ if ($Background) {
     Write-Host "Health: http://127.0.0.1:$Port/health" -ForegroundColor Green
 } else {
     Write-Host "Starting foreground (Ctrl+C to stop)..." -ForegroundColor Yellow
-    & $Python @Args
+    & $Python @ServerArgs
 }

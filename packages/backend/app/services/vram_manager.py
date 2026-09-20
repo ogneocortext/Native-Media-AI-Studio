@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
 from enum import Enum
 from typing import Any
@@ -68,8 +69,9 @@ class VRAMManager:
 
         # Minimum free VRAM needed for 3D generation (in MB)
         self.MIN_VRAM_FOR_3D = 4000  # 4GB for Hunyuan3D-2mini
-        # Minimum free VRAM for music generation (in MB)
-        self.MIN_VRAM_FOR_MUSIC = 6144  # 6GB for YuE2 Q4_0 GGUF
+        # Minimum free VRAM needed for music generation (in MB)
+        # ACE-Step 1.5 Tier 3 on GTX 1070 Ti: 2B turbo DiT + 0.6B LM, INT8, CPU offload
+        self.MIN_VRAM_FOR_MUSIC = 6144
 
         # Safety margins for system stability
         # Don't offload to CPU if system RAM is below this threshold
@@ -468,14 +470,14 @@ class VRAMManager:
                 "ollama_loaded": self._ollama_loaded,
             }
 
-    async def begin_music_generation(self, engine: str = "yue2",
+    async def begin_music_generation(self, engine: str = "ace",
                                      vram_budget_mb: int = 6144) -> dict[str, Any]:
         """
         Signal that music generation is starting.
         Offloads Ollama and signals ComfyUI to pause if needed.
 
         Args:
-            engine: Engine name ("yue2" or "ace") for logging
+            engine: Engine name ("ace") for logging
             vram_budget_mb: Required VRAM in MB for this engine
 
         Returns:
@@ -547,7 +549,7 @@ class VRAMManager:
             # Reload Ollama if it was offloaded
             if not self._ollama_loaded:
                 free_mb = vram.get("free_mb", 0)
-                if free_mb > self.MIN_VRAM_FOR_3D:
+                if free_mb > self.MIN_VRAM_FOR_MUSIC:
                     logger.info("VRAM Manager: Reloading Ollama after music gen (free=%dMB)", free_mb)
                     from ..adapters.ollama import ollama_adapter
                     from ..core.config import config as _cfg2
@@ -670,20 +672,21 @@ def _unload_ollama_models_sync() -> list[str]:
 
 def _reload_ollama_models_sync(model_name: str) -> bool:
     """Synchronous helper to reload an Ollama model. Returns True on success.
-    Uses keep_alive=5m (not -1) so model expires naturally; also skips reload
-    if model_name is a legacy llama not in config.default_model."""
+    Uses OLLAMA_KEEP_ALIVE env var if set, defaulting to 5m so model expires
+    naturally; also skips reload if model_name is a legacy llama not in config.default_model.
+    """
     import urllib.request
 
     from ..core.config import config as _cfg
     # Don't infinite-pin models; respect OLLAMA_KEEP_ALIVE
-    # Skip reload for llama legacy models unless they are the configured default
     if "llama" in model_name.lower() and model_name != _cfg.default_model:
         logger.info("VRAM Manager: Skipping reload of non-default llama model %s (default is %s)", model_name, _cfg.default_model)
         return False
+    keep_alive = os.environ.get("OLLAMA_KEEP_ALIVE", "5m")
     data = json.dumps({
         "model": model_name,
         "prompt": " ",
-        "keep_alive": "5m"
+        "keep_alive": keep_alive,
     }).encode()
 
     req = urllib.request.Request(

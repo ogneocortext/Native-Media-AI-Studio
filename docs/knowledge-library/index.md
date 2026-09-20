@@ -41,11 +41,15 @@ date: 2026-09-05
 - [[hunyuan3d-setup|🧊 Hunyuan3D-2mini Setup]] — ComfyUI 3D generation with Kijai wrapper
 - [[3d-generation-options-2026|🧊 3D Generation Options 2026]] — Complete image-to-3D landscape for 8GB VRAM (PyTorch 2.14, Pascal capstone)
 - [[text-to-3d-options-2026|💬 Text-to-3D Options 2026]] — Open-source text-to-3D models for 8GB VRAM (Point-E, Shap-E, Hunyuan3D-2mini T2I, TRELLIS-text)
+- [[3d-generation-2026-updates|🧊 3D Generation 2026 Updates]] — Hunyuan3D 2.1 PBR breakthrough, Super 3D Pro local generation, VRAM optimization (NEW 2026-09-20)
 - [[three-js-studio|🌐 Three.js Studio]] — Browser-based 3D scene builder with particles & reflections
 - [[ai-video-trends-2026|📈 AI Video Trends 2026]] — 5 industry shifts, model landscape, pipeline upgrades
+- [[video-generation-vram-2026|🎬 Video Generation VRAM 2026]] — 8GB GPU video generation with quantization breakthroughs (NEW 2026-09-20)
+- [[youtube-algorithm-2026-updates|📺 YouTube Algorithm 2026 Updates]] — Viewer satisfaction shift, new view counting rules, format-aware discovery (NEW 2026-09-20)
 - [[kilo-code-subagent-orchestration|🤖 Kilo Code Subagent Orchestration]] — Subagent architecture, provider errors, optimization strategies
 - [[kilo-code-subagent-optimization|🚀 Kilo Code Subagent Optimization]] — Config implementations, concurrency limits, retry jitter, verification
 - [[python-environment-management|🐍 Python Environment Management]] — venv mechanics, decoupling graph, PyTorch×Pascal (sm_61) wheel matrix, env migration recipes (NEW 2026-09-06)
+- [[pascal-gpu-optimization-2026|🐴 Pascal GPU Optimization 2026]] — GTX 1070 Ti / sm_61 constraints: torch version, SDPA backends, torch.compile limits, VRAM optimization stack for ACE-Step Tier 3 (NEW 2026-09-20)
 - [[stack-extensions-2026|🔧 Stack Extensions 2026]] — Optional languages (CUDA C++, Rust/PyO3, WGSL, **Go**) + high-value Python tools for audio/video/3D (core-flux, madmom-infer, sonara, MovieLite, essentia, audiofeat, videopython, BeatSync Engine, gsplat) — benchmark-first adoption (NEW 2026-09-07)
 - [[go-integration-2026|🔀 Go Integration 2026]] — Split-stack architecture: Go for dashboard/SSE, media workers, gateway; Python for AI/model layer (NEW 2026-09-08)
 
@@ -55,11 +59,13 @@ date: 2026-09-05
 - [[3d-visualization-best-practices-2026|🎛️ 3D Visualization Best Practices 2026]] — Full audit of all 13 viz styles + 7 studio templates, R3F/WebGPU/perf/a11y rules (NEW 2026-09-16)
 - [[visualization-effects|✨ Visualization Effects]] — WebGPU/TSL, particles, shaders, post-processing, volumetrics (NEW 2026-08-29)
 - [[2d-visualization-2026|🎨 2D Visualization 2026]] — Canvas2D/PixiJS/p5.js/Waviz 2026 open source 2D stacks (UPDATED 2026-09-05: PixiJS 8.19, p5.js trails, Summer 2026 addendum)
+- [[webgl-webgpu-audio-viz-2026|🎵 WebGL/WebGPU Audio Viz 2026]] — Rust/WASM audio analysis, GPU compute shaders, music-reactive 3D, multi-threaded visualization (NEW 2026-09-20)
 - [[character-animation-2026-summer-synthesis|🎭 Character Animation 2026 — Summer Synthesis]] — Story-first puppet, beatPhase sync, performance-driven (NEW 2026-09-05)
 - [[audio-reactive-production|🎧 Audio-Reactive Production]] — Audio → visual mapping, beat sync
 - [[silhouette-character-animation|🎭 Silhouette Character Animation]] — Character rigging & motion
 - [[character-driven-visualization-research|🔬 Character-Driven Visualization]] — Character research
 - [[hardware-verified-models|🖥️ Hardware-Verified Models]] — 8GB VRAM model matrix
+- [[music-gen-hardware-fit-2026|🎵 Music Gen Hardware Fit 2026]] — ACE-Step 1.5 on GTX 1070 Ti; install paths, VRAM budgets
 - [[prompt-engineering|✍️ Prompt Engineering]] — Effective prompts + repair/versioning workflow
 - [[remotion-guide|🎬 Remotion Video Compositing]] — Programmatic video with React (NEW 2026-09-01)
 
@@ -67,8 +73,8 @@ date: 2026-09-05
 
 - [[ai-agent-navigation|🤖 AI Agent Navigation]] — Quick lookup table for agents (NEW 2026-09-01)
 - [[backend-debugging-guide|🐛 Backend Debugging Guide]] — Debugging patterns for FastAPI/queue/VRAM
- - [[ollama-thinking-structured-outputs|🧠 Ollama Thinking & Structured Outputs]] — `think` + `format:json`
- - [[minicpm-v-best-practices|🔍 MiniCPM-V 2.6 Best Practices]] — your `minicpm-v:8b` local vision: 1.8MP any-aspect OCR, multi-image/video, RLAIF-V trustworthy, 640-token efficiency on GTX 1070 Ti (NEW 2026-09-06)
+- [[ollama-thinking-structured-outputs|🧠 Ollama Thinking & Structured Outputs]] — `think` + `format:json`
+- [[minicpm-v-best-practices|🔍 MiniCPM-V 2.6 Best Practices]] — your `minicpm-v:8b` local vision: 1.8MP any-aspect OCR, multi-image/video, RLAIF-V trustworthy, 640-token efficiency on GTX 1070 Ti (NEW 2026-09-06)
 
 ### 📊 Research & Audit
 
@@ -80,36 +86,36 @@ date: 2026-09-05
 
 ## 🏷️ Tags Index
 
-| Tag              | Description                               | Documents   |
-| ---------------- | ----------------------------------------- | ----------- |
-| `#music-video`   | Music video production                    | 5 documents |
-| `#3d-rendering`  | 3D rendering and optimization             | 3 documents |
-| `#3d-generation` | 3D model generation (image-to-3D, 2026)   | 1 document  |
-| `#visualization` | Visualization effects, shaders, particles | 1 document  |
-| `#webgpu`        | WebGPU / TSL / compute                    | 2 documents |
-| `#ai-generation` | AI image/video generation                 | 4 documents |
-| `#youtube`       | YouTube platform optimization             | 1 document  |
-| `#blender`       | Blender 3D integration                    | 2 documents |
-| `#comfyui`       | ComfyUI workflows                         | 2 documents |
-| `#gpu`           | GPU optimization                          | 3 documents |
-| `#prompt`        | Prompt engineering                        | 1 document  |
-| `#kilo-code`     | Kilo Code tooling and orchestration       | 2 documents |
-| `#subagent`      | Subagent architecture and errors          | 2 documents |
-| `#optimization`  | Subagent optimization strategies          | 1 document  |
-| `#configuration` | Kilo Code configuration                   | 1 document  |
-| `#concurrency`   | Concurrency control and rate limiting     | 1 document  |
-| `#retry`         | Retry policies and backoff                | 1 document  |
-| `#remotion`      | Remotion video compositing                | 1 document  |
-| `#audio`         | Audio-reactive production                 | 1 document  |
-| `#silhouette`    | Silhouette / character animation          | 2 documents |
-| `#hardware`      | Hardware-verified 8GB models              | 1 document  |
-| `#backend`       | Backend debugging                         | 1 document  |
-| `#ollama`        | Ollama thinking / structured outputs      | 2 documents |
-| `#python`        | Python envs, venv decoupling, CUDA wheels | 1 document  |
-| `#stack-extensions` | Optional languages + audio/video/3D Python tools | 1 document  |
-| `#go`               | Go integration: dashboard, media workers, gateway | 1 document  |
-| `#pascal-gpu`    | GTX 10xx Pascal architecture              | 1 document  |
-| `#vram-optimization` | 8GB VRAM optimization techniques       | 1 document  |
+| Tag                  | Description                                       | Documents   |
+| -------------------- | ------------------------------------------------- | ----------- |
+| `#music-video`       | Music video production                            | 5 documents |
+| `#3d-rendering`      | 3D rendering and optimization                     | 3 documents |
+| `#3d-generation`     | 3D model generation (image-to-3D, 2026)           | 1 document  |
+| `#visualization`     | Visualization effects, shaders, particles         | 1 document  |
+| `#webgpu`            | WebGPU / TSL / compute                            | 2 documents |
+| `#ai-generation`     | AI image/video generation                         | 4 documents |
+| `#youtube`           | YouTube platform optimization                     | 1 document  |
+| `#blender`           | Blender 3D integration                            | 2 documents |
+| `#comfyui`           | ComfyUI workflows                                 | 2 documents |
+| `#gpu`               | GPU optimization                                  | 3 documents |
+| `#prompt`            | Prompt engineering                                | 1 document  |
+| `#kilo-code`         | Kilo Code tooling and orchestration               | 2 documents |
+| `#subagent`          | Subagent architecture and errors                  | 2 documents |
+| `#optimization`      | Subagent optimization strategies                  | 1 document  |
+| `#configuration`     | Kilo Code configuration                           | 1 document  |
+| `#concurrency`       | Concurrency control and rate limiting             | 1 document  |
+| `#retry`             | Retry policies and backoff                        | 1 document  |
+| `#remotion`          | Remotion video compositing                        | 1 document  |
+| `#audio`             | Audio-reactive production                         | 1 document  |
+| `#silhouette`        | Silhouette / character animation                  | 2 documents |
+| `#hardware`          | Hardware-verified 8GB models                      | 1 document  |
+| `#backend`           | Backend debugging                                 | 1 document  |
+| `#ollama`            | Ollama thinking / structured outputs              | 2 documents |
+| `#python`            | Python envs, venv decoupling, CUDA wheels         | 1 document  |
+| `#stack-extensions`  | Optional languages + audio/video/3D Python tools  | 1 document  |
+| `#go`                | Go integration: dashboard, media workers, gateway | 1 document  |
+| `#pascal-gpu`        | GTX 10xx Pascal architecture                      | 1 document  |
+| `#vram-optimization` | 8GB VRAM optimization techniques                  | 1 document  |
 
 ---
 
@@ -174,14 +180,14 @@ graph LR
 
 ## 📊 Vault Statistics
 
-| Metric          | Count                                                                              |
-| --------------- | ---------------------------------------------------------------------------------- |
-| Total Documents | 34                                                                                 |
-| Total Tags      | 27                                                                                 |
-| Total Links     | 90+                                                                                |
-| Last Updated    | 2026-09-08 (go-integration-2026 — Go split-stack integration plan)         |
-| Latest Add      | 2026-09-08 (go-integration-2026 — Go split-stack integration plan)         |
+| Metric          | Count                                                                                                                       |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Total Documents | 52                                                                                                                          |
+| Total Tags      | 27                                                                                                                          |
+| Total Links     | 90+                                                                                                                         |
+| Last Updated    | 2026-09-20 (Web search expansion: video VRAM, YouTube algorithm, WebGPU, 3D generation)                                     |
+| Latest Add      | 2026-09-20 (Video generation VRAM 2026, YouTube algorithm 2026 updates, WebGL/WebGPU audio viz, 3D generation 2026 updates) |
 
 ---
 
-_Last updated: 2026-09-06_
+_Last updated: 2026-09-20_

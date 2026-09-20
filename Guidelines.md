@@ -108,11 +108,10 @@ Go sidecars use fixed ports and do not conflict with the dynamic port system:
 - `go-ports`: 3851
 
 Music generation subprocess services also use fixed ports:
-- `music-gen yue2`: 8200 (YuE2-3B, ~6GB VRAM, CC-BY-NC-4.0)
-- `music-gen ace`: 8201 (ACE-Step 1.5, ~4GB VRAM, Apache-2.0)
+- `music-gen ace`: 8201 (ACE-Step 1.5, ~6 GB VRAM on this hardware, Apache-2.0) — **default**
 
 Each engine runs as an isolated FastAPI subprocess with:
-- Startup import validation (`yue2` / `acestep`) so missing deps fail loud and early.
+- Startup import validation (`acestep`) so missing deps fail loud and early.
 - Shared `aiohttp.ClientSession` for the lifetime of the process.
 - Graceful shutdown: `terminate()` then `kill()` after 5s grace.
 - Python discovery order: `tools/music-gen/.venv` → `MUSIC_GEN_PYTHON` → `sys.executable` (with warning).

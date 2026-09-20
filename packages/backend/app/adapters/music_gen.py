@@ -1,5 +1,5 @@
 """
-Music Generation adapter — manages subprocess services for YuE2 and ACE-Step.
+Music Generation adapter — manages the ACE-Step subprocess service.
 
 Each engine runs as a separate FastAPI subprocess on its own port,
 communicating via HTTP. The adapter coordinates with VRAM manager
@@ -11,21 +11,21 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import aiohttp
 
+from ..core.config import PROJECT_ROOT
 from .base import AdapterStatus, BaseAdapter, _handle_adapter_error
 
 logger = logging.getLogger(__name__)
 
 # Shared aiohttp session for all adapters (created on first use)
-_shared_session: Optional[aiohttp.ClientSession] = None
+_shared_session: aiohttp.ClientSession | None = None
 
 
 async def _get_shared_session() -> aiohttp.ClientSession:
@@ -43,14 +43,15 @@ async def close_shared_session():
 
 # Default ports for each engine
 DEFAULT_PORTS = {
-    "yue2": 8200,
     "ace": 8201,
 }
 
 # VRAM budgets per engine (in MB)
+# Matched to this workstation: GTX 1070 Ti 8 GB / Ryzen 5 5500 / 32 GB RAM / Pascal sm_61
 VRAM_BUDGETS = {
-    "yue2": 6144,   # 6GB for Q4_0 GGUF
-    "ace": 4096,    # 4GB for ACE-Step
+    # ACE-Step 1.5 Tier 3 (6-8 GB VRAM): 2B turbo DiT + 0.6B LM, INT8 quant,
+    # CPU offload, pt backend. Flash Attention falls back to SDPA on Pascal.
+    "ace": 6144,
 }
 
 
@@ -58,26 +59,29 @@ class MusicGenAdapter(BaseAdapter):
     """
     Adapter for the music generation subprocess service.
 
-    Manages lifecycle of one engine subprocess (YuE2 or ACE-Step),
-    proxies requests, and coordinates VRAM allocation with the
-    main backend's VRAM manager.
+    Manages lifecycle of the ACE-Step subprocess, proxies requests,
+    and coordinates VRAM allocation with the main backend's VRAM manager.
     """
 
     def __init__(
         self,
-        engine: str = "yue2",
-        port: Optional[int] = None,
-        base_url: Optional[str] = None,
+        engine: str = "ace",
+        port: int | None = None,
+        base_url: str | None = None,
         mock_mode: bool = False,
-        output_dir: str = "output/music",
+        output_dir: str | None = None,
     ):
         self.engine = engine
-        self.port = port or DEFAULT_PORTS.get(engine, 8200)
-        self.output_dir = output_dir
+        self.port = port or DEFAULT_PORTS.get(engine, 8201)
+        # Use absolute path so the subprocess writes under the project output/
+        # regardless of its CWD. Without this, relative "output/music" resolves
+        # against tools/music-gen/ and the backend can never find the file.
+        self.output_dir = output_dir or str(PROJECT_ROOT / "output" / "music")
         url = base_url or f"http://127.0.0.1:{self.port}"
         super().__init__(base_url=url, name=f"music-gen-{engine}", mock_mode=mock_mode)
 
-        self._process: Optional[subprocess.Popen] = None
+        self._process: subprocess.Popen | None = None
+        self._log_file: Any | None = None  # TextIO handle for subprocess log
         self._ready = False
         self._startup_timeout = 120  # seconds
 
@@ -160,8 +164,8 @@ class MusicGenAdapter(BaseAdapter):
 
     async def start_service(
         self,
-        vram_budget_mb: Optional[int] = None,
-        extra_args: Optional[list[str]] = None,
+        vram_budget_mb: int | None = None,
+        extra_args: list[str] | None = None,
     ) -> bool:
         """
         Start the music generation subprocess.
@@ -177,8 +181,10 @@ class MusicGenAdapter(BaseAdapter):
             logger.info("Music-gen service already running (pid=%d)", self._process.pid)
             return True
 
-        budget = vram_budget_mb or VRAM_BUDGETS.get(self.engine, 6144)
-        script_dir = Path(__file__).parent.parent.parent.parent / "tools" / "music-gen"
+        # Note: vram_budget_mb is validated/enforced by the backend's VRAM
+        # manager (begin_music_generation); the subprocess itself does not take
+        # a VRAM CLI flag.
+        script_dir = Path(__file__).parent.parent.parent.parent.parent / "tools" / "music-gen"
         server_script = script_dir / "server.py"
 
         if not server_script.exists():
@@ -194,7 +200,6 @@ class MusicGenAdapter(BaseAdapter):
             str(server_script),
             "--port", str(self.port),
             "--engine", self.engine,
-            "--vram-budget", str(budget // 1024),  # Convert to GB
             "--output-dir", self.output_dir,
         ]
         if extra_args:
@@ -207,12 +212,28 @@ class MusicGenAdapter(BaseAdapter):
         if sys.platform == "win32":
             creationflags = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
 
+        # Pascal (sm_61) environment hardening — inherited by the subprocess
+        _env = os.environ.copy()
+        _env.setdefault("TORCH_CUDA_ARCH_LIST", "6.1")
+        _env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "max_split_size_mb:128")
+        _env.setdefault("TORCHINDUCTOR_USE_TRITON", "0")
+
+        # Route subprocess output to a log file instead of PIPE. With PIPE and no
+        # reader, a chatty subprocess (~64KB on Windows) fills the OS pipe buffer
+        # and deadlocks on its next write — the service then appears "stuck" and
+        # times out even though it was starting fine.
+        log_dir = PROJECT_ROOT / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / f"music-gen-{self.engine}.log"
+        self._log_file = open(log_path, "a", encoding="utf-8", buffering=1)
+
         self._process = subprocess.Popen(
             cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=self._log_file,
+            stderr=subprocess.STDOUT,
             creationflags=creationflags,
             cwd=str(script_dir),
+            env=_env,
         )
 
         # Wait for service to become ready
@@ -223,8 +244,12 @@ class MusicGenAdapter(BaseAdapter):
             logger.info("Music-gen service started (pid=%d, port=%d)",
                         self._process.pid, self.port)
         else:
+            logger.error("Music-gen service failed to start within timeout "
+                         "(see %s)", log_path)
+            # Kill the failed subprocess so a timed-out start never leaves an
+            # orphan still loading the model in the background.
+            await self.stop_service()
             self.set_status(AdapterStatus.ERROR)
-            logger.error("Music-gen service failed to start within timeout")
 
         return ready
 
@@ -259,32 +284,41 @@ class MusicGenAdapter(BaseAdapter):
                 except subprocess.TimeoutExpired:
                     logger.warning("Process %d did not exit after terminate, killing", pid)
                     self._process.kill()
+                    # Reap the killed process so it does not linger as a zombie
+                    # and so the exit code is collected.
+                    try:
+                        self._process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        logger.error("Process %d did not exit even after kill", pid)
             except Exception as e:
                 logger.warning("Failed to stop music-gen process: %s", e)
 
         self._process = None
+        self._close_log_file()
         self._ready = False
         self.set_status(AdapterStatus.DISCONNECTED)
         logger.info("Music-gen service stopped")
         return True
+
+    def _close_log_file(self) -> None:
+        """Close the subprocess log file handle if open."""
+        if self._log_file is not None:
+            try:
+                self._log_file.close()
+            except Exception:
+                pass
+            self._log_file = None
 
     async def _wait_for_ready(self) -> bool:
         """Wait for the service to become healthy."""
         start = time.monotonic()
         while (time.monotonic() - start) < self._startup_timeout:
             if self._process and self._process.poll() is not None:
-                # Process exited — drain stderr safely using communicate()
-                stderr = ""
-                try:
-                    _, stderr_bytes = await asyncio.wait_for(
-                        asyncio.to_thread(self._process.communicate),
-                        timeout=5,
-                    )
-                    stderr = stderr_bytes.decode(errors="replace") if stderr_bytes else ""
-                except Exception as exc:
-                    logger.debug("Could not read stderr from exited process: %s", exc)
+                # Process exited early. Subprocess output goes to the log file,
+                # so read the tail of it for diagnostics instead of stderr pipes.
+                log_tail = self._read_log_tail(max_chars=2000)
                 logger.error("Music-gen process exited early (code=%d): %s",
-                             self._process.returncode, stderr[:500])
+                             self._process.returncode, log_tail)
                 return False
 
             try:
@@ -302,10 +336,30 @@ class MusicGenAdapter(BaseAdapter):
 
         return False
 
-    def _find_python(self) -> Optional[Path]:
+    def _read_log_tail(self, max_chars: int = 2000) -> str:
+        """Read the last `max_chars` of the subprocess log file."""
+        log_path = PROJECT_ROOT / "logs" / f"music-gen-{self.engine}.log"
+        try:
+            if log_path.exists():
+                text = log_path.read_text(encoding="utf-8", errors="replace")
+                return text[-max_chars:]
+        except Exception:
+            pass
+        return ""
+
+    def _find_python(self) -> Path | None:
         """Find the correct Python interpreter for the music-gen environment."""
-        # Check for dedicated venv in tools/music-gen
-        script_dir = Path(__file__).parent.parent.parent.parent / "tools" / "music-gen"
+        # Check for ACE-Step's dedicated venv first (contains the `acestep` package)
+        script_dir = Path(__file__).parent.parent.parent.parent.parent / "tools" / "music-gen"
+        ace_venv_python = script_dir / "ACE-Step-1.5" / ".venv" / "Scripts" / "python.exe"
+        if ace_venv_python.exists():
+            return ace_venv_python
+
+        ace_venv_python_unix = script_dir / "ACE-Step-1.5" / ".venv" / "bin" / "python"
+        if ace_venv_python_unix.exists():
+            return ace_venv_python_unix
+
+        # Check for dedicated venv in tools/music-gen (legacy/fallback)
         venv_python = script_dir / ".venv" / "Scripts" / "python.exe"
         if venv_python.exists():
             return venv_python
@@ -323,81 +377,10 @@ class MusicGenAdapter(BaseAdapter):
         logger.warning(
             "No dedicated music-gen Python environment found. "
             "Falling back to sys.executable=%s. Create a venv at "
-            "tools/music-gen/.venv or set MUSIC_GEN_PYTHON to avoid conflicts.",
+            "tools/music-gen/ACE-Step-1.5/.venv or set MUSIC_GEN_PYTHON to avoid conflicts.",
             sys.executable,
         )
         return Path(sys.executable)
-
-    # ------------------------------------------------------------------
-    # Convenience methods
-    # ------------------------------------------------------------------
-
-    async def generate_song(
-        self,
-        style: str,
-        lyrics: str,
-        seed: Optional[int] = None,
-        cot: str = "full",
-        **kwargs,
-    ) -> dict[str, Any]:
-        """Convenience method for song generation."""
-        params = {
-            "style": style,
-            "lyrics": lyrics,
-            "cot": cot,
-            **kwargs,
-        }
-        if seed is not None:
-            params["seed"] = seed
-        return await self.generate(params)
-
-    async def plan_score(
-        self,
-        style: str,
-        lyrics: str,
-        seed: Optional[int] = None,
-    ) -> dict[str, Any]:
-        """Generate score only (YuE2 only)."""
-        if self.engine != "yue2":
-            raise ValueError("Plan only available for YuE2 engine")
-
-        session = await _get_shared_session()
-        async with session.post(
-            f"{self.base_url}/plan",
-            json={"style": style, "lyrics": lyrics, "seed": seed},
-            timeout=aiohttp.ClientTimeout(total=120),
-        ) as resp:
-            if resp.status != 200:
-                error_text = await resp.text()
-                raise RuntimeError(f"Plan failed: {error_text}")
-            return await resp.json()
-
-    async def render_from_score(
-        self,
-        abc: str,
-        style: str,
-        lyrics: str,
-        seed: Optional[int] = None,
-    ) -> dict[str, Any]:
-        """Render audio from edited ABC score (YuE2 only)."""
-        if self.engine != "yue2":
-            raise ValueError("Score rendering only available for YuE2 engine")
-
-        session = await _get_shared_session()
-        async with session.post(
-            f"{self.base_url}/render",
-            json={
-                "abc": abc,
-                "style": style,
-                "lyrics": lyrics,
-                "seed": seed,
-            },
-            timeout=aiohttp.ClientTimeout(total=300),
-        ) as resp:
-            if resp.status != 200:
-                error_text = await resp.text()
-                raise RuntimeError(f"Render failed: {error_text}")
-            return await resp.json()
 
     async def get_vram_usage(self) -> dict[str, Any]:
         """Get current VRAM usage from the service."""
@@ -419,7 +402,7 @@ class MusicGenAdapter(BaseAdapter):
         return self._process is not None and self._process.poll() is None
 
     @property
-    def pid(self) -> Optional[int]:
+    def pid(self) -> int | None:
         """Get the subprocess PID."""
         return self._process.pid if self._process else None
 
@@ -428,20 +411,15 @@ class MusicGenAdapter(BaseAdapter):
 # Global adapter instances
 # ---------------------------------------------------------------------------
 
-# Lazy-initialized adapters — created on first access
-_yue2_adapter: Optional[MusicGenAdapter] = None
-_ace_adapter: Optional[MusicGenAdapter] = None
+# Lazy-initialized adapter — created on first access
+_ace_adapter: MusicGenAdapter | None = None
 
 
-def get_music_gen_adapter(engine: str = "yue2", **kwargs) -> MusicGenAdapter:
+def get_music_gen_adapter(engine: str = "ace", **kwargs) -> MusicGenAdapter:
     """Get or create a music generation adapter for the specified engine."""
-    global _yue2_adapter, _ace_adapter
+    global _ace_adapter
 
-    if engine == "yue2":
-        if _yue2_adapter is None:
-            _yue2_adapter = MusicGenAdapter(engine="yue2", **kwargs)
-        return _yue2_adapter
-    elif engine == "ace":
+    if engine == "ace":
         if _ace_adapter is None:
             _ace_adapter = MusicGenAdapter(engine="ace", **kwargs)
         return _ace_adapter
@@ -449,14 +427,22 @@ def get_music_gen_adapter(engine: str = "yue2", **kwargs) -> MusicGenAdapter:
         raise ValueError(f"Unknown engine: {engine}")
 
 
+def reset_music_gen_adapter(engine: str = "ace") -> None:
+    """Reset the cached adapter so the next ``get_music_gen_adapter`` call
+    creates a fresh instance. Mainly useful for tests.
+    """
+    global _ace_adapter
+    if engine == "ace":
+        _ace_adapter = None
+
+
 async def shutdown_music_gen_services():
     """Shutdown all music generation services."""
-    global _yue2_adapter, _ace_adapter
-    adapters = [a for a in [_yue2_adapter, _ace_adapter] if a is not None]
+    global _ace_adapter
+    adapters = [a for a in [_ace_adapter] if a is not None]
     for adapter in adapters:
         try:
             await adapter.stop_service()
         except Exception as e:
             logger.warning("Error stopping %s: %s", adapter.name, e)
-    _yue2_adapter = None
     _ace_adapter = None

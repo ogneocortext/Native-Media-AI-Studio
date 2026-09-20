@@ -238,3 +238,8 @@ unity-project-mcp/Assets/Textures/render_frames.meta
 *.tsbuildinfo
 packages/frontend/vite.config.js
 packages/frontend/vite.config.d.ts
+
+# Downloaded model weights / checkpoints / engine source (large or regenerable)
+tools/checkpoints/
+tools/music-gen/ACE-Step-1.5/
+.venv

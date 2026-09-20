@@ -44,13 +44,12 @@ def _get_dir_mtime() -> float:
     """Get the latest mtime across all output subdirectories (recursive)."""
     output_base = Path(config.output_dir)
     latest = 0.0
-    for subdir in ["images", "video", "audio", "generated_3d"]:
+    for subdir in ["images", "video", "audio", "previews", "generated_3d"]:
         dir_path = output_base / subdir
         if dir_path.exists():
             try:
                 mtime = dir_path.stat().st_mtime
                 latest = max(latest, mtime)
-                # Check files recursively (includes nested folders like audio/Suno-V6-Mini/)
                 for f in dir_path.rglob("*"):
                     try:
                         if f.is_file():
@@ -59,36 +58,71 @@ def _get_dir_mtime() -> float:
                         continue
             except OSError:
                 pass
+    # Also watch ComfyUI output dir for 3D asset changes
+    comfyui_output = config.comfyui_output_dir if config.comfyui_output_dir else PROJECT_ROOT.parent / "ComfyUI" / "output"
+    if comfyui_output.exists():
+        try:
+            latest = max(latest, comfy_output.stat().st_mtime)
+            for f in comfyui_output.rglob("*"):
+                try:
+                    if f.is_file():
+                        latest = max(latest, f.stat().st_mtime)
+                except OSError:
+                    continue
+        except OSError:
+            pass
     return latest
 
 
-def _is_cover_sidecar(file_path: Path) -> bool:
+def _build_media_stem_set(dir_path: Path) -> dict[Path, set[str]]:
+    """Pre-compute {parent_dir: set_of_media_stems} for O(1) sidecar lookups."""
+    media_exts = {
+        ".mp3", ".wav", ".flac", ".ogg", ".oga", ".opus", ".m4a", ".aac",
+        ".wma", ".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi",
+    }
+    stems_by_dir: dict[Path, set[str]] = {}
+    try:
+        for f in dir_path.rglob("*"):
+            try:
+                if f.is_file() and f.suffix.lower() in media_exts:
+                    stems_by_dir.setdefault(f.parent, set()).add(f.stem)
+            except OSError:
+                continue
+    except OSError:
+        pass
+    return stems_by_dir
+
+
+def _is_cover_sidecar(file_path: Path, media_stems: set[str] | None = None) -> bool:
     """True if an image file is a cover/thumbnail sidecar of a sibling media file.
 
     A sidecar shares its stem with a sibling audio/video file, e.g.
     ``track.mp3`` + ``track.jpg``. Standalone artwork (no matching media
     sibling) is NOT a sidecar and must be listed as an image.
+
+    Pass ``media_stems`` (a set of sibling stems for ``file_path.parent``)
+    to turn this into O(1) per file instead of iterating the directory.
     """
     if file_path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"}:
         return False
-    parent = file_path.parent
     stem = file_path.stem
-    media_exts = {
-        ".mp3", ".wav", ".flac", ".ogg", ".oga", ".opus", ".m4a", ".aac",
-        ".wma", ".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi",
-    }
+    if media_stems is not None:
+        return stem in media_stems
+    # Fallback: iterate siblings (slow, kept for backward compatibility)
     try:
-        for sibling in parent.iterdir():
+        for sibling in file_path.parent.iterdir():
             try:
-                is_file = sibling.is_file()
+                if (
+                    sibling.is_file()
+                    and sibling.stem == stem
+                    and sibling.suffix.lower() in {
+                        ".mp3", ".wav", ".flac", ".ogg", ".oga", ".opus", ".m4a", ".aac",
+                        ".wma", ".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi",
+                    }
+                ):
+                    return True
             except OSError:
                 continue
-            if (
-                is_file
-                and sibling.stem == stem
-                and sibling.suffix.lower() in media_exts
-            ):
-                return True
     except OSError:
         pass
     return False
@@ -135,12 +169,15 @@ def _scan_with_cache() -> list[dict]:
         if not dir_path.exists():
             continue
 
+        # Pre-compute media stems for O(1) sidecar lookups instead of O(N^2)
+        media_stems = _build_media_stem_set(dir_path)
+
         for file_path in _iter_media_files(dir_path):
             if file_path.suffix.lower() == ".json":
                 continue
             # Skip cover/thumbnail sidecars in audio/video folders (they share
             # a stem with a sibling media file). Standalone artwork is kept.
-            if subdir in ("audio", "video") and _is_cover_sidecar(file_path):
+            if subdir in ("audio", "video") and _is_cover_sidecar(file_path, media_stems.get(file_path.parent)):
                 continue
 
             try:
@@ -470,6 +507,8 @@ async def scan_output_directory(subdir: str, relative_base: Path) -> list[Output
         return outputs
 
     # Process files recursively (includes nested folders like audio/Suno-V6-Mini/)
+    media_stems = _build_media_stem_set(dir_path)
+
     for file_path in _iter_media_files(dir_path):
 
         # Skip JSON sidecars in listing (they're metadata only)
@@ -478,7 +517,7 @@ async def scan_output_directory(subdir: str, relative_base: Path) -> list[Output
 
         # Skip cover sidecars in audio/video folders only when they share a
         # stem with a sibling media file (standalone artwork is listed).
-        if subdir in ("audio", "video") and _is_cover_sidecar(file_path):
+        if subdir in ("audio", "video") and _is_cover_sidecar(file_path, media_stems.get(file_path.parent)):
             continue
 
         # Get file stats
@@ -646,14 +685,16 @@ async def find_duplicate_groups(
 
     output_base = Path(config.output_dir)
     all_files: list[Path] = []
+    media_stems_all: dict[Path, set[str]] = {}
     for subdir in ["images", "video", "audio", "previews", "generated_3d"]:
         d = output_base / subdir
         if d.exists():
+            media_stems_all.update(_build_media_stem_set(d))
             for p in _iter_media_files(d):
                 if p.suffix.lower() == ".json":
                     continue
                 # Skip cover sidecars; keep standalone artwork.
-                if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and _is_cover_sidecar(p):
+                if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and _is_cover_sidecar(p, media_stems_all.get(p.parent)):
                     continue
                 all_files.append(p)
 
@@ -879,31 +920,26 @@ async def rename_output(file_path: str, body: RenameRequest) -> dict:
     try:
         full_path.rename(new_path)
 
-        # Rename sidecars if they exist
+        # Rename sidecars if they exist.
+        # Covers the same cases as delete_output: JSON sidecars (both .ext.json
+        # and plain .json) and image sidecars (both with_suffix and stem-based).
+        sidecar_patterns: list[tuple[Path, Path]] = []
         for ext in (".json", ".jpg", ".jpeg", ".png", ".webp"):
-            old_cand = full_path.with_suffix(ext)
-            alt_old = full_path.with_name(full_path.stem + ext)
-            # JSON has double suffix case: file.mp3.json
-            json_double = Path(str(full_path) + ".json")
-            for cand in (old_cand, alt_old, json_double):
-                if cand.exists() and cand.resolve().is_relative_to(output_base):
-                    # Map to new name with same sidecar extension
-                    if cand.suffix.lower() == ".json" and cand.name.endswith(".json"):
-                        # Handle .mp3.json case: new json is new_path + ".json"
-                        if cand == json_double:
-                            new_cand = Path(str(new_path) + ".json")
-                        else:
-                            new_cand = new_path.with_suffix(cand.suffix)
-                    else:
-                        new_cand = new_path.with_suffix(cand.suffix)
-                        # For stem case, ensure we use new stem
-                        if cand.name.startswith(full_path.stem):
-                            new_cand = new_path.with_name(new_path.stem + cand.suffix)
-                    if not new_cand.exists():
-                        try:
-                            cand.rename(new_cand)
-                        except Exception:
-                            pass
+            if ext == ".json":
+                # Both file.ext.json and plain file.json
+                sidecar_patterns.append((full_path.with_suffix(full_path.suffix + ext), new_path.with_suffix(new_path.suffix + ext)))
+                sidecar_patterns.append((full_path.with_suffix(ext), new_path.with_suffix(ext)))
+            else:
+                sidecar_patterns.append((full_path.with_suffix(ext), new_path.with_suffix(ext)))
+                sidecar_patterns.append((full_path.with_name(full_path.stem + ext), new_path.with_name(new_path.stem + ext)))
+
+        for old_cand, new_cand in sidecar_patterns:
+            if old_cand.exists() and old_cand.resolve().is_relative_to(output_base):
+                if not new_cand.exists():
+                    try:
+                        old_cand.rename(new_cand)
+                    except Exception:
+                        pass
 
         new_rel = new_path.relative_to(output_base).as_posix()
         return {"success": True, "message": f"Renamed to {new_name}", "new_path": new_rel, "new_name": new_name}

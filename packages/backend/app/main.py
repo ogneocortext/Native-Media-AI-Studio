@@ -319,10 +319,6 @@ app = FastAPI(
 # Opt-in tracing: set NMA_TRACING=1 to enable OpenTelemetry console exporter
 setup_tracing(app)
 
-# Local-first app: allow the dev frontend origins explicitly. A wildcard origin
-# combined with allow_credentials=True is rejected by browsers per the CORS spec.
-from .core.cors import get_local_origins, is_local_origin  # noqa: E402
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=sorted(get_local_origins()),

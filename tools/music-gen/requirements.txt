@@ -1,5 +1,5 @@
 # Music Generation Service Dependencies
-# Install into a dedicated venv to avoid conflicts with ComfyUI's torch
+# Install into a dedicated venv to avoid conflicts with the backend or ComfyUI
 
 # Core
 fastapi>=0.104.0
@@ -11,12 +11,21 @@ aiohttp>=3.9.0
 soundfile>=0.12.0
 numpy>=1.24.0
 
-# YuE2 (install separately — pins torch==2.10.0)
-# pip install yue2  # See README.md for venv setup
-
-# ACE-Step (install separately — may conflict with YuE2)
-# pip install acestep  # See README.md for venv setup
-
+# ---------------------------------------------------------------------------
+# Engine-specific install instructions
+# ---------------------------------------------------------------------------
+#
+# ACE-Step 1.5 (primary engine for this workstation — 8 GB VRAM, Windows)
+# - Official portable Windows package: https://files.acemusic.ai/acemusic/win/ACE-Step-1.5.7z
+# - Or clone + uv sync:
+#     git clone https://github.com/ace-step/ACE-Step-1.5.git
+#     cd ACE-Step-1.5
+#     uv sync
+# - Does NOT install via pip; clone the repo or use the portable package.
+#
+# Default model: ACE-Step/acestep-v15-sft (2B DiT + 0.6B LM, Tier 3)
+# Override with ACESTEP_MODEL_ID env var if needed.
+#
 # GPU monitoring (optional)
 # gpustat
 # pynvml

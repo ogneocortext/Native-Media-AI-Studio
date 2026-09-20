@@ -818,7 +818,6 @@ async def get_analysis_by_filename(filename: str):
 
     # Fallback: try matching by display name (strip hash prefixes)
     if not job_id:
-        import re
         display_name = re.sub(r'^([0-9a-f]{8}_)+', '', normalized, flags=re.IGNORECASE)
         for key, val in index.items():
             key_display = re.sub(r'^([0-9a-f]{8}_)+', '', key, flags=re.IGNORECASE)
@@ -1011,10 +1010,10 @@ async def analyze_all_pending(backend: str = "sonara"):
     analyzed_files = []
     errors = []
 
-    # Get all audio files
+    # Get all audio files recursively (matches list_uploaded_audio behavior)
     audio_files = [
-        f for f in AUDIO_DIR.iterdir()
-        if f.is_file() and f.suffix.lower() in ALLOWED_EXTENSIONS
+        f for f in AUDIO_DIR.rglob("*")
+        if f.is_file() and f.suffix.lower() in ALLOWED_EXTENSIONS and not f.name.startswith(".")
     ]
 
     for file_path in audio_files:
@@ -1673,7 +1672,7 @@ async def serve_audio_file(request: Request, filename: str):
 
     # Security: prevent directory traversal via resolve check
     candidate = (AUDIO_DIR / filename).resolve()
-    allowed_dirs = [AUDIO_DIR.resolve(), (PROJECT_ROOT / "output" / "audio").resolve()]
+    allowed_dirs = [AUDIO_DIR.resolve()]
     if not any(str(candidate).startswith(str(d)) for d in allowed_dirs) or ".." in Path(filename).parts:
         raise HTTPException(status_code=400, detail="Invalid filename")
     file_path = candidate

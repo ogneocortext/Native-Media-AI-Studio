@@ -1,85 +1,86 @@
 # Music Generation Service
 
-Subprocess service wrapping YuE2 and ACE-Step as isolated GPU workloads.
+Subprocess service wrapping **ACE-Step 1.5** as an isolated GPU workload.
 
 ## Architecture
 
 Each engine runs as a separate FastAPI process on its own port:
 
-| Engine | Port | VRAM   | License      | Quality |
-|--------|------|--------|--------------|---------|
-| YuE2   | 8200 | ~6GB   | CC-BY-NC-4.0 | Best    |
-| ACE    | 8201 | ~4GB   | Apache-2.0   | Good    |
+| Engine | Port | VRAM (this workstation) | License      | Quality | Status |
+|--------|------|------------------------|--------------|---------|--------|
+| ACE    | 8201 | ~6 GB                  | Apache-2.0   | Good    | ✅ Active |
 
 The main backend coordinates GPU allocation through VRAM manager:
 - `begin_music_generation()` — offloads Ollama, signals ComfyUI
 - `end_music_generation()` — reloads Ollama, returns to idle
 
 The service itself also includes hardening:
-- **Startup validation:** fails loud and early if `yue2` / `acestep` imports are missing.
+- **Startup validation:** fails loud and early if `acestep` imports are missing.
 - **Shared HTTP session:** one `aiohttp.ClientSession` reused for all requests.
 - **Graceful shutdown:** engine `terminate()` then `kill()` after 5s grace on stop.
-- **Python discovery:** prefers `tools/music-gen/.venv`, then `MUSIC_GEN_PYTHON`, warns on `sys.executable` fallback.
+- **Python discovery:** prefers `ACE-Step-1.5/.venv`, then `tools/music-gen/.venv`, then `MUSIC_GEN_PYTHON`, warns on `sys.executable` fallback.
 
 ## Setup
 
-### Option A: Conda environment (recommended)
+### ACE-Step 1.5
 
+**Option A: Windows portable package (recommended)**
+1. Download `ACE-Step-1.5.7z` from the ACE-Step releases.
+2. Extract to a permanent location, e.g. `tools/music-gen/ACE-Step-1.5/`.
+3. The package includes `python_embedded` with all dependencies pre-installed.
+4. First launch triggers model download (~10 GB).
+
+**Option B: Clone + uv sync**
 ```powershell
-# Create dedicated env for music-gen
-conda create -n music-gen python=3.11 -y
-conda activate music-gen
-
-# Install YuE2
-pip install yue2
-
-# Or install ACE-Step
-pip install acestep
-
-# Common deps
-pip install fastapi uvicorn aiohttp soundfile
+git clone https://github.com/ace-step/ACE-Step-1.5.git tools/music-gen/ACE-Step-1.5
+cd tools/music-gen/ACE-Step-1.5
+uv sync
 ```
 
-### Option B: venv in service directory
+ACE-Step auto-detects GPU tier at startup:
+- **GTX 1070 Ti (8 GB / Pascal):** Tier 3 — 2B turbo DiT + 0.6B LM, INT8 quant, CPU offload, `pt` backend. Flash Attention falls back to SDPA on Pascal.
+
+### Environment variables (Pascal / sm_61)
+
+`server.py` sets these automatically, but they can be overridden externally:
 
 ```powershell
-cd tools/music-gen
-python -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-pip install yue2  # or acestep
+$env:TORCH_CUDA_ARCH_LIST = "6.1"           # JIT kernel target
+$env:PYTORCH_CUDA_ALLOC_CONF = "max_split_size_mb:128"  # fragment guard
+$env:TORCHINDUCTOR_USE_TRITON = "0"         # torch.compile Triton requires sm_70+
 ```
+
+> [!warning] `torch.compile` is unavailable on Pascal. The Triton backend used by
+> `torch.compile` requires compute capability ≥7.0. Do not enable `--compile` or
+> set `compile_model=True` on this workstation — it raises `GPUTooOldForTriton`.
 
 ## Running
 
 ### Standalone
 
 ```powershell
-# YuE2 on port 8200
-python tools/music-gen/server.py --engine yue2 --port 8200 --vram-budget 6
-
-# ACE-Step on port 8201
-python tools/music-gen/server.py --engine ace --port 8201 --vram-budget 4
+# ACE-Step on port 8201 (default for this hardware)
+python tools/music-gen/server.py --engine ace --port 8201
 ```
 
 ### Via startup script
 
 ```powershell
 # Foreground
-.\tools\music-gen\start-service.ps1 -Engine yue2
+.\tools\music-gen\start-service.ps1 -Engine ace
 
 # Background
-.\tools\music-gen\start-service.ps1 -Engine yue2 -Background
+.\tools\music-gen\start-service.ps1 -Engine ace -Background
 ```
 
 ### Via backend API
 
 ```powershell
 # Start from backend
-curl -X POST http://127.0.0.1:8000/api/music-gen/start -d '{"engine":"yue2"}'
+curl -X POST http://127.0.0.1:8000/api/music-gen/start -d '{"engine":"ace"}'
 
 # Stop
-curl -X POST http://127.0.0.1:8000/api/music-gen/stop?engine=yue2
+curl -X POST http://127.0.0.1:8000/api/music-gen/stop?engine=ace
 ```
 
 ## API Endpoints
@@ -92,8 +93,6 @@ curl -X POST http://127.0.0.1:8000/api/music-gen/stop?engine=yue2
 
 ### Generation
 - `POST /generate` — Generate complete song
-- `POST /plan` — Score only, no audio (YuE2)
-- `POST /render` — Render from ABC score (YuE2)
 
 ### Files
 - `GET  /audio/{name}` — Download audio
@@ -101,13 +100,15 @@ curl -X POST http://127.0.0.1:8000/api/music-gen/stop?engine=yue2
 
 ## Environment Variables
 
-- `MUSIC_GEN_PYTHON` — Path to Python interpreter for this service (fallback if `tools/music-gen/.venv` is absent).
+- `MUSIC_GEN_PYTHON` — Path to Python interpreter for this service (fallback if neither `ACE-Step-1.5/.venv` nor `tools/music-gen/.venv` is present).
+- `ACESTEP_MODEL_ID` — Model config to load (default: `acestep-v15-sft`).
 - `CUDA_VISIBLE_DEVICES` — GPU selection (default: 0)
 
 Python interpreter discovery order:
-1. `tools/music-gen/.venv/Scripts/python.exe` (recommended)
-2. `MUSIC_GEN_PYTHON`
-3. Backend `sys.executable` (logged as a warning)
+1. `tools/music-gen/ACE-Step-1.5/.venv/Scripts/python.exe` (recommended — contains the `acestep` package)
+2. `tools/music-gen/.venv/Scripts/python.exe` (legacy/fallback)
+3. `MUSIC_GEN_PYTHON`
+4. Backend `sys.executable` (logged as a warning)
 
 ## VRAM Coordination
 
@@ -119,4 +120,4 @@ The service integrates with the backend's VRAM manager:
 4. When done, backend calls `POST /api/music-gen/stop`
 5. VRAM manager calls `end_music_generation()` → reloads Ollama
 
-This ensures YuE2/ACE-Step and ComfyUI never compete for VRAM simultaneously.
+This ensures ACE-Step and ComfyUI never compete for VRAM simultaneously.

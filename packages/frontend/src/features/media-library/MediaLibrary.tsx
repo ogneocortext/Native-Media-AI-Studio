@@ -142,7 +142,7 @@ const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSe
           <a href={getOutputUrl(output.relative_path)} download onClick={stop} className="p-2.5 bg-white/10 backdrop-blur rounded-xl hover:bg-white/20 text-white hover:scale-110 transition-all" title="Download"><Download size={16} /></a>
           {output.file_type === "audio" && (
             <>
-              <button onClick={(e) => { stop(e); onAnalyze?.(e as any); }} className="p-2.5 bg-emerald-500/20 backdrop-blur rounded-xl hover:bg-emerald-500/40 text-emerald-300 hover:text-emerald-200 hover:scale-110 transition-all" title="Analyze audio"><Activity size={16} /></button>
+               <button onClick={(e) => { stop(e); onAnalyze(e); }} className="p-2.5 bg-emerald-500/20 backdrop-blur rounded-xl hover:bg-emerald-500/40 text-emerald-300 hover:text-emerald-200 hover:scale-110 transition-all" title="Analyze audio"><Activity size={16} /></button>
               <button onClick={(e) => { stop(e); onSendToVisualizer?.(output); }} className="p-2.5 bg-violet-500/20 backdrop-blur rounded-xl hover:bg-violet-500/40 text-violet-300 hover:text-violet-200 hover:scale-110 transition-all" title="Send to Visualizer"><Sparkles size={16} /></button>
               <button onClick={(e) => { stop(e); onSendToWizard?.(output); }} className="p-2.5 bg-blue-500/20 backdrop-blur rounded-xl hover:bg-blue-500/40 text-blue-300 hover:text-blue-200 hover:scale-110 transition-all" title="Send to Music Video Wizard"><Video size={16} /></button>
             </>
@@ -238,9 +238,20 @@ export function MediaLibrary() {
   const [mediaInfoError, setMediaInfoError] = useState<string | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbnailLoading, setThumbnailLoading] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const mediaInfoCache = useRef<Map<string, MediaInfoPayload>>(new Map());
-  const MEDIA_INFO_CACHE_MAX = 50;
+    const audioRef = useRef<HTMLAudioElement>(null);
+    const mediaInfoCache = useRef<Map<string, MediaInfoPayload>>(new Map());
+    const MEDIA_INFO_CACHE_MAX = 50;
+
+    // Clear media info cache only after explicit refresh completes, not on every
+    // loading toggle, so selecting the same file again after navigation still
+    // benefits from the cache.
+    const prevRefreshing = useRef(isRefreshing);
+    useEffect(() => {
+      if (prevRefreshing.current && !isRefreshing) {
+        mediaInfoCache.current.clear();
+      }
+      prevRefreshing.current = isRefreshing;
+    }, [isRefreshing]);
 
   useEffect(() => { fetchOutputs(); fetchRecent(12); }, [fetchOutputs, fetchRecent]);
   useEffect(() => { if (deferredSearch !== filter.search) setFilter({ search: deferredSearch }); }, [deferredSearch]);
@@ -400,7 +411,7 @@ export function MediaLibrary() {
       const payload = { modelUrl: servable, name: output.filename.replace(/\.(glb|gltf|fbx|obj)$/i, ""), bible: output.filename };
       try { localStorage.setItem("pendingCharacter", JSON.stringify(payload)); } catch { /* private mode — ignore */ }
       try { window.dispatchEvent(new CustomEvent("pendingCharacter", { detail: JSON.stringify(payload) })); } catch { /* ignore */ }
-      try { const { updateMCPContext } = await import("../../services/api"); await updateMCPContext({ character: { name: payload.name, notes: payload.bible, visible: true } } as any); } catch { /* MCP optional — ignore */ }
+      try { const { updateMCPContext } = await import("../../services/api"); await updateMCPContext({ character: { name: payload.name, notes: payload.bible, visible: true } }); } catch { /* MCP optional — ignore */ }
       setStudioToast(`Queued “${output.filename}” for Studio — ${openInNewTab ? "opening in new tab…" : "stay here, open Studio when ready"}`);
       setTimeout(() => setStudioToast(null), 3000);
       if (openInNewTab) window.open("/three-js-studio", "_blank");
@@ -429,7 +440,7 @@ export function MediaLibrary() {
       case "name-desc": list.sort((a,b)=> b.filename.localeCompare(a.filename)); break;
       case "size-desc": list.sort((a,b)=> b.size_bytes-a.size_bytes); break;
       case "size-asc": list.sort((a,b)=> a.size_bytes-b.size_bytes); break;
-      case "type": { const order={video:0,audio:1,image:2,other:3} as const; list.sort((a,b)=>{const ao=(order as any)[a.file_type]??3; const bo=(order as any)[b.file_type]??3; if(ao!==bo) return ao-bo; return new Date(b.created_at).getTime()-new Date(a.created_at).getTime();}); break; }
+      case "type": { const order: Record<string, number> = { video: 0, audio: 1, image: 2, other: 3 }; list.sort((a,b)=>{ const ao=order[a.file_type]??3; const bo=order[b.file_type]??3; if(ao!==bo) return ao-bo; return new Date(b.created_at).getTime()-new Date(a.created_at).getTime();}); break; }
     }
     if(deferredSearch){
       const q=deferredSearch.toLowerCase();
@@ -461,9 +472,9 @@ export function MediaLibrary() {
         <nav className="flex-1 p-2 space-y-1 overflow-auto">
           {categoryConfig.map(category=>{
             const Icon=category.icon; const isActive=filter.type===category.key;
-            return <button key={category.key} onClick={()=> handleFilterChange(category.key as any)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${isActive?"bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]":"text-muted hover:text-white hover:bg-white/5 hover:translate-x-0.5"}`}>
+              return <button key={category.key} onClick={()=> handleFilterChange(category.key as any)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${isActive?"bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]":"text-muted hover:text-white hover:bg-white/5 hover:translate-x-0.5"}`}>
               <Icon size={18} className={isActive?"":category.color} />
-              {!sidebarCollapsed && <><span className="font-medium text-sm">{category.label}</span><span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${isActive?"bg-white/20":"bg-white/5"}`}>{category.key==="all"?counts.total: category.key==="image"?counts.images: category.key==="video"?counts.videos: category.key==="3d"?(counts as any).models_3d||0:counts.audio}</span></>}
+              {!sidebarCollapsed && <><span className="font-medium text-sm">{category.label}</span><span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${isActive?"bg-white/20":"bg-white/5"}`}>{category.key==="all"?counts.total: category.key==="image"?counts.images: category.key==="video"?counts.videos: category.key==="3d"? (counts.models_3d ?? 0) :counts.audio}</span></>}
             </button>;
           })}
           {!sidebarCollapsed && <div className="pt-4 mt-4 border-t border-white/5"><p className="text-[11px] text-muted uppercase tracking-widest px-3 mb-2">Tips</p><p className="text-xs text-muted/70 px-3 leading-relaxed">Press <kbd className="px-1 py-0.5 bg-white/10 rounded text-[11px]">/</kbd> to search • <kbd className="px-1 py-0.5 bg-white/10 rounded text-[11px]">g</kbd> to group • hover video for preview</p></div>}

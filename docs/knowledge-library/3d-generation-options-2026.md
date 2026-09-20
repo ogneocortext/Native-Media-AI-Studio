@@ -26,8 +26,12 @@ date: 2026-09-07
 > [!warning] Critical: PyTorch 2.14 is the Last Pascal Wheel
 > PyTorch **2.14** is the **final release** with prebuilt `cu126` wheels supporting
 > Maxwell / Pascal / Volta (sm_50–sm_70). From **2.15 onward** you must either:
+>
 > - Stay on 2.14 indefinitely, or
 > - Build PyTorch from source against CUDA 12.6 with `TORCH_CUDA_ARCH_LIST="6.1"`.
+>
+> For ACE-Step music generation on this same Pascal card, see
+> [[pascal-gpu-optimization-2026|Pascal GPU Optimization 2026]].
 >
 > CUDA 13.x drops Pascal entirely. Treat 2.14 as the Pascal capstone.
 
@@ -35,14 +39,14 @@ date: 2026-09-07
 
 ## What's Actually Unlocked by 2.14
 
-| Capability | Before (2.5.1+cu121) | After (2.14.0+cu126) |
-|------------|----------------------|----------------------|
-| `torch.compile` stability | Experimental, many edge cases | Production-grade for inference graphs |
-| ComfyUI custom nodes requiring `torch>=2.10` | Incompatible | Now loadable |
-| NVGEMM epilogue fusion | Not available | Available via Inductor (`max_autotune_gemm_backends`) |
-| Dynamic shapes (`@dynamic_spec`) | Not available | Declarative across compile/export/trace |
-| cuDNN kernels | 9.x baseline | Improved for diffusion convolutions |
-| Memory allocator fragmentation | Occasional OOM spikes | Reduced on 8GB cards |
+| Capability                                   | Before (2.5.1+cu121)          | After (2.14.0+cu126)                                  |
+| -------------------------------------------- | ----------------------------- | ----------------------------------------------------- |
+| `torch.compile` stability                    | Experimental, many edge cases | Production-grade for inference graphs                 |
+| ComfyUI custom nodes requiring `torch>=2.10` | Incompatible                  | Now loadable                                          |
+| NVGEMM epilogue fusion                       | Not available                 | Available via Inductor (`max_autotune_gemm_backends`) |
+| Dynamic shapes (`@dynamic_spec`)             | Not available                 | Declarative across compile/export/trace               |
+| cuDNN kernels                                | 9.x baseline                  | Improved for diffusion convolutions                   |
+| Memory allocator fragmentation               | Occasional OOM spikes         | Reduced on 8GB cards                                  |
 
 > [!tip] Practical Win
 > You can now safely wrap lightweight ComfyUI 3D nodes with `@torch.compile` for
@@ -54,29 +58,30 @@ date: 2026-09-07
 
 ### Tier 1: Geometry-Only (No Textures) — Fully Local
 
-| Model | VRAM | Speed | Quality | ComfyUI Path | Status |
-|-------|------|-------|---------|--------------|--------|
-| **TripoSR** | ~4 GB | ~0.5s | Good (instant mesh) | `ComfyUI-3D-Pack` or `ComfyUI-TripoSR` | ✅ Recommended for speed |
-| **Hunyuan3D-2mini** | ~5 GB | ~30-60s | Very good | **Native ComfyUI** (no custom node) | ✅ Recommended for quality/speed balance |
-| **Hunyuan3D-2** (standard) | ~6 GB | ~60-120s | Excellent | **Native ComfyUI** or Kijai wrapper | ✅ Good for final geometry |
-| **Hunyuan3D-2mv** | ~6 GB | ~60-120s | Excellent (multi-view) | **Native ComfyUI** | ✅ When you have multiple angles |
-| **Stable Fast 3D (SF3D)** | ~6 GB | ~0.5s-2s | Good+UVs | `ComfyUI-3D-Pack` | ✅ Best for UV-unwrapped meshes |
+| Model                      | VRAM  | Speed    | Quality                | ComfyUI Path                           | Status                                   |
+| -------------------------- | ----- | -------- | ---------------------- | -------------------------------------- | ---------------------------------------- |
+| **TripoSR**                | ~4 GB | ~0.5s    | Good (instant mesh)    | `ComfyUI-3D-Pack` or `ComfyUI-TripoSR` | ✅ Recommended for speed                 |
+| **Hunyuan3D-2mini**        | ~5 GB | ~30-60s  | Very good              | **Native ComfyUI** (no custom node)    | ✅ Recommended for quality/speed balance |
+| **Hunyuan3D-2** (standard) | ~6 GB | ~60-120s | Excellent              | **Native ComfyUI** or Kijai wrapper    | ✅ Good for final geometry               |
+| **Hunyuan3D-2mv**          | ~6 GB | ~60-120s | Excellent (multi-view) | **Native ComfyUI**                     | ✅ When you have multiple angles         |
+| **Stable Fast 3D (SF3D)**  | ~6 GB | ~0.5s-2s | Good+UVs               | `ComfyUI-3D-Pack`                      | ✅ Best for UV-unwrapped meshes          |
 
 > [!important] Geometry-only is your ceiling on 8GB.
 > Full shape+texture pipelines need **12GB+**. Texturing on 8GB requires:
+>
 > - Offloading texture stage to CPU (very slow), or
 > - Running texture generation as a separate, smaller model pass, or
 > - Using cloud APIs (Hyper3D, Hunyuan 3.0 Partner Nodes).
 
 ### Tier 2: Full Textured Pipelines — Not Feasible on 8GB
 
-| Model | VRAM (Full) | Why it won't fit |
-|-------|-------------|------------------|
-| Hunyuan3D-2.1 full | 29 GB | Texture stage alone is 21 GB |
-| Hunyuan3D-2 Kijai wrapper | ~12 GB | Paint model + rasterizer + renderer |
-| Trellis 2 (full) | 16-24 GB | 4B parameter model + VAE stages |
-| Pixal3D | 12-16 GB | Shares TRELLIS.2 backbone |
-| Hyper3D Rodin Gen-2 | 24 GB+ | API-only; local weights not released |
+| Model                     | VRAM (Full) | Why it won't fit                     |
+| ------------------------- | ----------- | ------------------------------------ |
+| Hunyuan3D-2.1 full        | 29 GB       | Texture stage alone is 21 GB         |
+| Hunyuan3D-2 Kijai wrapper | ~12 GB      | Paint model + rasterizer + renderer  |
+| Trellis 2 (full)          | 16-24 GB    | 4B parameter model + VAE stages      |
+| Pixal3D                   | 12-16 GB    | Shares TRELLIS.2 backbone            |
+| Hyper3D Rodin Gen-2       | 24 GB+      | API-only; local weights not released |
 
 ---
 
@@ -86,24 +91,24 @@ date: 2026-09-07
 
 As of ComfyUI **August 22, 2026**, the following are **built into core**:
 
-| Model | Nodes | Notes |
-|-------|-------|-------|
-| **Hunyuan3D-2** | `Hunyuan3Dv2Conditioning`, `SaveGLB` | Geometry only |
-| **Hunyuan3D-2mv** | `Hunyuan3Dv2ConditioningMultiView`, `SaveGLB` | Geometry only |
-| **TRELLIS.2** | `Trellis2ShapeStage`, `Trellis2TextureStage`, etc. | Requires 12GB+ VRAM |
-| **Pixal3D** | `Pixal3DConditioning` + shared TRELLIS stages | Requires 12GB+ VRAM |
-| **MoGe depth** | `LoadMoGeModel`, `MoGeInference`, `MoGePointMapToMesh` | Works on 8GB |
+| Model             | Nodes                                                  | Notes               |
+| ----------------- | ------------------------------------------------------ | ------------------- |
+| **Hunyuan3D-2**   | `Hunyuan3Dv2Conditioning`, `SaveGLB`                   | Geometry only       |
+| **Hunyuan3D-2mv** | `Hunyuan3Dv2ConditioningMultiView`, `SaveGLB`          | Geometry only       |
+| **TRELLIS.2**     | `Trellis2ShapeStage`, `Trellis2TextureStage`, etc.     | Requires 12GB+ VRAM |
+| **Pixal3D**       | `Pixal3DConditioning` + shared TRELLIS stages          | Requires 12GB+ VRAM |
+| **MoGe depth**    | `LoadMoGeModel`, `MoGeInference`, `MoGePointMapToMesh` | Works on 8GB        |
 
 > [!tip] Use native nodes first.
 > Only install custom nodes for models that aren't in core yet (TripoSR, SF3D).
 
 ### Custom Nodes Still Needed
 
-| Node Pack | Models | Install |
-|-----------|--------|---------|
-| `ComfyUI-3D-Pack` | TripoSR, StableFast3D, CRM, InstantMesh | Manager or git clone |
-| `ComfyUI-TripoSR` (flowty) | TripoSR only | Manager |
-| `ComfyUI-Hunyuan3DWrapper` (Kijai) | Full Hunyuan3D texture pipeline | git clone + compile rasterizer |
+| Node Pack                          | Models                                  | Install                        |
+| ---------------------------------- | --------------------------------------- | ------------------------------ |
+| `ComfyUI-3D-Pack`                  | TripoSR, StableFast3D, CRM, InstantMesh | Manager or git clone           |
+| `ComfyUI-TripoSR` (flowty)         | TripoSR only                            | Manager                        |
+| `ComfyUI-Hunyuan3DWrapper` (Kijai) | Full Hunyuan3D texture pipeline         | git clone + compile rasterizer |
 
 ---
 
@@ -170,6 +175,7 @@ def forward(model, image, batch):
 ```
 
 > [!warning] Pascal Caveats
+>
 > - `NVGEMM` epilogue fusion works but some low-precision paths require Blackwell (sm_100).
 > - `torch.compile` graph capture is safe on sm_61, but some kernel autotuning may target sm_70+.
 > - Always test with `torch._dynamo.config.suppress_errors = True` first.
@@ -178,11 +184,11 @@ def forward(model, image, batch):
 
 ## Cloud Fallbacks (When Local Isn't Enough)
 
-| Service | Free Tier | Max Quality | Latency | Best For |
-|---------|-----------|-------------|---------|----------|
-| **Hunyuan 3.0 Partner Nodes** | Yes (via ComfyUI Templates) | Production PBR | ~2-5 min | Best quality, no local VRAM |
-| **Hyper3D (Rodin Gen-2)** | Credits upon signup | 10M poly, 12K textures | ~90s | API-accessible, high fidelity |
-| **Tripo AI** | Limited free | Auto-rigged, game-ready | ~2 min | Character generation |
+| Service                       | Free Tier                   | Max Quality             | Latency  | Best For                      |
+| ----------------------------- | --------------------------- | ----------------------- | -------- | ----------------------------- |
+| **Hunyuan 3.0 Partner Nodes** | Yes (via ComfyUI Templates) | Production PBR          | ~2-5 min | Best quality, no local VRAM   |
+| **Hyper3D (Rodin Gen-2)**     | Credits upon signup         | 10M poly, 12K textures  | ~90s     | API-accessible, high fidelity |
+| **Tripo AI**                  | Limited free                | Auto-rigged, game-ready | ~2 min   | Character generation          |
 
 > [!tip] Hybrid workflow: generate geometry locally (instant, free), send to cloud
 > for texturing only. This maximizes your 8GB VRAM for iteration, then gets PBR
@@ -213,6 +219,8 @@ def forward(model, image, batch):
 - [[comfyui-workflows]] — General ComfyUI workflows
 - [[python-environment-management]] — PyTorch 2.14.0+cu126 env details
 - [[blender-mcp]] — Import meshes to Blender for cleanup
+- [[pascal-gpu-optimization-2026]] — GTX 1070 Ti constraints and PyTorch version requirements
+- [[text-to-3d-options-2026]] — Text-to-3D models for 8GB VRAM
 
 ---
 
@@ -230,4 +238,4 @@ def forward(model, image, batch):
 
 ---
 
-*Last updated: 2026-09-07 — Created after PyTorch 2.14 upgrade + 3D capability audit*
+_Last updated: 2026-09-07 — Created after PyTorch 2.14 upgrade + 3D capability audit_

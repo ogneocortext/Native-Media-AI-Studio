@@ -1,30 +1,32 @@
-"""Music Generation API — YuE2 and ACE-Step integration endpoints.
+"""Music Generation API — ACE-Step integration endpoints.
 
 Provides REST API for:
 - Starting/stopping music generation services
-- Generating songs with either engine
-- Planning scores (YuE2 only)
-- Rendering from edited ABC notation (YuE2 only)
+- Generating songs
 - VRAM coordination with the main backend
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+import re
+import shutil
+from pathlib import Path
+from typing import Any
 
 import aiohttp
-
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..adapters.music_gen import (
-    MusicGenAdapter,
-    get_music_gen_adapter,
-    shutdown_music_gen_services,
+    VRAM_BUDGETS,
     _get_shared_session,
+    get_music_gen_adapter,
+    reset_music_gen_adapter,
+    shutdown_music_gen_services,
 )
+from ..core import database
 from ..core.config import PROJECT_ROOT
 from ..services.vram_manager import vram_manager
 
@@ -32,43 +34,55 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/music-gen", tags=["MusicGeneration"])
 
+# Output names become on-disk directory/file names and URL path segments on both
+# the backend and the music-gen subprocess. Restrict to a safe charset to prevent
+# path traversal (e.g. "..%2F..%2F" decoded into a path parameter).
+_SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
+
+
+def _validate_output_name(name: str) -> str:
+    """Validate a user-supplied output name against a strict safe charset."""
+    if not _SAFE_NAME_RE.match(name):
+        raise HTTPException(
+            400,
+            detail=(
+                "Invalid output_name. Use 1-100 chars: letters, digits, "
+                "'-', '_', '.', starting with a letter or digit."
+            ),
+        )
+    return name
+
 
 # ---------------------------------------------------------------------------
 # Request/Response models
 # ---------------------------------------------------------------------------
 
 class StartServiceRequest(BaseModel):
-    engine: str = Field("yue2", description="Engine: yue2 or ace")
-    port: Optional[int] = Field(None, description="Port override (default: 8200/8201)")
-    vram_budget_mb: Optional[int] = Field(None, description="VRAM budget in MB")
+    engine: str = Field("ace", description="Engine: ace")
+    port: int | None = Field(None, description="Port override (default: 8201)")
+    vram_budget_mb: int | None = Field(None, description="VRAM budget in MB")
 
 
 class GenerateRequest(BaseModel):
-    engine: str = Field("yue2", description="Engine: yue2 or ace")
+    engine: str = Field("ace", description="Engine: ace")
     style: str = Field(..., min_length=1, max_length=2000,
                        description="Genre, instruments, mood, tempo, vocal type")
     lyrics: str = Field(..., min_length=1, max_length=10000,
                         description="Full lyrics with [Verse]/[Chorus]/[Bridge] tags")
-    cot: str = Field("full", description="Chain-of-thought: full, melody, off")
-    seed: Optional[int] = Field(None, description="Deterministic seed")
-    abc: Optional[str] = Field(None, description="Pre-made ABC score for covers/edits")
-    cfg_scale: float = Field(1.0, ge=0.5, le=3.0)
-    max_new_tokens: int = Field(3000, ge=100, le=8000)
-    output_name: Optional[str] = Field(None, description="Custom output filename")
+    seed: int | None = Field(None, description="Deterministic seed")
+    cfg_scale: float = Field(7.0, ge=0.5, le=20.0, description="Classifier-free guidance")
+    inference_steps: int = Field(8, ge=1, le=200, description="Diffusion steps")
+    output_name: str | None = Field(None, description="Custom output filename")
 
-
-class PlanRequest(BaseModel):
-    style: str
-    lyrics: str
-    cot: str = "full"
-    seed: Optional[int] = None
-
-
-class EditScoreRequest(BaseModel):
-    abc: str = Field(..., description="ABC notation score to render")
-    style: str
-    lyrics: str
-    seed: Optional[int] = None
+    @field_validator("output_name")
+    @classmethod
+    def _check_output_name(cls, v: str | None) -> str | None:
+        if v is not None and not _SAFE_NAME_RE.match(v):
+            raise ValueError(
+                "output_name must be 1-100 chars: letters, digits, '-', '_', '.', "
+                "starting with a letter or digit"
+            )
+        return v
 
 
 # ---------------------------------------------------------------------------
@@ -77,19 +91,19 @@ class EditScoreRequest(BaseModel):
 
 @router.get("/status")
 async def get_status() -> dict[str, Any]:
-    """Get status of all music generation services."""
-    adapters = {}
-    for engine in ["yue2", "ace"]:
-        adapter = get_music_gen_adapter(engine)
-        healthy = False
-        if adapter.is_running:
-            healthy = await adapter.health_check()
-        adapters[engine] = {
+    """Get status of the music generation service."""
+    adapter = get_music_gen_adapter("ace")
+    healthy = False
+    if adapter.is_running:
+        healthy = await adapter.health_check()
+    adapters = {
+        "ace": {
             "running": adapter.is_running,
             "healthy": healthy,
             "port": adapter.port,
             "pid": adapter.pid,
         }
+    }
 
     vram = await vram_manager.get_vram_status()
     return {
@@ -101,8 +115,25 @@ async def get_status() -> dict[str, Any]:
 
 @router.post("/start")
 async def start_service(req: StartServiceRequest) -> dict[str, Any]:
-    """Start a music generation service."""
-    adapter = get_music_gen_adapter(req.engine, port=req.port)
+    """Start the music generation service."""
+    if req.engine != "ace":
+        raise HTTPException(400, detail=f"Unknown engine: {req.engine!r}. Supported: 'ace'")
+
+    adapter = get_music_gen_adapter(req.engine)
+
+    # A port override can only be honored by recreating the adapter (the base
+    # URL is derived from the port at construction time).
+    if req.port is not None and req.port != adapter.port:
+        if adapter.is_running:
+            raise HTTPException(
+                409,
+                detail=(
+                    f"Service already running on port {adapter.port}. "
+                    "Stop it before starting with a different port."
+                ),
+            )
+        reset_music_gen_adapter(req.engine)
+        adapter = get_music_gen_adapter(req.engine, port=req.port)
 
     if adapter.is_running:
         return {
@@ -113,7 +144,6 @@ async def start_service(req: StartServiceRequest) -> dict[str, Any]:
         }
 
     # Coordinate with VRAM manager
-    from ..adapters.music_gen import VRAM_BUDGETS
     budget = req.vram_budget_mb or VRAM_BUDGETS.get(req.engine, 6144)
 
     vram_result = await vram_manager.begin_music_generation(
@@ -135,14 +165,16 @@ async def start_service(req: StartServiceRequest) -> dict[str, Any]:
             "pid": adapter.pid,
             "vram": vram_result,
         }
-    except Exception as e:
+    except Exception:
         await vram_manager.end_music_generation()
         raise
 
 
 @router.post("/stop")
-async def stop_service(engine: str = "yue2") -> dict[str, Any]:
-    """Stop a music generation service."""
+async def stop_service(engine: str = "ace") -> dict[str, Any]:
+    """Stop the music generation service."""
+    if engine != "ace":
+        raise HTTPException(400, detail=f"Unknown engine: {engine!r}. Supported: 'ace'")
     adapter = get_music_gen_adapter(engine)
     stopped = await adapter.stop_service()
     await vram_manager.end_music_generation()
@@ -170,71 +202,96 @@ async def generate(req: GenerateRequest) -> dict[str, Any]:
     adapter = get_music_gen_adapter(req.engine)
 
     if not adapter.is_running:
-        raise HTTPException(503, detail=f"Service not running. Start it first with POST /start")
+        raise HTTPException(503, detail="Service not running. Start it first with POST /start")
 
     try:
         result = await adapter.generate({
             "style": req.style,
             "lyrics": req.lyrics,
-            "cot": req.cot,
             "seed": req.seed,
-            "abc": req.abc,
             "cfg_scale": req.cfg_scale,
-            "max_new_tokens": req.max_new_tokens,
+            "inference_steps": req.inference_steps,
             "output_name": req.output_name,
         })
+
+        # Register generated audio in the media library so the frontend can find/play it.
+        audio_path = result.get("audio_path")
+        output_name = result.get("output_name") or req.output_name or ""
+        if audio_path and output_name:
+            try:
+                output_name = _validate_output_name(output_name)
+                src = Path(audio_path)
+                if src.exists():
+                    dst_name = f"{output_name}.wav"
+                    dst = PROJECT_ROOT / "output" / "audio" / dst_name
+                    audio_dir = PROJECT_ROOT / "output" / "audio"
+                    if not str(dst.resolve()).startswith(str(audio_dir.resolve())):
+                        raise HTTPException(status_code=400, detail="Invalid output path")
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+
+                    # Copy to a temp path first so we can clean up on DB failure
+                    # and avoid leaving half-registered files when metadata read
+                    # or save_audio_file raises.
+                    temp_path = dst.with_suffix(".tmp")
+                    created_temp = False
+                    try:
+                        if not dst.exists():
+                            shutil.copy2(str(src), str(temp_path))
+                            created_temp = True
+
+                        file_size = temp_path.stat().st_size
+                        sample_rate = result.get("sample_rate", 48000)
+                        duration = 0.0
+                        channels = 2
+                        try:
+                            import soundfile as sf
+                            info = sf.info(str(temp_path))
+                            duration = float(info.frames) / float(info.samplerate) if info.samplerate else 0.0
+                            channels = int(info.channels)
+                            sample_rate = int(info.samplerate) or sample_rate
+                        except Exception:
+                            pass
+
+                        database.save_audio_file(
+                            filename=dst_name,
+                            original_name=dst_name,
+                            stored_path=f"output/audio/{dst_name}",
+                            file_size=file_size,
+                            duration=duration,
+                            sample_rate=sample_rate,
+                            channels=channels,
+                            format="wav",
+                        )
+                        # Atomic rename so the file appears only after DB registration.
+                        if created_temp:
+                            temp_path.replace(dst)
+                        result["relative_path"] = f"audio/{dst_name}"
+                    except Exception:
+                        if created_temp and temp_path.exists():
+                            try:
+                                temp_path.unlink()
+                            except Exception:
+                                pass
+                        raise
+            except Exception as exc:
+                logger.warning("Failed to register generated audio in media library: %s", exc)
+
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Generation failed: %s", e, exc_info=True)
-        raise HTTPException(500, detail=str(e))
-
-
-@router.post("/plan")
-async def plan_score(req: PlanRequest) -> dict[str, Any]:
-    """Generate score only (YuE2 only, no audio)."""
-    adapter = get_music_gen_adapter("yue2")
-
-    if not adapter.is_running:
-        raise HTTPException(503, detail="YuE2 service not running")
-
-    try:
-        return await adapter.plan_score(
-            style=req.style,
-            lyrics=req.lyrics,
-            seed=req.seed,
-        )
-    except Exception as e:
-        logger.error("Plan failed: %s", e, exc_info=True)
-        raise HTTPException(500, detail=str(e))
-
-
-@router.post("/render")
-async def render_score(req: EditScoreRequest) -> dict[str, Any]:
-    """Render audio from edited ABC score (YuE2 only)."""
-    adapter = get_music_gen_adapter("yue2")
-
-    if not adapter.is_running:
-        raise HTTPException(503, detail="YuE2 service not running")
-
-    try:
-        return await adapter.render_from_score(
-            abc=req.abc,
-            style=req.style,
-            lyrics=req.lyrics,
-            seed=req.seed,
-        )
-    except Exception as e:
-        logger.error("Render failed: %s", e, exc_info=True)
-        raise HTTPException(500, detail=str(e))
+        raise HTTPException(500, detail=str(e)) from e
 
 
 # ---------------------------------------------------------------------------
 # File download endpoints
 # ---------------------------------------------------------------------------
 
-@router.get("/audio/{engine}/{output_name}")
-async def get_audio(engine: str, output_name: str):
+@router.get("/audio/{output_name}")
+async def get_audio(output_name: str):
     """Download generated audio file."""
+    output_name = _validate_output_name(output_name)
     output_dir = PROJECT_ROOT / "output" / "music" / output_name
 
     # Try flac first, then wav, then mp3
@@ -257,6 +314,7 @@ async def get_audio(engine: str, output_name: str):
 @router.get("/score/{output_name}")
 async def get_score(output_name: str):
     """Download ABC score file."""
+    output_name = _validate_output_name(output_name)
     score_path = PROJECT_ROOT / "output" / "music" / output_name / "score.abc"
     if not score_path.exists():
         raise HTTPException(404, detail="Score file not found")
@@ -278,7 +336,7 @@ async def get_vram() -> dict[str, Any]:
 
 
 @router.post("/unload")
-async def unload_engine(engine: str = "yue2") -> dict[str, Any]:
+async def unload_engine(engine: str = "ace") -> dict[str, Any]:
     """Unload engine to free VRAM (for manual coordination)."""
     adapter = get_music_gen_adapter(engine)
     if adapter.is_running:
@@ -298,7 +356,7 @@ async def unload_engine(engine: str = "yue2") -> dict[str, Any]:
 
 
 @router.post("/reload")
-async def reload_engine(engine: str = "yue2") -> dict[str, Any]:
+async def reload_engine(engine: str = "ace") -> dict[str, Any]:
     """Reload engine after VRAM freed."""
     adapter = get_music_gen_adapter(engine)
     if adapter.is_running:

@@ -35,14 +35,23 @@ AUDIO_DIR = PROJECT_ROOT / "output" / "audio"
 VIDEO_DIR = PROJECT_ROOT / "output" / "video"
 
 
-def _resolve_relative_path(relative_path: str) -> Path | None:
-    """Resolve a frontend-provided relative path inside the output directory."""
-    candidate = (OUTPUT_BASE / relative_path).resolve()
+def _resolve_safe_path(path: str) -> tuple[Path | None, str | None]:
+    """Resolve a frontend-provided path safely inside the output directory.
+
+    Returns ``(resolved_path, error)``.  On success ``error`` is ``None``.
+    On failure ``resolved_path`` is ``None`` and ``error`` describes the problem.
+    """
+    target = Path(path)
+    if not target.is_absolute():
+        target = OUTPUT_BASE / path
     try:
-        candidate.relative_to(OUTPUT_BASE.resolve())
+        target = target.resolve()
+        target.relative_to(OUTPUT_BASE.resolve())
     except ValueError:
-        return None
-    return candidate if candidate.exists() and candidate.is_file() else None
+        return None, "path must point to a file inside the output directory"
+    if not target.exists() or not target.is_file():
+        return None, "file not found"
+    return target, None
 
 
 # =============================================================================
@@ -64,19 +73,11 @@ async def probe(
     """Return FFprobe metadata for a media file.
 
     Accepts either an absolute path inside the project's output directory or a
-    path relative to ``output/``.
+    path relative to ``output/``.  Paths outside ``output/`` are rejected.
     """
-    target = Path(path)
-    if not target.is_absolute():
-        target = OUTPUT_BASE / path
-    target = target.resolve()
-
-    try:
-        target.relative_to(OUTPUT_BASE.resolve())
-    except ValueError:
-        # Also allow absolute paths outside output when they exist (e.g. ComfyUI outputs).
-        if not target.exists() or not target.is_file():
-            raise HTTPException(status_code=400, detail="path must point to an existing media file") from None
+    target, err = _resolve_safe_path(path)
+    if err:
+        raise HTTPException(status_code=400, detail=err)
 
     data = await probe_media(target)
     rel = None
@@ -106,12 +107,9 @@ async def loudness(
     path: str = Query(..., description="Absolute or relative path under output/"),
 ) -> LoudnessResponse:
     """Compute EBU R128 loudness metrics for a media file."""
-    target = Path(path)
-    if not target.is_absolute():
-        target = OUTPUT_BASE / path
-    target = target.resolve()
-    if not target.exists() or not target.is_file():
-        raise HTTPException(status_code=404, detail="file not found")
+    target, err = _resolve_safe_path(path)
+    if err:
+        raise HTTPException(status_code=404 if "not found" in err else 400, detail=err)
 
     result = await compute_loudness(target)
     rel = None
@@ -148,12 +146,9 @@ async def waveform(
     max_points: int = Query(240, ge=16, le=1200),
 ) -> WaveformResponse:
     """Return a downsampled amplitude envelope for waveform visualization."""
-    target = Path(path)
-    if not target.is_absolute():
-        target = OUTPUT_BASE / path
-    target = target.resolve()
-    if not target.exists() or not target.is_file():
-        raise HTTPException(status_code=404, detail="file not found")
+    target, err = _resolve_safe_path(path)
+    if err:
+        raise HTTPException(status_code=404 if "not found" in err else 400, detail=err)
 
     result = await extract_waveform(target, max_points=max_points)
     rel = None
@@ -190,12 +185,9 @@ class ThumbnailResponse(BaseModel):
 @router.post("/thumbnail", response_model=ThumbnailResponse)
 async def thumbnail(body: ThumbnailRequest, request: Request) -> ThumbnailResponse:
     """Extract a frame at an arbitrary timestamp from a video file."""
-    target = Path(body.path)
-    if not target.is_absolute():
-        target = OUTPUT_BASE / body.path
-    target = target.resolve()
-    if not target.exists() or not target.is_file():
-        raise HTTPException(status_code=404, detail="file not found")
+    target, err = _resolve_safe_path(body.path)
+    if err:
+        raise HTTPException(status_code=404 if "not found" in err else 400, detail=err)
 
     thumb = await extract_thumbnail_at_time(
         target,
@@ -232,12 +224,9 @@ async def cover_regenerate(
     path: str = Query(..., description="Absolute or relative path under output/"),
 ) -> CoverRegenerateResponse:
     """Force re-extraction of embedded cover art for an audio file."""
-    target = Path(path)
-    if not target.is_absolute():
-        target = OUTPUT_BASE / path
-    target = target.resolve()
-    if not target.exists() or not target.is_file():
-        raise HTTPException(status_code=404, detail="file not found")
+    target, err = _resolve_safe_path(path)
+    if err:
+        raise HTTPException(status_code=404 if "not found" in err else 400, detail=err)
 
     cover = await regenerate_cover(target)
     rel = None

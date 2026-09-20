@@ -1263,32 +1263,42 @@ def save_audio_file(
         audio_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
 
-        conn.execute(
-            """
-            INSERT INTO audio_files
-            (id, filename, original_name, stored_path, file_size, duration,
-             sample_rate, channels, format, bpm, key, genre, music_prompt_id,
-             analysis_result, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                audio_id,
-                filename,
-                original_name,
-                stored_path,
-                file_size,
-                duration,
-                kwargs.get("sample_rate", 44100),
-                kwargs.get("channels", 2),
-                kwargs.get("format", ""),
-                kwargs.get("bpm"),
-                kwargs.get("key"),
-                kwargs.get("genre"),
-                kwargs.get("music_prompt_id"),
-                json.dumps(kwargs.get("analysis_result", {})),
-                now,
-            ),
-        )
+        try:
+            conn.execute(
+                """
+                INSERT INTO audio_files
+                (id, filename, original_name, stored_path, file_size, duration,
+                 sample_rate, channels, format, bpm, key, genre, music_prompt_id,
+                 analysis_result, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    audio_id,
+                    filename,
+                    original_name,
+                    stored_path,
+                    file_size,
+                    duration,
+                    kwargs.get("sample_rate", 44100),
+                    kwargs.get("channels", 2),
+                    kwargs.get("format", ""),
+                    kwargs.get("bpm"),
+                    kwargs.get("key"),
+                    kwargs.get("genre"),
+                    kwargs.get("music_prompt_id"),
+                    json.dumps(kwargs.get("analysis_result", {})),
+                    now,
+                ),
+            )
+        except sqlite3.IntegrityError:
+            # Race: another request inserted the same filename between
+            # our SELECT and INSERT. Return the existing ID.
+            row = conn.execute(
+                "SELECT id FROM audio_files WHERE filename = ?", (filename,)
+            ).fetchone()
+            if row:
+                return row["id"]
+            raise
 
     return audio_id
 
@@ -1368,13 +1378,15 @@ def update_audio_analysis(filename: str, analysis_result: dict) -> bool:
             UPDATE audio_files
             SET analysis_result = ?,
                 bpm = ?,
-                duration = ?
+                duration = ?,
+                stored_path = ?
             WHERE filename = ?
             """,
             (
                 json.dumps(analysis_result),
                 analysis_result.get("tempo_bpm"),
                 analysis_result.get("duration_seconds"),
+                analysis_result.get("stored_path", ""),
                 filename,
             ),
         )
