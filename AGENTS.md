@@ -1,6 +1,6 @@
 # AGENTS.md — Native Media AI Studio
 
-> **Last Updated:** 2026-09-19
+> **Last Updated:** 2026-09-20
 > **Status:** Active Development (Phase 1+2)
 > **Platform:** Windows 11 local development machine
 
@@ -39,13 +39,13 @@ Native-Media-AI-Studio/
 │   ├── backend/               # FastAPI backend
 │   │   ├── app/
 │   │   │   ├── api/           # REST routes
-│   │   │   ├── core/          # Port manager, health monitor, SQLite, CORS
+│   │   │   ├── core/          # Port manager, health monitor, SQLite, CORS, tracing, RequestID middleware
 │   │   │   ├── models/        # Pydantic schemas (single source of truth)
 │   │   │   ├── services/      # Business logic
-│   │   │   ├── adapters/      # ComfyUI, Ollama, Blender, Unity wrappers
+│   │   │   ├── adapters/      # ComfyUI, Ollama, Blender, Unity, music-gen wrappers
 │   │   │   ├── sse/           # Canonical SSE event handler
 │   │   │   ├── websocket/     # Legacy 426 shim — prefer SSE
-│   │   │   ├── queue/         # Job queue
+│   │   │   ├── queue/         # Job queue (with DLQ + metrics)
 │   │   │   ├── diagnostics/   # Resource / health diagnostics
 │   │   │   └── main.py        # App factory and startup wiring
 │   │   └── tests/
@@ -62,7 +62,8 @@ Native-Media-AI-Studio/
 │   ├── go-worker/             # Queue I/O worker on :3849
 │   ├── go-gateway/            # MCP bridge router on :3850
 │   ├── go-ports/              # Port availability checker on :3851
-│   ├── music-gen/             # YuE2 + ACE-Step music generation (FastAPI, port 8200/8201)
+│   ├── music-gen/             # YuE2 + ACE-Step music generation (FastAPI subprocess, ports 8200/8201)
+│   │   └── server.py          # Shared aiohttp session, startup engine validation, graceful shutdown
 │   ├── vision/                # Standalone vision utilities
 │   │   └── analyze.mjs
 │   ├── blender/               # Blender MCP client helpers
@@ -236,6 +237,13 @@ The Visualizer (`packages/frontend/src/features/visualizer/`) includes:
 - **Lint:** `pnpm lint` (frontend) / `ruff check` (backend)
 - **Format:** `pnpm format` (frontend) / `ruff format` (backend)
 
+### Observability
+
+- **Request ID / latency:** `RequestIDMiddleware` injects `X-Request-ID` and `X-Response-Time` on every response.
+- **Tracing:** Set `NMA_TRACING=1` to enable OpenTelemetry console exporter (opt-in, no external collector required).
+- **Queue DLQ:** Exhausted retries move jobs to `JobStatus.DEAD`. Use `GET /api/jobs/dead-letter` and `POST /api/jobs/clear-dead` to inspect/purge.
+- **Queue metrics:** `GET /api/jobs/metrics` returns depth, processing rate, wait/duration averages, and DLQ sample.
+
 ## Common Tasks
 
 - Start background services: `scripts\start-services.ps1`
@@ -244,8 +252,13 @@ The Visualizer (`packages/frontend/src/features/visualizer/`) includes:
 - Unity health: `curl -X POST http://127.0.0.1:7800/api/exec -H "Authorization: Bearer <token>" -d '{"command":"editor_status","parameters":{}}'`
   - Replace `<token>` with the actual Unity MCP bearer token from your environment.
 - Backend health: `http://127.0.0.1:8000/api/health` (check `config/ports.json` for current port)
+- Backend queue health: `http://127.0.0.1:8000/api/health/queue`
+- Backend queue metrics: `http://127.0.0.1:8000/api/jobs/metrics`
+- Backend dead-letter queue: `GET /api/jobs/dead-letter`, `POST /api/jobs/clear-dead`
 - ComfyUI: `http://127.0.0.1:8188`
 - Go dashboard: `http://127.0.0.1:3847` (SSE + health, started automatically)
+- Music generation: `POST /api/music-gen/start`, `POST /api/music-gen/stop`, `GET /api/music-gen/status`, `GET /api/music-gen/audio/{engine}/{name}`, `GET /api/music-gen/score/{name}`
+- Opt-in tracing: set `NMA_TRACING=1` when starting the backend to log OpenTelemetry spans to the console.
 
 ## Dependencies
 
@@ -273,6 +286,14 @@ The project has **three** Python environments. Do not assume `python` on PATH is
 Rules:
 - **Default to the studio env** (`nma-studio-cuda`) for backend + GPU work.
 - **Never** use `comfyui-cuda` for backend work; it is ComfyUI-only.
+
+### Music-Gen Python environment
+
+The music-gen service prefers its own isolated interpreter so engine dependencies do not conflict with the backend:
+
+1. `tools/music-gen/.venv/Scripts/python.exe` (recommended)
+2. `MUSIC_GEN_PYTHON` environment variable
+3. Fallback to the backend `sys.executable` with a warning (not recommended)
 
 ### Paths and metadata
 

@@ -1,10 +1,10 @@
-import os
 import sqlite3
+from pathlib import Path
 
 # Check both databases
 db_paths = [
-    r'D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\packages\backend\storage\studio.db',
-    r'D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\storage\studio.db',
+    Path(r'D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\packages\backend\storage\studio.db'),
+    Path(r'D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\storage\studio.db'),
 ]
 
 for db_path in db_paths:
@@ -12,7 +12,7 @@ for db_path in db_paths:
     print(f'DATABASE: {db_path}')
     print(f'{"="*60}')
 
-    if not os.path.exists(db_path):
+    if not db_path.exists():
         print('  NOT FOUND')
         continue
 

@@ -485,6 +485,7 @@ class VRAMManager:
             logger.info("VRAM Manager: Music generation starting (engine=%s, need=%dMB)",
                         engine, vram_budget_mb)
             self._current_workload = GPUWorkload.MUSIC_GENERATION
+            self._music_gen_running = True
 
             vram = await self.get_vram_status()
             actions = []
@@ -518,6 +519,7 @@ class VRAMManager:
 
             # Still not enough
             self._current_workload = GPUWorkload.IDLE
+            self._music_gen_running = False
             return {
                 "success": False,
                 "error": f"Insufficient VRAM for music generation ({free_mb}MB free, {vram_budget_mb}MB required)",
@@ -537,6 +539,7 @@ class VRAMManager:
         async with self._lock:
             logger.info("VRAM Manager: Music generation complete")
             self._current_workload = GPUWorkload.IDLE
+            self._music_gen_running = False
 
             vram = await self.get_vram_status()
             actions = []

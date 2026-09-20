@@ -1,11 +1,11 @@
-import os
 import sqlite3
+from pathlib import Path
 
-DB_PATH = r'D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\packages\backend\storage\studio.db'
+DB_PATH = Path(r'D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\packages\backend\storage\studio.db')
 
 def fix_database():
     """Fix database issues and clean up test data."""
-    if not os.path.exists(DB_PATH):
+    if not DB_PATH.exists():
         print(f"Database not found: {DB_PATH}")
         return
 

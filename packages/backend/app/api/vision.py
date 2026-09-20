@@ -65,11 +65,16 @@ async def vision_ocr(
     if file.content_type and not file.content_type.startswith("image/"):
         if file.content_type not in ("image/png", "image/jpeg", "image/webp", "image/jpg"):
             pass
-    raw = await file.read()
+    raw_parts = []
+    total = 0
+    while chunk := await file.read(8192):
+        total += len(chunk)
+        if total > 15 * 1024 * 1024:
+            return {"error": "file too large (15MB max)"}
+        raw_parts.append(chunk)
+    raw = b"".join(raw_parts)
     if not raw:
         return {"error": "empty file"}
-    if len(raw) > 15 * 1024 * 1024:
-        return {"error": "file too large (15MB max)"}
     b64 = base64.b64encode(raw).decode()
     effective_prompt = PROMPTS.get(prompt, prompt)
     try:
@@ -107,11 +112,16 @@ async def analyze_visualizer(
     if file.content_type and not file.content_type.startswith("image/"):
         if file.content_type not in ("image/png", "image/jpeg", "image/webp", "image/jpg"):
             pass
-    raw = await file.read()
+    raw_parts = []
+    total = 0
+    while chunk := await file.read(8192):
+        total += len(chunk)
+        if total > 15 * 1024 * 1024:
+            return {"error": "file too large (15MB max)"}
+        raw_parts.append(chunk)
+    raw = b"".join(raw_parts)
     if not raw:
         return {"error": "empty file"}
-    if len(raw) > 15 * 1024 * 1024:
-        return {"error": "file too large (15MB max)"}
     b64 = base64.b64encode(raw).decode()
     prompt = (
         f"2D visualizer screenshot in mode={mode}. "

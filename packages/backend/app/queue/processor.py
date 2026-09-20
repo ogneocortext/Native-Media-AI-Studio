@@ -105,6 +105,12 @@ class JobProcessor:
                 logger.error("Error in process loop: %s", e)
                 await asyncio.sleep(1)
 
+    async def _backoff_sleep(self, retry_count: int, base_seconds: float = 2.0, max_seconds: float = 60.0) -> None:
+        """Exponential backoff with jitter for retries."""
+        delay = min(base_seconds * (2 ** retry_count), max_seconds)
+        jitter = delay * 0.1  # 10% jitter
+        await asyncio.sleep(delay + (jitter * (0.5 - hash(str(retry_count)) % 100 / 100.0)))
+
     async def _broadcast_progress(self, job: Job):
         """Broadcast job progress to SSE clients"""
         try:
@@ -166,21 +172,26 @@ class JobProcessor:
 
             # Check if we should retry
             if current is not None and current.retry_count < job.max_retries:
+                next_retry = current.retry_count + 1
                 await queue_manager.update_job(
                     job.id,
-                    status=JobStatus.QUEUED,
+                    status=JobStatus.RETRYING,
                     progress=0.0,
                     error=error_msg,
-                    message=f"Retry {job.retry_count + 1}/{job.max_retries}",
-                    # Increment retry_count so failing jobs eventually stop retrying
-                    retry_count=job.retry_count + 1,
+                    message=f"Retry {next_retry}/{job.max_retries}",
+                    retry_count=next_retry,
                 )
+                logger.info("Job %s scheduled for retry %d/%d with backoff", job.id, next_retry, job.max_retries)
+                await self._backoff_sleep(current.retry_count)
+                # Re-queue for processing
+                await queue_manager.update_job(job.id, status=JobStatus.QUEUED)
+                queue_manager._signal_new_job()
             else:
-                await queue_manager.update_job(
+                # Exhausted retries -> dead-letter queue
+                logger.warning("Job %s moved to DLQ after %d retries", job.id, current.retry_count if current else job.retry_count)
+                await queue_manager._move_to_dead_letter(
                     job.id,
-                    status=JobStatus.FAILED,
-                    error=error_msg,
-                    message="Job failed after max retries",
+                    error_msg if current is None else (current.error or error_msg),
                 )
 
         finally:

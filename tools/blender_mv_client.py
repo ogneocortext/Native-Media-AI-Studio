@@ -13,21 +13,23 @@ Usage:
     python tools/blender_mv_client.py status
 """
 
+from __future__ import annotations
+
 import argparse
 import json
-import os
 import socket
 import sys
+from pathlib import Path
 
 HOST = "127.0.0.1"
 PORT = 9876
 
-TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_DIR = os.path.dirname(TOOLS_DIR)
-BEAT_DATA_PATH = os.path.join(TOOLS_DIR, "..", "output", "beat_data.json")
-OUTPUT_DIR = os.path.join(PROJECT_DIR, "output", "take-the-crown-mv")
-FRAMES_DIR = os.path.join(OUTPUT_DIR, "frames")
-PROGRESS_PATH = os.path.join(OUTPUT_DIR, "render_progress.json")
+TOOLS_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = TOOLS_DIR.parent
+BEAT_DATA_PATH = PROJECT_DIR / "output" / "beat_data.json"
+OUTPUT_DIR = PROJECT_DIR / "output" / "take-the-crown-mv"
+FRAMES_DIR = OUTPUT_DIR / "frames"
+PROGRESS_PATH = OUTPUT_DIR / "render_progress.json"
 
 
 def call_blender(cmd_type: str, params=None, timeout: float = 60.0):
@@ -245,13 +247,13 @@ if scene.render.engine == 'CYCLES':
     scene.cycles.samples = 16
     scene.cycles.use_denoising = True
 
-os.makedirs(FRAMES_DIR, exist_ok=True)
+FRAMES_DIR.mkdir(parents=True, exist_ok=True)
 with open(PROGRESS_PATH, "w") as f:
     json.dump({{"done": 0, "total": TOTAL_FRAMES, "engine": chosen, "state": "rendering"}}, f)
 
 for frame in range(scene.frame_start, TOTAL_FRAMES + 1):
     scene.frame_set(frame)
-    scene.render.filepath = os.path.join(FRAMES_DIR, "frame_%04d.png" % frame)
+    scene.render.filepath = str(FRAMES_DIR / f"frame_{frame:04d}.png")
     bpy.ops.render.render(write_still=True)
     with open(PROGRESS_PATH, "w") as f:
         json.dump({{"done": frame, "total": TOTAL_FRAMES, "engine": chosen, "state": "rendering"}}, f)
@@ -273,7 +275,7 @@ def cmd_render(duration: float, width: int, height: int):
     fps = 24
     total_frames = int(fps * duration)
     beats = load_beats(duration)
-    os.makedirs(FRAMES_DIR, exist_ok=True)
+    FRAMES_DIR.mkdir(parents=True, exist_ok=True)
 
     anim_code = ANIMATE_CODE_HEADER.format(
         fps=fps, duration=duration, beats_json=json.dumps(beats))
@@ -297,8 +299,8 @@ def cmd_status():
     except FileNotFoundError:
         print("No progress file yet.")
     count = 0
-    if os.path.isdir(FRAMES_DIR):
-        count = len([n for n in os.listdir(FRAMES_DIR) if n.endswith(".png")])
+    if FRAMES_DIR.is_dir():
+        count = sum(1 for n in FRAMES_DIR.iterdir() if n.suffix == ".png")
     print(f"Frames on disk: {count}")
 
 

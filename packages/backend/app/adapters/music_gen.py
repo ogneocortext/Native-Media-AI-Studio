@@ -18,9 +18,28 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
+import aiohttp
+
 from .base import AdapterStatus, BaseAdapter, _handle_adapter_error
 
 logger = logging.getLogger(__name__)
+
+# Shared aiohttp session for all adapters (created on first use)
+_shared_session: Optional[aiohttp.ClientSession] = None
+
+
+async def _get_shared_session() -> aiohttp.ClientSession:
+    global _shared_session
+    if _shared_session is None or _shared_session.closed:
+        _shared_session = aiohttp.ClientSession()
+    return _shared_session
+
+
+async def close_shared_session():
+    global _shared_session
+    if _shared_session and not _shared_session.closed:
+        await _shared_session.close()
+    _shared_session = None
 
 # Default ports for each engine
 DEFAULT_PORTS = {
@@ -71,15 +90,14 @@ class MusicGenAdapter(BaseAdapter):
         if self._mock_mode:
             return True
         try:
-            import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.base_url}/health", timeout=aiohttp.ClientTimeout(total=5)
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        self._ready = data.get("loaded", False)
-                        return True
+            session = await _get_shared_session()
+            async with session.get(
+                f"{self.base_url}/health", timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    self._ready = data.get("loaded", False)
+                    return True
         except Exception:
             pass
         self._ready = False
@@ -114,17 +132,16 @@ class MusicGenAdapter(BaseAdapter):
                 f"Start the service first."
             )
 
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.base_url}/generate",
-                json=params,
-                timeout=aiohttp.ClientTimeout(total=600),  # 10 min for large generations
-            ) as resp:
-                if resp.status != 200:
-                    error_text = await resp.text()
-                    raise RuntimeError(f"Music generation failed: {error_text}")
-                return await resp.json()
+        session = await _get_shared_session()
+        async with session.post(
+            f"{self.base_url}/generate",
+            json=params,
+            timeout=aiohttp.ClientTimeout(total=600),  # 10 min for large generations
+        ) as resp:
+            if resp.status != 200:
+                error_text = await resp.text()
+                raise RuntimeError(f"Music generation failed: {error_text}")
+            return await resp.json()
 
     async def _mock_generate(self, params: dict[str, Any]) -> dict[str, Any]:
         """Mock generation for testing without the service."""
@@ -221,31 +238,29 @@ class MusicGenAdapter(BaseAdapter):
 
         # Try graceful shutdown via HTTP
         try:
-            import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.base_url}/unload",
-                    timeout=aiohttp.ClientTimeout(total=10),
-                ):
-                    pass
+            session = await _get_shared_session()
+            async with session.post(
+                f"{self.base_url}/unload",
+                timeout=aiohttp.ClientTimeout(total=10),
+            ):
+                pass
         except Exception:
             pass
 
         # Give it a moment to clean up
         await asyncio.sleep(2)
 
-        # Force kill if still running
+        # Graceful terminate first, then force kill if still running
         if self._process.poll() is None:
             try:
-                if sys.platform == "win32":
+                self._process.terminate()
+                try:
+                    self._process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    logger.warning("Process %d did not exit after terminate, killing", pid)
                     self._process.kill()
-                else:
-                    os.kill(pid, signal.SIGTERM)
-                    await asyncio.sleep(2)
-                    if self._process.poll() is None:
-                        os.kill(pid, signal.SIGKILL)
             except Exception as e:
-                logger.warning("Failed to kill music-gen process: %s", e)
+                logger.warning("Failed to stop music-gen process: %s", e)
 
         self._process = None
         self._ready = False
@@ -258,23 +273,28 @@ class MusicGenAdapter(BaseAdapter):
         start = time.monotonic()
         while (time.monotonic() - start) < self._startup_timeout:
             if self._process and self._process.poll() is not None:
-                # Process exited
+                # Process exited — drain stderr safely using communicate()
                 stderr = ""
-                if self._process.stderr:
-                    stderr = self._process.stderr.read().decode(errors="replace")
+                try:
+                    _, stderr_bytes = await asyncio.wait_for(
+                        asyncio.to_thread(self._process.communicate),
+                        timeout=5,
+                    )
+                    stderr = stderr_bytes.decode(errors="replace") if stderr_bytes else ""
+                except Exception as exc:
+                    logger.debug("Could not read stderr from exited process: %s", exc)
                 logger.error("Music-gen process exited early (code=%d): %s",
                              self._process.returncode, stderr[:500])
                 return False
 
             try:
-                import aiohttp
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        f"{self.base_url}/health",
-                        timeout=aiohttp.ClientTimeout(total=3),
-                    ) as resp:
-                        if resp.status == 200:
-                            return True
+                session = await _get_shared_session()
+                async with session.get(
+                    f"{self.base_url}/health",
+                    timeout=aiohttp.ClientTimeout(total=3),
+                ) as resp:
+                    if resp.status == 200:
+                        return True
             except Exception:
                 pass
 
@@ -284,12 +304,7 @@ class MusicGenAdapter(BaseAdapter):
 
     def _find_python(self) -> Optional[Path]:
         """Find the correct Python interpreter for the music-gen environment."""
-        # Check for conda env first
-        conda_env = os.environ.get("MUSIC_GEN_PYTHON")
-        if conda_env and Path(conda_env).exists():
-            return Path(conda_env)
-
-        # Check for venv in tools/music-gen
+        # Check for dedicated venv in tools/music-gen
         script_dir = Path(__file__).parent.parent.parent.parent / "tools" / "music-gen"
         venv_python = script_dir / ".venv" / "Scripts" / "python.exe"
         if venv_python.exists():
@@ -299,7 +314,18 @@ class MusicGenAdapter(BaseAdapter):
         if venv_python_unix.exists():
             return venv_python_unix
 
-        # Fallback to system Python
+        # Check MUSIC_GEN_PYTHON env var
+        env_python = os.environ.get("MUSIC_GEN_PYTHON")
+        if env_python and Path(env_python).exists():
+            return Path(env_python)
+
+        # Fallback to system Python — warn because this may share deps with the backend
+        logger.warning(
+            "No dedicated music-gen Python environment found. "
+            "Falling back to sys.executable=%s. Create a venv at "
+            "tools/music-gen/.venv or set MUSIC_GEN_PYTHON to avoid conflicts.",
+            sys.executable,
+        )
         return Path(sys.executable)
 
     # ------------------------------------------------------------------
@@ -335,17 +361,16 @@ class MusicGenAdapter(BaseAdapter):
         if self.engine != "yue2":
             raise ValueError("Plan only available for YuE2 engine")
 
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.base_url}/plan",
-                json={"style": style, "lyrics": lyrics, "seed": seed},
-                timeout=aiohttp.ClientTimeout(total=120),
-            ) as resp:
-                if resp.status != 200:
-                    error_text = await resp.text()
-                    raise RuntimeError(f"Plan failed: {error_text}")
-                return await resp.json()
+        session = await _get_shared_session()
+        async with session.post(
+            f"{self.base_url}/plan",
+            json={"style": style, "lyrics": lyrics, "seed": seed},
+            timeout=aiohttp.ClientTimeout(total=120),
+        ) as resp:
+            if resp.status != 200:
+                error_text = await resp.text()
+                raise RuntimeError(f"Plan failed: {error_text}")
+            return await resp.json()
 
     async def render_from_score(
         self,
@@ -358,34 +383,32 @@ class MusicGenAdapter(BaseAdapter):
         if self.engine != "yue2":
             raise ValueError("Score rendering only available for YuE2 engine")
 
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.base_url}/render",
-                json={
-                    "abc": abc,
-                    "style": style,
-                    "lyrics": lyrics,
-                    "seed": seed,
-                },
-                timeout=aiohttp.ClientTimeout(total=300),
-            ) as resp:
-                if resp.status != 200:
-                    error_text = await resp.text()
-                    raise RuntimeError(f"Render failed: {error_text}")
-                return await resp.json()
+        session = await _get_shared_session()
+        async with session.post(
+            f"{self.base_url}/render",
+            json={
+                "abc": abc,
+                "style": style,
+                "lyrics": lyrics,
+                "seed": seed,
+            },
+            timeout=aiohttp.ClientTimeout(total=300),
+        ) as resp:
+            if resp.status != 200:
+                error_text = await resp.text()
+                raise RuntimeError(f"Render failed: {error_text}")
+            return await resp.json()
 
     async def get_vram_usage(self) -> dict[str, Any]:
         """Get current VRAM usage from the service."""
         try:
-            import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.base_url}/vram",
-                    timeout=aiohttp.ClientTimeout(total=5),
-                ) as resp:
-                    if resp.status == 200:
-                        return await resp.json()
+            session = await _get_shared_session()
+            async with session.get(
+                f"{self.base_url}/vram",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                if resp.status == 200:
+                    return await resp.json()
         except Exception:
             pass
         return {"available": False}

@@ -235,8 +235,16 @@ async def analyze_audio(
 
     try:
         with open(file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
+            size = 0
+            while chunk := await file.read(8192):
+                size += len(chunk)
+                if size > MAX_FILE_SIZE:
+                    file_path.unlink(missing_ok=True)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)} MB",
+                    )
+                buffer.write(chunk)
 
         _check_backend_available(backend)
 
@@ -279,8 +287,16 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
 
     try:
         with open(file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
+            size = 0
+            while chunk := await file.read(8192):
+                size += len(chunk)
+                if size > MAX_FILE_SIZE:
+                    file_path.unlink(missing_ok=True)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)} MB",
+                    )
+                buffer.write(chunk)
 
         from ..services.audio_analyzer import LIBROSA_AVAILABLE, AudioAnalyzer
         if not LIBROSA_AVAILABLE:
@@ -1488,8 +1504,17 @@ async def separate_audio(
 
     saved_name = f"{uuid.uuid4().hex}{ext}"
     saved_path = AUDIO_DIR / saved_name
-    content = await file.read()
-    saved_path.write_bytes(content)
+    size = 0
+    with open(saved_path, "wb") as buffer:
+        while chunk := await file.read(8192):
+            size += len(chunk)
+            if size > MAX_FILE_SIZE:
+                saved_path.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)} MB",
+                )
+            buffer.write(chunk)
 
     try:
         result = await source_separator.separate(

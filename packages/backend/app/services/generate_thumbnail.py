@@ -1,5 +1,5 @@
 """Generate thumbnail preview for a 3D model using Blender."""
-import os
+from pathlib import Path
 import sys
 
 import bpy
@@ -89,7 +89,7 @@ def generate_thumbnail(glb_path: str, output_path: str, size: int = 256) -> bool
         # Render
         bpy.ops.render.render(write_still=True)
 
-        return os.path.exists(output_path)
+        return Path(output_path).exists()
 
     except Exception as e:
         print(f"Error generating thumbnail: {e}", file=sys.stderr)

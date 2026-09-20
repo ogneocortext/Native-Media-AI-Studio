@@ -1,6 +1,6 @@
 # Native Media AI Studio — Project Guidelines (v3)
 
-> **Last Updated:** 2026-09-15
+> **Last Updated:** 2026-09-20
 > **Status:** Active Development (Phase 1+2 — Music Video Wizard, 2D/LRC Visualizer, 3D Gen, Unity/Blender/Remotion)
 > **Purpose:** Living specification and implementation guide for the creative production environment.
 
@@ -51,7 +51,7 @@ All generations pass through a unified queue with the following schema:
 {
   "job_id": "uuid",
   "type": "image_generation | audio_analysis | character_render",
-  "status": "PENDING | RUNNING | COMPLETED | FAILED | CANCELLED",
+  "status": "PENDING | QUEUED | RUNNING | RETRYING | COMPLETED | FAILED | CANCELLED | DEAD",
   "payload": { "prompt": "...", "config": {} },
   "progress": 0.45,
   "result_path": "/output/images/job_id.png",
@@ -62,7 +62,7 @@ All generations pass through a unified queue with the following schema:
 
 ### 3.2 Real-Time Events (SSE)
 The backend pushes real-time updates to the UI via **Server-Sent Events** (`GET /api/events`, `sseService.ts`):
-- `job.queued`, `job.started`, `job.progress`, `job.completed`, `job.failed`
+- `job.queued`, `job.started`, `job.progress`, `job.completed`, `job.failed`, `job.dead`
 - `system.health_changed` (e.g., ComfyUI went offline)
 - `system.resource_warning` (e.g., High VRAM usage)
 - Legacy `ws://…/ws` returns `426` — use SSE `events_url`/`sse_url` from `config/ports.json`.
@@ -82,10 +82,10 @@ Native-Media-AI-Studio/
 ├── packages/backend/     # FastAPI Server (dynamic port, usually 8001) — ComfyUI on 8188
 │   ├── app/api/          # REST routes (jobs, health, audio, outputs, docs, sse)
 │   ├── app/sse/          # SSE handler (canonical); app/websocket/ is legacy shim
-│   ├── app/core/         # Port manager, Health monitor, SQLite setup, CORS
+│   ├── app/core/         # Port manager, Health monitor, SQLite setup, CORS, tracing, RequestID middleware
 │   ├── app/services/     # Job orchestration, audio, blender, cuda, gen3d, vram_manager, go_gateway_client, go_worker_client
 │   ├── app/diagnostics/  # resources / health diagnostics
-│   └── app/adapters/     # ComfyUI, Ollama, Blender, Unity wrappers
+│   └── app/adapters/     # ComfyUI, Ollama, Blender, Unity, music-gen wrappers
 ├── shared/               # TypeScript types (Job, QueueStats, OutputFile, ...)
 ├── config/               # ports.json (dynamic) + settings.json
 ├── output/               # Generative outputs (images, video, audio, generated_3d) — gitignored
@@ -111,6 +111,12 @@ Music generation subprocess services also use fixed ports:
 - `music-gen yue2`: 8200 (YuE2-3B, ~6GB VRAM, CC-BY-NC-4.0)
 - `music-gen ace`: 8201 (ACE-Step 1.5, ~4GB VRAM, Apache-2.0)
 
+Each engine runs as an isolated FastAPI subprocess with:
+- Startup import validation (`yue2` / `acestep`) so missing deps fail loud and early.
+- Shared `aiohttp.ClientSession` for the lifetime of the process.
+- Graceful shutdown: `terminate()` then `kill()` after 5s grace.
+- Python discovery order: `tools/music-gen/.venv` → `MUSIC_GEN_PYTHON` → `sys.executable` (with warning).
+
 ---
 
 ## 5. Phase 1 Scope & Acceptance Criteria
@@ -124,11 +130,14 @@ Music generation subprocess services also use fixed ports:
 - **AC1:** `GET /api/health` returns aggregate status of the backend and all configured adapters.
  - **AC2:** If ComfyUI/Ollama crashes, the frontend health badge updates from "Online" to "Offline" within 5 seconds via SSE (`GET /api/events`).
  - **AC3:** `GET /api/health/diagnostics/services` returns live status for all Go sidecars (go-dashboard, go-gateway, go-worker, go-media, go-ports).
+ - **AC4:** `GET /api/health/queue` returns queue stats and health for monitoring.
 
 ### Feature 3: Universal Job Queue
 - **AC1:** User can submit an image generation job, which enters `PENDING` state.
 - **AC2:** Queue executes jobs serially (1 at a time) to prevent VRAM overflow.
-- **AC3:** User can cancel a `RUNNING` job and retry a `FAILED` job from the UI.
+- **AC3:** User can cancel a `RUNNING` job and retry a `FAILED` or `DEAD` job from the UI.
+- **AC4:** Exhausted retries move jobs to a dead-letter queue (`DEAD`), inspectable via `GET /api/jobs/dead-letter` and clearable via `POST /api/jobs/clear-dead`.
+- **AC5:** `GET /api/jobs/metrics` returns depth, processing rate, wait/duration averages, and DLQ sample.
 
 ### Feature 4: External Integrations (Adapters)
 - **AC1:** Abstract `BaseAdapter` class exists.
@@ -154,6 +163,7 @@ pnpm servers status
 - **Backend:** Pydantic models must be the single source of truth for schemas. Keep API routes thin; place business logic in `/services`.
 - **Frontend:** No hardcoded API URLs. Always read from `ports.json` or Vite env vars. Health/SSE calls fall back to direct backend URL when proxy is down.
 - **Testing:** Focus on backend unit tests for the Queue and Port Manager. E2E tests are secondary for Phase 1.
+- **Observability:** Prefer structured logging; use `NMA_TRACING=1` for OpenTelemetry spans during development.
 
 ---
 

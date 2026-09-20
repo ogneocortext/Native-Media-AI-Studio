@@ -98,7 +98,7 @@ def _find_git() -> str | None:
 
     # Try common locations
     for path in _GIT_PATHS:
-        if os.path.isfile(path):
+        if Path(path).is_file():
             _GIT_EXECUTABLE = path
             _GIT_RESOLVED = True
             return _GIT_EXECUTABLE

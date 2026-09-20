@@ -6,7 +6,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Query
 
-from ..models.job import Job, JobCreateRequest, JobStatus, JobType, QueueStats
+from ..models.job import Job, JobCreateRequest, JobStatus, JobType, QueueMetrics, QueueStats
 from ..queue.manager import queue_manager
 
 logger = logging.getLogger(__name__)
@@ -45,6 +45,19 @@ async def list_jobs(
 async def get_queue_stats() -> QueueStats:
     """Get queue statistics."""
     return await queue_manager.get_stats()
+
+
+@router.get("/metrics", response_model=QueueMetrics)
+async def get_queue_metrics() -> QueueMetrics:
+    """Extended queue metrics: depth, processing rate, wait/duration averages, DLQ sample."""
+    data = await queue_manager.get_metrics()
+    return QueueMetrics(**data)
+
+
+@router.get("/dead-letter", response_model=list[Job])
+async def get_dead_letter(limit: int = 50) -> list[Job]:
+    """List dead-lettered jobs (permanently failed after max retries)."""
+    return await queue_manager.get_dead_letter_jobs(limit=limit)
 
 
 @router.get("/types")
@@ -91,15 +104,15 @@ async def cancel_job(job_id: str) -> dict:
 
 @router.post("/{job_id}/retry", response_model=Job)
 async def retry_job(job_id: str) -> Job:
-    """Retry a failed job.
+    """Retry a failed or dead-lettered job.
     Requeues the job for processing. Returns the updated job.
-    Raises 404 if job not found, 400 if job is not failed or max retries exceeded.
+    Raises 404 if job not found, 400 if job is not failed/dead or max retries exceeded.
     """
     existing_job = await queue_manager.get_job(job_id)
     if not existing_job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    if existing_job.status != JobStatus.FAILED:
+    if existing_job.status not in (JobStatus.FAILED, JobStatus.DEAD):
         raise HTTPException(
             status_code=400,
             detail=f"Cannot retry job with status: {existing_job.status}"
@@ -136,4 +149,11 @@ async def clear_completed_jobs() -> dict:
 async def clear_failed_jobs() -> dict:
     """Clear all failed jobs."""
     count = await queue_manager.clear_failed()
+    return {"success": True, "deleted": count}
+
+
+@router.post("/clear-dead", response_model=dict)
+async def clear_dead_jobs() -> dict:
+    """Clear all dead-lettered jobs."""
+    count = await queue_manager.clear_dead()
     return {"success": True, "deleted": count}

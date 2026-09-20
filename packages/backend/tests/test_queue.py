@@ -78,10 +78,10 @@ async def test_processor_retries_are_bounded(queue: QueueManager, monkeypatch):
     # Run far more attempts than max_retries; a runaway loop would hang/fail here
     for _ in range(max_retries + 3):
         await processor._process_job(job)
-        if job.status == JobStatus.FAILED:
+        if job.status in (JobStatus.FAILED, JobStatus.DEAD):
             break
 
-    assert job.status == JobStatus.FAILED
+    assert job.status == JobStatus.DEAD
     assert job.retry_count == max_retries
     assert "boom" in (job.error or "")
 

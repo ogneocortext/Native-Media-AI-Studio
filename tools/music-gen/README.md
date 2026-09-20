@@ -15,6 +15,12 @@ The main backend coordinates GPU allocation through VRAM manager:
 - `begin_music_generation()` — offloads Ollama, signals ComfyUI
 - `end_music_generation()` — reloads Ollama, returns to idle
 
+The service itself also includes hardening:
+- **Startup validation:** fails loud and early if `yue2` / `acestep` imports are missing.
+- **Shared HTTP session:** one `aiohttp.ClientSession` reused for all requests.
+- **Graceful shutdown:** engine `terminate()` then `kill()` after 5s grace on stop.
+- **Python discovery:** prefers `tools/music-gen/.venv`, then `MUSIC_GEN_PYTHON`, warns on `sys.executable` fallback.
+
 ## Setup
 
 ### Option A: Conda environment (recommended)
@@ -95,8 +101,13 @@ curl -X POST http://127.0.0.1:8000/api/music-gen/stop?engine=yue2
 
 ## Environment Variables
 
-- `MUSIC_GEN_PYTHON` — Path to Python interpreter for this service
+- `MUSIC_GEN_PYTHON` — Path to Python interpreter for this service (fallback if `tools/music-gen/.venv` is absent).
 - `CUDA_VISIBLE_DEVICES` — GPU selection (default: 0)
+
+Python interpreter discovery order:
+1. `tools/music-gen/.venv/Scripts/python.exe` (recommended)
+2. `MUSIC_GEN_PYTHON`
+3. Backend `sys.executable` (logged as a warning)
 
 ## VRAM Coordination
 

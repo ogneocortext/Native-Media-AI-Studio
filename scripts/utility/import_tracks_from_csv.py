@@ -1,6 +1,5 @@
 """Import tracks from CSV file into the database."""
 import csv
-import os
 import re
 import sys
 from pathlib import Path
@@ -13,9 +12,9 @@ from tools.lib.paths import backend_dir
 sys.path.insert(0, str(backend_dir()))
 from app.core.database import delete_track, get_tracks, init_db, save_track
 
-CSV_PATH = os.path.join(
-    os.path.dirname(__file__), '..',
-    'docs', 'track-prompts-lyrics.csv'
+CSV_PATH = (
+    Path(__file__).resolve().parent.parent
+    / 'docs' / 'track-prompts-lyrics.csv'
 )
 
 

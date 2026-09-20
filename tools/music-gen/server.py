@@ -21,15 +21,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import logging
 import os
+import random
 import time
 import uuid
 from contextlib import asynccontextmanager
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,51 +50,31 @@ class EngineType(str, Enum):
     ACE = "ace"
 
 
-class GenerationStatus(str, Enum):
-    PENDING = "pending"
-    PLANNING = "planning"
-    GENERATING = "generating"
-    DECODING = "decoding"
-    COMPLETE = "complete"
-    ERROR = "error"
-
-
 class SongRequest(BaseModel):
     style: str = Field(..., min_length=1, max_length=2000,
                        description="Genre, instruments, mood, tempo, vocal type")
     lyrics: str = Field(..., min_length=1, max_length=10000,
                         description="Full lyrics with [Verse]/[Chorus]/[Bridge] tags")
     cot: str = Field("full", description="Chain-of-thought: full, melody, off")
-    seed: Optional[int] = Field(None, description="Deterministic seed")
-    abc: Optional[str] = Field(None, description="Pre-made ABC score for covers/edits")
+    seed: int | None = Field(None, description="Deterministic seed")
+    abc: str | None = Field(None, description="Pre-made ABC score for covers/edits")
     cfg_scale: float = Field(1.0, ge=0.5, le=3.0, description="Classifier-free guidance")
     max_new_tokens: int = Field(3000, ge=100, le=8000)
-    output_name: Optional[str] = Field(None, description="Custom output filename")
+    output_name: str | None = Field(None, description="Custom output filename")
 
 
 class PlanRequest(BaseModel):
     style: str
     lyrics: str
     cot: str = "full"
-    seed: Optional[int] = None
-
-
-class CoverRequest(BaseModel):
-    reference_audio: str = Field(..., description="Path to reference audio file")
-    style: str
-    lyrics: str
-    start_time: float = 0.0
-    end_time: float = 30.0
-    dual_track: bool = False
-    vocal_path: Optional[str] = None
-    instrumental_path: Optional[str] = None
+    seed: int | None = None
 
 
 class EditScoreRequest(BaseModel):
     abc: str = Field(..., description="ABC notation score to render")
     style: str
     lyrics: str
-    seed: Optional[int] = None
+    seed: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +141,7 @@ class Yue2Engine:
     async def generate(self, req: SongRequest) -> dict[str, Any]:
         """Generate a complete song."""
         await self.load()
-        seed = req.seed or int(time.time()) % (2**31)
+        seed = req.seed or random.randint(0, 2**31 - 1)
         output_name = req.output_name or f"yue2_{uuid.uuid4().hex[:8]}"
         out_path = self.output_dir / output_name
 
@@ -197,7 +176,7 @@ class Yue2Engine:
     async def plan(self, req: PlanRequest) -> dict[str, Any]:
         """Generate score only (no audio)."""
         await self.load()
-        seed = req.seed or int(time.time()) % (2**31)
+        seed = req.seed or random.randint(0, 2**31 - 1)
         output_name = f"plan_{uuid.uuid4().hex[:8]}"
         out_path = self.output_dir / output_name
 
@@ -226,7 +205,7 @@ class Yue2Engine:
     async def render_from_score(self, req: EditScoreRequest) -> dict[str, Any]:
         """Render audio from an edited ABC score."""
         await self.load()
-        seed = req.seed or int(time.time()) % (2**31)
+        seed = req.seed or random.randint(0, 2**31 - 1)
         output_name = f"edit_{uuid.uuid4().hex[:8]}"
         out_path = self.output_dir / output_name
 
@@ -302,7 +281,7 @@ class ACEngine:
     async def generate(self, req: SongRequest) -> dict[str, Any]:
         """Generate a complete song."""
         await self.load()
-        seed = req.seed or int(time.time()) % (2**31)
+        seed = req.seed or random.randint(0, 2**31 - 1)
         output_name = req.output_name or f"ace_{uuid.uuid4().hex[:8]}"
         out_path = self.output_dir / output_name
 
@@ -332,24 +311,6 @@ class ACEngine:
 
 
 # ---------------------------------------------------------------------------
-# Job tracking
-# ---------------------------------------------------------------------------
-
-class JobState(BaseModel):
-    id: str
-    engine: str
-    status: GenerationStatus
-    request: dict
-    result: Optional[dict] = None
-    error: Optional[str] = None
-    created_at: float
-    completed_at: Optional[float] = None
-
-
-_jobs: dict[str, JobState] = {}
-
-
-# ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
 
@@ -366,9 +327,24 @@ async def lifespan(app: FastAPI):
     vram_budget = app.state.vram_budget
     output_dir = app.state.output_dir
 
+    # Validate engine imports at startup so failures are loud and early
     if engine_type == "yue2":
+        try:
+            import yue2  # noqa: F401
+        except ImportError as exc:
+            raise RuntimeError(
+                "YuE2 is not installed in this environment. "
+                "Install it with: pip install yue2"
+            ) from exc
         engine = Yue2Engine(vram_budget=vram_budget, output_dir=output_dir)
     elif engine_type == "ace":
+        try:
+            import acestep  # noqa: F401
+        except ImportError as exc:
+            raise RuntimeError(
+                "ACE-Step is not installed in this environment. "
+                "Install it with: pip install acestep"
+            ) from exc
         engine = ACEngine(vram_budget=vram_budget, output_dir=output_dir)
     else:
         raise ValueError(f"Unknown engine: {engine_type}")
@@ -378,6 +354,10 @@ async def lifespan(app: FastAPI):
     logger.info("Starting music-gen service: engine=%s, vram=%dGB, output=%s",
                 engine_type, vram_budget, output_dir)
 
+    # Shared aiohttp session for the lifetime of this process
+    import aiohttp
+    app.state.http_session = aiohttp.ClientSession()
+
     # Pre-load the engine
     try:
         await engine.load()
@@ -386,12 +366,16 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown: unload engine
+    # Shutdown: unload engine and close shared HTTP session
     for eng in _engines.values():
         try:
             await eng.unload()
         except Exception:
             pass
+    try:
+        await app.state.http_session.close()
+    except Exception:
+        pass
     logger.info("Music-gen service stopped")
 
 

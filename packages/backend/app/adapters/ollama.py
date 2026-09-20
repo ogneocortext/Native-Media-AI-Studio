@@ -1045,25 +1045,24 @@ Generate 3-8 scenes based on the input theme or concept."""
 
     async def _tool_get_project_structure(self, depth: int = 3) -> str:
         """Get project directory structure."""
-        import os
-        root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        root = Path(__file__).resolve().parents[2]
         lines = []
 
-        def walk(path: str, prefix: str = "", current_depth: int = 0):
+        def walk(path: Path, prefix: str = "", current_depth: int = 0):
             if current_depth >= depth:
                 return
             try:
-                entries = sorted(os.listdir(path))
+                entries = sorted(p.name for p in path.iterdir())
             except PermissionError:
                 return
             for i, entry in enumerate(entries):
                 if entry.startswith(".") or entry in ["node_modules", "__pycache__", "venv"]:
                     continue
-                full_path = os.path.join(path, entry)
+                full_path = path / entry
                 is_last = i == len(entries) - 1
                 connector = "└── " if is_last else "├── "
                 lines.append(f"{prefix}{connector}{entry}")
-                if os.path.isdir(full_path):
+                if full_path.is_dir():
                     extension = "    " if is_last else "│   "
                     walk(full_path, prefix + extension, current_depth + 1)
 
@@ -1073,15 +1072,15 @@ Generate 3-8 scenes based on the input theme or concept."""
     async def _tool_search_docs(self, query: str, limit: int = 5) -> str:
         """Search project documentation - scans real docs/ and markdown files."""
         import glob
-        import os
+        from pathlib import Path
 
-        root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        root = Path(__file__).resolve().parents[2]
         results: list[str] = []
         query_lower = query.lower()
 
         # Search through markdown files in the project
         for pattern in ["**/*.md", "docs/**/*.md", "packages/**/README.md"]:
-            for filepath in glob.glob(os.path.join(root, pattern), recursive=True):
+            for filepath in glob.glob(str(Path(root) / pattern), recursive=True):
                 try:
                     with open(filepath, encoding="utf-8") as f:
                         content = f.read()
@@ -1095,7 +1094,7 @@ Generate 3-8 scenes based on the input theme or concept."""
                                 start = max(0, i - 1)
                                 end = min(len(lines), i + 3)
                                 snippet = "\n".join(lines[start:end])
-                                rel_path = os.path.relpath(filepath, root)
+                                rel_path = Path(filepath).relative_to(root)
                                 results.append(f"[{rel_path}]:\n{snippet}")
                                 if len(results) >= limit:
                                     return "\n\n".join(results)

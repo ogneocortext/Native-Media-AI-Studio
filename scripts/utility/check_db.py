@@ -1,8 +1,8 @@
-import os
 import sqlite3
+from pathlib import Path
 
-db_path = r'D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\packages\backend\storage\studio.db'
-if os.path.exists(db_path):
+db_path = Path(r'D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\packages\backend\storage\studio.db')
+if db_path.exists():
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")

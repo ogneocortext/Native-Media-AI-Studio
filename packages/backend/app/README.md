@@ -7,13 +7,13 @@ This directory groups the FastAPI backend by **responsibility domain** so agents
 | Directory | Purpose |
 |-----------|---------|
 | `api/` | REST route definitions (jobs, health, audio, outputs) |
-| `core/` | Port manager, health monitor, SQLite setup, CORS |
+| `core/` | Port manager, health monitor, SQLite setup, CORS, tracing, RequestID middleware |
 | `models/` | Pydantic schemas and data models |
 | `services/` | Business logic: job orchestration, audio, blender, CUDA, 3D gen, VRAM, go gateway/worker clients |
-| `adapters/` | External service wrappers: ComfyUI, Ollama, Blender, Unity |
+| `adapters/` | External service wrappers: ComfyUI, Ollama, Blender, Unity, music-gen |
 | `sse/` | SSE event handler (canonical real-time events path) |
 | `websocket/` | Legacy WebSocket shim returning `426` — use SSE instead |
-| `queue/` | Job queue implementation |
+| `queue/` | Job queue implementation (DLQ + metrics + exponential backoff retries) |
 | `diagnostics/` | Resource and health diagnostics |
 | `utils/` | Shared helpers |
 | `tests/` | Backend test suite |

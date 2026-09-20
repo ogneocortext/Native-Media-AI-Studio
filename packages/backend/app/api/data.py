@@ -3,15 +3,16 @@ Data persistence API routes — prompts, audio, visuals, sessions, tracks, prefe
 """
 
 import csv
-import os
 import re
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
 
 from ..core import database
+from ..core.config import PROJECT_ROOT
 
 router = APIRouter(prefix="/api/data", tags=["Data"])
 
@@ -444,14 +445,15 @@ def delete_track(track_id: str):
 def import_tracks(body: ImportTracksRequest):
     """Import tracks from a directory."""
     directory = body.directory
-    if not directory or not os.path.isdir(directory):
+    dir_path = Path(directory)
+    if not directory or not dir_path.is_dir():
         raise HTTPException(status_code=400, detail="Invalid directory")
 
     imported = []
-    for filename in sorted(os.listdir(directory)):
+    for filename in sorted(p.name for p in dir_path.iterdir()):
         if filename.lower().endswith(".mp3"):
-            filepath = os.path.join(directory, filename)
-            size = os.path.getsize(filepath)
+            filepath = dir_path / filename
+            size = filepath.stat().st_size
 
             # Try to get duration
             duration = 0
@@ -485,12 +487,9 @@ def import_tracks(body: ImportTracksRequest):
 @router.post("/tracks/import-csv")
 def import_tracks_from_csv(body: ImportTracksFromCsvRequest):
     """Import tracks from the CSV file."""
-    csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "..", "..", "..",
-        "docs", "track-prompts-lyrics.csv"
-    )
+    csv_path = PROJECT_ROOT / "docs" / "track-prompts-lyrics.csv"
 
-    if not os.path.exists(csv_path):
+    if not csv_path.exists():
         raise HTTPException(status_code=404, detail="CSV file not found")
 
     # Clear existing tracks in a single transaction
@@ -548,14 +547,14 @@ def save_generated_scene(body: SaveGeneratedSceneRequest):
         raise HTTPException(status_code=400, detail="No code provided")
 
     # Create output directory
-    output_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "output", "generated-scenes")
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = PROJECT_ROOT / "output" / "generated-scenes"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate filename with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_track = "".join(c if c.isalnum() or c in "-_" else "_" for c in track_name)[:50]
     filename = f"{safe_track}_{timestamp}.js"
-    filepath = os.path.join(output_dir, filename)
+    filepath = output_dir / filename
 
     # Save with metadata header
     header = f"// Generated Scene — {track_name}\n"
@@ -572,18 +571,18 @@ def save_generated_scene(body: SaveGeneratedSceneRequest):
 @router.get("/saved-scenes")
 def list_saved_scenes():
     """List all saved generated scenes."""
-    output_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "output", "generated-scenes")
-    if not os.path.exists(output_dir):
+    output_dir = PROJECT_ROOT / "output" / "generated-scenes"
+    if not output_dir.exists():
         return {"scenes": []}
 
     scenes = []
-    for filename in sorted(os.listdir(output_dir), reverse=True):
+    for filename in sorted((p.name for p in output_dir.iterdir()), reverse=True):
         if filename.endswith(".js"):
-            filepath = os.path.join(output_dir, filename)
-            stat = os.stat(filepath)
+            filepath = output_dir / filename
+            stat = filepath.stat()
             scenes.append({
                 "filename": filename,
-                "path": filepath,
+                "path": str(filepath),
                 "size": stat.st_size,
                 "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
             })
@@ -595,25 +594,24 @@ def cleanup_incomplete_scenes(body: CleanupIncompleteScenesRequest):
     """Remove incomplete scene files for a track, keeping only the largest (most complete) ones."""
     track = body.track
     keep = body.keep
-    output_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "output", "generated-scenes")
-    if not os.path.exists(output_dir):
+    output_dir = PROJECT_ROOT / "output" / "generated-scenes"
+    if not output_dir.exists():
         return {"removed": 0}
 
     # Find all files matching this track
     safe_track = "".join(c if c.isalnum() or c in "-_" else "_" for c in track)[:50]
     matching = []
-    for filename in os.listdir(output_dir):
-        if filename.endswith(".js") and filename.startswith(safe_track):
-            filepath = os.path.join(output_dir, filename)
-            stat = os.stat(filepath)
-            matching.append({"filename": filename, "path": filepath, "size": stat.st_size})
+    for filename in output_dir.iterdir():
+        if filename.name.endswith(".js") and filename.name.startswith(safe_track):
+            stat = filename.stat()
+            matching.append({"filename": filename.name, "path": str(filename), "size": stat.st_size})
 
     # Sort by size (largest first), keep top N, delete the rest
     matching.sort(key=lambda x: x["size"], reverse=True)
     removed = 0
     for item in matching[keep:]:
         try:
-            os.remove(item["path"])
+            Path(item["path"]).unlink()
             removed += 1
         except OSError:
             pass

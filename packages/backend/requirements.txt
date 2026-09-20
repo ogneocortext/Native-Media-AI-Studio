@@ -23,4 +23,9 @@ pytest-asyncio>=0.24.0  # Async test support (required for tests/test_*.py)
 pytest-cov>=5.0.0  # Coverage reporting
 pytest-xdist>=3.6.0  # Parallel test execution
 
+# Observability
+opentelemetry-api>=1.20.0
+opentelemetry-sdk>=1.20.0
+opentelemetry-instrumentation-fastapi>=0.43.0
+
 # Note: mido and python-osc are tool-only deps; install via tools/pyproject.toml extras if needed.

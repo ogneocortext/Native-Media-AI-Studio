@@ -13,6 +13,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
+import aiohttp
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -21,7 +23,9 @@ from ..adapters.music_gen import (
     MusicGenAdapter,
     get_music_gen_adapter,
     shutdown_music_gen_services,
+    _get_shared_session,
 )
+from ..core.config import PROJECT_ROOT
 from ..services.vram_manager import vram_manager
 
 logger = logging.getLogger(__name__)
@@ -77,9 +81,12 @@ async def get_status() -> dict[str, Any]:
     adapters = {}
     for engine in ["yue2", "ace"]:
         adapter = get_music_gen_adapter(engine)
+        healthy = False
+        if adapter.is_running:
+            healthy = await adapter.health_check()
         adapters[engine] = {
             "running": adapter.is_running,
-            "healthy": await adapter.health_check() if adapter.is_running else False,
+            "healthy": healthy,
             "port": adapter.port,
             "pid": adapter.pid,
         }
@@ -228,18 +235,16 @@ async def render_score(req: EditScoreRequest) -> dict[str, Any]:
 @router.get("/audio/{engine}/{output_name}")
 async def get_audio(engine: str, output_name: str):
     """Download generated audio file."""
-    from pathlib import Path
-    output_dir = Path("output/music") / output_name
+    output_dir = PROJECT_ROOT / "output" / "music" / output_name
 
-    # Try flac first, then wav
-    for ext in ["flac", "wav", "mp3"]:
+    # Try flac first, then wav, then mp3
+    for ext, media_type in [
+        ("flac", "audio/flac"),
+        ("wav", "audio/wav"),
+        ("mp3", "audio/mpeg"),
+    ]:
         audio_path = output_dir / f"audio.{ext}"
         if audio_path.exists():
-            media_type = {
-                "flac": "audio/flac",
-                "wav": "audio/wav",
-                "mp3": "audio/mpeg",
-            }.get(ext, "audio/octet-stream")
             return FileResponse(
                 str(audio_path),
                 media_type=media_type,
@@ -252,8 +257,7 @@ async def get_audio(engine: str, output_name: str):
 @router.get("/score/{output_name}")
 async def get_score(output_name: str):
     """Download ABC score file."""
-    from pathlib import Path
-    score_path = Path("output/music") / output_name / "score.abc"
+    score_path = PROJECT_ROOT / "output" / "music" / output_name / "score.abc"
     if not score_path.exists():
         raise HTTPException(404, detail="Score file not found")
     return FileResponse(
@@ -278,13 +282,18 @@ async def unload_engine(engine: str = "yue2") -> dict[str, Any]:
     """Unload engine to free VRAM (for manual coordination)."""
     adapter = get_music_gen_adapter(engine)
     if adapter.is_running:
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
+        try:
+            session = await _get_shared_session()
             async with session.post(
                 f"{adapter.base_url}/unload",
                 timeout=aiohttp.ClientTimeout(total=10),
-            ):
-                pass
+            ) as resp:
+                if resp.status not in (200, 204):
+                    text = await resp.text()
+                    raise RuntimeError(f"Unload failed ({resp.status}): {text}")
+        except Exception as e:
+            logger.warning("Unload %s failed: %s", engine, e)
+            return {"status": "error", "engine": engine, "detail": str(e)}
     return {"status": "unloaded", "engine": engine}
 
 
@@ -293,11 +302,16 @@ async def reload_engine(engine: str = "yue2") -> dict[str, Any]:
     """Reload engine after VRAM freed."""
     adapter = get_music_gen_adapter(engine)
     if adapter.is_running:
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
+        try:
+            session = await _get_shared_session()
             async with session.post(
                 f"{adapter.base_url}/reload",
                 timeout=aiohttp.ClientTimeout(total=60),
-            ):
-                pass
+            ) as resp:
+                if resp.status not in (200, 204):
+                    text = await resp.text()
+                    raise RuntimeError(f"Reload failed ({resp.status}): {text}")
+        except Exception as e:
+            logger.warning("Reload %s failed: %s", engine, e)
+            return {"status": "error", "engine": engine, "detail": str(e)}
     return {"status": "reloaded", "engine": engine}

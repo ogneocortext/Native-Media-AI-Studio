@@ -163,8 +163,46 @@ class QueueManager:
             retrying=len([j for j in jobs if j.status == JobStatus.RETRYING]),
             completed=len([j for j in jobs if j.status == JobStatus.COMPLETED]),
             failed=len([j for j in jobs if j.status == JobStatus.FAILED]),
-            cancelled=len([j for j in jobs if j.status == JobStatus.CANCELLED])
+            cancelled=len([j for j in jobs if j.status == JobStatus.CANCELLED]),
+            dead=len([j for j in jobs if j.status == JobStatus.DEAD]),
         )
+
+    async def get_metrics(self) -> dict:
+        """Extended queue metrics for observability."""
+        stats = await self.get_stats()
+        jobs = list(self._jobs.values())
+        completed_jobs = [j for j in jobs if j.status == JobStatus.COMPLETED and j.started_at and j.completed_at]
+        wait_times = [(j.started_at - j.created_at).total_seconds() for j in completed_jobs if j.started_at]
+        durations = [(j.completed_at - j.started_at).total_seconds() for j in completed_jobs if j.started_at and j.completed_at]
+        now = datetime.now()
+        recent_completed = [
+            j for j in completed_jobs
+            if (now - j.completed_at).total_seconds() <= 60.0
+        ]
+        processing_rate = len(recent_completed) / 60.0 if recent_completed else 0.0
+        dead_jobs = [j for j in jobs if j.status == JobStatus.DEAD]
+        dead_sample = [
+            {
+                "id": j.id,
+                "job_type": j.job_type.value,
+                "error": j.error,
+                "failed_at": j.completed_at.isoformat() if j.completed_at else None,
+            }
+            for j in sorted(dead_jobs, key=lambda j: j.completed_at or j.created_at, reverse=True)[:10]
+        ]
+        current = self._running_job
+        return {
+            "stats": stats.model_dump(mode="json"),
+            "queue_depth": stats.queued + stats.pending,
+            "current_job_id": current.id if current else None,
+            "current_job_type": current.job_type.value if current else None,
+            "current_job_started_at": current.started_at.isoformat() if current and current.started_at else None,
+            "processing_rate_per_min": round(processing_rate, 2),
+            "avg_wait_seconds": round(sum(wait_times) / len(wait_times), 2) if wait_times else 0.0,
+            "avg_duration_seconds": round(sum(durations) / len(durations), 2) if durations else 0.0,
+            "dead_letter_count": len(dead_jobs),
+            "dead_letter_sample": dead_sample,
+        }
 
     async def update_job(self, job_id: str, status: JobStatus | None = None,
                         progress: float | None = None, message: str | None = None,
@@ -270,11 +308,40 @@ class QueueManager:
         await self._broadcast_job_event("job.cancelled", job)
         return True
 
-    async def retry_job(self, job_id: str) -> Job | None:
-        """Retry a failed job"""
+    async def _move_to_dead_letter(self, job_id: str, error: str) -> bool:
+        """Move a permanently failed job to the dead-letter queue."""
         async with self._lock:
             job = self._jobs.get(job_id)
-            if not job or job.status != JobStatus.FAILED:
+            if not job:
+                return False
+            job.status = JobStatus.DEAD
+            job.error = error
+            job.completed_at = datetime.now()
+            try:
+                await JobDatabaseManager.update_job_async(
+                    job_id,
+                    status=job.status,
+                    error=job.error,
+                    completed_at=job.completed_at,
+                )
+            except Exception as e:
+                logger.error("Failed to persist dead-letter job %s: %s", job_id, e)
+                return False
+            await self._notify_subscribers(job)
+        await self._broadcast_job_event("job.dead", job)
+        return True
+
+    async def get_dead_letter_jobs(self, limit: int = 50) -> list[Job]:
+        """Return recently dead-lettered jobs, newest first."""
+        dead = [j for j in self._jobs.values() if j.status == JobStatus.DEAD]
+        dead.sort(key=lambda j: j.completed_at or j.created_at, reverse=True)
+        return dead[: max(1, limit)]
+
+    async def retry_job(self, job_id: str) -> Job | None:
+        """Retry a failed or dead-lettered job"""
+        async with self._lock:
+            job = self._jobs.get(job_id)
+            if not job or job.status not in (JobStatus.FAILED, JobStatus.DEAD):
                 return None
 
             if job.retry_count >= job.max_retries:
@@ -329,6 +396,22 @@ class QueueManager:
             for job_id in failed_ids:
                 del self._jobs[job_id]
             count = await JobDatabaseManager.clear_failed_async()
+            return count
+
+    async def clear_dead(self) -> int:
+        """Remove all dead-lettered jobs"""
+        async with self._lock:
+            dead_ids = [j.id for j in self._jobs.values()
+                       if j.status == JobStatus.DEAD]
+            for job_id in dead_ids:
+                del self._jobs[job_id]
+            import asyncio as _asyncio
+            from ..core.database import get_db
+            def _do():
+                with get_db() as conn:
+                    cursor = conn.execute("DELETE FROM jobs WHERE status = 'dead'")
+                    return cursor.rowcount
+            count = await _asyncio.to_thread(_do)
             return count
 
     async def _auto_cleanup_unlocked(self) -> int:

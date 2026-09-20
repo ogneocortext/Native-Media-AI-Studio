@@ -31,6 +31,7 @@ from .core.cors import get_local_origins, is_local_origin
 from .core.database import init_db
 from .core.logging_config import setup_logging
 from .core.port_manager import port_manager
+from .core.tracing import setup_tracing
 from .diagnostics.health import health_monitor
 from .diagnostics.resources import resource_monitoring_loop
 from .queue.manager import queue_manager
@@ -298,8 +299,9 @@ async def lifespan(app: FastAPI):
 
     # Shutdown music generation services
     try:
-        from .adapters.music_gen import shutdown_music_gen_services
+        from .adapters.music_gen import shutdown_music_gen_services, close_shared_session
         await shutdown_music_gen_services()
+        await close_shared_session()
         logger.info("Music generation services stopped")
     except Exception as e:
         logger.warning(f"Failed to stop music generation services: {e}")
@@ -313,6 +315,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Opt-in tracing: set NMA_TRACING=1 to enable OpenTelemetry console exporter
+setup_tracing(app)
 
 # Local-first app: allow the dev frontend origins explicitly. A wildcard origin
 # combined with allow_credentials=True is rejected by browsers per the CORS spec.

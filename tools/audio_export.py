@@ -405,38 +405,39 @@ Examples:
 
     args = parser.parse_args()
 
-    if not os.path.exists(args.audio_file):
+    audio_path = Path(args.audio_file)
+    if not audio_path.exists():
         print(f"Error: File not found: {args.audio_file}")
         sys.exit(1)
 
     if args.output:
         output = args.output
     else:
-        stem = Path(args.audio_file).stem
+        stem = audio_path.stem
         output = str(output_dir("export") / stem)
 
     result: dict = {}
     if args.command == "midi":
         if not output.endswith(".mid"):
-            os.makedirs(output, exist_ok=True)
-            output = os.path.join(output, f"{Path(args.audio_file).stem}_beats.mid")
+            Path(output).mkdir(parents=True, exist_ok=True)
+            output = str(Path(output) / f"{audio_path.stem}_beats.mid")
         result = export_midi_beats(args.audio_file, output, args.note, args.velocity)
     elif args.command == "midi-cc":
         if not output.endswith(".mid"):
-            os.makedirs(output, exist_ok=True)
-            output = os.path.join(output, f"{Path(args.audio_file).stem}_energy.mid")
+            Path(output).mkdir(parents=True, exist_ok=True)
+            output = str(Path(output) / f"{audio_path.stem}_energy.mid")
         result = export_midi_energy_cc(args.audio_file, output, args.cc)
     elif args.command == "osc":
         result = export_osc_stream(args.audio_file, args.port, args.host)
     elif args.command == "osc-file":
         if not output.endswith(".json"):
-            os.makedirs(output, exist_ok=True)
-            output = os.path.join(output, f"{Path(args.audio_file).stem}_osc.json")
+            Path(output).mkdir(parents=True, exist_ok=True)
+            output = str(Path(output) / f"{audio_path.stem}_osc.json")
         result = export_osc_file(args.audio_file, output)
     elif args.command == "json":
         if not output.endswith(".json"):
-            os.makedirs(output, exist_ok=True)
-            output = os.path.join(output, f"{Path(args.audio_file).stem}_features.json")
+            Path(output).mkdir(parents=True, exist_ok=True)
+            output = str(Path(output) / f"{audio_path.stem}_features.json")
         result = export_features_json(args.audio_file, output)
     else:
         parser.print_help()

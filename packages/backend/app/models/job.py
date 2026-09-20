@@ -20,6 +20,7 @@ class JobStatus(str, Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     RETRYING = "retrying"
+    DEAD = "dead"  # Dead-letter queue: exceeded max retries
 
 
 class JobType(str, Enum):
@@ -135,6 +136,7 @@ class QueueStats(BaseModel):
     completed: int = 0
     failed: int = 0
     cancelled: int = 0
+    dead: int = 0  # Dead-letter queue count
 
     @computed_field
     @property
@@ -146,7 +148,7 @@ class QueueStats(BaseModel):
     @property
     def terminal_jobs(self) -> int:
         """Jobs that have reached a final state."""
-        return self.completed + self.failed + self.cancelled
+        return self.completed + self.failed + self.cancelled + self.dead
 
     @computed_field
     @property
@@ -165,3 +167,18 @@ class QueueStats(BaseModel):
         if terminal == 0:
             return True
         return self.failed / terminal < 0.5
+
+
+class QueueMetrics(BaseModel):
+    """Extended queue metrics for observability."""
+
+    stats: QueueStats
+    queue_depth: int = 0  # jobs waiting to be processed (queued + pending)
+    current_job_id: str | None = None
+    current_job_type: str | None = None
+    current_job_started_at: str | None = None
+    processing_rate_per_min: float = 0.0
+    avg_wait_seconds: float = 0.0
+    avg_duration_seconds: float = 0.0
+    dead_letter_count: int = 0
+    dead_letter_sample: list[dict] = []  # sample of DLQ jobs (id, type, error, failed_at)

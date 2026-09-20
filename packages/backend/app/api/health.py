@@ -261,6 +261,19 @@ async def system_diagnostics() -> dict:
     return await health_monitor.get_system_health()
 
 
+@router.get("/queue")
+async def queue_health() -> dict:
+    """Queue health snapshot for Go sidecars and frontend."""
+    from ..queue.manager import queue_manager
+    stats = await queue_manager.get_stats()
+    metrics = await queue_manager.get_metrics()
+    return {
+        "stats": stats.model_dump(mode="json"),
+        "metrics": metrics,
+        "is_healthy": stats.is_healthy and stats.active_jobs < 50,
+    }
+
+
 @router.post("/diagnostics/memory/cleanup")
 async def cleanup_memory() -> dict:
     """Trigger system RAM cleanup (GC, torch cache, old temp files, Ollama offload if needed)."""
