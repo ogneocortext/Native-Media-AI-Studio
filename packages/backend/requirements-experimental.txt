@@ -6,7 +6,16 @@
 madmom-infer>=0.1.0   # Neural beat/downbeat tracking (fallback to librosa if unavailable)
 sonara>=0.1.0         # Rust-backed fast audio features via PyO3
 faster-whisper>=1.1.0 # Whisper transcription → POST /api/audio/transcribe
-demucs>=4.0.0         # Audio source separation → POST /api/audio/separate
+# NOTE (2026-09-21): Installed in nma-studio-cuda (1.2.1). On Windows, CTranslate2
+# also needs `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12` for CUDA; the
+# backend registers their DLL dirs itself. Pascal GPUs (sm_61) run float32 on GPU
+# (int8/fp16 need Turing+) — handled by `_whisper_device_config()` in
+# app/services/transcription.py.
+demucs>=4.1.0         # Audio source separation → POST /api/audio/separate
+# NOTE (2026-09-21): In nma-studio-cuda, install with `pip install --no-deps demucs`
+# plus explicit deps (`julius dora-search diffq lameenc openunmix submitit sphn`) so
+# pip never touches the Pascal/sm_61-safe torch build. Verified: demucs 4.1.0 on
+# torch 2.14.0+cu126 / numpy 2.4.x, CUDA htdemucs separation on GTX 1070 Ti.
 # spleeter is an optional fallback for separation; install via `pip install spleeter` if demucs is unavailable.
 
 # Video rendering alternatives

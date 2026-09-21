@@ -484,8 +484,9 @@ Beyond `POST /api/audio/analyze` + `GET /api/audio/analysis/{job_id}` documented
 POST /api/audio/analyze-cuda          → CUDA-accelerated variant
 GET  /api/audio/analysis/by-filename/{filename} → cached result by original filename (Three.js beat timeline)
 GET  /api/audio/file/{filename:path}  → serve raw audio file
-POST /api/audio/separate              → stem separation (vocals/drums/bass/other → stems/)
-GET  /api/audio/stems/{filename:path}
+POST /api/audio/separate              → stem separation (vocals/drums/bass/other → stems/, auto-encodes MP3 copies)
+GET  /api/audio/stems/{filename:path} → stems (WAV URLs) + stems_mp3 (MP3 URLs)
+GET  /api/audio/stem-file/{track}/{stem}?format=wav|mp3 → serve stem; mp3 lazy-encoded from WAV on first request
 POST /api/audio/ensure-analysis       → ensure cached analysis else trigger
 POST /api/audio/analyze-all           → batch analyze library
 ```

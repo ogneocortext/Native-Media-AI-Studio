@@ -9,9 +9,11 @@ Or for lighter weight: pip install spleeter
 
 import asyncio
 import logging
+import shutil
 import subprocess
+import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +23,35 @@ logger = logging.getLogger(__name__)
 
 SEPARATION_DIR = PROJECT_ROOT / "output" / "stems"
 SEPARATION_DIR.mkdir(parents=True, exist_ok=True)
+
+STEM_NAMES = ("vocals", "drums", "bass", "other")
+
+
+def encode_wav_to_mp3(wav_path: Path, mp3_path: Path | None = None) -> Path | None:
+    """Encode a stem WAV to MP3 (libmp3lame VBR ~190kbps, ~13% of WAV size).
+
+    Returns the MP3 path on success, None if ffmpeg is unavailable or fails.
+    """
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        logger.warning("ffmpeg not on PATH — skipping MP3 encode for %s", wav_path)
+        return None
+    mp3_path = mp3_path or wav_path.with_suffix(".mp3")
+    try:
+        result = subprocess.run(
+            [ffmpeg, "-y", "-i", str(wav_path),
+             "-codec:a", "libmp3lame", "-q:a", "2", str(mp3_path)],
+            capture_output=True,
+            timeout=300,
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        logger.warning("MP3 encode failed for %s: %s", wav_path, e)
+        return None
+    if result.returncode == 0 and mp3_path.exists():
+        return mp3_path
+    logger.warning("MP3 encode failed for %s: %s", wav_path,
+                   result.stderr.decode("utf-8", errors="replace")[-300:])
+    return None
 
 
 @dataclass
@@ -32,6 +63,7 @@ class SeparationResult:
     duration: float
     computed_at: str
     error: str | None = None
+    stems_mp3: dict[str, str] = field(default_factory=dict)
 
 
 class SourceSeparator:
@@ -47,17 +79,28 @@ class SourceSeparator:
         """Check if demucs or spleeter is available."""
         return self._find_demucs() is not None or self._find_spleeter() is not None
 
-    def _find_demucs(self) -> str | None:
-        """Locate demucs executable."""
-        for name in ["demucs", "demucs.exe"]:
+    def _find_demucs(self) -> list[str] | None:
+        """Locate a working demucs invocation.
+
+        Prefers the backend's own interpreter (`python -m demucs`) so the
+        studio env's CUDA-safe torch build is used. A `demucs.exe` on PATH
+        may belong to a different Python install with an incompatible
+        torch/numpy combo, so PATH is only a fallback.
+        """
+        candidates: list[list[str]] = [
+            [sys.executable, "-m", "demucs"],
+            ["demucs"],
+            ["demucs.exe"],
+        ]
+        for cmd in candidates:
             try:
                 result = subprocess.run(
-                    [name, "--help"],
+                    [*cmd, "--help"],
                     capture_output=True,
-                    timeout=5,
+                    timeout=15,
                 )
                 if result.returncode == 0:
-                    return name
+                    return cmd
             except (FileNotFoundError, subprocess.TimeoutExpired):
                 continue
         return None
@@ -89,6 +132,14 @@ class SourceSeparator:
             pass
         return "cpu"
 
+    async def _encode_mp3_stems(self, stems: dict[str, str]) -> dict[str, str]:
+        """Encode all WAV stems to MP3 in parallel. Best-effort: failures are skipped."""
+        async def _one(name: str, wav: str) -> tuple[str, Path | None]:
+            return name, await asyncio.to_thread(encode_wav_to_mp3, Path(wav))
+
+        results = await asyncio.gather(*[_one(n, w) for n, w in stems.items()])
+        return {name: str(mp3) for name, mp3 in results if mp3 is not None}
+
     async def separate(
         self,
         audio_path: str,
@@ -114,7 +165,7 @@ class SourceSeparator:
         # Try demucs first
         demucs = self._find_demucs()
         if demucs:
-            return await self._separate_demucs(audio_path, model, device, out_dir)
+            return await self._separate_demucs(audio_path, model, device, out_dir, demucs)
 
         # Fallback to spleeter
         spleeter = self._find_spleeter()
@@ -136,33 +187,40 @@ class SourceSeparator:
         model: str,
         device: str,
         output_dir: Path,
+        demucs_cmd: list[str],
     ) -> SeparationResult:
         """Separate using Demucs."""
         try:
             cmd = [
-                "demucs",
+                *demucs_cmd,
                 "-n", model,
                 "-d", device,
                 "-o", str(output_dir),
-                "--filename", "{stem}.{ext}",
+                # Keep demucs' default "{track}/{stem}.{ext}" template so stems
+                # land in <out>/<model>/<track>/vocals.wav etc. — the layout
+                # GET /api/audio/stems/{filename} resolves against.
                 audio_path,
             ]
 
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=600
-            )
-        except NotImplementedError:
-            # Windows SelectorEventLoop fallback: run in a thread via subprocess.run
-            def _run() -> tuple[int, bytes, bytes]:
-                completed = subprocess.run(cmd, capture_output=True)
-                return completed.returncode, completed.stdout, completed.stderr
+            returncode: int | None
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=600
+                )
+                returncode = process.returncode
+            except NotImplementedError:
+                # Windows SelectorEventLoop fallback: run in a thread via subprocess.run
+                def _run() -> tuple[int, bytes, bytes]:
+                    completed = subprocess.run(cmd, capture_output=True)
+                    return completed.returncode, completed.stdout, completed.stderr
 
-            returncode, stdout, stderr = await asyncio.to_thread(_run)
+                returncode, stdout, stderr = await asyncio.to_thread(_run)
+
             if returncode != 0:
                 error_msg = stderr.decode("utf-8", errors="replace").strip()
                 return SeparationResult(
@@ -190,12 +248,16 @@ class SourceSeparator:
             except Exception:
                 pass
 
+            # Encode lightweight MP3 copies alongside the WAVs (best-effort)
+            stems_mp3 = await self._encode_mp3_stems(stems)
+
             return SeparationResult(
                 audio_file=audio_path,
                 model=model,
                 stems=stems,
                 duration=duration,
                 computed_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
+                stems_mp3=stems_mp3,
             )
         except asyncio.TimeoutError:
             return SeparationResult(
@@ -272,12 +334,16 @@ class SourceSeparator:
             except Exception:
                 pass
 
+            # Encode lightweight MP3 copies alongside the WAVs (best-effort)
+            stems_mp3 = await self._encode_mp3_stems(stems)
+
             return SeparationResult(
                 audio_file=audio_path,
                 model="spleeter:4stems",
                 stems=stems,
                 duration=duration,
                 computed_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
+                stems_mp3=stems_mp3,
             )
         except asyncio.TimeoutError:
             return SeparationResult(

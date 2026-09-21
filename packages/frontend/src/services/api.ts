@@ -101,21 +101,21 @@ export interface SystemHealth {
 export async function fetchJobs(status?: string): Promise<Job[]> {
   const base = getApiBase();
   const url = status ? `${base}/api/jobs?status=${status}` : `${base}/api/jobs`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to fetch jobs");
   return res.json();
 }
 
 export async function fetchJob(id: string): Promise<Job> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/jobs/${id}`);
+  const res = await fetchWithTimeout(`${base}/api/jobs/${id}`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to fetch job");
   return res.json();
 }
 
 export async function fetchQueueStats(): Promise<QueueStats> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/jobs/stats`);
+  const res = await fetchWithTimeout(`${base}/api/jobs/stats`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to fetch stats");
   return res.json();
 }
@@ -126,7 +126,7 @@ export async function createJob(
   maxRetries: number = 3,
 ): Promise<Job> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/jobs/`, {
+  const res = await fetchWithTimeout(`${base}/api/jobs/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -134,6 +134,7 @@ export async function createJob(
       params,
       max_retries: maxRetries,
     }),
+    timeout: 30000,
   });
   if (!res.ok) throw new Error("Failed to create job");
   return res.json();
@@ -141,35 +142,37 @@ export async function createJob(
 
 export async function cancelJob(id: string): Promise<void> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/jobs/${id}/cancel`, { method: "POST" });
+  const res = await fetchWithTimeout(`${base}/api/jobs/${id}/cancel`, { method: "POST", timeout: 30000 });
   if (!res.ok) throw new Error("Failed to cancel job");
 }
 
 export async function retryJob(id: string): Promise<Job> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/jobs/${id}/retry`, { method: "POST" });
+  const res = await fetchWithTimeout(`${base}/api/jobs/${id}/retry`, { method: "POST", timeout: 30000 });
   if (!res.ok) throw new Error("Failed to retry job");
   return res.json();
 }
 
 export async function deleteJob(id: string): Promise<void> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/jobs/${id}`, { method: "DELETE" });
+  const res = await fetchWithTimeout(`${base}/api/jobs/${id}`, { method: "DELETE", timeout: 30000 });
   if (!res.ok) throw new Error("Failed to delete job");
 }
 
 export async function clearCompletedJobs(): Promise<void> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/jobs/clear-completed`, {
+  const res = await fetchWithTimeout(`${base}/api/jobs/clear-completed`, {
     method: "POST",
+    timeout: 30000,
   });
   if (!res.ok) throw new Error("Failed to clear completed jobs");
 }
 
 export async function clearFailedJobs(): Promise<void> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/jobs/clear-failed`, {
+  const res = await fetchWithTimeout(`${base}/api/jobs/clear-failed`, {
     method: "POST",
+    timeout: 30000,
   });
   if (!res.ok) throw new Error("Failed to clear failed jobs");
 }
@@ -178,7 +181,7 @@ export async function clearFailedJobs(): Promise<void> {
 /** Ping the backend (liveness probe). */
 export async function ping(): Promise<{ status: string }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/health/ping`);
+  const res = await fetchWithTimeout(`${base}/api/health/ping`, { timeout: 10000 });
   if (!res.ok) throw new Error("Ping failed");
   return res.json();
 }
@@ -252,7 +255,7 @@ export async function generateImage(
 ): Promise<{ success: boolean; output_path: string; seed: number }> {
   const base = getApiBase();
   // Default to comfyui instead of sd_webui
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${base}/api/integrations/${options.backend || "comfyui"}/generate`,
     {
       method: "POST",
@@ -268,6 +271,7 @@ export async function generateImage(
         sampler: options.sampler || "Euler a",
         ckpt_name: options.model || undefined,
       }),
+      timeout: 30000,
     },
   );
   if (!res.ok) throw new Error("Failed to generate image");
@@ -280,7 +284,7 @@ export async function queueImageJob(
 ): Promise<{ job_id: string; status: string }> {
   const base = getApiBase();
   // Default to comfyui instead of sd_webui
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${base}/api/integrations/${options.backend || "comfyui"}/job`,
     {
       method: "POST",
@@ -289,6 +293,7 @@ export async function queueImageJob(
         prompt,
         ...options,
       }),
+      timeout: 30000,
     },
   );
   if (!res.ok) throw new Error("Failed to queue image job");
@@ -309,9 +314,10 @@ export async function uploadAudioFile(file: File): Promise<AudioUploadResponse> 
   const formData = new FormData();
   formData.append("file", file);
 
-  const res = await fetch(`${base}/api/audio/upload`, {
+  const res = await fetchWithTimeout(`${base}/api/audio/upload`, {
     method: "POST",
     body: formData,
+    timeout: 120000,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Upload failed" }));
@@ -332,6 +338,7 @@ export interface StemSeparationResponse {
   duration: number;
   computed_at: string;
   error?: string | null;
+  stems_mp3?: Record<string, string>;
 }
 
 export async function separateAudioStems(
@@ -355,7 +362,14 @@ export async function separateAudioStems(
   return res.json();
 }
 
-export async function getAudioStems(filename: string): Promise<{ audio_file: string; stems: Record<string, string>; found: boolean }> {
+export interface AudioStemsResponse {
+  audio_file: string;
+  stems: Record<string, string>;
+  stems_mp3?: Record<string, string>;
+  found: boolean;
+}
+
+export async function getAudioStems(filename: string): Promise<AudioStemsResponse> {
   const base = getApiBase();
   return withDirectBackendFallback(
     () =>
@@ -420,28 +434,50 @@ export async function getComfyUIStatus(): Promise<ComfyUIStatus> {
   return res.json();
 }
 
-export async function startComfyUI(port: number = 8188): Promise<any> {
+export interface ComfyUIStartResponse {
+  success: boolean;
+  message: string;
+  suggestion?: string;
+}
+
+export interface ComfyUIStopResponse {
+  success: boolean;
+  message: string;
+  suggestion?: string;
+}
+
+export async function startComfyUI(port: number = 8188): Promise<ComfyUIStartResponse> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/services/comfyui/start?port=${port}`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to start ComfyUI");
-  return res.json();
+  return res.json() as Promise<ComfyUIStartResponse>;
 }
 
-export async function stopComfyUI(): Promise<any> {
+export async function stopComfyUI(): Promise<ComfyUIStopResponse> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/services/comfyui/stop`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to stop ComfyUI");
-  return res.json();
+  return res.json() as Promise<ComfyUIStopResponse>;
 }
 
-export async function restartComfyUI(port: number = 8188): Promise<any> {
+export async function restartComfyUI(port: number = 8188): Promise<unknown> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/services/comfyui/restart?port=${port}`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to restart ComfyUI");
   return res.json();
 }
 
-export async function updateComfyUI(): Promise<any> {
+export interface ComfyUIUpdateResponse {
+  success: boolean;
+  message: string;
+  output?: string;
+  was_running?: boolean;
+  restarted?: { success: boolean; message?: string };
+  errors?: string[];
+  hint?: string;
+}
+
+export async function updateComfyUI(): Promise<ComfyUIUpdateResponse> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/services/comfyui/update`, {
     method: "POST",
@@ -485,7 +521,7 @@ export async function getLogContent(logName: string, lines: number = 100): Promi
   return res.json();
 }
 
-export async function clearLogs(): Promise<any> {
+export async function clearLogs(): Promise<unknown> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/logs/clear`, { method: "POST", timeout: 30000 });
   if (!res.ok) throw new Error("Failed to clear logs");
@@ -699,7 +735,7 @@ export async function getPrompts(params?: {
   if (params?.favorite) searchParams.set("favorite", "true");
   if (params?.search) searchParams.set("search", params.search);
   if (params?.limit) searchParams.set("limit", String(params.limit));
-  const res = await fetch(`${base}/api/data/?${searchParams}`);
+  const res = await fetchWithTimeout(`${base}/api/data/?${searchParams}`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get prompts");
   return res.json();
 }
@@ -713,10 +749,11 @@ export async function savePrompt(prompt: {
   description?: string;
 }): Promise<{ id: string; success: boolean }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/data/`, {
+  const res = await fetchWithTimeout(`${base}/api/data/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(prompt),
+    timeout: 30000,
   });
   if (!res.ok) throw new Error("Failed to save prompt");
   return res.json();
@@ -724,12 +761,12 @@ export async function savePrompt(prompt: {
 
 export async function recordPromptUse(promptId: string): Promise<void> {
   const base = getApiBase();
-  await fetch(`${base}/api/data/${promptId}/use`, { method: "POST" });
+  await fetchWithTimeout(`${base}/api/data/${promptId}/use`, { method: "POST", timeout: 30000 });
 }
 
 export async function togglePromptFavorite(promptId: string): Promise<boolean> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/data/${promptId}/favorite`, { method: "POST" });
+  const res = await fetchWithTimeout(`${base}/api/data/${promptId}/favorite`, { method: "POST", timeout: 30000 });
   if (!res.ok) return false;
   const data = await res.json();
   return data.is_favorite;
@@ -737,7 +774,7 @@ export async function togglePromptFavorite(promptId: string): Promise<boolean> {
 
 export async function deletePrompt(promptId: string): Promise<void> {
   const base = getApiBase();
-  await fetch(`${base}/api/data/${promptId}`, { method: "DELETE" });
+  await fetchWithTimeout(`${base}/api/data/${promptId}`, { method: "DELETE", timeout: 30000 });
 }
 
 // AI Visuals
@@ -753,17 +790,18 @@ export async function getAIVisuals(params?: {
   if (params?.favorite) searchParams.set("favorite", "true");
   if (params?.selected) searchParams.set("selected", "true");
   if (params?.limit) searchParams.set("limit", String(params.limit));
-  const res = await fetch(`${base}/api/data/visuals/?${searchParams}`);
+  const res = await fetchWithTimeout(`${base}/api/data/visuals/?${searchParams}`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get visuals");
   return res.json();
 }
 
 export async function saveAIVisual(visual: Partial<AIVisualRecord>): Promise<{ id: string }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/data/visuals/save`, {
+  const res = await fetchWithTimeout(`${base}/api/data/visuals/save`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(visual),
+    timeout: 30000,
   });
   if (!res.ok) throw new Error("Failed to save visual");
   return res.json();
@@ -780,7 +818,7 @@ export async function getSessions(params?: {
   if (params?.status) searchParams.set("status", params.status);
   if (params?.audio_id) searchParams.set("audio_id", params.audio_id);
   if (params?.limit) searchParams.set("limit", String(params.limit));
-  const res = await fetch(`${base}/api/data/sessions/?${searchParams}`);
+  const res = await fetchWithTimeout(`${base}/api/data/sessions/?${searchParams}`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get sessions");
   return res.json();
 }
@@ -791,10 +829,11 @@ export async function createSession(session: {
   config?: Record<string, unknown>;
 }): Promise<{ id: string }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/data/sessions/`, {
+  const res = await fetchWithTimeout(`${base}/api/data/sessions/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(session),
+    timeout: 30000,
   });
   if (!res.ok) throw new Error("Failed to create session");
   return res.json();
@@ -806,7 +845,7 @@ export async function getPreferences(category?: string): Promise<Record<string, 
   const url = category
     ? `${base}/api/data/preferences/?category=${category}`
     : `${base}/api/data/preferences/`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get preferences");
   return res.json();
 }
@@ -817,10 +856,11 @@ export async function setPreference(
   category = "general"
 ): Promise<void> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/data/preferences/${key}`, {
+  const res = await fetchWithTimeout(`${base}/api/data/preferences/${key}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ value, category }),
+    timeout: 30000,
   });
   if (!res.ok) throw new Error("Failed to set preference");
 }
@@ -1022,7 +1062,7 @@ export async function getAnalysisSummary(filename: string): Promise<{
   stored_path: string | null;
 }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/audio/analysis/summary/${encodeURIComponent(filename)}`);
+  const res = await fetchWithTimeout(`${base}/api/audio/analysis/summary/${encodeURIComponent(filename)}`, { timeout: 30000 });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "No analysis summary found");
@@ -1320,10 +1360,11 @@ export interface VideoGenerateResponse {
 
 export async function generateVideoSection(request: VideoGenerateRequest): Promise<VideoGenerateResponse> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/video/generate-section`, {
+  const res = await fetchWithTimeout(`${base}/api/video/generate-section`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
+    timeout: 30000,
   });
   if (!res.ok) throw new Error("Failed to generate video section");
   return res.json();
@@ -1348,7 +1389,7 @@ export interface KineticVideoResponse {
 
 export async function generateKineticVideo(request: KineticVideoRequest): Promise<KineticVideoResponse> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/video/generate-section`, {
+  const res = await fetchWithTimeout(`${base}/api/video/generate-section`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -1371,6 +1412,7 @@ export async function generateKineticVideo(request: KineticVideoRequest): Promis
         lyrics: request.lyrics || [],
       },
     }),
+    timeout: 30000,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -1517,8 +1559,8 @@ export async function getNativeOpenStatus(): Promise<{ blender: { available: boo
 
 export interface FFmpegProcessInfo {
   pid: number;
-  command?: string;
-  start_time?: number;
+  cpu?: number;
+  working_set_mb?: number;
 }
 
 export async function getFFmpegStatus(): Promise<{ running: boolean; count: number; processes: FFmpegProcessInfo[] }> {
@@ -1788,7 +1830,7 @@ export async function checkService(service: string): Promise<Record<string, unkn
 
 export async function getJobTypes(): Promise<Record<string, unknown>> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/jobs/types`);
+  const res = await fetchWithTimeout(`${base}/api/jobs/types`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get job types");
   return res.json();
 }
@@ -1835,7 +1877,7 @@ export interface ToolDefinition {
 
 export async function getOllamaModels(): Promise<OllamaModel[]> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/integrations/ollama/models`);
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/models`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get Ollama models");
   const models: OllamaModel[] = await res.json();
   // Filter out embedding models (they can't generate text/code)
@@ -1867,17 +1909,19 @@ export interface OllamaBenchmarkResult {
 
 export async function getBenchmarkResults(): Promise<{ updated_at: string | null; results: Record<string, OllamaBenchmarkResult> }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/integrations/ollama/benchmark/results`);
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/benchmark/results`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get benchmark results");
   return res.json();
 }
 
 export async function runBenchmark(models?: string[], max_models = 8): Promise<{ updated_at: string | null; results: Record<string, OllamaBenchmarkResult> }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/integrations/ollama/benchmark/run`, {
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/benchmark/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ models: models || null, max_models }),
+    // Multi-model benchmark runs take many minutes — bound but generous
+    timeout: 900000,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Benchmark failed" }));
@@ -1888,7 +1932,7 @@ export async function runBenchmark(models?: string[], max_models = 8): Promise<{
 
 export async function getBestBenchmarkModel(): Promise<{ best: string | null; result?: OllamaBenchmarkResult; results: { updated_at: string | null; results: Record<string, OllamaBenchmarkResult> } }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/integrations/ollama/benchmark/best`);
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/benchmark/best`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get best benchmark model");
   return res.json();
 }
@@ -1924,17 +1968,19 @@ export interface CodingBenchmarkResult {
 
 export async function getCodingBenchmarkResults(): Promise<{ updated_at: string | null; results: Record<string, CodingBenchmarkResult> }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/integrations/ollama/coding-benchmark/results`);
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/coding-benchmark/results`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get coding benchmark results");
   return res.json();
 }
 
 export async function runCodingBenchmark(models?: string[], max_models = 12): Promise<{ updated_at: string | null; results: Record<string, CodingBenchmarkResult> }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/integrations/ollama/coding-benchmark/run`, {
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/coding-benchmark/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ models: models || null, max_models }),
+    // Multi-model benchmark runs take many minutes — bound but generous
+    timeout: 900000,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Coding benchmark failed" }));
@@ -1945,17 +1991,18 @@ export async function runCodingBenchmark(models?: string[], max_models = 12): Pr
 
 export async function getBestCodingModel(): Promise<{ best: string | null; result?: CodingBenchmarkResult; results: { updated_at: string | null; results: Record<string, CodingBenchmarkResult> } }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/integrations/ollama/coding-benchmark/best`);
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/coding-benchmark/best`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get best coding model");
   return res.json();
 }
 
 export async function saveGeneratedScene(code: string, track: string, model: string): Promise<{ success: boolean; filename: string; path: string }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/data/saved-scenes`, {
+  const res = await fetchWithTimeout(`${base}/api/data/saved-scenes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code, track, model }),
+    timeout: 30000,
   });
   if (!res.ok) throw new Error("Failed to save scene");
   return res.json();
@@ -1963,10 +2010,11 @@ export async function saveGeneratedScene(code: string, track: string, model: str
 
 export async function cleanupIncompleteScenes(track: string, keep = 3): Promise<{ removed: number; kept: number }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/data/saved-scenes/cleanup`, {
+  const res = await fetchWithTimeout(`${base}/api/data/saved-scenes/cleanup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ track, keep }),
+    timeout: 30000,
   });
   if (!res.ok) throw new Error("Failed to cleanup scenes");
   return res.json();
@@ -1974,7 +2022,7 @@ export async function cleanupIncompleteScenes(track: string, keep = 3): Promise<
 
 export async function listSavedScenes(): Promise<{ scenes: Array<{ filename: string; path: string; size: number; modified: string }> }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/data/saved-scenes`);
+  const res = await fetchWithTimeout(`${base}/api/data/saved-scenes`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to list saved scenes");
   return res.json();
 }
@@ -1990,7 +2038,7 @@ export async function ollamaChat(
   },
 ): Promise<{ response: string; model: string; toolCalls: number; toolDetails?: Array<{ name: string; arguments: Record<string, unknown>; result: string }> }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/integrations/ollama/chat`, {
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -2002,6 +2050,8 @@ export async function ollamaChat(
       stream: false,
       max_tool_calls: options?.maxToolCalls || 5,
     }),
+    // Non-streaming chat with up to 5 tool-call rounds can take minutes
+    timeout: 300000,
   });
   if (!res.ok) throw new Error("Failed to chat with Ollama");
   return res.json();
@@ -2032,8 +2082,9 @@ export async function ollamaChatStream(
     ...(options?.ollamaOptions || {}),
   };
   // Collect known Ollama generation options if passed flat
+  const optionsRecord = options as Record<string, unknown> | undefined;
   for (const k of ["temperature", "top_p", "top_k", "num_predict", "repeat_penalty", "num_ctx", "seed", "stop"]) {
-    if ((options as any)?.[k] !== undefined) (ollamaOpts as any)[k] = (options as any)[k];
+    if (optionsRecord?.[k] !== undefined) ollamaOpts[k] = optionsRecord[k];
   }
   const res = await fetch(`${base}/api/integrations/ollama/chat`, {
     method: "POST",
@@ -2112,8 +2163,9 @@ export async function ollamaGenerate(
   model: string = "llama2",
 ): Promise<{ response: string; model: string; done: boolean }> {
   const base = getApiBase();
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${base}/api/integrations/ollama/generate?prompt=${encodeURIComponent(prompt)}&model=${model}`,
+    { timeout: 120000 },
   );
   if (!res.ok) throw new Error("Failed to generate via Ollama");
   return res.json();
@@ -2180,10 +2232,12 @@ export async function generateVisualizerPreset(
   track?: { bpm?: number; energy?: number; duration_seconds?: number; genre?: string },
 ): Promise<{ success: boolean; preset: AIGeneratedPreset; model: string }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/integrations/ollama/visualizer`, {
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/visualizer`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ description, model, temperature, track }),
+    // LLM preset generation with 8k context can take a minute+
+    timeout: 120000,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -2198,14 +2252,14 @@ export async function generateVisualizerPreset(
 
 export async function getMusicVideoStyles(): Promise<Record<string, unknown>> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/integrations/music-video/styles`);
+  const res = await fetchWithTimeout(`${base}/api/integrations/music-video/styles`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get music video styles");
   return res.json();
 }
 
 export async function getWorkflowTemplates(): Promise<Record<string, unknown>> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/integrations/music-video/templates`);
+  const res = await fetchWithTimeout(`${base}/api/integrations/music-video/templates`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get workflow templates");
   return res.json();
 }
@@ -2218,14 +2272,14 @@ export async function searchDocs(q: string, limit: number = 20): Promise<Array<{
   path: string; title: string; score: number; snippet: string | null;
 }>> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/docs/search?q=${encodeURIComponent(q)}&limit=${limit}`);
+  const res = await fetchWithTimeout(`${base}/api/docs/search?q=${encodeURIComponent(q)}&limit=${limit}`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to search docs");
   return res.json();
 }
 
 export async function getDocsBootstrap(): Promise<Record<string, unknown>> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/docs/bootstrap`);
+  const res = await fetchWithTimeout(`${base}/api/docs/bootstrap`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get docs bootstrap");
   return res.json();
 }
@@ -2234,7 +2288,7 @@ export async function getProjectStructure(depth: number = 3): Promise<{
   root: string; structure: Record<string, unknown>;
 }> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/docs/structure?depth=${depth}`);
+  const res = await fetchWithTimeout(`${base}/api/docs/structure?depth=${depth}`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get project structure");
   return res.json();
 }
@@ -2263,7 +2317,7 @@ export interface APITrack {
 
 export async function fetchTracks(): Promise<APITrack[]> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/data/tracks/`);
+  const res = await fetchWithTimeout(`${base}/api/data/tracks/`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to fetch tracks");
   return res.json();
 }
@@ -2274,14 +2328,14 @@ export async function fetchTracks(): Promise<APITrack[]> {
 
 export async function getIntegrationStatus(serviceName: string): Promise<Record<string, unknown>> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/integrations/${serviceName}`);
+  const res = await fetchWithTimeout(`${base}/api/integrations/${serviceName}`, { timeout: 30000 });
   if (!res.ok) throw new Error(`Failed to get integration status: ${serviceName}`);
   return res.json();
 }
 
 export async function getModelsStatus(): Promise<Record<string, unknown>> {
   const base = getApiBase();
-  const res = await fetch(`${base}/api/integrations/models/status`);
+  const res = await fetchWithTimeout(`${base}/api/integrations/models/status`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get models status");
   return res.json();
 }

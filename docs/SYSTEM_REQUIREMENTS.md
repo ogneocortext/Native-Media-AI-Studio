@@ -1,6 +1,6 @@
 # System Requirements — Native Media AI Studio
 
-> **Last Updated:** 2026-09-08 — added `studio-tools` (Python 3.14) for standalone tooling
+> **Last Updated:** 2026-09-21 — demucs 4.1.0 + faster-whisper 1.2.1 installed in `nma-studio-cuda`; Pascal CTranslate2 notes
 
 External tools and system-level dependencies that are **not** installable via `pip` / `pnpm`.
 
@@ -34,10 +34,10 @@ External tools and system-level dependencies that are **not** installable via `p
 | Package | Constraint | Notes |
 |---------|-----------|-------|
 | `bpy` / `mathutils` | Ships **only** inside Blender | Backend `gen3d/*.py` and `tools/blender_mcp_addon.py` must run via `blender --python <script>`, not the studio venv |
-| `faster-whisper` | pip-installable, CUDA optional | Declared in `requirements-experimental.txt`. Whisper transcription falls back to CPU if `torch.cuda.is_available()` is false |
+| `faster-whisper` | pip-installable, CUDA optional | **Installed** in `nma-studio-cuda` (1.2.1). On Windows, CTranslate2 also needs the `nvidia-cublas-cu12` / `nvidia-cudnn-cu12` pip packages; `transcription.py` registers their DLL dirs automatically. GPU compute type is capability-aware: sm_70+ → float16, Pascal (sm_61) → float32, no CUDA → CPU int8. Default model `large-v3-turbo` (override: `WHISPER_MODEL_SIZE`). |
 | `torch` | Pinned in `requirements-torch.txt` (cu126) | **Not** in the default `requirements.txt`. GPU/VRAM paths silently degrade without it |
 | `torchvision` / `torchaudio` | Pinned in `requirements-torch.txt` | **Not directly imported** in backend code. Present for torch ecosystem compatibility; can be removed if install size is a concern. |
-| `demucs` | pip-installable, CUDA optional | Declared in `requirements-experimental.txt`. Source separation falls back to CPU if CUDA is absent. |
+| `demucs` | pip-installable, CUDA optional | **Installed** in `nma-studio-cuda` (4.1.0). Use `pip install --no-deps demucs` + explicit deps (`julius dora-search diffq lameenc openunmix submitit sphn`) so pip never replaces the Pascal-safe torch build. The backend invokes it via `sys.executable -m demucs`, never the PATH `demucs.exe`. Falls back to CPU if CUDA is absent. |
 | `spleeter` | pip-installable (optional fallback) | Only invoked when `demucs` is missing. Not declared; install manually if needed. |
 
 ---

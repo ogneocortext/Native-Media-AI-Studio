@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - faster-whisper GPU transcription (2026-09-21)
+
+Installed `faster-whisper 1.2.1` + `ctranslate2 4.8.2` into `nma-studio-cuda`, activating `POST /api/audio/transcribe`.
+
+- **CUDA libs**: `nvidia-cublas-cu12` / `nvidia-cudnn-cu12` pip packages; scripts must `os.add_dll_directory()` their `bin/` dirs before importing faster-whisper (see `docs/scratch/transcribe_hitl_v2.py`).
+- **Pascal (sm_61) constraint**: CTranslate2 on GTX 1070 Ti supports only `float32` on GPU — `int8`/`float16` need Turing+. Use `compute_type="float32"`.
+- **Verified on HITL-V2 vocals stem**: `large-v3-turbo` (809M params, ~3.2 GB VRAM) transcribed 246.5s in 15.6s (~16× realtime); `base` in 17.8s. Turbo transcript is lyrics-grade (consistent "you glitch", coherent verses) vs base's hallucinated loops.
+- **Backend hardening (`app/services/transcription.py`)**: capability-aware CTranslate2 compute type (`_whisper_device_config`: sm_70+ → float16, Pascal → float32, else CPU int8) — the old hardcoded `float16` would have crashed on Pascal; automatic cuBLAS/cuDNN DLL dir registration on Windows; default model changed `medium` → `large-v3-turbo` (better accuracy, faster, same ~3 GB footprint).
+- **Frontend**: StemMixer prefers `stems_mp3` URLs (~87% smaller transfers) with WAV fallback.
+
+### Added - MP3 stem encoding and serving (2026-09-21)
+
+- **Auto-encode on separation**: `_separate_demucs`/`_separate_spleeter` now encode MP3 copies (`libmp3lame` VBR ~190kbps, ~13% of WAV size) alongside the WAVs, in parallel and best-effort. `SeparationResult.stems_mp3` and `StemSeparationResponse.stems_mp3` expose the paths.
+- **`GET /api/audio/stem-file/{track}/{stem}?format=mp3`**: serves the cached MP3, or lazy-encodes from the WAV on first request (covers stems separated before this feature). WAV remains the default.
+- **`GET /api/audio/stems/{filename}`**: new `stems_mp3` map with ready-to-use MP3 URLs for every stem.
+- **Verified**: 9/9 checks — cached serve (5.4 MiB vs 41.5 MiB WAV), lazy encode of legacy `take-the-crown` stems, `format` validation (400), and auto-encode in `POST /api/audio/separate`.
+
+### Added - Demucs stem separation activated (2026-09-21)
+
+Installed and wired Demucs for `POST /api/audio/separate` and the Visualizer StemMixer.
+
+- **Install**: `demucs 4.1.0` in `nma-studio-cuda` via `pip install --no-deps` + explicit deps (`julius`, `dora-search`, `diffq`, `lameenc`, `openunmix`, `submitit`, `sphn`) to protect the Pascal/sm_61-safe `torch 2.14.0+cu126` build. CUDA-verified on GTX 1070 Ti (10s track → 4 stems in ~12s).
+- **Backend fix (`app/services/source_separation.py`)**: `_find_demucs()` now prefers `sys.executable -m demucs` over PATH, so separation always runs in the studio env instead of the base Python 3.11 install's `demucs.exe` (torch 2.4.0 / NumPy 2.x conflict).
+- **Backend fix**: removed `--filename "{stem}.{ext}"` override which flattened output into `output/stems/<model>/` and broke both stem collection and `GET /api/audio/stems/{filename}` (default `{track}/{stem}.{ext}` layout restored).
+- **Backend fix**: `_separate_demucs` no longer returns `None` when `asyncio.create_subprocess_exec` succeeds (returncode/stem collection now shared across subprocess paths).
+- **Verified end-to-end**: `POST /api/audio/separate` → all 4 stems; `GET /api/audio/stems/{filename}` → `found: true`.
+
 ### Changed - PowerShell script modernization (2026-09-19)
 
 Consolidated and modernized all project PowerShell scripts to require PowerShell 7.6+,

@@ -15,7 +15,6 @@ import time
 import uuid
 from pathlib import Path
 
-import aiohttp
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -674,60 +673,45 @@ async def _generate_sections_llm(
         "energy 0-1 correlates with loudness. Use chorus for peaks, intro/outro for edges."
     )
     user = f"tempo: {tempo:.1f} BPM, beats: {beat_count}, duration: {duration:.1f}s, energy: [{energy_str}]{' lyrics: '+lyrics_hint[:200] if lyrics_hint else ''}"
-    async with aiohttp.ClientSession() as session:
-        for model in ["deepseek-r1:7b", app_config.default_model, "qwen3.5:4b"]:
-            try:
-                payload = {
-                    "model": model,
-                    "messages": [{"role": "system", "content": sys}, {"role": "user", "content": user}],
-                    "stream": False,
-                    "format": "json",
-                    "options": {"temperature": 0.2, "num_ctx": 4096},
-                }
-                # Some Ollama builds reject unknown keys like `think`; omit it.
-                async with session.post(
-                    f"{app_config.ollama_url}/api/chat",
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=25),
-                ) as resp:
-                    if resp.status != 200:
-                        continue
-                    data = await resp.json()
-                    content = (data.get("message", {}).get("content") or "").strip()
-                    if not content:
-                        continue
-                    # Strip fences
-                    if "```" in content:
-                        content = content.split("```")[1] if "```" in content else content
-                        if content.startswith("json"):
-                            content = content[4:]
-                        content = content.strip().split("```")[0].strip()
-                    parsed = json.loads(content)
-                    secs = parsed.get("sections") if isinstance(parsed, dict) else parsed
-                    if isinstance(secs, list) and 2 <= len(secs) <= 8:
-                        # Validate and clamp
-                        out = []
-                        for s in secs:
-                            if not isinstance(s, dict):
-                                continue
-                            typ = str(s.get("type", "verse")).lower()
-                            if typ not in ("intro","verse","chorus","bridge","outro","pre-chorus","drop"):
-                                typ = "verse"
-                            out.append({
-                                "type": typ,
-                                "start": round(float(s.get("start", 0)), 2),
-                                "end": round(float(s.get("end", duration)), 2),
-                                "energy": round(max(0.05, min(1.0, float(s.get("energy", 0.5)))), 3),
-                            })
-                        if not out:
-                            continue
-                        out.sort(key=lambda x: x["start"])
-                        # Ensure coverage
-                        out[0]["start"] = 0.0
-                        out[-1]["end"] = round(duration, 2)
-                        return out
-            except Exception:
+    from ..core import ollama_client as _oc
+    from ..core.text import strip_code_fences
+    for model in ["deepseek-r1:7b", app_config.default_model, "qwen3.5:4b"]:
+        try:
+            # Some Ollama builds reject unknown keys like `think`; omit it.
+            content = await _oc.chat_content(
+                [{"role": "system", "content": sys}, {"role": "user", "content": user}],
+                model=model,
+                timeout=25,
+                extra={"format": "json", "options": {"temperature": 0.2, "num_ctx": 4096}},
+            )
+            if not content:
                 continue
+            parsed = json.loads(strip_code_fences(content))
+            secs = parsed.get("sections") if isinstance(parsed, dict) else parsed
+            if isinstance(secs, list) and 2 <= len(secs) <= 8:
+                # Validate and clamp
+                out = []
+                for s in secs:
+                    if not isinstance(s, dict):
+                        continue
+                    typ = str(s.get("type", "verse")).lower()
+                    if typ not in ("intro","verse","chorus","bridge","outro","pre-chorus","drop"):
+                        typ = "verse"
+                    out.append({
+                        "type": typ,
+                        "start": round(float(s.get("start", 0)), 2),
+                        "end": round(float(s.get("end", duration)), 2),
+                        "energy": round(max(0.05, min(1.0, float(s.get("energy", 0.5)))), 3),
+                    })
+                if not out:
+                    continue
+                out.sort(key=lambda x: x["start"])
+                # Ensure coverage
+                out[0]["start"] = 0.0
+                out[-1]["end"] = round(duration, 2)
+                return out
+        except Exception:
+            continue
     return None
 
 
@@ -1482,6 +1466,7 @@ class StemSeparationResponse(BaseModel):
     duration: float
     computed_at: str
     error: str | None = None
+    stems_mp3: dict[str, str] = {}
 
 
 @router.post("/separate", response_model=StemSeparationResponse)
@@ -1528,6 +1513,7 @@ async def separate_audio(
             duration=result.duration,
             computed_at=result.computed_at,
             error=result.error,
+            stems_mp3=result.stems_mp3,
         )
     except Exception as e:
         logger.exception("Stem separation failed")
@@ -1551,6 +1537,12 @@ async def get_stems(filename: str) -> dict:
         "stems": {
             # HTTP URLs for the Visualizer / wizard (relative to API base)
             name: f"/api/audio/stem-file/{Path(p).parent.name}/{Path(p).stem}"
+            for name, p in stems.items()
+        },
+        # Lightweight MP3 URLs (~13% of WAV size). Served from cache when the
+        # MP3 exists, otherwise encoded on demand on first request.
+        "stems_mp3": {
+            name: f"/api/audio/stem-file/{Path(p).parent.name}/{Path(p).stem}?format=mp3"
             for name, p in stems.items()
         },
         "found": bool(stems),
@@ -1629,6 +1621,7 @@ async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResp
             duration=result.duration,
             computed_at=result.computed_at,
             error=result.error,
+            stems_mp3=result.stems_mp3,
         )
     except Exception as e:
         logger.exception("Stem separation failed")
@@ -1636,8 +1629,8 @@ async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResp
 
 
 @router.get("/stem-file/{track_name}/{stem_name}")
-async def serve_stem_file(track_name: str, stem_name: str):
-    """Serve a separated stem WAV over HTTP for per-stem playback/analysis.
+async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
+    """Serve a separated stem (WAV, or MP3 via ?format=mp3) for per-stem playback/analysis.
 
     Per ai-video-trends-2026 Trend 2 (music-native per-stem mapping):
     the Visualizer / wizard fetch individual stems to map drums→pulse,
@@ -1650,16 +1643,32 @@ async def serve_stem_file(track_name: str, stem_name: str):
     stem_name = urllib.parse.unquote(stem_name)
     if stem_name not in {"vocals", "drums", "bass", "other"}:
         raise HTTPException(status_code=400, detail="stem_name must be vocals|drums|bass|other")
+    if format not in {"wav", "mp3"}:
+        raise HTTPException(status_code=400, detail="format must be wav|mp3")
     # Track dirs are derived from source stems — sanitize aggressively.
     safe_track = re.sub(r"[^A-Za-z0-9_\- .()\[\]]", "", track_name).strip()
     if not safe_track or ".." in safe_track:
         raise HTTPException(status_code=400, detail="Invalid track name")
 
-    stem_path = (SEPARATION_DIR / "htdemucs" / safe_track / f"{stem_name}.wav").resolve()
-    if not str(stem_path).startswith(str(SEPARATION_DIR.resolve())) or not stem_path.exists():
-        raise HTTPException(status_code=404, detail=f"Stem not found: {safe_track}/{stem_name}.wav — run POST /api/audio/separate first")
+    base_dir = SEPARATION_DIR.resolve()
+    stem_path = (SEPARATION_DIR / "htdemucs" / safe_track / f"{stem_name}.{format}").resolve()
+    if not str(stem_path).startswith(str(base_dir)):
+        raise HTTPException(status_code=400, detail="Invalid track name")
 
-    return FileResponse(str(stem_path), media_type="audio/wav", filename=f"{safe_track}_{stem_name}.wav")
+    if format == "mp3" and not stem_path.exists():
+        # Lazy encode: stems separated before MP3 support have WAV only.
+        from ..services.source_separation import encode_wav_to_mp3
+        wav_path = (SEPARATION_DIR / "htdemucs" / safe_track / f"{stem_name}.wav").resolve()
+        if wav_path.exists() and str(wav_path).startswith(str(base_dir)):
+            encoded = await asyncio.to_thread(encode_wav_to_mp3, wav_path)
+            if encoded is not None:
+                stem_path = encoded
+
+    if not stem_path.exists():
+        raise HTTPException(status_code=404, detail=f"Stem not found: {safe_track}/{stem_name}.{format} — run POST /api/audio/separate first")
+
+    media_type = "audio/mpeg" if format == "mp3" else "audio/wav"
+    return FileResponse(str(stem_path), media_type=media_type, filename=f"{safe_track}_{stem_name}.{format}")
 
 
 @router.get("/file/{filename:path}")

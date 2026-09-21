@@ -50,6 +50,12 @@ interface LoadedStem {
   buf: Uint8Array<ArrayBuffer>;
 }
 
+/** Prefer MP3 stem URLs (~87% smaller transfer, lazy-encoded server-side on
+ *  first request); fall back to WAV when the backend predates stems_mp3. */
+function pickStemUrls(data: { stems: Record<string, string>; stems_mp3?: Record<string, string> }): Record<string, string> {
+  return data.stems_mp3 && Object.keys(data.stems_mp3).length > 0 ? data.stems_mp3 : data.stems;
+}
+
 export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
   const [stems, setStems] = useState<Record<StemName, string> | null>(null);
   const [status, setStatus] = useState<"idle" | "checking" | "separating" | "ready" | "error">("idle");
@@ -91,7 +97,7 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
     try {
       const data = await getAudioStems(audioFilename);
       if (data.found && Object.keys(data.stems).length > 0) {
-        setStems(data.stems);
+        setStems(pickStemUrls(data));
         setStatus("ready");
         return;
       }
@@ -109,7 +115,7 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
         throw new Error(result.error || "Separation produced no stems");
       }
       const data = await getAudioStems(audioFilename);
-      const urls = data.found ? data.stems : null;
+      const urls = data.found ? pickStemUrls(data) : null;
       if (!urls || Object.keys(urls).length === 0) {
         throw new Error("Separation finished but stems are not readable yet — retry in a moment");
       }
