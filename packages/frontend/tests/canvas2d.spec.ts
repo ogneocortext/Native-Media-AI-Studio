@@ -22,7 +22,7 @@ test.describe('Canvas2D Visualizer', () => {
 
     // Use the test harness to switch to 2D mode reliably
     await page.evaluate(() => {
-      const win = window as any;
+      const win = window as unknown as { __VIZ_TEST__?: { setMode?: (mode: string) => void } };
       win.__VIZ_TEST__?.setMode?.('2d');
     });
 
@@ -33,7 +33,7 @@ test.describe('Canvas2D Visualizer', () => {
     // Cycle through 2D sub-modes via the harness
     const modes = ['bars', 'waveform', 'radial', 'spectrogram', 'lissajous', 'constellation', 'particles'] as const;
     for (const mode of modes) {
-      await page.evaluate((m) => { (window as any).__VIZ_TEST__?.set2DMode?.(m); }, mode);
+      await page.evaluate((m) => { (window as unknown as { __VIZ_TEST__?: { set2DMode?: (mode: string) => void } }).__VIZ_TEST__?.set2DMode?.(m); }, mode);
       await expect(canvas.first()).toBeVisible({ timeout: 5_000 });
     }
 

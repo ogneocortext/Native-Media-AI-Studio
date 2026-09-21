@@ -21,9 +21,20 @@ export const ATTACK = 0.88;
 export const RELEASE = 0.15;
 
 /**
- * Estimate total audio output latency in seconds: time between a sample being
- * rendered and it reaching your ears. Heard media-time ≈ currentTime − latency.
+ * Smooth an analyzed beat phase in [0, 1) with wrap-aware low-pass filtering.
+ *
+ * The phase delta is normalized to [-0.5, 0.5] so a 0.97→0.03 crossing
+ * does not spin the phase backwards. The 0.3 coefficient gives tight
+ * transient tracking without jitter.
  */
+export function smoothBeatPhase(targetPhase: number, smoothed: number): number {
+  let phaseDelta = targetPhase - smoothed;
+  if (phaseDelta > 0.5) phaseDelta -= 1;
+  if (phaseDelta < -0.5) phaseDelta += 1;
+  smoothed += phaseDelta * 0.3;
+  return ((smoothed % 1) + 1) % 1;
+}
+
 export function estimateOutputLatency(ctx: BaseAudioContext | null): number {
   if (!ctx) return 0;
   const full = ctx as AudioContext;

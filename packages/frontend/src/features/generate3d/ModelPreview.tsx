@@ -31,7 +31,7 @@ import { Eye, AlertCircle, RotateCw } from "lucide-react";
 function ModelView({ url, onLoading }: { url: string; onLoading?: (v: boolean) => void }) {
   const { scene } = useGLTF(url);
   const outerGroupRef = useRef<THREE.Group>(null);
-  const [cloned, setCloned] = useState<any>(null);
+  const [cloned, setCloned] = useState<THREE.Object3D | null>(null);
   const [ready, setReady] = useState(false);
 
   // The heavy work (clone + merge + decimate + recenter) runs in a
@@ -74,14 +74,15 @@ function ModelView({ url, onLoading }: { url: string; onLoading?: (v: boolean) =
  * decimate to a target vertex count, apply PBR materials, and recenter.
  * Extracted so ModelView can defer it via setTimeout without blocking paint.
  */
-function processScene(scene: any) {
+function processScene(scene: THREE.Object3D) {
   const c = scene.clone(true);
   const modifier = new SimplifyModifier();
 
-  c.traverse((obj: any) => {
-    if (!obj.isMesh || !obj.geometry) return;
+  c.traverse((obj: THREE.Object3D) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry) return;
 
-    const geom = obj.geometry as THREE.BufferGeometry;
+    const geom = mesh.geometry as THREE.BufferGeometry;
     // Ensure the geometry is indexed (computeVertexNormals needs indices
     // for correct smoothing across shared vertices). If the GLB emits
     // a non-indexed buffer, computeVertexNormals on it produces flat
@@ -90,10 +91,10 @@ function processScene(scene: any) {
     if (!geom.index) {
       const merged = mergeVertices(geom, 0.0001);
       if (merged) {
-        obj.geometry = merged;
+        mesh.geometry = merged;
       }
     }
-    const g = obj.geometry as THREE.BufferGeometry;
+    const g = mesh.geometry as THREE.BufferGeometry;
 
     // Recompute normals from positions. This is the key fix — without
     // it, the "spike forest" rendering happens.
@@ -115,22 +116,22 @@ function processScene(scene: any) {
       simplified.computeVertexNormals();
       simplified.computeBoundingBox();
       simplified.computeBoundingSphere();
-      obj.geometry = simplified;
+      mesh.geometry = simplified;
     }
 
     // Apply a high-quality PBR material. The GLB has no material slot,
     // so we set one explicitly. Use a slight roughness so the model
     // catches highlights without being mirror-shiny (which exposes
     // every mesh imperfection).
-    obj.material = new THREE.MeshStandardMaterial({
+    mesh.material = new THREE.MeshStandardMaterial({
       color: 0xb8b8c4,
       metalness: 0.35,
       roughness: 0.45,
       envMapIntensity: 0.8,
       flatShading: false,
     });
-    obj.castShadow = true;
-    obj.receiveShadow = true;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
   });
 
   // Center + scale the model so it fits a 2-unit target cube.

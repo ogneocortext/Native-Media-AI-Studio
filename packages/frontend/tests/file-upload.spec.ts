@@ -9,7 +9,7 @@ test.describe('File Upload', () => {
   test('dashboard drop zone opens file picker on click', async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
     await navigateWithWait(page, '/');
-    const dropZone = page.locator('[aria-label="Drop audio file here or click to browse"]');
+    const dropZone = page.getByRole('button', { name: 'Drop audio file here or click to browse. You can also paste an audio file.' });
     await expect(dropZone).toBeVisible();
 
     // Clicking the drop zone creates an <input type="file"> and clicks it.
@@ -22,7 +22,7 @@ test.describe('File Upload', () => {
   test('dashboard drop zone handles Enter key', async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
     await navigateWithWait(page, '/');
-    const dropZone = page.locator('[aria-label="Drop audio file here or click to browse"]');
+    const dropZone = page.getByRole('button', { name: 'Drop audio file here or click to browse. You can also paste an audio file.' });
     await dropZone.focus();
     await page.keyboard.press('Enter');
     await page.waitForTimeout(300);
@@ -32,7 +32,7 @@ test.describe('File Upload', () => {
   test('dashboard drop zone handles Space key', async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
     await navigateWithWait(page, '/');
-    const dropZone = page.locator('[aria-label="Drop audio file here or click to browse"]');
+    const dropZone = page.getByRole('button', { name: 'Drop audio file here or click to browse. You can also paste an audio file.' });
     await dropZone.focus();
     await page.keyboard.press(' ');
     await page.waitForTimeout(300);

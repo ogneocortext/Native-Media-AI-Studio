@@ -16,6 +16,10 @@ SOURCE_JSON = ROOT / "output" / "test-Nathaniel_Smalley___Still_I_Rise-analysis.
 OUT_TS = ROOT / "packages" / "video-editor" / "src" / "lib" / "stillIRiseTiming.ts"
 
 
+def is_downbeat(index: int, beats_per_bar: int = 4) -> bool:
+    return index % beats_per_bar == 0
+
+
 def main() -> None:
     d = json.loads(SOURCE_JSON.read_text(encoding="utf-8-sig"))
 
@@ -33,7 +37,7 @@ def main() -> None:
     for i, b in enumerate(beats):
         idx = min(int(b / duration * len(ampl)), len(ampl) - 1) if ampl else 0
         e = min(1.0, ampl[idx] * 1.3) if ampl else 0.6
-        down = "true" if i % 4 == 0 else "false"
+        down = "true" if is_downbeat(i) else "false"
         beat_lines.append(
             f"    {{ time: {b:.3f}, drumType: null, energy: {e:.3f}, "
             f"isDownbeat: {down}, bpm: {tempo:.1f} }},"

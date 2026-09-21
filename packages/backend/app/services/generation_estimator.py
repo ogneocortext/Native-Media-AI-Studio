@@ -12,7 +12,23 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+# Tier table + classifier live in core/model_tiers.py (single source of truth
+# shared with the ComfyUI adapter routing and the /video-models endpoint
+# tagging). Re-exported here so existing callers keep working.
+from ..core.model_tiers import (
+    VRAM_REQUIREMENTS,
+    classify_model_variant,
+    estimate_vram_requirement,
+)
+
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "VRAM_REQUIREMENTS",
+    "classify_model_variant",
+    "estimate_vram_requirement",
+    "estimate_generation_time",
+]
 
 
 def estimate_generation_time(
@@ -35,8 +51,15 @@ def estimate_generation_time(
     step_factor = steps / 20
     # Scale by model size (larger models are slower)
     model_factor = 1.0
-    if "wan" in model_name.lower():
-        model_factor = 3.0  # Wan 2.2 5B is ~3x slower
+    tier = classify_model_variant(model_name)
+    if tier in ("wan2_1_t2v_1_3b", "wan2_1_fun_inp_1_3b"):
+        # 1.3B is ~2x smaller than 5B — faster per step, fits 8GB at 832×480
+        model_factor = 1.6
+    elif tier in ("wan_ti2v_5b_gguf_q4", "wan_ti2v_5b_gguf_q5"):
+        # GGUF is quantized — ~2x slower than SD1.5 baseline but fits 8GB
+        model_factor = 2.2
+    elif tier == "wan_ti2v_5b_fp16":
+        model_factor = 3.0  # FP16 needs 16-24GB VRAM
     elif "kandinsky" in model_name.lower():
         model_factor = 2.0
     elif "sd" in model_name.lower() or "v1-5" in model_name.lower():

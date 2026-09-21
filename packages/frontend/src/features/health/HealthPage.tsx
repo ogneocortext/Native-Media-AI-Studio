@@ -79,6 +79,11 @@ export function HealthPage() {
     if (granular.comfyui) setComfyui(granular.comfyui);
   }, [granular.comfyui]);
 
+  // Fetch ComfyUI status on mount so the card renders when data is available
+  useEffect(() => {
+    fetchComfyUI().catch(() => {});
+  }, [fetchComfyUI]);
+
   // Sync VRAM status from granular store
   useEffect(() => {
     if (granular.vram) setVramStatus(granular.vram);

@@ -1,0 +1,23 @@
+diff --git a/app/logger.py b/app/logger.py
+index fe82c40c..832493d9 100644
+--- a/app/logger.py
++++ b/app/logger.py
+@@ -67,10 +67,16 @@ class LogInterceptor(io.TextIOWrapper):
+             if isinstance(data, str) and data.startswith("\r") and not logs[-1]["m"].endswith("\n"):
+                 logs.pop()
+             logs.append(entry)
+-        super().write(data)
++        try:
++            super().write(data)
++        except (OSError, ValueError):
++            pass
+ 
+     def flush(self):
+-        super().flush()
++        try:
++            super().flush()
++        except (OSError, ValueError):
++            pass
+         for cb in self._flush_callbacks:
+             cb(self._logs_since_flush)
+             self._logs_since_flush = []

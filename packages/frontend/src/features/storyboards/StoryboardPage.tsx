@@ -15,6 +15,11 @@ interface StoryboardFile {
   trackName: string; // used to match against media library filenames
 }
 
+interface AudioAnalysisResponse {
+  tempo_bpm?: number;
+  duration_seconds?: number;
+}
+
 const STORYBOARDS: StoryboardFile[] = [
   { name: "take-the-crown", path: "/docs/STORYBOARD_TakeTheCrown.md", title: "Take the Crown", trackName: "Take the Crown" },
   { name: "still-i-rise", path: "/docs/STORYBOARD_StillIRise.md", title: "Still I Rise", trackName: "Still I Rise" },
@@ -95,13 +100,13 @@ export function StoryboardPage() {
       if (meta.bpm) return; // already fetched
       fetch(`/api/audio/analysis/${encodeURIComponent(meta.filename)}`)
         .then((r) => (r.ok ? r.json() : null))
-        .then((data: any) => {
+        .then((data: AudioAnalysisResponse) => {
           if (data?.tempo_bpm) {
             setTrackMetadata((prev) => ({
               ...prev,
               [storyboardName]: {
                 ...prev[storyboardName],
-                bpm: Math.round(data.tempo_bpm),
+                bpm: data.tempo_bpm ? Math.round(data.tempo_bpm) : undefined,
                 duration: data.duration_seconds ? Math.round(data.duration_seconds) : undefined,
               },
             }));

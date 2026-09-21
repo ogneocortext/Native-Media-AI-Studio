@@ -1,6 +1,6 @@
 """Generate thumbnail preview for a 3D model using Blender."""
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import bpy
 

@@ -391,7 +391,7 @@ export function LogAnalytics() {
                       borderRadius: "8px",
                       fontSize: "12px",
                     }}
-                    formatter={(value: any, name: any) => {
+                     formatter={(value: unknown, name: unknown) => {
                       if (name === "errors") return [`${value} errors`, "Errors"];
                       return [`${value} entries`, "Logs"];
                     }}
@@ -457,7 +457,7 @@ export function LogAnalytics() {
                         borderRadius: "8px",
                         fontSize: "12px",
                       }}
-                      formatter={(value: any) => [`${value} entries`, ""]}
+                       formatter={(value: unknown) => [`${value} entries`, ""]}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -518,7 +518,7 @@ export function LogAnalytics() {
                       borderRadius: "8px",
                       fontSize: "12px",
                     }}
-                    formatter={(value: any) => [`${value} events`, "Count"]}
+                     formatter={(value: unknown) => [`${value} events`, "Count"]}
                   />
                   <Bar
                     dataKey="count"

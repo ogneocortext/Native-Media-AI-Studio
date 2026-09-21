@@ -318,8 +318,20 @@ class QuickVideoPreviewRequest(BaseModel):
     steps: int = 10
     cfg_scale: float = 7.0
     model: str = ""
+    # Wan GGUF + AnimateDiff motion controls (surface so the preview page can
+    # pass the same controls that the full pipeline already accepts)
+    model_variant: str = ""
+    motion_lora: str = ""
+    motion_lora_strength: float = 0.8
     duration: int = 5
     style: str = ""
+    # Advanced (previously hidden) — now surfaced in VideoGenerationPage
+    scheduler: str = "normal"
+    seed: int = -1
+    fps: int = 8
+    resolution: str = "480p"
+    section: str = ""
+    start_image: str = ""  # for Fun InP image-to-video (cover art path)
 
 
 @router.post("/music-video/generate-preview")
@@ -345,12 +357,20 @@ async def generate_video_preview(request: QuickVideoPreviewRequest) -> dict:
     if not vram_result["available"]:
         return {"success": False, "error": vram_result["message"]}
 
-    # Calculate parameters
-    num_frames = request.duration * 8  # 8 fps
-    width, height = 426, 240  # 240p for speed
+    # Calculate parameters — respect advanced UI (previously hardcoded 240p/8fps and ignored scheduler/seed)
+    fps = max(1, min(30, int(request.fps))) if request.fps else 8
+    res_map = {"240p": (426, 240), "360p": (640, 360), "480p": (832, 480), "720p": (1280, 720)}
+    width, height = res_map.get(request.resolution, (426, 240))
+    # For overnight batch, keep 240p default; 480p only if user explicitly picked it (8GB safe)
+    num_frames = max(8, int(request.duration * fps))
 
     # Estimate time
-    time_estimate = estimate_generation_time(request.steps, width, height, num_frames, 8, request.model)
+    time_estimate = estimate_generation_time(request.steps, width, height, num_frames, fps, request.model)
+
+    # Section suffix was already handled in handler, but also append here for preview prompt
+    from ..services.music_video_handler import _enhance_prompt_for_section
+
+    full_prompt = _enhance_prompt_for_section(full_prompt, request.section or None)
 
     # Queue job
     job = await queue_manager.enqueue(
@@ -363,11 +383,19 @@ async def generate_video_preview(request: QuickVideoPreviewRequest) -> dict:
                 "height": height,
                 "steps": request.steps,
                 "cfg_scale": request.cfg_scale,
-                "fps": 8,
+                "scheduler": request.scheduler,
+                "seed": request.seed,
+                "fps": fps,
                 "duration": request.duration,
                 "num_frames": num_frames,
                 "model": request.model,
+                "model_variant": request.model_variant,
+                "motion_lora": request.motion_lora,
+                "motion_lora_strength": request.motion_lora_strength,
                 "ckpt_name": request.model,
+                "resolution": request.resolution,
+                "section": request.section,
+                "start_image": request.start_image,
                 "audio_path": "",  # Preview doesn't require audio
                 "is_preview": True,
                 "estimated_seconds": time_estimate["estimated_seconds"],

@@ -25,13 +25,13 @@ test.describe('Dashboard', () => {
 
   test('shows drop zone with accessible label', async ({ page }) => {
     await navigateWithWait(page, '/');
-    const dropZone = page.locator('[aria-label="Drop audio file here or click to browse"]');
+    const dropZone = page.getByRole('button', { name: 'Drop audio file here or click to browse. You can also paste an audio file.' });
     await expect(dropZone).toBeVisible();
   });
 
   test('drop zone accepts keyboard activation', async ({ page }) => {
     await navigateWithWait(page, '/');
-    const dropZone = page.locator('[aria-label="Drop audio file here or click to browse"]');
+    const dropZone = page.getByRole('button', { name: 'Drop audio file here or click to browse. You can also paste an audio file.' });
     await dropZone.focus();
     await page.keyboard.press('Enter');
     // Should not throw; Playwright auto-dismisses the file picker.
@@ -64,7 +64,7 @@ test.describe('Dashboard', () => {
 
   test('drop zone accepts drag-and-drop', async ({ page }) => {
     await navigateWithWait(page, '/');
-    const dropZone = page.locator('[aria-label="Drop audio file here or click to browse"]');
+    const dropZone = page.getByRole('button', { name: 'Drop audio file here or click to browse. You can also paste an audio file.' });
     await expect(dropZone).toBeVisible();
     // Simulate dragover event (the handler calls preventDefault + setDragOver)
     await dropZone.evaluate((el) => {

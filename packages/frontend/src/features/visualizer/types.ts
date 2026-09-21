@@ -81,6 +81,15 @@ export interface AudioAnalysisData {
   suggested_visualization?: string;
   suggested_kinetic_preset?: string;
   suggested_theme_seed?: string;
+  /** Backend-returned metadata (backend name, computed_on, analysis parameters). */
+  metadata?: {
+    backend?: string;
+    computed_on?: string;
+    duration_samples?: number;
+    hop_length?: number;
+    frame_length?: number;
+    [key: string]: unknown;
+  };
 }
 
 export interface VizParams {
@@ -178,4 +187,10 @@ export interface VisualizerSceneProps {
   prefersReducedMotion?: boolean;
   /** Perceptual frequency scale for audio analysis */
   perceptualScale?: PerceptualScale;
+  /**
+   * Latency-compensated audio clock sampler (see audioTiming.ts).
+   * When provided, frame-critical consumers use this instead of `audioElapsedRef`
+   * to avoid stale reads from the parent rAF loop.
+   */
+  sampleAudio?: () => number;
 }

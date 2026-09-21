@@ -29,9 +29,9 @@ export function Layout({ children }: LayoutProps) {
   useEffect(() => {
     // Expose stores + SSE service for test harnesses that read state /
     // dispatch events without React rendering.
-    (window as any).__healthStore = useHealthStore;
-    (window as any).__jobStore = useJobStore;
-    (window as any).__sseService = sseService;
+    (window as Window).__healthStore = useHealthStore;
+    (window as Window).__jobStore = useJobStore;
+    (window as Window).__sseService = sseService;
 
     startAutoRefresh();
     // Centralize SSE: connect once here so the EventSource is not

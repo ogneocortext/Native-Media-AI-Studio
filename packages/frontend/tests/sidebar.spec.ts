@@ -19,10 +19,13 @@ test.describe('Sidebar', () => {
     const errors = setupConsoleErrorCapture(page);
     await mockApiHealth(page, 200);
     await navigateWithWait(page, '/');
-    // Health status text is in the sidebar footer — scope to .health-section only
-    // (not .health-status, which is a child div and causes strict mode violation)
-    const healthSection = page.locator('aside.sidebar-container .health-section');
-    await expect(healthSection).toBeVisible();
+    // Open the System footer to reveal the health status summary
+    const systemToggle = page.locator('aside.sidebar-container .sidebar-footer-toggle');
+    if (await systemToggle.count() > 0) {
+      await systemToggle.click();
+    }
+    const healthSection = page.locator('aside.sidebar-container .system-status-summary');
+    await expect(healthSection).toBeVisible({ timeout: 5_000 });
     expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
   });
 

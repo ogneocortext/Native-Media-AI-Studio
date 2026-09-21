@@ -33,6 +33,14 @@ ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
 ANALYSIS_INDEX = ANALYSIS_DIR / "index.json"
 
 
+def _is_downbeat(index: int, beats_per_bar: int = 4) -> bool:
+    """Return True when this beat index is a strong downbeat.
+
+    Uses the 4/4 assumption by default (every ``beats_per_bar``-th beat).
+    """
+    return index % beats_per_bar == 0
+
+
 def _load_analysis_index() -> dict:
     """Load the analysis index mapping filenames to job IDs."""
     if ANALYSIS_INDEX.exists():
@@ -54,21 +62,24 @@ def _get_analysis_path(job_id: str) -> Path:
     """Get the path to an analysis JSON file."""
     return ANALYSIS_DIR / f"{job_id}_analysis.json"
 
-# In-memory cache for analysis data (avoids DB hits on every frontend poll)
+# In-memory cache for analysis data (avoids DB hits on every frontend poll).
+# Keys are ``filename:backend`` so different analysis backends do not clobber
+# each other's results.
 _analysis_cache: dict[str, dict] = {}
 _cache_max_size = 200  # Max files to cache in memory
 
 
-def _cache_set(key: str, value: dict) -> None:
+def _cache_set(filename: str, value: dict, backend: str = "") -> None:
     """Store value in cache, evicting oldest entry if over limit."""
+    key = f"{filename}:{backend}"
     if len(_analysis_cache) >= _cache_max_size:
         _analysis_cache.pop(next(iter(_analysis_cache)), None)
     _analysis_cache[key] = value
 
 
-def _cache_get(key: str) -> dict | None:
-    """Get cached value by key."""
-    return _analysis_cache.get(key)
+def _cache_get(filename: str, backend: str = "") -> dict | None:
+    """Get cached value by filename (+ optional backend)."""
+    return _analysis_cache.get(f"{filename}:{backend}")
 
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".opus", ".m4a", ".wma", ".aac"}
@@ -428,15 +439,20 @@ def _rms_at_time(rms, sr, hop_length, time):
     return rms[frame]
 
 
-# Response-size contract for analysis payloads.
-# Historical bug: the full-resolution RMS envelope (~23k points on a 4-min
-# track) was emitted four times per response (~2.4 MB JSON) even though
-# ``energy_curve`` is documented as "60-100 points for viz". Curves are now
-# downsampled once and reused; beats are capped at a level that covers long,
-# high-tempo tracks instead of silently dropping data at 800.
+_RESPONSE_SIZE_CONTRACT = """
+Response-size contract for analysis payloads.
+Historical bug: the full-resolution RMS envelope (~23k points on a 4-min
+track) was emitted four times per response (~2.4 MB JSON) even though
+``energy_curve`` is documented as "60-100 points for viz". Curves are now
+downsampled once and reused; beats are capped at a level that covers long,
+high-tempo tracks instead of silently dropping data at 800.
+"""
 _ENERGY_CURVE_POINTS = 100
 _ENVELOPE_POINTS = 1024
 _MAX_BEATS = 4000
+# Spectral curves for visualization: 512 points keeps the payload small while
+# preserving enough resolution for per-frame brightness/rolloff/noisiness lookups.
+_SPECTRAL_POINTS = 512
 
 
 def _build_analysis_result(
@@ -497,9 +513,36 @@ def _build_analysis_result(
         "confidence": round(float(confidence), 3),
         "amplitude_envelope": envelope,
         "spectral": _spectral_summary(result),
+        # Full spectral curves for visualization (downsampled to keep payload small).
+        # Consumers that only need timbre summary should continue using ``spectral``.
+        "spectral_centroid": [
+            round(float(v), 3)
+            for v in _downsample_curve(
+                list(result.waveform.centroid or []), _SPECTRAL_POINTS
+            )
+        ],
+        "spectral_rolloff": [
+            round(float(v), 3)
+            for v in _downsample_curve(
+                list(result.waveform.spectral_rolloff or []), _SPECTRAL_POINTS
+            )
+        ],
+        "spectral_bandwidth": [
+            round(float(v), 3)
+            for v in _downsample_curve(
+                list(result.waveform.spectral_bandwidth or []), _SPECTRAL_POINTS
+            )
+        ],
+        "zero_crossing_rate": [
+            round(float(v), 3)
+            for v in _downsample_curve(
+                list(result.waveform.zero_crossing_rate or []), _SPECTRAL_POINTS
+            )
+        ],
         "stored_path": str(file_path),
         "relative_path": _relative_audio_path(file_path),
         "job_id": unique_id,
+        "metadata": result.metadata,
         # Timing contract for frontend + Remotion + AI agents
         "timing_contract": {
             "filename": file_path.name,
@@ -513,7 +556,7 @@ def _build_analysis_result(
                     "energy": round(float(_rms_at_time(rms_norm, sr, hop, bt)), 4),
                     # 4/4 assumption — matches scripts/generate_timing_contract.py
                     # and the stillIRise reference contract (336 beats / 84 hits)
-                    "isDownbeat": i % 4 == 0,
+                    "isDownbeat": _is_downbeat(i),
                     "bpm": round(float(tempo), 1),
                 }
                 for i, bt in enumerate(beat_times)
@@ -889,7 +932,7 @@ async def get_analysis_by_filename(filename: str):
         normalized = str(Path(normalized).relative_to(AUDIO_DIR).as_posix())
 
     # Check in-memory cache first (fastest)
-    cached = _cache_get(normalized)
+    cached = _cache_get(normalized, "")
     if cached is not None:
         return cached
 
@@ -898,7 +941,7 @@ async def get_analysis_by_filename(filename: str):
     db_analysis = database.get_audio_analysis(normalized)
     if db_analysis:
         # Populate cache
-        _cache_set(normalized, db_analysis)
+        _cache_set(normalized, db_analysis, "")
         return db_analysis
 
     # Fallback: try basename for backward compatibility with old entries
@@ -907,7 +950,7 @@ async def get_analysis_by_filename(filename: str):
         if basename != normalized:
             db_analysis = database.get_audio_analysis(basename)
             if db_analysis:
-                _cache_set(normalized, db_analysis)
+                _cache_set(normalized, db_analysis, "")
                 return db_analysis
 
     # Fallback to JSON file index
@@ -953,7 +996,7 @@ async def get_analysis_by_filename(filename: str):
 
     # Cache the JSON-index result too — previously only the DB path populated
     # the cache, so every request re-read (and re-parsed) the analysis file.
-    _cache_set(normalized, data)
+    _cache_set(normalized, data, "")
     return data
 
 
@@ -1017,11 +1060,20 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
     if normalized.startswith(str(AUDIO_DIR).replace("\\", "/")):
         normalized = str(Path(normalized).relative_to(AUDIO_DIR).as_posix())
 
-    # Check database first (persistent across restarts)
+    # Check database first (persistent across restarts).
+    # Only accept a cached entry if it was computed with the same backend,
+    # otherwise silently re-analyze so backend choice is respected.
     from ..core import database
     db_analysis = database.get_audio_analysis(normalized)
     if db_analysis:
-        return {"status": "cached", "analysis": db_analysis}
+        cached_backend = (
+            db_analysis.get("timing_contract", {}).get("backend")
+            or (db_analysis.get("metadata") or {}).get("backend")
+            or ""
+        )
+        if cached_backend == backend:
+            _cache_set(normalized, db_analysis, backend)
+            return {"status": "cached", "analysis": db_analysis}
 
     # Backward compatibility: try basename for old entries
     if "/" in normalized:
@@ -1029,7 +1081,14 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
         if basename != normalized:
             db_analysis = database.get_audio_analysis(basename)
             if db_analysis:
-                return {"status": "cached", "analysis": db_analysis}
+                cached_backend = (
+                    db_analysis.get("timing_contract", {}).get("backend")
+                    or (db_analysis.get("metadata") or {}).get("backend")
+                    or ""
+                )
+                if cached_backend == backend:
+                    _cache_set(normalized, db_analysis, backend)
+                    return {"status": "cached", "analysis": db_analysis}
 
     # Check if already cached in JSON index
     index = _load_analysis_index()
@@ -1087,7 +1146,7 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
         from ..core import database
         database.update_audio_analysis(normalized, analysis_result)
         # Populate in-memory cache
-        _cache_set(normalized, analysis_result)
+        _cache_set(normalized, analysis_result, backend)
 
         return {"status": "analyzed", "analysis": analysis_result}
     except HTTPException:

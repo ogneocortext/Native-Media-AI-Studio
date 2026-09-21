@@ -58,7 +58,7 @@ date: 2026-08-24
 
 | Model                                         | Type                                 | VRAM                    | Local?               | Best For                                 | Cost                         |
 | --------------------------------------------- | ------------------------------------ | ----------------------- | -------------------- | ---------------------------------------- | ---------------------------- |
-| ~~Wan 2.2 5B~~                                | T2V/I2V video (MoE)                  | **~16GB ❌**            | ~~Yes (Apache 2.0)~~ | ~~480p clips~~                           | ~~$0.02-0.03/clip on A6000~~ |
+| **Wan 2.2 TI2V-5B GGUF** | T2V/I2V video (MoE) | **~6-8GB ✅ (GGUF Q4/Q5 + CPU T5 offload)** | Yes (Apache 2.0) | 480p-720p clips on 8GB | $0 local / cloud $0.02-0.03/clip |
 | **Wan 2.2 14B**                               | T2V/I2V MoE (high+low noise experts) | 24GB+                   | Yes                  | 720p quality, temporal consistency       | $0.05-0.09/clip              |
 | **Wan 2.5/2.6**                               | Audio-visual synced                  | —                       | API only             | 1080p native audio+video, 10s            | Commercial API               |
 | **AnimateDiff Evolved**                       | Stylized motion 2-16s                | 8GB ✅ with `--lowvram` | Yes                  | Motion graphics, loops (primary for 8GB) | —                            |
@@ -66,7 +66,7 @@ date: 2026-08-24
 | **Sora / Veo 3.1 / Kling 3.0 / Seedance 2.0** | Closed weights                       | —                       | No (browser)         | Cinematic 4K                             | —                            |
 | **Hunyuan3D-2mini**                           | Image→3D mesh                        | ~5GB ✅                 | Yes                  | Props/characters geometry                | —                            |
 
-**Key insight for 8GB VRAM:** Wan 2.2 **5B does NOT fit your GTX 1070 Ti** — it requires ~16GB VRAM with all components (text encoder, VAE, diffusion model). The primary video option for 8GB GPUs is **AnimateDiff Evolved** with `--lowvram` mode (noted as 8GB limited in table). For higher-quality video generation, use cloud services with 24GB+ VRAM.
+**Key insight for 8GB VRAM:** Wan 2.2 **TI2V-5B GGUF** now fits on GTX 1070 Ti with CPU offloading (~6-8GB VRAM at 480p). FP16 variants still require 16-24GB and should be avoided. For 8GB local: use **AnimateDiff Evolved** as primary, **Wan 2.2 TI2V-5B GGUF** as quality upgrade, and cloud services (24GB+) for 720p+ production work.
 
 **MoE Architecture (Wan 2.2):** high-noise expert → layout/motion structure (early denoising), low-noise expert → texture/detail (late). Handoff via signal-to-noise ratio. Training data +65.6% images / +83.2% videos vs Wan 2.1. Fixes Wan 2.1 motion artifacts and character drift.
 
@@ -120,7 +120,7 @@ Source: MusicMake.ai trends review — practical workflow changes:
 
 | Priority | Change                                                                                              | File                                           | Effort                 |
 | -------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------- |
-| **P0**   | Use AnimateDiff Evolved as primary video for 8GB (Wan 2.2 5B removed due to 16GB+ VRAM requirement) | [[comfyui-workflows]]                          | — (already configured) |
+| **P0**   | Use AnimateDiff Evolved as primary video for 8GB; add Wan 2.2 TI2V-5B GGUF as secondary quality option | [[comfyui-workflows]]                          | — (already configured) |
 | **P0**   | Stem separation pre-pass (Demucs) → 8 stems → map to distinct visual params                         | [[music-video-production#audio-analysis]]      | 0.5 day                |
 | **P0**   | Vertical-first composition `1080×1920` + safe zones + 3-8s Canvas loop export                       | [[youtube-optimization]] + Remotion `Root.tsx` | 0.5 day                |
 | **P1**   | ControlNet WanFunControl for performance transfer (dance → shrimp character)                        | [[comfyui-workflows]]                          | 1 day                  |

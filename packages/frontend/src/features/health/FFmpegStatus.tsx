@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { Terminal } from "lucide-react";
 import { Card } from "../../components/common";
 import { useHealthStore } from "../../state/healthStore";
+import type { FFmpegProcessInfo } from "../../services/api";
 
 interface FFmpegStatusData {
   running: boolean;
   count: number;
-  processes: Record<string, unknown>[];
+  processes: FFmpegProcessInfo[];
 }
 
 export function FFmpegStatus() {
@@ -53,12 +54,12 @@ export function FFmpegStatus() {
       </div>
       {ffmpeg.processes.length > 0 && (
         <div className="mt-3 pt-3 border-t border-white/5 space-y-1">
-          {ffmpeg.processes.map((p: Record<string, unknown>, i: number) => (
-            <div key={i} className="flex items-center justify-between text-xs">
-              <span className="text-muted">PID {String((p as { Id?: number }).Id ?? "")}</span>
-              <span className="text-white">{Math.round(Number((p as { CPU?: number }).CPU || 0))}s CPU</span>
-            </div>
-          ))}
+           {ffmpeg.processes.map((p: FFmpegProcessInfo, i: number) => (
+             <div key={i} className="flex items-center justify-between text-xs">
+               <span className="text-muted">PID {String(p.pid)}</span>
+               <span className="text-white">{Math.round(Number(p.cpu || 0))}% CPU</span>
+             </div>
+           ))}
         </div>
       )}
     </Card>

@@ -18,6 +18,37 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 PREVIEW_DIR = PROJECT_ROOT / "output" / "previews"
 PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
 
+# Section-aware prompt suffixes — keeps one visual theme per song section
+# and makes the drop more energetic than intro (user advice: Wan 2.1 1.3B guide).
+# Used by ComfyUI paths; FFmpeg visualization uses palette logic below.
+_SECTION_PROMPT_SUFFIX: dict[str, str] = {
+    "intro": "calm, soft lighting, slow motion, atmospheric",
+    "verse": "cinematic, subtle motion, storytelling",
+    "pre-chorus": "building energy, rising motion, anticipation",
+    "chorus": "energetic, vibrant, high detail, dynamic motion",
+    "drop": "high energy, intense motion, flashing lights, powerful, explosive",
+    "bridge": "dreamy, slow, ethereal, gentle",
+    "outro": "calm, fading, soft, peaceful",
+}
+
+
+def _enhance_prompt_for_section(prompt: str, section: str | None) -> str:
+    """One clear moving scene per clip: subject + action + setting + mood.
+
+    Appends section energy suffix if not already present, keeping prompt
+    focused (avoid multi-scene drift which Wan penalizes).
+    """
+    if not section:
+        return prompt
+    sec = section.lower().strip()
+    suffix = _SECTION_PROMPT_SUFFIX.get(sec)
+    if not suffix:
+        return prompt
+    # Avoid duplicating if prompt already contains energy words
+    if any(w in prompt.lower() for w in suffix.split(", ")):
+        return prompt
+    return f"{prompt}, {suffix}"
+
 
 class MusicVideoHandler:
     """
@@ -65,8 +96,14 @@ class MusicVideoHandler:
 
         method = params.get("method", "visualization")
         model = params.get("model", "")
-        # Auto-switch to ComfyUI AnimateDiff when a motion module is selected from the UI
-        if method == "visualization" and any(kw in model.lower() for kw in ["mm_sd", "mm-stabilized", "motion"]):
+        # Auto-switch using the shared classifier so routing can't drift from the
+        # /video-models endpoint tagging and the comfy adapter routing.
+        from ..core.model_tiers import is_wan_8gb_model
+
+        model_lower = model.lower()
+        if method == "visualization" and is_wan_8gb_model(model):
+            method = "comfyui_wan_gguf"
+        elif method == "visualization" and any(kw in model_lower for kw in ["mm_sd", "mm-stabilized", "motion", "animate"]):
             method = "comfyui"
 
         # Update progress
@@ -110,15 +147,24 @@ class MusicVideoHandler:
         else:
             duration_seconds = int(duration_str.replace("s", ""))
 
-        # Cap preview duration
+        # Cap preview duration to 5s (overnight batch still via full MUSIC_VIDEO jobs)
+        # For preview, respect the advanced UI's resolution/FPS if the caller set them
+        # via job params (new path) — otherwise fall back to viz_config (legacy).
         if is_preview:
-            duration_seconds = min(duration_seconds, 5)
-            resolution = "480p"  # Lower res for faster preview
-            fps = 12
-
-        # Resolution to dimensions
-        res_map = {"480p": (854, 480), "720p": (1280, 720), "1080p": (1920, 1080), "4k": (3840, 2160)}
-        width, height = res_map.get(resolution, (854, 480))
+            duration_seconds = min(int(params.get("duration", duration_seconds)), 5)
+            if "width" in params and "height" in params:
+                width, height = int(params["width"]), int(params["height"])
+                fps = int(params.get("fps", fps))
+            else:
+                duration_seconds = min(duration_seconds, 5)
+                resolution = "480p"  # Lower res for faster preview
+                fps = 12
+                res_map = {"480p": (832, 480), "720p": (1280, 720), "1080p": (1920, 1080), "4k": (3840, 2160)}
+                width, height = res_map.get(resolution, (832, 480))
+        else:
+            # Resolution to dimensions (full jobs)
+            res_map = {"480p": (832, 480), "720p": (1280, 720), "1080p": (1920, 1080), "4k": (3840, 2160)}
+            width, height = res_map.get(resolution, (832, 480))
 
         await self._update_progress(job, 0.5, "Rendering video frames...")
 
@@ -234,6 +280,8 @@ class MusicVideoHandler:
 
         if method == "comfyui":
             return await self._render_with_comfyui(job, audio_path, output_path, width, height, duration, analysis)
+        if method == "comfyui_wan_gguf":
+            return await self._render_with_comfyui_wan_gguf(job, audio_path, output_path, width, height, duration, analysis)
 
         # Encoding: use CRF for size/quality (was ultrafast → 772MB for 4:24)
         # Add -t to respect requested duration (was rendering full 4:24 for every 5s request → timeout)
@@ -487,38 +535,155 @@ class MusicVideoHandler:
             if not adapter:
                 raise RuntimeError("ComfyUI adapter not available")
 
-            prompt = job.params.get("prompt", "Music video visualization")
+            prompt = _enhance_prompt_for_section(
+                job.params.get("prompt", "Music video visualization"),
+                str(job.params.get("section", "")).strip() or None,
+            )
             negative_prompt = job.params.get("negative_prompt", "blurry, bad quality, distorted, static")
             steps = int(job.params.get("steps", 10))
             cfg_scale = float(job.params.get("cfg_scale", 7.0))
             fps = int(job.params.get("fps", 8))
-            num_frames = int(job.params.get("num_frames", max(8, int(duration * fps))))
+            # Cap at 32 for AnimateDiff single-pass (verified live) — handler caps,
+            # adapter also warns, but don't let a 240-frame preview request OOM-fail.
+            num_frames = min(32, max(8, int(job.params.get("num_frames", max(8, int(duration * fps))))))
             seed = int(job.params.get("seed", -1))
+            motion_lora = str(job.params.get("motion_lora", "")).strip()
+            motion_lora_strength = float(job.params.get("motion_lora_strength", 0.8))
+            # Motion module: if selected model itself is a motion module, use it; else auto
+            raw_model = str(job.params.get("model", "")).lower()
+            motion_module = ""
+            if any(kw in raw_model for kw in ["mm_sd", "mm-stabilized", "motion"]):
+                motion_module = str(job.params.get("ckpt_name", job.params.get("model", ""))).strip()
 
-            result = await adapter.generate({
-                "prompt": prompt,
-                "negative_prompt": negative_prompt,
-                "steps": steps,
-                "cfg_scale": cfg_scale,
-                "width": width,
-                "height": height,
-                "seed": seed,
-                "sampler_name": "euler_ancestral",
-                "video": True,
-                "num_frames": num_frames,
-                "fps": fps,
-            })
+            # Progress heartbeat — ComfyUI sampling is opaque (no per-step callback),
+            # so tick from 0.5→0.95 over the estimated time to avoid a frozen 14m bar.
+            import time as _time
+
+            _start = _time.time()
+            _est = float(job.params.get("estimated_seconds", 300) or 300)
+
+            async def _beat():
+                while True:
+                    await asyncio.sleep(5)
+                    elapsed = _time.time() - _start
+                    frac = min(0.95, 0.5 + 0.45 * (elapsed / max(1, _est)))
+                    est_steps = int(job.params.get("steps", 8) or 8)
+                    est_frames = int(job.params.get("num_frames", 80) or 80)
+                    cur_step = min(est_steps, max(0, int(est_steps * (frac - 0.5) / 0.45))) if frac > 0.5 else 0
+                    cur_frame = min(est_frames, max(0, int(est_frames * (frac - 0.5) / 0.45))) if frac > 0.5 else 0
+                    job.params["current_step"] = cur_step
+                    job.params["current_frame"] = cur_frame
+                    await self._update_progress(job, frac, f"Sampling... {int(elapsed)}s / ~{int(_est)}s")
+
+            _beat_task = asyncio.create_task(_beat())
+            try:
+                result = await adapter.generate({
+                    "prompt": prompt,
+                    "negative_prompt": negative_prompt,
+                    "steps": steps,
+                    "cfg_scale": cfg_scale,
+                    "width": width,
+                    "height": height,
+                    "seed": seed,
+                    "sampler_name": "euler_ancestral",
+                    "video": True,
+                    "num_frames": num_frames,
+                    "fps": fps,
+                    "motion_module": motion_module,
+                    "motion_lora": motion_lora,
+                    "motion_lora_strength": motion_lora_strength,
+                })
+
+                video_path = result.get("video_path")
+                if video_path and Path(video_path).exists():
+                    import shutil
+                    shutil.move(str(video_path), str(output_path))
+                else:
+                    raise RuntimeError("ComfyUI generation failed: no video path returned")
+            finally:
+                _beat_task.cancel()
+                try:
+                    await _beat_task
+                except asyncio.CancelledError:
+                    pass
+        except ImportError:
+            raise RuntimeError("ComfyUI adapter not available") from None
+        except Exception as e:
+            raise RuntimeError(f"ComfyUI generation failed: {e}") from e
+
+    async def _render_with_comfyui_wan_gguf(self, job: Job, audio_path: str, output_path: Path, width: int, height: int, duration: float, analysis: dict) -> None:
+        """Render video using ComfyUI Wan 2.2 TI2V-5B GGUF for 8GB VRAM."""
+        await self._update_progress(job, 0.5, "Generating video with Wan 2.2 TI2V-5B GGUF...")
+
+        import time as _time_wan
+
+        _start_wan = _time_wan.time()
+        _est_wan = float(job.params.get("estimated_seconds", 300) or 300)
+
+        async def _beat_wan():
+            while True:
+                await asyncio.sleep(5)
+                elapsed = _time_wan.time() - _start_wan
+                frac = min(0.95, 0.5 + 0.45 * (elapsed / max(1, _est_wan)))
+                est_steps = int(job.params.get("steps", 8) or 8)
+                est_frames = int(job.params.get("num_frames", 80) or 80)
+                cur_step = min(est_steps, max(0, int(est_steps * (frac - 0.5) / 0.45))) if frac > 0.5 else 0
+                cur_frame = min(est_frames, max(0, int(est_frames * (frac - 0.5) / 0.45))) if frac > 0.5 else 0
+                job.params["current_step"] = cur_step
+                job.params["current_frame"] = cur_frame
+                await self._update_progress(job, frac, f"Sampling Wan... {int(elapsed)}s / ~{int(_est_wan)}s")
+
+        _beat_wan_task = asyncio.create_task(_beat_wan())
+
+        try:
+            from ..adapters.registry import adapter_registry
+            from ..models.generation import VideoGenerationRequest
+            adapter = adapter_registry.get("comfyui")
+            if not adapter:
+                raise RuntimeError("ComfyUI adapter not available")
+
+            fps = min(60, max(1, int(job.params.get("fps", 8))))
+            # Cap frames at the adapter contract (256) — longer requests
+            # OOM even GGUF on 8GB; the mux loop repeats the clip to duration.
+            num_frames = min(256, max(8, int(job.params.get("num_frames", max(8, int(duration * fps))))))
+            raw_variant = str(job.params.get("model_variant", "gguf_q4")).lower()
+            model_variant = raw_variant if raw_variant in ("fp16", "gguf_q4", "gguf_q5", "standard") else "standard"
+
+            vreq = VideoGenerationRequest(
+                prompt=_enhance_prompt_for_section(
+                    job.params.get("prompt", "Music video visualization"),
+                    str(job.params.get("section", "")).strip() or None,
+                ),
+                negative_prompt=job.params.get("negative_prompt", "blurry, bad quality, distorted, static"),
+                steps=int(job.params.get("steps", 10)),
+                cfg_scale=float(job.params.get("cfg_scale", 7.0)),
+                width=width,
+                height=height,
+                seed=int(job.params.get("seed", -1)),
+                sampler="euler_ancestral",
+                num_frames=num_frames,
+                fps=fps,
+                model_variant=model_variant,  # type: ignore[arg-type]
+                ckpt_name=job.params.get("ckpt_name", ""),
+            )
+            result = await adapter.generate(vreq.to_adapter_params())
 
             video_path = result.get("video_path")
             if video_path and Path(video_path).exists():
                 import shutil
                 shutil.move(str(video_path), str(output_path))
             else:
-                raise RuntimeError("ComfyUI generation failed: no video path returned")
+                raise RuntimeError("Wan GGUF generation failed: no video path returned")
         except ImportError:
             raise RuntimeError("ComfyUI adapter not available") from None
         except Exception as e:
-            raise RuntimeError(f"ComfyUI generation failed: {e}") from e
+            raise RuntimeError(f"Wan GGUF generation failed: {e}") from e
+        finally:
+            _beat_wan_task.cancel()
+            try:
+                await _beat_wan_task
+            except asyncio.CancelledError:
+                pass
 
     async def _create_placeholder_output(self, job: Job, output_path: Path, analysis: dict):
         """Create a placeholder output file when ffmpeg is not available."""

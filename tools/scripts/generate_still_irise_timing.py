@@ -11,6 +11,9 @@ beats = src["beat_times"]
 sections = src["sections"]
 curve = src["energy_curve"]
 
+def is_downbeat(index: int, beats_per_bar: int = 4) -> bool:
+    return index % beats_per_bar == 0
+
 def beats_ts():
     """Emit BeatEvent literals.
 
@@ -30,7 +33,7 @@ def beats_ts():
         strength = min(1.0, max(0.35, gap / med))
         out.append(
             f'    {{ time: {round(b, 3)}, drumType: "{drum}" as DrumType, '
-            f'energy: {round(strength, 2)}, isDownbeat: {"true" if i % 4 == 0 else "false"} }}'
+            f'energy: {round(strength, 2)}, isDownbeat: {"true" if is_downbeat(i) else "false"} }}'
         )
     return ",\n".join(out)
 

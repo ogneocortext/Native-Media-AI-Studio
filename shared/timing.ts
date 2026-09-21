@@ -190,7 +190,26 @@ export function getNextBeatIn(beats: BeatEvent[], time: number): number {
 export function interpolateEnergy(contract: TimingContract, time: number): number {
   const { energyCurve, duration } = contract;
   if (!energyCurve.length) return 0.5;
-  const t = Math.max(0, Math.min(duration, time));
+  const t = clamp(time, 0, duration);
+  // Non-uniform support: when points carry explicit times, binary-search them;
+  // otherwise fall back to the uniform-distribution assumption.
+  const first = energyCurve[0];
+  const stamped = typeof first === "object" && first !== null && "time" in first;
+  if (stamped) {
+    const pts = energyCurve as EnergyCurvePoint[];
+    let lo = 0;
+    let hi = pts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (pts[mid].time <= t) lo = mid + 1;
+      else hi = mid;
+    }
+    const b = pts[lo];
+    const a = pts[Math.max(0, lo - 1)] ?? b;
+    if (b.time === a.time) return a.value;
+    const frac = clamp((t - a.time) / (b.time - a.time), 0, 1);
+    return lerp(a.value, b.value, frac);
+  }
   const pos = (t / duration) * (energyCurve.length - 1);
   const idx = Math.floor(pos);
   const frac = pos - idx;
@@ -201,6 +220,10 @@ export function interpolateEnergy(contract: TimingContract, time: number): numbe
 
 export function isOnBeat(contract: TimingContract, time: number, windowSec = 0.1): boolean {
   return getBeatNearTime(contract.beats, time, windowSec) !== null;
+}
+
+export function isDownbeatIndex(index: number, beatsPerBar: number = 4): boolean {
+  return index % beatsPerBar === 0;
 }
 
 export function getDownbeatWindow(beats: BeatEvent[], time: number, windowSec = 0.15): BeatEvent | null {

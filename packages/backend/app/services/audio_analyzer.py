@@ -278,8 +278,8 @@ class AudioAnalyzer:
         onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=hop_length).tolist()
 
         # Downbeats: 4/4 assumption (every 4th beat), matching the canonical
-        # contract in scripts/generate_timing_contract.py and the generated
-        # stillIRiseTiming.ts reference (336 beats / 84 downbeats).
+        # `isDownbeatIndex()` helper in shared/timing.ts and the generated
+        # stillIRiseTiming.ts reference.
         downbeat_times = beat_times[::4]
         downbeat_frames = beat_frames[::4]
 
@@ -338,7 +338,7 @@ class AudioAnalyzer:
 
         try:
             load_audio, _, _ = _import_shared_audio()
-            y, sr = load_audio(audio_path, sr=None)
+            y, sr = load_audio(audio_path, sr=22050)
             return self.analyze_from_audio(y, sr, job_id=job_id, audio_file=str(audio_path))
         except Exception as e:
             logger.error(f"Audio analysis failed for {audio_path}: {e}")
@@ -497,6 +497,11 @@ class AudioAnalyzer:
                     beat_times=beat_times,
                     onset_frames=onset_frames,
                     onset_times=onset_times,
+                    # 4/4 downbeat assumption (every 4th beat), matching the
+                    # canonical `isDownbeatIndex()` helper in shared/timing.ts
+                    # and the scripts/generate_timing_contract.py reference.
+                    downbeat_frames=beat_frames[::4],
+                    downbeat_times=beat_times[::4],
                     # sonara's own confidence when reported, else measured stability
                     confidence=float(result.get("bpm_confidence") or beat_confidence(beat_times, tempo_val)),
                 ),

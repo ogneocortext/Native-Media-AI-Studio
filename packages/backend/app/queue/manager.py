@@ -406,6 +406,7 @@ class QueueManager:
             for job_id in dead_ids:
                 del self._jobs[job_id]
             import asyncio as _asyncio
+
             from ..core.database import get_db
             def _do():
                 with get_db() as conn:

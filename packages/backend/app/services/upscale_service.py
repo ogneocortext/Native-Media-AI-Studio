@@ -29,6 +29,7 @@ from pathlib import Path
 
 import aiohttp
 
+from ..core import comfyui_client as _cu
 from ..core.config import PROJECT_ROOT, config
 
 logger = logging.getLogger(__name__)
@@ -89,28 +90,16 @@ def _relative(path: Path) -> str | None:
 
 
 async def _comfyui_reachable(timeout: float = 3.0) -> bool:
-    try:
-        async with aiohttp.ClientSession() as s:
-            async with s.get(f"{config.comfyui_url}/system_stats",
-                             timeout=aiohttp.ClientTimeout(total=timeout)) as r:
-                return r.status == 200
-    except Exception:
-        return False
+    return await _cu.is_reachable(config.comfyui_url, timeout=timeout)
 
 
 async def _list_upscale_models() -> list[str]:
     """Query available UpscaleModelLoader models from ComfyUI object_info."""
-    try:
-        async with aiohttp.ClientSession() as s:
-            async with s.get(f"{config.comfyui_url}/object_info/UpscaleModelLoader",
-                             timeout=aiohttp.ClientTimeout(total=5)) as r:
-                if r.status != 200:
-                    return []
-                data = await r.json()
-                info = data.get("UpscaleModelLoader", {})
-                return list(info.get("input", {}).get("required", {}).get("model_name", [[""]])[0])
-    except Exception:
+    data = await _cu.fetch_object_info(config.comfyui_url, "UpscaleModelLoader")
+    if not data:
         return []
+    from ..core.comfyui_client import extract_combo_options
+    return extract_combo_options(data.get("UpscaleModelLoader", {}), "model_name")
 
 
 def _build_upscale_workflow(image_name: str, model: str, scale: int, filename_prefix: str) -> dict:
@@ -161,43 +150,32 @@ async def _upscale_via_comfyui(src: Path, model: str, scale: int) -> UpscaleResu
     prefix = f"nma_upscale_{uuid.uuid4().hex[:8]}"
     workflow = _build_upscale_workflow(load_name, chosen, scale, prefix)
 
-    async with aiohttp.ClientSession() as s:
-        async with s.post(f"{config.comfyui_url}/prompt", json=workflow,
-                          timeout=aiohttp.ClientTimeout(total=15)) as r:
-            if r.status != 200:
-                body = await r.text()
-                raise RuntimeError(f"ComfyUI rejected upscale workflow: {body[:300]}")
-            prompt_id = (await r.json())["prompt_id"]
+    session = await _cu.get_shared_session()
+    prompt_id = await _cu.submit_prompt(config.comfyui_url, workflow, session=session, timeout=15)
 
-        deadline = time.monotonic() + 600
-        outputs: dict = {}
-        while time.monotonic() < deadline:
-            await asyncio.sleep(POLL_INTERVAL_S)
-            async with s.get(f"{config.comfyui_url}/history/{prompt_id}",
-                             timeout=aiohttp.ClientTimeout(total=5)) as r:
-                if r.status != 200:
-                    continue
-                hist = await r.json()
-                entry = hist.get(prompt_id)
-                if not entry:
-                    continue
-                if entry.get("status", {}).get("status_str") == "error":
-                    raise RuntimeError("ComfyUI reported workflow error during upscale")
-                outputs = entry.get("outputs", {}) or {}
-                if outputs:
-                    break
-        if not outputs:
-            raise RuntimeError("Timed out waiting for ComfyUI upscale (600s)")
+    deadline = time.monotonic() + 600
+    outputs: dict = {}
+    while time.monotonic() < deadline:
+        await asyncio.sleep(POLL_INTERVAL_S)
+        hist = await _cu.fetch_history(config.comfyui_url, prompt_id, session=session, timeout=5)
+        entry = hist.get(prompt_id)
+        if not entry:
+            continue
+        if entry.get("status", {}).get("status_str") == "error":
+            raise RuntimeError("ComfyUI reported workflow error during upscale")
+        outputs = entry.get("outputs", {}) or {}
+        if outputs:
+            break
+    if not outputs:
+        raise RuntimeError("Timed out waiting for ComfyUI upscale (600s)")
 
-        for _node, out in outputs.items():
-            for img in out.get("images", []):
-                params = {
-                    "filename": img["filename"],
-                    "subfolder": img.get("subfolder", ""),
-                    "type": img.get("type", "output"),
-                }
-                async with s.get(f"{config.comfyui_url}/view", params=params,
-                                 timeout=aiohttp.ClientTimeout(total=60)) as r:
+    for _node, out in outputs.items():
+        for img in out.get("images", []):
+            params = _cu.view_params(
+                img["filename"], img.get("subfolder", ""), img.get("type", "output")
+            )
+            async with session.get(f"{config.comfyui_url}/view", params=params,
+                             timeout=aiohttp.ClientTimeout(total=60)) as r:
                     if r.status != 200:
                         continue
                     data = await r.read()

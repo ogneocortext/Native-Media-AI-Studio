@@ -24,22 +24,21 @@ from .base import AdapterStatus, BaseAdapter, _handle_adapter_error
 
 logger = logging.getLogger(__name__)
 
-# Shared aiohttp session for all adapters (created on first use)
-_shared_session: aiohttp.ClientSession | None = None
+# Shared aiohttp session for music-gen subprocess calls, backed by the
+# core.http registry ("music-gen" key: no total timeout, matching the
+# previous bare-ClientSession behavior — every call site passes an
+# explicit per-request timeout).
+_SESSION_KEY = "music-gen"
 
 
 async def _get_shared_session() -> aiohttp.ClientSession:
-    global _shared_session
-    if _shared_session is None or _shared_session.closed:
-        _shared_session = aiohttp.ClientSession()
-    return _shared_session
+    from ..core import http as _http
+    return await _http.get_shared_session(_SESSION_KEY, **_http.session_defaults(_SESSION_KEY))
 
 
 async def close_shared_session():
-    global _shared_session
-    if _shared_session and not _shared_session.closed:
-        await _shared_session.close()
-    _shared_session = None
+    from ..core import http as _http
+    await _http.close_shared_session(_SESSION_KEY)
 
 # Default ports for each engine
 DEFAULT_PORTS = {

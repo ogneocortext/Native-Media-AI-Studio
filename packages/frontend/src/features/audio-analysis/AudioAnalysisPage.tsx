@@ -28,7 +28,7 @@ import {
 
 interface AudioFile {
   filename: string;
-  path: string;
+  path?: string;
   relative_path: string;
   folder: string;
   size_bytes: number;
@@ -177,13 +177,21 @@ export function AudioAnalysisPage() {
   const [useCuda, setUseCuda] = useState(true);
   const [analysisStep, setAnalysisStep] = useState<string>("");
   const [gpuVram, setGpuVram] = useState<{ used: number; total: number; percent: number } | null>(null);
+  const [selectedBackend, setSelectedBackend] = useState<string>("sonara");
 
   // Keep local aliases for compatibility with the rest of this component
   const analyzing = audio.analyzing;
   const analysis = audio.analysis;
   const error = audio.error;
-  const { setAnalysis, setError } = audio;
+  const { setAnalysis, setError, backends, lastBackend } = audio;
   const navigate = useNavigate();
+
+  // Sync local backend selector with the hook's available/default list once loaded.
+  useEffect(() => {
+    if (backends?.available?.length && !backends.available.includes(selectedBackend)) {
+      setSelectedBackend(backends.default || backends.available[0]);
+    }
+  }, [backends, selectedBackend]);
 
   // Playback of the analyzed track (upload object-URL or library stream) + section seeking
   const uploadAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -332,8 +340,8 @@ export function AudioAnalysisPage() {
     if (!file) return;
     const vErr = validateFile(file);
     if (vErr) { setFileError(vErr); return; }
-    setAnalysisStep(useCuda && cudaAvailable ? `Analyzing on GPU${cudaFallback ? " (compat mode)" : ""}...` : "Analyzing tempo and beats...");
-    const result = await audio.analyze(file, "sonara", useCuda && cudaAvailable);
+    setAnalysisStep(useCuda && cudaAvailable ? `Analyzing on GPU${cudaFallback ? " (compat mode)" : ""}...` : `Analyzing tempo and beats with ${selectedBackend}...`);
+    const result = await audio.analyze(file, selectedBackend, useCuda && cudaAvailable);
     if (result) {
       setAnalysisStep("Detecting song structure...");
       loadAudioFiles();
@@ -377,7 +385,7 @@ export function AudioAnalysisPage() {
     setAnalysisStep("Loading audio file...");
     try {
       // Pass relative path so backend can find files in subdirectories
-      const ensured = await audio.ensure(relativePath, "sonara");
+      const ensured = await audio.ensure(relativePath, selectedBackend);
       if (ensured && ensured.analysis) {
         setAnalysisStep("Detecting song structure...");
         setAnalysis(ensured.analysis);
@@ -401,7 +409,7 @@ export function AudioAnalysisPage() {
     hasAutoAnalyzed.current = true;
     const match = audioFiles.find(f => f.filename === fileParam || f.relative_path === fileParam);
     if (match) {
-      handleAnalyzeLibraryFile(match.relative_path || match.path);
+      handleAnalyzeLibraryFile(match.relative_path);
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [audioFiles, handleAnalyzeLibraryFile]);
@@ -612,7 +620,22 @@ export function AudioAnalysisPage() {
           </div>
           {fileError && <div className={DS.cardError} role="alert"><AlertCircle size={16} /><span className="text-sm">{fileError}</span></div>}
 
-          {file && <button onClick={handleAnalyze} disabled={analyzing || separating} className={`${DS.btnPrimary} w-full`} aria-busy={analyzing}>{analyzing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}{analyzing ? "Analyzing..." : "Analyze"}</button>}
+          {file && (
+            <div className="flex gap-2">
+              <select
+                value={selectedBackend}
+                onChange={e => setSelectedBackend(e.target.value)}
+                disabled={analyzing}
+                className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white focus:outline-none focus:border-violet-500 disabled:opacity-50"
+                aria-label="Audio analysis backend"
+              >
+                {(backends?.available ?? ["sonara", "librosa", "madmom"]).map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+              <button onClick={handleAnalyze} disabled={analyzing || separating} className={`${DS.btnPrimary} flex-1`} aria-busy={analyzing}>{analyzing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}{analyzing ? "Analyzing..." : "Analyze"}</button>
+            </div>
+          )}
           {file && !analyzing && <button onClick={handleSeparate} disabled={separating || analyzing} className={`${DS.btnSecondary} w-full mt-2`} aria-busy={separating} title="Split into vocals, drums, bass and more with Demucs (slow, GPU recommended)">{separating ? <Loader2 size={18} className="animate-spin" /> : <Music2 size={18} />}{separating ? "Separating stems..." : "Separate Stems (optional)"}</button>}
 
           {stemsNote && !separating && (
@@ -641,9 +664,28 @@ export function AudioAnalysisPage() {
             </div>
           )}
 
-          {error && <div className={DS.cardError} role="alert"><AlertCircle size={20} /><div className="flex-1"><p className="text-sm font-medium">{error}</p><button onClick={() => setError(null)} className="text-xs underline mt-1">Dismiss</button></div></div>}
+           {error && <div className={DS.cardError} role="alert"><AlertCircle size={20} /><div className="flex-1"><p className="text-sm font-medium">{error}</p><button onClick={() => setError(null)} className="text-xs underline mt-1">Dismiss</button></div></div>}
 
-          {analysis && (
+           {analysis && (
+             <div className={DS.cardTight + " border-gray-700 bg-gray-800/40"} role="status" aria-live="polite">
+               <div className="flex items-center gap-3 flex-wrap">
+                 <span className={DS.textXs + " text-gray-400"}>Analysis backend:</span>
+                 <span className="px-2 py-0.5 rounded bg-violet-500/15 text-violet-300 text-xs font-medium capitalize">
+                   {analysis.metadata?.backend ?? lastBackend ?? "unknown"}
+                 </span>
+                 {analysis.metadata?.computed_on && (
+                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${analysis.metadata.computed_on === "GPU" ? "bg-emerald-500/15 text-emerald-300" : "bg-gray-700 text-gray-300"}`}>
+                     {String(analysis.metadata.computed_on)}
+                   </span>
+                 )}
+                 {analysis.beats_truncated && (
+                   <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 text-xs font-medium">beats capped</span>
+                 )}
+               </div>
+             </div>
+           )}
+
+           {analysis && (
             <div className={DS.section}>
               <div className={DS.grid4}>
                 <div className={`${DS.card} border-violet-500/20 bg-gradient-to-br from-violet-500/10 to-transparent`}>

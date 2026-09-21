@@ -2,10 +2,19 @@
   "name": "native-media-ai-studio",
   "version": "1.0.0",
   "private": true,
+  "description": "Full-stack music-video creation suite with React/Vite frontend, FastAPI backend, and Unity/Blender/ComfyUI integrations",
   "packageManager": "pnpm@11.24.0",
   "engines": {
     "node": ">=22.13.0",
     "pnpm": ">=11.24.0"
+  },
+  "catalog": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "eslint": "^9.0.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0"
   },
   "workspaces": [
     "packages/frontend",

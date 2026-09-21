@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from ..adapters.registry import adapter_registry
 from ..core.config import PROJECT_ROOT
-from ..core.urls import backend_events_url, backend_ws_url, go_dashboard_url, ollama_url
+from ..core.urls import backend_events_url, backend_ws_url, go_dashboard_url
 
 logger = logging.getLogger(__name__)
 
@@ -95,16 +95,14 @@ async def get_system_resources() -> dict:
         pass
 
     try:
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.get(ollama_url("/api/tags"), timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    resources["ollama_available"] = True
-                    resources["ollama_models"] = [
-                        {"name": m.get("name", ""), "size": m.get("size", 0)}
-                        for m in data.get("models", [])
-                    ]
+        from ..core import ollama_client as _oc
+        models = await _oc.list_models(timeout=5)
+        if models is not None:
+            resources["ollama_available"] = True
+            resources["ollama_models"] = [
+                {"name": m.get("name", ""), "size": m.get("size", 0)}
+                for m in models
+            ]
     except Exception:
         pass
 
@@ -122,44 +120,27 @@ async def get_visualization_presets() -> dict:
 @router.get("/ollama-models")
 async def get_ollama_models() -> dict:
     """Get available Ollama models with capability info and VRAM requirements."""
-    import aiohttp
-
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(ollama_url("/api/tags"), timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    models = []
-                    for m in data.get("models", []):
-                        model_name = m.get("name", "")
-                        vram_estimate = 4000
-                        if "70b" in model_name.lower():
-                            vram_estimate = 40000
-                        elif "34b" in model_name.lower():
-                            vram_estimate = 20000
-                        elif "13b" in model_name.lower():
-                            vram_estimate = 8000
-                        elif "7b" in model_name.lower():
-                            vram_estimate = 5000
-                        elif "3b" in model_name.lower():
-                            vram_estimate = 3000
-                        elif "1.5b" in model_name.lower() or "1b" in model_name.lower():
-                            vram_estimate = 2000
+        from ..core import ollama_client as _oc
+        entries = await _oc.list_models(timeout=10)
+        if entries is None:
+            return {"models": [], "count": 0}
+        models = []
+        for m in entries:
+            model_name = m.get("name", "")
+            tool_capable = _oc.is_tool_capable_model(model_name)
+            models.append({
+                "id": model_name,
+                "model_name": model_name,
+                "model_size": m.get("size", 0),
+                "model_digest": m.get("digest", ""),
+                "is_tool_capable": tool_capable,
+                "vram_required": _oc.estimate_model_vram_mb(model_name),
+                "is_available": True,
+                "capabilities": ["chat", "tools"] if tool_capable else ["chat"],
+            })
 
-                        is_tool_capable = any(k in model_name.lower() for k in ["llama3", "mistral", "command-r", "gemma2"])
-
-                        models.append({
-                            "id": model_name,
-                            "model_name": model_name,
-                            "model_size": m.get("size", 0),
-                            "model_digest": m.get("digest", ""),
-                            "is_tool_capable": is_tool_capable,
-                            "vram_required": vram_estimate,
-                            "is_available": True,
-                            "capabilities": ["chat", "tools"] if is_tool_capable else ["chat"],
-                        })
-
-                    return {"models": models, "count": len(models)}
+        return {"models": models, "count": len(models)}
     except Exception as e:
         return {"models": [], "count": 0, "error": str(e)}
 

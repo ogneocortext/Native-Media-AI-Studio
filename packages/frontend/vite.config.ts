@@ -91,7 +91,7 @@ export default defineConfig(({ mode }) => {
       dedupe: ["three", "three-stdlib"],
     },
     server: {
-      host: "127.0.0.1",
+      host: "0.0.0.0",
       port: portConfig.frontend_port,
       proxy: {
         "/api": {

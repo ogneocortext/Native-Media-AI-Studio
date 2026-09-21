@@ -21,7 +21,7 @@ test.describe('SSE & Realtime', () => {
     // The Layout connects SSE on mount; verify the global store exists and has
     // a boolean sseConnected property regardless of whether the real backend responded.
     const sseConnected = await page.evaluate(() => {
-      const win = window as any;
+      const win = window as unknown as { __healthStore?: { getState?: () => unknown } };
       const store = win.__healthStore;
       return typeof store?.getState?.()?.sseConnected === 'boolean';
     });
@@ -35,7 +35,7 @@ test.describe('SSE & Realtime', () => {
     await navigateWithWait(page, '/');
 
     const overall = await page.evaluate(() => {
-      const win = window as any;
+      const win = window as unknown as { __healthStore?: { getState?: () => unknown } };
       const store = win.__healthStore;
       return store?.getState?.()?.overall;
     });
@@ -71,7 +71,7 @@ test.describe('SSE & Realtime', () => {
     });
 
     const overall = await page.evaluate(() => {
-      const win = window as any;
+      const win = window as unknown as { __healthStore?: { getState?: () => unknown } };
       const store = win.__healthStore;
       return store?.getState?.()?.overall;
     });

@@ -9,6 +9,8 @@
 
 /// <reference types="vite/client" />
 
+import { fetchWithTimeout } from "./fetchWithTimeout";
+
 export interface PortConfig {
   backend_url: string;
   backend_port: number;
@@ -73,7 +75,7 @@ export async function fetchPortConfig(): Promise<PortConfig> {
 
   // 1) Preferred: backend API (always reflects actual bound ports)
   try {
-    const response = await fetch("/api/integrations/config/ports");
+    const response = await fetchWithTimeout("/api/integrations/config/ports", { timeout: 6000 });
     if (response.ok) {
       const raw = await response.json();
       cachedConfig = normalizePortConfig(raw as Record<string, unknown>);
@@ -85,7 +87,7 @@ export async function fetchPortConfig(): Promise<PortConfig> {
 
   // 2) Fallback: static asset bundled with the frontend
   try {
-    const response = await fetch("/config/ports.json");
+    const response = await fetchWithTimeout("/config/ports.json", { timeout: 6000 });
     if (response.ok) {
       const raw = await response.json();
       cachedConfig = normalizePortConfig(raw as Record<string, unknown>);

@@ -19,6 +19,7 @@ export interface AudioAnalysisState {
   loadingSummary: boolean;
   analyzing: boolean;
   error: string | null;
+  lastBackend: string | null;
 }
 
 export function useAudioAnalysis() {
@@ -29,6 +30,7 @@ export function useAudioAnalysis() {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastBackend, setLastBackend] = useState<string | null>(null);
 
   const loadBackends = useCallback(async () => {
     setLoadingBackends(true);
@@ -62,6 +64,7 @@ export function useAudioAnalysis() {
 
   const ensure = useCallback(
     async (filename: string, backend = "sonara") => {
+      setLastBackend(backend);
       setAnalyzing(true);
       setError(null);
       try {
@@ -82,6 +85,7 @@ export function useAudioAnalysis() {
 
   const analyze = useCallback(
     async (file: File, backend = "sonara", useCuda = false) => {
+      setLastBackend(useCuda ? "cuda" : backend);
       setAnalyzing(true);
       setError(null);
       try {
@@ -112,6 +116,7 @@ export function useAudioAnalysis() {
     loadingSummary,
     analyzing,
     error,
+    lastBackend,
     loadBackends,
     loadSummary,
     ensure,
@@ -119,5 +124,6 @@ export function useAudioAnalysis() {
     reset,
     setAnalysis,
     setError,
+    setLastBackend,
   };
 }

@@ -166,15 +166,19 @@ async def gpu_history_clear(keep_days: int = 0) -> dict:
 @router.get("/ollama/models")
 async def ollama_models() -> dict:
     """Get currently loaded Ollama models with VRAM usage and active tasks."""
-    import json
-    import urllib.request
+    import aiohttp
 
     from ..adapters.registry import adapter_registry
+    from ..core import ollama_client as _oc
     from ..core.urls import ollama_url
     try:
-        req = urllib.request.Request(ollama_url("/api/ps"))
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read())
+        session = await _oc.get_shared_session()
+        async with session.get(
+            ollama_url("/api/ps"), timeout=aiohttp.ClientTimeout(total=5)
+        ) as resp:
+            if resp.status != 200:
+                return {"loaded": False, "models": [], "activity": {}}
+            data = await resp.json()
             models = data.get("models", [])
 
             # Get activity tracking from adapter

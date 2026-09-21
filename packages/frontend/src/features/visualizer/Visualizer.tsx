@@ -90,7 +90,41 @@ function toAnalysisData(raw: unknown): AudioAnalysisData | null {
   const r = raw as Record<string, unknown>;
   if (typeof r.tempo_bpm !== "number" || typeof r.duration_seconds !== "number") return null;
   if (!Array.isArray(r.beat_times) || !Array.isArray(r.energy_curve)) return null;
-  return raw as AudioAnalysisData;
+
+  const spectralCentroid = Array.isArray(r.spectral_centroid)
+    ? r.spectral_centroid.filter((v): v is number => typeof v === "number")
+    : undefined;
+  const spectralRolloff = Array.isArray(r.spectral_rolloff)
+    ? r.spectral_rolloff.filter((v): v is number => typeof v === "number")
+    : undefined;
+  const spectralBandwidth = Array.isArray(r.spectral_bandwidth)
+    ? r.spectral_bandwidth.filter((v): v is number => typeof v === "number")
+    : undefined;
+  const zeroCrossingRate = Array.isArray(r.zero_crossing_rate)
+    ? r.zero_crossing_rate.filter((v): v is number => typeof v === "number")
+    : undefined;
+
+  return {
+    tempo_bpm: r.tempo_bpm,
+    beat_count: typeof r.beat_count === "number" ? r.beat_count : r.beat_times.length,
+    beat_times: r.beat_times,
+    onset_times: Array.isArray(r.onset_times) ? r.onset_times : [],
+    energy_curve: r.energy_curve,
+    amplitude_envelope: Array.isArray(r.amplitude_envelope) ? r.amplitude_envelope : [],
+    sections: Array.isArray(r.sections)
+      ? r.sections
+      : [],
+    confidence: typeof r.confidence === "number" ? r.confidence : 0,
+    duration_seconds: r.duration_seconds,
+    spectral_centroid: spectralCentroid,
+    spectral_rolloff: spectralRolloff,
+    spectral_bandwidth: spectralBandwidth,
+    zero_crossing_rate: zeroCrossingRate,
+    timing_contract: r.timing_contract as AudioAnalysisData["timing_contract"],
+    suggested_visualization: typeof r.suggested_visualization === "string" ? r.suggested_visualization : undefined,
+    suggested_kinetic_preset: typeof r.suggested_kinetic_preset === "string" ? r.suggested_kinetic_preset : undefined,
+    suggested_theme_seed: typeof r.suggested_theme_seed === "string" ? r.suggested_theme_seed : undefined,
+  };
 }
 
 /** Narrow an unknown backend payload to a VisualPreset; null when unusable. */
@@ -258,13 +292,6 @@ export function Visualizer() {
   }
 
   // Smoothing + beat-detection state for shader-mode analyser (mirrors useRealAudio)
-  const smoothedBassRef = useRef(0);
-  const smoothedMidRef = useRef(0);
-  const smoothedTrebleRef = useRef(0);
-  const peakHoldRef = useRef(0);
-  const peakDecayRef = useRef(0);
-  const lastBassRef = useRef(0);
-  const beatCooldownRef = useRef(0);
   const lastBeatIdxRef = useRef(-1);
   const lastBeatAtRef = useRef(0);
   // Wall-clock of the last beat frame — latches `beat: true` for throttled
@@ -468,13 +495,6 @@ export function Visualizer() {
     // lines can never linger on the canvas when the next track has no LRC.
     setLyrics([]);
     setLyricsVisible(false);
-    smoothedBassRef.current = 0;
-    smoothedMidRef.current = 0;
-    smoothedTrebleRef.current = 0;
-    peakHoldRef.current = 0;
-    peakDecayRef.current = 0;
-    lastBassRef.current = 0;
-    beatCooldownRef.current = 0;
     lastBeatIdxRef.current = -1;
     lastBeatAtRef.current = 0;
     last3DUiUpdateRef.current = 0;
@@ -1130,35 +1150,40 @@ export function Visualizer() {
                 onFallback={() => setAdaptiveDpr([1, 1])}
               />
               <color attach="background" args={[bgColor]} />
-             <VisualizerScene
-               analyserRef={analyserRef}
-               isPlaying={isPlaying}
-               isPaused={isPaused}
-               demoEnabled={demoEnabled}
-               demoBpm={demoBpm}
-               onAudioData={(data) => {
-                 liveAudioDataRef.current = data;
-                 const now = performance.now();
-                 if (data.beat) lastBeatAtRef.current = now;
-                 if (now - last3DUiUpdateRef.current > 100) {
-                   last3DUiUpdateRef.current = now;
-                   setLiveAudioData({ ...data, beat: data.beat || (now - lastBeatAtRef.current < BEAT_LATCH_MS) });
-                 }
-               }}
-               visualizationStyle={visualizationStyle}
-               vizParams={vizParams}
-               bgColor={bgColor}
-               meshColor={meshColor}
-               analysisData={currentAnalysisData}
-               audioElapsedRef={audioElapsedRef}
-               sceneFrozen={sceneFrozen}
-               lyrics={lyrics}
-               lrcSync={lrcSync}
-               storyboard={storyboard}
-               prefersReducedMotion={prefersReducedMotion}
-               perceptualScale={perceptualScale}
-               active={visualsVisible && vizMode === "3d"}
-             />
+              <VisualizerScene
+                analyserRef={analyserRef}
+                isPlaying={isPlaying}
+                isPaused={isPaused}
+                demoEnabled={demoEnabled}
+                demoBpm={demoBpm}
+                onAudioData={(data) => {
+                  liveAudioDataRef.current = data;
+                  const now = performance.now();
+                  if (data.beat) lastBeatAtRef.current = now;
+                  if (now - last3DUiUpdateRef.current > 100) {
+                    last3DUiUpdateRef.current = now;
+                    setLiveAudioData({ ...data, beat: data.beat || (now - lastBeatAtRef.current < BEAT_LATCH_MS) });
+                  }
+                }}
+                visualizationStyle={visualizationStyle}
+                vizParams={vizParams}
+                bgColor={bgColor}
+                meshColor={meshColor}
+                analysisData={currentAnalysisData}
+                audioElapsedRef={audioElapsedRef}
+                sceneFrozen={sceneFrozen}
+                lyrics={lyrics}
+                lrcSync={lrcSync}
+                storyboard={storyboard}
+                prefersReducedMotion={prefersReducedMotion}
+                perceptualScale={perceptualScale}
+                active={visualsVisible && vizMode === "3d"}
+                sampleAudio={
+                  audioElRef.current
+                    ? () => audioClockRef.current.sample(audioElRef.current, latencyRef.current)
+                    : undefined
+                }
+              />
            </Canvas>
            {visualsVisible ? (
              <>

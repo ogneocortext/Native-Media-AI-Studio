@@ -135,7 +135,8 @@ For structure/pose guidance on AnimateDiff clips:
 | **Tier 1 — Safe** | 2B–3B LLMs, 4B VL, AnimateDiff SD1.5 + motion LoRA | <4 GB | ✅ Run now |
 | **Tier 2 — Workable** | 4B LLMs, SD1.5 + AnimateDiff + 1× ControlNet LoRA | 4–6 GB | ✅ Run now |
 | **Tier 3 — Tight** | 7B LLMs, SD1.5 + AnimateDiff + fp16 ControlNet | 6–8 GB | ⚠️ May OOM under load |
-| **Tier 4 — Infeasible** | 9B LLMs unquantized, WAN 14B, LTX 22B, SDXL AnimateDiff | >8 GB | ❌ Skip or quantize |
+| **Tier 4 — Infeasible (FP16)** | 9B LLMs unquantized, WAN 14B FP16, LTX 22B, SDXL AnimateDiff | >8 GB | ❌ Skip or quantize |
+| **Tier 4 — GGUF path** | Wan 2.2 TI2V-5B GGUF Q4/Q5 + CPU T5 offload | ~6-8 GB | ✅ Now feasible on 8GB |
 
 ### 4.3 Recommended daily-driver stack
 
@@ -214,7 +215,7 @@ For structure/pose guidance on AnimateDiff clips:
 1. **Test motion LoRAs** end-to-end in the AnimateDiff-Evolved UI with `mm_sd_v15_v2.ckpt` for best compatibility.
 2. **If ControlNet is needed**, download the LoRA variants (~136 MB each) rather than full models.
 3. **If 9B LLM quality is required**, convert `qwen3.5:9b` or `ornith-1.5:9b` to GGUF Q4_K_S using llama.cpp; this is the only way to fit 9B-class models in 8 GB VRAM.
-4. **Avoid downloading** WAN 2.2, LTX 2.3, or SDXL AnimateDiff packs — they require 12–24 GB VRAM and will not run on this hardware.
+4. **Avoid FP16 video packs** — WAN 2.2 14B, LTX 2.3 22B, SDXL AnimateDiff require 12–24 GB VRAM and will not run on this hardware in FP16. **Wan 2.2 TI2V-5B GGUF** (Q4/Q5 + CPU T5 offload) is the exception: it fits 8GB and is the recommended quality upgrade path when you need realistic motion beyond AnimateDiff.
 
 ---
 

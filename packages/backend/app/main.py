@@ -22,8 +22,8 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.base import BaseHTTPMiddleware
 from sse_starlette.sse import EventSourceResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .adapters.registry import adapter_registry
 from .core.config import PROJECT_ROOT, config
@@ -290,6 +290,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to close shared HTTP client: {e}")
 
+    # Release the shared aiohttp sessions (ComfyUI + Ollama route clients)
+    try:
+        from .core import comfyui_client, ollama_client
+        await comfyui_client.close_shared_session()
+        await ollama_client.close_shared_session()
+    except Exception as e:
+        logger.warning(f"Failed to close shared aiohttp sessions: {e}")
+
     # Close all adapter sessions
     try:
         await adapter_registry.close_all()
@@ -299,7 +307,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown music generation services
     try:
-        from .adapters.music_gen import shutdown_music_gen_services, close_shared_session
+        from .adapters.music_gen import close_shared_session, shutdown_music_gen_services
         await shutdown_music_gen_services()
         await close_shared_session()
         logger.info("Music generation services stopped")
@@ -591,6 +599,24 @@ async def main():
     if await port_manager._is_service_running("backend", port):
         logger.info(
             "Backend already running on port %d; skipping duplicate bind.", port
+        )
+        return
+
+    # If we fell back to an alternate port (e.g. 8000 -> 8001) while the
+    # canonical backend is healthy, exit too. Without this, two launchers
+    # racing at boot each bind their own port and both stay up (observed
+    # 2026-09-20: healthy instances on :8000 AND :8001). A zombie on the
+    # canonical port still allows fallback: _is_service_running only
+    # returns True for a *responding* backend.
+    canonical_port = config.backend_port
+    if port != canonical_port and await port_manager._is_service_running(
+        "backend", canonical_port
+    ):
+        logger.info(
+            "Healthy backend already serving canonical port %d; "
+            "refusing fallback duplicate on port %d.",
+            canonical_port,
+            port,
         )
         return
 

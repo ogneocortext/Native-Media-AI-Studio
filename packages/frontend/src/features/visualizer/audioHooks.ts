@@ -7,9 +7,11 @@ import {
   getEnergyAtTime,
   getNextBeatInFromArray,
 } from "../../shared/timing";
-import { ATTACK, RELEASE } from "./audioTiming";
+import { ATTACK, RELEASE, smoothBeatPhase } from "./audioTiming";
 import type { AudioAnalysisData, AudioData, PerceptualScale } from "./types";
 import { generatePerceptualBands, mapToPerceptualBands } from "./perceptualScales";
+import { classifyDrumType } from "./drumClassifier";
+import { extractFrequencyBands, updatePeakHoldRefs } from "./audioAnalysisHelpers";
 import type { UseAudioAnalysisWorkerResult } from "./useAudioAnalysisWorker";
 
 // Demo fallback — synthetic audio for when no track is playing
@@ -170,20 +172,7 @@ export function useRealAudio(
 
     // Frequency-based bin mapping using actual sample rate
     const sampleRate = ctx.sampleRate;
-    const binSize = sampleRate / (arr.length * 2);
-    const bassMaxFreq = 250;
-    const midMaxFreq = 4000;
-    const bassBins = Math.max(1, Math.floor(bassMaxFreq / binSize));
-    const midBins = Math.max(bassBins + 1, Math.floor(midMaxFreq / binSize));
-
-    const rawBass =
-      arr.slice(0, bassBins).reduce((a, b) => a + b, 0) / (bassBins * 255 || 1);
-    const rawMid =
-      arr.slice(bassBins, midBins).reduce((a, b) => a + b, 0) /
-      ((midBins - bassBins) * 255 || 1);
-    const rawTreble =
-      arr.slice(midBins).reduce((a, b) => a + b, 0) /
-      ((arr.length - midBins) * 255 || 1);
+    const { bass: rawBass, mid: rawMid, treble: rawTreble } = extractFrequencyBands(arr, sampleRate);
 
     // Attack/release smoothing from shared timing constants (kept in sync with
     // the shader-mode loop in Visualizer.tsx — see audioTiming.ts).
@@ -200,16 +189,7 @@ export function useRealAudio(
     const overall = bass * 0.4 + mid * 0.35 + treble * 0.25;
 
     // Peak hold with decay for dynamic range visualization
-    const currentPeak = Math.max(bass, mid, treble);
-    if (currentPeak > peakHold.current) {
-      peakHold.current = currentPeak;
-      peakDecay.current = 0;
-    } else {
-      peakDecay.current++;
-      if (peakDecay.current > 30) {
-        peakHold.current *= 0.95; // Decay after ~0.5s at 60fps
-      }
-    }
+    updatePeakHoldRefs(peakHold, peakDecay, Math.max(bass, mid, treble));
 
     // Beat detection: use analyzed beat_times if available
     let isBeat = false;
@@ -225,26 +205,8 @@ export function useRealAudio(
       if (near) {
         isBeat = true;
         // Drum classification: use current frequency energy ratios at the beat instant
-        const bassEnergy = bass;
-        const midEnergy = mid;
-        const trebleEnergy = treble;
-        if (bassEnergy > 0.01 || midEnergy > 0.01 || trebleEnergy > 0.01) {
-          if (bassEnergy > 0.01 && midEnergy > 0.001) {
-            const bassToMid = bassEnergy / (midEnergy || 0.001);
-            const trebleToMid = trebleEnergy / (midEnergy || 0.001);
-            if (bassToMid > 1.8) drumType = "kick";
-            else if (trebleToMid > 1.5) drumType = "hat";
-            else if (midEnergy > bassEnergy && midEnergy > trebleEnergy)
-              drumType = "snare";
-          }
-          if (!drumType && bassEnergy > midEnergy && bassEnergy > trebleEnergy)
-            drumType = "kick";
-          if (
-            !drumType &&
-            trebleEnergy > midEnergy &&
-            trebleEnergy > bassEnergy
-          )
-            drumType = "hat";
+        if (bass > 0.01 || mid > 0.01 || treble > 0.01) {
+          drumType = classifyDrumType(bass, mid, treble);
         }
       }
       // Predictive next-beat countdown from analyzed beat_times
@@ -264,26 +226,8 @@ export function useRealAudio(
       if (isBeat) {
         beatCooldown.current = 6;
         // Drum classification for fallback detector
-        const bassEnergy = bass;
-        const midEnergy = mid;
-        const trebleEnergy = treble;
-        if (bassEnergy > 0.01 || midEnergy > 0.01 || trebleEnergy > 0.01) {
-          if (bassEnergy > 0.01 && midEnergy > 0.001) {
-            const bassToMid = bassEnergy / (midEnergy || 0.001);
-            const trebleToMid = trebleEnergy / (midEnergy || 0.001);
-            if (bassToMid > 1.8) drumType = "kick";
-            else if (trebleToMid > 1.5) drumType = "hat";
-            else if (midEnergy > bassEnergy && midEnergy > trebleEnergy)
-              drumType = "snare";
-          }
-          if (!drumType && bassEnergy > midEnergy && bassEnergy > trebleEnergy)
-            drumType = "kick";
-          if (
-            !drumType &&
-            trebleEnergy > midEnergy &&
-            trebleEnergy > bassEnergy
-          )
-            drumType = "hat";
+        if (bass > 0.01 || mid > 0.01 || treble > 0.01) {
+          drumType = classifyDrumType(bass, mid, treble);
         }
         // Predictive beat from recent intervals (BPM estimation)
         if (lastBeatTime.current > 0 && elapsed > 0) {
@@ -317,12 +261,9 @@ export function useRealAudio(
 
     // Low-pass the analyzed phase to reduce jitter from imperfect beat grids.
     // Handles wrap-around so a 0.97→0.03 crossing does not spin the phase back.
-    const targetPhase = phaseInfo?.phase ?? 0;
-    let phaseDelta = targetPhase - smoothedPhase.current;
-    if (phaseDelta > 0.5) phaseDelta -= 1;
-    if (phaseDelta < -0.5) phaseDelta += 1;
-    smoothedPhase.current += phaseDelta * 0.3;
-    smoothedPhase.current = ((smoothedPhase.current % 1) + 1) % 1;
+    if (phaseInfo) {
+      smoothedPhase.current = smoothBeatPhase(phaseInfo.phase, smoothedPhase.current);
+    }
 
     // Interpolate analyzed energy curve at current elapsed time for intensity modulation.
     const analyzedEnergy =

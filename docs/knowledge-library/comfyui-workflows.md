@@ -43,7 +43,7 @@ date: 2026-08-24
 | Model | Type | Path | VRAM Usage | Status |
 |-------|------|------|------------|--------|
 | hunyuan3D-2mini / **3.0 8GB** | 3D Diffusion | `models/diffusion_models/hunyuan3d-2mini/` or `hunyuan3d-3.0/` | ~4-5 GB | ✅ Active (geometry, 3.0 adds segmentation/UV/optimization) |
-| ~~Wan 2.2 5B~~ | Video T2V/I2V (MoE) | ~~`models/diffusion_models/wan2.2_ti2v_5B/`~~ | **~16 GB ❌ Exceeds 8GB** | ⚠️ Deleted — too large for 8GB |
+| **Wan 2.2 TI2V-5B GGUF** | Video T2V/I2V (MoE) | `models/unet/` + GGUF loader | **~6-8GB ✅** | ✅ Active — 480p-720p with CPU T5 offload |
 | Wan 2.2 14B | Video T2V/I2V MoE (dual) | `models/diffusion_models/wan2.2_t2v_14B/` | 24 GB+ (A6000/48GB) | **Cloud-only** — not for GTX 1070 Ti |
 | **Gemma 4 E2B** | LLM text encoder (ComfyUI native) | `models/text_encoders/gemma-4-E2B-it` | ~2.9 GB | ✅ New Sep 2026 — fits 8GB, TextGenerate node |
 | [AnimateDiff Evolved] | Stylized motion 2-16s | `custom_nodes/ComfyUI-AnimateDiff-Evolved/models/` | 8GB with `--lowvram` | ✅ Active — **primary video for 8GB** |
@@ -52,8 +52,8 @@ date: 2026-08-24
 | **BiRefNet** | Background removal (hair/fur) | `models/background_removal/birefnet.safetensors` | <2 GB | ✅ New Sep 2026 — fits 8GB |
 | **VOID** | Video object deletion | API node | <4 GB | ✅ New Sep 2026 — fits 8GB |
 
-> [!warning] Wan 2.2 5B/14B models deleted — too large for 8GB GPU
-> The Wan 2.2 5B model (`wan2.2_ti2v_5B_fp16.safetensors`, 9.5GB), UMT5 XXL text encoder (`umt5_xxl_fp8_e4m3fn_scaled.safetensors`, 6.4GB), and associated text encoder (`model.safetensors`, 8.9GB) have been deleted. They require 16-24GB VRAM and will OOM on GTX 1070 Ti (8GB). **Do not re-download these models.** Use AnimateDiff Evolved for video generation instead — it works with your 8GB GPU using `--lowvram` mode.
+> [!warning] Wan 2.2 5B/14B FP16 models deleted — too large for 8GB GPU
+> The Wan 2.2 5B FP16 model (`wan2.2_ti2v_5B_fp16.safetensors`, 9.5GB), UMT5 XXL text encoder (`umt5_xxl_fp8_e4m3fn_scaled.safetensors`, 6.4GB), and associated text encoder (`model.safetensors`, 8.9GB) have been deleted. They require 16-24GB VRAM and will OOM on GTX 1070 Ti (8GB). **Do not re-download FP16 models.** Use **Wan 2.2 TI2V-5B GGUF** (Q4/Q5 + CPU T5 offload) for 8GB-quality video, or **AnimateDiff Evolved** for fastest iteration — both work with your 8GB GPU using `--lowvram` mode.
 
 ### Model Management
 
@@ -143,33 +143,45 @@ POST /api/3d/generate
 }
 ```
 
-### 4b. Video Generation — Wan 2.2 (New, 2026, fits 8GB)
+### 4b. Video Generation — Wan 2.2 (New, 2026, fits 8GB via GGUF)
 
 > [!important] Open-Weights, Apache 2.0 — weights on Hugging Face. MoE: high-noise expert (layout/motion) + low-noise expert (detail), handoff by SNR. +65.6% images / +83.2% videos training vs 2.1. Fixes motion artifacts, character drift, camera responsiveness.
 
-**Modes (all via official ComfyUI templates ≥0.3.46):**
+**Modes (via official ComfyUI templates ≥0.3.46 + GGUF loader):**
 
 | Mode | Input | Template | Frames | Notes |
 |------|-------|----------|--------|-------|
-| **T2V 5B** | Text | `TI2V-5B` | 81f @ 480p | Single file `wan2.2_ti2v_5B_fp16` + `wan2.2_vae` + `umt5_xxl_fp8_e4m3fn_scaled` |
-| **T2V 14B** | Text | `T2V 14B` | 81f @ 480-720p | Dual: `wan2.2_t2v_high_noise_14B_fp8_scaled` + `wan2.2_t2v_low_noise_14B_fp8_scaled` + `wan_2.1_vae` |
+| **T2V/I2V 5B GGUF** | Text/Image | `TI2V-5B` + GGUF loader | 81f @ 480p-720p | GGUF Q4/Q5 (~3-4GB UNet) + VAE (~1.3GB) + T5 CPU offload (~9GB RAM) |
+| **T2V 14B GGUF** | Text | `T2V 14B` + GGUF loader | 81f @ 480-720p | Dual GGUF experts; still tight on 8GB — 480p only, slow |
 | **I2V 5B/14B** | Image | `I2V` | 81f | Image-conditioned; better character consistency |
 | **FLF2V (First-Last-Frame)** | 2 images | `FLF2V` | Interp | Smooth continuous transforms; conservative on distant keyframes |
 | **ControlNet (WanFunControl)** | Video reference | `VideoX-Fun` node | — | Canny/Depth/OpenPose/MLSD drives motion, prompt drives appearance |
 
-**ComfyUI install (5B path) — ⚠️ NOT FOR 8GB GPUs:**
+**ComfyUI install (5B GGUF path — 8GB-safe):**
 ```bash
-# ⚠️ WARNING: These models require 16-24GB VRAM and will OOM on GTX 1070 Ti (8GB)
-# DO NOT DOWNLOAD — they have been deleted from this machine
-# text_encoder/umt5_xxl_fp8_e4m3fn_scaled.safetensors  (6.4GB - TOO LARGE)
+# ✅ GGUF path for 8GB GPUs (GTX 1070 Ti)
+# 1. Install ComfyUI-GGUF or use Unet Loader (GGUF) node (bootleg category)
+# 2. Download QuantStack/Wan2.2-TI2V-5B-GGUF Q4_K_M or Q5_K_S (~3-4GB)
+# 3. Place in: models/unet/Wan2.2-TI2V-5B-Q4_K_M.gguf
+# 4. Download VAE: models/vae/wan2.2_vae.safetensors (~1.3GB)
+# 5. Text encoder stays on CPU: set --t5_cpu or use ComfyUI native offloading
+# 6. In template: swap "Load Diffusion Model" for "Unet Loader (GGUF)"
+#
+# Peak VRAM: ~6-8GB at 480p, ~8-10GB at 720p (may need --lowvram)
+# System RAM: 16GB+ recommended for T5 CPU offload
+```
+
+**ComfyUI install (FP16 path — ⚠️ NOT FOR 8GB GPUs):**
+```bash
+# ⚠️ WARNING: FP16 models require 16-24GB VRAM and will OOM on GTX 1070 Ti (8GB)
+# DO NOT DOWNLOAD FP16 weights on this machine
+# text_encoder/umt5_xxl_fp8_e4m3fn_scaled.safetensors  (6.4GB - TOO LARGE for 8GB)
 # text_encoder/model.safetensors  (8.9GB - TOO LARGE)
 # vae/wan2.2_vae.safetensors (5B) or vae/wan_2.1_vae.safetensors (14B)
 # diffusion_models/wan2.2_ti2v_5B_fp16.safetensors  (9.5GB - TOO LARGE)
-# or diffusion_models/wan2.2_t2v_high_noise_14B... + low_noise_14B...
 ```
-**For 8GB video generation:** Use AnimateDiff Evolved instead (see section 4c).
 
-**For 8GB rig:** Wan 2.2 5B was previously listed as an option but has been removed — it requires ~16GB VRAM with all components. Use **AnimateDiff Evolved** for video generation on 8GB GPUs (works with `--lowvram`). For Wan 2.2, use cloud (RTX A6000 48GB ~8-15 min/720p). More offloading = slower but feasible — on 6GB GPU it is a learning tool, not production.
+**For 8GB video generation:** Use **Wan 2.2 TI2V-5B GGUF** as quality upgrade over AnimateDiff; fall back to **AnimateDiff Evolved** for fastest iteration. For 720p+ production, use cloud (RTX A6000 48GB ~8-15 min/clip).
 
 ### 4c. Animation Alternatives — AnimateDiff & SVD (Stylized vs Realistic)
 
@@ -263,10 +275,11 @@ comfyui_generate_image(
 # 768x768 - With optimization ~6 GB  (use --disable-pinned-memory)
 # 1024x1024 - Risky            ~8+ GB (only if nothing else on GPU)
 
-# Video (8GB local ONLY AnimateDiff; Wan is cloud)
+# Video (8GB local)
 # 512x512 32f @8fps — AnimateDiff ~5GB ✅ primary on 1070 Ti (--lowvram)
-# 480p 832x480 81f — Wan 5B ~16GB ❌ NOT for 8GB (deleted)
-# 720p on A6000 cloud — 3-5 min (480p) / 8-15 min (720p); $0.02-0.09/clip
+# 480p 832x480 81f — Wan 2.2 TI2V-5B GGUF ~6-8GB ✅ with CPU T5 offload + --lowvram
+# 720p — Wan 2.2 TI2V-5B GGUF ~8-10GB ⚠️ tight; AnimateDiff safer
+# Cloud: 3-5 min (480p) / 8-15 min (720p); $0.02-0.09/clip
 
 # LLM (8GB local)
 # Gemma 4 E2B QLoRA — 8GB ✅ (E4B 10GB ❌)
@@ -358,6 +371,21 @@ comfyui_get_system_stats(action="stats")
 | Slow generation | CPU fallback | Verify CUDA installation |
 | Black output | Wrong model | Check model compatibility |
 | Import error | Missing dependency | Install in correct env |
+| `AnimateDiff ... upper limit of 32 frames` | v2 motion module cap without context window (verified live 2026-09-20: 240f batch rejected) | Generate ≤32-frame segments, concat/loop with FFmpeg; or use Wan GGUF path |
+| AnimateDiff abstract mush (verified live 2026-09-20) | Same prompt/seed gives coherent SD1.5 txt2img but structureless video; worse at 25 steps than 12 | Motion-module/context tuning needed (not step count) — try Evolved defaults, motion LoRA, or Wan GGUF |
+| Wan `precision: 'fp16' not in ['fp32','bf16']` | T5 loader node only accepts fp32/bf16 (verified live) | Use `bf16` for `LoadWanVideoT5TextEncoder` (runs CPU-offloaded, no Pascal issue) |
+| Wan `latent` / `samples` / `image_embeds` / `riflex_freq_index` validation errors | Guessed node schema (verified live 2026-09-20) | Sampler takes `samples` (omit entirely per Kijai T2V example — it self-generates), `image_embeds` from `WanVideoEmptyEmbeds`, `riflex_freq_index: 6` |
+| Wan `google/t5-xxl is not a local folder` | Standard T5-XXL checkpoint triggers HF tokenizer fallback (repo 401s); `scaled_fp8` umt5 rejected by node | Use locally de-scaled plain-fp8 umt5 (`umt5-xxl-plain-fp8.safetensors`, marker key removed) |
+| ComfyUI process vanishes mid-Wan-render | `nvlddmkm` Event ID 153 driver fault under sustained DiT load | Shrink envelope (480p/≤81f); if it recurs at small sizes, suspect sm_61 kernel/driver limits |
+
+> [!success] Wan 2.2 TI2V-5B GGUF verified on GTX 1070 Ti 8GB (2026-09-20)
+> 81f @ 832×480, 8 steps, Q4_K_M + CPU-offloaded umt5-plain-fp8 + tiled VAE decode:
+> peak **~6.5GB VRAM**, ~10 min render, prompt-coherent output (neon-disco shrimp).
+> Files: `models/diffusion_models/Wan2.2-TI2V-5B-Q4_K_M.gguf` (3.2GiB),
+> `models/vae/wan2.2_vae.safetensors` (1.3GiB),
+> `models/text_encoders/umt5-xxl-plain-fp8.safetensors` (6.3GiB, de-scaled, marker removed).
+> NOTE: `comfyui-cuda` env ships CPU-only torch — ComfyUI must run under
+> `nma-studio-cuda` (cu126) until that env is repaired; manager start refuses meanwhile.
 
 ### Debug Commands
 

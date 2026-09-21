@@ -79,6 +79,7 @@ export function VisualizerScene({
   prefersReducedMotion = false,
   perceptualScale = "mel",
   active = true,
+  sampleAudio,
 }: Props) {
   // Pass elapsed ref to hook so it reads live value inside useFrame
   const audioWorker = useAudioAnalysisWorker({
@@ -111,7 +112,10 @@ export function VisualizerScene({
 
   // Update track features once per frame (shared across all visualizations)
   useFrame(() => {
-    const heard = audioElapsedRef?.current ?? 0;
+    // Prefer the latency-compensated clock callback when the parent supplies one;
+    // this avoids a potential one-frame lag between the parent rAF update and
+    // the R3F useFrame callback.
+    const heard = sampleAudio ? sampleAudio() : (audioElapsedRef?.current ?? 0);
     updateTrackFeatures(analysisData, heard);
     lrcSyncLiveRef.current = lyrics.length ? computeLrcSync(lyrics, heard, sectionBounds) : EMPTY_LRC_SYNC;
     storyLiveRef.current = getStoryState(storyboard, heard).beat;

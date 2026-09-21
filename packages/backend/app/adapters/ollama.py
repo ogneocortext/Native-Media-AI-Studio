@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -1243,13 +1244,13 @@ Generate 3-8 scenes based on the input theme or concept."""
             return False
 
     async def delete_model(self, name: str) -> bool:
-        """Delete a model from Ollama"""
+        """Delete a model from Ollama (reuses the shared instance session)."""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.delete(
-                    f"{self.base_url}/api/delete", json={"model": name}
-                ) as resp:
-                    return resp.status == 200
+            session = await self._get_session()
+            async with session.delete(
+                f"{self.base_url}/api/delete", json={"model": name}
+            ) as resp:
+                return resp.status == 200
         except Exception:
             return False
 

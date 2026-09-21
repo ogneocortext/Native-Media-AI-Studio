@@ -24,7 +24,7 @@ export function HyperFramesPage() {
       const s = await getHyperFramesStatus();
       setStatus(s);
       setError(null);
-    } catch (e) {
+    } catch {
       setError("Failed to load HyperFrames status");
     }
   }, []);
@@ -60,7 +60,7 @@ export function HyperFramesPage() {
       const res = await launchHyperFramesPreview();
       const url = (res.url as string) || getVideoEditorUrl();
       setPreviewUrl(url);
-    } catch (e) {
+    } catch {
       setError("Failed to start preview server");
     } finally {
       setPreviewing(false);

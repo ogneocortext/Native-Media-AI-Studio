@@ -1,8 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
   navigateWithWait,
-  mockApiHealth,
-  mockApiQueueEmpty,
   cleanupRoutes,
   setupConsoleErrorCapture,
   expectNoConsoleErrors,
@@ -38,7 +36,7 @@ test.describe('App Shell', () => {
     await navigateWithWait(page, '/');
     const footer = page.locator('footer.layout-footer');
     await expect(footer).toBeVisible();
-    await expect(footer).toContainText('v1.0.0');
+    await expect(footer).toContainText('V1.5');
     await expect(footer).toContainText('2026');
   });
 

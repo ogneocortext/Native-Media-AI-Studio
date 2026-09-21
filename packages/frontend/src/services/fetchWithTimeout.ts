@@ -11,10 +11,23 @@ export async function fetchWithTimeout(
   url: string,
   options: FetchWithTimeoutOptions = {},
 ): Promise<Response> {
-  const { timeout = 8000, ...fetchOptions } = options;
+  const { timeout = 8000, signal, ...fetchOptions } = options;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  // Merge external abort signal with our timeout controller
+  if (signal) {
+    if (signal.aborted) {
+      clearTimeout(timeoutId);
+      throw new Error("Request aborted");
+    }
+    signal.addEventListener(
+      "abort",
+      () => controller.abort(),
+      { once: true }
+    );
+  }
 
   try {
     const response = await fetch(url, {

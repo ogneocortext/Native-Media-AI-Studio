@@ -142,7 +142,7 @@ const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSe
           <a href={getOutputUrl(output.relative_path)} download onClick={stop} className="p-2.5 bg-white/10 backdrop-blur rounded-xl hover:bg-white/20 text-white hover:scale-110 transition-all" title="Download"><Download size={16} /></a>
           {output.file_type === "audio" && (
             <>
-               <button onClick={(e) => { stop(e); onAnalyze(e); }} className="p-2.5 bg-emerald-500/20 backdrop-blur rounded-xl hover:bg-emerald-500/40 text-emerald-300 hover:text-emerald-200 hover:scale-110 transition-all" title="Analyze audio"><Activity size={16} /></button>
+                <button onClick={(e) => { stop(e); onAnalyze?.(e); }} className="p-2.5 bg-emerald-500/20 backdrop-blur rounded-xl hover:bg-emerald-500/40 text-emerald-300 hover:text-emerald-200 hover:scale-110 transition-all" title="Analyze audio"><Activity size={16} /></button>
               <button onClick={(e) => { stop(e); onSendToVisualizer?.(output); }} className="p-2.5 bg-violet-500/20 backdrop-blur rounded-xl hover:bg-violet-500/40 text-violet-300 hover:text-violet-200 hover:scale-110 transition-all" title="Send to Visualizer"><Sparkles size={16} /></button>
               <button onClick={(e) => { stop(e); onSendToWizard?.(output); }} className="p-2.5 bg-blue-500/20 backdrop-blur rounded-xl hover:bg-blue-500/40 text-blue-300 hover:text-blue-200 hover:scale-110 transition-all" title="Send to Music Video Wizard"><Video size={16} /></button>
             </>
@@ -226,7 +226,8 @@ export function MediaLibrary() {
   const [duplicateGroups, setDuplicateGroups] = useState<Array<{hash:string;count:number;size_bytes:number;wasted_bytes:number;files:Array<{filename:string;relative_path:string;size_bytes:number;created_at:string}>}>|null>(null);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [isFindingDupes, setIsFindingDupes] = useState(false);
-  const [sortBy, setSortBy] = useState<"newest"|"oldest"|"name-asc"|"name-desc"|"size-desc"|"size-asc"|"type">("newest");
+  type SortBy = "newest"|"oldest"|"name-asc"|"name-desc"|"size-desc"|"size-asc"|"type";
+const [sortBy, setSortBy] = useState<SortBy>("newest");
   const [groupByType, setGroupByType] = useState(false);
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -472,7 +473,7 @@ export function MediaLibrary() {
         <nav className="flex-1 p-2 space-y-1 overflow-auto">
           {categoryConfig.map(category=>{
             const Icon=category.icon; const isActive=filter.type===category.key;
-              return <button key={category.key} onClick={()=> handleFilterChange(category.key as any)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${isActive?"bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]":"text-muted hover:text-white hover:bg-white/5 hover:translate-x-0.5"}`}>
+              return <button key={category.key} onClick={()=> handleFilterChange(category.key)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${isActive?"bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]":"text-muted hover:text-white hover:bg-white/5 hover:translate-x-0.5"}`}>
               <Icon size={18} className={isActive?"":category.color} />
               {!sidebarCollapsed && <><span className="font-medium text-sm">{category.label}</span><span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${isActive?"bg-white/20":"bg-white/5"}`}>{category.key==="all"?counts.total: category.key==="image"?counts.images: category.key==="video"?counts.videos: category.key==="3d"? (counts.models_3d ?? 0) :counts.audio}</span></>}
             </button>;
@@ -564,7 +565,7 @@ export function MediaLibrary() {
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <div className="relative">
-                <select value={sortBy} onChange={e=> setSortBy(e.target.value as any)} className="input pl-3 pr-8 py-2 text-sm appearance-none min-w-[140px] bg-black/20 backdrop-blur border-white/10" title="Sort">
+                <select value={sortBy} onChange={e=> setSortBy(e.target.value as SortBy)} className="input pl-3 pr-8 py-2 text-sm appearance-none min-w-[140px] bg-black/20 backdrop-blur border-white/10" title="Sort">
                   <option value="newest">Newest</option><option value="oldest">Oldest</option><option value="name-asc">Name A→Z</option><option value="name-desc">Name Z→A</option><option value="size-desc">Largest</option><option value="size-asc">Smallest</option><option value="type">By Type</option>
                 </select>
                 <ArrowUpDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />

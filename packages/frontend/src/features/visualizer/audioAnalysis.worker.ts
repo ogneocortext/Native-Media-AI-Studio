@@ -12,9 +12,14 @@
  *   { type: "result", data: AudioData }
  */
 
-import { ATTACK, RELEASE } from "./audioTiming";
+import { ATTACK, RELEASE, smoothBeatPhase } from "./audioTiming";
 import { mapToPerceptualBands } from "./perceptualScales";
 import type { PerceptualScale } from "./perceptualScales";
+import { classifyDrumType } from "./drumClassifier";
+import {
+  extractFrequencyBands,
+  updatePeakHold,
+} from "./audioAnalysisHelpers";
 import {
   getBeatNearTimeFromArray,
   getBeatPhase as getBeatPhaseFromGrid,
@@ -72,8 +77,6 @@ export type WorkerMessage = AnalyzeMessage | ResultMessage;
 // ATTACK/RELEASE come from audioTiming.ts (shared with the inline path);
 // the previous local ATTACK = 0.35 smoothed 2.5× slower than the main thread.
 
-const PEAK_DECAY_FRAMES = 30;
-
 let smoothedBass = 0;
 let smoothedMid = 0;
 let smoothedTreble = 0;
@@ -89,33 +92,18 @@ let nextBeatIn = 0;
 function analyze(msg: AnalyzeMessage): WorkerAudioData {
   const { freq, sampleRate, elapsed, duration, beatTimes, energyCurve, perceptualScale = "mel", numPerceptualBands = 40 } = msg.payload;
 
-  const binSize = sampleRate / (freq.length * 2);
-  const bassMax = 250;
-  const midMax = 4000;
-  const bassBins = Math.max(1, Math.floor(bassMax / binSize));
-  const midBins = Math.max(bassBins + 1, Math.floor(midMax / binSize));
+  const { bass, mid, treble } = extractFrequencyBands(freq, sampleRate);
 
-  const rawBass = freq.slice(0, bassBins).reduce((a, b) => a + b, 0) / (bassBins * 255 || 1);
-  const rawMid = freq.slice(bassBins, midBins).reduce((a, b) => a + b, 0) / ((midBins - bassBins) * 255 || 1);
-  const rawTreble = freq.slice(midBins).reduce((a, b) => a + b, 0) / ((freq.length - midBins) * 255 || 1);
+  smoothedBass += (bass - smoothedBass) * (bass > smoothedBass ? ATTACK : RELEASE);
+  smoothedMid += (mid - smoothedMid) * (mid > smoothedMid ? ATTACK : RELEASE);
+  smoothedTreble += (treble - smoothedTreble) * (treble > smoothedTreble ? ATTACK : RELEASE);
 
-  smoothedBass += (rawBass - smoothedBass) * (rawBass > smoothedBass ? ATTACK : RELEASE);
-  smoothedMid += (rawMid - smoothedMid) * (rawMid > smoothedMid ? ATTACK : RELEASE);
-  smoothedTreble += (rawTreble - smoothedTreble) * (rawTreble > smoothedTreble ? ATTACK : RELEASE);
+  const bassSmoothed = smoothedBass;
+  const midSmoothed = smoothedMid;
+  const trebleSmoothed = smoothedTreble;
+  const overallSmoothed = bassSmoothed * 0.4 + midSmoothed * 0.35 + trebleSmoothed * 0.25;
 
-  const bass = smoothedBass;
-  const mid = smoothedMid;
-  const treble = smoothedTreble;
-  const overall = bass * 0.4 + mid * 0.35 + treble * 0.25;
-
-  const currentPeak = Math.max(bass, mid, treble);
-  if (currentPeak > peakHold) {
-    peakHold = currentPeak;
-    peakDecay = 0;
-  } else {
-    peakDecay++;
-    if (peakDecay > PEAK_DECAY_FRAMES) peakHold *= 0.95;
-  }
+  updatePeakHold({ peak: peakHold, decayFrames: peakDecay }, Math.max(bassSmoothed, midSmoothed, trebleSmoothed));
 
   let isBeat: boolean;
   let drumType: "kick" | "snare" | "hat" | null = null;
@@ -123,14 +111,8 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
   if (beatTimes && beatTimes.length > 0 && elapsed > 0) {
     isBeat = getBeatNearTimeFromArray(beatTimes, elapsed, 0.06) !== null;
     if (isBeat) {
-      if (bass > 0.01 || mid > 0.01 || treble > 0.01) {
-        const bassToMid = bass / (mid || 0.001);
-        const trebleToMid = treble / (mid || 0.001);
-        if (bassToMid > 1.8) drumType = "kick";
-        else if (trebleToMid > 1.5) drumType = "hat";
-        else if (mid > bass && mid > treble) drumType = "snare";
-        if (!drumType && bass > mid && bass > treble) drumType = "kick";
-        if (!drumType && treble > mid && treble > bass) drumType = "hat";
+      if (bassSmoothed > 0.01 || midSmoothed > 0.01 || trebleSmoothed > 0.01) {
+        drumType = classifyDrumType(bassSmoothed, midSmoothed, trebleSmoothed);
       }
       lastBeatTime = elapsed;
       // Analyzed grid: exact countdown to the next beat (same source as the
@@ -138,20 +120,14 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
       nextBeatIn = getNextBeatInFromArray(beatTimes, elapsed);
     }
   } else {
-    const avgEnergy = (bass + mid + treble) / 3;
+    const avgEnergy = (bassSmoothed + midSmoothed + trebleSmoothed) / 3;
     const threshold = 0.4 + avgEnergy * 0.3;
     beatCooldown = Math.max(0, beatCooldown - 1);
-    isBeat = bass > threshold && bass > lastBass * 1.1 && beatCooldown === 0;
+    isBeat = bassSmoothed > threshold && bassSmoothed > lastBass * 1.1 && beatCooldown === 0;
     if (isBeat) {
       beatCooldown = 6;
-      if (bass > 0.01 || mid > 0.01 || treble > 0.01) {
-        const bassToMid = bass / (mid || 0.001);
-        const trebleToMid = treble / (mid || 0.001);
-        if (bassToMid > 1.8) drumType = "kick";
-        else if (trebleToMid > 1.5) drumType = "hat";
-        else if (mid > bass && mid > treble) drumType = "snare";
-        if (!drumType && bass > mid && bass > treble) drumType = "kick";
-        if (!drumType && treble > mid && treble > bass) drumType = "hat";
+      if (bassSmoothed > 0.01 || midSmoothed > 0.01 || trebleSmoothed > 0.01) {
+        drumType = classifyDrumType(bassSmoothed, midSmoothed, trebleSmoothed);
       }
       if (lastBeatTime > 0 && elapsed > 0) {
         const interval = elapsed - lastBeatTime;
@@ -168,7 +144,7 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
       nextBeatIn = Math.max(0, nextBeatIn - 0.016);
     }
   }
-  lastBass = bass;
+  lastBass = bassSmoothed;
 
   // Continuous beat phase for fluid motion — the boolean `beat` above only
   // snaps on onset frames. Undefined without an analyzed grid, exactly like the
@@ -182,12 +158,7 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
   if (phaseInfo) {
     // Low-pass the analyzed phase to reduce grid jitter; wrap-aware so a
     // 0.97→0.03 crossing does not spin the phase backwards.
-    const targetPhase = phaseInfo.phase;
-    let phaseDelta = targetPhase - smoothedPhase;
-    if (phaseDelta > 0.5) phaseDelta -= 1;
-    if (phaseDelta < -0.5) phaseDelta += 1;
-    smoothedPhase += phaseDelta * 0.3;
-    smoothedPhase = ((smoothedPhase % 1) + 1) % 1;
+    smoothedPhase = smoothBeatPhase(phaseInfo.phase, smoothedPhase);
     beatPhase = smoothedPhase;
   }
 
@@ -199,13 +170,13 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
   const bands = mapToPerceptualBands(freq, sampleRate, perceptualScale, numPerceptualBands);
 
   return {
-    bass,
-    mid,
-    treble,
-    overall,
+    bass: bassSmoothed,
+    mid: midSmoothed,
+    treble: trebleSmoothed,
+    overall: overallSmoothed,
     beat: isBeat,
     peak: peakHold,
-    energy: (bass + mid + treble) / 3,
+    energy: (bassSmoothed + midSmoothed + trebleSmoothed) / 3,
     drumType,
     nextBeatIn,
     beatPhase,

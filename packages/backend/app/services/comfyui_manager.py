@@ -11,8 +11,6 @@ import sys
 import time
 from pathlib import Path
 
-import aiohttp
-
 from ..core.config import PROJECT_ROOT, config
 
 logger = logging.getLogger(__name__)
@@ -57,7 +55,10 @@ if _cfg.exists():
 VENV_PYTHON = _COMFYUI_PYTHON
 
 # Extra args for compatibility with GTX 10-series GPUs
-EXTRA_ARGS = ["--disable-pinned-memory"]
+# --disable-pinned-memory: required on 8GB Pascal (see comfyui-workflows.md).
+# --force-fp16: Pascal (sm_61) has no BF16/Tensor cores — never let ComfyUI
+#   autotune into bf16 weights that fail with "no kernel image available".
+EXTRA_ARGS = ["--disable-pinned-memory", "--force-fp16"]
 
 # Git executable path (Windows typically installs to C:\Program Files\Git\cmd\git.exe)
 GIT_EXECUTABLE = "git"
@@ -256,9 +257,19 @@ class ComfyUIManager:
                 return {"available": True}
             else:
                 error_msg = stderr.decode("utf-8", errors="replace").strip()[-200:]
+                # Never return a bare detail: an empty stdout+stderr with no
+                # exception means the probe produced nothing (observed once
+                # with a stale backend whose child stdio was broken) — say so
+                # with the return code instead of silence.
+                detail = (
+                    f"torch={output or '<no stdout>'} "
+                    f"rc={result.returncode} exe={python_exe}"
+                )
+                logger.warning("ComfyUI CUDA check failed: %s", detail)
                 return {
                     "available": False,
                     "error": error_msg or "PyTorch CUDA not available",
+                    "detail": detail,
                 }
         except Exception as e:
             return {
@@ -295,7 +306,7 @@ class ComfyUIManager:
             return {
                 "success": False,
                 "message": "CUDA not available — ComfyUI requires an NVIDIA GPU with CUDA support",
-                "detail": cuda_check["error"],
+                "detail": cuda_check.get("detail") or cuda_check["error"],
                 "suggestion": "ComfyUI requires an NVIDIA GPU. Without CUDA, image generation will not work. You can still use other features like Music Video (FFmpeg), Audio Analysis, and Ollama.",
             }
 
@@ -729,120 +740,119 @@ class ComfyUIManager:
         audio_path: str,
         checkpoint_name: str = "model.safetensors",
     ) -> str | None:
-        """Generate video via ComfyUI HTTP API. Returns path to output video or None."""
+        """Generate video via ComfyUI HTTP API. Returns path to output video or None.
+
+        .. deprecated::
+            Prefer the ``ComfyUIAdapter`` video path (AnimateDiff / Wan GGUF)
+            via ``POST /api/integrations/comfyui/generate-video``. This legacy
+            helper builds a bare KSampler workflow with no VAE-decode/save
+            nodes and defaults to ``model.safetensors`` (a deleted FP16 weight
+            per knowledge-library/comfyui-workflows.md), so it is kept only
+            for backward compatibility and sanitizes all ComfyUI filenames.
+        """
+        import re
+
+        from ..core import comfyui_client as _cu
         from ..core.config import config
         base_url = config.comfyui_url
 
-        # Use a single shared session for all requests in this method
-        async with aiohttp.ClientSession() as session:
-            # Check if ComfyUI is reachable
+        # Legacy helper only — sanitize the section label used in the output
+        # filename so it can't inject path separators.
+        safe_section = re.sub(r"[^A-Za-z0-9_-]+", "_", section)[:64] or "section"
+
+        # Shared session (no per-call ClientSession churn).
+        session = await _cu.get_shared_session()
+        # Check if ComfyUI is reachable
+        if not await _cu.is_reachable(base_url):
+            logger.warning("ComfyUI not reachable")
+            return None
+
+        # Build a simple text-to-video workflow using the /prompt endpoint
+        # Uses a basic KSampler with a text prompt
+        workflow = {
+            "3": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "seed": 42,
+                    "steps": 20,
+                    "cfg": 7.0,
+                    "sampler_name": "euler",
+                    "scheduler": "normal",
+                    "denoise": 1.0,
+                    "model": ["4", 0],
+                    "positive": ["6", 0],
+                    "negative": ["7", 0],
+                    "latent_image": ["5", 0],
+                },
+            },
+            "4": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": checkpoint_name},
+            },
+            "5": {
+                "class_type": "EmptyLatentImage",
+                "inputs": {"width": width, "height": height, "batch_size": 1, "length": duration * 24},
+            },
+            "6": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": prompt, "clip": ["4", 1]},
+            },
+            "7": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": "blurry, bad quality, distorted", "clip": ["4", 1]},
+            },
+        }
+
+        try:
+            # Enqueue prompt (shared client helper)
             try:
-                async with session.get(f"{base_url}/system_stats", timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                    if resp.status != 200:
-                        logger.warning("ComfyUI not reachable")
-                        return None
-            except Exception as e:
-                logger.warning(f"ComfyUI connection failed: {e}")
+                prompt_id = await _cu.submit_prompt(
+                    base_url, {"prompt": workflow, "extra_data": {}}, session=session, timeout=30
+                )
+            except RuntimeError as e:
+                logger.error("Failed to enqueue prompt: %s", e)
                 return None
 
-            # Build a simple text-to-video workflow using the /prompt endpoint
-            # Uses a basic KSampler with a text prompt
-            workflow = {
-                "3": {
-                    "class_type": "KSampler",
-                    "inputs": {
-                        "seed": 42,
-                        "steps": 20,
-                        "cfg": 7.0,
-                        "sampler_name": "euler",
-                        "scheduler": "normal",
-                        "denoise": 1.0,
-                        "model": ["4", 0],
-                        "positive": ["6", 0],
-                        "negative": ["7", 0],
-                        "latent_image": ["5", 0],
-                    },
-                },
-                "4": {
-                    "class_type": "CheckpointLoaderSimple",
-                    "inputs": {"ckpt_name": checkpoint_name},
-                },
-                "5": {
-                    "class_type": "EmptyLatentImage",
-                    "inputs": {"width": width, "height": height, "batch_size": 1, "length": duration * 24},
-                },
-                "6": {
-                    "class_type": "CLIPTextEncode",
-                    "inputs": {"text": prompt, "clip": ["4", 1]},
-                },
-                "7": {
-                    "class_type": "CLIPTextEncode",
-                    "inputs": {"text": "blurry, bad quality, distorted", "clip": ["4", 1]},
-                },
-            }
-
-            try:
-                # Enqueue prompt
-                payload = {
-                    "prompt": workflow,
-                    "extra_data": {},
-                }
-                async with session.post(
-                    f"{base_url}/prompt",
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=30),
-                ) as resp:
-                    if resp.status != 200:
-                        logger.error(f"Failed to enqueue prompt: {resp.status}")
-                        return None
-                    result = await resp.json()
-                    prompt_id = result.get("prompt_id")
-                    if not prompt_id:
-                        logger.error("No prompt_id returned")
-                        return None
-
-                # Poll for completion (max 10 minutes)
-                max_polls = 120  # 120 * 5s = 10 minutes
-                for _ in range(max_polls):
-                    await asyncio.sleep(5)
-                    async with session.get(
-                        f"{base_url}/history/{prompt_id}",
-                        timeout=aiohttp.ClientTimeout(total=10),
-                    ) as resp:
-                        if resp.status != 200:
-                            continue
-                        history = await resp.json()
-                        if prompt_id in history:
-                            outputs = history[prompt_id].get("outputs", {})
-                            for _node_id, output in outputs.items():
-                                if "gifs" in output:
-                                    for gif in output["gifs"]:
-                                        video_path = gif.get("filename")
-                                        video_subfolder = gif.get("subfolder", "")
-                                        if video_path:
-                                            # Download the video
-                                            async with session.get(
-                                                f"{base_url}/view",
-                                                params={
-                                                    "filename": video_path,
-                                                    "subfolder": video_subfolder,
-                                                    "type": "output",
-                                                },
-                                                timeout=aiohttp.ClientTimeout(total=60),
-                                            ) as video_resp:
-                                                if video_resp.status == 200:
-                                                    data = await video_resp.read()
-                                                    ext = Path(video_path).suffix or ".mp4"
-                                                    output_path = PROJECT_ROOT / "output" / "video" / f"{section}_{prompt_id[:8]}{ext}"
-                                                    output_path.parent.mkdir(parents=True, exist_ok=True)
-                                                    with open(output_path, "wb") as f:
-                                                        f.write(data)
-                                                    return str(output_path)
-                logger.error("ComfyUI generation timed out")
-                return None
-            except Exception as e:
-                logger.error(f"ComfyUI generation failed: {e}")
-                return None
+            # Poll for completion (max 10 minutes)
+            max_polls = 120  # 120 * 5s = 10 minutes
+            for _ in range(max_polls):
+                await asyncio.sleep(5)
+                history = await _cu.fetch_history(base_url, prompt_id, session=session, timeout=10)
+                if prompt_id in history:
+                    outputs = history[prompt_id].get("outputs", {})
+                    for _node_id, output in outputs.items():
+                        if "gifs" in output:
+                            for gif in output["gifs"]:
+                                try:
+                                    video_path = _cu.sanitize_filename(gif.get("filename", ""))
+                                except ValueError:
+                                    continue
+                                video_subfolder = _cu.sanitize_subfolder(gif.get("subfolder", ""))
+                                if video_path:
+                                    # Download the video
+                                    try:
+                                        data = await _cu.fetch_view_bytes(
+                                            base_url, video_path, video_subfolder,
+                                            session=session, timeout=60,
+                                        )
+                                    except RuntimeError:
+                                        continue
+                                    ext = Path(video_path).suffix or ".mp4"
+                                    output_path = PROJECT_ROOT / "output" / "video" / f"{safe_section}_{prompt_id[:8]}{ext}"
+                                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                                    if not output_path.resolve().is_relative_to(
+                                        (PROJECT_ROOT / "output" / "video").resolve()
+                                    ):
+                                        logger.error("Refusing to write outside output/video")
+                                        return None
+                                    with open(output_path, "wb") as f:
+                                        f.write(data)
+                                    return str(output_path)
+            logger.error("ComfyUI generation timed out")
+            return None
+        except Exception as e:
+            logger.error(f"ComfyUI generation failed: {e}")
+            return None
 
 
 # Global instance

@@ -9,22 +9,47 @@ import base64
 import json
 import logging
 import uuid
-from pathlib import Path
 from typing import Any
 
 import aiohttp
 
+from ..core import comfyui_client as _cu
+from ..core.model_tiers import classify_model_variant, is_wan_8gb_model
 from .base import AdapterStatus, BaseAdapter
 
 logger = logging.getLogger(__name__)
 
 # Map UI sampler names to ComfyUI sampler names
+# Per knowledge-library/comfyui-workflows.md § Sampler Guide — cover all
+# documented samplers so "DPM++ 3M SDE" etc. don't fall through to a
+# lowercased guess that ComfyUI rejects.
 SAMPLER_MAP = {
     "Euler a": "euler_ancestral",
     "Euler": "euler",
+    "Euler Ancestral": "euler_ancestral",
     "DPM++ 2M": "dpmpp_2m",
+    "DPM++ 2M Karras": "dpmpp_2m",
     "DPM++ SDE": "dpmpp_sde",
+    "DPM++ 3M SDE": "dpmpp_3m_sde",
+    "DDIM": "ddim",
+    "UniPC": "uni_pc",
+    "DPM Fast": "dpm_fast",
+    "DPM Adaptive": "dpm_adaptive",
+    "LMS": "lms",
+    "Heun": "heun",
 }
+
+# Schedulers documented in comfyui-workflows.md — validated before submit so
+# a typo doesn't become a silent ComfyUI node error.
+VALID_SCHEDULERS = {
+    "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform",
+}
+
+
+def _map_scheduler(scheduler_name: str) -> str:
+    """Normalize a scheduler name; fall back to 'normal' on unknown values."""
+    name = str(scheduler_name or "normal").strip().lower()
+    return name if name in VALID_SCHEDULERS else "normal"
 
 MAX_SEED = 2**32 - 1
 
@@ -46,15 +71,27 @@ def _resolve_seed(seed: Any) -> int:
 
 
 def _sanitize_filename(filename: str) -> str:
-    """Strip any path components from a ComfyUI-provided filename.
+    """Back-compat alias — canonical impl lives in ``core.comfyui_client``."""
+    return _cu.sanitize_filename(filename)
 
-    ComfyUI returns filenames from its history API; a malicious or buggy
-    node could include path separators, so never trust them blindly.
+
+def _clamp_wan_resolution(width: int, height: int) -> tuple[int, int]:
+    """Clamp a resolution into the 832x480 (480p) 8GB box, 16-aligned.
+
+    Peak VRAM scales with frame pixels; 720p/121f already peaks ~8GB on
+    modern cards, and Pascal pays extra (SDPA-math, no flash-attn).
+    Preserves aspect ratio; never upscales.
     """
-    safe = Path(str(filename).replace("\\", "/")).name
-    if not safe or safe in {".", ".."}:
-        raise ValueError(f"Invalid filename returned by ComfyUI: {filename!r}")
-    return safe
+    try:
+        w, h = int(width), int(height)
+    except (TypeError, ValueError):
+        return 832, 480
+    if w <= 0 or h <= 0:
+        return 832, 480
+    scale = min(1.0, 832 / w, 480 / h)
+    w = max(16, int(w * scale) // 16 * 16)
+    h = max(16, int(h * scale) // 16 * 16)
+    return w, h
 
 
 class ComfyUIAdapter(BaseAdapter):
@@ -76,6 +113,7 @@ class ComfyUIAdapter(BaseAdapter):
         self._current_prompt_id: str | None = None
         self._last_health_log: str | None = None
         self._available_checkpoints: list[str] = []
+        self._available_motion_modules: list[str] = []
         self._session: aiohttp.ClientSession | None = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
@@ -103,10 +141,9 @@ class ComfyUIAdapter(BaseAdapter):
             ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    if "CheckpointLoaderSimple" in data:
-                        input_info = data["CheckpointLoaderSimple"]["input"]["required"]
-                        if "ckpt_name" in input_info:
-                            return input_info["ckpt_name"][0]
+                    return _cu.extract_combo_options(
+                        data.get("CheckpointLoaderSimple", {}), "ckpt_name"
+                    )
         except Exception as e:
             logger.warning(f"Failed to fetch available checkpoints: {e}")
         return []
@@ -136,17 +173,43 @@ class ComfyUIAdapter(BaseAdapter):
         # Fallback to default
         return preferred_checkpoints[0]
 
+    async def _fetch_available_motion_modules(self) -> list[str]:
+        """Fetch motion modules from the AnimateDiff loader's option list."""
+        try:
+            session = await self._get_session()
+            async with session.get(
+                f"{self.base_url}/object_info/ADE_AnimateDiffLoaderWithContext",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return _cu.extract_combo_options(
+                        data.get("ADE_AnimateDiffLoaderWithContext", {}), "model_name"
+                    )
+        except Exception as e:
+            logger.warning(f"Failed to fetch available motion modules: {e}")
+        return []
+
     def _get_available_motion_module(self) -> str:
-        """Get the best available AnimateDiff motion module."""
+        """Get the best available AnimateDiff motion module.
+
+        Reads the live ``ADE_AnimateDiffLoaderWithContext`` option list
+        (fetched on connect) — never the checkpoint list. Prefers
+        ``mm_sd_v15_v2.ckpt``: it is the only module both present on disk
+        (1.7GB) AND listed by ComfyUI, and the motion LoRAs were designed
+        for v2 (see knowledge-library/hardware-verified-models.md §2).
+        """
         preferred_motion_modules = [
             "mm_sd_v15_v2.ckpt",
+            "mm_sd15_v3.safetensors",
             "mm-Stabilized_high.ckpt",
         ]
-        for preferred in preferred_motion_modules:
-            if self._available_checkpoints:
-                # Motion modules may also appear in checkpoint list on some installs
-                if preferred in self._available_checkpoints:
+        available = getattr(self, "_available_motion_modules", [])
+        if available:
+            for preferred in preferred_motion_modules:
+                if preferred in available:
                     return preferred
+            return available[0]
         return preferred_motion_modules[0]
 
     async def health_check(self) -> bool:
@@ -160,10 +223,13 @@ class ComfyUIAdapter(BaseAdapter):
                 if resp.status == 200:
                     if self._status != AdapterStatus.CONNECTED:
                         logger.info("ComfyUI is now online")
-                        # Fetch available checkpoints when connecting
+                        # Fetch available checkpoints + motion modules when connecting
                         self._available_checkpoints = await self._fetch_available_checkpoints()
                         if self._available_checkpoints:
                             logger.info(f"Available checkpoints: {self._available_checkpoints[:3]}")
+                        self._available_motion_modules = await self._fetch_available_motion_modules()
+                        if self._available_motion_modules:
+                            logger.info(f"Available motion modules: {self._available_motion_modules}")
                     self.set_status(AdapterStatus.CONNECTED)
                     return True
         except Exception as e:
@@ -195,13 +261,16 @@ class ComfyUIAdapter(BaseAdapter):
         cfg_scale = params.get("cfg_scale", 7.0)
         width = params.get("width", 512)
         height = params.get("height", 512)
-        comfy_sampler = _map_sampler(params.get("sampler_name", "euler_ancestral"))
+        # Accept both "sampler_name" (adapter convention) and "sampler"
+        # (queue job convention) so queued jobs don't silently fall back.
+        comfy_sampler = _map_sampler(params.get("sampler_name", params.get("sampler", "euler_ancestral")))
+        scheduler = _map_scheduler(params.get("scheduler", "normal"))
         actual_seed = _resolve_seed(params.get("seed", -1))
 
         # Build workflow
         workflow = self._build_workflow(
             prompt_text, negative_text, steps, cfg_scale,
-            width, height, actual_seed, comfy_sampler
+            width, height, actual_seed, comfy_sampler, scheduler=scheduler,
         )
 
         logger.debug("workflow built: %s", json.dumps(workflow)[:200])
@@ -224,17 +293,17 @@ class ComfyUIAdapter(BaseAdapter):
         cfg_scale = params.get("cfg_scale", 7.0)
         width = params.get("width", 512)
         height = params.get("height", 512)
-        sampler_name = params.get("sampler_name", "euler_ancestral")
+        sampler_name = params.get("sampler_name", params.get("sampler", "euler_ancestral"))
 
-        sampler_name = params.get("sampler_name", "euler_ancestral")
         comfy_sampler = _map_sampler(sampler_name)
+        scheduler = _map_scheduler(params.get("scheduler", "normal"))
         actual_seed = _resolve_seed(params.get("seed", -1))
 
         # Build a minimal workflow: checkpoint -> clip text encode -> ksampler -> save
         # This uses ComfyUI's API workflow format
         workflow = self._build_workflow(
             prompt_text, negative_text, steps, cfg_scale,
-            width, height, actual_seed, comfy_sampler
+            width, height, actual_seed, comfy_sampler, scheduler=scheduler,
         )
 
         # Submit workflow to ComfyUI
@@ -252,7 +321,7 @@ class ComfyUIAdapter(BaseAdapter):
         }
 
     async def _generate_video(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Generate a video using AnimateDiff via ComfyUI."""
+        """Generate a video using AnimateDiff or Wan 2.2 GGUF via ComfyUI."""
         prompt_text = params.get("prompt", "")
         negative_text = params.get("negative_prompt", "blurry, bad quality, distorted, static")
         steps = params.get("steps", 15)
@@ -260,18 +329,75 @@ class ComfyUIAdapter(BaseAdapter):
         width = params.get("width", 512)
         height = params.get("height", 512)
         seed = params.get("seed", -1)
-        sampler_name = params.get("sampler_name", "euler_ancestral")
+        sampler_name = params.get("sampler_name", params.get("sampler", "euler_ancestral"))
         num_frames = params.get("num_frames", 24)
         fps = params.get("fps", 12)
+        ckpt_name = params.get("ckpt_name", "")
+        model_variant = params.get("model_variant", "standard")
 
         comfy_sampler = _map_sampler(sampler_name)
+        scheduler = _map_scheduler(params.get("scheduler", "normal"))
         actual_seed = _resolve_seed(seed)
 
-        # Build AnimateDiff video workflow
-        workflow = self._build_video_workflow(
-            prompt_text, negative_text, steps, cfg_scale,
-            width, height, actual_seed, comfy_sampler, num_frames, fps
+        # AnimateDiff v2 motion modules cap a single batch at 32 frames
+        # (verified live: "upper limit of 32 frames" without a context
+        # window). Longer clips need multi-segment generation + FFmpeg
+        # concat/loop — warn instead of letting ComfyUI fail opaquely.
+        # Wan models (2.1 1.3B or 2.2 5B GGUF) handle 81-121 frames natively.
+        if num_frames > 32 and not (
+            str(model_variant).lower() in ("gguf_q4", "gguf_q5")
+            or (ckpt_name and is_wan_8gb_model(ckpt_name))
+        ):
+            logger.warning(
+                "AnimateDiff batch of %d frames exceeds the v2 32-frame single-pass "
+                "limit — ComfyUI will reject it. Generate ≤32-frame segments and "
+                "concat/loop with FFmpeg, or use the Wan path.",
+                num_frames,
+            )
+
+        # Route to the appropriate workflow based on model variant.
+        # The tier classifier (core/model_tiers.py) is the single authority
+        # for wan/gguf name-sniffing — shared with the /video-models endpoint
+        # tagging and the VRAM estimator.
+        variant_lower = str(model_variant).lower()
+        is_wan_gguf = variant_lower in ("gguf_q4", "gguf_q5") or (
+            bool(ckpt_name) and is_wan_8gb_model(ckpt_name)
         )
+        eff_frames = num_frames
+
+        if is_wan_gguf:
+            # 8GB envelope for Wan 2.2 TI2V-5B GGUF (researched 2026-09-20):
+            # 480p (832x480) is the 8GB working point (localmodel.run peak
+            # ~8GB at 720p/121f; GTX 1070 Ti is Pascal without flash-attn so
+            # SDPA-math activations cost extra). Clamp into the 832x480 box
+            # 16-aligned; snap frames to 4n+1 (Wan VAE patch grid), cap 121,
+            # default 81 (template default) when the caller left the
+            # AnimateDiff-oriented default (<=16).
+            width, height = _clamp_wan_resolution(width, height)
+            wan_frames = num_frames if num_frames > 16 else 81
+            wan_frames = min(wan_frames, 121)
+            wan_frames = wan_frames - ((wan_frames - 1) % 4)
+            if (width, height, wan_frames) != (params.get("width", 512), params.get("height", 512), num_frames):
+                logger.info(
+                    "Wan 8GB envelope: %dx%d/%df -> %dx%d/%df",
+                    params.get("width", 512), params.get("height", 512), num_frames,
+                    width, height, wan_frames,
+                )
+            workflow = self._build_wan_gguf_workflow(
+                prompt_text, negative_text, steps, cfg_scale,
+                width, height, actual_seed, comfy_sampler, wan_frames, fps,
+                ckpt_name=ckpt_name, variant=model_variant,
+            )
+            eff_frames = wan_frames
+        else:
+            workflow = self._build_video_workflow(
+                prompt_text, negative_text, steps, cfg_scale,
+                width, height, actual_seed, comfy_sampler, num_frames, fps,
+                motion_module=params.get("motion_module", ""),
+                motion_lora=params.get("motion_lora", ""),
+                motion_lora_strength=float(params.get("motion_lora_strength", 0.8)),
+                scheduler=scheduler,
+            )
 
         # Submit workflow to ComfyUI
         prompt_id = await self._submit_prompt(workflow)
@@ -279,19 +405,19 @@ class ComfyUIAdapter(BaseAdapter):
 
         # Wait for video completion. AnimateDiff can take several minutes even
         # for short clips, so never use the clip duration as the timeout.
-        video_timeout = max(600, num_frames * fps * 2)
+        video_timeout = max(900, eff_frames * fps * 2)
         video_path = await self._wait_for_video_result(prompt_id, timeout=video_timeout)
 
+        model_label = "Wan 2.2 GGUF" if is_wan_gguf else "AnimateDiff"
         return {
             "video_path": video_path,
             "seed": actual_seed,
-            "info": f"AnimateDiff: {steps} steps, {num_frames} frames @ {fps}fps, {width}x{height}",
+            "info": f"{model_label}: {steps} steps, {eff_frames} frames @ {fps}fps, {width}x{height}",
         }
 
     async def _mock_generate(self, params: dict[str, Any]) -> dict[str, Any]:
         """Mock generation for testing without ComfyUI"""
-        seed = params.get("seed", -1)
-        actual_seed = seed if seed > 0 else 42
+        actual_seed = _resolve_seed(params.get("seed", -1))
 
         # Create a simple 1x1 pixel PNG as mock image
         # This is a minimal valid PNG (1x1 red pixel)
@@ -316,6 +442,7 @@ class ComfyUIAdapter(BaseAdapter):
         height: int,
         seed: int,
         sampler: str,
+        scheduler: str = "normal",
     ) -> dict[str, Any]:
         """
         Build a minimal ComfyUI workflow for text-to-image.
@@ -333,7 +460,7 @@ class ComfyUIAdapter(BaseAdapter):
                         "steps": steps,
                         "cfg": cfg,
                         "sampler_name": sampler,
-                        "scheduler": "normal",
+                        "scheduler": _map_scheduler(scheduler),
                         "denoise": 1.0,
                         "model": ["4", 0],
                         "positive": ["6", 0],
@@ -403,56 +530,252 @@ class ComfyUIAdapter(BaseAdapter):
         return {"status": "pending"}
 
     async def _get_history(self, prompt_id: str) -> dict[str, Any]:
-        """Get ComfyUI history for a prompt"""
+        """Get ComfyUI history for a prompt (shared client helper)."""
         session = await self._get_session()
-        async with session.get(
-            f"{self.base_url}/history/{prompt_id}",
-            timeout=aiohttp.ClientTimeout(total=5),
-        ) as resp:
-            if resp.status == 200:
-                return await resp.json()
-            return {}
+        return await _cu.fetch_history(self.base_url, prompt_id, session=session)
 
     async def _get_queue_status(self, prompt_id: str) -> dict[str, Any] | None:
         """Check if a prompt is in the ComfyUI queue. Returns the queue entry or None."""
         session = await self._get_session()
-        async with session.get(
-            f"{self.base_url}/queue",
-            timeout=aiohttp.ClientTimeout(total=5),
-        ) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                # ComfyUI /queue returns {"running": [...], "queued": [...]}
-                for item in data.get("running", []):
-                    if item.get("task_id") == prompt_id or item.get("id") == prompt_id:
-                        return item
-                for item in data.get("queued", []):
-                    if item.get("task_id") == prompt_id or item.get("id") == prompt_id:
-                        return item
-            return None
+        queue_data = await _cu.fetch_queue(self.base_url, session=session)
+        return _cu.find_queue_entry(queue_data, prompt_id)
+
+    async def _wait_for_result(self, prompt_id: str, timeout: int = 300) -> str:
+        """Wait for an image prompt to complete; return base64 image data.
+
+        Was missing (``_generate_image`` raised ``AttributeError``). Polls
+        history until an ``images`` output appears, raises ``TimeoutError``
+        on timeout or ``RuntimeError`` if ComfyUI reports execution failure.
+        """
+        start = asyncio.get_event_loop().time()
+        while True:
+            elapsed = asyncio.get_event_loop().time() - start
+            if elapsed > timeout:
+                raise TimeoutError(f"ComfyUI image generation timed out after {timeout}s")
+            history = await self._get_history(prompt_id)
+            if prompt_id in history:
+                entry = history[prompt_id]
+                status = entry.get("status", {})
+                status_str = entry.get("status_str", "") or (
+                    status.get("status_str", "") if isinstance(status, dict) else ""
+                )
+                if status_str == "error" or entry.get("status") == "error":
+                    error_msg = entry.get("error") or status_str or "ComfyUI execution error"
+                    if isinstance(status, dict) and status.get("messages"):
+                        error_msg = f"{error_msg}: {status['messages']}"
+                    logger.error("ComfyUI prompt %s failed: %s", prompt_id, error_msg)
+                    raise RuntimeError(f"ComfyUI generation failed: {error_msg}")
+                for _node_id, output in entry.get("outputs", {}).items():
+                    if "images" in output:
+                        for img in output["images"]:
+                            filename = img.get("filename")
+                            if not filename:
+                                continue
+                            # Skip video containers that occasionally surface
+                            # under "images" — the video waiter handles those.
+                            if str(filename).lower().endswith((".mp4", ".webm", ".gif")):
+                                continue
+                            return await self._fetch_image(
+                                filename, img.get("subfolder", "")
+                            )
+            await asyncio.sleep(2)
 
     async def _fetch_image(self, filename: str, subfolder: str = "") -> str:
-        """Fetch an image from ComfyUI and return as base64"""
-        params: dict[str, Any] = {
-            "filename": _sanitize_filename(filename),
-            "type": "output",
-        }
-        if subfolder:
-            params["subfolder"] = subfolder
-
+        """Fetch an image from ComfyUI and return as base64 (shared client helper)."""
         session = await self._get_session()
-        async with session.get(
-            f"{self.base_url}/view",
-            params=params,
-            timeout=aiohttp.ClientTimeout(total=30),
-        ) as resp:
-            if resp.status == 200:
-                data = await resp.read()
-                return base64.b64encode(data).decode("utf-8")
-            raise Exception(f"Failed to fetch image: {resp.status}")
+        try:
+            data = await _cu.fetch_view_bytes(
+                self.base_url, filename, subfolder, session=session, timeout=30
+            )
+        except RuntimeError as e:
+            raise Exception(str(e)) from e
+        return base64.b64encode(data).decode("utf-8")
 
     def get_current_prompt_id(self) -> str | None:
         return self._current_prompt_id
+
+    def _build_wan_gguf_workflow(
+        self,
+        prompt: str,
+        negative_prompt: str,
+        steps: int,
+        cfg: float,
+        width: int,
+        height: int,
+        seed: int,
+        sampler: str,
+        num_frames: int,
+        fps: int,
+        ckpt_name: str = "",
+        variant: str = "gguf_q4",
+    ) -> dict[str, Any]:
+        """
+        Build a Wan 2.2 TI2V-5B GGUF video workflow for ComfyUI.
+
+        8GB/Pascal notes (see knowledge-library/video-generation-vram-2026.md
+        + pascal-gpu-optimization-2026.md): Pascal (sm_61) has no BF16/Tensor
+        cores, so precision is fp16 (never bf16). T5 stays CPU-offloaded and
+        VAE decode uses tiling to stay under 8GB.
+        """
+        # Resolve checkpoint: prefer explicit ckpt_name, fall back to any
+        # Wan GGUF checkpoint discoverable on the connected ComfyUI.
+        if not ckpt_name:
+            ckpt_name = self._get_available_wan_gguf_checkpoint()
+
+        # Map our variant label to the ComfyUI quantization option.
+        # Pascal (sm_61) CANNOT use fp8_e4m3fn_fast — _fast matmul modes
+        # require sm>=8.9 (comfy.icu WanVideoModelLoader docs). Both GGUF
+        # quants use "disabled" (autoselect by weights = GGUF path).
+        quant_map = {
+            "gguf_q5": "disabled",
+            "gguf_q4": "disabled",
+        }
+        quantization = quant_map.get(str(variant).lower(), "disabled")
+
+        # Wan 2.1 1.3B uses wan_2.1_vae, 2.2 uses wan2.2_vae (verified via Comfy-Org repackaged)
+        tier = classify_model_variant(ckpt_name) if ckpt_name else "unknown"
+        vae_name = "wan_2.1_vae.safetensors" if tier in ("wan2_1_t2v_1_3b", "wan2_1_fun_inp_1_3b") else "wan2.2_vae.safetensors"
+        # Text encoder: 2.1 1.3B FP16 uses umt5_xxl_fp16 (11GB, CPU offload), 2.2 GGUF uses plain fp8 (6GB)
+        # Both fit 32GB RAM; plain fp8 is lighter. Use plain fp8 for GGUF, fp16 for 1.3B if available.
+        t5_name = "umt5-xxl-plain-fp8.safetensors"
+        if tier in ("wan2_1_t2v_1_3b", "wan2_1_fun_inp_1_3b"):
+            # Prefer fp16 if present (better quality per ComfyUI docs), else plain fp8
+            import pathlib
+            fp16_path = pathlib.Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI\models\text_encoders\umt5_xxl_fp16.safetensors")
+            if fp16_path.exists():
+                t5_name = "umt5_xxl_fp16.safetensors"
+
+        return {
+            "prompt": {
+                # 1: Load UMT5-XXL text encoder (CPU offload by default on 8GB).
+                # precision MUST be bf16: this node only accepts fp32/bf16
+                # (verified live via /object_info). MUST be a plain (non-
+                # scaled) umt5 file: scaled_fp8 checkpoints are rejected, and
+                # standard T5-XXL makes the wrapper fall back to downloading
+                # the google/t5-xxl tokenizer from HF at render time.
+                # umt5-xxl-plain-fp8.safetensors is de-scaled locally from
+                # wangkanai/wan22-fp8-encoders (see docs/scratch/).
+                "1": {
+                    "class_type": "LoadWanVideoT5TextEncoder",
+                    "inputs": {
+                        "model_name": t5_name,
+                        "precision": "bf16",
+                    },
+                },
+                # 2: Encode positive + negative prompts
+                "2": {
+                    "class_type": "WanVideoTextEncode",
+                    "inputs": {
+                        "positive_prompt": prompt,
+                        "negative_prompt": negative_prompt,
+                        "t5": ["1", 0],
+                        "force_offload": True,
+                    },
+                },
+                # 3: Load Wan 2.2 model (GGUF)
+                "3": {
+                    "class_type": "WanVideoModelLoader",
+                    "inputs": {
+                        "model": ckpt_name,
+                        "base_precision": "fp16",
+                        "quantization": quantization,
+                        "load_device": "offload_device",
+                    },
+                },
+                # NOTE: no EmptyLatentImage — the official Kijai T2V example
+                # leaves sampler `samples` UNCONNECTED; the sampler creates
+                # correctly-shaped Wan latents from the embeds. Wiring an SD
+                # 4ch latent crashes with a channel mismatch (verified live).
+                # Shape comes from node 9 (WanVideoEmptyEmbeds).
+                # 9: Empty image embeds (pure text-to-video path — no
+                # start/end image). Required input of WanVideoSampler.
+                "9": {
+                    "class_type": "WanVideoEmptyEmbeds",
+                    "inputs": {
+                        "width": width,
+                        "height": height,
+                        "num_frames": num_frames,
+                    },
+                },
+                # 5: Sample (requires `image_embeds` + `riflex_freq_index`;
+                # `samples` left unconnected per the official example —
+                # verified live via /object_info + example workflows)
+                "5": {
+                    "class_type": "WanVideoSampler",
+                    "inputs": {
+                        "model": ["3", 0],
+                        "image_embeds": ["9", 0],
+                        "text_embeds": ["2", 0],
+                        "steps": steps,
+                        "cfg": cfg,
+                        "shift": 5.0,
+                        "seed": seed,
+                        "force_offload": True,
+                        "scheduler": "unipc",
+                        "riflex_freq_index": 6,
+                    },
+                },
+                # 6: Load VAE (dynamic per Wan generation)
+                "6": {
+                    "class_type": "WanVideoVAELoader",
+                    "inputs": {
+                        "model_name": vae_name,
+                        "precision": "fp16",
+                        "use_cpu_cache": True,
+                    },
+                },
+                # 7: Decode latent to images
+                "7": {
+                    "class_type": "WanVideoDecode",
+                    "inputs": {
+                        "vae": ["6", 0],
+                        "samples": ["5", 0],
+                        "enable_vae_tiling": True,
+                        "tile_x": 272,
+                        "tile_y": 272,
+                        "tile_stride_x": 144,
+                        "tile_stride_y": 128,
+                    },
+                },
+                # 8: Combine images to video
+                "8": {
+                    "class_type": "VHS_VideoCombine",
+                    "inputs": {
+                        "images": ["7", 0],
+                        "frame_rate": fps,
+                        "loop_count": 0,
+                        "filename_prefix": "NativeMediaAI_WanGGUF",
+                        "format": "image/gif",
+                        "pingpong": False,
+                        "save_output": True,
+                    },
+                },
+            }
+        }
+
+    def _get_available_wan_gguf_checkpoint(self) -> str:
+        """Find the best available Wan 2.2 TI2V-5B GGUF checkpoint.
+
+        Real on-disk names (QuantStack layout, verified 2026-09-20):
+        ``Wan2.2-TI2V-5B-Q4_K_M.gguf`` etc. in ``models/diffusion_models/``.
+        """
+        preferred = [
+            "Wan2.2-TI2V-5B-Q4_K_M.gguf",
+            "Wan2.2-TI2V-5B-Q4_K_S.gguf",
+            "Wan2.2-TI2V-5B-Q5_K_M.gguf",
+            "Wan2.2-TI2V-5B-Q5_K_S.gguf",
+        ]
+        available = getattr(self, "_available_checkpoints", [])
+        if available:
+            for name in preferred:
+                if name in available:
+                    return name
+            # Fallback: first wan+gguf entry
+            for name in available:
+                n = name.lower()
+                if "wan" in n and ("gguf" in n or "q4" in n or "q5" in n):
+                    return name
+        return preferred[0]
 
     def _build_video_workflow(
         self,
@@ -466,16 +789,42 @@ class ComfyUIAdapter(BaseAdapter):
         sampler: str,
         num_frames: int,
         fps: int,
+        motion_module: str = "",
+        motion_lora: str = "",
+        motion_lora_strength: float = 0.8,
+        scheduler: str = "normal",
     ) -> dict[str, Any]:
         """
         Build an AnimateDiff video workflow for ComfyUI.
 
         Uses the mm_sd15_v3 motion module and SD 1.5 checkpoint.
         Outputs as GIF via VideoHelperSuite or native GIF node.
+        Honors an explicit motion_module/motion_lora when provided (see
+        knowledge-library/hardware-verified-models.md §2: 8 camera LoRAs,
+        weight 0.7-1.0, best with mm_sd_v15_v2).
         """
         # Select checkpoint - prefer SD 1.5 for AnimateDiff
         checkpoint = self._get_available_checkpoint()
-        motion_module = self._get_available_motion_module()
+        # Respect an explicit motion module (e.g. mm_sd_v15_v2 for LoRA
+        # compatibility); fall back to auto-detect only when empty.
+        if not motion_module:
+            motion_module = self._get_available_motion_module()
+
+        loader_inputs: dict[str, Any] = {
+            "model_name": motion_module,
+            "context_length": min(num_frames, 16),
+            "context_stride": 1,
+            "context_overlap": 4,
+            "context_schedule": "uniform",
+            "closed_loop": False,
+            "beta_schedule": "sqrt_linear (AnimateDiff)",
+            "model": ["1", 0],
+        }
+        # Camera-motion LoRA slot (AnimateDiff-Evolved). Tiny (~74MB),
+        # negligible VRAM overhead on 8GB.
+        if motion_lora:
+            loader_inputs["motion_lora"] = motion_lora
+            loader_inputs["motion_lora_strength"] = max(0.0, min(1.0, motion_lora_strength))
 
         # AnimateDiff workflow with context options for better quality
         return {
@@ -488,16 +837,7 @@ class ComfyUIAdapter(BaseAdapter):
                 # Load motion module (AnimateDiff)
                 "2": {
                     "class_type": "ADE_AnimateDiffLoaderWithContext",
-                    "inputs": {
-                        "model_name": motion_module,
-                        "context_length": min(num_frames, 16),
-                        "context_stride": 1,
-                        "context_overlap": 4,
-                        "context_schedule": "uniform",
-                        "closed_loop": False,
-                        "beta_schedule": "sqrt_linear (AnimateDiff)",
-                        "model": ["1", 0],
-                    },
+                    "inputs": loader_inputs,
                 },
                 # Positive prompt
                 "3": {
@@ -532,7 +872,7 @@ class ComfyUIAdapter(BaseAdapter):
                         "steps": steps,
                         "cfg": cfg,
                         "sampler_name": sampler,
-                        "scheduler": "normal",
+                        "scheduler": _map_scheduler(scheduler),
                         "denoise": 1.0,
                         "model": ["2", 0],
                         "positive": ["3", 0],
@@ -616,9 +956,13 @@ class ComfyUIAdapter(BaseAdapter):
 
             # Also check the /queue endpoint — if the prompt isn't in the queue
             # and isn't in history, it may have been cancelled or never started.
-            # Give it a few iterations before declaring it lost.
-            if elapsed > 10:
-                queue_status = await self._get_queue_status(prompt_id)
+            # Only declare it lost after 60s (ComfyUI can take a while to pick
+            # up a prompt), and tolerate transient queue-fetch failures.
+            if elapsed > 60:
+                try:
+                    queue_status = await self._get_queue_status(prompt_id)
+                except Exception:
+                    queue_status = {"prompt_id": prompt_id}  # don't abort on probe error
                 if not queue_status:
                     logger.warning("Prompt %s not in queue or history after %ds — may have been cancelled", prompt_id, int(elapsed))
                     raise RuntimeError(f"ComfyUI prompt {prompt_id} not found in queue or history — it may have been cancelled or rejected")
@@ -629,27 +973,16 @@ class ComfyUIAdapter(BaseAdapter):
         """Fetch a video/gif from ComfyUI and return the local path."""
         from ..core.config import PROJECT_ROOT
 
-        safe_name = _sanitize_filename(filename)
-        params: dict[str, Any] = {"filename": safe_name, "type": "output"}
-        if subfolder:
-            params["subfolder"] = subfolder
-
         session = await self._get_session()
-        async with session.get(
-            f"{self.base_url}/view",
-            params=params,
-            timeout=aiohttp.ClientTimeout(total=120),
-        ) as resp:
-            if resp.status == 200:
-                data = await resp.read()
-                # Save to output directory
-                output_dir = PROJECT_ROOT / "output" / "video"
-                output_dir.mkdir(parents=True, exist_ok=True)
-                output_path = output_dir / safe_name
-                if not output_path.resolve().is_relative_to(output_dir.resolve()):
-                    raise ValueError(
-                        f"ComfyUI video path escapes output dir: {safe_name!r}"
-                    )
-                output_path.write_bytes(data)
-                return str(output_path)
-            raise Exception(f"Failed to fetch video: {resp.status}")
+        try:
+            data = await _cu.fetch_view_bytes(
+                self.base_url, filename, subfolder, session=session, timeout=120
+            )
+        except RuntimeError as e:
+            raise Exception(str(e)) from e
+        # Save to output directory
+        output_dir = PROJECT_ROOT / "output" / "video"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = _cu.safe_join(output_dir, filename)
+        output_path.write_bytes(data)
+        return str(output_path)

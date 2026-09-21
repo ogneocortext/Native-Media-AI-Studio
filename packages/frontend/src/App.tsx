@@ -13,16 +13,15 @@ import { DebugPanel } from "./components/debug/DebugPanel";
 // Retries once on transient network/HMR failures so a single flaky
 // dynamic-import fetch does not crash the route.
 const loadNamedModule = (
-  modulePromise: Promise<{ [key: string]: any }>,
+  modulePromise: Promise<Record<string, unknown>>,
   name: string,
   retries = 1,
-): Promise<{ default: any }> =>
+): Promise<{ default: unknown }> =>
   modulePromise
-    .then(m => ({ default: m[name] as any }))
+    .then(m => ({ default: m[name] as unknown }))
     .catch(err => {
       if (retries > 0) {
-        // Small delay gives Vite HMR / cache invalidation a chance to settle.
-        return new Promise<{ default: any }>((resolve, reject) => {
+        return new Promise<{ default: unknown }>((resolve, reject) => {
           setTimeout(() => {
             loadNamedModule(modulePromise, name, retries - 1)
               .then(resolve)
@@ -33,8 +32,12 @@ const loadNamedModule = (
       return Promise.reject(err);
     });
 
-const lazyNamed = (modulePromise: Promise<{ [key: string]: any }>, name: string) =>
-  lazy(() => loadNamedModule(modulePromise, name));
+const lazyNamed = (modulePromise: Promise<Record<string, unknown>>, name: string) =>
+  lazy(() =>
+    loadNamedModule(modulePromise, name).then(m => ({
+      default: m.default as React.LazyExoticComponent<React.ComponentType<unknown>>,
+    }))
+  );
 
 // Heavy pages loaded on-demand
 const HealthPage = lazyNamed(import("./features/health/HealthPage"), "HealthPage");

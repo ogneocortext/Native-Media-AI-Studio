@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState } from "react";
 import type { AudioData } from "./types";
+import { isDownbeatIndex } from "@shared/timing";
 
 export interface Canvas2DVisualizerRef {
   captureScreenshot: () => string | null;
@@ -472,7 +473,7 @@ function Canvas2DVisualizer(
             ctx.shadowBlur = 6 * dpr;
             ctx.fillRect(x + 1, y - 1 * dpr, bw, 1 * dpr);
             ctx.shadowBlur = 0;
-            if (i % 4 === 0) {
+            if (isDownbeatIndex(i)) {
               ctx.fillStyle = `rgba(255,255,255,${0.85})`;
               ctx.beginPath();
               ctx.arc(

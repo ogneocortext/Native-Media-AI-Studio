@@ -1,9 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
   navigateWithWait,
-  mockApiHealth,
-  mockApiSystemHealth,
-  mockApiServiceStatus,
   mockHealthPage,
   cleanupRoutes,
   setupConsoleErrorCapture,
@@ -33,7 +30,7 @@ test.describe('Health', () => {
     await navigateWithWait(page, '/health');
     // Stable class-based selectors
     await expect(page.locator('.service-checks-card')).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('.comfy-card')).toBeVisible();
+    await expect(page.locator('.comfy-card')).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('.ollama-card')).toBeVisible();
     expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
   });

@@ -171,10 +171,12 @@ class HealthMonitor:
                 "response_time_ms": None
             }
 
+        # ComfyUI can be slow to respond when rendering at 100% GPU — give it more time
+        timeout = 15.0 if name == "comfyui" else 8.0
         start_time = time.perf_counter()
         try:
             # Use asyncio.wait_for to enforce a per-adapter timeout
-            is_healthy = await asyncio.wait_for(adapter.health_check(), timeout=8.0)
+            is_healthy = await asyncio.wait_for(adapter.health_check(), timeout=timeout)
             response_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
             error = None
             if hasattr(adapter, 'get_last_error'):

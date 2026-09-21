@@ -17,7 +17,7 @@
  * - Added utility functions for common testing patterns.
  */
 
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 
 // ---------------------------------------------------------------------------
 // Base URL handling
@@ -484,7 +484,11 @@ export async function mockHealthPage(
  */
 export async function dispatchSseEvent(page: Page, event: Record<string, unknown>): Promise<void> {
   await page.evaluate((msg) => {
-    const win = window as any;
+    const win = window as unknown as {
+      __healthStore?: { getState?: () => unknown };
+      __jobStore?: { getState?: () => unknown };
+      __sseService?: { feedMessage?: (msg: unknown) => void };
+    };
     const store = win.__healthStore || win.__jobStore;
     if (!store) return;
     const sse = win.__sseService;

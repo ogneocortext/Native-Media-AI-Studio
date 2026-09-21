@@ -8,12 +8,16 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
+import aiohttp
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from ..adapters.registry import adapter_registry
+from ..core import comfyui_client as _cu
 from ..core.config import PROJECT_ROOT, config
+from ..core.model_tiers import VRAM_REQUIREMENTS, classify_model_variant
 from ..models.generation import ImageGenerationRequest, VideoGenerationRequest
 from ..models.job import JobCreateRequest, JobType
 from ..queue.manager import queue_manager
@@ -33,23 +37,21 @@ router = APIRouter(tags=["Integrations-Generation"])
 @router.get("/models/status")
 async def get_models_status() -> dict:
     """Get status of model availability for all image generation services"""
-    # PROJECT_ROOT is backend/, so project root is parent
-    native_media_root = PROJECT_ROOT.parent
+    from ..core.comfyui_client import resolve_models_dir
 
-    # Check ComfyUI model paths
-    comfyui_models = native_media_root / "stable-diffusion" / "models" / "checkpoints"
-    comfyui_builtin = native_media_root / "third_party" / "ComfyUI" / "models" / "checkpoints"
+    # Resolve against the real ComfyUI install (sibling dir), not legacy
+    # in-repo paths that no longer hold models.
+    models_base = resolve_models_dir()
+    ckpt_dir = models_base / "checkpoints" if models_base else None
 
     comfyui_models_list = []
-    if comfyui_models.exists():
-        comfyui_models_list = [f.name for f in comfyui_models.iterdir() if f.suffix in (".safetensors", ".ckpt")]
-    if comfyui_builtin.exists():
-        comfyui_models_list.extend([f.name for f in comfyui_builtin.iterdir() if f.suffix in (".safetensors", ".ckpt")])
+    if ckpt_dir is not None and ckpt_dir.exists():
+        comfyui_models_list = [f.name for f in ckpt_dir.iterdir() if f.suffix in (".safetensors", ".ckpt")]
 
     return {
         "comfyui": {
-            "models_directory": str(comfyui_models),
-            "builtin_directory": str(comfyui_builtin),
+            "models_directory": str(ckpt_dir or ""),
+            "builtin_directory": str(ckpt_dir or ""),
             "models_found": len(comfyui_models_list),
             "model_list": comfyui_models_list[:10],  # Limit to first 10
             "has_models": len(comfyui_models_list) > 0,
@@ -60,20 +62,16 @@ async def get_models_status() -> dict:
 @router.get("/comfyui/checkpoints")
 async def list_comfyui_checkpoints() -> dict:
     """List available checkpoint models from ComfyUI's checkpoints folder."""
-    # Look for ComfyUI installation
-    search_paths = [
-        PROJECT_ROOT.parent.parent / "ComfyUI" / "models" / "checkpoints",
-        Path("D:/Backup of Important Data for Windows 11 Upgrade/ComfyUI/models/checkpoints"),
-    ]
+    comfyui_models_dir = _cu.resolve_models_dir()
+    ckpt_dir = comfyui_models_dir / "checkpoints" if comfyui_models_dir else None
 
-    for ckpt_dir in search_paths:
-        if ckpt_dir.exists():
-            checkpoints = sorted([
-                f.name for f in ckpt_dir.iterdir()
-                if f.suffix in (".safetensors", ".ckpt")
-            ])
-            if checkpoints:
-                return {"checkpoints": checkpoints, "directory": str(ckpt_dir)}
+    if ckpt_dir is not None and ckpt_dir.exists():
+        checkpoints = sorted([
+            f.name for f in ckpt_dir.iterdir()
+            if f.suffix in (".safetensors", ".ckpt")
+        ])
+        if checkpoints:
+            return {"checkpoints": checkpoints, "directory": str(ckpt_dir)}
 
     return {"checkpoints": [], "directory": ""}
 
@@ -81,16 +79,7 @@ async def list_comfyui_checkpoints() -> dict:
 @router.get("/comfyui/video-models")
 async def get_video_models() -> dict:
     """Get video generation models including motion modules and checkpoints."""
-    search_paths = [
-        PROJECT_ROOT.parent.parent / "ComfyUI" / "models",
-        Path("D:/Backup of Important Data for Windows 11 Upgrade/ComfyUI/models"),
-    ]
-
-    comfyui_models_dir = None
-    for base_path in search_paths:
-        if base_path.exists():
-            comfyui_models_dir = base_path
-            break
+    comfyui_models_dir = _cu.resolve_models_dir()
 
     if not comfyui_models_dir:
         return {"video_models": []}
@@ -120,14 +109,33 @@ async def get_video_models() -> dict:
     diffusion_dir = comfyui_models_dir / "diffusion_models"
     if diffusion_dir.exists():
         for f in diffusion_dir.rglob("*"):
-            if f.suffix in (".safetensors", ".ckpt") and f.stat().st_size > 1024 * 1024:
+            if f.suffix in (".safetensors", ".ckpt", ".gguf") and f.stat().st_size > 1024 * 1024:
                 name_lower = f.name.lower()
-                if any(kw in name_lower for kw in ["wan", "video", "animate", "motion"]):
+                if any(kw in name_lower for kw in ["wan", "video", "animate", "motion", "ti2v"]):
+                    # Tag Wan variants via the shared tier classifier
+                    # (core/model_tiers.py) so the frontend 8GB badges and
+                    # the adapter workflow routing can't disagree.
+                    extra: dict[str, Any] = {}
+                    if "wan" in name_lower:
+                        tier = classify_model_variant(f.name)
+                        vram = VRAM_REQUIREMENTS.get(tier, {})
+                        if tier == "wan_ti2v_5b_gguf_q4":
+                            extra["variant"] = "gguf_q4"
+                        elif tier == "wan_ti2v_5b_gguf_q5":
+                            extra["variant"] = "gguf_q5"
+                        elif tier in ("wan2_1_t2v_1_3b", "wan2_1_fun_inp_1_3b"):
+                            extra["variant"] = "1.3B"
+                        else:
+                            extra["variant"] = "fp16"
+                        extra["supports_8gb"] = tier in ("wan2_1_t2v_1_3b", "wan2_1_fun_inp_1_3b", "wan_ti2v_5b_gguf_q4", "wan_ti2v_5b_gguf_q5")
+                        extra["requires_cpu_offload"] = tier in ("wan_ti2v_5b_gguf_q4", "wan_ti2v_5b_gguf_q5", "wan2_1_fun_inp_1_3b")
+                        extra["vram_mb"] = vram.get("recommended_mb", 20000)
                     video_models.append({
                         "name": f.name,
                         "path": str(f.relative_to(comfyui_models_dir)),
                         "type": "diffusion_model",
                         "size_mb": round(f.stat().st_size / (1024 * 1024), 1),
+                        **extra,
                     })
 
     return {"video_models": video_models}
@@ -151,50 +159,34 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
     # Explicit LLM prompt enrichment — only if user opts in via enrich_prompt=true
     if request.enrich_prompt and request.prompt and len(request.prompt.strip()) < 200:
         try:
-            import aiohttp as _aio
+            from ..core import ollama_client as _oc
+            from ..core.text import strip_code_fences
             enrich_sys = "You are a Stable Diffusion prompt engineer. Expand the user prompt into a detailed, comma-separated style prompt (keep <180 chars) and provide a negative_prompt. Respond ONLY JSON: {\"prompt\":\"...\",\"negative_prompt\":\"...\"}"
-            async with _aio.ClientSession() as s:
-                async with s.post(
-                    f"{config.ollama_url}/api/chat",
-                    json={"model": config.default_model, "messages": [{"role":"system","content":enrich_sys},{"role":"user","content":request.prompt}], "stream": False, "format":"json", "think": False, "options":{"temperature":0.7,"num_ctx":4096}},
-                    timeout=_aio.ClientTimeout(total=15),
-                ) as r:
-                    if r.status == 200:
-                        d = await r.json()
-                        c = (d.get("message",{}).get("content") or "").strip()
-                        if c:
-                            import json as _json
-                            if "```" in c:
-                                c = c.split("```")[1].split("```")[0].strip().lstrip("json").strip()
-                            pj = _json.loads(c)
-                            if pj.get("prompt"):
-                                request.prompt = pj["prompt"][:300]
-                            if pj.get("negative_prompt"):
-                                request.negative_prompt = pj["negative_prompt"][:500]
+            c = await _oc.chat_content(
+                [{"role": "system", "content": enrich_sys}, {"role": "user", "content": request.prompt}],
+                model=config.default_model,
+                timeout=15,
+                extra={"format": "json", "think": False, "options": {"temperature": 0.7, "num_ctx": 4096}},
+            )
+            if c:
+                pj = json.loads(strip_code_fences(c))
+                if pj.get("prompt"):
+                    request.prompt = pj["prompt"][:300]
+                if pj.get("negative_prompt"):
+                    request.negative_prompt = pj["negative_prompt"][:500]
         except Exception:
             pass
 
     try:
-        # Build params dict for adapter
-        params = {
-            "prompt": request.prompt,
-            "negative_prompt": request.negative_prompt,
-            "steps": request.steps,
-            "cfg_scale": request.cfg_scale,
-            "width": request.width,
-            "height": request.height,
-            "seed": request.seed,
-            "sampler_name": request.sampler,
-        }
+        # Build params dict for adapter (single converter — no drift)
+        params = request.to_adapter_params()
         # Validate checkpoint - don't allow 3D/video models for image generation
         if request.ckpt_name:
             name_lower = request.ckpt_name.lower()
             invalid_keywords = ["hunyuan", "wan", "animate", "motion", "3d", "kandinsky"]
             if any(kw in name_lower for kw in invalid_keywords):
                 logger.warning(f"Checkpoint '{request.ckpt_name}' is not suitable for image generation, ignoring")
-                request.ckpt_name = ""
-            else:
-                params["ckpt_name"] = request.ckpt_name
+                params.pop("ckpt_name", None)
 
         logger.debug("calling adapter.submit_only with params=%s", params)
 
@@ -219,66 +211,95 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
 @router.get("/{service_name}/result/{prompt_id}")
 async def get_result(service_name: str, prompt_id: str) -> dict:
     """Get the final result of a generation."""
-    import aiohttp
-
     if service_name != "comfyui":
         raise HTTPException(status_code=400, detail="Only ComfyUI is supported")
 
     base_url = config.comfyui_url
 
     try:
-        async with aiohttp.ClientSession() as session:
-            # Check history for the result
-            async with session.get(
-                f"{base_url}/history/{prompt_id}",
-                timeout=aiohttp.ClientTimeout(total=10),
-            ) as resp:
-                if resp.status != 200:
-                    return {"status": "error", "error": f"History endpoint returned {resp.status}", "prompt_id": prompt_id}
-                history = await resp.json()
-
-            if prompt_id in history:
-                entry = history[prompt_id]
-                outputs = entry.get("outputs", {})
-
-                # Find the image output
-                for _node_id, output in outputs.items():
-                    if "images" in output:
-                        for img in output["images"]:
-                            filename = img.get("filename")
-                            subfolder = img.get("subfolder", "")
-                            if filename:
-                                # Download the image
-                                params = {"filename": filename}
-                                if subfolder:
-                                    params["subfolder"] = subfolder
-
-                                async with session.get(
-                                    f"{base_url}/view",
-                                    params=params,
-                                    timeout=aiohttp.ClientTimeout(total=30),
-                                ) as img_resp:
-                                    if img_resp.status == 200:
-                                        img_data = await img_resp.read()
-
-                                        # Save to output directory
-                                        output_dir = PROJECT_ROOT / "output" / "images"
-                                        output_dir.mkdir(parents=True, exist_ok=True)
-
-                                        filepath = output_dir / filename
-                                        with open(filepath, "wb") as f:
-                                            f.write(img_data)
-
-                                        return {
-                                            "status": "completed",
-                                            "success": True,
-                                            "output_path": str(filepath),
-                                            "prompt_id": prompt_id,
-                                        }
-
-                return {"status": "error", "error": "No images found in output", "prompt_id": prompt_id}
-
+        history = await _cu.fetch_history(base_url, prompt_id)
+        if not history:
             return {"status": "pending", "prompt_id": prompt_id}
+
+        if prompt_id in history:
+            entry = history[prompt_id]
+            outputs = entry.get("outputs", {})
+
+            # Find the image output first
+            for _node_id, output in outputs.items():
+                if "images" in output:
+                    for img in output["images"]:
+                        try:
+                            filename = _cu.sanitize_filename(img.get("filename", ""))
+                        except ValueError as e:
+                            return {"status": "error", "error": str(e), "prompt_id": prompt_id}
+                        subfolder = _cu.sanitize_subfolder(img.get("subfolder", ""))
+                        if filename:
+                            try:
+                                img_data = await _cu.fetch_view_bytes(
+                                    base_url, filename, subfolder, timeout=30
+                                )
+                            except RuntimeError as e:
+                                return {"status": "error", "error": str(e), "prompt_id": prompt_id}
+
+                            # Save to output directory
+                            output_dir = PROJECT_ROOT / "output" / "images"
+                            output_dir.mkdir(parents=True, exist_ok=True)
+
+                            try:
+                                filepath = _cu.safe_join(output_dir, filename)
+                            except ValueError:
+                                return {"status": "error", "error": "Invalid output path", "prompt_id": prompt_id}
+                            with open(filepath, "wb") as f:
+                                f.write(img_data)
+
+                            return {
+                                "status": "completed",
+                                "success": True,
+                                "output_path": str(filepath),
+                                "prompt_id": prompt_id,
+                                "kind": "image",
+                            }
+
+            # Fallback: look for video/gif outputs (AnimateDiff/Wan workflows)
+            for _node_id, output in outputs.items():
+                for video_key in ("gifs", "video"):
+                    if video_key in output:
+                        for vid in output[video_key]:
+                            try:
+                                filename = _cu.sanitize_filename(vid.get("filename", ""))
+                            except ValueError as e:
+                                return {"status": "error", "error": str(e), "prompt_id": prompt_id}
+                            subfolder = _cu.sanitize_subfolder(vid.get("subfolder", ""))
+                            if filename:
+                                try:
+                                    vid_data = await _cu.fetch_view_bytes(
+                                        base_url, filename, subfolder, timeout=60
+                                    )
+                                except RuntimeError as e:
+                                    return {"status": "error", "error": str(e), "prompt_id": prompt_id}
+
+                                ext = Path(filename).suffix or ".mp4"
+                                video_dir = PROJECT_ROOT / "output" / "video"
+                                video_dir.mkdir(parents=True, exist_ok=True)
+                                try:
+                                    filepath = _cu.safe_join(video_dir, filename)
+                                except ValueError:
+                                    return {"status": "error", "error": "Invalid output path", "prompt_id": prompt_id}
+                                with open(filepath, "wb") as f:
+                                    f.write(vid_data)
+
+                                return {
+                                    "status": "completed",
+                                    "success": True,
+                                    "output_path": str(filepath),
+                                    "prompt_id": prompt_id,
+                                    "kind": "video",
+                                }
+
+            return {"status": "error", "error": "No outputs found in result", "prompt_id": prompt_id}
+
+        return {"status": "pending", "prompt_id": prompt_id}
 
     except Exception as e:
         return {"status": "error", "error": str(e), "prompt_id": prompt_id}
@@ -287,84 +308,71 @@ async def get_result(service_name: str, prompt_id: str) -> dict:
 @router.get("/comfyui/progress/{prompt_id}")
 async def get_progress(prompt_id: str) -> dict:
     """Get generation progress for a prompt."""
-    import aiohttp
-
     base_url = config.comfyui_url
 
     try:
-        async with aiohttp.ClientSession() as session:
-            # Check queue for running/pending status
-            async with session.get(
-                f"{base_url}/queue",
-                timeout=aiohttp.ClientTimeout(total=5),
-            ) as resp:
-                if resp.status != 200:
-                    return {
-                        "status": "error",
-                        "prompt_id": prompt_id,
-                        "error": f"Queue endpoint returned {resp.status}",
-                    }
-                queue_data = await resp.json()
-
-            # Check if prompt is in running queue
-            # ComfyUI queue items are lists: [number, prompt_id, prompt_data, ...]
-            for item in queue_data.get("queue_running", []):
-                if isinstance(item, list) and len(item) > 1 and item[1] == prompt_id:
-                    # Also check history for step info
-                    async with session.get(
-                        f"{base_url}/history/{prompt_id}",
-                        timeout=aiohttp.ClientTimeout(total=3),
-                    ) as hist_resp:
-                        step = 0
-                        total_steps = 0
-                        if hist_resp.status == 200:
-                            hist_data = await hist_resp.json()
-                            if prompt_id in hist_data:
-                                exec_meta = hist_data[prompt_id].get("execution_metadata", {})
-                                step = exec_meta.get("step", 0)
-                                total_steps = exec_meta.get("steps", 0)
-                    return {
-                        "status": "running",
-                        "prompt_id": prompt_id,
-                        "step": step,
-                        "total_steps": total_steps,
-                    }
-
-            # Check if prompt is in pending queue
-            for item in queue_data.get("queue_pending", []):
-                if isinstance(item, list) and len(item) > 1 and item[1] == prompt_id:
-                    return {
-                        "status": "pending",
-                        "prompt_id": prompt_id,
-                        "queue_position": item[0] if len(item) > 0 else 0,
-                    }
-
-            # Check history for completed
-            async with session.get(
-                f"{base_url}/history/{prompt_id}",
-                timeout=aiohttp.ClientTimeout(total=5),
-            ) as resp:
-                if resp.status == 200:
-                    history = await resp.json()
-                    if prompt_id in history:
-                        entry = history[prompt_id]
-                        status_info = entry.get("status", {})
-                        if status_info.get("status_str") == "error":
-                            return {
-                                "status": "error",
-                                "prompt_id": prompt_id,
-                                "error": status_info.get("message", "Unknown error"),
-                            }
-                        return {
-                            "status": "completed",
-                            "prompt_id": prompt_id,
-                            "outputs": list(entry.get("outputs", {}).keys()),
-                        }
-
+        queue_data = await _cu.fetch_queue(base_url)
+        if not queue_data:
             return {
-                "status": "unknown",
+                "status": "error",
                 "prompt_id": prompt_id,
+                "error": "Queue endpoint unavailable",
             }
+
+        # Check if prompt is in running queue (both queue shapes)
+        running = queue_data.get("queue_running", queue_data.get("running", []))
+        for item in running:
+            item_id = item[1] if isinstance(item, (list, tuple)) and len(item) > 1 else (
+                item.get("task_id", item.get("id", item.get("prompt_id"))) if isinstance(item, dict) else None
+            )
+            if item_id == prompt_id:
+                hist_data = await _cu.fetch_history(base_url, prompt_id, timeout=3)
+                step, total_steps = 0, 0
+                if prompt_id in hist_data:
+                    exec_meta = hist_data[prompt_id].get("execution_metadata", {})
+                    step = exec_meta.get("step", 0)
+                    total_steps = exec_meta.get("steps", 0)
+                return {
+                    "status": "running",
+                    "prompt_id": prompt_id,
+                    "step": step,
+                    "total_steps": total_steps,
+                }
+
+        # Check if prompt is in pending queue
+        pending = queue_data.get("queue_pending", queue_data.get("queued", []))
+        for item in pending:
+            item_id = item[1] if isinstance(item, (list, tuple)) and len(item) > 1 else (
+                item.get("task_id", item.get("id", item.get("prompt_id"))) if isinstance(item, dict) else None
+            )
+            if item_id == prompt_id:
+                return {
+                    "status": "pending",
+                    "prompt_id": prompt_id,
+                    "queue_position": item[0] if isinstance(item, (list, tuple)) and len(item) > 0 else 0,
+                }
+
+        # Check history for completed
+        history = await _cu.fetch_history(base_url, prompt_id)
+        if prompt_id in history:
+            entry = history[prompt_id]
+            status_info = entry.get("status", {})
+            if status_info.get("status_str") == "error":
+                return {
+                    "status": "error",
+                    "prompt_id": prompt_id,
+                    "error": status_info.get("message", "Unknown error"),
+                }
+            return {
+                "status": "completed",
+                "prompt_id": prompt_id,
+                "outputs": list(entry.get("outputs", {}).keys()),
+            }
+
+        return {
+            "status": "unknown",
+            "prompt_id": prompt_id,
+        }
 
     except Exception as e:
         return {
@@ -377,39 +385,32 @@ async def get_progress(prompt_id: str) -> dict:
 @router.get("/comfyui/preview/{prompt_id}")
 async def get_preview(prompt_id: str) -> dict:
     """Get the latest intermediate preview image for a running prompt."""
-    import aiohttp
-
     base_url = config.comfyui_url
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{base_url}/history/{prompt_id}",
-                timeout=aiohttp.ClientTimeout(total=5),
-            ) as resp:
-                if resp.status != 200:
-                    return {"error": "History not available"}
-                history = await resp.json()
+        history = await _cu.fetch_history(base_url, prompt_id)
+        if not history:
+            return {"error": "History not available"}
 
-            if prompt_id not in history:
-                return {"error": "Prompt not found in history"}
+        if prompt_id not in history:
+            return {"error": "Prompt not found in history"}
 
-            entry = history[prompt_id]
-            outputs = entry.get("outputs", {})
+        entry = history[prompt_id]
+        outputs = entry.get("outputs", {})
 
-            # Find the latest preview image
-            for node_id, output in outputs.items():
-                if "images" in output:
-                    for img in output["images"]:
-                        filename = img.get("filename")
-                        if filename:
-                            return {
-                                "filename": filename,
-                                "subfolder": img.get("subfolder", ""),
-                                "node_id": node_id,
-                            }
+        # Find the latest preview image
+        for node_id, output in outputs.items():
+            if "images" in output:
+                for img in output["images"]:
+                    filename = img.get("filename")
+                    if filename:
+                        return {
+                            "filename": filename,
+                            "subfolder": img.get("subfolder", ""),
+                            "node_id": node_id,
+                        }
 
-            return {"error": "No preview available"}
+        return {"error": "No preview available"}
 
     except Exception as e:
         return {"error": str(e)}
@@ -420,33 +421,37 @@ async def view_preview(request: Request, prompt_id: str, filename: str):
     """Proxy endpoint to serve preview images from ComfyUI."""
     from urllib.parse import unquote
 
-    import aiohttp
     from fastapi.responses import StreamingResponse
 
     base_url = config.comfyui_url
-    decoded_filename = unquote(filename)
+    try:
+        decoded_filename = _cu.sanitize_filename(unquote(filename))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{base_url}/view",
-                params={"filename": decoded_filename},
-                timeout=aiohttp.ClientTimeout(total=30),
-            ) as resp:
-                if resp.status != 200:
-                    raise HTTPException(status_code=resp.status, detail="Image not found")
+        session = await _cu.get_shared_session()
+        async with session.get(
+            f"{base_url.rstrip('/')}/view",
+            params=_cu.view_params(decoded_filename),
+            timeout=aiohttp.ClientTimeout(total=30),
+        ) as resp:
+            if resp.status != 200:
+                raise HTTPException(status_code=resp.status, detail="Image not found")
 
-                origin = request.headers.get("origin", "*")
+            origin = request.headers.get("origin", "*")
+            content_type = resp.content_type or "image/png"
+            chunks = [chunk async for chunk in resp.content.iter_any()]
 
-                async def stream_generator():
-                    async for chunk in resp.content.iter_any():
-                        yield chunk
+        async def stream_generator():
+            for chunk in chunks:
+                yield chunk
 
-                return StreamingResponse(
-                    stream_generator(),
-                    media_type=resp.content_type or "image/png",
-                    headers={"Access-Control-Allow-Origin": origin},
-                )
+        return StreamingResponse(
+            stream_generator(),
+            media_type=content_type,
+            headers={"Access-Control-Allow-Origin": origin},
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -474,22 +479,7 @@ async def generate_video(service_name: str, request: VideoGenerationRequest) -> 
         )
 
     try:
-        # Build video params
-        params = {
-            "prompt": request.prompt,
-            "negative_prompt": request.negative_prompt,
-            "steps": request.steps,
-            "cfg_scale": request.cfg_scale,
-            "width": request.width,
-            "height": request.height,
-            "seed": request.seed,
-            "sampler_name": request.sampler,
-            "video": True,
-            "num_frames": request.num_frames,
-            "fps": request.fps,
-            "motion_module": request.motion_module,
-        }
-        result = await adapter.generate(params)
+        result = await adapter.generate(request.to_adapter_params())
 
         return {
             "success": True,
@@ -511,14 +501,7 @@ async def queue_image_job(service_name: str, request: ImageGenerationRequest) ->
             job_type=JobType.IMAGE_GENERATION,
             params={
                 "service": service_name,
-                "prompt": request.prompt,
-                "negative_prompt": request.negative_prompt,
-                "steps": request.steps,
-                "cfg_scale": request.cfg_scale,
-                "width": request.width,
-                "height": request.height,
-                "seed": request.seed,
-                "sampler": request.sampler,
+                **request.to_adapter_params(),
             },
         )
     )
@@ -530,26 +513,16 @@ async def queue_image_job(service_name: str, request: ImageGenerationRequest) ->
 @router.post("/ollama/embed")
 async def ollama_embed(body: OllamaEmbedRequest) -> dict:
     """Generate embedding via nomic-embed-text. Uses config.embedding_model by default."""
-    import aiohttp
     text = body.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="text/input required")
     model = body.model or config.embedding_model
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{config.ollama_url}/api/embed",
-                json={"model": model, "input": text},
-                timeout=aiohttp.ClientTimeout(total=30),
-            ) as resp:
-                if resp.status != 200:
-                    err = await resp.text()
-                    raise HTTPException(status_code=resp.status, detail=err[:500])
-                data = await resp.json()
-                emb = data.get("embeddings", [data.get("embedding")])[0] if "embeddings" in data else data.get("embedding")
-                if emb is None:
-                    raise HTTPException(status_code=502, detail="No embedding in response")
-                return {"model": model, "embedding": emb, "dimensions": len(emb)}
+        from ..core import ollama_client as _oc
+        emb = await _oc.embed_text(text, model=model)
+        if emb is None:
+            raise HTTPException(status_code=502, detail="Embedding failed")
+        return {"model": model, "embedding": emb, "dimensions": len(emb)}
     except HTTPException:
         raise
     except Exception as e:
@@ -561,23 +534,16 @@ async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
     """Semantic search over tracks/visuals using nomic embeddings."""
     import math
 
-    import aiohttp
     query = body.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="query required")
     limit = min(body.limit, 20)
     model = body.model or config.embedding_model
     # Embed query
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{config.ollama_url}/api/embed",
-            json={"model": model, "input": query},
-            timeout=aiohttp.ClientTimeout(total=30),
-        ) as resp:
-            if resp.status != 200:
-                raise HTTPException(status_code=502, detail="Embedding failed")
-            qdata = await resp.json()
-            qemb = (qdata.get("embeddings") or [qdata.get("embedding")])[0]
+    from ..core import ollama_client as _oc
+    qemb = await _oc.embed_text(query, model=model)
+    if qemb is None:
+        raise HTTPException(status_code=502, detail="Embedding failed")
     # Fetch candidates from DB (tracks)
     from ..core import database as db
     candidates = []
@@ -597,21 +563,14 @@ async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
     async def _embed_one(c):
         async with sem:
             try:
-                async with aiohttp.ClientSession() as s:
-                    async with s.post(
-                        f"{config.ollama_url}/api/embed",
-                        json={"model": model, "input": c["text"][:800]},
-                        timeout=aiohttp.ClientTimeout(total=15),
-                    ) as r:
-                        if r.status != 200:
-                            return None
-                        d = await r.json()
-                        emb = (d.get("embeddings") or [d.get("embedding")])[0]
-                        dot = sum(a*b for a, b in zip(qemb, emb, strict=True))
-                        nq = math.sqrt(sum(a*a for a in qemb))
-                        nb = math.sqrt(sum(a*a for a in emb))
-                        sim = dot / (nq*nb) if nq and nb else 0
-                        return {**c, "score": round(sim, 4)}
+                emb = await _oc.embed_text(c["text"][:800], model=model, timeout=15)
+                if emb is None:
+                    return None
+                dot = sum(a*b for a, b in zip(qemb, emb, strict=True))
+                nq = math.sqrt(sum(a*a for a in qemb))
+                nb = math.sqrt(sum(a*a for a in emb))
+                sim = dot / (nq*nb) if nq and nb else 0
+                return {**c, "score": round(sim, 4)}
             except Exception:
                 return None
     results = [r for r in await _asyncio.gather(*[_embed_one(c) for c in candidates]) if r is not None]
@@ -1165,21 +1124,12 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
         if not response_text:
             raise HTTPException(status_code=502, detail="Ollama returned empty response")
 
-        # Parse the JSON response
+        # Parse the JSON response (fence-stripped via shared helper)
         try:
             preset = json.loads(response_text)
         except json.JSONDecodeError:
-            # Try to extract JSON from markdown fences if present
-            cleaned = response_text.strip()
-            if cleaned.startswith("```"):
-                cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
-                if cleaned.endswith("```"):
-                    cleaned = cleaned[:-3]
-                cleaned = cleaned.strip()
-                # Remove language identifier
-                if cleaned.startswith("json"):
-                    cleaned = cleaned[4:].strip()
-            preset = json.loads(cleaned)
+            from ..core.text import strip_code_fences
+            preset = json.loads(strip_code_fences(response_text))
 
         # Ensure required top-level fields exist
         preset.setdefault("version", "1.0")

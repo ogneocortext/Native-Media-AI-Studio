@@ -24,7 +24,7 @@ test.describe('LRC-Enhanced Visualizer', () => {
 
     // Check lyrics overlay presence via the test harness
     const hasLyrics = await page.evaluate(() => {
-      const win = window as any;
+      const win = window as unknown as { __VIZ_TEST__?: { getState?: () => unknown } };
       const state = win.__VIZ_TEST__?.getState?.();
       return !!state?.lyrics?.length;
     });
@@ -40,9 +40,9 @@ test.describe('LRC-Enhanced Visualizer', () => {
         }, t);
         await page.waitForTimeout(600);
         const section = await page.evaluate(() => {
-          const win = window as any;
+          const win = window as unknown as { __VIZ_TEST__?: { getState?: () => unknown } };
           const state = win.__VIZ_TEST__?.getState?.();
-          return state?.storyboard?.currentSection || 'unknown';
+          return (state as { storyboard?: { currentSection?: string } } | null)?.storyboard?.currentSection || 'unknown';
         });
         sections.add(section);
       }

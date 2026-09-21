@@ -4,12 +4,25 @@
  */
 
 import { getComfyuiUrl, getComfyuiWsUrl } from "./portConfig";
+import { fetchWithTimeout } from "./fetchWithTimeout";
 
 export class ComfyUIError extends Error {
   constructor(message: string, public statusCode?: number) {
     super(message);
     this.name = "ComfyUIError";
   }
+}
+
+/**
+ * Shared ok-check: every ComfyUI GET in this module previously repeated
+ * the same `if (!response.ok) throw ...statusText` block. Centralized here
+ * so error shape can't drift between endpoints.
+ */
+async function checkResponse(response: Response, action: string): Promise<Response> {
+  if (!response.ok) {
+    throw new ComfyUIError(`ComfyUI ${action} failed: ${response.statusText}`, response.status);
+  }
+  return response;
 }
 
 export interface ComfyUIProgress {
@@ -48,10 +61,11 @@ export interface AvailableModels {
  */
 export async function queuePrompt(workflow: Record<string, unknown>): Promise<{ prompt_id: string }> {
   const COMFYUI_URL = getComfyuiUrl();
-  const response = await fetch(`${COMFYUI_URL}/prompt`, {
+  const response = await fetchWithTimeout(`${COMFYUI_URL}/prompt`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt: workflow }),
+    timeout: 15000,
   });
 
   if (!response.ok) {
@@ -92,10 +106,10 @@ export async function getQueueStatus(): Promise<{
   queue_pending: unknown[];
 }> {
   const COMFYUI_URL = getComfyuiUrl();
-  const response = await fetch(`${COMFYUI_URL}/queue`);
-  if (!response.ok) {
-    throw new ComfyUIError(`ComfyUI queue status failed: ${response.statusText}`, response.status);
-  }
+  const response = await checkResponse(
+    await fetchWithTimeout(`${COMFYUI_URL}/queue`, { timeout: 8000 }),
+    "queue status"
+  );
   return response.json();
 }
 
@@ -114,10 +128,10 @@ export async function getSystemStats(): Promise<{
   }>;
 }> {
   const COMFYUI_URL = getComfyuiUrl();
-  const response = await fetch(`${COMFYUI_URL}/system_stats`);
-  if (!response.ok) {
-    throw new ComfyUIError(`ComfyUI system stats failed: ${response.statusText}`, response.status);
-  }
+  const response = await checkResponse(
+    await fetchWithTimeout(`${COMFYUI_URL}/system_stats`, { timeout: 8000 }),
+    "system stats"
+  );
   return response.json();
 }
 
@@ -127,8 +141,8 @@ export async function getSystemStats(): Promise<{
 export async function isComfyUIAlive(): Promise<boolean> {
   try {
     const COMFYUI_URL = getComfyuiUrl();
-    const response = await fetch(`${COMFYUI_URL}/system_stats`, {
-      signal: AbortSignal.timeout(3000),
+    const response = await fetchWithTimeout(`${COMFYUI_URL}/system_stats`, {
+      timeout: 3000,
     });
     return response.ok;
   } catch {
@@ -138,10 +152,15 @@ export async function isComfyUIAlive(): Promise<boolean> {
 
 /**
  * Get list of available checkpoints/models.
+ *
+ * Consolidated: one `GET /object_info` round-trip instead of five
+ * sequential per-node fetches. Each loader's file list is extracted
+ * with the same helper, so `ckpt_name` vs `model_name` drift can't
+ * recur (CheckpointLoaderSimple uses `ckpt_name`).
  */
 export async function getAvailableModels(): Promise<AvailableModels> {
   const COMFYUI_URL = getComfyuiUrl();
-  
+
   const models: AvailableModels = {
     checkpoints: [],
     vae: [],
@@ -150,47 +169,60 @@ export async function getAvailableModels(): Promise<AvailableModels> {
     text_encoders: [],
   };
 
-  // Fetch checkpoints with error handling
-  try {
-    const response = await fetch(`${COMFYUI_URL}/object_info/CheckpointLoaderSimple`);
-    if (!response.ok) {
-      throw new ComfyUIError(`Failed to fetch checkpoints: ${response.statusText}`, response.status);
+  function extractFileList(nodeInfo: unknown): string[] {
+    if (!nodeInfo || typeof nodeInfo !== "object") return [];
+    // object_info nests inputs under input.required / input.optional (new)
+    // or inputs (legacy) — scan every section for the first string array.
+    // Two widget shapes exist: [[opt, ...], {...}] and
+    // ["COMBO", { options: [opt, ...] }] (AnimateDiff-style loaders).
+    const sections: unknown[] = [];
+    const asRecord = nodeInfo as Record<string, unknown>;
+    const input = asRecord.input as Record<string, unknown> | undefined;
+    if (input) {
+      if (input.required) sections.push(input.required);
+      if (input.optional) sections.push(input.optional);
     }
-    const data = await response.json();
-
-    if (data?.CheckpointLoaderSimple?.inputs?.checkpoint_name?.[0]) {
-      models.checkpoints = data.CheckpointLoaderSimple.inputs.checkpoint_name[0];
-    }
-  } catch (e) {
-    console.warn("Failed to fetch checkpoints:", e);
-  }
-
-  // Fetch additional model types
-  const modelTypes = [
-    { type: "VAELoader", key: "vae" as const },
-    { type: "LoraLoader", key: "loras" as const },
-    { type: "UNETLoader", key: "diffusion_models" as const },
-    { type: "CLIPLoader", key: "text_encoders" as const },
-  ];
-
-  for (const { type, key } of modelTypes) {
-    try {
-      const res = await fetch(`${COMFYUI_URL}/object_info/${type}`);
-      if (!res.ok) continue;
-      const info = await res.json();
-      if (info?.[type]?.inputs) {
-        const inputKeys = Object.keys(info[type].inputs);
-        for (const inputKey of inputKeys) {
-          const values = info[type].inputs[inputKey];
-          if (Array.isArray(values) && values.length > 0 && Array.isArray(values[0])) {
-            models[key] = values[0] as string[];
-            break;
+    if (asRecord.inputs) sections.push(asRecord.inputs);
+    for (const section of sections) {
+      if (!section || typeof section !== "object") continue;
+      for (const value of Object.values(section as Record<string, unknown>)) {
+        if (Array.isArray(value) && value.length > 0 && Array.isArray(value[0])) {
+          const list = value[0] as unknown[];
+          if (list.every((v) => typeof v === "string")) return list as string[];
+        }
+        if (
+          Array.isArray(value) &&
+          value.length > 1 &&
+          typeof value[0] === "string" &&
+          value[1] !== null &&
+          typeof value[1] === "object"
+        ) {
+          const opts = (value[1] as Record<string, unknown>).options;
+          if (Array.isArray(opts) && opts.every((v) => typeof v === "string")) {
+            return opts as string[];
           }
         }
       }
-    } catch {
-      // Ignore errors for unavailable model types
     }
+    return [];
+  }
+
+  try {
+    const response = await checkResponse(
+      await fetchWithTimeout(`${COMFYUI_URL}/object_info`, { timeout: 15000 }),
+      "object_info"
+    );
+    const data = (await response.json()) as Record<string, unknown>;
+
+    models.checkpoints = extractFileList(data.CheckpointLoaderSimple);
+    models.vae = extractFileList(data.VAELoader);
+    models.loras = extractFileList(data.LoraLoader);
+    models.diffusion_models = extractFileList(
+      data.UNETLoader ?? data.DiffusionModelLoader ?? data.UnetLoaderGGUF
+    );
+    models.text_encoders = extractFileList(data.CLIPLoader);
+  } catch (e) {
+    console.warn("Failed to fetch ComfyUI models:", e);
   }
 
   return models;
@@ -198,6 +230,11 @@ export async function getAvailableModels(): Promise<AvailableModels> {
 
 /**
  * Generate a simple text-to-image using ComfyUI's default workflow.
+ *
+ * 8GB note (GTX 1070 Ti, see docs/knowledge-library/comfyui-workflows.md):
+ * 512x512 is always safe (~4GB); 768x768 needs optimization; 1024x1024
+ * risks OOM when anything else holds VRAM. Warn above 768px so callers
+ * can clamp before queueing.
  */
 export async function generateText2Image(options: {
   prompt: string;
@@ -227,6 +264,13 @@ export async function generateText2Image(options: {
   // Validate dimensions are divisible by 8 (ComfyUI requirement)
   const validWidth = Math.floor(width / 8) * 8;
   const validHeight = Math.floor(height / 8) * 8;
+
+  if (validWidth > 768 || validHeight > 768) {
+    console.warn(
+      `[ComfyUI] ${validWidth}x${validHeight} exceeds the 8GB-safe 768px ceiling ` +
+        `(GTX 1070 Ti). Expect ~6-8GB+ VRAM; close other GPU apps or reduce to 512px.`
+    );
+  }
 
   // Build a simple text-to-image workflow
   const workflow: Record<string, unknown> = {
@@ -284,10 +328,10 @@ export async function getImage(
 ): Promise<string> {
   const COMFYUI_URL = getComfyuiUrl();
   const params = new URLSearchParams({ filename, subfolder, type });
-  const response = await fetch(`${COMFYUI_URL}/view?${params}`);
-  if (!response.ok) {
-    throw new ComfyUIError(`Failed to fetch image: ${response.statusText}`, response.status);
-  }
+  const response = await checkResponse(
+    await fetchWithTimeout(`${COMFYUI_URL}/view?${params}`, { timeout: 30000 }),
+    "fetch image"
+  );
   const blob = await response.blob();
   return URL.createObjectURL(blob);
 }

@@ -6,7 +6,6 @@
   "comfyui_url": "http://127.0.0.1:8188",
   "comfyui_port": 8188,
   "video_editor_port": 8080,
-  "comfyui_output_dir": null,
   "ollama_url": "http://127.0.0.1:11434",
   "atomic_chat_url": "http://127.0.0.1:6767",
   "atomic_chat_enabled": true,

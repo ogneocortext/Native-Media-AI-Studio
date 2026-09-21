@@ -6,9 +6,12 @@ from __future__ import annotations
 
 import logging
 
+import aiohttp
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from ..core import ollama_client as _oc
+from ..core.text import strip_code_fences
 from ..core.urls import ollama_url
 
 logger = logging.getLogger(__name__)
@@ -83,8 +86,6 @@ async def analyze_track_stream(request: TrackAnalysisRequest):
     import hashlib
     import json
 
-    import aiohttp
-
     # Generate track hash for caching
     track_hash = hashlib.md5(f"{request.track_name}{request.prompt}".encode()).hexdigest()
 
@@ -129,17 +130,17 @@ Use Canvas API or Three.js from CDN. The visualization should:
 Respond with ONLY the complete HTML code, no explanation."""
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                ollama_url("/api/generate"),
-                json={
-                    "model": model_name,
-                    "prompt": analysis_prompt,
-                    "stream": True,
-                    "options": {"temperature": 0.7}
-                },
-                timeout=aiohttp.ClientTimeout(total=120)
-            ) as resp:
+        session = await _oc.get_shared_session()
+        async with session.post(
+            ollama_url("/api/generate"),
+            json={
+                "model": model_name,
+                "prompt": analysis_prompt,
+                "stream": True,
+                "options": {"temperature": 0.7}
+            },
+            timeout=aiohttp.ClientTimeout(total=120)
+        ) as resp:
                 if resp.status == 200:
                     full_response = ""
                     async for line in resp.content:
@@ -154,11 +155,7 @@ Respond with ONLY the complete HTML code, no explanation."""
                                 pass
 
                     # Extract HTML from response
-                    html_code = full_response
-                    if "```html" in html_code:
-                        html_code = html_code.split("```html")[1].split("```")[0]
-                    elif "```" in html_code:
-                        html_code = html_code.split("```")[1].split("```")[0]
+                    html_code = strip_code_fences(full_response)
 
                     # Save to database
                     save_visualization_preset({
@@ -186,8 +183,6 @@ async def analyze_track_with_ollama(request: TrackAnalysisRequest) -> dict:
     Includes caching and VRAM-aware model selection.
     """
     import hashlib
-
-    import aiohttp
 
     # Generate track hash for caching
     track_hash = hashlib.md5(f"{request.track_name}{request.prompt}".encode()).hexdigest()
@@ -273,58 +268,43 @@ Respond with ONLY the JSON object, no explanation."""
         # Prefer tool-capable models
         model_name = available_models[0].get("model_name", "llama3.2:latest")
 
-        # Call Ollama API
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                ollama_url("/api/generate"),
-                json={
-                    "model": model_name,
-                    "prompt": analysis_prompt,
-                    "stream": False,
-                    "options": {"temperature": 0.7}
-                },
-                timeout=aiohttp.ClientTimeout(total=30)
-            ) as resp:
-                if resp.status == 200:
-                    result = await resp.json()
-                    response_text = result.get("response", "")
+        # Call Ollama API (shared client helper)
+        response_text = await _oc.generate_content(
+            analysis_prompt,
+            model_name,
+            timeout=30,
+            extra={"options": {"temperature": 0.7}},
+        )
+        if response_text:
+            # Parse JSON from response
+            import json
+            params = json.loads(strip_code_fences(response_text))
 
-                    # Parse JSON from response
-                    import json
-                    json_str = response_text
-                    if "```json" in json_str:
-                        json_str = json_str.split("```json")[1].split("```")[0]
-                    elif "```" in json_str:
-                        json_str = json_str.split("```")[1].split("```")[0]
+            # Save to database for future reuse
+            save_visualization_preset({
+                "track_name": request.track_name,
+                "track_hash": track_hash,
+                "preset_name": f"{request.track_name} (AI)",
+                "visualization_style": params.get("visualization_style", "geometric"),
+                "params": params,
+                "ollama_model": model_name,
+                "prompt": request.prompt,
+                "lyrics": request.lyrics,
+                "bpm": request.bpm,
+            })
 
-                    params = json.loads(json_str.strip())
-
-                    # Save to database for future reuse
-                    save_visualization_preset({
-                        "track_name": request.track_name,
-                        "track_hash": track_hash,
-                        "preset_name": f"{request.track_name} (AI)",
-                        "visualization_style": params.get("visualization_style", "geometric"),
-                        "params": params,
-                        "ollama_model": model_name,
-                        "prompt": request.prompt,
-                        "lyrics": request.lyrics,
-                        "bpm": request.bpm,
-                    })
-
-                    return {
-                        "success": True,
-                        "source": "ollama",
-                        "params": params,
-                        "model_used": model_name,
-                        "cached": False,
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "error": f"Ollama returned status {resp.status}",
-                        "source": "fallback"
-                    }
+            return {
+                "success": True,
+                "source": "ollama",
+                "params": params,
+                "model_used": model_name,
+                "cached": False,
+            }
+        return {
+            "success": False,
+            "error": "Ollama returned no response",
+            "source": "fallback"
+        }
     except Exception as e:
         return {
             "success": False,

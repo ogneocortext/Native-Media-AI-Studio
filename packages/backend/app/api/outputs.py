@@ -18,10 +18,51 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..core.config import PROJECT_ROOT, config
+from ..core.paths import is_within, resolve_within, sanitize_filename
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/outputs", tags=["Outputs"])
+
+# Sidecar extensions cleaned/renamed alongside a media file.
+_SIDECAR_IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp")
+
+
+def _sidecar_candidates(full_path: Path) -> list[Path]:
+    """Sidecar candidates for a media file.
+
+    Covers the JSON sidecars (``file.ext.json`` + plain ``file.json``) and
+    image sidecars (``with_suffix`` + stem-based). Consolidates the three
+    hand-rolled variants previously in ``bulk_delete`` / ``delete_output`` /
+    ``rename_output`` (which also drifted: bulk_delete checked an extra
+    ``Path(str + ".json")`` form the others missed).
+    """
+    cands = [
+        full_path.with_suffix(full_path.suffix + ".json"),
+        full_path.with_suffix(".json"),
+        Path(str(full_path) + ".json"),
+    ]
+    for ext in _SIDECAR_IMAGE_EXTS:
+        cands.append(full_path.with_suffix(ext))
+        cands.append(full_path.with_name(full_path.stem + ext))
+    return cands
+
+
+def _sidecar_rename_pairs(full_path: Path, new_path: Path) -> list[tuple[Path, Path]]:
+    """(old, new) sidecar pairs for a rename.
+
+    Every candidate name starts with the old stem, so the new name swaps
+    in the new stem and keeps the remainder (``clip.mp4.json`` →
+    ``clip2.mp4.json``).
+    """
+    pairs = []
+    old_stem, new_stem = full_path.stem, new_path.stem
+    for old_cand in _sidecar_candidates(full_path):
+        if not old_cand.name.startswith(old_stem):
+            continue
+        new_cand = new_path.with_name(new_stem + old_cand.name[len(old_stem):])
+        pairs.append((old_cand, new_cand))
+    return pairs
 
 # =============================================================================
 # In-memory cache for output directory listing
@@ -62,7 +103,7 @@ def _get_dir_mtime() -> float:
     comfyui_output = config.comfyui_output_dir if config.comfyui_output_dir else PROJECT_ROOT.parent / "ComfyUI" / "output"
     if comfyui_output.exists():
         try:
-            latest = max(latest, comfy_output.stat().st_mtime)
+            latest = max(latest, comfyui_output.stat().st_mtime)
             for f in comfyui_output.rglob("*"):
                 try:
                     if f.is_file():
@@ -183,6 +224,13 @@ def _scan_with_cache() -> list[dict]:
             try:
                 stat = file_path.stat()
             except OSError:
+                continue
+
+            # Skip broken renders: 1x1 placeholder PNGs (70 bytes) and tiny files
+            # These are failed ComfyUI outputs that clutter the library with red thumbnails
+            if stat.st_size < 1024 and file_path.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
+                continue
+            if stat.st_size < 10240 and file_path.suffix.lower() in (".gif", ".mp4", ".webm", ".mov"):
                 continue
 
             # Fast metadata load (no FFmpeg)
@@ -764,10 +812,13 @@ async def find_duplicate_groups(
 async def serve_comfyui_file(file_path: str):
     """Serve a file from the ComfyUI output directory."""
     comfyui_output = config.comfyui_output_dir if config.comfyui_output_dir else PROJECT_ROOT.parent / "ComfyUI" / "output"
-    full_path = (comfyui_output / file_path).resolve()
+    try:
+        full_path = resolve_within(Path(comfyui_output), file_path)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="File not found") from None
 
     # Security check: ensure the path is within the ComfyUI output directory
-    if not full_path.is_relative_to(comfyui_output) or not full_path.exists() or not full_path.is_file():
+    if not full_path.exists() or not full_path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
 
     # Determine media type
@@ -821,19 +872,22 @@ async def bulk_delete(body: BulkDeleteRequest) -> dict:
         fp = file_path.strip("/").strip()
         if not fp:
             continue
-        full_path = (output_base / fp).resolve()
-        if not full_path.is_relative_to(output_base) or not full_path.exists() or not full_path.is_file():
+        try:
+            full_path = resolve_within(output_base, fp)
+        except ValueError:
+            failed.append({"path": fp, "error": "not found or escapes"})
+            continue
+        if not full_path.exists() or not full_path.is_file():
             failed.append({"path": fp, "error": "not found or escapes"})
             continue
         try:
             full_path.unlink()
-            for ext in (".json", ".jpg", ".jpeg", ".png", ".webp"):
-                for cand in (full_path.with_suffix(ext), full_path.with_name(full_path.stem + ext), Path(str(full_path) + ".json")):
-                    if cand.exists() and cand.resolve().is_relative_to(output_base):
-                        try:
-                            cand.unlink()
-                        except Exception:
-                            pass
+            for cand in _sidecar_candidates(full_path):
+                if cand.exists() and is_within(output_base, cand):
+                    try:
+                        cand.unlink()
+                    except Exception:
+                        pass
             deleted.append(fp)
         except Exception as e:
             failed.append({"path": fp, "error": str(e)})
@@ -846,11 +900,10 @@ async def delete_output(file_path: str) -> dict:
     """Delete an output file by its path (relative to the output directory)."""
     file_path = file_path.strip("/")
     output_base = Path(config.output_dir).resolve()
-    full_path = (output_base / file_path).resolve()
-
-    # Prevent path traversal: the resolved path must stay inside the output dir
-    if not full_path.is_relative_to(output_base):
-        raise HTTPException(status_code=400, detail="Path escapes the output directory")
+    try:
+        full_path = resolve_within(output_base, file_path)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Path escapes the output directory") from None
 
     if not full_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
@@ -861,24 +914,13 @@ async def delete_output(file_path: str) -> dict:
     try:
         full_path.unlink()
 
-        # Remove JSON sidecar
-        json_path = full_path.with_suffix(full_path.suffix + ".json")
-        alt_json = full_path.with_suffix(".json")
-        for jp in {json_path, alt_json}:
-            if jp.exists() and jp.resolve().is_relative_to(output_base):
+        # Remove JSON + cover sidecars (shared candidate list)
+        for cand in _sidecar_candidates(full_path):
+            if cand.exists() and is_within(output_base, cand):
                 try:
-                    jp.unlink()
+                    cand.unlink()
                 except Exception:
                     pass
-
-        # Remove cover sidecar (audio/video thumbnails)
-        for ext in (".jpg", ".jpeg", ".png", ".webp"):
-            for cand in (full_path.with_suffix(ext), full_path.with_name(full_path.stem + ext)):
-                if cand.exists() and cand.resolve().is_relative_to(output_base):
-                    try:
-                        cand.unlink()
-                    except Exception:
-                        pass
 
         return {"success": True, "message": f"Deleted {full_path.name} (+ sidecars)"}
     except Exception as e:
@@ -894,21 +936,23 @@ class RenameRequest(BaseModel):
 async def rename_output(file_path: str, body: RenameRequest) -> dict:
     """Rename an output file (and its sidecars: .json, cover .jpg)."""
     file_path = file_path.strip("/")
-    new_name = body.new_name.strip().strip("/\\")
-    if not new_name or "/" in new_name or "\\" in new_name or ".." in new_name:
-        raise HTTPException(status_code=400, detail="new_name must be a plain filename, no path separators")
+    try:
+        new_name = sanitize_filename(body.new_name.strip())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="new_name must be a plain filename, no path separators") from None
     if len(new_name) > 200:
         raise HTTPException(status_code=400, detail="Filename too long")
     # Basic extension check: keep same extension or allow common media exts
     output_base = Path(config.output_dir).resolve()
-    full_path = (output_base / file_path).resolve()
-    if not full_path.is_relative_to(output_base):
-        raise HTTPException(status_code=400, detail="Path escapes output directory")
+    try:
+        full_path = resolve_within(output_base, file_path)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Path escapes output directory") from None
     if not full_path.exists() or not full_path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
     # Prevent overwriting
     new_path = full_path.with_name(new_name)
-    if new_path.resolve().is_relative_to(output_base) is False:
+    if not is_within(output_base, new_path):
         raise HTTPException(status_code=400, detail="New path escapes output directory")
     if new_path.exists():
         raise HTTPException(status_code=409, detail=f"Target already exists: {new_name}")
@@ -920,21 +964,9 @@ async def rename_output(file_path: str, body: RenameRequest) -> dict:
     try:
         full_path.rename(new_path)
 
-        # Rename sidecars if they exist.
-        # Covers the same cases as delete_output: JSON sidecars (both .ext.json
-        # and plain .json) and image sidecars (both with_suffix and stem-based).
-        sidecar_patterns: list[tuple[Path, Path]] = []
-        for ext in (".json", ".jpg", ".jpeg", ".png", ".webp"):
-            if ext == ".json":
-                # Both file.ext.json and plain file.json
-                sidecar_patterns.append((full_path.with_suffix(full_path.suffix + ext), new_path.with_suffix(new_path.suffix + ext)))
-                sidecar_patterns.append((full_path.with_suffix(ext), new_path.with_suffix(ext)))
-            else:
-                sidecar_patterns.append((full_path.with_suffix(ext), new_path.with_suffix(ext)))
-                sidecar_patterns.append((full_path.with_name(full_path.stem + ext), new_path.with_name(new_path.stem + ext)))
-
-        for old_cand, new_cand in sidecar_patterns:
-            if old_cand.exists() and old_cand.resolve().is_relative_to(output_base):
+        # Rename sidecars if they exist (same candidate list as delete).
+        for old_cand, new_cand in _sidecar_rename_pairs(full_path, new_path):
+            if old_cand.exists() and is_within(output_base, old_cand):
                 if not new_cand.exists():
                     try:
                         old_cand.rename(new_cand)
