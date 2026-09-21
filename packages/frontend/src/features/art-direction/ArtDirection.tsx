@@ -29,7 +29,7 @@ import {
   typographyVariants,
 } from "./art-direction-data";
 import type { ModuleId, ModuleState } from "./art-direction-data";
-import { listAudioFiles } from "../../services/api";
+import { listAudioFiles, getAnalysis } from "../../services/api";
 
 const DOC_FILES = [
   "VISUAL_STORYTELLING_2026.md",
@@ -113,10 +113,9 @@ export function ArtDirection() {
   useEffect(() => {
     if (!selectedTrack) return;
     setActiveDoc("VISUAL_STORYTELLING_2026.md");
-    fetch(`/api/audio/analysis/${encodeURIComponent(selectedTrack)}`)
-      .then((r) => r.json())
+    getAnalysis(selectedTrack)
       .then((data) => {
-        setAnalysis(data);
+        setAnalysis(data as unknown as Record<string, unknown>);
         const bpm = data?.tempo_bpm ? `${Math.round(data.tempo_bpm)} BPM` : "";
         const dur = data?.duration_seconds ? `${Math.round(data.duration_seconds)}s` : "";
         setTrackBadge([dur, bpm].filter(Boolean).join(" • "));

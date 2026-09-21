@@ -26,6 +26,7 @@
 | Env | Path | Use |
 |-----|------|-----|
 | Primary (CUDA, backend) | `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` — Python 3.11.9, PyTorch 2.14.0+cu126 | Backend, `tools/analyze_and_sync.py`, CUDA processor |
+| System CUDA Toolkit | `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4` — nvcc 12.4 | `nvcc`, Nsight profiling, native CUDA builds |
 | ComfyUI Runtime | `D:\conda-envs\comfyui-cuda\Scripts\python.exe` — PyTorch 2.14.0+cu126 | ComfyUI service only |
 | Standalone tooling | `D:\conda-envs\studio-tools\Scripts\python.exe` — Python 3.14.x | Pure-tooling scripts that do NOT import backend/CUDA/ComfyUI code |
 | Fallback (CPU) | `.\venv\Scripts\python.exe` | CPU-only fallback |

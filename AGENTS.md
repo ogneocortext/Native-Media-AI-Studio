@@ -1,6 +1,6 @@
 # AGENTS.md — Native Media AI Studio
 
-> **Last Updated:** 2026-09-20
+> **Last Updated:** 2026-09-21
 > **Status:** Active Development (Phase 1+2)
 > **Platform:** Windows 11 local development machine
 
@@ -191,7 +191,8 @@ Local Ollama models are available for vision analysis and tool-assisted generati
 > [!warning] CRITICAL: Long-running terminal sessions **must** run in the background. This includes servers, watchers, render jobs, batch scripts, and any process expected to stay alive across turns. If a command is long-running, use the `background_process` tool with `action: "start"` and never require the user to reissue it.
 
 - **Start background services:** `scripts\start-services.ps1`
-  - Backend (`http://127.0.0.1:8000`) + Frontend (`http://127.0.0.1:5173`) are started hidden and detached.
+  - Backend (default `http://127.0.0.1:8000`) + Frontend (default `http://127.0.0.1:5173`) are started hidden and detached.
+  - Ports are resolved dynamically at startup: if the default is occupied, the service increments to the next available port. The final layout is written to `config/ports.json`.
   - Add `-ComfyUI` to also start ComfyUI (`http://127.0.0.1:8188`).
   - Safe to run repeatedly: if a port is already in use, that service is skipped.
 - **Check status / restart individually:** `scripts\manage-servers.ps1 -Action status`
@@ -269,7 +270,8 @@ The Visualizer (`packages/frontend/src/features/visualizer/`) includes:
 - Blender 5.2 (`C:\Program Files\Blender Foundation\Blender 5.2\blender.exe`)
 - Unity Editor 6000.5.1f1
 - ComfyUI at `D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI`
-- NVIDIA GPU with CUDA (torch bundles its own CUDA runtime — no system toolkit needed)
+- NVIDIA GPU with CUDA (torch bundles its own CUDA runtime — no system toolkit needed for inference)
+- **System CUDA Toolkit 12.4** (optional, for `nvcc`/Nsight profiling): `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4`
 
 ## Python Environments
 
@@ -280,6 +282,7 @@ The project has **three** Python environments. Do not assume `python` on PATH is
 | Task | Use this interpreter |
 |------|----------------------|
 | Backend, audio analysis, ML, any CUDA feature | `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` |
+| System CUDA Toolkit (nvcc / Nsight) | `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4` |
 | ComfyUI service only | `D:\conda-envs\comfyui-cuda\Scripts\python.exe` |
 | Fallback / CPU-only scripts | `venv\Scripts\python.exe` |
 

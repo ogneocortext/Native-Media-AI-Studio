@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { fetchUniqueTracksFromAPI, type TrackLyricsData } from "../../services/trackLyrics";
-import { listAudioFiles } from "../../services/api";
+import { listAudioFiles, getAnalysis } from "../../services/api";
 
 interface StoryboardFile {
   name: string;
@@ -98,8 +98,7 @@ export function StoryboardPage() {
   useEffect(() => {
     Object.entries(trackMetadata).forEach(([storyboardName, meta]) => {
       if (meta.bpm) return; // already fetched
-      fetch(`/api/audio/analysis/${encodeURIComponent(meta.filename)}`)
-        .then((r) => (r.ok ? r.json() : null))
+      getAnalysis(meta.filename)
         .then((data: AudioAnalysisResponse) => {
           if (data?.tempo_bpm) {
             setTrackMetadata((prev) => ({

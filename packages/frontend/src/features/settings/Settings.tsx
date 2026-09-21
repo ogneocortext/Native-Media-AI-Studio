@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Card, StatusBadge } from "../../components/common";
 import { useHealth } from "../../hooks";
 import { useTheme } from "../../utils/theme";
-import { getSettings } from "../../services/api";
+import { getSettings, getIntegrationStatus, type IntegrationStatus } from "../../services/api";
 import { getPortConfigFromEnv } from "../../services/portConfig";
 
 interface AppSettings {
@@ -86,13 +86,8 @@ export function Settings() {
 
   const testConnection = async (url: string, type: "comfyui" | "ollama") => {
     try {
-      const res = await fetch(`/api/integrations/${type}/health`);
-      if (res.ok) {
-        const data = await res.json();
-        alert(`${type.toUpperCase()} status: ${data.status}`);
-      } else {
-        alert(`${type.toUpperCase()} connection failed`);
-      }
+      const data: IntegrationStatus = await getIntegrationStatus(type);
+      alert(`${type.toUpperCase()} status: ${data.status}`);
     } catch {
       alert(`${type.toUpperCase()} not reachable at ${url}`);
     }

@@ -197,6 +197,10 @@ vision-*.txt
 env_check.txt
 docs/scratch/*.txt
 docs/scratch/*.csv
+docs/scratch/*.py
+
+# ComfyUI backup bundles (never part of the app)
+.comfyui-backups/
 
 # Agent backup bundles and ad-hoc browser-test scratch (never part of the app)
 .openclaw-backup-publish-*/
@@ -211,6 +215,7 @@ tmp_portcheck.go
 check_backend.ps1
 check_backend_syntax.py
 check_server.ps1
+scripts/list_routes.py
 
 # Model weights (root-level duplicates - canonical paths in stable-diffusion/models/)
 stable-diffusion/checkpoints/

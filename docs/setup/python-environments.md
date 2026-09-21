@@ -41,6 +41,13 @@
 - **Path:** `D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\venv\Scripts\python.exe`
 - **Use for:** CPU-only experiments, quick tests that don't need CUDA
 
+## CUDA Toolkit (system)
+
+- **Path:** `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4`
+- **Version:** 12.4 (`nvcc --version` confirms `V12.4.99`)
+- **When needed:** native CUDA compilation (`nvcc`), Nsight profiling, or any tooling that links against the system toolkit.
+- **Note:** PyTorch wheels bundle their own CUDA runtime, so the system toolkit is **not** required for inference/training inside `nma-studio-cuda`. It is still useful for profiling and native builds.
+
 ## Env topology
 
 `nma-studio-cuda` and `comfyui-cuda` are standalone venvs built from `C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311` (3.11.9). They are fully decoupled from `D:\conda-envs\space-analyzer-cuda` (belongs to a **different project** — never delete or modify it). `studio-tools` is built from `C:\Python314\python.exe` (3.14.x). There is **no conda installation** on this machine. The historical `runtime/venvs/.venvs/venv_*` 8-venv matrix was a draft plan and was never created.

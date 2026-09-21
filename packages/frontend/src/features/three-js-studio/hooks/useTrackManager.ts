@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useBeatTimeline } from "../../../hooks/useBeatTimeline";
-import { listAudioFiles } from "../../../services/api";
+import { getAnalysis, listAudioFiles } from "../../../services/api";
 import type { UseTrackManagerOptions, UseTrackManagerResult } from "./types";
 
 export function useTrackManager({
@@ -62,18 +62,13 @@ export function useTrackManager({
     const fetchMetadata = async () => {
       const metadata: Record<string, { bpm?: number; duration?: number }> = {};
       try {
-        const res = await fetch(
-          `/api/audio/analysis/${encodeURIComponent(selectedTrack)}`,
-        );
-        if (res.ok) {
-          const data: any = await res.json();
-          metadata[selectedTrack] = {
-            bpm: data.tempo_bpm ? Math.round(data.tempo_bpm) : undefined,
-            duration: data.duration_seconds
-              ? Math.round(data.duration_seconds)
-              : undefined,
-          };
-        }
+      const data = await getAnalysis(selectedTrack);
+      metadata[selectedTrack] = {
+        bpm: data.tempo_bpm ? Math.round(data.tempo_bpm) : undefined,
+        duration: data.duration_seconds
+          ? Math.round(data.duration_seconds)
+          : undefined,
+      };
       } catch {
         /* ignore */
       }

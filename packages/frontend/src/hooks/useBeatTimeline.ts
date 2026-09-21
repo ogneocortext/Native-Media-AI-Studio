@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AudioAnalysisResult } from "../services/api";
+import { getAnalysis } from "../services/api";
 import { getBeatNearTimeFromArray, getNextBeatInFromArray } from "../shared/timing";
 
 export interface BeatState {
@@ -39,23 +40,8 @@ const DEFAULT_BEAT_WINDOW_MS = 100;
 const SMOOTH_ENERGY_LERP = 0.25;
 
 /**
- * Relative-URL variant of getAnalysis. The API service uses getApiBase()
- * which returns a full cross-origin URL in dev (http://127.0.0.1:8000).
- * Browser CORS blocks that on the Vite origin (localhost:5173+). Going
- * through the Vite dev proxy with a relative path keeps the request
- * same-origin and works in both dev and production (where the frontend
- * is served by the backend).
+ * Relative-URL variant using the canonical api.ts wrapper.
  */
-async function getAnalysisRelative(filename: string): Promise<AudioAnalysisResult | null> {
-  const res = await fetch(`/api/audio/analysis/${encodeURIComponent(filename)}`);
-  if (!res.ok) {
-    if (res.status === 404) throw new Error("No cached analysis found");
-    throw new Error(`HTTP ${res.status}`);
-  }
-  const data = (await res.json()) as AudioAnalysisResult;
-  if (!data || !Array.isArray(data.beat_times)) return null;
-  return data;
-}
 
 export function useBeatTimeline(filename: string | null) {
   const [analysis, setAnalysis] = useState<AudioAnalysisResult | null>(null);
@@ -80,7 +66,7 @@ export function useBeatTimeline(filename: string | null) {
         // (same-origin). The full backend URL via getApiBase() hits CORS in
         // dev because the backend on 127.0.0.1:8000 doesn't whitelist the
         // Vite origin on localhost:5173+.
-        const cached = await getAnalysisRelative(filename);
+        const cached = await getAnalysis(filename);
         if (cancelled) return;
         if (cached) {
           setAnalysis(cached);

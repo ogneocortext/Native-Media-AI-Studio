@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { AudioAnalysisResult } from "../../../services/api";
+import { getAnalysis } from "../../../services/api";
 
 export interface TrackMetadata {
   filename: string;
@@ -24,12 +25,8 @@ export function useTrackMetadata(selectedTrack: string | null) {
     setLoading(true);
     setError(null);
 
-    fetch(`/api/audio/analysis/${encodeURIComponent(selectedTrack)}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`Analysis not found (${r.status})`);
-        return r.json();
-      })
-      .then((data: AudioAnalysisResult) => {
+    getAnalysis(selectedTrack)
+      .then((data) => {
         if (cancelled) return;
         setMetadata({
           filename: selectedTrack,

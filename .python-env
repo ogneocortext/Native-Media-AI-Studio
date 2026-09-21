@@ -32,3 +32,8 @@ ENV_TYPE=venv
 CUDA_ENABLED=true
 CUDA_VERSION=12.6
 PYTORCH_VERSION=2.14.0+cu126
+
+# System CUDA Toolkit (optional, for nvcc / Nsight profiling)
+# Verified on primary dev machine: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4
+CUDA_TOOLKIT_VERSION=12.4
+CUDA_TOOLKIT_PATH=C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4

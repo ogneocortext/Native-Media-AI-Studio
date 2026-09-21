@@ -16,11 +16,13 @@ import {
   getFFmpegStatus,
   getLoadedModels,
   getComfyUIStatus,
+  getVRAMStatus,
   AggregateHealth,
   AdapterHealth,
   SystemHealth,
   ServiceStatus,
   type ComfyUIStatus,
+  type VRAMStatus,
 } from "../services/api";
 import { sseService } from "../services/sseService";
 
@@ -29,7 +31,7 @@ interface GranularHealthData {
   ffmpeg: Awaited<ReturnType<typeof getFFmpegStatus>> | null;
   ollamaModels: Awaited<ReturnType<typeof getLoadedModels>> | null;
   comfyui: ComfyUIStatus | null;
-  vram: Record<string, unknown> | null;
+  vram: VRAMStatus["vram"] | null;
 }
 
 interface HealthState {
@@ -255,16 +257,10 @@ export const useHealthStore = create<HealthState>((set, get) => ({
 
   fetchVRAMStatus: async () => {
     try {
-      const base = (await import("../services/portConfig")).getBackendUrl();
-      const res = await fetch(`${base}/api/integrations/vram/status`, { signal: AbortSignal.timeout(30000) });
-      if (res.ok) {
-        const data = await res.json();
-        set((s) => ({ granular: { ...s.granular, vram: data } }));
-        return data as Record<string, unknown>;
-      } else {
-        set((s) => ({ granular: { ...s.granular, vram: null } }));
-        return null;
-      }
+      const data = await getVRAMStatus();
+      const vram = data.vram != null ? data.vram : null;
+      set((s) => ({ granular: { ...s.granular, vram } }));
+      return vram;
     } catch {
       set((s) => ({ granular: { ...s.granular, vram: null } }));
       return null;
