@@ -19,10 +19,17 @@ except ImportError:
     np = None
 
 try:
-    import madmom.infer as _madmom_infer  # type: ignore
+    # NOTE: the import name is `madmom_infer` (underscore). The code used to try
+    # `madmom.infer`, which exists in neither the legacy `madmom` package nor
+    # this one — and neither package exposes module-level `beats()`/`downbeats()`
+    # functions. The real entry points are
+    # `madmom_infer.features.downbeats.{RNNDownBeatProcessor, DBNDownBeatTrackingProcessor}`;
+    # `_madmom_beats_downbeats()` below adapts them to (beat_times, downbeat_times).
+    import madmom_infer.features.downbeats as _madmom_downbeats  # type: ignore
 
     MADMOM_AVAILABLE = True
 except ImportError:
+    _madmom_downbeats = None
     MADMOM_AVAILABLE = False
 
 try:
@@ -45,6 +52,53 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 def _import_shared_audio():
     from tools.lib.audio import analyze_beats, load_audio, save_beat_data  # type: ignore[import]
     return load_audio, analyze_beats, save_beat_data
+
+
+# ---------------------------------------------------------------------------
+# madmom-infer neural beat/downbeat tracking
+# ---------------------------------------------------------------------------
+
+# Sample rate the madmom-infer DSP + BLSTM models were trained/evaluated at.
+# Its `Signal` has no resampler, so callers must supply this rate explicitly.
+MADMOM_SAMPLE_RATE = 44100
+# RNN activation frame rate (fps=100 -> 10 ms per frame).
+MADMOM_ACTIVATION_FPS = 100.0
+
+
+def _madmom_beats_downbeats(y_44k):
+    """Run the ported madmom beat/downbeat pipeline on 44.1 kHz mono audio.
+
+    Returns ``(beat_times, downbeat_times)`` in seconds. The first call
+    downloads the CC BY-NC-SA 4.0 (non-commercial) BLSTM weights from
+    ``https://raw.githubusercontent.com/CPJKU/madmom_models/master`` into the
+    local cache (``~/.cache/madmom_infer/models/``); later calls reuse them.
+    """
+    activations = _madmom_downbeats.RNNDownBeatProcessor()(y_44k)
+    beats = _madmom_downbeats.DBNDownBeatTrackingProcessor(
+        beats_per_bar=[3, 4], fps=MADMOM_ACTIVATION_FPS
+    )(activations)
+    beats = np.asarray(beats, dtype=float).reshape(-1, 2)
+    beat_times = [round(float(t), 3) for t in beats[:, 0]]
+    downbeat_times = [round(float(t), 3) for t in beats[beats[:, 1] == 1][:, 0]]
+    return beat_times, downbeat_times
+
+
+# ---------------------------------------------------------------------------
+# sonara (Rust PyO3) beat/timing helpers
+# ---------------------------------------------------------------------------
+
+
+def _sonara_frames_to_time(frames) -> list[float]:
+    """Convert sonara frame indices to seconds using its own analysis grid.
+
+    sonara reports ``provenance = {sample_rate: 22050, hop_length: 512}`` for
+    compact-mode analyses (verified against 0.3.6); older versions are handled
+    by the caller, which falls back to the librosa grid.
+    """
+    out = _sonara.frames_to_time(frames, sr=22050.0, hop_length=512)
+    if hasattr(out, "tolist"):
+        return out.tolist()
+    return [round(float(t), 3) for t in (out or [])]
 
 
 def beat_confidence(beat_times: list[float], tempo_bpm: float = 0.0) -> float:
@@ -303,13 +357,24 @@ class AudioAnalyzer:
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         try:
-            beat_times = _madmom_infer.beats(audio_path)
-            downbeat_times = _madmom_infer.downbeats(audio_path)
-
+            # madmom-infer needs 44.1 kHz mono and has no resampler: decode at
+            # native rate first, then resample to its DSP rate.
             load_audio, _, _ = _import_shared_audio()
             y, sr = load_audio(audio_path, sr=None)
+            if len(y) == 0:
+                raise ValueError("Audio file is empty or could not be loaded")
+            if sr != MADMOM_SAMPLE_RATE:
+                y_44k = librosa.resample(y, orig_sr=sr, target_sr=MADMOM_SAMPLE_RATE)
+            else:
+                y_44k = y
+            beat_times, downbeat_times = _madmom_beats_downbeats(
+                np.ascontiguousarray(y_44k, dtype=np.float64)
+            )
+
             waveform = self._extract_waveform_features(y, sr)
 
+            # librosa supplies the waveform/onset features; madmom-infer owns
+            # beats, downbeats, and tempo.
             beat_frames = librosa.time_to_frames(beat_times, sr=sr, hop_length=self.hop_length).tolist()
             downbeat_frames = librosa.time_to_frames(downbeat_times, sr=sr, hop_length=self.hop_length).tolist()
 
@@ -321,15 +386,9 @@ class AudioAnalyzer:
                 if median_interval > 0:
                     tempo_val = 60.0 / median_interval
 
-            beat_times_list = beat_times.tolist() if hasattr(beat_times, "tolist") else list(beat_times)
-            downbeat_times_list = (
-                downbeat_times.tolist() if hasattr(downbeat_times, "tolist") else list(downbeat_times)
-            )
-
             # Real onsets (librosa) — previously the downbeats were reported as
             # onsets, which conflated two different musical events. Downbeats now
             # travel in their own fields.
-            _, _, _ = _import_shared_audio()
             onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=self.hop_length, n_fft=self.frame_length)
             onset_frames = librosa.onset.onset_detect(
                 onset_envelope=onset_env, sr=sr, hop_length=self.hop_length, units="frames"
@@ -344,12 +403,12 @@ class AudioAnalyzer:
                 beats=BeatFeatures(
                     tempo_bpm=round(float(tempo_val), 1),
                     beat_frames=beat_frames,
-                    beat_times=beat_times_list,
+                    beat_times=beat_times,
                     onset_frames=onset_frames,
                     onset_times=onset_times,
-                    confidence=beat_confidence(beat_times_list, tempo_val),
+                    confidence=beat_confidence(beat_times, tempo_val),
                     downbeat_frames=downbeat_frames,
-                    downbeat_times=downbeat_times_list,
+                    downbeat_times=downbeat_times,
                 ),
                 metadata={
                     "backend": "madmom-infer",
@@ -375,7 +434,16 @@ class AudioAnalyzer:
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         try:
-            result = _sonara.analyze_file(audio_path, mode="compact")
+            # Decode through our loader first: sonara's bundled decoder mangles
+            # some containers (e.g. it reads this 246.5 s stereo M4A as 493 s of
+            # ghost frames and hallucinates phantom beats). analyze_signal() is
+            # identical but tracks the correct timeline.
+            load_audio, _, _ = _import_shared_audio()
+            y, sr = load_audio(audio_path, sr=22050)
+            if len(y) == 0:
+                raise ValueError("Audio file is empty or could not be loaded")
+            y32 = np.ascontiguousarray(y, dtype=np.float32)
+            result = dict(_sonara.analyze_signal(y32, mode="compact"))
 
             load_audio, _, _ = _import_shared_audio()
             y, sr = load_audio(audio_path, sr=None)
@@ -384,8 +452,15 @@ class AudioAnalyzer:
             beat_frames = list(result.get("beats", []))
             onset_frames = list(result.get("onset_frames", []))
 
-            # Prefer explicitly-provided times: sonara frame indices use its own
-            # internal hop, so converting them with our hop can misplace beats.
+            # sonara pins its own pipeline to sr=22050 / hop=512 regardless of
+            # how we decoded the file — it reports them in `provenance`, so
+            # convert frame indices with sonara's grid, not ours.
+            provenance = result.get("provenance") or {}
+            prov_sr = float(provenance.get("sample_rate") or 22050)
+            prov_hop = int(provenance.get("hop_length") or 512)
+
+            # Prefer explicitly-provided times; otherwise convert indices with
+            # sonara's grid (falling back to ours for older sonara versions).
             if result.get("beat_times"):
                 beat_times = [round(float(t), 3) for t in result["beat_times"]]
                 beat_frames = (
@@ -394,13 +469,18 @@ class AudioAnalyzer:
                     else []
                 )
             else:
+                converter = _sonara_frames_to_time if prov_sr == 22050 and prov_hop == 512 else None
                 beat_times = (
-                    librosa.frames_to_time(beat_frames, sr=sr, hop_length=self.hop_length).tolist()
+                    converter(beat_frames)
+                    if converter
+                    else librosa.frames_to_time(beat_frames, sr=sr, hop_length=self.hop_length).tolist()
                     if beat_frames
                     else []
                 )
             onset_times = (
-                librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length).tolist()
+                _sonara_frames_to_time(onset_frames)
+                if (prov_sr == 22050 and prov_hop == 512)
+                else librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length).tolist()
                 if onset_frames
                 else []
             )
@@ -422,6 +502,25 @@ class AudioAnalyzer:
                 ),
                 metadata={
                     "backend": "sonara",
+                    # Compact-mode timbre/loudness stats, so agents can use them
+                    # without refetching the full sonara result.
+                    "sonara": {
+                        k: result.get(k)
+                        for k in (
+                            "duration_sec",
+                            "bpm_raw",
+                            "bpm_candidates",
+                            "n_beats",
+                            "rms_mean",
+                            "rms_max",
+                            "loudness_lufs",
+                            "dynamic_range_db",
+                            "spectral_centroid_mean",
+                            "zero_crossing_rate",
+                            "onset_density",
+                        )
+                        if result.get(k) is not None
+                    },
                     "duration_samples": len(y),
                     "hop_length": self.hop_length,
                     "frame_length": self.frame_length,

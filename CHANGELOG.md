@@ -22,6 +22,15 @@ Review of the analysis pipeline (`app/api/audio.py`, `app/services/audio_analyze
 - **madmom path mislabeled downbeats as onsets** (`onset_frames=downbeat_frames`) — real librosa onsets are now computed and downbeats travel in their own fields. **sonara path** now prefers engine-provided `beat_times` instead of re-deriving them with our hop length (hop mismatch misplaced beats).
 - **Other fixes**: `_downsample_curve` divided by zero for `max_points < 2`; `file_path.relative_to(AUDIO_DIR)` raised `ValueError` for paths outside the library (new `_relative_audio_path`); `get_analysis_by_filename` never cached the JSON-index result (every request re-parsed a multi-MB file); `get_analysis_result` echoed the request `Origin` in `Access-Control-Allow-Origin`, bypassing the app's CORS allowlist, and matched job ids by substring; `analyze-all` re-read + rewrote the index per file and keyed by basename (splitting entries for `output/audio/<album>/` subfolders); analysis JSON writes moved to UTF-8; `/analysis/summary` advertised `has_spectral` from keys this payload never contained (always false) — now reports a real compact `spectral` block plus `has_downbeats`.
 
+### Added - madmom-infer + sonara analysis backends wired (2026-09-21)
+
+Both packages referenced by the analyzer were present in `nma-studio-cuda` but the wiring called APIs that do not exist.
+
+- **madmom-infer 0.2.0**: `_analyze_madmom` now runs the real ported pipeline (`madmom_infer.features.downbeats.{RNNDownBeatProcessor, DBNDownBeatTrackingProcessor}` with `beats_per_bar=[3,4]`), resampling input to 44100 Hz first, yielding neural beats + downbeats + tempo + librosa onsets. Verified on the HITL track: 288 beats / 72 downbeats, half-time 71.4 BPM vs librosa's 140.6 — same grid an octave down, ideal for bar-line visuals but not for fast pulse. First use downloads the CC BY-NC-SA 4.0 (non-commercial) BLSTM weights (~3 MB) into `~/.cache/madmom_infer/models/`.
+- **sonara 0.3.6**: `_analyze_sonara` now feeds `analyze_signal()` on float32 mono 22050 Hz decoded via librosa, because sonara's bundled decoder reads the stereo M4A as 2× duration and hallucinates phantom beats. Verified: correct 246.5 s timeline, 580 beats, 142.6 BPM (conf 0.74) in 2.3 s + loudness/timbre stats (`loudness_lufs`, `dynamic_range_db`, `spectral_centroid_mean`, `onset_density`) carried into metadata. Frame indices convert via `provenance`-reported sr=22050/hop=512 (`_sonara_frames_to_time`).
+- **Per-backend selection**: `backend=librosa|madmom|sonara` on `POST /api/audio/analyze`, `POST /api/audio/ensure-analysis`, `POST /api/audio/analyze-all`; `/api/audio/backends` now reports `[sonara, madmom, librosa]`.
+- The `pip index versions` "INSTALLED" quirk (both were installed long before the wiring matched) is documented in `requirements-experimental.txt`.
+
 ### Added - faster-whisper GPU transcription (2026-09-21)
 
 Installed `faster-whisper 1.2.1` + `ctranslate2 4.8.2` into `nma-studio-cuda`, activating `POST /api/audio/transcribe`.

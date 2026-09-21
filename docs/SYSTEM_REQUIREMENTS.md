@@ -1,6 +1,6 @@
 # System Requirements — Native Media AI Studio
 
-> **Last Updated:** 2026-09-21 — demucs 4.1.0 + faster-whisper 1.2.1 installed in `nma-studio-cuda`; Pascal CTranslate2 notes
+> **Last Updated:** 2026-09-21 — madmom-infer 0.2.0 + sonara 0.3.6 verified and wired as analysis backends; demucs 4.1.0 + faster-whisper 1.2.1 installed; Pascal CTranslate2 notes
 
 External tools and system-level dependencies that are **not** installable via `pip` / `pnpm`.
 
@@ -38,6 +38,8 @@ External tools and system-level dependencies that are **not** installable via `p
 | `torch` | Pinned in `requirements-torch.txt` (cu126) | **Not** in the default `requirements.txt`. GPU/VRAM paths silently degrade without it |
 | `torchvision` / `torchaudio` | Pinned in `requirements-torch.txt` | **Not directly imported** in backend code. Present for torch ecosystem compatibility; can be removed if install size is a concern. |
 | `demucs` | pip-installable, CUDA optional | **Installed** in `nma-studio-cuda` (4.1.0). Use `pip install --no-deps demucs` + explicit deps (`julius dora-search diffq lameenc openunmix submitit sphn`) so pip never replaces the Pascal-safe torch build. The backend invokes it via `sys.executable -m demucs`, never the PATH `demucs.exe`. Falls back to CPU if CUDA is absent. |
+| `madmom-infer` | pip-installable (pure numpy/scipy DSP + on-demand model download) | **Installed** in `nma-studio-cuda` (0.2.0). Neural beat/downbeat tracking (`POST /api/audio/analyze?backend=madmom`). Import as `madmom_infer.features.downbeats` (there is NO `madmom.infer`/`beats()`/`downbeats()` API); resample input to 44100 Hz first. First use downloads CC BY-NC-SA 4.0 (**non-commercial**) BLSTM weights (~3 MB) into `~/.cache/madmom_infer/models/`. |
+| `sonara` | pip-installable (Rust PyO3 wheel, needs only numpy) | **Installed** in `nma-studio-cuda` (0.3.6). Fast beat/grid + loudness/timbre stats (`POST /api/audio/analyze?backend=sonara`, also the API default). NOTE: its bundled decoder mangles some containers — the backend decodes with librosa first and calls `analyze_signal()` on float32 mono 22050 Hz. Frame indices assume sr=22050/hop=512 (see `provenance` in output); convert with `sonara.frames_to_time()`. |
 | `spleeter` | pip-installable (optional fallback) | Only invoked when `demucs` is missing. Not declared; install manually if needed. |
 
 ---

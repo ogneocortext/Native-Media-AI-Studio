@@ -3,9 +3,20 @@
 # DO NOT add to production requirements.txt until benchmarks prove value.
 
 # Audio analysis alternatives
-madmom-infer>=0.1.0   # Neural beat/downbeat tracking (fallback to librosa if unavailable)
-sonara>=0.1.0         # Rust-backed fast audio features via PyO3
+madmom-infer>=0.2.0   # Neural beat/downbeat tracking (BLSTM + DBN, non-commercial weights)
+sonara>=0.3.0         # Rust-backed fast audio features via PyO3
 faster-whisper>=1.1.0 # Whisper transcription → POST /api/audio/transcribe
+# NOTE (2026-09-21): madmom-infer 0.2.0 + sonara 0.3.6 are INSTALLED in
+# nma-studio-cuda and wired into app/services/audio_analyzer.py:
+# - madmom-infer entry points are madmom_infer.features.downbeats.{RNNDownBeatProcessor,
+#   DBNDownBeatTrackingProcessor} — there is NO madmom.infer / beats() / downbeats()
+#   API; input must be resampled to 44100 Hz first; first use downloads CC BY-NC-SA 4.0
+#   (non-commercial) BLSTM weights into ~/.cache/madmom_infer/models/.
+# - sonara.analyze_file(path, mode="compact") returns a TrackAnalysis dict with
+#   provenance={sample_rate:22050, hop_length:512}; its frame indices must be
+#   converted with sonara.frames_to_time(), not the file's native hop.
+# - Select per analysis: backend=librosa|madmom|sonara (POST /api/audio/analyze,
+#   POST /api/audio/ensure-analysis, POST /api/audio/analyze-all, /api/audio/backends).
 # NOTE (2026-09-21): Installed in nma-studio-cuda (1.2.1). On Windows, CTranslate2
 # also needs `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12` for CUDA; the
 # backend registers their DLL dirs itself. Pascal GPUs (sm_61) run float32 on GPU
