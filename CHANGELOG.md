@@ -58,6 +58,20 @@ Installed and wired Demucs for `POST /api/audio/separate` and the Visualizer Ste
 - **Backend fix**: `_separate_demucs` no longer returns `None` when `asyncio.create_subprocess_exec` succeeds (returncode/stem collection now shared across subprocess paths).
 - **Verified end-to-end**: `POST /api/audio/separate` → all 4 stems; `GET /api/audio/stems/{filename}` → `found: true`.
 
+### Changed - Frontend API modularization and integration hardening (2026-09-21)
+
+Split the monolithic `packages/frontend/src/services/api.ts` (2,857 lines) into domain-specific modules under `packages/frontend/src/services/api/`:
+`core.ts`, `jobs.ts`, `health.ts`, `settings.ts`, `generation.ts`, `audio.ts`, `logs.ts`, `data.ts`, `gpu-3d.ts`, `vision.ts`, `native.ts`, `media.ts`, `diagnostics.ts`, `ollama.ts`, `integrations.ts`, `mcp-hyperframes.ts`, `video-render.ts`, `docs.ts`, plus a barrel `index.ts`.
+All existing `../../services/api` imports remain valid through the barrel re-export.
+Verified with `tsc --noEmit` clean and `vite build` success.
+
+- **Frontend integration fixes**: `ArtDirection.tsx`, `StoryboardPage.tsx`, `useBeatTimeline.ts`, `useTrackMetadata.ts`, and `useTrackManager.ts` migrated from stale raw `/api/audio/analysis/{filename}` calls to the typed `getAnalysis()` wrapper (`/api/audio/analysis/by-filename/{filename:path}`).
+- **Settings integration fix**: `Settings.tsx` switched from non-existent `/api/integrations/{type}/health` to `getIntegrationStatus()` wrapper; added typed `IntegrationStatus` interface.
+- **Health/VRAM wiring**: `healthStore.ts` now uses the typed `getVRAMStatus()` wrapper instead of inline `fetch`, improving error handling and type safety.
+- **Backend cleanup**: Removed unused dependencies `pydantic-settings>=2.0.0` and `requests>=2.32.0` from `packages/backend/requirements.txt`.
+- **Documentation**: Documented system CUDA Toolkit 12.4 path (`C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4`) in `AGENTS.md`, `docs/setup/python-environments.md`, `docs/setup/SETUP_SUMMARY.md`, and `.python-env`.
+- **Git hygiene**: Updated `.gitignore` to exclude `.comfyui-backups/`, `docs/scratch/*.py`, `scripts/list_routes.py`, and root scratch artifacts.
+
 ### Changed - PowerShell script modernization (2026-09-19)
 
 Consolidated and modernized all project PowerShell scripts to require PowerShell 7.6+,
