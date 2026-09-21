@@ -487,6 +487,10 @@ GET  /api/audio/file/{filename:path}  → serve raw audio file
 POST /api/audio/separate              → stem separation (vocals/drums/bass/other → stems/, auto-encodes MP3 copies)
 GET  /api/audio/stems/{filename:path} → stems (WAV URLs) + stems_mp3 (MP3 URLs)
 GET  /api/audio/stem-file/{track}/{stem}?format=wav|mp3 → serve stem; mp3 lazy-encoded from WAV on first request
+POST /api/audio/analyze               → {tempo_bpm, duration_seconds, beat_count, beat_times[≤4000],
+                                         downbeat_times, onset_times[≤800], energy_curve[100],
+                                         amplitude_envelope[≤1024], spectral, sections, confidence, timing_contract}
+GET  /api/audio/analysis/summary/{filename} → compact agent view (incl. has_downbeats, spectral, beats_truncated)
 POST /api/audio/ensure-analysis       → ensure cached analysis else trigger
 POST /api/audio/analyze-all           → batch analyze library
 ```

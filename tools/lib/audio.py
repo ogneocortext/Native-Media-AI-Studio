@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 import threading
 from pathlib import Path
@@ -33,7 +34,8 @@ _GPU_IMPORT_ERROR: str | None = None
 try:
     from app.services.cuda import cuda_audio, cuda_available  # type: ignore[import]
     if cuda_available():
-        import torch  # type: ignore[import]
+        # Probe: surfaces a broken torch install here instead of mid-analysis.
+        import torch  # noqa: F401  # type: ignore[import]
         _CUDA_AVAILABLE = True
 except Exception as _exc:  # pragma: no cover - environment dependent
     _GPU_IMPORT_ERROR = str(_exc)
@@ -83,13 +85,19 @@ def load_audio(audio_path: str | Path, sr: int | None = 22050):
         ffmpeg = shutil.which("ffmpeg") or shutil.which("ffmpeg.exe")
         if not ffmpeg:
             raise RuntimeError(f"librosa failed to decode {suffix} and ffmpeg is not available") from exc
-        tmp = Path(tempfile.gettempdir()) / f"kilo_audio_{p.stem}_{suffix.lstrip('.')}.wav"
-        cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-i", str(p), "-ac", "2", str(tmp)]
+        # Unique temp name: concurrent analyses of the same track must not
+        # clobber each other's intermediate file.
+        handle, tmp_name = tempfile.mkstemp(prefix="kilo_audio_", suffix=".wav")
+        os.close(handle)
+        tmp = Path(tmp_name)
+        # Build the argument list explicitly — a previous `insert(-2, ...)`
+        # approach produced `-ac -ar <sr> 2` and ffmpeg rejected the file.
+        cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-i", str(p)]
         if sr is not None:
-            cmd.insert(-2, "-ar")
-            cmd.insert(-2, str(sr))
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
+            cmd += ["-ar", str(sr)]
+        cmd += ["-ac", "1", str(tmp)]
         try:
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
             return librosa.load(str(tmp), sr=sr, mono=True)
         finally:
             tmp.unlink(missing_ok=True)
@@ -209,6 +217,6 @@ def save_beat_data(data: dict[str, Any], output_path: str | Path) -> Path:
     """
     out = Path(output_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    with open(out, "w") as f:
-        json.dump(data, f, indent=2)
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
     return out.resolve()

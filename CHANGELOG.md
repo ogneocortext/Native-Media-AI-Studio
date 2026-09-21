@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Audio analysis payload, contract + correctness (2026-09-21)
+
+Review of the analysis pipeline (`app/api/audio.py`, `app/services/audio_analyzer.py`, `tools/lib/audio.py`) found several real defects; all are fixed and verified.
+
+- **Payload reduced 16×**: `_build_analysis_result` emitted the full-resolution RMS envelope (~23k points on a 4-min track) four times per response — `energy_curve` (documented as "60-100 points for viz") was full-res, and both `timing_contract.energyCurve` (23k dicts) and `timing_contract.amplitudeEnvelope` duplicated it. Measured: **1091 KiB → 70 KiB** on the HITL-V2 stem, *with* new downbeat and spectral data added. Curves are now downsampled once (`energy_curve`=100, `amplitude_envelope`≤1024) and reused.
+- **Silent beat truncation**: `beat_times` was capped at 800 while `beat_count` reported the true count (a 230 s track reported 1029 beats but shipped only 800, desyncing the tail of long/high-tempo tracks). Cap raised to 4000 with an explicit `beats_truncated` flag.
+- **Downbeats were a beat-gap heuristic** (`gap > 1.5× beat period`), which almost never marks a real bar line. Now every 4th beat (4/4), matching `scripts/generate_timing_contract.py` and the `stillIRiseTiming` reference (336 beats / 84 downbeats), plus a new `downbeat_times` field.
+- **Beat energies were raw RMS** (~0.05) despite the shared contract documenting 0..1. Now normalized.
+- **Hardcoded `confidence=1.0`** in `_extract_beat_features` (and 1.0 fallbacks in madmom/sonara) made every track look equally trustworthy. Replaced with `beat_confidence()` — interval-stability + tempo-agreement based (0.971 measured on a steady track).
+- **`tools/lib/audio.py` ffmpeg fallback was broken**: `cmd.insert(-2, "-ar")` produced `-ac -ar 22050 2 out.wav`, so any `.m4a`/`.mp4`/`.aac` that librosa cannot decode failed to load. Rebuilt the argument list and switched to per-call `tempfile.mkstemp` (the old fixed temp name collided between concurrent analyses).
+- **`/api/audio/analyze-cuda` decoded + beat-tracked the file twice** per request (once for the CUDA pass, once for librosa). Added `AudioAnalyzer.analyze_from_audio()` and `analyze_with_cuda(y=…, include_audio/beats=…)` so both passes share one decode; CUDA envelope overrides are now downsample-consistent.
+- **`audio_analysis_handler.save_analysis()` called `analyzer.save_to_json()`**, which did not exist (`AttributeError` on every custom-path save). Added the public `save_to_json(result, output_path=None)`; `_save_to_json` is now a thin wrapper over a shared `_result_payload()` that also persists downbeats.
+- **madmom path mislabeled downbeats as onsets** (`onset_frames=downbeat_frames`) — real librosa onsets are now computed and downbeats travel in their own fields. **sonara path** now prefers engine-provided `beat_times` instead of re-deriving them with our hop length (hop mismatch misplaced beats).
+- **Other fixes**: `_downsample_curve` divided by zero for `max_points < 2`; `file_path.relative_to(AUDIO_DIR)` raised `ValueError` for paths outside the library (new `_relative_audio_path`); `get_analysis_by_filename` never cached the JSON-index result (every request re-parsed a multi-MB file); `get_analysis_result` echoed the request `Origin` in `Access-Control-Allow-Origin`, bypassing the app's CORS allowlist, and matched job ids by substring; `analyze-all` re-read + rewrote the index per file and keyed by basename (splitting entries for `output/audio/<album>/` subfolders); analysis JSON writes moved to UTF-8; `/analysis/summary` advertised `has_spectral` from keys this payload never contained (always false) — now reports a real compact `spectral` block plus `has_downbeats`.
+
 ### Added - faster-whisper GPU transcription (2026-09-21)
 
 Installed `faster-whisper 1.2.1` + `ctranslate2 4.8.2` into `nma-studio-cuda`, activating `POST /api/audio/transcribe`.

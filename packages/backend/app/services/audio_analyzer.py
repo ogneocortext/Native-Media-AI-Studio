@@ -47,6 +47,37 @@ def _import_shared_audio():
     return load_audio, analyze_beats, save_beat_data
 
 
+def beat_confidence(beat_times: list[float], tempo_bpm: float = 0.0) -> float:
+    """Estimate beat-tracking confidence from inter-beat interval stability.
+
+    A steady grid (low relative deviation of intervals) scores near 1.0; a
+    wandering or sparse grid scores low. This replaces the previous hardcoded
+    ``1.0``, which made every track look equally reliable to downstream
+    visualizers and AI preset generators.
+    """
+    if not beat_times:
+        return 0.0
+    if len(beat_times) < 3:
+        return 0.5
+    intervals = np.diff(np.asarray(beat_times, dtype=float))
+    intervals = intervals[intervals > 1e-6]
+    if intervals.size < 2:
+        return 0.5
+    median = float(np.median(intervals))
+    if median <= 0:
+        return 0.0
+    # Mean absolute deviation relative to the median interval (robust to outliers)
+    mad = float(np.mean(np.abs(intervals - median))) / median
+    stability = max(0.0, 1.0 - mad)
+    # Agreement with the reported tempo (a mismatched grid is less trustworthy)
+    if tempo_bpm > 0:
+        expected = 60.0 / tempo_bpm
+        ratio = median / expected if expected > 0 else 1.0
+        tempo_fit = max(0.0, 1.0 - abs(ratio - 1.0))
+        stability = 0.7 * stability + 0.3 * tempo_fit
+    return round(min(1.0, max(0.0, stability)), 3)
+
+
 class AudioAnalyzerError(Exception):
     """Exception raised for errors in the AudioAnalyzer."""
     pass
@@ -76,6 +107,8 @@ class BeatFeatures:
     onset_frames: list[int]
     onset_times: list[float]
     confidence: float
+    downbeat_frames: list[int] | None = None
+    downbeat_times: list[float] | None = None
 
 
 @dataclass
@@ -189,13 +222,52 @@ class AudioAnalyzer:
             units="frames",
         ).tolist()
         onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=hop_length).tolist()
+
+        # Downbeats: 4/4 assumption (every 4th beat), matching the canonical
+        # contract in scripts/generate_timing_contract.py and the generated
+        # stillIRiseTiming.ts reference (336 beats / 84 downbeats).
+        downbeat_times = beat_times[::4]
+        downbeat_frames = beat_frames[::4]
+
         return BeatFeatures(
             tempo_bpm=tempo_val,
             beat_frames=beat_frames,
             beat_times=beat_times,
             onset_frames=onset_frames,
             onset_times=onset_times,
-            confidence=1.0,
+            confidence=beat_confidence(beat_times, tempo_val),
+            downbeat_frames=downbeat_frames,
+            downbeat_times=downbeat_times,
+        )
+
+    def analyze_from_audio(
+        self,
+        y,
+        sr: int,
+        job_id: str | None = None,
+        audio_file: str = "",
+        backend: str = "librosa",
+    ) -> AudioAnalysisResult:
+        """Run full feature extraction on already-loaded audio.
+
+        Lets callers (e.g. ``/api/audio/analyze-cuda``) decode/beat-track once
+        instead of re-loading the file for every backend pass.
+        """
+        if y is None or len(y) == 0:
+            raise ValueError("Audio file is empty or could not be loaded")
+
+        return AudioAnalysisResult(
+            job_id=job_id or str(uuid.uuid4()),
+            audio_file=audio_file,
+            analysis_timestamp=datetime.now().isoformat(),
+            waveform=self._extract_waveform_features(y, sr),
+            beats=self._extract_beat_features(y, sr),
+            metadata={
+                "backend": backend,
+                "duration_samples": len(y),
+                "hop_length": self.hop_length,
+                "frame_length": self.frame_length,
+            },
         )
 
     def _analyze_librosa(self, audio_path: str, job_id: str | None = None) -> AudioAnalysisResult:
@@ -213,25 +285,7 @@ class AudioAnalyzer:
         try:
             load_audio, _, _ = _import_shared_audio()
             y, sr = load_audio(audio_path, sr=None)
-
-            if len(y) == 0:
-                raise ValueError("Audio file is empty or could not be loaded")
-
-            waveform = self._extract_waveform_features(y, sr)
-            beats = self._extract_beat_features(y, sr)
-
-            return AudioAnalysisResult(
-                job_id=job_id,
-                audio_file=str(audio_path),
-                analysis_timestamp=datetime.now().isoformat(),
-                waveform=waveform,
-                beats=beats,
-                metadata={
-                    "duration_samples": len(y),
-                    "hop_length": self.hop_length,
-                    "frame_length": self.frame_length,
-                },
-            )
+            return self.analyze_from_audio(y, sr, job_id=job_id, audio_file=str(audio_path))
         except Exception as e:
             logger.error(f"Audio analysis failed for {audio_path}: {e}")
             raise AudioAnalyzerError(f"Failed to analyze audio file: {e}") from e
@@ -267,6 +321,21 @@ class AudioAnalyzer:
                 if median_interval > 0:
                     tempo_val = 60.0 / median_interval
 
+            beat_times_list = beat_times.tolist() if hasattr(beat_times, "tolist") else list(beat_times)
+            downbeat_times_list = (
+                downbeat_times.tolist() if hasattr(downbeat_times, "tolist") else list(downbeat_times)
+            )
+
+            # Real onsets (librosa) — previously the downbeats were reported as
+            # onsets, which conflated two different musical events. Downbeats now
+            # travel in their own fields.
+            _, _, _ = _import_shared_audio()
+            onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=self.hop_length, n_fft=self.frame_length)
+            onset_frames = librosa.onset.onset_detect(
+                onset_envelope=onset_env, sr=sr, hop_length=self.hop_length, units="frames"
+            ).tolist()
+            onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length).tolist()
+
             return AudioAnalysisResult(
                 job_id=job_id,
                 audio_file=str(audio_path),
@@ -275,10 +344,12 @@ class AudioAnalyzer:
                 beats=BeatFeatures(
                     tempo_bpm=round(float(tempo_val), 1),
                     beat_frames=beat_frames,
-                    beat_times=beat_times.tolist() if hasattr(beat_times, "tolist") else list(beat_times),
-                    onset_frames=downbeat_frames,
-                    onset_times=downbeat_times.tolist() if hasattr(downbeat_times, "tolist") else list(downbeat_times),
-                    confidence=1.0,
+                    beat_times=beat_times_list,
+                    onset_frames=onset_frames,
+                    onset_times=onset_times,
+                    confidence=beat_confidence(beat_times_list, tempo_val),
+                    downbeat_frames=downbeat_frames,
+                    downbeat_times=downbeat_times_list,
                 ),
                 metadata={
                     "backend": "madmom-infer",
@@ -313,16 +384,27 @@ class AudioAnalyzer:
             beat_frames = list(result.get("beats", []))
             onset_frames = list(result.get("onset_frames", []))
 
-            beat_times = (
-                librosa.frames_to_time(beat_frames, sr=sr, hop_length=self.hop_length).tolist()
-                if beat_frames
-                else []
-            )
+            # Prefer explicitly-provided times: sonara frame indices use its own
+            # internal hop, so converting them with our hop can misplace beats.
+            if result.get("beat_times"):
+                beat_times = [round(float(t), 3) for t in result["beat_times"]]
+                beat_frames = (
+                    librosa.time_to_frames(beat_times, sr=sr, hop_length=self.hop_length).tolist()
+                    if beat_times
+                    else []
+                )
+            else:
+                beat_times = (
+                    librosa.frames_to_time(beat_frames, sr=sr, hop_length=self.hop_length).tolist()
+                    if beat_frames
+                    else []
+                )
             onset_times = (
                 librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length).tolist()
                 if onset_frames
                 else []
             )
+            tempo_val = float(result.get("bpm") or 0.0)
 
             return AudioAnalysisResult(
                 job_id=job_id,
@@ -330,12 +412,13 @@ class AudioAnalyzer:
                 analysis_timestamp=datetime.now().isoformat(),
                 waveform=waveform,
                 beats=BeatFeatures(
-                    tempo_bpm=float(result.get("bpm") or 0.0),
+                    tempo_bpm=tempo_val,
                     beat_frames=beat_frames,
                     beat_times=beat_times,
                     onset_frames=onset_frames,
                     onset_times=onset_times,
-                    confidence=float(result.get("bpm_confidence") or 1.0),
+                    # sonara's own confidence when reported, else measured stability
+                    confidence=float(result.get("bpm_confidence") or beat_confidence(beat_times, tempo_val)),
                 ),
                 metadata={
                     "backend": "sonara",
@@ -366,19 +449,25 @@ class AudioAnalyzer:
         output_path = self._save_to_json(result)
         return result, output_path
 
-    def _save_to_json(self, result: AudioAnalysisResult) -> str:
-        """Save analysis result to JSON file.
+    def save_to_json(self, result: AudioAnalysisResult, output_path: str | None = None) -> str:
+        """Persist an ``AudioAnalysisResult`` and return the written path.
 
-        Args:
-            result: AudioAnalysisResult to save
-
-        Returns:
-            Absolute path of the written JSON file.
+        Public counterpart of ``_save_to_json`` (``audio_analysis_handler``
+        called the non-existent ``save_to_json`` before, so custom-path saves
+        raised ``AttributeError``).
         """
+        if output_path is None:
+            return self._save_to_json(result)
         import json
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self._result_payload(result), f, indent=2, ensure_ascii=False)
+        return str(path.resolve())
 
-        path = OUTPUT_DIR / f"{result.job_id}_analysis.json"
-        payload = {
+    def _result_payload(self, result: AudioAnalysisResult) -> dict:
+        """Serialize an analysis result to a JSON-safe dict."""
+        return {
             "job_id": result.job_id,
             "audio_file": result.audio_file,
             "analysis_timestamp": result.analysis_timestamp,
@@ -399,11 +488,26 @@ class AudioAnalyzer:
                 "onset_frames": result.beats.onset_frames,
                 "onset_times": result.beats.onset_times,
                 "confidence": result.beats.confidence,
+                "downbeat_frames": result.beats.downbeat_frames or [],
+                "downbeat_times": result.beats.downbeat_times or [],
             },
             "metadata": result.metadata,
         }
+
+    def _save_to_json(self, result: AudioAnalysisResult) -> str:
+        """Save analysis result to JSON file.
+
+        Args:
+            result: AudioAnalysisResult to save
+
+        Returns:
+            Absolute path of the written JSON file.
+        """
+        import json
+
+        path = OUTPUT_DIR / f"{result.job_id}_analysis.json"
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2, ensure_ascii=False)
+            json.dump(self._result_payload(result), f, indent=2, ensure_ascii=False)
         return str(path.resolve())
 
 
@@ -454,7 +558,12 @@ def extract_amplitude_envelope_simple(audio_path: str) -> dict[str, Any]:
     }
 
 
-def analyze_with_cuda(audio_path: str) -> dict[str, Any]:
+def analyze_with_cuda(
+    audio_path: str,
+    y=None,
+    sr: int | None = None,
+    include_beats: bool = True,
+) -> dict[str, Any]:
     """Analyze audio using GPU acceleration when available.
 
     Uses the CUDA audio analyzer for FFT and spectral features,
@@ -462,12 +571,20 @@ def analyze_with_cuda(audio_path: str) -> dict[str, Any]:
 
     Args:
         audio_path: Path to audio file.
+        y: Optional pre-loaded mono time series — avoids decoding the file a
+            second time when the caller already loaded it.
+        sr: Sample rate matching ``y`` (required when ``y`` is given).
+        include_beats: Set False when the caller runs its own beat tracking
+            (e.g. ``/api/audio/analyze-cuda``), skipping a redundant pass.
 
     Returns:
         Dict with amplitude_envelope, spectral features, and metadata.
     """
     load_audio, analyze_beats, _ = _import_shared_audio()
-    y, sr = load_audio(audio_path, sr=22050)
+    if y is None:
+        y, sr = load_audio(audio_path, sr=22050)
+    if sr is None:
+        raise ValueError("sr is required when y is provided")
 
     cuda_ok = False
     try:
@@ -494,9 +611,10 @@ def analyze_with_cuda(audio_path: str) -> dict[str, Any]:
         }
 
     # Beat tracking (still CPU — librosa beat_track has no GPU equivalent)
-    beat_result = analyze_beats(y, sr, use_gpu=False)
-    result["tempo_bpm"] = beat_result["tempo"]
-    result["beat_times"] = beat_result["beat_times"]
+    if include_beats:
+        beat_result = analyze_beats(y, sr, use_gpu=False)
+        result["tempo_bpm"] = beat_result["tempo"]
+        result["beat_times"] = beat_result["beat_times"]
 
     result["sample_rate"] = sr
     result["audio_file"] = str(audio_path)

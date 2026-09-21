@@ -881,6 +881,17 @@ export interface AudioAnalysisResult {
   amplitude_envelope: number[];
   stored_path: string | null;
   job_id: string | null;
+  /** True when beat_times hit the backend response cap (very long tracks). */
+  beats_truncated?: boolean;
+  /** Bar starts (every 4th beat under the 4/4 contract). */
+  downbeat_times?: number[];
+  /** Compact spectral means (centroid/rolloff/bandwidth/zcr) when available. */
+  spectral?: {
+    centroid_mean?: number;
+    rolloff_mean?: number;
+    bandwidth_mean?: number;
+    zcr_mean?: number;
+  };
   // Timing contract for frontend + Remotion + AI agents
   timing_contract?: {
     filename: string;

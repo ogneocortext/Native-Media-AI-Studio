@@ -104,6 +104,7 @@ class AudioAnalysisResult(BaseModel):
     amplitude_envelope: list[float] = []
     stored_path: str | None = None
     job_id: str | None = None
+    beats_truncated: bool = False  # True when beat_times hit the response cap
     # Timing contract (shared with frontend + Remotion + AI agents)
     timing_contract: dict | None = None
     # Suggested visualization parameters for AI/agent-driven presets
@@ -157,12 +158,17 @@ async def get_analysis_summary(filename: str):
         "tempo_bpm": data.get("tempo_bpm"),
         "duration_seconds": data.get("duration_seconds"),
         "beat_count": data.get("beat_count"),
+        "beats_truncated": data.get("beats_truncated", False),
         "confidence": data.get("confidence"),
         "sections": data.get("sections", []),
+        "spectral": data.get("spectral", {}),
         "has_beat_times": bool(data.get("beat_times")),
+        "has_downbeats": bool(data.get("downbeat_times")),
         "has_onset_times": bool(data.get("onset_times")),
         "has_energy_curve": bool(data.get("energy_curve")),
-        "has_spectral": bool(data.get("spectral_centroid") or data.get("spectral_rolloff")),
+        # Legacy key: older summaries advertised raw spectral curve arrays that
+        # this payload never carried, so it always reported false.
+        "has_spectral": bool(data.get("spectral") or data.get("spectral_centroid") or data.get("spectral_rolloff")),
         "job_id": data.get("job_id"),
         "stored_path": data.get("stored_path"),
     }
@@ -260,8 +266,8 @@ async def analyze_audio(
 
         # Save full analysis
         analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
-        with open(analysis_file, "w") as f:
-            json.dump(analysis_result, f, indent=2)
+        with open(analysis_file, "w", encoding="utf-8") as f:
+            json.dump(analysis_result, f, indent=2, ensure_ascii=False)
 
         return AudioAnalysisResult(**analysis_result)
     except HTTPException:
@@ -303,29 +309,69 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
 
         analyzer = AudioAnalyzer()
 
+        # Load the audio once and run the librosa/GPU passes on that buffer —
+        # this used to decode + beat-track the whole file twice per request.
+        try:
+            from tools.lib.audio import load_audio as _load_audio
+            y, sr = _load_audio(str(file_path), sr=None)
+        except Exception:
+            y, sr = None, None
+
         # Try CUDA first, fall back to CPU
+        cuda_result = None
         try:
             from ..services.audio_analyzer import analyze_with_cuda
-            cuda_result = analyze_with_cuda(str(file_path))
-        except Exception:
+            if y is not None:
+                # CUDA spectral pass on the already-decoded audio; skip its beat
+                # tracking since analyze_from_audio does that below.
+                cuda_result = analyze_with_cuda(str(file_path), y=y, sr=sr, include_beats=False)
+            else:
+                cuda_result = analyze_with_cuda(str(file_path))
+        except Exception as e:
+            logger.debug("CUDA analysis unavailable: %s", e)
             cuda_result = None
 
-        if cuda_result and cuda_result.get("computed_on") == "GPU":
-            # CUDA succeeded — use CPU beat tracking + CUDA spectral features
-            result = analyzer.analyze_file(str(file_path), job_id=unique_id)
-            analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
-            analysis_result["computed_on"] = "GPU"
-            # Override energy curve with CUDA spectral data when available
-            if cuda_result.get("amplitude_envelope"):
-                analysis_result["energy_curve"] = [round(float(v), 4) for v in cuda_result["amplitude_envelope"]]
-                analysis_result["amplitude_envelope"] = analysis_result["energy_curve"]
-            await _apply_llm_sections(analysis_result, result, cuda_result.get("rms_energy", []))
+        if y is not None:
+            result = analyzer.analyze_from_audio(
+                y, sr, job_id=unique_id, audio_file=str(file_path),
+                backend="cuda" if cuda_result and cuda_result.get("computed_on") == "GPU" else "librosa",
+            )
         else:
-            # CUDA unavailable — fall back to CPU
             result = analyzer.analyze_file(str(file_path), job_id=unique_id)
-            analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
+
+        analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
+
+        if cuda_result and cuda_result.get("computed_on") == "GPU":
+            analysis_result["computed_on"] = "GPU"
+            # Override the energy curve with CUDA spectral data when available
+            # (downsampled to the same contract length — it used to inject the
+            # full-resolution array here).
+            if cuda_result.get("amplitude_envelope"):
+                analysis_result["energy_curve"] = [
+                    round(float(v), 4)
+                    for v in _downsample_curve(cuda_result["amplitude_envelope"], _ENERGY_CURVE_POINTS)
+                ]
+                analysis_result["amplitude_envelope"] = [
+                    round(float(v), 4)
+                    for v in _downsample_curve(cuda_result["amplitude_envelope"], _ENVELOPE_POINTS)
+                ]
+                analysis_result["timing_contract"]["energyCurve"] = [
+                    {
+                        "time": round(float(i) * analysis_result["duration_seconds"] / max(len(analysis_result["energy_curve"]) - 1, 1), 3),
+                        "value": v,
+                    }
+                    for i, v in enumerate(analysis_result["energy_curve"])
+                ]
+                analysis_result["timing_contract"]["amplitudeEnvelope"] = analysis_result["amplitude_envelope"]
+        else:
             analysis_result["computed_on"] = "CPU"
-            await _apply_llm_sections(analysis_result, result, result.waveform.rms_energy if result.waveform else [])
+
+        await _apply_llm_sections(
+            analysis_result,
+            result,
+            (cuda_result or {}).get("rms_energy")
+            or (result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []),
+        )
 
         # Cache the analysis index
         index = _load_analysis_index()
@@ -334,8 +380,8 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
 
         # Save full analysis
         analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
-        with open(analysis_file, "w") as f:
-            json.dump(analysis_result, f, indent=2)
+        with open(analysis_file, "w", encoding="utf-8") as f:
+            json.dump(analysis_result, f, indent=2, ensure_ascii=False)
 
         return AudioAnalysisResult(**analysis_result)
     except HTTPException:
@@ -364,8 +410,12 @@ def _check_backend_available(backend: str) -> None:
 
 def _downsample_curve(curve, max_points):
     """Downsample a curve to at most `max_points` points via uniform sampling."""
-    if not curve or len(curve) <= max_points:
-        return curve or []
+    if not curve:
+        return []
+    if max_points < 2:
+        return [curve[0]]
+    if len(curve) <= max_points:
+        return list(curve)
     indices = [int(round(i * (len(curve) - 1) / (max_points - 1))) for i in range(max_points)]
     return [curve[i] for i in indices]
 
@@ -378,6 +428,17 @@ def _rms_at_time(rms, sr, hop_length, time):
     return rms[frame]
 
 
+# Response-size contract for analysis payloads.
+# Historical bug: the full-resolution RMS envelope (~23k points on a 4-min
+# track) was emitted four times per response (~2.4 MB JSON) even though
+# ``energy_curve`` is documented as "60-100 points for viz". Curves are now
+# downsampled once and reused; beats are capped at a level that covers long,
+# high-tempo tracks instead of silently dropping data at 800.
+_ENERGY_CURVE_POINTS = 100
+_ENVELOPE_POINTS = 1024
+_MAX_BEATS = 4000
+
+
 def _build_analysis_result(
     result,
     unique_id: str,
@@ -387,37 +448,57 @@ def _build_analysis_result(
     """Build the standard analysis response dict from an AudioAnalysisResult."""
     tempo = result.beats.tempo_bpm if result.beats else 120.0
     duration = result.waveform.duration_seconds if result.waveform else 0.0
-    beat_count = len(result.beats.beat_times) if result.beats else 0
-    beat_times = result.beats.beat_times if result.beats else []
-    onset_times = result.beats.onset_times if result.beats else []
+    beat_times_full = list(result.beats.beat_times) if result.beats else []
+    onset_times_full = list(result.beats.onset_times) if result.beats else []
     confidence = result.beats.confidence if result.beats else 0.0
-    energy_curve = result.waveform.amplitude_envelope if result.waveform else []
+    envelope_full = list(result.waveform.amplitude_envelope) if result.waveform else []
     rms = result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []
     sr = result.waveform.sample_rate if result.waveform else 22050
     hop = analyzer.hop_length
 
+    # Normalize raw RMS to 0..1 so BeatEvent.energy matches the shared contract
+    # (it was previously raw RMS, i.e. ~0.05 instead of a 0-1 level).
+    if rms:
+        rms_peak = max(max(rms), 1e-10)
+        rms_norm = [float(v) / rms_peak for v in rms]
+    else:
+        rms_norm = []
+
     sections = _generate_sections_from_analysis(
         duration=duration,
         tempo=tempo,
-        beat_times=beat_times,
-        onset_times=onset_times,
+        beat_times=beat_times_full,
+        onset_times=onset_times_full,
         rms_energy=rms,
         hop_length=analyzer.hop_length,
         sample_rate=sr,
     )
 
+    # Downsample each curve exactly once and reuse it everywhere it appears.
+    envelope = [round(float(v), 4) for v in _downsample_curve(envelope_full, _ENVELOPE_POINTS)]
+    energy_curve = [round(float(v), 4) for v in _downsample_curve(envelope_full, _ENERGY_CURVE_POINTS)]
+
+    beat_times = [round(float(t), 3) for t in beat_times_full[:_MAX_BEATS]]
+    beats_truncated = len(beat_times_full) > _MAX_BEATS
+    downbeat_times = (
+        [round(float(t), 3) for t in (result.beats.downbeat_times or [])[:1000]] if result.beats else []
+    )
+
     return {
         "tempo_bpm": round(float(tempo), 1),
         "duration_seconds": round(float(duration), 2),
-        "beat_count": int(beat_count),
+        "beat_count": int(len(beat_times_full)),
+        "beats_truncated": beats_truncated,
         "sections": sections,
-        "beat_times": [round(float(t), 3) for t in beat_times[:800]],
-        "onset_times": [round(float(t), 3) for t in onset_times[:800]],
-        "energy_curve": [round(float(v), 4) for v in _downsample_curve(energy_curve, 100)],
+        "beat_times": beat_times,
+        "downbeat_times": downbeat_times,
+        "onset_times": [round(float(t), 3) for t in onset_times_full[:800]],
+        "energy_curve": energy_curve,
         "confidence": round(float(confidence), 3),
-        "amplitude_envelope": [round(float(v), 4) for v in energy_curve],
+        "amplitude_envelope": envelope,
+        "spectral": _spectral_summary(result),
         "stored_path": str(file_path),
-        "relative_path": file_path.relative_to(AUDIO_DIR).as_posix(),
+        "relative_path": _relative_audio_path(file_path),
         "job_id": unique_id,
         # Timing contract for frontend + Remotion + AI agents
         "timing_contract": {
@@ -427,26 +508,61 @@ def _build_analysis_result(
             "bpmConfidence": round(float(confidence), 3),
             "beats": [
                 {
-                    "time": round(float(bt), 3),
+                    "time": bt,
                     "drumType": None,
-                    "energy": round(float(_rms_at_time(rms, sr, hop, bt)), 4),
-                    "isDownbeat": i == 0 or (i > 0 and (bt - beat_times[i - 1]) > 60.0 / max(tempo, 1) * 1.5),
+                    "energy": round(float(_rms_at_time(rms_norm, sr, hop, bt)), 4),
+                    # 4/4 assumption — matches scripts/generate_timing_contract.py
+                    # and the stillIRise reference contract (336 beats / 84 hits)
+                    "isDownbeat": i % 4 == 0,
                     "bpm": round(float(tempo), 1),
                 }
-                for i, bt in enumerate(beat_times[:800])
+                for i, bt in enumerate(beat_times)
             ],
             "sections": sections,
             "energyCurve": [
-                {"time": round(float(i) * duration / max(len(energy_curve) - 1, 1), 3), "value": round(float(v), 4)}
+                {"time": round(float(i) * duration / max(len(energy_curve) - 1, 1), 3), "value": v}
                 for i, v in enumerate(energy_curve)
             ],
-            "amplitudeEnvelope": [round(float(v), 4) for v in energy_curve],
+            "amplitudeEnvelope": envelope,
         },
         # Visualization hints for AI-driven preset generation
-        "suggested_visualization": _suggest_visualization(tempo, duration, sections, energy_curve),
+        "suggested_visualization": _suggest_visualization(tempo, duration, sections, envelope_full),
         "suggested_kinetic_preset": _suggest_kinetic_preset(tempo, sections),
-        "suggested_theme_seed": _suggest_theme_seed(sections, energy_curve),
+        "suggested_theme_seed": _suggest_theme_seed(sections, envelope_full),
     }
+
+
+def _relative_audio_path(file_path: Path) -> str:
+    """Return the AUDIO_DIR-relative POSIX path, tolerating external paths."""
+    try:
+        return file_path.relative_to(AUDIO_DIR).as_posix()
+    except ValueError:
+        return file_path.name
+
+
+def _spectral_summary(result) -> dict:
+    """Compact spectral statistics (means), so agents can reason about timbre.
+
+    Only a handful of numbers per track — the full spectral curves stay in the
+    analyzer's own JSON, never in this API payload.
+    """
+    wf = getattr(result, "waveform", None)
+    if wf is None:
+        return {}
+
+    def _mean(values):
+        vals = [float(v) for v in (values or []) if v is not None]
+        if not vals:
+            return None
+        return round(sum(vals) / len(vals), 3)
+
+    summary = {
+        "centroid_mean": _mean(wf.centroid),
+        "rolloff_mean": _mean(wf.spectral_rolloff),
+        "bandwidth_mean": _mean(wf.spectral_bandwidth),
+        "zcr_mean": _mean(wf.zero_crossing_rate),
+    }
+    return {k: v for k, v in summary.items() if v is not None}
 
 
 def _suggest_visualization(tempo: float, duration: float, sections: list[dict], energy_curve: list[float]) -> str | None:
@@ -835,6 +951,9 @@ async def get_analysis_by_filename(filename: str):
     with open(analysis_path, encoding="utf-8") as f:
         data = json.load(f)
 
+    # Cache the JSON-index result too — previously only the DB path populated
+    # the cache, so every request re-read (and re-parsed) the analysis file.
+    _cache_set(normalized, data)
     return data
 
 
@@ -844,11 +963,12 @@ async def get_analysis_result(request: Request, job_id: str):
     if not ANALYSIS_DIR.exists():
         raise HTTPException(status_code=404, detail="No analysis results found")
 
-    for json_file in ANALYSIS_DIR.glob("*_analysis.json"):
-        if job_id[:8] in json_file.name:
-            origin = request.headers.get("origin", "*")
-            return FileResponse(str(json_file), media_type="application/json",
-                                headers={"Access-Control-Allow-Origin": origin})
+    # Prefix match (job ids are the 8-char file prefix) — a substring match
+    # could return an unrelated file whose hash happens to contain the id.
+    for json_file in ANALYSIS_DIR.glob(f"{job_id[:8]}*_analysis.json"):
+        # CORS is handled by the app-wide allowlist middleware; echoing the
+        # request Origin here would bypass that policy.
+        return FileResponse(str(json_file), media_type="application/json")
 
     raise HTTPException(status_code=404, detail="Analysis result not found")
 
@@ -958,8 +1078,8 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
         _save_analysis_index(index)
 
         analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
-        with open(analysis_file, "w") as f:
-            json.dump(analysis_result, f, indent=2)
+        with open(analysis_file, "w", encoding="utf-8") as f:
+            json.dump(analysis_result, f, indent=2, ensure_ascii=False)
 
         logger.info(f"Analysis completed for '{normalized}': {analysis_result['tempo_bpm']} BPM, {analysis_result['beat_count']} beats")
 
@@ -994,6 +1114,9 @@ async def analyze_all_pending(backend: str = "sonara"):
     analyzed_files = []
     errors = []
 
+    # Load the index once — it used to be re-read + rewritten for every file.
+    index = _load_analysis_index()
+
     # Get all audio files recursively (matches list_uploaded_audio behavior)
     audio_files = [
         f for f in AUDIO_DIR.rglob("*")
@@ -1001,7 +1124,10 @@ async def analyze_all_pending(backend: str = "sonara"):
     ]
 
     for file_path in audio_files:
-        filename = file_path.name
+        # Index keys are AUDIO_DIR-relative POSIX paths (same form the read
+        # endpoints normalize to) — previously basenames, which split the index
+        # for files in subdirectories like output/audio/Suno-V6-Mini/.
+        filename = _relative_audio_path(file_path)
         # Skip if already analyzed in database
         existing = database.get_audio_analysis(filename)
         if existing and existing.get("beat_times"):
@@ -1025,12 +1151,10 @@ async def analyze_all_pending(backend: str = "sonara"):
             database.update_audio_analysis(filename, analysis_result)
 
             # Also save to JSON file for backward compatibility
-            index = _load_analysis_index()
             index[filename] = unique_id
-            _save_analysis_index(index)
             analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
-            with open(analysis_file, "w") as f:
-                json.dump(analysis_result, f, indent=2)
+            with open(analysis_file, "w", encoding="utf-8") as f:
+                json.dump(analysis_result, f, indent=2, ensure_ascii=False)
 
             analyzed_files.append({
                 "filename": filename,
@@ -1041,6 +1165,9 @@ async def analyze_all_pending(backend: str = "sonara"):
         except Exception as e:
             errors.append({"filename": filename, "error": str(e)})
             logger.warning(f"Failed to analyze '{filename}': {e}")
+
+    # Persist the index once (progress is durable per file via the DB writes).
+    _save_analysis_index(index)
 
     return {
         "status": "completed",

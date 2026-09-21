@@ -24,7 +24,7 @@ from app.services.audio_analyzer import AudioAnalyzer
 analyzer = AudioAnalyzer(hop_length=512)
 result = analyzer.analyze_file("output/audio/85a406ef_Take the Crown.mp3", job_id="85a406ef")
 # result.beats.tempo_bpm, result.beats.beat_times, result.waveform.rms_energy, result.waveform.amplitude_envelope
-# API wraps as: POST /api/audio/analyze (multipart file) → {tempo_bpm, duration_seconds, beat_times[800], energy_curve[100], sections[8]}
+# API wraps as: POST /api/audio/analyze (multipart file) → {tempo_bpm, duration_seconds, beat_times[≤4000], energy_curve[100], sections[8]}
 ```
 
 *Backend `POST /api/audio/analyze` does this and saves `output/audio_analysis/{id}_analysis.json`.*
