@@ -66,9 +66,12 @@ async def list_comfyui_checkpoints() -> dict:
     ckpt_dir = comfyui_models_dir / "checkpoints" if comfyui_models_dir else None
 
     if ckpt_dir is not None and ckpt_dir.exists():
+        # Filter out non-image checkpoints (3D DiT / video / motion modules)
+        # server-side so every consumer of this endpoint gets a clean list.
+        from ..adapters.comfyui import is_image_checkpoint
         checkpoints = sorted([
             f.name for f in ckpt_dir.iterdir()
-            if f.suffix in (".safetensors", ".ckpt")
+            if f.suffix in (".safetensors", ".ckpt") and is_image_checkpoint(f.name)
         ])
         if checkpoints:
             return {"checkpoints": checkpoints, "directory": str(ckpt_dir)}
@@ -182,9 +185,8 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         params = request.to_adapter_params()
         # Validate checkpoint - don't allow 3D/video models for image generation
         if request.ckpt_name:
-            name_lower = request.ckpt_name.lower()
-            invalid_keywords = ["hunyuan", "wan", "animate", "motion", "3d", "kandinsky"]
-            if any(kw in name_lower for kw in invalid_keywords):
+            from ..adapters.comfyui import is_image_checkpoint
+            if not is_image_checkpoint(request.ckpt_name):
                 logger.warning(f"Checkpoint '{request.ckpt_name}' is not suitable for image generation, ignoring")
                 params.pop("ckpt_name", None)
 
@@ -1367,7 +1369,7 @@ async def get_best_coding_benchmark() -> dict:
 class UpscaleRequest(BaseModel):
     """Request body for the image upscaler."""
     image: str                  # absolute/project-relative path, bare filename, or comfyui/-prefixed ref
-    model: str = "4x-ClearRealityV1"
+    model: str = "4x-ClearRealityV1.safetensors"  # exact ComfyUI-registered name; fuzzy-matched as fallback
     scale: int = 4              # 2 | 4
     prefer_comfyui: bool = True
 

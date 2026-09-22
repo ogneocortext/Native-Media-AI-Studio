@@ -6,7 +6,7 @@
  * frequency data and returns a compact AudioData-shaped payload.
  *
  * Message protocol (main → worker):
- *   { type: "analyze", payload: { freq: Uint8Array, sampleRate: number, elapsed: number, duration: number, beatTimes?: number[], energyCurve?: Array<{t:number,e:number}>, perceptualScale?: PerceptualScale, numPerceptualBands?: number } }
+ *   { type: "analyze", payload: { freq: Uint8Array, sampleRate: number, elapsed: number, duration: number, beatTimes?: number[], downbeatTimes?: number[], energyCurve?: Array<{t:number,e:number}>, perceptualScale?: PerceptualScale, numPerceptualBands?: number } }
  *
  * Message protocol (worker → main):
  *   { type: "result", data: AudioData }
@@ -39,6 +39,8 @@ export interface WorkerAudioData {
   nextBeatIn: number;
   /** Smoothed continuous beat phase, or undefined when no analyzed beat grid. */
   beatPhase: number | undefined;
+  /** True when the current frame is on a backend-identified downbeat. */
+  isDownbeat: boolean;
   analyzedEnergy: number;
   perceptualBands: number[];
   perceptualScale: PerceptualScale;
@@ -52,6 +54,7 @@ export interface AnalyzeMessage {
     elapsed: number;
     duration: number;
     beatTimes?: number[];
+    downbeatTimes?: number[];
     energyCurve?: number[];
     perceptualScale?: "bark" | "erb" | "mel" | "log" | "linear";
     numPerceptualBands?: number;
@@ -90,7 +93,7 @@ let lastBeatTime = 0;
 let nextBeatIn = 0;
 
 function analyze(msg: AnalyzeMessage): WorkerAudioData {
-  const { freq, sampleRate, elapsed, duration, beatTimes, energyCurve, perceptualScale = "mel", numPerceptualBands = 40 } = msg.payload;
+  const { freq, sampleRate, elapsed, duration, beatTimes, downbeatTimes, energyCurve, perceptualScale = "mel", numPerceptualBands = 40 } = msg.payload;
 
   const { bass, mid, treble } = extractFrequencyBands(freq, sampleRate);
 
@@ -115,8 +118,6 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
         drumType = classifyDrumType(bassSmoothed, midSmoothed, trebleSmoothed);
       }
       lastBeatTime = elapsed;
-      // Analyzed grid: exact countdown to the next beat (same source as the
-      // inline path) instead of an interval-average estimate.
       nextBeatIn = getNextBeatInFromArray(beatTimes, elapsed);
     }
   } else {
@@ -146,6 +147,18 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
   }
   lastBass = bassSmoothed;
 
+  // Downbeat detection from backend downbeat times (150ms window)
+  const downbeatT = Math.round(elapsed * 100);
+  let isDownbeat = false;
+  if (downbeatTimes && downbeatTimes.length > 0) {
+    for (let delta = 0; delta <= 15; delta++) {
+      if (downbeatTimes.some((bt) => Math.round(bt * 100) === downbeatT - delta || Math.round(bt * 100) === downbeatT + delta)) {
+        isDownbeat = true;
+        break;
+      }
+    }
+  }
+
   // Continuous beat phase for fluid motion — the boolean `beat` above only
   // snaps on onset frames. Undefined without an analyzed grid, exactly like the
   // inline path, so consumers can fall back to onset pulses instead of reading
@@ -156,8 +169,6 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
       : null;
   let beatPhase: number | undefined;
   if (phaseInfo) {
-    // Low-pass the analyzed phase to reduce grid jitter; wrap-aware so a
-    // 0.97→0.03 crossing does not spin the phase backwards.
     smoothedPhase = smoothBeatPhase(phaseInfo.phase, smoothedPhase);
     beatPhase = smoothedPhase;
   }
@@ -180,6 +191,7 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
     drumType,
     nextBeatIn,
     beatPhase,
+    isDownbeat,
     analyzedEnergy,
     perceptualBands: bands,
     perceptualScale,

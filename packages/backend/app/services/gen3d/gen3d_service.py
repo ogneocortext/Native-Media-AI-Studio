@@ -152,6 +152,20 @@ MODEL_BACKENDS = {
 # Default backend for new requests
 DEFAULT_BACKEND = "hunyuan3d_2mini"
 
+# ComfyUI node classes each backend's workflows depend on. Startup checks
+# verify these are actually registered (custom node pack installed AND
+# importing cleanly) so a broken pack surfaces as "backend unavailable"
+# with a clear log line instead of failing mid-job with a node-not-found
+# error from ComfyUI.
+REQUIRED_NODES = {
+    "hunyuan3d_2mini": ("Hy3DModelLoader", "Hy3DGenerateMesh", "Hy3DVAEDecode", "Hy3DExportMesh"),
+    "hunyuan3d_2mv": ("Hy3DModelLoader", "Hy3DGenerateMesh", "Hy3DVAEDecode", "Hy3DExportMesh"),
+    "triposr": ("TripoSRGenerate",),
+    "stable_fast_3d": ("Comfy3DLoadSF3DModel", "Comfy3DStableFast3D"),
+    "point_e": ("PointETextTo3D", "PointECloudToMesh"),
+    "shap_e": ("ShapETextTo3D", "ShapEMeshExtract"),
+}
+
 
 class Gen3DService:
     """Generate 3D assets from text or image prompts using ComfyUI + multiple backends.
@@ -182,7 +196,13 @@ class Gen3DService:
             subpath = backend_info["diffusion_subpath"] or backend_info["checkpoint_subpath"]
             self.model_dir = COMFYUI_DIR / "models" / "diffusion_models" / subpath
         elif self.backend == "triposr":
-            self.model_dir = COMFYUI_DIR / "models" / "checkpoints" / "triposr"
+            # The real TripoSR download is a single checkpoint file
+            # (checkpoints/triposr.ckpt); older docs used a triposr/ dir.
+            ckpt_file = COMFYUI_DIR / "models" / "checkpoints" / "triposr.ckpt"
+            self.model_dir = (
+                ckpt_file if ckpt_file.exists()
+                else COMFYUI_DIR / "models" / "checkpoints" / "triposr"
+            )
         elif self.backend == "stable_fast_3d":
             self.model_dir = COMFYUI_DIR / "models" / "checkpoints" / "stable-fast-3d"
         elif self.backend == "point_e":
@@ -196,6 +216,15 @@ class Gen3DService:
         if self.available and self.model_dir and not self.model_dir.exists():
             logger.warning("3D model missing for backend '%s': %s", self.backend, self.model_dir)
             self.available = False
+        if self.available:
+            missing_nodes = self._missing_required_nodes()
+            if missing_nodes:
+                logger.warning(
+                    "3D backend '%s' unavailable: ComfyUI node classes not registered "
+                    "(custom node pack missing or import failed): %s",
+                    self.backend, ", ".join(missing_nodes),
+                )
+                self.available = False
         if self.available:
             logger.info("3D generation service ready: %s via ComfyUI", self.backend_name)
         else:
@@ -211,6 +240,28 @@ class Gen3DService:
                 return resp.status == 200
         except Exception:
             return False
+
+    def _missing_required_nodes(self) -> list[str]:
+        """Return REQUIRED_NODES classes that ComfyUI has not registered.
+
+        Queries the lightweight per-node ``/object_info/<name>`` endpoint
+        (404/connection error = not registered). Returns [] when the check
+        cannot be performed so a transient ComfyUI hiccup does not block
+        an otherwise-working backend.
+        """
+        required = REQUIRED_NODES.get(self.backend)
+        if not required:
+            return []
+        missing: list[str] = []
+        for node in required:
+            try:
+                req = urllib.request.Request(f"{COMFYUI_URL}/object_info/{node}")
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    if resp.status != 200:
+                        missing.append(node)
+            except Exception:
+                missing.append(node)
+        return missing
 
     async def generate_from_text(
         self,
@@ -1075,6 +1126,40 @@ class Gen3DService:
             await asyncio.sleep(2)
 
         return {"success": False, "error": "Timeout waiting for 3D generation"}
+    def _backend_health(self) -> dict[str, Any]:
+        """Live per-backend health: model presence + required node registration.
+
+        Fetches ``/object_info`` once and reuses the node set for every
+        backend, so this adds a single HTTP round-trip to the status call.
+        """
+        nodes: set[str] = set()
+        try:
+            req = urllib.request.Request(f"{COMFYUI_URL}/object_info")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status == 200:
+                    nodes = set(json.loads(resp.read().decode("utf-8")).keys())
+        except Exception as e:
+            logger.debug("backend health: object_info fetch failed: %s", e)
+
+        health: dict[str, Any] = {}
+        for name, info in MODEL_BACKENDS.items():
+            subpath = info.get("diffusion_subpath") or info.get("checkpoint_subpath")
+            candidates: list[Path] = []
+            if subpath:
+                base = "diffusion_models" if name.startswith("hunyuan3d") else "checkpoints"
+                candidates.append(COMFYUI_DIR / "models" / base / subpath)
+            if name == "triposr":
+                candidates.append(COMFYUI_DIR / "models" / "checkpoints" / "triposr.ckpt")
+            model_exists = any(c.exists() for c in candidates) if candidates else False
+            required = REQUIRED_NODES.get(name, ())
+            missing = [n for n in required if n not in nodes] if nodes else list(required)
+            health[name] = {
+                "available": bool(nodes) and model_exists and not missing,
+                "model_exists": model_exists,
+                "missing_nodes": missing,
+            }
+        return health
+
     def get_status(self) -> dict[str, Any]:
         """Get service status."""
         comfyui_ok = self._check_comfyui()
@@ -1087,6 +1172,7 @@ class Gen3DService:
             "model_exists": self.model_dir.exists() if self.model_dir else False,
             "output_dir": str(OUTPUT_DIR),
             "generated_count": len(list(OUTPUT_DIR.glob("*.glb"))) + len(list(OUTPUT_DIR.glob("*.obj"))),
+            "backend_health": self._backend_health(),
             "available_backends": list(MODEL_BACKENDS.keys()),
             "text_to_3d_backends": ["point_e", "shap_e", "hunyuan3d_2mini", "hunyuan3d_2mv", "hunyuan3d_2gp_external"],
             "image_to_3d_backends": ["hunyuan3d_2mini", "hunyuan3d_2mv", "triposr", "stable_fast_3d"],

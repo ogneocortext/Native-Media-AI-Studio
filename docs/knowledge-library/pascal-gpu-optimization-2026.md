@@ -159,7 +159,27 @@ config = {
 - Cause: Missing INT8 quantization or excessive offload thrashing
 - Fix: Verify `quantization="int8"` and `use_flash_attention=False`
 
-## 11. Sources
+## 11. TorchAO Quantization (INT8 Only)
+
+TorchAO 0.17 (March 2026) supports INT8 weight-only and INT8 dynamic quantization on Pascal. FP8/MXFP8 require sm_80+ and are **not** available on the GTX 1070 Ti.
+
+```python
+# INT8 weight-only — viable on Pascal
+from torchao.quantization import Int8WeightOnlyConfig, quantize_
+quantize_(model, Int8WeightOnlyConfig())
+```
+
+| Config | Memory Reduction | Speed | Accuracy | Pascal? |
+|--------|-----------------|-------|----------|---------|
+| INT8 weight-only | ~2× | High | Better | ✅ Yes |
+| INT8 dynamic activation + weight | ~2× | Very High | Good | ✅ Yes |
+| FP8 weight-only | ~2× | Very High | Excellent | ❌ No (sm_80+) |
+| MXFP8 dynamic | ~2× | Very High | Excellent | ❌ No (sm_80+) |
+| INT4 | ~4× | High | Model-dependent | ⚠️ Experimental on Pascal |
+
+**Recommendation:** Use INT8 weight-only via TorchAO if ACE-Step's internal INT8 path proves unstable. Otherwise, the current `quantization="int8"` in ACE-Step Tier 3 config is sufficient.
+
+## 12. Sources
 
 - PyTorch 2.0 Accelerated Generative Diffusion Models blog
 - PyTorch SDPA tutorial (docs.pytorch.org)

@@ -881,6 +881,17 @@
     height: 52%;
   }
 
+  /* Mode crossfade overlay — brief black fade when switching visualization modes */
+  .viz-mode-fade {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    z-index: 50;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 200ms ease;
+  }
+
   /* Cinematic letterbox bars — driven by storyboard beats (drops/payoffs).
    Aspect change as act-shift punctuation. */
   .viz-letterbox {

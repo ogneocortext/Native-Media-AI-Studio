@@ -19,7 +19,15 @@ export interface UseAudioAnalysisWorkerOptions {
 
 export interface UseAudioAnalysisWorkerResult {
   data: React.MutableRefObject<AudioData>;
-  send: (freq: Uint8Array, sampleRate: number, elapsed: number, duration: number, beatTimes?: number[], energyCurve?: number[]) => void;
+  send: (
+    freq: Uint8Array,
+    sampleRate: number,
+    elapsed: number,
+    duration: number,
+    beatTimes?: number[],
+    downbeatTimes?: number[],
+    energyCurve?: number[]
+  ) => void;
   destroy: () => void;
 }
 
@@ -34,6 +42,7 @@ const emptyAudioData: AudioData = {
   drumType: null,
   nextBeatIn: 0,
   analyzedEnergy: 0,
+  isDownbeat: false,
 };
 
 export function useAudioAnalysisWorker({
@@ -85,6 +94,7 @@ export function useAudioAnalysisWorker({
           drumType: d.drumType,
           nextBeatIn: d.nextBeatIn,
           beatPhase: d.beatPhase,
+          isDownbeat: d.isDownbeat,
           analyzedEnergy: d.analyzedEnergy,
           perceptualBands: d.perceptualBands,
           perceptualScale: d.perceptualScale as PerceptualScale,
@@ -119,6 +129,7 @@ export function useAudioAnalysisWorker({
       elapsed: number,
       duration: number,
       beatTimes?: number[],
+      downbeatTimes?: number[],
       energyCurve?: number[]
     ) => {
       const worker = workerRef.current;
@@ -132,6 +143,7 @@ export function useAudioAnalysisWorker({
           elapsed,
           duration,
           beatTimes,
+          downbeatTimes,
           energyCurve,
           perceptualScale,
           numPerceptualBands,

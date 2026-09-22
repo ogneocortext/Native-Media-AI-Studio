@@ -14,6 +14,7 @@ from typing import Any
 import aiohttp
 
 from ..core import comfyui_client as _cu
+from ..core.comfyui_client import resolve_models_dir
 from ..core.model_tiers import classify_model_variant, is_wan_8gb_model
 from .base import AdapterStatus, BaseAdapter
 
@@ -50,6 +51,22 @@ def _map_scheduler(scheduler_name: str) -> str:
     """Normalize a scheduler name; fall back to 'normal' on unknown values."""
     name = str(scheduler_name or "normal").strip().lower()
     return name if name in VALID_SCHEDULERS else "normal"
+
+
+# Checkpoints that must never be offered/auto-selected for SD txt2img:
+# 3D diffusion models (hunyuan3d DiT, triposr, stable-fast-3d), video models
+# (wan, kandinsky i2v), and motion modules all live in / are routed through
+# the checkpoints folder but are not SD-family image checkpoints.
+NON_IMAGE_CHECKPOINT_KEYWORDS = (
+    "hunyuan", "wan", "animate", "motion", "3d",
+    "kandinsky", "triposr", "stable-fast",
+)
+
+
+def is_image_checkpoint(name: str) -> bool:
+    """True if a checkpoint filename is usable for SD txt2img generation."""
+    name_lower = str(name).lower()
+    return not any(kw in name_lower for kw in NON_IMAGE_CHECKPOINT_KEYWORDS)
 
 MAX_SEED = 2**32 - 1
 
@@ -165,9 +182,10 @@ class ComfyUIAdapter(BaseAdapter):
                 if preferred in self._available_checkpoints:
                     return preferred
             # Return first available that's not a 3D/video model
+            # (kandinsky/triposr/stable-fast are not SD-family either —
+            # never auto-select them for txt2img)
             for cp in self._available_checkpoints:
-                name_lower = cp.lower()
-                if not any(bad in name_lower for bad in ["hunyuan", "wan", "animate", "motion", "3d"]):
+                if is_image_checkpoint(cp):
                     return cp
 
         # Fallback to default
@@ -390,6 +408,22 @@ class ComfyUIAdapter(BaseAdapter):
             )
             eff_frames = wan_frames
         else:
+            if ckpt_name:
+                # The AnimateDiff path requires an SD1.5-family checkpoint.
+                # Known non-SD checkpoints (Kandinsky 5, Hunyuan3D DiT, etc.)
+                # would fail deep inside ComfyUI with an opaque loader error —
+                # reject them up front with an actionable message instead of
+                # silently ignoring the caller's selection.
+                # Wan names are routed away above; anything else non-SD
+                # (kandinsky/hunyuan/triposr/stable-fast/...) is rejected via
+                # the shared keyword list.
+                if not is_image_checkpoint(ckpt_name):
+                    raise ValueError(
+                        f"Checkpoint '{ckpt_name}' is not an SD1.5-family model and "
+                        "cannot drive the AnimateDiff video path. Pick an SD1.5 "
+                        "checkpoint, or a Wan 2.x GGUF variant for the native "
+                        "video path."
+                    )
             workflow = self._build_video_workflow(
                 prompt_text, negative_text, steps, cfg_scale,
                 width, height, actual_seed, comfy_sampler, num_frames, fps,
@@ -397,6 +431,7 @@ class ComfyUIAdapter(BaseAdapter):
                 motion_lora=params.get("motion_lora", ""),
                 motion_lora_strength=float(params.get("motion_lora_strength", 0.8)),
                 scheduler=scheduler,
+                ckpt_name=ckpt_name,
             )
 
         # Submit workflow to ComfyUI
@@ -635,15 +670,40 @@ class ComfyUIAdapter(BaseAdapter):
         # Wan 2.1 1.3B uses wan_2.1_vae, 2.2 uses wan2.2_vae (verified via Comfy-Org repackaged)
         tier = classify_model_variant(ckpt_name) if ckpt_name else "unknown"
         vae_name = "wan_2.1_vae.safetensors" if tier in ("wan2_1_t2v_1_3b", "wan2_1_fun_inp_1_3b") else "wan2.2_vae.safetensors"
-        # Text encoder: 2.1 1.3B FP16 uses umt5_xxl_fp16 (11GB, CPU offload), 2.2 GGUF uses plain fp8 (6GB)
-        # Both fit 32GB RAM; plain fp8 is lighter. Use plain fp8 for GGUF, fp16 for 1.3B if available.
+        # Text encoder: prefer umt5_xxl_fp16 when present (11GB, CPU offload,
+        # no fp8 format issues). The locally "de-scaled" umt5-xxl-plain-fp8
+        # often still carries fp8 tensor data that LoadWanVideoT5TextEncoder
+        # rejects ("fp8 scaled is not supported"), so fp16 is the safer
+        # choice whenever it is on disk. Fall back to plain fp8 only when
+        # fp16 is absent.
         t5_name = "umt5-xxl-plain-fp8.safetensors"
-        if tier in ("wan2_1_t2v_1_3b", "wan2_1_fun_inp_1_3b"):
-            # Prefer fp16 if present (better quality per ComfyUI docs), else plain fp8
-            import pathlib
-            fp16_path = pathlib.Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI\models\text_encoders\umt5_xxl_fp16.safetensors")
+        models_dir = resolve_models_dir()
+        if models_dir is not None:
+            fp16_path = models_dir / "text_encoders" / "umt5_xxl_fp16.safetensors"
             if fp16_path.exists():
                 t5_name = "umt5_xxl_fp16.safetensors"
+
+        # Validate T5 encoder and VAE availability before submitting.
+        # Missing files cause silent conditioning failures that manifest as
+        # abstract/red-noise output rather than a clean ComfyUI error.
+        models_dir = resolve_models_dir()
+        if models_dir is not None:
+            t5_path = models_dir / "text_encoders" / t5_name
+            vae_path = models_dir / "vae" / vae_name
+            if not t5_path.exists():
+                logger.warning(
+                    "Wan T5 text encoder missing: %s — text conditioning will fail",
+                    t5_path,
+                )
+            if not vae_path.exists():
+                logger.warning(
+                    "Wan VAE missing: %s — decode will produce corrupt output",
+                    vae_path,
+                )
+        logger.info(
+            "Wan workflow tier=%s t5=%s vae=%s ckpt=%s",
+            tier, t5_name, vae_name, ckpt_name,
+        )
 
         return {
             "prompt": {
@@ -653,8 +713,8 @@ class ComfyUIAdapter(BaseAdapter):
                 # scaled) umt5 file: scaled_fp8 checkpoints are rejected, and
                 # standard T5-XXL makes the wrapper fall back to downloading
                 # the google/t5-xxl tokenizer from HF at render time.
-                # umt5-xxl-plain-fp8.safetensors is de-scaled locally from
-                # wangkanai/wan22-fp8-encoders (see docs/scratch/).
+                # Prefer umt5_xxl_fp16 when present (no fp8 format issues);
+                # fall back to umt5-xxl-plain-fp8 only when fp16 is absent.
                 "1": {
                     "class_type": "LoadWanVideoT5TextEncoder",
                     "inputs": {
@@ -699,7 +759,11 @@ class ComfyUIAdapter(BaseAdapter):
                 },
                 # 5: Sample (requires `image_embeds` + `riflex_freq_index`;
                 # `samples` left unconnected per the official example —
-                # verified live via /object_info + example workflows)
+                # verified live via /object_info + example workflows).
+                # riflex_freq_index=6 is the Kijai-recommended default for
+                # standard 832×480 T2V; it controls the RIFLEx attention
+                # recurrence interval and should not be raised above the
+                # frame-count/4 without benchmarking.
                 "5": {
                     "class_type": "WanVideoSampler",
                     "inputs": {
@@ -793,6 +857,7 @@ class ComfyUIAdapter(BaseAdapter):
         motion_lora: str = "",
         motion_lora_strength: float = 0.8,
         scheduler: str = "normal",
+        ckpt_name: str = "",
     ) -> dict[str, Any]:
         """
         Build an AnimateDiff video workflow for ComfyUI.
@@ -803,8 +868,10 @@ class ComfyUIAdapter(BaseAdapter):
         knowledge-library/hardware-verified-models.md §2: 8 camera LoRAs,
         weight 0.7-1.0, best with mm_sd_v15_v2).
         """
-        # Select checkpoint - prefer SD 1.5 for AnimateDiff
-        checkpoint = self._get_available_checkpoint()
+        # Select checkpoint - prefer SD 1.5 for AnimateDiff. Honor an
+        # explicit caller-provided SD-family checkpoint (already validated
+        # upstream in _generate_video).
+        checkpoint = ckpt_name or self._get_available_checkpoint()
         # Respect an explicit motion module (e.g. mm_sd_v15_v2 for LoRA
         # compatibility); fall back to auto-detect only when empty.
         if not motion_module:

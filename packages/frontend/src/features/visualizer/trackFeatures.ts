@@ -7,8 +7,10 @@ export interface TrackFeatures {
   sectionProgress: number;
   brightness: number;
   rolloff: number;
+  bandwidth: number;
   noisiness: number;
   beatPhase: number;
+  isDownbeat: boolean;
   sectionIndex: number;
   totalSections: number;
 }
@@ -20,8 +22,10 @@ const DEFAULT_FEATURES: TrackFeatures = {
   sectionProgress: 0,
   brightness: 0.5,
   rolloff: 0.5,
+  bandwidth: 0.5,
   noisiness: 0.5,
   beatPhase: 0.5,
+  isDownbeat: false,
   sectionIndex: 0,
   totalSections: 0,
 };
@@ -32,7 +36,9 @@ let cachedEnergy: Float32Array | null = null;
 let cachedOnsetSet: Set<number> | null = null;
 let cachedCentroid: Float32Array | null = null;
 let cachedRolloff: Float32Array | null = null;
+let cachedBandwidth: Float32Array | null = null;
 let cachedZCR: Float32Array | null = null;
+let cachedDownbeatSet: Set<number> | null = null;
 let lastUpdateTime = -1;
 let cachedFeatures: TrackFeatures = DEFAULT_FEATURES;
 
@@ -47,10 +53,15 @@ function ensureCached(analysisData: AudioAnalysisData | null | undefined): boole
   cachedEnergy = new Float32Array(analysisData.energy_curve);
   cachedCentroid = new Float32Array(analysisData.spectral_centroid ?? []);
   cachedRolloff = new Float32Array(analysisData.spectral_rolloff ?? []);
+  cachedBandwidth = new Float32Array(analysisData.spectral_bandwidth ?? []);
   cachedZCR = new Float32Array(analysisData.zero_crossing_rate ?? []);
   cachedOnsetSet = new Set();
   for (const t of analysisData.onset_times) {
     cachedOnsetSet.add(Math.round(t * 100));
+  }
+  cachedDownbeatSet = new Set();
+  for (const t of analysisData.downbeat_times ?? []) {
+    cachedDownbeatSet.add(Math.round(t * 100));
   }
   return true;
 }
@@ -137,9 +148,22 @@ export function updateTrackFeatures(
   const rolloff = specIdx >= 0 && cachedRolloff![specIdx]
     ? Math.min(1, cachedRolloff![specIdx] / 12000)
     : 0.5;
+  const bandwidth = specIdx >= 0 && cachedBandwidth![specIdx]
+    ? Math.min(1, cachedBandwidth![specIdx] / 4000)
+    : 0.5;
   const noisiness = specIdx >= 0 && cachedZCR![specIdx]
     ? Math.min(1, cachedZCR![specIdx] / 0.5)
     : 0.5;
+
+  // Downbeat detection (within 150ms window of backend downbeat times)
+  const downbeatT = Math.round(t * 100);
+  let isDownbeat = false;
+  for (let delta = 0; delta <= 15; delta++) {
+    if (cachedDownbeatSet!.has(downbeatT - delta) || cachedDownbeatSet!.has(downbeatT + delta)) {
+      isDownbeat = true;
+      break;
+    }
+  }
 
   // Beat phase using binary search
   let beatPhase = 0.5;
@@ -159,8 +183,10 @@ export function updateTrackFeatures(
     sectionProgress,
     brightness,
     rolloff,
+    bandwidth,
     noisiness,
     beatPhase,
+    isDownbeat,
     sectionIndex,
     totalSections: sections.length,
   };

@@ -43,10 +43,42 @@ def setup_tracing(app) -> None:
         logger.warning("Tracing setup failed: %s", exc)
 
 
+class _NoOpSpan:
+    """No-op span so callers can use `with tracer.start_as_current_span(...)` safely."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def set_attribute(self, *args, **kwargs):
+        pass
+
+    def record_exception(self, *args, **kwargs):
+        pass
+
+    def set_status(self, *args, **kwargs):
+        pass
+
+
+class _NoOpTracer:
+    """No-op tracer returned when OpenTelemetry is unavailable/disabled."""
+
+    def start_as_current_span(self, *args, **kwargs):
+        return _NoOpSpan()
+
+    def start_span(self, *args, **kwargs):
+        return _NoOpSpan()
+
+
+_NOOP_TRACER = _NoOpTracer()
+
+
 def get_tracer(name: str) -> object:
     """Return a tracer, or a no-op tracer when tracing is disabled."""
     try:
         from opentelemetry import trace
         return trace.get_tracer(name)
     except Exception:
-        return None
+        return _NOOP_TRACER

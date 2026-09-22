@@ -175,6 +175,8 @@ export function Visualizer() {
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [vizMode, setVizMode] = useState<"3d" | "shader" | "2d">("shader"); // 2d = Canvas2D (2026 visual-flux/Waviz)
+  const [modeFade, setModeFade] = useState(0);
+  const prevModeRef = useRef(vizMode);
   const [canvas2DMode, setCanvas2DMode] = useState<"bars" | "mirrored-bars" | "segmented-led-bars" | "stereo-split-bars" | "stacked-frequency-bands" | "dot-peak-matrix" | "waveform" | "radial" | "spectrogram" | "lissajous" | "constellation" | "particles">("bars");
   const [perceptualScale, setPerceptualScale] = useState<PerceptualScale>("mel");
   // Adaptive pixel ratio (2026 perf best practice): PerformanceMonitor steps
@@ -880,10 +882,15 @@ export function Visualizer() {
         e.preventDefault();
         setShowTestPanel(v => !v);
       }
+      // Ctrl+Shift+A triggers analyze when a track is selected (mirrors the 2D canvas shortcut)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "a" && currentFilename) {
+        e.preventDefault();
+        handleAnalyzeTrack(currentFilename);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [currentFilename, handleAnalyzeTrack]);
 
   useEffect(() => {
     if (!showMoreMenu) return;
@@ -896,6 +903,18 @@ export function Visualizer() {
     document.addEventListener('click', onClick);
     return () => document.removeEventListener('click', onClick);
   }, [showMoreMenu]);
+
+  // Mode crossfade: brief black fade when switching visualization modes
+  useEffect(() => {
+    if (prevModeRef.current !== vizMode) {
+      prevModeRef.current = vizMode;
+      // Fade to black
+      setModeFade(1);
+      // At peak opacity, start fading back in (content swaps naturally mid-fade)
+      const t = setTimeout(() => setModeFade(0), 180);
+      return () => clearTimeout(t);
+    }
+  }, [vizMode]);
 
   // Respect OS reduced-motion preference and allow manual toggle
   useEffect(() => {
@@ -1017,10 +1036,13 @@ export function Visualizer() {
             <Play size={14} />
           </button>
           {currentFilename && !currentAnalysisData && (
-            <button className="viz-analyze-btn" onClick={() => handleAnalyzeTrack(currentFilename)} disabled={analyzing}>
+            <button className="viz-analyze-btn" onClick={() => handleAnalyzeTrack(currentFilename)} disabled={analyzing} aria-describedby="viz-analyze-status">
               {analyzing ? "Analyzing..." : "Analyze"}
             </button>
           )}
+          <span id="viz-analyze-status" className="sr-only" aria-live="polite">
+            {analyzing ? "Analyzing track..." : currentAnalysisData ? "Analysis complete" : ""}
+          </span>
           {currentFilename && activeVisualPresetId && visualPresets[activeVisualPresetId] && (
             <span className="viz-preset-badge" title={`Active preset: ${visualPresets[activeVisualPresetId].name}\n${visualPresets[activeVisualPresetId].description}`}>
               {visualPresets[activeVisualPresetId].name}
@@ -1074,7 +1096,7 @@ export function Visualizer() {
                     <option value="particles">Particles</option>
                   </select>
                 )}
-                {isRecording && <span className="viz-rec viz-more-item"><span className="viz-rec-dot" /> {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}</span>}
+                 {isRecording && <span className="viz-rec viz-more-item" aria-live="polite"><span className="viz-rec-dot" /> {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}</span>}
                 <button onClick={isRecording ? stopRecording : startRecording} className={`viz-icon-btn viz-more-item ${isRecording ? "rec" : ""}`} aria-label={isRecording ? "Stop recording" : "Start recording"} aria-pressed={isRecording} title={isRecording ? "Stop recording" : "Start recording"}>
                   {isRecording ? <Square size={14} /> : <Video size={14} />}
                 </button>
@@ -1113,6 +1135,8 @@ export function Visualizer() {
       />
 
       <div className="viz-content">
+         {/* Mode crossfade overlay */}
+         <div className="viz-mode-fade" style={{ opacity: modeFade }} />
         <div className="viz-canvas-wrap" ref={containerRef}>
           {!audioUrl && !currentFilename && (
             <div className="viz-empty-hero" role="status" aria-label="Get started with the visualizer">
@@ -1198,17 +1222,18 @@ export function Visualizer() {
                    className="absolute inset-0"
                  />
                )}
-                {vizMode === "2d" && (
-                  <Canvas2DVisualizer
-                    audioData={liveAudioDataRef}
-                    analyserRef={analyserRef}
-                    isPlaying={isPlaying}
-                    mode={canvas2DMode}
-                    lrcSync={lrcSync}
-                    lrcSyncLive={lrcSyncLiveRef}
-                    bgColor={bgColor}
-                  />
-                )}
+                 {vizMode === "2d" && (
+                   <Canvas2DVisualizer
+                     audioData={liveAudioDataRef}
+                     analyserRef={analyserRef}
+                     isPlaying={isPlaying}
+                     mode={canvas2DMode}
+                     lrcSync={lrcSync}
+                     lrcSyncLive={lrcSyncLiveRef}
+                     bgColor={bgColor}
+                     prefersReducedMotion={prefersReducedMotion}
+                   />
+                 )}
                 {vizMode === "3d" && !rendererReady && <div className="viz-loading-overlay"><div className="viz-loading-spinner" /><span>Initializing {rendererBackend || (gpuResult.supported && isWebGPUOptIn() ? "WebGPU" : "WebGL")}...</span></div>}
                {vizMode === "3d" && rendererReady && <div className="viz-backend-badge">{rendererBackend}</div>}
                {vizMode === "3d" && rendererReady && <StylePicker active={visualizationStyle} onChange={setVisualizationStyle} />}

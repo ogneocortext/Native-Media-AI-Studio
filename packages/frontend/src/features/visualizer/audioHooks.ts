@@ -164,8 +164,9 @@ export function useRealAudio(
       const elapsed = audioElapsedRef?.current ?? 0;
       const duration = analysisData?.duration_seconds ?? 0;
       const beatTimes = analysisData?.beat_times;
+      const downbeatTimes = analysisData?.downbeat_times;
       const energyCurve = analysisData?.energy_curve;
-      worker.send(arr, ctx.sampleRate, elapsed, duration, beatTimes, energyCurve);
+      worker.send(arr, ctx.sampleRate, elapsed, duration, beatTimes, downbeatTimes, energyCurve);
       data.current = worker.data.current;
       return;
     }
@@ -312,6 +313,20 @@ export function useRealAudio(
         ? rawEnergy * 0.6 + analyzedEnergy * 0.4
         : rawEnergy;
 
+    // Downbeat detection from backend downbeat times (150ms window)
+    let isDownbeat = false;
+    if (analysisData && analysisData.downbeat_times && analysisData.downbeat_times.length > 0 && elapsed > 0) {
+      const downbeatT = Math.round(elapsed * 100);
+      for (let delta = 0; delta <= 15; delta++) {
+        if (
+          analysisData.downbeat_times.some((bt) => Math.round(bt * 100) === downbeatT - delta || Math.round(bt * 100) === downbeatT + delta)
+        ) {
+          isDownbeat = true;
+          break;
+        }
+      }
+    }
+
     data.current = {
       bass,
       mid,
@@ -323,6 +338,7 @@ export function useRealAudio(
       drumType,
       nextBeatIn: nextBeatInRef.current,
       beatPhase: phaseInfo ? smoothedPhase.current : undefined,
+      isDownbeat,
       analyzedEnergy,
       perceptualBands,
       perceptualScale,

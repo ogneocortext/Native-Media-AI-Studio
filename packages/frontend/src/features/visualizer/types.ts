@@ -24,6 +24,11 @@ export interface AudioData {
    */
   beatPhase?: number;
   /**
+   * True when the current frame is on a backend-identified downbeat.
+   * Lets visualizations accent bar lines without recomputing the grid.
+   */
+  isDownbeat?: boolean;
+  /**
    * Interpolated analyzed energy at the current elapsed time (from backend
    * `energy_curve`). 0 when no analysis is available. Lets visuals modulate
    * intensity against the analyzed track energy rather than raw frequency only.
@@ -45,6 +50,7 @@ export interface AudioAnalysisData {
   tempo_bpm: number;
   beat_count: number;
   beat_times: number[];
+  downbeat_times?: number[];
   onset_times: number[];
   energy_curve: number[];
   amplitude_envelope: number[];

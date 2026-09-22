@@ -8,10 +8,10 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from ..core.logging_config import get_log_files, get_log_stats, read_log_tail
+from ..core.logging_config import clear_log_files, get_log_files, get_log_stats, read_log_tail
 
 router = APIRouter(prefix="/api/logs", tags=["Logs"])
 
@@ -20,6 +20,10 @@ class FrontendLogRequest(BaseModel):
     """Request body for frontend log entries."""
 
     entries: list[dict]
+
+_VALID_FRONTEND_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+_MAX_FRONTEND_ENTRIES = 100
+_MAX_FRONTEND_MESSAGE = 2000
 
 
 @router.get("/")
@@ -44,9 +48,10 @@ async def get_log_content(
     """
     available = get_log_files()
     if log_name not in available:
-        return {
-            "error": f"Unknown log: {log_name}. Available: {sorted(available.keys())}",
-        }
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown log: {log_name}. Available: {sorted(available.keys())}",
+        )
 
     log_file = available[log_name]
     content = read_log_tail(log_file, lines)
@@ -60,17 +65,8 @@ async def get_log_content(
 
 @router.post("/clear")
 async def clear_logs() -> dict:
-    """Clear all log files (requires restart to take full effect)."""
-    cleared = []
-    for name, path in get_log_files().items():
-        if path.exists():
-            try:
-                # Truncate the file
-                with open(path, "w") as f:
-                    f.write("")
-                cleared.append(name)
-            except Exception:
-                pass
+    """Clear all log files (handler-safe truncation, no restart needed)."""
+    cleared = clear_log_files()
 
     return {"cleared": cleared, "message": f"Cleared {len(cleared)} log files"}
 
@@ -78,12 +74,15 @@ async def clear_logs() -> dict:
 @router.post("/frontend")
 async def receive_frontend_logs(body: FrontendLogRequest) -> dict:
     """Receive log entries from the frontend and write them to the app log."""
-    entries = body.entries
+    entries = body.entries[:_MAX_FRONTEND_ENTRIES]
+    dropped = len(body.entries) - len(entries)
     logger = logging.getLogger("frontend")
 
     for entry in entries:
-        level = entry.get("level", "INFO")
-        message = entry.get("message", "")
+        level = str(entry.get("level", "INFO")).upper()
+        if level not in _VALID_FRONTEND_LEVELS:
+            level = "INFO"
+        message = str(entry.get("message", ""))[:_MAX_FRONTEND_MESSAGE]
         data = entry.get("data")
         trace_id = entry.get("trace_id", "")
 
@@ -106,4 +105,8 @@ async def receive_frontend_logs(body: FrontendLogRequest) -> dict:
         log_level = getattr(logging, level.upper(), logging.INFO)
         logger.log(log_level, message)
 
-    return {"received": len(entries)}
+    result: dict = {"received": len(entries)}
+    if dropped:
+        logger.warning("Dropped %d frontend log entries (batch cap %d)", dropped, _MAX_FRONTEND_ENTRIES)
+        result["dropped"] = dropped
+    return result

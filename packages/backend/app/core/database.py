@@ -601,11 +601,31 @@ def _extract_trace_id(message: str) -> tuple[str, str]:
     return message, ""
 
 
+def _strip_request_id_prefix(message: str) -> str:
+    """Strip a leading ``[request-id]`` correlation token from a log message.
+
+    The logging formatters now prefix every message with ``[<request_id>]``.
+    Request ids are unique per request, so keeping them would defeat message
+    grouping in analytics. Only strips the bracket when it looks like a
+    correlation id (UUID or the "-" placeholder), never real message content.
+    """
+    if not message.startswith("["):
+        return message
+    end = message.find("]")
+    if end <= 1 or end > 40:
+        return message
+    token = message[1:end]
+    if token == "-" or _NORMALIZE_UUID_RE.fullmatch(token):
+        return message[end + 1 :].lstrip()
+    return message
+
+
 def _parse_log_line(line: str) -> LogEventRow | None:
     """Parse a single log line into a LogEventRow.
 
     Expected format: YYYY-MM-DD HH:MM:SS | LEVEL | logger | func | message
-    func may be empty; message may contain [trace_id=...] metadata.
+    func may be empty; message may contain [trace_id=...] metadata and a
+    leading [request-id] correlation prefix (stripped for grouping).
     """
     try:
         # maxsplit=4 so message itself may contain " | " (e.g. data payloads)
@@ -621,6 +641,7 @@ def _parse_log_line(line: str) -> LogEventRow | None:
         _func = parts[3].strip() if len(parts) > 3 else ""
         message_raw = parts[4].strip() if len(parts) > 4 else ""
         message, trace_id = _extract_trace_id(message_raw)
+        message = _strip_request_id_prefix(message)
         message = _normalize_log_message(message)
         try:
             dt = datetime.fromisoformat(ts_str)

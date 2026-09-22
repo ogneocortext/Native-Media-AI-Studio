@@ -226,8 +226,15 @@ async def update_settings(req: SettingsUpdateRequest) -> dict:
         config.atomic_chat_enabled = req.atomic_chat_enabled
         updates["atomic_chat_enabled"] = req.atomic_chat_enabled
     if req.log_level is not None:
-        config.log_level = req.log_level
-        updates["log_level"] = req.log_level
+        try:
+            from ..core.logging_config import apply_log_level
+            config.log_level = apply_log_level(req.log_level)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid log_level '{req.log_level}'. Use one of DEBUG, INFO, WARNING, ERROR, CRITICAL.",
+            ) from exc
+        updates["log_level"] = config.log_level
     if req.max_queue_workers is not None:
         config.max_queue_workers = req.max_queue_workers
         updates["max_queue_workers"] = req.max_queue_workers

@@ -256,6 +256,7 @@ Tools are grouped by pipeline stage. Each entry includes a **try-first** recomme
 | gsplat | 3D / splats | No | Gaussian splat ops | Medium | ⏸️ Later |
 | BeatSync Engine | Video / AMV | No | Proven beat-sync cuts | Medium | ⏸️ Later |
 | tubeviz | Visualization | No | Quick viz presets | Low | ⏸️ Later |
+| TorchAO | Model quant | Drop-in | ~2× VRAM reduction for supported models | Low | 🔄 Evaluate (INT8 on Pascal) |
 | CUDA C++ | GPU kernels | No | Custom op perf | High | ⏸️ Profiler-first |
 | Rust / PyO3 | Backend tools | No | 2–4× hot paths | High | ⏸️ Profiler-first |
 | WGSL | Frontend compute | No | GPU particle sim | Medium | ⏸️ Later |
@@ -287,6 +288,21 @@ Tools are grouped by pipeline stage. Each entry includes a **try-first** recomme
    - `numba` cuda kernel for audio DSP
    - `PyO3` wrapper around a Rust audio decoder
    - Raw `.cu` kernel only when both above fail
+
+---
+
+#### TorchAO — PYTORCH QUANTIZATION (INT8 on Pascal)
+
+| Attribute | Value |
+|-----------|-------|
+| Strength | INT8 weight-only/dynamic quantization for PyTorch models; ~2× VRAM reduction |
+| Install | `pip install torchao` |
+| Pascal support | INT8 only (FP8/MXFP8 require sm_80+) |
+| Use case | ACE-Step, ComfyUI UNet/VAE weight compression |
+
+**Try first:** Profile current ACE-Step VRAM usage with `gpustat`; if weights alone exceed 4 GB, evaluate INT8 weight-only via TorchAO.
+
+**Caveat:** TorchAO is in active development (0.17 as of March 2026). Pin to a known-good version.
 
 ---
 

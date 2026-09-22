@@ -1867,7 +1867,7 @@ async def serve_audio_file(request: Request, filename: str):
 
     # Security: prevent directory traversal via resolve check
     candidate = (AUDIO_DIR / filename).resolve()
-    allowed_dirs = [AUDIO_DIR.resolve()]
+    allowed_dirs = [AUDIO_DIR.resolve(), (PROJECT_ROOT / "output" / "audio").resolve()]
     if not any(str(candidate).startswith(str(d)) for d in allowed_dirs) or ".." in Path(filename).parts:
         raise HTTPException(status_code=400, detail="Invalid filename")
     file_path = candidate

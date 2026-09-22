@@ -9,6 +9,9 @@ export interface TrackMetadata {
   sections: AudioAnalysisResult["sections"];
   energyCurve: number[];
   confidence: number;
+  suggestedVisualization?: string;
+  suggestedKineticPreset?: string;
+  suggestedThemeSeed?: string;
 }
 
 export function useTrackMetadata(selectedTrack: string | null) {
@@ -35,6 +38,9 @@ export function useTrackMetadata(selectedTrack: string | null) {
           sections: data.sections,
           energyCurve: data.energy_curve,
           confidence: data.confidence,
+          suggestedVisualization: data.suggested_visualization,
+          suggestedKineticPreset: data.suggested_kinetic_preset,
+          suggestedThemeSeed: data.suggested_theme_seed,
         });
       })
       .catch((err) => {

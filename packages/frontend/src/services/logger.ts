@@ -1,7 +1,9 @@
 /**
  * Centralized logging service for the frontend.
- * Sends log entries to the backend /api/logs/ endpoint for unified monitoring.
+ * Sends log entries to the backend /api/logs/frontend endpoint for unified monitoring.
  */
+
+import { getBackendUrl } from "./portConfig";
 
 type LogLevel = "DEBUG" | "INFO" | "WARNING" | "ERROR";
 
@@ -14,64 +16,165 @@ interface LogEntry {
   trace_id?: string;
 }
 
+const FLUSH_INTERVAL_MS = 5000;
+const MAX_QUEUE = 200;
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000;
+
+function resolveFrontendLogUrl(): string {
+  try {
+    const base = getBackendUrl().replace(/\/$/, "");
+    // Same-origin dev proxy serves /api/* directly; only use the absolute
+    // backend URL when it differs from the page origin (detached frontend).
+    if (typeof window !== "undefined" && base.startsWith(window.location.origin)) {
+      return "/api/logs/frontend";
+    }
+    // In dev with the Vite proxy, relative URL is preferred (avoids CORS).
+    // Use the direct backend URL only as a fallback when fetch fails (below).
+    return "/api/logs/frontend";
+  } catch {
+    return "/api/logs/frontend";
+  }
+}
+
+function resolveDirectBackendUrl(): string | null {
+  try {
+    const base = getBackendUrl().replace(/\/$/, "");
+    if (typeof window !== "undefined" && base.startsWith(window.location.origin)) {
+      return null; // same origin — no separate fallback needed
+    }
+    return `${base}/api/logs/frontend`;
+  } catch {
+    return null;
+  }
+}
+
+class LogHub {
+  private static loggers = new Set<Logger>();
+  private static timer: ReturnType<typeof setInterval> | null = null;
+  private static retryCount = 0;
+
+  static register(logger: Logger) {
+    this.loggers.add(logger);
+    if (this.timer === null && typeof window !== "undefined") {
+      this.timer = setInterval(() => void this.flushAll(), FLUSH_INTERVAL_MS);
+      const flushNow = () => void this.flushAll(true);
+      window.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") flushNow();
+      });
+      window.addEventListener("beforeunload", flushNow);
+    }
+  }
+
+  static collect(): LogEntry[] {
+    const entries: LogEntry[] = [];
+    for (const logger of this.loggers) {
+      entries.push(...logger.drain());
+    }
+    return entries;
+  }
+
+  static requeue(entries: LogEntry[]) {
+    // Return entries to their originating logger queues (cap size).
+    const bySource = new Map<string, LogEntry[]>();
+    for (const e of entries) {
+      const list = bySource.get(e.source) ?? [];
+      list.push(e);
+      bySource.set(e.source, list);
+    }
+    for (const logger of this.loggers) {
+      const list = bySource.get(logger.source);
+      if (list) logger.requeue(list);
+    }
+  }
+
+  static async flushAll(isUnload = false) {
+    const entries = this.collect();
+    if (entries.length === 0) return;
+
+    const payload = JSON.stringify({ entries });
+
+    // On page hide/unload, fetch() may be cancelled — sendBeacon survives.
+    if (isUnload && typeof navigator !== "undefined" && "sendBeacon" in navigator) {
+      try {
+        const ok = navigator.sendBeacon(
+          resolveFrontendLogUrl(),
+          new Blob([payload], { type: "application/json" }),
+        );
+        if (ok) {
+          this.retryCount = 0;
+          return;
+        }
+      } catch {
+        // Fall through to fetch with keepalive.
+      }
+    }
+
+    const send = async (url: string, timeoutMs: number) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+          signal: controller.signal,
+          keepalive: isUnload,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+
+    try {
+      await send(resolveFrontendLogUrl(), isUnload ? 4000 : 8000);
+      this.retryCount = 0;
+    } catch {
+      // One direct-backend fallback attempt (detached frontend without proxy).
+      const direct = resolveDirectBackendUrl();
+      if (direct) {
+        try {
+          await send(direct, isUnload ? 4000 : 8000);
+          this.retryCount = 0;
+          return;
+        } catch {
+          // Fall through to requeue.
+        }
+      }
+      this.requeue(entries);
+      this.retryCount += 1;
+      if (this.retryCount <= MAX_RETRIES) {
+        const delay = BASE_DELAY_MS * Math.pow(2, this.retryCount - 1);
+        setTimeout(() => void this.flushAll(), delay);
+      }
+    }
+  }
+}
+
 class Logger {
-  private source: string;
+  readonly source: string;
   private queue: LogEntry[] = [];
-  private flushInterval: number = 5000;
-  private intervalId: ReturnType<typeof setInterval> | null = null;
   private traceId: string;
-  private retryCount: number = 0;
-  private maxRetries: number = 3;
-  private baseDelay: number = 1000;
 
   constructor(source: string) {
     this.source = source;
     this.traceId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    this.startFlushInterval();
-    this.installUnloadHook();
+    LogHub.register(this);
   }
 
-  private installUnloadHook() {
-    if (typeof window === "undefined") return;
-    const flushNow = () => this.flush(true);
-    window.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") flushNow();
-    });
-    window.addEventListener("beforeunload", flushNow);
-  }
-
-  private startFlushInterval() {
-    this.intervalId = setInterval(() => this.flush(), this.flushInterval);
-  }
-
-  private async flush(isUnload: boolean = false) {
-    if (this.queue.length === 0) return;
-
+  /** Remove up to all queued entries for a hub flush. */
+  drain(): LogEntry[] {
     const entries = [...this.queue];
     this.queue = [];
+    return entries;
+  }
 
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), isUnload ? 4000 : 8000);
-      await fetch("/api/logs/frontend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ entries }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      this.retryCount = 0;
-    } catch {
-      // Backend not available, keep in queue for next flush (cap size).
-      this.queue.unshift(...entries);
-      if (this.queue.length > 200) {
-        this.queue = this.queue.slice(-200);
-      }
-      this.retryCount += 1;
-      if (this.retryCount <= this.maxRetries) {
-        const delay = this.baseDelay * Math.pow(2, this.retryCount - 1);
-        setTimeout(() => this.flush(), delay);
-      }
+  /** Return entries to the front of the queue (cap size). */
+  requeue(entries: LogEntry[]) {
+    this.queue.unshift(...entries);
+    if (this.queue.length > MAX_QUEUE) {
+      this.queue = this.queue.slice(-MAX_QUEUE);
     }
   }
 
@@ -90,6 +193,9 @@ class Logger {
     console[consoleMethod](`[${this.source}] ${message}`, data ?? "");
 
     this.queue.push(entry);
+    if (this.queue.length > MAX_QUEUE) {
+      this.queue = this.queue.slice(-MAX_QUEUE);
+    }
   }
 
   debug(message: string, data?: Record<string, unknown>) {
@@ -109,11 +215,9 @@ class Logger {
   }
 
   destroy() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
-    this.flush(true);
+    // No per-instance timer anymore — the hub owns the single interval.
+    // Flush remaining entries through the hub.
+    void LogHub.flushAll(true);
   }
 }
 

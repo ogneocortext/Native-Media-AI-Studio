@@ -51,6 +51,7 @@ date: 2026-09-05
 - [[python-environment-management|🐍 Python Environment Management]] — venv mechanics, decoupling graph, PyTorch×Pascal (sm_61) wheel matrix, env migration recipes (NEW 2026-09-06)
 - [[pascal-gpu-optimization-2026|🐴 Pascal GPU Optimization 2026]] — GTX 1070 Ti / sm_61 constraints: torch version, SDPA backends, torch.compile limits, VRAM optimization stack for ACE-Step Tier 3 (NEW 2026-09-20)
 - [[stack-extensions-2026|🔧 Stack Extensions 2026]] — Optional languages (CUDA C++, Rust/PyO3, WGSL, **Go**) + high-value Python tools for audio/video/3D (core-flux, madmom-infer, sonara, MovieLite, essentia, audiofeat, videopython, BeatSync Engine, gsplat) — benchmark-first adoption (NEW 2026-09-07)
+- [[cuda-pytorch-directx-upgrades-2026|🚀 CUDA/PyTorch/DirectX Upgrades 2026]] — CUDA 12.6 toolkit features, torchaudio CUDA migration, TorchAO INT8 quantization, WebGPU compute shaders (Three.js TSL), DirectX 12 Ultimate applicability (Pascal limits) — upgrade recommendations for the current stack (NEW 2026-09-22)
 - [[go-integration-2026|🔀 Go Integration 2026]] — Split-stack architecture: Go for dashboard/SSE, media workers, gateway; Python for AI/model layer (NEW 2026-09-08)
 
 ### 🎯 Specialized Guides
@@ -116,6 +117,7 @@ date: 2026-09-05
 | `#go`                | Go integration: dashboard, media workers, gateway | 1 document  |
 | `#pascal-gpu`        | GTX 10xx Pascal architecture                      | 1 document  |
 | `#vram-optimization` | 8GB VRAM optimization techniques                  | 1 document  |
+| `#torchao` | TorchAO quantization for Pascal (INT8 only) | 1 document  |
 
 ---
 
@@ -182,11 +184,11 @@ graph LR
 
 | Metric          | Count                                                                                                                       |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Total Documents | 52                                                                                                                          |
-| Total Tags      | 27                                                                                                                          |
-| Total Links     | 90+                                                                                                                         |
-| Last Updated    | 2026-09-20 (Web search expansion: video VRAM, YouTube algorithm, WebGPU, 3D generation)                                     |
-| Latest Add      | 2026-09-20 (Video generation VRAM 2026, YouTube algorithm 2026 updates, WebGL/WebGPU audio viz, 3D generation 2026 updates) |
+| Total Documents | 54                                                                                                                          |
+| Total Tags      | 28                                                                                                                          |
+| Total Links     | 95+                                                                                                                         |
+| Last Updated    | 2026-09-22 (CUDA/PyTorch/DirectX upgrade research: torchaudio CUDA, TorchAO INT8, WebGPU compute, DirectX 12 Ultimate Pascal limits)                                     |
+| Latest Add      | 2026-09-22 (CUDA/PyTorch/DirectX Upgrades 2026, TorchAO INT8 section in Pascal GPU Optimization) |
 
 ---
 

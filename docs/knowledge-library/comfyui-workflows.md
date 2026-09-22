@@ -38,6 +38,15 @@ date: 2026-08-24
 
 ### Installed Models (8GB-local only)
 
+> [!note] Audited on-disk 2026-09-22 (verified against live `/object_info`)
+> **Image:** `checkpoints/v1-5-pruned-emaonly.safetensors` (4.3GB) ✅
+> **Video:** Wan2.1 1.3B fp16 + `wan_2.1_vae` + `umt5_xxl` encoders ✅; Wan2.2 TI2V-5B `Q4_K_M.gguf` + `wan2.2_vae` ✅; AnimateDiff-Evolved `mm_sd_v15_v2`/`mm-Stabilized_high`/`mm_sd15_v3` + 8 camera LoRAs ✅
+> **3D:** Hunyuan3D-2mini complete (DiT fast/turbo/base + VAE, `checkpoints/hunyuan3d-dit-v2-mini.safetensors` is now a hardlink to the `diffusion_models` copy) ✅; Kijai Hy3D wrapper deps installed (xatlas/pymeshlab/pygltflib/skimage/sklearn) ✅; `custom_rasterizer` wheel is cp312-only (env is py3.11) — texture baking unavailable, mesh gen unaffected
+> **Upscale:** `4x-ClearRealityV1.safetensors` + `4x-UltraSharp.pth` in `models/upscale_models/` ✅ (were missing; service silently fell back to FFmpeg lanczos)
+> **Kandinsky 5 Lite I2V:** checkpoint + native nodes + hunyuan_video VAE ✅; `qwen_2.5_vl_7b_fp8_scaled.safetensors` (9.4GB) text encoder downloaded to `models/text_encoders/` ✅
+> **Removed:** `checkpoints/triposr.safetensors` / `stable-fast-3d.safetensors` were 15/134-byte HF error pages (gated repo, unauthenticated) — deleted. TripoSR/SF3D 3D backends need authenticated re-downloads to `models/checkpoints/`.
+> **Deduped via hardlinks (8.9GB saved):** hunyuan3d DiT (3.8GB), legacy `stable-diffusion/` v1-5 (4.3GB) + mm_sd15_v3 (0.8GB).
+
 ### Installed Models
 
 | Model | Type | Path | VRAM Usage | Status |

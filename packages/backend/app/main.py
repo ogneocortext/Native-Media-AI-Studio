@@ -342,11 +342,33 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         request.state.request_id = request_id
+        try:
+            from .core.logging_config import set_request_id
+            set_request_id(request_id)
+        except Exception:
+            pass
         start = time.perf_counter()
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception:
+            duration_ms = (time.perf_counter() - start) * 1000
+            logger.exception(
+                "Request failed: %s %s (%.1fms, request_id=%s)",
+                request.method, request.url.path, duration_ms, request_id,
+            )
+            raise
         duration_ms = (time.perf_counter() - start) * 1000
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Response-Time"] = f"{duration_ms:.2f}ms"
+        # Access log: one line per request at INFO (slow) / DEBUG (fast) so
+        # the app log shows traffic without flooding on health polls.
+        # SSE/health polling is frequent — keep those at DEBUG.
+        msg = "%s %s -> %d (%.1fms, request_id=%s)"
+        args = (request.method, request.url.path, response.status_code, duration_ms, request_id)
+        if request.url.path in ("/api/health", "/api/events") or duration_ms < 500:
+            logger.debug(msg, *args)
+        else:
+            logger.info(msg, *args)
         return response
 
 
@@ -394,7 +416,11 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    logger.error("Unhandled exception", exc_info=True)
+    request_id = getattr(request.state, "request_id", "-")
+    logger.error(
+        "Unhandled exception on %s %s (request_id=%s)",
+        request.method, request.url.path, request_id, exc_info=True,
+    )
     return _error_response(500, "INTERNAL_ERROR", "An unexpected error occurred.")
 
 from .api import (  # noqa: E402

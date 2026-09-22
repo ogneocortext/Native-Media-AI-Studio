@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState } from "react";
 import type { AudioData } from "./types";
-import { isDownbeatIndex } from "@shared/timing";
 
 export interface Canvas2DVisualizerRef {
   captureScreenshot: () => string | null;
@@ -22,7 +21,8 @@ interface Props {
     | "spectrogram"
     | "lissajous"
     | "constellation"
-    | "particles";
+    | "particles"
+    | "aurora";
   lrcSync?: {
     currentSection: string;
     sectionProgress: number;
@@ -38,6 +38,8 @@ interface Props {
   lrcSyncLive?: { current: Props["lrcSync"] };
   bgColor?: string;
   onAnalysis?: (result: { text: string; model: string; mode: string }) => void;
+  /** Honor OS reduced-motion preference — scales down phraseFlash, beat vignette, and trail persistence. */
+  prefersReducedMotion?: boolean;
 }
 
 /**
@@ -104,6 +106,7 @@ function Canvas2DVisualizer(
     lrcSyncLive,
     bgColor = "#050505",
     onAnalysis,
+    prefersReducedMotion = false,
   }: Props,
   ref,
 ) {
@@ -155,6 +158,18 @@ function Canvas2DVisualizer(
     }
   };
 
+  // Keyboard shortcut for analyze (Ctrl+Shift+A)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        handleAnalyze();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [handleAnalyze, mode]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -176,6 +191,99 @@ function Canvas2DVisualizer(
     // Waveform spring envelope state
     let waveEnvelope: number[] | null = null;
     let waveVelocities: number[] | null = null;
+    // Drum shockwave state — expanding rings on kick/snare/hat transient
+    const shockwaves: {
+      x: number;
+      y: number;
+      radius: number;
+      maxRadius: number;
+      alpha: number;
+      hue: number;
+      lineWidth: number;
+    }[] = [];
+    const MAX_SHOCKWAVES = 8;
+    function spawnShockwave(w: number, h: number, drumType?: string) {
+      if (shockwaves.length >= MAX_SHOCKWAVES) return;
+      const cx = w / 2 + (Math.random() - 0.5) * w * 0.4;
+      const cy = h / 2 + (Math.random() - 0.5) * h * 0.3;
+      const isKick = drumType === "kick" || !drumType;
+      shockwaves.push({
+        x: cx,
+        y: cy,
+        radius: isKick ? 4 : 2,
+        maxRadius: isKick ? Math.min(w, h) * 0.5 : Math.min(w, h) * 0.25,
+        alpha: isKick ? 0.6 : 0.35,
+        hue: isKick ? 0 : 180,
+        lineWidth: isKick ? 2.5 : 1.5,
+      });
+    }
+    function updateShockwaves(motionScale: number) {
+      for (let i = shockwaves.length - 1; i >= 0; i--) {
+        const s = shockwaves[i];
+        s.radius += (s.maxRadius - s.radius) * 0.08 * motionScale;
+        s.alpha -= 0.015 * motionScale;
+        if (s.alpha <= 0 || s.radius >= s.maxRadius) {
+          shockwaves.splice(i, 1);
+        }
+      }
+    }
+    function drawShockwaves(ctx: CanvasRenderingContext2D, dpr: number) {
+      for (const s of shockwaves) {
+        const rgb = hslToRgb(s.hue / 360, 0.8, 0.55);
+        ctx.strokeStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${clamp(s.alpha, 0, 1)})`;
+        ctx.lineWidth = s.lineWidth * dpr;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    // Idle ambient particles — subtle floating motes when no track is playing
+    const idleParticles: {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      life: number;
+      hue: number;
+      size: number;
+    }[] = [];
+    const MAX_IDLE_PARTICLES = 40;
+    function spawnIdleParticle(w: number, h: number) {
+      if (idleParticles.length >= MAX_IDLE_PARTICLES) return;
+      idleParticles.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        life: 0.4 + Math.random() * 0.6,
+        hue: Math.random() * 360,
+        size: 0.8 + Math.random() * 1.2,
+      });
+    }
+    function updateIdleParticles(w: number, h: number, motionScale: number) {
+      // Spawn a gentle trickle
+      if (Math.random() < 0.06 * motionScale) spawnIdleParticle(w, h);
+      for (let i = idleParticles.length - 1; i >= 0; i--) {
+        const p = idleParticles[i];
+        p.x += p.vx * motionScale;
+        p.y += p.vy * motionScale;
+        p.life -= 0.002 * motionScale;
+        if (p.life <= 0 || p.x < -20 || p.x > w + 20 || p.y < -20 || p.y > h + 20) {
+          idleParticles.splice(i, 1);
+        }
+      }
+    }
+    function drawIdleParticles(ctx: CanvasRenderingContext2D, dpr: number) {
+      for (const p of idleParticles) {
+        const alpha = p.life * 0.25;
+        const rgb = hslToRgb(p.hue / 360, 0.6, 0.55);
+        ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * dpr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
 
     const palettes: Record<string, string[]> = {
       INTRO: ["#6366f1", "#818cf8", "#a5b4fc"],
@@ -256,6 +364,10 @@ function Canvas2DVisualizer(
       const energyMod = 1 + effectiveEnergy * 0.4;
       const analyzedPunch = d.analyzedEnergy || 0;
 
+      // Reduce motion when the user or OS requests it — scales down phraseFlash,
+      // beat vignette, and trail persistence without disabling the visualizer.
+      const motionScale = prefersReducedMotion ? 0.35 : 1;
+
       // Lazy-size frequency/waveform buffers when the analyser config changes.
       // Always allocated (default 1024/2048) so downstream code never sees null —
       // buffers are only *filled* with real data while playing.
@@ -288,15 +400,18 @@ function Canvas2DVisualizer(
         currentPaletteRef.current = [...targetPaletteRef.current];
 
       if (sync?.isPhraseStart) phraseFlash = 1;
-      phraseFlash = Math.max(0, phraseFlash - 0.07);
+      phraseFlash = Math.max(0, phraseFlash - 0.07 * motionScale);
       // Beat vignette pulse — subtle screen-edge darkening on transients.
-      if (d.beat) beatVignette = Math.min(1, beatVignette + 0.35);
-      beatVignette = Math.max(0, beatVignette - 0.06);
+      if (d.beat) beatVignette = Math.min(1, beatVignette + 0.35 * motionScale);
+      beatVignette = Math.max(0, beatVignette - 0.06 * motionScale);
 
       // Size the backing store only when the container changes (see applySize above).
       const bg = normalizeHex(bgColor);
       const w = canvas.width;
       const h = canvas.height;
+      // Drum-type shockwaves — expanding rings color-coded by transient class
+      if (d.beat) spawnShockwave(w, h, d.drumType ?? undefined);
+      updateShockwaves(motionScale);
 
       // Cached gradient helper: keyed by mode + palette + height so each
       // gradient-using mode avoids per-frame createLinearGradient allocation.
@@ -340,12 +455,12 @@ function Canvas2DVisualizer(
         if (mode !== "spectrogram") {
           const trailAlpha =
             mode === "particles"
-              ? "0A"
+              ? prefersReducedMotion ? "03" : "0A"
               : mode === "bars"
-                ? "14"
+                ? prefersReducedMotion ? "08" : "14"
                 : mode === "waveform"
-                  ? "12"
-                  : "0F";
+                  ? prefersReducedMotion ? "08" : "12"
+                  : prefersReducedMotion ? "08" : "0F";
           ctx.fillStyle = bg + trailAlpha;
           ctx.fillRect(0, 0, w, h);
         }
@@ -366,11 +481,16 @@ function Canvas2DVisualizer(
         ctx.fillStyle = vigGrd;
         ctx.fillRect(0, 0, w, h);
       }
+      // Drum shockwaves — expanding rings behind other modes
+      drawShockwaves(ctx, dpr);
 
       if (!analyser || !isPlaying) {
-        // 2026 kinetic idle: variable-font-inspired — weight pulses with phraseFlash, not static
-        const idlePulse =
-          phraseFlash * 0.3 + Math.sin(performance.now() * 0.002) * 0.08;
+      // 2026 kinetic idle: variable-font-inspired — weight pulses with phraseFlash, not static
+      // Ambient particle layer — soft floating motes that keep the canvas feeling alive
+      updateIdleParticles(w, h, motionScale);
+      drawIdleParticles(ctx, dpr);
+      const idlePulse =
+        phraseFlash * 0.3 + Math.sin(performance.now() * 0.002 * motionScale) * 0.08 * motionScale;
         ctx.fillStyle = colors[0] + "60";
         ctx.font = `${24 * dpr}px monospace`;
         ctx.textAlign = "center";
@@ -393,7 +513,6 @@ function Canvas2DVisualizer(
 
       if (mode === "bars") {
         const barCount = 64;
-        const step = Math.floor(freq.length / barCount);
         const barW = w / barCount;
         // Lazy-init falling-peak store + spring velocities
         if (!barPeaks || barPeaks.length !== barCount) {
@@ -405,7 +524,7 @@ function Canvas2DVisualizer(
         const barGradients = getGradients(mode, colors);
         const baseY = Math.round(h * 0.88);
         for (let i = 0; i < barCount; i++) {
-          const rawV = freq[i * step] / 255;
+          const rawV = freq[Math.min(freq.length - 1, Math.floor(logFreqMap(i, barCount, freq.length)))] / 255;
           const boosted =
             rawV +
             phraseFlash * 0.35 +
@@ -473,7 +592,7 @@ function Canvas2DVisualizer(
             ctx.shadowBlur = 6 * dpr;
             ctx.fillRect(x + 1, y - 1 * dpr, bw, 1 * dpr);
             ctx.shadowBlur = 0;
-            if (isDownbeatIndex(i)) {
+            if (audioData.current.isDownbeat) {
               ctx.fillStyle = `rgba(255,255,255,${0.85})`;
               ctx.beginPath();
               ctx.arc(
@@ -508,7 +627,6 @@ function Canvas2DVisualizer(
         ctx.globalAlpha = 1;
       } else if (mode === "mirrored-bars") {
         const barCount = 64;
-        const step = Math.floor(freq.length / barCount);
         const barW = w / barCount;
         if (!barPeaks || barPeaks.length !== barCount) {
           barPeaks = new Array(barCount).fill(0);
@@ -520,7 +638,7 @@ function Canvas2DVisualizer(
         const centerY = Math.round(h * 0.5);
         const maxBarH = h * 0.38;
         for (let i = 0; i < barCount; i++) {
-          const v = freq[i * step] / 255;
+          const v = freq[Math.min(freq.length - 1, Math.floor(logFreqMap(i, barCount, freq.length)))] / 255;
           const boosted =
             v +
             phraseFlash * 0.35 +
@@ -591,7 +709,6 @@ function Canvas2DVisualizer(
         }
       } else if (mode === "segmented-led-bars") {
         const barCount = 64;
-        const step = Math.floor(freq.length / barCount);
         const barW = w / barCount;
         const segmentsPerBar = 10;
         const segH = 4 * dpr;
@@ -602,7 +719,7 @@ function Canvas2DVisualizer(
           barVelocities = new Array(barCount).fill(0);
         }
         for (let i = 0; i < barCount; i++) {
-          const v = freq[i * step] / 255;
+          const v = freq[Math.min(freq.length - 1, Math.floor(logFreqMap(i, barCount, freq.length)))] / 255;
           const boosted =
             v +
             phraseFlash * 0.35 +
@@ -635,7 +752,6 @@ function Canvas2DVisualizer(
         }
       } else if (mode === "stereo-split-bars") {
         const barCount = 48;
-        const step = Math.floor(freq.length / barCount);
         const barW = w / barCount;
         const bands = [
           { label: "low", start: 0, end: Math.floor(barCount * 0.25), color: colors[0] },
@@ -654,7 +770,7 @@ function Canvas2DVisualizer(
           ctx.fillStyle = band.color + "18";
           ctx.fillRect(0, baseY - 2 * dpr, w, 2 * dpr);
           for (let i = band.start; i < band.end; i++) {
-            const v = freq[i * step] / 255;
+            const v = freq[Math.min(freq.length - 1, Math.floor(logFreqMap(i, barCount, freq.length)))] / 255;
             const boosted =
               v +
               phraseFlash * 0.35 +
@@ -718,7 +834,8 @@ function Canvas2DVisualizer(
           let stackH = 0;
           for (const layer of layers) {
             const idx = Math.min(layer.start + i, freq.length - 1);
-            const v = freq[idx] / 255;
+            const logIdx = Math.min(freq.length - 1, Math.floor(logFreqMap(idx, freq.length, freq.length)));
+            const v = freq[logIdx] / 255;
             const boosted =
               v +
               phraseFlash * 0.35 +
@@ -764,7 +881,6 @@ function Canvas2DVisualizer(
         }
       } else if (mode === "dot-peak-matrix") {
         const barCount = 64;
-        const step = Math.floor(freq.length / barCount);
         const cols = barCount;
         const rows = 12;
         const cellW = w / cols;
@@ -775,7 +891,7 @@ function Canvas2DVisualizer(
           barVelocities = new Array(barCount).fill(0);
         }
         for (let i = 0; i < cols; i++) {
-          const v = freq[i * step] / 255;
+          const v = freq[Math.min(freq.length - 1, Math.floor(logFreqMap(i, barCount, freq.length)))] / 255;
           const boosted =
             v +
             phraseFlash * 0.35 +
@@ -864,7 +980,9 @@ function Canvas2DVisualizer(
         for (let i = 0; i < smoothed.length; i++) {
           const x = i * slice;
           const v = (smoothed[i] - 128) / 128;
-          const targetAmp = v * h * 0.35 * (1 + effectiveEnergy * 0.85 + phraseFlash * 0.45 + d.bass * 0.25);
+          const beatPhaseAnt =
+            d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.15 : 0;
+          const targetAmp = v * h * 0.35 * (1 + effectiveEnergy * 0.85 + phraseFlash * 0.45 + d.bass * 0.25 + beatPhaseAnt);
           const displacement = targetAmp - waveEnvelope[i];
           waveVelocities[i] = (waveVelocities[i] + springK * displacement) * damping;
           waveEnvelope[i] = waveEnvelope[i] + waveVelocities[i];
@@ -879,6 +997,25 @@ function Canvas2DVisualizer(
           else ctx.lineTo(x + xOff, y);
         }
         ctx.stroke();
+        // Subtle gradient fill under the primary waveform for depth
+        ctx.globalAlpha = 0.12 + effectiveEnergy * 0.08;
+        const waveGrad = ctx.createLinearGradient(0, h / 2, 0, h);
+        waveGrad.addColorStop(0, colors[1] + "00");
+        waveGrad.addColorStop(0.5, colors[1] + "44");
+        waveGrad.addColorStop(1, colors[1] + "00");
+        ctx.fillStyle = waveGrad;
+        ctx.beginPath();
+        for (let i = 0; i < smoothed.length; i++) {
+          const x = i * slice;
+          const y = h / 2 + waveEnvelope![i];
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.lineTo(w, h / 2);
+        ctx.lineTo(0, h / 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
         // Secondary harmonic faint line (vision: "secondary waveform")
         ctx.strokeStyle = colors[2] + "88";
         ctx.lineWidth = 1.2 * dpr;
@@ -920,12 +1057,14 @@ function Canvas2DVisualizer(
           const v = freq[Math.floor((i / 64) * freq.length * 0.6)] / 255;
           const angle = (i / 64) * Math.PI * 2 + sectionRot;
           const r0 = baseR;
+          const beatPhaseAnt =
+            d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0;
           const targetR1 =
             baseR +
             v *
               baseR *
               1.2 *
-              (1 + phraseFlash * 0.6 + effectiveEnergy * 0.4);
+              (1 + phraseFlash * 0.6 + effectiveEnergy * 0.4 + beatPhaseAnt);
           const springK = 0.24;
           const damping = 0.74;
           const displacement = targetR1 - (barVelocities[i] || 0);
@@ -977,7 +1116,6 @@ function Canvas2DVisualizer(
         const specW = w;
         const specH = h;
         const sliceW = Math.max(2, Math.round(2 * dpr));
-        const binCount = Math.floor(freq.length * 0.5);
         // Blit existing canvas to the left by sliceW (GPU-accelerated, replaces costly CPU getImageData)
         ctx.drawImage(
           canvas,
@@ -993,16 +1131,34 @@ function Canvas2DVisualizer(
         // Clear rightmost strip
         ctx.fillStyle = bg;
         ctx.fillRect(specW - sliceW, 0, sliceW, specH);
-        // Draw new slice on the right
-        const binH = specH / binCount;
-        for (let i = 0; i < binCount; i++) {
-          const v = freq[i] / 255;
+        // Draw new slice on the right — perceptual (log) frequency mapping
+        for (let py = 0; py < specH; py++) {
+          const t = py / specH; // 1 at top (high freq), 0 at bottom (low freq)
+          // Inverse log map: invert the logFreqMap curve to get linear Y → log bin
+          const minLog = Math.log(1);
+          const maxLog = Math.log(freq.length);
+          const logT = minLog + t * (maxLog - minLog);
+          const linearT = (Math.exp(logT) - 1) / (freq.length - 1);
+          const binIdx = Math.min(freq.length - 1, Math.max(0, Math.floor(linearT * freq.length)));
+          const v = freq[binIdx] / 255;
           if (v < 0.02) continue;
-          const y = specH - (i + 1) * binH;
-          const hue = (1 - v) * 240;
-          const rgb = hslToRgb(hue / 360, 1, 0.5);
-          ctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-          ctx.fillRect(specW - sliceW, y, sliceW, Math.ceil(binH));
+          // Palette-aware coloring: blend between palette colors by amplitude
+          const colorIdx = clamp(v * (colors.length - 1), 0, colors.length - 1);
+          const ci = Math.floor(colorIdx);
+          const cf = colorIdx - ci;
+          const c1 = hexToRgb(colors[ci % colors.length]);
+          const c2 = hexToRgb(colors[(ci + 1) % colors.length]);
+          const r = Math.round(c1[0] + (c2[0] - c1[0]) * cf);
+          const g = Math.round(c1[1] + (c2[1] - c1[1]) * cf);
+          const b = Math.round(c1[2] + (c2[2] - c1[2]) * cf);
+          const alpha = clamp(0.3 + v * 0.7, 0, 1);
+          ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+          ctx.fillRect(specW - sliceW, py, sliceW, 1);
+        }
+        // Beat-reactive flash overlay on the new slice
+        if (d.beat && (d.bass || 0) > 0.4) {
+          ctx.fillStyle = `rgba(255,255,255,${clamp((d.bass || 0) * 0.2, 0, 0.3)})`;
+          ctx.fillRect(specW - sliceW, 0, sliceW, specH);
         }
         // Axis labels (frequency Hz on Y, time on X)
         ctx.fillStyle = colors[0] + "90";
@@ -1013,7 +1169,10 @@ function Canvas2DVisualizer(
         const labelCount = 5;
         for (let i = 0; i <= labelCount; i++) {
           const freqHz = Math.round((maxFreq / labelCount) * i);
-          const y = specH - (specH / labelCount) * i;
+          // Map Hz to log position for label placement
+          const logHz = Math.log(1 + freqHz / 20);
+          const logMax = Math.log(1 + maxFreq / 20);
+          const y = specH - (logHz / logMax) * specH;
           ctx.fillText(`${freqHz}Hz`, 28 * dpr, y + 3 * dpr);
           ctx.fillRect(30 * dpr, y, specW - 32 * dpr, 0.5);
         }
@@ -1197,6 +1356,47 @@ function Canvas2DVisualizer(
         grd.addColorStop(1, "transparent");
         ctx.fillStyle = grd;
         ctx.fillRect(0, 0, w, h);
+      } else if (mode === "aurora") {
+        // Domain-warped FBM aurora curtains — vertical color bands with
+        // audio-reactive brightness/height and slow horizontal drift.
+        const t = performance.now() * 0.0003;
+        const bandCount = 5;
+        const bandW = w / bandCount;
+        const bassEnergy = d.bass || 0;
+        const midEnergy = d.mid || 0;
+        const energy = effectiveEnergy;
+        for (let b = 0; b < bandCount; b++) {
+          const bx = b * bandW;
+          // Each band gets a slightly different warp seed for visual variety
+          const warpX = b * 0.37 + t * 0.4;
+          const hue = (b / bandCount + t * 0.05) % 1;
+          const sat = 0.55 + bassEnergy * 0.4;
+          const lightBase = 0.25 + midEnergy * 0.35;
+          const rgb = hslToRgb(hue, sat, lightBase);
+          // Sample FBM across the band height for curtain shape
+          const steps = Math.max(1, Math.floor(bandW));
+          for (let s = 0; s < steps; s++) {
+            const x = bx + (s / steps) * bandW;
+            const nx = x / w;
+            const warp = fbm(nx * 3 + warpX, b * 0.5, t, 4);
+            const curtainY = h * 0.15 + warp * h * 0.55 * (1 + energy * 0.6);
+            const alpha = 0.12 + warp * 0.25 + energy * 0.15;
+            ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${clamp(alpha, 0, 0.7)})`;
+            ctx.fillRect(x, curtainY, Math.ceil(bandW / steps), h - curtainY);
+          }
+          // Beat flash — bright pulse on transient
+          if (d.beat && bassEnergy > 0.35) {
+            const flashAlpha = 0.15 + bassEnergy * 0.2;
+            ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${clamp(flashAlpha, 0, 0.5)})`;
+            ctx.fillRect(bx, 0, bandW, h);
+          }
+        }
+        // Top vignette fade for cinematic aurora look
+        const topGrd = ctx.createLinearGradient(0, 0, 0, h * 0.3);
+        topGrd.addColorStop(0, bg + "AA");
+        topGrd.addColorStop(1, bg + "00");
+        ctx.fillStyle = topGrd;
+        ctx.fillRect(0, 0, w, h * 0.3);
       }
 
       raf = requestAnimationFrame(draw);
@@ -1209,7 +1409,7 @@ function Canvas2DVisualizer(
   }, [isPlaying, mode, bgColor, analyserRef, audioData]);
 
   return (
-    <div className="absolute inset-0">
+    <div className="absolute inset-0" role="application" aria-label={`2D visualizer — ${mode} mode`}>
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"
@@ -1276,7 +1476,59 @@ function easeOutQuad(t: number): number {
   return 1 - (1 - t) * (1 - t);
 }
 
+// ============================================================================
+// 2026 visualization research additions
+// ============================================================================
+// 2026 visualization research additions
+// ===========================================================================
+
+/** Map a bar index to an FFT bin using logarithmic frequency scaling.
+ *  Human pitch perception is logarithmic — allocate more bars to bass/mids,
+ *  fewer to highs. Returns a float bin index; caller rounds/floor as needed. */
+function logFreqMap(barIndex: number, barCount: number, freqLength: number): number {
+  const t = barCount > 1 ? barIndex / (barCount - 1) : 0;
+  // log-space from ~20 Hz to Nyquist; curve steepens at low end for bass detail
+  const minLog = Math.log(1);    // normalized 0 → 20 Hz bin
+  const maxLog = Math.log(freqLength);
+  const logIdx = minLog + t * (maxLog - minLog);
+  return Math.exp(logIdx);
+}
+
+/** Simple value noise for aurora/fluid effects (no external deps). */
+function valueNoise(x: number, y: number, t: number): number {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = x - xi;
+  const yf = y - yi;
+  const sx = xf * xf * (3 - 2 * xf);
+  const sy = yf * yf * (3 - 2 * yf);
+  const n00 = Math.sin(xi * 127.1 + yi * 311.7 + t * 0.7) * 43758.5453;
+  const n10 = Math.sin((xi + 1) * 127.1 + yi * 311.7 + t * 0.7) * 43758.5453;
+  const n01 = Math.sin(xi * 127.1 + (yi + 1) * 311.7 + t * 0.7) * 43758.5453;
+  const n11 = Math.sin((xi + 1) * 127.1 + (yi + 1) * 311.7 + t * 0.7) * 43758.5453;
+  const nx0 = (n00 + sx * (n10 - n00)) % 1;
+  const nx1 = (n01 + sx * (n11 - n01)) % 1;
+  return (nx0 + sy * (nx1 - nx0)) % 1;
+}
+
+/** Fractal Brownian motion — domain-warped FBM for aurora curtains. */
+function fbm(x: number, y: number, t: number, octaves = 4): number {
+  let val = 0;
+  let amp = 0.5;
+  let freq = 1;
+  for (let i = 0; i < octaves; i++) {
+    val += amp * valueNoise(x * freq, y * freq, t);
+    freq *= 2.0;
+    amp *= 0.5;
+  }
+  return val;
+}
+
 /** Clamp a value into [min, max]. */
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
 }
+
+// ============================================================================
+// End of 2026 visualization research additions
+// ============================================================================
