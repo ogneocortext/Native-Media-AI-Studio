@@ -65,6 +65,37 @@ MADMOM_SAMPLE_RATE = 44100
 MADMOM_ACTIVATION_FPS = 100.0
 
 
+def resample_audio_gpu(y, orig_sr: int, target_sr: int):
+    """Resample 1-D mono audio, preferring GPU via torchaudio.
+
+    Uses ``torchaudio.functional.resample`` on CUDA when torch + CUDA are
+    available; otherwise falls back to ``librosa.resample`` on CPU.
+
+    Args:
+        y: 1-D mono waveform samples.
+        orig_sr: Original sample rate.
+        target_sr: Target sample rate.
+
+    Returns:
+        Resampled audio as a numpy array (float32).
+    """
+    audio = np.asarray(y, dtype=np.float32)
+    if orig_sr == target_sr:
+        return audio
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            import torchaudio.functional as _taf
+
+            tensor = torch.as_tensor(audio, device="cuda:0")
+            out = _taf.resample(tensor, orig_freq=orig_sr, new_freq=target_sr)
+            return out.cpu().numpy().astype(np.float32)
+    except Exception:
+        logger.debug("GPU resample unavailable — falling back to librosa", exc_info=True)
+    return librosa.resample(audio, orig_sr=orig_sr, target_sr=target_sr).astype(np.float32)
+
+
 def _madmom_beats_downbeats(y_44k):
     """Run the ported madmom beat/downbeat pipeline on 44.1 kHz mono audio.
 
@@ -364,7 +395,7 @@ class AudioAnalyzer:
             if len(y) == 0:
                 raise ValueError("Audio file is empty or could not be loaded")
             if sr != MADMOM_SAMPLE_RATE:
-                y_44k = librosa.resample(y, orig_sr=sr, target_sr=MADMOM_SAMPLE_RATE)
+                y_44k = resample_audio_gpu(y, orig_sr=sr, target_sr=MADMOM_SAMPLE_RATE)
             else:
                 y_44k = y
             beat_times, downbeat_times = _madmom_beats_downbeats(

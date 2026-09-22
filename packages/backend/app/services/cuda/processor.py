@@ -100,6 +100,90 @@ class CudaAudioAnalyzer:
         import torch
 
         try:
+            import torchaudio
+        except ImportError:
+            return self._analyze_cuda_legacy(audio)
+
+        try:
+            waveform = torch.as_tensor(np.asarray(audio, dtype=np.float32), device=_DEVICE)
+
+            # Cache frequency bins (window is created by torchaudio internally)
+            if self._freqs is None:
+                self._freqs = torch.fft.rfftfreq(self.n_fft, d=1.0 / self.sample_rate).to(_DEVICE)
+            freqs = self._freqs
+
+            # Use torchaudio Spectrogram — tested CUDA path, replaces manual torch.stft.
+            # torchaudio 2.x builds the window via window_fn(win_length) with no
+            # device argument, which puts the Hann window on CPU and makes every
+            # call raise "input and window must be on the same device" — silently
+            # falling back to the manual-STFT path. Bind the device explicitly.
+            spectrogram = torchaudio.transforms.Spectrogram(
+                n_fft=self.n_fft,
+                hop_length=self.hop_length,
+                win_length=self.win_length,
+                window_fn=lambda win_length: torch.hann_window(win_length, device=_DEVICE),
+                power=2.0,
+                center=True,
+                pad_mode="reflect",
+            )(waveform)
+            magnitude = torch.sqrt(spectrogram.clamp(min=1e-10))
+
+            # RMS energy per frame (amplitude envelope)
+            rms = torch.sqrt(torch.mean(spectrogram, dim=0))
+            rms_np = rms.cpu().numpy()
+            if rms_np.max() > 0:
+                rms_normalized = (rms_np - rms_np.min()) / (rms_np.max() - rms_np.min() + 1e-10)
+            else:
+                rms_normalized = np.zeros_like(rms_np)
+
+            # Spectral centroid: sum(f * mag) / sum(mag)
+            mag_sum = magnitude.sum(dim=0).clamp(min=1e-10)
+            centroid = (freqs.unsqueeze(1) * magnitude).sum(dim=0) / mag_sum
+            centroid_np = centroid.cpu().numpy()
+
+            # Spectral rolloff: frequency below which 85% of energy lies
+            cum_energy = torch.cumsum(magnitude, dim=0)
+            total_energy = cum_energy[-1, :].clamp(min=1e-10)
+            rolloff_threshold = 0.85 * total_energy
+            rolloff_idx = torch.argmax((cum_energy >= rolloff_threshold).float(), dim=0)
+            rolloff = freqs[rolloff_idx]
+            rolloff_np = rolloff.cpu().numpy()
+
+            # Spectral bandwidth: weighted std-dev of frequencies around centroid
+            deviation = freqs.unsqueeze(1) - centroid.unsqueeze(0)
+            bandwidth = torch.sqrt((deviation ** 2 * magnitude).sum(dim=0) / mag_sum)
+            bandwidth_np = bandwidth.cpu().numpy()
+
+            # Onset envelope: frame-to-frame difference of log-magnitude
+            log_mag = torch.log(magnitude + 1e-10)
+            onset = torch.zeros_like(log_mag[0])
+            onset[1:] = torch.clamp(log_mag[:, 1:] - log_mag[:, :-1], min=0).sum(dim=0)
+            onset_np = onset.cpu().numpy()
+
+            # Clean up GPU tensors to free memory
+            del waveform, spectrogram, magnitude, rms, mag_sum, centroid, cum_energy, total_energy, rolloff, deviation, bandwidth, log_mag, onset
+            torch.cuda.empty_cache()
+
+            return {
+                "amplitude_envelope": rms_normalized.tolist(),
+                "rms_energy": rms_np.tolist(),
+                "spectral_centroid": centroid_np.tolist(),
+                "spectral_rolloff": rolloff_np.tolist(),
+                "spectral_bandwidth": bandwidth_np.tolist(),
+                "onset_envelope": onset_np.tolist(),
+                "n_frames": len(rms_np),
+                "duration_seconds": len(audio) / self.sample_rate,
+                "computed_on": "cuda",
+            }
+        except Exception as e:
+            logger.warning(f"torchaudio CUDA analysis failed ({e}), falling back to manual STFT")
+            return self._analyze_cuda_legacy(audio)
+
+    def _analyze_cuda_legacy(self, audio: np.ndarray | list[float]) -> dict[str, Any]:
+        """Manual torch.stft CUDA fallback for when torchaudio is unavailable."""
+        import torch
+
+        try:
             waveform = torch.as_tensor(np.asarray(audio, dtype=np.float32), device=_DEVICE)
 
             # STFT on GPU — reuse cached window (Guide 2.6)
@@ -203,15 +287,36 @@ class CudaAudioAnalyzer:
         freqs = np.fft.rfftfreq(self.n_fft, d=1.0 / self.sample_rate)
 
         mag_sum = stft.sum(axis=1, keepdims=True).clip(min=1e-10)
-        centroid = (freqs[:, np.newaxis] * stft).sum(axis=0) / mag_sum.squeeze(1)
+        centroid = (stft * freqs).sum(axis=1) / mag_sum.squeeze(1)
+
+        # Spectral rolloff: per-frame frequency below which 85% of energy lies.
+        cum = stft.cumsum(axis=1)
+        total = cum[:, -1].clip(min=1e-10)
+        threshold = 0.85 * total
+        rolloff_idx = np.argmax(cum >= threshold[:, np.newaxis], axis=1)
+        rolloff = freqs[rolloff_idx]
+
+        # Spectral bandwidth: weighted std-dev around centroid per frame.
+        deviation = freqs[np.newaxis, :] - centroid[:, np.newaxis]
+        bandwidth = np.sqrt(
+            ((deviation**2 * stft).sum(axis=1) / mag_sum.squeeze(1)).clip(min=0.0)
+        )
+
+        # Onset envelope: frame-to-frame positive log-magnitude difference.
+        log_mag = np.log(stft + 1e-10)
+        onset = np.zeros(len(centroid), dtype=np.float64)
+        if len(centroid) > 1:
+            onset[1:] = np.clip(np.diff(log_mag, axis=0), a_min=0, a_max=None).sum(
+                axis=1
+            )
 
         return {
             "amplitude_envelope": rms_normalized.tolist(),
             "rms_energy": rms.tolist(),
             "spectral_centroid": centroid.tolist(),
-            "spectral_rolloff": np.zeros_like(centroid).tolist(),
-            "spectral_bandwidth": np.zeros_like(centroid).tolist(),
-            "onset_envelope": np.zeros(len(rms)).tolist(),
+            "spectral_rolloff": rolloff.tolist(),
+            "spectral_bandwidth": bandwidth.tolist(),
+            "onset_envelope": onset.tolist(),
             "n_frames": len(rms),
             "duration_seconds": len(y) / self.sample_rate,
             "computed_on": "cpu",

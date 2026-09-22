@@ -22,6 +22,16 @@ Review of the analysis pipeline (`app/api/audio.py`, `app/services/audio_analyze
 - **madmom path mislabeled downbeats as onsets** (`onset_frames=downbeat_frames`) — real librosa onsets are now computed and downbeats travel in their own fields. **sonara path** now prefers engine-provided `beat_times` instead of re-deriving them with our hop length (hop mismatch misplaced beats).
 - **Other fixes**: `_downsample_curve` divided by zero for `max_points < 2`; `file_path.relative_to(AUDIO_DIR)` raised `ValueError` for paths outside the library (new `_relative_audio_path`); `get_analysis_by_filename` never cached the JSON-index result (every request re-parsed a multi-MB file); `get_analysis_result` echoed the request `Origin` in `Access-Control-Allow-Origin`, bypassing the app's CORS allowlist, and matched job ids by substring; `analyze-all` re-read + rewrote the index per file and keyed by basename (splitting entries for `output/audio/<album>/` subfolders); analysis JSON writes moved to UTF-8; `/analysis/summary` advertised `has_spectral` from keys this payload never contained (always false) — now reports a real compact `spectral` block plus `has_downbeats`.
 
+### Added - GPU offloads for CPU-bound audio DSP (2026-09-21)
+
+Audit of CPU-only hotpaths (backend services, music-gen, Go sidecars) found three genuine cases; all fixed and verified on the GTX 1070 Ti:
+
+- **`cuda/processor._analyze_cpu` returned zero-filled `spectral_rolloff` / `spectral_bandwidth` / `onset_envelope`** — the "CPU fallback" was a stub, so non-CUDA environments (and any CUDA exception) silently lost 3 of 6 features. Now fully implemented in numpy (85% rolloff via cumsum/argmax, bandwidth as weighted std-dev around centroid, positive log-magnitude frame diff for onset). Also fixed a latent centroid broadcasting bug in the same method (`(freqs * stft).sum(axis=0)` had bins/frames swapped).
+- **New `resample_audio_gpu()`** (`audio_analyzer.py`): `torchaudio.functional.resample` on CUDA with librosa fallback — the madmom-infer path resampled 4-minute tracks on CPU (librosa/soxr); GPU resample of 3×10 s buffers now takes 0.01 s.
+- **torchaudio Spectrogram window device bug**: `window_fn=torch.hann_window` builds the window on CPU, so the "primary" CUDA path raised `input and window must be on the same device` on **every call** and silently ran the legacy torch.stft fallback. Window is now device-bound via lambda; the real torchaudio CUDA path works (`computed_on=cuda` verified).
+
+Audited and confirmed intentionally CPU (no change): librosa `beat_track`/`onset_*` (no GPU equivalent), loudness via FFmpeg `ebur128`/`loudnorm`, thumbnails via FFmpeg `scale=`, music-gen ACE-Step (`device=auto`, intentional Tier-3 CPU offload for 8 GB VRAM), VRAM manager (no unnecessary eviction), Go sidecars (only FFmpeg shells). Backend tests 49/49 pass; GPU/CPU smoke suite in `docs/scratch/test_gpu_offloads.py` passes 9/9.
+
 ### Added - madmom-infer + sonara analysis backends wired (2026-09-21)
 
 Both packages referenced by the analyzer were present in `nma-studio-cuda` but the wiring called APIs that do not exist.
