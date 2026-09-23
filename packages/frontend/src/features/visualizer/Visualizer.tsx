@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { PerformanceMonitor } from "@react-three/drei";
-import { Music, AlertCircle, Maximize2, Minimize2, Video, Square, Download, Settings, Snowflake, MessageSquare, Sparkles, Play, Wand2, Accessibility, EyeOff, User, Layers, MoreHorizontal } from "lucide-react";
+import { Music, AlertCircle, Maximize2, Minimize2, Video, Square, Download, Settings, Snowflake, MessageSquare, Sparkles, Play, Wand2, Accessibility, EyeOff, User, Layers, MoreHorizontal, Keyboard } from "lucide-react";
 import { listAudioFiles, ensureAnalysis } from "../../services/api";
 import type { AudioAnalysisData, AudioData, VizParams, PerceptualScale } from "./types";
 import { DEFAULT_VIZ_PARAMS } from "./types";
@@ -84,6 +84,42 @@ function clampNum(value: unknown, min: number, max: number, fallback: number): n
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, n));
 }
+
+/** 2D canvas modes in select order; keyboard keys 1–9 jump to the first nine. */
+const CANVAS_2D_MODES = [
+  "bars",
+  "mirrored-bars",
+  "segmented-led-bars",
+  "stereo-split-bars",
+  "stacked-frequency-bands",
+  "dot-peak-matrix",
+  "waveform",
+  "radial",
+  "spectrogram",
+  "lissajous",
+  "constellation",
+  "particles",
+] as const;
+type Canvas2DMode = (typeof CANVAS_2D_MODES)[number];
+
+/** Display labels for the 2D modes (mirrors the mode select options). */
+const CANVAS_2D_MODE_LABELS: Record<Canvas2DMode, string> = {
+  bars: "Bars",
+  "mirrored-bars": "Mirrored Bars",
+  "segmented-led-bars": "Segmented LED Bars",
+  "stereo-split-bars": "Stereo Split Bars",
+  "stacked-frequency-bands": "Stacked Frequency Bands",
+  "dot-peak-matrix": "Dot Peak Matrix",
+  waveform: "Waveform",
+  radial: "Radial",
+  spectrogram: "Spectrogram",
+  lissajous: "Lissajous",
+  constellation: "Constellation",
+  particles: "Particles",
+};
+
+/** Stage mode cycle order for the ←/→ keyboard shortcuts. */
+const VIZ_MODE_ORDER = ["3d", "shader", "2d"] as const;
 
 /** Narrow an unknown backend payload to AudioAnalysisData; null when unusable. */
 function toAnalysisData(raw: unknown): AudioAnalysisData | null {
@@ -185,6 +221,8 @@ export function Visualizer() {
   const [adaptiveDpr, setAdaptiveDpr] = useState<[number, number]>([1, 1.5]);
   const [aiEnhancing, setAiEnhancing] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  // Keyboard-shortcuts popover (H / ? toggles; Esc or outside click closes).
+  const [showShortcuts, setShowShortcuts] = useState(false);
   // Single source of truth for which visual preset is currently active (fixes
   // "multiple presets appear selected" when they share visualizationStyle).
   const [activeVisualPresetId, setActiveVisualPresetId] = useState<string | null>(null);
@@ -908,6 +946,76 @@ export function Visualizer() {
     return () => window.removeEventListener("keydown", onKey);
   }, [currentFilename, handleAnalyzeTrack]);
 
+  // Stage keyboard map — "instruments are played, not clicked".
+  // Kept in a separate listener so the Ctrl+Shift+T / Ctrl+Shift+A shortcuts
+  // above are untouched.
+  const togglePlayPause = useCallback(() => {
+    const el = audioElRef.current;
+    if (!el) return;
+    // onPlay/onPause on the <audio> element sync isPlaying/isPaused state.
+    if (el.paused) void el.play().catch(() => { /* autoplay blocked: user gesture required */ });
+    else el.pause();
+  }, []);
+
+  const cycleVizMode = useCallback((dir: 1 | -1) => {
+    setVizMode((m) => {
+      const i = VIZ_MODE_ORDER.indexOf(m);
+      return VIZ_MODE_ORDER[(i + dir + VIZ_MODE_ORDER.length) % VIZ_MODE_ORDER.length];
+    });
+  }, []);
+
+  useEffect(() => {
+    const isTypingTarget = (t: EventTarget | null): boolean => {
+      const el = t as HTMLElement | null;
+      if (!el || typeof el.tagName !== "string") return false;
+      const tag = el.tagName.toLowerCase();
+      return tag === "input" || tag === "select" || tag === "textarea" || el.isContentEditable;
+    };
+    const onKey = (e: KeyboardEvent) => {
+      // Leave modified shortcuts (Ctrl+Shift+T test panel, Ctrl+Shift+A analyze) alone.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Never hijack typing.
+      if (isTypingTarget(e.target)) return;
+      const k = e.key;
+      if (k === " ") {
+        // preventDefault stops page scroll and cancels focused-button activation.
+        e.preventDefault();
+        togglePlayPause();
+      } else if (k === "ArrowRight") {
+        e.preventDefault();
+        cycleVizMode(1);
+      } else if (k === "ArrowLeft") {
+        e.preventDefault();
+        cycleVizMode(-1);
+      } else if (k >= "1" && k <= "9") {
+        // Jump to a 2D mode and switch to 2D so the keypress visibly does something.
+        setVizMode("2d");
+        setCanvas2DMode(CANVAS_2D_MODES[Number(k) - 1]);
+      } else if (k === "f" || k === "F") {
+        toggleFocusMode();
+      } else if (k === "h" || k === "H" || k === "?") {
+        setShowShortcuts((v) => !v);
+      } else if (k === "Escape") {
+        setShowShortcuts(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [togglePlayPause, cycleVizMode, toggleFocusMode]);
+
+  // Dismiss the shortcuts popover on outside click (button / H / ? / Esc also close it).
+  useEffect(() => {
+    if (!showShortcuts) return;
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".viz-shortcuts-menu") && !target.closest(".viz-shortcuts-toggle")) {
+        setShowShortcuts(false);
+      }
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, [showShortcuts]);
+
   useEffect(() => {
     if (!showMoreMenu) return;
     const onClick = (e: MouseEvent) => {
@@ -1089,6 +1197,24 @@ export function Visualizer() {
             <button onClick={() => setCharacterVisible(v => !v)} className={`viz-icon-btn ${characterVisible ? "active" : ""}`} aria-label={characterVisible ? "Hide character" : "Show character"} aria-pressed={characterVisible} title={`Character: ${characterVisible ? "on" : "off"}`}>
               <User size={14} />
             </button>
+          </div>
+          <div className="viz-btn-group">
+            <button onClick={() => setShowShortcuts((v) => !v)} className={`viz-icon-btn viz-shortcuts-toggle ${showShortcuts ? "active" : ""}`} aria-label="Keyboard shortcuts" aria-expanded={showShortcuts} aria-pressed={showShortcuts} title="Keyboard shortcuts (H)">
+              <Keyboard size={14} />
+            </button>
+            {showShortcuts && (
+              <div className="viz-shortcuts-menu" role="dialog" aria-label="Keyboard shortcuts">
+                <div className="viz-shortcuts-title">Keyboard shortcuts</div>
+                <div className="viz-shortcut-row"><span>Play / pause</span><kbd>Space</kbd></div>
+                <div className="viz-shortcut-row"><span>Cycle mode 3D → FX → 2D</span><span className="viz-shortcut-keys"><kbd>←</kbd><kbd>→</kbd></span></div>
+                {CANVAS_2D_MODES.slice(0, 9).map((m, i) => (
+                  <div className="viz-shortcut-row" key={m}><span>2D · {CANVAS_2D_MODE_LABELS[m]}</span><kbd>{i + 1}</kbd></div>
+                ))}
+                <div className="viz-shortcut-row"><span>Focus mode</span><kbd>F</kbd></div>
+                <div className="viz-shortcut-row"><span>This list</span><span className="viz-shortcut-keys"><kbd>H</kbd><kbd>?</kbd></span></div>
+                <div className="viz-shortcut-row"><span>Close list</span><kbd>Esc</kbd></div>
+              </div>
+            )}
           </div>
           <div className="viz-btn-group">
             <button onClick={() => setShowMoreMenu((v) => !v)} className={`viz-icon-btn viz-more-menu-toggle ${showMoreMenu ? "active" : ""}`} aria-label="More controls" aria-expanded={showMoreMenu} aria-pressed={showMoreMenu} title="More controls">

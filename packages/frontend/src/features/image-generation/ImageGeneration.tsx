@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { Image, Play, Clock, Settings2, Sparkles, Download, RefreshCw, Zap, Square, Gem, RectangleVertical, RectangleHorizontal, Crown } from "lucide-react";
-import { Card, LoadingSpinner, EmptyState, StatusBadge } from "../../components/common";
+import { Card, LoadingSpinner, EmptyState, StatusBadge, ErrorState } from "../../components/common";
 import * as api from "../../services/api";
 import { getLogger } from "../../services/logger";
 
@@ -608,11 +608,13 @@ export function ImageGeneration() {
             )}
           </Card>
 
-          {/* Error */}
+          {/* Error — offers a next action, never a dead end */}
           {error && !generating && (
-            <div className="p-4 bg-error/10 border border-error/30 rounded-lg text-error animate-scale-in">
-              {error}
-            </div>
+            <ErrorState
+              title="Generation failed"
+              description={error}
+              retry={{ label: "Try again", onClick: handleGenerate }}
+            />
           )}
 
           {/* Actions */}

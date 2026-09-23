@@ -1,4 +1,5 @@
 import React from "react";
+import { AlertCircle } from "lucide-react";
 
 interface StatusBadgeProps {
   status: string;
@@ -147,6 +148,36 @@ export function EmptyState({ title, description, icon, action, children }: Empty
         </button>
       )}
       {children && <div className="mt-6">{children}</div>}
+    </div>
+  );
+}
+
+interface ErrorStateProps {
+  title: string;
+  description?: string;
+  icon?: React.ReactNode;
+  retry?: {
+    label: string;
+    onClick: () => void;
+  };
+}
+
+export function ErrorState({ title, description, icon, retry }: ErrorStateProps) {
+  return (
+    <div className="text-center py-12 animate-fade-in" role="alert">
+      <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-error/10 border border-error/20 flex items-center justify-center text-error">
+        {icon || <AlertCircle size={28} />}
+      </div>
+      <p className="text-muted text-base font-medium">{title}</p>
+      {description && <p className="text-muted/70 text-sm mt-2 max-w-md mx-auto">{description}</p>}
+      {retry && (
+        <button
+          onClick={retry.onClick}
+          className="btn btn-primary btn-sm mt-6"
+        >
+          {retry.label}
+        </button>
+      )}
     </div>
   );
 }

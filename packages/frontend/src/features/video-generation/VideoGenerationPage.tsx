@@ -3,7 +3,6 @@ import {
   Film,
   Wand2,
   Loader2,
-  AlertCircle,
   CheckCircle,
   XCircle,
   Sparkles,
@@ -20,6 +19,7 @@ import {
   type VideoGenerateResponse,
 } from "../../services/api";
 import { fetchWithTimeout } from "../../services/fetchWithTimeout";
+import { EmptyState, ErrorState } from "../../components/common";
 
 interface Style {
   id: string;
@@ -181,6 +181,8 @@ export function VideoGenerationPage() {
   const [results, setResults] = useState<VideoGenerateResponse[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [styles, setStyles] = useState<Style[]>([]);
+  const [loadingModels, setLoadingModels] = useState(true);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [, setJobTypes] = useState<Record<string, unknown>>({});
   const [stylePreviews, setStylePreviews] = useState<Record<string, string>>({});
@@ -214,6 +216,7 @@ export function VideoGenerationPage() {
     // diffusion_models, animatediff, checkpoints). Checkpoints endpoint is legacy
     // and misses GGUF — don't merge a filtered subset on top.
     const fetchVideoModels = async () => {
+      setLoadingModels(true);
       try {
         const vmRes = await fetchWithTimeout("/api/integrations/comfyui/video-models", { timeout: 15000 });
         if (!vmRes.ok) throw new Error(`video-models ${vmRes.status}`);
@@ -261,6 +264,8 @@ export function VideoGenerationPage() {
       } catch (e) {
         console.error("Failed to fetch video models:", e);
         setComfyStatus("offline");
+      } finally {
+        setLoadingModels(false);
       }
     };
     fetchVideoModels();
@@ -285,6 +290,8 @@ export function VideoGenerationPage() {
       setJobTypes(jobTypesData || {});
     } catch {
       // Backend may not be running — data will show as empty
+    } finally {
+      setDataLoaded(true);
     }
   };
 
@@ -901,12 +908,22 @@ export function VideoGenerationPage() {
             <p className="text-xs text-amber-400 text-center">Start ComfyUI from the Health page before generating.</p>
           )}
 
-          {/* Error */}
+          {/* Error — offers a next action, never a dead end */}
           {error && !generating && (
-            <div className="p-4 bg-red-900/30 border border-red-700 rounded-lg flex items-center gap-3 text-red-300 animate-scale-in">
-              <AlertCircle size={20} />
-              <span>{error}</span>
-            </div>
+            <ErrorState
+              title="Generation failed"
+              description={error}
+              retry={{ label: "Try again", onClick: handleGenerate }}
+            />
+          )}
+
+          {/* Empty — no clips yet: teaches what to do next */}
+          {results.length === 0 && !generating && (
+            <EmptyState
+              title="No clips yet"
+              description="Describe your scene above and click Generate Video — finished clips will appear here."
+              icon={<Film size={48} />}
+            />
           )}
 
           {/* Results — now with inline preview + download (previously just a path string) */}
@@ -955,6 +972,12 @@ export function VideoGenerationPage() {
               Video Models
               {comfyStatus === "offline" && <span className="text-xs text-amber-400 font-normal">(ComfyUI offline)</span>}
             </h3>
+            {loadingModels ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                <Loader2 size={16} className="animate-spin" />
+                Loading models…
+              </div>
+            ) : (
             <div className="space-y-2">
               {videoModels.length > 0 ? videoModels.map((model) => {
                 const selected = selectedModel === model.name;
@@ -994,6 +1017,7 @@ export function VideoGenerationPage() {
                 <p className="text-xs text-gray-500">No video models found. Install video models in ComfyUI diffusion_models folder.</p>
               )}
             </div>
+            )}
           </div>
 
           {/* Motion LoRA — only relevant for AnimateDiff / Wan GGUF */}
@@ -1066,7 +1090,12 @@ export function VideoGenerationPage() {
               <Sparkles size={16} />
               Styles
             </h3>
-            {styles.length > 0 ? (
+            {!dataLoaded ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                <Loader2 size={16} className="animate-spin" />
+                Loading styles…
+              </div>
+            ) : styles.length > 0 ? (
               <div className="space-y-2">
                 {styles.map((s) => {
                   const styleId = s.id || s.name;
@@ -1136,7 +1165,12 @@ export function VideoGenerationPage() {
               <Settings size={16} />
               Templates
             </h3>
-            {templates.length > 0 ? (
+            {!dataLoaded ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                <Loader2 size={16} className="animate-spin" />
+                Loading templates…
+              </div>
+            ) : templates.length > 0 ? (
               <div className="space-y-2">
                 {templates.map((t) => (
                   <button

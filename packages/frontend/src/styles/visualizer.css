@@ -216,6 +216,62 @@
     gap: 4px;
   }
 
+  /* Shortcuts popover — same floating-panel language as .viz-more-menu */
+  .viz-shortcuts-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 264px;
+    max-height: min(70vh, 480px);
+    overflow-y: auto;
+    padding: 10px 12px;
+    background: rgba(22, 22, 32, 0.97);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .viz-shortcuts-title {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .viz-shortcut-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .viz-shortcut-keys {
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  .viz-shortcut-row kbd {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    line-height: 1.4;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+
   .viz-more-item {
     width: 100%;
     text-align: left;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+
 import {
   Play,
   Loader2,
@@ -8,8 +9,10 @@ import {
   Wifi,
   WifiOff,
   Trash2,
+  ListOrdered,
+  RotateCcw,
 } from "lucide-react";
-import { Card, StatusBadge, ProgressBar, EmptyState } from "../../components/common";
+import { Card, StatusBadge, ProgressBar, EmptyState, PageLoader } from "../../components/common";
 import { useJobStore } from "../../state/jobStore";
 import { JobListSection } from "./QueueList";
 
@@ -43,6 +46,7 @@ function getFriendlyError(error: string): string {
 }
 
 export function Queue() {
+  const navigate = useNavigate();
   const {
     jobs,
     stats,
@@ -134,7 +138,7 @@ export function Queue() {
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-6">Job Queue</h1>
         <Card>
-          <p className="text-muted text-center py-8">Loading...</p>
+          <PageLoader label="Loading queue…" />
         </Card>
       </div>
     );
@@ -185,9 +189,13 @@ export function Queue() {
       {error && !error.includes("SSE") && !error.includes("Failed to fetch") && (
         <div className="mb-4 p-4 bg-error/10 border border-error/20 rounded-xl flex items-start gap-3 animate-fade-in">
           <AlertCircle size={18} className="text-error mt-0.5 shrink-0" />
-          <div>
+          <div className="flex-1">
             <p className="text-sm text-error font-medium">{getFriendlyError(error)}</p>
             <p className="text-xs text-muted mt-1">Try refreshing the page or check the Diagnostics page for more info.</p>
+            <button className="btn btn-secondary btn-sm mt-2" onClick={() => fetchJobs()}>
+              <RotateCcw size={14} className="inline mr-1" />
+              Retry
+            </button>
           </div>
         </div>
       )}
@@ -321,19 +329,10 @@ export function Queue() {
         ) : (
           <EmptyState
             title="No jobs in queue"
-            description="Create a job from one of the workspace pages"
-          >
-            <div className="flex items-center justify-center gap-3 mt-4">
-              <Link to="/music-video-wizard" className="btn btn-primary">
-                <Play size={16} className="inline mr-2" />
-                Music Video
-              </Link>
-              <Link to="/image-generation" className="btn btn-secondary">
-                <Play size={16} className="inline mr-2" />
-                Image Gen
-              </Link>
-            </div>
-          </EmptyState>
+            description="Nothing is rendering right now. Start a music video and it will appear here with live progress."
+            icon={<ListOrdered size={48} />}
+            action={{ label: "Create a video", onClick: () => navigate("/music-video-wizard") }}
+          />
         )}
       </Card>
     </div>

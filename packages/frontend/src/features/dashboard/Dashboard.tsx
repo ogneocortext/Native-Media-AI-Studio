@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Music2, Wand2, ArrowRight, Sparkles, Check, Image, Film, Trash2, AlertCircle, Loader2 } from "lucide-react";
 import { Card } from "../../components/common";
+import { StageHero } from "./StageHero";
 import { useJobs } from "../../hooks";
 import { useOutputStore, formatFileSize, getOutputUrl } from "../../state/outputStore";
 import { setPendingAudioFile } from "../../utils/pendingAudio";
@@ -101,6 +102,14 @@ export function Dashboard() {
         </p>
       </div>
 
+      {/* P1 — the stage leads. Latest render (or the sweep) is the hero,
+          the drop zone stays the single primary action below it. */}
+      <StageHero
+        latestVideo={recentOutputs.find(o => o.file_type === "video") ?? null}
+        hasOutputs={hasOutputs}
+        onOpenStage={() => navigate("/visualizer")}
+      />
+
       {/* ONE drop zone — the whole action */}
       <input
         ref={fileInputRef}
@@ -130,7 +139,7 @@ export function Dashboard() {
         }}
         className={`group relative rounded-2xl border-2 border-dashed p-10 text-center cursor-pointer transition-all ${dragOver ? "border-violet-500 bg-violet-500/10" : "border-white/10 bg-white/[0.02] hover:border-violet-500/40 hover:bg-violet-500/5"}`}
       >
-        <div className="w-14 h-14 rounded-2xl bg-violet-600 flex items-center justify-center mx-auto shadow-lg shadow-violet-600/20 group-hover:scale-105 transition-transform">
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-violet-600/20 group-hover:scale-105 transition-transform" style={{ background: "linear-gradient(in oklch, 135deg, oklch(55% 0.22 260), oklch(65% 0.25 310))" }}>
           <Music2 size={24} className="text-white" />
         </div>
         <p className="text-lg font-bold text-white mt-4">Drop audio file here</p>

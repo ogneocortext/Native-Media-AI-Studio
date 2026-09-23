@@ -392,13 +392,15 @@ option {
 
 .progress-fill {
   block-size: 100%;
-  background: linear-gradient(in oklch, 90deg, var(--color-primary), var(--color-accent), var(--color-cyan));
+  /* P6 - the signature sweep: the visualizer's blue->pink gradient is the
+     one progress treatment everywhere. Shimmer kept, glow deepened. */
+  background: linear-gradient(in oklch, 90deg, oklch(55% 0.22 260), oklch(65% 0.25 310));
   background-size: 200% 100%;
   animation: shimmer 2s linear infinite;
   transition: inline-size var(--duration-normal) var(--ease-out);
   border-radius: 3px;
   position: relative;
-  box-shadow: 0 0 10px var(--glow-primary);
+  box-shadow: 0 0 14px var(--glow-accent);
 
   &::after {
     content: "";
@@ -476,4 +478,21 @@ option {
   inline-size: 40px;
   block-size: 40px;
   border-width: 3px;
+}
+
+/* P1/P6 - stage hero sweep: slow blue->pink pan for the empty stage.
+   Killed automatically by the prefers-reduced-motion rule in globals.css. */
+@keyframes sweep-pan {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.stage-hero-sweep {
+  background: linear-gradient(in oklch, 120deg, oklch(20% 0.06 260), oklch(32% 0.12 290), oklch(30% 0.14 330), oklch(20% 0.06 260));
+  background-size: 300% 300%;
+  animation: sweep-pan 14s ease-in-out infinite;
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+.stage-hero-sweep:hover {
+  transform: scale(1.005);
 }

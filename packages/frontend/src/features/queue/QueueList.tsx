@@ -40,6 +40,8 @@ export const getStatusIcon = (status: string) => {
 interface JobRowProps {
   job: Job;
   index?: number;
+  /** Total pending jobs — renders honest "Queued #N of M" position. */
+  total?: number;
   actionLoading: string | null;
   onCancel: (id: string) => void;
   onRetry: (id: string) => void;
@@ -49,6 +51,7 @@ interface JobRowProps {
 export function JobRow({
   job,
   index,
+  total,
   actionLoading,
   onCancel,
   onRetry,
@@ -86,6 +89,11 @@ export function JobRow({
           <p className="text-xs text-muted">
             ID: {job.id.slice(0, 8)}... | {tsLabel}: {tsValue}
           </p>
+          {isPending && index !== undefined && total !== undefined && (
+            <p className="text-xs text-primary/80 font-medium mt-0.5">
+              Queued #{index + 1} of {total}
+            </p>
+          )}
           {isFailed && job.error && (
             <p className="text-sm text-error mt-1">
               Error: {job.error}
@@ -250,6 +258,7 @@ export function JobListSection({
             key={job.id}
             job={job}
             index={isPending ? index : undefined}
+            total={isPending ? jobs.length : undefined}
             actionLoading={actionLoading}
             onCancel={onCancel}
             onRetry={onRetry}
