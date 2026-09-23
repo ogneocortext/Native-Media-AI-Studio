@@ -69,6 +69,8 @@ date: 2026-09-05
 - [[music-gen-hardware-fit-2026|🎵 Music Gen Hardware Fit 2026]] — ACE-Step 1.5 on GTX 1070 Ti; install paths, VRAM budgets
 - [[prompt-engineering|✍️ Prompt Engineering]] — Effective prompts + repair/versioning workflow
 - [[remotion-guide|🎬 Remotion Video Compositing]] — Programmatic video with React (NEW 2026-09-01)
+- [[modern-css-2026|🎨 Modern CSS 2026]] — Tailwind v4 @theme/layers, OKLCH theming, gradient spaces, a11y media queries, verification checklist (NEW 2026-09-23)
+- [[ollama-prompting-2026|🤖 Ollama Prompting 2026]] — Vision grounding/uncertainty, structured-output schemas, code-gen contracts, VRAM latency policy (NEW 2026-09-23)
 
 ### 🤖 AI Agent Resources
 
@@ -107,6 +109,8 @@ date: 2026-09-05
 | `#concurrency`       | Concurrency control and rate limiting             | 1 document  |
 | `#retry`             | Retry policies and backoff                        | 1 document  |
 | `#remotion`          | Remotion video compositing                        | 1 document  |
+| `#frontend-css`      | Tailwind v4 theming, layers, a11y                 | 1 document  |
+| `#prompt-engineering`| Ollama vision grounding, schemas, contracts       | 1 document  |
 | `#audio`             | Audio-reactive production                         | 1 document  |
 | `#silhouette`        | Silhouette / character animation                  | 2 documents |
 | `#hardware`          | Hardware-verified 8GB models                      | 1 document  |

@@ -6,9 +6,9 @@ body::before {
   pointer-events: none;
   z-index: -1;
   background:
-    radial-gradient(900px 600px at 12% 8%, color-mix(in oklch, var(--color-primary) 7%, transparent), transparent 62%),
-    radial-gradient(700px 500px at 88% 92%, color-mix(in oklch, var(--color-accent) 5%, transparent), transparent 60%),
-    radial-gradient(600px 400px at 50% 50%, color-mix(in oklch, var(--color-cyan) 3%, transparent), transparent 70%);
+    radial-gradient(in oklch, 900px 600px at 12% 8%, color-mix(in oklch, var(--color-primary) 7%, transparent), transparent 62%),
+    radial-gradient(in oklch, 700px 500px at 88% 92%, color-mix(in oklch, var(--color-accent) 5%, transparent), transparent 60%),
+    radial-gradient(in oklch, 600px 400px at 50% 50%, color-mix(in oklch, var(--color-cyan) 3%, transparent), transparent 70%);
   opacity: 1;
 }
 
@@ -31,9 +31,9 @@ body::after {
 
 [data-theme="light"] body::before {
   background:
-    radial-gradient(900px 600px at 12% 8%, color-mix(in oklch, var(--color-primary) 6%, transparent), transparent 62%),
-    radial-gradient(700px 500px at 88% 92%, color-mix(in oklch, var(--color-accent) 4%, transparent), transparent 60%),
-    radial-gradient(600px 400px at 50% 50%, color-mix(in oklch, var(--color-cyan) 2%, transparent), transparent 70%);
+    radial-gradient(in oklch, 900px 600px at 12% 8%, color-mix(in oklch, var(--color-primary) 6%, transparent), transparent 62%),
+    radial-gradient(in oklch, 700px 500px at 88% 92%, color-mix(in oklch, var(--color-accent) 4%, transparent), transparent 60%),
+    radial-gradient(in oklch, 600px 400px at 50% 50%, color-mix(in oklch, var(--color-cyan) 2%, transparent), transparent 70%);
 }
 
 [data-theme="light"] body::after { opacity: 0.015; }
@@ -132,6 +132,21 @@ body::after {
 .animate-float { animation: float 3s ease-in-out infinite; }
 .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
 .animate-shimmer { animation: shimmer 2s linear infinite; }
+
+/* Skeleton loading placeholder. Unlike .animate-shimmer (animation only),
+   this carries its own theme-aware sheen so bare <div class="shimmer">
+   placeholders (MediaLibrary grid, cards) actually animate. Composes with
+   background-color utilities: only background-image is set here. */
+.shimmer {
+  background-image: linear-gradient(in oklch, 
+    90deg,
+    color-mix(in oklch, var(--text-primary) 4%, transparent) 25%,
+    color-mix(in oklch, var(--text-primary) 12%, transparent) 50%,
+    color-mix(in oklch, var(--text-primary) 4%, transparent) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s linear infinite;
+}
 .animate-spin-slow { animation: spin-slow 3s linear infinite; }
 .animate-bounce-subtle { animation: bounce-subtle 2s ease-in-out infinite; }
 .animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
@@ -145,7 +160,7 @@ body::after {
 
 /* ===== GRADIENT TEXT ===== */
 .gradient-text {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent), var(--color-cyan));
+  background: linear-gradient(in oklch, 135deg, var(--color-primary), var(--color-accent), var(--color-cyan));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

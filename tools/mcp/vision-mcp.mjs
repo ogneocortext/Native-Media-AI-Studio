@@ -408,6 +408,10 @@ async function warmModel(model, enabled = true) {
 
 // ─── Image analysis core ───────────────────────────────────────────────────────
 
+// The model the primary backend (tools/vision/analyze.mjs) actually loads.
+// Kept in sync with its VISION_MODEL default so warmup targets the right model.
+const PRIMARY_VISION_MODEL = process.env.VISION_MODEL || "gemma4:e2b-it-qat";
+
 async function describeImage(imagePath, prompt, mode) {
   const abs = resolveImagePath(imagePath);
   const finalPrompt = prompt || "Describe this image in detail.";
@@ -415,6 +419,17 @@ async function describeImage(imagePath, prompt, mode) {
   const reqId = generateRequestId();
 
   logRequest(reqId, "vision_describe", `mode=${finalMode} image=${abs}`);
+
+  // Fail fast when Ollama is down, and make sure the vision model is warm:
+  // a cold 4GB+ load inside the request is what blows past MCP timeouts.
+  // These helpers only log on failure — the analyzer below still runs.
+  if (!(await ollamaReady())) {
+    throw new Error(
+      "Ollama is not reachable at " + OLLAMA_URL + ". Start it with `ollama serve`.",
+    );
+  }
+  await ensureVisionModel(PRIMARY_VISION_MODEL);
+  await warmModel(PRIMARY_VISION_MODEL);
 
   // Primary: use the standalone analyzer which has sharp + model-aware dispatch
   try {
@@ -446,8 +461,17 @@ async function compareImages(imageA, imageB, prompt) {
     prompt ||
     "Compare these two images. Identify differences, improvements, or regressions. Summarize key changes.";
   const reqId = generateRequestId();
+  const model = process.env.VISION_MODEL || DEFAULT_MODEL;
 
   logRequest(reqId, "vision_compare", `start ${a} vs ${b}`);
+
+  if (!(await ollamaReady())) {
+    throw new Error(
+      "Ollama is not reachable at " + OLLAMA_URL + ". Start it with `ollama serve`.",
+    );
+  }
+  await ensureVisionModel(model);
+  await warmModel(model);
 
   // Use the standalone analyzer for compare/diff
   try {
@@ -735,8 +759,14 @@ const TOOL_IMPLEMENTATIONS = {
     const img2 = await resizeImage(b, 1024, 80);
     const finalPrompt =
       prompt || "Compare these two screenshots. Describe every difference.";
+    const model = process.env.VISION_MODEL || DEFAULT_MODEL;
+    if (!(await ollamaReady())) {
+      return { error: `Ollama is not reachable at ${OLLAMA_URL}. Start it with \`ollama serve\`.` };
+    }
+    await ensureVisionModel(model);
+    await warmModel(model);
     const response = await callOllama(
-      process.env.VISION_MODEL || DEFAULT_MODEL,
+      model,
       finalPrompt,
       [img1, img2],
       2,

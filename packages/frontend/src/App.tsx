@@ -5,7 +5,7 @@ import { Dashboard } from "./features/dashboard/Dashboard";
 import { Queue } from "./features/queue/Queue";
 import { Settings } from "./features/settings/Settings";
 import { NotFound } from "./features/not-found/NotFound";
-import { ErrorBoundary } from "./components/common";
+import { ErrorBoundary, PageLoader } from "./components/common";
 import { ToastProvider } from "./components/common/Toast";
 import { DebugPanel } from "./components/debug/DebugPanel";
 
@@ -75,7 +75,7 @@ function App() {
     <ToastProvider>
       <BrowserRouter>
         <Layout>
-          <Suspense fallback={null}>
+          <Suspense fallback={<PageLoader />}>
             <Routes>
             <Route path="/" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
             <Route path="/queue" element={<ErrorBoundary><Queue /></ErrorBoundary>} />

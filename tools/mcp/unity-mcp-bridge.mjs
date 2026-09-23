@@ -494,13 +494,46 @@ server.registerTool(
       "unity_command",
     ];
 
-    const systemPrompt = "You are a Unity Editor workflow planner. Return ONLY valid JSON.";
+    const systemPrompt = `You are a Unity Editor workflow planner. Return ONLY valid JSON, no markdown fences, no commentary.
+
+RULES:
+- "command" MUST be exactly one of the Valid commands list. Never invent a command name.
+- "parameters" MUST be an object (possibly empty {}). Never use arrays or strings for parameters.
+- Prefer specific tools (create_gameobject, set_object_visibility) over the generic unity_command fallback.
+- Keep the plan short: 1-6 commands that directly build what was asked.
+
+FEW-SHOT EXAMPLE (copy structure, change content):
+User: "a red cube on a plane, hidden trex"
+{"summary":"Red cube scene with hidden trex","commands":[{"command":"create_gameobject","parameters":{"name":"RedCube","primitive":"cube"}},{"command":"set_object_visibility","parameters":{"object_name":"Trex","visible":false}}],"notes":[]}`;
+
     const userPrompt = `Generate Unity Editor commands for: ${description}
 Target: ${target || "general"}
 Valid commands: ${knownCommands.join(", ")}
 
 Return JSON only:
 {"summary":"...","commands":[{"command":"create_gameobject","parameters":{}}],"notes":[]}`;
+
+    // Flat schema for constrained decoding (Ollama format=schema).
+    // Grammar enforces shape; the prompt enforces command vocabulary.
+    const responseSchema = {
+      type: "object",
+      properties: {
+        summary: { type: "string" },
+        commands: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              command: { type: "string" },
+              parameters: { type: "object" },
+            },
+            required: ["command", "parameters"],
+          },
+        },
+        notes: { type: "array", items: { type: "string" } },
+      },
+      required: ["summary", "commands", "notes"],
+    };
 
     try {
       const res = await fetch(`${BASE_URL}/api/chat`, {
@@ -515,6 +548,7 @@ Return JSON only:
         stream: false,
         keep_alive: "60s",
         think: false,
+        format: responseSchema,
         options: { num_ctx: 8192, num_predict: 8192, temperature: 0.2 },
       }),
       });

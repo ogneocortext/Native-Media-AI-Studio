@@ -26,7 +26,8 @@
       ],
       "environment": {
         "OLLAMA_URL": "http://127.0.0.1:11434",
-        "BACKEND_URL": "http://127.0.0.1:8000"
+        "BACKEND_URL": "http://127.0.0.1:8000",
+        "VISION_KEEP_ALIVE": "30m"
       },
       "enabled": true
     },

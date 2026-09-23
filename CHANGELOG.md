@@ -7,6 +7,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-09-23
+
+> First tagged release. Incorporates all prior `[Unreleased]` entries below,
+> which were committed without versioning.
+
+### Added - Logging correlation + log analytics hardening
+
+- `X-Request-ID` is now a real correlation id: `RequestIDMiddleware` sets a
+  `contextvars` id per request, every log record carries `[request_id]`, slow
+  requests log at INFO (health/SSE/fast at DEBUG), and the exception handler
+  logs method + path + request id.
+- `POST /api/integrations/config/settings` `log_level` changes apply live via
+  `apply_log_level()` (validated, 422 on bad values) — no restart.
+- `GET /api/logs/{name}` returns 404 for unknown logs; `POST /api/logs/clear`
+  truncates handler-safely (no more NUL padding); `/frontend` batches capped
+  at 100 entries with level validation and message truncation.
+- `read_log_tail` is now a bounded deque (no full-file reads);
+  `get_recent_errors` scans newest-first and skips traceback continuations.
+- Log analytics parser strips `[request-id]` prefixes so grouped messages
+  stay grouped; `get_tracer()` returns a no-op tracer instead of `None`.
+- Frontend `logger.ts`: one shared flush timer across all loggers (was one
+  interval per source), `sendBeacon` on hide/unload with keepalive fallback,
+  direct-backend fallback for detached frontends.
+
+### Added - Centralized ComfyUI path resolution
+
+- New `core/paths.py` helpers (`comfyui_dir/output/input/models_dir`) honor
+  `config.comfyui_output_dir` — replacing scattered `PROJECT_ROOT.parent /
+  "ComfyUI"` literals and machine-specific absolute paths in `outputs.py`,
+  `upscale_service.py`, `comfyui_manager.py`, `comfyui_client.py`,
+  `logging_config.py`, and `gen3d_service.py`.
+- Fixed a real derivation bug: with an explicit output dir, the upscale input
+  dir resolved to `ComfyUI/ComfyUI`.
+- Upscale temp inputs (`nma_upscale_*`) are now deleted after use (3 stale
+  files removed from ComfyUI `input/`).
+
+### Added - Script organization + model maintenance tools
+
+- All 27 Python helpers moved out of `docs/scratch/` → `tools/scripts/`
+  (16 utilities) and `tools/tests/` (11 live verification scripts + fixture);
+  `AGENTS.md` documents the convention.
+- Consolidated duplicates: 3 `/object_info` probers → `comfyui_model_audit.py`
+  (`dump` + `verify` modes); 2 model downloaders → `comfyui_download_models.py`
+  (`--set qwen-upscalers|wan22|all`, portable ComfyUI resolution).
+- New `tools/tests/vision_eval.py` harness (6 fixed cases, JSONL baseline)
+  plus `comfyui_fix_models.py` one-shot model-folder repair (placeholders
+  removed, duplicates hardlinked, motion module relocated).
+
+### Added - Frontend loading + CSS/theming overhaul
+
+- Route-level `PageLoader` replaces the blank `Suspense fallback={null}`.
+- `@theme` block maps design tokens to utilities — ~600 `text-muted` /
+  `bg-surface` / `text-primary` usages previously generated **zero CSS**.
+- New `.shimmer` skeleton utility (MediaLibrary placeholders were static);
+  gradients interpolate `in oklch`; `transition: all` scoped (15 sites);
+  selects/inputs/secondary buttons/neumorphic made theme-aware (no more
+  hardcoded dark hexes or `!important`); duplicate `kt-spin` keyframes removed.
+- Accessibility: `prefers-contrast: more` hardening, `forced-colors` focus
+  fallback, brand `::selection`, balanced headlines, reduced-motion intact.
+- Layer order documented as load-bearing (`base` before `theme` keeps the
+  `color-scheme` toggle working — layers beat specificity).
+- Research captured in `docs/knowledge-library/modern-css-2026.md`.
+
+### Added - Vision pipeline reliability + Ollama prompting
+
+- `vision_describe`/`vision_ocr` were timing out past MCP limits: first-attempt
+  `num_predict` 1024→4096 (a cap, not a target) cut UI audits 43s→17s;
+  `done_reason` gating (instead of punctuation heuristics) cut a failing OCR
+  case 90s→14s; best-result tracking stops retries erasing successes; dead
+  VRAM warmup helpers wired in; keep-alive 30m.
+- Task→model routing in `analyze.mjs` (`MODEL_PROFILES` + `MODE_MODEL` +
+  `--model` override): OCR/table/chart → minicpm-v:8b (10s warm),
+  compare → qwen3-vl:2b (262K ctx), default gemma4 — with resident-model
+  stickiness (capability-verified, never text models) because cold loads cost
+  30–100s. `--json` reports the actual serving model.
+- `plan_blender_script` and Unity `plan_unity_scene` now send Ollama `format`
+  JSON schemas (constrained decoding) plus few-shot/negative guidance;
+  Blender schema validated live (exact keys), Unity fired live (24s, zero
+  invented commands). Research in `docs/knowledge-library/ollama-prompting-2026.md`.
+- Baseline: vision eval 6/6 PASS; backend 63/63 tests; `tsc` + `vite build` clean.
+
+## [Unreleased]
+
 ### Fixed - Audio analysis payload, contract + correctness (2026-09-21)
 
 Review of the analysis pipeline (`app/api/audio.py`, `app/services/audio_analyzer.py`, `tools/lib/audio.py`) found several real defects; all are fixed and verified.
@@ -30,7 +113,7 @@ Audit of CPU-only hotpaths (backend services, music-gen, Go sidecars) found thre
 - **New `resample_audio_gpu()`** (`audio_analyzer.py`): `torchaudio.functional.resample` on CUDA with librosa fallback — the madmom-infer path resampled 4-minute tracks on CPU (librosa/soxr); GPU resample of 3×10 s buffers now takes 0.01 s.
 - **torchaudio Spectrogram window device bug**: `window_fn=torch.hann_window` builds the window on CPU, so the "primary" CUDA path raised `input and window must be on the same device` on **every call** and silently ran the legacy torch.stft fallback. Window is now device-bound via lambda; the real torchaudio CUDA path works (`computed_on=cuda` verified).
 
-Audited and confirmed intentionally CPU (no change): librosa `beat_track`/`onset_*` (no GPU equivalent), loudness via FFmpeg `ebur128`/`loudnorm`, thumbnails via FFmpeg `scale=`, music-gen ACE-Step (`device=auto`, intentional Tier-3 CPU offload for 8 GB VRAM), VRAM manager (no unnecessary eviction), Go sidecars (only FFmpeg shells). Backend tests 49/49 pass; GPU/CPU smoke suite in `docs/scratch/test_gpu_offloads.py` passes 9/9.
+Audited and confirmed intentionally CPU (no change): librosa `beat_track`/`onset_*` (no GPU equivalent), loudness via FFmpeg `ebur128`/`loudnorm`, thumbnails via FFmpeg `scale=`, music-gen ACE-Step (`device=auto`, intentional Tier-3 CPU offload for 8 GB VRAM), VRAM manager (no unnecessary eviction), Go sidecars (only FFmpeg shells). Backend tests 49/49 pass; GPU/CPU smoke suite in `tools/tests/test_gpu_offloads.py` passes 9/9.
 
 ### Added - madmom-infer + sonara analysis backends wired (2026-09-21)
 
@@ -45,7 +128,7 @@ Both packages referenced by the analyzer were present in `nma-studio-cuda` but t
 
 Installed `faster-whisper 1.2.1` + `ctranslate2 4.8.2` into `nma-studio-cuda`, activating `POST /api/audio/transcribe`.
 
-- **CUDA libs**: `nvidia-cublas-cu12` / `nvidia-cudnn-cu12` pip packages; scripts must `os.add_dll_directory()` their `bin/` dirs before importing faster-whisper (see `docs/scratch/transcribe_hitl_v2.py`).
+- **CUDA libs**: `nvidia-cublas-cu12` / `nvidia-cudnn-cu12` pip packages; scripts must `os.add_dll_directory()` their `bin/` dirs before importing faster-whisper (see `tools/scripts/transcribe_hitl_v2.py`).
 - **Pascal (sm_61) constraint**: CTranslate2 on GTX 1070 Ti supports only `float32` on GPU — `int8`/`float16` need Turing+. Use `compute_type="float32"`.
 - **Verified on HITL-V2 vocals stem**: `large-v3-turbo` (809M params, ~3.2 GB VRAM) transcribed 246.5s in 15.6s (~16× realtime); `base` in 17.8s. Turbo transcript is lyrics-grade (consistent "you glitch", coherent verses) vs base's hallucinated loops.
 - **Backend hardening (`app/services/transcription.py`)**: capability-aware CTranslate2 compute type (`_whisper_device_config`: sm_70+ → float16, Pascal → float32, else CPU int8) — the old hardcoded `float16` would have crashed on Pascal; automatic cuBLAS/cuDNN DLL dir registration on Windows; default model changed `medium` → `large-v3-turbo` (better accuracy, faster, same ~3 GB footprint).

@@ -320,7 +320,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Native Media AI Studio",
     description="Local AI media generation platform for music, image, and video",
-    version="1.0.0",
+    version="1.8.0",
     lifespan=lifespan,
 )
 
@@ -430,6 +430,7 @@ from .api import (  # noqa: E402
     docs,
     gen3d,
     health,
+    hardware,
     hyperframes,
     integrations,
     jobs,
@@ -448,6 +449,7 @@ from .api import (  # noqa: E402
 
 app.include_router(jobs.router)
 app.include_router(health.router)
+app.include_router(hardware.router)
 app.include_router(gen3d.router)
 app.include_router(integrations.router)
 app.include_router(outputs.router)
@@ -495,6 +497,7 @@ async def root():
         "endpoints": {
             "docs": "/docs",
             "health": "/api/health",
+            "hardware": "/api/hardware",
             "jobs": "/api/jobs",
             "integrations": "/api/integrations",
         },

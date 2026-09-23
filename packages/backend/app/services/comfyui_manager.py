@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 from ..core.config import PROJECT_ROOT, config
+from ..core.paths import comfyui_dir
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +23,9 @@ async def _run_subprocess(args: list[str], **kwargs) -> subprocess.CompletedProc
 
 
 # ComfyUI lives beside the repo root (sibling directory), e.g.
-# "D:\\Backup of Important Data for Windows 11 Upgrade\\ComfyUI".
-COMFYUI_DIR = PROJECT_ROOT.parent / "ComfyUI"
+# "D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI".
+# Resolved via core.paths so config.comfyui_output_dir is honored.
+COMFYUI_DIR = comfyui_dir()
 COMFYUI_MAIN = COMFYUI_DIR / "main.py"
 DEFAULT_PORT = getattr(config, 'comfyui_port', 8188)
 

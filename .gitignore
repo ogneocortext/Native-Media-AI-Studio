@@ -191,13 +191,12 @@ Area-*.csv
 transcriptions/
 packages/transcriptions/
 
-# Ad-hoc scratch outputs (one-off scripts, vision analysis dumps)
+# Ad-hoc scratch outputs (vision analysis dumps, data files)
 temp_restart.ps1
 vision-*.txt
 env_check.txt
 docs/scratch/*.txt
 docs/scratch/*.csv
-docs/scratch/*.py
 
 # ComfyUI backup bundles (never part of the app)
 .comfyui-backups/

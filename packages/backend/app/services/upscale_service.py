@@ -31,6 +31,7 @@ import aiohttp
 
 from ..core import comfyui_client as _cu
 from ..core.config import PROJECT_ROOT, config
+from ..core.paths import comfyui_input_dir, comfyui_output_dir
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ def _resolve_image(image: str) -> Path:
     p = Path(image)
     if not p.is_absolute():
         if image.startswith("comfyui/"):
-            comfy_out = config.comfyui_output_dir or (PROJECT_ROOT.parent / "ComfyUI" / "output")
+            comfy_out = comfyui_output_dir()
             p = Path(comfy_out) / image[len("comfyui/"):]
         else:
             p = PROJECT_ROOT / image
@@ -135,61 +136,68 @@ async def _upscale_via_comfyui(src: Path, model: str, scale: int) -> UpscaleResu
         warnings.append(f"model '{model}' not found; used '{chosen}'")
 
     # ComfyUI LoadImage needs the file in its input dir; copy if outside.
-    # (config has comfyui_output_dir but no input dir — derive from output.)
-    comfy_out = config.comfyui_output_dir or (PROJECT_ROOT.parent / "ComfyUI")
-    comfy_root = Path(comfy_out)
-    comfy_root = comfy_root if (comfy_root / "input").exists() else comfy_root.parent / "ComfyUI"
-    comfy_in = comfy_root / "input"
-    if src.resolve().parent != comfy_in.resolve():
-        comfy_in.mkdir(parents=True, exist_ok=True)
-        load_name = f"nma_upscale_{uuid.uuid4().hex[:8]}{src.suffix}"
-        await asyncio.to_thread(shutil.copy2, src, comfy_in / load_name)
-    else:
-        load_name = src.name
+    # The copy is removed afterwards so ComfyUI's input dir does not fill
+    # with stale nma_upscale_* files.
+    comfy_in = comfyui_input_dir()
+    copied_temp: Path | None = None
+    try:
+        if src.resolve().parent != comfy_in.resolve():
+            comfy_in.mkdir(parents=True, exist_ok=True)
+            load_name = f"nma_upscale_{uuid.uuid4().hex[:8]}{src.suffix}"
+            await asyncio.to_thread(shutil.copy2, src, comfy_in / load_name)
+            copied_temp = comfy_in / load_name
+        else:
+            load_name = src.name
 
-    prefix = f"nma_upscale_{uuid.uuid4().hex[:8]}"
-    workflow = _build_upscale_workflow(load_name, chosen, scale, prefix)
+        prefix = f"nma_upscale_{uuid.uuid4().hex[:8]}"
+        workflow = _build_upscale_workflow(load_name, chosen, scale, prefix)
 
-    session = await _cu.get_shared_session()
-    prompt_id = await _cu.submit_prompt(config.comfyui_url, workflow, session=session, timeout=15)
+        session = await _cu.get_shared_session()
+        prompt_id = await _cu.submit_prompt(config.comfyui_url, workflow, session=session, timeout=15)
 
-    deadline = time.monotonic() + 600
-    outputs: dict = {}
-    while time.monotonic() < deadline:
-        await asyncio.sleep(POLL_INTERVAL_S)
-        hist = await _cu.fetch_history(config.comfyui_url, prompt_id, session=session, timeout=5)
-        entry = hist.get(prompt_id)
-        if not entry:
-            continue
-        if entry.get("status", {}).get("status_str") == "error":
-            raise RuntimeError("ComfyUI reported workflow error during upscale")
-        outputs = entry.get("outputs", {}) or {}
-        if outputs:
-            break
-    if not outputs:
-        raise RuntimeError("Timed out waiting for ComfyUI upscale (600s)")
+        deadline = time.monotonic() + 600
+        outputs: dict = {}
+        while time.monotonic() < deadline:
+            await asyncio.sleep(POLL_INTERVAL_S)
+            hist = await _cu.fetch_history(config.comfyui_url, prompt_id, session=session, timeout=5)
+            entry = hist.get(prompt_id)
+            if not entry:
+                continue
+            if entry.get("status", {}).get("status_str") == "error":
+                raise RuntimeError("ComfyUI reported workflow error during upscale")
+            outputs = entry.get("outputs", {}) or {}
+            if outputs:
+                break
+        if not outputs:
+            raise RuntimeError("Timed out waiting for ComfyUI upscale (600s)")
 
-    for _node, out in outputs.items():
-        for img in out.get("images", []):
-            params = _cu.view_params(
-                img["filename"], img.get("subfolder", ""), img.get("type", "output")
-            )
-            async with session.get(f"{config.comfyui_url}/view", params=params,
-                             timeout=aiohttp.ClientTimeout(total=60)) as r:
-                    if r.status != 200:
-                        continue
-                    data = await r.read()
-                    dst = IMAGE_DIR / f"{src.stem}_upscaled_{scale}x.png"
-                    dst.parent.mkdir(parents=True, exist_ok=True)
-                    await asyncio.to_thread(dst.write_bytes, data)
-                    return UpscaleResult(
-                        engine="comfyui", model=chosen, scale=scale,
-                        source=str(src), output_path=str(dst),
-                        relative_path=_relative(dst),
-                        elapsed_s=round(time.perf_counter() - t0, 2),
-                        warnings=warnings,
-                    )
-    raise RuntimeError("ComfyUI upscale completed but produced no image output")
+        for _node, out in outputs.items():
+            for img in out.get("images", []):
+                params = _cu.view_params(
+                    img["filename"], img.get("subfolder", ""), img.get("type", "output")
+                )
+                async with session.get(f"{config.comfyui_url}/view", params=params,
+                                 timeout=aiohttp.ClientTimeout(total=60)) as r:
+                        if r.status != 200:
+                            continue
+                        data = await r.read()
+                        dst = IMAGE_DIR / f"{src.stem}_upscaled_{scale}x.png"
+                        dst.parent.mkdir(parents=True, exist_ok=True)
+                        await asyncio.to_thread(dst.write_bytes, data)
+                        return UpscaleResult(
+                            engine="comfyui", model=chosen, scale=scale,
+                            source=str(src), output_path=str(dst),
+                            relative_path=_relative(dst),
+                            elapsed_s=round(time.perf_counter() - t0, 2),
+                            warnings=warnings,
+                        )
+        raise RuntimeError("ComfyUI upscale completed but produced no image output")
+    finally:
+        if copied_temp is not None:
+            try:
+                copied_temp.unlink(missing_ok=True)
+            except OSError as exc:
+                logger.debug("Could not remove temp upscale input %s: %s", copied_temp, exc)
 
 
 def _upscale_via_ffmpeg_sync(src: Path, dst: Path, scale: int) -> None:

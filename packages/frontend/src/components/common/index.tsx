@@ -102,6 +102,23 @@ export function LoadingSpinner({ size = "md" }: LoadingSpinnerProps) {
   );
 }
 
+interface PageLoaderProps {
+  label?: string;
+}
+
+export function PageLoader({ label = "Loading…" }: PageLoaderProps) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-4 py-24 animate-fade-in"
+      role="status"
+      aria-label={label}
+    >
+      <LoadingSpinner size="lg" />
+      <p className="text-sm text-muted">{label}</p>
+    </div>
+  );
+}
+
 interface EmptyStateProps {
   title: string;
   description?: string;

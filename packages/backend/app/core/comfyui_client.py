@@ -251,31 +251,20 @@ async def fetch_object_info(
 
 def resolve_comfyui_dir() -> Path | None:
     """Locate the ComfyUI install dir (sibling of repo root or configured)."""
-    from .config import PROJECT_ROOT, config
+    from .paths import comfyui_dir
 
-    candidates = [
-        PROJECT_ROOT.parent / "ComfyUI",
-        PROJECT_ROOT.parent.parent / "ComfyUI",
-        Path(getattr(config, "comfyui_output_dir", "") or "").parent
-        if getattr(config, "comfyui_output_dir", "") else None,
-        Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI"),
-    ]
-    for cand in candidates:
-        if cand is not None and cand.exists() and (cand / "main.py").exists():
-            return cand
+    cand = comfyui_dir()
+    if cand.exists() and (cand / "main.py").exists():
+        return cand
     # Fall back to any existing candidate dir even without main.py
-    for cand in candidates:
-        if cand is not None and cand.exists():
-            return cand
+    if cand.exists():
+        return cand
     return None
 
 
 def resolve_models_dir() -> Path | None:
     """Locate ``ComfyUI/models`` using the install dir or known paths."""
-    comfy = resolve_comfyui_dir()
-    if comfy is not None:
-        models = comfy / "models"
-        if models.exists():
-            return models
-    fallback = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI\models")
-    return fallback if fallback.exists() else None
+    from .paths import comfyui_models_dir
+
+    models = comfyui_models_dir()
+    return models if models.exists() else None

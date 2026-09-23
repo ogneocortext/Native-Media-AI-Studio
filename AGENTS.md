@@ -100,7 +100,7 @@ Native-Media-AI-Studio/
 
 ### Scratch / Generated Artifacts
 
-> [!note] One-off diagnostics, ad-hoc screenshots, regex test files, and generated logs should live under `docs/scratch/` or `packages/frontend/tests/browser/out/` rather than the repo root. Root-level scratch files are noise for agent navigation.
+> [!note] One-off diagnostics, ad-hoc screenshots, and generated logs should live under `docs/scratch/` or `packages/frontend/tests/browser/out/` rather than the repo root. Python helpers belong in `tools/scripts/` (reusable utilities) or `tools/tests/` (live smoke/verification scripts) — never in `docs/`. Root-level scratch files are noise for agent navigation.
 
 ### Screenshot Conventions
 

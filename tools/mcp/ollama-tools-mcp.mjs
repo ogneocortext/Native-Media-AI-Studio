@@ -506,7 +506,11 @@ CRITICAL API RULES:
 - Always assign the mesh to the object: obj.data = mesh
 - Use bpy.context.active_object or bpy.context.selected_objects after ops
 - Never reference undefined variables (check spelling: obelisk vs obelik vs obeli)
-- Return ONLY JSON, no markdown fences`;
+- Return ONLY JSON, no markdown fences
+
+NEGATIVE EXAMPLE (never do this):
+{"script": "mesh = bpy.data.meshes.new('M'); mesh.vertices.add(1); ..."}
+WHY WRONG: vertices.add() does not exist for adding geometry; the script would crash. Use from_pydata as above.`;
 
   const userPrompt = `Create a Blender Python script for: ${description}
 
@@ -517,8 +521,23 @@ Return ONLY JSON, no markdown fences:
 
 Rules:
 - Use bpy only, metric units, meaningful names
+- The script MUST be complete and runnable end-to-end (no truncation, no "... continue here" placeholders)
 - Add basic materials when relevant using the CORRECT pattern above
+- required_assets lists external files ONLY; empty array when self-contained
 - No external files unless in required_assets`;
+
+  // Flat JSON schema for constrained decoding (Ollama format=schema).
+  // Grammar enforces shape; the prompt above enforces intent. Keep flat —
+  // deep nesting degrades small-model output.
+  const responseSchema = {
+    type: "object",
+    properties: {
+      script: { type: "string" },
+      instructions: { type: "string" },
+      required_assets: { type: "array", items: { type: "string" } },
+    },
+    required: ["script", "instructions", "required_assets"],
+  };
 
   try {
     const res = await fetchWithTimeout(`${BASE_URL}/api/chat`, {
@@ -533,6 +552,7 @@ Rules:
         stream: false,
         keep_alive: "60s",
         think: false,
+        format: responseSchema,
         options: { num_ctx: 8192, num_predict: 8192, temperature: 0.2 },
       }),
     }, 180000);

@@ -63,9 +63,16 @@ COMFYUI_LOG = LOG_DIR / "comfyui.log"
 QUEUE_LOG = LOG_DIR / "queue.log"
 OLLAMA_LOG = LOG_DIR / "ollama.log"
 
-# ComfyUI's own log directory (ComfyUI lives beside the repo root)
-COMFYUI_DIR = PROJECT_ROOT.parent / "ComfyUI"
-COMFYUI_USER_LOG_DIR = COMFYUI_DIR / "user"
+# ComfyUI's own log directory (ComfyUI lives beside the repo root).
+# Resolved lazily via core.paths so config.comfyui_output_dir is honored
+# and this module never hardcodes the sibling path.
+def _comfyui_user_log_dir() -> Path:
+    from .paths import comfyui_dir
+
+    return comfyui_dir() / "user"
+
+
+COMFYUI_USER_LOG_DIR = _comfyui_user_log_dir()
 
 # Max size per log file (10 MB)
 MAX_BYTES = 10 * 1024 * 1024

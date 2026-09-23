@@ -39,9 +39,106 @@ const VISION_KEEP_ALIVE = process.env.VISION_KEEP_ALIVE || '10m';
 // 4096 default and get server-side truncated. 8192 is the 8GB-VRAM-safe floor.
 const VISION_NUM_CTX = parseInt(process.env.VISION_NUM_CTX || '8192');
 const VISION_TIMEOUT_MS = parseInt(process.env.VISION_TIMEOUT_MS || '300000');
+
+// --- Task → model routing -------------------------------------------------
+// One prompt skeleton serves all models; what differs per model is sampling
+// and limits (temperature, context, resolution). Modes map to the model
+// whose strengths fit the task; resident-model stickiness (below) avoids a
+// cold load when a capable model is already warm — a switch costs 30-60s,
+// more than any prompt tweak saves.
+const MODEL_PROFILES = {
+  'gemma4:e2b-it-qat':   { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1568, note: 'detailed audits' },
+  'qwen3-vl:2b':         { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1280, note: 'fast triage, huge ctx' },
+  'qwen3-vl:4b':         { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1280, note: 'fast triage, larger' },
+  'minicpm-v:8b':        { temp: 0,   tempExtract: 0, numCtx: 16384, maxDim: 1792, note: 'trustworthy OCR (RLAIF-V)' },
+  'minicpm-v:latest':    { temp: 0,   tempExtract: 0, numCtx: 16384, maxDim: 1792, note: 'trustworthy OCR (RLAIF-V)' },
+};
+const DEFAULT_PROFILE = { temp: 0.3, tempExtract: 0, numCtx: VISION_NUM_CTX, maxDim: 1568, note: 'generic' };
+
+// Extractive modes want trustworthiness over flair; multi-image modes want
+// context headroom. Everything else defaults to VISION_MODEL.
+const MODE_MODEL = {
+  ocr: 'minicpm-v:8b',
+  table: 'minicpm-v:8b',
+  chart: 'minicpm-v:8b',
+  compare: 'qwen3-vl:2b',
+  multicomp: 'qwen3-vl:2b',
+};
+
+function profileFor(model) {
+  return MODEL_PROFILES[model] || DEFAULT_PROFILE;
+}
+
+async function residentVisionModels() {
+  // Only models whose capabilities include vision — otherwise stickiness
+  // could latch onto a resident TEXT model (e.g. qwen3.5:9b) and hard-fail.
+  let names = [];
+  try {
+    const r = await fetch(`${OLLAMA_URL}/api/ps`, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) return [];
+    const d = await r.json();
+    names = (d.models || []).map((m) => m.name);
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const n of names) {
+    try {
+      const r = await fetch(`${OLLAMA_URL}/api/show`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: n }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!r.ok) continue;
+      const d = await r.json();
+      if ((d.capabilities || []).includes('vision')) out.push(n);
+    } catch {
+      // Unverifiable: treat basename hints as fallback.
+      const b = baseName(n);
+      if (b.includes('vl') || b.includes('vision') || b.includes('minicpm') || b.includes('gemma')) {
+        out.push(n);
+      }
+    }
+  }
+  return out;
+}
+
+function baseName(name) {
+  return String(name || '').split(':')[0].toLowerCase();
+}
+
+// Resolve which model serves this call:
+//   1. explicit --model flag (or VISION_MODEL env) always wins;
+//   2. mode-mapped model when it is resident or nothing vision-capable is;
+//   3. otherwise the resident model (cold loads cost more than any match gain).
+async function resolveModel(args, forcedModel) {
+  if (forcedModel) return { model: forcedModel, why: 'override' };
+  const mapped = MODE_MODEL[args.mode];
+  if (!mapped) return { model: VISION_MODEL, why: 'default' };
+  const resident = await residentVisionModels();
+  const mappedBase = baseName(mapped);
+  if (resident.some((r) => baseName(r) === mappedBase || r === mapped)) {
+    return { model: mapped, why: 'mode-map+resident' };
+  }
+  // residentVisionModels() already capability-filters, so any entry here is
+  // vision-capable — no basename guessing needed.
+  if (!resident.length) return { model: mapped, why: 'mode-map' };
+  return { model: resident[0], why: `resident-sticky(${resident[0]})` };
+}
 // Modes where text legibility decides the result — research (DocVLM, CVPR'25)
 // shows reading-intensive VLM tasks need materially higher resolution.
 const TEXT_MODES = new Set(['ui', 'responsive', 'regression', 'compare', 'ocr', 'table', 'chart']);
+// Grounding + uncertainty footer appended to EVERY prompt (built-in modes
+// and custom prompts alike). Research consensus (Prompt Bench 2026, CodeWorm
+// production patterns, Anthropic vision guidance): these lines convert silent
+// hallucinations into routable uncertainty at negligible token cost.
+const GROUNDING_SUFFIX = `
+GROUNDING RULES (apply always, even to the task above):
+- Describe only what is actually visible. Do not infer beyond the pixels.
+- If an element or text is not visible, say NOT VISIBLE instead of guessing.
+- For counts, enumerate each item before stating the total.
+- For text, transcribe verbatim; mark unreadable regions [unclear].`;
 // Extractive modes get temperature 0 (deterministic transcription beats flair).
 const EXTRACT_MODES = new Set(['ocr', 'table', 'chart']);
 const ATOMIC_CHAT_READY_CACHE_TTL_MS = parseInt(process.env.ATOMIC_CHAT_READY_CACHE_TTL_MS || '10000');
@@ -60,6 +157,7 @@ function parseArgs(argv) {
     json: false,
     sourceFiles: [],
     backend: 'auto',
+    model: null,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -75,6 +173,7 @@ function parseArgs(argv) {
     else if (arg === '--low') { args.low = true; }
     else if (arg === '--high') { args.high = true; }
     else if (arg === '--json') { args.json = true; }
+    else if (arg === '--model' && argv[i + 1]) { args.model = argv[++i]; }
     else if (!arg.startsWith('--')) {
       // Files always win: an existing path is an image, never prompt text.
       // (The old order swallowed the 2nd+ image path as the prompt and dropped
@@ -324,6 +423,7 @@ async function isAtomicChatReady() {
 
 async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOpts = {}) {
   const imageData = await Promise.all(images.map((p) => encodeImage(p, encOpts)));
+  const profile = profileFor(model);
 
   const body = {
     model: model,
@@ -332,9 +432,9 @@ async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOp
     stream: false,
     keep_alive: VISION_KEEP_ALIVE,
     options: {
-      temperature: encOpts.extractMode ? 0 : 0.3,
+      temperature: encOpts.extractMode ? profile.tempExtract : profile.temp,
       num_predict: numPredict,
-      num_ctx: VISION_NUM_CTX,
+      num_ctx: profile.numCtx,
     }
   };
 
@@ -350,7 +450,10 @@ async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOp
   }
 
   const result = await response.json();
-  return result.response || '';
+  // done_reason "stop" means the model finished naturally — the text is
+  // complete no matter how it ends. "length" means the num_predict budget
+  // ran out and the text is genuinely cut off.
+  return { text: result.response || '', done_reason: result.done_reason || '' };
 }
 
 async function analyzeWithAtomicChat(images, prompt, model, maxTokens = 4096, encOpts = {}) {
@@ -410,6 +513,7 @@ async function main() {
   console.error('  --prompt "text" (custom prompt; or pass bare text positionally)');
   console.error('  --source file   (repeatable; appended to the prompt for regression)');
   console.error('  --backend auto|ollama|atomic (vision backend, default auto)');
+  console.error('  --model name  (override task→model routing, e.g. minicpm-v:8b)');
   console.error('  --low           (768px, faster, worse for text)');
   console.error('  --high          (1600px, text-dense detail)');
   console.error('  --json          (machine-readable output)');
@@ -426,10 +530,15 @@ async function main() {
 
   // Encode settings: text-dense modes get higher resolution (reading needs
   // pixels), extractive modes get deterministic temperature. --low/--high win.
+  // The active model's profile caps resolution (bigger is not better past a
+  // model's native patches) and sets sampling + context per its strengths.
+  const forcedModel = args.model || process.env.VISION_MODEL || null;
+  const { model: activeModel, why: modelWhy } = await resolveModel(args, forcedModel);
+  const profile = profileFor(activeModel);
   const textMode = TEXT_MODES.has(args.mode);
   const maxDim = args.low ? 768 : args.high ? 1600 : textMode ? Math.max(VISION_MAX_DIM, 1568) : VISION_MAX_DIM;
   const encOpts = {
-    maxDim: Math.min(maxDim, 2048),
+    maxDim: Math.min(maxDim, profile.maxDim, 2048),
     quality: EXTRACT_MODES.has(args.mode) ? 85 : VISION_QUALITY,
     pngPassthrough: textMode && !args.low,
     extractMode: EXTRACT_MODES.has(args.mode),
@@ -437,7 +546,7 @@ async function main() {
 
   const prompt = buildPrompt(args);
   const metadata = buildMetadata(args);
-  let fullPrompt = prompt + metadata;
+  let fullPrompt = prompt + metadata + GROUNDING_SUFFIX;
 
   // --source was parsed but never used (regression mode got no code). Append
   // the file contents so the mode prompt can actually compare against them.
@@ -454,7 +563,7 @@ async function main() {
     console.error(`[vision] Attached ${Math.min(args.sourceFiles.length, 3)} source file(s) to prompt`);
   }
 
-  console.error(`Analyzing ${args.images.length} image(s) with ${VISION_MODEL}...`);
+  console.error(`Analyzing ${args.images.length} image(s) with ${activeModel} (${modelWhy})...`);
   console.error(`Mode: ${args.mode}`);
   console.error(`Backend: ${args.backend}`);
   if (args.viewport) console.error(`Viewport: ${args.viewport}`);
@@ -462,20 +571,51 @@ async function main() {
   try {
     let analysis;
     let usedBackend = 'none';
+    // Best non-empty result seen across attempts. Retries and model
+    // fallbacks can return EMPTY (fluke / capability gap) after a good
+    // result already exists — never let a later attempt erase an
+    // earlier success.
+    let best = '';
+    const note = () => {
+      if (typeof analysis === 'string' && analysis.trim().length > best.trim().length) {
+        best = analysis;
+      }
+    };
+    // Ollama's own stop signal. The punctuation heuristic below misfires
+    // on complete answers that end abruptly ("... SYSTEM |"), which used
+    // to trigger two wasted full regenerations per call.
+    let lastDoneReason = '';
+    const ollamaAttempt = async (model, budget) => {
+      const r = await analyzeWithOllama(args.images, fullPrompt, model, budget, encOpts);
+      lastDoneReason = r.done_reason;
+      analysis = r.text;
+      note();
+    };
+    const needsMore = (t) =>
+      typeof t !== 'string' ||
+      !t.trim() ||
+      (looksTruncated(t) && lastDoneReason !== 'stop');
 
     if (args.backend === 'atomic') {
       usedBackend = 'atomic';
+      lastDoneReason = '';
       try {
-        analysis = await analyzeWithAtomicChat(args.images, fullPrompt, VISION_MODEL, 4096, encOpts);
+        analysis = await analyzeWithAtomicChat(args.images, fullPrompt, activeModel, 4096, encOpts);
+      note();
       } catch (atomicErr) {
         console.error(`[vision] Atomic Chat failed: ${atomicErr.message}`);
         analysis = '';
       }
 
-      if (looksTruncated(analysis)) {
+      if (needsMore(analysis)) {
         console.error(`[vision] Atomic Chat response looks truncated, falling back to direct Ollama...`);
         try {
-          analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_MODEL, 1024, encOpts);
+          // num_predict is a CAP, not a target: short answers stop at EOS
+          // anyway, so starting at full budget never costs extra — while a
+          // 1024-first attempt almost always triggers a second full
+          // generation for structured (ui/compare/ocr) prompts, doubling
+          // latency past MCP timeouts.
+          await ollamaAttempt(activeModel, 4096);
           usedBackend = 'ollama-fallback';
           console.error(`[vision] Direct Ollama fallback succeeded.`);
         } catch (ollamaErr) {
@@ -484,22 +624,24 @@ async function main() {
       }
     } else if (args.backend === 'ollama') {
       usedBackend = 'ollama';
-      analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_MODEL, 1024, encOpts);
+      await ollamaAttempt(activeModel, 4096);
     } else {
       // auto
       if (ATOMIC_CHAT_ENABLED) {
         usedBackend = 'atomic';
+        lastDoneReason = '';
         try {
-          analysis = await analyzeWithAtomicChat(args.images, fullPrompt, VISION_MODEL, 4096, encOpts);
+          analysis = await analyzeWithAtomicChat(args.images, fullPrompt, activeModel, 4096, encOpts);
+      note();
         } catch (atomicErr) {
           console.error(`[vision] Atomic Chat failed: ${atomicErr.message}`);
           analysis = '';
         }
 
-        if (looksTruncated(analysis)) {
+        if (needsMore(analysis)) {
           console.error(`[vision] Atomic Chat response looks truncated, falling back to direct Ollama...`);
           try {
-            analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_MODEL, 1024, encOpts);
+            await ollamaAttempt(activeModel, 4096);
             usedBackend = 'ollama-fallback';
             console.error(`[vision] Direct Ollama fallback succeeded.`);
           } catch (ollamaErr) {
@@ -508,18 +650,17 @@ async function main() {
         }
       } else {
         usedBackend = 'ollama';
-        analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_MODEL, 1024, encOpts);
+        await ollamaAttempt(activeModel, 4096);
       }
     }
 
-    // Truncation usually means the output budget (num_predict) ran out — so
-    // escalate the budget on the SAME model first. Swapping models churns
+    // Safety net: same-model retry only when the model itself reports it
+    // hit the output budget (done_reason "length"). Swapping models churns
     // VRAM (unload + cold load) and is strictly slower than a longer decode.
-    // (The old gate skipped this entirely on the common ollama path.)
-    if (looksTruncated(analysis)) {
-      console.error(`[vision] Response looks truncated, retrying ${VISION_MODEL} with larger output budget...`);
+    if (needsMore(analysis)) {
+      console.error(`[vision] Response hit output budget, retrying ${activeModel}...`);
       try {
-        analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_MODEL, 4096, encOpts);
+        await ollamaAttempt(activeModel, 4096);
         usedBackend += '+retry4096';
         console.error(`[vision] Budget-escalated retry succeeded.`);
       } catch (retryErr) {
@@ -527,10 +668,10 @@ async function main() {
       }
     }
 
-    if (looksTruncated(analysis) && VISION_FALLBACK_MODEL !== VISION_MODEL) {
+    if (needsMore(analysis) && VISION_FALLBACK_MODEL !== activeModel) {
       console.error(`[vision] Still truncated, retrying with ${VISION_FALLBACK_MODEL}...`);
       try {
-        analysis = await analyzeWithOllama(args.images, fullPrompt, VISION_FALLBACK_MODEL, 4096, encOpts);
+        await ollamaAttempt(VISION_FALLBACK_MODEL, 4096);
         usedBackend = 'ollama-fallback-model';
         console.error(`[vision] Fallback model ${VISION_FALLBACK_MODEL} succeeded.`);
       } catch (fallbackErr) {
@@ -538,12 +679,17 @@ async function main() {
       }
     }
 
+    // A later attempt failed empty after an earlier success: keep the best.
+    if ((typeof analysis !== 'string' || !analysis.trim()) && best.trim()) {
+      console.error('[vision] Using best non-empty result from an earlier attempt.');
+      analysis = best;
+    }
     const ok = typeof analysis === 'string' && analysis.trim().length > 0;
     if (args.json) {
       console.log(JSON.stringify({
         images: args.images,
         mode: args.mode,
-        model: VISION_MODEL,
+        model: activeModel,
         backend: usedBackend,
         fallback_used: usedBackend.includes('fallback') || usedBackend.includes('retry'),
         analysis: ok ? analysis : '',

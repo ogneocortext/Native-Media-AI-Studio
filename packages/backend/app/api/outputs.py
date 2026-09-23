@@ -17,8 +17,8 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from ..core.config import PROJECT_ROOT, config
-from ..core.paths import is_within, resolve_within, sanitize_filename
+from ..core.config import config
+from ..core.paths import comfyui_output_dir, is_within, resolve_within, sanitize_filename
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ def _get_dir_mtime() -> float:
             except OSError:
                 pass
     # Also watch ComfyUI output dir for 3D asset changes
-    comfyui_output = config.comfyui_output_dir if config.comfyui_output_dir else PROJECT_ROOT.parent / "ComfyUI" / "output"
+    comfyui_output = comfyui_output_dir()
     if comfyui_output.exists():
         try:
             latest = max(latest, comfyui_output.stat().st_mtime)
@@ -253,7 +253,7 @@ def _scan_with_cache() -> list[dict]:
             ))
 
     # Scan ComfyUI output directory for 3D assets
-    comfyui_output = config.comfyui_output_dir if config.comfyui_output_dir else PROJECT_ROOT.parent / "ComfyUI" / "output"
+    comfyui_output = comfyui_output_dir()
     if comfyui_output.exists():
         for glb_file in comfyui_output.rglob("*.glb"):
             try:
@@ -811,7 +811,7 @@ async def find_duplicate_groups(
 @router.get("/comfyui/{file_path:path}")
 async def serve_comfyui_file(file_path: str):
     """Serve a file from the ComfyUI output directory."""
-    comfyui_output = config.comfyui_output_dir if config.comfyui_output_dir else PROJECT_ROOT.parent / "ComfyUI" / "output"
+    comfyui_output = comfyui_output_dir()
     try:
         full_path = resolve_within(Path(comfyui_output), file_path)
     except ValueError:
@@ -1030,11 +1030,12 @@ async def get_3d_thumbnail(filename: str):
 
     # Search in ComfyUI output directory
     if not glb_path:
-        comfyui_output = config.comfyui_output_dir if config.comfyui_output_dir else PROJECT_ROOT.parent / "ComfyUI" / "output"
-        for glb_file in comfyui_output.rglob("*.glb"):
-            if glb_file.name == filename:
-                glb_path = glb_file
-                break
+        comfyui_output = comfyui_output_dir()
+        if comfyui_output.exists():
+            for glb_file in comfyui_output.rglob("*.glb"):
+                if glb_file.name == filename:
+                    glb_path = glb_file
+                    break
 
     if not glb_path or not glb_path.exists():
         raise HTTPException(status_code=404, detail="3D model not found")

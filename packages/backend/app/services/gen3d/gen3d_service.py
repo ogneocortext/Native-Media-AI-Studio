@@ -33,11 +33,12 @@ from typing import Any
 from ...core.config import (
     config as app_config,  # noqa: E402 - must be after logger for import order
 )
+from ...core.paths import comfyui_dir as _comfyui_dir  # noqa: E402 - path helper
 
 logger = logging.getLogger(__name__)
 
 # Paths derived from app config (not hardcoded)
-COMFYUI_DIR = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI")
+COMFYUI_DIR = _comfyui_dir()
 COMFYUI_URL = app_config.comfyui_url
 # ComfyUI writes exported meshes to its own output directory.
 COMFYUI_OUTPUT_DIR = COMFYUI_DIR / "output"
