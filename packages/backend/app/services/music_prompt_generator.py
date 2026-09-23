@@ -28,6 +28,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .lyric_safety import parse_bpm, scan_lyrics
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "qwen3.5:9b"
@@ -39,6 +41,7 @@ SUPPORTED_PLATFORMS = ("suno_v6", "minimax_30", "happyshrimp_10", "lyria_35")
 _KNOWLEDGE_DIR = Path(__file__).resolve().parents[4] / "docs" / "knowledge-library"
 _LYRIC_TECHNIQUES_PATH = _KNOWLEDGE_DIR / "lyric-techniques-2026.json"
 _MUSIC_PROMPT_PRESETS_PATH = _KNOWLEDGE_DIR / "music-prompt-presets.json"
+_PRONUNCIATION_GUIDE_PATH = _KNOWLEDGE_DIR / "pronunciation-guide-2026.json"
 
 def _load_lyric_techniques() -> dict[str, Any]:
     try:
@@ -61,6 +64,27 @@ def _load_presets() -> dict[str, Any]:
     except Exception as exc:
         logger.warning("Failed to load music prompt presets from %s: %s", _MUSIC_PROMPT_PRESETS_PATH, exc)
         return {}
+
+def _load_pronunciation_guide() -> tuple[list[str], dict[str, str]]:
+    """Load pronunciation hardening rules + per-engine notes.
+
+    Returns (rules, per_engine_notes); empty on any load failure so a
+    missing file never breaks generation.
+    """
+    try:
+        data = json.loads(_PRONUNCIATION_GUIDE_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Failed to load pronunciation guide from %s: %s", _PRONUNCIATION_GUIDE_PATH, exc)
+        return [], {}
+    rules: list[str] = []
+    for entry in data.get("rules", []):
+        if isinstance(entry, dict) and entry.get("rule"):
+            rules.append(str(entry["rule"]))
+    per_engine = data.get("per_engine", {})
+    notes = {k: str(v) for k, v in per_engine.items() if isinstance(v, str)}
+    return rules, notes
+
+_PRON_HARDENING_RULES, _PRON_ENGINE_NOTES = _load_pronunciation_guide()
 
 LYRIC_TECHNIQUES: dict[str, dict[str, Any]] = _load_lyric_techniques()
 MUSIC_PROMPT_PRESETS: dict[str, list[dict[str, Any]]] = _load_presets()
@@ -540,6 +564,12 @@ def build_system_prompt(platform: str, brief: dict[str, Any]) -> str:
     )
     if tricky:
         pron += f"\nWords that stumbled before — respell or replace: {tricky}."
+    if _PRON_HARDENING_RULES:
+        hardening = "\n".join(f"- {rule}" for rule in _PRON_HARDENING_RULES)
+        pron += "\nPronunciation hardening (from real engine misfires — apply while writing):\n" + hardening
+    engine_note = _PRON_ENGINE_NOTES.get(platform)
+    if engine_note:
+        pron += f"\nEngine note: {engine_note}"
     return (
         _SYSTEM_TEMPLATE
         .replace("__LABEL__", spec["label"])
@@ -714,6 +744,10 @@ def validate_output(platform: str, data: dict[str, Any], brief: dict[str, Any] |
             long_words = sorted({w for w in re.findall(r"[A-Za-z]{11,}", lyrics) if w.lower() not in ("instrumental",)})
             if len(long_words) > 3:
                 warnings.append(f"Lyria pronounces worse than Suno v6-mini — simplify long words ({', '.join(long_words[:5])}) or test on v6-mini first.")
+        # Contamination + pronunciation-hardening scan (flag-for-review).
+        bpm = parse_bpm(brief.get("tempo"))
+        for finding in scan_lyrics(lyrics, platform, bpm=bpm):
+            warnings.append(finding["message"])
     return warnings
 
 
