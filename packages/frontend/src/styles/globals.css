@@ -31,21 +31,31 @@
     --glow-accent: oklch(65% 0.25 310 / 0.35);
     --glow-cyan: oklch(70% 0.15 200 / 0.35);
 
-    /* === Backgrounds (light-dark for automatic theme switching) === */
-    --bg-primary: light-dark(oklch(99% 0 0), oklch(12% 0 0 260));
-    --bg-surface: light-dark(oklch(97% 0 0), oklch(16% 0 0 260));
-    --bg-surface-hover: light-dark(oklch(93% 0 0), oklch(20% 0 0 260));
-    --bg-elevated: light-dark(oklch(100% 0 0), oklch(20% 0 0 260));
+    /* === Backgrounds (light-dark for automatic theme switching) ===
+       Dark rungs are tinted near-blacks (chroma 0.012-0.014, hue 260) stepped
+       for elevation — structure comes from lighter surfaces, not shadows.
+       NOTE: these were previously written as oklch(12% 0 0 260), which is
+       INVALID CSS (a 4th space-separated component is not alpha without a
+       slash) — browsers dropped the declarations entirely. */
+    --bg-primary: light-dark(oklch(99% 0 0), oklch(15% 0.012 260));
+    --bg-surface: light-dark(oklch(97% 0 0), oklch(20% 0.012 260));
+    --bg-surface-hover: light-dark(oklch(93% 0 0), oklch(24.5% 0.012 260));
+    --bg-elevated: light-dark(oklch(100% 0 0), oklch(29% 0.014 260));
 
-    /* === Text === */
-    --text-primary: light-dark(oklch(15% 0 0), oklch(95% 0 0));
-    --text-secondary: light-dark(oklch(40% 0 0), oklch(70% 0 0));
-    --text-tertiary: light-dark(oklch(55% 0 0), oklch(55% 0 0));
+    /* === Text ===
+       Secondary/tertiary lifted to hold contrast on the lifted surfaces;
+       primary is off-white (93%) to avoid halation on dark. */
+    --text-primary: light-dark(oklch(15% 0 0), oklch(93% 0.004 260));
+    --text-secondary: light-dark(oklch(40% 0 0), oklch(76% 0.004 260));
+    --text-tertiary: light-dark(oklch(55% 0 0), oklch(62% 0.004 260));
     --text-inverse: light-dark(oklch(98% 0 0), oklch(10% 0 0));
 
-    /* === Borders === */
-    --border-color: light-dark(oklch(88% 0 0), oklch(30% 0 0 260));
-    --border-subtle: light-dark(oklch(95% 0 0), oklch(25% 0 0 260));
+    /* === Borders ===
+       Decorative on dark — structure comes from the elevation steps above.
+       Lighter than intuition suggests: a border needs contrast against a
+       dark surface too. */
+    --border-color: light-dark(oklch(88% 0 0), oklch(36% 0.02 260));
+    --border-subtle: light-dark(oklch(95% 0 0), oklch(29% 0.015 260));
 
     /* === Typography === */
     --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -112,7 +122,7 @@
     :root {
       --text-secondary: light-dark(oklch(25% 0 0), oklch(85% 0 0));
       --text-tertiary: light-dark(oklch(35% 0 0), oklch(75% 0 0));
-      --border-color: light-dark(oklch(70% 0 0), oklch(45% 0 0 260));
+      --border-color: light-dark(oklch(70% 0 0), oklch(45% 0.02 260));
     }
   }
 
@@ -164,10 +174,10 @@
   --color-success: oklch(70% 0.15 145);
   --color-warning: oklch(80% 0.15 85);
   --color-info: oklch(70% 0.15 200);
-  --color-muted: light-dark(oklch(40% 0 0), oklch(70% 0 0));
-  --color-surface: light-dark(oklch(97% 0 0), oklch(16% 0 0 260));
-  --color-background: light-dark(oklch(99% 0 0), oklch(12% 0 0 260));
-  --color-foreground: light-dark(oklch(15% 0 0), oklch(95% 0 0));
+  --color-muted: light-dark(oklch(40% 0 0), oklch(76% 0.004 260));
+  --color-surface: light-dark(oklch(97% 0 0), oklch(20% 0.012 260));
+  --color-background: light-dark(oklch(99% 0 0), oklch(15% 0.012 260));
+  --color-foreground: light-dark(oklch(15% 0 0), oklch(93% 0.004 260));
 }
 
 /* Component styles */
