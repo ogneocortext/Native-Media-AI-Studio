@@ -464,8 +464,11 @@ export const SHADER_PRESETS = {
   `,
 
   // ============================================================
-  // ABSTRACT WAVES — Default fallback (v2: vision-feedback upgrade)
-  // Adds: depth grid, secondary harmonic, peak particles, beat color shift
+  // ABSTRACT WAVES — Default fallback (v3: frame-review fixes)
+  // v2 added: depth grid, secondary harmonic, peak particles, beat color shift
+  // v3: highlight rolloff (no full-frame wash on loud sections), tighter glow
+  // floor, slower palette evolution (~36 s), depth grid actually visible,
+  // brighter peak particles.
   // ============================================================
   abstractWaves: `
     precision highp float;
@@ -507,15 +510,16 @@ export const SHADER_PRESETS = {
       float dist = abs(p.y - wave);
       float distH = abs(p.y - (wave*0.55 + harmonic));
 
-      // Glow bands — width breathes with bass and punches on beats
-      float bands  = exp(-dist  * max(1.5, 7.0 - u_bass * 4.0 - u_beat * 1.5));
+      // Glow bands — width breathes with bass and punches on beats.
+      // Floor raised (v3) so max bass+beat can't widen bands into a full-frame wash.
+      float bands  = exp(-dist  * max(2.5, 7.0 - u_bass * 4.0 - u_beat * 1.5));
       float bandsH = exp(-distH * max(3.0, 9.0 - u_treble * 3.0)) * 0.55;
 
       // ── Depth grid behind waves (faint 3D cue — vision: "faint 3D grid") ──
       vec2 gridP = vec2(p.x * 1.2, p.y + 0.25) * 6.0;
       vec2 gp = fract(gridP) - 0.5;
       float gridLine = min(abs(gp.x), abs(gp.y));
-      float grid = (1.0 - smoothstep(0.45, 0.48, gridLine)) * 0.12;
+      float grid = (1.0 - smoothstep(0.45, 0.48, gridLine)) * 0.3;
       grid *= (1.0 - smoothstep(0.0, 1.0, length(p))) * 0.5; // fade to center/edges
       grid *= (0.6 + u_mid * 0.6);
       float gridPersp = 1.0 / (abs(p.y + 0.45) + 0.25);
@@ -525,8 +529,10 @@ export const SHADER_PRESETS = {
       vec3 color1 = vec3(0.2, 0.4, 1.0);
       vec3 color2 = vec3(1.0, 0.2, 0.5);
       vec3 color3 = vec3(0.0, 0.8, 0.6);
-      // Dynamic palette lerp driven by beat + bass (vision: "pulsing color shifts")
-      vec3 palette = mix(color1, color2, sin(p.x * 2.0 + t*1.2) * 0.5 + 0.5);
+      // Dynamic palette lerp driven by beat + bass (vision: "pulsing color shifts").
+      // Sweep slowed (v3): ~36 s period reads as gradual mood evolution, not a
+      // fixed 10 s hue loop disconnected from the music.
+      vec3 palette = mix(color1, color2, sin(p.x * 2.0 + t*0.35) * 0.5 + 0.5);
       palette = mix(palette, color3, u_treble * 0.35);
       palette = mix(palette, vec3(0.7, 0.2, 1.0), u_beat * 0.45); // beat purple punch
       palette = mix(palette, vec3(1.0, 0.45, 0.15), u_bass * 0.15); // bass warmth
@@ -548,7 +554,7 @@ export const SHADER_PRESETS = {
         float py = waveAtPx + fract(hash(vec2(i, 91.0)) - t*0.15*(0.4+hash(vec2(i,13.0))))*0.12 - 0.06;
         float d = length(vec2(p.x - px, (p.y - py)*1.6));
         float pSize = 0.008 + hash(vec2(i, 7.0))*0.006;
-        particles += (pSize / (d + pSize)) * 0.025 * (1.0 + u_energy*1.2 + u_beat*1.5) * (0.7 + hash(vec2(i,19.0))*0.6);
+        particles += (pSize / (d + pSize)) * 0.045 * (1.0 + u_energy*1.2 + u_beat*1.5) * (0.7 + hash(vec2(i,19.0))*0.6);
       }
 
       // ── Background with subtle vignette ──
@@ -574,6 +580,11 @@ export const SHADER_PRESETS = {
       // Energy vignette (stronger when loud)
       float vig = 1.0 - dot(p * 0.42, p * 0.42);
       color *= mix(1.0, vig, 0.22);
+
+      // Soft highlight rolloff (v3) — loud sections bloom instead of washing
+      // out to flat white/pink. Preserves hue, keeps the dark-background
+      // contrast the visualizer's 2D modes are tuned for.
+      color = vec3(1.0) - exp(-color * 1.4);
 
       gl_FragColor = vec4(color, 1.0);
     }
