@@ -464,11 +464,15 @@ export const SHADER_PRESETS = {
   `,
 
   // ============================================================
-  // ABSTRACT WAVES — Default fallback (v3: frame-review fixes)
+  // ABSTRACT WAVES — Default fallback (v4: perceptual color science)
   // v2 added: depth grid, secondary harmonic, peak particles, beat color shift
   // v3: highlight rolloff (no full-frame wash on loud sections), tighter glow
   // floor, slower palette evolution (~36 s), depth grid actually visible,
   // brighter peak particles.
+  // v4: palette sweep in Oklch (no mid-sweep chroma dip, even hue velocity;
+  // endpoints precomputed offline), +/-0.5 LSB hash dither after the tonemap
+  // to kill 8-bit gradient banding.
+  // Research: docs/knowledge-library/shader-color-science-2026.md
   // ============================================================
   abstractWaves: `
     precision highp float;
@@ -482,6 +486,27 @@ export const SHADER_PRESETS = {
     uniform vec2 u_resolution;
 
     float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+
+    // Oklch -> linear sRGB (Bjorn Ottosson matrices). Used for the palette
+    // sweep: interpolating in Oklch keeps chroma from dipping mid-sweep and
+    // hue velocity even, where an RGB mix of these endpoints sags to 86% of
+    // endpoint chroma at t=0.25 and decelerates through violet. Endpoints are
+    // converted once, offline; the sweep itself is 3 lerps + this function.
+    // See docs/knowledge-library/shader-color-science-2026.md
+    vec3 oklch_to_linear_srgb(vec3 lch) {
+      float L = lch.x; float C = lch.y; float H = radians(lch.z);
+      float a = C * cos(H); float b = C * sin(H);
+      float l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+      float m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+      float s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+      float l = l_ * l_ * l_;
+      float m = m_ * m_ * m_;
+      float s = s_ * s_ * s_;
+      return vec3(
+         4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+        -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+        -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s);
+    }
 
     void main() {
       vec2 uv = gl_FragCoord.xy / u_resolution.xy;
@@ -525,14 +550,18 @@ export const SHADER_PRESETS = {
       float gridPersp = 1.0 / (abs(p.y + 0.45) + 0.25);
       grid *= clamp(gridPersp * 0.15, 0.0, 1.0);
 
-      // ── Color: beat-synced shift blue→purple→pink, plus treble green hint ──
-      vec3 color1 = vec3(0.2, 0.4, 1.0);
-      vec3 color2 = vec3(1.0, 0.2, 0.5);
+      // ── Color: Oklch hue sweep at near-constant perceptual lightness (v4) ──
+      // Endpoints precomputed offline from the v2 RGB palette:
+      //   blue (0.2,0.4,1.0) -> oklch(0.7397, 0.1340, 262.03)
+      //   pink (1.0,0.2,0.5) -> oklch(0.7544, 0.1735, 351.60)
+      // Sweep verified numerically in-gamut at every step.
+      vec3 okBlue = vec3(0.7397, 0.1340, 262.03);
+      vec3 okPink = vec3(0.7544, 0.1735, 351.60);
+      float sweep = sin(p.x * 2.0 + t*0.35) * 0.5 + 0.5;
+      vec3 palette = oklch_to_linear_srgb(mix(okBlue, okPink, sweep));
+      palette = max(palette, vec3(0.0)); // out-of-gamut guard before tonemap
+      // Treble green hint + beat purple punch + bass warmth (RGB accents)
       vec3 color3 = vec3(0.0, 0.8, 0.6);
-      // Dynamic palette lerp driven by beat + bass (vision: "pulsing color shifts").
-      // Sweep slowed (v3): ~36 s period reads as gradual mood evolution, not a
-      // fixed 10 s hue loop disconnected from the music.
-      vec3 palette = mix(color1, color2, sin(p.x * 2.0 + t*0.35) * 0.5 + 0.5);
       palette = mix(palette, color3, u_treble * 0.35);
       palette = mix(palette, vec3(0.7, 0.2, 1.0), u_beat * 0.45); // beat purple punch
       palette = mix(palette, vec3(1.0, 0.45, 0.15), u_bass * 0.15); // bass warmth
@@ -585,6 +614,12 @@ export const SHADER_PRESETS = {
       // out to flat white/pink. Preserves hue, keeps the dark-background
       // contrast the visualizer's 2D modes are tuned for.
       color = vec3(1.0) - exp(-color * 1.4);
+
+      // Dither (v4): +/-0.5 LSB hash noise AFTER the tonemap — the only point
+      // where 1/255 is actually one display level — kills 8-bit banding in
+      // the smooth glow/vignette gradients.
+      float dith = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+      color += (dith - 0.5) / 255.0;
 
       gl_FragColor = vec4(color, 1.0);
     }
