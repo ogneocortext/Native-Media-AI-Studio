@@ -559,7 +559,10 @@ export const SHADER_PRESETS = {
       vec3 okPink = vec3(0.7544, 0.1735, 351.60);
       float sweep = sin(p.x * 2.0 + t*0.35) * 0.5 + 0.5;
       vec3 palette = oklch_to_linear_srgb(mix(okBlue, okPink, sweep));
-      palette = max(palette, vec3(0.0)); // out-of-gamut guard before tonemap
+      // Negative-side guard only: float32 validation (2026-09-23) found
+      // worst_over = 0.03672, so values up to ~1.037 ride into the
+      // exponential highlight rolloff below. Not strictly in-gamut.
+      palette = max(palette, vec3(0.0));
       // Treble green hint + beat purple punch + bass warmth (RGB accents)
       vec3 color3 = vec3(0.0, 0.8, 0.6);
       palette = mix(palette, color3, u_treble * 0.35);

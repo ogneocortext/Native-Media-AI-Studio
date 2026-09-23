@@ -107,11 +107,15 @@ vec3 palette = oklch_to_linear_srgb(mix(okBlue, okPink, sweep));
 palette = max(palette, vec3(0.0)); // out-of-gamut guard before tonemap
 ```
 
-**Gamut note:** high-chroma Oklch can fall outside sRGB. The shipped sweep
-was verified numerically in-gamut at every step (worst excursion 0.0000),
-and the `max(..., 0.0)` clamp plus the highlight rolloff absorb any residual
-excursion on other palettes. When authoring new palettes, verify the sweep
-offline the same way.
+**Gamut note (corrected 2026-09-23):** high-chroma Oklch can fall outside
+sRGB. The original writeup claimed the shipped sweep was fully in-gamut
+(worst excursion 0.0000) — that was wrong. Float32 validation found
+`worst_neg = 0.00000` but `worst_over = 0.03672`: values up to ~1.037 exist
+before the exponential highlight rolloff. The `max(palette, 0.0)` line only
+guards the negative side; the positive overshoot rides into the rolloff,
+which compresses it in practice, but the palette is NOT strictly in-gamut.
+When authoring new palettes, verify the sweep offline the same way and
+report both excursions.
 
 **General rule:** any *programmatic* color motion (hue cycles, beat-driven
 palette shifts, energy-driven saturation) belongs in Oklch/Oklab. Hand-tuned
