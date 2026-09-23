@@ -1,8 +1,13 @@
 # AGENTS.md — Native Media AI Studio
 
-> **Last Updated:** 2026-09-21
+> **Last Updated:** 2026-09-22
 > **Status:** Active Development (Phase 1+2)
 > **Platform:** Windows 11 local development machine
+
+> **Agent bootstrap:** before writing any code, read
+> `docs/architecture/decision-log.md`. It records decided stack/architecture
+> items (D1–D8 — do not re-litigate these) and open questions (Q1–Q4).
+> Update the log when you make or reverse an architecture decision.
 
 ## Project Overview
 
