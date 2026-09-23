@@ -84,3 +84,40 @@ def test_is_known_preset():
     assert is_known_preset("balanced")
     assert not is_known_preset("nope")
     assert FALLBACK_PRESETS  # catalog is non-empty
+
+
+def test_track_override_patch_notes():
+    # BPM 152 would pick dubstep generically anyway; the override pins it.
+    assert select_fallback_preset(track_name="SunoV6Mini-Patch-Notes.m4a", bpm=152) == "dubstep"
+
+
+def test_track_override_patch_notes_v35_disambiguates():
+    # "patchnotesv35" must win over the shorter "patchnotes" fragment.
+    assert select_fallback_preset(track_name="SunoV6Mini-PatchNotesV3.5.m4a") == "dubstep"
+
+
+def test_track_override_valley_phonk_beats_unproductive():
+    # Longest fragment wins: the phonk mix must not resolve to gfunk.
+    assert (
+        select_fallback_preset(
+            track_name="SunoV6Mini-Unproductive__Valley-Phonk-Extended-V2.m4a"
+        )
+        == "phonk"
+    )
+
+
+def test_track_override_unproductive():
+    # 103 BPM falls between the generic thresholds (would be "balanced").
+    assert select_fallback_preset(track_name="SunoV6Mini-UnproductiveV2.m4a", bpm=103.4) == "gfunk"
+
+
+def test_track_override_human_in_the_loop():
+    # 143.6 BPM would pick dubstep generically; the tuned profile is cinematic.
+    assert select_fallback_preset(track_name="SunoV6Mini-Human-in-the-Loop-V2.m4a", bpm=143.6) == "cinematic"
+    assert select_fallback_preset(track_name="HITL-V2-final.wav") == "cinematic"
+
+
+def test_unknown_track_falls_through_to_generic():
+    # No override fragment: generic energy/BPM logic still applies.
+    assert select_fallback_preset(track_name="Some Random Song", bpm=150) == "dubstep"
+    assert select_fallback_preset(track_name="Some Random Song") == "balanced"

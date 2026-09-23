@@ -31,6 +31,7 @@ import type { VisualPreset } from "./visualPreset";
 import { showToast } from "../../utils/toast";
 import { consumePendingTrack } from "../../utils/pendingTrack";
 import { visualPresets, selectVisualPreset } from "./visualPresets";
+import { resolveTrackVisualProfile, buildTunedPreset } from "./trackVisualProfiles";
 import { selectPresetForTrack } from "./components/KineticPresets";
 import { buildStoryboard, getStoryState, EMPTY_STORYBOARD } from "./storyboard";
 import { BuilderFigure } from "./components/BuilderFigure";
@@ -696,10 +697,20 @@ export function Visualizer() {
     setKineticPreset(preset);
 
     // Auto-apply optimized visual preset based on track characteristics.
-    // Guard: if the user manually picked a preset while we were awaiting
-    // ensureAnalysis()/parseLyrics, do not clobber that choice.
-    const visualPresetId = selectVisualPreset(cleanName, undefined, energy, realBpm);
-    const visualPreset = visualPresets[visualPresetId];
+    // Track-specific tuned profiles (trackVisualProfiles.ts) win over the
+    // generic genre/energy/BPM guess; unknown tracks fall back to
+    // selectVisualPreset(). Guard: if the user manually picked a preset
+    // while we were awaiting ensureAnalysis()/parseLyrics, do not clobber
+    // that choice.
+    const trackProfile = resolveTrackVisualProfile(cleanName);
+    let visualPresetId = selectVisualPreset(cleanName, undefined, energy, realBpm);
+    let visualPreset = visualPresets[visualPresetId];
+    let tunedTitle: string | null = null;
+    if (trackProfile && visualPresets[trackProfile.basePresetId]) {
+      visualPreset = buildTunedPreset(trackProfile);
+      visualPresetId = trackProfile.basePresetId;
+      tunedTitle = trackProfile.title;
+    }
     if (visualPreset) {
       if (visualPresetLockRef.current !== presetLockAtStart || isStale()) {
         // Skip auto-apply: user manually picked a preset while we were awaiting analysis/lyrics.
@@ -710,7 +721,12 @@ export function Visualizer() {
         setVisualizationStyle(visualPreset.visualizationStyle);
         setKineticPreset(visualPreset.kineticPreset);
         setActiveVisualPresetId(visualPresetId);
-        showToast(`Applied "${visualPreset.name}" preset — ${visualPreset.description}`, "info");
+        showToast(
+          tunedTitle
+            ? `Applied tuned visuals for "${tunedTitle}" (based on ${visualPreset.name})`
+            : `Applied "${visualPreset.name}" preset — ${visualPreset.description}`,
+          "info"
+        );
       }
     }
 

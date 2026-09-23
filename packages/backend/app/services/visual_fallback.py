@@ -16,6 +16,10 @@ Keep ``_PRESET_GENRES`` in sync with the ``genres`` arrays in
 ``selectVisualPreset`` step for step (normalize -> longest-phrase-first
 padded-token match -> keyword fallback -> energy/BPM thresholds ->
 ``"balanced"`` default).
+
+Known tracks are checked first via ``_TRACK_PRESET_OVERRIDES`` (fragment ->
+preset id), mirroring the ``basePresetId`` choices in the frontend's
+``trackVisualProfiles.ts`` — keep both files in sync when profiles change.
 """
 
 from __future__ import annotations
@@ -43,6 +47,23 @@ _PRESET_GENRES: dict[str, list[str]] = {
 DEFAULT_PRESET = "balanced"
 
 FALLBACK_PRESETS = frozenset(_PRESET_GENRES)
+
+# Track-specific overrides: spaceless normalized fragment -> preset id.
+# Checked before the generic genre/keyword/energy/BPM matching so known
+# tracks get their tuned base preset instead of the generic guess.
+# Mirrors the basePresetId choices in
+# packages/frontend/src/features/visualizer/trackVisualProfiles.ts — keep
+# the two in sync. Longest fragment first (tuple order matters):
+# "unproductivevalleyphonk" must win over "unproductive" and
+# "patchnotesv35" over "patchnotes".
+_TRACK_PRESET_OVERRIDES: tuple[tuple[str, str], ...] = (
+    ("unproductivevalleyphonk", "phonk"),
+    ("humanintheloop", "cinematic"),
+    ("patchnotesv35", "dubstep"),
+    ("patchnotes", "dubstep"),
+    ("unproductive", "gfunk"),
+    ("hitl", "cinematic"),
+)
 
 # Keyword fallback, same order as the frontend.
 _KEYWORD_FALLBACK: list[tuple[tuple[str, ...], str]] = [
@@ -103,6 +124,13 @@ def select_fallback_preset(
 
     Same inputs always yield the same preset (no randomness, no I/O).
     """
+    # Known-track override first: a tuned profile beats the generic guess.
+    if track_name:
+        squashed = _normalize(track_name).replace(" ", "")
+        for fragment, preset_id in _TRACK_PRESET_OVERRIDES:
+            if fragment and fragment in squashed:
+                return preset_id
+
     haystack = _normalize(
         " ".join(part for part in (genre, track_name, section) if part)
     )
