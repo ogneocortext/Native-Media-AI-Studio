@@ -383,20 +383,36 @@ The project runs Node v24.20.0. New built-ins available:
 
 ---
 
-## 11. Decision Record
+## 12. Decision Record
 
 | Question | Answer |
 |----------|--------|
 | Is the frontend on modern tooling? | Yes — React 19, Vite 8, TS 5.9, Tailwind v4, ESLint 10 flat config |
-| Are there deprecated packages? | Yes — `mp4-muxer` is deprecated |
-| Is TypeScript 7 available? | Yes — `@typescript/native` side-by-side setup already in workspace |
-| What is the highest-impact upgrade? | Replace `mp4-muxer`, then adopt TS 7 |
-| Should we add CI? | Yes — no GitHub Actions present; bundle + lint gates are the priority |
-| Should we add Prettier? | Yes — missing from the main frontend package |
+| Are there deprecated packages in the active frontend path? | No — `mp4-muxer` was replaced with Mediabunny |
+| Is TypeScript 7 available in the configured registry? | No — `@typescript/native` currently returns 404; keep TS 5.9.3 active |
+| What was the highest-impact completed upgrade? | Replace `mp4-muxer`, then update WaveSurfer and remove Autoprefixer |
+| Is frontend formatting configured? | Yes — Prettier is installed with a frontend configuration and script |
+| Is HTTP contract auditing documented? | Yes — see the contract audit below |
 
 ---
 
-## 12. Related Documents
+## 11. HTTP contract audit (2026-09-24)
+
+A repository-wide audit compared frontend API helpers and direct frontend fetches with FastAPI route declarations. The following previously incorrect ComfyUI methods were corrected:
+
+```http
+POST /api/services/comfyui/start
+POST /api/services/comfyui/stop
+POST /api/services/comfyui/restart
+```
+
+The audit also confirmed the method contracts for jobs, logs, outputs, tracks, settings, media, audio, video generation, native integrations, GPU history, diagnostics, and HyperFrames. No additional confirmed method mismatches remained.
+
+State-changing UI paths now check `Response.ok` before updating local state. Output, track, and visualizer preset requests use the shared `fetchWithTimeout` helper so failed backend actions cannot appear successful in the UI. ComfyUI start/restart use a 120-second timeout because process startup can exceed the previous 30-second client timeout.
+
+---
+
+## 13. Related Documents
 
 - [[stack-extensions-2026]] — broader language/tooling ROI analysis
 - [[go-integration-2026]] — Go sidecars (dashboard/media/worker/gateway/ports)
