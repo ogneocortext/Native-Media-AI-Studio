@@ -15,7 +15,7 @@ Pure logic (stdlib only) so it can run anywhere, including inside
 from __future__ import annotations
 
 import re
-from typing import Any, Optional
+from typing import Any
 
 # Instruction / preface phrases that engines sing literally. Proven failure:
 # "Do not change any words. Sing exactly as written." was sung verbatim in
@@ -71,7 +71,7 @@ def _strip_tags(line: str) -> str:
     return _BRACKET_RE.sub("", line).strip()
 
 
-def parse_bpm(value: Any) -> Optional[float]:
+def parse_bpm(value: Any) -> float | None:
     """Pull a BPM number out of a brief tempo value like '140' or '140 BPM'."""
     if value is None:
         return None
@@ -87,7 +87,7 @@ def _is_caps_chant(line: str) -> bool:
 def scan_lyrics(
     lyrics: str,
     platform: str = "",
-    bpm: Optional[float] = None,
+    bpm: float | None = None,
 ) -> list[dict[str, Any]]:
     """Scan lyrics for contamination and pronunciation hazards.
 
@@ -100,7 +100,7 @@ def scan_lyrics(
     findings: list[dict[str, Any]] = []
     lines = lyrics.splitlines()
 
-    def add(kind: str, line_no: Optional[int], text: str,
+    def add(kind: str, line_no: int | None, text: str,
             suggestion: str, message: str) -> None:
         findings.append({
             "kind": kind,

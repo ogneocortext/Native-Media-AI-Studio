@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Optional
 
 # Preset catalog mirrored from visualPresets.ts (id -> genre phrases).
 _PRESET_GENRES: dict[str, list[str]] = {
@@ -98,7 +97,7 @@ def _includes_token(haystack: str, token: str) -> bool:
     return f" {haystack} ".find(f" {token} ") != -1
 
 
-def _coerce_float(value: object) -> Optional[float]:
+def _coerce_float(value: object) -> float | None:
     try:
         result = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
@@ -114,11 +113,11 @@ def is_known_preset(preset_id: str) -> bool:
 
 
 def select_fallback_preset(
-    genre: Optional[str] = None,
-    energy: Optional[float] = None,
-    bpm: Optional[float] = None,
-    section: Optional[str] = None,
-    track_name: Optional[str] = None,
+    genre: str | None = None,
+    energy: float | None = None,
+    bpm: float | None = None,
+    section: str | None = None,
+    track_name: str | None = None,
 ) -> str:
     """Pick a deterministic visualization preset for fallback rendering.
 

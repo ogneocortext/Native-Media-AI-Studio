@@ -281,7 +281,6 @@ async def get_result(service_name: str, prompt_id: str) -> dict:
                                 except RuntimeError as e:
                                     return {"status": "error", "error": str(e), "prompt_id": prompt_id}
 
-                                ext = Path(filename).suffix or ".mp4"
                                 video_dir = PROJECT_ROOT / "output" / "video"
                                 video_dir.mkdir(parents=True, exist_ok=True)
                                 try:

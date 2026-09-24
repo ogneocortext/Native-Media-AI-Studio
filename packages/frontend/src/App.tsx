@@ -6,59 +6,56 @@ import { Queue } from "./features/queue/Queue";
 import { Settings } from "./features/settings/Settings";
 import { NotFound } from "./features/not-found/NotFound";
 import { ErrorBoundary, PageLoader } from "./components/common";
-import { ToastProvider } from "./components/common/Toast";
 import { DebugPanel } from "./components/debug/DebugPanel";
 
 // Helper for lazy loading modules with named exports.
-// Retries once on transient network/HMR failures so a single flaky
-// dynamic-import fetch does not crash the route.
-const loadNamedModule = (
-  modulePromise: Promise<Record<string, unknown>>,
+// Retries once on transient network/HMR failures. A rejected import promise is
+// permanently rejected, so retries must call the dynamic-import factory again.
+const loadNamedModule = async (
+  loadModule: () => Promise<Record<string, unknown>>,
   name: string,
   retries = 1,
-): Promise<{ default: unknown }> =>
-  modulePromise
-    .then(m => ({ default: m[name] as unknown }))
-    .catch(err => {
-      if (retries > 0) {
-        return new Promise<{ default: unknown }>((resolve, reject) => {
-          setTimeout(() => {
-            loadNamedModule(modulePromise, name, retries - 1)
-              .then(resolve)
-              .catch(reject);
-          }, 150);
-        });
-      }
-      return Promise.reject(err);
-    });
+): Promise<{ default: unknown }> => {
+  try {
+    const module = await loadModule();
+    return { default: module[name] as unknown };
+  } catch (error) {
+    if (retries <= 0) throw error;
+    await new Promise(resolve => setTimeout(resolve, 150));
+    return loadNamedModule(loadModule, name, retries - 1);
+  }
+};
 
-const lazyNamed = (modulePromise: Promise<Record<string, unknown>>, name: string) =>
+const lazyNamed = (
+  loadModule: () => Promise<Record<string, unknown>>,
+  name: string,
+) =>
   lazy(() =>
-    loadNamedModule(modulePromise, name).then(m => ({
-      default: m.default as React.LazyExoticComponent<React.ComponentType<unknown>>,
+    loadNamedModule(loadModule, name).then(module => ({
+      default: module.default as React.LazyExoticComponent<React.ComponentType<unknown>>,
     }))
   );
 
 // Heavy pages loaded on-demand
-const HealthPage = lazyNamed(import("./features/health/HealthPage"), "HealthPage");
-const ImageGeneration = lazyNamed(import("./features/image-generation/ImageGeneration"), "ImageGeneration");
-const MediaLibrary = lazyNamed(import("./features/media-library/MediaLibrary"), "MediaLibrary");
-const MusicVideoWizard = lazyNamed(import("./features/music-video/MusicVideoWizard"), "MusicVideoWizard");
-const ThreeJSStudio = lazyNamed(import("./features/three-js-studio/ThreeJSStudio"), "ThreeJSStudio");
-const Visualizer = lazyNamed(import("./features/visualizer/Visualizer"), "Visualizer");
-const AudioAnalysisPage = lazyNamed(import("./features/audio-analysis/AudioAnalysisPage"), "AudioAnalysisPage");
-const AIToolsPage = lazyNamed(import("./features/ai-tools/AIToolsPage"), "AIToolsPage");
-const VideoGenerationPage = lazyNamed(import("./features/video-generation/VideoGenerationPage"), "VideoGenerationPage");
-const Generation3DPage = lazyNamed(import("./features/generate3d/Generation3DPage"), "Generation3DPage");
-const DocsPage = lazyNamed(import("./features/docs/DocsPage"), "DocsPage");
-const StoryboardPage = lazyNamed(import("./features/storyboards/StoryboardPage"), "StoryboardPage");
-const KineticTypographyPage = lazyNamed(import("./features/kinetic-typography/KineticTypographyPage"), "KineticTypographyPage");
-const Preview = lazyNamed(import("./features/preview/Preview"), "Preview");
-const GpuMonitorPage = lazyNamed(import("./features/gpu/GpuMonitorPage"), "GpuMonitorPage");
-const LogAnalyticsPage = lazyNamed(import("./features/log-analytics/LogAnalytics"), "LogAnalytics");
-const HyperFramesPage = lazyNamed(import("./features/hyperframes/HyperFramesPage"), "HyperFramesPage");
-const MusicPromptGenerator = lazyNamed(import("./features/music-prompts/MusicPromptGenerator"), "MusicPromptGenerator");
-const UnityControlPage = lazyNamed(import("./features/unity-control/UnityControlPage"), "UnityControlPage");
+const HealthPage = lazyNamed(() => import("./features/health/HealthPage"), "HealthPage");
+const ImageGeneration = lazyNamed(() => import("./features/image-generation/ImageGeneration"), "ImageGeneration");
+const MediaLibrary = lazyNamed(() => import("./features/media-library/MediaLibrary"), "MediaLibrary");
+const MusicVideoWizard = lazyNamed(() => import("./features/music-video/MusicVideoWizard"), "MusicVideoWizard");
+const ThreeJSStudio = lazyNamed(() => import("./features/three-js-studio/ThreeJSStudio"), "ThreeJSStudio");
+const Visualizer = lazyNamed(() => import("./features/visualizer/Visualizer"), "Visualizer");
+const AudioAnalysisPage = lazyNamed(() => import("./features/audio-analysis/AudioAnalysisPage"), "AudioAnalysisPage");
+const AIToolsPage = lazyNamed(() => import("./features/ai-tools/AIToolsPage"), "AIToolsPage");
+const VideoGenerationPage = lazyNamed(() => import("./features/video-generation/VideoGenerationPage"), "VideoGenerationPage");
+const Generation3DPage = lazyNamed(() => import("./features/generate3d/Generation3DPage"), "Generation3DPage");
+const DocsPage = lazyNamed(() => import("./features/docs/DocsPage"), "DocsPage");
+const StoryboardPage = lazyNamed(() => import("./features/storyboards/StoryboardPage"), "StoryboardPage");
+const KineticTypographyPage = lazyNamed(() => import("./features/kinetic-typography/KineticTypographyPage"), "KineticTypographyPage");
+const Preview = lazyNamed(() => import("./features/preview/Preview"), "Preview");
+const GpuMonitorPage = lazyNamed(() => import("./features/gpu/GpuMonitorPage"), "GpuMonitorPage");
+const LogAnalyticsPage = lazyNamed(() => import("./features/log-analytics/LogAnalytics"), "LogAnalytics");
+const HyperFramesPage = lazyNamed(() => import("./features/hyperframes/HyperFramesPage"), "HyperFramesPage");
+const MusicPromptGenerator = lazyNamed(() => import("./features/music-prompts/MusicPromptGenerator"), "MusicPromptGenerator");
+const UnityControlPage = lazyNamed(() => import("./features/unity-control/UnityControlPage"), "UnityControlPage");
 
 function App() {
   useEffect(() => {
@@ -73,7 +70,7 @@ function App() {
   }, []);
 
   return (
-    <ToastProvider>
+    <>
       <BrowserRouter>
         <Layout>
           <Suspense fallback={<PageLoader />}>
@@ -114,7 +111,7 @@ function App() {
         </Layout>
       </BrowserRouter>
       <DebugPanel />
-    </ToastProvider>
+    </>
   );
 }
 

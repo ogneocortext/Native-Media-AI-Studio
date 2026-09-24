@@ -79,7 +79,7 @@ def test_non_finite_analysis_values_are_ignored():
 
 
 def test_deterministic():
-    inputs = dict(genre="drift phonk", energy=0.7, bpm=140, section="chorus")
+    inputs = {"genre": "drift phonk", "energy": 0.7, "bpm": 140, "section": "chorus"}
     first = select_fallback_preset(**inputs)
     assert all(select_fallback_preset(**inputs) == first for _ in range(50))
 

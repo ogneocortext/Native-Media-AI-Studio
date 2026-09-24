@@ -119,21 +119,21 @@ def load_config() -> AppConfig:
                 ports_data = json.load(f)
                 if isinstance(ports_data, dict):
                     # Ports/URLs always come from ports.json; settings.json overrides
-                    # are ignored for these fields to prevent drift.
-                    data.setdefault("backend_port", ports_data.get("backend_port", 8000))
-                    data.setdefault("frontend_port", ports_data.get("frontend_port", 5173))
-                    data.setdefault("ws_port", ports_data.get("ws_port", data.get("backend_port", 8000)))
-                    data.setdefault("comfyui_url", ports_data.get("comfyui_url", "http://127.0.0.1:8188"))
-                    data.setdefault("comfyui_port", ports_data.get("comfyui_port", 8188))
-                    data.setdefault("video_editor_port", ports_data.get("video_editor_port", 8080))
-                    data.setdefault("ollama_url", ports_data.get("ollama_url", "http://127.0.0.1:11434"))
-                    data.setdefault("atomic_chat_url", ports_data.get("atomic_chat_url", "http://127.0.0.1:1337"))
-                    data.setdefault("atomic_chat_enabled", ports_data.get("atomic_chat_enabled", False))
-                    data.setdefault("go_dashboard_url", ports_data.get("go_dashboard_url", "http://127.0.0.1:3847"))
-                    data.setdefault("go_media_url", ports_data.get("go_media_url", "http://127.0.0.1:3848"))
-                    data.setdefault("go_worker_url", ports_data.get("go_worker_url", "http://127.0.0.1:3849"))
-                    data.setdefault("go_gateway_url", ports_data.get("go_gateway_url", "http://127.0.0.1:3850"))
-                    data.setdefault("go_ports_url", ports_data.get("go_ports_url", "http://127.0.0.1:3851"))
+                    # are intentionally ignored for these fields to prevent drift.
+                    data["backend_port"] = ports_data.get("backend_port", 8000)
+                    data["frontend_port"] = ports_data.get("frontend_port", 5173)
+                    data["ws_port"] = ports_data.get("ws_port", data["backend_port"])
+                    data["comfyui_url"] = ports_data.get("comfyui_url", "http://127.0.0.1:8188")
+                    data["comfyui_port"] = ports_data.get("comfyui_port", 8188)
+                    data["video_editor_port"] = ports_data.get("video_editor_port", 8080)
+                    data["ollama_url"] = ports_data.get("ollama_url", "http://127.0.0.1:11434")
+                    data["atomic_chat_url"] = ports_data.get("atomic_chat_url", "http://127.0.0.1:1337")
+                    data["atomic_chat_enabled"] = ports_data.get("atomic_chat_enabled", False)
+                    data["go_dashboard_url"] = ports_data.get("go_dashboard_url", "http://127.0.0.1:3847")
+                    data["go_media_url"] = ports_data.get("go_media_url", "http://127.0.0.1:3848")
+                    data["go_worker_url"] = ports_data.get("go_worker_url", "http://127.0.0.1:3849")
+                    data["go_gateway_url"] = ports_data.get("go_gateway_url", "http://127.0.0.1:3850")
+                    data["go_ports_url"] = ports_data.get("go_ports_url", "http://127.0.0.1:3851")
         except Exception as e:
             logger.warning(f"Could not load port defaults from {ports_file}: {e}")
 
@@ -144,8 +144,28 @@ def save_config(config: AppConfig) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     config_file = CONFIG_DIR / "settings.json"
     try:
+        # Keep runtime port/URL ownership in config/ports.json. Saving the full
+        # AppConfig would reintroduce duplicate port settings and allow drift.
+        settings = config.model_dump(
+            exclude={
+                "backend_port",
+                "frontend_port",
+                "ws_port",
+                "comfyui_url",
+                "comfyui_port",
+                "video_editor_port",
+                "ollama_url",
+                "atomic_chat_url",
+                "atomic_chat_enabled",
+                "go_dashboard_url",
+                "go_media_url",
+                "go_worker_url",
+                "go_gateway_url",
+                "go_ports_url",
+            }
+        )
         with open(config_file, "w") as f:
-            json.dump(config.model_dump(), f, indent=2, default=str)
+            json.dump(settings, f, indent=2, default=str)
         logger.info(f"Configuration saved to {config_file}")
     except Exception as e:
         logger.error(f"Failed to save configuration to {config_file}: {e}")
