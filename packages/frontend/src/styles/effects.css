@@ -152,7 +152,15 @@ body::after {
 .animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
 
 
-/* ===== GLOW EFFECTS ===== */
+/* ===== UNITY PREVIEW MOTION ===== */
+@keyframes unity-preview-scan { 0% { transform: translateY(-120%); opacity: 0; } 15%, 70% { opacity: .55; } 100% { transform: translateY(520%); opacity: 0; } }
+@keyframes unity-preview-breathe { 0%, 100% { box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-primary) 35%, transparent), 0 0 28px color-mix(in oklch, var(--color-primary) 12%, transparent); } 50% { box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-cyan) 65%, transparent), 0 0 42px color-mix(in oklch, var(--color-primary) 22%, transparent); } }
+.unity-preview-frame { position: relative; overflow: hidden; background: #05070d; box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-primary) 35%, transparent), 0 18px 50px rgb(0 0 0 / .32); animation: unity-preview-breathe 3.6s var(--ease-in-out) infinite; }
+.unity-preview-frame::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, transparent 0%, color-mix(in oklch, var(--color-cyan) 30%, transparent) 48%, transparent 52%); animation: unity-preview-scan 5.5s linear infinite; mix-blend-mode: screen; }
+.unity-preview-frame img { display: block; position: relative; z-index: 1; }
+.unity-preview-empty { background: linear-gradient(color-mix(in oklch, var(--color-primary) 8%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in oklch, var(--color-primary) 8%, transparent) 1px, transparent 1px), #05070d; background-size: 28px 28px; animation: unity-preview-scan 6s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .unity-preview-frame, .unity-preview-frame::after, .unity-preview-empty { animation: none; } }
+
 .glow-primary { box-shadow: 0 0 20px var(--glow-primary); }
 .glow-accent { box-shadow: 0 0 20px var(--glow-accent); }
 .glow-cyan { box-shadow: 0 0 20px var(--glow-cyan); }

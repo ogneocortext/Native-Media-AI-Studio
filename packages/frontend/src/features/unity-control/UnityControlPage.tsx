@@ -18,7 +18,6 @@ import {
   getUnityStatus,
   listUnityCommands,
   sendUnityCommand,
-  captureUnityScene,
   listUnityShaders,
   getUnityShaderProperties,
   getUnityMaterialProperties,
@@ -63,6 +62,7 @@ export function UnityControlPage() {
   const [customParams, setCustomParams] = useState("{}");
   const [running, setRunning] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
 
   // Quick action form state
   const [objectName, setObjectName] = useState("NewObject");
@@ -315,9 +315,16 @@ export function UnityControlPage() {
     if (capturing) return;
     setCapturing(true);
     try {
-      const result = await captureUnityScene(1920, 1080, "output/unity_capture.png");
-      const payload = (result as { result?: { savedPath?: string; width?: number; height?: number } } | null)?.result;
-      const dims = payload?.width && payload?.height ? ` (${payload.width}\u00d7${payload.height})` : "";
+      const result = await execute("capture_game_view", {
+        source: "camera",
+        width: 960,
+        height: 540,
+        save_path: "output/unity_control_preview.png",
+        include_inline_image: true,
+      });
+      const payload = (result?.data as { result?: { base64?: string; width?: number; height?: number; savedPath?: string } } | undefined)?.result;
+      setPreviewDataUrl(payload?.base64 ? `data:image/png;base64,${payload.base64}` : null);
+      const dims = payload?.width && payload?.height ? ` (${payload.width}×${payload.height})` : "";
       showToast(
         payload?.savedPath ? `Scene captured${dims}: ${payload.savedPath}` : `Scene captured${dims}`,
         "success",
@@ -372,6 +379,39 @@ export function UnityControlPage() {
           </button>
         </div>
       </div>
+
+      {/* Live Unity preview */}
+      <Card>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${statusState === "online" ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-white/10 bg-white/5 text-gray-400"}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${statusState === "online" ? "bg-emerald-300 animate-pulse-glow" : "bg-gray-500"}`} />
+                {statusState === "online" ? "Live" : "Standby"}
+              </span>
+              <h2 className="font-semibold flex items-center gap-2"><Camera size={18} /> Live Unity Preview</h2>
+            </div>
+            <p className="text-xs text-gray-400 mt-2">Capture the active Unity camera to preview the current scene.</p>
+          </div>
+          <button
+            onClick={handleCapture}
+            disabled={capturing || statusState !== "online"}
+            className="flex items-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/40 rounded-lg transition-colors"
+          >
+            {capturing ? <Loader2 className="animate-spin" size={16} /> : <Camera size={16} />}
+            {capturing ? "Rendering..." : "Refresh preview"}
+          </button>
+        </div>
+        <div className={`unity-preview-frame w-full max-w-3xl aspect-video ${capturing ? "shimmer" : ""}`}>
+          {previewDataUrl ? (
+            <img src={previewDataUrl} alt="Latest Unity camera capture" className="w-full h-full object-contain" />
+          ) : (
+            <div className="unity-preview-empty w-full h-full flex items-center justify-center text-sm text-gray-400">
+              No preview yet. Use “Refresh preview” to render the current Unity camera.
+            </div>
+          )}
+        </div>
+      </Card>
 
       {/* Status Card */}
       <Card>

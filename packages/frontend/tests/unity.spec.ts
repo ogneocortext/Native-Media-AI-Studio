@@ -38,7 +38,13 @@ async function mockUnityApi(page: Page, record: { commandMethod?: string; captur
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ ok: true, data: { name: 'TestObject', created: true } }),
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          success: true,
+          result: { base64: 'iVBORw0KGgo=', width: 960, height: 540, savedPath: 'Assets/output/unity_control_preview.png' },
+        },
+      }),
     });
   });
   await page.route('**/api/unity/commands*', (route) =>
@@ -120,7 +126,7 @@ test.describe('Unity Control', () => {
     }
   });
 
-  test('capture button issues POST /api/unity/capture and shows a friendly toast', async ({ page }) => {
+  test('preview capture issues POST /api/unity/command and renders image', async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
     await navigateWithWait(page, '/unity');
     await expect(page.getByText('Unity Pipeline server is online')).toBeVisible();
@@ -128,7 +134,9 @@ test.describe('Unity Control', () => {
     await page.getByRole('button', { name: 'Capture' }).click();
 
     await expect(page.locator('.toast').filter({ hasText: 'Scene captured' })).toBeVisible();
-    expect(record.captureMethod).toBe('POST');
+    expect(record.commandMethod).toBe('POST');
+    expect(record.lastCommand).toMatchObject({ command: 'capture_game_view' });
+    await expect(page.getByAltText('Latest Unity camera capture')).toBeVisible();
     expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
   });
 
