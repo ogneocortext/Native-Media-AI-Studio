@@ -41,21 +41,30 @@ export interface ComfyUIStopResponse {
 
 export async function startComfyUI(port: number = 8188): Promise<ComfyUIStartResponse> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/services/comfyui/start?port=${port}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/services/comfyui/start?port=${port}`, {
+    method: "POST",
+    timeout: 120_000,
+  });
   if (!res.ok) throw new Error("Failed to start ComfyUI");
   return res.json() as Promise<ComfyUIStartResponse>;
 }
 
 export async function stopComfyUI(): Promise<ComfyUIStopResponse> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/services/comfyui/stop`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/services/comfyui/stop`, {
+    method: "POST",
+    timeout: 30_000,
+  });
   if (!res.ok) throw new Error("Failed to stop ComfyUI");
   return res.json() as Promise<ComfyUIStopResponse>;
 }
 
 export async function restartComfyUI(port: number = 8188): Promise<unknown> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/services/comfyui/restart?port=${port}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/services/comfyui/restart?port=${port}`, {
+    method: "POST",
+    timeout: 120_000,
+  });
   if (!res.ok) throw new Error("Failed to restart ComfyUI");
   return res.json();
 }
@@ -126,14 +135,18 @@ export async function getModelsStatus(): Promise<Record<string, unknown>> {
 
 export async function getMusicVideoStyles(): Promise<Record<string, unknown>> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/music-video/styles`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/integrations/music-video/styles`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get music video styles");
   return res.json();
 }
 
 export async function getWorkflowTemplates(): Promise<Record<string, unknown>> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/music-video/templates`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/integrations/music-video/templates`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get workflow templates");
   return res.json();
 }
