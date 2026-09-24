@@ -1,5 +1,6 @@
 import { getApiBase } from "./core";
 import { fetchWithTimeout } from "../fetchWithTimeout";
+import type { AudioData } from "../../features/visualizer/types";
 
 export interface UnityStatus {
   online: boolean;
@@ -13,7 +14,40 @@ export interface UnityCommandResult {
   error?: string;
 }
 
-/** Parameters accepted by the Unity Pipeline shader/material commands. */
+export interface UnityAudioSyncFrame {
+  audioData: Pick<AudioData, "bass" | "mid" | "treble" | "beat" | "energy" | "peak" | "beatPhase" | "analyzedEnergy">;
+  audioTime: number;
+  progress?: number;
+  intensity?: number;
+}
+
+export interface UnityAudioSyncParams extends Record<string, unknown> {
+  material: string;
+  frame: UnityAudioSyncFrame;
+}
+
+export function buildUnityAudioFrameProperties(frame: UnityAudioSyncFrame): Record<string, number> {
+  const { audioData, audioTime, progress = 0, intensity = 1 } = frame;
+  return {
+    _Bass: audioData.bass,
+    _Mid: audioData.mid,
+    _Treble: audioData.treble,
+    _Beat: audioData.beat ? 1 : 0,
+    _Energy: audioData.analyzedEnergy ?? audioData.energy,
+    _AudioTime: audioTime,
+    _Progress: progress,
+    _Intensity: intensity,
+  };
+}
+
+export async function syncUnityAudioFrame(params: UnityAudioSyncParams): Promise<UnityCommandResult> {
+  return setUnityMaterialProperties({
+    material: params.material,
+    properties: buildUnityAudioFrameProperties(params.frame),
+  });
+}
+
+
 export interface UnityShaderPropertiesParams extends Record<string, unknown> {
   shader: string;
   material_target?: string;
@@ -24,7 +58,10 @@ export interface UnityMaterialPropertiesParams extends Record<string, unknown> {
   material_name?: string;
 }
 
-export interface UnityMaterialPropertyUpdateParams extends UnityMaterialPropertiesParams {
+export interface UnityMaterialPropertyUpdateParams extends Record<string, unknown> {
+  object_name?: string;
+  material?: string;
+  material_name?: string;
   properties: Record<string, unknown>;
 }
 

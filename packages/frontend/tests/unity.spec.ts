@@ -7,6 +7,7 @@ import {
   mockApiHealth,
   mockApiSystemHealth,
 } from './helpers';
+import { buildUnityAudioFrameProperties } from '../src/services/api';
 
 /** Commands returned by GET /api/unity/commands (shape mirrors the live envelope). */
 const UNITY_COMMANDS = [
@@ -23,7 +24,7 @@ const UNITY_COMMANDS = [
  * a trailing wildcard, so the two never shadow each other regardless of the
  * order Playwright evaluates routes.
  */
-async function mockUnityApi(page: Page, record: { commandMethod?: string; captureMethod?: string } = {}): Promise<void> {
+async function mockUnityApi(page: Page, record: { commandMethod?: string; captureMethod?: string; lastCommand?: Record<string, unknown> } = {}): Promise<void> {
   await page.route('**/api/unity/status*', (route) =>
     route.fulfill({
       status: 200,
@@ -33,6 +34,7 @@ async function mockUnityApi(page: Page, record: { commandMethod?: string; captur
   );
   await page.route('**/api/unity/command', (route) => {
     record.commandMethod = route.request().method();
+    record.lastCommand = route.request().postDataJSON() as Record<string, unknown>;
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -68,12 +70,13 @@ async function mockUnityApi(page: Page, record: { commandMethod?: string; captur
 }
 
 test.describe('Unity Control', () => {
-  const record: { commandMethod?: string; captureMethod?: string } = {};
+  const record: { commandMethod?: string; captureMethod?: string; lastCommand?: Record<string, unknown> } = {};
 
   test.beforeEach(async ({ page }) => {
     await cleanupRoutes(page);
     record.commandMethod = undefined;
     record.captureMethod = undefined;
+    record.lastCommand = undefined;
     await mockApiHealth(page, 200);
     await mockApiSystemHealth(page);
     await mockUnityApi(page, record);
@@ -127,6 +130,16 @@ test.describe('Unity Control', () => {
     await expect(page.locator('.toast').filter({ hasText: 'Scene captured' })).toBeVisible();
     expect(record.captureMethod).toBe('POST');
     expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+  });
+
+  test('audio sync helper maps visualizer frame to Unity shader properties', async () => {
+    const properties = buildUnityAudioFrameProperties({
+      audioData: { bass: 0.8, mid: 0.5, treble: 0.3, beat: true, energy: 0.7, peak: 0.9, beatPhase: 0.25, analyzedEnergy: 0.84 },
+      audioTime: 8,
+      progress: 0.04,
+      intensity: 1.35,
+    });
+    expect(properties).toEqual({ _Bass: 0.8, _Mid: 0.5, _Treble: 0.3, _Beat: 1, _Energy: 0.84, _AudioTime: 8, _Progress: 0.04, _Intensity: 1.35 });
   });
 
   test('quick action executes the command and records history', async ({ page }) => {

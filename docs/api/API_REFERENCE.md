@@ -561,11 +561,14 @@ The launcher keeps `unity-project-mcp` in Edit mode so shader/material authoring
 Typical shader workflow:
 
 ```json
-{"command":"create_asset","parameters":{"path":"Materials/Visualizer.mat","type":"Material","shader":"Universal Render Pipeline/Lit"}}
-{"command":"set_material_properties","parameters":{"material":"Assets/Materials/Visualizer.mat","properties":{"_BaseColor":[0.1,0.8,1.0,1.0],"_EmissionColor":[0.1,0.8,1.0,1.0]},"enableKeywords":["_EMISSION"]}}
+{"command":"create_asset","parameters":{"path":"Materials/Visualizer.mat","type":"Material","shader":"NativeMedia/AudioSyncMediaLibrary"}}
+{"command":"set_material_properties","parameters":{"material":"Assets/Materials/Visualizer.mat","properties":{"_Bass":0.82,"_Mid":0.56,"_Treble":0.38,"_Beat":1,"_Energy":0.84,"_AudioTime":8.0,"_Progress":0.038,"_Intensity":1.35}}}
 {"command":"set_component_properties","parameters":{"target":"/ShaderTarget","type":"MeshRenderer","properties":{"m_Materials":["Assets/Materials/Visualizer.mat"]}}}
-{"command":"capture_game_view","parameters":{"source":"camera","width":800,"height":450,"save_path":"output/unity_headless_shader.png"}}
+{"command":"capture_game_view","parameters":{"source":"camera","width":800,"height":450,"save_path":"output/media_library_audio_sync.png"}}
 ```
+
+`NativeMedia/AudioSyncMediaLibrary` is the Unity-side shader intended for media-library tracks. It consumes the same normalized concepts as the browser visualizer: bass, mid, treble, beat, energy, audio time, and playback progress. The frontend helper `syncUnityAudioFrame({ material, frame })` maps a visualizer `AudioData` snapshot to these shader properties and sends them through `set_material_properties`. Use the track's relative path when requesting cached analysis, for example `Suno-V6-Mini/SunoV6Mini-Ad-Nauseam.m4a`.
+
 
 `capture_game_view` requires a camera. A custom scene can create one with `create_gameobject`, then `add_component` using `Camera`, and position it with `set_transform`. The command returns `{ok: true, data: ...}` on success or `{ok: false, error: "..."}` on a Unity/runtime error.
 

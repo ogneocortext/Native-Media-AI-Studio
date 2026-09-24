@@ -100,6 +100,8 @@ export {
   getUnityShaderProperties,
   getUnityMaterialProperties,
   setUnityMaterialProperties,
+  syncUnityAudioFrame,
+  buildUnityAudioFrameProperties,
 } from "./unity";
 export type {
   UnityStatus,
