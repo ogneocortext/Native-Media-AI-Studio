@@ -573,7 +573,7 @@ export function DocsPage() {
             )}
           </button>
           {isDir && isExpanded && node.children && node.children.length > 0 && (
-            <div>{renderTree(node.children, currentPath, depth + 1)}</div>
+            <div role="group">{renderTree(node.children, currentPath, depth + 1)}</div>
           )}
         </div>
       );
@@ -609,7 +609,7 @@ export function DocsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <BookOpen size={24} className="text-purple-400" />
             Documentation
           </h1>
@@ -659,6 +659,7 @@ export function DocsPage() {
             {query && (
               <button
                 onClick={handleClearSearch}
+                aria-label="Clear search"
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-600 rounded text-gray-400"
               >
                 <X size={14} />
@@ -939,7 +940,7 @@ export function DocsPage() {
                 <Loader2 size={14} className="animate-spin" /> Loading…
               </p>
             ) : (
-              <div className="max-h-80 overflow-y-auto bg-gray-900/30 rounded border border-gray-700/30 p-2">
+              <div className="max-h-80 overflow-y-auto bg-gray-900/30 rounded border border-gray-700/30 p-2" role="tree" aria-label="Project file structure">
                 {renderTree(structure)}
               </div>
             )}
@@ -979,7 +980,7 @@ export function DocsPage() {
                   >
                     <ExternalLink size={14} />
                   </a>
-                  <button onClick={() => setSelectedPath(null)} className="p-1.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white">
+                  <button onClick={() => setSelectedPath(null)} aria-label="Close document viewer" className="p-1.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white">
                     <X size={14} />
                   </button>
                 </div>

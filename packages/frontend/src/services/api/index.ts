@@ -89,3 +89,16 @@ export type { RenderEngineInfo, RenderResponse, MatrixArtifact, ExportMatrixResp
 
 // Docs
 export { searchDocs, getDocsBootstrap, getProjectStructure } from "./docs";
+
+// Unity control
+export {
+  getUnityStatus,
+  listUnityCommands,
+  sendUnityCommand,
+  captureUnityScene,
+} from "./unity";
+export type {
+  UnityStatus,
+  UnityCommandResult,
+  UnityCommandInfo,
+} from "./unity";

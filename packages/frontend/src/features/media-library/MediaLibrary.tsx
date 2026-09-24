@@ -99,15 +99,13 @@ const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSe
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
   return (
+    // NOTE (a11y): the card body is intentionally NOT an interactive element.
+    // Click-to-select is a mouse convenience on this plain div; the keyboard
+    // path is the Select toggle button below (aria-pressed + label). Wrapping
+    // the inner action buttons in role="button" trips axe nested-interactive
+    // and announces poorly in screen readers.
     <div
-      role="button"
-      tabIndex={0}
-      aria-label={`${output.file_type} ${output.filename}${selected ? " (selected)" : ""}`}
-      aria-pressed={selected}
       onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); }
-      }}
       onMouseEnter={armPreview}
       onMouseLeave={disarmPreview}
       onFocus={armPreview}
@@ -116,7 +114,7 @@ const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSe
       className={`group card overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/30 focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:outline-none transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-1 animate-in fade-in slide-in-from-bottom-2 fill-mode-both ${typeAccent[output.file_type] || ""}`}
     >
       <div className="aspect-square bg-surface flex items-center justify-center relative overflow-hidden">
-        <button onClick={onToggle} className={`absolute top-2 right-2 z-20 w-7 h-7 rounded-lg flex items-center justify-center border backdrop-blur transition-all ${selected ? "bg-violet-600 border-violet-500 text-white shadow-lg" : "bg-black/40 border-white/20 text-white/70 hover:bg-black/60"}`} title={selected ? "Deselect" : "Select for bulk"}><span className="transition-transform group-hover:scale-110">{selected ? <CheckSquare size={14} /> : <Square size={14} />}</span></button>
+        <button onClick={onToggle} aria-pressed={selected} aria-label={`${selected ? "Deselect" : "Select"} ${output.filename} for bulk actions`} className={`absolute top-2 right-2 z-20 w-7 h-7 rounded-lg flex items-center justify-center border backdrop-blur transition-all ${selected ? "bg-violet-600 border-violet-500 text-white shadow-lg" : "bg-black/40 border-white/20 text-white/70 hover:bg-black/60"}`} title={selected ? "Deselect" : "Select for bulk"}><span className="transition-transform group-hover:scale-110">{selected ? <CheckSquare size={14} /> : <Square size={14} />}</span></button>
         {isDup && <div className="absolute top-2 left-2 z-20 w-6 h-6 rounded-full bg-amber-500/90 border border-amber-600 flex items-center justify-center" title="Duplicate"><Copy size={10} className="text-white" /></div>}
         {output.file_type === "image" ? (
           <img src={getOutputUrl(output.relative_path)} alt={output.filename} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
@@ -127,7 +125,7 @@ const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSe
         ) : output.file_type === "video" && output.metadata?.corrupted ? (
           <div className="flex flex-col items-center gap-2 text-red-400"><AlertTriangle className="w-10 h-10 animate-pulse" /><span className="text-xs uppercase tracking-widest">Corrupted</span></div>
         ) : output.file_type === "video" ? (
-          previewArmed ? <video src={getOutputUrl(output.relative_path)} muted loop playsInline autoPlay preload="metadata" disablePictureInPicture className="w-full h-full object-cover" /> : <div className="flex flex-col items-center gap-2 text-muted group-hover:text-blue-400 transition-colors"><Video className="w-12 h-12" /><span className="text-xs uppercase tracking-widest">Video</span><span className="absolute bottom-2 left-2 flex items-center gap-1 text-[11px] bg-black/60 px-1.5 py-0.5 rounded text-white"><Play size={10} /> hover to preview</span></div>
+          previewArmed ? <video src={getOutputUrl(output.relative_path)} muted loop playsInline autoPlay preload="metadata" disablePictureInPicture className="w-full h-full object-cover" /> : <div className="flex flex-col items-center gap-2 text-muted group-hover:text-blue-400 transition-colors"><Video className="w-12 h-12" /><span className="text-xs uppercase tracking-widest">Video</span><span className="absolute bottom-2 left-2 flex items-center gap-1 text-[11px] bg-black/70 px-1.5 py-0.5 rounded text-white"><Play size={10} /> hover to preview</span></div>
         ) : output.file_type === "audio" && output.cover_image ? (
           <img src={getOutputUrl(output.cover_image)} alt={output.filename} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
         ) : output.file_type === "audio" ? (
@@ -169,18 +167,18 @@ const MediaCard = memo(function MediaCard({ output, index, selected, isDup, onSe
         </div>
 
         <div className="absolute top-2 left-2 flex gap-1.5">
-          <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium border backdrop-blur ${output.file_type==="video"?"bg-blue-500/20 text-blue-300 border-blue-500/30":output.file_type==="audio"?"bg-emerald-500/20 text-emerald-300 border-emerald-500/30":output.file_type==="image"?"bg-purple-500/20 text-purple-300 border-purple-500/30":"bg-gray-500/20 text-gray-300 border-gray-500/30"}`}>{output.file_type}</span>
+          <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium border backdrop-blur ${output.file_type==="video"?"bg-blue-500/20 text-blue-300 light:text-blue-700 border-blue-500/30":output.file_type==="audio"?"bg-emerald-500/20 text-emerald-300 light:text-emerald-700 border-emerald-500/30":output.file_type==="image"?"bg-purple-500/20 text-purple-300 light:text-purple-700 border-purple-500/30":"bg-gray-500/20 text-gray-300 light:text-gray-600 border-gray-500/30"}`}>{output.file_type}</span>
         </div>
         {is3DModelFile(output.filename) && <div className="absolute top-2 left-20 z-10 w-6 h-6 rounded-md bg-violet-500/20 border border-violet-500/50 flex items-center justify-center backdrop-blur" title="3D"><Box size={12} className="text-violet-300" /></div>}
       </div>
       <div className="p-3">
-        <p className="text-sm text-white truncate font-medium" title={output.filename}>{output.filename}</p>
-        <div className="flex items-center justify-between mt-1.5 text-xs text-muted">
-          <span className="flex items-center gap-1 whitespace-nowrap"><HardDrive size={11} />{formatFileSize(output.size_bytes)}</span>
-          <span className="flex items-center gap-1 whitespace-nowrap"><Clock size={11} />{formatDate(output.created_at)}</span>
+        <p className="text-sm text-foreground truncate font-medium" title={output.filename}>{output.filename}</p>
+        <div className="flex items-center justify-between gap-2 mt-1.5 text-xs text-muted min-w-0">
+          <span className="flex items-center gap-1 min-w-0"><HardDrive size={11} className="shrink-0" /><span className="truncate">{formatFileSize(output.size_bytes)}</span></span>
+          <span className="flex items-center gap-1 min-w-0"><Clock size={11} className="shrink-0" /><span className="truncate">{formatDate(output.created_at)}</span></span>
         </div>
         {output.file_type === "audio" && onAnalyze && (
-          <button onClick={(e) => { stop(e); onAnalyze(e); }} className="mt-2 w-full py-1.5 px-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200 transition-all flex items-center justify-center gap-1.5">
+          <button onClick={(e) => { stop(e); onAnalyze(e); }} className="mt-2 w-full py-1.5 px-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs text-emerald-300 light:text-emerald-700 hover:bg-emerald-500/20 hover:text-emerald-200 transition-all flex items-center justify-center gap-1.5">
             <Activity size={12} />
             <span>Analyze audio</span>
           </button>
@@ -210,7 +208,11 @@ export function MediaLibrary() {
   const [selectedOutput, setSelectedOutput] = useState<OutputFile|null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Start collapsed on small screens so the 224px filters panel doesn't
+  // squeeze content into overflow (auditor caught x=248 push at 390px).
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches,
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearch = useDebounce(searchTerm, 350);
   const deferredSearch = useDeferredValue(debouncedSearch);
@@ -485,7 +487,7 @@ const [sortBy, setSortBy] = useState<SortBy>("newest");
       <div className="flex-1 space-y-5 p-6 overflow-auto">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2"><Sparkles size={20} className="text-primary" /> Media Library</h1>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2"><Sparkles size={20} className="text-primary" /> Media Library</h1>
             <p className="text-sm text-muted mt-1">Browse, preview, rename and deduplicate — covers auto-extracted from audio</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -587,17 +589,17 @@ const [sortBy, setSortBy] = useState<SortBy>("newest");
         </div>
 
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-500/20 border border-blue-500/50" /><Video size={12} className="text-blue-400" /> Video</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500/20 border border-emerald-500/50" /><Music size={12} className="text-emerald-400" /> Audio</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-purple-500/20 border border-purple-500/50" /><Image size={12} className="text-purple-400" /> Image</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-500/20 border border-amber-500/50" /><Box size={12} className="text-amber-400" /> 3D</span>
-          <span className="text-muted ml-auto hidden sm:inline">Sorted by <b className="text-white capitalize">{sortBy.replace("-"," ")}</b> • {filteredOutputs.length} files{groupByType?" • grouped":""} {visibleCount<filteredOutputs.length && `• showing ${visibleCount}`}</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-500/20 border border-blue-500/50" /><Video size={12} className="text-blue-400 light:text-blue-700" /> Video</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500/20 border border-emerald-500/50" /><Music size={12} className="text-emerald-400 light:text-emerald-700" /> Audio</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-purple-500/20 border border-purple-500/50" /><Image size={12} className="text-purple-400 light:text-purple-700" /> Image</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-500/20 border border-amber-500/50" /><Box size={12} className="text-amber-400 light:text-amber-700" /> 3D</span>
+          <span className="text-muted ml-auto hidden sm:inline">Sorted by <b className="text-foreground capitalize">{sortBy.replace("-"," ")}</b> • {filteredOutputs.length} files{groupByType?" • grouped":""} {visibleCount<filteredOutputs.length && `• showing ${visibleCount}`}</span>
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3 text-red-300 backdrop-blur">
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3 text-error-text backdrop-blur">
             <AlertTriangle className="w-5 h-5 shrink-0" />
-            <div className="flex-1"><span className="font-medium">Backend Unavailable</span><p className="text-sm text-red-300/80 mt-1">{error.includes("fetch")||error.includes("refused")?`Cannot connect to backend at ${getBackendUrl()}. Start with: cd packages/backend && python -m uvicorn app.main:app --reload`:error}</p></div>
+            <div className="flex-1"><span className="font-medium">Backend Unavailable</span><p className="text-sm text-error-text/80 mt-1">{error.includes("fetch")||error.includes("refused")?`Cannot connect to backend at ${getBackendUrl()}. Start with: cd packages/backend && python -m uvicorn app.main:app --reload`:error}</p></div>
             <button onClick={handleRefresh} className="btn btn-sm btn-secondary">Retry</button>
           </div>
         )}

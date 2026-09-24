@@ -46,7 +46,7 @@ export function GpuMonitorHeader({
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <CpuIcon size={22} className="text-violet-400" />
           GPU Monitor
           {refreshing && <Loader2 size={14} className="animate-spin text-violet-400" aria-label="Refreshing" />}

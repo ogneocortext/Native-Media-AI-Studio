@@ -12,23 +12,23 @@ export function StatusBadge({ status }: StatusBadgeProps) {
       case "healthy":
       case "connected":
       case "online":
-        return { dot: "status-healthy", text: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" };
+        return { dot: "status-healthy", text: "text-emerald-400 light:text-emerald-700", bg: "bg-emerald-500/10 border-emerald-500/20" };
       case "running":
       case "degraded":
       case "warning":
-        return { dot: "status-degraded", text: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20" };
+        return { dot: "status-degraded", text: "text-amber-400 light:text-amber-700", bg: "bg-amber-500/10 border-amber-500/20" };
       case "failed":
       case "offline":
       case "error":
       case "cancelled":
-        return { dot: "status-offline", text: "text-red-400", bg: "bg-red-500/10 border-red-500/20" };
+        return { dot: "status-offline", text: "text-red-400 light:text-red-700", bg: "bg-red-500/10 border-red-500/20" };
       case "pending":
       case "queued":
-        return { dot: "bg-sky-400", text: "text-sky-400", bg: "bg-sky-500/10 border-sky-500/20" };
+        return { dot: "bg-sky-400", text: "text-sky-400 light:text-sky-700", bg: "bg-sky-500/10 border-sky-500/20" };
       case "processing":
-        return { dot: "bg-violet-400", text: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20" };
+        return { dot: "bg-violet-400", text: "text-violet-400 light:text-violet-700", bg: "bg-violet-500/10 border-violet-500/20" };
       default:
-        return { dot: "bg-gray-400", text: "text-gray-400", bg: "bg-gray-500/10 border-gray-500/20" };
+        return { dot: "bg-gray-400", text: "text-gray-400 light:text-gray-600", bg: "bg-gray-500/10 border-gray-500/20" };
     }
   };
 

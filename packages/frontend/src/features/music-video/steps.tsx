@@ -19,7 +19,7 @@ export function UploadStep({ audioFile, audioUrl, onDrop, onFileSelect, onNext, 
     <div className="p-6 md:p-8">
       <div className="max-w-2xl mx-auto text-center">
         <div className="w-12 h-12 rounded-xl bg-violet-600 flex items-center justify-center mx-auto mb-3"><Music size={22} className="text-white" /></div>
-        <h2 className="text-2xl font-bold text-white tracking-tight">Upload Your Track</h2>
+        <h2 className="text-2xl font-bold text-foreground tracking-tight">Upload Your Track</h2>
         <p className="text-sm text-gray-400 mt-2">We analyze tempo, beats, sections & mood <em>before</em> generating — SunoMV &ldquo;analyze first, generate second&rdquo;. Supports MP3, WAV, FLAC, OGG, M4A (max 500 MB).</p>
         <input
           ref={inputRef}

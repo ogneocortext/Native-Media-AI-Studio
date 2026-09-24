@@ -580,7 +580,7 @@ async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
     return {"query": query, "model": model, "results": results[:limit]}
 
 
-@router.get("/ollama/models")
+@router.get("/ollama/models", operation_id="get_generation_ollama_models")
 async def get_ollama_models() -> list:
     """Get available Ollama models."""
     adapter = adapter_registry.get("ollama")

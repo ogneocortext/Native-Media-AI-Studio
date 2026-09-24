@@ -1,6 +1,6 @@
 import React from "react";
 import { Card } from "../../components/common";
-import { getUsageColor, getUsageLabel } from "./utils";
+import { getUsageColor, getUsageTextColor, getUsageLabel } from "./utils";
 
 export interface ResourceCardProps {
   icon: React.ComponentType<{ size?: number; className?: string }>;
@@ -37,7 +37,7 @@ export function ResourceCard({ icon: Icon, iconColor, label, cores, usage, subte
           style={
             {
               background: `${getUsageColor(usage)}20`,
-              color: getUsageColor(usage),
+              color: getUsageTextColor(usage),
             }
           }
         >

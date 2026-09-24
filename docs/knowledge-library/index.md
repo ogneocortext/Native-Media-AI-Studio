@@ -71,6 +71,8 @@ date: 2026-09-05
 - [[remotion-guide|🎬 Remotion Video Compositing]] — Programmatic video with React (NEW 2026-09-01)
 - [[modern-css-2026|🎨 Modern CSS 2026]] — Tailwind v4 @theme/layers, OKLCH theming, gradient spaces, a11y media queries, verification checklist (NEW 2026-09-23)
 - [[ollama-prompting-2026|🤖 Ollama Prompting 2026]] — Vision grounding/uncertainty, structured-output schemas, code-gen contracts, VRAM latency policy (NEW 2026-09-23)
+- [[color-strategy-2026|🎨 Color Strategy 2026]] — APCA vs WCAG dark-mode contrast, measured token audit, tier rules (NEW 2026-09-23)
+- [[design-auditing-2026|🔍 Design Auditing 2026]] — Contrast+axe+VLM audit layers, runbook for `contrast_audit.py` (NEW 2026-09-23)
 
 ### 🤖 AI Agent Resources
 
@@ -111,6 +113,8 @@ date: 2026-09-05
 | `#remotion`          | Remotion video compositing                        | 1 document  |
 | `#frontend-css`      | Tailwind v4 theming, layers, a11y                 | 1 document  |
 | `#prompt-engineering`| Ollama vision grounding, schemas, contracts       | 1 document  |
+| `#color-strategy`    | APCA contrast, dark-mode tiers, token audit       | 1 document  |
+| `#design-qa`         | Contrast+axe+VLM audit system, runbook            | 1 document  |
 | `#audio`             | Audio-reactive production                         | 1 document  |
 | `#silhouette`        | Silhouette / character animation                  | 2 documents |
 | `#hardware`          | Hardware-verified 8GB models                      | 1 document  |

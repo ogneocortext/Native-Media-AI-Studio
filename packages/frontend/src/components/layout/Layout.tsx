@@ -4,10 +4,12 @@ import { startAutoRefresh, stopAutoRefresh } from "../../state/jobStore";
 import { useUIStore } from "../../state/uiStore";
 import { useHealthStore } from "../../state/healthStore";
 import { useJobStore } from "../../state/jobStore";
+import pkg from "../../../package.json";
 
 interface LayoutProps { children: React.ReactNode; }
 
-const APP_VERSION = "1.5";
+// Single source of truth: package.json version (bumped per release).
+const APP_VERSION = pkg.version as string;
 const COPYRIGHT = "Internext Ventures LLC";
 
 // Expose stores on window for test harnesses / debug tooling.

@@ -19,7 +19,10 @@ if sys.platform == "win32":
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
@@ -34,6 +37,7 @@ from .core.port_manager import port_manager
 from .core.tracing import setup_tracing
 from .diagnostics.health import health_monitor
 from .diagnostics.resources import resource_monitoring_loop
+from .models.errors import ErrorResponse
 from .queue.manager import queue_manager
 from .queue.processor import processor
 from .sse.handler import sse_manager
@@ -324,6 +328,41 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_OPENAPI_TAGS = [
+    {"name": "Health", "description": "Backend, adapter, queue, and resource health checks."},
+    {"name": "Jobs", "description": "Media generation job queue and lifecycle operations."},
+    {"name": "Hardware", "description": "Hardware profile and benchmark operations."},
+    {"name": "Integrations", "description": "External generation and media service integrations."},
+    {"name": "Outputs", "description": "Generated media and output metadata operations."},
+    {"name": "Audio", "description": "Audio upload, analysis, separation, and conversion operations."},
+    {"name": "Transcription", "description": "Speech transcription operations."},
+    {"name": "Lyrics", "description": "Lyric parsing and synchronization operations."},
+    {"name": "ComfyUI", "description": "ComfyUI workflow and model operations."},
+    {"name": "Logs", "description": "Application log inspection and management operations."},
+    {"name": "Log Analytics", "description": "Log analytics and trend operations."},
+    {"name": "Data", "description": "Application data and visualization preset operations."},
+    {"name": "Video", "description": "Video generation and editing operations."},
+    {"name": "Vision", "description": "Vision analysis and image operations."},
+    {"name": "Native Open", "description": "Local file and native application integration operations."},
+    {"name": "Docs", "description": "Application documentation operations."},
+    {"name": "HyperFrames", "description": "HyperFrames composition and rendering operations."},
+    {"name": "Media", "description": "Media inspection and file operations."},
+    {"name": "Music Generation", "description": "Music generation engine operations."},
+    {"name": "Music Prompts", "description": "Music prompt creation and management operations."},
+    {"name": "Root", "description": "Application root and compatibility endpoints."},
+    {"name": "WebSocket", "description": "Legacy WebSocket compatibility endpoints."},
+    {"name": "SSE", "description": "Server-sent event stream endpoints."},
+    {"name": "Services", "description": "Adapter service status endpoints."},
+    {"name": "Render", "description": "Rendering health and diagnostics endpoints."},
+]
+
+_OPENAPI_SERVERS = [{"url": "/", "description": "Current backend origin"}]
+_OPENAPI_CONTACT = {"name": "Native Media AI Studio"}
+_OPENAPI_LICENSE = {
+    "name": "Apache-2.0",
+    "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
+}
+
 # Opt-in tracing: set NMA_TRACING=1 to enable OpenTelemetry console exporter
 setup_tracing(app)
 
@@ -414,6 +453,19 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     return _error_response(exc.status_code, code, str(exc.detail) if exc.detail else "Request failed")
 
 
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(
+    request: Request, exc: RequestValidationError
+):
+    """Return validation failures through the same envelope as HTTP errors."""
+    return _error_response(
+        422,
+        "VALIDATION_ERROR",
+        "Request validation failed",
+        jsonable_encoder(exc.errors()),
+    )
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     request_id = getattr(request.state, "request_id", "-")
@@ -443,6 +495,7 @@ from .api import (  # noqa: E402
     native_open,
     outputs,
     transcription,
+    unity_control,
     video,
     vision,
 )
@@ -463,6 +516,7 @@ app.include_router(data.router)
 app.include_router(video.router)
 app.include_router(vision.router)
 app.include_router(native_open.router)
+app.include_router(unity_control.router)
 app.include_router(docs.router)
 app.include_router(hyperframes.router)
 app.include_router(media.router)
@@ -470,7 +524,7 @@ app.include_router(music_gen.router)
 app.include_router(music_prompts.router)
 
 # Additional root-level routes
-@app.get("/api/services/status")
+@app.get("/api/services/status", response_model=dict)
 async def get_service_status() -> dict:
     """Get status of all adapters with error details"""
     return {
@@ -479,16 +533,149 @@ async def get_service_status() -> dict:
         "connections": sse_manager.connection_count(),
     }
 
-@app.get("/api/render/health")
+@app.get("/api/render/health", response_model=dict)
 async def get_render_health() -> dict:
     """Get system health for rendering"""
     return await health_monitor.get_system_health()
+
+
+_ERROR_RESPONSE_CONTENT = {
+    "application/json": {
+        "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+    }
+}
+
+
+def _register_error_schema(schema: dict) -> None:
+    """Register the shared error envelope used by every exception handler."""
+    components = schema.setdefault("components", {})
+    schemas = components.setdefault("schemas", {})
+    if "ErrorResponse" in schemas:
+        return
+
+    error_schema = ErrorResponse.model_json_schema(
+        ref_template="#/components/schemas/{model}"
+    )
+    for name, definition in error_schema.pop("$defs", {}).items():
+        schemas.setdefault(name, definition)
+    schemas["ErrorResponse"] = error_schema
+
+
+def _tag_for_path(path: str) -> str:
+    """Choose a useful top-level tag for routes defined directly on ``app``."""
+    if path == "/":
+        return "Root"
+    if path == "/ws":
+        return "WebSocket"
+    if path == "/api/events":
+        return "SSE"
+    parts = [part for part in path.split("/") if part]
+    if parts and parts[0] == "api" and len(parts) > 1:
+        return {
+            "services": "Services",
+            "render": "Render",
+        }.get(parts[1], parts[1].replace("-", " ").title())
+    return "Root"
+
+
+def _operation_description(method: str, path: str, summary: str) -> str:
+    """Provide a useful description for routes without a docstring."""
+    descriptions = {
+        ("GET", "/api/health/context"): "Get the current shared MCP context.",
+        ("POST", "/api/health/context"): "Set values in the shared MCP context.",
+        ("GET", "/api/hyperframes/status"): "Get the HyperFrames project and engine status.",
+        ("GET", "/api/hyperframes/examples"): "List available HyperFrames starter examples.",
+        ("POST", "/api/hyperframes/preview"): "Start a HyperFrames preview for the current composition.",
+        ("POST", "/api/hyperframes/render"): "Render the current HyperFrames composition.",
+        ("GET", "/"): "Return application metadata and links to core endpoints.",
+        ("GET", "/ws"): "Return an upgrade-required response for plain HTTP WebSocket clients.",
+    }
+    return descriptions.get((method, path), f"{summary.rstrip('.')}." )
+
+
+def _normalize_operations(schema: dict) -> None:
+    """Fill missing tags/descriptions and document uniform error responses."""
+    _register_error_schema(schema)
+
+    tag_names = {tag["name"] for tag in schema.get("tags", [])}
+    for path, path_item in schema.get("paths", {}).items():
+        for method, operation in path_item.items():
+            if method.lower() not in {"get", "put", "post", "delete", "patch", "options", "head", "trace"}:
+                continue
+
+            tags = operation.get("tags")
+            if not tags:
+                tag = _tag_for_path(path)
+                operation["tags"] = [tag]
+                tag_names.add(tag)
+            else:
+                tag_names.update(tags)
+
+            if not operation.get("description"):
+                operation["description"] = _operation_description(
+                    method.upper(), path, operation.get("summary", "Operation")
+                )
+
+            responses = operation.setdefault("responses", {})
+            if "500" not in responses:
+                responses["500"] = {
+                    "description": "Internal server error",
+                    "content": _ERROR_RESPONSE_CONTENT,
+                }
+            if (
+                "422" not in responses
+                and ("parameters" in operation or "requestBody" in operation)
+            ):
+                responses["422"] = {
+                    "description": "Request validation failed",
+                    "content": _ERROR_RESPONSE_CONTENT,
+                }
+
+    existing_tags = {
+        tag["name"]: tag for tag in schema.get("tags", []) if isinstance(tag, dict) and tag.get("name")
+    }
+    for name in sorted(tag_names):
+        existing_tags.setdefault(
+            name,
+            {
+                "name": name,
+                "description": f"{name} API operations.",
+            },
+        )
+    schema["tags"] = [existing_tags[name] for name in sorted(existing_tags)]
+
+
+def custom_openapi():
+    """Build a stable, documented OpenAPI 3.1 schema for API clients."""
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+        openapi_version=app.openapi_version,
+        tags=_OPENAPI_TAGS,
+        servers=_OPENAPI_SERVERS,
+        contact=_OPENAPI_CONTACT,
+        license_info=_OPENAPI_LICENSE,
+    )
+    schema["info"].setdefault("contact", _OPENAPI_CONTACT)
+    schema["info"].setdefault("license", _OPENAPI_LICENSE)
+    schema.setdefault("servers", _OPENAPI_SERVERS)
+    _normalize_operations(schema)
+    app.openapi_schema = schema
+    return schema
+
+
+app.openapi = custom_openapi
 
 if config.output_dir.exists():
     app.mount("/output", StaticFiles(directory=str(config.output_dir)), name="output")
 
 
-@app.get("/")
+@app.get("/", response_model=dict)
 async def root():
     return {
         "name": "Native Media AI Studio",

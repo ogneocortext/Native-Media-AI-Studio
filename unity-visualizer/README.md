@@ -150,7 +150,7 @@ See `docs/knowledge/unity-audio-visualization-2026.md` for:
 
 ## Next Steps
 
-- [ ] Create custom audio-reactive shaders (HLSL + Shader Graph)
+- [x] Create custom audio-reactive shaders (HLSL + Shader Graph)
 - [ ] Add VFX Graph particle systems for audio
 - [ ] Implement timeline-based visualization sequences
 - [ ] Add track metadata import from media library

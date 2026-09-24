@@ -22,58 +22,59 @@ export const DS = {
   flexCenter: "flex items-center gap-2",
   flexWrap: "flex flex-wrap gap-2",
 
-  // Cards
-  card: "bg-gray-800 rounded-xl p-4 border border-gray-700",
-  cardTight: "bg-gray-800 rounded-xl p-3 border border-gray-700",
-  cardHighlight: "bg-gray-800 rounded-xl p-4 border border-violet-500/30",
-  cardStat: "bg-gray-900 rounded-xl p-3 border border-gray-700",
+  // Cards (adaptive fills so token text + light: variants resolve correctly
+  // in both themes; fixed-dark fills live behind .theme-dark islands instead)
+  card: "bg-surface rounded-xl p-4 border border-token shadow-md",
+  cardTight: "bg-surface rounded-xl p-3 border border-token shadow-md",
+  cardHighlight: "bg-surface rounded-xl p-4 border border-violet-500/30 shadow-md",
   cardGradient: "rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/10 via-transparent to-transparent p-4",
-  cardError: "p-4 bg-red-900/30 border border-red-700 rounded-xl flex items-center gap-3 text-red-300",
-  cardWarning: "flex gap-2 text-sm text-gray-500 bg-amber-500/5 border border-amber-500/20 rounded-xl p-3",
+  cardError: "p-4 bg-red-900/30 border border-red-700 rounded-xl flex items-center gap-3 text-red-300 light:text-red-700",
+  cardWarning: "flex gap-2 text-sm text-muted bg-amber-500/5 border border-amber-500/20 rounded-xl p-3",
   cardSuccess: "p-4 bg-green-900/20 border border-green-700 rounded-lg",
 
-  // Headers
-  pageTitle: "text-2xl font-bold text-white flex items-center gap-2",
-  pageSubtitle: "text-sm text-gray-400 mt-1",
-  sectionTitle: "text-sm font-bold text-white flex items-center gap-2",
-  cardTitle: "text-lg font-bold text-white flex items-center gap-2",
+  // Headers (text-foreground: near-white in dark, near-black in light —
+  // raw text-white headings are invisible on light surfaces)
+  pageTitle: "text-2xl font-bold text-foreground flex items-center gap-2",
+  pageSubtitle: "text-sm text-muted mt-1",
+  sectionTitle: "text-sm font-bold text-foreground flex items-center gap-2",
+  cardTitle: "text-lg font-bold text-foreground flex items-center gap-2",
 
-  // Text
-  textXs: "text-xs text-gray-500",
-  textSm: "text-sm text-gray-400",
-  textSmWhite: "text-sm text-white",
-  textSmMedium: "text-sm font-medium text-gray-300",
-  textBold: "text-sm font-bold text-white",
-  textBoldLg: "text-lg font-bold text-white",
-  textBoldXl: "text-xl font-bold text-white",
-  textBold2xl: "text-2xl font-bold text-white",
-  textMute: "text-xs text-gray-500",
-  textMuteSm: "text-xs text-gray-500",
-  textLabel: "text-xs text-gray-500",
-  textLabelSm: "text-[11px] text-gray-500",
+  // Text (theme tokens — gray-400/500 fail on light surfaces)
+  textXs: "text-xs text-muted",
+  textSm: "text-sm text-muted",
+  textSmWhite: "text-sm text-foreground",
+  textSmMedium: "text-sm font-medium text-secondary",
+  textBold: "text-sm font-bold text-foreground",
+  textBoldLg: "text-lg font-bold text-foreground",
+  textBoldXl: "text-xl font-bold text-foreground",
+  textBold2xl: "text-2xl font-bold text-foreground",
+  textMute: "text-xs text-muted",
+  textMuteSm: "text-xs text-muted",
+  textLabel: "text-xs text-muted",
+  textLabelSm: "text-[11px] text-muted",
 
-  // Accent colors
-  accentViolet: "text-violet-400",
-  accentSky: "text-sky-400",
-  accentEmerald: "text-emerald-400",
-  accentRed: "text-red-400",
-  accentAmber: "text-amber-400",
-  accentGreen: "text-green-400",
-  accentPurple: "text-purple-400",
+  // Accent colors (400s fail on light tints — light: escape hatch each)
+  accentViolet: "text-violet-400 light:text-violet-700",
+  accentSky: "text-sky-400 light:text-sky-700",
+  accentEmerald: "text-emerald-400 light:text-emerald-700",
+  accentRed: "text-red-400 light:text-red-700",
+  accentAmber: "text-amber-400 light:text-amber-700",
+  accentGreen: "text-green-400 light:text-green-700",
+  accentPurple: "text-purple-400 light:text-purple-700",
 
-  // Stats
-  statCard: "bg-gray-900 rounded-xl p-3 border border-gray-700 text-center",
-  statLabel: "text-xs text-gray-500",
-  statValue: "text-xl font-bold text-white",
-  statSub: "text-xs text-gray-500",
+  // Stats (labels muted for both themes; values stay bright)
+  statCard: "bg-surface rounded-xl p-3 border border-border text-center",
+  statLabel: "text-xs text-muted",
+  statValue: "text-xl font-bold text-foreground",
+  statSub: "text-xs text-muted",
 
-  // Buttons
+  // Buttons (solid fills are identical islands in both themes — keep white)
   btnPrimary: "px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-semibold flex items-center gap-2",
   btnPrimarySm: "px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm font-medium flex items-center gap-2",
   btnSecondary: "px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-xl text-sm font-medium flex items-center gap-2",
-  btnSecondarySm: "px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm flex items-center gap-2",
-  btnGhost: "p-1.5 hover:bg-gray-700 rounded-lg text-gray-400",
-  btnGhostSm: "p-1 hover:bg-gray-700 rounded text-gray-400",
+  btnSecondarySm: "px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium flex items-center gap-2",
+  btnGhost: "p-1.5 hover:bg-gray-700 rounded-lg text-muted",
+  btnGhostSm: "p-1 hover:bg-gray-700 rounded text-muted",
   btnDisabled: "disabled:bg-gray-600 disabled:cursor-not-allowed",
   btnFull: "w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-gray-600 text-white rounded-xl font-medium flex items-center justify-center gap-2",
 
@@ -85,12 +86,12 @@ export const DS = {
   selectSm: "px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm",
   range: "w-full accent-violet-500",
 
-  // Badges
-  badge: "text-xs px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/30 text-violet-300",
-  badgeGreen: "text-xs px-2 py-0.5 rounded-full bg-green-900/30 border border-green-700 text-green-400",
-  badgeRed: "text-xs px-2 py-0.5 rounded-full bg-red-900/30 border border-red-700 text-red-400",
-  badgeAmber: "text-xs px-2 py-0.5 rounded-full bg-amber-900/30 border border-amber-700 text-amber-400",
-  badgeBlue: "text-xs px-2 py-0.5 rounded-full bg-blue-900/30 border border-blue-700 text-blue-400",
+  // Badges (tinted fills adapt; text gets a light-theme escape hatch)
+  badge: "text-xs px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/30 text-violet-300 light:text-violet-700",
+  badgeGreen: "text-xs px-2 py-0.5 rounded-full bg-green-900/30 border border-green-700 text-green-400 light:text-green-700",
+  badgeRed: "text-xs px-2 py-0.5 rounded-full bg-red-900/30 border border-red-700 text-red-400 light:text-red-700",
+  badgeAmber: "text-xs px-2 py-0.5 rounded-full bg-amber-900/30 border border-amber-700 text-amber-400 light:text-amber-700",
+  badgeBlue: "text-xs px-2 py-0.5 rounded-full bg-blue-900/30 border border-blue-700 text-blue-400 light:text-blue-700",
 
   // Upload
   uploadZone: "relative border-2 border-dashed rounded-xl p-8 text-center transition-colors",
@@ -104,8 +105,8 @@ export const DS = {
   loading: "animate-spin",
   pulse: "animate-pulse",
   truncate: "truncate",
-  mono: "font-mono text-xs text-gray-400",
-  link: "text-violet-400 hover:underline",
+  mono: "font-mono text-xs text-muted",
+  link: "text-violet-400 light:text-violet-700 hover:underline",
 } as const;
 
 // Section color map for song structures

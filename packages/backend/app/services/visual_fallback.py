@@ -24,6 +24,7 @@ preset id), mirroring the ``basePresetId`` choices in the frontend's
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Optional
 
@@ -99,9 +100,12 @@ def _includes_token(haystack: str, token: str) -> bool:
 
 def _coerce_float(value: object) -> Optional[float]:
     try:
-        return float(value)  # type: ignore[arg-type]
+        result = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
+    # Ignore NaN and infinities from corrupt analyzer data rather than letting
+    # them bypass every energy/BPM threshold.
+    return result if math.isfinite(result) else None
 
 
 def is_known_preset(preset_id: str) -> bool:

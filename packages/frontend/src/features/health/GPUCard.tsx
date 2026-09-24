@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { Card } from "../../components/common";
 import { useHealthStore } from "../../state/healthStore";
-import { getUsageColor } from "./utils";
+import { getUsageColor, getUsageTextColor } from "./utils";
 
 export function GPUCard() {
   const [gpu, setGpu] = useState<Awaited<ReturnType<typeof import("../../services/api").getGPUSnapshot>> | null>(null);
@@ -42,7 +42,7 @@ export function GPUCard() {
               <p className="text-xs text-muted">Not available</p>
             </div>
           </div>
-          <button onClick={fetchGPUData} className="text-xs text-muted hover:text-white">
+          <button onClick={fetchGPUData} className="h-6 w-6 flex items-center justify-center rounded text-muted hover:text-white hover:bg-white/10" title="Refresh GPU data" aria-label="Refresh GPU data">
             <RefreshCw size={14} />
           </button>
         </div>
@@ -58,24 +58,24 @@ export function GPUCard() {
 
   return (
     <Card>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center shrink-0">
             <CpuIcon size={20} className="text-purple-400" />
           </div>
-          <div>
-            <h3 className="font-semibold text-sm">{gpu.name || "GPU"}</h3>
-            <p className="text-xs text-muted tabular-nums">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm truncate">{gpu.name || "GPU"}</h3>
+            <p className="text-xs text-muted tabular-nums truncate">
               {formatGB(gpu.memory_free_mb)} free / {formatGB(gpu.memory_total_mb)} total
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <span
             className="text-xs px-2 py-1 rounded-full font-medium tabular-nums"
             style={{
               background: `${getUsageColor(memPercent)}20`,
-              color: getUsageColor(memPercent),
+              color: getUsageTextColor(memPercent),
             }}
           >
             {memPercent.toFixed(1)}%
@@ -83,7 +83,7 @@ export function GPUCard() {
           <a href="/gpu" className="text-[11px] text-violet-300 hover:text-violet-200" title="Open full GPU monitor">
             Details →
           </a>
-          <button onClick={fetchGPUData} className="text-xs text-muted hover:text-white" title="Refresh GPU data">
+          <button onClick={fetchGPUData} className="h-6 w-6 flex items-center justify-center rounded text-muted hover:text-white hover:bg-white/10" title="Refresh GPU data" aria-label="Refresh GPU data">
             <RefreshCw size={14} />
           </button>
         </div>

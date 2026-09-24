@@ -102,7 +102,7 @@ export function HyperFramesPage() {
       <div className="flex items-center gap-3">
         <Film className="h-7 w-7 text-purple-400" />
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">HyperFrames</h1>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">HyperFrames</h1>
           <p className="text-sm text-gray-400">
             v{status?.version ?? "?"} · CLI: {status?.hyperframes_cli ?? "npx hyperframes"}
           </p>

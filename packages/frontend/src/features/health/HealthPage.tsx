@@ -205,8 +205,8 @@ export function HealthPage() {
         <h1 className="text-2xl font-bold mb-6">System Health</h1>
         <Card>
           <div className="flex items-center gap-3 p-4 bg-error/10 border border-error/20 rounded-lg">
-            <XCircle size={20} className="text-error" />
-            <span className="text-error font-medium">{error}</span>
+            <XCircle size={20} className="text-error-text" />
+            <span className="text-error-text font-medium">{error}</span>
           </div>
         </Card>
       </div>
@@ -374,7 +374,7 @@ export function HealthPage() {
                       addLog(`Cleanup failed: ${msg}`, "error");
                     }
                   }}
-                  className="absolute -top-2 -right-2 text-xs px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-full shadow"
+                  className="absolute -top-2 -right-2 text-xs px-2 py-1 bg-amber-700 hover:bg-amber-600 text-white rounded-full shadow"
                   title="Free RAM: GC + torch cache + old files + Ollama offload if needed"
                 >
                   Clean RAM

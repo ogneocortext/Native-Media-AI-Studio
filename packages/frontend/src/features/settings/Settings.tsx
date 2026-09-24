@@ -126,6 +126,7 @@ export function Settings() {
                 <input
                   type="text"
                   className="input flex-1"
+                  aria-label="ComfyUI URL"
                   value={settings.comfyui_url}
                   onChange={(e) => setSettings(prev => ({ ...prev, comfyui_url: e.target.value }))}
                   placeholder="http://127.0.0.1:8188"
@@ -158,7 +159,7 @@ export function Settings() {
 
             <div>
               <label className="label">Default Workflow</label>
-              <select className="select" defaultValue="default">
+              <select className="select" defaultValue="default" aria-label="Default workflow">
                 <option value="default">Standard Image Generation</option>
                 <option value="animate">AnimateDiff Video</option>
                 <option value="controlnet">ControlNet + Image</option>
@@ -174,6 +175,7 @@ export function Settings() {
               <input
                 type="text"
                 className="input"
+                aria-label="Output node ID"
                 defaultValue="9"
                 placeholder="SaveImage node ID"
               />
@@ -235,10 +237,11 @@ export function Settings() {
                   <input
                     type="checkbox"
                     className="sr-only peer"
+                    aria-label="Enable Atomic Chat TurboQuant"
                     checked={settings.atomic_chat_enabled}
                     onChange={(e) => setSettings(prev => ({ ...prev, atomic_chat_enabled: e.target.checked }))}
                   />
-                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                 </label>
               </div>
               <div>
@@ -247,6 +250,7 @@ export function Settings() {
                   <input
                     type="text"
                     className="input flex-1"
+                    aria-label="Atomic Chat URL"
                     value={settings.atomic_chat_url}
                     onChange={(e) => setSettings(prev => ({ ...prev, atomic_chat_url: e.target.value }))}
                     placeholder="http://127.0.0.1:1337"
@@ -269,7 +273,7 @@ export function Settings() {
 
             <div>
               <label className="label">Default Model</label>
-              <select className="select" value={settings.default_model || "qwen3.5:4b"} onChange={(e) => setSettings(prev => ({ ...prev, default_model: e.target.value }))}>
+              <select className="select" aria-label="Default model" value={settings.default_model || "qwen3.5:4b"} onChange={(e) => setSettings(prev => ({ ...prev, default_model: e.target.value }))}>
                 <option value="qwen3.5:4b">qwen3.5:4b (fast, 4B)</option>
                 <option value="qwen3.5:9b">qwen3.5:9b (quality, 9B)</option>
                 <option value="ornith-1.5:9b">ornith-1.5:9b (vision+tools)</option>
@@ -291,10 +295,11 @@ export function Settings() {
                 <input
                   type="text"
                   className="input flex-1"
+                  aria-label="Output directory"
                   defaultValue="./output"
                   readOnly
                 />
-                <button className="btn btn-secondary">
+                <button className="btn btn-secondary" aria-label="Browse output directory" title="Browse output directory">
                   <FolderOpen size={16} />
                 </button>
               </div>
@@ -302,7 +307,7 @@ export function Settings() {
 
             <div>
               <label className="label">Max Queue Workers</label>
-              <select className="select" value={settings.max_queue_workers} onChange={(e) => setSettings(prev => ({ ...prev, max_queue_workers: parseInt(e.target.value, 10) }))}>
+              <select className="select" aria-label="Max queue workers" value={settings.max_queue_workers} onChange={(e) => setSettings(prev => ({ ...prev, max_queue_workers: parseInt(e.target.value, 10) }))}>
                 <option value={1}>1 (Serial)</option>
                 <option value={2}>2</option>
                 <option value={3}>3</option>
@@ -318,7 +323,7 @@ export function Settings() {
         <Card title="Logging">
             <div>
               <label className="label">Log Level</label>
-              <select className="select" value={settings.log_level} onChange={(e) => setSettings(prev => ({ ...prev, log_level: e.target.value }))}>
+              <select className="select" aria-label="Log level" value={settings.log_level} onChange={(e) => setSettings(prev => ({ ...prev, log_level: e.target.value }))}>
                 <option value="DEBUG">Debug</option>
                 <option value="INFO">Info</option>
                 <option value="WARNING">Warning</option>

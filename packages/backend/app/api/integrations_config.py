@@ -117,7 +117,7 @@ async def get_visualization_presets() -> dict:
     return {"presets": presets, "count": len(presets)}
 
 
-@router.get("/ollama-models")
+@router.get("/ollama-models", operation_id="get_config_ollama_models")
 async def get_ollama_models() -> dict:
     """Get available Ollama models with capability info and VRAM requirements."""
     try:

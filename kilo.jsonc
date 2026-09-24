@@ -3,8 +3,16 @@
   "subagent_depth": 1,
   "model": "kilo-auto/free",
   "default_agent": "code",
-  "instructions": ["AGENTS.md", "Guidelines.md"],
+  "instructions": ["AGENTS.md"],
   "snapshot": false,
+  "compaction": {
+    "auto": true,
+    "threshold_percent": 80,
+    "prune": true,
+    "tail_turns": 2,
+    "preserve_recent_tokens": 8000,
+    "reserved": 20000
+  },
   "mcp": {
     "remotion-documentation": {
       "enabled": true

@@ -6,9 +6,9 @@ body::before {
   pointer-events: none;
   z-index: -1;
   background:
-    radial-gradient(in oklch, 900px 600px at 12% 8%, color-mix(in oklch, var(--color-primary) 7%, transparent), transparent 62%),
-    radial-gradient(in oklch, 700px 500px at 88% 92%, color-mix(in oklch, var(--color-accent) 5%, transparent), transparent 60%),
-    radial-gradient(in oklch, 600px 400px at 50% 50%, color-mix(in oklch, var(--color-cyan) 3%, transparent), transparent 70%);
+    radial-gradient(900px 600px at 12% 8% in oklch,  color-mix(in oklch, var(--color-primary) 7%, transparent), transparent 62%),
+    radial-gradient(700px 500px at 88% 92% in oklch,  color-mix(in oklch, var(--color-accent) 5%, transparent), transparent 60%),
+    radial-gradient(600px 400px at 50% 50% in oklch,  color-mix(in oklch, var(--color-cyan) 3%, transparent), transparent 70%);
   opacity: 1;
 }
 
@@ -31,9 +31,9 @@ body::after {
 
 [data-theme="light"] body::before {
   background:
-    radial-gradient(in oklch, 900px 600px at 12% 8%, color-mix(in oklch, var(--color-primary) 6%, transparent), transparent 62%),
-    radial-gradient(in oklch, 700px 500px at 88% 92%, color-mix(in oklch, var(--color-accent) 4%, transparent), transparent 60%),
-    radial-gradient(in oklch, 600px 400px at 50% 50%, color-mix(in oklch, var(--color-cyan) 2%, transparent), transparent 70%);
+    radial-gradient(900px 600px at 12% 8% in oklch,  color-mix(in oklch, var(--color-primary) 6%, transparent), transparent 62%),
+    radial-gradient(700px 500px at 88% 92% in oklch,  color-mix(in oklch, var(--color-accent) 4%, transparent), transparent 60%),
+    radial-gradient(600px 400px at 50% 50% in oklch,  color-mix(in oklch, var(--color-cyan) 2%, transparent), transparent 70%);
 }
 
 [data-theme="light"] body::after { opacity: 0.015; }
@@ -138,8 +138,8 @@ body::after {
    placeholders (MediaLibrary grid, cards) actually animate. Composes with
    background-color utilities: only background-image is set here. */
 .shimmer {
-  background-image: linear-gradient(in oklch, 
-    90deg,
+  background-image: linear-gradient(
+    90deg in oklch, 
     color-mix(in oklch, var(--text-primary) 4%, transparent) 25%,
     color-mix(in oklch, var(--text-primary) 12%, transparent) 50%,
     color-mix(in oklch, var(--text-primary) 4%, transparent) 75%
@@ -160,7 +160,7 @@ body::after {
 
 /* ===== GRADIENT TEXT ===== */
 .gradient-text {
-  background: linear-gradient(in oklch, 135deg, var(--color-primary), var(--color-accent), var(--color-cyan));
+  background: linear-gradient(135deg in oklch,  var(--color-primary), var(--color-accent), var(--color-cyan));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

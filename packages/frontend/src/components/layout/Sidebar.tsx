@@ -24,9 +24,11 @@ import {
   Thermometer,
   Play,
   Mic,
+  Gamepad2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
+import { BrandMark } from "./BrandMark";
 import { useHealthStore } from "../../state/healthStore";
 import { useUIStore } from "../../state/uiStore";
 import { getVideoEditorUrl } from "../../services/portConfig";
@@ -56,20 +58,21 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/", label: "Dashboard", icon: <Home size={18} />, keywords: "home overview start" },
     ],
   },
-  {
-    id: "create",
-    title: "Create",
-    items: [
-      { path: "/music-video-wizard", label: "Music Video", icon: <Wand2 size={18} />, keywords: "wizard song video maker" },
-      { path: "/three-js-studio", label: "Three.js Studio", icon: <Sparkles size={18} />, keywords: "3d scene studio character" },
-      { path: "/audio-analysis", label: "Audio Analysis", icon: <BarChart3 size={18} />, keywords: "audio beat bpm analyze" },
-      { path: "/visualizer", label: "Visualizer", icon: <Zap size={18} />, keywords: "visualizer shader realtime" },
-      { path: "/kinetic-typography", label: "Kinetic Type", icon: <Type size={18} />, keywords: "lyrics kinetic typography text" },
-      { path: "/hyperframes", label: "HyperFrames", icon: <Play size={18} />, keywords: "hyperframes animation frames" },
-      { path: "/ai-tools", label: "AI Tools", icon: <Brain size={18} />, keywords: "ai tools models chat" },
-      { path: "/music-prompts", label: "Music Prompts", icon: <Mic size={18} />, keywords: "music prompts lyrics suno" },
-    ],
-  },
+    {
+      id: "create",
+      title: "Create",
+      items: [
+        { path: "/music-video-wizard", label: "Music Video", icon: <Wand2 size={18} />, keywords: "wizard song video maker" },
+        { path: "/three-js-studio", label: "Three.js Studio", icon: <Sparkles size={18} />, keywords: "3d scene studio character" },
+        { path: "/audio-analysis", label: "Audio Analysis", icon: <BarChart3 size={18} />, keywords: "audio beat bpm analyze" },
+        { path: "/visualizer", label: "Visualizer", icon: <Zap size={18} />, keywords: "visualizer shader realtime" },
+        { path: "/kinetic-typography", label: "Kinetic Type", icon: <Type size={18} />, keywords: "lyrics kinetic typography text" },
+        { path: "/hyperframes", label: "HyperFrames", icon: <Play size={18} />, keywords: "hyperframes animation frames" },
+        { path: "/ai-tools", label: "AI Tools", icon: <Brain size={18} />, keywords: "ai tools models chat" },
+        { path: "/music-prompts", label: "Music Prompts", icon: <Mic size={18} />, keywords: "music prompts lyrics suno" },
+        { path: "/unity", label: "Unity Control", icon: <Gamepad2 size={18} />, keywords: "unity editor control remote" },
+      ],
+    },
   {
     id: "generate",
     title: "Generate",
@@ -340,8 +343,8 @@ export function Sidebar() {
               className={`sidebar-brand${collapsed && !isMobile ? " sidebar-brand-centered" : ""}`}
               title="Native Media AI Studio — home"
             >
-              <span className="sidebar-logo" aria-hidden>
-                <Sparkles size={18} color="white" strokeWidth={2.2} />
+              <span className="sidebar-logo sidebar-logo-animated" aria-hidden>
+                <BrandMark size={20} />
               </span>
               {showText && (
                 <span className="sidebar-brand-text">

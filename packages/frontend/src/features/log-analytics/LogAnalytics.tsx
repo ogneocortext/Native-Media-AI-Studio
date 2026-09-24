@@ -241,9 +241,9 @@ export function LogAnalytics() {
         </Card>
         <Card className="p-3">
           <div className="text-xs text-muted uppercase tracking-wide mb-1 flex items-center gap-1.5">
-            <AlertCircle size={12} className="text-error" /> Errors
+            <AlertCircle size={12} className="text-error-text" /> Errors
           </div>
-          <p className="text-2xl font-bold tabular-nums text-error">
+          <p className="text-2xl font-bold tabular-nums text-error-text">
             {(summary?.levels.find((l) => l.level === "ERROR")?.count || 0) +
               (summary?.levels.find((l) => l.level === "CRITICAL")?.count || 0)}
           </p>
@@ -549,7 +549,7 @@ export function LogAnalytics() {
                   key={`${err.message}-${idx}`}
                   className="flex items-start gap-2 p-2 rounded-lg bg-red-500/5 border border-red-500/10"
                 >
-                  <AlertTriangle size={12} className="text-error mt-0.5 shrink-0" />
+                  <AlertTriangle size={12} className="text-error-text mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-red-300 break-all line-clamp-2">{err.message}</p>
                     <p className="text-[10px] text-muted mt-0.5 tabular-nums">

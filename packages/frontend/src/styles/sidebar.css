@@ -5,7 +5,7 @@
   display: flex;
   flex-direction: column;
   block-size: 100%;
-  background: linear-gradient(in oklch, 180deg, var(--bg-surface) 0%, var(--bg-primary) 100%);
+  background: linear-gradient(180deg in oklch,  var(--bg-surface) 0%, var(--bg-primary) 100%);
   border-inline-end: 1px solid var(--border-color);
   position: relative;
   z-index: 30;
@@ -66,13 +66,32 @@
   inline-size: 38px;
   block-size: 38px;
   border-radius: 12px;
-  background: linear-gradient(in oklch, 135deg, var(--color-primary), var(--color-accent));
+  background: linear-gradient(135deg in oklch,  var(--color-primary), var(--color-accent));
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   box-shadow: 0 4px 14px var(--glow-primary), inset 0 1px 0 oklch(100% 0 0 / 0.25);
   border: 1px solid oklch(100% 0 0 / 0.12);
+}
+
+/* Ambient brand motion: slow gradient drift on the tile... */
+.sidebar-logo-animated {
+  background-size: 200% 200%;
+  animation: gradient-shift 7s ease-in-out infinite;
+}
+
+/* ...plus gently breathing equalizer bars (staggered via inline delay).
+   transform-box: fill-box makes each bar scale around its own center. */
+@keyframes brand-eq {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+
+.brand-eq-bar {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: brand-eq 2.2s ease-in-out infinite;
 }
 
 /* Brand lockup — logo + two-line wordmark, links home */
@@ -113,13 +132,14 @@
   text-overflow: ellipsis;
 }
 
-/* Secondary tagline under the wordmark */
+/* Secondary tagline under the wordmark (tertiary measured 2.6:1 here;
+   hierarchy vs the title survives via size/weight/case). */
 .sidebar-tagline {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -152,7 +172,9 @@
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-tertiary);
+  /* Secondary, not tertiary: 11px group labels at tertiary measured 2.6:1.
+     Hierarchy vs nav items survives via size/case/accent bar. */
+  color: var(--text-secondary);
   background: color-mix(in oklch, var(--text-primary) 4%, transparent);
   border-radius: 6px;
   border-inline-start: 2px solid var(--color-accent);
@@ -177,7 +199,7 @@
 .nav-section-toggle-icon {
   display: inline-flex;
   align-items: center;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   transition: transform 0.2s;
 }
 
@@ -255,7 +277,7 @@
 .sidebar-no-results {
   padding: 8px 12px;
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 /* External-link hint (replaces inline style) */
@@ -284,7 +306,9 @@
 
   &.active {
     background: var(--color-primary);
-    color: var(--text-inverse);
+    /* Pinned near-white: --text-inverse resolves to near-black in dark
+       mode (2.3:1 FAIL on violet); white passes 9.3:1 in both themes. */
+    color: oklch(98% 0 0);
     box-shadow: 0 4px 16px var(--glow-primary);
     border-inline-start: 3px solid var(--color-accent);
     padding-inline-start: 11px;
@@ -293,7 +317,7 @@
   &-icon {
     flex-shrink: 0;
 
-    &.active { color: var(--text-inverse); }
+    &.active { color: oklch(98% 0 0); }
     &.inactive { color: var(--text-tertiary); }
   }
 
@@ -310,7 +334,7 @@
   padding: 10px;
   border-block-start: 1px solid var(--border-subtle);
   flex-shrink: 0;
-  background: linear-gradient(in oklch, 180deg, color-mix(in oklch, var(--bg-primary) 92%, transparent), var(--bg-primary));
+  background: linear-gradient(180deg in oklch,  color-mix(in oklch, var(--bg-primary) 92%, transparent), var(--bg-primary));
   margin-block-start: auto;
   display: flex;
   flex-direction: column;
@@ -328,7 +352,7 @@
   margin: 10px 12px 6px;
   padding: 10px 14px;
   border-radius: var(--radius-md);
-  background: linear-gradient(in oklch, 135deg, var(--color-primary), var(--color-accent));
+  background: linear-gradient(135deg in oklch,  var(--color-primary), var(--color-accent));
   color: oklch(98% 0 0);
   font-size: 13px;
   font-weight: 700;

@@ -61,7 +61,8 @@
   padding: 0.5rem 1rem;
   border-block-start: 1px solid var(--border-subtle);
   font-size: 0.75rem;
-  color: var(--text-tertiary);
+  /* Secondary: the version string lives here and tertiary measured 2.6:1. */
+  color: var(--text-secondary);
 }
 
 .layout-footer-version {

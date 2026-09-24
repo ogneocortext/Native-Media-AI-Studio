@@ -109,8 +109,9 @@ export function ServiceChecksCard() {
                   </span>
                   <button
                     onClick={() => handleCheck(service)}
-                    className="p-1 rounded text-muted hover:text-white hover:bg-white/10"
+                    className="h-6 w-6 flex items-center justify-center rounded text-muted hover:text-white hover:bg-white/10"
                     title={`Re-check ${service}`}
+                    aria-label={`Re-check ${service}`}
                   >
                     <RefreshCw size={11} />
                   </button>

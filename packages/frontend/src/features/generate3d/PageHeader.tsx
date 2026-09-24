@@ -13,7 +13,7 @@ export function PageHeader({ hook }: PageHeaderProps) {
   return (
     <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2 flex-wrap">
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2 flex-wrap">
           <Box size={24} className="text-purple-400" />
           3D Model Generation
           <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/30 text-violet-300">8GB VRAM-safe</span>

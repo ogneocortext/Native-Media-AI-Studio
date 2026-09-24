@@ -73,6 +73,11 @@ def test_default_balanced():
     assert select_fallback_preset(genre="unknown genre xyz") == DEFAULT_PRESET
 
 
+def test_non_finite_analysis_values_are_ignored():
+    assert select_fallback_preset(energy=float("nan"), bpm=float("inf")) == "balanced"
+    assert select_fallback_preset(energy=float("-inf"), bpm=float("nan")) == "balanced"
+
+
 def test_deterministic():
     inputs = dict(genre="drift phonk", energy=0.7, bpm=140, section="chorus")
     first = select_fallback_preset(**inputs)

@@ -27,25 +27,25 @@ async def _check_sidecar(name: str, health_fn) -> dict[str, Any]:
     return {"name": name, "status": "online", "url": result.get("url"), "data": result}
 
 
-@router.get("/ping")
+@router.get("/ping", response_model=dict)
 async def ping() -> dict:
     """Simple ping endpoint"""
     return {"status": "ok", "timestamp": ""}
 
 
-@router.get("/")
+@router.get("/", response_model=dict)
 async def health_root() -> dict:
     """Redirect /api/health to /api/health/health for frontend compatibility"""
     return await health_check()
 
 
-@router.get("")
+@router.get("", response_model=dict)
 async def health_check_alias() -> dict:
     """Alias for /api/health (frontend compatibility)"""
     return await health_check()
 
 
-@router.get("/health")
+@router.get("/health", response_model=dict)
 async def health_check() -> dict:
     """Aggregate health check returning backend and all adapter statuses.
 

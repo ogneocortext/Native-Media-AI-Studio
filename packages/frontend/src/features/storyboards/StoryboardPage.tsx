@@ -284,7 +284,7 @@ export function StoryboardPage() {
         }
       }
 
-      if (line.startsWith("# ")) elements.push(<h1 key={i} className="text-2xl font-bold text-white mt-6 mb-3">{renderInline(line.slice(2))}</h1>);
+      if (line.startsWith("# ")) elements.push(<h1 key={i} className="text-2xl font-bold text-foreground mt-6 mb-3">{renderInline(line.slice(2))}</h1>);
       else if (line.startsWith("## ")) elements.push(<h2 key={i} className="text-xl font-semibold text-purple-300 mt-8 mb-3 flex items-center gap-2 pb-2 border-b border-gray-800"><Layers size={18} />{renderInline(line.slice(3))}</h2>);
       else if (line.startsWith("### ")) elements.push(<h3 key={i} className="text-lg font-medium text-gray-200 mt-5 mb-2">{renderInline(line.slice(4))}</h3>);
       else if (line.startsWith("> ")) elements.push(<blockquote key={i} className="border-l-4 border-purple-500/70 pl-4 py-3 my-4 text-gray-400 italic bg-purple-900/10 rounded-r-lg shadow-sm"><span className="text-purple-400 mr-1">"</span>{renderInline(line.slice(2))}<span className="text-purple-400 ml-1">"</span></blockquote>);

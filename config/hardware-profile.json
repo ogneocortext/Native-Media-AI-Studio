@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "profile_name": "nma-gtx-1070ti-workstation",
+  "manual_overrides": {
+    "cpu": {
+      "name": "AMD Ryzen 5 5500",
+      "physical_cores": 6,
+      "logical_cores": 12
+    },
+    "memory": {
+      "total_mb": 32768
+    },
+    "gpus": [
+      {
+        "name": "NVIDIA GeForce GTX 1070 Ti",
+        "memory_total_mb": 8192
+      }
+    ]
+  },
+  "limits": {
+    "max_concurrent_benchmarks": 1,
+    "ollama_context_tokens": 4096,
+    "ollama_max_output_tokens": 900,
+    "comfyui_width": 768,
+    "comfyui_height": 768,
+    "comfyui_steps": 20,
+    "comfyui_cfg": 7.0,
+    "benchmark_timeout_seconds": 300,
+    "vram_safety_margin_mb": 1536
+  }
+}

@@ -4,7 +4,6 @@
 type ToastType = "success" | "info" | "warning";
 
 let toastContainer: HTMLDivElement | null = null;
-let toastId = 0;
 
 function getContainer(): HTMLDivElement {
   if (!toastContainer || !document.body.contains(toastContainer)) {
@@ -16,16 +15,12 @@ function getContainer(): HTMLDivElement {
 }
 
 export function showToast(message: string, type: ToastType = "success") {
-  console.log("[showToast] called:", message, type);
   const container = getContainer();
-  const id = ++toastId;
 
   const el = document.createElement("div");
   el.className = `toast toast-${type}`;
-  el.id = `toast-${id}`;
   el.textContent = message;
   container.appendChild(el);
-  console.log("[showToast] element added, container children:", container.children.length);
 
   // Trigger animation
   requestAnimationFrame(() => {
@@ -33,13 +28,11 @@ export function showToast(message: string, type: ToastType = "success") {
     el.style.transform = "translateX(0)";
   });
 
-  // Auto-remove after 3s
+  // Auto-remove after 3s. Animate the element directly (not by id lookup) so
+  // removal still works if the container was recreated meanwhile.
   setTimeout(() => {
-    const toast = document.getElementById(`toast-${id}`);
-    if (toast) {
-      toast.style.opacity = "0";
-      toast.style.transform = "translateX(100%)";
-      setTimeout(() => toast.remove(), 300);
-    }
+    el.style.opacity = "0";
+    el.style.transform = "translateX(100%)";
+    setTimeout(() => el.remove(), 300);
   }, 3000);
 }

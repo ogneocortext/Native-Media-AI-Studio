@@ -26,7 +26,7 @@ _MAX_FRONTEND_ENTRIES = 100
 _MAX_FRONTEND_MESSAGE = 2000
 
 
-@router.get("/")
+@router.get("/", response_model=dict)
 async def get_log_info() -> dict:
     """Get log file information and statistics."""
     return {
@@ -35,7 +35,7 @@ async def get_log_info() -> dict:
     }
 
 
-@router.get("/{log_name}")
+@router.get("/{log_name}", response_model=dict)
 async def get_log_content(
     log_name: str,
     lines: int = Query(default=100, ge=1, le=1000),

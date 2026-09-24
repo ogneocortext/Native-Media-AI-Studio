@@ -70,12 +70,16 @@ export function PerformanceHistoryCard() {
     return () => clearInterval(interval);
   }, [loadData, autoRefresh]);
 
+  // `color` drives the chart stroke/gradient (non-text). `activeBg` is the
+  // AA-safe darker fill for the active selector pill (white text) and
+  // `statColor` is the AA-safe lighter tone for the stat text below the chart
+  // (e.g. violet-500 text on the near-black card only reaches ~4.4:1).
   const metrics = [
-    { key: "gpu", label: "GPU", color: "#8b5cf6", unit: "%", domain: [0, 100] as [number, number] },
-    { key: "vram", label: "VRAM", color: "#06b6d4", unit: "%", domain: [0, 100] as [number, number] },
-    { key: "cpu", label: "CPU", color: "#10b981", unit: "%", domain: [0, 100] as [number, number] },
-    { key: "memory", label: "Memory", color: "#f59e0b", unit: "%", domain: [0, 100] as [number, number] },
-    { key: "temp", label: "Temp", color: "#f87171", unit: "°C", domain: "temp" as const },
+    { key: "gpu", label: "GPU", color: "#8b5cf6", activeBg: "#7c3aed", statColor: "#a78bfa", unit: "%", domain: [0, 100] as [number, number] },
+    { key: "vram", label: "VRAM", color: "#06b6d4", activeBg: "#0e7490", statColor: "#22d3ee", unit: "%", domain: [0, 100] as [number, number] },
+    { key: "cpu", label: "CPU", color: "#10b981", activeBg: "#047857", statColor: "#34d399", unit: "%", domain: [0, 100] as [number, number] },
+    { key: "memory", label: "Memory", color: "#f59e0b", activeBg: "#b45309", statColor: "#fbbf24", unit: "%", domain: [0, 100] as [number, number] },
+    { key: "temp", label: "Temp", color: "#f87171", activeBg: "#dc2626", statColor: "#f87171", unit: "°C", domain: "temp" as const },
   ];
   const activeMetric = metrics.find((m) => m.key === activeChart) || metrics[0];
 
@@ -118,7 +122,7 @@ export function PerformanceHistoryCard() {
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
                   activeChart === m.key ? "text-white" : "bg-gray-700/50 text-gray-400 hover:bg-gray-700"
                 }`}
-                style={activeChart === m.key ? { backgroundColor: m.color } : {}}
+                style={activeChart === m.key ? { backgroundColor: m.activeBg } : {}}
               >
                 {m.label}
               </button>
@@ -191,7 +195,7 @@ export function PerformanceHistoryCard() {
                   className={`text-left p-2 rounded-lg ${activeChart === m.key ? "bg-white/5" : "hover:bg-white/5"}`}
                 >
                   <span className="text-[10px] text-gray-400 block">{m.label}</span>
-                  <span className="text-sm font-bold tabular-nums" style={{ color: m.color }}>
+                  <span className="text-sm font-bold tabular-nums" style={{ color: m.statColor }}>
                     {last?.toFixed(0) ?? "—"}{m.unit}
                   </span>
                 </button>

@@ -96,6 +96,13 @@ $python = if (Test-Path $StudioPython) {
     exit 1
 }
 
+# Backend dev auto-reload: outer watchfiles watcher restarts uvicorn on .py
+# changes. uvicorn's own --reload is deliberately not used - its Windows
+# CTRL_C_EVENT-based restart wedges against this venv's launcher chain
+# (the detached worker never receives the event, so the reloader blocks in
+# join() forever), while watchfiles stops the child via TerminateProcess.
+$backendTarget = '"' + (($python -replace '\\', '/') + ' -m uvicorn app.main:app --host 127.0.0.1 --port ' + "$BackendPort") + '"'
+
 # ---------------------------------------------------------------------------
 # Service startup helpers
 # ---------------------------------------------------------------------------
@@ -114,7 +121,7 @@ function Start-Backend {
     $backendErrLog = Join-Path $LogDir 'backend.err.log'
     $proc = Start-ProcessSafe `
         -FilePath $python `
-        -ArgumentList @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', "$BackendPort") `
+        -ArgumentList @('-m', 'watchfiles', '--filter', 'python', '--target-type', 'command', $backendTarget) `
         -WorkingDirectory $BackendDir `
         -LogFile $backendLog -ErrorLog $backendErrLog
 
@@ -266,7 +273,7 @@ function Restart-Service {
             $backendLog    = Join-Path $LogDir 'backend.log'
             $backendErrLog = Join-Path $LogDir 'backend.err.log'
             $proc = Start-ProcessSafe -FilePath $python `
-                -ArgumentList @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', "$BackendPort") `
+                -ArgumentList @('-m', 'watchfiles', '--filter', 'python', '--target-type', 'command', $backendTarget) `
                 -WorkingDirectory $BackendDir `
                 -LogFile $backendLog -ErrorLog $backendErrLog -AppendLog
             if ($proc) { Wait-ForPort -Port $BackendPort -Name 'Backend' | Out-Null }

@@ -58,6 +58,7 @@ const GpuMonitorPage = lazyNamed(import("./features/gpu/GpuMonitorPage"), "GpuMo
 const LogAnalyticsPage = lazyNamed(import("./features/log-analytics/LogAnalytics"), "LogAnalytics");
 const HyperFramesPage = lazyNamed(import("./features/hyperframes/HyperFramesPage"), "HyperFramesPage");
 const MusicPromptGenerator = lazyNamed(import("./features/music-prompts/MusicPromptGenerator"), "MusicPromptGenerator");
+const UnityControlPage = lazyNamed(import("./features/unity-control/UnityControlPage"), "UnityControlPage");
 
 function App() {
   useEffect(() => {
@@ -99,6 +100,7 @@ function App() {
             <Route path="/health" element={<ErrorBoundary><HealthPage /></ErrorBoundary>} />
             <Route path="/kinetic-typography" element={<ErrorBoundary><KineticTypographyPage /></ErrorBoundary>} />
             <Route path="/gpu" element={<ErrorBoundary><GpuMonitorPage /></ErrorBoundary>} />
+            <Route path="/unity" element={<ErrorBoundary><UnityControlPage /></ErrorBoundary>} />
             <Route path="/preview" element={<ErrorBoundary><Preview /></ErrorBoundary>} />
             <Route path="/preview/:clipId" element={<ErrorBoundary><Preview /></ErrorBoundary>} />
             {/* Redirects for removed/merged routes */}

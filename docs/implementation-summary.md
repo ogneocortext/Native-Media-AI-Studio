@@ -169,3 +169,26 @@ Moved 7 service files from `packages/backend/app/services/` to `tools/` and `too
 - `npm run build` ✅ (pre-existing chunk-size warnings only)
 - `npm run lint` ✅ (0 errors, all warnings pre-existing)
 - Manual browser tests at 1280×720 and 855×700: header fits, drawer tabs readable, no overflow.
+
+---
+
+## ✅ 2026-09-23 — Backend dev auto-reload restored (watchfiles wrapper)
+
+- The 2026-09-06 claim that the scripts pass `--reload` to uvicorn had regressed —
+  neither `scripts/manage-servers.ps1` nor `scripts/start-studio.ps1` passed it.
+- Restoring a plain uvicorn `--reload` exposed a latent Windows failure:
+  `BaseReload.restart()` sends a single `CTRL_C_EVENT` and then `join()`s forever;
+  the detached multiprocessing worker on this venv launcher chain never receives
+  it, so the reloader wedges after the first cycle and further file changes are
+  silently ignored.
+- **Fix:** both scripts now launch an outer `watchfiles` watcher
+  (`python -m watchfiles --filter python --target-type command "<python> -m uvicorn
+  app.main:app ..."`) with uvicorn started *without* `--reload`. watchfiles stops
+  the child via `TerminateProcess` (+ SIGKILL fallback), which is reliable in any
+  console state. Verified live with back-to-back reload cycles: worker PIDs
+  cycled twice, `/api/health` and `/api/unity/status` stayed green.
+- Note: the "two interpreters" process shape (venv `Scripts\python.exe` launcher →
+  base Python311 child) is normal for this venv — CPython deliberately spawns
+  `sys._base_executable` + `__PYVENV_LAUNCHER__` in venvs (bpo-35797); all
+  processes load the venv's site-packages.
+

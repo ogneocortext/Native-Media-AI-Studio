@@ -88,6 +88,7 @@ async def proxy_request(
             headers=headers,
         )
         resp = await client.send(req)
+        resp.raise_for_status()
         return resp
     except Exception as exc:
         logger.debug("go-gateway proxy %s %s failed: %s", method, path, exc)

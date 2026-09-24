@@ -44,6 +44,13 @@ $backendPython = if (Test-Path $studioPython) { $studioPython }
                  elseif (Test-Path $condaPython) { $condaPython }
                  else { $venvPython }
 
+# Backend dev auto-reload: outer watchfiles watcher restarts uvicorn on .py
+# changes. uvicorn's own --reload is deliberately not used - its Windows
+# CTRL_C_EVENT-based restart wedges against this venv's launcher chain
+# (the detached worker never receives the event, so the reloader blocks in
+# join() forever), while watchfiles stops the child via TerminateProcess.
+$backendTarget = '"' + (($backendPython -replace '\\', '/') + ' -m uvicorn app.main:app --host 127.0.0.1 --port ' + "$($Ports.backend_port)") + '"'
+
 $ServiceConfig = @{
     backend = @{
         Name = 'Backend'
@@ -51,7 +58,7 @@ $ServiceConfig = @{
         HealthPath = '/api/health'
         Python = $backendPython
         WorkingDir = Join-Path $ProjectRoot 'packages\backend'
-        Args = @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', "$($Ports.backend_port)")
+        Args = @('-m', 'watchfiles', '--filter', 'python', '--target-type', 'command', $backendTarget)
         LogFile = 'backend.log'
     }
     frontend = @{
