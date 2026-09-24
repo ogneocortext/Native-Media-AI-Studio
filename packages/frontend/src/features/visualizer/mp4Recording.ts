@@ -1,12 +1,12 @@
 /**
- * MP4 recording via WebCodecs + mp4-muxer.
+ * MP4 recording via WebCodecs + Mediabunny.
  *
  * Provides a higher-fidelity export path than MediaRecorder/WebM for browsers
  * that support WebCodecs (Chromium 94+). Falls back transparently when
  * WebCodecs is unavailable.
  */
 
-import { Muxer, ArrayBufferTarget } from "mp4-muxer";
+import { BufferTarget, CanvasSource, Mp4OutputFormat, Output } from "mediabunny";
 
 export interface Mp4RecorderOptions {
   /** Target bitrate in bps (default 8_000_000). */
@@ -34,16 +34,14 @@ const CODEC_STRINGS: Record<Mp4Codec, string> = {
 };
 
 /**
- * Check whether the current browser supports WebCodecs + mp4-muxer enough for
+ * Check whether the current browser supports WebCodecs and Mediabunny for
  * MP4 muxing.
  */
 export function isMp4ExportSupported(): boolean {
   if (typeof window === "undefined") return false;
   return (
-    typeof (window as unknown as Record<string, unknown>).VideoEncoder !==
-      "undefined" &&
-    typeof (window as unknown as Record<string, unknown>).VideoFrame !==
-      "undefined"
+    typeof (window as unknown as Record<string, unknown>).VideoEncoder !== "undefined" &&
+    typeof (window as unknown as Record<string, unknown>).VideoFrame !== "undefined"
   );
 }
 
@@ -55,10 +53,7 @@ export function isMp4ExportSupported(): boolean {
  * record attempt (the caller reported a generic "Recording failed" instead of
  * falling back to WebM).
  */
-export async function canRecordMp4(
-  width?: number,
-  height?: number,
-): Promise<boolean> {
+export async function canRecordMp4(width?: number, height?: number): Promise<boolean> {
   if (!isMp4ExportSupported()) return false;
   try {
     const support = await (
@@ -84,44 +79,30 @@ export async function canRecordMp4(
  * Create an MP4 recorder. The returned object exposes start/stop; stop() returns
  * a promise for the finished MP4 ArrayBuffer (or null on failure).
  */
-export function createMp4Recorder(
-  opts: Mp4RecorderOptions = {}
-): Mp4Recorder {
-  const {
-    bitrate = 8_000_000,
-    fps = 60,
-    codec = "avc",
-  } = opts;
+export function createMp4Recorder(opts: Mp4RecorderOptions = {}): Mp4Recorder {
+  const { bitrate = 8_000_000, fps = 60, codec = "avc" } = opts;
 
-  let muxer: Muxer<ArrayBufferTarget> | null = null;
-  let target: ArrayBufferTarget | null = null;
-  let encoder: VideoEncoder | null = null;
+  let output: Output | null = null;
+  let target: BufferTarget | null = null;
+  let source: CanvasSource | null = null;
   let raf = 0;
   let frameIndex = 0;
   let startTime = 0;
   let stopped = false;
-  // ~2 s keyframe interval (60-frame GOPs at 30 fps made scrubbing lumpy and
-  // bloated the file's index at high frame rates).
-  const keyFrameInterval = Math.max(1, Math.round(fps * 2));
+  let startPromise: Promise<void> | null = null;
+  let frameQueue: Promise<void> = Promise.resolve();
+  // Mediabunny uses a two-second keyframe interval by default.
 
   const tick = (canvas: HTMLCanvasElement, timestamp: number) => {
-    if (stopped || !encoder) return;
+    if (stopped || !source || !startPromise) return;
 
     if (startTime === 0) startTime = timestamp;
-    const elapsedUs = (timestamp - startTime) * 1000;
-
-    try {
-      const frame = new VideoFrame(canvas, {
-        timestamp: Math.floor(elapsedUs),
-      });
-      const keyFrame = frameIndex % keyFrameInterval === 0;
-      encoder.encode(frame, { keyFrame });
-      frame.close();
-      frameIndex++;
-    } catch {
-      // ignore encode errors
-    }
-
+    const elapsedSeconds = (timestamp - startTime) / 1000;
+    const keyFrame = frameIndex % Math.max(1, Math.round(fps * 2)) === 0;
+    frameIndex++;
+    frameQueue = frameQueue
+      .then(() => source?.add(elapsedSeconds, 1 / fps, { keyFrame }))
+      .catch((error: unknown) => console.error("[Mp4Recorder] frame encode failed:", error));
     raf = requestAnimationFrame((t) => tick(canvas, t));
   };
 
@@ -134,38 +115,15 @@ export function createMp4Recorder(
         throw new Error("WebCodecs is not available in this environment");
       }
 
-      target = new ArrayBufferTarget();
-      muxer = new Muxer({
-        target,
-        video: {
-          codec,
-          width: canvas.width,
-          height: canvas.height,
-          frameRate: fps,
-        },
-        fastStart: "in-memory",
-      });
-
-      encoder = new VideoEncoder({
-        output: (chunk: any) => {
-          try {
-            muxer?.addVideoChunk(chunk);
-          } catch {
-            // ignore after stop
-          }
-        },
-        error: (e) => {
-          console.error("[Mp4Recorder] encoder error:", e);
-        },
-      });
-      encoder.configure({
-        codec: CODEC_STRINGS[codec],
-        width: canvas.width,
-        height: canvas.height,
+      target = new BufferTarget();
+      output = new Output({ format: new Mp4OutputFormat(), target });
+      source = new CanvasSource(canvas, {
+        codec,
         bitrate,
-        framerate: fps,
-        latencyMode: "quality",
+        keyFrameInterval: 2,
       });
+      output.addVideoTrack(source, { frameRate: fps });
+      startPromise = output.start();
 
       stopped = false;
       frameIndex = 0;
@@ -180,40 +138,25 @@ export function createMp4Recorder(
         raf = 0;
       }
 
-      const activeEncoder = encoder;
-      const activeMuxer = muxer;
+      const activeOutput = output;
+      const activeSource = source;
       const activeTarget = target;
-      encoder = null;
-      muxer = null;
+      const pendingStart = startPromise;
+      output = null;
+      source = null;
       target = null;
-
-      // Order matters: VideoEncoder.encode() is asynchronous, so the tail of the
-      // recording only reaches the muxer after flush() resolves. Calling
-      // finalize() first (the previous behaviour) wrote the moov/mdat before the
-      // last frames existed — every export silently lost its final frames and
-      // the trailing addVideoChunk() calls threw into an empty catch.
-      if (activeEncoder && activeEncoder.state !== "closed") {
-        try {
-          await activeEncoder.flush();
-        } catch (e) {
-          console.error("[Mp4Recorder] encoder flush failed:", e);
-        }
-        try {
-          activeEncoder.close();
-        } catch {
-          /* already closed */
-        }
-      }
-
-      if (!activeMuxer || !activeTarget) return null;
+      startPromise = null;
 
       try {
-        activeMuxer.finalize();
+        if (pendingStart) await pendingStart;
+        await frameQueue;
+        activeSource?.close();
+        if (activeOutput) await activeOutput.finalize();
+        return activeTarget?.buffer || null;
       } catch (e) {
         console.error("[Mp4Recorder] finalize failed:", e);
         return null;
       }
-      return activeTarget.buffer || null;
     },
   };
 }

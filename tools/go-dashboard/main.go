@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	sse "github.com/r3labs/sse/v2"
@@ -95,6 +99,17 @@ func main() {
 		}
 	}()
 
-	log.Println("go-dashboard listening on :3847")
-	log.Fatal(http.ListenAndServe(":3847", nil))
+	log.Println("go-dashboard listening on 127.0.0.1:3847")
+	server := &http.Server{Addr: "127.0.0.1:3847", Handler: nil, ReadHeaderTimeout: 5 * time.Second, MaxHeaderBytes: 1 << 20}
+	shutdown, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-shutdown.Done()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = server.Shutdown(ctx)
+	}()
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatal(err)
+	}
 }

@@ -3,28 +3,72 @@ Health and diagnostics API routes.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from typing import Any
 
+import httpx
 from fastapi import APIRouter
 
 from ..adapters.registry import adapter_registry
 from ..core.config import config
 from ..diagnostics.health import health_monitor
 from ..diagnostics.resources import resource_monitor
-from ..services.go_gateway_client import health as go_gateway_health
-from ..services.go_worker_client import health as go_worker_health
+
+_GO_SIDECAR_ROLES = {
+    "go-dashboard": "SSE + service health",
+    "go-media": "FFmpeg media processing",
+    "go-worker": "Async job + sidecar I/O",
+    "go-gateway": "MCP bridge proxy",
+    "go-ports": "Port availability checks",
+}
+
+_GO_SIDECARS = {
+    "go-dashboard": ("go_dashboard_url", "/api/health"),
+    "go-media": ("go_media_url", "/api/health"),
+    "go-worker": ("go_worker_url", "/health"),
+    "go-gateway": ("go_gateway_url", "/health"),
+    "go-ports": ("go_ports_url", "/api/health"),
+}
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/health", tags=["Health"])
 
 
-async def _check_sidecar(name: str, health_fn) -> dict[str, Any]:
-    result = await health_fn()
-    if result is None:
-        return {"name": name, "status": "offline", "url": None, "error": "not configured or unreachable"}
-    return {"name": name, "status": "online", "url": result.get("url"), "data": result}
+async def _check_go_sidecar(name: str, url_attr: str, path: str) -> dict[str, Any]:
+    url = getattr(config, url_attr, "")
+    port = None
+    if url:
+        from urllib.parse import urlparse
+        port = urlparse(url).port
+    if not url:
+        return {"name": name, "status": "offline", "url": None, "port": port, "error": "not configured"}
+    started = time.perf_counter()
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(2.0, connect=1.0)) as client:
+            response = await client.get(f"{url.rstrip('/')}{path}")
+        response.raise_for_status()
+        return {
+            "name": name,
+            "role": _GO_SIDECAR_ROLES.get(name, "Go service"),
+            "status": "online",
+            "url": url,
+            "port": port,
+            "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+            "data": response.json(),
+        }
+    except Exception as exc:
+        return {
+            "name": name,
+            "role": _GO_SIDECAR_ROLES.get(name, "Go service"),
+            "status": "offline",
+            "url": url,
+            "port": port,
+            "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+            "error": str(exc),
+        }
 
 
 @router.get("/ping", response_model=dict)
@@ -249,10 +293,13 @@ async def get_diagnostics() -> dict:
 async def check_services() -> dict:
     """Check all external services including sidecars."""
     adapter_results = await health_monitor.check_all_services(config)
-    sidecar_results = {
-        "go-gateway": await _check_sidecar("go-gateway", go_gateway_health),
-        "go-worker": await _check_sidecar("go-worker", go_worker_health),
+    tasks = {
+        name: _check_go_sidecar(name, url_attr, path)
+        for name, (url_attr, path) in _GO_SIDECARS.items()
     }
+    names = list(tasks)
+    results = await asyncio.gather(*(tasks[name] for name in names))
+    sidecar_results = dict(zip(names, results, strict=True))
     return {
         "adapters": adapter_results,
         "sidecars": sidecar_results,

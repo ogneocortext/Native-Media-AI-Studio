@@ -139,3 +139,7 @@
 ## Changelog
 - 2026-09-22: Log created from repo archaeology (README, AGENTS.md,
   `services/video/__init__.py`, recent CHANGELOG entries). Q1–Q4 opened.
+
+- 2026-09-24: Go sidecars upgraded from the benefits deep-dive: Go Media now uses `exec.CommandContext`, per-job cancellation via `DELETE /jobs/:id`, graceful server shutdown, bounded FFmpeg concurrency, and native contract tests. Release builds use `-ldflags="-s -w"`.
+- 2026-09-24: Go Worker now persists the in-memory job registry to an atomic `.go-worker-jobs.json` snapshot under `output/`, reloads it at startup, and has native persistence/path-safety tests.
+- 2026-09-24: Frontend upgrade research implemented: replaced deprecated `mp4-muxer` with Mediabunny, updated WaveSurfer to 7.12.12, removed Tailwind-era Autoprefixer, added frontend Prettier, and verified Playwright 1.63.0 as the latest registry release. TypeScript 7 remains deferred because `@typescript/native` is unavailable in the configured registry.\n

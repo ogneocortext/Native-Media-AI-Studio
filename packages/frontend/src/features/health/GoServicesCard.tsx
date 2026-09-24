@@ -1,26 +1,30 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card } from "../../components/common";
 import { CheckCircle, XCircle, RefreshCw } from "lucide-react";
-import { getDashboardUrl } from "../../services/portConfig";
+import { getApiBase } from "../../services/api/core";
 
 interface GoService {
   name: string;
-  port: number;
-  healthPath: string;
+  role: string;
+  fallbackPort: number;
 }
 
 const GO_SERVICES: GoService[] = [
-  { name: "Go Dashboard", port: 3847, healthPath: "/api/health" },
-  { name: "Go Media", port: 3848, healthPath: "/api/health" },
-  { name: "Go Worker", port: 3849, healthPath: "/health" },
-  { name: "Go Gateway", port: 3850, healthPath: "/health" },
-  { name: "Go Ports", port: 3851, healthPath: "/api/health" },
+  { name: "Go Dashboard", fallbackPort: 3847, role: "SSE + service health" },
+  { name: "Go Media", fallbackPort: 3848, role: "FFmpeg media processing" },
+  { name: "Go Worker", fallbackPort: 3849, role: "Async job + sidecar I/O" },
+  { name: "Go Gateway", fallbackPort: 3850, role: "MCP bridge proxy" },
+  { name: "Go Ports", fallbackPort: 3851, role: "Port availability checks" },
 ];
 
 interface ServiceStatus {
   name: string;
   running: boolean;
   port: number;
+  url?: string;
+  error?: string;
+  role?: string;
+  latency_ms?: number;
 }
 
 export function GoServicesCard() {
@@ -29,27 +33,24 @@ export function GoServicesCard() {
   const [lastChecked, setLastChecked] = useState<number | null>(null);
 
   const check = useCallback(async (signal?: AbortSignal) => {
-    const dashboardBase = getDashboardUrl();
-    const results = await Promise.allSettled(
-      GO_SERVICES.map(async (svc) => {
-        try {
-          // Prefer the go-dashboard aggregate endpoint when available.
-          const isDashboard = svc.port === 3847;
-          const url = isDashboard
-            ? `${dashboardBase}${svc.healthPath}`
-            : `http://127.0.0.1:${svc.port}${svc.healthPath}`;
-          const res = await fetch(url, {
-            method: "GET",
-            headers: { Accept: "application/json" },
-            signal: signal ?? AbortSignal.timeout(2000),
-          });
-          return { name: svc.name, running: res.ok, port: svc.port };
-        } catch {
-          return { name: svc.name, running: false, port: svc.port };
-        }
-      }),
-    );
-    return results.map((r) => (r.status === "fulfilled" ? r.value : { name: "?", running: false, port: 0 }));
+    const base = getApiBase();
+    try {
+      const response = await fetch(`${base}/api/health/diagnostics/services`, {
+        headers: { Accept: "application/json" },
+        signal: signal ?? AbortSignal.timeout(4000),
+      });
+      if (!response.ok) throw new Error(`Service diagnostics returned HTTP ${response.status}`);
+      type SidecarResponse = { status?: string; url?: string | null; port?: number; error?: string; role?: string; latency_ms?: number };
+
+      const payload = await response.json() as { sidecars?: Record<string, SidecarResponse> };
+      return GO_SERVICES.map((svc) => {
+        const key = svc.name.toLowerCase().replaceAll(" ", "-");
+        const result = payload.sidecars?.[key];
+        return { name: svc.name, running: result?.status === "online", port: result?.port ?? svc.fallbackPort, url: result?.url ?? undefined, error: result?.error, role: result?.role ?? svc.role, latency_ms: result?.latency_ms };
+      });
+    } catch (error) {
+      return GO_SERVICES.map((svc) => ({ name: svc.name, running: false, port: svc.fallbackPort, role: svc.role, error: error instanceof Error ? error.message : "Health check failed" }));
+    }
   }, []);
 
   useEffect(() => {
@@ -119,8 +120,14 @@ export function GoServicesCard() {
                 <span className="text-xs font-medium text-white truncate">{svc.name}</span>
               </div>
               <p className="text-[11px] text-muted font-mono">:{svc.port}</p>
+              <p className="text-[10px] text-muted/70 mt-1">{svc.role}</p>
+              {svc.running && svc.latency_ms != null && (
+                <p className="text-[10px] text-emerald-300/80 mt-1">{svc.latency_ms} ms response</p>
+              )}
               {!svc.running && (
-                <p className="text-[11px] text-red-300 mt-1">Offline</p>
+                <p className="text-[11px] text-red-300 mt-1" title={svc.error}>
+                  {svc.error ? "Unavailable" : "Offline"}
+                </p>
               )}
             </div>
           ))}

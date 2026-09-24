@@ -582,9 +582,15 @@ export async function mockGoServiceHealth(
 ): Promise<void> {
   registerRouteHandler(page, async (route) => {
     const url = route.request().url();
-    // Allow go-dashboard SSE through so EventSource gets text/event-stream.
     if (url.includes('/events')) {
       await route.continue();
+      return;
+    }
+    if (url.includes('/api/health/diagnostics/services')) {
+      const sidecars = Object.fromEntries(Object.keys(GO_SERVICE_PORTS).map((name) => [name, {
+        status: 'online', url: `http://127.0.0.1:${GO_SERVICE_PORTS[name]}`,
+      }]));
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ adapters: {}, sidecars }) });
       return;
     }
     for (const [name, port] of Object.entries(GO_SERVICE_PORTS)) {
@@ -608,9 +614,16 @@ export async function mockGoServiceHealthDegraded(
 ): Promise<void> {
   registerRouteHandler(page, async (route) => {
     const url = route.request().url();
-    // Allow go-dashboard SSE through so EventSource gets text/event-stream.
     if (url.includes('/events')) {
       await route.continue();
+      return;
+    }
+    if (url.includes('/api/health/diagnostics/services')) {
+      const sidecars = Object.fromEntries(Object.keys(GO_SERVICE_PORTS).map((name) => [name, {
+        status: offlineServices.includes(name) ? 'offline' : 'online',
+        url: `http://127.0.0.1:${GO_SERVICE_PORTS[name]}`,
+      }]));
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ adapters: {}, sidecars }) });
       return;
     }
     for (const [name, port] of Object.entries(GO_SERVICE_PORTS)) {

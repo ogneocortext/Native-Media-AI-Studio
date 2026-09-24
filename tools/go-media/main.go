@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -8,8 +11,11 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	sse "github.com/r3labs/sse/v2"
@@ -20,15 +26,17 @@ type MediaJob struct {
 	JobID     string `json:"job_id,omitempty"`
 	Input     string `json:"input"`
 	Output    string `json:"output"`
-	Operation string   `json:"operation"` // "thumbnail", "concat", "normalize", "extract_audio"
-	Start     string  `json:"start,omitempty"`
-	Duration  string  `json:"duration,omitempty"`
+	Operation string `json:"operation"` // "thumbnail", "concat", "normalize", "extract_audio"
+	Start     string `json:"start,omitempty"`
+	Duration  string `json:"duration,omitempty"`
 }
 
 var (
-	eventBus = sse.New()
-	jobStore = make(map[string]*MediaJob)
-	jobMu    sync.Mutex
+	eventBus   = sse.New()
+	jobStore   = make(map[string]*MediaJob)
+	jobCancels = make(map[string]context.CancelFunc)
+	jobMu      sync.Mutex
+	jobSlots   = make(chan struct{}, 4)
 )
 
 func lookFFmpeg() (string, error) {
@@ -56,6 +64,14 @@ func mustLookFFmpeg() string {
 	return p
 }
 
+func newJobID() string {
+	var value [8]byte
+	if _, err := rand.Read(value[:]); err == nil {
+		return hex.EncodeToString(value[:])
+	}
+	return time.Now().UTC().Format("20060102150405.000000000")
+}
+
 func emitProgress(jobID, stage string, pct float64) {
 	eventBus.Publish("jobs", &sse.Event{
 		Event: []byte("job.progress"),
@@ -63,7 +79,7 @@ func emitProgress(jobID, stage string, pct float64) {
 	})
 }
 
-func run(job MediaJob) error {
+func run(ctx context.Context, job MediaJob) error {
 	ffmpeg, err := lookFFmpeg()
 	if err != nil {
 		return err
@@ -108,7 +124,7 @@ func run(job MediaJob) error {
 		return fmt.Errorf("unknown operation: %s", job.Operation)
 	}
 
-	cmd := exec.Command(ffmpeg, args...)
+	cmd := exec.CommandContext(ctx, ffmpeg, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -157,7 +173,7 @@ func main() {
 		Duration:  fmt.Sprintf("%.3f", duration.Seconds()),
 	}
 
-	if err := run(job); err != nil {
+	if err := run(context.Background(), job); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
@@ -165,6 +181,7 @@ func main() {
 
 func runMediaServer(port string) {
 	r := http.NewServeMux()
+	eventBus.CreateStream("jobs")
 
 	cors := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -199,7 +216,7 @@ func runMediaServer(port string) {
 			return
 		}
 		var job MediaJob
-		if err := json.NewDecoder(r.Body).Decode(&job); err != nil {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&job); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -217,27 +234,42 @@ func runMediaServer(port string) {
 			job.Duration = "00:00:05.000"
 		}
 
-		jobID := time.Now().Format("20060102150405")
+		jobID := newJobID()
 		job.JobID = jobID
+		ctx, cancel := context.WithCancel(context.Background())
 
 		jobMu.Lock()
 		jobStore[jobID] = &job
+		jobCancels[jobID] = cancel
 		jobMu.Unlock()
 
 		emitProgress(jobID, "started", 0.0)
 
-		go func() {
-			err := run(job)
+		select {
+		case jobSlots <- struct{}{}:
+			go func() {
+				defer func() { <-jobSlots }()
+				err := run(ctx, job)
+				cancel()
+				jobMu.Lock()
+				delete(jobStore, jobID)
+				delete(jobCancels, jobID)
+				jobMu.Unlock()
+				if err != nil {
+					emitProgress(jobID, "error", 0.0)
+					log.Printf("job %s failed: %v", jobID, err)
+					return
+				}
+				emitProgress(jobID, "done", 1.0)
+			}()
+		default:
 			jobMu.Lock()
 			delete(jobStore, jobID)
+			delete(jobCancels, jobID)
 			jobMu.Unlock()
-			if err != nil {
-				emitProgress(jobID, "error", 0.0)
-				log.Printf("job %s failed: %v", jobID, err)
-				return
-			}
-			emitProgress(jobID, "done", 1.0)
-		}()
+			http.Error(w, "media job capacity reached", http.StatusServiceUnavailable)
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "accepted", "job_id": jobID})
@@ -256,6 +288,37 @@ func runMediaServer(port string) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(list)
+	})
+
+	r.HandleFunc("/jobs/", func(w http.ResponseWriter, r *http.Request) {
+		cors(w, r)
+		if r.Method == "OPTIONS" {
+			return
+		}
+		jobID := strings.TrimPrefix(r.URL.Path, "/jobs/")
+		if jobID == "" || strings.Contains(jobID, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		jobMu.Lock()
+		job, ok := jobStore[jobID]
+		cancel, cancelOK := jobCancels[jobID]
+		jobMu.Unlock()
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(job)
+			return
+		}
+		if r.Method == http.MethodDelete && cancelOK {
+			cancel()
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	})
 
 	r.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
@@ -280,5 +343,16 @@ func runMediaServer(port string) {
 	}()
 
 	log.Printf("go-media listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	server := &http.Server{Addr: ":" + port, Handler: r, ReadHeaderTimeout: 5 * time.Second, MaxHeaderBytes: 1 << 20}
+	shutdown, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-shutdown.Done()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = server.Shutdown(ctx)
+	}()
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatal(err)
+	}
 }

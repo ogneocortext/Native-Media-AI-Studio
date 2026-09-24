@@ -242,12 +242,17 @@ function Start-StudioService {
             Write-Err "Binary not found: $($config.LocalCmd)"
             return
         }
-        $proc = Start-Process -FilePath $config.LocalCmd `
-            -WorkingDirectory $config.WorkingDir `
-            -WindowStyle Hidden `
-            -RedirectStandardOutput $logFile `
-            -RedirectStandardError $errFile `
-            -PassThru
+        $nativeArgs = if ($config.LocalArgs) { @($config.LocalArgs) } else { @() }
+        $startParams = @{
+            FilePath = $config.LocalCmd
+            WorkingDirectory = $config.WorkingDir
+            WindowStyle = 'Hidden'
+            RedirectStandardOutput = $logFile
+            RedirectStandardError = $errFile
+            PassThru = $true
+        }
+        if ($nativeArgs.Count -gt 0) { $startParams.ArgumentList = $nativeArgs }
+        $proc = Start-Process @startParams
     }
     else {
         # Node-based service. Prefer pnpm (workspace-aware), then npm, then fall back to

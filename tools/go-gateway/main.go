@@ -4,8 +4,11 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -13,12 +16,14 @@ import (
 
 var (
 	bridgeEndpoints = map[string]string{
-		"unity":    "http://127.0.0.1:7800",
-		"blender":  "http://127.0.0.1:9876",
-		"comfyui":  "http://127.0.0.1:8188",
-		"ollama":   "http://127.0.0.1:11434",
+		"unity":   "http://127.0.0.1:7800",
+		"blender": "http://127.0.0.1:9876",
+		"comfyui": "http://127.0.0.1:8188",
+		"ollama":  "http://127.0.0.1:11434",
 	}
 	requestTimeout = 15 * time.Second
+	healthClient   = &http.Client{Timeout: 2 * time.Second}
+	proxyClient    = &http.Client{Timeout: requestTimeout}
 )
 
 func init() {
@@ -26,7 +31,15 @@ func init() {
 		for _, pair := range strings.Split(extra, ",") {
 			kv := strings.SplitN(pair, "=", 2)
 			if len(kv) == 2 {
-				bridgeEndpoints[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
+				name := strings.TrimSpace(kv[0])
+				value := strings.TrimRight(strings.TrimSpace(kv[1]), "/")
+				if name != "" {
+					if parsed, err := url.Parse(value); err == nil && parsed.Scheme != "" && parsed.Host != "" {
+						bridgeEndpoints[name] = value
+					} else {
+						log.Printf("ignoring invalid MCP_BRIDGE_ENDPOINTS entry %q", name)
+					}
+				}
 			}
 		}
 	}
@@ -37,14 +50,14 @@ func bridgeHealth(target string) map[string]interface{} {
 	if target == "http://127.0.0.1:11434" {
 		healthURL = target + "/api/tags"
 	}
-	client := &http.Client{Timeout: 2 * time.Second}
 	start := time.Now()
-	resp, err := client.Get(healthURL)
+	resp, err := healthClient.Get(healthURL)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
 		return map[string]interface{}{"url": target, "status": "down", "latency_ms": latency, "error": err.Error()}
 	}
 	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 	status := "ok"
 	if resp.StatusCode >= 400 {
 		status = "degraded"
@@ -53,10 +66,21 @@ func bridgeHealth(target string) map[string]interface{} {
 }
 
 func healthHandler(c *gin.Context) {
-	results := make(map[string]interface{})
+	var wg sync.WaitGroup
+	results := make(map[string]interface{}, len(bridgeEndpoints))
+	var mu sync.Mutex
 	for name, target := range bridgeEndpoints {
-		results[name] = bridgeHealth(target)
+		name, target := name, target
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			result := bridgeHealth(target)
+			mu.Lock()
+			results[name] = result
+			mu.Unlock()
+		}()
 	}
+	wg.Wait()
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "ok",
 		"service": "go-gateway",
@@ -83,9 +107,13 @@ func proxyHandler(c *gin.Context) {
 		return
 	}
 	req.Header = c.Request.Header.Clone()
+	req.Header.Del("Connection")
+	req.Header.Del("Proxy-Connection")
+	req.Header.Del("Keep-Alive")
+	req.Header.Del("Transfer-Encoding")
+	req.Header.Del("Upgrade")
 
-	client := &http.Client{Timeout: requestTimeout}
-	resp, err := client.Do(req)
+	resp, err := proxyClient.Do(req)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "bridge request failed: " + err.Error()})
 		return
@@ -107,8 +135,13 @@ func proxyHandler(c *gin.Context) {
 // Bridge registry
 func bridgesHandler(c *gin.Context) {
 	list := make([]gin.H, 0, len(bridgeEndpoints))
-	for name, url := range bridgeEndpoints {
-		list = append(list, gin.H{"name": name, "url": url})
+	names := make([]string, 0, len(bridgeEndpoints))
+	for name := range bridgeEndpoints {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		list = append(list, gin.H{"name": name, "url": bridgeEndpoints[name]})
 	}
 	c.JSON(http.StatusOK, gin.H{"bridges": list})
 }
