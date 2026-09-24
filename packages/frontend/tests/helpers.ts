@@ -45,8 +45,26 @@ export function getBaseUrl(page: Page): string {
  * Does NOT use `networkidle` (known to cause flakiness with SSE/polling SPAs).
  */
 export async function navigateWithWait(page: Page, path: string, timeout = 15_000): Promise<void> {
-  await page.goto(path, { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('main.layout-main, main')).toBeVisible({ timeout });
+  const browserErrors: string[] = [];
+  const onPageError = (error: Error) => browserErrors.push(error.message);
+  const onConsole = (message: { type: () => string; text: () => string }) => {
+    if (message.type() === 'error') browserErrors.push(message.text());
+  };
+  page.on('pageerror', onPageError);
+  page.on('console', onConsole);
+
+  try {
+    await page.goto(path, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#root')).toHaveCount(1, { timeout });
+    await expect(page.locator('main.layout-main, main')).toBeVisible({ timeout });
+  } catch (error) {
+    const url = page.url();
+    const details = browserErrors.length ? ` Browser errors: ${browserErrors.join(' | ')}` : '';
+    throw new Error(`Navigation to ${path} failed at ${url}.${details}`, { cause: error });
+  } finally {
+    page.off('pageerror', onPageError);
+    page.off('console', onConsole);
+  }
 }
 
 /**

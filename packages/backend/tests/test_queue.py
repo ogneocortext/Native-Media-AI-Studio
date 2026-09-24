@@ -30,7 +30,11 @@ def temp_db(tmp_path, monkeypatch):
 
 @pytest_asyncio.fixture
 async def queue() -> QueueManager:
-    return QueueManager()
+    manager = QueueManager()
+    manager._jobs.clear()
+    manager._subscribers.clear()
+    manager._new_job_event.clear()
+    return manager
 
 
 def _make_job(job_type: JobType = JobType.IMAGE_GENERATION,
@@ -73,6 +77,12 @@ async def test_processor_retries_are_bounded(queue: QueueManager, monkeypatch):
 
     processor = JobProcessor()
     processor.register_handler(JobType.IMAGE_GENERATION, always_fails)
+    # Retry state is the unit under test; keep production backoff delays out
+    # of the test so a regression cannot turn into a multi-minute hang.
+    async def no_backoff(_retry_count: int) -> None:
+        return None
+
+    processor._backoff_sleep = no_backoff  # type: ignore[method-assign]
 
     max_retries = job.max_retries
     # Run far more attempts than max_retries; a runaway loop would hang/fail here

@@ -24,7 +24,20 @@ await expect(page).toHaveURL(/\/music-video-wizard/);
 
 **Helper:** Use `expectRedirectedTo(page, pattern)` from `tests/helpers.ts` for redirect assertions.
 
-### Composable API Mocks
+### Playwright Runner Safety
+
+`packages/frontend/playwright.config.ts` uses explicit timeouts so a failed locator or navigation does not consume the entire test budget:
+
+- Test timeout: 60 seconds
+- Expect timeout: 10 seconds
+- Action timeout: 10 seconds
+- Navigation timeout: 30 seconds
+- Browser capture/debug scripts under `tests/browser/` are excluded from automatic discovery
+
+`navigateWithWait()` waits for both the React root and the app shell. If startup fails, the failure includes the requested path, final URL, and browser console/page errors, which makes Vite module-loading and hydration failures diagnosable from the test output.
+
+The Playwright suite runs against the loopback Vite server (`127.0.0.1:5173`) and uses the configured `baseURL`; keep the dev server and Playwright origin aligned when changing ports.
+
 
 Route handlers in `tests/helpers.ts` are composable — individual mock functions (`mockApiHealth`, `mockApiQueueEmpty`, `mockApiSystemHealth`, etc.) do **not** call `cleanupRoutes()` internally. This allows stacking multiple mocks in one test without interference. Always call `cleanupRoutes(page)` in `beforeEach` or `afterEach` to reset between tests.
 
@@ -123,6 +136,8 @@ python packages/frontend/tests/visual/run_visual_tests.py --model qwen3-vl:4b
 **How it works:**
 - Uses `httpx.AsyncClient` with `ASGITransport` to hit the app in-process (no network)
 - `temp_db` fixture swaps the SQLite DB to a throwaway file per test and resets the global queue manager
+- Queue unit tests clear in-memory jobs, subscribers, and event state before each test
+- Retry-bound tests stub production backoff so assertions test retry state, not wall-clock delays
 - Tests create jobs via the REST API (not direct DB writes) to exercise the real contract
 - Mock adapters (`SlowAdapter`, `MockAdapter`) simulate slow/flaky external services
 - Concurrent tests use `asyncio.gather` and `threading` to surface race conditions

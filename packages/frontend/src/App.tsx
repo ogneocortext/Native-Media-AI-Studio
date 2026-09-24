@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { lazy, Suspense, useEffect } from "react";
 import { Layout } from "./components/layout/Layout";
 import { Dashboard } from "./features/dashboard/Dashboard";
@@ -59,6 +59,40 @@ const UnityControlPage = lazyNamed(() => import("./features/unity-control/UnityC
 
 const withErrorBoundary = (element: React.ReactNode) => <ErrorBoundary>{element}</ErrorBoundary>;
 
+const ROUTE_TITLES: Record<string, string> = {
+  "/": "Dashboard",
+  "/queue": "Queue",
+  "/music-video-wizard": "Music Video Wizard",
+  "/three-js-studio": "Three.js Studio",
+  "/audio-analysis": "Audio Analysis",
+  "/video-generation": "Video Generation",
+  "/generate-3d": "3D Generation",
+  "/ai-tools": "AI Tools",
+  "/docs": "Documentation",
+  "/storyboards": "Storyboards",
+  "/image-generation": "Image Generation",
+  "/visualizer": "Visualizer",
+  "/hyperframes": "HyperFrames",
+  "/music-prompts": "Music Prompts",
+  "/library": "Media Library",
+  "/settings": "Settings",
+  "/log-analytics": "Log Analytics",
+  "/health": "Health",
+  "/kinetic-typography": "Kinetic Typography",
+  "/gpu": "GPU Monitor",
+  "/unity": "Unity Control",
+  "/preview": "Preview",
+};
+
+function RouteTitle() {
+  const { pathname } = useLocation();
+  const pageTitle = ROUTE_TITLES[pathname] ?? (pathname.startsWith("/preview/") ? "Preview" : "Not Found");
+  useEffect(() => {
+    document.title = `${pageTitle} — Native Media AI Studio`;
+  }, [pageTitle]);
+  return null;
+}
+
 function App() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -74,6 +108,7 @@ function App() {
   return (
     <>
       <BrowserRouter>
+        <RouteTitle />
         <Layout>
           <Suspense fallback={<PageLoader />}>
             <Routes>

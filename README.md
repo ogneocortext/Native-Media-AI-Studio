@@ -15,7 +15,7 @@ A full-stack AI-powered creative production environment for music-driven media g
 - **2D Canvas Visualizer (2026)** — `Canvas2DVisualizer` 3 modes `bars/waveform/radial` (PixiJS 8/p5.js-inspired, Canvas2D + Web Audio, LRC phrase flash, 2026 visual-flux/Waviz methods) toggled `3D/FX/2D`
 - **Responsive Sidebar** — Collapsible + mobile drawer (`<900px` or portrait) with backdrop, `min-h-0` scroll, health `max-h-[22vh]`
 - **Track Manager** — Table view for pairing prompts and lyrics to tracks with persistent storage
-- **Storyboards** — Visual scene planning per track with prompts, lyrics, and 3D Studio integration (`/storyboards)
+- **Storyboards** — Visual scene planning per track with prompts, lyrics, and 3D Studio integration (`/storyboards`)
 - **AI Visual Generation** — ComfyUI integration with style previews, prompt transformation, and audio-reactive visualization
 - **Image Generation** — Text-to-image via ComfyUI with model selector (SD 1.5, Hunyuan3D)
 - **Video Generation** — Text/image-to-video via ComfyUI with model selector (Wan 2.2, Kandinsky 5, AnimateDiff)
