@@ -57,6 +57,8 @@ const HyperFramesPage = lazyNamed(() => import("./features/hyperframes/HyperFram
 const MusicPromptGenerator = lazyNamed(() => import("./features/music-prompts/MusicPromptGenerator"), "MusicPromptGenerator");
 const UnityControlPage = lazyNamed(() => import("./features/unity-control/UnityControlPage"), "UnityControlPage");
 
+const withErrorBoundary = (element: React.ReactNode) => <ErrorBoundary>{element}</ErrorBoundary>;
+
 function App() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -75,31 +77,31 @@ function App() {
         <Layout>
           <Suspense fallback={<PageLoader />}>
             <Routes>
-            <Route path="/" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
-            <Route path="/queue" element={<ErrorBoundary><Queue /></ErrorBoundary>} />
-            <Route path="/music-video-wizard" element={<ErrorBoundary><MusicVideoWizard /></ErrorBoundary>} />
-            <Route path="/three-js-studio" element={<ErrorBoundary><ThreeJSStudio /></ErrorBoundary>} />
-            <Route path="/audio-analysis" element={<ErrorBoundary><AudioAnalysisPage /></ErrorBoundary>} />
-            <Route path="/video-generation" element={<ErrorBoundary><VideoGenerationPage /></ErrorBoundary>} />
-            <Route path="/generate-3d" element={<ErrorBoundary><Generation3DPage /></ErrorBoundary>} />
-            <Route path="/ai-tools" element={<ErrorBoundary><AIToolsPage /></ErrorBoundary>} />
-            <Route path="/docs" element={<ErrorBoundary><DocsPage /></ErrorBoundary>} />
-            <Route path="/storyboards" element={<ErrorBoundary><StoryboardPage /></ErrorBoundary>} />
-            <Route path="/image-generation" element={<ErrorBoundary><ImageGeneration /></ErrorBoundary>} />
-            <Route path="/visualizer" element={<ErrorBoundary><Visualizer /></ErrorBoundary>} />
-            <Route path="/hyperframes" element={<ErrorBoundary><HyperFramesPage /></ErrorBoundary>} />
-            <Route path="/music-prompts" element={<ErrorBoundary><MusicPromptGenerator /></ErrorBoundary>} />
-            <Route path="/library" element={<ErrorBoundary><MediaLibrary /></ErrorBoundary>} />
+            <Route path="/" element={withErrorBoundary(<Dashboard />)} />
+            <Route path="/queue" element={withErrorBoundary(<Queue />)} />
+            <Route path="/music-video-wizard" element={withErrorBoundary(<MusicVideoWizard />)} />
+            <Route path="/three-js-studio" element={withErrorBoundary(<ThreeJSStudio />)} />
+            <Route path="/audio-analysis" element={withErrorBoundary(<AudioAnalysisPage />)} />
+            <Route path="/video-generation" element={withErrorBoundary(<VideoGenerationPage />)} />
+            <Route path="/generate-3d" element={withErrorBoundary(<Generation3DPage />)} />
+            <Route path="/ai-tools" element={withErrorBoundary(<AIToolsPage />)} />
+            <Route path="/docs" element={withErrorBoundary(<DocsPage />)} />
+            <Route path="/storyboards" element={withErrorBoundary(<StoryboardPage />)} />
+            <Route path="/image-generation" element={withErrorBoundary(<ImageGeneration />)} />
+            <Route path="/visualizer" element={withErrorBoundary(<Visualizer />)} />
+            <Route path="/hyperframes" element={withErrorBoundary(<HyperFramesPage />)} />
+            <Route path="/music-prompts" element={withErrorBoundary(<MusicPromptGenerator />)} />
+            <Route path="/library" element={withErrorBoundary(<MediaLibrary />)} />
             <Route path="/media-library" element={<Navigate to="/library" replace />} />
-            <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
+            <Route path="/settings" element={withErrorBoundary(<Settings />)} />
             <Route path="/logs" element={<Navigate to="/log-analytics" replace />} />
-            <Route path="/log-analytics" element={<ErrorBoundary><LogAnalyticsPage /></ErrorBoundary>} />
-            <Route path="/health" element={<ErrorBoundary><HealthPage /></ErrorBoundary>} />
-            <Route path="/kinetic-typography" element={<ErrorBoundary><KineticTypographyPage /></ErrorBoundary>} />
-            <Route path="/gpu" element={<ErrorBoundary><GpuMonitorPage /></ErrorBoundary>} />
-            <Route path="/unity" element={<ErrorBoundary><UnityControlPage /></ErrorBoundary>} />
-            <Route path="/preview" element={<ErrorBoundary><Preview /></ErrorBoundary>} />
-            <Route path="/preview/:clipId" element={<ErrorBoundary><Preview /></ErrorBoundary>} />
+            <Route path="/log-analytics" element={withErrorBoundary(<LogAnalyticsPage />)} />
+            <Route path="/health" element={withErrorBoundary(<HealthPage />)} />
+            <Route path="/kinetic-typography" element={withErrorBoundary(<KineticTypographyPage />)} />
+            <Route path="/gpu" element={withErrorBoundary(<GpuMonitorPage />)} />
+            <Route path="/unity" element={withErrorBoundary(<UnityControlPage />)} />
+            <Route path="/preview" element={withErrorBoundary(<Preview />)} />
+            <Route path="/preview/:clipId" element={withErrorBoundary(<Preview />)} />
             {/* Redirects for removed/merged routes */}
             <Route path="/music-video" element={<Navigate to="/music-video-wizard" replace />} />
             <Route path="/studio-3d" element={<Navigate to="/generate-3d" replace />} />
