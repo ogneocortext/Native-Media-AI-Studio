@@ -15,7 +15,10 @@ export interface UnityCommandResult {
 }
 
 export interface UnityAudioSyncFrame {
-  audioData: Pick<AudioData, "bass" | "mid" | "treble" | "beat" | "energy" | "peak" | "beatPhase" | "analyzedEnergy">;
+  audioData: Pick<
+    AudioData,
+    "bass" | "mid" | "treble" | "beat" | "energy" | "peak" | "beatPhase" | "analyzedEnergy"
+  >;
   audioTime: number;
   progress?: number;
   intensity?: number;
@@ -44,7 +47,9 @@ export function buildUnityAudioFrameProperties(frame: UnityAudioSyncFrame): Reco
   };
 }
 
-export async function syncUnityAudioFrame(params: UnityAudioSyncParams): Promise<UnityCommandResult> {
+export async function syncUnityAudioFrame(
+  params: UnityAudioSyncParams,
+): Promise<UnityCommandResult> {
   if (!params.material.trim()) {
     return { ok: false, error: "Unity material path is required" };
   }
@@ -53,7 +58,6 @@ export async function syncUnityAudioFrame(params: UnityAudioSyncParams): Promise
     properties: buildUnityAudioFrameProperties(params.frame),
   });
 }
-
 
 export interface UnityShaderPropertiesParams extends Record<string, unknown> {
   shader: string;
@@ -129,9 +133,7 @@ export async function getUnityStatus(): Promise<UnityStatus> {
 
 function isCommandInfo(value: unknown): value is UnityCommandInfo {
   return (
-    !!value &&
-    typeof value === "object" &&
-    typeof (value as { name?: unknown }).name === "string"
+    !!value && typeof value === "object" && typeof (value as { name?: unknown }).name === "string"
   );
 }
 
@@ -164,7 +166,9 @@ export async function listUnityCommands(): Promise<UnityCommandInfo[]> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/unity/commands`, { timeout: 15000 });
   if (!res.ok) {
-    throw new Error(await readErrorMessage(res, `Failed to list Unity commands: HTTP ${res.status}`));
+    throw new Error(
+      await readErrorMessage(res, `Failed to list Unity commands: HTTP ${res.status}`),
+    );
   }
   const data: unknown = await res.json().catch(() => null);
   return normalizeCommands(data);
@@ -199,6 +203,14 @@ export async function captureUnityScene(
   const base = getApiBase();
   // NOTE: getApiBase() may return "" (Vite dev proxy), so build the URL with a
   // plain string — `new URL(relativePath)` without a base throws TypeError.
+  if (
+    !savePath.trim() ||
+    savePath.includes("..") ||
+    savePath.startsWith("/") ||
+    /^[A-Za-z]:[\\/]/.test(savePath)
+  ) {
+    throw new Error("Capture save path must be relative and cannot contain '..'");
+  }
   const params = new URLSearchParams({
     width: String(width),
     height: String(height),

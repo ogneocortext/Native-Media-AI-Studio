@@ -14,10 +14,11 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ..core.config import PROJECT_ROOT
@@ -172,11 +173,13 @@ async def execute_unity_command(req: UnityCommandRequest) -> UnityCommandRespons
 
 @router.post("/capture")
 async def capture_scene(
-    width: int = 1920,
-    height: int = 1080,
+    width: int = Query(1920, ge=64, le=7680),
+    height: int = Query(1080, ge=64, le=4320),
     save_path: str = "output/unity_capture.png",
 ) -> dict[str, Any]:
     """Capture the Unity Scene View."""
+    if not save_path or ".." in save_path.replace("\\", "/").split("/") or Path(save_path).is_absolute():
+        raise HTTPException(status_code=400, detail="save_path must be a relative path without traversal")
     resp = await _proxy_or_direct(
         "/api/exec",
         method="POST",
