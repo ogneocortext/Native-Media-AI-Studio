@@ -1,0 +1,62 @@
+{
+  "title": "Take the Crown",
+  "track": "Take the Crown",
+  "duration": 124.0,
+  "scene_count": 6,
+  "scenes": [
+    {
+      "id": "intro",
+      "title": "The Long Night",
+      "description": "Dark ash field, crown far and dim",
+      "start": 0.0,
+      "end": 30.0,
+      "palette": {},
+      "camera": {}
+    },
+    {
+      "id": "drop-1",
+      "title": "The First Ignition",
+      "description": "Crown pushes in, gold rim ignites",
+      "start": 30.0,
+      "end": 40.5,
+      "palette": {},
+      "camera": {}
+    },
+    {
+      "id": "verse",
+      "title": "The Doubt",
+      "description": "Crown recedes, intimate glass lyric panel",
+      "start": 40.5,
+      "end": 60.3,
+      "palette": {},
+      "camera": {}
+    },
+    {
+      "id": "build",
+      "title": "The Build",
+      "description": "Crown spins, gold gradient builds",
+      "start": 60.3,
+      "end": 87.0,
+      "palette": {},
+      "camera": {}
+    },
+    {
+      "id": "drop-2",
+      "title": "Take the Crown",
+      "description": "Gold flame and kinetic crown reveal",
+      "start": 87.0,
+      "end": 105.5,
+      "palette": {},
+      "camera": {}
+    },
+    {
+      "id": "outro",
+      "title": "Arrival",
+      "description": "Crown settles into a monument",
+      "start": 105.5,
+      "end": 124.0,
+      "palette": {},
+      "camera": {}
+    }
+  ]
+}

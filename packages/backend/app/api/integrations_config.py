@@ -117,6 +117,7 @@ async def get_visualization_presets() -> dict:
     return {"presets": presets, "count": len(presets)}
 
 
+@router.get("/ollama/models", operation_id="get_ollama_models_alias")
 @router.get("/ollama-models", operation_id="get_config_ollama_models")
 async def get_ollama_models() -> dict:
     """Get available Ollama models with capability info and VRAM requirements."""
@@ -128,14 +129,19 @@ async def get_ollama_models() -> dict:
         models = []
         for m in entries:
             model_name = m.get("name", "")
-            tool_capable = _oc.is_tool_capable_model(model_name)
+            capabilities = set(m.get("capabilities") or [])
+            # Ollama's advertised capabilities are authoritative; the name
+            # heuristic is only for older servers that omit this metadata.
+            tool_capable = "tools" in capabilities or (
+                not capabilities and _oc.is_tool_capable_model(model_name)
+            )
             models.append({
                 "id": model_name,
                 "model_name": model_name,
                 "model_size": m.get("size", 0),
                 "model_digest": m.get("digest", ""),
                 "is_tool_capable": tool_capable,
-                "vram_required": _oc.estimate_model_vram_mb(model_name),
+                "vram_required": _oc.estimate_model_vram_mb(model_name, m.get("size", 0)),
                 "is_available": True,
                 "capabilities": ["chat", "tools"] if tool_capable else ["chat"],
             })

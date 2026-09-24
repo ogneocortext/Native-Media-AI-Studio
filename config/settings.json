@@ -12,7 +12,24 @@
   "output_dir": "D:\\Backup of Important Data for Windows 11 Upgrade\\Native Media AI Studio\\output",
   "log_level": "INFO",
   "default_model": "gemma4:e2b-it-qat",
-  "vision_model": "gemma4-vision-optimized:latest",
+  "vision_model": "gemma4:e2b-it-qat",
   "vision_backend": "auto",
-  "embedding_model": "nomic-embed-text:v1.5"
+  "embedding_model": "nomic-embed-text:v1.5",
+  "_ollama_notes": {
+    "default_model": "gemma4:e2b-it-qat is the 8GB-VRAM-safe quant; gemma4 native multimodal is also available for higher-VRAM systems",
+    "recommended_models": [
+      "gemma4:e2b-it-qat (8GB VRAM, vision)",
+      "gemma4 (native multimodal, needs >8GB)",
+      "qwen3.5:9b (text, tool use, reasoning)",
+      "qwen3-vl:4b (vision fallback)",
+      "minicpm-v:8b (OCR specialist)"
+    ],
+    "api_version": "0.33+",
+    "features": [
+      "/api/chat is the recommended endpoint for multimodal",
+      "think parameter supports extended reasoning (0.21.3+)",
+      "format=json_schema enables structured output (0.33+)",
+      "keep_alive caches model metadata for ~50% faster TTFT"
+    ]
+  }
 }

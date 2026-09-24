@@ -25,6 +25,9 @@ const BASE_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 let cachedPortInfo = null;
 let cacheAge = 0;
 const PORT_CACHE_TTL_MS = 2000;
+let cachedCommandNames = null;
+let commandCacheAge = 0;
+const COMMAND_CACHE_TTL_MS = 30000;
 
 function getPortInfo() {
   const now = Date.now();
@@ -100,6 +103,9 @@ function normalizeUnityParameters(command, parameters = {}) {
 }
 
 async function execUnity(command, parameters = {}) {
+  if (command !== "list_pipeline_commands" && !(await isKnownCommand(command))) {
+    return { error: `Unknown Unity command '${command}'. Use list_pipeline_commands to inspect available commands.` };
+  }
   const normalized = normalizeUnityParameters(command, parameters);
   return unityFetch(`/api/exec`, {
     method: "POST",
@@ -120,14 +126,41 @@ const server = new McpServer(
   { capabilities: { tools: {} } },
 );
 
+server.registerTool(
+  "list_pipeline_commands",
+  {
+    description: "List all commands exposed by the connected Unity Pipeline server.",
+    inputSchema: z.object({}),
+  },
+  async () => {
+    const commands = await listCommands();
+    return {
+      content: [{ type: "text", text: JSON.stringify(commands, null, 2) }],
+      isError: commands.length === 0,
+    };
+  },
+);
+
 // Register a generic "unity_command" tool that proxies any Unity command
+async function isKnownCommand(command) {
+  const now = Date.now();
+  if (cachedCommandNames && now - commandCacheAge < COMMAND_CACHE_TTL_MS) {
+    return cachedCommandNames.has(command);
+  }
+  const commands = await listCommands();
+  if (commands.length === 0) return true; // Preserve offline/legacy-server compatibility.
+  cachedCommandNames = new Set(commands.map((entry) => typeof entry === "string" ? entry : entry?.name).filter(Boolean));
+  commandCacheAge = now;
+  return cachedCommandNames.has(command);
+}
+
 server.registerTool(
   "unity_command",
   {
     description:
       "Execute a Unity Editor command. Use this to create GameObjects, add components, control animation, capture screenshots, build, and more.",
     inputSchema: z.object({
-          command: z
+      command: z
             .string()
             .describe(
               "Unity command name (e.g., create_gameobject, add_component, capture_scene_view)",

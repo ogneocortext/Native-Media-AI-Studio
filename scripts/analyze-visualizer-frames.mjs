@@ -240,9 +240,16 @@ async function ensureVisionModel(model) {
 }
 
 async function callOllama(model, prompt, images = []) {
-  const url = `${OLLAMA_URL}/api/generate`;
+  const url = `${OLLAMA_URL}/api/chat`;
   const reqId = generateRequestId();
-  const body = { model, prompt, images: images.length ? images : undefined, stream: false, options: { num_ctx: 16384 } };
+  const body = {
+    model,
+    messages: images.length
+      ? [{ role: "user", content: prompt, images }]
+      : [{ role: "user", content: prompt }],
+    stream: false,
+    options: { num_ctx: 16384 },
+  };
   log(reqId, `calling ollama: model=${model} images=${images.length}`);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 180000);
@@ -251,8 +258,8 @@ async function callOllama(model, prompt, images = []) {
     clearTimeout(timeout);
     if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error(`Ollama HTTP ${res.status}: ${t}`); }
     const data = await res.json();
-    log(reqId, `ollama response ok: len=${(data.response || "").length}`);
-    return data.response || "";
+    log(reqId, `ollama response ok: len=${(data.message?.content || data.response || "").length}`);
+    return data.message?.content || data.response || "";
   } catch (e) { clearTimeout(timeout); throw e; }
 }
 

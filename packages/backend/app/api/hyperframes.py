@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,40 @@ def _run_hyperframes(args: list[str], cwd: Path | None = None) -> dict[str, Any]
         raise HTTPException(status_code=500, detail="HyperFrames CLI not found on PATH") from exc
     except Exception as exc:  # pragma: no cover
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+class CompileStoryboardRequest(BaseModel):
+    storyboard: dict[str, Any]
+    name: str = Field(default="storyboard", min_length=1, max_length=80)
+    title: str | None = None
+    audio_path: str | None = None
+    audio_data: dict[str, Any] | None = None
+
+
+@router.post("/compile-storyboard")
+async def compile_storyboard_endpoint(request: CompileStoryboardRequest) -> dict[str, Any]:
+    """Compile a validated storyboard into a standalone HyperFrames composition."""
+    from ..services.storyboard_hyperframes import compile_storyboard
+
+    try:
+        result = compile_storyboard(
+            request.storyboard,
+            output_dir=HYPERFRAMES_PROJECT / "compiled-storyboards",
+            name=request.name,
+            title=request.title,
+            audio_path=request.audio_path,
+            audio_data=request.audio_data,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "composition": str(result.composition_path),
+        "manifest": str(result.manifest_path),
+        "scene_count": result.scene_count,
+        "duration_seconds": result.duration_seconds,
+        "message": "Storyboard compiled; render it with POST /api/hyperframes/render.",
+    }
 
 
 @router.get("/status")

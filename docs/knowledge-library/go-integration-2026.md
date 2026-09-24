@@ -1,9 +1,13 @@
 # Go Integration in Native Media AI Studio (2026)
 
-> **Scope:** Where Go adds measurable value to the studio stack, with concrete integration points and code examples.
-> **Current stack:** TypeScript/JS (frontend, Remotion, MCP bridges), Python (FastAPI, Blender MCP, ComfyUI, audio analysis), C# (Unity), GLSL/HLSL.
-> **Last updated:** 2026-09-10
-> **Go version:** 1.27.0 (windows/amd64) — already on PATH.
+> **Status:** Historical integration/implementation record. For the canonical
+> sidecar inventory, measured benefits, current deployment, and code patterns,
+> use [[go-benefits-deep-dive-2026]]. This document remains the implementation
+> history and original rationale for the split-stack decision.
+>
+> **Current ownership:** `go-benefits-deep-dive-2026` owns architecture,
+> performance, failure modes, and current upgrade status. `go-integration-2026`
+> owns the original adoption history and lessons learned.
 
 ---
 

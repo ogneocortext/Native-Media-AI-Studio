@@ -363,10 +363,26 @@ Generate 3-8 scenes based on the input theme or concept."""
                 f"{self.base_url}/api/tags", timeout=aiohttp.ClientTimeout(total=5)
             ) as resp:
                 if resp.status == 200:
+                    # Refresh the model cache during the same cheap probe so
+                    # callers do not need a second request and health reflects
+                    # the actual installed models rather than a stale value.
+                    try:
+                        payload = await resp.json()
+                        self._available_models = [
+                            str(item.get("name", "")).strip()
+                            for item in payload.get("models", [])
+                            if item.get("name")
+                        ]
+                    except Exception:
+                        self._available_models = []
                     if self._status != AdapterStatus.CONNECTED:
-                        logger.info("Ollama is now online")
+                        logger.info("Ollama is now online (%d models available)", len(self._available_models))
+                    self._last_health_log = None
                     self.set_status(AdapterStatus.CONNECTED)
                     return True
+                if resp.status >= 500 and self._last_health_log != f"HTTP {resp.status}":
+                    self._last_health_log = f"HTTP {resp.status}"
+                    logger.warning("Ollama health check returned HTTP %s", resp.status)
         except Exception as e:
             error_msg = str(e)
             if self._last_health_log != error_msg:
@@ -488,7 +504,7 @@ Generate 3-8 scenes based on the input theme or concept."""
     async def chat(
         self,
         messages: list[dict[str, str]],
-        model: str = "gemma4:e2b-it-qat",
+        model: str | None = None,
         tools: list[dict[str, Any]] | None = None,
         stream: bool = False,
         think: bool | str | None = None,
@@ -512,6 +528,10 @@ Generate 3-8 scenes based on the input theme or concept."""
         Returns:
             Dictionary containing the response, or async iterator if streaming
         """
+        model = model or self._default_model
+        if tools and not self._supports_tools(model):
+            logger.warning("Model %s is not known to support tools; sending without tool definitions", model)
+            tools = None
         # VRAM-aware num_ctx cap: don't exceed free VRAM. Caller should keep
         # num_ctx modest; we clamp here to prevent OOM on 8GB cards (e.g. 5740MB free).
         # Rough KV cache: ~ (num_ctx * hidden_dim * layers) — we use a safe heuristic:
@@ -521,15 +541,11 @@ Generate 3-8 scenes based on the input theme or concept."""
                 import psutil  # noqa: F401 — ensure available
                 # Lightweight clamp without nvidia-smi dependency
                 requested = int(options["num_ctx"])
-                # Query free VRAM via Ollama ps size_vram if available? fallback to heuristic
-                # Caps: 8k safe everywhere, 16k needs ~4GB free, 32k needs ~6GB+ free
-                if requested > 32768:
-                    options["num_ctx"] = 32768
-                elif requested > 16384:
-                    # Only allow 32k if we have headroom — otherwise cap at 16k
-                    # We don't block, just log. Caller (frontend/health) should query /api/ps.
-                    logger.warning("num_ctx %d requested — capping to 16384 to stay within 8GB VRAM", requested)
-                    options["num_ctx"] = 16384
+                # 8GB workstation safety: cap KV cache at the configured
+                # context budget instead of allowing 16K/32K requests.
+                if requested > 8192:
+                    logger.warning("num_ctx %d requested — capping to 8192 for 8GB VRAM", requested)
+                    options["num_ctx"] = 8192
             except Exception:
                 pass
         payload: dict[str, Any] = {
@@ -565,6 +581,10 @@ Generate 3-8 scenes based on the input theme or concept."""
             return self._stream_chat(payload)
         else:
             return await self._chat_request(payload)
+
+    def _supports_tools(self, model: str) -> bool:
+        from ..core.ollama_client import is_tool_capable_model
+        return is_tool_capable_model(model)
 
     def _use_atomic_chat(self) -> bool:
         """Return True when Atomic Chat is configured and enabled."""

@@ -56,6 +56,72 @@ export interface HyperFramesStatus {
   version: string;
 }
 
+export interface CompileStoryboardRequest {
+  storyboard: {
+    track?: string;
+    title?: string;
+    duration?: number;
+    scenes: Array<{
+      id?: string;
+      title?: string;
+      description?: string;
+      start?: number;
+      end?: number;
+      duration_seconds?: number;
+      palette?: Record<string, string>;
+    }>;
+  };
+  name?: string;
+  title?: string;
+  audio_path?: string;
+  audio_data?: HyperFramesAudioPayload;
+}
+
+export interface CompileStoryboardResponse {
+  success: boolean;
+  composition: string;
+  manifest: string;
+  scene_count: number;
+  duration_seconds: number;
+  message: string;
+}
+
+export async function compileStoryboard(params: CompileStoryboardRequest): Promise<CompileStoryboardResponse> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/hyperframes/compile-storyboard`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+    timeout: 30000,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to compile storyboard");
+  }
+  return res.json();
+}
+
+export interface HyperFramesAudioPayload {
+  fps: number;
+  duration: number;
+  bands: number;
+  totalFrames: number;
+  beat_times: number[];
+  downbeat_times: number[];
+  frames: Array<{ time: number; rms: number; energy: number; bands: number[]; isBeat: boolean; isDownbeat: boolean }>;
+  lyrics: unknown[];
+}
+
+export async function getHyperFramesAudioPayload(filename: string, fps = 30, bands = 16): Promise<HyperFramesAudioPayload> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/audio/hyperframes-payload/${encodeURIComponent(filename)}?fps=${fps}&bands=${bands}`, { timeout: 30000 });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to build HyperFrames audio payload");
+  }
+  return res.json();
+}
+
 export async function getHyperFramesStatus(): Promise<HyperFramesStatus> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/hyperframes/status`, { timeout: 30000 });

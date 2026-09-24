@@ -12,8 +12,10 @@ tags:
 
 > **Scope:** Why Go is a first-class citizen for this project, backed by measured
 > trade-offs, code patterns, and concrete architecture decisions.
-> **Prerequisite:** Read [[go-integration-2026]] for the sidecar inventory and
-> [[stack-extensions-2026]] for the broader language-ROI context.
+> **Prerequisite:** Read [[stack-extensions-2026]] for broader language-ROI
+> context. This document is the canonical source for the current sidecar
+> inventory, architecture, measured benefits, and failure modes;
+> [[go-integration-2026]] is the historical adoption record.
 > **Audience:** Agents and developers choosing between "Python-first" and
 > "Go-sidecar" for new infrastructure work.
 

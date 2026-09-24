@@ -3,8 +3,11 @@ Job queue API routes.
 """
 
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
+
+from ..core.config import PROJECT_ROOT
 
 from ..models.job import Job, JobCreateRequest, JobStatus, JobType, QueueMetrics, QueueStats
 from ..queue.manager import queue_manager
@@ -35,10 +38,31 @@ async def list_jobs(
     if status:
         try:
             job_status = JobStatus(status.lower())
-            return await queue_manager.get_jobs_by_status(job_status)
+            jobs = await queue_manager.get_jobs_by_status(job_status)
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status}") from None
-    return await queue_manager.get_all_jobs()
+    else:
+        jobs = await queue_manager.get_all_jobs()
+
+    # Historical jobs can outlive their generated media. Do not advertise
+    # paths that no longer exist: the Queue UI can then show an honest
+    # "output unavailable" state instead of issuing broken media requests.
+    for job in jobs:
+        if job.output_path:
+            candidate = Path(job.output_path)
+            if not candidate.is_absolute():
+                candidate = PROJECT_ROOT / "output" / candidate
+            if not candidate.is_file():
+                job.output_path = None
+                if job.result and "output_path" in job.result:
+                    result_path = job.result.get("output_path")
+                    if isinstance(result_path, str):
+                        result_candidate = Path(result_path)
+                        if not result_candidate.is_absolute():
+                            result_candidate = PROJECT_ROOT / "output" / result_candidate
+                        if not result_candidate.is_file():
+                            job.result = {**job.result, "output_path": None}
+    return jobs
 
 
 @router.get("/stats", response_model=QueueStats)

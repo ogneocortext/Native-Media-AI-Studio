@@ -122,6 +122,7 @@ server.setRequestHandler('tools/list', async () => ({
           image_path: { type: "string", description: "Path or URL to the image" },
           prompt: { type: "string", description: "Question to ask about the image", default: "Describe this image in detail." },
           model: { type: "string", description: "Ollama vision model (qwen3-vl:2b=fast, gemma4=e2b-it-qat=detailed)", default: "qwen3-vl:2b" },
+          think: { type: "boolean", description: "Enable extended reasoning (Ollama 0.21.3+)", default: false },
         },
         required: ["image_path"],
       },
@@ -300,16 +301,25 @@ async function analyzeImage(reqId, args) {
   }
 
   logRequest(reqId, "analyze_image", `calling-ollama model=${args.model || "qwen3-vl:4b"}`);
-  const res = await fetchWithTimeout(`${BASE_URL}/api/generate`, {
+  const body = {
+    model: args.model || "qwen3-vl:4b",
+    messages: [
+      {
+        role: "user",
+        content: args.prompt || "Describe this image in detail.",
+        images: [imageData],
+      },
+    ],
+    stream: false,
+    keep_alive: "60s",
+  };
+  if (args.think) {
+    body.think = true;
+  }
+  const res = await fetchWithTimeout(`${BASE_URL}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: args.model || "qwen3-vl:4b",
-      prompt: args.prompt || "Describe this image in detail.",
-      images: [imageData],
-      stream: false,
-      keep_alive: "60s",
-    }),
+    body: JSON.stringify(body),
   }, 120000);
 
   const data = await res.json();

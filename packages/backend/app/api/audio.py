@@ -917,6 +917,23 @@ async def get_timing_metadata(filename: str):
     return tc
 
 
+@router.get("/hyperframes-payload/{filename:path}")
+async def get_hyperframes_payload(filename: str, fps: int = 30, bands: int = 16):
+    """Return deterministic embedded audio data for HyperFrames compositions."""
+    from ..services.storyboard_hyperframes import build_hyperframes_audio_payload
+    from ..services.transcription import get_transcript_path
+
+    analysis = await get_analysis_by_filename(filename)
+    transcript = None
+    transcript_path = get_transcript_path(filename)
+    if transcript_path.exists():
+        transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
+    try:
+        return build_hyperframes_audio_payload(analysis, transcript, fps=fps, bands=bands)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/analysis/by-filename/{filename:path}")
 async def get_analysis_by_filename(filename: str):
     """Get cached analysis for an audio file by filename."""

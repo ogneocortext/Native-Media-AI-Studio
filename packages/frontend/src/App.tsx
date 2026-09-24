@@ -45,6 +45,7 @@ const ThreeJSStudio = lazyNamed(() => import("./features/three-js-studio/ThreeJS
 const Visualizer = lazyNamed(() => import("./features/visualizer/Visualizer"), "Visualizer");
 const AudioAnalysisPage = lazyNamed(() => import("./features/audio-analysis/AudioAnalysisPage"), "AudioAnalysisPage");
 const AIToolsPage = lazyNamed(() => import("./features/ai-tools/AIToolsPage"), "AIToolsPage");
+const OllamaChat = lazyNamed(() => import("./features/ollama-chat/OllamaChat"), "OllamaChat");
 const VideoGenerationPage = lazyNamed(() => import("./features/video-generation/VideoGenerationPage"), "VideoGenerationPage");
 const Generation3DPage = lazyNamed(() => import("./features/generate3d/Generation3DPage"), "Generation3DPage");
 const DocsPage = lazyNamed(() => import("./features/docs/DocsPage"), "DocsPage");
@@ -68,6 +69,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/video-generation": "Video Generation",
   "/generate-3d": "3D Generation",
   "/ai-tools": "AI Tools",
+  "/ollama-chat": "Ollama Chat",
   "/docs": "Documentation",
   "/storyboards": "Storyboards",
   "/image-generation": "Image Generation",
@@ -120,6 +122,7 @@ function App() {
             <Route path="/video-generation" element={withErrorBoundary(<VideoGenerationPage />)} />
             <Route path="/generate-3d" element={withErrorBoundary(<Generation3DPage />)} />
             <Route path="/ai-tools" element={withErrorBoundary(<AIToolsPage />)} />
+            <Route path="/ollama-chat" element={withErrorBoundary(<OllamaChat />)} />
             <Route path="/docs" element={withErrorBoundary(<DocsPage />)} />
             <Route path="/storyboards" element={withErrorBoundary(<StoryboardPage />)} />
             <Route path="/image-generation" element={withErrorBoundary(<ImageGeneration />)} />

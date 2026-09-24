@@ -61,8 +61,16 @@ async def list_models(timeout: float = 10) -> list[dict] | None:
         return None
 
 
-def estimate_model_vram_mb(model_name: str) -> int:
-    """Rough VRAM estimate from a model name's size tag (70b/13b/7b/...)."""
+def estimate_model_vram_mb(model_name: str, model_size_bytes: int | None = None) -> int:
+    """Estimate VRAM from Ollama's reported model size when available.
+
+    Name heuristics remain as a fallback for older API responses, but actual
+    GGUF sizes are much more accurate for quant variants (q4, e2b, 4b, 8b).
+    """
+    if model_size_bytes and model_size_bytes > 0:
+        # Runtime needs more than the disk/weights size for KV cache and
+        # buffers. Keep a conservative 1.5x multiplier for the 8GB workstation.
+        return round(model_size_bytes / (1024 * 1024) * 1.5)
     name = model_name.lower()
     if "70b" in name:
         return 40000
@@ -82,7 +90,10 @@ def estimate_model_vram_mb(model_name: str) -> int:
 def is_tool_capable_model(model_name: str) -> bool:
     """Heuristic tool-calling support from the model family name."""
     name = model_name.lower()
-    return any(k in name for k in ["llama3", "mistral", "command-r", "gemma2"])
+    return any(k in name for k in [
+        "llama3", "mistral", "command-r", "gemma2", "gemma3", "gemma4",
+        "qwen3", "qwen2.5", "minicpm-v",
+    ])
 
 
 async def embed_text(

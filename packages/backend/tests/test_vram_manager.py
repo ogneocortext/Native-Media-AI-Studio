@@ -142,3 +142,140 @@ async def test_ensure_vram_available_uses_read_only_preflight(monkeypatch):
     assert manager._comfyui_busy is False
     assert manager._current_workload is vram_module.GPUWorkload.IDLE
 
+
+# ---------------------------------------------------------------------------
+# VRAM baseline / leak tests — full job-cycle regression guard
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_3d_generation_cycle_returns_vram_to_baseline(monkeypatch):
+    """After begin_3d_generation -> end_3d_generation, VRAM must return to
+    within 512MB of the pre-job baseline. This guards against model-reload
+    leaks where Ollama stays resident on GPU after a 3D render."""
+    manager = vram_module.vram_manager
+    baseline_mb = 7000
+    readings = {
+        "before": baseline_mb,
+        "during": 3500,
+        "after": baseline_mb,
+    }
+    read_count = {"n": 0}
+
+    async def fake_vram_status() -> dict:
+        read_count["n"] += 1
+        if read_count["n"] == 1:
+            mb = readings["before"]
+        elif read_count["n"] == 2:
+            mb = readings["during"]
+        else:
+            mb = readings["after"]
+        return {"available": True, "free_mb": mb, "total_mb": 8192}
+
+    monkeypatch.setattr(manager, "get_vram_status", fake_vram_status)
+    monkeypatch.setattr(manager, "_ollama_loaded", True)
+    monkeypatch.setattr(vram_module, "_unload_ollama_models", lambda: [])
+    monkeypatch.setattr(vram_module, "_reload_ollama_models", lambda model: True)
+
+    before = await manager.get_vram_status()
+    assert before["free_mb"] == baseline_mb
+
+    begin = await manager.begin_3d_generation()
+    assert begin["success"] is True
+    assert manager._current_workload is vram_module.GPUWorkload.RENDER_3D
+    assert manager._comfyui_busy is True
+
+    end = await manager.end_3d_generation()
+    assert end["success"] is True
+
+    after = await manager.get_vram_status()
+    assert after["free_mb"] == readings["after"]
+    drift_mb = abs(after["free_mb"] - before["free_mb"])
+    assert drift_mb <= 512, (
+        f"VRAM did not return to baseline: before={before['free_mb']}MB, "
+        f"after={after['free_mb']}MB, drift={drift_mb}MB"
+    )
+    assert manager._current_workload is vram_module.GPUWorkload.IDLE
+    assert manager._comfyui_busy is False
+    assert manager._ollama_loaded is True
+
+
+@pytest.mark.asyncio
+async def test_music_generation_cycle_returns_vram_to_baseline(monkeypatch):
+    """After begin_music_generation -> end_music_generation, VRAM must return
+    to within 512MB of the pre-job baseline."""
+    manager = vram_module.vram_manager
+    baseline_mb = 6500
+    readings = {
+        "before": baseline_mb,
+        "during": 1800,
+        "after": baseline_mb,
+    }
+    read_count = {"n": 0}
+
+    async def fake_vram_status() -> dict:
+        read_count["n"] += 1
+        if read_count["n"] == 1:
+            mb = readings["before"]
+        elif read_count["n"] == 2:
+            mb = readings["during"]
+        else:
+            mb = readings["after"]
+        return {"available": True, "free_mb": mb, "total_mb": 8192}
+
+    monkeypatch.setattr(manager, "get_vram_status", fake_vram_status)
+    monkeypatch.setattr(manager, "_ollama_loaded", True)
+    async def fake_unload() -> list[str]:
+        return []
+    monkeypatch.setattr(vram_module, "_unload_ollama_models", fake_unload)
+    async def fake_reload(model: str) -> bool:
+        return True
+    monkeypatch.setattr(vram_module, "_reload_ollama_models", fake_reload)
+
+    before = await manager.get_vram_status()
+    assert before["free_mb"] == baseline_mb
+
+    begin = await manager.begin_music_generation(engine="ace", vram_budget_mb=6144)
+    assert begin["success"] is True
+    assert manager._current_workload is vram_module.GPUWorkload.MUSIC_GENERATION
+    assert manager._music_gen_running is True
+
+    end = await manager.end_music_generation()
+    assert end["success"] is True
+
+    after = await manager.get_vram_status()
+    assert after["free_mb"] == readings["after"]
+    drift_mb = abs(after["free_mb"] - before["free_mb"])
+    assert drift_mb <= 512, (
+        f"VRAM did not return to baseline after music generation: "
+        f"before={before['free_mb']}MB, after={after['free_mb']}MB, drift={drift_mb}MB"
+    )
+    assert manager._current_workload is vram_module.GPUWorkload.IDLE
+    assert manager._music_gen_running is False
+    assert manager._ollama_loaded is True
+
+
+@pytest.mark.asyncio
+async def test_vram_manager_detects_leak_when_reload_fails(monkeypatch):
+    """If Ollama reload fails after a job, the manager should expose the
+    degraded state instead of silently claiming success."""
+    manager = vram_module.vram_manager
+    baseline_mb = 7000
+
+    async def fake_vram_status() -> dict:
+        return {"available": True, "free_mb": baseline_mb, "total_mb": 8192}
+
+    monkeypatch.setattr(manager, "get_vram_status", fake_vram_status)
+    monkeypatch.setattr(manager, "_ollama_loaded", False)
+    async def fake_reload_fail(model: str) -> bool:
+        return False
+    monkeypatch.setattr(vram_module, "_reload_ollama_models", fake_reload_fail)
+
+    result = await manager.end_3d_generation()
+
+    assert result["success"] is True
+    assert result["ollama_loaded"] is False
+    actions = [a["action"] for a in result["actions"]]
+    assert "reload_ollama" in actions
+    reload_action = next(a for a in result["actions"] if a["action"] == "reload_ollama")
+    assert reload_action["success"] is False
+

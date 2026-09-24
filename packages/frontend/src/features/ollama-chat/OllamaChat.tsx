@@ -29,7 +29,10 @@ export function OllamaChat() {
       try {
         const data = await getOllamaModels();
         setModels(data);
-        if (data.length > 0) setSelectedModel(data[0].name);
+        const preferred = ["gemma4:e2b-it-qat", "qwen3.5:4b", "qwen3-vl:2b"];
+        const preferredModel = preferred.find((name) => data.some((model) => model.name === name));
+        if (preferredModel) setSelectedModel(preferredModel);
+        else if (data.length > 0) setSelectedModel(data[0].name);
       } catch {
         // ignore
       } finally {

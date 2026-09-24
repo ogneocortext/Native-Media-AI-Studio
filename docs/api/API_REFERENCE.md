@@ -1,9 +1,34 @@
 # API Reference
 
 > **Base URL:** `http://127.0.0.1:8000` (see `config/ports.json` for current port)
-> **Last Updated:** 2026-09-10 (Go sidecars, CORS/SSE fixes, diagnostics/services sidecars, media endpoints)
+> **Last Updated:** 2026-09-24 (Queue and Media Library browser review)
 
-## Jobs
+## Ollama / AI Integration Endpoints
+
+### List installed Ollama models
+
+```text
+GET /api/integrations/ollama/models
+```
+
+The endpoint returns the live Ollama catalog with normalized model metadata. The response may be consumed as `{ "models": [...] }`; clients should accept both the wrapper and legacy array form. Embedding-only models should be excluded from chat selectors.
+
+### Ollama chat
+
+```text
+POST /api/integrations/ollama/chat
+```
+
+The configured local default is `gemma4:e2b-it-qat`. Vision/tool requests should use a model that advertises `tools` and/or `vision` in Ollama's capability metadata.
+
+### Vision OCR / chart analysis
+
+```text
+POST /api/vision/ocr
+```
+
+The default vision model is `gemma4:e2b-it-qat`, with `qwen3-vl:2b` as the lightweight fallback. The backend caps context at 8192 for the 8 GB workstation.
+
 
 ### List all jobs
 
@@ -311,9 +336,35 @@ Content-Type: application/json
 }
 ```
 
+### Compile Storyboard to HyperFrames
+
+```http
+POST /api/hyperframes/compile-storyboard
+Content-Type: application/json
+```
+
+```json
+{
+  "name": "my-storyboard",
+  "title": "My Storyboard",
+  "storyboard": {
+    "track": "My Track",
+    "duration": 10,
+    "scenes": [
+      {"title": "Opening", "description": "Establishing shot", "duration_seconds": 4},
+      {"title": "Payoff", "description": "Resolution", "duration_seconds": 6}
+    ]
+  }
+}
+```
+
+Returns generated composition and manifest paths, scene count, and duration.
+The compiler accepts both the current Ollama `duration_seconds` scene contract
+and legacy `start`/`end` or `time_range` contracts.
+
 ---
 
-## GPU & 3D Generation
+
 
 ### GPU Snapshot
 

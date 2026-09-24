@@ -329,10 +329,11 @@ export function Sidebar() {
 
       {/* Backdrop for mobile drawer */}
       {isMobile && mobileOpen && (
-        <div className="sidebar-backdrop" onClick={() => setMobileOpen(false)} />
+        <div className="sidebar-backdrop" role="button" tabIndex={0} aria-label="Close navigation" onClick={() => setMobileOpen(false)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setMobileOpen(false); }} />
       )}
 
       <aside
+        aria-hidden={isMobile && !mobileOpen}
         className={`sidebar-container ${collapsed && !isMobile ? "collapsed" : "expanded"} ${isMobile ? "sidebar-mobile" : ""} ${isMobile && mobileOpen ? "open" : ""} ${focusMode ? "focus-mode-hidden" : ""}`}
       >
         {/* Brand header */}

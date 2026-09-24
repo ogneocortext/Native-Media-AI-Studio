@@ -94,14 +94,19 @@ async function resizeImage(imagePath) {
   };
 }
 
-// ─── Ollama API ───
+// ─── Ollama API (0.33+ recommended: /api/chat for multimodal) ───
 async function analyzeWithOllama(images, prompt, model) {
-  const url = `${OLLAMA_URL}/api/generate`;
-  
+  const url = `${OLLAMA_URL}/api/chat`;
+
   const body = {
     model,
-    prompt,
-    images: images.map(img => img.base64),
+    messages: [
+      {
+        role: "user",
+        content: prompt,
+        images: images.map((img) => img.base64),
+      },
+    ],
     stream: false,
     options: {
       temperature: 0.3,
@@ -120,7 +125,7 @@ async function analyzeWithOllama(images, prompt, model) {
   }
 
   const data = await response.json();
-  return data.response || "No response from model";
+  return data.message?.content || data.response || "No response from model";
 }
 
 // ─── Prompt Building ───

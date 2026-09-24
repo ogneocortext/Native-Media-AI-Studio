@@ -1,8 +1,34 @@
 # Ollama Integration & Tool Calling
 
-> **Last Updated:** 2026-08-25
-> **Ollama Version:** 0.32.15
+> **Last Updated:** 2026-09-24
+> **Ollama Version:** 0.34.x
 > **API Version:** v1
+> **Workstation Profile:** GTX 1070 Ti (8 GB VRAM), 32 GB RAM
+
+## Installed Model Profile
+
+The local Ollama catalog is discovered at runtime from `GET /api/tags`; do not hard-code a model list. The current workstation catalog includes:
+
+| Role | Model | Capability / size | Use |
+|---|---|---|---|
+| Default chat + vision | `gemma4:e2b-it-qat` | 4.04 GB; vision, audio, tools, thinking | General local inference and vision |
+| Vision alternative | `gemma4-vision-optimized:latest` | 4.04 GB; vision, tools, thinking | High-quality visual analysis |
+| Fast vision fallback | `qwen3-vl:2b` | 1.76 GB; vision, tools, thinking | Low-VRAM triage and multi-image work |
+| OCR specialist | `minicpm-v:8b` | 5.1 GB; vision | OCR/table/chart extraction when resident |
+| Embeddings | `nomic-embed-text:v1.5` | 0.26 GB; embedding | Embeddings only; exclude from chat model selectors |
+
+Model capability metadata from Ollama is authoritative. Name-based capability detection is only a fallback for older Ollama responses. VRAM estimates use Ollama's reported model byte size with a conservative runtime multiplier.
+
+### Local-first routing policy
+
+- Default chat model: `gemma4:e2b-it-qat`.
+- Vision default: `gemma4:e2b-it-qat` (the configured `vision_model`).
+- Fast vision fallback: `qwen3-vl:2b`.
+- OCR specialist: `minicpm-v:8b`.
+- Keep `num_ctx <= 8192` on the 8 GB workstation.
+- Do not automatically select cloud-tagged models for local chat.
+- Exclude embedding-only models from chat/tool selectors.
+- Prefer Ollama's resident model for repeated vision work to avoid model swap churn.
 
 ## Overview
 

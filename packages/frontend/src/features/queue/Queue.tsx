@@ -147,14 +147,13 @@ export function Queue() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold">Job Queue</h1>
           <p className="text-muted mt-1">Manage generation jobs</p>
         </div>
 
-        <div className="flex items-center gap-4">
-          {/* SSE Status Indicator */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           <div className="flex items-center gap-2">
             {sseConnected ? (
               <>
@@ -201,7 +200,7 @@ export function Queue() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-6 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6">
         <Card className="text-center">
           <p className="text-2xl font-bold">{stats?.total_jobs || 0}</p>
           <p className="text-sm text-muted">Total</p>

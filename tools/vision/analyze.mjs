@@ -48,19 +48,21 @@ const VISION_TIMEOUT_MS = parseInt(process.env.VISION_TIMEOUT_MS || '300000');
 // more than any prompt tweak saves.
 const MODEL_PROFILES = {
   'gemma4:e2b-it-qat':   { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1568, note: 'detailed audits' },
+  'gemma4-vision-optimized:latest': { temp: 0.3, tempExtract: 0, numCtx: 8192, maxDim: 1568, note: 'vision audits' },
   'qwen3-vl:2b':         { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1280, note: 'fast triage, huge ctx' },
   'qwen3-vl:4b':         { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1280, note: 'fast triage, larger' },
-  'minicpm-v:8b':        { temp: 0,   tempExtract: 0, numCtx: 16384, maxDim: 1792, note: 'trustworthy OCR (RLAIF-V)' },
-  'minicpm-v:latest':    { temp: 0,   tempExtract: 0, numCtx: 16384, maxDim: 1792, note: 'trustworthy OCR (RLAIF-V)' },
+  'qwen3-vl-optimized:latest': { temp: 0.3, tempExtract: 0, numCtx: 8192, maxDim: 1280, note: 'optimized vision' },
+  'minicpm-v:8b':        { temp: 0,   tempExtract: 0, numCtx: 8192,  maxDim: 1792, note: 'trustworthy OCR (RLAIF-V)' },
+  'minicpm-v:latest':    { temp: 0,   tempExtract: 0, numCtx: 8192,  maxDim: 1792, note: 'trustworthy OCR (RLAIF-V)' },
 };
 const DEFAULT_PROFILE = { temp: 0.3, tempExtract: 0, numCtx: VISION_NUM_CTX, maxDim: 1568, note: 'generic' };
 
 // Extractive modes want trustworthiness over flair; multi-image modes want
 // context headroom. Everything else defaults to VISION_MODEL.
 const MODE_MODEL = {
-  ocr: 'minicpm-v:8b',
-  table: 'minicpm-v:8b',
-  chart: 'minicpm-v:8b',
+  ocr: 'gemma4:e2b-it-qat',
+  table: 'gemma4:e2b-it-qat',
+  chart: 'gemma4:e2b-it-qat',
   compare: 'qwen3-vl:2b',
   multicomp: 'qwen3-vl:2b',
 };
@@ -158,6 +160,7 @@ function parseArgs(argv) {
     sourceFiles: [],
     backend: 'auto',
     model: null,
+    think: (process.env.VISION_THINK || '').toLowerCase() === 'true',
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -174,6 +177,7 @@ function parseArgs(argv) {
     else if (arg === '--high') { args.high = true; }
     else if (arg === '--json') { args.json = true; }
     else if (arg === '--model' && argv[i + 1]) { args.model = argv[++i]; }
+    else if (arg === '--think') { args.think = true; }
     else if (!arg.startsWith('--')) {
       // Files always win: an existing path is an image, never prompt text.
       // (The old order swallowed the 2nd+ image path as the prompt and dropped
@@ -421,14 +425,23 @@ async function isAtomicChatReady() {
   return atomicChatReady;
 }
 
-async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOpts = {}) {
+async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOpts = {}, think = false) {
   const imageData = await Promise.all(images.map((p) => encodeImage(p, encOpts)));
   const profile = profileFor(model);
 
+  // Ollama 0.33+: prefer /api/chat with multimodal message format.
+  // /api/chat handles multi-image + text in one user turn natively and is
+  // the recommended endpoint for new integrations.
+  const userContent = { role: "user", content: prompt };
+  if (imageData.length === 1) {
+    userContent.images = [imageData[0]];
+  } else if (imageData.length > 1) {
+    userContent.images = imageData;
+  }
+
   const body = {
     model: model,
-    prompt: prompt,
-    images: imageData,
+    messages: [userContent],
     stream: false,
     keep_alive: VISION_KEEP_ALIVE,
     options: {
@@ -438,7 +451,13 @@ async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOp
     }
   };
 
-  const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+  // Ollama 0.21.3+ supports think parameter for reasoning models.
+  // Values: true/false/"max"/"high"/"medium"/"low"/"minimal"/"none".
+  if (think) {
+    body.think = true;
+  }
+
+  const response = await fetch(`${OLLAMA_URL}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -450,10 +469,7 @@ async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOp
   }
 
   const result = await response.json();
-  // done_reason "stop" means the model finished naturally — the text is
-  // complete no matter how it ends. "length" means the num_predict budget
-  // ran out and the text is genuinely cut off.
-  return { text: result.response || '', done_reason: result.done_reason || '' };
+  return { text: result.message?.content || result.response || '', done_reason: result.done_reason || '' };
 }
 
 async function analyzeWithAtomicChat(images, prompt, model, maxTokens = 4096, encOpts = {}) {
@@ -514,6 +530,7 @@ async function main() {
   console.error('  --source file   (repeatable; appended to the prompt for regression)');
   console.error('  --backend auto|ollama|atomic (vision backend, default auto)');
   console.error('  --model name  (override task→model routing, e.g. minicpm-v:8b)');
+  console.error('  --think        (enable extended reasoning for complex modes: compare, music-video, regression)');
   console.error('  --low           (768px, faster, worse for text)');
   console.error('  --high          (1600px, text-dense detail)');
   console.error('  --json          (machine-readable output)');
@@ -585,8 +602,11 @@ async function main() {
     // on complete answers that end abruptly ("... SYSTEM |"), which used
     // to trigger two wasted full regenerations per call.
     let lastDoneReason = '';
+    // Auto-enable reasoning for complex analysis modes on capable models.
+    const reasoningModes = new Set(['compare', 'music-video', 'regression', 'multicomp']);
+    const autoThink = args.think || reasoningModes.has(args.mode);
     const ollamaAttempt = async (model, budget) => {
-      const r = await analyzeWithOllama(args.images, fullPrompt, model, budget, encOpts);
+      const r = await analyzeWithOllama(args.images, fullPrompt, model, budget, encOpts, autoThink);
       lastDoneReason = r.done_reason;
       analysis = r.text;
       note();

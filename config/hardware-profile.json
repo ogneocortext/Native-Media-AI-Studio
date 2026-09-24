@@ -27,5 +27,12 @@
     "comfyui_cfg": 7.0,
     "benchmark_timeout_seconds": 300,
     "vram_safety_margin_mb": 1536
+  },
+  "_ollama_0.33_notes": {
+    "api_endpoint": "/api/chat is now recommended for multimodal vision (replaces /api/generate for images)",
+    "think_parameter": "Extended reasoning supported on gemma4, qwen3.5, muse-glimmer (values: true/false/max/high/medium/low)",
+    "keep_alive": "Model metadata is now cached server-side; keep_alive 10m still recommended for resident model stickiness",
+    "structured_output": "format=json_schema enforces JSON shape on chat completions (0.33+)",
+    "ttft_improvement": "0.33+ caches resolved model metadata, cutting TTFT roughly in half vs earlier versions"
   }
 }

@@ -80,8 +80,8 @@ export { getComfyUIStatus, startComfyUI, stopComfyUI, restartComfyUI, updateComf
 export type { ComfyUIStatus, ComfyUIStartResponse, ComfyUIStopResponse, ComfyUIUpdateResponse, IntegrationStatus, VRAMStatus, UpscaleResponse } from "./integrations";
 
 // MCP + HyperFrames
-export { fetchMCPContext, updateMCPContext, getHyperFramesStatus, getHyperFramesExamples, launchHyperFramesPreview, renderHyperFramesComposition } from "./mcp-hyperframes";
-export type { MCPContext, HyperFramesStatus } from "./mcp-hyperframes";
+export { fetchMCPContext, updateMCPContext, compileStoryboard, getHyperFramesAudioPayload, getHyperFramesStatus, getHyperFramesExamples, launchHyperFramesPreview, renderHyperFramesComposition } from "./mcp-hyperframes";
+export type { MCPContext, CompileStoryboardRequest, CompileStoryboardResponse, HyperFramesAudioPayload, HyperFramesStatus } from "./mcp-hyperframes";
 
 // Video render + export matrix
 export { getRenderEngines, renderClip, buildExportMatrix } from "./video-render";

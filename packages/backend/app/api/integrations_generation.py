@@ -164,12 +164,26 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         try:
             from ..core import ollama_client as _oc
             from ..core.text import strip_code_fences
-            enrich_sys = "You are a Stable Diffusion prompt engineer. Expand the user prompt into a detailed, comma-separated style prompt (keep <180 chars) and provide a negative_prompt. Respond ONLY JSON: {\"prompt\":\"...\",\"negative_prompt\":\"...\"}"
+            enrich_sys = (
+                "You are a Stable Diffusion prompt engineer. Expand the user prompt into a "
+                "detailed comma-separated style prompt under 180 characters and provide a negative_prompt. "
+                "Use ONLY the input's visible subject and requested attributes. Do not invent brands, artists, "
+                "logos, watermarks, or extra subjects. Return JSON with exactly two string fields: prompt and negative_prompt."
+            )
+            response_schema = {
+                "type": "object",
+                "properties": {
+                    "prompt": {"type": "string"},
+                    "negative_prompt": {"type": "string"},
+                },
+                "required": ["prompt", "negative_prompt"],
+                "additionalProperties": False,
+            }
             c = await _oc.chat_content(
                 [{"role": "system", "content": enrich_sys}, {"role": "user", "content": request.prompt}],
                 model=config.default_model,
                 timeout=15,
-                extra={"format": "json", "think": False, "options": {"temperature": 0.7, "num_ctx": 4096}},
+                extra={"format": response_schema, "think": False, "options": {"temperature": 0.2, "num_ctx": 4096}},
             )
             if c:
                 pj = json.loads(strip_code_fences(c))

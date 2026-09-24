@@ -36,8 +36,12 @@ date: 2026-09-05
 
 - [[technical-reference|⚙️ Technical Reference]] — System architecture, API reference, service management
 - [[integration-ollama|🤖 Ollama Integration]] — Local LLM inference, tool calling, agent loop patterns
+- [[ollama-utilization-2026|🧠 Ollama Model Utilization 2026]] — Installed model inventory, task → model routing, VRAM-aware scheduling, integration points, gaps, and expansion for the 8GB workstation (NEW 2026-09-24)
 - [[comfyui-workflows|🎨 ComfyUI Workflows]] — Custom workflows for image/video generation
-- [[blender-mcp|🖥️ Blender MCP Integration]] — 3D scene building via MCP protocol
+### 🎮 MCP and Integration Resources
+
+- [[mcp-contracts-2026|🤝 MCP Tool Contracts 2026]] — Canonical Unity/Ollama/Vision/HyperFrames tool schemas (NEW 2026-09-24)
+- [[unity-integration-2026|🎮 Unity MCP Integration]] — Canonical Unity workflow, render-path, hardware-fit, and operations guide (NEW 2026-09-24)
 - [[hunyuan3d-setup|🧊 Hunyuan3D-2mini Setup]] — ComfyUI 3D generation with Kijai wrapper
 - [[3d-generation-options-2026|🧊 3D Generation Options 2026]] — Complete image-to-3D landscape for 8GB VRAM (PyTorch 2.14, Pascal capstone)
 - [[text-to-3d-options-2026|💬 Text-to-3D Options 2026]] — Open-source text-to-3D models for 8GB VRAM (Point-E, Shap-E, Hunyuan3D-2mini T2I, TRELLIS-text)
@@ -53,6 +57,10 @@ date: 2026-09-05
 - [[stack-extensions-2026|🔧 Stack Extensions 2026]] — Optional languages (CUDA C++, Rust/PyO3, WGSL, **Go**) + high-value Python tools for audio/video/3D (core-flux, madmom-infer, sonara, MovieLite, essentia, audiofeat, videopython, BeatSync Engine, gsplat) — benchmark-first adoption (NEW 2026-09-07)
 - [[cuda-pytorch-directx-upgrades-2026|🚀 CUDA/PyTorch/DirectX Upgrades 2026]] — CUDA 12.6 toolkit features, torchaudio CUDA migration, TorchAO INT8 quantization, WebGPU compute shaders (Three.js TSL), DirectX 12 Ultimate applicability (Pascal limits) — upgrade recommendations for the current stack (NEW 2026-09-22)
 - [[go-integration-2026|🔀 Go Integration 2026]] — Split-stack architecture: Go for dashboard/SSE, media workers, gateway; Python for AI/model layer (NEW 2026-09-08)
+- [[go-benefits-deep-dive-2026|🔀 Go Benefits Deep Dive 2026]] — Measured memory/startup/concurrency wins, code patterns, deployment model, failure-mode comparison, future expansion candidates (NEW 2026-09-24)
+- [[javascript-upgrade-research-2026|🔧 JavaScript Upgrade Research 2026]] — TypeScript 7 adoption, deprecated mp4-muxer replacement, React 19 features, Vite 8/Rolldown optimization, Tailwind v4 container queries, CI gaps, Prettier adoption (NEW 2026-09-24)
+- [[app-research-gaps-2026|🔍 App Research Gaps 2026]] — 15 research areas: video models, audio analysis, music gen, frontend, Go sidecars, testing, deployment, a11y, Pascal perf, lyrics, HyperFrames, WebGPU, agents, data, knowledge maintenance (NEW 2026-09-24)
+- [[feature-utilization-audit-2026|🎯 Feature Utilization & Gap Analysis 2026]] — False-confidence dead code, orphaned capabilities, data-flow breaks, and true missing features (rewritten 2026-09-24 after working-tree verification)
 
 ### 🎯 Specialized Guides
 
@@ -63,6 +71,7 @@ date: 2026-09-05
 - [[webgl-webgpu-audio-viz-2026|🎵 WebGL/WebGPU Audio Viz 2026]] — Rust/WASM audio analysis, GPU compute shaders, music-reactive 3D, multi-threaded visualization (NEW 2026-09-20)
 - [[character-animation-2026-summer-synthesis|🎭 Character Animation 2026 — Summer Synthesis]] — Story-first puppet, beatPhase sync, performance-driven (NEW 2026-09-05)
 - [[audio-reactive-production|🎧 Audio-Reactive Production]] — Audio → visual mapping, beat sync
+- [[hyperframes-audio-reactive-2026|🎬 HyperFrames Audio-Reactive Visualizations 2026]] — Pre-extracted audio data, per-frame GSAP sampling, Three.js/WebGPU scenes, lyric/beat/section sync, genre-aware presets, integration with studio backend (NEW 2026-09-24)
 - [[silhouette-character-animation|🎭 Silhouette Character Animation]] — Character rigging & motion
 - [[character-driven-visualization-research|🔬 Character-Driven Visualization]] — Character research
 - [[hardware-verified-models|🖥️ Hardware-Verified Models]] — 8GB VRAM model matrix
@@ -71,6 +80,7 @@ date: 2026-09-05
 - [[remotion-guide|🎬 Remotion Video Compositing]] — Programmatic video with React (NEW 2026-09-01)
 - [[modern-css-2026|🎨 Modern CSS 2026]] — Tailwind v4 @theme/layers, OKLCH theming, gradient spaces, a11y media queries, verification checklist (NEW 2026-09-23)
 - [[ollama-prompting-2026|🤖 Ollama Prompting 2026]] — Vision grounding/uncertainty, structured-output schemas, code-gen contracts, VRAM latency policy (NEW 2026-09-23)
+- [[e2e-test-plan-2026|🧪 E2E Test Plan 2026]] — Full-pipeline Play smoke + backend integration + real-service E2E plan (NEW 2026-09-24)
 - [[color-strategy-2026|🎨 Color Strategy 2026]] — APCA vs WCAG dark-mode contrast, measured token audit, tier rules (NEW 2026-09-23)
 - [[design-auditing-2026|🔍 Design Auditing 2026]] — Contrast+axe+VLM audit layers, runbook for `contrast_audit.py` (NEW 2026-09-23)
 
@@ -101,6 +111,7 @@ date: 2026-09-05
 | `#ai-generation`     | AI image/video generation                         | 4 documents |
 | `#youtube`           | YouTube platform optimization                     | 1 document  |
 | `#blender`           | Blender 3D integration                            | 2 documents |
+| `#unity`             | Unity MCP + audio-reactive viz + frame capture   | 1 document  |
 | `#comfyui`           | ComfyUI workflows                                 | 2 documents |
 | `#gpu`               | GPU optimization                                  | 3 documents |
 | `#prompt`            | Prompt engineering                                | 1 document  |
@@ -115,17 +126,31 @@ date: 2026-09-05
 | `#prompt-engineering`| Ollama vision grounding, schemas, contracts       | 1 document  |
 | `#color-strategy`    | APCA contrast, dark-mode tiers, token audit       | 1 document  |
 | `#design-qa`         | Contrast+axe+VLM audit system, runbook            | 1 document  |
-| `#audio`             | Audio-reactive production                         | 1 document  |
+| `#audio` | Audio-reactive production | 1 document  |
+| `#audio-reactive` | HyperFrames audio-reactive compositions, beat sync, lyric timing | 1 document  |
 | `#silhouette`        | Silhouette / character animation                  | 2 documents |
 | `#hardware`          | Hardware-verified 8GB models                      | 1 document  |
 | `#backend`           | Backend debugging                                 | 1 document  |
-| `#ollama`            | Ollama thinking / structured outputs              | 2 documents |
+| `#ollama`            | Ollama integration, prompting, utilization, model routing | 4 documents |
+| `#utilization`       | Ollama model utilization, VRAM scheduling, task routing | 1 document |
+| `#model-routing`     | Task → model selection, resident-model stickiness, fallback ladders | 1 document |
+| `#vram`              | VRAM-aware scheduling, 8GB constraints, model sizing | 3 documents |
+| `#8gb-vram`          | GTX 1070 Ti / 8GB VRAM hard constraint, quantization, safe tiers | 1 document |
+| `#ollama-thinking`   | Ollama thinking mode, structured output, latency policy | 1 document |
 | `#python`            | Python envs, venv decoupling, CUDA wheels         | 1 document  |
 | `#stack-extensions`  | Optional languages + audio/video/3D Python tools  | 1 document  |
-| `#go`                | Go integration: dashboard, media workers, gateway | 1 document  |
+| `#go`                | Go integration: dashboard, media workers, gateway | 2 documents |
 | `#pascal-gpu`        | GTX 10xx Pascal architecture                      | 1 document  |
 | `#vram-optimization` | 8GB VRAM optimization techniques                  | 1 document  |
 | `#torchao` | TorchAO quantization for Pascal (INT8 only) | 1 document  |
+| `#javascript` | JavaScript/TypeScript upgrade research, React/Vite/Tailwind modernization | 1 document  |
+| `#research` | App research gaps, roadmap, knowledge gaps, optimization opportunities | 1 document  |
+| `#features` | Feature inventory, utilization audit, wiring gaps, quick wins | 1 document  |
+| `#hyperframes` | HyperFrames compositions, audio-reactive patterns, deterministic rendering | 1 document  |
+| `#mcp` | Model Context Protocol: tool contracts, server docs, agent contracts | 1 document  |
+| `#contracts` | Input/output JSON schemas for MCP tools | 1 document  |
+| `#testing` | E2E, Playwright, pipeline tests, pytest | 1 document  |
+| `#e2e` | End-to-end test plans and implementations | 1 document  |
 
 ---
 
@@ -163,7 +188,7 @@ graph LR
 
 1. Read [[technical-reference]] for system capabilities
 2. Follow the workflow in [[music-video-production]]
-3. Use [[comfyui-workflows]] and [[blender-mcp]] for technical operations
+3. Use [[comfyui-workflows]], [[blender-mcp]], and [[unity-integration-2026]] for technical operations
 4. Return here to update knowledge as new techniques are discovered
 
 ### Adding New Knowledge
@@ -192,12 +217,12 @@ graph LR
 
 | Metric          | Count                                                                                                                       |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Total Documents | 54                                                                                                                          |
-| Total Tags      | 28                                                                                                                          |
-| Total Links     | 95+                                                                                                                         |
-| Last Updated    | 2026-09-22 (CUDA/PyTorch/DirectX upgrade research: torchaudio CUDA, TorchAO INT8, WebGPU compute, DirectX 12 Ultimate Pascal limits)                                     |
-| Latest Add      | 2026-09-22 (CUDA/PyTorch/DirectX Upgrades 2026, TorchAO INT8 section in Pascal GPU Optimization) |
+| Total Documents | 63                                                                                                                          |
+| Total Tags      | 40                                                                                                                          |
+| Total Links     | 115+                                                                                                                        |
+| Last Updated    | 2026-09-24 (MCP Tool Contracts 2026, E2E Test Plan 2026, Unity MCP Integration + App Research Gaps 2026 + Feature Utilization Audit 2026 + HyperFrames Audio-Reactive Visualizations 2026 + Ollama Model Utilization 2026 added to knowledge library)                                                                                                     |
+| Latest Add      | 2026-09-24 (Ollama Model Utilization 2026) |
 
 ---
 
-_Last updated: 2026-09-20_
+_Last updated: 2026-09-24_

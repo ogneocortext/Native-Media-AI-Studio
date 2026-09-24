@@ -25,14 +25,15 @@ const resized = await sharp(inputBuffer)
 const base64 = resized.toString("base64");
 console.error(`[vision] Resized to ${resized.length} bytes`);
 
-// Send to Ollama
-const response = await fetch("http://127.0.0.1:11434/api/generate", {
+// Send to Ollama (0.33+ recommended: /api/chat with multimodal messages)
+const response = await fetch("http://127.0.0.1:11434/api/chat", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
     model: "gemma4:e2b-it-qat",
-    prompt,
-    images: [base64],
+    messages: [
+      { role: "user", content: prompt, images: [base64] }
+    ],
     stream: false,
     options: { temperature: 0.3, num_predict: 2048 },
   }),

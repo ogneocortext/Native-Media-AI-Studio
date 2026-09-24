@@ -45,6 +45,8 @@ __all__ = [
     "fetch_object_info",
     "resolve_comfyui_dir",
     "resolve_models_dir",
+    "resolve_comfyui_log_path",
+    "fetch_comfyui_log_tail",
 ]
 
 logger = logging.getLogger(__name__)
@@ -268,3 +270,44 @@ def resolve_models_dir() -> Path | None:
 
     models = comfyui_models_dir()
     return models if models.exists() else None
+
+
+def resolve_comfyui_log_path() -> Path | None:
+    """Return the best candidate for ComfyUI's ``comfyui.log`` path.
+
+    Checks the standard install-root location first, then falls back to
+    common alternative names/locations. Returns ``None`` when the file
+    is absent so callers can skip log capture gracefully.
+    """
+    root = resolve_comfyui_dir()
+    if root is None:
+        return None
+    candidates = [
+        root / "comfyui.log",
+        root / "logs" / "comfyui.log",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+async def fetch_comfyui_log_tail(base_url: str, max_lines: int = 200) -> str | None:
+    """Best-effort tail of ComfyUI logs.
+
+    Prefers the on-disk ``comfyui.log``; falls back to ``/system_stats``
+    only as a last resort because it does not contain execution errors.
+    Returns ``None`` when no log source is reachable.
+    """
+    # On-disk log wins because it contains node-level stack traces that
+    # the HTTP API never surfaces.
+    log_path = resolve_comfyui_log_path()
+    if log_path is not None:
+        try:
+            text = log_path.read_text(encoding="utf-8", errors="replace")
+            lines = text.splitlines()
+            return "\n".join(lines[-max_lines:])
+        except Exception:
+            pass
+    # Fallback: ComfyUI does not expose a /log endpoint in stock builds.
+    return None

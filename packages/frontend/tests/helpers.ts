@@ -87,6 +87,18 @@ export async function expectRedirectedTo(page: Page, pathPattern: string | RegEx
 type RouteHandler = (route: Route) => Promise<void> | void;
 
 /**
+ * Extract pathname from a full URL string.
+ * Falls back to the raw string if parsing fails.
+ */
+function getPathname(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+}
+
+/**
  * Map keyed by Page to store active route handlers.
  * This ensures proper cleanup and prevents cross-page interference.
  */
@@ -255,8 +267,8 @@ export async function mockApiHealth(
       : JSON.stringify('Server error');
 
   registerRouteHandler(page, async (route) => {
-    const url = route.request().url();
-    if (url.includes('/api/health')) {
+    const pathname = getPathname(route.request().url());
+    if (pathname === '/api/health') {
       await route.fulfill({ status, contentType: 'application/json', body: healthBody });
     } else {
       await route.continue();
@@ -270,14 +282,14 @@ export async function mockApiHealth(
  */
 export async function mockApiQueueEmpty(page: Page): Promise<void> {
   registerRouteHandler(page, async (route) => {
-    const url = route.request().url();
-    if (url.includes('/api/jobs') && !url.includes('/stats')) {
+    const pathname = getPathname(route.request().url());
+    if (pathname === '/api/jobs' || (pathname.startsWith('/api/jobs/') && !pathname.includes('/stats'))) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify([]),
       });
-    } else if (url.includes('/api/jobs/stats')) {
+    } else if (pathname === '/api/jobs/stats' || pathname.startsWith('/api/jobs/stats/')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -326,14 +338,14 @@ export async function mockApiQueueWithJobs(page: Page, count = 2): Promise<void>
   };
 
   registerRouteHandler(page, async (route) => {
-    const url = route.request().url();
-    if (url.includes('/api/jobs') && !url.includes('/stats')) {
+    const pathname = getPathname(route.request().url());
+    if (pathname === '/api/jobs' || (pathname.startsWith('/api/jobs/') && !pathname.includes('/stats'))) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(jobs),
       });
-    } else if (url.includes('/api/jobs/stats')) {
+    } else if (pathname === '/api/jobs/stats' || pathname.startsWith('/api/jobs/stats/')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -356,8 +368,8 @@ export async function mockApiSystemHealth(
   const body = JSON.stringify({ ...DEFAULT_SYSTEM_HEALTH, ...overrides });
 
   registerRouteHandler(page, async (route) => {
-    const url = route.request().url();
-    if (url.includes('/api/render/health')) {
+    const pathname = getPathname(route.request().url());
+    if (pathname === '/api/render/health' || pathname.startsWith('/api/render/health/')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body });
     } else {
       await route.continue();
@@ -376,8 +388,8 @@ export async function mockApiServiceStatus(
   const body = JSON.stringify({ ...DEFAULT_SERVICE_STATUS, ...overrides });
 
   registerRouteHandler(page, async (route) => {
-    const url = route.request().url();
-    if (url.includes('/api/services/status')) {
+    const pathname = getPathname(route.request().url());
+    if (pathname === '/api/services/status' || pathname.startsWith('/api/services/status/')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body });
     } else {
       await route.continue();
@@ -402,8 +414,8 @@ export async function mockApiComfyUIStatus(
   } as MockComfyUIStatusResponse);
 
   registerRouteHandler(page, async (route) => {
-    const url = route.request().url();
-    if (url.includes('/api/services/comfyui/status')) {
+    const pathname = getPathname(route.request().url());
+    if (pathname === '/api/services/comfyui/status' || pathname.startsWith('/api/services/comfyui/status/')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body });
     } else {
       await route.continue();
@@ -431,8 +443,8 @@ export async function mockApiSettings(
   const body = JSON.stringify({ ...defaultSettings, ...overrides });
 
   registerRouteHandler(page, async (route) => {
-    const url = route.request().url();
-    if (url.includes('/api/integrations/config/settings')) {
+    const pathname = getPathname(route.request().url());
+    if (pathname === '/api/integrations/config/settings' || pathname.startsWith('/api/integrations/config/settings/')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body });
     } else {
       await route.continue();
@@ -478,14 +490,14 @@ export async function mockHealthPage(
   });
 
   registerRouteHandler(page, async (route) => {
-    const url = route.request().url();
-    if (url.includes('/api/health')) {
+    const pathname = getPathname(route.request().url());
+    if (pathname === '/api/health') {
       await route.fulfill({ status: healthStatus, contentType: 'application/json', body: healthBody });
-    } else if (url.includes('/api/render/health')) {
+    } else if (pathname === '/api/render/health' || pathname.startsWith('/api/render/health/')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: systemHealthBody });
-    } else if (url.includes('/api/services/status')) {
+    } else if (pathname === '/api/services/status' || pathname.startsWith('/api/services/status/')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: serviceStatusBody });
-    } else if (url.includes('/api/services/comfyui/status')) {
+    } else if (pathname === '/api/services/comfyui/status' || pathname.startsWith('/api/services/comfyui/status/')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: comfyuiStatusBody });
     } else {
       await route.continue();
@@ -582,11 +594,12 @@ export async function mockGoServiceHealth(
 ): Promise<void> {
   registerRouteHandler(page, async (route) => {
     const url = route.request().url();
-    if (url.includes('/events')) {
+    const pathname = getPathname(url);
+    if (pathname === '/events') {
       await route.continue();
       return;
     }
-    if (url.includes('/api/health/diagnostics/services')) {
+    if (pathname === '/api/health/diagnostics/services' || pathname.startsWith('/api/health/diagnostics/services/')) {
       const sidecars = Object.fromEntries(Object.keys(GO_SERVICE_PORTS).map((name) => [name, {
         status: 'online', url: `http://127.0.0.1:${GO_SERVICE_PORTS[name]}`,
       }]));
@@ -614,11 +627,12 @@ export async function mockGoServiceHealthDegraded(
 ): Promise<void> {
   registerRouteHandler(page, async (route) => {
     const url = route.request().url();
-    if (url.includes('/events')) {
+    const pathname = getPathname(url);
+    if (pathname === '/events') {
       await route.continue();
       return;
     }
-    if (url.includes('/api/health/diagnostics/services')) {
+    if (pathname === '/api/health/diagnostics/services' || pathname.startsWith('/api/health/diagnostics/services/')) {
       const sidecars = Object.fromEntries(Object.keys(GO_SERVICE_PORTS).map((name) => [name, {
         status: offlineServices.includes(name) ? 'offline' : 'online',
         url: `http://127.0.0.1:${GO_SERVICE_PORTS[name]}`,

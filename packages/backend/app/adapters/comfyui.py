@@ -448,6 +448,11 @@ class ComfyUIAdapter(BaseAdapter):
             "video_path": video_path,
             "seed": actual_seed,
             "info": f"{model_label}: {steps} steps, {eff_frames} frames @ {fps}fps, {width}x{height}",
+            "workflow": workflow,
+            "t5_name": t5_name if is_wan_gguf else None,
+            "vae_name": vae_name if is_wan_gguf else None,
+            "ckpt_name": ckpt_name,
+            "model_variant": model_variant,
         }
 
     async def _mock_generate(self, params: dict[str, Any]) -> dict[str, Any]:

@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { fetchUniqueTracksFromAPI, type TrackLyricsData } from "../../services/trackLyrics";
-import { listAudioFiles, getAnalysis } from "../../services/api";
+import { listAudioFiles, getAnalysis, compileStoryboard, getHyperFramesAudioPayload, type CompileStoryboardResponse } from "../../services/api";
 
 interface StoryboardFile {
   name: string;
@@ -54,6 +54,9 @@ export function StoryboardPage() {
   const [tracksLoading, setTracksLoading] = useState(true);
   const [libraryTracks, setLibraryTracks] = useState<Array<{ filename: string }>>([]);
   const [trackMetadata, setTrackMetadata] = useState<Record<string, TrackMetadata>>({});
+  const [compileResult, setCompileResult] = useState<CompileStoryboardResponse | null>(null);
+  const [compiling, setCompiling] = useState(false);
+  const [compileError, setCompileError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUniqueTracksFromAPI()
@@ -142,6 +145,40 @@ export function StoryboardPage() {
     }
     return result;
   };
+
+  const parseTimecode = (value: string): number => {
+    const [minutes, seconds] = value.split(":").map(Number);
+    return Number.isFinite(minutes * 60 + seconds) ? minutes * 60 + seconds : parseFloat(value) || 0;
+  };
+
+  const buildCompilePayload = useCallback((board: StoryboardFile, boardScenes: SceneData[]) => ({
+    track: board.trackName || board.title,
+    title: board.title,
+    duration: boardScenes.reduce((max, scene) => max + parseTimecode(scene.duration), 0),
+    scenes: boardScenes.map((scene, index) => ({
+      id: scene.seq || `scene-${index + 1}`,
+      title: scene.section,
+      description: scene.visual,
+      start: boardScenes.slice(0, index).reduce((sum, item) => sum + parseTimecode(item.duration), 0),
+      end: boardScenes.slice(0, index + 1).reduce((sum, item) => sum + parseTimecode(item.duration), 0),
+    })),
+  }), []);
+
+  const handleCompile = useCallback(async () => {
+    if (!selected || scenes.length === 0) return;
+    setCompiling(true); setCompileError(null);
+    try {
+      const audioFilename = trackMetadata[selected.name]?.filename;
+      const audioData = audioFilename ? await getHyperFramesAudioPayload(audioFilename).catch(() => undefined) : undefined;
+      const result = await compileStoryboard({
+        name: selected.name, title: selected.title, storyboard: buildCompilePayload(selected, scenes),
+        audio_path: audioFilename || undefined, audio_data: audioData,
+      });
+      setCompileResult(result);
+    } catch (error) {
+      setCompileError(error instanceof Error ? error.message : String(error));
+    } finally { setCompiling(false); }
+  }, [buildCompilePayload, scenes, selected, trackMetadata]);
 
   const handleOpenIn3DStudio = useCallback((storyboard: StoryboardFile) => {
     const params = new URLSearchParams();
@@ -355,6 +392,10 @@ export function StoryboardPage() {
             onBack={() => { setSelected(null); setContent(""); setScenes([]); setActiveScene(null); }}
             onOpen3D={() => handleOpenIn3DStudio(selected)}
             onGenerateScene={(idx) => handleGenerateScene(selected, idx)}
+            onCompile={handleCompile}
+            compiling={compiling}
+            compileResult={compileResult}
+            compileError={compileError}
             renderMarkdown={renderMarkdown}
           />
         ) : (
@@ -514,7 +555,7 @@ function StoryboardGrid({ storyboards, trackMetadata, query, onSearch, onSelect,
   );
 }
 
-function StoryboardDetail({ storyboard, trackMetadata, content, scenes, activeScene, onSelectScene, onBack, onOpen3D, onGenerateScene, renderMarkdown }: {
+function StoryboardDetail({ storyboard, trackMetadata, content, scenes, activeScene, onSelectScene, onBack, onOpen3D, onGenerateScene, onCompile, compiling, compileResult, compileError, renderMarkdown }: {
   storyboard: StoryboardFile;
   trackMetadata?: TrackMetadata;
   content: string;
@@ -524,6 +565,10 @@ function StoryboardDetail({ storyboard, trackMetadata, content, scenes, activeSc
   onBack: () => void;
   onOpen3D: () => void;
   onGenerateScene: (idx: number) => void;
+  onCompile: () => void;
+  compiling: boolean;
+  compileResult: CompileStoryboardResponse | null;
+  compileError: string | null;
   renderMarkdown: (md: string) => React.ReactElement[];
 }) {
   const visualPreview = (visual: string) => visual.length <= 60 ? visual : visual.slice(0, 57) + "...";
@@ -582,10 +627,13 @@ function StoryboardDetail({ storyboard, trackMetadata, content, scenes, activeSc
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={onCompile} disabled={compiling || scenes.length === 0} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-700 rounded-lg text-xs font-medium flex items-center gap-1.5"><Film size={12} /> {compiling ? "Compiling…" : "Compile HyperFrames"}</button>
             <button onClick={onOpen3D} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded-lg text-xs font-medium flex items-center gap-1.5"><Box size={12} /> Open in 3D Studio</button>
             <button onClick={() => onGenerateScene(activeScene || 0)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-xs font-medium flex items-center gap-1.5"><Sparkles size={12} /> Generate Scene</button>
           </div>
         </div>
+        {compileError && <p className="mt-3 text-xs text-red-400">{compileError}</p>}
+        {compileResult && <p className="mt-3 text-xs text-emerald-400">Compiled {compileResult.scene_count} scenes · {compileResult.duration_seconds}s. Use HyperFrames render to produce the final video.</p>}
         <div className="p-6 max-w-4xl">
           <div className="bg-[#0d0d15] rounded-2xl border border-gray-800/60 p-6 shadow-xl shadow-black/20">
             {renderMarkdown(content)}

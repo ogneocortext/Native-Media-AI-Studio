@@ -1,0 +1,62 @@
+{
+  "title": "The Signal Breaking Through the Noise — Lyric Storyboard",
+  "track": "The Signal Breaking Through the Noise",
+  "duration": 45.0,
+  "scene_count": 6,
+  "scenes": [
+    {
+      "id": "lyric-1",
+      "title": "The Edge",
+      "description": "Used to stand at the edge of everything I knew",
+      "start": 0.0,
+      "end": 20.36,
+      "palette": {},
+      "camera": {}
+    },
+    {
+      "id": "lyric-2",
+      "title": "The Blue",
+      "description": "Watching the old world fade into a different kind of blue",
+      "start": 20.36,
+      "end": 29.65,
+      "palette": {},
+      "camera": {}
+    },
+    {
+      "id": "lyric-3",
+      "title": "The Maps",
+      "description": "I drew my maps in silence",
+      "start": 29.65,
+      "end": 32.25,
+      "palette": {},
+      "camera": {}
+    },
+    {
+      "id": "lyric-4",
+      "title": "The Horror",
+      "description": "Traced the lines of horror",
+      "start": 32.25,
+      "end": 36.5,
+      "palette": {},
+      "camera": {}
+    },
+    {
+      "id": "lyric-5",
+      "title": "The Static",
+      "description": "And somewhere in the static",
+      "start": 36.5,
+      "end": 38.3,
+      "palette": {},
+      "camera": {}
+    },
+    {
+      "id": "lyric-6",
+      "title": "The Fight",
+      "description": "I found something worth the fight",
+      "start": 38.3,
+      "end": 45.0,
+      "palette": {},
+      "camera": {}
+    }
+  ]
+}

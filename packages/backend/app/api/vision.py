@@ -15,8 +15,8 @@ from ..core.urls import ollama_url
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vision", tags=["Vision"])
 
-DEFAULT_MODEL = "minicpm-v:8b"
-FALLBACK_MODEL = "qwen3-vl:4b"
+DEFAULT_MODEL = "gemma4:e2b-it-qat"
+FALLBACK_MODEL = "qwen3-vl:2b"
 
 OLLAMA_URL = ollama_url()
 
@@ -43,7 +43,7 @@ def _ollama_chat(model: str, prompt: str, b64: str, think: bool = False) -> str:
         "messages": [{"role": "user", "content": prompt, "images": [b64]}],
         "stream": False,
         "keep_alive": "5m",
-        "options": {"temperature": 0 if is_minicpm else 0.3, "num_ctx": 32768 if is_minicpm else 16384, "num_predict": 1024},
+        "options": {"temperature": 0 if is_minicpm else 0.3, "num_ctx": 8192, "num_predict": 1024},
     }
     if think and not is_minicpm:
         payload["think"] = True

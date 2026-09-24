@@ -213,6 +213,15 @@ export function MediaLibrary() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches,
   );
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 900px)");
+    const syncSidebar = () => setSidebarCollapsed(media.matches);
+    syncSidebar();
+    media.addEventListener("change", syncSidebar);
+    return () => media.removeEventListener("change", syncSidebar);
+  }, []);
+
+
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearch = useDebounce(searchTerm, 350);
   const deferredSearch = useDeferredValue(debouncedSearch);
@@ -424,26 +433,32 @@ const [sortBy, setSortBy] = useState<SortBy>("newest");
   const hasActiveFilters = !!(searchTerm||dateFrom||dateTo);
   const duplicatePaths = useMemo(()=> new Set(duplicateGroups?.flatMap(g=> g.files.map(f=>f.relative_path))||[]),[duplicateGroups]);
 
+  const outputTimestamp = (output: OutputFile): number => {
+  const value = output.modified_at || output.created_at;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
   const filteredOutputs = useMemo(()=>{
     let list=[...outputs];
     // Category tab filters client-side (independent of backend file_type spelling).
     if (filter.type !== "all") list = list.filter(o => o.file_type === filter.type);
     if (filter.dateFrom) {
       const from = new Date(filter.dateFrom + "T00:00:00").getTime();
-      if (Number.isFinite(from)) list = list.filter(o => new Date(o.created_at).getTime() >= from);
+      if (Number.isFinite(from)) list = list.filter(o => outputTimestamp(o) >= from);
     }
     if (filter.dateTo) {
       const to = new Date(filter.dateTo + "T23:59:59").getTime();
-      if (Number.isFinite(to)) list = list.filter(o => new Date(o.created_at).getTime() <= to);
+      if (Number.isFinite(to)) list = list.filter(o => outputTimestamp(o) <= to);
     }
     switch(sortBy){
-      case "newest": list.sort((a,b)=> new Date(b.created_at).getTime()-new Date(a.created_at).getTime()); break;
-      case "oldest": list.sort((a,b)=> new Date(a.created_at).getTime()-new Date(b.created_at).getTime()); break;
+      case "newest": list.sort((a,b)=> outputTimestamp(b)-outputTimestamp(a)); break;
+      case "oldest": list.sort((a,b)=> outputTimestamp(a)-outputTimestamp(b)); break;
       case "name-asc": list.sort((a,b)=> a.filename.localeCompare(b.filename)); break;
       case "name-desc": list.sort((a,b)=> b.filename.localeCompare(a.filename)); break;
       case "size-desc": list.sort((a,b)=> b.size_bytes-a.size_bytes); break;
       case "size-asc": list.sort((a,b)=> a.size_bytes-b.size_bytes); break;
-      case "type": { const order: Record<string, number> = { video: 0, audio: 1, image: 2, other: 3 }; list.sort((a,b)=>{ const ao=order[a.file_type]??3; const bo=order[b.file_type]??3; if(ao!==bo) return ao-bo; return new Date(b.created_at).getTime()-new Date(a.created_at).getTime();}); break; }
+      case "type": { const order: Record<string, number> = { video: 0, audio: 1, image: 2, other: 3 }; list.sort((a,b)=>{ const ao=order[a.file_type]??3; const bo=order[b.file_type]??3; if(ao!==bo) return ao-bo; return new Date(b.modified_at || b.created_at).getTime()-new Date(a.modified_at || a.created_at).getTime();}); break; }
     }
     if(deferredSearch){
       const q=deferredSearch.toLowerCase();
@@ -467,7 +482,7 @@ const [sortBy, setSortBy] = useState<SortBy>("newest");
     <div className="flex h-full">
       <div className={`transition-all duration-300 ${sidebarCollapsed?"w-16":"w-56"} border-r border-white/5 bg-black/20 backdrop-blur-xl flex flex-col shrink-0`}>
         <div className="p-4 border-b border-white/5">
-          <button onClick={()=> setSidebarCollapsed(!sidebarCollapsed)} className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors group">
+          <button aria-label={sidebarCollapsed ? "Expand filters" : "Collapse filters"} aria-expanded={!sidebarCollapsed} onClick={()=> setSidebarCollapsed(!sidebarCollapsed)} className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors group">
             <span className="p-1 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">{sidebarCollapsed?<ChevronRight size={16}/>:<ChevronLeft size={16}/>}</span>
             {!sidebarCollapsed && <span className="font-medium">Collapse</span>}
           </button>
@@ -484,7 +499,7 @@ const [sortBy, setSortBy] = useState<SortBy>("newest");
         </nav>
       </div>
 
-      <div className="flex-1 space-y-5 p-6 overflow-auto">
+      <div className="flex-1 min-w-0 space-y-5 p-3 sm:p-6 overflow-auto">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2"><Sparkles size={20} className="text-primary" /> Media Library</h1>

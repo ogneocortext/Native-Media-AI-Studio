@@ -73,8 +73,8 @@ export function JobRow({
     : new Date(job.created_at).toLocaleString();
 
   return (
-    <div className="flex items-center justify-between p-4 bg-background rounded-lg border border-border">
-      <div className="flex items-center gap-4">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-background rounded-lg border border-border">
+      <div className="flex items-start gap-4 min-w-0 flex-1">
         {isPending && index !== undefined ? (
           <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted/20 text-xs font-medium text-muted">
             {index + 1}
@@ -178,6 +178,7 @@ export function JobRow({
           {showCancel && (
             <button
               className="btn btn-secondary p-2"
+              aria-label={`Cancel ${job.job_type.replace(/_/g, " ")} job`}
               onClick={() => onCancel(job.id)}
               disabled={loading}
               title="Cancel"
@@ -192,6 +193,7 @@ export function JobRow({
           {showRetry && (
             <button
               className="btn btn-secondary p-2"
+              aria-label={`Retry ${job.job_type.replace(/_/g, " ")} job`}
               onClick={() => onRetry(job.id)}
               disabled={loading}
               title="Retry"
@@ -206,6 +208,7 @@ export function JobRow({
           {showDelete && (
             <button
               className="btn btn-secondary p-2"
+              aria-label={`Delete ${job.job_type.replace(/_/g, " ")} job`}
               onClick={() => onDelete(job.id)}
               disabled={loading}
               title="Delete"

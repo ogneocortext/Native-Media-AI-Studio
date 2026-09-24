@@ -664,7 +664,7 @@ async def list_outputs(
             from_date = datetime.fromisoformat(date_from)
             all_outputs = [
                 o for o in all_outputs
-                if datetime.fromisoformat(o.created_at) >= from_date
+                if datetime.fromisoformat(o.modified_at) >= from_date
             ]
         except ValueError:
             pass
@@ -674,7 +674,7 @@ async def list_outputs(
             to_date = datetime.fromisoformat(date_to)
             all_outputs = [
                 o for o in all_outputs
-                if datetime.fromisoformat(o.created_at) <= to_date
+                if datetime.fromisoformat(o.modified_at) <= to_date
             ]
         except ValueError:
             pass

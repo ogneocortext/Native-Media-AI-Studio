@@ -41,10 +41,15 @@ export async function getOllamaModels(): Promise<OllamaModel[]> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/integrations/ollama/models`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get Ollama models");
-  const models: OllamaModel[] = await res.json();
-  return models.filter((m) => {
+  const payload = await res.json();
+  const entries = Array.isArray(payload) ? payload : (payload.models || []);
+  return entries.map((model: OllamaModel & { id?: string; model_name?: string; model_size?: number }) => ({
+    ...model,
+    name: model.name || model.id || model.model_name || "",
+    size: model.size ?? model.model_size ?? 0,
+  })).filter((m: OllamaModel) => {
     const name = m.name.toLowerCase();
-    return !name.includes("embed") && !name.includes("nomic") && !name.includes("minigpt") && !name.includes("clip");
+    return name && !name.includes("embed") && !name.includes("nomic") && !name.includes("minigpt") && !name.includes("clip");
   });
 }
 
@@ -157,7 +162,7 @@ export async function getBestCodingModel(): Promise<{ best: string | null; resul
 
 export async function ollamaChat(
   message: string,
-  model: string = "qwen2.5:3b",
+  model: string = "gemma4:e2b-it-qat",
   options?: {
     history?: ChatMessage[];
     tools?: ToolDefinition[];
@@ -186,7 +191,7 @@ export async function ollamaChat(
 
 export async function ollamaChatStream(
   message: string,
-  model: string = "qwen2.5:3b",
+  model: string = "gemma4:e2b-it-qat",
   options?: {
     history?: ChatMessage[];
     tools?: ToolDefinition[] | boolean;
