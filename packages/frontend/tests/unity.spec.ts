@@ -142,6 +142,16 @@ test.describe('Unity Control', () => {
     expect(properties).toEqual({ _Bass: 0.8, _Mid: 0.5, _Treble: 0.3, _Beat: 1, _Energy: 0.84, _AudioTime: 8, _Progress: 0.04, _Intensity: 1.35 });
   });
 
+  test('audio sync helper clamps noisy analyser values', async () => {
+    const properties = buildUnityAudioFrameProperties({
+      audioData: { bass: 1.4, mid: -0.2, treble: Number.NaN, beat: false, energy: Number.POSITIVE_INFINITY, peak: 1, beatPhase: 0.5 },
+      audioTime: -3,
+      progress: 1.8,
+      intensity: 9,
+    });
+    expect(properties).toMatchObject({ _Bass: 1, _Mid: 0, _Treble: 0, _Beat: 0, _Energy: 0, _AudioTime: 0, _Progress: 1, _Intensity: 4 });
+  });
+
   test('quick action executes the command and records history', async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
     await navigateWithWait(page, '/unity');

@@ -26,21 +26,28 @@ export interface UnityAudioSyncParams extends Record<string, unknown> {
   frame: UnityAudioSyncFrame;
 }
 
+function clampFinite(value: number, min: number, max: number, fallback: number): number {
+  return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}
+
 export function buildUnityAudioFrameProperties(frame: UnityAudioSyncFrame): Record<string, number> {
   const { audioData, audioTime, progress = 0, intensity = 1 } = frame;
   return {
-    _Bass: audioData.bass,
-    _Mid: audioData.mid,
-    _Treble: audioData.treble,
-    _Beat: audioData.beat ? 1 : 0,
-    _Energy: audioData.analyzedEnergy ?? audioData.energy,
-    _AudioTime: audioTime,
-    _Progress: progress,
-    _Intensity: intensity,
+    _Bass: clampFinite(audioData.bass, 0, 1, 0),
+    _Mid: clampFinite(audioData.mid, 0, 1, 0),
+    _Treble: clampFinite(audioData.treble, 0, 1, 0),
+    _Beat: clampFinite(audioData.beat ? 1 : 0, 0, 1, 0),
+    _Energy: clampFinite(audioData.analyzedEnergy ?? audioData.energy, 0, 1, 0),
+    _AudioTime: Math.max(0, Number.isFinite(audioTime) ? audioTime : 0),
+    _Progress: clampFinite(progress, 0, 1, 0),
+    _Intensity: clampFinite(intensity, 0, 4, 1),
   };
 }
 
 export async function syncUnityAudioFrame(params: UnityAudioSyncParams): Promise<UnityCommandResult> {
+  if (!params.material.trim()) {
+    return { ok: false, error: "Unity material path is required" };
+  }
   return setUnityMaterialProperties({
     material: params.material,
     properties: buildUnityAudioFrameProperties(params.frame),
