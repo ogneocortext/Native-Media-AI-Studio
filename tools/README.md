@@ -52,7 +52,31 @@ The bridge auto-reads the bearer token from Unity's port descriptor file. No man
 
 ---
 
-## MCP Server Overview
+## Headless Unity runtime
+
+The Unity Pipeline can be started without keeping the Unity Editor GUI open:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-unity-headless.ps1
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-unity-headless.ps1 -Status
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-unity-headless.ps1 -Stop
+```
+
+The launcher uses the installed Unity Editor executable, launches `unity-project-mcp` in persistent `-batchmode` with GPU rendering enabled, invokes `NativeMediaStudio.HeadlessPipelineBootstrap.Start`, and waits for `Library/Pipeline/.unity-pipeline-port`. The project remains in Edit mode so shader/material authoring commands are available to the custom frontend. The process remains alive so the frontend can use `/unity` or the backend `/api/unity/command` route.
+
+Verified workflow:
+
+```json
+{"command":"create_asset","parameters":{"path":"Materials/NMA_ShaderDemo.mat","type":"Material","shader":"Universal Render Pipeline/Lit"}}
+{"command":"set_material_properties","parameters":{"material":"Assets/Materials/NMA_ShaderDemo.mat","properties":{"_BaseColor":[0.1,0.8,1.0,1.0],"_EmissionColor":[0.1,0.8,1.0,1.0]},"enableKeywords":["_EMISSION"]}}
+{"command":"set_component_properties","parameters":{"target":"/NMA_ShaderTarget","type":"MeshRenderer","properties":{"m_Materials":["Assets/Materials/NMA_ShaderDemo.mat"]}}}
+{"command":"capture_game_view","parameters":{"source":"camera","width":800,"height":450,"save_path":"output/unity_headless_shader.png"}}
+```
+
+The `m_Materials` field is the Unity `MeshRenderer` serialized material array. `capture_game_view` requires a camera; create one with `create_gameobject` + `add_component` (`Camera`) and position it with `set_transform` when rendering a new scene.
+
+The bootstrap currently keeps the Unity project alive in Edit mode. It does not remove the need for a running Unity project process; the web interface removes the need to interact with the Editor GUI. Fully eliminating Unity requires building a standalone player with a custom runtime command server.
+
 
 This directory contains MCP bridge servers and demo scripts for AI-driven music video creation. All MCP servers are configured in `opencode.json` at the repo root.
 

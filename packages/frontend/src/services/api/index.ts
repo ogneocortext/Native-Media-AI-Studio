@@ -96,6 +96,10 @@ export {
   listUnityCommands,
   sendUnityCommand,
   captureUnityScene,
+  listUnityShaders,
+  getUnityShaderProperties,
+  getUnityMaterialProperties,
+  setUnityMaterialProperties,
 } from "./unity";
 export type {
   UnityStatus,

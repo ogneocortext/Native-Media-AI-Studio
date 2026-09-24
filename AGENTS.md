@@ -62,6 +62,7 @@ Never send generic prompts like "describe this image"; use mode-specific prompts
 - **Requires PowerShell 7.6+.** Verify `$PSVersionTable.PSVersion.Major -ge 7`.
 - On PowerShell failures, **fall back to Python immediately**.
 - Long-running sessions must use `background_process` tool.
+- Unity headless mode: `pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\start-unity-headless.ps1` starts the project in persistent `-batchmode` with GPU rendering; use `-Status` and `-Stop` for control. The Unity project stays in Edit mode for shader/material authoring commands.
 
 ### Services
 

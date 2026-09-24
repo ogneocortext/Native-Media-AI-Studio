@@ -13,6 +13,43 @@ export interface UnityCommandResult {
   error?: string;
 }
 
+/** Parameters accepted by the Unity Pipeline shader/material commands. */
+export interface UnityShaderPropertiesParams extends Record<string, unknown> {
+  shader: string;
+  material_target?: string;
+}
+
+export interface UnityMaterialPropertiesParams extends Record<string, unknown> {
+  object_name: string;
+  material_name?: string;
+}
+
+export interface UnityMaterialPropertyUpdateParams extends UnityMaterialPropertiesParams {
+  properties: Record<string, unknown>;
+}
+
+export async function listUnityShaders(): Promise<UnityCommandResult> {
+  return sendUnityCommand("list_shaders");
+}
+
+export async function getUnityShaderProperties(
+  params: UnityShaderPropertiesParams,
+): Promise<UnityCommandResult> {
+  return sendUnityCommand("get_shader_properties", params);
+}
+
+export async function getUnityMaterialProperties(
+  params: UnityMaterialPropertiesParams,
+): Promise<UnityCommandResult> {
+  return sendUnityCommand("get_material_properties", params);
+}
+
+export async function setUnityMaterialProperties(
+  params: UnityMaterialPropertyUpdateParams,
+): Promise<UnityCommandResult> {
+  return sendUnityCommand("set_material_properties", params);
+}
+
 /** Metadata for one Unity Pipeline command (from GET /api/unity/commands). */
 export interface UnityCommandInfo {
   name: string;

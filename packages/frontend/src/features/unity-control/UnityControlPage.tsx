@@ -19,6 +19,10 @@ import {
   listUnityCommands,
   sendUnityCommand,
   captureUnityScene,
+  listUnityShaders,
+  getUnityShaderProperties,
+  getUnityMaterialProperties,
+  setUnityMaterialProperties,
   type UnityCommandResult,
   type UnityCommandInfo,
 } from "../../services/api";
@@ -33,7 +37,7 @@ function friendlyStatusError(code?: string): string {
     case "":
       return "Unity Pipeline server not reachable";
     case "port_file_missing":
-      return "Unity Pipeline port file not found — start the Unity Editor with the Pipeline server";
+      return "Unity runtime not reachable — start the Unity project once (the editor GUI is not required after startup)";
     case "unreachable":
       return "Unity Pipeline server not reachable";
     default:
@@ -227,7 +231,7 @@ export function UnityControlPage() {
   };
 
   const handleListShaders = async () => {
-    const result = await execute("list_shaders", {});
+    const result = await listUnityShaders();
     if (result?.ok) {
       const payload = result.data as
         | { success?: boolean; result?: Array<{ name?: string }> }
@@ -249,7 +253,7 @@ export function UnityControlPage() {
       showToast("Select a shader first", "warning");
       return;
     }
-    const result = await execute("get_shader_properties", { shader: selectedShader });
+    const result = await getUnityShaderProperties({ shader: selectedShader });
     if (result?.ok) {
       setShaderMaterialOutput(result.data);
     }
@@ -260,7 +264,7 @@ export function UnityControlPage() {
       showToast("Target object name is required", "warning");
       return;
     }
-    const result = await execute("get_material_properties", {
+    const result = await getUnityMaterialProperties({
       object_name: materialTarget,
       material_name: materialName || undefined,
     });
@@ -280,7 +284,7 @@ export function UnityControlPage() {
     } catch {
       // keep as string when it isn't valid JSON
     }
-    const result = await execute("set_material_properties", {
+    const result = await setUnityMaterialProperties({
       object_name: materialTarget,
       material_name: materialName || undefined,
       properties: { [materialPropertyKey]: value },
