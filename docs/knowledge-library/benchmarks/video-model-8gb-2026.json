@@ -76,5 +76,20 @@
       "model_file": "mochi-1-fp16.safetensors",
       "nodes": 9
     }
+  },
+  {
+    "model": "ltx_2_3",
+    "resolution": "512x512",
+    "frames": 24,
+    "fps": 12,
+    "precision": "Q4_K_S",
+    "format": "gguf",
+    "timestamp": "2026-09-26T20:30:00.000000+00:00",
+    "status": "pending",
+    "workflow_preview": {
+      "model_file": "ltx-2.3-22b-dev-Q4_K_S.gguf",
+      "model_folder": "unet_gguf",
+      "nodes": 8
+    }
   }
 ]

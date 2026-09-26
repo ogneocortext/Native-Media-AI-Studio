@@ -43,6 +43,7 @@ TEST_MATRIX = [
         "fps": 12,
         "precision": "fp8",
         "expected_vram_mb": 8000,
+        "format": "safetensors",
     },
     {
         "model": "ltx_2_3",
@@ -53,6 +54,7 @@ TEST_MATRIX = [
         "fps": 12,
         "precision": "fp8",
         "expected_vram_mb": 10000,
+        "format": "safetensors",
     },
     {
         "model": "ltx_2_3",
@@ -63,6 +65,18 @@ TEST_MATRIX = [
         "fps": 12,
         "precision": "fp16",
         "expected_vram_mb": 16000,
+        "format": "safetensors",
+    },
+    {
+        "model": "ltx_2_3",
+        "resolution": "512x512",
+        "width": 512,
+        "height": 512,
+        "frames": 24,
+        "fps": 12,
+        "precision": "Q4_K_S",
+        "expected_vram_mb": 10000,
+        "format": "gguf",
     },
     {
         "model": "mochi_1",
@@ -73,6 +87,7 @@ TEST_MATRIX = [
         "fps": 12,
         "precision": "fp8",
         "expected_vram_mb": 12000,
+        "format": "safetensors",
     },
     {
         "model": "mochi_2",
@@ -83,6 +98,7 @@ TEST_MATRIX = [
         "fps": 12,
         "precision": "fp8",
         "expected_vram_mb": 12000,
+        "format": "safetensors",
     },
     {
         "model": "mochi_1",
@@ -93,6 +109,7 @@ TEST_MATRIX = [
         "fps": 12,
         "precision": "fp16",
         "expected_vram_mb": 16000,
+        "format": "safetensors",
     },
 ]
 
@@ -100,12 +117,13 @@ TEST_MATRIX = [
 # Workflow templates (minimal, protocol-compatible)
 # ---------------------------------------------------------------------------
 
-def _ltx_workflow(model_file: str, width: int, height: int, frames: int, fps: int, seed: int) -> dict[str, Any]:
+def _ltx_workflow(model_file: str, width: int, height: int, frames: int, fps: int, seed: int, model_format: str = "safetensors") -> dict[str, Any]:
+    model_folder = "unet_gguf" if model_format == "gguf" else "diffusion_models"
     return {
         "prompt": {
             "1": {
                 "class_type": "UNETLoader",
-                "inputs": {"unet_name": model_file, "model_file": "diffusion_models"},
+                "inputs": {"unet_name": model_file, "model_file": model_folder},
             },
             "2": {
                 "class_type": "DualCLIPLoader",
@@ -338,10 +356,14 @@ def run_benchmark_entry(entry: dict[str, Any], base_url: str, dry_run: bool = Fa
     frames = entry["frames"]
     fps = entry["fps"]
     precision = entry["precision"]
+    model_format = entry.get("format", "safetensors")
 
     if model == "ltx_2_3":
-        model_file = f"ltx-video-2.3-{precision}.safetensors"
-        workflow = _ltx_workflow(model_file, width, height, frames, fps, seed=0)
+        if model_format == "gguf":
+            model_file = f"ltx-2.3-22b-dev-{precision}.gguf"
+        else:
+            model_file = f"ltx-video-2.3-{precision}.safetensors"
+        workflow = _ltx_workflow(model_file, width, height, frames, fps, seed=0, model_format=model_format)
     elif model in ("mochi_1", "mochi_2"):
         model_file = f"mochi-{model.split('_')[1]}-{precision}.safetensors"
         workflow = _mochi_workflow(model_file, width, height, frames, fps, seed=0)
@@ -354,6 +376,7 @@ def run_benchmark_entry(entry: dict[str, Any], base_url: str, dry_run: bool = Fa
         "frames": frames,
         "fps": fps,
         "precision": precision,
+        "format": model_format,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
