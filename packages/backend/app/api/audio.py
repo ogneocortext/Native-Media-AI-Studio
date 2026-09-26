@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import time
 import uuid
+import urllib.parse
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
@@ -1755,40 +1756,45 @@ async def get_stems(filename: str) -> dict:
 @router.get("/stems-analysis/{filename:path}")
 async def get_stem_analysis(filename: str) -> dict:
     """Return per-stem visualization data for an audio file, if separated."""
-    import urllib.parse
     from ..services.stem_analysis import analyze_stems_for_visualization
 
     filename = urllib.parse.unquote(filename)
     return await analyze_stems_for_visualization(filename)
 
 
-@router.get("/stems/{filename:path}")
-async def get_stems(filename: str) -> dict:
-    """Get previously separated stems for an audio file, if available."""
-    import urllib.parse
-    filename = urllib.parse.unquote(filename)
-    stem_dir = _find_stem_dir(filename)
-    stems = {}
-    if stem_dir is not None and stem_dir.exists():
-        for stem_name in ["vocals", "drums", "bass", "other"]:
-            stem_path = stem_dir / f"{stem_name}.wav"
-            if stem_path.exists():
-                stems[stem_name] = str(stem_path)
-    return {
-        "audio_file": filename,
-        "stems": {
-            # HTTP URLs for the Visualizer / wizard (relative to API base)
-            name: f"/api/audio/stem-file/{Path(p).parent.name}/{Path(p).stem}"
-            for name, p in stems.items()
-        },
-        # Lightweight MP3 URLs (~13% of WAV size). Served from cache when the
-        # MP3 exists, otherwise encoded on demand on first request.
-        "stems_mp3": {
-            name: f"/api/audio/stem-file/{Path(p).parent.name}/{Path(p).stem}?format=mp3"
-            for name, p in stems.items()
-        },
-        "found": bool(stems),
-    }
+@router.get("/stems-status")
+async def get_stems_status() -> dict:
+    """Return stem availability for every track in the audio library.
+
+    Response shape::
+
+        {
+          "tracks": {
+            "<relative_path>": {
+              "has_stems": true,
+              "stems": ["vocals", "drums", "bass", "other"]
+            },
+            ...
+          }
+        }
+    """
+    tracks: dict[str, dict] = {}
+    if not AUDIO_DIR.exists():
+        return {"tracks": tracks}
+    try:
+        for f in sorted(AUDIO_DIR.rglob("*"), key=lambda x: x.stat().st_mtime, reverse=True):
+            if f.is_file() and f.suffix.lower() in ALLOWED_EXTENSIONS and not f.name.startswith("."):
+                relative = f.relative_to(AUDIO_DIR).as_posix()
+                stem_dir = _find_stem_dir(relative)
+                stems: list[str] = []
+                if stem_dir is not None and stem_dir.exists():
+                    for stem_name in ["vocals", "drums", "bass", "other"]:
+                        if (stem_dir / f"{stem_name}.wav").exists():
+                            stems.append(stem_name)
+                tracks[relative] = {"has_stems": bool(stems), "stems": stems}
+    except OSError:
+        pass
+    return {"tracks": tracks}
 
 
 def _find_stem_dir(filename: str) -> Path | None:

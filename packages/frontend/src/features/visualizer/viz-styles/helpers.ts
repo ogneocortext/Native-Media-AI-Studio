@@ -4,6 +4,7 @@ import {
   getSectionColor as getSectionColorHelper,
   getSectionIntensity as getSectionIntensityHelper,
 } from "../sectionHelpers";
+import type { StemAnalysisData } from "../types";
 
 /** Any three.js resource with a dispose() method. */
 export interface Disposable {
@@ -74,5 +75,23 @@ export function getSectionColor(
 /** Get intensity multiplier based on section */
 export function getSectionIntensity(section: string): number {
   return getSectionIntensityHelper(section);
+}
+
+/** Sample per-stem energy at a given elapsed time, with safe fallbacks. */
+export function getStemEnergy(
+  stems: StemAnalysisData | undefined,
+  elapsed: number,
+): { vocals: number; drums: number; bass: number; other: number } {
+  if (!stems) return { vocals: 0, drums: 0, bass: 0, other: 0 };
+  const dur = stems.drums?.duration || 1;
+  const curve = stems.drums?.energy_curve;
+  if (!curve || curve.length === 0) return { vocals: 0, drums: 0, bass: 0, other: 0 };
+  const idx = Math.min(curve.length - 1, Math.max(0, Math.floor((elapsed / dur) * curve.length)));
+  return {
+    vocals: stems.vocals?.energy_curve[idx] ?? 0,
+    drums: stems.drums?.energy_curve[idx] ?? 0,
+    bass: stems.bass?.energy_curve[idx] ?? 0,
+    other: stems.other?.energy_curve[idx] ?? 0,
+  };
 }
 

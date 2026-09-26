@@ -3,6 +3,7 @@ import { useRef, useEffect } from "react";
 import * as THREE from "three";
 import type { VizProps } from "./types";
 import { createParticleSystem, type ParticleSystem } from "@newkrok/three-particles";
+import { getStemEnergy } from "./helpers";
 
 // =============================================================================
 // THREE.PARTICLES DEMO — GPU-accelerated particles with trail renderer
@@ -63,17 +64,7 @@ export function ThreeParticlesDemo({ audioData, sceneFrozen, stems, audioElapsed
     if (sceneFrozen || !systemRef.current) return;
     const d = audioData.current;
 
-    if (stems) {
-      const el = (audioElapsedRef?.current ?? 0);
-      const dur = stems.drums.duration || 1;
-      const idx = Math.min(stems.drums.energy_curve.length - 1, Math.max(0, Math.floor((el / dur) * stems.drums.energy_curve.length)));
-      stemEnergyRef.current = {
-        vocals: stems.vocals.energy_curve[idx] ?? 0,
-        drums: stems.drums.energy_curve[idx] ?? 0,
-        bass: stems.bass.energy_curve[idx] ?? 0,
-        other: stems.other.energy_curve[idx] ?? 0,
-      };
-    }
+    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
     const speed = 1 + d.energy * 3 + d.bass * 2 + stemEnergyRef.current.drums * 0.5 + stemEnergyRef.current.other * 0.3;
     systemRef.current.update({

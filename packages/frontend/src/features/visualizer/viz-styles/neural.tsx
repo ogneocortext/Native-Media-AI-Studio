@@ -7,7 +7,7 @@ import {
   makeAudioReactiveMaterialTSL,
   updateAudioReactiveMaterialTSL,
 } from "../VisualizationFX";
-import { setPositionAttribute, useDisposeOnUnmount } from "./helpers";
+import { setPositionAttribute, useDisposeOnUnmount, getStemEnergy } from "./helpers";
 
 /** Link radius (world units) for the connection graph. */
 const LINK_RANGE = 2.8;
@@ -101,17 +101,7 @@ export function FrequencyRings({
 
     // Map stems to visual channels: bass → camera shake/rotation, drums → pulse,
     // vocals → color shift, other → palette modulation.
-    if (stems) {
-      const el = (audioElapsedRef?.current ?? 0);
-      const dur = stems.drums.duration || 1;
-      const idx = Math.min(stems.drums.energy_curve.length - 1, Math.max(0, Math.floor((el / dur) * stems.drums.energy_curve.length)));
-      stemEnergyRef.current = {
-        vocals: stems.vocals.energy_curve[idx] ?? 0,
-        drums: stems.drums.energy_curve[idx] ?? 0,
-        bass: stems.bass.energy_curve[idx] ?? 0,
-        other: stems.other.energy_curve[idx] ?? 0,
-      };
-    }
+    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
     // Get track features (computed once per frame, shared across all visualizations)
     const features = getTrackFeatures();

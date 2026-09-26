@@ -6,7 +6,7 @@ import {
   makeAudioReactiveMaterialTSL,
   updateAudioReactiveMaterialTSL,
 } from "../VisualizationFX";
-import { useDisposeOnUnmount } from "./helpers";
+import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
 
 // =============================================================================
 // PULSE — Concentric rings emitting from center on beats
@@ -42,17 +42,7 @@ export function PulseRings({ audioData, vizParams, sceneFrozen, prefersReducedMo
     const speedMul = prefersReducedMotion ? 0.35 : 1;
 
     // Map stems to visual channels: drums → scale/pulse, other → palette shift
-    if (stems) {
-      const el = (audioElapsedRef?.current ?? 0);
-      const dur = stems.drums.duration || 1;
-      const idx = Math.min(stems.drums.energy_curve.length - 1, Math.max(0, Math.floor((el / dur) * stems.drums.energy_curve.length)));
-      stemEnergyRef.current = {
-        vocals: stems.vocals.energy_curve[idx] ?? 0,
-        drums: stems.drums.energy_curve[idx] ?? 0,
-        bass: stems.bass.energy_curve[idx] ?? 0,
-        other: stems.other.energy_curve[idx] ?? 0,
-      };
-    }
+    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
     ringRefs.current.forEach((ring, i) => {
       if (!ring) return;

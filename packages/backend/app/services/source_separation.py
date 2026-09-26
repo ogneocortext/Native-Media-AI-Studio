@@ -283,88 +283,92 @@ class SourceSeparator:
         audio_path: str,
         output_dir: Path,
     ) -> SeparationResult:
-        """Separate using Spleeter (fallback)."""
-        try:
-            cmd = [
-                "spleeter",
-                "separate",
-                "-p", "spleeter:4stems",
-                "-o", str(output_dir),
-                audio_path,
-            ]
+         """Separate using Spleeter (fallback)."""
+         try:
+             cmd = [
+                 "spleeter",
+                 "separate",
+                 "-p", "spleeter:4stems",
+                 "-o", str(output_dir),
+                 audio_path,
+             ]
 
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=600
-            )
-        except NotImplementedError:
-            # Windows SelectorEventLoop fallback: run in a thread via subprocess.run
-            def _run() -> tuple[int, bytes, bytes]:
-                completed = subprocess.run(cmd, capture_output=True)
-                return completed.returncode, completed.stdout, completed.stderr
+             returncode: int | None
+             try:
+                 process = await asyncio.create_subprocess_exec(
+                     *cmd,
+                     stdout=asyncio.subprocess.PIPE,
+                     stderr=asyncio.subprocess.PIPE,
+                 )
+                 stdout, stderr = await asyncio.wait_for(
+                     process.communicate(), timeout=600
+                 )
+                 returncode = process.returncode
+             except NotImplementedError:
+                 # Windows SelectorEventLoop fallback: run in a thread via subprocess.run
+                 def _run() -> tuple[int, bytes, bytes]:
+                     completed = subprocess.run(cmd, capture_output=True)
+                     return completed.returncode, completed.stdout, completed.stderr
 
-            returncode, stdout, stderr = await asyncio.to_thread(_run)
-            if returncode != 0:
-                error_msg = stderr.decode("utf-8", errors="replace").strip()
-                return SeparationResult(
-                    audio_file=audio_path,
-                    model="spleeter:4stems",
-                    stems={},
-                    duration=0.0,
-                    computed_at="",
-                    error=f"Spleeter failed: {error_msg[:500]}",
-                )
+                 returncode, stdout, stderr = await asyncio.to_thread(_run)
 
-            # Find output stems
-            stem_dir = output_dir / Path(audio_path).stem
-            stems = {}
-            for stem_name in ["vocals", "drums", "bass", "other"]:
-                stem_path = stem_dir / f"{stem_name}.wav"
-                if stem_path.exists():
-                    stems[stem_name] = str(stem_path)
+             if returncode != 0:
+                 error_msg = stderr.decode("utf-8", errors="replace").strip()
+                 return SeparationResult(
+                     audio_file=audio_path,
+                     model="spleeter:4stems",
+                     stems={},
+                     duration=0.0,
+                     computed_at="",
+                     error=f"Spleeter failed: {error_msg[:500]}",
+                 )
 
-            duration = 0.0
-            try:
-                import librosa
-                duration = librosa.get_duration(path=audio_path)
-            except Exception:
-                pass
+             # Find output stems
+             stem_dir = output_dir / Path(audio_path).stem
+             stems = {}
+             for stem_name in ["vocals", "drums", "bass", "other"]:
+                 stem_path = stem_dir / f"{stem_name}.wav"
+                 if stem_path.exists():
+                     stems[stem_name] = str(stem_path)
 
-            # Encode lightweight MP3 copies alongside the WAVs (best-effort)
-            stems_mp3 = await self._encode_mp3_stems(stems)
+             duration = 0.0
+             try:
+                 import librosa
+                 duration = librosa.get_duration(path=audio_path)
+             except Exception:
+                 pass
 
-            return SeparationResult(
-                audio_file=audio_path,
-                model="spleeter:4stems",
-                stems=stems,
-                duration=duration,
-                computed_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
-                stems_mp3=stems_mp3,
-            )
-        except asyncio.TimeoutError:
-            return SeparationResult(
-                audio_file=audio_path,
-                model="spleeter:4stems",
-                stems={},
-                duration=0.0,
-                computed_at="",
-                error="Spleeter timed out (10 min limit)",
-            )
-        except Exception as e:
-            return SeparationResult(
-                audio_file=audio_path,
-                model="spleeter:4stems",
-                stems={},
-                duration=0.0,
-                computed_at="",
-                error=str(e),
-            )
+             # Encode lightweight MP3 copies alongside the WAVs (best-effort)
+             stems_mp3 = await self._encode_mp3_stems(stems)
 
-    async def analyze_stem_features(self, stem_path: str) -> dict[str, Any]:
+             return SeparationResult(
+                 audio_file=audio_path,
+                 model="spleeter:4stems",
+                 stems=stems,
+                 duration=duration,
+                 computed_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
+                 stems_mp3=stems_mp3,
+             )
+         except asyncio.TimeoutError:
+             return SeparationResult(
+                 audio_file=audio_path,
+                 model="spleeter:4stems",
+                 stems={},
+                 duration=0.0,
+                 computed_at="",
+                 error="Spleeter timed out (10 min limit)",
+             )
+         except Exception as e:
+             return SeparationResult(
+                 audio_file=audio_path,
+                 model="spleeter:4stems",
+                 stems={},
+                 duration=0.0,
+                 computed_at="",
+                 error=str(e),
+             )
+
+    def analyze_stem_features(self, stem_path: str) -> dict[str, Any]:
         """Analyze features of a separated stem.
 
         Args:

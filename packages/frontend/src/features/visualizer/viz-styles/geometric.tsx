@@ -11,7 +11,7 @@ import {
   updateTerrainMaterialTSL,
 } from "../VisualizationFX";
 import { InstancedParticles } from "./instancedParticles";
-import { useDisposeOnUnmount } from "./helpers";
+import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
 
 export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReducedMotion, stems, audioElapsedRef }: VizProps) {
   const coreRef = useRef<THREE.Mesh>(null);
@@ -129,17 +129,7 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
     // Map stems to visual channels:
     //   drums → scale/pulse, bass → camera shake/rotation, vocals → hue shift,
     //   other  → palette/color modulation.
-    if (stems) {
-      const el = audioElapsedRef?.current ?? 0;
-      const dur = stems.drums.duration || 1;
-      const idx = Math.min(stems.drums.energy_curve.length - 1, Math.max(0, Math.floor((el / dur) * stems.drums.energy_curve.length)));
-      stemEnergyRef.current = {
-        vocals: stems.vocals.energy_curve[idx] ?? 0,
-        drums: stems.drums.energy_curve[idx] ?? 0,
-        bass: stems.bass.energy_curve[idx] ?? 0,
-        other: stems.other.energy_curve[idx] ?? 0,
-      };
-    }
+    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
     if (beat || features.onset > 0.5 || stemEnergyRef.current.drums > 0.6) {
       beatPulse.current = 1.0;

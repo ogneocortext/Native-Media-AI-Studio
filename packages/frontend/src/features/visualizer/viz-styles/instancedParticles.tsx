@@ -3,7 +3,7 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { VizProps } from "./types";
 import { getParticleTex } from "./textures";
-import { useDisposeOnUnmount } from "./helpers";
+import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
 
 // =============================================================================
 // Instanced quad particle system — replaces THREE.Points with real quads.
@@ -217,17 +217,7 @@ export function InstancedParticles({
     const { bass, mid, treble, energy } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
 
-    if (stems) {
-      const el = (audioElapsedRef?.current ?? 0);
-      const dur = stems.drums.duration || 1;
-      const idx = Math.min(stems.drums.energy_curve.length - 1, Math.max(0, Math.floor((el / dur) * stems.drums.energy_curve.length)));
-      stemEnergyRef.current = {
-        vocals: stems.vocals.energy_curve[idx] ?? 0,
-        drums: stems.drums.energy_curve[idx] ?? 0,
-        bass: stems.bass.energy_curve[idx] ?? 0,
-        other: stems.other.energy_curve[idx] ?? 0,
-      };
-    }
+    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
     // Drive the shader uniform: the vertex shader sizes quads with
     // instanceSize * (1 + uBass * 1.2), but nothing ever wrote uBass — the

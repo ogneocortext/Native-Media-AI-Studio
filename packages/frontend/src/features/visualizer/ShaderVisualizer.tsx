@@ -3,7 +3,7 @@ import { ShaderCanvas } from "./components/ShaderCanvas";
 import { SHADER_PRESETS, type ShaderPresetName } from "./shaders";
 import { getShaderPresetForTrack, SHADER_PRESET_INFO } from "./shaderPresets";
 import { getPreferences, setPreference } from "../../services/api";
-import type { AudioData } from "./types";
+import type { AudioData, StemAnalysisData } from "./types";
 import type { LyricLine } from "./components/LyricOverlay";
 
 const FX_STORAGE_PREFIX = "visualizerFx:";
@@ -66,6 +66,16 @@ function readFxFromApi(): Promise<FxValues | null> {
     .catch(() => null);
 }
 
+function sampleStemEnergy(stem: StemAnalysisData[keyof StemAnalysisData] | undefined, elapsed: number): number {
+  if (!stem || stem.energy_curve.length === 0 || !Number.isFinite(elapsed)) return 0;
+  const duration = stem.duration > 0 ? stem.duration : 1;
+  const index = Math.min(
+    stem.energy_curve.length - 1,
+    Math.max(0, Math.floor((elapsed / duration) * stem.energy_curve.length)),
+  );
+  return Math.min(1, Math.max(0, stem.energy_curve[index] ?? 0));
+}
+
 function writeFxToApi(values: FxValues): Promise<void> {
   return setPreference(FX_PREF_KEY, values, "visualizer").catch(() => {
     // no-op
@@ -90,13 +100,17 @@ interface ShaderVisualizerProps {
    */
   lrcSyncLive?: { current: ShaderVisualizerProps["lrcSync"] };
   lyrics?: LyricLine[];
+  /** Per-stem energy curves from the backend, sampled at the current audio clock. */
+  stems?: StemAnalysisData | null;
+  /** Current audio position used to sample stem energy curves. */
+  sampleAudio?: () => number;
 }
 
 /**
  * Shader-driven visualization that auto-selects a preset based on track mood.
  * Audio data drives shader uniforms in real-time.
  */
-export function ShaderVisualizer({ audioData, trackName, isPlaying, className, lrcSync, lrcSyncLive }: ShaderVisualizerProps) {
+export function ShaderVisualizer({ audioData, trackName, isPlaying, className, lrcSync, lrcSyncLive, stems, sampleAudio }: ShaderVisualizerProps) {
   const [preset, setPreset] = useState<ShaderPresetName>(() => getShaderPresetForTrack(trackName));
   const [showSelector, setShowSelector] = useState(false);
   const [showFx, setShowFx] = useState(true);
@@ -158,19 +172,27 @@ export function ShaderVisualizer({ audioData, trackName, isPlaying, className, l
       }
       // Energy: live + phrase flash only (sectionProgress was biasing lag); analysis energy already blended in Visualizer
       const lrcEnergy = d.energy + phraseFlash * 0.3;
+      const elapsed = sampleAudio?.() ?? 0;
+      const stemEnergy = {
+        vocals: sampleStemEnergy(stems?.vocals, elapsed),
+        drums: sampleStemEnergy(stems?.drums, elapsed),
+        bass: sampleStemEnergy(stems?.bass, elapsed),
+        other: sampleStemEnergy(stems?.other, elapsed),
+      };
+      const stemBoost = stemEnergy.vocals * 0.18 + stemEnergy.drums * 0.32 + stemEnergy.bass * 0.28 + stemEnergy.other * 0.12;
       uniformsRef.current = {
-        bass: d.bass,
-        mid: d.mid,
-        treble: d.treble,
-        beat: beatPulse,
-        energy: Math.min(1, lrcEnergy),
-        peak: d.peak,
+        bass: Math.min(1, d.bass * 0.7 + stemEnergy.bass * 0.3),
+        mid: Math.min(1, d.mid * 0.75 + stemEnergy.vocals * 0.25),
+        treble: Math.min(1, d.treble * 0.75 + stemEnergy.other * 0.25),
+        beat: Math.min(1, beatPulse + stemEnergy.drums * 0.45),
+        energy: Math.min(1, lrcEnergy + stemBoost * 0.25),
+        peak: Math.max(d.peak, stemBoost),
       };
       raf = requestAnimationFrame(update);
     };
     if (isPlaying) raf = requestAnimationFrame(update);
     return () => cancelAnimationFrame(raf);
-  }, [isPlaying, audioData, lrcSyncLive]);
+  }, [isPlaying, audioData, lrcSyncLive, stems, sampleAudio]);
 
   // Auto-change preset when track changes (only if user hasn't manually overridden)
   useEffect(() => {

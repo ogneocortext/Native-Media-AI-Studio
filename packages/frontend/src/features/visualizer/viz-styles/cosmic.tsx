@@ -4,6 +4,7 @@ import * as THREE from "three";
 import type { VizProps } from "./types";
 import { getTrackFeatures } from "../trackFeatures";
 import { InstancedParticles } from "./instancedParticles";
+import { getStemEnergy } from "./helpers";
 
 // =============================================================================
 // COSMIC DUST — Galaxy spiral with differential rotation
@@ -26,17 +27,7 @@ export function OrbitalParticles({
     const { bass } = audioData.current;
     const features = getTrackFeatures();
 
-    if (stems) {
-      const el = (audioElapsedRef?.current ?? 0);
-      const dur = stems.drums.duration || 1;
-      const idx = Math.min(stems.drums.energy_curve.length - 1, Math.max(0, Math.floor((el / dur) * stems.drums.energy_curve.length)));
-      stemEnergyRef.current = {
-        vocals: stems.vocals.energy_curve[idx] ?? 0,
-        drums: stems.drums.energy_curve[idx] ?? 0,
-        bass: stems.bass.energy_curve[idx] ?? 0,
-        other: stems.other.energy_curve[idx] ?? 0,
-      };
-    }
+    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
     if (audioData.current.beat || features.onset > 0.5 || stemEnergyRef.current.drums > 0.5) beatPulse.current = 1.0;
     beatPulse.current *= 0.9;
@@ -103,17 +94,7 @@ export function EnergyWaves({ audioData, vizParams, sceneFrozen, prefersReducedM
   useFrame((_s) => {
     const { bass, peak, beat, energy } = audioData.current;
 
-    if (stems) {
-      const el = (audioElapsedRef?.current ?? 0);
-      const dur = stems.drums.duration || 1;
-      const idx = Math.min(stems.drums.energy_curve.length - 1, Math.max(0, Math.floor((el / dur) * stems.drums.energy_curve.length)));
-      stemEnergyRef.current = {
-        vocals: stems.vocals.energy_curve[idx] ?? 0,
-        drums: stems.drums.energy_curve[idx] ?? 0,
-        bass: stems.bass.energy_curve[idx] ?? 0,
-        other: stems.other.energy_curve[idx] ?? 0,
-      };
-    }
+    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
     if (beat || stemEnergyRef.current.drums > 0.5) suckRef.current = Math.min(suckRef.current + 0.8, 4);
     suckRef.current *= 0.95;

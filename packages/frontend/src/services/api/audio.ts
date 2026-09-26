@@ -260,6 +260,46 @@ export async function getTimingMetadata(filename: string): Promise<TimingMetadat
   return res.json();
 }
 
+export interface StemsAnalysisResponse {
+  stems: Record<string, {
+    file: string;
+    url: string;
+    duration: number;
+    sample_rate: number;
+    rms_mean: number;
+    rms_std: number;
+    centroid_mean: number;
+    zcr_mean: number;
+    energy_curve: number[];
+    energy_curve_points: number;
+  }>;
+  separated: boolean;
+}
+
+export async function getStemsAnalysis(filename: string): Promise<StemsAnalysisResponse> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/audio/stems-analysis/${encodeURIComponent(filename)}`, { timeout: 30000 });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to load stems analysis" }));
+    throw new Error(err.detail || "Failed to load stems analysis");
+  }
+  return res.json();
+}
+
+export interface StemsStatusResponse {
+  tracks: Record<string, { has_stems: boolean; stems: string[] }>;
+}
+
+export async function getStemsStatus(): Promise<StemsStatusResponse> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/audio/stems-status`, { timeout: 30000 });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to load stems status" }));
+    throw new Error(err.detail || "Failed to load stems status");
+  }
+  return res.json();
+}
+
 export async function listAudioFiles(): Promise<Array<{
   filename: string; relative_path: string; folder: string; size_bytes: number;
   modified: number;

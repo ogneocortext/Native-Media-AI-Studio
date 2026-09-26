@@ -5,7 +5,7 @@ import {
   Clock, TrendingUp, Music2, Pencil, Download, SkipForward, ListMusic,
   Sparkles, Type, Scissors,
 } from "lucide-react";
-import { getApiBase, getCudaStatus, listAudioFiles, separateAudioStems, renameAudioFile, generateVideoSection } from "../../services/api";
+import { getApiBase, getCudaStatus, listAudioFiles, separateAudioStems, renameAudioFile, generateVideoSection, getStemsStatus } from "../../services/api";
 import { isAudioFile } from "../../utils/audioProbe";
 import { useAudioAnalysis } from "../../hooks/useAudioAnalysis";
 import { AudioTrimModal } from "./components/AudioTrimModal";
@@ -178,6 +178,8 @@ export function AudioAnalysisPage() {
   const [analysisStep, setAnalysisStep] = useState<string>("");
   const [gpuVram, setGpuVram] = useState<{ used: number; total: number; percent: number } | null>(null);
   const [selectedBackend, setSelectedBackend] = useState<string>("sonara");
+  const [stemsStatus, setStemsStatus] = useState<Record<string, { has_stems: boolean; stems: string[] }>>({});
+  const [loadingStemsStatus, setLoadingStemsStatus] = useState(false);
 
   // Keep local aliases for compatibility with the rest of this component
   const analyzing = audio.analyzing;
@@ -323,6 +325,18 @@ export function AudioAnalysisPage() {
   }, [activeJobId]);
 
   useEffect(() => { loadAudioFiles(); }, []);
+
+  // Load stem availability for the library whenever the file list refreshes.
+  useEffect(() => {
+    if (!audioFiles.length) { setStemsStatus({}); return; }
+    let cancelled = false;
+    setLoadingStemsStatus(true);
+    getStemsStatus()
+      .then(res => { if (!cancelled) setStemsStatus(res.tracks || {}); })
+      .catch(() => { if (!cancelled) setStemsStatus({}); })
+      .finally(() => { if (!cancelled) setLoadingStemsStatus(false); });
+    return () => { cancelled = true; };
+  }, [audioFiles.length]);
 
   const loadAudioFiles = async () => {
     setLibraryLoading(true);
@@ -1059,6 +1073,58 @@ export function AudioAnalysisPage() {
               <li>• <strong>Batch generate:</strong> check sections → “Generate Selected”, or play per row.</li>
             </ul>
           </details>
+
+          {/* Stems overview — which tracks have separated stems + which viz channels they feed */}
+          <div className={DS.card} style={{ overflow: "hidden" }}>
+            <div className={DS.flexBetween}>
+              <span className={DS.sectionTitle}><ListMusic size={14} />Stems Overview</span>
+              {loadingStemsStatus && <Loader2 size={14} className="animate-spin text-gray-400" />}
+            </div>
+            <p className={DS.textXs + " mt-1 mb-3"}>Tracks with separated stems and the visualization channels they drive.</p>
+            {(() => {
+              const tracksWithStems = audioFiles.filter(f => stemsStatus[f.relative_path]?.has_stems);
+              const tracksWithoutStems = audioFiles.filter(f => !stemsStatus[f.relative_path]?.has_stems);
+              if (audioFiles.length === 0) return <p className={DS.textXs}>No audio files in library.</p>;
+              if (tracksWithStems.length === 0) return <p className={DS.textXs}>No separated stems yet. Use “Separate Stems” on any track to populate this panel.</p>;
+              return (
+                <div className="space-y-2">
+                  {tracksWithStems.map(f => {
+                    const status = stemsStatus[f.relative_path];
+                    const stemColors: Record<string, string> = { vocals: "bg-pink-500/20 text-pink-300 border-pink-500/30", drums: "bg-amber-500/20 text-amber-300 border-amber-500/30", bass: "bg-blue-500/20 text-blue-300 border-blue-500/30", other: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" };
+                    const stemVizMap: Record<string, string> = { drums: "pulse / scale", bass: "rotation / shake", vocals: "hue / brightness", other: "palette / opacity" };
+                    return (
+                      <div key={f.relative_path} className="p-2 rounded-lg border border-gray-700 bg-gray-800/40">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-200 truncate" title={f.filename}>{f.folder ? <span className="text-gray-500 mr-1">{f.folder}/</span> : null}{f.filename}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300 font-medium shrink-0">{status.stems.length} stem{status.stems.length !== 1 ? "s" : ""}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {status.stems.map(s => (
+                            <span key={s} className={`text-[10px] px-1.5 py-0.5 rounded border ${stemColors[s] || "bg-gray-500/20 text-gray-300 border-gray-500/30"}`} title={`${s} → drives ${stemVizMap[s] || "visualization"} in enabled styles`}>
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {tracksWithoutStems.length > 0 && (
+                    <details className="mt-2">
+                      <summary className="text-[10px] text-gray-500 cursor-pointer hover:text-gray-300">Show {tracksWithoutStems.length} track{tracksWithoutStems.length !== 1 ? "s" : ""} without stems</summary>
+                      <div className="mt-1 space-y-1">
+                        {tracksWithoutStems.map(f => (
+                          <div key={f.relative_path} className="flex items-center gap-2 py-1 px-2 rounded bg-gray-800/20">
+                            <span className="text-[10px] text-gray-500 truncate">{f.folder ? <span className="text-gray-600 mr-1">{f.folder}/</span> : null}{f.filename}</span>
+                            <span className="text-[10px] text-gray-600 shrink-0">no stems</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
         </div>
       </div>
 

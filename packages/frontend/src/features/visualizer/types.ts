@@ -47,7 +47,7 @@ export interface AudioData {
 }
 
 export interface StemAnalysisData {
-  vocals: {
+  vocals?: {
     file: string;
     url: string;
     duration: number;
@@ -59,9 +59,9 @@ export interface StemAnalysisData {
     energy_curve: number[];
     energy_curve_points: number;
   };
-  drums: StemAnalysisData["vocals"];
-  bass: StemAnalysisData["vocals"];
-  other: StemAnalysisData["vocals"];
+  drums?: StemAnalysisData["vocals"];
+  bass?: StemAnalysisData["vocals"];
+  other?: StemAnalysisData["vocals"];
 }
 
 export interface AudioAnalysisData {

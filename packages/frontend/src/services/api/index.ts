@@ -19,15 +19,16 @@ export type { VideoGenerationResponse, GenerationResultResponse, GenerationProgr
 
 // Audio
 export {
-  uploadAudioFile, separateAudioStems, getAudioStems, separateAudioFile,
+  uploadAudioFile, separateAudioStems, getAudioStems, separateAudioFile, getStemsStatus,
   getAnalysis, ensureAnalysis, getCudaStatus, analyzeAudio, analyzeAudioCuda, getAnalysisResult,
   getTimingMetadata, listAudioFiles, getAvailableAudioBackends, getAnalysisSummary, analyzeAllPending,
   transcribeAudio, getTranscription, getLyricsForTrack, saveLyricsForTrack, deleteLyricsForTrack,
   importLRC, exportLRC, getTracksWithLyrics, getLyricsByFilename, renameAudioFile,
   trimAudioFile, extractVideoAudio, generateVideoSection, generateKineticVideo,
+  getStemsAnalysis,
 } from "./audio";
 export type {
-  AudioUploadResponse, StemSeparationResponse, AudioStemsResponse, AudioAnalysisResult, EnsureAnalysisResponse,
+  AudioUploadResponse, StemSeparationResponse, AudioStemsResponse, StemsStatusResponse, StemsAnalysisResponse, AudioAnalysisResult, EnsureAnalysisResponse,
   TimingMetadata, AudioBackendsResponse, LyricLine, TranscriptionResult, TrimRange, TrimAudioResponse,
   ExtractAudioResponse, VideoGenerateRequest, VideoGenerateResponse, KineticVideoRequest, KineticVideoResponse,
 } from "./audio";

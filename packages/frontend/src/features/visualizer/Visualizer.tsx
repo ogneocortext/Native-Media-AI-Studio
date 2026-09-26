@@ -1,8 +1,8 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { PerformanceMonitor } from "@react-three/drei";
 import { Music, AlertCircle, Maximize2, Minimize2, Video, Square, Download, Settings, Snowflake, MessageSquare, Sparkles, Play, Wand2, Accessibility, EyeOff, User, Layers, MoreHorizontal, Keyboard } from "lucide-react";
-import { listAudioFiles, ensureAnalysis } from "../../services/api";
+import { listAudioFiles, ensureAnalysis, getStemsAnalysis } from "../../services/api";
 import type { AudioAnalysisData, AudioData, VizParams, PerceptualScale } from "./types";
 import { DEFAULT_VIZ_PARAMS } from "./types";
 import { useUIStore } from "../../state/uiStore";
@@ -173,6 +173,28 @@ function toVisualPreset(raw: unknown): VisualPreset | null {
 }
 
 
+function RenderStatsProbe({ enabled, onStats }: { enabled: boolean; onStats: (stats: { fps: number; calls: number; triangles: number }) => void }) {
+  const { gl } = useThree();
+  const frames = useRef(0);
+  const last = useRef(performance.now());
+  useFrame(() => {
+    if (!enabled) return;
+    frames.current += 1;
+    const now = performance.now();
+    if (now - last.current >= 1000) {
+      onStats({ fps: Math.round((frames.current * 1000) / (now - last.current)), calls: gl.info.render.calls, triangles: gl.info.render.triangles });
+      frames.current = 0;
+      last.current = now;
+    }
+  });
+  return null;
+}
+
+function RenderStatsBadge({ stats }: { stats: { fps: number; calls: number; triangles: number } | null }) {
+  if (!stats) return null;
+  return <div className="viz-backend-badge" aria-live="off" title="Renderer telemetry: frames per second, draw calls, triangles">{stats.fps} FPS · {stats.calls} calls · {(stats.triangles / 1000).toFixed(1)}k tris</div>;
+}
+
 export function Visualizer() {
   const [bgColor, setBgColor] = useState("#050505");
   const [meshColor, setMeshColor] = useState("#6366f1");
@@ -193,6 +215,18 @@ export function Visualizer() {
   const [vizParams, setVizParams] = useState<VizParams>(DEFAULT_VIZ_PARAMS);
   const [trackMetadata, setTrackMetadata] = useState<Record<string, { bpm?: number; duration?: number }>>({});
   const [analysisData, setAnalysisData] = useState<Record<string, AudioAnalysisData>>({});
+  const [stemsData, setStemsData] = useState<Record<string, Record<string, {
+    file: string;
+    url: string;
+    duration: number;
+    sample_rate: number;
+    rms_mean: number;
+    rms_std: number;
+    centroid_mean: number;
+    zcr_mean: number;
+    energy_curve: number[];
+    energy_curve_points: number;
+  }>>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const [sceneFrozen, setSceneFrozen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -219,6 +253,7 @@ export function Visualizer() {
   // Adaptive pixel ratio (2026 perf best practice): PerformanceMonitor steps
   // down to 1x when fps regresses and restores the [1, 1.5] band on recovery.
   const [adaptiveDpr, setAdaptiveDpr] = useState<[number, number]>([1, 1.5]);
+  const [renderStats, setRenderStats] = useState<{ fps: number; calls: number; triangles: number } | null>(null);
   const [aiEnhancing, setAiEnhancing] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   // Keyboard-shortcuts popover (H / ? toggles; Esc or outside click closes).
@@ -239,6 +274,9 @@ export function Visualizer() {
   const currentAnalysisData = currentFilename ? analysisData[currentFilename] ?? null : null;
   const currentAnalysisDataRef = useRef(currentAnalysisData);
   currentAnalysisDataRef.current = currentAnalysisData;
+  const currentStemsData = currentFilename ? stemsData[currentFilename] ?? null : null;
+  const currentStemsDataRef = useRef(currentStemsData);
+  currentStemsDataRef.current = currentStemsData;
 
   const audioElapsedRef = useRef(0);
   const [elapsed, setElapsed] = useState(0);
@@ -341,6 +379,22 @@ export function Visualizer() {
   // Load CSV and library
   useEffect(() => { fetch("/track-prompts-lyrics.csv").then(r => r.text()).then(setCsvContent).catch(() => {}); }, []);
   useEffect(() => { listAudioFiles().then(files => { if (Array.isArray(files) && files.length > 0) setLibraryFiles(files); }).catch(() => {}); }, []);
+
+  // Fetch per-stem visualization data when the track changes (optional enrichment).
+  // Stem separation is slow, so we only fetch when a track is selected and cache
+  // the result so we never re-analyze the same file twice in one session.
+  useEffect(() => {
+    if (!currentFilename) return;
+    let cancelled = false;
+    getStemsAnalysis(currentFilename)
+      .then((data: { stems: Record<string, { file: string; url: string; duration: number; sample_rate: number; rms_mean: number; rms_std: number; centroid_mean: number; zcr_mean: number; energy_curve: number[]; energy_curve_points: number }>; separated: boolean }) => {
+        if (!cancelled && data.separated && Object.keys(data.stems).length > 0) {
+          setStemsData(prev => ({ ...prev, [currentFilename]: data.stems }));
+        }
+      })
+      .catch(() => {/* stems are optional — never block playback on analysis */});
+    return () => { cancelled = true; };
+  }, [currentFilename]);
 
   // Auto-play when a track is selected, if the setting is enabled.
   // Uses a small delay so the <audio key={audioUrl}> remount completes
@@ -1315,6 +1369,7 @@ export function Visualizer() {
                 onIncline={() => setAdaptiveDpr([1, 1.5])}
                 onFallback={() => setAdaptiveDpr([1, 1])}
               />
+               <RenderStatsProbe enabled={visualsVisible && vizMode === "3d"} onStats={setRenderStats} />
               <color attach="background" args={[bgColor]} />
               <VisualizerScene
                 analyserRef={analyserRef}
@@ -1361,6 +1416,8 @@ export function Visualizer() {
                    lrcSync={lrcSync}
                    lrcSyncLive={lrcSyncLiveRef}
                    lyrics={lyrics}
+                    stems={currentStemsData as Record<string, { file: string; url: string; duration: number; sample_rate: number; rms_mean: number; rms_std: number; centroid_mean: number; zcr_mean: number; energy_curve: number[]; energy_curve_points: number }> | null | undefined}
+                    sampleAudio={audioElRef.current ? () => audioClockRef.current.sample(audioElRef.current, latencyRef.current) : undefined}
                    className="absolute inset-0"
                  />
                )}
@@ -1383,6 +1440,7 @@ export function Visualizer() {
            ) : (
              <div className="viz-layer-hidden" style={{ background: bgColor, width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, letterSpacing: 1 }}>Visuals hidden</span>
+                {vizMode === "3d" && renderStats && <RenderStatsBadge stats={renderStats} />}
              </div>
            )}
           {/* Show AI preset as a custom button when loaded - visible in both modes */}

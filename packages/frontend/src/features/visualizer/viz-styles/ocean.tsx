@@ -8,7 +8,7 @@ import {
   makeTerrainMaterialTSL,
   updateTerrainMaterialTSL,
 } from "../VisualizationFX";
-import { useDisposeOnUnmount } from "./helpers";
+import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
 
 // =============================================================================
 // OCEAN — Wave simulation with peaks and valleys
@@ -55,17 +55,7 @@ export function OceanWaves({ audioData, vizParams, sceneFrozen, prefersReducedMo
 
     // Map stems to visual channels: vocals → wave motion intensity,
     // other → palette modulation, drums → peak sharpness / rotation jitter.
-    if (stems) {
-      const el = (audioElapsedRef?.current ?? 0);
-      const dur = stems.drums.duration || 1;
-      const idx = Math.min(stems.drums.energy_curve.length - 1, Math.max(0, Math.floor((el / dur) * stems.drums.energy_curve.length)));
-      stemEnergyRef.current = {
-        vocals: stems.vocals.energy_curve[idx] ?? 0,
-        drums: stems.drums.energy_curve[idx] ?? 0,
-        bass: stems.bass.energy_curve[idx] ?? 0,
-        other: stems.other.energy_curve[idx] ?? 0,
-      };
-    }
+    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
     const stemLift = 1 + stemEnergyRef.current.vocals * 0.6 + stemEnergyRef.current.bass * 0.2;
     if (isWebGPU) {
