@@ -1,0 +1,80 @@
+[
+  {
+    "model": "ltx_2_3",
+    "resolution": "512x512",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp8",
+    "timestamp": "2026-09-25T00:12:59.935903+00:00",
+    "status": "dry-run-ok",
+    "workflow_preview": {
+      "model_file": "ltx-video-2.3-fp8.safetensors",
+      "nodes": 8
+    }
+  },
+  {
+    "model": "ltx_2_3",
+    "resolution": "832x480",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp8",
+    "timestamp": "2026-09-25T00:12:59.937907+00:00",
+    "status": "dry-run-ok",
+    "workflow_preview": {
+      "model_file": "ltx-video-2.3-fp8.safetensors",
+      "nodes": 8
+    }
+  },
+  {
+    "model": "ltx_2_3",
+    "resolution": "512x512",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp16",
+    "timestamp": "2026-09-25T00:12:59.937907+00:00",
+    "status": "dry-run-ok",
+    "workflow_preview": {
+      "model_file": "ltx-video-2.3-fp16.safetensors",
+      "nodes": 8
+    }
+  },
+  {
+    "model": "mochi_1",
+    "resolution": "512x512",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp8",
+    "timestamp": "2026-09-25T00:12:59.938907+00:00",
+    "status": "dry-run-ok",
+    "workflow_preview": {
+      "model_file": "mochi-1-fp8.safetensors",
+      "nodes": 9
+    }
+  },
+  {
+    "model": "mochi_2",
+    "resolution": "512x512",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp8",
+    "timestamp": "2026-09-25T00:12:59.940411+00:00",
+    "status": "dry-run-ok",
+    "workflow_preview": {
+      "model_file": "mochi-2-fp8.safetensors",
+      "nodes": 9
+    }
+  },
+  {
+    "model": "mochi_1",
+    "resolution": "512x512",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp16",
+    "timestamp": "2026-09-25T00:12:59.955968+00:00",
+    "status": "dry-run-ok",
+    "workflow_preview": {
+      "model_file": "mochi-1-fp16.safetensors",
+      "nodes": 9
+    }
+  }
+]

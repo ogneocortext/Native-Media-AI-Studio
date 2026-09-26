@@ -8,6 +8,7 @@ import { PromptHistoryPanel } from "./PromptHistoryPanel";
 import { consumePendingAudioFile, peekPendingAudioName } from "../../utils/pendingAudio";
 import { peekPendingTrack, clearPendingTrack } from "../../utils/pendingTrack";
 import { isAudioFile } from "../../utils/audioProbe";
+import { MusicPromptGenerator } from "../music-prompts/MusicPromptGenerator";
 
 const DEFAULT_CONFIG: GenerationConfig = {
   prompt: "",
@@ -33,6 +34,7 @@ export function MusicVideoWizard() {
   const [generatedSections, setGeneratedSections] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pendingHint, setPendingHint] = useState<string | null>(() => peekPendingAudioName());
+  const [showMusicPrompt, setShowMusicPrompt] = useState(false);
   const objectUrlRef = useRef<string | null>(null);
 
   const currentStepIndex = STEPS.findIndex((s) => s.id === currentStep);
@@ -207,7 +209,7 @@ export function MusicVideoWizard() {
     switch (currentStep) {
       case "upload": return <UploadStep audioFile={audioFile} audioUrl={audioUrl} onDrop={handleDrop} onFileSelect={handleFileUpload} onNext={() => audioFile && analyzeAudio()} analyzing={analyzing} />;
       case "analyze": return analysis ? <AnalyzeStep analysis={analysis} audioUrl={audioUrl} onNext={() => setCurrentStep("configure")} /> : null;
-      case "configure": return <ConfigureStep config={config} composedPrompt={composedPrompt} onConfigChange={setConfig} onSuggestionClick={addPromptSuggestion} onNext={() => setCurrentStep("generate")} />;
+      case "configure": return <ConfigureStep config={config} composedPrompt={composedPrompt} onConfigChange={setConfig} onSuggestionClick={addPromptSuggestion} onNext={() => setCurrentStep("generate")} onGenerateMusicPrompt={() => setShowMusicPrompt(true)} />;
       case "generate": return <GenerateStep generating={generating} progress={generationProgress} analysis={analysis} config={config} onStart={generateVideo} />;
       case "review": return (
         <>
@@ -249,9 +251,26 @@ export function MusicVideoWizard() {
       </div>
 
       {error && <div className="mb-4 p-3 bg-amber-900/20 border border-amber-700/50 rounded-lg flex items-start gap-2 text-amber-200 text-sm"><AlertCircle size={16} className="mt-0.5 shrink-0" /><span>{error}</span><button onClick={() => setError(null)} className="ml-auto text-amber-300 hover:text-white text-xs">Dismiss</button></div>}
+      {showMusicPrompt && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start justify-center p-4 overflow-auto">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl max-w-5xl w-full my-8 shadow-2xl">
+            <div className="flex items-center justify-between p-4 border-b border-gray-700">
+              <h3 className="text-sm font-semibold text-white">Music Prompt Generator</h3>
+              <button onClick={() => setShowMusicPrompt(false)} className="text-xs text-white/60 hover:text-white border border-white/10 rounded-lg px-3 py-1.5">Back to Wizard</button>
+            </div>
+            <div className="max-h-[75vh] overflow-auto">
+              <MusicPromptGenerator
+                onClose={() => setShowMusicPrompt(false)}
+                initialTheme={audioFile ? `Music for ${audioFile.name}` : undefined}
+                initialTempo={analysis ? `${analysis.tempo_bpm} BPM` : undefined}
+              />
+            </div>
+          </div>
+        </div>
+      )}
       {pendingHint && !audioFile && (
         <div className="mb-4 p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg text-violet-200 text-sm">
-          Last drop (“{pendingHint}”) didn’t survive a reload — drop the file again to continue.
+          Last drop ("{pendingHint}") didn’t survive a reload — drop the file again to continue.
         </div>
       )}
 

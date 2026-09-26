@@ -29,6 +29,8 @@ export interface UseAudioAnalysisWorkerResult {
     energyCurve?: number[]
   ) => void;
   destroy: () => void;
+  /** False after a worker failure so callers can use the inline fallback. */
+  isAvailable: () => boolean;
 }
 
 const emptyAudioData: AudioData = {
@@ -108,10 +110,16 @@ export function useAudioAnalysisWorker({
       console.error("[audioAnalysisWorker]", e);
       // Unblock the pipeline: the caller falls back to inline analysis only by
       // being constructed without a worker, so at minimum keep it responsive.
+      // Mark the worker unavailable after a runtime error; the next render can
+      // fall back to the main-thread analyser instead of sending into a dead worker.
+      failedRef.current = true;
       pendingRef.current = false;
       clearWatchdog();
+      workerRef.current?.terminate();
+      workerRef.current = null;
     };
 
+    failedRef.current = false;
     workerRef.current = worker;
 
     return () => {
@@ -161,6 +169,7 @@ export function useAudioAnalysisWorker({
     [perceptualScale, numPerceptualBands, clearWatchdog]
   );
 
+  const failedRef = useRef(false);
   const destroy = useCallback(() => {
     clearWatchdog();
     if (workerRef.current) {
@@ -170,5 +179,8 @@ export function useAudioAnalysisWorker({
     pendingRef.current = false;
   }, [clearWatchdog]);
 
-  return { data: dataRef, send, destroy };
+  // Return null when disabled so callers fall back to the inline analyser path
+  // instead of reading a worker ref that has no active worker.
+  const isAvailable = useCallback(() => Boolean(enabled && workerRef.current && !failedRef.current), [enabled]);
+  return enabled && !failedRef.current ? { data: dataRef, send, destroy, isAvailable } : null;
 }

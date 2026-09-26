@@ -28,6 +28,9 @@ date: 2026-09-24
 > **Hardware baseline:** GTX 1070 Ti (8 GB VRAM, sm_61) / Ryzen 5 5500 /
 > 32 GB RAM / Windows 11. All recommendations assume this constraint unless
 > marked otherwise.
+>
+> [!warning] Live status correction (2026-09-24)
+> The gap list below is a historical snapshot. `mcp_validator.py` is now used by the MCP command-discovery validation path, and the browser AI Tools path now exposes an SSE tool-call loop plus a guarded fallback for explicit single-tool requests. Re-verify live behavior before treating a gap as current.
 
 > [!tip] How to Use
 > - **AI agents:** Read §3 (Task → Model Routing) before invoking Ollama.
@@ -59,12 +62,11 @@ Ollama is the **central LLM layer** for Native Media AI Studio. It is used for:
 
 | Capability | Evidence | Opportunity |
 |---|---|---|
-| **ollama-tools MCP server tools are not wired into backend** | `tools/mcp/ollama-tools-mcp.mjs` exists but FastAPI routes don't import or call it | Agents can't use `analyze_image`, `generate_3d_concept`, etc. via API |
-| **`mcp_validator.py` is dead code** | 435-line validator, zero imports | Agent tool calls are not validated against JSON Schema |
+| **ollama-tools MCP server tools are not wired into backend** | `tools/mcp/ollama-tools-mcp.mjs` is an external stdio bridge; FastAPI does not import the MCP process directly | Expose a deliberate backend bridge only where an API workflow needs it |
 | **Video generation via Ollama** | `generate_video` in MCP returns a stub message | No text-to-video path through Ollama |
 | **Music prompt generator not in wizard** | `music_prompt_generator.py` is a standalone page, wizard step missing | Users context-switch instead of flowing |
 | **Multi-model comparison** | Benchmark runner uses the first available model only | No A/B testing of models for the same task |
-| **Streaming responses to frontend** | Backend `chat()` supports streaming, but SSE not exposed for all routes | Long generations block the HTTP request |
+| **Streaming responses to frontend** | SSE is exposed through `/api/integrations/ollama/chat`; route coverage is still partial | Add SSE coverage to remaining generation routes |
 
 ---
 
@@ -164,7 +166,7 @@ Primary (9B/7B) → CPU offload → 4B fallback → 3B fallback → mock
 ```
 
 **Implementation:**
-- Backend `ollama.py` `chat()` already clamps `num_ctx` to 16384 for 8GB safety
+- Backend `ollama.py` `chat()` clamps `num_ctx` to 8192 for the 8 GB workstation; callers may request more, but the adapter applies the safety ceiling.
 - `generate_with_fallback()` in `base.py` raises on service unavailability (no silent mock)
 - `vram_manager.py` offloads Ollama during GPU-heavy jobs (ComfyUI, 3D)
 
@@ -185,7 +187,7 @@ The `OllamaAdapter` is the **single entry point** for all backend Ollama calls:
 | `generate_storyboard()` | Structured JSON storyboard | Uses `format=json` + `think=false` |
 | `health_check()` | Refresh model cache | Called automatically on `/api/tags` |
 | `list_models()` | Available models | Cached in `_available_models` |
-| `execute_tool_call()` | Built-in scene tools | 14 tools for Three.js + storyboard |
+| `execute_tool_call()` | Built-in scene/system tools | Native tool calls plus guarded explicit-tool fallback |
 | `get_tool_definitions()` | JSON Schema for tools | OpenAI-compatible format |
 | `set_activity()` / `clear_activity()` | VRAM coordination | Used by `vram_manager.py` |
 

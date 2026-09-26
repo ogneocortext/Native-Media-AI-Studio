@@ -1,0 +1,65 @@
+{
+  "description": "Mochi FP8 test workflow (512x512, 24 frames, 12fps). Use with video_model_bench.py.",
+  "model": "mochi-1-fp8.safetensors",
+  "precision": "fp8",
+  "resolution": "512x512",
+  "frames": 24,
+  "fps": 12,
+  "prompt": {
+    "1": {
+      "class_type": "UNETLoader",
+      "inputs": { "unet_name": "mochi-1-fp8.safetensors", "model_file": "diffusion_models" }
+    },
+    "2": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": "positive prompt here", "clip": ["3", 0] }
+    },
+    "3": {
+      "class_type": "CLIPLoader",
+      "inputs": { "clip_name": "umt5_xxl_fp16.safetensors" }
+    },
+    "4": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": "negative prompt here", "clip": ["3", 0] }
+    },
+    "5": {
+      "class_type": "EmptyLatentVideo",
+      "inputs": { "width": 512, "height": 512, "frame_count": 24, "batch_size": 1 }
+    },
+    "6": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": 0,
+        "steps": 20,
+        "cfg": 7.0,
+        "sampler_name": "euler_ancestral",
+        "scheduler": "normal",
+        "denoise": 1.0,
+        "model": ["1", 0],
+        "positive": ["2", 0],
+        "negative": ["4", 0],
+        "latent_image": ["5", 0]
+      }
+    },
+    "7": {
+      "class_type": "VAEDecode",
+      "inputs": { "samples": ["6", 0], "vae": ["8", 0] }
+    },
+    "8": {
+      "class_type": "VAELoader",
+      "inputs": { "vae_name": "mochi-vae.safetensors" }
+    },
+    "9": {
+      "class_type": "VHS_VideoCombine",
+      "inputs": {
+        "images": ["7", 0],
+        "frame_rate": 12,
+        "loop_count": 0,
+        "filename_prefix": "NativeMediaAI_Mochi",
+        "format": "image/gif",
+        "pingpong": false,
+        "save_output": true
+      }
+    }
+  }
+}

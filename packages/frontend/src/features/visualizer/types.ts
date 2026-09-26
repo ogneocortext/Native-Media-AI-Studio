@@ -46,6 +46,24 @@ export interface AudioData {
   perceptualScale?: PerceptualScale;
 }
 
+export interface StemAnalysisData {
+  vocals: {
+    file: string;
+    url: string;
+    duration: number;
+    sample_rate: number;
+    rms_mean: number;
+    rms_std: number;
+    centroid_mean: number;
+    zcr_mean: number;
+    energy_curve: number[];
+    energy_curve_points: number;
+  };
+  drums: StemAnalysisData["vocals"];
+  bass: StemAnalysisData["vocals"];
+  other: StemAnalysisData["vocals"];
+}
+
 export interface AudioAnalysisData {
   tempo_bpm: number;
   beat_count: number;
@@ -61,6 +79,8 @@ export interface AudioAnalysisData {
   spectral_rolloff?: number[];
   spectral_bandwidth?: number[];
   zero_crossing_rate?: number[];
+  // Per-stem visualization data (populated when stems have been separated)
+  stems?: StemAnalysisData;
   // Timing contract for Remotion + AI agents
   timing_contract?: {
     filename: string;
@@ -194,9 +214,14 @@ export interface VisualizerSceneProps {
   /** Perceptual frequency scale for audio analysis */
   perceptualScale?: PerceptualScale;
   /**
-   * Latency-compensated audio clock sampler (see audioTiming.ts).
-   * When provided, frame-critical consumers use this instead of `audioElapsedRef`
-   * to avoid stale reads from the parent rAF loop.
+   * Per-stem visualization data (from backend /api/audio/stems-analysis/{file}).
+   * When provided, visuals can map stems to independent visual channels.
    */
+  stems?: StemAnalysisData;
+  /**
+    * Latency-compensated audio clock sampler (see audioTiming.ts).
+    * When provided, frame-critical consumers use this instead of `audioElapsedRef`
+    * to avoid stale reads from the parent rAF loop.
+    */
   sampleAudio?: () => number;
 }

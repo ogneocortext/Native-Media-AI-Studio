@@ -3,6 +3,8 @@
 > **Created:** 2026-09-07  
 > **Status:** Implemented  
 > **Scope:** `packages/frontend` (Vite + React + TypeScript)
+>
+> **2026-09-24 Vite audit:** Removed `vite-plugin-compression` from the active plugin chain because its Windows/Vite 8 output path handling created malformed `dist/D:/...` artifacts. Build compression is left to the hosting server; use the hosting layer's gzip/Brotli support. The proxy now preserves the full configured backend origin (including a non-default port), HMR overlays are enabled for actionable dev errors, and the dev server uses `strictPort` so a port collision fails visibly instead of silently starting elsewhere.
 
 ---
 
@@ -70,10 +72,31 @@
 - `build` now uses `tsc -b`.
 - `type-check` is the fast path for CI / pre-commit.
 - `build:analyze` runs the visualizer.
+- Root `pnpm type-check` delegates to the frontend's project-scoped `tsc -b`; do not run bare `npx tsc` at the repository root because there is intentionally no root `tsconfig.json` (and `npx` may resolve TypeScript 7).
 
 ### 3.3 `vite.config.ts`
 ```ts
 import compression from "vite-plugin-compression";
+
+## TypeScript Check Commands
+
+The repository root has no `tsconfig.json` by design; run type checks through the workspace script:
+
+```powershell
+pnpm type-check
+# equivalent
+pnpm --filter=native-media-ai-studio-frontend type-check
+```
+
+For the frontend directory directly:
+
+```powershell
+cd packages/frontend
+pnpm exec tsc -b
+```
+
+Avoid bare `npx tsc` at the repository root: it has no project config and may resolve a different TypeScript major version.
+
 import { visualizer } from "rollup-plugin-visualizer";
 
 plugins: [

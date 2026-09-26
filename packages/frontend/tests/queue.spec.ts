@@ -59,9 +59,8 @@ test.describe('Queue', () => {
     await mockApiQueueEmpty(page);
     await navigateWithWait(page, '/queue');
     // Either "Live" or "Polling" indicator should be present
-    const live = page.locator('main').locator('text=Live');
-    const polling = page.locator('main').locator('text=Polling');
-    await expect(live.or(polling)).toBeVisible();
+    const liveOrPolling = page.locator('main').locator('text=/Live|Polling/').first();
+    await expect(liveOrPolling).toBeVisible();
     expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
   });
 

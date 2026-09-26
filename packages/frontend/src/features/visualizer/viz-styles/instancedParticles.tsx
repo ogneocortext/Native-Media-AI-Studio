@@ -46,6 +46,8 @@ export function InstancedParticles({
   audioData,
   sceneFrozen,
   prefersReducedMotion,
+  stems,
+  audioElapsedRef,
   count = 2000,
   spread = 5,
   hueBase = 0.6,
@@ -53,6 +55,7 @@ export function InstancedParticles({
   stretch = 2.5,
 }: VizProps & InstancedParticlesOpts) {
   const meshRef = useRef<THREE.Mesh>(null);
+  const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
   // TODO: isWebGPU branch for TSL streak material (currently GLSL transpiles to WGSL)
   // const { gl } = useThree();
@@ -214,10 +217,22 @@ export function InstancedParticles({
     const { bass, mid, treble, energy } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
 
+    if (stems) {
+      const el = (audioElapsedRef?.current ?? 0);
+      const dur = stems.drums.duration || 1;
+      const idx = Math.min(stems.drums.energy_curve.length - 1, Math.max(0, Math.floor((el / dur) * stems.drums.energy_curve.length)));
+      stemEnergyRef.current = {
+        vocals: stems.vocals.energy_curve[idx] ?? 0,
+        drums: stems.drums.energy_curve[idx] ?? 0,
+        bass: stems.bass.energy_curve[idx] ?? 0,
+        other: stems.other.energy_curve[idx] ?? 0,
+      };
+    }
+
     // Drive the shader uniform: the vertex shader sizes quads with
     // instanceSize * (1 + uBass * 1.2), but nothing ever wrote uBass — the
     // reactive particle size was dead (the uniform stayed 0 forever).
-    material.uniforms.uBass.value = bass;
+    material.uniforms.uBass.value = bass + stemEnergyRef.current.bass * 0.3;
 
     const posAttr = geometry.getAttribute("instancePosition") as THREE.InstancedBufferAttribute;
     const posArr = posAttr.array as Float32Array;
@@ -231,10 +246,11 @@ export function InstancedParticles({
       const drift =
         Math.sin(t * 2 + phase) * treble * 0.3 +
         Math.cos(t * 1.5 + phase) * mid * 0.2 +
-        Math.sin(t * 3 + phase) * bass * 0.15;
-      posArr[idx] += velArr[idx] * (1 + energy * 2) * speedMul + drift * 0.02;
-      posArr[idx + 1] += velArr[idx + 1] * (1 + energy * 2) * speedMul + drift * 0.03;
-      posArr[idx + 2] += velArr[idx + 2] * (1 + energy * 2) * speedMul + drift * 0.02;
+        Math.sin(t * 3 + phase) * bass * 0.15 +
+        stemEnergyRef.current.vocals * 0.1;
+      posArr[idx] += velArr[idx] * (1 + energy * 2) * speedMul + drift * 0.02 + stemEnergyRef.current.drums * 0.01;
+      posArr[idx + 1] += velArr[idx + 1] * (1 + energy * 2) * speedMul + drift * 0.03 + stemEnergyRef.current.bass * 0.01;
+      posArr[idx + 2] += velArr[idx + 2] * (1 + energy * 2) * speedMul + drift * 0.02 + stemEnergyRef.current.other * 0.01;
 
       const dist = Math.sqrt(posArr[idx] ** 2 + posArr[idx + 1] ** 2 + posArr[idx + 2] ** 2);
       if (dist > spread * 1.2) {

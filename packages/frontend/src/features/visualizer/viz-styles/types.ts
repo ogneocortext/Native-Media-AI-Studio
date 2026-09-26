@@ -1,6 +1,6 @@
 import type React from "react";
 import type { LyricLine } from "../components/LyricOverlay";
-import type { AudioAnalysisData, AudioData, VizParams } from "../types";
+import type { AudioAnalysisData, AudioData, StemAnalysisData, VizParams } from "../types";
 
 export interface VizProps {
   audioData: React.MutableRefObject<AudioData>;
@@ -23,4 +23,6 @@ export interface VizProps {
   } | null;
   /** Accessibility: dampen rotation + animation speed when true */
   prefersReducedMotion?: boolean;
+  /** Per-stem visualization data for independent visual channel mapping */
+  stems?: StemAnalysisData;
 }

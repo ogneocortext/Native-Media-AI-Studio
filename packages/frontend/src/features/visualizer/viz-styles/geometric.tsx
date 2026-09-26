@@ -13,7 +13,7 @@ import {
 import { InstancedParticles } from "./instancedParticles";
 import { useDisposeOnUnmount } from "./helpers";
 
-export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReducedMotion }: VizProps) {
+export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReducedMotion, stems, audioElapsedRef }: VizProps) {
   const coreRef = useRef<THREE.Mesh>(null);
   const wireRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
@@ -25,6 +25,7 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
   const beatPulse = useRef(0);
   const shockScale = useRef(0);
   const hueRef = useRef(0.6);
+  const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
   const { gl } = useThree();
   const isWebGPU = (gl as any)?.isWebGPURenderer === true;
@@ -125,7 +126,22 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
 
     const features = getTrackFeatures();
 
-    if (beat || features.onset > 0.5) {
+    // Map stems to visual channels:
+    //   drums → scale/pulse, bass → camera shake/rotation, vocals → hue shift,
+    //   other  → palette/color modulation.
+    if (stems) {
+      const el = audioElapsedRef?.current ?? 0;
+      const dur = stems.drums.duration || 1;
+      const idx = Math.min(stems.drums.energy_curve.length - 1, Math.max(0, Math.floor((el / dur) * stems.drums.energy_curve.length)));
+      stemEnergyRef.current = {
+        vocals: stems.vocals.energy_curve[idx] ?? 0,
+        drums: stems.drums.energy_curve[idx] ?? 0,
+        bass: stems.bass.energy_curve[idx] ?? 0,
+        other: stems.other.energy_curve[idx] ?? 0,
+      };
+    }
+
+    if (beat || features.onset > 0.5 || stemEnergyRef.current.drums > 0.6) {
       beatPulse.current = 1.0;
       shockScale.current = 1.0;
     }
@@ -136,6 +152,10 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
     const pulseScale = 1 + beatPulse.current * 0.5;
 
     hueRef.current += (features.energy * 0.002 + 0.0005) * dt60;
+    // Stem-driven hue drift: vocals shift hue, other shifts saturation
+    if (stems) {
+      hueRef.current += stemEnergyRef.current.vocals * 0.003 * dt60;
+    }
     if (hueRef.current > 1.0) hueRef.current -= 1.0;
 
     // Backdrop follows the same hue field so the void breathes with the music.
@@ -144,10 +164,11 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
     // the 0:07–0:12 captures) and buries the additive particle colors.
     {
       const u = backdropMat.uniforms;
+      const stemBoost = stems ? stemEnergyRef.current.other * 0.1 : 0;
       (u.uTint.value as THREE.Color).setHSL(hueRef.current + 0.55, 0.7, 0.08);
       u.uLift.value = prefersReducedMotion
         ? 0.18
-        : Math.min(0.45, 0.22 + features.energy * 0.15 + bass * 0.12);
+        : Math.min(0.45, 0.22 + features.energy * 0.15 + bass * 0.12 + stemBoost);
     }
     // Chromatic beat kick: every layer's hue thumps with the beat so the hit
     // reads in color, not just scale (vision fix: "monochrome, beat unreadable").
@@ -159,7 +180,7 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
         dt60 *
         vizParams.rotationSpeed *
         speedMul *
-        (1 + bass * 2 + features.energy * 1.5);
+        (1 + bass * 2 + features.energy * 1.5 + (stems ? stemEnergyRef.current.bass * 0.5 : 0));
 
     // Cinematic drift floor: slow whole-scene yaw independent of the preset's
     // rotationSpeed, so low-speed presets (e.g. ambient 0.3) never read as a

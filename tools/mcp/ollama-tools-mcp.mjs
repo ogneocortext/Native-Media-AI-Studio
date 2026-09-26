@@ -4,6 +4,7 @@ import { Server } from "@modelcontextprotocol/server";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { encodeImage, residentVisionModels, resolveVisionModel, analyzeWithOllama } from "../vision/vision-common.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
@@ -52,26 +53,16 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = 30000) {
 }
 
 async function readImageBase64(imagePath) {
+  // Keep the MCP size guard, delegate resizing to the shared encoder.
   const fs = await import("fs");
-  let buf = fs.readFileSync(imagePath);
-  
-  // Resize large images to avoid Ollama 400 errors
-  if (buf.length > 100000) {
-    try {
-      const sharp = (await import("sharp")).default;
-      buf = await sharp(buf)
-        .resize(1280, 1280, { fit: "inside", withoutEnlargement: true })
-        .jpeg({ quality: 80 })
-        .toBuffer();
-      console.error(`[vision] Resized ${imagePath}: ${fs.statSync(imagePath).size} -> ${buf.length} bytes`);
-    } catch {
-      // sharp not available — fallback: send raw
+  const stat = fs.statSync(imagePath);
+  const base64 = await encodeImage(imagePath);
+  if (stat.size > MAX_IMAGE_BASE64_BYTES) {
+    // encodeImage already compressed; if still too large, reject.
+    const compressedBytes = Buffer.byteLength(base64, "base64");
+    if (compressedBytes > MAX_IMAGE_BASE64_BYTES) {
+      throw new Error(`Image too large for Ollama: ${(compressedBytes / 1024 / 1024).toFixed(1)} MB (cap ${MAX_IMAGE_BASE64_BYTES / 1024 / 1024} MB)`);
     }
-  }
-  
-  const base64 = buf.toString("base64");
-  if (buf.length > MAX_IMAGE_BASE64_BYTES) {
-    throw new Error(`Image too large for Ollama: ${(buf.length / 1024 / 1024).toFixed(1)} MB (cap ${MAX_IMAGE_BASE64_BYTES / 1024 / 1024} MB)`);
   }
   return base64;
 }
@@ -121,7 +112,7 @@ server.setRequestHandler('tools/list', async () => ({
         properties: {
           image_path: { type: "string", description: "Path or URL to the image" },
           prompt: { type: "string", description: "Question to ask about the image", default: "Describe this image in detail." },
-          model: { type: "string", description: "Ollama vision model (qwen3-vl:2b=fast, gemma4=e2b-it-qat=detailed)", default: "qwen3-vl:2b" },
+          model: { type: "string", description: "Ollama vision model (qwen3-vl:2b=fast, gemma4:e2b-it-qat=detailed). Defaults to a resident vision model when one is warm; otherwise qwen3-vl:2b.", default: "" },
           think: { type: "boolean", description: "Enable extended reasoning (Ollama 0.21.3+)", default: false },
         },
         required: ["image_path"],
@@ -284,7 +275,7 @@ server.setRequestHandler('tools/call', async (request) => {
 async function analyzeImage(reqId, args) {
   const fs = await import("fs");
   const path = await import("path");
-  
+
   let imageData;
   if (args.image_path.startsWith("http")) {
     logRequest(reqId, "analyze_image", "fetching-remote-image");
@@ -300,31 +291,28 @@ async function analyzeImage(reqId, args) {
     imageData = await readImageBase64(abs);
   }
 
-  logRequest(reqId, "analyze_image", `calling-ollama model=${args.model || "qwen3-vl:4b"}`);
-  const body = {
-    model: args.model || "qwen3-vl:4b",
-    messages: [
-      {
-        role: "user",
-        content: args.prompt || "Describe this image in detail.",
-        images: [imageData],
-      },
-    ],
-    stream: false,
-    keep_alive: "60s",
-  };
-  if (args.think) {
-    body.think = true;
-  }
-  const res = await fetchWithTimeout(`${BASE_URL}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  }, 120000);
+  const { model: activeModel, why: modelWhy } = await resolveVisionModel(args.model);
+  logRequest(reqId, "analyze_image", `calling-ollama model=${activeModel} (${modelWhy})`);
 
-  const data = await res.json();
-  logRequest(reqId, "analyze_image", "ollama-ok");
-  return textResponse(data.response || "No response");
+  const prompt = args.prompt || "Describe this image in detail.";
+  const attempts = [
+    { model: activeModel, label: "primary" },
+    { model: VISION_FALLBACK_MODEL, label: "fallback" },
+  ];
+
+  let lastError;
+  for (const attempt of attempts) {
+    if (attempt.model === activeModel && attempt.label !== "primary") continue;
+    try {
+      const text = await analyzeWithOllama(imageData, prompt, attempt.model, 4096, !!args.think);
+      logRequest(reqId, "analyze_image", `ollama-ok model=${attempt.model} (${attempt.label})`);
+      return textResponse(text);
+    } catch (err) {
+      lastError = err.message;
+      logRequest(reqId, "analyze_image", `ollama-fail model=${attempt.model} err=${err.message}`);
+    }
+  }
+  return textResponse(`Ollama vision failed: ${lastError || "unknown error"}`, true);
 }
 
 async function analyzeAudio(reqId, args) {

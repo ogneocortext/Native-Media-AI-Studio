@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -593,16 +594,52 @@ async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
     return {"query": query, "model": model, "results": results[:limit]}
 
 
+def _infer_capabilities(model_name: str) -> list[str]:
+    """Infer model capabilities from name when /api/tags omits them."""
+    name = model_name.lower()
+    caps = ["chat"]
+    if any(k in name for k in ["vl", "vision", "gemma4", "minicpm", "llava"]):
+        caps.append("vision")
+    if any(k in name for k in ["embed", "bge", "nomic"]):
+        caps.append("embed")
+    return caps
+
+
+def _model_supports_vision(model_name: str) -> bool:
+    """True when the model name or capabilities indicate vision support."""
+    name = model_name.lower()
+    if any(k in name for k in ["vl", "vision", "gemma4", "minicpm", "llava"]):
+        return True
+    # Fallback to tool-capable heuristic for multimodal models
+    return any(k in name for k in ["gemma2", "gemma3", "gemma4", "llava"])
+
+
 @router.get("/ollama/models", operation_id="get_generation_ollama_models")
 async def get_ollama_models() -> list:
-    """Get available Ollama models."""
+    """Get available Ollama models with capability and VRAM estimates."""
     adapter = adapter_registry.get("ollama")
     if not adapter:
         raise HTTPException(status_code=404, detail="Ollama not available")
 
     try:
-        models = await adapter.list_models()
-        return models
+        from ..core.ollama_client import estimate_model_vram_mb, is_tool_capable_model
+        raw_models = await adapter.list_models()
+        if not raw_models:
+            return []
+        enriched = []
+        for m in raw_models:
+            name = m.get("name", "")
+            size_bytes = m.get("size") or 0
+            enriched.append({
+                "name": name,
+                "size": size_bytes,
+                "modified_at": m.get("modified_at"),
+                "capabilities": m.get("capabilities") or _infer_capabilities(name),
+                "supportsTools": is_tool_capable_model(name),
+                "supportsVision": _model_supports_vision(name),
+                "vram_estimate_mb": estimate_model_vram_mb(name, size_bytes if size_bytes > 0 else None),
+            })
+        return enriched
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -668,6 +705,19 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
     else:
         tools = tools_raw
 
+    # Small local models are much more reliable when the request names one
+    # tool. Keep the full registry for ambiguous requests, but narrow a
+    # prompt such as "call get_project_structure" to that single callable.
+    if tools and any(tool.get("function", {}).get("name", "").lower() in message.lower()
+                     for tool in tools if isinstance(tool, dict)):
+        named = [
+            tool for tool in tools
+            if isinstance(tool, dict)
+            and tool.get("function", {}).get("name", "").lower() in message.lower()
+        ]
+        if len(named) == 1:
+            tools = named
+
     logger.info("Ollama chat request: model=%s, stream=%s, tools=%d, message_len=%d, system_len=%d, options=%s",
                 model, stream, len(tools), len(message), len(system_prompt or ""), ollama_options)
 
@@ -675,12 +725,25 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
+    elif tools and "tool" in message.lower():
+        messages.append({
+            "role": "system",
+            "content": (
+                "You have callable tools. If the user's request requires tool data, "
+                "call the appropriate tool immediately before answering. Do not describe "
+                "the call, do not invent results, and do not answer until the tool result "
+                "has been returned."
+            ),
+        })
     for h in history:
         # Support system role in history as well
         role = h.get("role", "user")
         if role not in ("user", "assistant", "system", "tool"):
             role = "user"
-        messages.append({"role": role, "content": h.get("content", "")})
+        msg: dict[str, Any] = {"role": role, "content": h.get("content", "")}
+        if "tool_calls" in h:
+            msg["tool_calls"] = h["tool_calls"]
+        messages.append(msg)
     messages.append({"role": "user", "content": message})
 
     try:
@@ -694,6 +757,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                     yield {"event": "connected", "data": json.dumps({"status": "streaming"})}
 
                     tool_call_count = 0
+                    fallback_executed = False
                     current_messages = messages[:]
 
                     while tool_call_count < max_tool_calls:
@@ -737,14 +801,53 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                                         })
                                     break
                                 else:
-                                    yield {
-                                        "event": "done",
-                                        "data": json.dumps({
-                                            "content": msg.get("content", ""),
-                                            "model": chunk.get("model", model),
-                                            "tool_calls": tool_call_count,
-                                        }),
-                                    }
+                                    final_content = msg.get("content", "") or ""
+                                    # Guarded fallback for explicit, unambiguous
+                                    # requests: small local models sometimes
+                                    # describe a tool instead of emitting the
+                                    # native tool call. Execute only a named
+                                    # registered tool, never guess a tool.
+                                    explicit_names = [
+                                        tool.get("function", {}).get("name", "")
+                                        for tool in tools
+                                        if isinstance(tool, dict)
+                                    ]
+                                    explicit_names = [name for name in explicit_names if name and name.lower() in message.lower()]
+                                    if not final_content and not fallback_executed and len(explicit_names) == 1 and tool_call_count < max_tool_calls:
+                                        name = explicit_names[0]
+                                        args: dict[str, object] = {}
+                                        depth_match = re.search(r"depth\s*[=:]\s*(\d+)", message, re.I)
+                                        if depth_match:
+                                            args["depth"] = min(6, int(depth_match.group(1)))
+                                        tool_call_count += 1
+                                        fallback_executed = True
+                                        yield {
+                                            "event": "tool_calls",
+                                            "data": json.dumps({"tool_calls": [{"name": name, "arguments": args}]}),
+                                        }
+                                        result = await adapter.execute_tool_call(name, args, {})
+                                        current_messages.extend([
+                                            {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": name, "arguments": args}}]},
+                                            {"role": "tool", "tool_name": name, "content": result},
+                                        ])
+                                        break
+                                    if not final_content and tool_call_count == 0:
+                                        yield {
+                                            "event": "error",
+                                            "data": json.dumps({
+                                                "message": "Ollama completed without a tool call or response. Try a model with native tool support.",
+                                                "model": chunk.get("model", model),
+                                            }),
+                                        }
+                                    else:
+                                        yield {
+                                            "event": "done",
+                                            "data": json.dumps({
+                                                "content": final_content,
+                                                "model": chunk.get("model", model),
+                                                "tool_calls": tool_call_count,
+                                            }),
+                                        }
                                     return
                             else:
                                 content = chunk.get("message", {}).get("content", "")
@@ -1252,6 +1355,19 @@ async def delete_visualizer_preset(preset_id: str) -> dict:
         except Exception:
             pass
     return {"deleted": preset_id}
+
+
+@router.get("/ollama/tools")
+async def list_ollama_tools() -> dict:
+    """Return the built-in tool definitions from the Ollama adapter."""
+    try:
+        adapter = adapter_registry.get("ollama")
+        if not adapter:
+            return {"tools": []}
+        return {"tools": adapter.get_tool_definitions()}
+    except Exception as e:
+        logger.error("Failed to list Ollama tools: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ============================================================================

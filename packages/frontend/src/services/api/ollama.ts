@@ -8,6 +8,7 @@ export interface OllamaModel {
   capabilities?: string[];
   supportsTools?: boolean;
   supportsVision?: boolean;
+  vram_estimate_mb?: number;
   benchmark?: { score: number; latency_ms: number; success: boolean; timestamp: string };
   codingBenchmark?: { score: number; latency_ms: number; success: boolean; timestamp: string };
 }
@@ -15,12 +16,8 @@ export interface OllamaModel {
 export interface ChatMessage {
   role: "user" | "assistant" | "system" | "tool";
   content: string;
-  tool_calls?: Array<{
-    function: {
-      name: string;
-      arguments: Record<string, unknown>;
-    };
-  }>;
+  timestamp?: Date;
+  tool_calls?: Array<{ name: string; arguments: Record<string, unknown> }>;
   tool_name?: string;
 }
 
@@ -238,7 +235,7 @@ export async function ollamaChatStream(
 
 export async function* parseOllamaStream(
   stream: ReadableStream<Uint8Array>,
-): AsyncGenerator<{ type: "content" | "tool_calls" | "done" | "connected"; data: unknown }> {
+): AsyncGenerator<{ type: "content" | "tool_calls" | "done" | "connected" | "error"; data: unknown }> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -268,6 +265,8 @@ export async function* parseOllamaStream(
               yield { type: "done", data };
             } else if (lastEvent === "connected") {
               yield { type: "connected", data };
+            } else if (lastEvent === "error") {
+              yield { type: "error", data };
             }
           } catch {
             // Skip malformed JSON

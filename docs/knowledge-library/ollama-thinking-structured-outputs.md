@@ -103,6 +103,13 @@ Ollama supports constrained JSON generation via the `format` parameter.
 3. **Alternative:** Use `format: "json"` or JSON schema with `/api/chat` for schema enforcement
 4. **Avoid:** `/api/generate` with `think: false` for Qwen3.5 - it does not work reliably
 
+## 2026-09-24 integration correction
+
+- `/api/generate` is retained only for legacy/text-specific routes. New multimodal, reasoning, structured-output, and tool-using paths should use `/api/chat` so `message.content`, `message.thinking`, and `message.tool_calls` are handled consistently.
+- The browser AI Tools path uses `/api/chat` SSE. If a small model only describes a requested tool instead of emitting native `tool_calls`, the backend narrows the registry to one explicitly named tool and executes a guarded fallback; ambiguous requests fail visibly rather than guessing.
+- The adapter applies an 8 GB workstation ceiling of `num_ctx: 8192` even when a caller requests a larger context.
+
+
 ## Implementation Notes
 
 ### For Planning Tools (`plan_blender_script`, `plan_unity_scene`)

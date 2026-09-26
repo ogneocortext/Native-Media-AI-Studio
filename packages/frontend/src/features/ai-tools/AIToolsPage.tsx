@@ -103,6 +103,9 @@ export function AIToolsPage() {
             toolDetails.push(tc);
           }
           setToolCalls([...toolDetails]);
+        } else if (event.type === "error") {
+          const data = event.data as { message?: string };
+          throw new Error(data.message || "Ollama returned no response or tool call");
         }
       }
 

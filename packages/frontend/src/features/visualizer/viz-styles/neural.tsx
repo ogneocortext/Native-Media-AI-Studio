@@ -21,6 +21,8 @@ export function FrequencyRings({
   vizParams,
   sceneFrozen,
   prefersReducedMotion,
+  stems,
+  audioElapsedRef,
 }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const nodeRefs = useRef<(THREE.Mesh | null)[]>([]);
@@ -29,6 +31,7 @@ export function FrequencyRings({
   const nodeCount = 48;
   const rotRef = useRef(0);
   const beatPulse = useRef(0);
+  const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
   const { gl } = useThree();
   const isWebGPU = (gl as any)?.isWebGPURenderer === true;
@@ -96,22 +99,37 @@ export function FrequencyRings({
     const { bass, mid, treble, beat } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
 
+    // Map stems to visual channels: bass → camera shake/rotation, drums → pulse,
+    // vocals → color shift, other → palette modulation.
+    if (stems) {
+      const el = (audioElapsedRef?.current ?? 0);
+      const dur = stems.drums.duration || 1;
+      const idx = Math.min(stems.drums.energy_curve.length - 1, Math.max(0, Math.floor((el / dur) * stems.drums.energy_curve.length)));
+      stemEnergyRef.current = {
+        vocals: stems.vocals.energy_curve[idx] ?? 0,
+        drums: stems.drums.energy_curve[idx] ?? 0,
+        bass: stems.bass.energy_curve[idx] ?? 0,
+        other: stems.other.energy_curve[idx] ?? 0,
+      };
+    }
+
     // Get track features (computed once per frame, shared across all visualizations)
     const features = getTrackFeatures();
 
-    if (beat || features.onset > 0.5) beatPulse.current = 1.0;
+    if (beat || features.onset > 0.5 || stemEnergyRef.current.drums > 0.6) beatPulse.current = 1.0;
     beatPulse.current *= 0.88;
     if (!sceneFrozen)
       rotRef.current +=
-        0.004 * vizParams.rotationSpeed * speedMul * (1 + features.energy * 2);
+        0.004 * vizParams.rotationSpeed * speedMul * (1 + features.energy * 2 + stemEnergyRef.current.bass * 0.4);
 
     nodeRefs.current.forEach((node, i) => {
       if (!node) return;
       const b = nodePos[i];
-      // Dramatic position oscillation driven by frequency bands + track energy
+      // Dramatic position oscillation driven by frequency bands + track energy + bass stem shake
       const freq = i % 3 === 0 ? bass : i % 3 === 1 ? mid : treble;
+      const shake = stemEnergyRef.current.bass * 0.35;
       const oscillation =
-        0.3 + freq * 1.2 + beatPulse.current * 0.5 + features.energy * 0.4;
+        0.3 + freq * 1.2 + beatPulse.current * 0.5 + features.energy * 0.4 + shake;
       node.position.set(
         b.x + Math.sin(t * 3 * speedMul + i * 0.7) * oscillation,
         b.y + Math.cos(t * 2.5 * speedMul + i * 0.5) * oscillation,
@@ -119,7 +137,7 @@ export function FrequencyRings({
       );
       // Scale pulses dramatically on beats + onset
       const baseScale = 0.06 + freq * 0.15;
-      const beatScale = beatPulse.current * 0.4 + features.onset * 0.3;
+      const beatScale = beatPulse.current * 0.4 + features.onset * 0.3 + stemEnergyRef.current.drums * 0.2;
       node.scale.setScalar(baseScale + beatScale);
       if (isWebGPU && nodeMat) {
         updateAudioReactiveMaterialTSL(
@@ -134,15 +152,16 @@ export function FrequencyRings({
           0.3 +
           freq * vizParams.glowIntensity * 3 +
           beatPulse.current * 2 +
-          features.onset * 2.5;
-        // Color shifts with spectral brightness from analysis
+          features.onset * 2.5 +
+          stemEnergyRef.current.drums * 1.5;
+        // Color shifts with spectral brightness + vocal stem hue shift
         m.color.setHSL(
-          0.55 + freq * 0.3 + beatPulse.current * 0.1 + features.brightness * 0.2,
+          0.55 + freq * 0.3 + beatPulse.current * 0.1 + features.brightness * 0.2 + stemEnergyRef.current.vocals * 0.12,
           0.9,
-          0.5 + features.brightness * 0.2,
+          0.5 + features.brightness * 0.2 + stemEnergyRef.current.other * 0.1,
         );
         m.emissive.setHSL(
-          0.6 + freq * 0.2 + features.brightness * 0.15,
+          0.6 + freq * 0.2 + features.brightness * 0.15 + stemEnergyRef.current.vocals * 0.08,
           1.0,
           0.4 + beatPulse.current * 0.4,
         );
@@ -180,24 +199,24 @@ export function FrequencyRings({
       }
       setPositionAttribute(lineRef.current.geometry, linkPositions, vertex);
       (lineRef.current.material as THREE.LineBasicMaterial).opacity =
-        0.1 + features.brightness * 0.5 + beatPulse.current * 0.3;
+        0.1 + features.brightness * 0.5 + beatPulse.current * 0.3 + stemEnergyRef.current.other * 0.2;
     }
 
     // Shockwave ring expands from center on beat
     if (shockRef.current) {
-      const sScale = 0.3 + beatPulse.current * 4;
+      const sScale = 0.3 + beatPulse.current * 4 + stemEnergyRef.current.bass * 0.5;
       shockRef.current.scale.setScalar(sScale);
       if (isWebGPU && shockMat) {
         updateAudioReactiveMaterialTSL(shockMat, { bass, mid, treble, energy: 0.5 }, vizParams.glowIntensity);
       } else {
         const sm = shockRef.current.material as THREE.MeshStandardMaterial;
-        sm.opacity = (1 - beatPulse.current) * 0.4;
-        sm.emissiveIntensity = (1 - beatPulse.current) * 3;
+        sm.opacity = (1 - beatPulse.current) * 0.4 + stemEnergyRef.current.drums * 0.2;
+        sm.emissiveIntensity = (1 - beatPulse.current) * 3 + stemEnergyRef.current.drums * 2;
       }
     }
 
     groupRef.current.rotation.y = rotRef.current;
-    groupRef.current.rotation.x = Math.sin(t * 0.2 * speedMul) * 0.1 * mid;
+    groupRef.current.rotation.x = Math.sin(t * 0.2 * speedMul) * 0.1 * mid + stemEnergyRef.current.bass * 0.05;
   });
 
   return (

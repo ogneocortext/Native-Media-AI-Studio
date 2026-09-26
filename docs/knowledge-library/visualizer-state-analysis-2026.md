@@ -30,8 +30,9 @@ date: 2026-09-10
 
 ---
 
-## Captured States
+> **2026-09-26 Worker lifecycle hardening:** The audio-analysis worker is now enabled only while real audio is playing, returns `null` when disabled, and terminates/marks itself unavailable on runtime errors so the main-thread analyser fallback is used instead of stale worker data. The worker watchdog, message backpressure guard, cleanup, and feature detection remain active.
 
+## Captured States
 | # | Mode | Screenshot | Vision Rating | Key Finding |
 |---|------|-----------|---------------|-------------|
 | 1 | **2D Bars** | `viz-2d-bars.png` | N/A (clean baseline) | Bars visible, properly sized, excellent contrast, readable text |

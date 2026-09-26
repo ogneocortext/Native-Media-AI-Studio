@@ -4,7 +4,6 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import compression from "vite-plugin-compression";
 import { visualizer } from "rollup-plugin-visualizer";
 
 // Derive __dirname for ES modules
@@ -56,8 +55,8 @@ export default defineConfig(({ mode }) => {
   const portConfig = getPortConfig(mode);
   const backendUrl = portConfig.backend_url;
   const backendUrlWithProtocol = backendUrl.startsWith("http") ? backendUrl : `http://${backendUrl}`;
-  const backendHost = new URL(backendUrlWithProtocol).hostname;
-  const proxyTarget = `http://${backendHost}:${portConfig.backend_port}`;
+  const backendTarget = new URL(backendUrlWithProtocol);
+  const proxyTarget = backendTarget.origin;
   const isProd = mode === "production";
   const isAnalyze = mode === "analyze";
 
@@ -65,14 +64,6 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
-      compression({
-        algorithm: "gzip",
-        ext: ".gz",
-      }),
-      compression({
-        algorithm: "brotliCompress",
-        ext: ".br",
-      }),
       isAnalyze &&
         visualizer({
           open: true,
@@ -93,6 +84,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "127.0.0.1",
       port: portConfig.frontend_port,
+      strictPort: true,
       proxy: {
         "/api": {
           target: proxyTarget,
@@ -124,7 +116,7 @@ export default defineConfig(({ mode }) => {
         ],
       },
       hmr: {
-        overlay: false,
+        overlay: true,
       },
     },
     // Pre-bundle common dependencies for faster dev startup.

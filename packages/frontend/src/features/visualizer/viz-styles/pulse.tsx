@@ -11,10 +11,11 @@ import { useDisposeOnUnmount } from "./helpers";
 // =============================================================================
 // PULSE — Concentric rings emitting from center on beats
 // =============================================================================
-export function PulseRings({ audioData, vizParams, sceneFrozen, prefersReducedMotion }: VizProps) {
+export function PulseRings({ audioData, vizParams, sceneFrozen, prefersReducedMotion, stems, audioElapsedRef }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const ringRefs = useRef<(THREE.Mesh | null)[]>([]);
   const ringCount = 12;
+  const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
   const { gl } = useThree();
   const isWebGPU = (gl as any)?.isWebGPURenderer === true;
@@ -40,25 +41,40 @@ export function PulseRings({ audioData, vizParams, sceneFrozen, prefersReducedMo
     const { bass, beat, peak: beatPeak } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
 
+    // Map stems to visual channels: drums → scale/pulse, other → palette shift
+    if (stems) {
+      const el = (audioElapsedRef?.current ?? 0);
+      const dur = stems.drums.duration || 1;
+      const idx = Math.min(stems.drums.energy_curve.length - 1, Math.max(0, Math.floor((el / dur) * stems.drums.energy_curve.length)));
+      stemEnergyRef.current = {
+        vocals: stems.vocals.energy_curve[idx] ?? 0,
+        drums: stems.drums.energy_curve[idx] ?? 0,
+        bass: stems.bass.energy_curve[idx] ?? 0,
+        other: stems.other.energy_curve[idx] ?? 0,
+      };
+    }
+
     ringRefs.current.forEach((ring, i) => {
       if (!ring) return;
       const speed = 0.3 + i * 0.05;
       const offset = i * 0.08;
       const phase = (t * speed * speedMul + offset) % 1;
-      ring.scale.setScalar(Math.max(0.1, phase * 8));
+      const stemScale = 1 + stemEnergyRef.current.drums * 0.6;
+      ring.scale.setScalar(Math.max(0.1, phase * 8 * stemScale));
       if (isWebGPU && ringMat) {
         const glow = (1 - phase) * vizParams.glowIntensity * 2;
         updateAudioReactiveMaterialTSL(ringMat, { bass, mid: 0, treble: 0, energy: 0.5 }, glow);
       } else {
         const m = ring.material as THREE.MeshStandardMaterial;
-        m.opacity = (1 - phase) * (0.5 + bass * 0.4);
-        m.emissiveIntensity = (1 - phase) * vizParams.glowIntensity * 2;
-        m.color.setHSL(0.5 + bass * 0.3, 0.8, 0.6);
+        m.opacity = (1 - phase) * (0.5 + bass * 0.4 + stemEnergyRef.current.drums * 0.3);
+        m.emissiveIntensity = (1 - phase) * vizParams.glowIntensity * 2 + stemEnergyRef.current.drums;
+        const hue = 0.5 + bass * 0.3 + stemEnergyRef.current.other * 0.15;
+        m.color.setHSL(hue, 0.8, 0.6);
       }
       if (beat && i === 0 && !isWebGPU) {
         const m = ring.material as THREE.MeshStandardMaterial;
         m.opacity = 0.9;
-        m.emissiveIntensity = 2 + beatPeak * 3;
+        m.emissiveIntensity = 2 + beatPeak * 3 + stemEnergyRef.current.drums * 2;
       }
     });
     if (!sceneFrozen)

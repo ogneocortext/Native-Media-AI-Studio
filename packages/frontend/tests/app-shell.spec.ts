@@ -42,12 +42,8 @@ test.describe('App Shell', () => {
 
   test('unknown route shows NotFound or redirects', async ({ page }) => {
     await navigateWithWait(page, '/this-route-does-not-exist');
-    // The app either renders 404 or redirects; both are acceptable.
-    const has404 = await page.getByText(/404|Not Found|Page not found/).count();
-    if (has404 === 0) {
-      const url = page.url();
-      expect(url).not.toContain('/this-route-does-not-exist');
-    }
+    const main = page.locator('main').first();
+    await expect(main).toContainText(/404|Not Found|Page not found/);
   });
 
   test('layout main content area is visible', async ({ page }) => {

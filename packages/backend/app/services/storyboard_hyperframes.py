@@ -76,8 +76,9 @@ def build_hyperframes_audio_payload(
     downbeats = set(float(x) for x in analysis.get("downbeat_times", []))
     if not downbeats and beats:
         # Beat analysis commonly returns the beat grid but omits downbeat_times.
-        # Use the studio's 4/4 default until a backend supplies an explicit meter.
-        downbeats = set(beats[::4])
+        # Derive 4/4 downbeats as every other beat (beat 1 of each 2-beat half-measure),
+        # matching the studio's audio-reactive default.
+        downbeats = set(beats[::2])
     beat_frames = {round(t * fps) for t in beats}
     downbeat_frames = {round(t * fps) for t in downbeats}
     lines = (transcript or {}).get("lines") or (transcript or {}).get("segments", [])

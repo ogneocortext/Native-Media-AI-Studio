@@ -1,7 +1,7 @@
 # API Reference
 
 > **Base URL:** `http://127.0.0.1:8000` (see `config/ports.json` for current port)
-> **Last Updated:** 2026-09-24 (Queue and Media Library browser review)
+> **Last Updated:** 2026-09-26 (worker lifecycle, Vite 8.3.1, TypeScript check command)
 
 ## Ollama / AI Integration Endpoints
 

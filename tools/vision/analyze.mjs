@@ -20,6 +20,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
+import { encodeImage, residentVisionModels, resolveVisionModel, VISION_MAX_DIM, VISION_QUALITY, VISION_KEEP_ALIVE, VISION_NUM_CTX, DEFAULT_VISION_MODEL, VISION_FALLBACK_MODEL } from './vision-common.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
@@ -28,16 +29,6 @@ const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const ATOMIC_CHAT_URL = process.env.ATOMIC_CHAT_URL || 'http://localhost:1337';
 const ATOMIC_CHAT_ENABLED = (process.env.ATOMIC_CHAT_ENABLED || 'false').toLowerCase() === 'true';
-const VISION_MODEL = process.env.VISION_MODEL || 'gemma4:e2b-it-qat';
-const VISION_FALLBACK_MODEL = process.env.VISION_FALLBACK_MODEL || 'qwen3-vl:2b';
-const VISION_MAX_DIM = parseInt(process.env.VISION_MAX_DIM || '1280');
-const VISION_QUALITY = parseInt(process.env.VISION_QUALITY || '80');
-// keep_alive overrides the server default (5m): without it every call risks a
-// cold model load + VRAM churn against whatever else is resident.
-const VISION_KEEP_ALIVE = process.env.VISION_KEEP_ALIVE || '10m';
-// Image tokens eat context: 1280px screenshots + long prompts can exceed the
-// 4096 default and get server-side truncated. 8192 is the 8GB-VRAM-safe floor.
-const VISION_NUM_CTX = parseInt(process.env.VISION_NUM_CTX || '8192');
 const VISION_TIMEOUT_MS = parseInt(process.env.VISION_TIMEOUT_MS || '300000');
 
 // --- Task → model routing -------------------------------------------------
@@ -71,45 +62,6 @@ function profileFor(model) {
   return MODEL_PROFILES[model] || DEFAULT_PROFILE;
 }
 
-async function residentVisionModels() {
-  // Only models whose capabilities include vision — otherwise stickiness
-  // could latch onto a resident TEXT model (e.g. qwen3.5:9b) and hard-fail.
-  let names = [];
-  try {
-    const r = await fetch(`${OLLAMA_URL}/api/ps`, { signal: AbortSignal.timeout(10000) });
-    if (!r.ok) return [];
-    const d = await r.json();
-    names = (d.models || []).map((m) => m.name);
-  } catch {
-    return [];
-  }
-  const out = [];
-  for (const n of names) {
-    try {
-      const r = await fetch(`${OLLAMA_URL}/api/show`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: n }),
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!r.ok) continue;
-      const d = await r.json();
-      if ((d.capabilities || []).includes('vision')) out.push(n);
-    } catch {
-      // Unverifiable: treat basename hints as fallback.
-      const b = baseName(n);
-      if (b.includes('vl') || b.includes('vision') || b.includes('minicpm') || b.includes('gemma')) {
-        out.push(n);
-      }
-    }
-  }
-  return out;
-}
-
-function baseName(name) {
-  return String(name || '').split(':')[0].toLowerCase();
-}
-
 // Resolve which model serves this call:
 //   1. explicit --model flag (or VISION_MODEL env) always wins;
 //   2. mode-mapped model when it is resident or nothing vision-capable is;
@@ -117,7 +69,7 @@ function baseName(name) {
 async function resolveModel(args, forcedModel) {
   if (forcedModel) return { model: forcedModel, why: 'override' };
   const mapped = MODE_MODEL[args.mode];
-  if (!mapped) return { model: VISION_MODEL, why: 'default' };
+  if (!mapped) return { model: DEFAULT_VISION_MODEL, why: 'default' };
   const resident = await residentVisionModels();
   const mappedBase = baseName(mapped);
   if (resident.some((r) => baseName(r) === mappedBase || r === mapped)) {
@@ -199,37 +151,6 @@ function parseArgs(argv) {
   }
 
   return args;
-}
-
-async function encodeImage(imagePath, opts = {}) {
-  const { maxDim = VISION_MAX_DIM, quality = VISION_QUALITY, pngPassthrough = false } = opts;
-  const buffer = fs.readFileSync(imagePath);
-  // Small images can be sent directly
-  if (buffer.length < 50000) return buffer.toString('base64');
-  // Text-dense PNG screenshots: JPEG recompression smears glyphs, so pass
-  // through the original bytes when they fit a modest budget.
-  const ext = (imagePath.split('.').pop() || '').toLowerCase();
-  if (pngPassthrough && (ext === 'png' || ext === 'webp') && buffer.length < 400000) {
-    console.error(`[vision] PNG passthrough ${imagePath} (${buffer.length} bytes, no JPEG artifacts)`);
-    return buffer.toString('base64');
-  }
-
-  // Resize large images to avoid Ollama 400 errors
-  let sharp;
-  try {
-    sharp = (await import('sharp')).default;
-  } catch {
-    // sharp not available — fallback: still send raw (may fail on very large images)
-    return buffer.toString('base64');
-  }
-
-  const resized = await sharp(buffer)
-    .resize(maxDim, maxDim, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality })
-    .toBuffer();
-
-  console.error(`[vision] Resized ${imagePath}: ${buffer.length} -> ${resized.length} bytes`);
-  return resized.toString('base64');
 }
 
 function buildPrompt(args) {

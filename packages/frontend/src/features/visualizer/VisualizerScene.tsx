@@ -80,10 +80,13 @@ export function VisualizerScene({
   perceptualScale = "mel",
   active = true,
   sampleAudio,
+  stems,
 }: Props) {
   // Pass elapsed ref to hook so it reads live value inside useFrame
   const audioWorker = useAudioAnalysisWorker({
-    enabled: true,
+    // The worker is only needed for the real analyser path. Avoid creating
+    // and messaging a worker while the demo/paused visualizer is running.
+    enabled: isPlaying,
     perceptualScale,
   });
   const realData = useRealAudio(
@@ -107,6 +110,8 @@ export function VisualizerScene({
   // The React-state `lrcSync` prop is quantized to ~20 fps — too coarse for the
   // 150 ms phrase-pulse window — so frame-critical children read these refs.
   const sectionBounds = useMemo(() => computeSectionBounds(lyrics), [lyrics]);
+  const storyboardRef = useRef(storyboard);
+  storyboardRef.current = storyboard;
   const lrcSyncLiveRef = useRef<LrcSyncData>(EMPTY_LRC_SYNC);
   const storyLiveRef = useRef<StoryBeat | null>(null);
 
@@ -118,7 +123,7 @@ export function VisualizerScene({
     const heard = sampleAudio ? sampleAudio() : (audioElapsedRef?.current ?? 0);
     updateTrackFeatures(analysisData, heard);
     lrcSyncLiveRef.current = lyrics.length ? computeLrcSync(lyrics, heard, sectionBounds) : EMPTY_LRC_SYNC;
-    storyLiveRef.current = getStoryState(storyboard, heard).beat;
+    storyLiveRef.current = getStoryState(storyboardRef.current, heard).beat;
   });
 
   // Pass audio data to parent for spectrum display
@@ -143,6 +148,8 @@ export function VisualizerScene({
       lrcSync,
       lyrics,
       prefersReducedMotion,
+      stems,
+      audioElapsedRef,
     };
     // Wrap with LRC controller for section-synchronized color/intensity
     const viz = (() => {

@@ -112,9 +112,9 @@ export function AnalyzeStep({ analysis, audioUrl, onNext }: { analysis: AudioAna
   );
 }
 
-export function ConfigureStep({ config, composedPrompt, onConfigChange, onSuggestionClick, onNext }: {
+export function ConfigureStep({ config, composedPrompt, onConfigChange, onSuggestionClick, onNext, onGenerateMusicPrompt }: {
   config: GenerationConfig; composedPrompt: string; onConfigChange: (c: GenerationConfig) => void;
-  onSuggestionClick: (w: string) => void; onNext: () => void;
+  onSuggestionClick: (w: string) => void; onNext: () => void; onGenerateMusicPrompt?: () => void;
 }) {
   const [activeCategory, setActiveCategory] = useState("happy");
   const applyStructured = () => onConfigChange({ ...config, prompt: composedPrompt });
@@ -202,6 +202,11 @@ export function ConfigureStep({ config, composedPrompt, onConfigChange, onSugges
             </div>
             <p className="px-3 pb-2 text-[11px] text-gray-500">Defaults 20 / 7.0 / random are tuned for Wan 2.2 5B on 8GB — change only if you know why.</p>
           </details>
+          {onGenerateMusicPrompt && (
+            <button type="button" onClick={onGenerateMusicPrompt} className="mt-2 w-full md:w-auto px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl flex items-center gap-2 font-semibold border border-gray-600">
+              <Music size={18} /> Generate Music Prompt
+            </button>
+          )}
           <button onClick={onNext} className="mt-2 w-full md:w-auto px-8 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl flex items-center gap-2 font-semibold shadow-lg shadow-violet-600/20"><Sparkles size={18} /> Continue to Generate →</button>
         </div>
       </div>

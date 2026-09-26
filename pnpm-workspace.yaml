@@ -14,7 +14,7 @@ catalog:
   react: ^19.2.8
   react-dom: ^19.2.8
   typescript: ^5.9.3
-  vite: ^8.2.2
+  vite: ^8.3.1
   tailwindcss: ^4.3.3
   '@tailwindcss/vite': ^4.3.3
   eslint: ^10.9.1
@@ -68,6 +68,7 @@ minimumReleaseAgeExclude:
   - '@remotion/effects@4.0.519'
   - '@remotion/transitions@4.0.519'
   - mediabunny@1.59.1
+  - vite@8.3.1
 
 allowBuilds:
   esbuild: true

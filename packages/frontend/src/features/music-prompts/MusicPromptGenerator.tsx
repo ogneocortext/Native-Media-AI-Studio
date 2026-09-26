@@ -74,7 +74,15 @@ function Count({ value, limit }: { value: number; limit?: number | null }) {
   );
 }
 
-export function MusicPromptGenerator() {
+interface MusicPromptGeneratorProps {
+  initialTheme?: string;
+  initialGenre?: string;
+  initialMood?: string;
+  initialTempo?: string;
+  onClose?: () => void;
+}
+
+export function MusicPromptGenerator({ initialTheme, initialGenre, initialMood, initialTempo, onClose }: MusicPromptGeneratorProps = {}) {
   const formId = useId();
   const themeId = `${formId}-theme`;
   const genreId = `${formId}-genre`;
@@ -99,10 +107,10 @@ export function MusicPromptGenerator() {
   const [lyricTechniques, setLyricTechniques] = useState<Record<string, { techniques: string[]; vocal_delivery?: string }> | null>(null);
   const [presets, setPresets] = useState<PresetsResponse | null>(null);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
-  const [theme, setTheme] = useState("");
-  const [genre, setGenre] = useState("");
-  const [mood, setMood] = useState("");
-  const [tempo, setTempo] = useState("");
+  const [theme, setTheme] = useState(initialTheme ?? "");
+  const [genre, setGenre] = useState(initialGenre ?? "");
+  const [mood, setMood] = useState(initialMood ?? "");
+  const [tempo, setTempo] = useState(initialTempo ?? "");
   const [vocal, setVocal] = useState("");
   const [instruments, setInstruments] = useState("");
   const [language, setLanguage] = useState("English");
@@ -245,6 +253,11 @@ export function MusicPromptGenerator() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
+      {onClose && (
+        <div className="flex justify-end mb-2">
+          <button type="button" onClick={onClose} className="text-xs text-white/60 hover:text-white border border-white/10 rounded-lg px-3 py-1.5">Close</button>
+        </div>
+      )}
       <div className="flex items-center gap-3 mb-1">
         <Music4 size={24} className="text-violet-400" />
         <h1 className="text-2xl font-bold">Music Prompt Generator</h1>
