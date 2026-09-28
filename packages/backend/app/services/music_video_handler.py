@@ -685,43 +685,6 @@ class MusicVideoHandler:
             except asyncio.CancelledError:
                 pass
 
-    async def _create_placeholder_output(self, job: Job, output_path: Path, analysis: dict):
-        """Create a placeholder output file when ffmpeg is not available."""
-        placeholder = {
-            "job_id": job.id,
-            "status": "placeholder",
-            "message": "FFmpeg not available. Install FFmpeg to generate actual video.",
-            "analysis": analysis,
-            "params": job.params,
-        }
-        # Write a JSON sidecar with analysis data
-        sidecar_path = output_path.with_suffix(".json")
-        sidecar_name = sidecar_path.stem
-        worker_result = await go_write_sidecar(job.id, placeholder, filename=sidecar_name)
-        if worker_result is None or not worker_result.get("written"):
-            with open(sidecar_path, "w") as f:
-                json.dump(placeholder, f, indent=2)
-
-        # Best-effort: try alternate engines for a 1s color placeholder so the
-        # frontend has a playable file instead of a missing MP4.
-        try:
-            from ..services.video import get_renderer
-            renderer = get_renderer("auto")
-            result = await renderer.render(RenderSpec(
-                kind="color",
-                color="#111111",
-                width=1280,
-                height=720,
-                duration=1.0,
-                fps=24,
-                output_path=str(output_path),
-            ))
-            if result.success and result.output_path and Path(result.output_path).exists():
-                return
-        except Exception:
-            pass
-        # If no engine can render, the JSON sidecar is the fallback artifact.
-
 
 class MusicVideoPreviewHandler(MusicVideoHandler):
     """Handler for music video preview jobs (shorter, lower quality)."""

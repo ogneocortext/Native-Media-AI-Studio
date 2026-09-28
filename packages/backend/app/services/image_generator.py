@@ -35,10 +35,10 @@ class ImageGenerationHandler:
         """
         Initialize the image generation handler.
         Args:
-            adapter: ComfyUI adapter instance. If None, creates one in mock mode.
+            adapter: ComfyUI adapter instance. If None, creates one with real service mode.
         """
         from ..adapters.comfyui import ComfyUIAdapter
-        self.adapter = adapter or ComfyUIAdapter(mock_mode=True)
+        self.adapter = adapter or ComfyUIAdapter()
 
     async def process_job(self, job: Job) -> dict[str, Any]:
         """

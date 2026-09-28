@@ -21,8 +21,8 @@ class JobDatabaseManager:
         def _do():
             with get_db() as conn:
                 conn.execute('''
-                    INSERT INTO jobs (id, job_type, status, created_at, progress, message, params, retry_count, max_retries, output_path)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO jobs (id, job_type, status, created_at, progress, message, params, retry_count, max_retries, output_path, priority)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     job.id,
                     job.job_type.value if isinstance(job.job_type, JobType) else job.job_type,
@@ -33,7 +33,8 @@ class JobDatabaseManager:
                     json.dumps(job.params),
                     job.retry_count,
                     job.max_retries,
-                    job.output_path
+                    job.output_path,
+                    job.priority,
                 ))
             return job
         return await JobDatabaseManager._run_sync(_do)
@@ -130,12 +131,38 @@ class JobDatabaseManager:
         return await JobDatabaseManager._run_sync(_do)
 
     @staticmethod
+    async def clear_status_async(status: JobStatus) -> int:
+        def _do():
+            status_value = status.value if isinstance(status, JobStatus) else status
+            with get_db() as conn:
+                cursor = conn.execute(
+                    "DELETE FROM jobs WHERE status = ?",
+                    (status_value,),
+                )
+                return cursor.rowcount
+        return await JobDatabaseManager._run_sync(_do)
+
+    @staticmethod
+    async def delete_jobs_batch_async(job_ids: list[str]) -> int:
+        if not job_ids:
+            return 0
+        placeholders = ",".join("?" for _ in job_ids)
+        def _do():
+            with get_db() as conn:
+                cursor = conn.execute(
+                    f"DELETE FROM jobs WHERE id IN ({placeholders})",
+                    list(job_ids),
+                )
+                return cursor.rowcount
+        return await JobDatabaseManager._run_sync(_do)
+
+    @staticmethod
     def create_job(job: Job) -> Job:
         """Insert a new job into the database."""
         with get_db() as conn:
             conn.execute('''
-                INSERT INTO jobs (id, job_type, status, created_at, progress, message, params, retry_count, max_retries, output_path)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO jobs (id, job_type, status, created_at, progress, message, params, retry_count, max_retries, output_path, priority)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 job.id,
                 job.job_type.value if isinstance(job.job_type, JobType) else job.job_type,
@@ -146,7 +173,8 @@ class JobDatabaseManager:
                 json.dumps(job.params),
                 job.retry_count,
                 job.max_retries,
-                job.output_path
+                job.output_path,
+                job.priority,
             ))
         return job
 
@@ -181,7 +209,7 @@ class JobDatabaseManager:
     _UPDATABLE_COLUMNS = frozenset({
         'job_type', 'status', 'created_at', 'started_at', 'completed_at',
         'progress', 'message', 'error', 'result', 'params', 'output_path',
-        'retry_count', 'max_retries',
+        'retry_count', 'max_retries', 'priority',
     })
 
     @staticmethod
@@ -258,5 +286,6 @@ class JobDatabaseManager:
             params=json.loads(row['params']),
             output_path=row['output_path'],
             retry_count=row['retry_count'],
-            max_retries=row['max_retries']
+            max_retries=row['max_retries'],
+            priority=row['priority'] if 'priority' in row.keys() else 0,
         )

@@ -149,4 +149,6 @@
 
 - 2026-09-24: Ollama model routing optimized for the installed GTX 1070 Ti catalog: Gemma4 E2B is the default chat/vision model, Qwen3-VL 2B is the fast fallback, MiniCPM-V 8B remains OCR-focused, context is capped at 8192, and model VRAM metadata uses Ollama's actual byte sizes.
 - 2026-09-24: Music prompt generator wired into the music-video wizard as a modal overlay in the Configure step, pre-filled from audio analysis (tempo, filename). Reused the existing standalone `MusicPromptGenerator` page component with new optional `initialTheme`/`initialTempo`/`onClose` props instead of duplicating the form.
+- 2026-09-28: Mock/placeholder remediation: `ImageGenerationHandler` and `StoryboardGeneratorHandler` defaulted to real adapters instead of `mock_mode=True`. Dead `_create_placeholder_output` removed from `music_video_handler.py`. Tests explicitly opt into mock mode; `MOCK_GENERATION` env var and service-unavailability auto-mock remain intact.
+- 2026-09-28: Queue hardening: `priority` column added to jobs (schema v17) with index on `(status, priority DESC, created_at ASC)`. Processor now enforces a per-handler timeout, polls for mid-flight cancellation, and reduces wakeup latency from 5s to 1s. Auto-cleanup expanded to dead-letter jobs and batch-deletes outside the in-memory lock to reduce contention.
 

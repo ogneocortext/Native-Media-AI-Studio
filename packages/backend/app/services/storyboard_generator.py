@@ -19,7 +19,7 @@ class StoryboardGeneratorHandler:
     """Handler for storyboard generation jobs using Ollama LLM."""
 
     def __init__(self, adapter: OllamaAdapter | None = None):
-        self.adapter = adapter or OllamaAdapter(mock_mode=True)
+        self.adapter = adapter or OllamaAdapter()
 
     async def process_job(self, job: Job) -> dict[str, Any]:
         """Process a storyboard generation job."""

@@ -55,6 +55,7 @@ class Job(BaseModel):
     output_path: str | None = None
     retry_count: int = 0
     max_retries: int = 3
+    priority: int = 0  # Higher priority runs first; tie-break by created_at
 
     model_config = ConfigDict(use_enum_values=True)
 
@@ -113,6 +114,7 @@ class JobCreateRequest(BaseModel):
     job_type: JobType
     params: dict[str, Any] = Field(default_factory=dict)
     max_retries: int = 3
+    priority: int = 0
 
 
 class JobUpdateRequest(BaseModel):

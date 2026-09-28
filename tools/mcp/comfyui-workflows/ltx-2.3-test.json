@@ -1,5 +1,5 @@
 {
-  "description": "LTX Video 2.3 FP8 test workflow (512x512, 24 frames, 12fps). Use with video_model_bench.py.",
+  "description": "LTX Video 2.3 FP8 test workflow (512x512, 24 frames, 12fps). Updated for ComfyUI 0.37 node patterns.",
   "model": "ltx-video-2.3-fp8.safetensors",
   "precision": "fp8",
   "resolution": "512x512",
@@ -8,7 +8,7 @@
   "prompt": {
     "1": {
       "class_type": "UNETLoader",
-      "inputs": { "unet_name": "ltx-video-2.3-fp8.safetensors", "model_file": "diffusion_models" }
+      "inputs": { "unet_name": "ltx-video-2.3-fp8.safetensors", "weight_dtype": "default" }
     },
     "2": {
       "class_type": "DualCLIPLoader",
@@ -23,10 +23,9 @@
     "3": {
       "class_type": "LTXVConditioning",
       "inputs": {
-        "clip": ["2", 0],
-        "latent": ["5", 0],
-        "frame_count": 24,
-        "fps": 12
+        "positive": ["2", 0],
+        "negative": ["2", 1],
+        "frame_rate": 12
       }
     },
     "4": {
@@ -45,16 +44,16 @@
       }
     },
     "5": {
-      "class_type": "EmptyLatentVideo",
-      "inputs": { "width": 512, "height": 512, "frame_count": 24, "batch_size": 1 }
+      "class_type": "EmptyLTXVLatentVideo",
+      "inputs": { "width": 512, "height": 512, "length": 24, "batch_size": 1 }
     },
     "6": {
-      "class_type": "LTXVDecode",
+      "class_type": "VAEDecode",
       "inputs": { "samples": ["4", 0], "vae": ["7", 0] }
     },
     "7": {
       "class_type": "VAELoader",
-      "inputs": { "vae_name": "ltxvae.safetensors" }
+      "inputs": { "vae_name": "LTX23_video_vae_bf16.safetensors" }
     },
     "8": {
       "class_type": "VHS_VideoCombine",

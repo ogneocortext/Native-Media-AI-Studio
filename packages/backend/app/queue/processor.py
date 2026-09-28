@@ -6,6 +6,7 @@ import asyncio
 import inspect
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
 from ..models.job import Job, JobStatus, JobType
@@ -18,6 +19,13 @@ from ..services.storyboard_generator import StoryboardGeneratorHandler
 from ..sse.handler import sse_manager
 
 logger = logging.getLogger(__name__)
+
+# Maximum wall-clock seconds a single handler may run before the processor
+# aborts it. Keeps the serial queue from stalling on a hung adapter.
+HANDLER_TIMEOUT_SECONDS = 3600
+
+# How often (in seconds) to poll for cancellation while a handler runs.
+CANCELLATION_HEARTBEAT_INTERVAL = 5.0
 
 
 class JobProcessor:
@@ -91,14 +99,14 @@ class JobProcessor:
         """Main processing loop - runs jobs serially, event-driven."""
         while self._running:
             try:
-                # Find next queued job
+                # Find next queued job (priority DESC, created_at ASC)
                 queued_jobs = await queue_manager.get_jobs_by_status(JobStatus.QUEUED)
                 if queued_jobs:
-                    job = queued_jobs[0]  # Get oldest queued job
+                    job = queued_jobs[0]
                     await self._process_job(job)
                 else:
-                    # Wait for a new job signal (up to 5s, then re-check for safety)
-                    await queue_manager.wait_for_jobs(timeout=5.0)
+                    # Short wait for new jobs, then re-check to keep latency low
+                    await queue_manager.wait_for_jobs(timeout=1.0)
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -120,6 +128,23 @@ class JobProcessor:
         except Exception as e:
             logger.error("Error broadcasting progress: %s", e)
 
+    async def _check_cancelled(self, job: Job) -> bool:
+        """Return True if the current job has been cancelled mid-run."""
+        current = await queue_manager.get_job(job.id)
+        if current is None or current.status == JobStatus.CANCELLED:
+            logger.warning("Job %s was cancelled during processing", job.id)
+            try:
+                await queue_manager.update_job(
+                    job.id,
+                    status=JobStatus.CANCELLED,
+                    message="Job cancelled",
+                    completed_at=datetime.now(),
+                )
+            except Exception:
+                pass
+            return True
+        return False
+
     async def _process_job(self, job: Job):
         """Process a single job"""
         self._current_job = job
@@ -139,9 +164,31 @@ class JobProcessor:
             if not handler:
                 raise ValueError(f"No handler registered for job type: {job.job_type}")
 
-            # Run the handler
+            # Run the handler with a hard timeout so a hung adapter cannot
+            # stall the serial queue forever.
             if inspect.iscoroutinefunction(handler):
-                result = await handler(job)
+                handler_task = asyncio.create_task(handler(job))
+                watcher_task = asyncio.create_task(self._cancellation_watcher(job))
+                try:
+                    result = await asyncio.wait_for(
+                        asyncio.shield(handler_task),
+                        timeout=HANDLER_TIMEOUT_SECONDS,
+                    )
+                except asyncio.TimeoutError:
+                    handler_task.cancel()
+                    try:
+                        await handler_task
+                    except asyncio.CancelledError:
+                        pass
+                    raise RuntimeError(
+                        f"Job {job.id} exceeded handler timeout of {HANDLER_TIMEOUT_SECONDS}s"
+                    ) from None
+                finally:
+                    watcher_task.cancel()
+                    try:
+                        await watcher_task
+                    except asyncio.CancelledError:
+                        pass
             else:
                 result = handler(job)
 
@@ -196,6 +243,15 @@ class JobProcessor:
 
         finally:
             self._current_job = None
+
+    async def _cancellation_watcher(self, job: Job):
+        """Background watcher that polls for cancellation while the handler runs."""
+        while True:
+            await asyncio.sleep(CANCELLATION_HEARTBEAT_INTERVAL)
+            if await self._check_cancelled(job):
+                # Cancellation is already persisted by _check_cancelled; raise to
+                # interrupt the active handler path.
+                raise asyncio.CancelledError()
 
     async def get_current_job(self) -> Job | None:
         """Get the currently running job"""

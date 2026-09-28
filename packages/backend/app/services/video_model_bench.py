@@ -35,6 +35,28 @@ BENCHMARK_OUTPUT = PROJECT_ROOT / "docs" / "knowledge-library" / "benchmarks" / 
 
 TEST_MATRIX = [
     {
+        "model": "ltxv_2b",
+        "resolution": "512x512",
+        "width": 512,
+        "height": 512,
+        "frames": 24,
+        "fps": 12,
+        "precision": "fp8",
+        "expected_vram_mb": 8000,
+        "format": "safetensors",
+    },
+    {
+        "model": "ltxv_2b",
+        "resolution": "832x480",
+        "width": 832,
+        "height": 480,
+        "frames": 24,
+        "fps": 12,
+        "precision": "fp8",
+        "expected_vram_mb": 10000,
+        "format": "safetensors",
+    },
+    {
         "model": "ltx_2_3",
         "resolution": "512x512",
         "width": 512,
@@ -117,34 +139,30 @@ TEST_MATRIX = [
 # Workflow templates (minimal, protocol-compatible)
 # ---------------------------------------------------------------------------
 
-def _ltx_workflow(model_file: str, width: int, height: int, frames: int, fps: int, seed: int, model_format: str = "safetensors") -> dict[str, Any]:
-    model_folder = "unet_gguf" if model_format == "gguf" else "diffusion_models"
+def _ltxv_2b_workflow(model_file: str, width: int, height: int, frames: int, fps: int, seed: int) -> dict[str, Any]:
     return {
         "prompt": {
             "1": {
                 "class_type": "UNETLoader",
-                "inputs": {"unet_name": model_file, "model_file": model_folder},
+                "inputs": {"unet_name": model_file, "weight_dtype": "default"},
             },
             "2": {
-                "class_type": "DualCLIPLoader",
-                "inputs": {
-                    "text": "positive prompt here",
-                    "text2": "negative prompt here",
-                    "clip_name1": "clip-l",
-                    "clip_name2": "umt5_xxl_fp16.safetensors",
-                    "type": "ltxv",
-                },
+                "class_type": "CLIPLoader",
+                "inputs": {"clip_name": "umt5_xxl_fp16.safetensors", "type": "ltxv"},
             },
             "3": {
-                "class_type": "LTXVConditioning",
-                "inputs": {
-                    "clip": ["2", 0],
-                    "latent": ["5", 0],
-                    "frame_count": frames,
-                    "fps": fps,
-                },
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": "positive prompt here", "clip": ["2", 0]},
             },
             "4": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": "negative prompt here", "clip": ["2", 0]},
+            },
+            "5": {
+                "class_type": "EmptyLTXVLatentVideo",
+                "inputs": {"width": width, "height": height, "length": frames, "batch_size": 1},
+            },
+            "6": {
                 "class_type": "KSampler",
                 "inputs": {
                     "seed": seed,
@@ -155,26 +173,114 @@ def _ltx_workflow(model_file: str, width: int, height: int, frames: int, fps: in
                     "denoise": 1.0,
                     "model": ["1", 0],
                     "positive": ["3", 0],
-                    "negative": ["3", 1],
+                    "negative": ["4", 0],
                     "latent_image": ["5", 0],
                 },
             },
-            "5": {
-                "class_type": "EmptyLatentVideo",
-                "inputs": {"width": width, "height": height, "frame_count": frames, "batch_size": 1},
-            },
-            "6": {
-                "class_type": "LTXVDecode",
-                "inputs": {"samples": ["4", 0], "vae": ["7", 0]},
-            },
             "7": {
-                "class_type": "VAELoader",
-                "inputs": {"vae_name": "ltxvae.safetensors"},
+                "class_type": "VAEDecode",
+                "inputs": {"samples": ["6", 0], "vae": ["8", 0]},
             },
             "8": {
+                "class_type": "VAELoader",
+                "inputs": {"vae_name": "LTX23_video_vae_bf16.safetensors"},
+            },
+            "9": {
                 "class_type": "VHS_VideoCombine",
                 "inputs": {
-                    "images": ["6", 0],
+                    "images": ["7", 0],
+                    "frame_rate": fps,
+                    "loop_count": 0,
+                    "filename_prefix": "NativeMediaAI_LTX2B",
+                    "format": "image/gif",
+                    "pingpong": False,
+                    "save_output": True,
+                },
+            },
+        }
+    }
+
+
+def _ltx_workflow(model_file: str, width: int, height: int, frames: int, fps: int, seed: int, model_format: str = "safetensors") -> dict[str, Any]:
+    if model_format == "gguf":
+        unet_node = {
+            "1": {
+                "class_type": "UnetLoaderGGUF",
+                "inputs": {"unet_name": model_file},
+            }
+        }
+        clip1 = "gemma_3_12B_it_fp4_mixed.safetensors"
+        clip2 = "ltx-2.3_text_projection_bf16.safetensors"
+    else:
+        unet_node = {
+            "1": {
+                "class_type": "UNETLoader",
+                "inputs": {"unet_name": model_file, "weight_dtype": "default"},
+            }
+        }
+        clip1 = "gemma_3_12B_it_fp4_mixed.safetensors"
+        clip2 = "ltx-2.3_text_projection_bf16.safetensors"
+
+    workflow = {
+        "prompt": {
+            **unet_node,
+            "2": {
+                "class_type": "DualCLIPLoader",
+                "inputs": {
+                    "text": "positive prompt here",
+                    "text2": "negative prompt here",
+                    "clip_name1": clip1,
+                    "clip_name2": clip2,
+                    "type": "ltxv",
+                },
+            },
+            "3": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": "positive prompt here", "clip": ["2", 0]},
+            },
+            "4": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": "negative prompt here", "clip": ["2", 0]},
+            },
+            "5": {
+                "class_type": "LTXVConditioning",
+                "inputs": {
+                    "positive": ["3", 0],
+                    "negative": ["4", 0],
+                    "frame_rate": fps,
+                },
+            },
+            "6": {
+                "class_type": "EmptyLTXVLatentVideo",
+                "inputs": {"width": width, "height": height, "length": frames, "batch_size": 1},
+            },
+            "7": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "seed": seed,
+                    "steps": 20,
+                    "cfg": 7.0,
+                    "sampler_name": "euler_ancestral",
+                    "scheduler": "normal",
+                    "denoise": 1.0,
+                    "model": ["1", 0],
+                    "positive": ["5", 0],
+                    "negative": ["5", 1],
+                    "latent_image": ["6", 0],
+                },
+            },
+            "8": {
+                "class_type": "VAELoader",
+                "inputs": {"vae_name": "LTX23_video_vae_bf16.safetensors"},
+            },
+            "9": {
+                "class_type": "VAEDecode",
+                "inputs": {"samples": ["7", 0], "vae": ["8", 0]},
+            },
+            "10": {
+                "class_type": "VHS_VideoCombine",
+                "inputs": {
+                    "images": ["9", 0],
                     "frame_rate": fps,
                     "loop_count": 0,
                     "filename_prefix": "NativeMediaAI_LTX",
@@ -185,6 +291,7 @@ def _ltx_workflow(model_file: str, width: int, height: int, frames: int, fps: in
             },
         }
     }
+    return workflow
 
 
 def _mochi_workflow(model_file: str, width: int, height: int, frames: int, fps: int, seed: int) -> dict[str, Any]:
@@ -192,7 +299,7 @@ def _mochi_workflow(model_file: str, width: int, height: int, frames: int, fps: 
         "prompt": {
             "1": {
                 "class_type": "UNETLoader",
-                "inputs": {"unet_name": model_file, "model_file": "diffusion_models"},
+                "inputs": {"unet_name": model_file, "weight_dtype": "default"},
             },
             "2": {
                 "class_type": "CLIPTextEncode",
@@ -200,15 +307,15 @@ def _mochi_workflow(model_file: str, width: int, height: int, frames: int, fps: 
             },
             "3": {
                 "class_type": "CLIPLoader",
-                "inputs": {"clip_name": "umt5_xxl_fp16.safetensors"},
+                "inputs": {"clip_name": "umt5_xxl_fp16.safetensors", "type": "mochi"},
             },
             "4": {
                 "class_type": "CLIPTextEncode",
                 "inputs": {"text": "negative prompt here", "clip": ["3", 0]},
             },
             "5": {
-                "class_type": "EmptyLatentVideo",
-                "inputs": {"width": width, "height": height, "frame_count": frames, "batch_size": 1},
+                "class_type": "EmptyMochiLatentVideo",
+                "inputs": {"width": width, "height": height, "length": frames, "batch_size": 1},
             },
             "6": {
                 "class_type": "KSampler",
@@ -279,9 +386,27 @@ def measure_peak_vram_mb(duration_s: float, poll_interval_s: float = 1.0) -> int
 # ComfyUI interaction
 # ---------------------------------------------------------------------------
 
+def _run_async(coro):
+    import asyncio
+
+    try:
+        return asyncio.run(coro)
+    except RuntimeError as exc:
+        msg = str(exc).lower()
+        if "no current event loop" in msg or "cannot be called from" in msg or "already running" in msg:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(coro)
+            finally:
+                loop.close()
+        raise
+
+
 async def _submit_and_wait(workflow: dict[str, Any], base_url: str, timeout: int = 900) -> dict[str, Any]:
     """Submit a workflow and wait for completion. Returns history entry."""
     import aiohttp
+    import asyncio
 
     session = aiohttp.ClientSession()
     try:
@@ -310,7 +435,7 @@ async def _submit_and_wait(workflow: dict[str, Any], base_url: str, timeout: int
                 if hist_resp.status == 200:
                     history = await hist_resp.json()
                     entry = history.get(prompt_id, {})
-                    status = entry.get("status", {}).get("status", "unknown")
+                    status = entry.get("status", {}).get("status_str", "unknown")
                     last_status = status
                     if status in ("success", "error", "failed"):
                         return {
@@ -319,16 +444,11 @@ async def _submit_and_wait(workflow: dict[str, Any], base_url: str, timeout: int
                             "execution_time": entry.get("status", {}).get("execution_time"),
                             "outputs": entry.get("outputs", {}),
                         }
-            await asyncio_sleep(poll_interval)
+            await asyncio.sleep(poll_interval)
 
         return {"error": f"Timed out after {timeout}s", "prompt_id": prompt_id, "last_status": last_status}
     finally:
         await session.close()
-
-
-def asyncio_sleep(seconds: float) -> coroutine:  # type: ignore[return]
-    import asyncio
-    return asyncio.sleep(seconds)
 
 
 # ---------------------------------------------------------------------------
@@ -358,7 +478,10 @@ def run_benchmark_entry(entry: dict[str, Any], base_url: str, dry_run: bool = Fa
     precision = entry["precision"]
     model_format = entry.get("format", "safetensors")
 
-    if model == "ltx_2_3":
+    if model == "ltxv_2b":
+        model_file = f"ltxv-2b-0.9.8-distilled-{precision}.safetensors"
+        workflow = _ltxv_2b_workflow(model_file, width, height, frames, fps, seed=0)
+    elif model == "ltx_2_3":
         if model_format == "gguf":
             model_file = f"ltx-2.3-22b-dev-{precision}.gguf"
         else:
@@ -395,12 +518,7 @@ def run_benchmark_entry(entry: dict[str, Any], base_url: str, dry_run: bool = Fa
     # Submit
     start = time.time()
     try:
-        loop = __import__("asyncio").get_event_loop()
-        if not loop.is_running():
-            run_result = loop.run_until_complete(_submit_and_wait(workflow, base_url))
-        else:
-            # Already in async context (e.g. jupyter) — use nest_asyncio or skip
-            run_result = {"error": "async event loop already running; run from sync script"}
+        run_result = _run_async(_submit_and_wait(workflow, base_url))
     except RuntimeError as exc:
         run_result = {"error": str(exc)}
 
@@ -449,10 +567,12 @@ def parse_resolution(res_str: str) -> tuple[int, int]:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Video model 8GB benchmark")
     ap.add_argument("--dry-run", action="store_true", help="Validate workflows without submitting")
-    ap.add_argument("--model", choices=["ltx_2_3", "mochi_1", "mochi_2"], help="Model to test")
+    ap.add_argument("--model", choices=["ltxv_2b", "ltx_2_3", "mochi_1", "mochi_2"], help="Model to test")
     ap.add_argument("--resolution", type=parse_resolution, help="WxH, e.g. 512x512")
     ap.add_argument("--frames", type=int, default=24, help="Frame count (default 24)")
     ap.add_argument("--all", action="store_true", help="Run full matrix")
+    ap.add_argument("--precision", help="Precision filter (e.g. fp8, fp16, Q4_K_S)")
+    ap.add_argument("--format", help="Format filter (e.g. safetensors, gguf)")
     ap.add_argument("--comfyui-url", default="http://127.0.0.1:8188", help="ComfyUI base URL")
     ap.add_argument("--output", default=str(BENCHMARK_OUTPUT), help="Results JSON path")
     args = ap.parse_args(argv)
@@ -471,6 +591,8 @@ def main(argv: list[str] | None = None) -> int:
             e for e in TEST_MATRIX
             if e["model"] == args.model
             and (args.resolution is None or (e["width"], e["height"]) == args.resolution)
+            and (args.precision is None or e.get("precision") == args.precision)
+            and (args.format is None or e.get("format") == args.format)
         ]
         if not entries:
             # Build a custom entry from CLI args when not in matrix
@@ -489,12 +611,12 @@ def main(argv: list[str] | None = None) -> int:
                 ]
 
     results = load_existing_results()
-    run_ids = {r.get("model") + "|" + r.get("resolution", "") + "|" + str(r.get("frames", "")) for r in results}
+    run_ids = {r.get("model") + "|" + r.get("resolution", "") + "|" + str(r.get("frames", "")) + "|" + str(r.get("precision", "")) + "|" + str(r.get("format", "")) for r in results if r.get("status") == "success"}
 
     for entry in entries:
-        run_key = entry["model"] + "|" + entry["resolution"] + "|" + str(entry["frames"])
+        run_key = entry["model"] + "|" + entry["resolution"] + "|" + str(entry["frames"]) + "|" + str(entry.get("precision", "")) + "|" + str(entry.get("format", ""))
         if not args.dry_run and run_key in run_ids:
-            logger.info("Skipping %s — already in results", run_key)
+            logger.info("Skipping %s — already succeeded", run_key)
             continue
 
         logger.info("Benchmarking %s @ %s/%dfps %s", entry["model"], entry["resolution"], entry["fps"], entry["precision"])

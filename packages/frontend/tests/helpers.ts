@@ -271,7 +271,7 @@ export async function mockApiHealth(
     if (pathname === '/api/health') {
       await route.fulfill({ status, contentType: 'application/json', body: healthBody });
     } else {
-      await route.continue();
+      await route.fallback();
     }
   });
 }
@@ -296,7 +296,7 @@ export async function mockApiQueueEmpty(page: Page): Promise<void> {
         body: JSON.stringify({ pending: 0, running: 0, completed: 0, failed: 0, total: 0 }),
       });
     } else {
-      await route.continue();
+      await route.fallback();
     }
   });
 }
@@ -352,7 +352,7 @@ export async function mockApiQueueWithJobs(page: Page, count = 2): Promise<void>
         body: JSON.stringify(stats),
       });
     } else {
-      await route.continue();
+      await route.fallback();
     }
   });
 }
@@ -372,7 +372,7 @@ export async function mockApiSystemHealth(
     if (pathname === '/api/render/health' || pathname.startsWith('/api/render/health/')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body });
     } else {
-      await route.continue();
+      await route.fallback();
     }
   });
 }
@@ -392,7 +392,7 @@ export async function mockApiServiceStatus(
     if (pathname === '/api/services/status' || pathname.startsWith('/api/services/status/')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body });
     } else {
-      await route.continue();
+      await route.fallback();
     }
   });
 }
@@ -418,7 +418,7 @@ export async function mockApiComfyUIStatus(
     if (pathname === '/api/services/comfyui/status' || pathname.startsWith('/api/services/comfyui/status/')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body });
     } else {
-      await route.continue();
+      await route.fallback();
     }
   });
 }
@@ -447,7 +447,7 @@ export async function mockApiSettings(
     if (pathname === '/api/integrations/config/settings' || pathname.startsWith('/api/integrations/config/settings/')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body });
     } else {
-      await route.continue();
+      await route.fallback();
     }
   });
 }
@@ -500,7 +500,7 @@ export async function mockHealthPage(
     } else if (pathname === '/api/services/comfyui/status' || pathname.startsWith('/api/services/comfyui/status/')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: comfyuiStatusBody });
     } else {
-      await route.continue();
+      await route.fallback();
     }
   });
 }
@@ -596,7 +596,7 @@ export async function mockGoServiceHealth(
     const url = route.request().url();
     const pathname = getPathname(url);
     if (pathname === '/events') {
-      await route.continue();
+      await route.fallback();
       return;
     }
     if (pathname === '/api/health/diagnostics/services' || pathname.startsWith('/api/health/diagnostics/services/')) {
@@ -613,7 +613,7 @@ export async function mockGoServiceHealth(
         return;
       }
     }
-    await route.continue();
+    await route.fallback();
   });
 }
 
@@ -629,7 +629,7 @@ export async function mockGoServiceHealthDegraded(
     const url = route.request().url();
     const pathname = getPathname(url);
     if (pathname === '/events') {
-      await route.continue();
+      await route.fallback();
       return;
     }
     if (pathname === '/api/health/diagnostics/services' || pathname.startsWith('/api/health/diagnostics/services/')) {
@@ -651,7 +651,7 @@ export async function mockGoServiceHealthDegraded(
         return;
       }
     }
-    await route.continue();
+    await route.fallback();
   });
 }
 

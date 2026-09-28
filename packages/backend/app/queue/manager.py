@@ -125,7 +125,8 @@ class QueueManager:
                 job_type=request.job_type,
                 params=request.params,
                 max_retries=request.max_retries,
-                status=JobStatus.QUEUED
+                status=JobStatus.QUEUED,
+                priority=request.priority,
             )
             self._jobs[job.id] = job
             # Persist to SQLite offloaded to thread to avoid blocking event loop
@@ -146,10 +147,10 @@ class QueueManager:
         return sorted(self._jobs.values(), key=lambda j: j.created_at, reverse=True)
 
     async def get_jobs_by_status(self, status: JobStatus) -> list[Job]:
-        """Get jobs filtered by status, oldest first (FIFO by creation time)."""
+        """Get jobs filtered by status, highest priority first then oldest first."""
         return sorted(
             (j for j in self._jobs.values() if j.status == status),
-            key=lambda j: j.created_at,
+            key=lambda j: (-j.priority, j.created_at),
         )
 
     async def get_stats(self) -> QueueStats:
@@ -405,40 +406,41 @@ class QueueManager:
                        if j.status == JobStatus.DEAD]
             for job_id in dead_ids:
                 del self._jobs[job_id]
-            import asyncio as _asyncio
-
-            from ..core.database import get_db
-            def _do():
-                with get_db() as conn:
-                    cursor = conn.execute("DELETE FROM jobs WHERE status = 'dead'")
-                    return cursor.rowcount
-            count = await _asyncio.to_thread(_do)
+            count = await JobDatabaseManager.clear_status_async(JobStatus.DEAD)
             return count
 
     async def _auto_cleanup_unlocked(self) -> int:
-        """Auto-cleanup old completed/failed/cancelled jobs (must be called under lock).
+        """Auto-cleanup old terminal jobs (must be called under lock).
         Keeps the most recent completed jobs and removes older ones to prevent
         unbounded memory growth. Returns the number of jobs removed.
         """
-        # Get terminal-state jobs sorted by completion time (oldest first)
+        terminal_statuses = {
+            JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.DEAD
+        }
         terminal_jobs = [
             j for j in self._jobs.values()
-            if j.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED)
+            if j.status in terminal_statuses
             and j.completed_at is not None
         ]
         terminal_jobs.sort(key=lambda j: j.completed_at)
 
-        # Keep the most recent half, remove the rest
         to_remove = terminal_jobs[:max(0, len(terminal_jobs) // 2)]
         removed = 0
+        # Capture ids first, then release lock pressure by deleting from DB in batch
+        ids_to_delete = [j.id for j in to_remove]
         for job in to_remove:
             if job.id in self._jobs:
                 del self._jobs[job.id]
-                await JobDatabaseManager.delete_job_async(job.id)
                 removed += 1
 
+        if ids_to_delete:
+            try:
+                await JobDatabaseManager.delete_jobs_batch_async(ids_to_delete)
+            except Exception as e:
+                logger.error("Batch delete during auto-cleanup failed: %s", e)
+
         if removed:
-            logger.info("Auto-cleanup removed %d old completed jobs", removed)
+            logger.info("Auto-cleanup removed %d old terminal jobs", removed)
         return removed
 
 

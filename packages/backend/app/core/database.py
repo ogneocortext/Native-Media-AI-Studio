@@ -222,7 +222,7 @@ class OllamaAnalysisRow:
 DB_PATH = PROJECT_ROOT / "storage" / "studio.db"
 
 # Database schema version for migrations
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 
 
 def _safe_json_loads(val: str | None, default: Any = None) -> Any:
@@ -428,6 +428,16 @@ def _migrate_v16(conn: sqlite3.Connection):
             ON hardware_benchmarks(status, started_at DESC);
         CREATE INDEX IF NOT EXISTS idx_hardware_benchmarks_model
             ON hardware_benchmarks(model, started_at DESC);
+    """)
+
+
+def _migrate_v17(conn: sqlite3.Connection):
+    """Add priority support to the job queue."""
+
+    conn.executescript("""
+        ALTER TABLE jobs ADD COLUMN priority INTEGER NOT NULL DEFAULT 0;
+        CREATE INDEX IF NOT EXISTS idx_jobs_priority_created
+            ON jobs(status, priority DESC, created_at ASC);
     """)
 
 
@@ -1086,6 +1096,8 @@ def init_db():
             _migrate_v15(conn)
         if current_version < 16:
             _migrate_v16(conn)
+        if current_version < 17:
+            _migrate_v17(conn)
 
         set_schema_version(conn, SCHEMA_VERSION)
         logger.info("Database initialized at version %d", SCHEMA_VERSION)

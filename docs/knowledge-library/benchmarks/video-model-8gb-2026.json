@@ -1,15 +1,148 @@
 [
   {
+    "model": "ltxv_2b",
+    "resolution": "512x512",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp8",
+    "format": "safetensors",
+    "timestamp": "2026-09-27T00:05:34.114493+00:00",
+    "vram_pre_mb": 6256,
+    "generation_time_s": 50.4,
+    "prompt_id": "ec4c5bc3-e138-482f-8a30-542f3782dc16",
+    "status": "success",
+    "execution_time": null,
+    "peak_vram_mb": 6380,
+    "quality_rating": null,
+    "notes": ""
+  },
+  {
+    "model": "ltxv_2b",
+    "resolution": "832x480",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp8",
+    "format": "safetensors",
+    "timestamp": "2026-09-27T00:07:00.610136+00:00",
+    "vram_pre_mb": 6383,
+    "generation_time_s": 90.47,
+    "prompt_id": "5a6ed2e6-2a06-4adb-b675-f11741a9ecb6",
+    "status": "success",
+    "execution_time": null,
+    "peak_vram_mb": 6383,
+    "quality_rating": null,
+    "notes": ""
+  },
+  {
+    "model": "ltxv_2b",
+    "resolution": "512x512",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp8",
+    "format": "safetensors",
+    "timestamp": "2026-09-28T16:30:54.240184+00:00",
+    "status": "dry-run-ok",
+    "workflow_preview": {
+      "model_file": "ltxv-2b-0.9.8-distilled-fp8.safetensors",
+      "nodes": 9
+    }
+  },
+  {
+    "model": "ltxv_2b",
+    "resolution": "832x480",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp8",
+    "format": "safetensors",
+    "timestamp": "2026-09-28T16:30:54.241184+00:00",
+    "status": "dry-run-ok",
+    "workflow_preview": {
+      "model_file": "ltxv-2b-0.9.8-distilled-fp8.safetensors",
+      "nodes": 9
+    }
+  },
+  {
     "model": "ltx_2_3",
     "resolution": "512x512",
     "frames": 24,
     "fps": 12,
     "precision": "fp8",
-    "timestamp": "2026-09-25T00:13:22.526215+00:00",
+    "format": "safetensors",
+    "timestamp": "2026-09-28T16:30:54.241184+00:00",
     "status": "dry-run-ok",
     "workflow_preview": {
       "model_file": "ltx-video-2.3-fp8.safetensors",
-      "nodes": 8
+      "nodes": 10
+    }
+  },
+  {
+    "model": "ltxv_2b",
+    "resolution": "512x512",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp8",
+    "format": "safetensors",
+    "timestamp": "2026-09-28T16:31:30.379105+00:00",
+    "status": "dry-run-ok",
+    "workflow_preview": {
+      "model_file": "ltxv-2b-0.9.8-distilled-fp8.safetensors",
+      "nodes": 9
+    }
+  },
+  {
+    "model": "ltxv_2b",
+    "resolution": "832x480",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp8",
+    "format": "safetensors",
+    "timestamp": "2026-09-28T16:31:30.379105+00:00",
+    "status": "dry-run-ok",
+    "workflow_preview": {
+      "model_file": "ltxv-2b-0.9.8-distilled-fp8.safetensors",
+      "nodes": 9
+    }
+  },
+  {
+    "model": "ltxv_2b",
+    "resolution": "512x512",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp8",
+    "format": "safetensors",
+    "timestamp": "2026-09-28T16:31:49.454665+00:00",
+    "status": "dry-run-ok",
+    "workflow_preview": {
+      "model_file": "ltxv-2b-0.9.8-distilled-fp8.safetensors",
+      "nodes": 9
+    }
+  },
+  {
+    "model": "ltxv_2b",
+    "resolution": "832x480",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp8",
+    "format": "safetensors",
+    "timestamp": "2026-09-28T16:31:49.455664+00:00",
+    "status": "dry-run-ok",
+    "workflow_preview": {
+      "model_file": "ltxv-2b-0.9.8-distilled-fp8.safetensors",
+      "nodes": 9
+    }
+  },
+  {
+    "model": "ltx_2_3",
+    "resolution": "512x512",
+    "frames": 24,
+    "fps": 12,
+    "precision": "fp8",
+    "format": "safetensors",
+    "timestamp": "2026-09-28T16:31:49.456665+00:00",
+    "status": "dry-run-ok",
+    "workflow_preview": {
+      "model_file": "ltx-video-2.3-fp8.safetensors",
+      "nodes": 10
     }
   },
   {
@@ -18,11 +151,12 @@
     "frames": 24,
     "fps": 12,
     "precision": "fp8",
-    "timestamp": "2026-09-25T00:13:22.527215+00:00",
+    "format": "safetensors",
+    "timestamp": "2026-09-28T16:31:49.523664+00:00",
     "status": "dry-run-ok",
     "workflow_preview": {
       "model_file": "ltx-video-2.3-fp8.safetensors",
-      "nodes": 8
+      "nodes": 10
     }
   },
   {
@@ -31,11 +165,26 @@
     "frames": 24,
     "fps": 12,
     "precision": "fp16",
-    "timestamp": "2026-09-25T00:13:22.527215+00:00",
+    "format": "safetensors",
+    "timestamp": "2026-09-28T16:31:49.545663+00:00",
     "status": "dry-run-ok",
     "workflow_preview": {
       "model_file": "ltx-video-2.3-fp16.safetensors",
-      "nodes": 8
+      "nodes": 10
+    }
+  },
+  {
+    "model": "ltx_2_3",
+    "resolution": "512x512",
+    "frames": 24,
+    "fps": 12,
+    "precision": "Q4_K_S",
+    "format": "gguf",
+    "timestamp": "2026-09-28T16:31:49.546665+00:00",
+    "status": "dry-run-ok",
+    "workflow_preview": {
+      "model_file": "ltx-2.3-22b-dev-Q4_K_S.gguf",
+      "nodes": 10
     }
   },
   {
@@ -44,7 +193,8 @@
     "frames": 24,
     "fps": 12,
     "precision": "fp8",
-    "timestamp": "2026-09-25T00:13:22.528718+00:00",
+    "format": "safetensors",
+    "timestamp": "2026-09-28T16:31:49.547665+00:00",
     "status": "dry-run-ok",
     "workflow_preview": {
       "model_file": "mochi-1-fp8.safetensors",
@@ -57,7 +207,8 @@
     "frames": 24,
     "fps": 12,
     "precision": "fp8",
-    "timestamp": "2026-09-25T00:13:22.529221+00:00",
+    "format": "safetensors",
+    "timestamp": "2026-09-28T16:31:49.547665+00:00",
     "status": "dry-run-ok",
     "workflow_preview": {
       "model_file": "mochi-2-fp8.safetensors",
@@ -70,26 +221,12 @@
     "frames": 24,
     "fps": 12,
     "precision": "fp16",
-    "timestamp": "2026-09-25T00:13:22.529731+00:00",
+    "format": "safetensors",
+    "timestamp": "2026-09-28T16:31:49.548664+00:00",
     "status": "dry-run-ok",
     "workflow_preview": {
       "model_file": "mochi-1-fp16.safetensors",
       "nodes": 9
-    }
-  },
-  {
-    "model": "ltx_2_3",
-    "resolution": "512x512",
-    "frames": 24,
-    "fps": 12,
-    "precision": "Q4_K_S",
-    "format": "gguf",
-    "timestamp": "2026-09-26T20:30:00.000000+00:00",
-    "status": "pending",
-    "workflow_preview": {
-      "model_file": "ltx-2.3-22b-dev-Q4_K_S.gguf",
-      "model_folder": "unet_gguf",
-      "nodes": 8
     }
   }
 ]
