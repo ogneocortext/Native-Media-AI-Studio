@@ -70,6 +70,7 @@ scripts/archive/
 !scripts/start_dev.ps1
 !scripts/start-tunnel.ps1
 !scripts/stop-tunnel.ps1
+!scripts/check-tunnel.ps1
 # Tunnel runtime state - live public hostnames and PIDs for a
 # publicly-reachable endpoint; regenerate with scripts/start-tunnel.ps1.
 scripts/utility/tunnel-urls.json

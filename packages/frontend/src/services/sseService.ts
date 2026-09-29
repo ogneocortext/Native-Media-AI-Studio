@@ -6,7 +6,7 @@
  * and event resumption built-in.
  */
 
-import { getEventsUrl } from "./portConfig";
+import { getEventsUrl, isPublicTunnelActive } from "./portConfig";
 
 type MessageListener = (message: Record<string, unknown>) => void;
 
@@ -149,12 +149,18 @@ class SSEService {
   private open(): void {
     if (this.eventSource || !this.wantsConnection) return;
 
-    // Prefer go-dashboard when configured; fall back to backend SSE.
-    const configuredUrl = getEventsUrl();
+    // The proxy URL is same-origin, so it is the only one that works when the
+    // page is served from a public tunnel: getEventsUrl() returns an absolute
+    // 127.0.0.1 address, which inside a sandbox VM resolves to the *agent's
+    // machine rather than this host. So in tunnel mode the proxy wins
+    // immediately instead of failing once and falling back.
     const proxyUrl = `${window.location.protocol}//${window.location.host}/api/events`;
+    const configuredUrl = getEventsUrl();
     const fallbackUrl = proxyUrl;
     const primaryUrl =
-      configuredUrl && configuredUrl !== proxyUrl ? configuredUrl : proxyUrl;
+      isPublicTunnelActive() || !configuredUrl || configuredUrl === proxyUrl
+        ? proxyUrl
+        : configuredUrl;
 
     const attempt = (url: string) => {
       // Build URL with Last-Event-ID for replay on reconnect
