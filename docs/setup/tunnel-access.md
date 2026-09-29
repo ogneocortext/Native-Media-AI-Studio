@@ -107,6 +107,25 @@ Stop before restarting the frontend or backend: the stop script kills the
 tunnel process tree, and a stale tunnel left pointing at a dead port returns
 502 to the agent.
 
+### 6. Check the tunnel is still serving
+
+`Verified : True` in the state file is a point-in-time result from startup. The
+localtunnel free tier drops connections minutes later, so re-probe when in doubt:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\check-tunnel.ps1
+```
+
+```
+  Tunnel check (ngrok)
+    frontend   : UP   https://a1b2c3d4.ngrok-free.app -> 200
+  Tunnel is serving.
+```
+
+It exits non-zero when nothing is serving, so it works as a pre-flight check.
+It probes with `Accept: application/json`, which is also what avoids ngrok's
+`ERR_NGROK_6024` interstitial page.
+
 ## Tunnel State
 
 The tunnel script writes runtime state to `scripts/utility/tunnel-urls.json`
@@ -170,6 +189,10 @@ the same regex, so proxied media downloads through the tunnel receive
 - `portConfig.ts` detects tunnel mode via `isTunnelMode()` (exported as
   `isPublicTunnelActive()`) and derives `events_url` / `sse_url` from the public
   backend URL.
+- `sseService.ts` **prefers the same-origin `/api/events` proxy when a tunnel is
+  active**, because `getEventsUrl()` returns an absolute `127.0.0.1` address that
+  resolves to the *agent's* machine rather than this host. Un-tunneled local
+  dev still prefers the configured go-dashboard URL.
 
 ## Using localtunnel (fallback)
 
@@ -190,6 +213,9 @@ the tunnel is broken. If the backend probe in the script reports
 | Symptom | Fix |
 |---|---|
 | Agent gets HTML instead of JSON | Missing `bypass-tunnel-reminder: true` (localtunnel) |
+| ngrok returns the "You are about to visit ..." page | ngrok's `ERR_NGROK_6024` interstitial. Send `Accept: application/json`; browsers dismiss it after one visit |
+| `ERR_NGROK_334` / "endpoint is already online" | The account is already using its one free endpoint. Run `stop-tunnel.ps1`, or use the default `-Target frontend` (one endpoint serves UI and API) |
+| `ERR_NGROK_334` even after stopping | An orphaned `ngrok.exe` still holds the endpoint. Check `Get-Process ngrok` and kill leftovers |
 | `403 CORS` / preflight returns 400 with no ACAO | Restart the backend so `allow_origin_regex` is loaded. Custom domains must be set via `PUBLIC_ORIGIN` |
 | `403 Blocked request. This host ... is not allowed` from the frontend | Vite `allowedHosts` — the string `"all"` is **not** a wildcard in Vite 8. Add the tunnel suffix (e.g. `.loca.lt`) and restart Vite |
 | `502` / `503` from the tunnel | The local process died. Check the port is still listening, then `stop-tunnel.ps1` and restart — stale tunnels stay bound to a dead port |
@@ -217,3 +243,17 @@ the tunnel is broken. If the backend probe in the script reports
 - For anything beyond a throwaway test agent, put authentication in front of
   the app (ngrok `--basic-auth`, Cloudflare Access, or an API key checked in a
   FastAPI dependency) and pass the credential in the `Authorization` header.
+
+## Credential hygiene
+
+- **Never commit the authtoken.** `ngrok config add-authtoken` stores it in the user
+  profile (`%LOCALAPPDATA%\ngrok\ngrok.yml`), outside this repository. If you paste a
+  token into a tracked file, a commit message, or a script, rotate it at
+  <https://dashboard.ngrok.com/get-started/your-authtoken> — removing the line
+  from the working tree does not remove it from git history.
+- Prefer `<your-token>` placeholders in docs, as above.
+- `scripts/utility/tunnel-urls.json` holds **live public hostnames** for a
+  publicly reachable endpoint, so it is gitignored. Do not force-add it.
+- On Windows, the Microsoft Store build of ngrok virtualizes its config: ngrok
+  reports the file as valid, but PowerShell `Test-Path` cannot see it. That is
+  expected, not a broken install — verify with `ngrok config check`.

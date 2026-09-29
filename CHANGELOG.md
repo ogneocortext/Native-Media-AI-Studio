@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Added - Toast system
+
+- `error` is a first-class toast type with its own variant, `role="alert"` and the
+  longest duration; genuine failures no longer report as warnings.
+- De-duplication of identical live messages, a four-toast stack cap, a dismiss
+  button, per-toast `detail` text, and `duration: 0` for sticky toasts.
+- Live-region ARIA semantics; timers pause on hover and keyboard focus.
+- 13 Playwright tests (`tests/toast.spec.ts`); `MediaLibrary` consolidated onto the
+  shared utility, replacing a bespoke toast and a blocking `alert()`.
+
+### Fixed - Public tunnel access for sandbox VM agents
+
+- CORS: `CORSMiddleware` now matches tunnel origins by pattern
+  (`allow_origin_regex`). It previously used a static list, so randomized
+  tunnel hostnames failed every preflight with 400 and no ACAO header.
+- Vite 8 no longer treats `allowedHosts: "all"` as a wildcard, which returned
+  `403 Blocked request` for every tunnel host. Replaced with an explicit
+  hostname/suffix list on `server` and `preview`; unknown hosts stay blocked.
+- The tunnel publishes **only** the Vite dev server, which proxies `/api`,
+  `/output` and `/ws` to the backend, so a single public URL serves UI and API.
+  This is what fits a free ngrok account, which serves one endpoint at a time
+  (`ERR_NGROK_334` otherwise). `-Target both` restores two endpoints.
+- `start-tunnel.ps1` tracks the real tunnel PIDs, sweeps orphans, and probes
+  the live endpoint before advertising it.
+- `sseService` prefers the same-origin `/api/events` proxy when tunneled;
+  `getEventsUrl()` returns an absolute `127.0.0.1` address that resolves to the
+  *agent's* machine, so real-time updates stalled on every load.
+- Added `scripts/check-tunnel.ps1` to re-probe a live tunnel; the startup
+  `Verified` flag goes stale when the free tier drops a connection.
+
+### Fixed - UI
+
+- `components.css` gradients were written `in oklch, 145deg`; the angle must
+  precede the interpolation method, so all 15 declarations were invalid and
+  silently dropped. Reordered.
+- Added contrast-safe text tokens (`error-text`, `success-text`, `link`), a
+  dark-mode gray ramp remediation, and a `light:` variant for the manual
+  theme toggle.
+
+### Fixed - Tooling
+
+- `tsconfig.tests.json` now matches the app compiler options
+  (`useDefineForClassFields`, `isolatedModules`) so tests are type-checked
+  under the same rules as the code they exercise.
+- `scripts/**/*.ps1` ignore pattern now covers subdirectories, and the tunnel
+  scripts are explicitly re-included so they stay versioned.
 ## [1.8.0] - 2026-09-23
 
 > First tagged release. Incorporates all prior `[Unreleased]` entries below,
@@ -90,6 +137,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Added - Toast system
+
+- `error` is a first-class toast type with its own variant, `role="alert"` and the
+  longest duration; genuine failures no longer report as warnings.
+- De-duplication of identical live messages, a four-toast stack cap, a dismiss
+  button, per-toast `detail` text, and `duration: 0` for sticky toasts.
+- Live-region ARIA semantics; timers pause on hover and keyboard focus.
+- 13 Playwright tests (`tests/toast.spec.ts`); `MediaLibrary` consolidated onto the
+  shared utility, replacing a bespoke toast and a blocking `alert()`.
+
+### Fixed - Public tunnel access for sandbox VM agents
+
+- CORS: `CORSMiddleware` now matches tunnel origins by pattern
+  (`allow_origin_regex`). It previously used a static list, so randomized
+  tunnel hostnames failed every preflight with 400 and no ACAO header.
+- Vite 8 no longer treats `allowedHosts: "all"` as a wildcard, which returned
+  `403 Blocked request` for every tunnel host. Replaced with an explicit
+  hostname/suffix list on `server` and `preview`; unknown hosts stay blocked.
+- The tunnel publishes **only** the Vite dev server, which proxies `/api`,
+  `/output` and `/ws` to the backend, so a single public URL serves UI and API.
+  This is what fits a free ngrok account, which serves one endpoint at a time
+  (`ERR_NGROK_334` otherwise). `-Target both` restores two endpoints.
+- `start-tunnel.ps1` tracks the real tunnel PIDs, sweeps orphans, and probes
+  the live endpoint before advertising it.
+- `sseService` prefers the same-origin `/api/events` proxy when tunneled;
+  `getEventsUrl()` returns an absolute `127.0.0.1` address that resolves to the
+  *agent's* machine, so real-time updates stalled on every load.
+- Added `scripts/check-tunnel.ps1` to re-probe a live tunnel; the startup
+  `Verified` flag goes stale when the free tier drops a connection.
+
+### Fixed - UI
+
+- `components.css` gradients were written `in oklch, 145deg`; the angle must
+  precede the interpolation method, so all 15 declarations were invalid and
+  silently dropped. Reordered.
+- Added contrast-safe text tokens (`error-text`, `success-text`, `link`), a
+  dark-mode gray ramp remediation, and a `light:` variant for the manual
+  theme toggle.
+
+### Fixed - Tooling
+
+- `tsconfig.tests.json` now matches the app compiler options
+  (`useDefineForClassFields`, `isolatedModules`) so tests are type-checked
+  under the same rules as the code they exercise.
+- `scripts/**/*.ps1` ignore pattern now covers subdirectories, and the tunnel
+  scripts are explicitly re-included so they stay versioned.
 ### Fixed - Audio analysis payload, contract + correctness (2026-09-21)
 
 Review of the analysis pipeline (`app/api/audio.py`, `app/services/audio_analyzer.py`, `tools/lib/audio.py`) found several real defects; all are fixed and verified.
