@@ -18,13 +18,11 @@
       1. Detects which tunnel binary is available.
       2. Starts tunnels for backend (8000) and frontend (5173).
       3. Captures the public URLs from tunnel output.
-      4. Records the tunnel URLs for this session (env + tunnel-urls.json).
-         No CORS restart is needed: the backend matches tunnel origins by
-         pattern via allow_origin_regex (app/core/cors.py). $env:PUBLIC_ORIGIN
-         is set for this PowerShell session only; the running backend never
-         sees it.
-      5. Writes tunnel URLs to scripts/utility/tunnel-urls.json for downstream
-         automation (agents, tests, Playwright).
+      4. Records the URLs in the state file for downstream automation
+         (agents, tests, Playwright) and exports PUBLIC_ORIGIN for this
+         PowerShell session only. No CORS restart is needed: the backend
+         matches tunnel origins by pattern via allow_origin_regex
+         (app/core/cors.py), so the running backend never needs the env var.
 
 .PARAMETER Provider
     Tunnel provider: "ngrok" (default) or "localtunnel".
@@ -228,10 +226,8 @@ if (-not $verified) {
 # ---------------------------------------------------------------------------
 # Export env vars for this session + write state file
 # ---------------------------------------------------------------------------
-# NOTE: setting $env:PUBLIC_ORIGIN here only affects THIS PowerShell process.
-# The already-running backend never sees it, so CORS for the tunnel origin has
-# to be handled by the allow_origin_regex in app/core/cors.py instead (tunnel
-# hostnames are randomized per start and cannot be listed ahead of time).
+# Process-local only: the running backend never sees this. Tunnel origins are
+# matched by allow_origin_regex in app/core/cors.py, so no restart is needed.
 $env:PUBLIC_ORIGIN = $backendUrl
 
 $state = @{
