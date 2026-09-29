@@ -22,27 +22,38 @@ interface PortConfig {
 /**
  * Load port configuration from config/ports.json
  * Falls back to environment variables or defaults
+ *
+ * Tunnel mode: VITE_PUBLIC_BACKEND_URL overrides backend_url so the frontend
+ * code calls the public tunnel endpoint instead of localhost when accessed
+ * from a sandbox VM.  The Vite dev proxy still targets localhost because
+ * Vite itself runs locally; only browser-origin API calls use the tunnel URL.
  */
 function getPortConfig(mode: string): PortConfig {
   const env = loadEnv(mode, process.cwd(), "");
-  
+
+  const publicBackend = (env.VITE_PUBLIC_BACKEND_URL || "").trim();
+  const publicFrontend = (env.VITE_PUBLIC_FRONTEND_URL || "").trim();
+
   const configPath = path.resolve(__dirname, "../../config/ports.json");
   let config: PortConfig = {
-    backend_url: env.VITE_BACKEND_URL || "http://127.0.0.1:8000",
+    backend_url: publicBackend || env.VITE_BACKEND_URL || "http://127.0.0.1:8000",
     backend_port: parseInt(env.VITE_BACKEND_PORT || "8000", 10),
-    frontend_port: parseInt(env.VITE_FRONTEND_PORT || "5173", 10),
+    frontend_port: publicFrontend ? parseInt(publicFrontend.split(":")[2] || "5173", 10) : parseInt(env.VITE_FRONTEND_PORT || "5173", 10),
     ws_port: parseInt(env.VITE_WS_PORT || "8000", 10),
   };
 
   try {
     if (fs.existsSync(configPath)) {
       const fileConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-      config = {
-        backend_url: fileConfig.backend_url || config.backend_url,
-        backend_port: fileConfig.backend_port || config.backend_port,
-        frontend_port: fileConfig.frontend_port || config.frontend_port,
-        ws_port: fileConfig.ws_port || config.ws_port,
-      };
+      // Only override from file if we are NOT in tunnel mode.
+      if (!publicBackend) {
+        config = {
+          backend_url: fileConfig.backend_url || config.backend_url,
+          backend_port: fileConfig.backend_port || config.backend_port,
+          frontend_port: fileConfig.frontend_port || config.frontend_port,
+          ws_port: fileConfig.ws_port || config.ws_port,
+        };
+      }
     }
   } catch (e) {
     console.warn("[Vite] Failed to load config/ports.json, using defaults/env vars:", e);
@@ -82,9 +93,10 @@ export default defineConfig(({ mode }) => {
       dedupe: ["three", "three-stdlib"],
     },
     server: {
-      host: "127.0.0.1",
+      host: "0.0.0.0",
       port: portConfig.frontend_port,
       strictPort: true,
+      allowedHosts: "all",
       proxy: {
         "/api": {
           target: proxyTarget,
