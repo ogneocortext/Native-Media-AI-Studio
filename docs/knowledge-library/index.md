@@ -96,6 +96,7 @@ date: 2026-09-05
 - [[../ux-audit/audit-report|🔍 UX Audit Report]] — User experience findings and recommendations
 - [[ollama-benchmarks|🏁 Ollama Three.js Scene Benchmark]] — Model benchmarking for scene generation (NEW 2026-09-04)
 - [[coding-benchmarks|🧪 Coding Model Benchmark]] — Python code, test generation, tool use, edge-case benchmarks for AI test harness selection (NEW 2026-09-04)
+- [[ai-music-video-platforms-2026|🏟️ AI Music-Video Platforms 2026]] — Competitive landscape: music-first agents, clip generators, cost/min table, gaps a local studio can exploit, 6 adopted backlog items (NEW 2026-09-29)
 
 ---
 
