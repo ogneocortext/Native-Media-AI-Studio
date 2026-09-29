@@ -4,9 +4,7 @@ tags:
   - benchmark
   - ollama
   - three-js
-  - ai-scene-generation
   - performance
-  - validation
 aliases:
   - Ollama Benchmark
   - Three.js Scene Benchmark

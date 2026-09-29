@@ -5,8 +5,6 @@ tags:
   - utilization
   - data-flow
   - dead-code
-  - orphaned-capabilities
-  - 2026
 aliases:
   - Feature Utilization & Gap Analysis 2026
   - Feature Audit

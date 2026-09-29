@@ -3,7 +3,6 @@ tags:
   - creative
   - design
   - css
-  - design-system
   - dark-mode
   - oklch
   - accessibility

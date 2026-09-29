@@ -161,20 +161,25 @@ No documents remain to migrate. Done since this tracker was first written:
   documented in its extended-vocabulary table, and the two self-referential ones
   (`coding-benchmarks`, `stack-extensions`, which only restated the filename)
   were replaced with `benchmark` and `tooling`.
+- Duplicate tags merged: `#benchmarking` into `#benchmark`, and
+  `#design-system` into `#design`. Six tags left behind with no document using
+  them were dropped from the guide rather than left as dead vocabulary.
+- Four documents exceeded the guide's 5-tag target; three are now within it.
+  `dark-ui-color-system-2026.md` keeps 7 because its tags each describe a
+  distinct concern (OKLCH, dark mode, contrast, a11y, CSS).
 - The primary-tag rule is enforced by `tools/validate-knowledge-tags.py`, which
-  also checks mojibake, tracker membership, index counts, and line endings.
-- `.gitattributes` pins text files to LF, after a text-mode rewrite on Windows
+  also checks mojibake, tracker membership, index counts, line endings, and
+  vocabulary drift in both directions.
+- `.gitattributes` pins markdown to LF, after a text-mode rewrite on Windows
   turned a 20-line count edit into a 234-line diff.
 
 Still open, none blocking:
 
 1. **Backfill frontmatter on new docs as they are written** - a primary category
    tag as the *first* tag, per `tagging-guide.md`.
-2. **Consolidate near-duplicate tags.** `#benchmark` and `#benchmarking` mean
-   the same thing, and `#design` overlaps `#design-system`. Left as-is because
-   merging means retagging documents.
-3. **Run the validator in CI.** It is runnable now but nothing invokes it
-   automatically on commit.
+2. **Run the validator in CI.** It is runnable now but nothing invokes it
+   automatically on commit. The repo has no `.github/` directory, so this needs
+   a decision about whether the project wants GitHub Actions at all.
 
 ---
 

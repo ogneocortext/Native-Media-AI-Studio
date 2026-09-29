@@ -2,7 +2,7 @@
 tags:
   - performance
   - hardware-8gb
-  - benchmarking
+  - benchmark
 aliases:
   - Hardware Profile and Benchmark Harness
 cssclasses:

@@ -198,6 +198,27 @@ def check_vocabulary(docs):
                         "tagging-guide.md" % (t, n))
 
 
+def check_dead_vocabulary(docs):
+    """Warn about tags the guide documents that no document uses.
+
+    The companion to check_vocabulary: retiring a tag from a document can leave
+    a row in the guide that nothing references. These are warnings, not errors -
+    a tag may be documented in anticipation of use.
+    """
+    in_use = set()
+    for path in docs.values():
+        in_use.update(frontmatter(path)[1] or [])
+    # index.md and README.md are excluded from `docs` but may still carry tags.
+    for extra in (os.path.join(BASE, "index.md"), os.path.join(BASE, "README.md")):
+        if os.path.exists(extra):
+            in_use.update(frontmatter(extra)[1] or [])
+    guide = read(os.path.join(BASE, "tagging-guide.md"))
+    for tag in re.findall(r"\|\s*`#([\w-]+)`\s*\|", guide):
+        if tag not in in_use:
+            warnings.append("tag '#%s' is documented in tagging-guide.md but "
+                            "no document uses it" % tag)
+
+
 def check_line_endings(docs):
     """Guard against CRLF creep.
 
@@ -219,6 +240,7 @@ def main():
     check_tracker(docs)
     check_index(docs)
     check_vocabulary(docs)
+    check_dead_vocabulary(docs)
     check_line_endings(docs)
     print("documents checked : %d" % len(docs))
     if warnings:

@@ -75,39 +75,32 @@ does not require a tag to appear in this table.
 | `#index` | Index or hub documents |
 | `#python` | Python-specific tooling |
 | `#tooling` | Build, packaging, or developer tooling |
-| `#benchmark` | A benchmark result or harness |
-| `#benchmarking` | Methodology for measuring performance |
-| `#validation` | Validation or QA methodology |
+| `#benchmark` | A benchmark result, harness, or methodology |
 | `#features` | Feature inventory or utilization analysis |
 | `#utilization` | How existing features are actually used |
 | `#data-flow` | Data flow between components |
 | `#dead-code` | Unused or unreachable code paths |
-| `#orphaned-capabilities` | Capabilities with no caller |
 | `#music-gen` | Music generation models and tooling |
 | `#ollama` | Ollama runtime or model usage |
 | `#three-js` | Three.js scene work |
-| `#ai-scene-generation` | AI-generated 3D scenes |
 | `#unsloth` | Unsloth fine-tuning |
 | `#triton` | Triton kernels |
 | `#cuda` | CUDA toolkit or runtime |
-| `#shaders` | Shader authoring |
-| `#glsl` | GLSL shader code |
 | `#tonemapping` | Tone mapping |
-| `#dithering` | Dithering |
 | `#color-science` | Color perception and color science |
 | `#oklch` | OKLCH color space |
 | `#audio-reactive` | Audio-reactive behaviour |
 | `#css` | CSS authoring |
-| `#design-system` | Design tokens and systems |
 | `#dark-mode` | Dark theme support |
 | `#contrast` | Color contrast and accessibility ratios |
 | `#accessibility` | A11y concerns beyond color |
-| `#2026` | Documents about a specific year |
 
-Two of these are near-duplicates worth consolidating: `#benchmark` and
-`#benchmarking` mean the same thing, and `#design` overlaps `#design-system`.
-They are left as-is because merging them means retagging documents, which is a
-separate change.
+This table is kept honest by `tools/validate-knowledge-tags.py`, which warns when
+a document uses a tag that is not listed here. It is not the reverse: a tag can
+be dropped from a document and become dead vocabulary, so prefer reusing an
+existing tag over inventing a near-synonym. The pairs that had already drifted
+that way - `#benchmark`/`#benchmarking` and `#design`/`#design-system` - were
+merged rather than documented twice.
 
 ---
 

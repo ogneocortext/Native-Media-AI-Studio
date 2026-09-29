@@ -2,12 +2,8 @@
 tags:
   - creative
   - visualization
-  - shaders
-  - glsl
   - color-science
-  - oklch
   - tonemapping
-  - dithering
   - audio-reactive
 aliases:
   - Shader Color Science
