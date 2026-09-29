@@ -100,6 +100,21 @@
   for time/VRAM math; wizard stays read-only until the user clicks **Generate
   Video**. Cloud pricing is opt-in per request (no default billing assumption).
 
+### D10 — No GitHub Actions; validation stays a local, runnable check
+- **Status:** Decided
+- **Context:** `tools/validate-knowledge-tags.py` guards the knowledge-library
+  tag taxonomy (primary tag first, no mojibake, tracker/index agreement, LF line
+  endings, vocabulary drift). It runs locally and passes, but nothing invokes it
+  automatically. The repo has no `.github/` directory.
+- **Decision:** **Do not add GitHub Actions.** This project is local-first on
+  Windows with heavy GPU dependencies, so hosted runners add cost and upkeep
+  without covering the paths most likely to break (GPU, ComfyUI, Unity/Blender).
+  Documentation linting is not worth that trade.
+- **Consequences:** The validator is run **on demand** — before committing
+  changes under `docs/knowledge-library/`, and by any agent touching those
+  files. Do not re-propose CI workflows without the owner asking. The same
+  reasoning applies to pre-commit hooks: none are installed.
+
 ---
 
 ## Open questions
@@ -166,4 +181,5 @@
 - 2026-09-28: Mock/placeholder remediation: `ImageGenerationHandler` and `StoryboardGeneratorHandler` defaulted to real adapters instead of `mock_mode=True`. Dead `_create_placeholder_output` removed from `music_video_handler.py`. Tests explicitly opt into mock mode; `MOCK_GENERATION` env var and service-unavailability auto-mock remain intact.
 - 2026-09-28: Queue hardening: `priority` column added to jobs (schema v17) with index on `(status, priority DESC, created_at ASC)`. Processor now enforces a per-handler timeout, polls for mid-flight cancellation, and reduces wakeup latency from 5s to 1s. Auto-cleanup expanded to dead-letter jobs and batch-deletes outside the in-memory lock to reduce contention.
 - 2026-09-29: Competitive landscape research updated (VidMuse, MiniMax H3, LTX 2.5, DreamX-Creator, MAGI-2, MelodicPal.ai) in `docs/knowledge-library/ai-music-video-platforms-2026.md`. Cost estimation feature implemented: backend `POST /api/video/estimate-cost`, frontend `estimateRenderCost()` service, and wizard `Generate` step UI showing time, VRAM, frames, and cloud cost before generation.
+- 2026-09-29: D10 recorded — no GitHub Actions. Knowledge-library validation (`tools/validate-knowledge-tags.py`) is a local, on-demand check; do not add CI workflows or pre-commit hooks to this repo.
 

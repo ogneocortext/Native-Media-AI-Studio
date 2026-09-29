@@ -103,6 +103,9 @@ Music-gen prefers `tools/music-gen/.venv/Scripts/python.exe`, then `MUSIC_GEN_PY
 - Backend: `pytest` in `packages/backend/`
 - E2E: Playwright under `packages/frontend/tests/browser/`
 - Lint/format: `pnpm lint` / `pnpm format` (frontend); `ruff check` / `ruff format` (backend)
+- Knowledge library: `python tools/validate-knowledge-tags.py` — run this before
+  committing any change under `docs/knowledge-library/`. There is **no CI** (see
+  D10 in the decision log), so nothing catches it automatically.
 
 ## Quick Reference
 

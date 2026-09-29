@@ -169,17 +169,16 @@ No documents remain to migrate. Done since this tracker was first written:
   distinct concern (OKLCH, dark mode, contrast, a11y, CSS).
 - The primary-tag rule is enforced by `tools/validate-knowledge-tags.py`, which
   also checks mojibake, tracker membership, index counts, line endings, and
-  vocabulary drift in both directions.
+  vocabulary drift in both directions. It is run **on demand**, before committing
+  changes to this directory — per D10 in the decision log, there is no CI.
 - `.gitattributes` pins markdown to LF, after a text-mode rewrite on Windows
   turned a 20-line count edit into a 234-line diff.
 
-Still open, none blocking:
+Still open:
 
 1. **Backfill frontmatter on new docs as they are written** - a primary category
-   tag as the *first* tag, per `tagging-guide.md`.
-2. **Run the validator in CI.** It is runnable now but nothing invokes it
-   automatically on commit. The repo has no `.github/` directory, so this needs
-   a decision about whether the project wants GitHub Actions at all.
+   tag as the *first* tag, per `tagging-guide.md`. This is the only remaining
+   item, and it is a habit rather than a task.
 
 ---
 
