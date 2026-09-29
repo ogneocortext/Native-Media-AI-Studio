@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    "useDefineForClassFields": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
@@ -8,6 +9,7 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
+    "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
@@ -17,10 +19,11 @@
     "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./.tsbuildinfo.tests",
     "paths": {
       "@/*": ["./src/*"],
-      "@shared/*": ["../../shared/*"],
-      "*": ["./*"]
+      "@shared/*": ["../../shared/*"]
     }
   },
   "include": ["tests/**/*.ts", "playwright.config.ts", "../../shared/**/*.ts"]

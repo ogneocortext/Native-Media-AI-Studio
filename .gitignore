@@ -245,6 +245,9 @@ unity-project-mcp/Assets/Textures/render_frames.meta
 
 # TypeScript incremental build info and compiled config output (tsc -b side effects)
 *.tsbuildinfo
+# Dot-prefixed variants (tsconfig sets tsBuildInfoFile to ./.tsbuildinfo[.tests]),
+# which `*.tsbuildinfo` does not match.
+.tsbuildinfo*
 packages/frontend/vite.config.js
 packages/frontend/vite.config.d.ts
 
