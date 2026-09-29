@@ -164,11 +164,27 @@ def check_index(docs):
                           % (c, m.group(1), want))
 
 
+def check_line_endings(docs):
+    """Guard against CRLF creep.
+
+    Rewriting a file with io.open(..., "w") on Windows converts every LF to
+    CRLF, which turns a small edit into a whole-file diff. This repo stores
+    markdown with LF, so flag any library file that has picked up CRLF.
+    """
+    for name, path in sorted(docs.items()):
+        with io.open(path, "rb") as f:
+            data = f.read()
+        if b"\r\n" in data:
+            errors.append("%s: CRLF line endings (repo uses LF); "
+                          "a rewrite likely converted them" % name)
+
+
 def main():
     docs = collect()
     check_documents(docs)
     check_tracker(docs)
     check_index(docs)
+    check_line_endings(docs)
     print("documents checked : %d" % len(docs))
     if errors:
         print("PROBLEMS (%d):" % len(errors))
