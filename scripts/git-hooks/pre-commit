@@ -1,0 +1,53 @@
+#!/bin/sh
+# Pre-commit guard: validate the knowledge-library before anything is committed.
+#
+# Installed locally only (see D10 in docs/architecture/decision-log.md: no CI, so
+# every check must happen on this machine before changes reach the remote). The
+# canonical copy lives at scripts/git-hooks/pre-commit; this file is a copy.
+# Re-install with:  bash scripts/install-git-hooks.sh
+#
+# Scoped on purpose: it runs the knowledge-library validator, and only when the
+# staged changes actually touch that directory, so it costs nothing (~250ms) on
+# unrelated commits. It deliberately does not run pytest, pnpm, or ruff - those
+# are slow and belong in explicit local runs, not in every commit.
+#
+# Bypass for a deliberate one-off:  git commit --no-verify
+
+set -e
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+# Nothing staged under the library? Nothing to validate.
+if ! git diff --cached --name-only | grep -q '^docs/knowledge-library/'; then
+    exit 0
+fi
+
+# Resolve an interpreter: the studio env first, then anything on PATH.
+PYTHON=""
+for candidate in \
+    "D:/conda-envs/nma-studio-cuda/Scripts/python.exe" \
+    "venv/Scripts/python.exe"; do
+    if [ -x "$candidate" ]; then
+        PYTHON="$candidate"
+        break
+    fi
+done
+if [ -z "$PYTHON" ] && command -v python >/dev/null 2>&1; then
+    PYTHON="python"
+fi
+
+if [ -z "$PYTHON" ]; then
+    echo "pre-commit: no Python interpreter found; skipping knowledge-tag validation." >&2
+    echo "            Set one in scripts/git-hooks/pre-commit or install Python." >&2
+    exit 0
+fi
+
+if ! "$PYTHON" tools/validate-knowledge-tags.py; then
+    echo >&2
+    echo "pre-commit: knowledge-library validation failed (see above)." >&2
+    echo "            Fix the reported problems, or bypass once with --no-verify." >&2
+    exit 1
+fi
+
+exit 0

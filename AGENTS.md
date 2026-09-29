@@ -104,8 +104,10 @@ Music-gen prefers `tools/music-gen/.venv/Scripts/python.exe`, then `MUSIC_GEN_PY
 - E2E: Playwright under `packages/frontend/tests/browser/`
 - Lint/format: `pnpm lint` / `pnpm format` (frontend); `ruff check` / `ruff format` (backend)
 - Knowledge library: `python tools/validate-knowledge-tags.py` — run this before
-  committing any change under `docs/knowledge-library/`. There is **no CI** (see
-  D10 in the decision log), so nothing catches it automatically.
+  committing any change under `docs/knowledge-library/`. A pre-commit hook does
+  it automatically (see D10 in the decision log): run
+  `bash scripts/install-git-hooks.sh` once after cloning. There is **no CI**, so
+  this local hook is the only automated guard.
 
 ## Quick Reference
 

@@ -169,8 +169,8 @@ No documents remain to migrate. Done since this tracker was first written:
   distinct concern (OKLCH, dark mode, contrast, a11y, CSS).
 - The primary-tag rule is enforced by `tools/validate-knowledge-tags.py`, which
   also checks mojibake, tracker membership, index counts, line endings, and
-  vocabulary drift in both directions. It is run **on demand**, before committing
-  changes to this directory — per D10 in the decision log, there is no CI.
+  vocabulary drift in both directions. A pre-commit hook runs it automatically
+  for changes to this directory (see D10 in the decision log); there is no CI.
 - `.gitattributes` pins markdown to LF, after a text-mode rewrite on Windows
   turned a 20-line count edit into a 234-line diff.
 

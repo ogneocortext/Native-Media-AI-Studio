@@ -269,3 +269,8 @@ packages/frontend/vite.config.d.ts
 tools/checkpoints/
 tools/music-gen/ACE-Step-1.5/
 .venv
+
+# The pre-commit installer is real source: a fresh clone has no .git/hooks, and
+# per D10 the local hook is the only automated guard (no CI).
+!scripts/install-git-hooks.sh
+!scripts/git-hooks/
