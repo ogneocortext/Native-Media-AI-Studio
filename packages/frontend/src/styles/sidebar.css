@@ -442,6 +442,12 @@
   &.unknown {
     background: var(--text-tertiary);
   }
+
+  &.degraded {
+    background: oklch(75% 0.15 80);
+    box-shadow: 0 0 10px oklch(75% 0.15 80 / 0.5);
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
 }
 
 .system-status-text {
@@ -457,6 +463,7 @@
   &.online { color: oklch(75% 0.15 145); }
   &.offline { color: oklch(65% 0.2 25); }
   &.unknown { color: var(--text-tertiary); }
+  &.degraded { color: oklch(80% 0.15 80); }
 }
 
 .system-status-count {

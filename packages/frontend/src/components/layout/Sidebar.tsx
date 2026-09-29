@@ -270,6 +270,8 @@ export function Sidebar() {
     adapterList.unshift({ name: "Backend", status: backendStatus });
   }
   const overallStatus = getOverallStatus();
+  // Keep "degraded" distinct (amber) instead of letting it collapse into "online".
+  const dotStatus = overall === "degraded" ? "degraded" : overallStatus;
   const showText = !collapsed || isMobile;
   const rail = collapsed && !isMobile;
   const closeMobile = () => setMobileOpen(false);
@@ -435,15 +437,16 @@ export function Sidebar() {
               >
                 <span className="health-label">System</span>
                 <span className="sidebar-footer-toggle-indicator">
+                  <span className={`system-status-indicator ${dotStatus}`} title={getStatusLabel()} />
                   {systemFooterOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                 </span>
               </button>
               {systemFooterOpen && (
                 <>
                   <div className="system-status-summary">
-                    <div className={`system-status-indicator ${overallStatus}`} />
+                    <div className={`system-status-indicator ${dotStatus}`} />
                     <div className="system-status-text">
-                      <div className={`system-status-label ${overallStatus}`}>{getStatusLabel()}</div>
+                      <div className={`system-status-label ${dotStatus}`}>{getStatusLabel()}</div>
                       <div className="system-status-count">{adapterList.length} adapter{adapterList.length === 1 ? "" : "s"}</div>
                     </div>
                   </div>
@@ -467,7 +470,7 @@ export function Sidebar() {
             </>
           ) : (
             <div className="sidebar-footer-collapsed">
-              <div className={`health-dot ${overallStatus}`} />
+              <div className={`system-status-indicator ${dotStatus}`} title={getStatusLabel()} />
               <Link to="/health" className="sidebar-footer-collapsed-inner">
                 <Activity size={14} />
               </Link>

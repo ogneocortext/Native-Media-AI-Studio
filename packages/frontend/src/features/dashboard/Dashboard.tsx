@@ -25,6 +25,11 @@ export function Dashboard() {
   const [dropError, setDropError] = useState<string | null>(null);
   const [probing, setProbing] = useState(false);
   const [probeHint, setProbeHint] = useState<string | null>(null);
+  // Tracks thumbnail URLs that failed to load so we render the type icon
+  // instead of a broken-image glyph.
+  const [failedThumbs, setFailedThumbs] = useState<Set<string>>(new Set());
+  const markThumbFailed = (url: string) =>
+    setFailedThumbs((prev) => { const next = new Set(prev); next.add(url); return next; });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
 
@@ -185,10 +190,20 @@ export function Dashboard() {
               <div key={o.path} className="group relative rounded-xl overflow-hidden border border-white/5 bg-black/20 hover:border-violet-500/30 transition-colors">
                 <a href={getOutputUrl(o.relative_path)} target="_blank" rel="noreferrer" className="block">
                   <div className="aspect-video bg-white/5 flex items-center justify-center">
-                    {o.cover_image ? (
-                      <img src={getOutputUrl(o.cover_image)} alt={o.filename} className="w-full h-full object-cover" />
-                    ) : o.file_type === "image" ? (
-                      <img src={getOutputUrl(o.relative_path)} alt={o.filename} className="w-full h-full object-cover" />
+                    {o.cover_image && !failedThumbs.has(o.cover_image) ? (
+                      <img
+                        src={getOutputUrl(o.cover_image)}
+                        alt={o.filename}
+                        className="w-full h-full object-cover"
+                        onError={() => o.cover_image && markThumbFailed(o.cover_image)}
+                      />
+                    ) : o.file_type === "image" && !failedThumbs.has(o.relative_path) ? (
+                      <img
+                        src={getOutputUrl(o.relative_path)}
+                        alt={o.filename}
+                        className="w-full h-full object-cover"
+                        onError={() => markThumbFailed(o.relative_path)}
+                      />
                     ) : o.file_type === "audio" ? (
                       <Music2 size={24} className="text-violet-400" />
                     ) : (

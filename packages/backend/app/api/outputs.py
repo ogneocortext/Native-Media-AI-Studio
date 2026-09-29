@@ -574,6 +574,18 @@ async def scan_output_directory(subdir: str, relative_base: Path) -> list[Output
         except OSError:
             continue
 
+        # Skip failed/empty render artifacts (same thresholds as
+        # scan_output_directories): tiny images are failed ComfyUI outputs,
+        # tiny videos never produced a playable file.
+        if stat.st_size < 1024 and file_path.suffix.lower() in (
+            ".png", ".jpg", ".jpeg", ".webp",
+        ):
+            continue
+        if stat.st_size < 10240 and file_path.suffix.lower() in (
+            ".gif", ".mp4", ".webm", ".mov",
+        ):
+            continue
+
         # Load sidecar metadata
         metadata = load_sidecar_metadata(file_path)
         job_id = metadata.get("job_id") if metadata else None
