@@ -1980,11 +1980,13 @@ async def serve_audio_file(request: Request, filename: str):
     }
     media_type = media_types.get(ext, "application/octet-stream")
 
-    # CORS: allowlist local origins only; omit ACAO for untrusted origins.
-    from ..core.cors import is_local_origin
+    # CORS: allowlist local + public tunnel origins; omit ACAO for untrusted
+    # origins. Use is_origin_allowed (not a raw get_all_origins lookup) so
+    # randomized tunnel hostnames such as *.loca.lt are recognised.
+    from ..core.cors import is_origin_allowed
 
     origin = request.headers.get("origin", "")
-    cors_origin = origin if is_local_origin(origin) else ""
+    cors_origin = origin if is_origin_allowed(origin) else ""
     headers: dict[str, str] = {
          "Accept-Ranges": "bytes",
          "Cache-Control": "public, max-age=3600",

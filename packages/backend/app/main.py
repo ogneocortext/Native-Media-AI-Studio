@@ -30,7 +30,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from .adapters.registry import adapter_registry
 from .core.config import PROJECT_ROOT, config
-from .core.cors import get_all_origins, get_local_origins, get_public_origin_regex, is_local_origin
+from .core.cors import get_all_origins, get_public_origin_regex, is_local_origin
 from .core.database import init_db
 from .core.logging_config import setup_logging
 from .core.port_manager import port_manager

@@ -92,20 +92,47 @@ def get_public_origin_regex() -> str:
     return r"^(?:" + "|".join(parts) + r")$"
 
 
+# Cached compiled form for per-request origin checks. Rebuilt when
+# PUBLIC_ORIGIN(S) changes so a restarted backend picks up a new tunnel.
+_ORIGIN_RE: re.Pattern[str] | None = None
+_ORIGIN_RE_SOURCE: str | None = None
+
+
+def _origin_re() -> re.Pattern[str]:
+    global _ORIGIN_RE, _ORIGIN_RE_SOURCE
+    source = get_public_origin_regex()
+    if _ORIGIN_RE is None or source != _ORIGIN_RE_SOURCE:
+        _ORIGIN_RE = re.compile(source)
+        _ORIGIN_RE_SOURCE = source
+    return _ORIGIN_RE
+
+
 def is_local_origin(origin: str) -> bool:
     """Check whether *origin* is in the trusted local allowlist."""
     return origin in get_local_origins()
 
 
+def is_public_origin(origin: str) -> bool:
+    """Check whether *origin* is a trusted public tunnel origin.
+
+    Matches the same sources as :func:`get_public_origin_regex` — the known
+    tunnel providers plus any configured ``PUBLIC_ORIGIN(S)`` — so per-endpoint
+    CORS helpers and ``CORSMiddleware`` agree. Prefer this over a raw
+    ``in get_all_origins()`` check, which cannot match randomized tunnel
+    hostnames.
+    """
+    return _origin_re().match(origin) is not None
+
+
 def is_origin_allowed(origin: str) -> bool:
     """Check whether *origin* is allowed for CORS.
 
-    Local origins and explicitly configured public origins are always
-    allowed.  In addition, any ``*.loca.lt`` origin is allowed so localtunnel
-    restarts don't require a backend restart.
+    Local origins, explicitly configured public origins, and any recognized
+    public tunnel host are allowed.  In addition, any ``*.loca.lt`` origin is
+    allowed so localtunnel restarts don't require a backend restart.
     """
     if origin in get_local_origins() or origin in get_public_origins():
         return True
     if origin.endswith(".loca.lt"):
         return True
-    return False
+    return is_public_origin(origin)
