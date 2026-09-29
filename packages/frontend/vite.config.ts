@@ -96,7 +96,24 @@ export default defineConfig(({ mode }) => {
       host: "0.0.0.0",
       port: portConfig.frontend_port,
       strictPort: true,
-      allowedHosts: "all",
+      // Vite 8 no longer treats the string "all" as a wildcard: allowedHosts is
+      // a list of hostnames, so "all" matched nothing and every public tunnel
+      // host was rejected with 403 "Blocked request. This host is not allowed".
+      // Entries may be a bare hostname or a leading-dot suffix match
+      // (".loca.lt" matches any subdomain). The dev server is only reachable
+      // via the tunnel or the LAN, so this is tighter than "all" on purpose.
+      allowedHosts: [
+        "localhost",
+        ".localhost",
+        // Public tunnel providers (hostnames are randomized per start).
+        ".loca.lt",
+        ".ngrok-free.app",
+        ".ngrok-free.dev",
+        ".ngrok.app",
+        ".ngrok.io",
+        ".trycloudflare.com",
+        ".serveo.net",
+      ],
       proxy: {
         "/api": {
           target: proxyTarget,
@@ -193,6 +210,19 @@ export default defineConfig(({ mode }) => {
     },
     preview: {
       port: portConfig.frontend_port,
+      // Same host policy as `server`: `vite preview` is also reachable through
+      // the tunnel when an agent is pointed at a built bundle.
+      allowedHosts: [
+        "localhost",
+        ".localhost",
+        ".loca.lt",
+        ".ngrok-free.app",
+        ".ngrok-free.dev",
+        ".ngrok.app",
+        ".ngrok.io",
+        ".trycloudflare.com",
+        ".serveo.net",
+      ],
       proxy: {
         "/api": {
           target: proxyTarget,

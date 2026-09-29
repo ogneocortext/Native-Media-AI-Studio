@@ -5,6 +5,11 @@
  * static config/ports.json asset, then to Vite environment variables.
  *
  * Per Guidelines section 6: "No hardcoded API URLs. Always read from ports.json or Vite env vars."
+ *
+ * Tunnel / sandbox mode:
+ *   Set VITE_PUBLIC_BACKEND_URL and/or VITE_PUBLIC_FRONTEND_URL to the
+ *   public HTTPS tunnel URLs (e.g. ngrok) so an AI agent in a sandbox VM
+ *   can reach the local server.
  */
 
 /// <reference types="vite/client" />
@@ -35,6 +40,12 @@ function getEnvVar(key: string, fallback: string): string {
   return (import.meta.env as Record<string, string>)[key] || fallback;
 }
 
+function isTunnelMode(): boolean {
+  return !!(getEnvVar("VITE_PUBLIC_BACKEND_URL", "") ||
+            getEnvVar("VITE_PUBLIC_FRONTEND_URL", "") ||
+            getEnvVar("VITE_PUBLIC_ORIGIN", ""));
+}
+
 /**
  * Normalize a raw ports.json payload into the PortConfig shape the frontend expects.
  * Falls back to safe defaults for any missing fields.
@@ -44,13 +55,29 @@ function normalizePortConfig(raw: Record<string, unknown>): PortConfig {
   const frontendPort = (raw.frontend_port as number) || 5173;
   const dashboardPort = (raw.dashboard_port as number) || 3847;
   const dashboardUrl = (raw.dashboard_url as string) || `http://127.0.0.1:${dashboardPort}`;
-  const eventsUrl = (raw.events_url as string) || (raw.sse_url as string) || `http://127.0.0.1:${backendPort}/api/events`;
-  const sseUrl = (raw.sse_url as string) || (raw.events_url as string) || eventsUrl;
+
+  // Tunnel mode: public URLs take precedence so sandbox agents can reach us.
+  const publicBackend = getEnvVar("VITE_PUBLIC_BACKEND_URL", "").trim();
+  const backendUrl = publicBackend || ((raw.backend_url as string) || `http://127.0.0.1:${backendPort}`);
+
+  const publicEvents = getEnvVar("VITE_PUBLIC_EVENTS_URL", "").trim();
+  const publicSse = getEnvVar("VITE_PUBLIC_SSE_URL", "").trim();
+
+  let eventsUrl = (raw.events_url as string) || (raw.sse_url as string) || `http://127.0.0.1:${backendPort}/api/events`;
+  let sseUrl = (raw.sse_url as string) || (raw.events_url as string) || eventsUrl;
+
+  // In tunnel mode, rewrite SSE/events URLs to the public tunnel endpoint.
+  if (publicEvents) eventsUrl = publicEvents;
+  else if (isTunnelMode()) eventsUrl = `${backendUrl.replace(/\/$/, "")}/api/events`;
+
+  if (publicSse) sseUrl = publicSse;
+  else if (isTunnelMode()) sseUrl = eventsUrl;
+
   const wsPort = (raw.ws_port as number) || backendPort;
   const wsUrl = (raw.ws_url as string) || `ws://127.0.0.1:${wsPort}/ws`;
 
   return {
-    backend_url: (raw.backend_url as string) || `http://127.0.0.1:${backendPort}`,
+    backend_url: backendUrl,
     backend_port: backendPort,
     frontend_port: frontendPort,
     events_url: eventsUrl,
@@ -105,6 +132,9 @@ export async function fetchPortConfig(): Promise<PortConfig> {
 /**
  * Get port configuration from environment variables.
  * Priority: VITE_ prefixed env vars > defaults
+ *
+ * Tunnel mode env vars (VITE_PUBLIC_*) override the localhost defaults so
+ * an AI agent in a sandbox VM can reach the server through a public tunnel.
  */
 export function getPortConfigFromEnv(): PortConfig {
   const backendPort = getEnvVar("VITE_BACKEND_PORT", "8000");
@@ -112,12 +142,18 @@ export function getPortConfigFromEnv(): PortConfig {
   const wsPort = getEnvVar("VITE_WS_PORT", "8000");
 
   const backendPortInt = parseInt(backendPort, 10);
-  const eventsUrl = getEnvVar("VITE_EVENTS_URL", `http://127.0.0.1:${backendPortInt}/api/events`);
-  const sseUrl = getEnvVar("VITE_SSE_URL", eventsUrl);
+  const publicBackend = getEnvVar("VITE_PUBLIC_BACKEND_URL", "").trim();
+  const backendUrl = publicBackend || getEnvVar("VITE_BACKEND_URL", `http://127.0.0.1:${backendPort}`);
+
+  const publicEvents = getEnvVar("VITE_PUBLIC_EVENTS_URL", "").trim();
+  const publicSse = getEnvVar("VITE_PUBLIC_SSE_URL", "").trim();
+  const defaultEvents = publicEvents || `http://127.0.0.1:${backendPortInt}/api/events`;
+  const eventsUrl = publicEvents || getEnvVar("VITE_EVENTS_URL", defaultEvents);
+  const sseUrl = publicSse || getEnvVar("VITE_SSE_URL", eventsUrl);
   const dashboardPort = parseInt(getEnvVar("VITE_DASHBOARD_PORT", "3847"), 10);
 
   cachedConfig = {
-    backend_url: getEnvVar("VITE_BACKEND_URL", `http://127.0.0.1:${backendPort}`),
+    backend_url: backendUrl,
     backend_port: backendPortInt,
     frontend_port: parseInt(frontendPort, 10),
     events_url: eventsUrl,
@@ -144,7 +180,7 @@ export function getCachedConfig(): PortConfig | null {
 export function getBackendUrl(): string {
   if (!cachedConfig) {
     // Sync fallback to env vars (non-async path)
-    return getEnvVar("VITE_BACKEND_URL", "http://127.0.0.1:8000");
+    return getEnvVar("VITE_BACKEND_URL", getEnvVar("VITE_PUBLIC_BACKEND_URL", "http://127.0.0.1:8000"));
   }
   return cachedConfig.backend_url;
 }
@@ -154,9 +190,17 @@ export function getBackendUrl(): string {
  */
 export function getApiBaseUrl(): string {
   if (!cachedConfig) {
-    return "http://127.0.0.1:8000";
+    return getEnvVar("VITE_PUBLIC_BACKEND_URL", "http://127.0.0.1:8000");
   }
   return cachedConfig.backend_url;
+}
+
+/**
+ * True when VITE_PUBLIC_BACKEND_URL or VITE_PUBLIC_FRONTEND_URL is set.
+ * Use to toggle sandbox/tunnel-aware UI hints.
+ */
+export function isPublicTunnelActive(): boolean {
+  return isTunnelMode();
 }
 
 /**

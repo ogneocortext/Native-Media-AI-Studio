@@ -30,7 +30,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from .adapters.registry import adapter_registry
 from .core.config import PROJECT_ROOT, config
-from .core.cors import get_local_origins, is_local_origin
+from .core.cors import get_all_origins, get_local_origins, get_public_origin_regex, is_local_origin
 from .core.database import init_db
 from .core.logging_config import setup_logging
 from .core.port_manager import port_manager
@@ -368,10 +368,17 @@ setup_tracing(app)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=sorted(get_local_origins()),
+    allow_origins=sorted(get_all_origins()),
+    # Tunnel hostnames are randomized per start, so they cannot be listed in
+    # allow_origins; without this regex every preflight from a sandbox VM agent
+    # is rejected with 400 and no Access-Control-Allow-Origin header.
+    allow_origin_regex=get_public_origin_regex(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # localtunnel/ngrok sit in front of the app, so responses pass through an
+    # extra proxy. Reflect the real scheme/IP or the browser blocks them.
+    expose_headers=["X-Request-ID", "X-Response-Time"],
 )
 
 
