@@ -87,3 +87,36 @@ def estimate_generation_time(
             "model_factor": model_factor,
         },
     }
+
+
+def estimate_render_cost(
+    steps: int,
+    width: int,
+    height: int,
+    num_frames: int,
+    fps: int,
+    model_name: str,
+    cloud_price_per_second: float | None = None,
+) -> dict[str, Any]:
+    """Estimate render cost in local compute terms and optional cloud-burst USD.
+
+    Returns time estimate + VRAM estimate + optional cloud cost.
+    """
+    time_est = estimate_generation_time(steps, width, height, num_frames, fps, model_name)
+
+    # VRAM estimate (rough, matches frontend estimateVRAMUsage logic)
+    pixel_count = width * height
+    vram_mb = int((pixel_count * 4 * 3) / (1024 * 1024) + 1500 + 500)
+
+    result: dict[str, Any] = {
+        **time_est,
+        "vram_estimate_mb": vram_mb,
+        "vram_estimate_gb": round(vram_mb / 1024, 1),
+    }
+
+    if cloud_price_per_second is not None:
+        cloud_cost = time_est["estimated_seconds"] * cloud_price_per_second
+        result["cloud_cost_usd"] = round(cloud_cost, 4)
+        result["cloud_price_per_second"] = cloud_price_per_second
+
+    return result

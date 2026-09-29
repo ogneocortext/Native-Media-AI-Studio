@@ -161,6 +161,31 @@ class ExportMatrixRequest(BaseModel):
     loop_seconds: float = Field(default=4.0, ge=2.0, le=8.0)
 
 
+class EstimateCostRequest(BaseModel):
+    """Request model for render cost estimation (A2: plan/render cost split)."""
+    steps: int = Field(default=20, ge=1, le=150)
+    width: int = Field(default=1280, ge=16, le=7680)
+    height: int = Field(default=720, ge=16, le=4320)
+    fps: int = Field(default=24, ge=1, le=120)
+    duration_seconds: float = Field(default=10.0, gt=0, le=3600)
+    model: str = Field(default="")
+    cloud_price_per_second: float | None = Field(default=None, description="Optional cloud-burst USD/sec for total cost estimate")
+
+
+class EstimateCostResponse(BaseModel):
+    """Response model for render cost estimation."""
+    estimated_seconds: float
+    estimated_minutes: float
+    estimated_end_time: str
+    sec_per_frame: float
+    total_frames: int
+    vram_estimate_mb: int
+    vram_estimate_gb: float
+    cloud_cost_usd: float | None = None
+    cloud_price_per_second: float | None = None
+    factors: dict[str, Any] | None = None
+
+
 @router.get("/render/engines")
 async def list_render_engines() -> dict:
     """List available video render engines with live availability."""
@@ -258,3 +283,28 @@ async def export_matrix(request: ExportMatrixRequest) -> dict:
         "message": f"Export matrix built: {len(result.artifacts)} artifact(s)"
         + (f", {len(result.errors)} error(s)" if result.errors else ""),
     }
+
+
+@router.post("/estimate-cost", response_model=EstimateCostResponse)
+async def estimate_cost(request: EstimateCostRequest) -> EstimateCostResponse:
+    """Estimate render cost and time before queuing (A2: plan/render cost split).
+
+    Returns local compute estimate (time + VRAM) and optional cloud-burst USD
+    cost when `cloud_price_per_second` is provided.
+    """
+    from ..services.generation_estimator import estimate_render_cost
+
+    try:
+        num_frames = max(1, int(request.duration_seconds * request.fps))
+        estimate = estimate_render_cost(
+            steps=request.steps,
+            width=request.width,
+            height=request.height,
+            num_frames=num_frames,
+            fps=request.fps,
+            model_name=request.model,
+            cloud_price_per_second=request.cloud_price_per_second,
+        )
+        return EstimateCostResponse(**estimate)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -60,9 +60,16 @@ Related: [[ai-video-trends-2026]], [[music-viz-trends-2026]], [[app-research-gap
 - **Weaknesses:** Less fine-grained control; style library constrains aesthetics; per-clip quality below Runway; underestimated credit burn reported.
 - **For:** Musicians and Suno/Udio creators wanting a finished synced MV with least effort.
 
+### VidMuse — agent-based multi-model music video platform
+- **Workflow:** Upload audio or paste Suno/Udio/YouTube link → AI Director analyzes track → creative brief → scene planning → shot list → storyboard → video generation. Routes 20+ models (Seedance 2.5, MiniMax H3, Kling V3.0, Veo 3.1, Wan 2.7, Grok Imagine Video, Hailuo 2.3, etc.). "Studio" mode for quality, "Lite" mode for speed. Suno V5 integration for original track creation. Shot Refine by Quoting + Timeline Editor in v2.0.
+- **Pricing:** Free 100 one-time credits (720p watermark). Pro $16/mo annual ($19 monthly) — 12,000 credits/month, described as "perfect for 3-min full-length music video projects." Ultra $83/mo annual ($99 monthly) — 12,000 credits + 1-on-1 support. Top-up packages available.
+- **Strengths:** Most aggressive model-matrix aggregation (20+ models); agent workflow closest to Freebeat's in breadth; Suno integration for seamless song→video; Singapore-based with active development.
+- **Weaknesses:** Newer platform (founded 2025); community size smaller than Freebeat/Runway; per-minute credit burn not published.
+- **For:** Musicians wanting maximum model choice under one subscription with an AI director workflow.
+
 ### MusVideo (musvideo.ai) — long-form value agent
 - **Workflow:** Upload audio or Suno link → tempo/mood/energy analysis → storyboard → **per-scene model choice** (Grok 6–30s/scene = cheapest; Kling 3.0 3–15s = hero quality; Wan 2.5; Fast) → optional lip sync → Shotstack cloud assembly with transitions + burn-in lyric subtitles (50+ languages) → 1080p in 16:9/9:16/1:1.
-- **Pricing:** Free 15 credits; Starter Pack $29.99 one-time (2,000 non-expiring credits); Basic $29.99/mo or **$14.99/mo annual (12,000 credits ≈ 24–48 min)**; Pro $44.99/mo or $22.49/mo annual. Credits roll over.
+- **Pricing:** Free 15 credits; Starter Pack $29.99 one-time (2,000 non-expiring credits); Basic $29.99/mo or **$14.99/mo annual (6,000 credits ≈ 12–24 min)**; Pro $44.99/mo or $22.49/mo annual (4,000 credits ≈ 20–40 min). Credits roll over.
 - **Strengths:** Cheapest finished-MV rate found; non-expiring packs; per-scene model routing is the economic engine.
 - **For:** Indie artists/DJs needing long-form output cheaply.
 
@@ -111,20 +118,57 @@ Related: [[ai-video-trends-2026]], [[music-viz-trends-2026]], [[app-research-gap
 ### Kling 3.0 (note)
 - 15s clips, native 4K60, multi-shot director, native *generated* audio (dialogue/SFX/music) + 5-language lip sync; API $0.084–0.42/s. Audio is **synthesized, not analyzed** against the user's track — no beat workflow.
 
+### MiniMax H3 — open-weight omni-modal with native audio
+- **Workflow:** Native ComfyUI support (v0.30.0+). Text/Image/Reference-to-video with **native stereo audio** (dialogue, SFX, music generated jointly). Up to 2K at 24fps, 4–15s per clip. Reference-driven generation: lock character, style, motion, camera, voice from up to 9 images + 3 videos + 3 audio clips. H3 MultiRef Update 6 adds 20-slot music video chain + AV extension workflow in ComfyUI (direct-latent streaming, checkpoint-free). Turbo LoRA for 2x faster inference.
+- **Pricing:** Open weights (Comfy-Org/MiniMax-H3 on HuggingFace, commercial license). API via ComfyUI partner nodes (pay-per-use). MiniMax H3 Max and H3 Max Turbo available via API for high-speed generation.
+- **Strengths:** Best open-weight audio-video integration; strongest character/reference locking in open ecosystem; active ComfyUI community (129+ stars on community wrapper); MiniMax Music 3 integrated into ComfyUI as of v0.33.1.
+- **Weaknesses:** 15s clip limit per generation; requires ComfyUI 0.30+; 33B model is heavy (community quantized to int8/NVFP4 for local use).
+- **For:** Local-first studios wanting open-weight native audio-video without API lock-in.
+
+### LTX 2.5 — 22B open audio-video foundation
+- **Workflow:** Lightricks open-sourced LTX-2.5 (22B asymmetric dual-stream diffusion transformer). Joint video + audio generation via bidirectional cross-attention with modality-aware CFG. Text/image/video-to-video + text-to-audio + audio-to-video. Distilled few-step variant; 2x latent spatial + 2x latent temporal upscalers. Official ComfyUI wrapper + workflow templates day-one.
+- **Pricing:** Open weights (Lightricks/LTX-2.5 on HuggingFace).
+- **Strengths:** Largest open audio-video model; 4K HDR output; official ComfyUI support; distilled variant for fast iteration.
+- **Weaknesses:** 22B params — heavy VRAM demand; primarily video-focused (audio is secondary modality); no documented music-specific workflow yet.
+- **For:** High-end local studios with VRAM to spare wanting open-weight audio-video.
+
+### DreamX-Creator 1.0 — open 7B joint audio-video
+- **Workflow:** AMap open-sourced DreamX-Creator 1.0, a 7B joint audio-video generator with gated cross-modal attention and 1-step 2K refiner. Built on Wan2.2. Generates 10s clips with synchronized audio from text/image.
+- **Pricing:** Open weights.
+- **Strengths:** Lightweight (7B) for joint audio-video; 1-step 2K refinement; built on Wan2.2.
+- **Weaknesses:** Very new (Sept 2026); limited community adoption; no documented music-specific workflow.
+- **For:** Experimenters wanting lightweight open audio-video.
+
+### MAGI-2 Preview — 114B MoE audio-video
+- **Workflow:** Sand.ai open-sourced MAGI-2 Preview, a 114B-parameter mixture-of-experts generating 10-second videos with synchronized audio. Activates only 6B parameters per token. Text or image + text prompt. Weights + inference code + technical report public.
+- **Pricing:** Open weights.
+- **Strengths:** Most powerful open audio-video model; efficient MoE architecture.
+- **Weaknesses:** 114B total params (even with 6B active/token, full weights needed); very new; high VRAM for full precision.
+- **For:** Research/experimentation; not practical for 8GB VRAM without aggressive quantization.
+
+### MelodicPal.ai — end-to-end AI music + video
+- **Workflow:** Text/lyrics/image/audio → AI generates original song + music video with character consistency. Upload photo to be protagonist. Claims copyright ownership of generated content.
+- **Pricing:** Free tier (1000 credits). Paid tiers undisclosed on public site.
+- **Strengths:** True end-to-end (song + video in one); character consistency from photo.
+- **Weaknesses:** Very new; limited third-party reviews; pricing unclear.
+- **For:** Quick viral social content where original song + matching video is the goal.
+
 ---
 
 ## 3. Cost per finished minute (raw generation unless noted)
 
 | Platform | Plan basis | ~Cost / min finished output |
-|---|---|---|
-| MusVideo | Basic annual $14.99/mo → 24–48 min | **$0.31–0.62/min** |
+|---|---|
+| MusVideo | Basic annual $14.99/mo → 12,000 credits ≈ 12–24 min | **$0.62–1.25/min** |
+| VidMuse | Pro $16/mo annual → 12,000 credits ≈ 3-min full MVs | ~$5–13/min (estimate, per-minute burn not published) |
 | Pika | Standard $8–10/mo (burn unpublished) | ~$4–7/min (estimate) |
 | Rotor | Music video 3 cr @ $6–9; lyric 4 cr (3–4 min song) | ~$5–12/min |
 | PixVerse V6 | $2.16 per 15s 1080p (API) | ~$8.6/min |
 | Runway Gen-4.5 | $0.12/s API; ~1.6 gens per usable clip | ~$11.5/min effective |
 | Luma Ray 3.2 | 330 cr per 5s 1080p; Plus $30/10k cr | ~$12/min |
 | Runway Standard sub | $12–15/mo for ~52s Gen-4.5 | ~$14–17/min |
-| Kaiber / Neural Frames / Freebeat | Per-minute credit burn not published | unknown |
+| Freebeat | Basic $4.99/wk or Pro $26.99–39.99/mo | unknown |
+| Kaiber / Neural Frames | Per-minute credit burn not published | unknown |
 
 > [!tip] The real cost driver
 > *Iteration* is what bills, not first renders. Retries, rejected clips, and underestimated credit burn are the
@@ -135,21 +179,23 @@ Related: [[ai-video-trends-2026]], [[music-viz-trends-2026]], [[app-research-gap
 
 ## 4. What the best cloud platforms do that local can't easily match
 
-1. **Frontier per-shot visual quality + character consistency.** Runway Gen-4.5, Kling 3.0, Veo 3.1 still lead on realism, temporal coherence, and identity locking across shots; best open weights (HunyuanVideo 13B, Wan 2.x, LTX 2.3) trail in blind tests and carry licensing caveats (e.g., HunyuanVideo geographic restrictions on commercial use).
-2. **Native synchronized audio.** Kling 3.0, Veo 3.1, PixVerse V6 generate dialogue/SFX/music in the same pass; local open pipelines still bolt audio on afterward.
-3. **Zero-ops scale and model aggregation.** Kaiber, Luma, Freebeat, MusVideo, Pika Studio bundle 3–70+ models under one subscription/API key with queue management — no VRAM juggling, no dependency hell.
-4. **One-click song→video agents.** Freebeat's brief→storyboard→assembly agent and MusVideo's Shotstack assembly deliver a finished 6-minute MV in minutes; local equivalents (comfyui-music2video, resolver Video Assembler) exist but need a technical user to assemble.
+1. **Frontier per-shot visual quality + character consistency.** Runway Gen-4.5, Kling 3.0, Veo 3.1 still lead on realism, temporal coherence, and identity locking across shots; best open weights (MiniMax H3 33B with Ref2VA, HunyuanVideo 13B, Wan 2.x, LTX 2.3/2.5) trail in blind tests and carry licensing caveats (e.g., HunyuanVideo geographic restrictions on commercial use).
+2. **Native synchronized audio.** Kling 3.0, Veo 3.1, PixVerse V6, MiniMax H3, LTX 2.5 generate dialogue/SFX/music in the same pass; local open pipelines still bolt audio on afterward — though MiniMax H3 and LTX 2.5 now demonstrate this is solvable locally with enough VRAM.
+3. **Zero-ops scale and model aggregation.** Kaiber, Luma, Freebeat, MusVideo, VidMuse, Pika Studio bundle 3–70+ models under one subscription/API key with queue management — no VRAM juggling, no dependency hell. VidMuse currently leads with 20+ models.
+4. **One-click song→video agents.** Freebeat's brief→storyboard→assembly agent, MusVideo's Shotstack assembly, and VidMuse's AI Director deliver finished multi-minute MVs in minutes; local equivalents (comfyui-music2video, resolver Video Assembler, H3 MultiRef Music Video workflow) exist but need a technical user to assemble.
 5. **Licensed conveniences.** Rotor's 9M-clip stock library included in price, Topaz upscaling in Kaiber, platform-native exports (Spotify Canvas, Apple Music Motion).
+6. **Music-specific model training.** Freebeat's 528 onbeat effects, custom style training, and 7-signal analysis (BPM, onset, energy, spectral, sections) are trained specifically on music-video correlations; open weights have no equivalent music-specific fine-tuning.
 
 ---
 
 ## 5. Gaps a local-first studio can exploit
 
-1. **Cost structure.** Cloud finished-MV economics run ~$0.30/min (MusVideo annual) to ~$12–17/min (Luma/Runway) — and iteration is the real bill. Local planning is free; only final renders cost, and those can cloud-burst per shot with a live cost meter (the comfyui-music2video pattern).
+1. **Cost structure.** Cloud finished-MV economics run ~$0.62/min (MusVideo annual) to ~$12–17/min (Luma/Runway) — and iteration is the real bill. Local planning is free; only final renders cost, and those can cloud-burst per shot with a live cost meter (the comfyui-music2video pattern).
 2. **Determinism.** Cloud outputs are slot machines — unpredictable credit burn, flickery morphing. A local pipeline can be fully deterministic where it matters: librosa beat grids, stem separation, Whisper word-level lyric timestamps, shot boundaries snapped to beats in Python — LLM used only for creative copy, never for timing.
 3. **Long-form.** Cloud clip caps (5–15s) make 6–40 min outputs credit-punishing. Local FFmpeg assembly has no per-minute tax — render once, iterate planning free.
 4. **Vertical/social formats.** 9:16 is a first-class citizen everywhere — table stakes, cheap to match locally with crop templates and safe-area guides.
 5. **Asset ownership & privacy.** Unreleased tracks uploaded to cloud analyzers; outputs subject to watermarks, ToS suspensions, and model deprecations (Sora API sunset 2026-09-24 killed integrations). Local = masters, stems, prompts, project files stay on disk and stay versionable.
+6. **Open-weight audio-video is maturing.** MiniMax H3 (33B, native stereo audio), LTX 2.5 (22B, audio-video joint), DreamX-Creator (7B), and MAGI-2 (114B MoE) now demonstrate that local audio-synced generation is viable — the gap is music-specific workflow integration, not capability.
 
 ---
 
@@ -171,11 +217,14 @@ Related: [[ai-video-trends-2026]], [[music-viz-trends-2026]], [[app-research-gap
 Concrete backlog items registered from this research. Status: **proposed** — local agents pick these up through the normal plan-approval flow; nothing here changes existing architecture decisions (see `docs/architecture/decision-log.md`, D1–D8).
 
 - **[A1] Music-brain spike.** Evaluate adopting the comfyui-music2video / resolver Video Assembler pattern (librosa beat grid + stem separation + Whisper word timestamps → Python shot planner) as the front end of the studio's video pipeline. Builds directly on the existing per-stem energy analysis work — extends it from visualization into *direction*.
-- **[A2] Plan/render cost split.** Design the render queue so planning (treatment, storyboard, timing) is always free and unlimited, with a live per-shot USD cost meter shown before any paid render (local or cloud-burst). Principle: the user should never be surprised by a bill.
+- **[A1b] Open-weight audio-video integration.** Evaluate MiniMax H3 (33B, native stereo audio, Ref2VA character locking) and LTX 2.5 (22B, audio-video joint) as ComfyUI backends for per-shot generation, replacing or augmenting the current Wan 2.2 GGUF path. Priority: H3 MultiRef Update 6 music-video workflow (20-slot chain, direct-latent streaming).
+- **[A2] Plan/render cost split.** Design the render queue so planning (treatment, storyboard, timing) is always free and unlimited, with a live per-shot USD cost meter shown before any paid render (local compute cost or cloud-burst via fal.ai/OpenRouter with per-shot USD accounting). Principle: the user should never be surprised by a bill.
+- **[A2b] Backend cost-estimation API.** Implement `POST /api/video/estimate-cost` returning estimated render time, VRAM usage, and (for cloud-burst) per-shot USD cost before any generation starts.
 - **[A3] Beat-quantized assembler.** FFmpeg/PyAV assembly stage: beat-snapped cuts, crossfades, Whisper-timed lyric burn-in, 16:9/9:16/1:1 export matrix. Target: close ~80% of the perceived gap vs. Freebeat/MusVideo assembly without any generative model.
 - **[A4] Lyric video + Canvas as first shippable video products.** Highest margin, fully deterministic, no diffusion required — ship before narrative MV generation.
 - **[A5] Stem-reactive visualizer mode.** Map per-stem RMS/onset envelopes to shader uniforms (extends current stem visualization work into Neural Frames territory).
-- **[A6] Per-scene model routing.** Draft tier (local LTX/Wan) → hero tier (single cloud-burst flagship model) per scene, with the cost meter from A2 making the tradeoff visible.
+- **[A6] Per-scene model routing.** Draft tier (local LTX/Wan/H3) → hero tier (single cloud-burst flagship model) per scene, with the cost meter from A2 making the tradeoff visible.
+- **[A7] Character bible + scene lock as first-class export.** Export the wizard's character/scene library as JSON sidecars alongside the video manifest (see H3 MultiRef pattern) so projects are reproducible without re-running the wizard.
 
 Related pipeline docs: [[comfyui-workflows]], [[music-video-production]], [[remotion-guide]], [[blender-mcp]], [[audio-reactive-production]].
 
@@ -183,22 +232,26 @@ Related pipeline docs: [[comfyui-workflows]], [[music-video-production]], [[remo
 
 ## 8. Could not verify / open questions
 
-- Per-minute credit burn for Kaiber, Neural Frames, and Freebeat is not published — estimates would require hands-on metering.
+- Per-minute credit burn for Kaiber, Neural Frames, Freebeat, and VidMuse is not published — estimates would require hands-on metering.
 - Kaiber's exact 2026 tier feature split (what "Cuts"/Topaz/custom training each tier includes) — only third-party summaries available.
 - Freebeat's claimed stats (1B+ seconds rendered, Reuters/Yamaha partnerships) — sourced from its own press; treat as vendor claims.
-- Real user-review volume is thin: most "reviews" are SEO/sponsored roundups; dedicated Reddit/forum sentiment for Rotor/Neural Frames/MusVideo not found in this pass.
+- Real user-review volume is thin: most "reviews" are SEO/sponsored roundups; dedicated Reddit/forum sentiment for Rotor/Neural Frames/MusVideo/VidMuse not found in this pass.
 - Pika Studio's exact per-model credit costs — first-party pricing page not read directly.
+- MiniMax H3 local music-video workflow quality with 8GB VRAM — H3 MultiRef Update 6 requires ComfyUI 0.30+ and community quantization; untested on GTX 1070 Ti.
+- LTX 2.5 VRAM requirements at 22B params — likely requires 24GB+ for full precision; quantized variants not yet benchmarked.
+- DreamX-Creator 1.0 and MAGI-2 Preview — open weights released Sept 2026; no community validation yet.
 
 ## Sources
 
 - Comparisons (Sept 2026): readinbrief.com/blog/freebeat-vs-runway-vs-pika-vs-kaiber; spoilertv.com 10-best-ai-music-video-generators; theactionelite.com ranked/reviewed; barchart.com 8-tools-tested; aijourn.com beat-sync ranked; pinionnewswire.com 6-best ranked
-- Freebeat first-party: freebeat.ai/articles/best-music-video-tools-2026-tested-compared; freebeat.ai/articles/best-ai-music-video-generators-in-2026-8-tools-tested-for-beat-sync-visual-quality-and-full-song-output
-- MusVideo first-party: musvideo.ai/pricing; musvideo.ai/ai-info; musvideo.ai/blog/musvideo-vs-vidmuse-ai-music-video-generator-comparison
+- VidMuse first-party: vidmuse.ai/en/pricing; vidmuse.ai/blog/vidu-ai-review; vidmuse.ai/blog/ltx-studio-review; vidmuse.ai/blog/mubert
+- Freebeat first-party: freebeat.ai/articles/best-online-ai-music-video-platforms-and-apis-in-2026; freebeat.ai/ai-music-video-editor; freebeat.ai/articles/comparison-of-the-best-ai-music-video-generators-for-musicians-in-2026; vidmuse.ai/blog/freebeat-ai-review-2026
+- MusVideo first-party: musvideo.ai/pricing; musvideo.ai/ai-info; musvideo.ai/blog/best-ai-music-video-maker; musvideo.ai/blog/ai-music-video-generator-free
 - Rotor: wavel.io/ai-tools/rotor-videos; aitechsuite.com/tools/rotorvideos.com; dataconomy.com/tools/rotor-videos
 - Runway: aiweekly.co how-to-use-runway; flowjam.com runway-gen-4-review-2026; aimusicvideogenerators.com runway-gen4-vs-gen3; github.com/madponyinteractive/cubric-vision proprietary-models-research
 - Pika: pikaslabs.com; therundown.ai/tools/pika; tooljunction.io/ai-tools/pika-labs
 - Luma: magichour.ai luma-dream-machine-review; magichour.ai luma-dream-machine-pricing; flowjam.com luma-dream-machine-review-2026; newwavemagazine.com top-6-contenders
 - PixVerse: vibedex.ai pixverse-v55-review-2026; blog.segmind.com pixverse-v6-review; toolworthy.ai pixverse-r1
 - Kling 3.0: news.dawnreporter.com kling-30 story; github.com/wilkessidney/prompt-vault kling-3-0 skill
-- Local ecosystem: github.com/lazniak/comfyui-music2video; github.com/ckinpdx/comfyui-posetracks; github.com/hellonearthis/resolver (Video Assembler); github.com/juspay/director VIDEO-GEN-LANDSCAPE-2026Q3
+- Open ecosystem: github.com/lazniak/comfyui-music2video; github.com/ckinpdx/comfyui-posetracks; github.com/hellonearthis/resolver (Video Assembler); github.com/juspay/director VIDEO-GEN-LANDSCAPE-2026Q3; comfyui-wiki.com/en/news/2026-08-17-h3-motion-context-multiref-update-6; comfyui-wiki.com/en/news/2026-08-11-ltx-2-5-open-weights-release; comfyui-wiki.com/en/news/2026-08-05-magi-2-preview; comfyui-wiki.com/en/news/2026-09-03-dreamx-creator-1-0; docs.comfy.org/tutorials/video/minimax/minimax-h3; github.com/MiniMaxH3ComfyUI/MiniMax-H3-ComfyUI
 - Raw research notes (this workspace): `~/workspace/research_notes/ai-music-video-platforms-20260929-1523/report.md`

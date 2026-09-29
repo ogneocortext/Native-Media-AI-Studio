@@ -4,10 +4,11 @@ import {
   Upload, Music, Wand2, Sparkles, Play, ChevronRight, Download,
   Loader2, Zap, Layers,
   Smartphone, Lightbulb, Target, Sliders, Eye, FileWarning,
-  CheckCircle2,
+  CheckCircle2, Calculator,
 } from "lucide-react";
 import type { AudioAnalysis, GenerationConfig } from "./types";
 import { VISUAL_TREATMENTS } from "./types";
+import { estimateRenderCost, type CostEstimate } from "../../services/api/video-render";
 
 export function UploadStep({ audioFile, audioUrl, onDrop, onFileSelect, onNext, analyzing }: {
   audioFile: File | null; audioUrl: string | null; onDrop: (e: React.DragEvent) => void;
@@ -217,7 +218,36 @@ export function ConfigureStep({ config, composedPrompt, onConfigChange, onSugges
 export function GenerateStep({ generating, progress, analysis, config, onStart }: {
   generating: boolean; progress: number; analysis: AudioAnalysis | null; config: GenerationConfig; onStart: () => void;
 }) {
+  const [costEstimate, setCostEstimate] = useState<CostEstimate | null>(null);
+  const [estimating, setEstimating] = useState(false);
+  const [estimateError, setEstimateError] = useState<string | null>(null);
+
   const sections = analysis?.sections ?? [];
+  const duration = analysis?.duration_seconds ?? 0;
+
+  const handleEstimate = async () => {
+    if (!duration) return;
+    setEstimating(true);
+    setEstimateError(null);
+    try {
+      const width = config.verticalFirst ? 1080 : 1920;
+      const height = config.verticalFirst ? 1920 : 1080;
+      const estimate = await estimateRenderCost({
+        steps: config.steps,
+        width,
+        height,
+        fps: 24,
+        duration_seconds: duration,
+        model: "wan2.2-5b",
+      });
+      setCostEstimate(estimate);
+    } catch (err: any) {
+      setEstimateError(err.message || "Failed to estimate");
+    } finally {
+      setEstimating(false);
+    }
+  };
+
   return (
     <div className="p-6 md:p-8">
       <div className="text-center max-w-2xl mx-auto">
@@ -225,6 +255,52 @@ export function GenerateStep({ generating, progress, analysis, config, onStart }
         <h2 className="text-xl font-bold text-white mt-3">Generate per Section — mindful, not wallpaper</h2>
         <p className="text-sm text-gray-400 mt-2">{generating ? "Generating visuals for each section — cuts land on strong beats." : "Each section gets its treatment. We generate sequentially (1 at a time = no 8GB OOM) with beat-synced cameras."}</p>
       </div>
+
+      {!costEstimate && !estimating && !generating && (
+        <div className="mt-6 max-w-xl mx-auto">
+          <button onClick={handleEstimate} className="w-full px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl flex items-center justify-center gap-2 font-semibold border border-gray-600">
+            <Calculator size={18} /> Estimate Render Cost
+          </button>
+        </div>
+      )}
+
+      {estimating && (
+        <div className="mt-6 max-w-xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 text-violet-400 text-sm"><Loader2 size={18} className="animate-spin" /> Calculating estimate…</div>
+        </div>
+      )}
+
+      {estimateError && (
+        <div className="mt-4 max-w-xl mx-auto text-center text-xs text-red-400">{estimateError}</div>
+      )}
+
+      {costEstimate && !generating && (
+        <div className="mt-6 max-w-xl mx-auto bg-gray-900 border border-gray-700 rounded-xl p-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="text-center">
+              <p className="text-[11px] text-gray-500 uppercase tracking-wide">Est. Time</p>
+              <p className="text-lg font-extrabold text-white">{costEstimate.estimated_minutes.toFixed(1)}<span className="text-xs font-normal text-gray-500"> min</span></p>
+            </div>
+            <div className="text-center">
+              <p className="text-[11px] text-gray-500 uppercase tracking-wide">VRAM</p>
+              <p className="text-lg font-extrabold text-white">{costEstimate.vram_estimate_gb}<span className="text-xs font-normal text-gray-500"> GB</span></p>
+            </div>
+            <div className="text-center">
+              <p className="text-[11px] text-gray-500 uppercase tracking-wide">Frames</p>
+              <p className="text-lg font-extrabold text-white">{costEstimate.total_frames}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-[11px] text-gray-500 uppercase tracking-wide">Cloud</p>
+              <p className="text-lg font-extrabold text-white">{costEstimate.cloud_cost_usd !== null ? `$${costEstimate.cloud_cost_usd.toFixed(2)}` : "—"}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center justify-between text-[11px] text-gray-500">
+            <span>{costEstimate.sec_per_frame.toFixed(2)}s/frame • {costEstimate.estimated_seconds.toFixed(0)}s total</span>
+            <button onClick={() => setCostEstimate(null)} className="text-violet-300 hover:text-violet-200">Recalculate</button>
+          </div>
+        </div>
+      )}
+
       {!generating ? (
         <>
           <div className="mt-6 grid md:grid-cols-2 gap-3 max-w-3xl mx-auto">

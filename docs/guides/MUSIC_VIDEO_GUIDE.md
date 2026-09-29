@@ -40,6 +40,7 @@ No separate `Beat Timeline` tab in wizard — beats are shown in Analyze and cut
 
 ### 4. Generate (per-section, serial)
 - Lists each detected section with `energy%` and `Visual Treatment` (`intro: wide`, `chorus: peak close-ups`). Optional per-section prompt override.
+- **Cost estimate:** before generating, click **Estimate Render Cost** to see local render time, VRAM, total frames, and optional cloud cost (`POST /api/video/estimate-cost`).
 - `Generate Video — N sections` → sequential `POST /api/video/generate-section` with `audio_path: stored_path` from Analyze, then `poll GET /api/jobs/{id}` every `1.2s` until `completed` (not fake `400ms`). Queue is serial to avoid `GTX 1070 Ti 8GB` OOM.
 
 ### 5. Export

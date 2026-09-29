@@ -86,6 +86,20 @@
 - **Consequences:** New long-running work goes through the queue, not ad-hoc
   threads.
 
+### D9 — Cost estimation API + wizard integration (2026-09-29)
+- **Status:** Decided
+- **Context:** Users need to know local render time and VRAM before committing
+  a long generation job; competitive platforms (VidMuse, MiniMax H3) surface
+  cost/time upfront.
+- **Decision:** Backend `POST /api/video/estimate-cost` returns
+  `estimated_seconds`, `vram_estimate_mb`, `total_frames`, and optional
+  `cloud_cost_usd`. Frontend wizard `Generate` step exposes an **Estimate
+  Render Cost** button that calls the endpoint and shows a 4-metric card (time,
+  VRAM, frames, cloud cost) without mutating job state.
+- **Consequences:** `generation_estimator.py` is the single source of truth
+  for time/VRAM math; wizard stays read-only until the user clicks **Generate
+  Video**. Cloud pricing is opt-in per request (no default billing assumption).
+
 ---
 
 ## Open questions
@@ -151,4 +165,5 @@
 - 2026-09-24: Music prompt generator wired into the music-video wizard as a modal overlay in the Configure step, pre-filled from audio analysis (tempo, filename). Reused the existing standalone `MusicPromptGenerator` page component with new optional `initialTheme`/`initialTempo`/`onClose` props instead of duplicating the form.
 - 2026-09-28: Mock/placeholder remediation: `ImageGenerationHandler` and `StoryboardGeneratorHandler` defaulted to real adapters instead of `mock_mode=True`. Dead `_create_placeholder_output` removed from `music_video_handler.py`. Tests explicitly opt into mock mode; `MOCK_GENERATION` env var and service-unavailability auto-mock remain intact.
 - 2026-09-28: Queue hardening: `priority` column added to jobs (schema v17) with index on `(status, priority DESC, created_at ASC)`. Processor now enforces a per-handler timeout, polls for mid-flight cancellation, and reduces wakeup latency from 5s to 1s. Auto-cleanup expanded to dead-letter jobs and batch-deletes outside the in-memory lock to reduce contention.
+- 2026-09-29: Competitive landscape research updated (VidMuse, MiniMax H3, LTX 2.5, DreamX-Creator, MAGI-2, MelodicPal.ai) in `docs/knowledge-library/ai-music-video-platforms-2026.md`. Cost estimation feature implemented: backend `POST /api/video/estimate-cost`, frontend `estimateRenderCost()` service, and wizard `Generate` step UI showing time, VRAM, frames, and cloud cost before generation.
 

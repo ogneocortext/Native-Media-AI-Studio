@@ -76,6 +76,42 @@ export interface ExportMatrixResponse {
   message: string;
 }
 
+export interface CostEstimate {
+  estimated_seconds: number;
+  estimated_minutes: number;
+  estimated_end_time: string;
+  sec_per_frame: number;
+  total_frames: number;
+  vram_estimate_mb: number;
+  vram_estimate_gb: number;
+  cloud_cost_usd: number | null;
+  cloud_price_per_second: number | null;
+  factors: Record<string, any> | null;
+}
+
+export async function estimateRenderCost(params: {
+  steps: number;
+  width: number;
+  height: number;
+  fps: number;
+  duration_seconds: number;
+  model: string;
+  cloud_price_per_second?: number | null;
+}): Promise<CostEstimate> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/video/estimate-cost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+    timeout: 30000,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Cost estimation failed");
+  }
+  return res.json();
+}
+
 export async function buildExportMatrix(params: {
   source_path: string;
   beat_times?: number[];
