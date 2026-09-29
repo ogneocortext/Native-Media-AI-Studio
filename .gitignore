@@ -32,6 +32,11 @@ Thumbs.db
 
 # Logs
 *.log
+# Stray redirect targets from backgrounded start/stop commands. A locked
+# handle can keep these alive after the command exits.
+bt.txt
+bs.txt
+bt2.txt
 logs/
 
 # Runtime generated
