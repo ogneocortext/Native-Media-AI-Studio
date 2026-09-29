@@ -154,11 +154,11 @@ export function Queue() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {sseConnected ? (
               <>
-                <Wifi size={16} className="text-success" />
-                <span className="text-sm text-success">Live</span>
+                <Wifi size={16} className="text-success-text" />
+                <span className="text-sm text-success-text">Live</span>
               </>
             ) : (
               <>
@@ -187,9 +187,9 @@ export function Queue() {
       {/* Error Display - Only show meaningful errors, not transient network issues */}
       {error && !error.includes("SSE") && !error.includes("Failed to fetch") && (
         <div className="mb-4 p-4 bg-error/10 border border-error/20 rounded-xl flex items-start gap-3 animate-fade-in">
-          <AlertCircle size={18} className="text-error mt-0.5 shrink-0" />
+          <AlertCircle size={18} className="text-error-text mt-0.5 shrink-0" />
           <div className="flex-1">
-            <p className="text-sm text-error font-medium">{getFriendlyError(error)}</p>
+            <p className="text-sm text-error-text font-medium">{getFriendlyError(error)}</p>
             <p className="text-xs text-muted mt-1">Try refreshing the page or check the Diagnostics page for more info.</p>
             <button className="btn btn-secondary btn-sm mt-2" onClick={() => fetchJobs()}>
               <RotateCcw size={14} className="inline mr-1" />
@@ -216,11 +216,11 @@ export function Queue() {
           <p className="text-sm text-muted">Running</p>
         </Card>
         <Card className="text-center">
-          <p className="text-2xl font-bold text-success">{stats?.completed || 0}</p>
+          <p className="text-2xl font-bold text-success-text">{stats?.completed || 0}</p>
           <p className="text-sm text-muted">Completed</p>
         </Card>
         <Card className="text-center">
-          <p className="text-2xl font-bold text-error">{stats?.failed || 0}</p>
+          <p className="text-2xl font-bold text-error-text">{stats?.failed || 0}</p>
           <p className="text-sm text-muted">Failed</p>
         </Card>
         <Card className="text-center">
@@ -239,9 +239,9 @@ export function Queue() {
                 <h3 className="text-sm font-medium text-muted mb-3 uppercase tracking-wide">
                   Currently Running
                 </h3>
-                <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/20">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 bg-primary/10 rounded-full">
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className="p-2 bg-primary/10 rounded-full shrink-0">
                       <Play size={20} className="text-primary" />
                     </div>
                     <div>
@@ -262,8 +262,8 @@ export function Queue() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="w-48">
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className="w-48 max-w-full">
                       <ProgressBar progress={runningJob.progress} />
                       <p className="text-xs text-muted mt-1 text-right">
                         {(runningJob.progress * 100).toFixed(1)}%
@@ -300,7 +300,7 @@ export function Queue() {
             />
             <JobListSection
               heading={`Failed (${failedJobs.length})`}
-              titleColor="text-error"
+              titleColor="text-error-text"
               jobs={failedJobs}
               actionLoading={actionLoading}
               onCancel={handleCancel}
@@ -309,7 +309,7 @@ export function Queue() {
             />
             <JobListSection
               heading={`Completed (${completedJobs.length})`}
-              titleColor="text-success"
+              titleColor="text-success-text"
               jobs={completedJobs}
               actionLoading={actionLoading}
               onCancel={handleCancel}

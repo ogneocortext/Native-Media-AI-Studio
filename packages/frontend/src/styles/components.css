@@ -1,6 +1,17 @@
+/* ===== THEME ISLANDS ===== */
+/* Fixed-dark fills (bg-gray-800/900 cards, modals, code blocks) keep dark
+   surfaces in BOTH themes by design. Without this, light-dark() tokens and
+   Tailwind light: variants inside them resolve light-on-dark = invisible.
+   color-scheme inherits, so one class on the container fixes the whole
+   subtree. Rule: adaptive surface -> theme tokens; fixed-dark fill ->
+   theme-dark wrapper + dark-appropriate text. */
+.theme-dark {
+  color-scheme: dark;
+}
+
 /* ===== CARDS ===== */
 .card {
-  background: linear-gradient(in oklch, 145deg, var(--bg-surface) 0%, var(--bg-elevated) 100%);
+  background: linear-gradient(145deg in oklch, var(--bg-surface) 0%, var(--bg-elevated) 100%);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: 24px;
@@ -18,7 +29,7 @@
     inset-inline-start: 0;
     inset-inline-end: 0;
     block-size: 1px;
-    background: linear-gradient(in oklch, 90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    background: linear-gradient(90deg in oklch, transparent, rgba(255, 255, 255, 0.1), transparent);
   }
 
   &:hover {
@@ -43,7 +54,7 @@
       inline-size: 3px;
       block-size: 16px;
       border-radius: 2px;
-      background: linear-gradient(in oklch, 180deg, var(--color-primary), var(--color-accent));
+      background: linear-gradient(180deg in oklch, var(--color-primary), var(--color-accent));
     }
   }
 
@@ -56,7 +67,7 @@
       inset: -1px;
       border-radius: calc(var(--radius-lg) + 1px);
       padding: 1px;
-      background: linear-gradient(in oklch, 135deg, var(--color-primary), var(--color-accent), var(--color-cyan));
+      background: linear-gradient(135deg in oklch, var(--color-primary), var(--color-accent), var(--color-cyan));
       -webkit-mask: linear-gradient(in oklch, #fff 0 0) content-box, linear-gradient(in oklch, #fff 0 0);
       mask: linear-gradient(in oklch, #fff 0 0) content-box, linear-gradient(in oklch, #fff 0 0);
       -webkit-mask-composite: xor;
@@ -86,7 +97,7 @@
 
 /* ===== METRIC CARDS ===== */
 .metric-card {
-  background: linear-gradient(in oklch, 135deg, var(--bg-surface) 0%, color-mix(in oklch, var(--color-primary) 8%, var(--bg-surface)) 100%);
+  background: linear-gradient(135deg in oklch, var(--bg-surface) 0%, color-mix(in oklch, var(--color-primary) 8%, var(--bg-surface)) 100%);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   padding: 24px;
@@ -102,7 +113,7 @@
     inset-inline-start: 0;
     inset-inline-end: 0;
     block-size: 3px;
-    background: linear-gradient(in oklch, 90deg, var(--color-primary), var(--color-accent));
+    background: linear-gradient(90deg in oklch, var(--color-primary), var(--color-accent));
     opacity: 0;
     transition: opacity var(--duration-normal) ease;
   }
@@ -121,7 +132,7 @@
 .metric-value {
   font-size: 32px;
   font-weight: 800;
-  background: linear-gradient(in oklch, 135deg, var(--text-primary) 0%, var(--color-primary) 100%);
+  background: linear-gradient(135deg in oklch, var(--text-primary) 0%, var(--color-primary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -171,7 +182,7 @@
   }
 
   &-primary {
-    background: linear-gradient(in oklch, 135deg, var(--color-primary) 0%, var(--color-accent) 50%, oklch(65% 0.25 280) 100%);
+    background: linear-gradient(135deg in oklch, var(--color-primary) 0%, var(--color-accent) 50%, oklch(65% 0.25 280) 100%);
     background-size: 200% 200%;
     color: var(--text-inverse);
     font-weight: 700;
@@ -200,13 +211,13 @@
   }
 
   &-secondary {
-    background: linear-gradient(in oklch, 135deg, var(--bg-surface-hover) 0%, color-mix(in oklch, var(--text-primary) 6%, var(--bg-surface-hover)) 100%);
+    background: linear-gradient(135deg in oklch, var(--bg-surface-hover) 0%, color-mix(in oklch, var(--text-primary) 6%, var(--bg-surface-hover)) 100%);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
 
     &:hover {
-      background: linear-gradient(in oklch, 135deg, color-mix(in oklch, var(--text-primary) 8%, var(--bg-surface-hover)) 0%, color-mix(in oklch, var(--text-primary) 12%, var(--bg-surface-hover)) 100%);
+      background: linear-gradient(135deg in oklch, color-mix(in oklch, var(--text-primary) 8%, var(--bg-surface-hover)) 0%, color-mix(in oklch, var(--text-primary) 12%, var(--bg-surface-hover)) 100%);
       border-color: var(--color-primary);
       box-shadow: var(--shadow-md), 0 0 10px color-mix(in oklch, var(--color-primary) 20%, transparent);
       transform: translateY(-1px);
@@ -226,7 +237,7 @@
   }
 
   &-danger {
-    background: linear-gradient(in oklch, 135deg, var(--color-danger) 0%, oklch(45% 0.22 25) 100%);
+    background: linear-gradient(135deg in oklch, var(--color-danger) 0%, oklch(45% 0.22 25) 100%);
     color: var(--text-inverse);
     box-shadow: 0 4px 15px oklch(55% 0.22 25 / 0.3);
 
@@ -333,7 +344,7 @@ option {
 
 /* ===== NEUMORPHIC EFFECTS ===== */
 .neumorphic {
-  background: linear-gradient(in oklch, 145deg, var(--bg-surface), color-mix(in oklch, var(--text-primary) 4%, var(--bg-surface)));
+  background: linear-gradient(145deg in oklch, var(--bg-surface), color-mix(in oklch, var(--text-primary) 4%, var(--bg-surface)));
   box-shadow:
     5px 5px 15px oklch(0% 0 0 / 0.4),
     -5px -5px 15px oklch(100% 0 0 / 0.02);
@@ -394,7 +405,7 @@ option {
   block-size: 100%;
   /* P6 - the signature sweep: the visualizer's blue->pink gradient is the
      one progress treatment everywhere. Shimmer kept, glow deepened. */
-  background: linear-gradient(in oklch, 90deg, oklch(55% 0.22 260), oklch(65% 0.25 310));
+  background: linear-gradient(90deg in oklch, oklch(55% 0.22 260), oklch(65% 0.25 310));
   background-size: 200% 100%;
   animation: shimmer 2s linear infinite;
   transition: inline-size var(--duration-normal) var(--ease-out);
@@ -406,8 +417,7 @@ option {
     content: "";
     position: absolute;
     inset: 0;
-    background: repeating-linear-gradient(in oklch, 
-      -45deg,
+    background: repeating-linear-gradient(-45deg in oklch,
       transparent,
       transparent 8px,
       rgba(255, 255, 255, 0.15) 8px,
@@ -488,7 +498,7 @@ option {
   100% { background-position: 0% 50%; }
 }
 .stage-hero-sweep {
-  background: linear-gradient(in oklch, 120deg, oklch(20% 0.06 260), oklch(32% 0.12 290), oklch(30% 0.14 330), oklch(20% 0.06 260));
+  background: linear-gradient(120deg in oklch, oklch(20% 0.06 260), oklch(32% 0.12 290), oklch(30% 0.14 330), oklch(20% 0.06 260));
   background-size: 300% 300%;
   animation: sweep-pan 14s ease-in-out infinite;
   transition: transform var(--duration-normal) var(--ease-out);

@@ -27,9 +27,9 @@ export const getStatusIcon = (status: string) => {
     case "running":
       return <Loader2 size={18} className="text-primary animate-spin" />;
     case "completed":
-      return <CheckCircle size={18} className="text-success" />;
+      return <CheckCircle size={18} className="text-success-text" />;
     case "failed":
-      return <AlertCircle size={18} className="text-error" />;
+      return <AlertCircle size={18} className="text-error-text" />;
     case "cancelled":
       return <XCircle size={18} className="text-muted" />;
     default:
@@ -76,7 +76,7 @@ export function JobRow({
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-background rounded-lg border border-border">
       <div className="flex items-start gap-4 min-w-0 flex-1">
         {isPending && index !== undefined ? (
-          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted/20 text-xs font-medium text-muted">
+          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted/20 text-xs font-medium text-muted shrink-0">
             {index + 1}
           </div>
         ) : (
@@ -95,7 +95,7 @@ export function JobRow({
             </p>
           )}
           {isFailed && job.error && (
-            <p className="text-sm text-error mt-1">
+            <p className="text-sm text-error-text mt-1">
               Error: {job.error}
             </p>
           )}
@@ -129,7 +129,7 @@ export function JobRow({
                   <video
                     controls
                     preload="metadata"
-                    className="w-full max-w-md rounded-lg border border-border bg-black"
+                    className="w-full max-w-full sm:max-w-md rounded-lg border border-border bg-black"
                     style={{ maxHeight: 240 }}
                     src={videoUrl}
                     aria-label={`Video for job ${job.id.slice(0,8)}`}
@@ -139,7 +139,7 @@ export function JobRow({
                     href={videoUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                    className="text-xs text-link hover:underline flex items-center gap-1"
                   >
                     <ExternalLink size={12} /> View output
                   </a>
@@ -172,9 +172,9 @@ export function JobRow({
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 shrink-0">
         <StatusBadge status={job.status} />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {showCancel && (
             <button
               className="btn btn-secondary p-2"

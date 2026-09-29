@@ -161,6 +161,21 @@
 
   html[data-theme="dark"] {
     color-scheme: dark;
+
+    /* Dark-mode muted-text remediation (2026-09-23 contrast audit):
+       Tailwind's stock gray-400/500/600 sit at 1.9–4.0:1 on our dark
+       surfaces (gray-700 chips → gray-900 cards) — below WCAG AA 4.5:1 and
+       below APCA's Lc 30 spot-text floor. These steps are used for
+       text/icons only (surfaces use gray-700 and up), so in dark mode the
+       ramp is re-pointed lighter:
+         gray-400 → ≈gray-300 (6.99:1 on bg-gray-700, was 3.96:1)
+         gray-500 → ≈gray-400 (5.63:1 on bg-gray-800, was 3.03:1)
+         gray-600 → ≈gray-400 (5.63:1 on bg-gray-800, was 1.94:1)
+       Light theme keeps the stock ramp (its audit pass is clean).
+       Verified: no bg-gray-400/500/600 fills rely on the stock values. */
+    --color-gray-400: oklch(0.872 0.01 258.338);
+    --color-gray-500: oklch(0.707 0.022 261.325);
+    --color-gray-600: oklch(0.707 0.022 261.325);
   }
 }
 
@@ -168,6 +183,12 @@
 
 /* Tailwind utilities (Tailwind v4 manages its own internal layers) */
 @import "tailwindcss";
+
+/* Manual-theme variant: our toggle is a data-theme attribute, not the OS
+   media query, so Tailwind's built-in dark: variant can't see it. This
+   gives colored-text-on-tint patterns (badges, pills) a light-theme escape
+   hatch: `text-sky-400 light:text-sky-700`. */
+@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
 
 /* ===== TAILWIND THEME TOKENS ===== */
 /* Maps the design tokens above to Tailwind utilities. Without this block,
@@ -188,6 +209,14 @@
   --color-surface: light-dark(oklch(97% 0 0), oklch(20% 0.012 260));
   --color-background: light-dark(oklch(99% 0 0), oklch(15% 0.012 260));
   --color-foreground: light-dark(oklch(15% 0 0), oklch(93% 0.004 260));
+  /* Text-on-dark variants: saturated brand/error hues fail body contrast
+     on dark surfaces (≈2.3–2.7:1), so interactive/error TEXT uses these
+     lightened twins while fills keep the saturated tokens. */
+  --color-link: light-dark(oklch(55% 0.22 260), oklch(78% 0.18 260));
+  --color-error-text: light-dark(oklch(55% 0.22 25), oklch(72% 0.20 25));
+  --color-success-text: light-dark(oklch(47% 0.15 145), oklch(78% 0.16 145));
+  --color-border: light-dark(oklch(88% 0 0), oklch(30% 0 0 260));
+  --color-border-subtle: light-dark(oklch(95% 0 0), oklch(25% 0 0 260));
 }
 
 /* Component styles */

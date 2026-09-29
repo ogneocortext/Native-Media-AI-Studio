@@ -624,7 +624,7 @@ export function VideoGenerationPage() {
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Film size={24} className="text-purple-400" />
             Video Generation
             {comfyStatus !== "unknown" && (
