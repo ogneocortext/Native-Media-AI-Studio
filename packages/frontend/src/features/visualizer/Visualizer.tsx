@@ -767,7 +767,7 @@ export function Visualizer() {
         }
       } catch {
         // Never fail silently: without analysis there is no beat sync.
-        showToast("Track analysis failed — visuals use live audio only", "warning");
+        showToast("Track analysis failed — visuals use live audio only", "error");
       } finally {
         if (!isStale()) setAnalyzing(false);
       }

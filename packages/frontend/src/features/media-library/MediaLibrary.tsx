@@ -6,6 +6,7 @@ import { getOutputUrl, getBackendUrl } from "../../utils/url";
 import { StatCard } from "./MediaLibraryStats";
 import { openInBlender, openInUnity, probeMedia, getMediaLoudness, getMediaWaveform, extractThumbnailAtTime, regenerateAudioCover, ensureAnalysis } from "../../services/api";
 import { setPendingTrack } from "../../utils/pendingTrack";
+import { showToast } from "../../utils/toast";
 import { MediaDetailModal, MediaInfoPayload, LoudnessResult, WaveformResult } from "./MediaDetailModal";
 import {
   Image,
@@ -244,7 +245,6 @@ const [sortBy, setSortBy] = useState<SortBy>("newest");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [lightboxZoom, setLightboxZoom] = useState(1);
   const [openingApp, setOpeningApp] = useState<null | "blender" | "unity" | "studio">(null);
-  const [studioToast, setStudioToast] = useState<string | null>(null);
   const [mediaInfo, setMediaInfo] = useState<MediaInfoPayload | null>(null);
   const [mediaInfoLoading, setMediaInfoLoading] = useState(false);
   const [mediaInfoError, setMediaInfoError] = useState<string | null>(null);
@@ -424,10 +424,12 @@ const [sortBy, setSortBy] = useState<SortBy>("newest");
       try { localStorage.setItem("pendingCharacter", JSON.stringify(payload)); } catch { /* private mode — ignore */ }
       try { window.dispatchEvent(new CustomEvent("pendingCharacter", { detail: JSON.stringify(payload) })); } catch { /* ignore */ }
       try { const { updateMCPContext } = await import("../../services/api"); await updateMCPContext({ character: { name: payload.name, notes: payload.bible, visible: true } }); } catch { /* MCP optional — ignore */ }
-      setStudioToast(`Queued “${output.filename}” for Studio — ${openInNewTab ? "opening in new tab…" : "stay here, open Studio when ready"}`);
-      setTimeout(() => setStudioToast(null), 3000);
+      showToast(`Queued “${output.filename}” for Studio — ${openInNewTab ? "opening in new tab…" : "stay here, open Studio when ready"}`);
       if (openInNewTab) window.open("/three-js-studio", "_blank");
-    } catch (e) { alert(e instanceof Error ? e.message : "Failed to queue for Studio"); } finally { setOpeningApp(null); }
+    } catch (e) {
+      // A blocking alert() froze the whole UI on a failed handoff.
+      showToast(`Failed to queue for Studio: ${e instanceof Error ? e.message : "unknown error"}`, "error");
+    } finally { setOpeningApp(null); }
   };
 
   const hasActiveFilters = !!(searchTerm||dateFrom||dateTo);
@@ -510,13 +512,6 @@ const [sortBy, setSortBy] = useState<SortBy>("newest");
             <button onClick={handleRefresh} disabled={isRefreshing} className="btn btn-secondary flex items-center gap-2 hover:shadow-md"><RefreshCw size={16} className={isRefreshing?"animate-spin":""} />Refresh</button>
           </div>
         </div>
-
-        {studioToast && (
-          <div className="fixed top-20 right-4 z-[60] bg-violet-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 animate-in slide-in-from-top-2 border border-violet-500/30">
-            <Sparkles size={16} className="animate-pulse" /> <span className="text-sm font-medium">{studioToast}</span>
-            <button onClick={() => setStudioToast(null)} className="ml-2 p-1 hover:bg-white/20 rounded-lg"><X size={14} /></button>
-          </div>
-        )}
 
         {selectedPaths.size>0 && (
           <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-violet-500/10 border border-violet-500/20 backdrop-blur animate-in slide-in-from-top-2 duration-300">

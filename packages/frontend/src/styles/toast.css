@@ -1,4 +1,8 @@
 /* ===== TOAST NOTIFICATIONS ===== */
+/* Enter/exit are class-driven (see src/utils/toast.ts). The previous version
+   combined a `toast-in` keyframe with `forwards` *and* inline-style transitions
+   on the same properties; CSS animations outrank inline declarations, so the
+   fade-out never played. One mechanism, no keyframes. */
 
 .toast-container {
   position: fixed;
@@ -7,12 +11,19 @@
   z-index: 99999;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 8px;
   pointer-events: none;
 }
 
 .toast {
-  padding: 12px 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  /* Long server errors must not stretch across the viewport. */
+  max-width: min(420px, calc(100vw - 48px));
+  overflow-wrap: anywhere;
+  padding: 12px 14px 12px 20px;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
@@ -20,9 +31,47 @@
   backdrop-filter: blur(8px);
   box-shadow: 0 4px 12px oklch(0% 0 0 / 0.3);
   pointer-events: auto;
+  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+}
+
+/* Off-screen start / end states, toggled by the utility. */
+.toast--enter,
+.toast--leave {
   opacity: 0;
   transform: translateX(100%);
-  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+.toast__msg {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.toast__detail {
+  display: block;
+  flex-basis: 100%;
+  font-weight: 400;
+  font-size: 12px;
+  opacity: 0.8;
+  margin-block-start: 2px;
+}
+
+.toast__close {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+  opacity: 0.7;
+  border-radius: 4px;
+}
+
+.toast__close:hover,
+.toast__close:focus-visible {
+  opacity: 1;
+  background: oklch(100% 0 0 / 0.15);
 }
 
 .toast-success {
@@ -40,20 +89,17 @@
   border: 1px solid oklch(65% 0.15 45 / 0.5);
 }
 
-@keyframes toast-in {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+/* Failures used to be reported as `warning`, which is indistinguishable from
+   a validation hint. They get their own red variant and a longer duration. */
+.toast-error {
+  background: oklch(50% 0.19 25 / 0.94);
+  border: 1px solid oklch(65% 0.2 25 / 0.6);
 }
 
-/* Accessibility: respect reduced motion preferences */
-@media not (prefers-reduced-motion: reduce) {
+/* Accessibility: no motion when the user asked for none. The utility also skips
+   the enter/leave classes in that case, so toasts appear and disappear instantly. */
+@media (prefers-reduced-motion: reduce) {
   .toast {
-    animation: toast-in 0.3s ease-out forwards;
+    transition: none;
   }
 }

@@ -94,7 +94,7 @@ export function AIPresetGallery({ onApplyPreset, refreshKey }: AIPresetGalleryPr
         showToast("Delete not yet implemented on server", "warning");
       }
     } catch {
-      showToast("Delete failed", "warning");
+      showToast("Delete failed", "error");
     }
   }, []);
 

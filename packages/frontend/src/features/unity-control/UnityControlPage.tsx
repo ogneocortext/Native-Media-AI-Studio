@@ -161,14 +161,14 @@ export function UnityControlPage() {
         if (result.ok) {
           showToast(`Command "${command}" succeeded`, "success");
         } else {
-          showToast(`Command "${command}" failed: ${result.error}`, "warning");
+          showToast(`Command "${command}" failed: ${result.error}`, "error");
         }
         return result;
       } catch (e) {
         // Network / timeout failures previously escaped as unhandled rejections.
         const message = e instanceof Error ? e.message : "Network error";
         record({ ok: false, error: message });
-        showToast(`Command "${command}" failed: ${message}`, "warning");
+        showToast(`Command "${command}" failed: ${message}`, "error");
         return { ok: false, error: message };
       } finally {
         runningRef.current = false;
@@ -330,7 +330,7 @@ export function UnityControlPage() {
         "success",
       );
     } catch (e) {
-      showToast(`Capture failed: ${e instanceof Error ? e.message : "Unknown error"}`, "warning");
+      showToast(`Capture failed: ${e instanceof Error ? e.message : "Unknown error"}`, "error");
     } finally {
       setCapturing(false);
     }

@@ -28,12 +28,20 @@ import { expect, type Page, type Route } from '@playwright/test';
  * Playwright's configured baseURL is automatically prepended when navigating
  * with a relative URL (e.g. page.goto('/health')).
  */
-export function getBaseUrl(page: Page): string {
-  // Playwright's configured baseURL is automatically prepended when navigating
-  // with a relative URL. We return a fallback for any manual URL construction.
-  const baseUrl = page.context().baseURL();
-  if (baseUrl) return baseUrl.replace(/\/$/, '');
-  return 'http://127.0.0.1:5173';
+/** Base URL used when a test has to build an absolute URL by hand. */
+const DEFAULT_TEST_BASE_URL = 'http://localhost:5173';
+
+/**
+ * Base URL for manually constructed URLs.
+ *
+ * Playwright prepends `use.baseURL` to relative navigations, and 1.63 exposes no
+ * runtime accessor for it — `BrowserContext.baseURL()` does not exist (calling
+ * it throws `TypeError`), so it must not be used here. Prefer `page.goto('/path')`;
+ * this helper only exists for the rare absolute-URL case and mirrors
+ * `use.baseURL` from playwright.config.ts (override with `PW_BASE_URL`).
+ */
+export function getBaseUrl(_page?: Page): string {
+  return (process.env.PW_BASE_URL ?? DEFAULT_TEST_BASE_URL).replace(/\/$/, '');
 }
 
 // ---------------------------------------------------------------------------
@@ -152,7 +160,7 @@ export interface MockHealthResponse {
 }
 
 export interface MockSystemHealthResponse {
-  status: 'healthy' | 'unhealthy';
+  status: 'healthy' | 'degraded' | 'unhealthy';
   timestamp: string;
   platform: string;
   platform_version: string;
@@ -249,18 +257,25 @@ const DEFAULT_SERVICE_STATUS: MockServiceStatusResponse = {
 // API mocking helpers (COMPOSABLE)
 // ---------------------------------------------------------------------------
 
+/** Options accepted by {@link mockApiHealth} (a bare status code also works). */
+export type MockHealthOverrides = {
+  status?: 200 | 500;
+  body?: Partial<MockHealthResponse>;
+};
+
 /**
  * Mock the `/api/health` endpoint.
+ *
+ * Accepts either a bare status code (`mockApiHealth(page, 500)`, the form most
+ * specs use) or an options object.
  * COMPOSABLE: Does NOT call cleanupRoutes() - can be used alongside other mock functions.
  */
 export async function mockApiHealth(
   page: Page,
-  overrides: {
-    status?: 200 | 500;
-    body?: Partial<MockHealthResponse>;
-  } = {}
+  overrides: 200 | 500 | MockHealthOverrides = {}
 ): Promise<void> {
-  const { status = 200, body } = overrides;
+  const options: MockHealthOverrides = typeof overrides === 'number' ? { status: overrides } : overrides;
+  const { status = 200, body } = options;
   const healthBody =
     status === 200
       ? JSON.stringify({ ...DEFAULT_HEALTH_RESPONSE, ...body })
@@ -452,17 +467,152 @@ export async function mockApiSettings(
   });
 }
 
+export interface MockGpuSnapshot {
+  available: boolean;
+  name: string;
+  memory_used_mb: number;
+  memory_free_mb: number;
+  memory_total_mb: number;
+  memory_percent: number;
+  gpu_utilization: number;
+  temperature_c: number;
+  processes: Array<{ pid: number; name: string; used_mb: number }>;
+}
+
+export const DEFAULT_GPU_SNAPSHOT: MockGpuSnapshot = {
+  available: true,
+  name: 'NVIDIA GeForce RTX 4070',
+  memory_used_mb: 4096,
+  memory_free_mb: 4096,
+  memory_total_mb: 8192,
+  memory_percent: 50,
+  gpu_utilization: 35,
+  temperature_c: 61,
+  processes: [{ pid: 1234, name: 'ComfyUI.exe', used_mb: 3200 }],
+};
+
+/**
+ * Mock the `/api/health/gpu*` telemetry endpoints used by the `/gpu` page.
+ *
+ * Without a snapshot the page renders its "GPU monitoring requires NVIDIA drivers
+ * with NVML support" empty state, which deliberately has no `<h1>` — header
+ * assertions then fail for the wrong reason. COMPOSABLE: does NOT call cleanupRoutes().
+ */
+export async function mockGpuTelemetry(
+  page: Page,
+  overrides: Partial<MockGpuSnapshot> = {}
+): Promise<void> {
+  const snapshotBody = JSON.stringify({ ...DEFAULT_GPU_SNAPSHOT, ...overrides });
+  const processesBody = JSON.stringify({
+    processes: [{ pid: 1234, name: 'ComfyUI.exe', mem_mb: 3200 }],
+    count: 1,
+  });
+  // The page hydrates charts from history/stats on mount; empty series are valid.
+  const emptyHistoryBody = JSON.stringify({ points: [], count: 0 });
+  const emptyStatsBody = JSON.stringify({ avg_temp: 0, avg_vram: 0, avg_util: 0, samples: 0 });
+
+  registerRouteHandler(page, async (route) => {
+    const pathname = getPathname(route.request().url());
+    if (pathname === '/api/health/gpu') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: snapshotBody });
+    } else if (pathname === '/api/health/gpu/processes') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: processesBody });
+    } else if (pathname === '/api/health/gpu/stats') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: emptyStatsBody });
+    } else if (pathname.startsWith('/api/health/gpu/')) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: emptyHistoryBody });
+    } else {
+      await route.fallback();
+    }
+  });
+}
+
+/**
+ * Mock every `/api/logs/analytics/*` endpoint the Log Analytics page loads on mount.
+ * The page runs them in `Promise.all` and logs "Failed to refresh log analytics"
+ * when any of them misses, which trips `expectNoConsoleErrors`.
+ * COMPOSABLE: does NOT call cleanupRoutes().
+ */
+export async function mockLogAnalytics(page: Page): Promise<void> {
+  const tsIso = '2026-09-28T12:00:00+00:00';
+  const tsMs = Date.parse(tsIso);
+  const event = {
+    ts_iso: tsIso,
+    ts_ms: tsMs,
+    level: 'INFO',
+    logger: 'app.api',
+    message: 'startup complete',
+    source: 'app',
+  };
+  const bodies: Record<string, string> = {
+    '/api/logs/analytics/summary': JSON.stringify({
+      total_events: 3,
+      last_event_at: tsIso,
+      last_cleanup_at: null,
+      levels: [
+        { level: 'INFO', count: 2 },
+        { level: 'ERROR', count: 1 },
+      ],
+      top_loggers: [{ logger: 'app.api', count: 3 }],
+      top_messages: [{ message: 'startup complete', count: 1, level: 'INFO' }],
+      sources: [{ source: 'app', count: 3 }],
+    }),
+    '/api/logs/analytics/patterns': JSON.stringify({
+      levels: [
+        { level: 'INFO', count: 2 },
+        { level: 'ERROR', count: 1 },
+      ],
+      loggers: [{ logger: 'app.api', count: 3 }],
+      messages: [{ message: 'startup complete', count: 1, level: 'INFO' }],
+    }),
+    '/api/logs/analytics/errors': JSON.stringify({ errors: [] }),
+    '/api/logs/analytics/events': JSON.stringify({ count: 1, events: [event] }),
+    '/api/logs/analytics/trends': JSON.stringify({
+      count: 1,
+      points: [{ ts_iso: tsIso, ts_ms: tsMs, level: 'INFO', logger: 'app.api', message: 'startup complete' }],
+    }),
+    '/api/logs/': JSON.stringify({ log_directory: 'logs', files: {} }),
+  };
+
+  registerRouteHandler(page, async (route) => {
+    const pathname = getPathname(route.request().url());
+    const body = bodies[pathname];
+    if (body) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body });
+    } else if (pathname.startsWith('/api/logs/')) {
+      // Raw log viewer requests (GET /api/logs/<name>): answer with an empty tail.
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ log: pathname.split('/').pop(), lines: 0, content: [] }),
+      });
+    } else {
+      await route.fallback();
+    }
+  });
+}
+
+
 /**
  * Mock all health-page endpoints in a single handler.
  * This is the recommended approach for health page tests as it avoids
  * the ordering issues that can occur when using individual mock functions.
  */
+/** Service-status overrides whose nested adapter maps are merged, not replaced. */
+export type MockServiceStatusOverrides = Omit<
+  Partial<MockServiceStatusResponse>,
+  'adapters' | 'adapter_details'
+> & {
+  adapters?: Partial<MockServiceStatusResponse['adapters']>;
+  adapter_details?: Partial<MockServiceStatusResponse['adapter_details']>;
+};
+
 export async function mockHealthPage(
   page: Page,
   opts: {
     healthStatus?: 200 | 500;
     systemHealth?: Partial<MockSystemHealthResponse>;
-    serviceStatus?: Partial<MockServiceStatusResponse>;
+    serviceStatus?: MockServiceStatusOverrides;
     comfyuiInstalled?: boolean;
     comfyuiRunning?: boolean;
   } = {}
@@ -481,7 +631,14 @@ export async function mockHealthPage(
       : JSON.stringify('Server error');
 
   const systemHealthBody = JSON.stringify({ ...DEFAULT_SYSTEM_HEALTH, ...systemHealth });
-  const serviceStatusBody = JSON.stringify({ ...DEFAULT_SERVICE_STATUS, ...serviceStatus });
+  // Merge the nested maps so an override such as { adapters: { comfyui: 'degraded' } }
+  // keeps the untouched adapters instead of dropping them from the payload.
+  const serviceStatusBody = JSON.stringify({
+    ...DEFAULT_SERVICE_STATUS,
+    ...serviceStatus,
+    adapters: { ...DEFAULT_SERVICE_STATUS.adapters, ...serviceStatus.adapters },
+    adapter_details: { ...DEFAULT_SERVICE_STATUS.adapter_details, ...serviceStatus.adapter_details },
+  });
   const comfyuiStatusBody = JSON.stringify({
     installed: comfyuiInstalled,
     running: comfyuiRunning,

@@ -7,8 +7,6 @@ export default defineConfig({
   expect: {
     timeout: 10_000,
   },
-  actionTimeout: 10_000,
-  navigationTimeout: 30_000,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -19,6 +17,10 @@ export default defineConfig({
   ],
   use: {
     baseURL: 'http://localhost:5173',
+    // These are `PlaywrightTestOptions` (i.e. `use`) fields — at the top level of
+    // `defineConfig` they are not part of the `Config` type and are ignored.
+    actionTimeout: 10_000,
+    navigationTimeout: 30_000,
     headless: true,
     screenshot: 'only-on-failure',
     video: 'off',
