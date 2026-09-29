@@ -59,6 +59,56 @@ These tags describe specific technologies, platforms, or constraints that apply 
 | `#3d` | 3D generation & rendering | 3D models, rendering, 3D workflows |
 | `#webgpu` | WebGPU/TSL/compute shaders | WebGPU, TSL, GPU compute |
 
+#### Extended vocabulary
+
+The tags below were already in use across the library when the guide was first
+written. They are documented here so the taxonomy matches what documents
+actually carry; `tools/validate-knowledge-tags.py` checks the frontmatter but
+does not require a tag to appear in this table.
+
+| Tag | Description |
+|-----|-------------|
+| `#documentation` | Process and meta-documentation (guides, indexes, trackers) |
+| `#knowledge-library` | Part of the knowledge library itself |
+| `#tagging` | The tagging system itself |
+| `#migration` | A migration or restructuring effort |
+| `#index` | Index or hub documents |
+| `#python` | Python-specific tooling |
+| `#tooling` | Build, packaging, or developer tooling |
+| `#benchmark` | A benchmark result or harness |
+| `#benchmarking` | Methodology for measuring performance |
+| `#validation` | Validation or QA methodology |
+| `#features` | Feature inventory or utilization analysis |
+| `#utilization` | How existing features are actually used |
+| `#data-flow` | Data flow between components |
+| `#dead-code` | Unused or unreachable code paths |
+| `#orphaned-capabilities` | Capabilities with no caller |
+| `#music-gen` | Music generation models and tooling |
+| `#ollama` | Ollama runtime or model usage |
+| `#three-js` | Three.js scene work |
+| `#ai-scene-generation` | AI-generated 3D scenes |
+| `#unsloth` | Unsloth fine-tuning |
+| `#triton` | Triton kernels |
+| `#cuda` | CUDA toolkit or runtime |
+| `#shaders` | Shader authoring |
+| `#glsl` | GLSL shader code |
+| `#tonemapping` | Tone mapping |
+| `#dithering` | Dithering |
+| `#color-science` | Color perception and color science |
+| `#oklch` | OKLCH color space |
+| `#audio-reactive` | Audio-reactive behaviour |
+| `#css` | CSS authoring |
+| `#design-system` | Design tokens and systems |
+| `#dark-mode` | Dark theme support |
+| `#contrast` | Color contrast and accessibility ratios |
+| `#accessibility` | A11y concerns beyond color |
+| `#2026` | Documents about a specific year |
+
+Two of these are near-duplicates worth consolidating: `#benchmark` and
+`#benchmarking` mean the same thing, and `#design` overlaps `#design-system`.
+They are left as-is because merging them means retagging documents, which is a
+separate change.
+
 ---
 
 ## Tagging Rules
@@ -93,7 +143,7 @@ tags:
 1. **Be specific but not redundant**: Don't add both `#platform-unity` and `#platform-blender` unless the document genuinely covers both
 2. **Use platform tags for platform-specific content**: Only add `#platform-comfyui` if the content is ComfyUI-specific
 3. **Hardware tags are for constraints**: Use `#hardware-8gb` only when discussing 8GB VRAM limitations specifically
-4. **Keep it manageable**: Aim for 3-5 tags total per document (1 primary + 2-4 cross-cutting)
+4. **Keep it manageable**: Aim for 3-5 tags total per document (1 primary + 2-4 cross-cutting). This is a target, not a quota - a document with one meaningful tag is better than one padded to hit a number. Do not add a cross-cutting tag that does not describe the document.
 
 ---
 
@@ -169,11 +219,16 @@ date: 2026-09-29
 When updating existing documents to the new tagging system:
 
 - [ ] Remove old flat tags (e.g., `#music-video`, `#3d-rendering`, `#gpu`)
-- [ ] Add exactly one primary category tag
-- [ ] Add 2-4 relevant cross-cutting tags
+- [ ] Add exactly one primary category tag, as the **first** entry
+- [ ] Add 2-4 relevant cross-cutting tags (fewer if the document warrants it)
+- [ ] Check new tags against the tables above; extend the vocabulary if needed
 - [ ] Update the document's `date` field to today's date
 - [ ] Verify the document appears in the correct section of `index.md`
 - [ ] Test that wiki-links still work correctly
+
+Then run `python tools/validate-knowledge-tags.py`, which checks the first-tag
+rule, the required frontmatter keys, mojibake, tracker membership, index counts,
+and line endings.
 
 ---
 

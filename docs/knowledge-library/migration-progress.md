@@ -155,16 +155,26 @@ date: 2026-09-29
 
 ## Follow-ups (the migration itself is complete)
 
-No documents remain to migrate. Optional cleanups, none blocking:
+No documents remain to migrate. Done since this tracker was first written:
+
+- Tag drift resolved. The 35 tags in use but absent from the guide are now
+  documented in its extended-vocabulary table, and the two self-referential ones
+  (`coding-benchmarks`, `stack-extensions`, which only restated the filename)
+  were replaced with `benchmark` and `tooling`.
+- The primary-tag rule is enforced by `tools/validate-knowledge-tags.py`, which
+  also checks mojibake, tracker membership, index counts, and line endings.
+- `.gitattributes` pins text files to LF, after a text-mode rewrite on Windows
+  turned a 20-line count edit into a 234-line diff.
+
+Still open, none blocking:
 
 1. **Backfill frontmatter on new docs as they are written** - a primary category
    tag as the *first* tag, per `tagging-guide.md`.
-2. **Review tag drift.** Several tags are not in the guide's cross-cutting table
-   (e.g. `benchmarking`, `features`, `benchmark`). Either fold them into the
-   table or drop them. The `index.md` counts now include these undocumented tags.
-3. **Enforce the primary-tag rule in CI.** Nothing currently stops a new document
-   from being added with a cross-cutting tag first, which is exactly how the four
-   documents that were corrected here drifted out of compliance.
+2. **Consolidate near-duplicate tags.** `#benchmark` and `#benchmarking` mean
+   the same thing, and `#design` overlaps `#design-system`. Left as-is because
+   merging means retagging documents.
+3. **Run the validator in CI.** It is runnable now but nothing invokes it
+   automatically on commit.
 
 ---
 

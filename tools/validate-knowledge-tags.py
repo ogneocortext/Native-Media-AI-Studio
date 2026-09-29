@@ -39,12 +39,27 @@ SECTIONS = [
     ("Research & Reference", "research"),
 ]
 SKIP = ("index.md", "README.md")
+# The core cross-cutting tags, as opposed to the extended vocabulary table.
+# Both are read from tagging-guide.md by documented_tags(); this list is only
+# used to decide which tags must carry a count in index.md's Tags Index.
 CROSS = ["platform-youtube", "platform-unity", "platform-blender",
          "platform-comfyui", "platform-remotion", "hardware-8gb",
          "hardware-pascal", "mcp", "testing", "design", "audio",
          "visualization", "3d", "webgpu"]
 
 errors = []
+warnings = []
+
+
+def documented_tags():
+    """Every tag the guide documents, in either table.
+
+    Derived from the file so the taxonomy cannot drift from the guide: a tag in
+    use but absent here is reported as a warning.
+    """
+    guide = read(os.path.join(BASE, "tagging-guide.md"))
+    found = set(re.findall(r"`#([\w-]+)`", guide))
+    return found | set(CATEGORIES)
 
 
 def read(path):
@@ -164,6 +179,25 @@ def check_index(docs):
                           % (c, m.group(1), want))
 
 
+def check_vocabulary(docs):
+    """Warn about tags in use that the guide does not document.
+
+    These are not errors: a new tag is a normal way to extend the vocabulary.
+    But an undocumented tag is invisible in index.md's Tags Index, so it is
+    worth surfacing until someone adds it to the guide.
+    """
+    known = documented_tags()
+    unknown = Counter()
+    for name, path in sorted(docs.items()):
+        tags = frontmatter(path)[1] or []
+        for t in tags[1:]:
+            if t not in known:
+                unknown[t] += 1
+    for t, n in sorted(unknown.items(), key=lambda x: (-x[1], x[0])):
+        warnings.append("tag '#%s' used by %d document(s) but not in "
+                        "tagging-guide.md" % (t, n))
+
+
 def check_line_endings(docs):
     """Guard against CRLF creep.
 
@@ -184,8 +218,13 @@ def main():
     check_documents(docs)
     check_tracker(docs)
     check_index(docs)
+    check_vocabulary(docs)
     check_line_endings(docs)
     print("documents checked : %d" % len(docs))
+    if warnings:
+        print("warnings (%d):" % len(warnings))
+        for w in warnings:
+            print("  ! %s" % w)
     if errors:
         print("PROBLEMS (%d):" % len(errors))
         for e in errors:

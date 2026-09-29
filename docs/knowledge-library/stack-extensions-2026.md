@@ -1,8 +1,8 @@
 ---
 tags:
   - technical
-  - stack-extensions
   - python
+  - tooling
 aliases:
   - Stack Extensions 2026
 cssclasses:

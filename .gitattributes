@@ -1,0 +1,25 @@
+# Keep documentation line endings stable.
+#
+# The knowledge library is stored with LF. Without this, any tool that rewrites
+# a file in text mode on Windows converts every LF to CRLF, which turns a small
+# edit into a whole-file diff and hides the real change in review. That happened
+# to docs/knowledge-library/index.md in commit 22ff3d5 (234 added / 234 deleted
+# for a 20-line edit).
+#
+# Scoped to markdown on purpose. A repo-wide `* text=auto eol=lf` would also
+# renormalise every source file in the tree, which is a much larger change than
+# this problem warrants. Widen it deliberately, not by accident.
+
+docs/**/*.md text eol=lf
+*.md text eol=lf
+
+# Keep diffs quiet for generated and vendored paths.
+output/** binary
+node_modules/** binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.mp4 binary
+*.wav binary
+*.blend binary
+*.unity binary

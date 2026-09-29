@@ -2,7 +2,7 @@
 tags:
   - research
   - ai
-  - coding-benchmarks
+  - benchmark
 aliases:
   - Coding Model Benchmark
 cssclasses:
