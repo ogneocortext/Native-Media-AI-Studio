@@ -18,7 +18,11 @@
       1. Detects which tunnel binary is available.
       2. Starts tunnels for backend (8000) and frontend (5173).
       3. Captures the public URLs from tunnel output.
-      4. Exports PUBLIC_ORIGIN so the FastAPI CORS allowlist accepts it.
+      4. Records the tunnel URLs for this session (env + tunnel-urls.json).
+         No CORS restart is needed: the backend matches tunnel origins by
+         pattern via allow_origin_regex (app/core/cors.py). $env:PUBLIC_ORIGIN
+         is set for this PowerShell session only; the running backend never
+         sees it.
       5. Writes tunnel URLs to scripts/utility/tunnel-urls.json for downstream
          automation (agents, tests, Playwright).
 
