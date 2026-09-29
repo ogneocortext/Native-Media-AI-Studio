@@ -27,19 +27,16 @@
 .PARAMETER Provider
     Tunnel provider: "ngrok" (default) or "localtunnel".
 
-.PARAMETER Region
-    ngrok region: us, eu, ap, au, sa, jp, in (default: us).
 
 .EXAMPLE
     pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-tunnel.ps1
-    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-tunnel.ps1 -Provider ngrok -Region eu
+    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-tunnel.ps1 -Provider ngrok
 #>
 #Requires -Version 7.6
 [CmdletBinding()]
 param(
     [ValidateSet("ngrok", "localtunnel")]
-    [string]$Provider = "ngrok",
-    [string]$Region = "us"
+    [string]$Provider = "ngrok"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -67,7 +64,10 @@ function Start-NgrokTunnel {
     $errFile = Join-Path $UtilityDir "ngrok-$Label.err.log"
     $proc = Start-Process -FilePath 'ngrok' -ArgumentList @(
         'http', ":$Port",
-        '--region', $Region,
+        # --region is deprecated in ngrok 3.x (it picks the lowest-latency
+        # region itself), so it is not passed. --random does not exist in
+        # ngrok 3.x either; each invocation allocates its own hostname unless a
+        # domain is reserved on the account.
         '--log', 'stdout',
         '--log-level', 'info'
     ) -NoNewWindow -PassThru -RedirectStandardOutput $logFile -RedirectStandardError $errFile
@@ -189,15 +189,32 @@ $backendTunnel = if ($Provider -eq 'ngrok') {
     Start-LocaltunnelTunnel -Port 8000 -Label 'backend'
 }
 
-$frontendTunnel = if ($Provider -eq 'ngrok') {
-    Start-NgrokTunnel -Port 5173 -Label 'frontend'
+# A free ngrok account serves ONE endpoint at a time (ERR_NGROK_334 if a second
+# process asks for the same hostname), so the frontend tunnel is optional: fall
+# back to localtunnel for it, and skip it entirely if that fails too. Agents
+# mostly need the backend API, which is the tunnel that must not be dropped.
+$frontendTunnel = $null
+$frontendError = $null
+if ($Provider -eq 'ngrok') {
+    try {
+        $frontendTunnel = Start-NgrokTunnel -Port 5173 -Label 'frontend'
+    } catch {
+        $frontendError = $_.Exception.Message
+        Write-Log "ngrok frontend tunnel failed: $frontendError"
+        Write-Log "Falling back to localtunnel for the frontend."
+        try {
+            $frontendTunnel = Start-LocaltunnelTunnel -Port 5173 -Label 'frontend'
+        } catch {
+            Write-Warning "Frontend tunnel unavailable; the backend tunnel is still live."
+        }
+    }
 } else {
-    Start-LocaltunnelTunnel -Port 5173 -Label 'frontend'
+    $frontendTunnel = Start-LocaltunnelTunnel -Port 5173 -Label 'frontend'
 }
 
 # Strip trailing slashes for clean URLs.
 $backendUrl  = $backendTunnel.Url.TrimEnd('/')
-$frontendUrl = $frontendTunnel.Url.TrimEnd('/')
+$frontendUrl = if ($frontendTunnel) { $frontendTunnel.Url.TrimEnd('/') } else { '' }
 
 # ---------------------------------------------------------------------------
 # Verify the tunnels actually serve traffic before advertising them.
@@ -232,15 +249,15 @@ $env:PUBLIC_ORIGIN = $backendUrl
 
 $state = @{
     provider     = $Provider
-    region       = $Region
+
     backend_url  = $backendUrl
     frontend_url = $frontendUrl
     backend_pid  = $backendTunnel.Pid
-    frontend_pid = $frontendTunnel.Pid
+    frontend_pid = if ($frontendTunnel) { $frontendTunnel.Pid } else { $null }
     backend_node_pid  = $backendTunnel.NodePid
-    frontend_node_pid = $frontendTunnel.NodePid
+    frontend_node_pid = if ($frontendTunnel) { $frontendTunnel.NodePid } else { $null }
     backend_process_tree  = @($backendTunnel.Tree)
-    frontend_process_tree = @($frontendTunnel.Tree)
+    frontend_process_tree = if ($frontendTunnel) { @($frontendTunnel.Tree) } else { @() }
     verified     = $verified
     # localtunnel serves an interstitial to unknown clients; agents must send
     # this header or they receive the reminder page instead of JSON.
