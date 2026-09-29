@@ -10,8 +10,8 @@ Consolidation point for logic previously copy-pasted across:
 
 Using this module gives every ComfyUI caller:
 - one shared ``aiohttp`` session for stateless routes (no per-request
-  ``ClientSession()`` churn — see knowledge-library/backend-debugging-guide.md
-  § Adapter Connection Reuse),
+  ``ClientSession()`` churn â€” see knowledge-library/backend-debugging-guide.md
+  Â§ Adapter Connection Reuse),
 - one filename/subfolder sanitizer (path-traversal safe),
 - one history/queue/view implementation handling both ComfyUI queue shapes,
 - one model-dir resolver (no more duplicated search_paths lists).
@@ -19,6 +19,7 @@ Using this module gives every ComfyUI caller:
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,8 @@ __all__ = [
     "safe_join",
     "view_params",
     "extract_combo_options",
+    "WorkflowRejectedError",
+    "parse_workflow_rejection",
     "fetch_history",
     "fetch_queue",
     "find_queue_entry",
@@ -52,6 +55,65 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 _SESSION_KEY = "comfyui"
+
+
+class WorkflowRejectedError(RuntimeError):
+    """ComfyUI refused the graph at ``POST /prompt``.
+
+    Always deterministic: the prompt failed ComfyUI's own ``validate_inputs``
+    (unknown node, missing/extra input, or a value outside a combo list), so
+    retrying the identical graph can never succeed.
+
+    Subclasses ``RuntimeError`` so existing ``except RuntimeError`` handlers keep
+    working. The offending node is carried separately because ComfyUI's JSON
+    body puts it under ``error.details`` and a truncated body dump tends to cut
+    exactly that part off.
+    """
+
+    def __init__(
+        self,
+        status: int,
+        message: str,
+        node_id: str | None = None,
+        node_type: str | None = None,
+    ) -> None:
+        self.status = status
+        self.node_id = node_id
+        self.node_type = node_type
+        where = ""
+        if node_id is not None:
+            where = f" at node {node_id}" + (f" ({node_type})" if node_type else "")
+        super().__init__(f"ComfyUI rejected workflow{where} ({status}): {message}")
+
+
+def parse_workflow_rejection(status: int, body: str) -> WorkflowRejectedError:
+    """Build a :class:`WorkflowRejectedError` from a ``/prompt`` error body.
+
+    ComfyUI answers ``{"error": {"type": ..., "message": ...,
+    "details": {"node_id": "7", "node_type": "UNETLoader", ...}}}``; the
+    ``details`` block is what identifies the broken node, so it is preferred
+    over the raw body.
+    """
+    message = body.strip()[:300] or "no detail returned"
+    try:
+        payload = json.loads(body)
+    except (ValueError, TypeError):
+        payload = None
+    if isinstance(payload, dict):
+        error = payload.get("error")
+        if isinstance(error, dict):
+            message = str(error.get("message") or message)
+            details = error.get("details")
+            if isinstance(details, dict):
+                node_id = details.get("node_id")
+                node_type = details.get("node_type")
+                return WorkflowRejectedError(
+                    status,
+                    message,
+                    node_id=str(node_id) if node_id is not None else None,
+                    node_type=str(node_type) if node_type is not None else None,
+                )
+    return WorkflowRejectedError(status, message)
 
 
 async def get_shared_session() -> aiohttp.ClientSession:
@@ -92,7 +154,7 @@ def extract_combo_options(node_info: dict[str, Any], input_name: str) -> list[st
     ComfyUI uses two shapes depending on node/version:
     - ``{input_name: [[opt, ...], {...}]}`` (e.g. CheckpointLoaderSimple)
     - ``{input_name: ["COMBO", {"options": [opt, ...], ...}]}``
-      (e.g. AnimateDiff loaders — naive ``[0]`` indexing returns the
+      (e.g. AnimateDiff loaders â€” naive ``[0]`` indexing returns the
       string ``"COMBO"`` here, which once produced ``['C','O','M','B','O']``)
 
     Searches ``input.required`` then ``input.optional``. Returns ``[]`` when
@@ -132,6 +194,13 @@ async def fetch_history(
     ) as resp:
         if resp.status == 200:
             return await resp.json()
+        # Callers treat an absent entry as "still running", so a proxy error
+        # (502/504) would otherwise look like a healthy queue forever.
+        logger.warning(
+            "ComfyUI /history/%s returned %s (not treating as failure)",
+            prompt_id,
+            resp.status,
+        )
         return {}
 
 
@@ -148,6 +217,8 @@ async def fetch_queue(
     ) as resp:
         if resp.status == 200:
             return await resp.json()
+        # An empty queue and an unreachable queue look identical downstream.
+        logger.warning("ComfyUI /queue returned %s (reporting empty queue)", resp.status)
         return {}
 
 
@@ -209,7 +280,7 @@ async def submit_prompt(
     ) as resp:
         if resp.status != 200:
             body = await resp.text()
-            raise RuntimeError(f"ComfyUI rejected workflow ({resp.status}): {body[:300]}")
+            raise parse_workflow_rejection(resp.status, body)
         data = await resp.json()
         prompt_id = data.get("prompt_id")
         if not prompt_id:

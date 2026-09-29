@@ -163,6 +163,57 @@ def beat_confidence(beat_times: list[float], tempo_bpm: float = 0.0) -> float:
     return round(min(1.0, max(0.0, stability)), 3)
 
 
+def detect_meter(beat_times: list[float]) -> int:
+    """Estimate beats per bar from beat interval regularity.
+
+    Tries meters 2-8 and returns the one whose downbeat intervals have the
+    lowest median absolute deviation, with a slight preference for 4/4 when
+    meters are equally good. Falls back to 4 when the grid is too short or too
+    irregular.
+    """
+    if len(beat_times) < 6:
+        return 4
+    intervals = np.diff(np.asarray(beat_times, dtype=float))
+    intervals = intervals[intervals > 1e-6]
+    if intervals.size < 4:
+        return 4
+    median_interval = float(np.median(intervals))
+    if median_interval <= 0:
+        return 4
+    best_bpb = 4
+    best_score = float("inf")
+    for bpb in range(2, 9):
+        # Downbeats occur every bpb beats
+        if len(intervals) < bpb:
+            continue
+        db_intervals = intervals[bpb - 1::bpb]
+        if db_intervals.size < 2:
+            continue
+        db_median = float(np.median(db_intervals))
+        if db_median <= 0:
+            continue
+        mad = float(np.mean(np.abs(db_intervals - db_median))) / db_median
+        # Penalize meters that imply extreme tempos (0.2s–2.0s per beat)
+        beat_dur = median_interval
+        if beat_dur < 0.2 or beat_dur > 2.0:
+            mad += 0.5
+        # Tiebreak: slight preference for 4/4 when scores are equal.
+        mad += 0.001 * abs(bpb - 4)
+        if mad < best_score:
+            best_score = mad
+            best_bpb = bpb
+    return best_bpb
+
+
+def downbeat_times_from_beats(beat_times: list[float], beats_per_bar: int = 0) -> list[float]:
+    """Return downbeat times, inferring meter when beats_per_bar is 0/None."""
+    if not beat_times:
+        return []
+    if not beats_per_bar:
+        beats_per_bar = detect_meter(beat_times)
+    return [round(float(t), 3) for t in beat_times[::beats_per_bar]]
+
+
 class AudioAnalyzerError(Exception):
     """Exception raised for errors in the AudioAnalyzer."""
     pass
@@ -308,11 +359,14 @@ class AudioAnalyzer:
         ).tolist()
         onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=hop_length).tolist()
 
-        # Downbeats: 4/4 assumption (every 4th beat), matching the canonical
-        # `isDownbeatIndex()` helper in shared/timing.ts and the generated
-        # stillIRiseTiming.ts reference.
-        downbeat_times = beat_times[::4]
-        downbeat_frames = beat_frames[::4]
+        # Downbeats: meter-agnostic detection based on beat interval regularity,
+        # replacing the previous hardcoded 4/4 assumption.
+        meter = detect_meter(beat_times)
+        downbeat_times = downbeat_times_from_beats(beat_times, meter)
+        downbeat_frames = [
+            int(f) for f in librosa.time_to_frames(downbeat_times, sr=sr, hop_length=self.hop_length)
+            if f < len(beat_frames)
+        ]
 
         return BeatFeatures(
             tempo_bpm=tempo_val,
@@ -528,11 +582,14 @@ class AudioAnalyzer:
                     beat_times=beat_times,
                     onset_frames=onset_frames,
                     onset_times=onset_times,
-                    # 4/4 downbeat assumption (every 4th beat), matching the
-                    # canonical `isDownbeatIndex()` helper in shared/timing.ts
-                    # and the scripts/generate_timing_contract.py reference.
-                    downbeat_frames=beat_frames[::4],
-                    downbeat_times=beat_times[::4],
+                    # Meter-agnostic downbeat detection (replaces hardcoded 4/4).
+                    downbeat_frames=[
+                        int(f) for f in librosa.time_to_frames(
+                            downbeat_times_from_beats(beat_times), sr=sr, hop_length=self.hop_length
+                        )
+                        if f < len(beat_frames)
+                    ],
+                    downbeat_times=downbeat_times_from_beats(beat_times),
                     # sonara's own confidence when reported, else measured stability
                     confidence=float(result.get("bpm_confidence") or beat_confidence(beat_times, tempo_val)),
                 ),

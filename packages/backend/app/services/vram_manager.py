@@ -22,6 +22,7 @@ from enum import Enum
 from typing import Any
 
 from ..core.urls import ollama_url
+from ..models.job import JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -604,6 +605,86 @@ class VRAMManager:
                 }
 
         return None
+
+    async def preflight_lookahead(self, required_mb: int = 4096) -> dict[str, Any]:
+        """Look-ahead VRAM reservation: sum queued job requirements + requested.
+
+        Returns a dict with ``available``, ``free_mb``, ``required_mb``,
+        ``queued_reservation_mb``, ``total_required_mb``, and ``message``.
+        """
+        status = await self.get_vram_status()
+        if not status.get("available"):
+            return {
+                "available": True,
+                "free_mb": 0,
+                "total_mb": 0,
+                "required_mb": required_mb,
+                "queued_reservation_mb": 0,
+                "total_required_mb": required_mb,
+                "message": "VRAM monitoring unavailable — proceeding",
+            }
+
+        free_mb = status.get("free_mb", status.get("memory_free_mb", 0))
+        total_mb = status.get("total_mb", status.get("memory_total_mb", 0))
+
+        # Sum VRAM requirements of queued jobs (lightweight heuristic by job type).
+        queued_reservation = 0
+        try:
+            from ..queue.manager import queue_manager as _qm
+            queued_jobs = await _qm.get_jobs_by_status(JobStatus.QUEUED)
+            for job in queued_jobs:
+                jt = job.job_type.value if hasattr(job.job_type, "value") else str(job.job_type)
+                if jt == "comfyui_workflow":
+                    # Flat baseline per job: the per-image cost is dominated by
+                    # the loaded diffusion model, not by width/height.
+                    queued_reservation += 8192  # ~8GB baseline for image gen
+                elif jt == "music_video":
+                    queued_reservation += 6144
+                elif jt == "audio_feature_extraction":
+                    queued_reservation += 512  # CPU-bound mostly
+                else:
+                    queued_reservation += 2048  # generic
+        except Exception:
+            pass
+
+        total_required = required_mb + queued_reservation
+        result: dict[str, Any] = {
+            "available": True,
+            "free_mb": free_mb,
+            "total_mb": total_mb,
+            "required_mb": required_mb,
+            "queued_reservation_mb": queued_reservation,
+            "total_required_mb": total_required,
+            "message": f"VRAM OK: {free_mb}MB free of {total_mb}MB (queued reservations: {queued_reservation}MB)",
+        }
+
+        if free_mb >= total_required:
+            return result
+
+        # Not enough VRAM — offload Ollama as a courtesy before reporting failure.
+        try:
+            unloaded = await _unload_ollama_models()
+        except Exception as exc:
+            logger.warning("VRAM Manager: lookahead offload failed: %s", exc)
+            unloaded = []
+
+        if unloaded:
+            self._ollama_loaded = False
+            result["offloaded"] = True
+            recheck = await self.get_vram_status()
+            result["free_mb"] = recheck.get(
+                "free_mb", recheck.get("memory_free_mb", result["free_mb"])
+            )
+            if result["free_mb"] >= total_required:
+                result["message"] = "Offloaded Ollama models to free VRAM for queued jobs"
+                return result
+
+        result["available"] = False
+        result["message"] = (
+            f"Insufficient VRAM: {result['free_mb']}MB free, {total_required}MB required "
+            f"({required_mb}MB now + {queued_reservation}MB queued)"
+        )
+        return result
 
     def get_status(self) -> dict[str, Any]:
         """Get VRAM manager status."""

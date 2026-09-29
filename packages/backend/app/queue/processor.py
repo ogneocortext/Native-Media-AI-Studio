@@ -5,10 +5,16 @@ Job processor - handles actual job execution with serial processing.
 import asyncio
 import inspect
 import logging
+import random
+import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+import aiohttp
+
+from ..core.comfyui_client import WorkflowRejectedError
 from ..models.job import Job, JobStatus, JobType
 from ..queue.manager import queue_manager
 from ..services.audio_analysis_handler import AudioAnalysisHandler
@@ -26,6 +32,175 @@ HANDLER_TIMEOUT_SECONDS = 3600
 
 # How often (in seconds) to poll for cancellation while a handler runs.
 CANCELLATION_HEARTBEAT_INTERVAL = 5.0
+
+# ---------------------------------------------------------------------------
+# Error classification
+# ---------------------------------------------------------------------------
+#
+# The queue used to retry based on `any(sig in message)`, which is too blunt:
+# bare digits matched inside durations ("1502ms") and filenames ("clip_502.mp4"),
+# a 500 was retryable when its body said "Internal Server Error" but not when it
+# said "HTTP 500", and the most common transient failure in this stack â€” ComfyUI
+# refusing a busy queue â€” was not retryable at all. Classification is now
+# type-first, then status code, then phrase, and it yields a stable category code
+# that is stored with the job so the queue UI can explain *why* a job failed.
+
+#: Stable category codes (stored as the ``<category>: <message>`` job error).
+TRANSIENT_NETWORK = "transient_network"
+UPSTREAM_BUSY = "upstream_busy"
+HANDLER_TIMEOUT = "handler_timeout"
+WORKFLOW_REJECTED = "workflow_rejected"
+DETERMINISTIC = "deterministic"
+UNKNOWN = "unknown"
+
+#: Statuses worth retrying. A bare number is **not** enough: it must appear in
+#: an HTTP context (a marker before it, or its canonical reason phrase after it),
+#: so "render failed after 1502ms", "clip_502.mp4" and "step 503 of 800" cannot
+#: be mistaken for a retryable response.
+_RETRYABLE_STATUSES = (429, 502, 503, 504)
+# Any *recognised* status outside that set (400/401/403/404/405/409/413/415/422/500)
+# is treated as deterministic — a code or request problem, not a blip.
+_HTTP_CONTEXT_RE = re.compile(
+    r"\b(?:https?|status(?:\s+code)?|code|error|err)\W{0,4}(\d{3})\b"
+    r"|\b(\d{3})\s+(?:too many requests|bad gateway|service unavailable|gateway timeout"
+    r"|internal server error|not found|unauthorized|forbidden|bad request)\b"
+)
+
+#: Phrases that mean "the far end is temporarily unable, try again".
+_BUSY_PHRASES = (
+    "queue is full",
+    "queue full",
+    "too many queued prompts",
+    "server is busy",
+    "try again later",
+    "temporarily unavailable",
+    "service unavailable",
+    "rate limit",
+    "too many requests",
+)
+
+#: Phrases that mean "the far end or the network broke mid-request".
+_TRANSIENT_PHRASES = (
+    "connection refused",
+    "connection reset",
+    "connection aborted",
+    "connection error",
+    "socket hang up",
+    "incomplete read",
+    "remote end closed connection",
+    "network is unreachable",
+    "no route to host",
+    "timed out",
+    "timeout",
+)
+
+#: Exception types that are transient regardless of the message.
+_TRANSIENT_EXC_TYPES: tuple[type[BaseException], ...] = (
+    asyncio.TimeoutError,
+    TimeoutError,
+    ConnectionError,
+    aiohttp.ClientError,
+)
+
+#: Exception types that are deterministic: same input, same failure.
+_DETERMINISTIC_EXC_TYPES: tuple[type[BaseException], ...] = (
+    ValueError,  # also covers json.JSONDecodeError and pydantic ValidationError
+    TypeError,
+    KeyError,
+    IndexError,
+    AssertionError,
+    NotImplementedError,
+    FileNotFoundError,
+    PermissionError,
+)
+
+
+class HandlerTimeoutError(RuntimeError):
+    """A handler exceeded ``HANDLER_TIMEOUT_SECONDS``.
+
+    Deliberately **not** retryable: the same job, on the same 8GB card, will
+    hit the same wall. Retrying burned up to four hours of queue time.
+    """
+
+
+@dataclass(frozen=True)
+class ErrorClassification:
+    """Outcome of classifying a job failure."""
+
+    category: str
+    retryable: bool
+    status: int | None = None
+
+    def describe(self, message: str) -> str:
+        """Format the message with its category code for storage/logging."""
+        return f"{self.category}: {message}"
+
+
+def _http_status_from_text(normalized: str) -> int | None:
+    """Extract an HTTP status from a message, requiring HTTP context.
+
+    Returns ``None`` when the message merely *contains* a three-digit number
+    ("after 1502ms", "clip_502.mp4", "step 503 of 800").
+    """
+    match = _HTTP_CONTEXT_RE.search(normalized)
+    if match is None:
+        return None
+    raw = match.group(1) or match.group(2)
+    try:
+        return int(raw)
+    except (TypeError, ValueError):  # pragma: no cover - regex guarantees digits
+        return None
+
+
+def classify_job_error(exc: BaseException, message: str | None = None) -> ErrorClassification:
+    """Classify a job failure as transient or deterministic.
+
+    Order matters: the exception type is the most reliable signal, then the HTTP
+    status, then the wording. Anything unrecognised is treated as deterministic
+    so a novel bug is not retried three more times.
+    """
+    text = (message if message is not None else str(exc)).strip()
+    normalized = text.lower()
+
+    # 1. Explicit handler timeout: deterministic for this job + hardware.
+    if isinstance(exc, HandlerTimeoutError):
+        return ErrorClassification(HANDLER_TIMEOUT, retryable=False)
+
+    # 2. ComfyUI refused the graph itself: fixing it needs a code/prompt change.
+    if isinstance(exc, WorkflowRejectedError):
+        return ErrorClassification(WORKFLOW_REJECTED, retryable=False, status=exc.status)
+    if "rejected workflow" in normalized or "invalid_prompt" in normalized:
+        return ErrorClassification(WORKFLOW_REJECTED, retryable=False)
+
+    # 3. Type-driven transience.
+    if isinstance(exc, _TRANSIENT_EXC_TYPES):
+        return ErrorClassification(TRANSIENT_NETWORK, retryable=True)
+    if isinstance(exc, _DETERMINISTIC_EXC_TYPES):
+        return ErrorClassification(DETERMINISTIC, retryable=False)
+
+    # 4. HTTP status carried inside a plain RuntimeError message.
+    status = _http_status_from_text(normalized)
+    if status in _RETRYABLE_STATUSES:
+        return ErrorClassification(TRANSIENT_NETWORK, retryable=True, status=status)
+    if status is not None:
+        return ErrorClassification(DETERMINISTIC, retryable=False, status=status)
+
+    # 5. Wording.
+    if any(phrase in normalized for phrase in _BUSY_PHRASES):
+        return ErrorClassification(UPSTREAM_BUSY, retryable=True)
+    if any(phrase in normalized for phrase in _TRANSIENT_PHRASES):
+        return ErrorClassification(TRANSIENT_NETWORK, retryable=True)
+
+    return ErrorClassification(UNKNOWN, retryable=False)
+
+
+def _is_retryable_error(error_msg: str) -> bool:
+    """Backwards-compatible text-only check.
+
+    Kept because handlers in other modules call it with a bare string; new code
+    should prefer :func:`classify_job_error`, which also returns a category.
+    """
+    return classify_job_error(RuntimeError(error_msg)).retryable
 
 
 class JobProcessor:
@@ -117,7 +292,7 @@ class JobProcessor:
         """Exponential backoff with jitter for retries."""
         delay = min(base_seconds * (2 ** retry_count), max_seconds)
         jitter = delay * 0.1  # 10% jitter
-        await asyncio.sleep(delay + (jitter * (0.5 - hash(str(retry_count)) % 100 / 100.0)))
+        await asyncio.sleep(delay + (jitter * random.uniform(-0.5, 0.5)))
 
     async def _broadcast_progress(self, job: Job):
         """Broadcast job progress to SSE clients"""
@@ -180,7 +355,7 @@ class JobProcessor:
                         await handler_task
                     except asyncio.CancelledError:
                         pass
-                    raise RuntimeError(
+                    raise HandlerTimeoutError(
                         f"Job {job.id} exceeded handler timeout of {HANDLER_TIMEOUT_SECONDS}s"
                     ) from None
                 finally:
@@ -209,7 +384,14 @@ class JobProcessor:
 
         except Exception as e:
             error_msg = str(e)
-            logger.error("Job %s failed: %s", job.id, error_msg)
+            verdict = classify_job_error(e)
+            logger.error(
+                "Job %s failed [%s%s]: %s",
+                job.id,
+                verdict.category,
+                f" http={verdict.status}" if verdict.status else "",
+                error_msg,
+            )
 
             # Re-read the job in case it was cancelled while running
             current = await queue_manager.get_job(job.id)
@@ -217,14 +399,16 @@ class JobProcessor:
                 logger.warning("Job %s was cancelled/deleted during processing; not retrying", job.id)
                 return
 
+            described = verdict.describe(error_msg)
+
             # Check if we should retry
-            if current is not None and current.retry_count < job.max_retries:
+            if current is not None and current.retry_count < job.max_retries and verdict.retryable:
                 next_retry = current.retry_count + 1
                 await queue_manager.update_job(
                     job.id,
                     status=JobStatus.RETRYING,
                     progress=0.0,
-                    error=error_msg,
+                    error=described,
                     message=f"Retry {next_retry}/{job.max_retries}",
                     retry_count=next_retry,
                 )
@@ -234,12 +418,17 @@ class JobProcessor:
                 await queue_manager.update_job(job.id, status=JobStatus.QUEUED)
                 queue_manager._signal_new_job()
             else:
-                # Exhausted retries -> dead-letter queue
-                logger.warning("Job %s moved to DLQ after %d retries", job.id, current.retry_count if current else job.retry_count)
-                await queue_manager._move_to_dead_letter(
+                # Exhausted retries (or a deterministic failure) -> dead-letter queue
+                logger.warning(
+                    "Job %s moved to DLQ after %d retries (%s)",
                     job.id,
-                    error_msg if current is None else (current.error or error_msg),
+                    current.retry_count if current else job.retry_count,
+                    verdict.category,
                 )
+                # Record *this* attempt's message. The job row still carries the
+                # previous attempt's error from the RETRYING transition, so
+                # reusing `current.error` here reported a stale cause.
+                await queue_manager._move_to_dead_letter(job.id, described)
 
         finally:
             self._current_job = None

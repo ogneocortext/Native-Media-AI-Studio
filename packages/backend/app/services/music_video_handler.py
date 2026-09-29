@@ -1,7 +1,6 @@
 """Music video generation handler - processes music video jobs with audio analysis and video composition."""
 
 import asyncio
-import json
 import shutil
 from pathlib import Path
 from typing import Any
@@ -9,8 +8,6 @@ from typing import Any
 from ..core.config import PROJECT_ROOT
 from ..models.job import Job, JobType
 from ..services.audio_analyzer import AudioAnalyzer, extract_amplitude_envelope_simple
-from ..services.go_worker_client import write_sidecar as go_write_sidecar
-from ..services.video import RenderSpec
 
 OUTPUT_DIR = PROJECT_ROOT / "output" / "video"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

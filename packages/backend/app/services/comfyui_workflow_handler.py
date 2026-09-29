@@ -5,7 +5,6 @@ import json
 import logging
 import uuid
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from ..adapters.registry import adapter_registry

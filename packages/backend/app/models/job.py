@@ -73,18 +73,24 @@ class Job(BaseModel):
     @computed_field
     @property
     def is_terminal(self) -> bool:
-        """True when job has reached a final state."""
+        """True when job has reached a final state.
+
+        ``DEAD`` is terminal: the processor moves exhausted jobs to the
+        dead-letter queue, and omitting it made every dead job report
+        ``is_terminal: false`` to API clients.
+        """
         return self.status in {
             JobStatus.COMPLETED,
             JobStatus.FAILED,
             JobStatus.CANCELLED,
+            JobStatus.DEAD,
         }
 
     @computed_field
     @property
     def has_error(self) -> bool:
         """True when job failed or has an error message."""
-        return self.status == JobStatus.FAILED or self.error is not None
+        return self.status in {JobStatus.FAILED, JobStatus.DEAD} or self.error is not None
 
     @computed_field
     @property
@@ -98,8 +104,15 @@ class Job(BaseModel):
     @computed_field
     @property
     def can_retry(self) -> bool:
-        """True when job can be retried (failed and under max retries)."""
-        return self.status == JobStatus.FAILED and self.retry_count < self.max_retries
+        """True when job can be retried (unsuccessful and under max retries).
+
+        ``DEAD`` is included because ``POST /api/jobs/{id}/retry`` accepts both
+        ``FAILED`` and ``DEAD`` — this field used to contradict the endpoint.
+        """
+        return (
+            self.status in {JobStatus.FAILED, JobStatus.DEAD}
+            and self.retry_count < self.max_retries
+        )
 
     @computed_field
     @property

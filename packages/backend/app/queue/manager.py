@@ -11,6 +11,12 @@ from .db_manager import JobDatabaseManager
 
 logger = logging.getLogger(__name__)
 
+#: Statuses that mean "this job did not succeed". ``JobStatus.FAILED`` is never
+#: assigned by the processor — exhausted jobs are moved to the dead-letter queue
+#: (``JobStatus.DEAD``) — so anything counting only ``FAILED`` reports zero
+#: failures no matter how many jobs died.
+_UNSUCCESSFUL_STATUSES = (JobStatus.FAILED, JobStatus.DEAD)
+
 
 class QueueManager:
     """
@@ -95,9 +101,12 @@ class QueueManager:
     async def _broadcast_job_event(self, event_type: str, job: Job):
         """Broadcast a job event to all SSE clients"""
         try:
+            priority = "urgent" if job.status in (JobStatus.FAILED, JobStatus.DEAD) else \
+                       "high" if job.status in (JobStatus.COMPLETED, JobStatus.CANCELLED) else \
+                       "medium" if job.status == JobStatus.RUNNING else "low"
             await sse_manager.broadcast(event_type, {
                 "job": job.model_dump(mode="json")
-            })
+            }, priority=priority)
         except Exception as e:
             logger.error("Error broadcasting job event: %s", e)
 
@@ -154,7 +163,13 @@ class QueueManager:
         )
 
     async def get_stats(self) -> QueueStats:
-        """Get queue statistics"""
+        """Get queue statistics.
+
+        ``failed`` counts every unsuccessful job, including the dead-letter
+        queue. The processor never assigns ``FAILED`` (exhausted jobs go to
+        ``DEAD``), so counting only ``FAILED`` pinned the queue page's failure
+        count at zero. ``dead`` is the DLQ subset of that same number.
+        """
         jobs = list(self._jobs.values())
         return QueueStats(
             total_jobs=len(jobs),
@@ -163,7 +178,7 @@ class QueueManager:
             running=len([j for j in jobs if j.status == JobStatus.RUNNING]),
             retrying=len([j for j in jobs if j.status == JobStatus.RETRYING]),
             completed=len([j for j in jobs if j.status == JobStatus.COMPLETED]),
-            failed=len([j for j in jobs if j.status == JobStatus.FAILED]),
+            failed=len([j for j in jobs if j.status in _UNSUCCESSFUL_STATUSES]),
             cancelled=len([j for j in jobs if j.status == JobStatus.CANCELLED]),
             dead=len([j for j in jobs if j.status == JobStatus.DEAD]),
         )
@@ -180,6 +195,8 @@ class QueueManager:
             j for j in completed_jobs
             if (now - j.completed_at).total_seconds() <= 60.0
         ]
+        # Field is reported as `processing_rate_per_min`, so normalise the
+        # 60-second window to a per-minute rate.
         processing_rate = len(recent_completed) / 60.0 if recent_completed else 0.0
         dead_jobs = [j for j in jobs if j.status == JobStatus.DEAD]
         dead_sample = [
@@ -390,13 +407,23 @@ class QueueManager:
             return count
 
     async def clear_failed(self) -> int:
-        """Remove all failed jobs"""
+        """Remove all unsuccessful jobs (FAILED and dead-lettered).
+
+        The processor routes exhausted jobs to ``DEAD`` and never assigns
+        ``FAILED``, so this endpoint used to delete nothing. ``clear_dead``
+        remains available for the DLQ-only view.
+        """
         async with self._lock:
-            failed_ids = [j.id for j in self._jobs.values()
-                         if j.status == JobStatus.FAILED]
-            for job_id in failed_ids:
+            doomed = [
+                j.id
+                for j in self._jobs.values()
+                if j.status in _UNSUCCESSFUL_STATUSES
+            ]
+            for job_id in doomed:
                 del self._jobs[job_id]
-            count = await JobDatabaseManager.clear_failed_async()
+            count = 0
+            for status in _UNSUCCESSFUL_STATUSES:
+                count += await JobDatabaseManager.clear_status_async(status)
             return count
 
     async def clear_dead(self) -> int:

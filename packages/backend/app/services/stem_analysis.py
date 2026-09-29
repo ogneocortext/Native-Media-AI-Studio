@@ -8,12 +8,11 @@ can map stems to different visual layers.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from pathlib import Path
 from typing import Any
 
-from .source_separation import SEPARATION_DIR, source_separator
+from .source_separation import source_separator
 
 logger = logging.getLogger(__name__)
 

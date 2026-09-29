@@ -212,6 +212,8 @@ async def build_export_matrix(
     beat_times: list[float] | None = None,
     sections: list[dict] | None = None,
     loop_seconds: float = 4.0,
+    rms_energy: list[float] | None = None,
+    duration: float | None = None,
 ) -> MatrixResult:
     """Build the full export matrix for one master video.
 
@@ -260,7 +262,21 @@ async def build_export_matrix(
     # 3) Thumbnail variants A/B/C at 10% / 50% / 85%
     for variant, frac in (("A", 0.10), ("B", 0.50), ("C", 0.85)):
         try:
-            at = min(total * frac, max(0.0, total - 0.2)) if total else 0.0
+            raw_target = total * frac if total else 0.0
+            # Energy-aware placement: pick the highest-energy frame within a
+            # ±3% window around the target when RMS data is available.
+            if rms_energy and duration and total > 0:
+                window = min(total * 0.06, 3.0)
+                lo = max(0.0, raw_target - window)
+                hi = min(total, raw_target + window)
+                idx_s = max(0, int((lo / total) * len(rms_energy)))
+                idx_e = min(len(rms_energy), int((hi / total) * len(rms_energy)) + 1)
+                if idx_e > idx_s:
+                    local_max = max(rms_energy[idx_s:idx_e])
+                    if local_max > 0:
+                        peak_idx = idx_s + rms_energy[idx_s:idx_e].index(local_max)
+                        raw_target = (peak_idx / max(len(rms_energy) - 1, 1)) * total
+            at = min(raw_target, max(0.0, total - 0.2)) if total else 0.0
             thumb = await _derive_thumbnail(src, IMAGE_DIR / f"{stem}_thumb_{variant}.jpg", at, variant)
             result.artifacts.append(thumb)
         except Exception as exc:

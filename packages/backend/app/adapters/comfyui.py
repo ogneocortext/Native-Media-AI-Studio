@@ -111,6 +111,34 @@ def _clamp_wan_resolution(width: int, height: int) -> tuple[int, int]:
     return w, h
 
 
+def _resolve_wan_assets(ckpt_name: str) -> tuple[str, str]:
+    """Return ``(vae_name, t5_name)`` for a Wan checkpoint.
+
+    Single source of truth shared by ``_build_wan_gguf_workflow`` and the result
+    metadata in ``_generate_video`` so the names reported back to callers always
+    match the files the submitted workflow actually loads.
+
+    Wan 2.1 1.3B uses ``wan_2.1_vae``, 2.2 uses ``wan2.2_vae`` (verified via
+    Comfy-Org repackaged). For the text encoder, prefer ``umt5_xxl_fp16`` when
+    present (11GB, CPU offload, no fp8 format issues) — the locally "de-scaled"
+    ``umt5-xxl-plain-fp8`` often still carries fp8 tensor data that
+    ``LoadWanVideoT5TextEncoder`` rejects ("fp8 scaled is not supported").
+    """
+    tier = classify_model_variant(ckpt_name) if ckpt_name else "unknown"
+    vae_name = (
+        "wan_2.1_vae.safetensors"
+        if tier in ("wan2_1_t2v_1_3b", "wan2_1_fun_inp_1_3b")
+        else "wan2.2_vae.safetensors"
+    )
+    t5_name = "umt5-xxl-plain-fp8.safetensors"
+    models_dir = resolve_models_dir()
+    if models_dir is not None:
+        fp16_path = models_dir / "text_encoders" / "umt5_xxl_fp16.safetensors"
+        if fp16_path.exists():
+            t5_name = "umt5_xxl_fp16.safetensors"
+    return vae_name, t5_name
+
+
 class ComfyUIAdapter(BaseAdapter):
     """
     Adapter for ComfyUI API.
@@ -382,6 +410,8 @@ class ComfyUIAdapter(BaseAdapter):
             bool(ckpt_name) and is_wan_8gb_model(ckpt_name)
         )
         eff_frames = num_frames
+        t5_name: str | None = None
+        vae_name: str | None = None
 
         if is_wan_gguf:
             # 8GB envelope for Wan 2.2 TI2V-5B GGUF (researched 2026-09-20):
@@ -401,6 +431,14 @@ class ComfyUIAdapter(BaseAdapter):
                     params.get("width", 512), params.get("height", 512), num_frames,
                     width, height, wan_frames,
                 )
+            if not ckpt_name:
+                # Resolve the GGUF checkpoint here as well: the result metadata
+                # below must report the assets for the checkpoint that is
+                # actually submitted (the builder's own fallback is then a
+                # no-op, since it receives an explicit name).
+                ckpt_name = self._get_available_wan_gguf_checkpoint()
+            vae_name, t5_name = _resolve_wan_assets(ckpt_name)
+
             workflow = self._build_wan_gguf_workflow(
                 prompt_text, negative_text, steps, cfg_scale,
                 width, height, actual_seed, comfy_sampler, wan_frames, fps,
@@ -536,7 +574,13 @@ class ComfyUIAdapter(BaseAdapter):
         }
 
     async def _submit_prompt(self, workflow: dict[str, Any]) -> str:
-        """Submit a workflow to ComfyUI and return the prompt ID"""
+        """Submit a workflow to ComfyUI and return the prompt ID.
+
+        Rejections are raised as :class:`WorkflowRejectedError` so the caller can
+        see *which node* failed ComfyUI's validation (previously a bare
+        ``Exception`` carrying a 500-character body dump, from which the node id
+        was usually truncated away).
+        """
         session = await self._get_session()
         payload = {"prompt": workflow["prompt"]}
         async with session.post(
@@ -546,7 +590,7 @@ class ComfyUIAdapter(BaseAdapter):
         ) as resp:
             if resp.status != 200:
                 body = await resp.text()
-                raise Exception(f"Failed to submit prompt: {resp.status} - {body[:500]}")
+                raise _cu.parse_workflow_rejection(resp.status, body)
             data = await resp.json()
             return data["prompt_id"]
 
@@ -672,21 +716,11 @@ class ComfyUIAdapter(BaseAdapter):
         }
         quantization = quant_map.get(str(variant).lower(), "disabled")
 
-        # Wan 2.1 1.3B uses wan_2.1_vae, 2.2 uses wan2.2_vae (verified via Comfy-Org repackaged)
+        # VAE + text-encoder names come from the shared resolver so the result
+        # metadata reports exactly the files this workflow loads.
+        vae_name, t5_name = _resolve_wan_assets(ckpt_name)
         tier = classify_model_variant(ckpt_name) if ckpt_name else "unknown"
-        vae_name = "wan_2.1_vae.safetensors" if tier in ("wan2_1_t2v_1_3b", "wan2_1_fun_inp_1_3b") else "wan2.2_vae.safetensors"
-        # Text encoder: prefer umt5_xxl_fp16 when present (11GB, CPU offload,
-        # no fp8 format issues). The locally "de-scaled" umt5-xxl-plain-fp8
-        # often still carries fp8 tensor data that LoadWanVideoT5TextEncoder
-        # rejects ("fp8 scaled is not supported"), so fp16 is the safer
-        # choice whenever it is on disk. Fall back to plain fp8 only when
-        # fp16 is absent.
-        t5_name = "umt5-xxl-plain-fp8.safetensors"
         models_dir = resolve_models_dir()
-        if models_dir is not None:
-            fp16_path = models_dir / "text_encoders" / "umt5_xxl_fp16.safetensors"
-            if fp16_path.exists():
-                t5_name = "umt5_xxl_fp16.safetensors"
 
         # Validate T5 encoder and VAE availability before submitting.
         # Missing files cause silent conditioning failures that manifest as

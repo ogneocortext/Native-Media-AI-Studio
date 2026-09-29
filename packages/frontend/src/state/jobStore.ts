@@ -280,6 +280,7 @@ function handleSSEMessage(
   const eventType = message.type as string;
   const event = message.event as string;
   const data = message.data as Record<string, unknown> | undefined;
+  const priority = (message.priority as string) || "medium";
 
   // Handle both "type" and "event" message formats
   const eventName = eventType || event;
@@ -295,6 +296,24 @@ function handleSSEMessage(
     (data.id as string) ||
     ((nestedJob?.id as string) ?? undefined);
   if (!jobId) return;
+
+  // Route to toast based on priority
+  const shouldToast = priority === "urgent" || priority === "high";
+  if (shouldToast) {
+    const jobStatus = nestedJob?.status || data.status || eventName;
+    const toastType = priority === "urgent" ? "error" : "success";
+    const toastMessage = typeof nestedJob?.message === "string" ? nestedJob.message :
+                         typeof data.message === "string" ? data.message :
+                         `Job ${jobId}: ${jobStatus}`;
+    import("../utils/toast").then(({ showToast }) => {
+      showToast(toastMessage, {
+        type: toastType,
+        priority: priority as "urgent" | "high",
+        detail: jobId,
+        key: `job-${jobId}`,
+      });
+    });
+  }
 
   switch (eventName) {
     case "job.queued":

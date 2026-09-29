@@ -103,7 +103,85 @@ GET http://localhost:8000/api/health/gpu/processes
 # Real-time events (SSE canonical — legacy ws://.../ws returns 426):
 GET http://localhost:8000/api/events  # Accept: text/event-stream
 
-# 3D generation status
+## SSE Event Reference
+
+### Event Types
+
+| Event Type | Priority | Description |
+|------------|----------|-------------|
+| `job.queued` | low | Job added to queue |
+| `job.started` | medium | Job processing began |
+| `job.progress` | low | Progress update (step/total) |
+| `job.completed` | high | Job finished successfully |
+| `job.failed` | urgent | Job failed permanently |
+| `job.cancelled` | high | Job cancelled by user |
+| `job.dead` | urgent | Job moved to dead-letter queue |
+| `health_update` | medium | System health status |
+| `queue_update` | low | Queue statistics |
+| `connected` | medium | Initial connection event |
+| `keepalive` | low | Heartbeat (no action needed) |
+
+### Priority Levels
+
+- `urgent` — Immediate toast, requires user dismissal (`requireInteraction: true`)
+- `high` — Toast with extended duration (10s), success/error styling
+- `medium` — Standard toast (5s)
+- `low` — Suppressed toast, UI-only update
+
+### Last-Event-ID Replay
+
+On reconnect, clients send `Last-Event-ID` header. The server replays missed events from a 100-event ring buffer. Clients capture `event.lastEventId` from incoming messages.
+
+### Cross-Tab Sync
+
+Multiple tabs use `BroadcastChannel('notifications')` to sync SSE events. The leader tab maintains the SSE connection; follower tabs receive events via the channel.
+
+## Notification System Architecture
+
+### Backend (FastAPI)
+
+```
+packages/backend/app/sse/handler.py      SSEManager — broadcast, replay buffer
+packages/backend/app/queue/manager.py    QueueManager → _broadcast_job_event()
+packages/backend/app/main.py             GET /api/events — SSE endpoint
+```
+
+### Frontend (React + Zustand)
+
+```
+packages/frontend/src/services/sseService.ts   SSEService singleton
+packages/frontend/src/state/jobStore.ts        Zustand store + SSE handler
+packages/frontend/src/utils/toast.ts           DOM-based toast notifications
+```
+
+### Event Flow
+
+```
+Job status change
+    ↓
+QueueManager.update_job()
+    ↓
+├── JobDatabaseManager.update_job_async()  (persist)
+├── _notify_subscribers(job)               (in-process callbacks)
+└── _broadcast_job_event(event_type, job)  (SSE)
+        ↓
+    sse_manager.broadcast(type, data, priority)
+        ↓
+    ├── Store in _replay_buffer (ring buffer, maxlen=100)
+        ↓
+    ├── Send to all active SSE connections
+        ↓
+    └── Fan out to go-dashboard (optional)
+            ↓
+    EventSource receives event
+        ↓
+    ├── Capture lastEventId for replay
+        ├── Dispatch to Zustand store
+        ├── Broadcast via BroadcastChannel (cross-tab)
+        └── Route to toast based on priority
+```
+
+## 3D Generation
 GET http://localhost:8000/api/3d/status
 # Response: {"available": true, "model_exists": true, "generated_count": 0}
 

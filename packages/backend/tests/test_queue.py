@@ -73,7 +73,7 @@ async def test_processor_retries_are_bounded(queue: QueueManager, monkeypatch):
     queue._jobs[job.id] = job
 
     async def always_fails(_job: Job):
-        raise RuntimeError("boom")
+        raise RuntimeError("connection refused during processing")
 
     processor = JobProcessor()
     processor.register_handler(JobType.IMAGE_GENERATION, always_fails)
@@ -93,7 +93,7 @@ async def test_processor_retries_are_bounded(queue: QueueManager, monkeypatch):
 
     assert job.status == JobStatus.DEAD
     assert job.retry_count == max_retries
-    assert "boom" in (job.error or "")
+    assert "connection refused during processing" in (job.error or "")
 
 
 @pytest.mark.asyncio

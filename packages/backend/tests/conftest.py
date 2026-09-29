@@ -10,6 +10,8 @@ Provides:
 
 from __future__ import annotations
 
+import getpass
+import tempfile
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
@@ -32,6 +34,63 @@ from app.models.job import Job, JobStatus, JobType  # noqa: E402
 from app.queue.manager import QueueManager  # noqa: E402
 from app.sse.handler import SSEManager  # noqa: E402
 from app.websocket.handler import ConnectionManager  # noqa: E402
+
+# ===========================================================================
+# Temp-directory fallback
+# ===========================================================================
+
+#: Repo-local basetemp, used when the shared per-user temp root is unusable.
+LOCAL_BASETEMP = BACKEND_ROOT.parent.parent / ".pytest_tmp"
+
+#: Set when the fallback above had to be applied (surfaced in the report header).
+_USING_LOCAL_BASETEMP = False
+
+
+def _temp_root_usable(root: Path) -> bool:
+    """Return True when pytest can create *and* expire numbered temp dirs here.
+
+    This machine's %TEMP% lives in a profile folder that was renamed after the
+    Windows account was created, so pytest still computes the original
+    ``pytest-of-<user>`` root while stale entries inside it belong to the old
+    profile. Expiring those raises ``PermissionError`` in
+    ``tmp_path_factory._exit_stack.close()`` — i.e. *after* every test has
+    passed — which makes an otherwise green run exit non-zero.
+    """
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        probe = root / ".nma-write-probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        # Mirror what pytest does when it expires previous runs: for every entry
+        # in the root it calls ``entry.resolve().exists()``. ``Path.exists()``
+        # re-raises PermissionError (only ENOENT/ENOTDIR/ELOOP are swallowed),
+        # and ``os.path.realpath`` hides it — so use the pathlib call here.
+        for entry in root.iterdir():
+            entry.resolve().exists()
+    except OSError:
+        return False
+    return True
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Point --basetemp at a repo-local directory when %TEMP% cannot be used."""
+    global _USING_LOCAL_BASETEMP  # noqa: PLW0603
+
+    if config.option.basetemp is not None:
+        return  # an explicit --basetemp always wins
+    root = Path(tempfile.gettempdir()) / f"pytest-of-{getpass.getuser()}"
+    if not _temp_root_usable(root):
+        LOCAL_BASETEMP.mkdir(parents=True, exist_ok=True)
+        config.option.basetemp = str(LOCAL_BASETEMP)
+        _USING_LOCAL_BASETEMP = True
+
+
+def pytest_report_header(config: pytest.Config) -> str:
+    """Explain the basetemp override so the run is not mysteriously relocated."""
+    if _USING_LOCAL_BASETEMP:
+        return f"basetemp: {config.option.basetemp} (shared %TEMP% root not usable)"
+    return ""
+
 
 # ===========================================================================
 # Database fixture

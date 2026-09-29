@@ -45,10 +45,10 @@ def estimate_generation_time(
     """
     # Base seconds per frame for a 512x512 image at 20 steps on GTX 1070 Ti
     base_sec_per_frame = 2.5
-    # Scale by resolution
-    resolution_factor = (width * height) / (512 * 512)
-    # Scale by steps
-    step_factor = steps / 20
+    # Scale by resolution (log-space to dampen extreme resolutions)
+    resolution_factor = ((width * height) / (512 * 512)) ** 0.5
+    # Scale by steps (log-transform because doubling steps does not double time linearly)
+    step_factor = max(0.5, (steps / 20) ** 0.85)
     # Scale by model size (larger models are slower)
     model_factor = 1.0
     tier = classify_model_variant(model_name)
@@ -78,7 +78,7 @@ def estimate_generation_time(
     return {
         "estimated_seconds": round(estimated_seconds, 1),
         "estimated_minutes": round(estimated_seconds / 60, 1),
-        "estimated_end_time": (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=estimated_seconds)).isoformat() + "Z",
+        "estimated_end_time": (datetime.now(timezone.utc) + timedelta(seconds=estimated_seconds)).isoformat().replace("+00:00", "Z"),
         "sec_per_frame": round(sec_per_frame, 1),
         "total_frames": total_frames,
         "factors": {

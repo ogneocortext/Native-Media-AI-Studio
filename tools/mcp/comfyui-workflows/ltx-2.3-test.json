@@ -1,5 +1,5 @@
 {
-  "description": "LTX Video 2.3 FP8 test workflow (512x512, 24 frames, 12fps). Updated for ComfyUI 0.37 node patterns.",
+  "description": "LTX Video 2.3 FP8 test workflow (512x512, 24 frames, 12fps). Node graph mirrors app.services.video_model_bench._ltx_workflow and is validated against the installed ComfyUI node signatures: DualCLIPLoader exposes only clip_name1/clip_name2/type and returns a single CLIP slot, so prompts go through CLIPTextEncode and LTXVConditioning supplies the frame_rate. Requires ltx-video-2.3-fp8.safetensors (diffusion_models) and gemma_3_12B_it_fp4_mixed.safetensors (text_encoders) from protocol section 2.1.",
   "model": "ltx-video-2.3-fp8.safetensors",
   "precision": "fp8",
   "resolution": "512x512",
@@ -13,22 +13,28 @@
     "2": {
       "class_type": "DualCLIPLoader",
       "inputs": {
-        "text": "positive prompt here",
-        "text2": "negative prompt here",
-        "clip_name1": "clip-l",
-        "clip_name2": "umt5_xxl_fp16.safetensors",
+        "clip_name1": "gemma_3_12B_it_fp4_mixed.safetensors",
+        "clip_name2": "ltx-2.3_text_projection_bf16.safetensors",
         "type": "ltxv"
       }
     },
     "3": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": "positive prompt here", "clip": ["2", 0] }
+    },
+    "4": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": "negative prompt here", "clip": ["2", 0] }
+    },
+    "5": {
       "class_type": "LTXVConditioning",
       "inputs": {
-        "positive": ["2", 0],
-        "negative": ["2", 1],
+        "positive": ["3", 0],
+        "negative": ["4", 0],
         "frame_rate": 12
       }
     },
-    "4": {
+    "6": {
       "class_type": "KSampler",
       "inputs": {
         "seed": 0,
@@ -38,27 +44,27 @@
         "scheduler": "normal",
         "denoise": 1.0,
         "model": ["1", 0],
-        "positive": ["3", 0],
-        "negative": ["3", 1],
-        "latent_image": ["5", 0]
+        "positive": ["5", 0],
+        "negative": ["5", 1],
+        "latent_image": ["7", 0]
       }
     },
-    "5": {
+    "7": {
       "class_type": "EmptyLTXVLatentVideo",
       "inputs": { "width": 512, "height": 512, "length": 24, "batch_size": 1 }
     },
-    "6": {
+    "8": {
       "class_type": "VAEDecode",
-      "inputs": { "samples": ["4", 0], "vae": ["7", 0] }
+      "inputs": { "samples": ["6", 0], "vae": ["9", 0] }
     },
-    "7": {
+    "9": {
       "class_type": "VAELoader",
       "inputs": { "vae_name": "LTX23_video_vae_bf16.safetensors" }
     },
-    "8": {
+    "10": {
       "class_type": "VHS_VideoCombine",
       "inputs": {
-        "images": ["6", 0],
+        "images": ["8", 0],
         "frame_rate": 12,
         "loop_count": 0,
         "filename_prefix": "NativeMediaAI_LTX",
@@ -69,3 +75,4 @@
     }
   }
 }
+

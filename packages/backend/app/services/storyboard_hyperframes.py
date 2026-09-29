@@ -40,7 +40,8 @@ def _scenes(data: dict[str, Any]) -> list[dict[str, Any]]:
             start = previous_end
             end = start + float(raw["duration_seconds"])
         elif isinstance(timing, list) and len(timing) == 2:
-            start = float(timing[0]); end = float(timing[1])
+            start = float(timing[0])
+            end = float(timing[1])
         else:
             raise ValueError(f"scene {index} has no start/end or duration_seconds")
         if start < 0 or end <= start or start < previous_end - 0.001:
@@ -73,7 +74,7 @@ def build_hyperframes_audio_payload(
     total_frames = max(1, int(duration * fps) + 1)
     energy_curve = [max(0.0, min(1.0, float(x))) for x in analysis.get("energy_curve", [])]
     beats = sorted(float(x) for x in analysis.get("beat_times", []) if float(x) >= 0)
-    downbeats = set(float(x) for x in analysis.get("downbeat_times", []))
+    downbeats = {float(x) for x in analysis.get("downbeat_times", [])}
     if not downbeats and beats:
         # Beat analysis commonly returns the beat grid but omits downbeat_times.
         # Derive 4/4 downbeats as every other beat (beat 1 of each 2-beat half-measure),

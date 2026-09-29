@@ -211,6 +211,45 @@ The `/queue` endpoint returns:
 }
 ```
 
+### SSE Debugging Patterns
+
+#### EventSource won't connect
+
+```javascript
+// Check browser console for EventSource errors
+const es = new EventSource('/api/events');
+es.onerror = () => console.error('SSE error', es.readyState);
+// readyState: 0=CONNECTING, 1=OPEN, 2=CLOSED
+```
+
+#### Missed events during reconnect
+
+```javascript
+// Backend now supports Last-Event-ID replay
+// Frontend captures lastEventId automatically
+es.onmessage = (event) => {
+    if (event.lastEventId) {
+        localStorage.setItem('sse_last_id', event.lastEventId);
+    }
+};
+```
+
+#### Cross-tab sync issues
+
+```javascript
+// Check BroadcastChannel support
+const channel = new BroadcastChannel('notifications');
+channel.onmessage = (e) => console.log('Sync:', e.data);
+```
+
+#### Priority routing not working
+
+```bash
+# Check SSE event payload
+curl -N http://localhost:8000/api/events
+# Should include "priority": "urgent" | "high" | "medium" | "low"
+```
+
 ---
 
 ## Model Management

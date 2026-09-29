@@ -752,7 +752,28 @@ async def sse_endpoint(request: Request):
     """
     queue = await sse_manager.connect()
 
+    # Support Last-Event-ID replay: capture for use inside the generator
+    last_event_id = request.headers.get("Last-Event-ID")
+    last_id: int | None = None
+    if last_event_id:
+        try:
+            last_id = int(last_event_id)
+        except (ValueError, TypeError):
+            pass
+
     async def event_generator():
+        # Send replay events first if Last-Event-ID was provided
+        if last_id is not None:
+            try:
+                replay_events = await sse_manager.get_replay_events(last_id)
+                for event in replay_events:
+                    yield {
+                        "id": event["id"],
+                        "data": event["data"],
+                    }
+            except (ValueError, TypeError):
+                pass  # Invalid Last-Event-ID, proceed without replay
+
         try:
             # Send initial connection event
             yield {

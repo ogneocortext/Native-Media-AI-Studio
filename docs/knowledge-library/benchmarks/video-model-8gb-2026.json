@@ -6,15 +6,9 @@
     "fps": 12,
     "precision": "fp8",
     "format": "safetensors",
-    "timestamp": "2026-09-27T00:05:34.114493+00:00",
-    "vram_pre_mb": 6256,
-    "generation_time_s": 50.4,
-    "prompt_id": "ec4c5bc3-e138-482f-8a30-542f3782dc16",
-    "status": "success",
-    "execution_time": null,
-    "peak_vram_mb": 6380,
-    "quality_rating": null,
-    "notes": ""
+    "timestamp": "2026-09-29T13:44:14.926917+00:00",
+    "generation_time_s": 165.33,
+    "status": "success"
   },
   {
     "model": "ltxv_2b",

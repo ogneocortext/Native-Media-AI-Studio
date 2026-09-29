@@ -88,6 +88,7 @@ date: 2026-09-05
 
 - [[ai-agent-navigation|🤖 AI Agent Navigation]] — Quick lookup table for agents (NEW 2026-09-01)
 - [[backend-debugging-guide|🐛 Backend Debugging Guide]] — Debugging patterns for FastAPI/queue/VRAM
+- [[notification-system-improvements-2026|🔔 Notification System Improvements 2026]] — Priority-based SSE routing, toast collapse, cross-tab sync, replay, notification center (NEW 2026-09-29)
 - [[ollama-thinking-structured-outputs|🧠 Ollama Thinking & Structured Outputs]] — `think` + `format:json`
 - [[minicpm-v-best-practices|🔍 MiniCPM-V 2.6 Best Practices]] — your `minicpm-v:8b` local vision: 1.8MP any-aspect OCR, multi-image/video, RLAIF-V trustworthy, 640-token efficiency on GTX 1070 Ti (NEW 2026-09-06)
 
@@ -217,11 +218,11 @@ graph LR
 
 | Metric          | Count                                                                                                                       |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Total Documents | 63                                                                                                                          |
+| Total Documents | 64                                                                                                                          |
 | Total Tags      | 40                                                                                                                          |
 | Total Links     | 115+                                                                                                                        |
-| Last Updated    | 2026-09-24 (MCP Tool Contracts 2026, E2E Test Plan 2026, Unity MCP Integration + App Research Gaps 2026 + Feature Utilization Audit 2026 + HyperFrames Audio-Reactive Visualizations 2026 + Ollama Model Utilization 2026 added to knowledge library)                                                                                                     |
-| Latest Add      | 2026-09-24 (Ollama Model Utilization 2026) |
+| Last Updated    | 2026-09-29 (Notification System Improvements 2026 added to knowledge library)                                                                                                     |
+| Latest Add      | 2026-09-29 (Notification System Improvements 2026) |
 
 ---
 

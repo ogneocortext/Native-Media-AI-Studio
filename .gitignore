@@ -225,6 +225,8 @@ stable-diffusion/vae/
 
 # Test/cache directories
 .pytest_cache/
+# Repo-local pytest --basetemp fallback (see packages/backend/tests/conftest.py)
+.pytest_tmp/
 tools/tests/contrast_audit_results.jsonl
 .playwright-report/
 playwright-report/

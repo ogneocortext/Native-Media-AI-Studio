@@ -21,7 +21,9 @@ test.describe('SSE & Realtime', () => {
     // The Layout connects SSE on mount; verify the global store exists and has
     // a boolean sseConnected property regardless of whether the real backend responded.
     const sseConnected = await page.evaluate(() => {
-      const win = window as unknown as { __healthStore?: { getState?: () => unknown } };
+      const win = window as unknown as {
+        __healthStore?: { getState?: () => { sseConnected?: unknown } | undefined };
+      };
       const store = win.__healthStore;
       return typeof store?.getState?.()?.sseConnected === 'boolean';
     });
@@ -35,7 +37,9 @@ test.describe('SSE & Realtime', () => {
     await navigateWithWait(page, '/');
 
     const overall = await page.evaluate(() => {
-      const win = window as unknown as { __healthStore?: { getState?: () => unknown } };
+      const win = window as unknown as {
+        __healthStore?: { getState?: () => { overall?: string } | undefined };
+      };
       const store = win.__healthStore;
       return store?.getState?.()?.overall;
     });
@@ -59,6 +63,19 @@ test.describe('SSE & Realtime', () => {
     await mockApiHealth(page, 200);
     await navigateWithWait(page, '/');
 
+    const readOverall = () =>
+      page.evaluate(() => {
+        const win = window as unknown as {
+          __healthStore?: { getState?: () => { overall?: string } | undefined };
+        };
+        return win.__healthStore?.getState?.()?.overall;
+      });
+
+    // Wait until the initial /api/health response has landed (the mock reports
+    // "healthy"). Without this the in-flight fetch resolves *after* the SSE
+    // dispatch below and overwrites it, which is what made this test flaky.
+    await expect.poll(readOverall).toBe('healthy');
+
     // Dispatch a synthetic SSE event that should update the health store.
     await dispatchSseEvent(page, {
       type: 'system.health_changed',
@@ -70,11 +87,6 @@ test.describe('SSE & Realtime', () => {
       },
     });
 
-    const overall = await page.evaluate(() => {
-      const win = window as unknown as { __healthStore?: { getState?: () => unknown } };
-      const store = win.__healthStore;
-      return store?.getState?.()?.overall;
-    });
-    expect(overall).toBe('degraded');
+    await expect.poll(readOverall).toBe('degraded');
   });
 });

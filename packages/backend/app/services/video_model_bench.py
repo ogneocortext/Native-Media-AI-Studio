@@ -1,11 +1,13 @@
 """Video model benchmark for LTX 2.3 / Mochi on 8GB VRAM hardware.
 
-Usage:
-    python -m packages.backend.services.video_model_bench --dry-run
-    python -m packages.backend.services.video_model_bench --model ltx_2_3 --resolution 512x512 --frames 24
-    python -m packages.backend.services.video_model_bench --all
+Run from ``packages/backend``:
 
-Results are written to ``docs/knowledge-library/benchmarks/video-model-8gb-2026.json``.
+    python -m app.services.video_model_bench --dry-run --all
+    python -m app.services.video_model_bench --model ltx_2_3 --resolution 512x512 --frames 24
+    python -m app.services.video_model_bench --model ltxv_2b --precision fp8 --format safetensors
+
+Results are written to ``docs/knowledge-library/benchmarks/video-model-8gb-2026.json``
+(one record per model/resolution/frames/precision/format key — re-runs update in place).
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ import argparse
 import json
 import logging
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -227,8 +230,6 @@ def _ltx_workflow(model_file: str, width: int, height: int, frames: int, fps: in
             "2": {
                 "class_type": "DualCLIPLoader",
                 "inputs": {
-                    "text": "positive prompt here",
-                    "text2": "negative prompt here",
                     "clip_name1": clip1,
                     "clip_name2": clip2,
                     "type": "ltxv",
@@ -360,6 +361,50 @@ def _mochi_workflow(model_file: str, width: int, height: int, frames: int, fps: 
 # VRAM measurement
 # ---------------------------------------------------------------------------
 
+class VramSampler:
+    """Background VRAM sampler that records the peak while generation runs.
+
+    Sampling only before/after a run measures idle memory; this thread polls
+    NVML concurrently with the ComfyUI submission so ``peak_vram_mb`` reflects
+    the generation itself.
+    """
+
+    def __init__(self, poll_interval_s: float = 0.5) -> None:
+        self._poll_interval_s = poll_interval_s
+        self._stop = threading.Event()
+        self._peak = -1
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        self._thread = threading.Thread(target=self._run, name="vram-sampler", daemon=True)
+        self._thread.start()
+
+    def stop(self) -> int:
+        """Stop sampling and return the peak MB observed (-1 if unavailable)."""
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=5)
+        return self._peak
+
+    def _run(self) -> None:
+        try:
+            import pynvml  # type: ignore
+
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            try:
+                while not self._stop.is_set():
+                    info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                    used_mb = info.used // (1024 * 1024)
+                    if used_mb > self._peak:
+                        self._peak = used_mb
+                    self._stop.wait(self._poll_interval_s)
+            finally:
+                pynvml.nvmlShutdown()
+        except Exception as exc:
+            logger.debug("vram sampler stopped early: %s", exc)
+
+
 def measure_peak_vram_mb(duration_s: float, poll_interval_s: float = 1.0) -> int:
     """Poll nvidia-smi and return peak VRAM usage in MB."""
     try:
@@ -405,8 +450,9 @@ def _run_async(coro):
 
 async def _submit_and_wait(workflow: dict[str, Any], base_url: str, timeout: int = 900) -> dict[str, Any]:
     """Submit a workflow and wait for completion. Returns history entry."""
-    import aiohttp
     import asyncio
+
+    import aiohttp
 
     session = aiohttp.ClientSession()
     try:
@@ -455,18 +501,49 @@ async def _submit_and_wait(workflow: dict[str, Any], base_url: str, timeout: int
 # Benchmark runner
 # ---------------------------------------------------------------------------
 
-def load_existing_results() -> list[dict[str, Any]]:
-    if BENCHMARK_OUTPUT.exists():
+def load_existing_results(path: Path = BENCHMARK_OUTPUT) -> list[dict[str, Any]]:
+    if path.exists():
         try:
-            return json.loads(BENCHMARK_OUTPUT.read_text(encoding="utf-8"))
-        except Exception:
-            return []
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return data
+            logger.warning("Benchmark file %s is not a list — starting fresh", path)
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Could not read existing results from %s: %s", path, exc)
     return []
 
 
-def save_results(results: list[dict[str, Any]]) -> None:
-    BENCHMARK_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    BENCHMARK_OUTPUT.write_text(json.dumps(results, indent=2), encoding="utf-8")
+def save_results(results: list[dict[str, Any]], path: Path = BENCHMARK_OUTPUT) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(results, indent=2), encoding="utf-8")
+
+
+def _run_key(record: dict[str, Any]) -> str:
+    """Stable identity for a benchmark configuration (one record per key).
+
+    ``format`` defaults to ``safetensors`` because legacy records and custom
+    CLI-built entries may omit it while ``run_benchmark_entry`` always writes it.
+    """
+    core = "|".join(
+        str(record.get(field, ""))
+        for field in ("model", "resolution", "frames", "precision")
+    )
+    return f"{core}|{record.get('format') or 'safetensors'}"
+
+
+def upsert_result(results: list[dict[str, Any]], record: dict[str, Any]) -> list[dict[str, Any]]:
+    """Replace any existing record for the same configuration, else append.
+
+    Prevents the results file from growing duplicate rows every time the
+    benchmark (or ``--dry-run``) is re-run.
+    """
+    key = _run_key(record)
+    for index, existing in enumerate(results):
+        if _run_key(existing) == key:
+            results[index] = record
+            return results
+    results.append(record)
+    return results
 
 
 def run_benchmark_entry(entry: dict[str, Any], base_url: str, dry_run: bool = False) -> dict[str, Any]:
@@ -511,19 +588,25 @@ def run_benchmark_entry(entry: dict[str, Any], base_url: str, dry_run: bool = Fa
         }
         return result
 
-    # VRAM pre-check
+    # VRAM baseline before submit (idle reading, kept for comparison)
     vram_pre = measure_peak_vram_mb(2.0)
     result["vram_pre_mb"] = vram_pre
 
-    # Submit
+    # Submit while sampling VRAM concurrently so the peak reflects the
+    # generation itself rather than idle memory before/after the run.
+    sampler = VramSampler()
+    sampler.start()
     start = time.time()
     try:
         run_result = _run_async(_submit_and_wait(workflow, base_url))
-    except RuntimeError as exc:
-        run_result = {"error": str(exc)}
+    except Exception as exc:  # noqa: BLE001 — one failed entry must not abort the matrix
+        run_result = {"error": f"{type(exc).__name__}: {exc}"}
+    finally:
+        vram_peak = sampler.stop()
 
     generation_time_s = time.time() - start
     result["generation_time_s"] = round(generation_time_s, 2)
+    result["peak_vram_mb"] = max(vram_pre, vram_peak)
 
     if "error" in run_result:
         result["status"] = "error"
@@ -534,17 +617,13 @@ def run_benchmark_entry(entry: dict[str, Any], base_url: str, dry_run: bool = Fa
     result["status"] = run_result.get("status", "unknown")
     result["execution_time"] = run_result.get("execution_time")
 
-    # VRAM post-check
-    vram_post = measure_peak_vram_mb(5.0)
-    result["peak_vram_mb"] = max(vram_pre, vram_post)
-
     # Quality rating placeholder (manual)
     result["quality_rating"] = None
     result["notes"] = ""
 
     # Output path from history if available
     outputs = run_result.get("outputs", {})
-    for node_id, node_out in outputs.items():
+    for node_out in outputs.values():
         if isinstance(node_out, dict) and "images" in node_out:
             images = node_out["images"]
             if images:
@@ -610,20 +689,21 @@ def main(argv: list[str] | None = None) -> int:
                     }
                 ]
 
-    results = load_existing_results()
-    run_ids = {r.get("model") + "|" + r.get("resolution", "") + "|" + str(r.get("frames", "")) + "|" + str(r.get("precision", "")) + "|" + str(r.get("format", "")) for r in results if r.get("status") == "success"}
+    output_path = Path(args.output)
+    results = load_existing_results(output_path)
+    succeeded = {_run_key(record) for record in results if record.get("status") == "success"}
 
     for entry in entries:
-        run_key = entry["model"] + "|" + entry["resolution"] + "|" + str(entry["frames"]) + "|" + str(entry.get("precision", "")) + "|" + str(entry.get("format", ""))
-        if not args.dry_run and run_key in run_ids:
-            logger.info("Skipping %s — already succeeded", run_key)
+        entry_key = _run_key(entry)
+        if not args.dry_run and entry_key in succeeded:
+            logger.info("Skipping %s — already succeeded", entry_key)
             continue
 
         logger.info("Benchmarking %s @ %s/%dfps %s", entry["model"], entry["resolution"], entry["fps"], entry["precision"])
         rec = run_benchmark_entry(entry, args.comfyui_url, dry_run=args.dry_run)
-        results.append(rec)
-        save_results(results)
-        logger.info("Saved result to %s", args.output)
+        upsert_result(results, rec)
+        save_results(results, output_path)
+        logger.info("Saved result to %s", output_path)
 
     # Summary
     ok = sum(1 for r in results if r.get("status") == "success" or r.get("status") == "dry-run-ok")

@@ -12,8 +12,8 @@ import re
 import shutil
 import subprocess
 import time
-import uuid
 import urllib.parse
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
@@ -37,7 +37,8 @@ ANALYSIS_INDEX = ANALYSIS_DIR / "index.json"
 def _is_downbeat(index: int, beats_per_bar: int = 4) -> bool:
     """Return True when this beat index is a strong downbeat.
 
-    Uses the 4/4 assumption by default (every ``beats_per_bar``-th beat).
+    Uses meter-aware detection by default (``beats_per_bar`` from beat regularity
+    analysis), falling back to 4/4 when unavailable.
     """
     return index % beats_per_bar == 0
 
@@ -500,6 +501,8 @@ def _build_analysis_result(
     downbeat_times = (
         [round(float(t), 3) for t in (result.beats.downbeat_times or [])[:1000]] if result.beats else []
     )
+    from ..services.audio_analyzer import detect_meter
+    meter = detect_meter(beat_times_full) if beat_times_full else 4
 
     return {
         "tempo_bpm": round(float(tempo), 1),
@@ -550,18 +553,17 @@ def _build_analysis_result(
             "duration": round(float(duration), 2),
             "bpm": round(float(tempo), 1),
             "bpmConfidence": round(float(confidence), 3),
-            "beats": [
-                {
-                    "time": bt,
-                    "drumType": None,
-                    "energy": round(float(_rms_at_time(rms_norm, sr, hop, bt)), 4),
-                    # 4/4 assumption — matches scripts/generate_timing_contract.py
-                    # and the stillIRise reference contract (336 beats / 84 hits)
-                    "isDownbeat": _is_downbeat(i),
-                    "bpm": round(float(tempo), 1),
-                }
-                for i, bt in enumerate(beat_times)
-            ],
+                "beats": [
+                    {
+                        "time": bt,
+                        "drumType": None,
+                        "energy": round(float(_rms_at_time(rms_norm, sr, hop, bt)), 4),
+                        # Meter-aware downbeat detection (replaces hardcoded 4/4).
+                        "isDownbeat": _is_downbeat(i, meter),
+                        "bpm": round(float(tempo), 1),
+                    }
+                    for i, bt in enumerate(beat_times)
+                ],
             "sections": sections,
             "energyCurve": [
                 {"time": round(float(i) * duration / max(len(energy_curve) - 1, 1), 3), "value": v}
@@ -673,121 +675,145 @@ def _generate_sections_from_analysis(
     # Tempo-proportional beat-snap tolerance: half a beat, capped at 0.6s
     beat_tolerance = min(0.6, (60.0 / max(tempo, 1.0)) * 0.5) if tempo > 0 else 0.6
 
-    # Estimate num sections from duration (~25s per section) + beat heuristic
-    # Cap 8 to keep wizard manageable
-    if beat_times and tempo > 0:
-        # Prefer beat-based: ~32 beats per section (8 bars), adjusted for genre feel
-        beats_per_section = 32.0
-        if tempo > 150:
-            beats_per_section = 24.0  # EDM/hip-hop: shorter sections
-        elif tempo < 90:
-            beats_per_section = 48.0  # Ambient: longer sections
-        num_sections = max(4, min(8, round(len(beat_times) / beats_per_section)))
-    else:
-        num_sections = max(4, min(8, round(duration / 25))) or 4
+    # Helper: snap a time to the nearest beat if within tolerance.
+    def _snap_to_beat(t: float) -> float:
+        if not beat_times:
+            return t
+        nearest = min(beat_times, key=lambda b: abs(b - t))
+        return nearest if abs(nearest - t) < beat_tolerance else t
 
-    # If rms unavailable, fall back to uniform types
-    if not rms_energy or len(rms_energy) < 10:
-        section_types = ["intro", "verse", "chorus", "verse", "chorus", "bridge", "chorus", "outro"]
-        sec_dur = duration / num_sections
-        out = []
-        for i in range(num_sections):
-            s, e = i * sec_dur, min((i + 1) * sec_dur, duration)
-            # snap to nearest beat
-            if beat_times:
-                s = min(beat_times, key=lambda b: abs(b - s)) if abs(min(beat_times, key=lambda b: abs(b - s)) - s) < beat_tolerance else s
-                e = min(beat_times, key=lambda b: abs(b - e)) if abs(min(beat_times, key=lambda b: abs(b - e)) - e) < beat_tolerance else e
-            t = section_types[min(i, len(section_types) - 1)]
-            energy = 0.85 if "chorus" in t else 0.55 if "verse" in t else 0.35
-            out.append({"type": t, "start": round(float(s), 2), "end": round(float(e), 2), "energy": round(float(energy), 3), "confidence": 0.6})
-        return out
-
-    # Compute mean energy per provisional section
-    sec_dur = duration / num_sections
-    provisional = []
-    for i in range(num_sections):
-        s, e = i * sec_dur, min((i + 1) * sec_dur, duration)
-        # Map time -> rms index
-        idx_s = int((s / duration) * len(rms_energy)) if duration > 0 else 0
-        idx_e = int((e / duration) * len(rms_energy)) if duration > 0 else len(rms_energy)
-        idx_s = max(0, min(idx_s, len(rms_energy) - 1))
-        idx_e = max(idx_s + 1, min(idx_e, len(rms_energy)))
+    # Helper: RMS mean over a time window.
+    def _rms_mean(t_start: float, t_end: float) -> float:
+        if not rms_energy or duration <= 0:
+            return 0.0
+        idx_s = max(0, min(int((t_start / duration) * len(rms_energy)), len(rms_energy) - 1))
+        idx_e = max(idx_s + 1, min(int((t_end / duration) * len(rms_energy)), len(rms_energy)))
         window = rms_energy[idx_s:idx_e]
-        mean_e = float(sum(window) / len(window)) if window else 0.0
-        provisional.append((s, e, mean_e))
+        return float(sum(window) / len(window)) if window else 0.0
 
-    # Normalize energies 0-1 for comparison
-    energies = [p[2] for p in provisional]
-    emin, emax = min(energies), max(energies)
-    erange = (emax - emin) or 1.0
-    # Percentile thresholds
-    sorted_e = sorted(energies)
-    p33 = sorted_e[len(sorted_e) // 3] if sorted_e else 0
-    p66 = sorted_e[(len(sorted_e) * 2) // 3] if sorted_e else 0
-
-    # Compute onset density per provisional section for transition detection
-    def onset_density(t_start: float, t_end: float) -> int:
+    # Helper: onset density in a time window.
+    def _onset_density(t_start: float, t_end: float) -> int:
         if not onset_times:
             return 0
         return sum(1 for ot in onset_times if t_start <= ot <= t_end)
 
-    onset_densities = [onset_density(s, e) for s, e, _ in provisional]
-    max_onset = max(onset_densities) if onset_densities else 1
+    # Step 1: detect candidate boundaries from onset-density spikes + energy
+    # derivative, then snap them to the nearest beat.
+    candidate_bounds = [0.0]
+    if onset_times and rms_energy and len(rms_energy) >= 10:
+        # Build a coarse onset-density histogram over the track.
+        num_bins = max(4, min(32, int(duration / 5)))
+        bin_dur = duration / num_bins
+        onset_counts = [
+            _onset_density(i * bin_dur, (i + 1) * bin_dur)
+            for i in range(num_bins)
+        ]
+        max_onset = max(onset_counts) if onset_counts else 1
 
+        # Energy derivative (frame-to-frame delta, absolute)
+        energy_deltas = [0.0]
+        for i in range(1, len(rms_energy)):
+            energy_deltas.append(abs(rms_energy[i] - rms_energy[i - 1]))
+
+        # Score each bin as a boundary candidate.
+        for i in range(1, num_bins - 1):
+            t_mid = (i + 0.5) * bin_dur
+            od_score = onset_counts[i] / max_onset if max_onset > 0 else 0.0
+            ed_score = 0.0
+            idx_start = max(0, int((i * bin_dur / duration) * len(rms_energy)))
+            idx_end = min(len(energy_deltas), int(((i + 1) * bin_dur / duration) * len(rms_energy)))
+            if idx_end > idx_start:
+                ed_score = sum(energy_deltas[idx_start:idx_end]) / (idx_end - idx_start)
+                ed_score = min(1.0, ed_score * 10.0)  # normalize generously
+            score = 0.6 * od_score + 0.4 * ed_score
+            if score > 0.25:
+                candidate_bounds.append(_snap_to_beat(t_mid))
+
+    candidate_bounds.append(duration)
+    # Deduplicate + sort
+    candidate_bounds = sorted({round(b, 2) for b in candidate_bounds if 0.0 <= b <= duration})
+
+    # Step 2: enforce minimum section duration by merging weak/too-short sections.
+    min_sec_dur = max(4.0, 60.0 / max(tempo, 1.0) * 4) if tempo > 0 else 8.0
+    merged = [candidate_bounds[0]]
+    for b in candidate_bounds[1:]:
+        if b - merged[-1] >= min_sec_dur:
+            merged.append(b)
+        else:
+            # Too short — absorb into previous section
+            merged[-1] = round(b, 2)
+    if merged[-1] < duration:
+        merged.append(duration)
+
+    # Energy per section (computed once, reused for capping + classification).
+    all_energies = [_rms_mean(s, e) for s, e in zip(merged, merged[1:], strict=False)]
+
+    # Cap number of sections for the wizard UI (8 max).
+    if len(merged) > 9:
+        # Keep boundaries that best preserve energy changes.
+        # Always keep first + last
+        keep = [0.0, duration]
+        # Pick interior boundaries with largest energy deltas.
+        interior = list(range(1, len(merged) - 1))
+        def _boundary_score(idx: int) -> float:
+            prev = abs(all_energies[idx] - all_energies[idx - 1]) if idx > 0 else 0.0
+            nxt = abs(all_energies[idx] - all_energies[idx + 1]) if idx < len(all_energies) - 1 else 0.0
+            return prev + nxt
+        interior.sort(key=_boundary_score, reverse=True)
+        for idx in interior[:6]:
+            keep.append(merged[idx])
+        keep = sorted(set(keep))
+        merged = keep
+        # Recompute energies after trimming.
+        all_energies = [_rms_mean(s, e) for s, e in zip(merged, merged[1:], strict=False)]
+
+    # Step 3: classify each section.
     sections = []
-    for i, (s, e, mean_e) in enumerate(provisional):
-        confidence = 0.7  # base confidence
+    emin, emax = min(all_energies), max(all_energies)
+    erange = (emax - emin) or 1.0
+    sorted_e = sorted(all_energies)
+    p33 = sorted_e[len(sorted_e) // 3] if sorted_e else 0
+    p66 = sorted_e[(len(sorted_e) * 2) // 3] if sorted_e else 0
+    onset_densities = [_onset_density(s, e) for s, e in zip(merged, merged[1:], strict=False)]
+    max_onset = max(onset_densities) if onset_densities else 1
+    num_sections = len(merged) - 1
 
-        # Snap to nearest beat for clean cuts (except intro/outro boundaries)
-        if beat_times and 0 < i < num_sections - 1:
-            nearest_s = min(beat_times, key=lambda b: abs(b - s))
-            if abs(nearest_s - s) < beat_tolerance:
-                s = nearest_s
-        if beat_times and i < num_sections - 1:
-            nearest_e = min(beat_times, key=lambda b: abs(b - e))
-            if abs(nearest_e - e) < beat_tolerance:
-                e = nearest_e
-
-        # Normalize energy 0-1
+    for i in range(num_sections):
+        s, e = merged[i], merged[i + 1]
+        mean_e = all_energies[i]
+        od = onset_densities[i] / max_onset if max_onset > 0 else 0
         norm = (mean_e - emin) / erange
+        confidence = 0.75  # improved confidence from data-driven boundaries
 
-        # Positional prior
         if i == 0:
             typ = "intro"
-            confidence = 0.85
+            confidence = 0.9
         elif i == num_sections - 1:
             typ = "outro"
-            confidence = 0.85
+            confidence = 0.9
         elif norm >= 0.66 or mean_e >= p66:
             typ = "chorus"
-            confidence = 0.75 + norm * 0.2
+            confidence = 0.8 + norm * 0.15
         elif norm <= 0.33 or mean_e <= p33:
-            # In middle, low energy + low onset density = bridge/interlude
-            # High onset density + low energy = pre-chorus/build
-            od = onset_densities[i] / max_onset if max_onset > 0 else 0
             mid_pos = i >= num_sections // 3 and i <= 2 * num_sections // 3
             if mid_pos and od < 0.4:
                 typ = "bridge"
-                confidence = 0.7
+                confidence = 0.75
             elif od > 0.6:
                 typ = "pre-chorus"
-                confidence = 0.65
+                confidence = 0.7
             else:
                 typ = "interlude" if mid_pos else "verse"
-                confidence = 0.6
-        else:
-            # Medium energy: verse or pre-chorus based on onset density
-            od = onset_densities[i] / max_onset if max_onset > 0 else 0
-            if od > 0.65 and i > 0 and i < num_sections - 1:
-                typ = "pre-chorus"
                 confidence = 0.65
+        else:
+            if od > 0.65 and 0 < i < num_sections - 1:
+                typ = "pre-chorus"
+                confidence = 0.7
             else:
                 typ = "verse"
-                confidence = 0.7
+                confidence = 0.75
 
-        # Energy for UI (0-1 normalized + boost for chorus/drop)
         ui_energy = round(min(1.0, max(0.05, (norm * 0.7 + 0.3) if typ in ("chorus", "drop") else norm * 0.6 + 0.2)), 3)
-
         sections.append({
             "type": typ,
             "start": round(float(s), 2),
@@ -801,7 +827,7 @@ def _generate_sections_from_analysis(
         if sections[i]["start"] < sections[i - 1]["end"]:
             sections[i]["start"] = sections[i - 1]["end"]
         if sections[i]["end"] <= sections[i]["start"]:
-            sections[i]["end"] = round(min(duration, sections[i]["start"] + sec_dur * 0.8), 2)
+            sections[i]["end"] = round(min(duration, sections[i]["start"] + min_sec_dur), 2)
 
     return sections
 

@@ -18,10 +18,11 @@ test.describe('Settings', () => {
     const errors = setupConsoleErrorCapture(page);
     await mockApiSettings(page);
     await navigateWithWait(page, '/settings');
-    // Look for common setting labels
-    const hasComfyUI = await page.locator('main').locator('text=ComfyUI').count();
-    const hasOllama = await page.locator('main').locator('text=Ollama').count();
-    expect(hasComfyUI + hasOllama).toBeGreaterThan(0);
+    // The form renders only after GET /api/integrations/config/settings resolves,
+    // so use an auto-retrying assertion instead of an immediate count().
+    const integrationCards = page.locator('main h3', { hasText: /ComfyUI|Ollama/i });
+    await expect(integrationCards.first()).toBeVisible();
+    expect(await integrationCards.count()).toBeGreaterThanOrEqual(2);
     expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
   });
 

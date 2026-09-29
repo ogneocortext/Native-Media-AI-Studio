@@ -8,7 +8,6 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query
 
 from ..core.config import PROJECT_ROOT
-
 from ..models.job import Job, JobCreateRequest, JobStatus, JobType, QueueMetrics, QueueStats
 from ..queue.manager import queue_manager
 

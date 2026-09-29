@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { navigateWithWait, cleanupRoutes, setupConsoleErrorCapture, expectNoConsoleErrors, mockApiHealth, mockApiSystemHealth } from './helpers';
+import { navigateWithWait, cleanupRoutes, setupConsoleErrorCapture, expectNoConsoleErrors, mockApiHealth, mockApiSystemHealth, mockGpuTelemetry } from './helpers';
 
 test.describe('GPU', () => {
   test.beforeEach(async ({ page }) => {
@@ -8,6 +8,7 @@ test.describe('GPU', () => {
 
   test('gpu page loads and shows header', async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
+    await mockGpuTelemetry(page);
     await navigateWithWait(page, '/gpu');
     await expect(page.locator('main h1').first()).toContainText('GPU');
     expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
@@ -17,6 +18,7 @@ test.describe('GPU', () => {
     const errors = setupConsoleErrorCapture(page);
     await mockApiHealth(page, 200);
     await mockApiSystemHealth(page);
+    await mockGpuTelemetry(page);
     await navigateWithWait(page, '/gpu');
     // Should show some GPU-related content or status
     const body = page.locator('body');

@@ -1,5 +1,5 @@
 {
-  "description": "Mochi FP8 test workflow (512x512, 24 frames, 12fps). Use with video_model_bench.py.",
+  "description": "Mochi FP8 test workflow (512x512, 24 frames, 12fps). Use with video_model_bench.py. Mirrors app.services.video_model_bench._mochi_workflow: UNETLoader needs weight_dtype, CLIPLoader needs type=mochi, and Mochi latents come from EmptyMochiLatentVideo (EmptyLatentVideo is not a node in this ComfyUI build).",
   "model": "mochi-1-fp8.safetensors",
   "precision": "fp8",
   "resolution": "512x512",
@@ -8,7 +8,7 @@
   "prompt": {
     "1": {
       "class_type": "UNETLoader",
-      "inputs": { "unet_name": "mochi-1-fp8.safetensors", "model_file": "diffusion_models" }
+      "inputs": { "unet_name": "mochi-1-fp8.safetensors", "weight_dtype": "default" }
     },
     "2": {
       "class_type": "CLIPTextEncode",
@@ -16,15 +16,15 @@
     },
     "3": {
       "class_type": "CLIPLoader",
-      "inputs": { "clip_name": "umt5_xxl_fp16.safetensors" }
+      "inputs": { "clip_name": "umt5_xxl_fp16.safetensors", "type": "mochi" }
     },
     "4": {
       "class_type": "CLIPTextEncode",
       "inputs": { "text": "negative prompt here", "clip": ["3", 0] }
     },
     "5": {
-      "class_type": "EmptyLatentVideo",
-      "inputs": { "width": 512, "height": 512, "frame_count": 24, "batch_size": 1 }
+      "class_type": "EmptyMochiLatentVideo",
+      "inputs": { "width": 512, "height": 512, "length": 24, "batch_size": 1 }
     },
     "6": {
       "class_type": "KSampler",

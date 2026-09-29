@@ -16,6 +16,8 @@ a circular import (``services/__init__`` pulls in ``adapters.comfyui``).
 
 from __future__ import annotations
 
+import re
+
 # VRAM requirements (MB) for video generation models on Pascal (GTX 1070 Ti / sm_61)
 # Based on 2026 research: Wan 2.2 TI2V-5B GGUF Q4/Q5 fits 8GB with CPU T5 offload;
 # FP16 variants require 16-24GB. Wan 2.1 1.3B is the 6GB class (832×480 native).
@@ -68,7 +70,7 @@ def classify_model_variant(model_name: str) -> str:
     if "ltx" in base:
         return "ltx_2_3"
     if "mochi" in base:
-        return "mochi_1" if "1" in base else "mochi_2"
+        return "mochi_1" if re.search(r'(?<!\d)1(?!\d)', base) else "mochi_2"
     if "mm_sd" in base or "animate" in base or "motion" in base or "lora" in base:
         return "animate_diff_sd15"
     return "unknown"

@@ -19,6 +19,14 @@ class SSEService {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelay = 1000;
   private maxReconnectDelay = 30000;
+  private lastEventId: string | null = null;
+  private syncChannel: BroadcastChannel | null = null;
+
+  // Track connection state for UI indicators
+  private _connectionState: "connected" | "reconnecting" | "disconnected" = "disconnected";
+  get connectionState(): "connected" | "reconnecting" | "disconnected" {
+    return this._connectionState;
+  }
 
   /** Subscribe to SSE messages. Returns an unsubscribe fn. */
   subscribe(listener: MessageListener): () => void {
@@ -59,6 +67,7 @@ class SSEService {
   connect(): void {
     this.subscriberCount += 1;
     this.wantsConnection = true;
+    this._initSyncChannel();
     this.open();
   }
 
@@ -76,11 +85,57 @@ class SSEService {
       this.eventSource.close();
       this.eventSource = null;
     }
+    this._connectionState = "disconnected";
     this.emitState(false);
+    this._closeSyncChannel();
+  }
+
+  private _initSyncChannel(): void {
+    if (this.syncChannel) return;
+    try {
+      this.syncChannel = new BroadcastChannel("notifications");
+      this.syncChannel.onmessage = (event) => {
+        if (event.data?.type === "sse_event" && event.data?.message) {
+          this._dispatchToListeners(event.data.message);
+        } else if (event.data?.type === "connection_state" && event.data?.state) {
+          this._connectionState = event.data.state;
+          this.emitState(this._connectionState === "connected");
+        }
+      };
+    } catch {
+      // BroadcastChannel not supported; skip cross-tab sync
+    }
+  }
+
+  private _closeSyncChannel(): void {
+    if (this.syncChannel) {
+      this.syncChannel.close();
+      this.syncChannel = null;
+    }
+  }
+
+  private _broadcastToSyncChannel(message: Record<string, unknown>): void {
+    if (!this.syncChannel) return;
+    try {
+      this.syncChannel.postMessage({ type: "sse_event", message });
+    } catch {
+      // Channel closed or unavailable
+    }
+  }
+
+  private _broadcastStateToSyncChannel(state: "connected" | "reconnecting" | "disconnected"): void {
+    if (!this.syncChannel) return;
+    try {
+      this.syncChannel.postMessage({ type: "connection_state", state });
+    } catch {
+      // Channel closed or unavailable
+    }
   }
 
   private scheduleReconnect(): void {
     if (!this.wantsConnection || this.reconnectTimer) return;
+    this._connectionState = "reconnecting";
+    this._broadcastStateToSyncChannel("reconnecting");
     const delay = this.reconnectDelay;
     this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, this.maxReconnectDelay);
     this.reconnectTimer = setTimeout(() => {
@@ -102,15 +157,19 @@ class SSEService {
       configuredUrl && configuredUrl !== proxyUrl ? configuredUrl : proxyUrl;
 
     const attempt = (url: string) => {
-      this.eventSource = new EventSource(url);
+      // Build URL with Last-Event-ID for replay on reconnect
+      const urlWithReplay = this.lastEventId ? `${url}?lastEventId=${encodeURIComponent(this.lastEventId)}` : url;
+      this.eventSource = new EventSource(urlWithReplay);
 
       this.eventSource.onopen = () => {
         this.reconnectDelay = 1000;
+        this._connectionState = "connected";
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer);
           this.reconnectTimer = null;
         }
         this.emitState(true);
+        this._broadcastStateToSyncChannel("connected");
       };
 
       this.eventSource.onmessage = (event) => {
@@ -120,13 +179,12 @@ class SSEService {
         } catch {
           return; // ignore non-JSON messages
         }
-        this.listeners.forEach((listener) => {
-          try {
-            listener(message);
-          } catch (error) {
-            console.error("[SSE] listener error:", error);
-          }
-        });
+        // Capture Last-Event-ID for replay
+        if (event.lastEventId) {
+          this.lastEventId = event.lastEventId;
+        }
+        this._dispatchToListeners(message);
+        this._broadcastToSyncChannel(message);
       };
 
       // Handle named events
@@ -134,7 +192,7 @@ class SSEService {
         let message: Record<string, unknown>;
         try {
           message = JSON.parse((event as MessageEvent).data);
-          this.listeners.forEach((listener) => listener(message));
+          this._dispatchToListeners(message);
         } catch {
           // ignore
         }
@@ -145,7 +203,8 @@ class SSEService {
       });
 
       this.eventSource.onerror = () => {
-        this.emitState(false);
+        this._connectionState = "reconnecting";
+        this._broadcastStateToSyncChannel("reconnecting");
         const es = this.eventSource;
         const closed = es?.readyState === EventSource.CLOSED;
         if (closed && es) {
@@ -163,6 +222,16 @@ class SSEService {
     };
 
     attempt(primaryUrl);
+  }
+
+  private _dispatchToListeners(message: Record<string, unknown>): void {
+    this.listeners.forEach((listener) => {
+      try {
+        listener(message);
+      } catch (error) {
+        console.error("[SSE] listener error:", error);
+      }
+    });
   }
 
   private emitState(connected: boolean): void {

@@ -367,6 +367,17 @@ class HardwareBenchmarkRunner:
             "gpu_before": gpu_before,
             "gpu_after": gpu_after,
         }
+        # Robust latency stats (median + IQR) — resistant to cold-start outliers.
+        if latencies:
+            sorted_lat = sorted(latencies)
+            mid = len(sorted_lat) // 2
+            median = (sorted_lat[mid] if len(sorted_lat) % 2 == 1 else (sorted_lat[mid - 1] + sorted_lat[mid]) / 2.0)
+            q1 = sorted_lat[len(sorted_lat) // 4]
+            q3 = sorted_lat[(len(sorted_lat) * 3) // 4]
+            metrics["median_latency_ms"] = round(median, 2)
+            metrics["latency_iqr_ms"] = round(q3 - q1, 2)
+            metrics["latency_q1_ms"] = round(q1, 2)
+            metrics["latency_q3_ms"] = round(q3, 2)
         return self._json_safe(metrics)
 
     def _gpu_snapshot(self) -> dict[str, Any]:

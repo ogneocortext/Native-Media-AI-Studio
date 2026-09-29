@@ -24,7 +24,9 @@ test.describe('LRC-Enhanced Visualizer', () => {
 
     // Check lyrics overlay presence via the test harness
     const hasLyrics = await page.evaluate(() => {
-      const win = window as unknown as { __VIZ_TEST__?: { getState?: () => unknown } };
+      const win = window as unknown as {
+        __VIZ_TEST__?: { getState?: () => { lyrics?: unknown[] } | undefined };
+      };
       const state = win.__VIZ_TEST__?.getState?.();
       return !!state?.lyrics?.length;
     });
