@@ -58,7 +58,9 @@ debug_output.txt
 # Scripts (selectively tracked)
 scripts/*.bat
 scripts/*.sh
-scripts/*.ps1
+scripts/**/*.ps1
+# Tunnel management is real source, not scratch: keep these versioned.
+# (the ** pattern above also matches them, so re-include explicitly
 scripts/*.vbs
 scripts/*.txt
 scripts/*.md
