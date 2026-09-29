@@ -132,30 +132,30 @@ date: 2026-09-29
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 9 documents |
-|| `#technical/*` | System implementation & code | 10 documents |
-|| `#platform/*` | Platform-specific integrations | 10 documents |
-|| `#creative/*` | Design, effects & visualization | 16 documents |
-|| `#performance/*` | Hardware & optimization | 6 documents |
-|| `#ai/*` | AI models, training & ML | 10 documents |
-|| `#research/*` | Industry trends & analysis | 11 documents |
+|| `#technical/*` | System implementation & code | 13 documents |
+|| `#platform/*` | Platform-specific integrations | 11 documents |
+|| `#creative/*` | Design, effects & visualization | 17 documents |
+|| `#performance/*` | Hardware & optimization | 7 documents |
+|| `#ai/*` | AI models, training & ML | 11 documents |
+|| `#research/*` | Industry trends & analysis | 8 documents |
 
 ### Cross-Cutting Tags
 
 || Tag | Description | Documents |
 ||-----|-------------|-----------|
-|| `#platform-youtube` | YouTube-specific content | 2 documents |
+|| `#platform-youtube` | YouTube-specific content | 4 documents |
 || `#platform-unity` | Unity-specific integration | 2 documents |
-|| `#platform-blender` | Blender-specific | 2 documents |
-|| `#platform-comfyui` | ComfyUI-specific | 3 documents |
-|| `#platform-remotion` | Remotion video compositing | 2 documents |
-|| `#hardware-8gb` | 8GB VRAM constraints | 8 documents |
-|| `#hardware-pascal` | Pascal architecture specifics | 3 documents |
-|| `#mcp` | Model Context Protocol | 2 documents |
-|| `#testing` | Testing & QA | 2 documents |
-|| `#design` | Design systems & UX | 4 documents |
-|| `#audio` | Audio analysis & processing | 4 documents |
-|| `#visualization` | Visualization techniques | 8 documents |
-|| `#3d` | 3D generation & rendering | 6 documents |
+|| `#platform-blender` | Blender-specific | 3 documents |
+|| `#platform-comfyui` | ComfyUI-specific | 5 documents |
+|| `#platform-remotion` | Remotion video compositing | 3 documents |
+|| `#hardware-8gb` | 8GB VRAM constraints | 15 documents |
+|| `#hardware-pascal` | Pascal architecture specifics | 8 documents |
+|| `#mcp` | Model Context Protocol | 1 document |
+|| `#testing` | Testing & QA | 3 documents |
+|| `#design` | Design systems & UX | 5 documents |
+|| `#audio` | Audio analysis & processing | 10 documents |
+|| `#visualization` | Visualization techniques | 11 documents |
+|| `#3d` | 3D generation & rendering | 12 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
 
 ---
@@ -223,8 +223,8 @@ graph LR
 
 || Metric | Count |
 || --------------- | ----------------------------------------------------------------------------- |
-|| Total Documents | 64 |
-|| Total Tags | 40 |
+|| Total Documents | 76 |
+|| Total Tags | 69 |
 || Total Links | 115+ |
 || Last Updated | 2026-09-29 (Categorization improvements) |
 || Latest Add | 2026-09-29 (Notification System Improvements 2026) |

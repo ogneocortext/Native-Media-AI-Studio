@@ -1,5 +1,6 @@
 ---
 tags:
+  - technical
   - knowledge-library
   - documentation
   - tagging

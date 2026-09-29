@@ -1,6 +1,7 @@
 ---
 tags:
-  - visualization
+  - creative
+  - design
   - css
   - design-system
   - dark-mode

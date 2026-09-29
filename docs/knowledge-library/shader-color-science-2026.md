@@ -1,5 +1,6 @@
 ---
 tags:
+  - creative
   - visualization
   - shaders
   - glsl

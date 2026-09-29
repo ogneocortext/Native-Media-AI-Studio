@@ -1,5 +1,6 @@
 ---
 tags:
+  - research
   - benchmark
   - ollama
   - three-js
