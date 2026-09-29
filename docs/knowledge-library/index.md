@@ -38,6 +38,9 @@ date: 2026-09-05
 - [[integration-ollama|🤖 Ollama Integration]] — Local LLM inference, tool calling, agent loop patterns
 - [[ollama-utilization-2026|🧠 Ollama Model Utilization 2026]] — Installed model inventory, task → model routing, VRAM-aware scheduling, integration points, gaps, and expansion for the 8GB workstation (NEW 2026-09-24)
 - [[comfyui-workflows|🎨 ComfyUI Workflows]] — Custom workflows for image/video generation
+- [[frontend-build-pipeline|🔧 Frontend Build Pipeline]] — Vite + React + TS build: incremental tsc, Vite 8 audit notes, strictPort, HMR overlays
+- [[hardware-benchmark-harness|🖥️ Hardware Benchmark Harness]] — Workstation hardware profile + bounded Ollama/ComfyUI benchmark runner with SQLite history
+- [[unsloth-triton-windows-fixes-2026|🐛 Unsloth Triton Windows Fixes 2026]] — Triton-on-Windows MSVC bug, workarounds, cross-entropy replacement (Unsloth 2026.8.6)
 ### 🎮 MCP and Integration Resources
 
 - [[mcp-contracts-2026|🤝 MCP Tool Contracts 2026]] — Canonical Unity/Ollama/Vision/HyperFrames tool schemas (NEW 2026-09-24)
@@ -61,6 +64,9 @@ date: 2026-09-05
 - [[javascript-upgrade-research-2026|🔧 JavaScript Upgrade Research 2026]] — TypeScript 7 adoption, deprecated mp4-muxer replacement, React 19 features, Vite 8/Rolldown optimization, Tailwind v4 container queries, CI gaps, Prettier adoption (NEW 2026-09-24)
 - [[app-research-gaps-2026|🔍 App Research Gaps 2026]] — 15 research areas: video models, audio analysis, music gen, frontend, Go sidecars, testing, deployment, a11y, Pascal perf, lyrics, HyperFrames, WebGPU, agents, data, knowledge maintenance (NEW 2026-09-24)
 - [[feature-utilization-audit-2026|🎯 Feature Utilization & Gap Analysis 2026]] — False-confidence dead code, orphaned capabilities, data-flow breaks, and true missing features (rewritten 2026-09-24 after working-tree verification)
+- [[gemma4-comfyui-mcp-2026|🤖 Gemma 4 ComfyUI MCP 2026]] — QLoRA-tuned Gemma 4 for ComfyUI MCP tool-use on 8GB VRAM
+- [[finetuning-best-practices-2026|🎓 Fine-Tuning Best Practices 2026]] — LoRA/QLoRA method selection, Unsloth vs Axolotl, VRAM budgets for consumer GPUs
+- [[small-llm-landscape-2026|🧠 Small LLM Landscape 2026]] — Mid-2026 small models (Gemma 4 family et al.) suitable for LoRA/QLoRA fine-tuning on ≤8GB VRAM
 
 ### 🎯 Specialized Guides
 
@@ -83,6 +89,16 @@ date: 2026-09-05
 - [[e2e-test-plan-2026|🧪 E2E Test Plan 2026]] — Full-pipeline Play smoke + backend integration + real-service E2E plan (NEW 2026-09-24)
 - [[color-strategy-2026|🎨 Color Strategy 2026]] — APCA vs WCAG dark-mode contrast, measured token audit, tier rules (NEW 2026-09-23)
 - [[design-auditing-2026|🔍 Design Auditing 2026]] — Contrast+axe+VLM audit layers, runbook for `contrast_audit.py` (NEW 2026-09-23)
+- [[3d-object-design-2026|🧊 3D Object Design 2026]] — Procedural abstract 3D objects for visualizers: chrome blobs, materials, beat-synced morphing
+- [[advanced-visualization-techniques-2026|✨ Advanced Visualization Techniques 2026]] — WebGL shaders, WebGPU performance, kinetic typography, real-time audio analysis
+- [[canvas2d-bar-visualization-research|📊 Canvas2D Bar Visualization Research]] — Modern bar-mode improvements: smoothing, glow, reflections, HiDPI rendering
+- [[dark-ui-color-system-2026|🌙 Dark UI Color System 2026]] — OKLCH dark-mode tokens, contrast, accessibility
+- [[design-philosophy-2026|💭 Design Philosophy 2026]] — UX principles and design-system philosophy
+- [[lyric-beat-visualization-2026|🎵 Lyric + Beat Visualization 2026]] — Code-driven, deterministic beat-synced lyric videos for HyperFrames/HTML compositions
+- [[music-video-vision-prompts|👁️ Music Video Vision Prompts]] — Structured vision-model prompts for section-aware, sync-checked still analysis and QA
+- [[shader-color-science-2026|🎨 Shader Color Science 2026]] — GLSL color science: OKLCH, tonemapping, dithering for audio-reactive shaders
+- [[unity-audio-reactive-shader-research-2026|🎮 Unity Audio-Reactive Shader Research 2026]] — AudioLink patterns, FFT-band textures, GPU-driven beat-reactive HLSL for URP
+- [[visualization-vision-prompts|👁️ Visualization Vision Prompts]] — Vision-model prompts for visualization analysis and VFX review
 
 ### 🤖 AI Agent Resources
 
@@ -97,6 +113,9 @@ date: 2026-09-05
 - [[../ux-audit/audit-report|🔍 UX Audit Report]] — User experience findings and recommendations
 - [[ollama-benchmarks|🏁 Ollama Three.js Scene Benchmark]] — Model benchmarking for scene generation (NEW 2026-09-04)
 - [[coding-benchmarks|🧪 Coding Model Benchmark]] — Python code, test generation, tool use, edge-case benchmarks for AI test harness selection (NEW 2026-09-04)
+- [[music-viz-trends-2026|📈 Music Visualizer Trends 2026]] — 2025–2026 aesthetic shifts: liquid glass, aurora, organic layered visuals
+- [[video-model-test-protocol-2026|🧪 Video Model Test Protocol 2026]] — LTX/Mochi sweep protocol for 8GB VRAM video generation
+- [[visualizer-state-analysis-2026|🔍 Visualizer State Analysis 2026]] — Gemma 4 vision feedback on visualizer state, improvement report
 
 ---
 
