@@ -1,18 +1,14 @@
 ---
 tags:
-  - ollama
-  - utilization
-  - model-routing
-  - vram
-  - 8gb-vram
-  - 2026
+  - ai
+  - hardware-8gb
 aliases:
   - Ollama Utilization 2026
   - Ollama Model Routing
   - Local LLM Utilization
 cssclasses:
-  - ollama
-  - utilization
+  - ai-guide
+date: 2026-09-29
 date: 2026-09-24
 ---
 
@@ -33,6 +29,7 @@ date: 2026-09-24
 > The gap list below is a historical snapshot. `mcp_validator.py` is now used by the MCP command-discovery validation path, and the browser AI Tools path now exposes an SSE tool-call loop plus a guarded fallback for explicit single-tool requests. Re-verify live behavior before treating a gap as current.
 
 > [!tip] How to Use
+>
 > - **AI agents:** Read §3 (Task → Model Routing) before invoking Ollama.
 > - **Developers:** Read §4 (Integration Points) to understand where Ollama
 >   is wired into the backend and frontend.
@@ -40,77 +37,71 @@ date: 2026-09-24
 
 ---
 
-
-
 ## 1. Current Utilization Snapshot
 
 ### 1.1 What's Already Wired
 
 Ollama is the **central LLM layer** for Native Media AI Studio. It is used for:
 
-| Use Case | Entry Point | Model(s) | Status |
-|---|---|---|---|
-| Storyboard generation | `POST /api/storyboard/generate` → `StoryboardGeneratorHandler` | `gemma4:e2b-it-qat` (default) | ✅ Active |
-| Three.js scene generation (agent loop) | `packages/backend/app/adapters/ollama.py` built-in tools + MCP bridge | `qwen3.5:9b` (planner) | ✅ Active |
-| Vision analysis (screenshots, UI audits) | `tools/vision/analyze.mjs` → `gemma4:e2b-it-qat` / `qwen3-vl:*` | Mode-dependent | ✅ Active |
-| Audio analysis section labeling | `POST /api/audio/analysis/:filename` | `gemma4:e2b-it-qat` | ✅ Active |
-| Embeddings | `POST /api/embed` | `nomic-embed-text:v1.5` | ✅ Active |
-| Hardware benchmarks | `POST /api/hardware/benchmark` → `HardwareBenchmarkRunner` | First available model | ✅ Active |
-| Music prompt generation | `POST /api/music-prompts/generate` | Configurable | ✅ Active |
+| Use Case                                 | Entry Point                                                           | Model(s)                      | Status    |
+| ---------------------------------------- | --------------------------------------------------------------------- | ----------------------------- | --------- |
+| Storyboard generation                    | `POST /api/storyboard/generate` → `StoryboardGeneratorHandler`        | `gemma4:e2b-it-qat` (default) | ✅ Active |
+| Three.js scene generation (agent loop)   | `packages/backend/app/adapters/ollama.py` built-in tools + MCP bridge | `qwen3.5:9b` (planner)        | ✅ Active |
+| Vision analysis (screenshots, UI audits) | `tools/vision/analyze.mjs` → `gemma4:e2b-it-qat` / `qwen3-vl:*`       | Mode-dependent                | ✅ Active |
+| Audio analysis section labeling          | `POST /api/audio/analysis/:filename`                                  | `gemma4:e2b-it-qat`           | ✅ Active |
+| Embeddings                               | `POST /api/embed`                                                     | `nomic-embed-text:v1.5`       | ✅ Active |
+| Hardware benchmarks                      | `POST /api/hardware/benchmark` → `HardwareBenchmarkRunner`            | First available model         | ✅ Active |
+| Music prompt generation                  | `POST /api/music-prompts/generate`                                    | Configurable                  | ✅ Active |
 
 ### 1.2 What Is NOT Yet Utilized
 
-| Capability | Evidence | Opportunity |
-|---|---|---|
+| Capability                                                   | Evidence                                                                                                       | Opportunity                                                            |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | **ollama-tools MCP server tools are not wired into backend** | `tools/mcp/ollama-tools-mcp.mjs` is an external stdio bridge; FastAPI does not import the MCP process directly | Expose a deliberate backend bridge only where an API workflow needs it |
-| **Video generation via Ollama** | `generate_video` in MCP returns a stub message | No text-to-video path through Ollama |
-| **Music prompt generator not in wizard** | `music_prompt_generator.py` is a standalone page, wizard step missing | Users context-switch instead of flowing |
-| **Multi-model comparison** | Benchmark runner uses the first available model only | No A/B testing of models for the same task |
-| **Streaming responses to frontend** | SSE is exposed through `/api/integrations/ollama/chat`; route coverage is still partial | Add SSE coverage to remaining generation routes |
+| **Video generation via Ollama**                              | `generate_video` in MCP returns a stub message                                                                 | No text-to-video path through Ollama                                   |
+| **Music prompt generator not in wizard**                     | `music_prompt_generator.py` is a standalone page, wizard step missing                                          | Users context-switch instead of flowing                                |
+| **Multi-model comparison**                                   | Benchmark runner uses the first available model only                                                           | No A/B testing of models for the same task                             |
+| **Streaming responses to frontend**                          | SSE is exposed through `/api/integrations/ollama/chat`; route coverage is still partial                        | Add SSE coverage to remaining generation routes                        |
 
 ---
-
-
 
 ## 2. Installed Model Inventory
 
 ### 2.1 Live Ollama Registry (as of 2026-09-24)
 
-| Model | Size | VRAM Est. | Quant | Capabilities | Notes |
-|---|---|---|---|---|---|
-| `gemma4:e2b-it-qat` | 4.04 GB | ~6 GB | Q4_0 | completion, **vision**, audio, **tools**, **thinking** | Default model; 8GB-safe; multimodal |
-| `qwen3.5:9b` | 6.14 GB | ~9 GB | Q4_K_M | completion, **vision**, **tools**, **thinking** | Best tool caller; tight on 8GB |
-| `qwen3.5:4b` | 3.16 GB | ~4.8 GB | Q4_K_M | completion, **vision**, **tools**, **thinking** | Best speed/quality balance |
-| `qwen3-vl:4b` | 3.07 GB | ~4.6 GB | Q4_K_M | completion, **vision**, **tools**, **thinking** | Vision + tools; 8GB-safe |
-| `qwen3-vl:2b` | 1.76 GB | ~2.6 GB | Q4_K_M | completion, **vision**, **tools**, **thinking** | Fastest vision; triage mode |
-| `qwen3-vl-optimized:latest` | 3.07 GB | ~4.6 GB | Q4_K_M | completion, **vision**, **tools**, **thinking** | Optimized vision variant |
-| `gemma4-vision-optimized:latest` | 4.04 GB | ~6 GB | Q4_0 | completion, **vision**, **tools**, **thinking** | Optimized vision variant |
-| `minicpm-v:8b` | 5.1 GB | ~7.7 GB | Q4_0 | completion, **vision** | OCR specialist; RLAIF-V |
-| `minicpm-v:latest` | 5.1 GB | ~7.7 GB | Q4_0 | completion, **vision** | Alias for `minicpm-v:8b` |
-| `openbmb/minicpm-v4.6:q4_K_M` | 1.53 GB | ~2.3 GB | Q4_K_M | **tools**, **thinking**, completion, **vision** | New MiniCPM v4.6; tiny + capable |
-| `deepseek-r1:7b` | 4.36 GB | ~6.5 GB | Q4_K_M | **tools**, **thinking**, completion | Reasoning specialist; no vision |
-| `ornith-1.5:9b` | 6.1 GB | ~9 GB | Q4_K_M | **tools**, **thinking**, completion | Not practical on 8GB unquantized |
-| `llama3.2:3b` | 1.88 GB | ~2.8 GB | Q4_K_M | completion, **tools** | Lightweight tool caller |
-| `nomic-embed-text:v1.5` | 0.26 GB | ~0.4 GB | F16 | embedding | Embedding model; always resident |
+| Model                            | Size    | VRAM Est. | Quant  | Capabilities                                           | Notes                               |
+| -------------------------------- | ------- | --------- | ------ | ------------------------------------------------------ | ----------------------------------- |
+| `gemma4:e2b-it-qat`              | 4.04 GB | ~6 GB     | Q4_0   | completion, **vision**, audio, **tools**, **thinking** | Default model; 8GB-safe; multimodal |
+| `qwen3.5:9b`                     | 6.14 GB | ~9 GB     | Q4_K_M | completion, **vision**, **tools**, **thinking**        | Best tool caller; tight on 8GB      |
+| `qwen3.5:4b`                     | 3.16 GB | ~4.8 GB   | Q4_K_M | completion, **vision**, **tools**, **thinking**        | Best speed/quality balance          |
+| `qwen3-vl:4b`                    | 3.07 GB | ~4.6 GB   | Q4_K_M | completion, **vision**, **tools**, **thinking**        | Vision + tools; 8GB-safe            |
+| `qwen3-vl:2b`                    | 1.76 GB | ~2.6 GB   | Q4_K_M | completion, **vision**, **tools**, **thinking**        | Fastest vision; triage mode         |
+| `qwen3-vl-optimized:latest`      | 3.07 GB | ~4.6 GB   | Q4_K_M | completion, **vision**, **tools**, **thinking**        | Optimized vision variant            |
+| `gemma4-vision-optimized:latest` | 4.04 GB | ~6 GB     | Q4_0   | completion, **vision**, **tools**, **thinking**        | Optimized vision variant            |
+| `minicpm-v:8b`                   | 5.1 GB  | ~7.7 GB   | Q4_0   | completion, **vision**                                 | OCR specialist; RLAIF-V             |
+| `minicpm-v:latest`               | 5.1 GB  | ~7.7 GB   | Q4_0   | completion, **vision**                                 | Alias for `minicpm-v:8b`            |
+| `openbmb/minicpm-v4.6:q4_K_M`    | 1.53 GB | ~2.3 GB   | Q4_K_M | **tools**, **thinking**, completion, **vision**        | New MiniCPM v4.6; tiny + capable    |
+| `deepseek-r1:7b`                 | 4.36 GB | ~6.5 GB   | Q4_K_M | **tools**, **thinking**, completion                    | Reasoning specialist; no vision     |
+| `ornith-1.5:9b`                  | 6.1 GB  | ~9 GB     | Q4_K_M | **tools**, **thinking**, completion                    | Not practical on 8GB unquantized    |
+| `llama3.2:3b`                    | 1.88 GB | ~2.8 GB   | Q4_K_M | completion, **tools**                                  | Lightweight tool caller             |
+| `nomic-embed-text:v1.5`          | 0.26 GB | ~0.4 GB   | F16    | embedding                                              | Embedding model; always resident    |
 
 ### 2.2 VRAM Budget on 8 GB Card
 
 Conservative estimate with KV cache + overhead:
 
-| Model Class | Estimated VRAM | Safe? | Recommendation |
-|---|---|---|---|
-| 2B–3B | 2.5–3.5 GB | ✅ | Daily driver for simple tasks |
-| 4B | 4.5–5.5 GB | ✅ | Good for most tasks with headroom |
-| 4B VL (vision) | 5.0–6.0 GB | ✅ | Vision + tool calling |
-| 7B | 6.5–7.5 GB | ⚠️ | Only one at a time; no concurrent GPU workload |
-| 9B | 8.5–10 GB | ❌ | OOM unless CPU offload + swap |
+| Model Class    | Estimated VRAM | Safe? | Recommendation                                 |
+| -------------- | -------------- | ----- | ---------------------------------------------- |
+| 2B–3B          | 2.5–3.5 GB     | ✅    | Daily driver for simple tasks                  |
+| 4B             | 4.5–5.5 GB     | ✅    | Good for most tasks with headroom              |
+| 4B VL (vision) | 5.0–6.0 GB     | ✅    | Vision + tool calling                          |
+| 7B             | 6.5–7.5 GB     | ⚠️    | Only one at a time; no concurrent GPU workload |
+| 9B             | 8.5–10 GB      | ❌    | OOM unless CPU offload + swap                  |
 
 **Rule of thumb:** Keep total VRAM allocation under 6.5 GB to leave headroom for
 KV cache growth, ComfyUI/FFmpeg, and CUDA overhead.
 
 ---
-
-
 
 ## 3. Task → Model Routing
 
@@ -121,6 +112,7 @@ we prefer the already-resident model unless the task explicitly requires
 capabilities the resident lacks.
 
 **Priority order:**
+
 1. Explicit `--model` flag or config override
 2. Task-mapped model if it is resident
 3. Resident vision-capable model (for vision tasks)
@@ -128,34 +120,34 @@ capabilities the resident lacks.
 
 ### 3.2 Task → Model Map
 
-| Task | Primary Model | Fallback | Why |
-|---|---|---|---|
-| **Vision analysis (UI, responsive, regression)** | `gemma4:e2b-it-qat` | `qwen3-vl:2b` | Best detailed audits; 2b for speed |
-| **OCR / table / chart** | `gemma4:e2b-it-qat` | `minicpm-v:8b` | Gemma detailed; MiniCPM RLAIF-V trustworthy |
-| **Compare / multicomp images** | `qwen3-vl:2b` | `qwen3-vl:4b` | Fastest decode; 262K ctx for image sets |
-| **Storyboard generation** | `qwen3.5:9b` | `qwen3.5:4b` | Best JSON adherence; 4b if VRAM tight |
-| **Three.js scene planning** | `qwen3.5:9b` | `qwen3.5:4b` | Strong tool calling + reasoning |
-| **Blender script planning** | `qwen3.5:9b` | `qwen3.5:4b` | Same as above |
-| **Code generation / backend tasks** | `qwen3.5:4b` | `llama3.2:3b` | 4b best balance; 3b for quick edits |
-| **Reasoning / complex analysis** | `deepseek-r1:7b` | `qwen3.5:9b` | DeepSeek best reasoning; 9b if 7b OOM |
-| **Music prompt generation** | `qwen3.5:4b` | `gemma4:e2b-it-qat` | Fast multi-platform prompt generation |
-| **Embedding / semantic search** | `nomic-embed-text:v1.5` | — | Always resident; lightweight |
-| **Audio analysis (text tasks)** | `gemma4:e2b-it-qat` | `qwen3.5:4b` | Default; 4b if VRAM needed elsewhere |
-| **System health / quick status** | `llama3.2:3b` | `qwen3.5:4b` | Lightest capable model |
+| Task                                             | Primary Model           | Fallback            | Why                                         |
+| ------------------------------------------------ | ----------------------- | ------------------- | ------------------------------------------- |
+| **Vision analysis (UI, responsive, regression)** | `gemma4:e2b-it-qat`     | `qwen3-vl:2b`       | Best detailed audits; 2b for speed          |
+| **OCR / table / chart**                          | `gemma4:e2b-it-qat`     | `minicpm-v:8b`      | Gemma detailed; MiniCPM RLAIF-V trustworthy |
+| **Compare / multicomp images**                   | `qwen3-vl:2b`           | `qwen3-vl:4b`       | Fastest decode; 262K ctx for image sets     |
+| **Storyboard generation**                        | `qwen3.5:9b`            | `qwen3.5:4b`        | Best JSON adherence; 4b if VRAM tight       |
+| **Three.js scene planning**                      | `qwen3.5:9b`            | `qwen3.5:4b`        | Strong tool calling + reasoning             |
+| **Blender script planning**                      | `qwen3.5:9b`            | `qwen3.5:4b`        | Same as above                               |
+| **Code generation / backend tasks**              | `qwen3.5:4b`            | `llama3.2:3b`       | 4b best balance; 3b for quick edits         |
+| **Reasoning / complex analysis**                 | `deepseek-r1:7b`        | `qwen3.5:9b`        | DeepSeek best reasoning; 9b if 7b OOM       |
+| **Music prompt generation**                      | `qwen3.5:4b`            | `gemma4:e2b-it-qat` | Fast multi-platform prompt generation       |
+| **Embedding / semantic search**                  | `nomic-embed-text:v1.5` | —                   | Always resident; lightweight                |
+| **Audio analysis (text tasks)**                  | `gemma4:e2b-it-qat`     | `qwen3.5:4b`        | Default; 4b if VRAM needed elsewhere        |
+| **System health / quick status**                 | `llama3.2:3b`           | `qwen3.5:4b`        | Lightest capable model                      |
 
 ### 3.3 Vision Mode Routing (Implemented in `tools/vision/analyze.mjs`)
 
-| Mode | Model | Temperature | num_ctx | Max Dim | Notes |
-|---|---|---|---|---|---|
-| `ui` | `gemma4:e2b-it-qat` | 0.3 | 8192 | 1568 | Detailed UI audits |
-| `responsive` | `gemma4:e2b-it-qat` | 0.3 | 8192 | 1568 | Layout issues |
-| `regression` | `gemma4:e2b-it-qat` | 0.3 | 8192 | 1568 | What changed |
-| `compare` | `qwen3-vl:2b` | 0.3 | 8192 | 1280 | Fast diff; 262K ctx |
-| `multicomp` | `qwen3-vl:2b` | 0.3 | 8192 | 1280 | Multi-image sets |
-| `ocr` | `gemma4:e2b-it-qat` | 0 | 8192 | 1568 | Deterministic transcription |
-| `table` | `gemma4:e2b-it-qat` | 0 | 8192 | 1568 | Deterministic extraction |
-| `chart` | `gemma4:e2b-it-qat` | 0 | 8192 | 1568 | Deterministic extraction |
-| `music-video` | `gemma4:e2b-it-qat` | 0.3 | 8192 | 1568 | Frame analysis |
+| Mode          | Model               | Temperature | num_ctx | Max Dim | Notes                       |
+| ------------- | ------------------- | ----------- | ------- | ------- | --------------------------- |
+| `ui`          | `gemma4:e2b-it-qat` | 0.3         | 8192    | 1568    | Detailed UI audits          |
+| `responsive`  | `gemma4:e2b-it-qat` | 0.3         | 8192    | 1568    | Layout issues               |
+| `regression`  | `gemma4:e2b-it-qat` | 0.3         | 8192    | 1568    | What changed                |
+| `compare`     | `qwen3-vl:2b`       | 0.3         | 8192    | 1280    | Fast diff; 262K ctx         |
+| `multicomp`   | `qwen3-vl:2b`       | 0.3         | 8192    | 1280    | Multi-image sets            |
+| `ocr`         | `gemma4:e2b-it-qat` | 0           | 8192    | 1568    | Deterministic transcription |
+| `table`       | `gemma4:e2b-it-qat` | 0           | 8192    | 1568    | Deterministic extraction    |
+| `chart`       | `gemma4:e2b-it-qat` | 0           | 8192    | 1568    | Deterministic extraction    |
+| `music-video` | `gemma4:e2b-it-qat` | 0.3         | 8192    | 1568    | Frame analysis              |
 
 ### 3.4 VRAM-Aware Fallback Ladder
 
@@ -166,13 +158,12 @@ Primary (9B/7B) → CPU offload → 4B fallback → 3B fallback → mock
 ```
 
 **Implementation:**
+
 - Backend `ollama.py` `chat()` clamps `num_ctx` to 8192 for the 8 GB workstation; callers may request more, but the adapter applies the safety ceiling.
 - `generate_with_fallback()` in `base.py` raises on service unavailability (no silent mock)
 - `vram_manager.py` offloads Ollama during GPU-heavy jobs (ComfyUI, 3D)
 
 ---
-
-
 
 ## 4. Integration Points in the Codebase
 
@@ -180,18 +171,19 @@ Primary (9B/7B) → CPU offload → 4B fallback → 3B fallback → mock
 
 The `OllamaAdapter` is the **single entry point** for all backend Ollama calls:
 
-| Method | Purpose | Notes |
-|---|---|---|
-| `chat()` | Multi-turn with tools, streaming, structured output | VRAM-aware `num_ctx` clamp; `think` mode |
-| `generate()` | Single-turn text generation | Legacy path; no tools |
-| `generate_storyboard()` | Structured JSON storyboard | Uses `format=json` + `think=false` |
-| `health_check()` | Refresh model cache | Called automatically on `/api/tags` |
-| `list_models()` | Available models | Cached in `_available_models` |
-| `execute_tool_call()` | Built-in scene/system tools | Native tool calls plus guarded explicit-tool fallback |
-| `get_tool_definitions()` | JSON Schema for tools | OpenAI-compatible format |
-| `set_activity()` / `clear_activity()` | VRAM coordination | Used by `vram_manager.py` |
+| Method                                | Purpose                                             | Notes                                                 |
+| ------------------------------------- | --------------------------------------------------- | ----------------------------------------------------- |
+| `chat()`                              | Multi-turn with tools, streaming, structured output | VRAM-aware `num_ctx` clamp; `think` mode              |
+| `generate()`                          | Single-turn text generation                         | Legacy path; no tools                                 |
+| `generate_storyboard()`               | Structured JSON storyboard                          | Uses `format=json` + `think=false`                    |
+| `health_check()`                      | Refresh model cache                                 | Called automatically on `/api/tags`                   |
+| `list_models()`                       | Available models                                    | Cached in `_available_models`                         |
+| `execute_tool_call()`                 | Built-in scene/system tools                         | Native tool calls plus guarded explicit-tool fallback |
+| `get_tool_definitions()`              | JSON Schema for tools                               | OpenAI-compatible format                              |
+| `set_activity()` / `clear_activity()` | VRAM coordination                                   | Used by `vram_manager.py`                             |
 
 **Built-in tools exposed to agents:**
+
 - Three.js scene: `scene_add_object`, `scene_add_light`, `scene_set_camera`,
   `scene_set_particles`, `scene_add_keyframe`, `scene_clear`,
   `scene_get_state`, `scene_set_bloom`, `scene_set_duration`
@@ -204,18 +196,18 @@ The `OllamaAdapter` is the **single entry point** for all backend Ollama calls:
 
 Exposes 10 MCP tools to agents:
 
-| MCP Tool | Ollama Usage | Backend Call |
-|---|---|---|
-| `analyze_image` | `/api/chat` with vision model | Direct Ollama call |
-| `analyze_audio` | — | `GET /api/audio/analysis/:file` |
-| `generate_image` | — | `POST /comfyui/prompt` |
-| `generate_video` | — | Stub (returns instructions) |
-| `list_audio_library` | — | `GET /api/audio/files` |
-| `create_music_video_plan` | — | `GET /api/audio/analysis/:file` |
-| `suggest_3d_prompt` | — | Template expansion (no LLM) |
-| `generate_3d_concept` | — | Calls `generate_image` |
-| `plan_blender_script` | `qwen3.5:9b` via `/api/chat` | Direct Ollama call |
-| `update_mcp_context` | — | Writes `output/mcp-context.json` |
+| MCP Tool                  | Ollama Usage                  | Backend Call                     |
+| ------------------------- | ----------------------------- | -------------------------------- |
+| `analyze_image`           | `/api/chat` with vision model | Direct Ollama call               |
+| `analyze_audio`           | —                             | `GET /api/audio/analysis/:file`  |
+| `generate_image`          | —                             | `POST /comfyui/prompt`           |
+| `generate_video`          | —                             | Stub (returns instructions)      |
+| `list_audio_library`      | —                             | `GET /api/audio/files`           |
+| `create_music_video_plan` | —                             | `GET /api/audio/analysis/:file`  |
+| `suggest_3d_prompt`       | —                             | Template expansion (no LLM)      |
+| `generate_3d_concept`     | —                             | Calls `generate_image`           |
+| `plan_blender_script`     | `qwen3.5:9b` via `/api/chat`  | Direct Ollama call               |
+| `update_mcp_context`      | —                             | Writes `output/mcp-context.json` |
 
 **Gap:** `analyze_image` uses a hardcoded `qwen3-vl:4b` default instead of
 the routing table from `tools/vision/analyze.mjs`.
@@ -226,20 +218,26 @@ Sophisticated task → model router with resident-model stickiness:
 
 ```javascript
 const MODEL_PROFILES = {
-  'gemma4:e2b-it-qat':   { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1568 },
-  'qwen3-vl:2b':         { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1280 },
-  'minicpm-v:8b':        { temp: 0,   tempExtract: 0, numCtx: 8192,  maxDim: 1792 },
+  "gemma4:e2b-it-qat": {
+    temp: 0.3,
+    tempExtract: 0,
+    numCtx: 8192,
+    maxDim: 1568,
+  },
+  "qwen3-vl:2b": { temp: 0.3, tempExtract: 0, numCtx: 8192, maxDim: 1280 },
+  "minicpm-v:8b": { temp: 0, tempExtract: 0, numCtx: 8192, maxDim: 1792 },
 };
 const MODE_MODEL = {
-  ocr: 'gemma4:e2b-it-qat',
-  table: 'gemma4:e2b-it-qat',
-  chart: 'gemma4:e2b-it-qat',
-  compare: 'qwen3-vl:2b',
-  multicomp: 'qwen3-vl:2b',
+  ocr: "gemma4:e2b-it-qat",
+  table: "gemma4:e2b-it-qat",
+  chart: "gemma4:e2b-it-qat",
+  compare: "qwen3-vl:2b",
+  multicomp: "qwen3-vl:2b",
 };
 ```
 
 **Key behaviors:**
+
 - Text-extraction modes (OCR/table/chart) force `temperature: 0`
 - All modes append `GROUNDING_SUFFIX` to prompts
 - Images are resized to `maxDim` before sending
@@ -250,11 +248,11 @@ const MODE_MODEL = {
 
 Shared `aiohttp` session for stateless routes:
 
-| Function | Endpoint | Purpose |
-|---|---|---|
-| `list_models()` | `GET /api/tags` | Model catalog |
-| `embed_text()` | `POST /api/embed` | Single-text embedding |
-| `chat_content()` | `POST /api/chat` | Non-streaming chat |
+| Function             | Endpoint             | Purpose                |
+| -------------------- | -------------------- | ---------------------- |
+| `list_models()`      | `GET /api/tags`      | Model catalog          |
+| `embed_text()`       | `POST /api/embed`    | Single-text embedding  |
+| `chat_content()`     | `POST /api/chat`     | Non-streaming chat     |
 | `generate_content()` | `POST /api/generate` | Non-streaming generate |
 
 ### 4.5 Queue Processor (`packages/backend/app/queue/processor.py`)
@@ -266,6 +264,7 @@ runs at a time, preventing VRAM contention.
 ### 4.6 VRAM Manager (`packages/backend/app/services/vram_manager.py`)
 
 Coordinates with Ollama via `adapter.set_activity()` / `clear_activity()` to:
+
 - Track which model is resident
 - Offload Ollama before GPU-heavy jobs (ComfyUI, 3D generation)
 - Reload after GPU job completes
@@ -273,6 +272,7 @@ Coordinates with Ollama via `adapter.set_activity()` / `clear_activity()` to:
 ### 4.7 Hardware Benchmark (`packages/backend/app/services/hardware_benchmark.py`)
 
 Runs repeatable Ollama benchmarks:
+
 - Uses `num_ctx=4096` and `num_predict=900` (from `hardware-profile.json`)
 - Disables thinking (`think=False`) for consistent timing
 - Persists results to SQLite
@@ -280,24 +280,23 @@ Runs repeatable Ollama benchmarks:
 
 ---
 
-
-
 ## 5. VRAM-Aware Scheduling Patterns
 
 ### 5.1 The 8 GB Reality
 
 On a GTX 1070 Ti with 8 GB VRAM, the safe operating envelope is:
 
-| Workload | VRAM Budget | Notes |
-|---|---|---|
-| Ollama resident model (4B class) | 4.5–5.5 GB | Includes KV cache |
-| Ollama resident model (7B class) | 6.5–7.5 GB | No concurrent GPU workload |
-| ComfyUI SD 1.5 | 3.5–4.5 GB | Depends on resolution/steps |
-| Three.js / WebGL | 0.5–1.5 GB | Browser-side; not CUDA |
-| FFmpeg NVENC | 0.2–0.5 GB | Hardware encode |
-| CUDA overhead | 0.3–0.5 GB | Driver, blas, cublas |
+| Workload                         | VRAM Budget | Notes                       |
+| -------------------------------- | ----------- | --------------------------- |
+| Ollama resident model (4B class) | 4.5–5.5 GB  | Includes KV cache           |
+| Ollama resident model (7B class) | 6.5–7.5 GB  | No concurrent GPU workload  |
+| ComfyUI SD 1.5                   | 3.5–4.5 GB  | Depends on resolution/steps |
+| Three.js / WebGL                 | 0.5–1.5 GB  | Browser-side; not CUDA      |
+| FFmpeg NVENC                     | 0.2–0.5 GB  | Hardware encode             |
+| CUDA overhead                    | 0.3–0.5 GB  | Driver, blas, cublas        |
 
 **Safe concurrent pairings:**
+
 - 4B Ollama + ComfyUI SD 1.5 @ 768×768 ✅
 - 4B Ollama + Three.js ✅
 - 7B Ollama alone ✅ (no ComfyUI simultaneously)
@@ -330,13 +329,12 @@ if "num_ctx" in options:
 
 ---
 
-
-
 ## 6. Utilization Gaps & Opportunities
 
 ### 6.1 Gap: MCP Bridge Model Routing Is Hardcoded
 
 **Current:** `tools/mcp/ollama-tools-mcp.mjs` line 303–305:
+
 ```javascript
 const body = {
     model: args.model || "qwen3-vl:4b",
@@ -358,6 +356,7 @@ imported. `packages/backend/app/adapters/ollama.py` has 14 built-in tools, but
 no schema validation is enforced at runtime.
 
 **Fix:** Wire `mcp_validator.py` into:
+
 - `ollama-tools-mcp.mjs` `tools/call` handler
 - `OllamaAdapter.execute_tool_call()`
 - Backend API routes that accept tool definitions
@@ -369,6 +368,7 @@ No actual text-to-video path through Ollama exists.
 
 **Opportunity:** Ollama does not generate video natively. The gap is best filled
 by:
+
 1. ComfyUI Wan/LTX workflow (already exists)
 2. Or a future Ollama plugin if released
 
@@ -393,8 +393,6 @@ comparison of `qwen3.5:9b` vs `qwen3.5:4b` for the same storyboard prompt.
 the same prompt against N models and returns a ranked comparison.
 
 ---
-
-
 
 ## 7. Best Practices for This App Context
 
@@ -422,7 +420,7 @@ the same prompt against N models and returns a ranked comparison.
 - **Enable thinking for tool parsing** — `think: true` or `think: "medium"`
   improves tool-call accuracy on small models.
 - **Validate semantically after generation** — constrained decoding guarantees
-  *valid* JSON, not *correct* values. Always parse and check required fields.
+  _valid_ JSON, not _correct_ values. Always parse and check required fields.
 
 ### 7.3 Vision
 
@@ -449,39 +447,35 @@ the same prompt against N models and returns a ranked comparison.
 
 ---
 
-
-
 ## 8. Recommended Expansion
 
 ### 8.1 Immediate (P0)
 
-| Action | Why | Effort |
-|---|---|---|
-| Convert `qwen3.5:9b` and `ornith-1.5:9b` to GGUF Q4_K_M | 9B models currently fp16 (~6.6 GB); GGUF Q4_K_M would halve VRAM to ~3.5–4.5 GB | 2–4h |
-| Wire `mcp_validator.py` into MCP bridges | Agents still invent invalid commands | 2–4h |
-| Add prompt-generation step to wizard | Music prompt generator is an island | 2h |
+| Action                                                  | Why                                                                             | Effort |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------- | ------ |
+| Convert `qwen3.5:9b` and `ornith-1.5:9b` to GGUF Q4_K_M | 9B models currently fp16 (~6.6 GB); GGUF Q4_K_M would halve VRAM to ~3.5–4.5 GB | 2–4h   |
+| Wire `mcp_validator.py` into MCP bridges                | Agents still invent invalid commands                                            | 2–4h   |
+| Add prompt-generation step to wizard                    | Music prompt generator is an island                                             | 2h     |
 
 ### 8.2 Short-term (P1)
 
-| Action | Why | Effort |
-|---|---|---|
-| Share vision routing between MCP bridge and `analyze.mjs` | MCP always sends `qwen3-vl:4b`; wastes 4B/9B model capability | 2h |
-| Expose streaming SSE for Ollama chat endpoints | Long generations block HTTP; streaming improves UX | 4–6h |
-| Add multi-model benchmark comparison | No A/B testing for storyboard/scene quality | 4h |
-| Wire `generate_video` MCP tool to ComfyUI | Stub returns instructions, not a job | 2h |
+| Action                                                    | Why                                                           | Effort |
+| --------------------------------------------------------- | ------------------------------------------------------------- | ------ |
+| Share vision routing between MCP bridge and `analyze.mjs` | MCP always sends `qwen3-vl:4b`; wastes 4B/9B model capability | 2h     |
+| Expose streaming SSE for Ollama chat endpoints            | Long generations block HTTP; streaming improves UX            | 4–6h   |
+| Add multi-model benchmark comparison                      | No A/B testing for storyboard/scene quality                   | 4h     |
+| Wire `generate_video` MCP tool to ComfyUI                 | Stub returns instructions, not a job                          | 2h     |
 
 ### 8.3 Medium-term (P2)
 
-| Action | Why | Effort |
-|---|---|---|
-| Add `ollama-model` selector to frontend settings | Currently hardcoded in `config/settings.json` | 4h |
-| Build benchmark dashboard | Benchmark data stored but never aggregated in UI | 4–8h |
-| Evaluate `openbmb/minicpm-v4.6:q4_K_M` for tool calling | 752M params, 1.53 GB — smallest capable model | 2h |
-| Test `qwen3.5:9b` GGUF Q4_K_M conversion | Would make 9B quality 8GB-safe | 4h |
+| Action                                                  | Why                                              | Effort |
+| ------------------------------------------------------- | ------------------------------------------------ | ------ |
+| Add `ollama-model` selector to frontend settings        | Currently hardcoded in `config/settings.json`    | 4h     |
+| Build benchmark dashboard                               | Benchmark data stored but never aggregated in UI | 4–8h   |
+| Evaluate `openbmb/minicpm-v4.6:q4_K_M` for tool calling | 752M params, 1.53 GB — smallest capable model    | 2h     |
+| Test `qwen3.5:9b` GGUF Q4_K_M conversion                | Would make 9B quality 8GB-safe                   | 4h     |
 
 ---
-
-
 
 ## 9. Cross-References
 
@@ -495,8 +489,6 @@ the same prompt against N models and returns a ranked comparison.
 - [[feature-utilization-audit-2026]] — Dead code and orphaned capabilities
 
 ---
-
-
 
 ## 10. Quick Reference Card
 
@@ -555,15 +547,15 @@ response = await adapter.chat(
 
 ```typescript
 // Vision analysis (reuse analyze.mjs routing)
-const model = await resolveModel({ mode: 'ui' }, forcedModel);
+const model = await resolveModel({ mode: "ui" }, forcedModel);
 const response = await fetch(`${OLLAMA_URL}/api/chat`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
     model,
-    messages: [{ role: 'user', content: prompt, images: [imageData] }],
+    messages: [{ role: "user", content: prompt, images: [imageData] }],
     stream: false,
-    keep_alive: '10m',
+    keep_alive: "10m",
     think: false,
   }),
 });
@@ -571,6 +563,4 @@ const response = await fetch(`${OLLAMA_URL}/api/chat`, {
 
 ---
 
-
-
-*Last updated: 2026-09-24*
+_Last updated: 2026-09-24_

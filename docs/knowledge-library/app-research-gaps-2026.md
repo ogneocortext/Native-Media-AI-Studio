@@ -1,17 +1,13 @@
 ---
 tags:
   - research
-  - roadmap
-  - knowledge-gap
-  - optimization
-  - 2026
 aliases:
   - App Research Gaps 2026
   - Knowledge Gaps
   - Research Opportunities
 cssclasses:
-  - research
-date: 2026-09-24
+  - research-report
+date: 2026-09-29
 ---
 
 # 🔍 App Research Gaps & Opportunities 2026
@@ -25,6 +21,7 @@ date: 2026-09-24
 > on whether to research now, defer, or explicitly skip.
 
 > [!tip] How to Use
+>
 > - `🔴 Research Now` — blocks progress or risks technical debt
 > - `🟡 Defer` — valuable but not urgent; queue for next research sprint
 > - `🟢 Monitor` — keep watching; no action needed yet
@@ -42,13 +39,13 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
-| **LTX Video 2.3 on 8GB** | Current `model_tiers.py` lists LTX at 8-16GB; no validated 8GB config exists. If quantized variants or CPU-offload paths exist, this could be a quality leap. | 🔴 Research Now |
-| **Mochi-1 / Mochi-2 8GB viability** | Not in `VRAM_REQUIREMENTS` at all. 2026's other notable open-weight video model may have smaller variants or GGUF paths. | 🔴 Research Now |
-| **Wan 2.2 red-pattern issue (Q3)** | ComfyUI Wan smoke test produces red abstract output. Root cause unknown — could be VAE, T5 encoder mismatch, or workflow JSON corruption. Blocks all Wan validation. | 🔴 Research Now |
-| **CogVideoX-5B quantization** | No entry in `NON_IMAGE_CHECKPOINT_KEYWORDS` or VRAM table. 5B class model; if GGUF/Q4 works on 8GB, it's a viable alternative. | 🟡 Defer |
-| **Video quality metrics** | No objective metric (FVD, F1-score, SSIM) in the job result. Can't tell if a "successful" generation is actually good without manual review. | 🟡 Defer |
+| Gap                                 | Why It Matters                                                                                                                                                       | Recommendation  |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| **LTX Video 2.3 on 8GB**            | Current `model_tiers.py` lists LTX at 8-16GB; no validated 8GB config exists. If quantized variants or CPU-offload paths exist, this could be a quality leap.        | 🔴 Research Now |
+| **Mochi-1 / Mochi-2 8GB viability** | Not in `VRAM_REQUIREMENTS` at all. 2026's other notable open-weight video model may have smaller variants or GGUF paths.                                             | 🔴 Research Now |
+| **Wan 2.2 red-pattern issue (Q3)**  | ComfyUI Wan smoke test produces red abstract output. Root cause unknown — could be VAE, T5 encoder mismatch, or workflow JSON corruption. Blocks all Wan validation. | 🔴 Research Now |
+| **CogVideoX-5B quantization**       | No entry in `NON_IMAGE_CHECKPOINT_KEYWORDS` or VRAM table. 5B class model; if GGUF/Q4 works on 8GB, it's a viable alternative.                                       | 🟡 Defer        |
+| **Video quality metrics**           | No objective metric (FVD, F1-score, SSIM) in the job result. Can't tell if a "successful" generation is actually good without manual review.                         | 🟡 Defer        |
 
 ### Suggested Research
 
@@ -70,12 +67,12 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
-| **BEATs transformer** | Meta's BEATs (2023) outperforms librosa on beat/downbeat. No Pascal/sm_61 validation exists. | 🟡 Defer |
-| **WhisperX large-v3-turbo alignment** | Current transcription uses faster-whisper with basic word timestamps. WhisperX adds VAD filtering + forced alignment for karaoke-grade sync. | 🟡 Defer |
-| **Real-time analysis for preview** | All analysis is offline (full file). For live preview in Three.js Studio, need streaming FFT + onset detection on audio buffer chunks. | 🟡 Monitor |
-| **Section detection beyond librosa** | Current `_detect_sections` is energy-threshold heuristic. SSQ (spectral flux) or transformer-based segmentation could improve section boundaries. | 🟢 Monitor |
+| Gap                                   | Why It Matters                                                                                                                                    | Recommendation |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **BEATs transformer**                 | Meta's BEATs (2023) outperforms librosa on beat/downbeat. No Pascal/sm_61 validation exists.                                                      | 🟡 Defer       |
+| **WhisperX large-v3-turbo alignment** | Current transcription uses faster-whisper with basic word timestamps. WhisperX adds VAD filtering + forced alignment for karaoke-grade sync.      | 🟡 Defer       |
+| **Real-time analysis for preview**    | All analysis is offline (full file). For live preview in Three.js Studio, need streaming FFT + onset detection on audio buffer chunks.            | 🟡 Monitor     |
+| **Section detection beyond librosa**  | Current `_detect_sections` is energy-threshold heuristic. SSQ (spectral flux) or transformer-based segmentation could improve section boundaries. | 🟢 Monitor     |
 
 ### Suggested Research
 
@@ -95,12 +92,12 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
-| **Lyria 3.5 integration** | `music_prompt_generator.py` references Lyria 3.5 as a supported platform, but no adapter exists. Google's 44.1kHz stereo model launched Jul 2026; API access may exist. | 🟡 Defer |
-| **Stable Audio Open 2** | Stability AI's open music model. Unknown 8GB viability. If it fits, adds a non-ACE option. | 🟡 Defer |
-| **MusicGen 2.0 / AudioGen 2.0** | Meta's newer models. Need to check if any distilled/quantized variants fit 8GB. | 🟢 Monitor |
-| **Multi-track output** | ACE-Step generates full mixes. Need stems (vocals/drums/bass) for per-stem visualization mapping (D4 pipeline). | 🟡 Defer |
+| Gap                             | Why It Matters                                                                                                                                                          | Recommendation |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **Lyria 3.5 integration**       | `music_prompt_generator.py` references Lyria 3.5 as a supported platform, but no adapter exists. Google's 44.1kHz stereo model launched Jul 2026; API access may exist. | 🟡 Defer       |
+| **Stable Audio Open 2**         | Stability AI's open music model. Unknown 8GB viability. If it fits, adds a non-ACE option.                                                                              | 🟡 Defer       |
+| **MusicGen 2.0 / AudioGen 2.0** | Meta's newer models. Need to check if any distilled/quantized variants fit 8GB.                                                                                         | 🟢 Monitor     |
+| **Multi-track output**          | ACE-Step generates full mixes. Need stems (vocals/drums/bass) for per-stem visualization mapping (D4 pipeline).                                                         | 🟡 Defer       |
 
 ### Suggested Research
 
@@ -121,13 +118,13 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
-| **Vite 8 / Rolldown** | `javascript-upgrade-research-2026.md` identifies Vite 8 + Rolldown as a potential build speed win. No benchmark exists for this project's bundle. | 🟡 Defer |
-| **React 19 Server Components** | The app is entirely client-rendered. RSC could reduce bundle size for data-heavy pages (queue, dashboard). But migration cost is high. | 🟢 Monitor |
-| **Three.js WebGPU migration** | `three-js-studio.md` documents WebGPU/TSL patterns, but the app still forces WebGL2 (`forceWebGL: true` fallback). Need to test WebGPU path on this hardware. | 🟡 Defer |
-| **Remotion 4.x advanced features** | Using `@remotion/three`, `@remotion/transitions`, but not `@remotion/offscreencanvas` or `@remotion/lambda`. Could enable cloud rendering fallback. | 🟡 Defer |
-| **Zustand v5 middleware** | Using `zustand@5.0.15` but not `devtools`, `persist`, or `immer` middleware. Could improve dev UX and state hydration. | 🟢 Monitor |
+| Gap                                | Why It Matters                                                                                                                                                | Recommendation |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **Vite 8 / Rolldown**              | `javascript-upgrade-research-2026.md` identifies Vite 8 + Rolldown as a potential build speed win. No benchmark exists for this project's bundle.             | 🟡 Defer       |
+| **React 19 Server Components**     | The app is entirely client-rendered. RSC could reduce bundle size for data-heavy pages (queue, dashboard). But migration cost is high.                        | 🟢 Monitor     |
+| **Three.js WebGPU migration**      | `three-js-studio.md` documents WebGPU/TSL patterns, but the app still forces WebGL2 (`forceWebGL: true` fallback). Need to test WebGPU path on this hardware. | 🟡 Defer       |
+| **Remotion 4.x advanced features** | Using `@remotion/three`, `@remotion/transitions`, but not `@remotion/offscreencanvas` or `@remotion/lambda`. Could enable cloud rendering fallback.           | 🟡 Defer       |
+| **Zustand v5 middleware**          | Using `zustand@5.0.15` but not `devtools`, `persist`, or `immer` middleware. Could improve dev UX and state hydration.                                        | 🟢 Monitor     |
 
 ### Suggested Research
 
@@ -149,12 +146,12 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
-| **Is Go earning its complexity?** | 5 processes + 5 ports + build/test overhead. Decision log Q1 recommends converging 3D paths; same logic applies here. | 🔴 Research Now |
-| **Process supervision** | No systemd/Docker/Supervisor config. On Windows, `Start-ThreadJob` is used in scripts, but crash recovery is manual. | 🟡 Defer |
-| **Inter-sidecar communication** | Go binaries communicate over HTTP/JSON with the Python backend. Could internalize some logic (e.g., VRAM checks) to reduce round-trips. | 🟢 Monitor |
-| **Memory footprint** | Go binaries are lightweight (~10-20MB each), but 5 × startup time adds up. No benchmark of total sidecar memory under load. | 🟢 Monitor |
+| Gap                               | Why It Matters                                                                                                                          | Recommendation  |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| **Is Go earning its complexity?** | 5 processes + 5 ports + build/test overhead. Decision log Q1 recommends converging 3D paths; same logic applies here.                   | 🔴 Research Now |
+| **Process supervision**           | No systemd/Docker/Supervisor config. On Windows, `Start-ThreadJob` is used in scripts, but crash recovery is manual.                    | 🟡 Defer        |
+| **Inter-sidecar communication**   | Go binaries communicate over HTTP/JSON with the Python backend. Could internalize some logic (e.g., VRAM checks) to reduce round-trips. | 🟢 Monitor      |
+| **Memory footprint**              | Go binaries are lightweight (~10-20MB each), but 5 × startup time adds up. No benchmark of total sidecar memory under load.             | 🟢 Monitor      |
 
 ### Suggested Research
 
@@ -176,13 +173,13 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
-| **Full-pipeline E2E test** | No test covers: upload audio → analyze → generate 3D → render → composite → export. Each piece is tested in isolation. | 🔴 Research Now |
-| **VRAM leak test** | `vram_manager.py` offloads/loads models, but no test verifies VRAM returns to baseline after a job. OOM risk on long sessions. | 🔴 Research Now |
-| **Audio/video quality metrics** | Tests check "file exists" but not "audio is in sync" or "video has no black frames". | 🟡 Defer |
-| **Playwright visual regression** | `vision-feedback` skill exists for manual screenshots, but no automated visual regression suite. | 🟡 Defer |
-| **Load test for queue** | `queue_manager` is serial by design. No test for 50+ queued jobs, or concurrent API requests during render. | 🟡 Defer |
+| Gap                              | Why It Matters                                                                                                                 | Recommendation  |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------- |
+| **Full-pipeline E2E test**       | No test covers: upload audio → analyze → generate 3D → render → composite → export. Each piece is tested in isolation.         | 🔴 Research Now |
+| **VRAM leak test**               | `vram_manager.py` offloads/loads models, but no test verifies VRAM returns to baseline after a job. OOM risk on long sessions. | 🔴 Research Now |
+| **Audio/video quality metrics**  | Tests check "file exists" but not "audio is in sync" or "video has no black frames".                                           | 🟡 Defer        |
+| **Playwright visual regression** | `vision-feedback` skill exists for manual screenshots, but no automated visual regression suite.                               | 🟡 Defer        |
+| **Load test for queue**          | `queue_manager` is serial by design. No test for 50+ queued jobs, or concurrent API requests during render.                    | 🟡 Defer        |
 
 ### Suggested Research
 
@@ -203,12 +200,12 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
-| **Docker containerization** | Current setup is deeply tied to Windows (PowerShell, `nvidia-smi`, CUDA paths). Docker would need Windows containers + GPU support. | 🟡 Defer |
-| **GitHub Actions CI** | No CI exists. Every commit is manually verified. Risk of regressions in audio/video pipeline. | 🟡 Defer |
-| **Windows service installation** | Go sidecars + backend + ComfyUI need to start on boot. No service wrapper exists. | 🟡 Defer |
-| **Update mechanism** | No auto-update for models, adapters, or the app itself. Manual git pull + pip install. | 🟢 Monitor |
+| Gap                              | Why It Matters                                                                                                                      | Recommendation |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **Docker containerization**      | Current setup is deeply tied to Windows (PowerShell, `nvidia-smi`, CUDA paths). Docker would need Windows containers + GPU support. | 🟡 Defer       |
+| **GitHub Actions CI**            | No CI exists. Every commit is manually verified. Risk of regressions in audio/video pipeline.                                       | 🟡 Defer       |
+| **Windows service installation** | Go sidecars + backend + ComfyUI need to start on boot. No service wrapper exists.                                                   | 🟡 Defer       |
+| **Update mechanism**             | No auto-update for models, adapters, or the app itself. Manual git pull + pip install.                                              | 🟢 Monitor     |
 
 ### Suggested Research
 
@@ -229,11 +226,11 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
-| **Full WCAG 2.2 audit** | Only contrast has been audited. Missing: keyboard navigation, screen reader labels, focus indicators, motion preferences. | 🟡 Defer |
-| **3D studio keyboard control** | Three.js Studio relies on mouse orbit. No keyboard alternative for camera movement or object selection. | 🟢 Monitor |
-| **Lyrics/karaoke a11y** | Lyric sync is visual-only. No captions track, no screen-reader announcements for active line. | 🟢 Monitor |
+| Gap                            | Why It Matters                                                                                                            | Recommendation |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **Full WCAG 2.2 audit**        | Only contrast has been audited. Missing: keyboard navigation, screen reader labels, focus indicators, motion preferences. | 🟡 Defer       |
+| **3D studio keyboard control** | Three.js Studio relies on mouse orbit. No keyboard alternative for camera movement or object selection.                   | 🟢 Monitor     |
+| **Lyrics/karaoke a11y**        | Lyric sync is visual-only. No captions track, no screen-reader announcements for active line.                             | 🟢 Monitor     |
 
 ### Suggested Research
 
@@ -253,12 +250,12 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
-| **TensorRT on Pascal** | TensorRT supports sm_61 up to TRT 8.6. Could accelerate Wan 2.2 and Hunyuan3D inference. No validation exists. | 🟡 Defer |
-| **ONNX Runtime GPU** | ONNX Runtime supports CUDA on Pascal. Could provide faster inference than raw PyTorch for some models. | 🟡 Defer |
-| **CPU offload tuning** | Current offload is binary (all Ollama to CPU). Research: partial offload (layers), memory pool sizing, `PYTORCH_CUDA_ALLOC_CONF` tuning. | 🟢 Monitor |
-| **NVENC/NVDEC utilization** | Video decode/encode could use hardware acceleration. Current FFmpeg calls may not auto-select NVENC on Windows. | 🟢 Monitor |
+| Gap                         | Why It Matters                                                                                                                           | Recommendation |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **TensorRT on Pascal**      | TensorRT supports sm_61 up to TRT 8.6. Could accelerate Wan 2.2 and Hunyuan3D inference. No validation exists.                           | 🟡 Defer       |
+| **ONNX Runtime GPU**        | ONNX Runtime supports CUDA on Pascal. Could provide faster inference than raw PyTorch for some models.                                   | 🟡 Defer       |
+| **CPU offload tuning**      | Current offload is binary (all Ollama to CPU). Research: partial offload (layers), memory pool sizing, `PYTORCH_CUDA_ALLOC_CONF` tuning. | 🟢 Monitor     |
+| **NVENC/NVDEC utilization** | Video decode/encode could use hardware acceleration. Current FFmpeg calls may not auto-select NVENC on Windows.                          | 🟢 Monitor     |
 
 ### Suggested Research
 
@@ -279,11 +276,11 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
-| **WhisperX forced alignment** | Current timestamps are word-level but not phoneme-level. Karaoke needs character/syllable timing for smooth karaoke highlight. | 🟡 Defer |
-| **Multi-language support** | Lyric safety scanner is English-only (`_INSTRUCTION_PATTERNS`, `_PRODUCTION_WORDS`). Suno v6 and Lyria support non-English lyrics. | 🟡 Defer |
-| **Remotion lyric renderer** | No Remotion component for karaoke-style timed lyrics. Could reuse `@remotion/captions` but it's designed for subtitles, not music lyrics. | 🟢 Monitor |
+| Gap                           | Why It Matters                                                                                                                            | Recommendation |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **WhisperX forced alignment** | Current timestamps are word-level but not phoneme-level. Karaoke needs character/syllable timing for smooth karaoke highlight.            | 🟡 Defer       |
+| **Multi-language support**    | Lyric safety scanner is English-only (`_INSTRUCTION_PATTERNS`, `_PRODUCTION_WORDS`). Suno v6 and Lyria support non-English lyrics.        | 🟡 Defer       |
+| **Remotion lyric renderer**   | No Remotion component for karaoke-style timed lyrics. Could reuse `@remotion/captions` but it's designed for subtitles, not music lyrics. | 🟢 Monitor     |
 
 ### Suggested Research
 
@@ -304,11 +301,11 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
-| **Storyboard → HyperFrames pipeline** | Storyboards are generated as JSON. No automated path converts storyboard scenes into HyperFrames HTML compositions. | 🟡 Defer |
-| **HyperFrames + Three.js** | `@remotion/three` exists but HyperFrames uses its own runtime adapter. Need to verify Three.js scene reuse. | 🟢 Monitor |
-| **Render farm fallback** | HyperFrames supports Lambda + Cloud Run. Could be the cloud fallback for Q2 when local GPU is saturated. | 🟡 Defer |
+| Gap                                   | Why It Matters                                                                                                      | Recommendation |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **Storyboard → HyperFrames pipeline** | Storyboards are generated as JSON. No automated path converts storyboard scenes into HyperFrames HTML compositions. | 🟡 Defer       |
+| **HyperFrames + Three.js**            | `@remotion/three` exists but HyperFrames uses its own runtime adapter. Need to verify Three.js scene reuse.         | 🟢 Monitor     |
+| **Render farm fallback**              | HyperFrames supports Lambda + Cloud Run. Could be the cloud fallback for Q2 when local GPU is saturated.            | 🟡 Defer       |
 
 ### Suggested Research
 
@@ -327,11 +324,11 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
-| **WebGPU audio analysis in browser** | Current audio analysis is Python-only (librosa). If WebGPU compute can run FFT/onset detection in the browser, the backend audio service becomes optional for preview. | 🟢 Monitor |
-| **WebGPU video encoding** | WebCodecs API exists but WebGPU video encoding is nascent. Could enable browser-side MP4 export without FFmpeg. | 🟢 Monitor |
-| **Pascal WebGPU support** | GTX 1070 Ti does NOT support WebGPU natively. Browser will fall back to WebGL2 or software. Research is only relevant for future GPU upgrades. | 🟢 Monitor |
+| Gap                                  | Why It Matters                                                                                                                                                         | Recommendation |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **WebGPU audio analysis in browser** | Current audio analysis is Python-only (librosa). If WebGPU compute can run FFT/onset detection in the browser, the backend audio service becomes optional for preview. | 🟢 Monitor     |
+| **WebGPU video encoding**            | WebCodecs API exists but WebGPU video encoding is nascent. Could enable browser-side MP4 export without FFmpeg.                                                        | 🟢 Monitor     |
+| **Pascal WebGPU support**            | GTX 1070 Ti does NOT support WebGPU natively. Browser will fall back to WebGL2 or software. Research is only relevant for future GPU upgrades.                         | 🟢 Monitor     |
 
 ### Suggested Research
 
@@ -351,11 +348,11 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
+| Gap                        | Why It Matters                                                                                                                                          | Recommendation  |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
 | **Agent prompt contracts** | Each MCP tool has a description, but no formal input/output contract. Agents sometimes invent invalid commands (see `unity_command` unknown filtering). | 🔴 Research Now |
-| **Multi-agent pipeline** | Current flow is single-agent sequential: analyze → generate → render. Could parallelize (analyze + 3D gen + prompt gen simultaneously). | 🟡 Defer |
-| **Vision feedback loop** | `vision-feedback` skill captures screenshots → Ollama → fixes. No structured schema for "what to look for" vs "what to fix". | 🟡 Defer |
+| **Multi-agent pipeline**   | Current flow is single-agent sequential: analyze → generate → render. Could parallelize (analyze + 3D gen + prompt gen simultaneously).                 | 🟡 Defer        |
+| **Vision feedback loop**   | `vision-feedback` skill captures screenshots → Ollama → fixes. No structured schema for "what to look for" vs "what to fix".                            | 🟡 Defer        |
 
 ### Suggested Research
 
@@ -376,11 +373,11 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
-| **SQLite scaling** | Serial queue + SQLite works for 1-user local dev. If the app ever gets multi-user, SQLite becomes a bottleneck. | 🟢 Monitor |
-| **Benchmark data analysis** | `output/ollama-benchmarks.json` + `hardware_benchmark` runs are stored but never aggregated. No dashboard for "which model is fastest on this hardware". | 🟡 Defer |
-| **Log retention policy** | `output/logs/` grows unbounded. No rotation, no retention policy. | 🟡 Defer |
+| Gap                         | Why It Matters                                                                                                                                           | Recommendation |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **SQLite scaling**          | Serial queue + SQLite works for 1-user local dev. If the app ever gets multi-user, SQLite becomes a bottleneck.                                          | 🟢 Monitor     |
+| **Benchmark data analysis** | `output/ollama-benchmarks.json` + `hardware_benchmark` runs are stored but never aggregated. No dashboard for "which model is fastest on this hardware". | 🟡 Defer       |
+| **Log retention policy**    | `output/logs/` grows unbounded. No rotation, no retention policy.                                                                                        | 🟡 Defer       |
 
 ### Suggested Research
 
@@ -401,11 +398,11 @@ date: 2026-09-24
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|-----|---------------|----------------|
-| **Stale doc detection** | `docs/knowledge/three-js-studio.md` was compiled 2026-09-15 but the code has evolved. No process to flag stale docs. | 🟡 Defer |
-| **Cross-reference rot** | Wiki-links like `[[video-generation-vram-2026]]` may break if files are renamed. No link checker exists. | 🟢 Monitor |
-| **Research → implementation gap** | `docs/plans/q2-auto-fallback.md` is approved but not implemented. Other approved plans may exist. | 🔴 Research Now |
+| Gap                               | Why It Matters                                                                                                       | Recommendation  |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------- |
+| **Stale doc detection**           | `docs/knowledge/three-js-studio.md` was compiled 2026-09-15 but the code has evolved. No process to flag stale docs. | 🟡 Defer        |
+| **Cross-reference rot**           | Wiki-links like `[[video-generation-vram-2026]]` may break if files are renamed. No link checker exists.             | 🟢 Monitor      |
+| **Research → implementation gap** | `docs/plans/q2-auto-fallback.md` is approved but not implemented. Other approved plans may exist.                    | 🔴 Research Now |
 
 ### Suggested Research
 
@@ -416,19 +413,19 @@ date: 2026-09-24
 
 ## Prioritized Research Backlog
 
-| Priority | Item | Owner | Effort | Impact |
-|----------|------|-------|--------|--------|
-| P0 | Wan 2.2 red-pattern root cause (Q3) | Backend | 2-4h | Blocks all video gen |
-| P0 | Agent MCP tool contracts | Fullstack | 4-8h | ✅ Published mcp-contracts-2026.md |
-| P1 | Full-pipeline E2E test | Fullstack | 4-8h | ✅ P1a Playwright smoke unblocked (MIME fix); 13/13 health+pipeline tests pass |
-| P1 | VRAM leak test | Backend | 2-4h | ✅ 3 baseline/leak tests added; 9/9 pass |
-| P1 | Video model sweep (LTX, Mochi) | Backend | 4-8h | Requires GPU test runs |
-| P2 | Go sidecar consolidation analysis | Backend | 4-6h | Reduces ops burden |
-| P2 | Benchmark dashboard | Frontend | 4-8h | Improves UX |
-| P2 | WhisperX alignment test | Backend | 2-4h | Better karaoke |
-| P3 | Vite 8 / Rolldown benchmark | Frontend | 2-4h | Build speed |
-| P3 | WebGPU smoke test | Frontend | 2-4h | Future-proofing |
-| P3 | Docker feasibility | DevOps | 4-8h | Deployment |
+| Priority | Item                                | Owner     | Effort | Impact                                                                         |
+| -------- | ----------------------------------- | --------- | ------ | ------------------------------------------------------------------------------ |
+| P0       | Wan 2.2 red-pattern root cause (Q3) | Backend   | 2-4h   | Blocks all video gen                                                           |
+| P0       | Agent MCP tool contracts            | Fullstack | 4-8h   | ✅ Published mcp-contracts-2026.md                                             |
+| P1       | Full-pipeline E2E test              | Fullstack | 4-8h   | ✅ P1a Playwright smoke unblocked (MIME fix); 13/13 health+pipeline tests pass |
+| P1       | VRAM leak test                      | Backend   | 2-4h   | ✅ 3 baseline/leak tests added; 9/9 pass                                       |
+| P1       | Video model sweep (LTX, Mochi)      | Backend   | 4-8h   | Requires GPU test runs                                                         |
+| P2       | Go sidecar consolidation analysis   | Backend   | 4-6h   | Reduces ops burden                                                             |
+| P2       | Benchmark dashboard                 | Frontend  | 4-8h   | Improves UX                                                                    |
+| P2       | WhisperX alignment test             | Backend   | 2-4h   | Better karaoke                                                                 |
+| P3       | Vite 8 / Rolldown benchmark         | Frontend  | 2-4h   | Build speed                                                                    |
+| P3       | WebGPU smoke test                   | Frontend  | 2-4h   | Future-proofing                                                                |
+| P3       | Docker feasibility                  | DevOps    | 4-8h   | Deployment                                                                     |
 
 ---
 
@@ -443,4 +440,4 @@ date: 2026-09-24
 
 ---
 
-*Last updated: 2026-09-24*
+_Last updated: 2026-09-24_

@@ -1,22 +1,18 @@
 ---
 tags:
+  - creative
   - visualization
-  - 3d-rendering
   - webgpu
-  - tsl
-  - particles
-  - shaders
-  - post-processing
-  - audio-reactive
-  - effects
+  - 3d
+  - audio
 aliases:
   - Visualization Effects Guide
   - Visual Effects Library
   - 3D Effects Compendium
 cssclasses:
-  - technical-guide
+  - creative-guide
   - effects-library
-date: 2026-08-29
+date: 2026-09-29
 research_date: 2026-08-29
 sources: 15
 ---
@@ -27,6 +23,7 @@ sources: 15
 > Expanded knowledge base for real-time visualization effects — WebGPU/TSL, particle systems, shaders, post-processing, volumetric rendering, and audio-reactive mappings. Synthesizes 15+ sources from Three.js r185, Blender 5.2 LTS, and open-source VJ engines (Phosphor/Fosfora, Sythm, Dalia, LYRA, Bytewave).
 
 > [!tip] Companion Docs
+>
 > - [[3d-rendering|🧊 3D Rendering]] — GPU/CUDA/Blender pipeline
 > - [[three-js-studio|🌐 Three.js Studio]] — Browser studio implementation
 > - [[../knowledge/audio-visualization-techniques-2026|Audio Visualization Techniques]]
@@ -36,15 +33,15 @@ sources: 15
 
 ## TL;DR — What's New in 2026
 
-| Shift | Before (2024) | Now (2026) | Why It Matters |
-|-------|---------------|------------|----------------|
-| **Renderer** | `WebGLRenderer` default | **`WebGPURenderer`** recommended (r171+), `three/webgpu` import | ~95% browser coverage (Baseline Jan 2026), auto WebGL2 fallback |
-| **Shaders** | Raw GLSL strings, `onBeforeCompile` | **TSL (Three Shading Language)** — JS nodes → WGSL/GLSL | Type-safe, IDE autocomplete, single codebase for both backends |
-| **Particles** | CPU → buffer upload, ~50k ceiling | **Compute shaders + `StorageBufferAttribute`** — 100k in <2ms, 1M+ achievable | Zero-copy VRAM, GPU-only simulation |
-| **Post-processing** | `EffectComposer` passes | **`RenderPipeline` node stack** — MRT, auto pass merging, SSGI/SSS/DoF | 2x faster, new effects exclusive to WebGPU |
-| **Lighting** | Forward, limited dynamic lights | **Clustered (Forward+) lighting** | Hundreds of lights without draw-call cliff |
-| **Blender** | EEVEE Legacy | **EEVEE Next (Blender 4.2+) → 5.2 LTS** — per-BSDF raytracing, Fast GI, 2x instancing perf | Real-time ray-traced reflections/GI |
-| **3D Capture** | Meshes only | **Gaussian Splatting / 3DGS + NeRF** native in Blender/Three.js | Photoreal scans as renderable primitives |
+| Shift               | Before (2024)                       | Now (2026)                                                                                 | Why It Matters                                                  |
+| ------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| **Renderer**        | `WebGLRenderer` default             | **`WebGPURenderer`** recommended (r171+), `three/webgpu` import                            | ~95% browser coverage (Baseline Jan 2026), auto WebGL2 fallback |
+| **Shaders**         | Raw GLSL strings, `onBeforeCompile` | **TSL (Three Shading Language)** — JS nodes → WGSL/GLSL                                    | Type-safe, IDE autocomplete, single codebase for both backends  |
+| **Particles**       | CPU → buffer upload, ~50k ceiling   | **Compute shaders + `StorageBufferAttribute`** — 100k in <2ms, 1M+ achievable              | Zero-copy VRAM, GPU-only simulation                             |
+| **Post-processing** | `EffectComposer` passes             | **`RenderPipeline` node stack** — MRT, auto pass merging, SSGI/SSS/DoF                     | 2x faster, new effects exclusive to WebGPU                      |
+| **Lighting**        | Forward, limited dynamic lights     | **Clustered (Forward+) lighting**                                                          | Hundreds of lights without draw-call cliff                      |
+| **Blender**         | EEVEE Legacy                        | **EEVEE Next (Blender 4.2+) → 5.2 LTS** — per-BSDF raytracing, Fast GI, 2x instancing perf | Real-time ray-traced reflections/GI                             |
+| **3D Capture**      | Meshes only                         | **Gaussian Splatting / 3DGS + NeRF** native in Blender/Three.js                            | Photoreal scans as renderable primitives                        |
 
 ---
 
@@ -71,7 +68,7 @@ import { WebGPURenderer } from 'three/webgpu';
 
 - **No GLSL shim**: `ShaderMaterial` / `RawShaderMaterial` / `onBeforeCompile` do NOT run under WebGPURenderer. Port to TSL `Fn()` nodes.
 - **`EffectComposer` is dead**: replaced by `RenderPipeline` node composition. Bloom, SSAO, DoF all have faster TSL node equivalents + new **SSGI, SSS, better DoF** exclusive to WebGPU.
-- **KTX2 black-texture bug**: Call `KTX2Loader.detectSupport(renderer)` *after* `await renderer.init()` — before = silent black/magenta meshes (most common 2026 forum report).
+- **KTX2 black-texture bug**: Call `KTX2Loader.detectSupport(renderer)` _after_ `await renderer.init()` — before = silent black/magenta meshes (most common 2026 forum report).
 - **VideoTexture wiring**: Must go through `THREE.TextureNode` explicitly.
 - **Fallback is automatic**: `forceWebGL: true` only for debugging; otherwise `three/webgpu` import bundles fallback.
 
@@ -80,7 +77,7 @@ import { WebGPURenderer } from 'three/webgpu';
 Node-based, JS-functional language — compiles to **WGSL** (WebGPU) and **GLSL** (WebGL2 fallback).
 
 ```ts
-import { uniform, positionLocal, texture, Fn, vec3, float } from 'three/tsl';
+import { uniform, positionLocal, texture, Fn, vec3, float } from "three/tsl";
 
 // Uniform — CPU → GPU live control
 const uTime = uniform(0);
@@ -96,24 +93,25 @@ positionLocal.add(instancePosition.mul(uTime));
 ```
 
 **Why TSL wins** (Field Guide to TSL — Maxime Heckel):
+
 - Single codebase runs on both backends
 - JS stack traces instead of vendor-specific shader compile errors
 - `uniform()` hot-reloadable from React/JS without recompile
 - Composable — no copy-pasted GLSL strings
 
 > [!warning] Mixed imports cost MB
-> Never `import * as THREE from 'three'` alongside `from 'three/webgpu'` — bundles *entire* WebGL codebase twice.
+> Never `import * as THREE from 'three'` alongside `from 'three/webgpu'` — bundles _entire_ WebGL codebase twice.
 
 ### 1.3 Compute Shaders — The 100k→1M Particle Breakthrough
 
-**The bottleneck WebGPU solves**: WebGL updates particles on CPU every frame → buffer upload. WebGPU runs the simulation *entirely in VRAM*.
+**The bottleneck WebGPU solves**: WebGL updates particles on CPU every frame → buffer upload. WebGPU runs the simulation _entirely in VRAM_.
 
-| Pattern | WebGL | WebGPU Compute |
-|---------|-------|----------------|
+| Pattern         | WebGL                            | WebGPU Compute                                  |
+| --------------- | -------------------------------- | ----------------------------------------------- |
 | Position update | CPU for-loop, `needsUpdate=true` | `StorageBufferAttribute` + `renderer.compute()` |
-| 100k particles | ~30ms/frame (stutters) | **<2ms** (mid-range GPU) |
-| 1M particles | impossible | achievable with workgroup tuning |
-| CPU involvement | per-frame copy | one dispatch command |
+| 100k particles  | ~30ms/frame (stutters)           | **<2ms** (mid-range GPU)                        |
+| 1M particles    | impossible                       | achievable with workgroup tuning                |
+| CPU involvement | per-frame copy                   | one dispatch command                            |
 
 **Minimal GPGPU particle loop** (from [devcheolu benchmark](https://devcheolu.com/en/posts/nB4Goj6nteClAWsInhtX)):
 
@@ -131,10 +129,11 @@ const computeParticles = Fn(() => {
 
 // 3. In useFrame — GPU updates, then renders, no CPU copy
 renderer.compute(computeParticles);
-mesh.geometry.setAttribute('position', positions);
+mesh.geometry.setAttribute("position", positions);
 ```
 
 **Rules**:
+
 - Workgroup size **256–512** (check `device.limits.maxComputeInvocationsPerWorkgroup`)
 - Never call `geometry.attributes.position.needsUpdate = true` in compute path — kills zero-copy
 - `instancedArray` for instanced meshes (grid/particle spawn on GPU)
@@ -146,13 +145,13 @@ mesh.geometry.setAttribute('position', positions);
 
 ### 2.1 Procedural Noise & Fields
 
-| Technique | Use | Cost | TSL Snippet |
-|-----------|-----|------|-------------|
-| **Simplex / Perlin 3D** | Terrain, cloud drift | ~50 instr (1 octave) → ~500 (8 octaves) | `noise(positionLocal.mul(2))` |
-| **FBM (Fractal Brownian)** | Fluid, drift smoke | detail slider = octaves; halve for mobile | `fbm(pos, octaves: 4)` |
-| **Curl Noise** | Vortex, particle turbulence | divergence-free → space-filling | `curlNoise(pos).mul(audioLow)` |
-| **SDF + Raymarching** | Bubbles, coral reef, molten cracks | per-pixel, use for focal objects | `sdSphere(p, r)` → `raymarch(ro, rd)` |
-| **Domain Warp** | Aurora curtains, drift FBM fluid | triple-warped FBM | `fbm(pos.add(fbm(pos)))` |
+| Technique                  | Use                                | Cost                                      | TSL Snippet                           |
+| -------------------------- | ---------------------------------- | ----------------------------------------- | ------------------------------------- |
+| **Simplex / Perlin 3D**    | Terrain, cloud drift               | ~50 instr (1 octave) → ~500 (8 octaves)   | `noise(positionLocal.mul(2))`         |
+| **FBM (Fractal Brownian)** | Fluid, drift smoke                 | detail slider = octaves; halve for mobile | `fbm(pos, octaves: 4)`                |
+| **Curl Noise**             | Vortex, particle turbulence        | divergence-free → space-filling           | `curlNoise(pos).mul(audioLow)`        |
+| **SDF + Raymarching**      | Bubbles, coral reef, molten cracks | per-pixel, use for focal objects          | `sdSphere(p, r)` → `raymarch(ro, rd)` |
+| **Domain Warp**            | Aurora curtains, drift FBM fluid   | triple-warped FBM                         | `fbm(pos.add(fbm(pos)))`              |
 
 > [!tip] Slider-live constraint (from [Geometry Painter](https://tympanus.net/codrops/2026/08/11/exploring-procedural-geometry-with-three-js-and-webgpu/))
 > Dragging a density slider must **never allocate**. Pre-zero instanced buffers, hide unused instances with zero-scale matrix — keeps draw call constant at 2000 instances even when slider says 20.
@@ -196,12 +195,12 @@ const dispersed = positionLocal.add(noise(positionLocal).mul(uDisperse));
 
 Four production shaders from Chiro Visuals' Geometry Painter (WebGPU + BVH picking):
 
-| Mode | Material | Key Params | Post Chain |
-|------|----------|------------|------------|
-| **Crystal veins** | Transmissive quartz (`transmission`, `ior 1.45`) | density, length, jitter | Studio 6-rectangle light + bloom |
-| **Molten cracks** | Blackbody ribbon (`temperature → color`) | crack width, emissive intensity | Bloom threshold 0.9 |
-| **Aurora silk** | Fold-locked silk, world-space wave | fold count, wave speed | Soft volumetric fog |
-| **Bioluminescent reef** | World-space wave, emissive pulse | growth easing (`easeOutBack`), wave phase | Bloom + vignette |
+| Mode                    | Material                                         | Key Params                                | Post Chain                       |
+| ----------------------- | ------------------------------------------------ | ----------------------------------------- | -------------------------------- |
+| **Crystal veins**       | Transmissive quartz (`transmission`, `ior 1.45`) | density, length, jitter                   | Studio 6-rectangle light + bloom |
+| **Molten cracks**       | Blackbody ribbon (`temperature → color`)         | crack width, emissive intensity           | Bloom threshold 0.9              |
+| **Aurora silk**         | Fold-locked silk, world-space wave               | fold count, wave speed                    | Soft volumetric fog              |
+| **Bioluminescent reef** | World-space wave, emissive pulse                 | growth easing (`easeOutBack`), wave phase | Bloom + vignette                 |
 
 All use **BVH-accelerated picking** (`three-mesh-bvh`) to convert drag → world-space path, fixed random per-instance seeds for stable variation.
 
@@ -215,7 +214,7 @@ All use **BVH-accelerated picking** (`three-mesh-bvh`) to convert drag → world
 
 ```ts
 // WebGPURenderer pipeline — TSL nodes
-import { bloom, ssao, dof, ssgi, sss } from 'three/webgpu';
+import { bloom, ssao, dof, ssgi, sss } from "three/webgpu";
 
 const pipeline = new THREE.RenderPipeline(renderer);
 pipeline.add(bloom({ strength: 0.6, radius: 0.4, threshold: 0.85 }));
@@ -224,17 +223,18 @@ pipeline.add(dof({ focus: 2.5, aperture: 0.02 })); // new WebGPU DoF
 // sss = subsurface scattering (skin/wax), ssgi = screen-space GI
 ```
 
-| Effect | What It Does | Audio-Reactive Hook |
-|--------|--------------|---------------------|
-| **Bloom** (`strength/radius/threshold`) | Emissive bleed, dreamy atmosphere | `strength = lerp(0.4, 1.2, bass)` |
-| **SSGI / Fast GI** | Screen-space indirect lighting | bake on chorus, disable on verse for perf |
-| **SSAO / GTAO** | Contact shadows, depth grounding | static; enable always |
-| **DoF** | Focus pull on beat | `focus = beat ? subjectDist : bgDist` |
-| **Chromatic Aberration** | RGB split on transient | `amount = treble * 0.02` |
-| **Vignette + Film Grain** | Cinematic framing | `grain = energy * 0.1`, vignette constant |
-| **Feedback / Trails** | Previous-frame blend (drift, iris) | `feedbackOpacity = 0.92 + energy*0.06` |
+| Effect                                  | What It Does                       | Audio-Reactive Hook                       |
+| --------------------------------------- | ---------------------------------- | ----------------------------------------- |
+| **Bloom** (`strength/radius/threshold`) | Emissive bleed, dreamy atmosphere  | `strength = lerp(0.4, 1.2, bass)`         |
+| **SSGI / Fast GI**                      | Screen-space indirect lighting     | bake on chorus, disable on verse for perf |
+| **SSAO / GTAO**                         | Contact shadows, depth grounding   | static; enable always                     |
+| **DoF**                                 | Focus pull on beat                 | `focus = beat ? subjectDist : bgDist`     |
+| **Chromatic Aberration**                | RGB split on transient             | `amount = treble * 0.02`                  |
+| **Vignette + Film Grain**               | Cinematic framing                  | `grain = energy * 0.1`, vignette constant |
+| **Feedback / Trails**                   | Previous-frame blend (drift, iris) | `feedbackOpacity = 0.92 + energy*0.06`    |
 
 > [!warning] Gotchas
+>
 > - Points = 1px under WebGPU backend — embers/plankton must be **instanced quads** with radial sprite, not `PointsMaterial`
 > - Line width ignored — bead-chain `InstancedMesh` of spheres for trails
 > - `MotionBlur` needs per-eye history separation for stereo (see Sythm)
@@ -253,13 +253,13 @@ WebGPU path: StorageBufferAttribute (VRAM) ← compute shader (GPU) ← render (
 
 ### 4.2 Production Tiers (tested 2026)
 
-| Tier | Count | Technique | GPU Target | Example |
-|------|-------|-----------|------------|---------|
-| **Light** | 1–10k | `Points` + TSL vertex displacement | Mobile / iGPU | Three-JS-Music-Visualiser circles |
-| **Mid** | 8–50k | Instanced quads + curl noise | Laptop (GTX 1060) | Bytewave Galaxy 12k, Particles 8k |
-| **Heavy** | 100k | Compute GPGPU, StorageBuffer | Mid-range desktop | devcheolu benchmark <2ms |
-| **Extreme** | 250k–1M | Compute + indirect draw, zero-copy interop | RTX 3070+ | LYRA 1M tier, Sythm tens of millions |
-| **Insane** | 10M+ | CUDA + OpenGL zero-copy interop, ring buffer trails | RTX 4090 | Sythm ballistic trail emission |
+| Tier        | Count   | Technique                                           | GPU Target        | Example                              |
+| ----------- | ------- | --------------------------------------------------- | ----------------- | ------------------------------------ |
+| **Light**   | 1–10k   | `Points` + TSL vertex displacement                  | Mobile / iGPU     | Three-JS-Music-Visualiser circles    |
+| **Mid**     | 8–50k   | Instanced quads + curl noise                        | Laptop (GTX 1060) | Bytewave Galaxy 12k, Particles 8k    |
+| **Heavy**   | 100k    | Compute GPGPU, StorageBuffer                        | Mid-range desktop | devcheolu benchmark <2ms             |
+| **Extreme** | 250k–1M | Compute + indirect draw, zero-copy interop          | RTX 3070+         | LYRA 1M tier, Sythm tens of millions |
+| **Insane**  | 10M+    | CUDA + OpenGL zero-copy interop, ring buffer trails | RTX 4090          | Sythm ballistic trail emission       |
 
 ### 4.3 Advanced Forces (from Sythm — Lorenz + ABC Flow)
 
@@ -311,44 +311,47 @@ Use `AnalyserNode(fftSize=2048, smoothing 0.8)` + exponential moving average in 
 
 ### 5.2 Feature Spectrum (2026 State of Art)
 
-| Feature | Engine | What It Drives |
-|---------|--------|----------------|
-| **7-band + 13 MFCC + 12 chroma** | Phosphor/Fosfora (Rust audio) | Timbre → palette, pitch → hue |
-| **Per-drum onsets** (kick/snare/hat separate) | Sythm (spectral flux) | Distinct gestures per voice |
-| **Predictive tempo & phase** (adaptive oscillator) | Sythm | Visuals *anticipate* downbeat, not just react |
-| **Phrase cues** (build/drop), **key & mode** | Sythm | Major/minor color, build→drop bloom |
-| **512-bin log-spaced spectrum in VRAM** | Sythm | Zero-copy, GPU-side viz |
-| **BPM + beat phase + lookahead energy** | Dalia (Rust/WASM) | Beat-locked preset switching, drop prediction |
-| **Chromagram → harmonic hue** | Dalia | Key-derived HSL palettes |
-| **Bass sustain + drop prediction** | Dalia mashup | Smoothstep-blended preset morph |
+| Feature                                            | Engine                        | What It Drives                                |
+| -------------------------------------------------- | ----------------------------- | --------------------------------------------- |
+| **7-band + 13 MFCC + 12 chroma**                   | Phosphor/Fosfora (Rust audio) | Timbre → palette, pitch → hue                 |
+| **Per-drum onsets** (kick/snare/hat separate)      | Sythm (spectral flux)         | Distinct gestures per voice                   |
+| **Predictive tempo & phase** (adaptive oscillator) | Sythm                         | Visuals _anticipate_ downbeat, not just react |
+| **Phrase cues** (build/drop), **key & mode**       | Sythm                         | Major/minor color, build→drop bloom           |
+| **512-bin log-spaced spectrum in VRAM**            | Sythm                         | Zero-copy, GPU-side viz                       |
+| **BPM + beat phase + lookahead energy**            | Dalia (Rust/WASM)             | Beat-locked preset switching, drop prediction |
+| **Chromagram → harmonic hue**                      | Dalia                         | Key-derived HSL palettes                      |
+| **Bass sustain + drop prediction**                 | Dalia mashup                  | Smoothstep-blended preset morph               |
 
 ### 5.3 Mapping Patterns
 
 **Vortex (zazieproductions/vortex-av-engine)**:
+
 - Bass → inner core expansion
 - Mid → wireframe polyhedron deformation
 - Treble transients → surrounding particle dispersion
 
 **Phase-Viz** (MIT, React+TSL):
+
 - Multiple visual layers, adjustable order
 - Mesh deformation = amplitude, particles = frequency
 
 **Vertex Displacement** (Audio-visualizer-3d, 20 shapes):
+
 - Each vertex ↔ frequency bin, displacement = amplitude, color cool→warm by displacement
 
 ### 5.4 Genre → Visual System (expanded from audio-visualization research)
 
-| Genre | Motion | Palette | Light | Particle | Camera |
-|-------|--------|---------|-------|----------|--------|
-| **EDM** | Aggressive geometric, light trails | Luminous saturated, neon | Harsh + bloom | Dense, fast | Orbit/handheld fast |
-| **Hip-Hop** | Character-led, graphic accents | Bold high-contrast | Hard spot + fill | Beat bursts | Static → quick cut |
-| **Rock** | Texture, stage energy | Grain, distorted | Warm spot, haze | Debris, sparks | Fast cuts, handheld |
-| **Indie** | Cinematic slow, landscapes | Soft film, AgX | Soft diffused | Sparse dust | Slow dolly |
-| **Ambient** | Slow abstract, terrain drift | Muted gradual | Low ambient | Floating, long-loop | Locked |
-| **Lo-Fi** | Gentle illustrated loops | Warm cozy | Warm high ambient | Soft motes | Recurring motif |
-| **R&B** | Minimal polished | Elegant reflective | Reflective floor | Subtle motes | Smooth dolly-in |
-| **Pop** | Performance + glossy color | Bold, chorus hue-shift | Chorus light change | Chorus burst | Chorus orbit |
-| **Trap/Metal** | Shockwave + shear | Dark → flash on drop | Flash on transient | Spherical shockwave | Shake on kick |
+| Genre          | Motion                             | Palette                  | Light               | Particle            | Camera              |
+| -------------- | ---------------------------------- | ------------------------ | ------------------- | ------------------- | ------------------- |
+| **EDM**        | Aggressive geometric, light trails | Luminous saturated, neon | Harsh + bloom       | Dense, fast         | Orbit/handheld fast |
+| **Hip-Hop**    | Character-led, graphic accents     | Bold high-contrast       | Hard spot + fill    | Beat bursts         | Static → quick cut  |
+| **Rock**       | Texture, stage energy              | Grain, distorted         | Warm spot, haze     | Debris, sparks      | Fast cuts, handheld |
+| **Indie**      | Cinematic slow, landscapes         | Soft film, AgX           | Soft diffused       | Sparse dust         | Slow dolly          |
+| **Ambient**    | Slow abstract, terrain drift       | Muted gradual            | Low ambient         | Floating, long-loop | Locked              |
+| **Lo-Fi**      | Gentle illustrated loops           | Warm cozy                | Warm high ambient   | Soft motes          | Recurring motif     |
+| **R&B**        | Minimal polished                   | Elegant reflective       | Reflective floor    | Subtle motes        | Smooth dolly-in     |
+| **Pop**        | Performance + glossy color         | Bold, chorus hue-shift   | Chorus light change | Chorus burst        | Chorus orbit        |
+| **Trap/Metal** | Shockwave + shear                  | Dark → flash on drop     | Flash on transient  | Spherical shockwave | Shake on kick       |
 
 ---
 
@@ -372,17 +375,17 @@ Final frames     → Cycles (path-traced, OptiX denoise) → ground truth
 Comp             → AOVs + bloom/DoF in compositor (often faster than in-render)
 ```
 
-| Criterion | EEVEE Next | Cycles |
-|-----------|------------|--------|
-| Speed | Seconds/frame | Minutes/frame |
-| Light | Approximate, per-BSDF raytrace | Physically correct GI |
-| Caustics | Screen-space only | True focused light (glass/water) |
-| Volumetrics | Fast, some trade-offs | Accurate scattering |
-| Shadows | Ray-traced soft, excellent | Most accurate, fine contact |
-| Reflections | Ray-traced + screen fallback | True all angles |
-| VRAM | Moderate, mid-range friendly | High, scales with GPU |
+| Criterion   | EEVEE Next                     | Cycles                           |
+| ----------- | ------------------------------ | -------------------------------- |
+| Speed       | Seconds/frame                  | Minutes/frame                    |
+| Light       | Approximate, per-BSDF raytrace | Physically correct GI            |
+| Caustics    | Screen-space only              | True focused light (glass/water) |
+| Volumetrics | Fast, some trade-offs          | Accurate scattering              |
+| Shadows     | Ray-traced soft, excellent     | Most accurate, fine contact      |
+| Reflections | Ray-traced + screen fallback   | True all angles                  |
+| VRAM        | Moderate, mid-range friendly   | High, scales with GPU            |
 
-> [!tip] EEVEE sweet spot: no glass/caustics/off-screen mirrors/extreme DoF → EEVEE *is* the final engine, not just previz.
+> [!tip] EEVEE sweet spot: no glass/caustics/off-screen mirrors/extreme DoF → EEVEE _is_ the final engine, not just previz.
 
 ### 6.3 Shader Performance in EEVEE
 
@@ -407,21 +410,22 @@ From Blender Artists 2026 profiling:
 
 ## 8. Performance Targets & Budgeting
 
-| Metric | Target | How |
-|--------|--------|-----|
-| **Draw calls** | <100/frame | `InstancedMesh` early, group hierarchy, merge by distance |
-| **FPS** | 60 locked | <16ms frame budget; profile with `renderer.info`, `stats-gl`, Spector.js |
-| **Particles** | budget by tier (see §4.2) | compute shaders for >50k |
-| **Textures** | Draco + KTX2 via `gltf-transform` | negotiated transcode after `renderer.init()` |
-| **Memory** | traversal dispose on removal | `geometry.dispose()` + `material.dispose()` per mesh |
-| **Resize** | observer + DPR cap (1.5–2.0) | render-on-demand for static scenes |
+| Metric         | Target                            | How                                                                      |
+| -------------- | --------------------------------- | ------------------------------------------------------------------------ |
+| **Draw calls** | <100/frame                        | `InstancedMesh` early, group hierarchy, merge by distance                |
+| **FPS**        | 60 locked                         | <16ms frame budget; profile with `renderer.info`, `stats-gl`, Spector.js |
+| **Particles**  | budget by tier (see §4.2)         | compute shaders for >50k                                                 |
+| **Textures**   | Draco + KTX2 via `gltf-transform` | negotiated transcode after `renderer.init()`                             |
+| **Memory**     | traversal dispose on removal      | `geometry.dispose()` + `material.dispose()` per mesh                     |
+| **Resize**     | observer + DPR cap (1.5–2.0)      | render-on-demand for static scenes                                       |
 
 ```ts
 // Dispose pattern (WebGPURenderer)
 object.traverse((child) => {
   if (child instanceof THREE.Mesh) {
     child.geometry.dispose();
-    if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+    if (Array.isArray(child.material))
+      child.material.forEach((m) => m.dispose());
     else child.material.dispose();
   }
 });
@@ -431,15 +435,15 @@ object.traverse((child) => {
 
 ## 9. Open-Source Effect Engines (Recyclable — MIT)
 
-| Engine | Stack | Hook | Why Look |
-|--------|-------|------|----------|
-| **[phase-viz](https://github.com/7g3n/phase-viz)** | React+TS+Three.js, Zustand, WebCodecs MP4 export | 3D/particle/waveform/image FX, layer order | Full editor → deterministic export; educational starter at [web-audio-threejs-starter](https://github.com/7g3n/web-audio-threejs-starter) |
-| **[Bytewave-coder/music-visualizer](https://github.com/Bytewave-coder/music-visualizer)** | Next 14 + R3F + Zustand + postprocessing | 10 modes (galaxy/blackHole/neonTunnel…) | Clean mode architecture, Zustand viz store |
-| **[LYRA](https://github.com/ShrezesUverse/LYRA-Music-Visualizer)** | Electron + three r184 WebGPU+TSL, AudioWorklet spectral flux | 1M GPU particles, system-audio loopback, album-color recolor | Tiered quality (250/500/1000k), OBS transparent source |
-| **[Fosfora/Phosphor](https://github.com/kevinraymond/fosfora)** | Rust+wgpu (Vulkan/Metal), WGSL, NDI | 42 effects, 8-layer blend, 74 audio features | Most complete VJ engine; edit WGSL live, hot-reload |
-| **[Sythm](https://github.com/5ymph0en1x/Sythm)** | Python+CUDA+moderngl, CuPy zero-copy | ABC+Lorenz field, shockwaves, stereoscopic 3D | Research-grade audio features, VRAM-capped particles |
-| **[Dalia](https://github.com/TheAdkk/dalia)** | Rust/WASM + Three.js | 20 procedural presets, chromagram harmony, mashup | WASM audio → Three.js, beat-locked morph |
-| **[Prism](https://github.com/Tensor-Doc/prism)** | WebGL2 + butterchurn/Milkdrop + particle atlas | Stream-graph JSON, curl-noise flow | Prompt → graph via Gemini, 65k instanced sprites |
+| Engine                                                                                    | Stack                                                        | Hook                                                         | Why Look                                                                                                                                  |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **[phase-viz](https://github.com/7g3n/phase-viz)**                                        | React+TS+Three.js, Zustand, WebCodecs MP4 export             | 3D/particle/waveform/image FX, layer order                   | Full editor → deterministic export; educational starter at [web-audio-threejs-starter](https://github.com/7g3n/web-audio-threejs-starter) |
+| **[Bytewave-coder/music-visualizer](https://github.com/Bytewave-coder/music-visualizer)** | Next 14 + R3F + Zustand + postprocessing                     | 10 modes (galaxy/blackHole/neonTunnel…)                      | Clean mode architecture, Zustand viz store                                                                                                |
+| **[LYRA](https://github.com/ShrezesUverse/LYRA-Music-Visualizer)**                        | Electron + three r184 WebGPU+TSL, AudioWorklet spectral flux | 1M GPU particles, system-audio loopback, album-color recolor | Tiered quality (250/500/1000k), OBS transparent source                                                                                    |
+| **[Fosfora/Phosphor](https://github.com/kevinraymond/fosfora)**                           | Rust+wgpu (Vulkan/Metal), WGSL, NDI                          | 42 effects, 8-layer blend, 74 audio features                 | Most complete VJ engine; edit WGSL live, hot-reload                                                                                       |
+| **[Sythm](https://github.com/5ymph0en1x/Sythm)**                                          | Python+CUDA+moderngl, CuPy zero-copy                         | ABC+Lorenz field, shockwaves, stereoscopic 3D                | Research-grade audio features, VRAM-capped particles                                                                                      |
+| **[Dalia](https://github.com/TheAdkk/dalia)**                                             | Rust/WASM + Three.js                                         | 20 procedural presets, chromagram harmony, mashup            | WASM audio → Three.js, beat-locked morph                                                                                                  |
+| **[Prism](https://github.com/Tensor-Doc/prism)**                                          | WebGL2 + butterchurn/Milkdrop + particle atlas               | Stream-graph JSON, curl-noise flow                           | Prompt → graph via Gemini, 65k instanced sprites                                                                                          |
 
 ---
 
@@ -489,5 +493,4 @@ For `packages/frontend` / `three-js-studio` in this repo:
 
 ---
 
-*Last updated: 2026-08-29 — WebGPU Baseline, TSL compute, Blender 5.2 LTS, 8 open-source engines*
-
+_Last updated: 2026-08-29 — WebGPU Baseline, TSL compute, Blender 5.2 LTS, 8 open-source engines_

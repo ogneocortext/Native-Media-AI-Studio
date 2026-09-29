@@ -1,16 +1,15 @@
 ---
 tags:
-  - blender
-  - 3d-rendering
-  - mcp
-  - scene-building
+  - platform
+  - platform-blender
+  - 3d
 aliases:
   - Blender MCP
   - Blender Integration
   - Scene Builder
 cssclasses:
-  - technical-guide
-date: 2026-08-24
+  - platform-guide
+date: 2026-09-29
 ---
 
 # 🖥️ Blender MCP Integration
@@ -26,6 +25,7 @@ date: 2026-08-24
 ### Blender Configuration
 
 > [!warning] Enable Addon
+>
 > 1. Open Blender 5.2
 > 2. Edit → Preferences → Add-ons
 > 3. Search "Blender MCP"
@@ -34,13 +34,13 @@ date: 2026-08-24
 
 ### Connection Details
 
-| Setting | Value |
-|---------|-------|
-| Blender Version | 5.2.0 LTS |
-| Addon Version | 1.5 |
-| Protocol Version | 4 |
-| Transport | WebSocket |
-| MCP Server | `blender-mcp` |
+| Setting          | Value         |
+| ---------------- | ------------- |
+| Blender Version  | 5.2.0 LTS     |
+| Addon Version    | 1.5           |
+| Protocol Version | 4             |
+| Transport        | WebSocket     |
+| MCP Server       | `blender-mcp` |
 
 ---
 
@@ -49,12 +49,14 @@ date: 2026-08-24
 ### Scene Operations
 
 > [!example] Get Scene Info
+>
 > ```python
 > blender_get_scene_info()
 > # Returns: object count, object list, materials
 > ```
 
 > [!example] Execute Python Code
+>
 > ```python
 > blender_execute_blender_code(code="""
 > import bpy
@@ -65,12 +67,14 @@ date: 2026-08-24
 ### Object Operations
 
 > [!example] Get Object Details
+>
 > ```python
 > blender_get_object_info(object_name="Cube")
 > # Returns: location, rotation, scale, dimensions
 > ```
 
 > [!example] Viewport Screenshot
+>
 > ```python
 > blender_get_viewport_screenshot()
 > # Returns: image of current viewport
@@ -79,6 +83,7 @@ date: 2026-08-24
 ### PolyHaven Assets
 
 > [!tip] Free HDRIs & Textures
+>
 > ```python
 > blender_download_polyhaven_asset(
 >     asset_id="symmetrical_garden",
@@ -90,14 +95,16 @@ date: 2026-08-24
 ### Sketchfab Models (1M+ free CC library, replaces banger.show cloud import)
 
 > [!info] Setup — free, no paid plan
+>
 > 1. Free account at `sketchfab.com` (Epic Games login works) → `Settings → Password → API Token`
 > 2. Persistent key (priority `Prefs → Scene → env` `tools/blender_mcp_addon.py:338`):
->    * **Env (recommended):** `setx BLENDERMCP_SKETCHFAB_API_KEY "<token>"` + repo `.env:1` `BLENDERMCP_SKETCHFAB_API_KEY=...` (`.gitignore:76` ignores `.env`)
->    * **Blender UI:** `N-panel → BlenderMCP → Use assets from Sketchfab` + paste in `Addon Preferences → sketchfab_api_key` `tools/blender_mcp_addon.py:3184` and `Scene.blendermcp_sketchfab_api_key` `tools/blender_mcp_addon.py:3508`, then `bpy.ops.wm.save_userpref()`
+>    - **Env (recommended):** `setx BLENDERMCP_SKETCHFAB_API_KEY "<token>"` + repo `.env:1` `BLENDERMCP_SKETCHFAB_API_KEY=...` (`.gitignore:76` ignores `.env`)
+>    - **Blender UI:** `N-panel → BlenderMCP → Use assets from Sketchfab` + paste in `Addon Preferences → sketchfab_api_key` `tools/blender_mcp_addon.py:3184` and `Scene.blendermcp_sketchfab_api_key` `tools/blender_mcp_addon.py:3508`, then `bpy.ops.wm.save_userpref()`
 > 3. Verify: `blender_get_sketchfab_status()` → `Logged in as: <user>` (`Data API v3` `/v3/me` `tools/blender_mcp_addon.py:2302`). Free `basic` account suffices; `Pro` only adds private models/500MB uploads/viewer white-label.
 > 4. Search is public (no key); **Download API** `/v3/models/{uid}/download` `tools/blender_mcp_addon.py:2518` requires that free token (`Authorization: Token <key>` → `glTF/GLB/USDZ`, not source `FBX/OBJ`).
 
 > [!note] 3D Model Download (offline after download — no 10/day limit vs banger.show)
+>
 > ```python
 > # Search (public, no key) then download with free token
 > blender_search_sketchfab_models(query="boombox", count=20, downloadable=True)
@@ -114,6 +121,7 @@ date: 2026-08-24
 ### Blend -> GLB for Media Library + Three.js Studio (AI agent pipeline)
 
 > [!success] `stage.blend` (`21 MB`, now `output/generated_3d/stage.glb` + `public/models/blends/stage.glb`) — use headless converter so Blender UI can stay hung
+>
 > ```powershell
 > # AI agents after blender_execute_blender_code generation:
 > python tools/convert_blend_to_glb.py stage.blend --public
@@ -123,10 +131,11 @@ date: 2026-08-24
 > ```
 
 > [!tip] Three.js Studio import + animation
-> * Any `AnimObject` with `modelUrl` now loads via `GLTFLoader` (`hooks/useMeshFactory.ts:66` `else if (obj.modelUrl)` — not just `type==="character"`), so `boombox/character/stage` all animate
-> * `InspectorTab.tsx:43` shows Animation controls (clip dropdown, scrubber `currentTime/duration`, `Play/Pause`, `Speed`, `Loop`) for **any** `modelUrl` (was character-only)
-> * Timeline + beat sync: `sceneConfig.beatPunch` (`ThreeJSStudio.tsx:TrackInfoBar`) + per-object `bobSpeed/bobAmount/rotateSpeed` + `AnimationMixer` `useMeshFactory.ts:84` + keyframe bake `export_animations True` in `convert_blend_to_glb.py`
-> * `MediaLibrary.tsx:229` `handleAddToStudio()` -> `pendingCharacter` `modelUrl: /output/generated_3d/*.glb` dispatches to Studio; drag-drop `.glb` also works `InspectorTab.tsx:39`
+>
+> - Any `AnimObject` with `modelUrl` now loads via `GLTFLoader` (`hooks/useMeshFactory.ts:66` `else if (obj.modelUrl)` — not just `type==="character"`), so `boombox/character/stage` all animate
+> - `InspectorTab.tsx:43` shows Animation controls (clip dropdown, scrubber `currentTime/duration`, `Play/Pause`, `Speed`, `Loop`) for **any** `modelUrl` (was character-only)
+> - Timeline + beat sync: `sceneConfig.beatPunch` (`ThreeJSStudio.tsx:TrackInfoBar`) + per-object `bobSpeed/bobAmount/rotateSpeed` + `AnimationMixer` `useMeshFactory.ts:84` + keyframe bake `export_animations True` in `convert_blend_to_glb.py`
+> - `MediaLibrary.tsx:229` `handleAddToStudio()` -> `pendingCharacter` `modelUrl: /output/generated_3d/*.glb` dispatches to Studio; drag-drop `.glb` also works `InspectorTab.tsx:39`
 
 ---
 
@@ -135,21 +144,22 @@ date: 2026-08-24
 ### Stage Construction
 
 > [!example] Concert Stage
+>
 > ```python
 > blender_execute_blender_code(code="""
 > import bpy
-> 
+>
 > # Clear scene
 > bpy.ops.object.select_all(action='SELECT')
 > bpy.ops.object.delete()
-> 
+>
 > # Create stage platform
 > bpy.ops.mesh.primitive_cylinder_add(
 >     radius=5, depth=0.3, location=(0, 0, -0.15)
 > )
 > stage = bpy.context.active_object
 > stage.name = "Stage"
-> 
+>
 > # Add LED wall (back)
 > bpy.ops.mesh.primitive_plane_add(
 >     size=8, location=(0, -3, 2)
@@ -157,7 +167,7 @@ date: 2026-08-24
 > led_wall = bpy.context.active_object
 > led_wall.name = "LED_Wall"
 > led_wall.rotation_euler = (1.1, 0, 0)
-> 
+>
 > # Add lighting
 > bpy.ops.object.light_add(type='SPOT', location=(2, 3, 4))
 > spot = bpy.context.active_object
@@ -171,10 +181,11 @@ date: 2026-08-24
 
 > [!tip] Import 3D Character
 > Import generated 3D models from [[3d-rendering]]:
+>
 > ```python
 > blender_execute_blender_code(code="""
 > import bpy
-> 
+>
 > # Import generated 3D model
 > bpy.ops.import_scene.obj(filepath="output/generated_3d/my_robot.obj")
 > character = bpy.context.selected_objects[0]
@@ -187,22 +198,23 @@ date: 2026-08-24
 ### Camera Setup
 
 > [!example] Cinematic Camera
+>
 > ```python
 > blender_execute_blender_code(code="""
 > import bpy
-> 
+>
 > # Create camera
 > bpy.ops.object.camera_add(location=(7, -7, 4))
 > camera = bpy.context.active_object
 > camera.name = "MainCamera"
-> 
+>
 > # Point at stage center
 > direction = (0, 0, 1)
 > camera.rotation_euler = (1.1, 0, 0.78)
-> 
+>
 > # Set as active camera
 > bpy.context.scene.camera = camera
-> 
+>
 > # Camera settings
 > cam_data = camera.data
 > cam_data.lens = 35  # 35mm focal length
@@ -226,7 +238,7 @@ beat_times = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
 # Animate camera on beats
 for i, beat_time in enumerate(beat_times):
     frame = int(beat_time * 24)  # 24 fps
-    
+
     # Camera shake on beat
     camera.location.x = 7 + (0.1 if i % 2 == 0 else -0.1)
     camera.keyframe_insert(data_path="location", frame=frame)
@@ -234,13 +246,13 @@ for i, beat_time in enumerate(beat_times):
 
 ### Animation Presets
 
-| Effect | Description | Use Case |
-|--------|-------------|----------|
-| Beat Pulse | Scale object on each beat | Props, stage elements |
-| Camera Shake | Small position offset on beats | Energy moments |
-| Color Flash | Light color change on beats | LED walls, lights |
-| Zoom In | Dolly in on chorus | Build intensity |
-| Orbit | Circle camera around subject | Showcase moments |
+| Effect       | Description                    | Use Case              |
+| ------------ | ------------------------------ | --------------------- |
+| Beat Pulse   | Scale object on each beat      | Props, stage elements |
+| Camera Shake | Small position offset on beats | Energy moments        |
+| Color Flash  | Light color change on beats    | LED walls, lights     |
+| Zoom In      | Dolly in on chorus             | Build intensity       |
+| Orbit        | Circle camera around subject   | Showcase moments      |
 
 ---
 
@@ -249,23 +261,24 @@ for i, beat_time in enumerate(beat_times):
 ### Output Settings
 
 > [!example] Video Render Settings
+>
 > ```python
 > blender_execute_blender_code(code="""
 > import bpy
 > scene = bpy.context.scene
-> 
+>
 > # Output settings
 > scene.render.filepath = "output/frames/frame_"
 > scene.render.image_settings.file_format = 'PNG'
 > scene.render.resolution_x = 1920
 > scene.render.resolution_y = 1080
 > scene.render.resolution_percentage = 100
-> 
+>
 > # Frame range (10 seconds at 24fps)
 > scene.frame_start = 1
 > scene.frame_end = 240
 > scene.render.fps = 24
-> 
+>
 > # Render engine (CUDA)
 > scene.render.engine = 'CYCLES'
 > scene.cycles.device = 'GPU'
@@ -277,6 +290,7 @@ for i, beat_time in enumerate(beat_times):
 ### Render Animation
 
 > [!note] Batch Rendering
+>
 > ```python
 > blender_execute_blender_code(code="""
 > import bpy
@@ -316,19 +330,19 @@ graph TD
 
 ### Connection Issues
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `Could not connect` | Addon not enabled | Enable in Preferences → Add-ons |
-| `Server not running` | MCP stopped | Click "Start MCP Server" in sidebar |
-| `Protocol version mismatch` | Outdated addon | Run `uvx blender-mcp install-addon` |
+| Error                       | Cause             | Solution                            |
+| --------------------------- | ----------------- | ----------------------------------- |
+| `Could not connect`         | Addon not enabled | Enable in Preferences → Add-ons     |
+| `Server not running`        | MCP stopped       | Click "Start MCP Server" in sidebar |
+| `Protocol version mismatch` | Outdated addon    | Run `uvx blender-mcp install-addon` |
 
 ### Rendering Issues
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| Black render | No lights/lights too weak | Add lighting to scene |
-| Slow render | High samples/resolution | Reduce samples, use EEVEE |
-| OOM on render | Scene too complex | Reduce geometry, use instancing |
+| Error         | Cause                     | Solution                        |
+| ------------- | ------------------------- | ------------------------------- |
+| Black render  | No lights/lights too weak | Add lighting to scene           |
+| Slow render   | High samples/resolution   | Reduce samples, use EEVEE       |
+| OOM on render | Scene too complex         | Reduce geometry, use instancing |
 
 ---
 
@@ -342,4 +356,4 @@ graph TD
 
 ---
 
-*Last updated: 2026-08-24*
+_Last updated: 2026-08-24_

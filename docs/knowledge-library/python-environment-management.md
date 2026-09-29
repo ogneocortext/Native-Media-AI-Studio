@@ -1,17 +1,14 @@
 ---
 tags:
-  - python
-  - environments
-  - venv
-  - pytorch
-  - cuda
-  - hardware
-  - configuration
+  - technical
+  - hardware-pascal
 aliases:
   - Python Environment Management
   - venv Decoupling
   - PyTorch Pascal Support
-date: 2026-09-08
+cssclasses:
+  - technical-guide
+date: 2026-09-29
 ---
 
 # 🐍 Python Environment Management & Pascal GPU Support
@@ -29,20 +26,20 @@ date: 2026-09-08
 
 ### Standalone interpreters
 
-| Interpreter | Version | Notes |
-| --- | --- | --- |
-| `C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311\python.exe` | 3.11.9 | ✅ The only "safe" standalone CPython for this project's CUDA stack. Base for `nma-studio-cuda` and project `venv/` |
-| `C:\Python314\python.exe` | 3.14.x | ✅ Used for `studio-tools` venv (pure-tooling scripts, no torch/CUDA) |
-| `winget` v1.29.290 available | — | Install more standalone Pythons via `winget install Python.Python.3.11` (or `Python.Python.312`) |
+| Interpreter                                                                  | Version | Notes                                                                                                               |
+| ---------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------- |
+| `C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311\python.exe` | 3.11.9  | ✅ The only "safe" standalone CPython for this project's CUDA stack. Base for `nma-studio-cuda` and project `venv/` |
+| `C:\Python314\python.exe`                                                    | 3.14.x  | ✅ Used for `studio-tools` venv (pure-tooling scripts, no torch/CUDA)                                               |
+| `winget` v1.29.290 available                                                 | —       | Install more standalone Pythons via `winget install Python.Python.3.11` (or `Python.Python.312`)                    |
 
 ### `D:\conda-envs` environments
 
-| Env | Size | Python | Base / parent | Role | Torch |
-| --- | --- | --- | --- | --- | --- |
-| `nma-studio-cuda` | 4.87 GB | 3.11.9 | **Standalone C: Python311** (decoupled ✅) | Native Media AI Studio backend + GPU | 2.14.0+cu126 |
-| `comfyui-cuda` | ~6 GB | 3.11.9 | **Standalone C: Python311** (decoupled ✅) | ComfyUI service runtime ONLY | 2.14.0+cu126 |
-| `studio-tools` | varies | 3.14.x | **Standalone C: Python314** | Pure-tooling scripts (no backend/CUDA imports) | None |
-| `space-analyzer-cuda` | 9.17 GB | 3.12.13 | conda env | ❌ **Different project (moto-vision). NEVER delete or modify** | 2.6.0-era |
+| Env                   | Size    | Python  | Base / parent                              | Role                                                           | Torch        |
+| --------------------- | ------- | ------- | ------------------------------------------ | -------------------------------------------------------------- | ------------ |
+| `nma-studio-cuda`     | 4.87 GB | 3.11.9  | **Standalone C: Python311** (decoupled ✅) | Native Media AI Studio backend + GPU                           | 2.14.0+cu126 |
+| `comfyui-cuda`        | ~6 GB   | 3.11.9  | **Standalone C: Python311** (decoupled ✅) | ComfyUI service runtime ONLY                                   | 2.14.0+cu126 |
+| `studio-tools`        | varies  | 3.14.x  | **Standalone C: Python314**                | Pure-tooling scripts (no backend/CUDA imports)                 | None         |
+| `space-analyzer-cuda` | 9.17 GB | 3.12.13 | conda env                                  | ❌ **Different project (moto-vision). NEVER delete or modify** | 2.6.0-era    |
 
 ### Hidden dependency graph (why deletion is dangerous)
 
@@ -95,15 +92,15 @@ platform-specific hashes and transient packages that don't transfer.
 
 Source: pytorch.org "Previous Versions" + get-started pages, fetched 2026-09-06.
 
-| Torch | CUDA wheel tracks published | Pascal (sm_61) OK? |
-| --- | --- | --- |
-| 2.5.1 (historical) | cu118, cu121, cu124 | ✅ 2.5.1+cu121 was live-verified on the 1070 Ti |
-| 2.7.0 / 2.7.1 | cu126, cu128, cu130 | ✅ via cu126 |
-| 2.8.0 | cu126, cu128, cu130 | ✅ via cu126 — ⚠️ last version whose *default PyPI* wheel includes sm_5x/6x |
-| 2.9.0 (Oct 2025) | cu126, cu128, cu130 | ✅ via cu126 |
-| 2.11.0 | cu126, cu128, cu130, cu132 | ✅ via cu126 |
-| 2.12.0 / 2.12.1 | cu126, cu130, cu132 — **cu128 dropped** | ✅ via cu126 |
-| 2.13.0 | cu126, cu130, cu132 | ✅ via cu126 |
+| Torch                       | CUDA wheel tracks published                                           | Pascal (sm_61) OK?                                                                              |
+| --------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 2.5.1 (historical)          | cu118, cu121, cu124                                                   | ✅ 2.5.1+cu121 was live-verified on the 1070 Ti                                                 |
+| 2.7.0 / 2.7.1               | cu126, cu128, cu130                                                   | ✅ via cu126                                                                                    |
+| 2.8.0                       | cu126, cu128, cu130                                                   | ✅ via cu126 — ⚠️ last version whose _default PyPI_ wheel includes sm_5x/6x                     |
+| 2.9.0 (Oct 2025)            | cu126, cu128, cu130                                                   | ✅ via cu126                                                                                    |
+| 2.11.0                      | cu126, cu128, cu130, cu132                                            | ✅ via cu126                                                                                    |
+| 2.12.0 / 2.12.1             | cu126, cu130, cu132 — **cu128 dropped**                               | ✅ via cu126                                                                                    |
+| 2.13.0                      | cu126, cu130, cu132                                                   | ✅ via cu126                                                                                    |
 | 2.14.0 (**current stable**) | **cu126 (default on get-started page), cu130, cu132**, ROCm 7.14, CPU | ✅ via cu126 — wheel index live-verified: `torch-2.14.0+cu126-cp311-cp311-win_amd64.whl` exists |
 
 Key facts:
@@ -117,9 +114,9 @@ Key facts:
   > Toolkits through the 12.x series to build applications for these architectures
   > will continue to be supported, but newer toolkits will be unable to target these
   > architectures."
-  Source: https://docs.nvidia.com/cuda/archive/13.0.0/cuda-toolkit-release-notes/index.html#deprecated-architectures
+  > Source: https://docs.nvidia.com/cuda/archive/13.0.0/cuda-toolkit-release-notes/index.html#deprecated-architectures
 - **⚠️ `pip install torch` (unpinned) breaks Pascal from torch 2.8.0 onward.** The
-  *default PyPI* wheels' arch list jumps from `sm_50…sm_90` (2.7.x) to `sm_70+`
+  _default PyPI_ wheels' arch list jumps from `sm_50…sm_90` (2.7.x) to `sm_70+`
   (2.8.0+) — verified via
   https://github.com/moi90/pytorch_compute_capabilities/blob/main/table_pip.md.
   Always install with an explicit `--index-url https://download.pytorch.org/whl/cu126`
@@ -127,7 +124,7 @@ Key facts:
 - **The cu126 wheel track is alive through current stable** — verified live in the
   official index (https://download.pytorch.org/whl/cu126/torch/): cp311-win_amd64
   wheels exist for every version from 2.6.0 → 2.14.0. The pytorch.org get-started
-  matrix still lists CUDA 12.6 as the *default* selected compute platform for
+  matrix still lists CUDA 12.6 as the _default_ selected compute platform for
   stable 2.14.0.
 - **CUDA 13.x builds (`cu130`, `cu132`) cannot target Pascal** — see NVIDIA quote
   above. **Never install cu130/cu132 wheels on the 1070 Ti.**
@@ -136,7 +133,7 @@ Key facts:
   comfortably in range.
 - Binary-compat nuance: default 2.7.x wheels list `sm_60` but not `sm_61`; sm_60
   cubins run on sm_61 devices (same major CC), but without sm_61-specific tuning.
-   The cu126 track builds with explicit sm_61 (our 2.14.0+cu126 arch list confirms it).
+  The cu126 track builds with explicit sm_61 (our 2.14.0+cu126 arch list confirms it).
 - Before committing any torch upgrade, verify kernel support:
 
 ```powershell
@@ -175,7 +172,7 @@ Key facts:
 8. **.NET `Regex.Replace` replacement strings treat `$` specially** — `'\$var'` as a
    replacement inserts a literal backslash. For literal find/replace use
    `String.Replace()` (no regex), or `$$` in substitution strings. This produced
-   `\$venvHome` corruption in a script that still *parsed* cleanly — always re-run the
+   `\$venvHome` corruption in a script that still _parsed_ cleanly — always re-run the
    script, don't trust a 0-parse-error result alone.
 
 ---
@@ -190,6 +187,7 @@ powershell -ExecutionPolicy Bypass -File scripts\check-env-health.ps1 -Torch   #
 ```
 
 Checks performed:
+
 - `nma-studio-cuda` exists, and its `pyvenv.cfg` `home` points at the **standalone C:
   Python311** (decoupling assertion — fails if it ever gets re-parented).
 - Project `venv\` base is also the standalone C: interpreter.

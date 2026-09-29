@@ -6,12 +6,14 @@
 ## Quick Start
 
 ### For Humans (Obsidian)
+
 1. Download [Obsidian](https://obsidian.md)
 2. Open this folder as a vault: `docs/knowledge-library/`
 3. Start with [[index]] for navigation
 4. Use Graph View to visualize connections
 
 ### For AI Agents
+
 1. Read `index.md` for the full structure
 2. All documents are plain markdown with YAML frontmatter
 3. Use `[[wiki-links]]` for cross-references
@@ -22,7 +24,9 @@
 ```
 knowledge-library/
 ├── .obsidian/              ← Obsidian configuration (gitignored)
-├── index.md                ← Start here (27 docs indexed)
+├── index.md                ← Start here (72 docs indexed, reorganized 2026-09-29)
+├── tagging-guide.md        ← New hierarchical tagging system (2026-09-29)
+├── README.md               ← This file
 ├── music-video-production.md
 ├── youtube-optimization.md
 ├── technical-reference.md  ← Architecture + API + GPU (2026-09-05)
@@ -48,6 +52,20 @@ knowledge-library/
 └── Knowledge Graph.canvas  ← Visual overview
 ```
 
+### Logical Organization (2026-09-29)
+
+The library is now organized into 7 logical categories (see `index.md`):
+
+1. **🎬 Production Pipeline** — Workflow & creative guides (9 docs)
+2. **🛠️ Technical Implementation** — Code & systems (10 docs)
+3. **🎮 MCP & Platform Integrations** — Platform-specific tools (10 docs)
+4. **🎨 Creative & Visual** — Design & effects (16 docs)
+5. **⚙️ Performance & Hardware** — Optimization (6 docs)
+6. **🤖 AI & ML** — Models & training (10 docs)
+7. **📊 Research & Reference** — Industry analysis (11 docs)
+
+See [[tagging-guide]] for the new hierarchical tagging system.
+
 ## Key Features
 
 - **YAML Frontmatter** — Tags, aliases, dates for machine readability
@@ -59,11 +77,21 @@ knowledge-library/
 ## Maintenance
 
 This library is a living document. Update when:
+
 - New features are added to the pipeline
 - New models or tools are integrated
 - YouTube platform requirements change
 - New research on AI music video production emerges
 
+### Tagging System (2026-09-29)
+
+The library now uses a hierarchical tagging system. See [[tagging-guide]] for:
+
+- Primary category tags (`#production/*`, `#technical/*`, etc.)
+- Cross-cutting tags (`#platform-youtube`, `#hardware-8gb`, etc.)
+- Tagging rules and examples
+- Migration checklist for existing documents
+
 ---
 
-*Part of [[Native Media AI Studio]]*
+_Part of [[Native Media AI Studio]]_

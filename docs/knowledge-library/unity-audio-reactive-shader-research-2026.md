@@ -1,3 +1,16 @@
+---
+tags:
+  - creative
+  - platform-unity
+  - 3d
+  - audio
+aliases:
+  - Unity Audio-Reactive Shader Research 2026
+cssclasses:
+  - creative-guide
+date: 2026-09-29
+---
+
 # Unity Audio-Reactive Shader Research (2026)
 
 > Stored: 2026-09-23

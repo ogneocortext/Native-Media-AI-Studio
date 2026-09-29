@@ -1,7 +1,19 @@
+---
+tags:
+  - technical
+aliases:
+  - Frontend Build Pipeline
+  - Vite Configuration
+  - React Build
+cssclasses:
+  - technical-guide
+date: 2026-09-29
+---
+
 # Frontend Build Pipeline — Research & Implementation
 
-> **Created:** 2026-09-07  
-> **Status:** Implemented  
+> **Created:** 2026-09-07
+> **Status:** Implemented
 > **Scope:** `packages/frontend` (Vite + React + TypeScript)
 >
 > **2026-09-24 Vite audit:** Removed `vite-plugin-compression` from the active plugin chain because its Windows/Vite 8 output path handling created malformed `dist/D:/...` artifacts. Build compression is left to the hosting server; use the hosting layer's gzip/Brotli support. The proxy now preserves the full configured backend origin (including a non-default port), HMR overlays are enabled for actionable dev errors, and the dev server uses `strictPort` so a port collision fails visibly instead of silently starting elsewhere.
@@ -11,25 +23,28 @@
 ## 1. Baseline Audit
 
 ### 1.1 Build Script
+
 - **Before:** `tsc && vite build`
 - **Problem:** `tsc` in non-project mode re-checks every file from scratch; no incremental caching.
 - **TypeScript config:** `noEmit: true`, `composite: true` on `tsconfig.node.json`, project references already wired.
 
 ### 1.2 TypeScript Config Gaps
-| Gap | Risk |
-|-----|------|
-| No `incremental` / `tsBuildInfoFile` | Full type-check on every run |
-| No explicit `baseUrl` | Path resolution ambiguity with deep monorepo |
-| `noEmit: true` correct for Vite, but `tsc -b` was not used | Missed build-info caching |
+
+| Gap                                                        | Risk                                         |
+| ---------------------------------------------------------- | -------------------------------------------- |
+| No `incremental` / `tsBuildInfoFile`                       | Full type-check on every run                 |
+| No explicit `baseUrl`                                      | Path resolution ambiguity with deep monorepo |
+| `noEmit: true` correct for Vite, but `tsc -b` was not used | Missed build-info caching                    |
 
 ### 1.3 Vite Config Gaps
-| Gap | Risk |
-|-----|------|
-| No compression plugins | Larger network transfers in production |
-| No bundle analysis tooling | Blind to chunk bloat / duplicate code |
-| No `modulePreload` | Suboptimal module loading in modern browsers |
-| No `preview` proxy config | Preview server does not proxy API/WS to backend |
-| Single build script, no analyze mode | Hard to diagnose bundle size regressions |
+
+| Gap                                  | Risk                                            |
+| ------------------------------------ | ----------------------------------------------- |
+| No compression plugins               | Larger network transfers in production          |
+| No bundle analysis tooling           | Blind to chunk bloat / duplicate code           |
+| No `modulePreload`                   | Suboptimal module loading in modern browsers    |
+| No `preview` proxy config            | Preview server does not proxy API/WS to backend |
+| Single build script, no analyze mode | Hard to diagnose bundle size regressions        |
 
 ---
 
@@ -46,6 +61,7 @@
 ## 3. Implemented Changes
 
 ### 3.1 `tsconfig.json`
+
 ```json
 {
   "compilerOptions": {
@@ -56,10 +72,12 @@
   }
 }
 ```
+
 - `incremental` + `tsBuildInfoFile` enable fast subsequent type-checks.
 - `baseUrl` removes path-resolution ambiguity.
 
 ### 3.2 `package.json` scripts
+
 ```json
 {
   "scripts": {
@@ -69,13 +87,15 @@
   }
 }
 ```
+
 - `build` now uses `tsc -b`.
 - `type-check` is the fast path for CI / pre-commit.
 - `build:analyze` runs the visualizer.
 - Root `pnpm type-check` delegates to the frontend's project-scoped `tsc -b`; do not run bare `npx tsc` at the repository root because there is intentionally no root `tsconfig.json` (and `npx` may resolve TypeScript 7).
 
 ### 3.3 `vite.config.ts`
-```ts
+
+````ts
 import compression from "vite-plugin-compression";
 
 ## TypeScript Check Commands
@@ -86,7 +106,7 @@ The repository root has no `tsconfig.json` by design; run type checks through th
 pnpm type-check
 # equivalent
 pnpm --filter=native-media-ai-studio-frontend type-check
-```
+````
 
 For the frontend directory directly:
 
@@ -100,21 +120,22 @@ Avoid bare `npx tsc` at the repository root: it has no project config and may re
 import { visualizer } from "rollup-plugin-visualizer";
 
 plugins: [
-  react(),
-  tailwindcss(),
-  compression({ algorithm: "gzip", ext: ".gz" }),
-  compression({ algorithm: "brotliCompress", ext: ".br" }),
-  isAnalyze && visualizer({ open: true, gzipSize: true, brotliSize: true, filename: "dist/stats.html" }),
+react(),
+tailwindcss(),
+compression({ algorithm: "gzip", ext: ".gz" }),
+compression({ algorithm: "brotliCompress", ext: ".br" }),
+isAnalyze && visualizer({ open: true, gzipSize: true, brotliSize: true, filename: "dist/stats.html" }),
 ],
 build: {
-  modulePreload: true,
-  // ... manualChunks preserved ...
+modulePreload: true,
+// ... manualChunks preserved ...
 },
 preview: {
-  port: portConfig.frontend_port,
-  proxy: { "/api": ..., "/output": ..., "/ws": ... },
+port: portConfig.frontend_port,
+proxy: { "/api": ..., "/output": ..., "/ws": ... },
 },
-```
+
+````
 
 ---
 
@@ -186,13 +207,14 @@ pnpm build:analyze
 # Mine dist/stats.html without rebuilding (no browser needed)
 node scripts/analyze-bundle-stats.mjs
 # → chunk totals, top packages, largest app files, cross-chunk duplicates
-```
+````
 
 ---
 
 ## 7. Additional Optimization Research (2026-09-07)
 
 ### 7.1 Cross-Tab Polling: Tab Leader Pattern
+
 - **Problem:** Multiple tabs/components poll the same backend endpoint independently, multiplying DB load.
 - **Pattern:** Use the `BroadcastChannel` API (or `localStorage` `storage` event as fallback) to elect a single "leader" tab per resource type. Only the leader polls; other tabs subscribe to broadcast updates.
 - **Implementation notes for this project:**
@@ -201,6 +223,7 @@ node scripts/analyze-bundle-stats.mjs
   - Applies cleanly to health endpoints: `/api/health`, `/api/logs/analytics/summary`, `/api/system/stats`.
 
 ### 7.2 SQLite Query Performance: ANALYZE + Covering Indexes
+
 - **Command:** `ANALYZE` rebuilds the internal statistics so the query planner picks the best index.
 - **Covering index:** Include all filtered/sorted columns in one index to avoid table lookups.
 - **Applied to this project:**
@@ -209,6 +232,7 @@ node scripts/analyze-bundle-stats.mjs
   - Recommendation: Run `ANALYZE` after bulk inserts or on a schedule (e.g., after log rotation).
 
 ### 7.3 Vite `manualChunks` Time-of-Check vs Time-of-Use (TDZ) Hazards
+
 - **Risk:** Moving modules into a manual chunk can change evaluation order. If module A imports module B and both are split, B may not be initialized when A runs (especially with circular deps).
 - **Mitigation:**
   - Keep entry-point chunks (`index`) separate from vendor chunks.
@@ -216,16 +240,19 @@ node scripts/analyze-bundle-stats.mjs
   - Verify with `node --trace-tls` equivalent: watch for `ReferenceError` or `undefined` in production build smoke tests.
 
 ### 7.4 SSE Deduplication & Rate Limiting
+
 - **Problem:** Multiple SSE listeners on the same event stream cause duplicate parsing and memory pressure.
 - **Pattern:** Single shared `EventSource` per resource, multiplexed to subscribers via a lightweight pub/sub (e.g., RxJS `Subject`, or a simple callback registry).
 - **Rate limiting:** Backend should cap event emission frequency (e.g., `broadcast_warnings` now throttled to once per 60s per resource type).
 
 ### 7.5 Zustand v4 Selector Stability
+
 - **Problem:** Inline selectors like `useStore(state => state.x)` create new function references every render, defeating shallow equality and causing unnecessary re-renders.
 - **Fix:** Use `useShallow` from `zustand/shallow` or memoize selectors with `useCallback` / module-level constants.
 - **Applied to this project:** Polling components migrated to `useHealthStore` with explicit selectors where needed.
 
 ### 7.6 Compiled `vite.config.js` Shadows `vite.config.ts` (2026-09-07)
+
 - **Incident:** The dev server bound **IPv6-only** (`[::1]:5173`) — `http://127.0.0.1:5173` (used by `manage-servers.ps1` health probes, the Vite→backend proxy, and CORS allowlists) failed while `http://localhost:5173` worked. Every `vite.config.ts` edit appeared to be ignored.
 - **Root cause:** Vite config resolution order is `.js` before `.ts`. A `tsc --build` run had emitted `vite.config.js` + `vite.config.d.ts` into the package root (because `tsconfig.node.json` was `composite` without an `outDir`), and that stale artifact — missing `server.host: "127.0.0.1"` — **silently shadowed** the TypeScript config.
 - **Diagnostics:** `netstat -ano | findstr :5173` showed `[::1]:5173` LISTENING; `Select-String 'host' vite.config.js` showed the artifact lacked the setting.
@@ -236,20 +263,20 @@ node scripts/analyze-bundle-stats.mjs
 
 ## 8. Implementation History
 
-| Date | Change | Impact |
-|------|--------|--------|
-| 2026-09-07 | Added `fetchPortConfig()` to `main.tsx` `initApp()` | Fixed CORS fallback on port 5174 |
-| 2026-09-07 | Consolidated polling into `useHealthStore` | Eliminated duplicate fetch loops |
-| 2026-09-07 | Increased polling intervals across health components | Reduced DB/network load |
-| 2026-09-07 | Throttled `broadcast_warnings` to 60s per resource | Cut SSE message volume |
-| 2026-09-07 | Added DB migration v13 with analytics indexes | Faster `log_events` queries |
-| 2026-09-07 | Added 30s TTL cache to `/api/logs/analytics/summary` | Lower DB hit rate |
-| 2026-09-07 | Split `three-vendor` → `three-core` + `three-examples` | Smaller initial JS payload |
-| 2026-09-07 | Added `vite-plugin-compression` + `rollup-plugin-visualizer` | gzip/brotli artifacts, bundle insights |
-| 2026-09-08 | `GoServicesCard` poll `5s→15s`, removed dead imports (`WifiOff`) | `tsc -b` clean, aligns with healthStore 15/30s |
-| 2026-09-08 | `vite.config.ts` alias `three/addons → three/examples/jsm` + dedupe `three-stdlib` | Eliminates duplicate GLTFLoader/OrbitControls (~100KB gz) |
-| 2026-09-08 | Wizard `ConfigureStep` `<details>` for Steps/CFG/Seed | Progressive disclosure, defaults 20/7.0/random for Wan 2.2 5B |
-| 2026-09-08 | Visualizer empty hero + Remotion 3× vertical `1080×1920` | Vertical-first master per ai-video-trends P0 |
+| Date       | Change                                                                             | Impact                                                        |
+| ---------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| 2026-09-07 | Added `fetchPortConfig()` to `main.tsx` `initApp()`                                | Fixed CORS fallback on port 5174                              |
+| 2026-09-07 | Consolidated polling into `useHealthStore`                                         | Eliminated duplicate fetch loops                              |
+| 2026-09-07 | Increased polling intervals across health components                               | Reduced DB/network load                                       |
+| 2026-09-07 | Throttled `broadcast_warnings` to 60s per resource                                 | Cut SSE message volume                                        |
+| 2026-09-07 | Added DB migration v13 with analytics indexes                                      | Faster `log_events` queries                                   |
+| 2026-09-07 | Added 30s TTL cache to `/api/logs/analytics/summary`                               | Lower DB hit rate                                             |
+| 2026-09-07 | Split `three-vendor` → `three-core` + `three-examples`                             | Smaller initial JS payload                                    |
+| 2026-09-07 | Added `vite-plugin-compression` + `rollup-plugin-visualizer`                       | gzip/brotli artifacts, bundle insights                        |
+| 2026-09-08 | `GoServicesCard` poll `5s→15s`, removed dead imports (`WifiOff`)                   | `tsc -b` clean, aligns with healthStore 15/30s                |
+| 2026-09-08 | `vite.config.ts` alias `three/addons → three/examples/jsm` + dedupe `three-stdlib` | Eliminates duplicate GLTFLoader/OrbitControls (~100KB gz)     |
+| 2026-09-08 | Wizard `ConfigureStep` `<details>` for Steps/CFG/Seed                              | Progressive disclosure, defaults 20/7.0/random for Wan 2.2 5B |
+| 2026-09-08 | Visualizer empty hero + Remotion 3× vertical `1080×1920`                           | Vertical-first master per ai-video-trends P0                  |
 
 ---
 

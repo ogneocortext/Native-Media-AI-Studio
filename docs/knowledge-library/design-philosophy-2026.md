@@ -1,23 +1,20 @@
 ---
 tags:
+  - creative
   - design
-  - ux
-  - philosophy
-  - design-system
 aliases:
   - Design Philosophy
   - UX Principles
 cssclasses:
-  - analysis
-  - research
-date: 2026-09-23
+  - creative-guide
+date: 2026-09-29
 ---
 
 # 🎛️ Design Philosophy — Native Media AI Studio
 
 **Thesis: the studio is an instrument, not a dashboard.**
 
-A dashboard reports. An instrument is *played*. Every UX decision should
+A dashboard reports. An instrument is _played_. Every UX decision should
 make the app feel closer to an OP-1 or Ableton Live and further from a SaaS
 admin panel. The visualizer's blue→pink sweep already has this confidence;
 the chrome around it should catch up.
@@ -25,15 +22,18 @@ the chrome around it should catch up.
 ## The schools we steal from
 
 ### Dieter Rams — "less, but better"
+
 The 10 principles, translated to software: innovative, useful, aesthetic,
-*understandable*, *unobtrusive*, **honest**, long-lasting, thorough to the
+_understandable_, _unobtrusive_, **honest**, long-lasting, thorough to the
 last detail, as little design as possible. "Honest" is the load-bearing one
 for us: show real render state, never fake progress; a queued ComfyUI job
 says "queued behind 3 jobs", not a spinner that implies work is happening.
 "Unobtrusive" means the chrome never competes with the stage.
 
 ### Teenage Engineering — playful professionalism
+
 A pro tool disguised as an invitation to play. Three takeaways:
+
 - **Limitation as liberation:** 3–5 primary actions per screen max. Depth
   through navigation, not density.
 - **Color as function:** one accent per screen, mapped to meaning. The user
@@ -43,23 +43,27 @@ A pro tool disguised as an invitation to play. Three takeaways:
   transitions, the mode-crossfade we already have.
 
 ### Ableton Live — the tool disappears
+
 One window, no floating-window management, no hidden menus. Muted palette
-with *selective* emphasis: nearly everything gray-on-gray, color reserved
+with _selective_ emphasis: nearly everything gray-on-gray, color reserved
 for user content and state (playing, recording, armed). Functional
 minimalism — every pixel serves a purpose. High density achieved through
 spatial memory and small, precise text, not through cramming.
 
 ### Linear — speed as a feature
+
 Keyboard-first, instant-feeling, restrained. Motion feels alive but never
 decorates. Information density without clutter.
 
 ### Don Norman — close the gulfs
+
 The gulf of execution (can I figure out what to do?) and the gulf of
 evaluation (did it work? what happened?). Every action gets feedback; every
 system state is legible. The tuned-visual-profile toast ("applied profile
 X") is already this — do more of it.
 
 ### Nothing / industrial minimalism — expose the data
+
 Numbers and states ARE the visual. Queue depth, GPU/VRAM, render progress,
 beat/BPM readouts — don't hide the machine behind illustrations. Dot-grids,
 monospaced readouts, visible structure.

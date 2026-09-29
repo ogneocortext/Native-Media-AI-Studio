@@ -1,18 +1,15 @@
 ---
 tags:
-  - 3d-rendering
-  - gpu
-  - optimization
-  - blender
-  - comfyui
-  - webgpu
-  - visualization
+  - creative
+  - 3d
+  - platform-blender
 aliases:
   - 3D Rendering Guide
   - GPU Rendering
   - Rendering Optimization
 cssclasses:
-  - technical-guide
+  - creative-guide
+date: 2026-09-29
 date: 2026-08-29
 ---
 
@@ -37,14 +34,14 @@ date: 2026-08-29
 
 ### GPU: NVIDIA GeForce GTX 1070 Ti (8GB VRAM)
 
-| Task | Max Resolution | VRAM Usage | Notes |
-|------|---------------|------------|-------|
-| Image Generation (SD) | 512×512 | ~4 GB | Safe for 8GB VRAM |
-| Image Generation (SDXL) | 768×768 | ~6 GB | Use `--disable-pinned-memory` |
-| 3D Generation (Hunyuan3D-2mini) | Default | ~4 GB | Optimized for 8GB |
-| Blender EEVEE Render | 1080p | ~2 GB | Real-time engine |
-| Blender Cycles Render | 1080p | ~3-4 GB | CUDA acceleration |
-| Video Decode/Encode | 1080p | ~1 GB | NVENC/NVDEC |
+| Task                            | Max Resolution | VRAM Usage | Notes                         |
+| ------------------------------- | -------------- | ---------- | ----------------------------- |
+| Image Generation (SD)           | 512×512        | ~4 GB      | Safe for 8GB VRAM             |
+| Image Generation (SDXL)         | 768×768        | ~6 GB      | Use `--disable-pinned-memory` |
+| 3D Generation (Hunyuan3D-2mini) | Default        | ~4 GB      | Optimized for 8GB             |
+| Blender EEVEE Render            | 1080p          | ~2 GB      | Real-time engine              |
+| Blender Cycles Render           | 1080p          | ~3-4 GB    | CUDA acceleration             |
+| Video Decode/Encode             | 1080p          | ~1 GB      | NVENC/NVDEC                   |
 
 ### VRAM Budget (8GB Total)
 
@@ -104,12 +101,12 @@ bpy.context.scene.eevee.use_gtao = True  # Ground Truth AO
 
 ### Render Time Estimates (1080p, 24fps, 10s clip = 240 frames)
 
-| Engine | Samples | Per Frame | Total (240 frames) |
-|--------|---------|-----------|-------------------|
-| EEVEE | 64 | ~2s | ~8 min |
-| Cycles (Fast) | 64 | ~15s | ~60 min |
-| Cycles (Quality) | 128 | ~30s | ~120 min |
-| Cycles (Max) | 256 | ~60s | ~240 min |
+| Engine           | Samples | Per Frame | Total (240 frames) |
+| ---------------- | ------- | --------- | ------------------ |
+| EEVEE            | 64      | ~2s       | ~8 min             |
+| Cycles (Fast)    | 64      | ~15s      | ~60 min            |
+| Cycles (Quality) | 128     | ~30s      | ~120 min           |
+| Cycles (Max)     | 256     | ~60s      | ~240 min           |
 
 ---
 
@@ -133,11 +130,11 @@ print(f"Free VRAM: {free:.2f} GB")
 
 ### Common OOM Solutions
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `CUDA out of memory` | Model too large | Reduce resolution or batch size |
-| `CUBLAS error` | Matrix too big | Reduce image dimensions |
-| Slow generation | CPU fallback | Check `torch.cuda.is_available()` |
+| Error                | Cause           | Solution                          |
+| -------------------- | --------------- | --------------------------------- |
+| `CUDA out of memory` | Model too large | Reduce resolution or batch size   |
+| `CUBLAS error`       | Matrix too big  | Reduce image dimensions           |
+| Slow generation      | CPU fallback    | Check `torch.cuda.is_available()` |
 
 ---
 
@@ -149,16 +146,19 @@ print(f"Free VRAM: {free:.2f} GB")
 > `ComfyUI/models/diffusion_models/hunyuan3D-2mini`
 
 **Workflow:**
+
 1. Text prompt → Image generation (512×512)
 2. Generated image → 3D mesh generation
 3. Mesh export as `.glb` or `.obj`
 
 **Prompt Structure for 3D Assets:**
+
 ```
 [object], [material], [style], [orientation], [detail_level]
 ```
 
 **Examples:**
+
 - `a futuristic robot, chrome metallic, standing pose, highly detailed`
 - `a neon microphone, cyberpunk style, floating, glowing accents`
 - `a DJ console, modern minimalist, LED indicators, top-down view`
@@ -207,30 +207,33 @@ bpy.context.scene.render.ffmpeg.ffmpeg_preset = 'GOOD'
 
 ### Resolution Guide
 
-| Platform | Resolution | Aspect Ratio | Bitrate |
-|----------|------------|--------------|---------|
-| YouTube | 1920×1080 | 16:9 | 16 Mbps |
-| YouTube 4K | 3840×2160 | 16:9 | 44 Mbps |
-| YouTube Shorts | 1080×1920 | 9:16 | 12 Mbps |
-| TikTok | 1080×1920 | 9:16 | 12 Mbps |
+| Platform       | Resolution | Aspect Ratio | Bitrate |
+| -------------- | ---------- | ------------ | ------- |
+| YouTube        | 1920×1080  | 16:9         | 16 Mbps |
+| YouTube 4K     | 3840×2160  | 16:9         | 44 Mbps |
+| YouTube Shorts | 1080×1920  | 9:16         | 12 Mbps |
+| TikTok         | 1080×1920  | 9:16         | 12 Mbps |
 
 ---
 
 ## Troubleshooting
 
 ### Rendering Too Slow
+
 - Reduce samples (128 → 64)
 - Use EEVEE instead of Cycles
 - Lower resolution (1080p → 720p)
 - Enable tile rendering (256px tiles)
 
 ### Out of Memory
+
 - Close other GPU applications
 - Reduce render resolution
 - Use smaller batch sizes
 - Clear CUDA cache between operations
 
 ### Black Frames
+
 - Check lighting setup
 - Verify camera position
 - Ensure materials are not pure black
@@ -247,7 +250,7 @@ bpy.context.scene.render.ffmpeg.ffmpeg_preset = 'GOOD'
 - **Import path**: `import * as THREE from 'three/webgpu'` + `await renderer.init()` — WebGPU is async; `setAnimationLoop` awaits automatically, custom RAF must await manually. Fallback to WebGL2 is automatic (`forceWebGL:true` only for debug).
 - **TSL**: Replaces GLSL `ShaderMaterial`/`onBeforeCompile` — write `Fn()` nodes once, compiled to WGSL or GLSL. Never mix `from 'three'` + `from 'three/webgpu'` (bundles 2× renderer).
 - **Post-processing**: `EffectComposer` → `RenderPipeline` node graph — built-in MRT, new **SSGI/SSS/DoF** exclusive to WebGPU, 2× faster merge. Bloom now via `RenderPipeline` node, not `UnrealBloomPass`.
-- **Compressed textures**: `KTX2Loader.detectSupport(renderer)` must run *after* `renderer.init()` — before = silent black meshes.
+- **Compressed textures**: `KTX2Loader.detectSupport(renderer)` must run _after_ `renderer.init()` — before = silent black meshes.
 
 ### Compute Particles — Why 1M is Now Possible
 
@@ -275,7 +278,7 @@ Supplement to [[visualization-effects#6. Blender 5.2 LTS|Visualization Effects �
 - **Fast GI**: faster + less noise at `precision <1`, fixed AO leakage/pixelation/1-frame reproject lag
 - **Raycast Node**: precise intersections, no false positives toward camera
 - **Shadow budget**: 1.5/2 GB options — tune per-light shadow maps (1024→4096), not globally
-- **Hybrid workflow**: lookdev in EEVEE Next (raytracing ON) → finals in Cycles (OptiX denoise) → comp via AOVs. If scene has no glass/caustics/off-screen mirrors, EEVEE *is* final.
+- **Hybrid workflow**: lookdev in EEVEE Next (raytracing ON) → finals in Cycles (OptiX denoise) → comp via AOVs. If scene has no glass/caustics/off-screen mirrors, EEVEE _is_ final.
 
 ---
 
@@ -300,4 +303,4 @@ Supplement to [[visualization-effects#6. Blender 5.2 LTS|Visualization Effects �
 
 ---
 
-*Last updated: 2026-08-29 — expanded with WebGPU/TSL compute path, Blender 5.2 LTS, 3DGS, and link to new Visualization Effects library*
+_Last updated: 2026-08-29 — expanded with WebGPU/TSL compute path, Blender 5.2 LTS, 3DGS, and link to new Visualization Effects library_

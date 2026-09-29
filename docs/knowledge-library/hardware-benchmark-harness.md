@@ -1,3 +1,15 @@
+---
+tags:
+  - performance
+  - hardware-8gb
+  - benchmarking
+aliases:
+  - Hardware Profile and Benchmark Harness
+cssclasses:
+  - performance-guide
+date: 2026-09-29
+---
+
 # Hardware Profile and Benchmark Harness
 
 > **Last Updated:** 2026-09-23  

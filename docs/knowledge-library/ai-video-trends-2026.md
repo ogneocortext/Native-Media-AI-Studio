@@ -1,15 +1,14 @@
 ---
 tags:
-  - ai-generation
-  - music-video
-  - trends
+  - research
+  - ai
 aliases:
   - AI Video Trends 2026
   - Industry Trends
   - State of AI Video 2026
 cssclasses:
-  - trend-report
-date: 2026-08-24
+  - research-report
+date: 2026-09-29
 ---
 
 # 📈 AI Video Generation Trends 2026
@@ -56,15 +55,15 @@ date: 2026-08-24
 
 ## 2. Model Landscape 2026 (Where Hunyuan3D/Wan fits)
 
-| Model                                         | Type                                 | VRAM                    | Local?               | Best For                                 | Cost                         |
-| --------------------------------------------- | ------------------------------------ | ----------------------- | -------------------- | ---------------------------------------- | ---------------------------- |
-| **Wan 2.2 TI2V-5B GGUF** | T2V/I2V video (MoE) | **~6-8GB ✅ (GGUF Q4/Q5 + CPU T5 offload)** | Yes (Apache 2.0) | 480p-720p clips on 8GB | $0 local / cloud $0.02-0.03/clip |
-| **Wan 2.2 14B**                               | T2V/I2V MoE (high+low noise experts) | 24GB+                   | Yes                  | 720p quality, temporal consistency       | $0.05-0.09/clip              |
-| **Wan 2.5/2.6**                               | Audio-visual synced                  | —                       | API only             | 1080p native audio+video, 10s            | Commercial API               |
-| **AnimateDiff Evolved**                       | Stylized motion 2-16s                | 8GB ✅ with `--lowvram` | Yes                  | Motion graphics, loops (primary for 8GB) | —                            |
-| **SVD (Stable Video Diffusion)**              | Image→Video 2-4s                     | 12GB+                   | Yes                  | Product/scene subtle motion              | —                            |
-| **Sora / Veo 3.1 / Kling 3.0 / Seedance 2.0** | Closed weights                       | —                       | No (browser)         | Cinematic 4K                             | —                            |
-| **Hunyuan3D-2mini**                           | Image→3D mesh                        | ~5GB ✅                 | Yes                  | Props/characters geometry                | —                            |
+| Model                                         | Type                                 | VRAM                                        | Local?           | Best For                                 | Cost                             |
+| --------------------------------------------- | ------------------------------------ | ------------------------------------------- | ---------------- | ---------------------------------------- | -------------------------------- |
+| **Wan 2.2 TI2V-5B GGUF**                      | T2V/I2V video (MoE)                  | **~6-8GB ✅ (GGUF Q4/Q5 + CPU T5 offload)** | Yes (Apache 2.0) | 480p-720p clips on 8GB                   | $0 local / cloud $0.02-0.03/clip |
+| **Wan 2.2 14B**                               | T2V/I2V MoE (high+low noise experts) | 24GB+                                       | Yes              | 720p quality, temporal consistency       | $0.05-0.09/clip                  |
+| **Wan 2.5/2.6**                               | Audio-visual synced                  | —                                           | API only         | 1080p native audio+video, 10s            | Commercial API                   |
+| **AnimateDiff Evolved**                       | Stylized motion 2-16s                | 8GB ✅ with `--lowvram`                     | Yes              | Motion graphics, loops (primary for 8GB) | —                                |
+| **SVD (Stable Video Diffusion)**              | Image→Video 2-4s                     | 12GB+                                       | Yes              | Product/scene subtle motion              | —                                |
+| **Sora / Veo 3.1 / Kling 3.0 / Seedance 2.0** | Closed weights                       | —                                           | No (browser)     | Cinematic 4K                             | —                                |
+| **Hunyuan3D-2mini**                           | Image→3D mesh                        | ~5GB ✅                                     | Yes              | Props/characters geometry                | —                                |
 
 **Key insight for 8GB VRAM:** Wan 2.2 **TI2V-5B GGUF** now fits on GTX 1070 Ti with CPU offloading (~6-8GB VRAM at 480p). FP16 variants still require 16-24GB and should be avoided. For 8GB local: use **AnimateDiff Evolved** as primary, **Wan 2.2 TI2V-5B GGUF** as quality upgrade, and cloud services (24GB+) for 720p+ production work.
 
@@ -118,16 +117,16 @@ Source: MusicMake.ai trends review — practical workflow changes:
 
 ## 5. Concrete Pipeline Upgrades for Native Media AI Studio
 
-| Priority | Change                                                                                              | File                                           | Effort                 |
-| -------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------- |
+| Priority | Change                                                                                                 | File                                           | Effort                 |
+| -------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------- | ---------------------- |
 | **P0**   | Use AnimateDiff Evolved as primary video for 8GB; add Wan 2.2 TI2V-5B GGUF as secondary quality option | [[comfyui-workflows]]                          | — (already configured) |
-| **P0**   | Stem separation pre-pass (Demucs) → 8 stems → map to distinct visual params                         | [[music-video-production#audio-analysis]]      | 0.5 day                |
-| **P0**   | Vertical-first composition `1080×1920` + safe zones + 3-8s Canvas loop export                       | [[youtube-optimization]] + Remotion `Root.tsx` | 0.5 day                |
-| **P1**   | ControlNet WanFunControl for performance transfer (dance → shrimp character)                        | [[comfyui-workflows]]                          | 1 day                  |
-| **P1**   | Real-time preview: 512p proxy + `visualizeAudio()` before full render                               | `packages/frontend` MusicVideo.tsx             | 1 day                  |
-| **P1**   | Integrated export matrix: MV + thumbnails (3 variants A/B) + timestamps + SEO                       | [[youtube-optimization]]                       | 0.5 day                |
-| **P2**   | Prompt repair log + version history per song section                                                | [[prompt-engineering]]                         | 0.5 day                |
-| **P2**   | Blender 5.1 perf check + OptiX/CUDA auto-select in `BlenderSceneBuilder`                            | [[3d-rendering]]                               | 0.5 day                |
+| **P0**   | Stem separation pre-pass (Demucs) → 8 stems → map to distinct visual params                            | [[music-video-production#audio-analysis]]      | 0.5 day                |
+| **P0**   | Vertical-first composition `1080×1920` + safe zones + 3-8s Canvas loop export                          | [[youtube-optimization]] + Remotion `Root.tsx` | 0.5 day                |
+| **P1**   | ControlNet WanFunControl for performance transfer (dance → shrimp character)                           | [[comfyui-workflows]]                          | 1 day                  |
+| **P1**   | Real-time preview: 512p proxy + `visualizeAudio()` before full render                                  | `packages/frontend` MusicVideo.tsx             | 1 day                  |
+| **P1**   | Integrated export matrix: MV + thumbnails (3 variants A/B) + timestamps + SEO                          | [[youtube-optimization]]                       | 0.5 day                |
+| **P2**   | Prompt repair log + version history per song section                                                   | [[prompt-engineering]]                         | 0.5 day                |
+| **P2**   | Blender 5.1 perf check + OptiX/CUDA auto-select in `BlenderSceneBuilder`                               | [[3d-rendering]]                               | 0.5 day                |
 
 ---
 

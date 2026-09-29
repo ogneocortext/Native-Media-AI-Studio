@@ -1,18 +1,15 @@
 ---
 tags:
-  - hyperframes
-  - audio-reactive
-  - beat-sync
-  - music-video
-  - 2026
+  - creative
+  - audio
+  - platform-remotion
 aliases:
   - HyperFrames Audio-Reactive Guide 2026
   - HyperFrames Beat Sync
   - HF Audio Visualization
 cssclasses:
-  - technical-reference
-  - hyperframes
-date: 2026-09-24
+  - creative-guide
+date: 2026-09-29
 ---
 
 # 🎬 HyperFrames Audio-Reactive Visualizations — 2026 Guide
@@ -26,6 +23,7 @@ date: 2026-09-24
 > vocabulary demands it.
 >
 > **Prerequisites:**
+>
 > - [[lyric-beat-visualization-2026]] — data contracts, LRC parsing, lyric timing
 > - [[audio-reactive-production]] — frequency band mapping, genre-aware pacing
 > - [[visualization-effects]] — WebGPU/TSL shaders, particles, post-processing
@@ -95,12 +93,12 @@ Without per-frame sampling, the composition does not react to audio.
 
 ### 1.4 Band Mapping
 
-| Audio signal | Band index | Visual property | Effect |
-|---|---|---|---|
-| Bass | `bands[0]` | `scale` | Pulse on beat |
-| Treble | `bands[12-15]` | `textShadow`, `boxShadow` | Glow intensity |
-| Overall amplitude | weighted sum | `opacity`, `y`, `backgroundColor` | Breathe, lift, color shift |
-| Mid-range | `bands[4-8]` | `borderRadius`, `width` | Shape morphing |
+| Audio signal      | Band index     | Visual property                   | Effect                     |
+| ----------------- | -------------- | --------------------------------- | -------------------------- |
+| Bass              | `bands[0]`     | `scale`                           | Pulse on beat              |
+| Treble            | `bands[12-15]` | `textShadow`, `boxShadow`         | Glow intensity             |
+| Overall amplitude | weighted sum   | `opacity`, `y`, `backgroundColor` | Breathe, lift, color shift |
+| Mid-range         | `bands[4-8]`   | `borderRadius`, `width`           | Shape morphing             |
 
 Any GSAP-tweenable property works: `clipPath`, `filter`, SVG attributes, CSS
 custom properties.
@@ -119,11 +117,11 @@ custom properties.
 Native Media AI Studio already has three audio-analysis backends that produce
 the data HyperFrames needs:
 
-| Tool | Output | Use for HyperFrames |
-|---|---|---|
-| `tools/analyze_and_sync.py` → `beat_data.json` | `beat_times`, `bpm`, `duration`, `energy_curve` | Beat grid, section timing |
-| `packages/backend/app/services/audio_analyzer.py` | `AudioAnalysisResult` with `beat_times`, `downbeat_times`, `energy_curve` | Same, via API |
-| `packages/frontend/src/features/visualizer/audioAnalysis.worker.ts` | Real-time `bass`, `mid`, `treble`, `beat`, `drumType`, `perceptualBands` | Live preview only (not deterministic) |
+| Tool                                                                | Output                                                                    | Use for HyperFrames                   |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------- |
+| `tools/analyze_and_sync.py` → `beat_data.json`                      | `beat_times`, `bpm`, `duration`, `energy_curve`                           | Beat grid, section timing             |
+| `packages/backend/app/services/audio_analyzer.py`                   | `AudioAnalysisResult` with `beat_times`, `downbeat_times`, `energy_curve` | Same, via API                         |
+| `packages/frontend/src/features/visualizer/audioAnalysis.worker.ts` | Real-time `bass`, `mid`, `treble`, `beat`, `drumType`, `perceptualBands`  | Live preview only (not deterministic) |
 
 For HyperFrames, use the **pre-extracted** backends (`analyze_and_sync.py` or
 `audio_analyzer.py`), never the Web Audio API.
@@ -209,14 +207,19 @@ HyperFrames compositions are HTML files. Embed the pre-extracted data inline:
 ```js
 for (let f = 0; f < AUDIO_DATA.totalFrames; f++) {
   const bass = AUDIO_DATA.frames[f].bands[0];
-  const targetScale = 1 + bass * 0.15;  // 1.0 → 1.15
-  tl.to(".hero", { scale: targetScale, duration: 1 / AUDIO_DATA.fps }, f / AUDIO_DATA.fps);
+  const targetScale = 1 + bass * 0.15; // 1.0 → 1.15
+  tl.to(
+    ".hero",
+    { scale: targetScale, duration: 1 / AUDIO_DATA.fps },
+    f / AUDIO_DATA.fps,
+  );
 }
 ```
 
 **Variants:**
+
 - Add `y: -bass * 20` for a lift effect
-- Add `textShadow: `0 0 ${bass * 30}px rgba(255,255,255,0.8)` for glow pulse
+- Add `textShadow: `0 0 ${bass \* 30}px rgba(255,255,255,0.8)` for glow pulse
 - Use `isDownbeat` for accent frames (larger pulse on downbeats)
 
 ### 3.2 Spectrum Bars (Multi-Subject)
@@ -226,13 +229,17 @@ for (let f = 0; f < AUDIO_DATA.totalFrames; f++) {
 **Mechanism:** Map each bar to a frequency bin; height = band amplitude.
 
 ```js
-const bars = document.querySelectorAll('.spectrum-bar');
+const bars = document.querySelectorAll(".spectrum-bar");
 for (let f = 0; f < AUDIO_DATA.totalFrames; f++) {
   const frame = AUDIO_DATA.frames[f];
   bars.forEach((bar, i) => {
-    const bandIdx = Math.floor(i * AUDIO_DATA.bands / bars.length);
+    const bandIdx = Math.floor((i * AUDIO_DATA.bands) / bars.length);
     const amp = frame.bands[bandIdx] || 0;
-    tl.to(bar, { scaleY: 0.2 + amp * 1.8, duration: 1 / AUDIO_DATA.fps }, f / AUDIO_DATA.fps);
+    tl.to(
+      bar,
+      { scaleY: 0.2 + amp * 1.8, duration: 1 / AUDIO_DATA.fps },
+      f / AUDIO_DATA.fps,
+    );
   });
 }
 ```
@@ -252,13 +259,29 @@ lyricLines.forEach((line, lineIdx) => {
   const lineStartFrame = Math.floor(line.start * AUDIO_DATA.fps);
   words.forEach((word, wordIdx) => {
     const wordStart = lineStartFrame + wordIdx * 8; // 8 frames per word
-    tl.set(`.word-${lineIdx}-${wordIdx}`, { opacity: 0, y: 10 }, wordStart / AUDIO_DATA.fps);
-    tl.to(`.word-${lineIdx}-${wordIdx}`, { opacity: 1, y: 0, duration: 0.1 }, wordStart / AUDIO_DATA.fps);
+    tl.set(
+      `.word-${lineIdx}-${wordIdx}`,
+      { opacity: 0, y: 10 },
+      wordStart / AUDIO_DATA.fps,
+    );
+    tl.to(
+      `.word-${lineIdx}-${wordIdx}`,
+      { opacity: 1, y: 0, duration: 0.1 },
+      wordStart / AUDIO_DATA.fps,
+    );
   });
   // Active line highlight driven by energy
-  for (let f = lineStartFrame; f < lineStartFrame + line.duration * AUDIO_DATA.fps; f++) {
+  for (
+    let f = lineStartFrame;
+    f < lineStartFrame + line.duration * AUDIO_DATA.fps;
+    f++
+  ) {
     const energy = AUDIO_DATA.frames[f].energy || 0;
-    tl.to(`.line-${lineIdx}`, { textShadow: `0 0 ${energy * 20}px rgba(255,255,255,0.6)` }, f / AUDIO_DATA.fps);
+    tl.to(
+      `.line-${lineIdx}`,
+      { textShadow: `0 0 ${energy * 20}px rgba(255,255,255,0.6)` },
+      f / AUDIO_DATA.fps,
+    );
   }
 });
 ```
@@ -274,31 +297,43 @@ baselines.
 visibility and color mood.
 
 ```js
-sections.forEach(section => {
+sections.forEach((section) => {
   const startFrame = Math.floor(section.start * AUDIO_DATA.fps);
   const endFrame = Math.floor(section.end * AUDIO_DATA.fps);
   const energy = section.energy || 0.5;
 
   // Scene transition at section boundary
-  tl.to(`.scene-${section.type}`, { opacity: 1, duration: 0.5 }, startFrame / AUDIO_DATA.fps);
-  tl.to(`.scene-${section.type}`, { opacity: 0, duration: 0.5 }, endFrame / AUDIO_DATA.fps);
+  tl.to(
+    `.scene-${section.type}`,
+    { opacity: 1, duration: 0.5 },
+    startFrame / AUDIO_DATA.fps,
+  );
+  tl.to(
+    `.scene-${section.type}`,
+    { opacity: 0, duration: 0.5 },
+    endFrame / AUDIO_DATA.fps,
+  );
 
   // Color mood driven by energy
   const hue = energy > 0.7 ? 0 : energy > 0.4 ? 200 : 280; // red / blue / purple
-  tl.to(".mood-bg", { backgroundColor: `hsl(${hue}, 70%, ${10 + energy * 20}%)` }, startFrame / AUDIO_DATA.fps);
+  tl.to(
+    ".mood-bg",
+    { backgroundColor: `hsl(${hue}, 70%, ${10 + energy * 20}%)` },
+    startFrame / AUDIO_DATA.fps,
+  );
 });
 ```
 
 **Section energy suffixes (from the backend):**
 
-| Section | Energy | Visual Treatment |
-|---|---|---|
-| intro | 0.2 | Minimal, slow push |
-| verse | 0.5 | Character enters, parallax |
-| chorus | 0.9–1.0 | Maximalist, fluid light |
-| drop | 1.0 | Intense motion, flashing |
-| bridge | 0.3 | Dreamy, slow |
-| outro | 0.4 | Fading, soft |
+| Section | Energy  | Visual Treatment           |
+| ------- | ------- | -------------------------- |
+| intro   | 0.2     | Minimal, slow push         |
+| verse   | 0.5     | Character enters, parallax |
+| chorus  | 0.9–1.0 | Maximalist, fluid light    |
+| drop    | 1.0     | Intense motion, flashing   |
+| bridge  | 0.3     | Dreamy, slow               |
+| outro   | 0.4     | Fading, soft               |
 
 ### 3.5 Drum-Type Percussion
 
@@ -311,12 +346,24 @@ from `madmom`/`sonara` beat arrays) to trigger different hit visuals.
 for (let f = 0; f < AUDIO_DATA.totalFrames; f++) {
   const frame = AUDIO_DATA.frames[f];
   if (frame.drumType === "kick") {
-    tl.to(".kick-ring", { scale: 1.3, opacity: 0.8, duration: 0.05 }, f / AUDIO_DATA.fps);
-    tl.to(".kick-ring", { scale: 1, opacity: 0, duration: 0.15 }, f / AUDIO_DATA.fps + 0.05);
+    tl.to(
+      ".kick-ring",
+      { scale: 1.3, opacity: 0.8, duration: 0.05 },
+      f / AUDIO_DATA.fps,
+    );
+    tl.to(
+      ".kick-ring",
+      { scale: 1, opacity: 0, duration: 0.15 },
+      f / AUDIO_DATA.fps + 0.05,
+    );
   }
   if (frame.drumType === "snare") {
     tl.to(".snare-flash", { opacity: 0.6, duration: 0.03 }, f / AUDIO_DATA.fps);
-    tl.to(".snare-flash", { opacity: 0, duration: 0.1 }, f / AUDIO_DATA.fps + 0.03);
+    tl.to(
+      ".snare-flash",
+      { opacity: 0, duration: 0.1 },
+      f / AUDIO_DATA.fps + 0.03,
+    );
   }
 }
 ```
@@ -332,14 +379,21 @@ delays derived from `energy_curve` peaks.
 ```js
 const burstFrames = AUDIO_DATA.frames
   .map((f, i) => ({ i, energy: f.energy }))
-  .filter(f => f.energy > 0.85);
+  .filter((f) => f.energy > 0.85);
 
 burstFrames.forEach((burst, idx) => {
   const t = burst.i / AUDIO_DATA.fps;
-  tl.fromTo(`.particle-${idx}`,
+  tl.fromTo(
+    `.particle-${idx}`,
     { x: 960, y: 540, opacity: 1, scale: 0 },
-    { x: `+=${(Math.random() - 0.5) * 400}`, y: `+=${(Math.random() - 0.5) * 400}`, opacity: 0, scale: 1.5, duration: 0.8 },
-    t
+    {
+      x: `+=${(Math.random() - 0.5) * 400}`,
+      y: `+=${(Math.random() - 0.5) * 400}`,
+      opacity: 0,
+      scale: 1.5,
+      duration: 0.8,
+    },
+    t,
   );
 });
 ```
@@ -366,12 +420,12 @@ Audio file
 
 Implemented in `packages/backend/app/api/audio.py`:
 
-| Endpoint | Returns | Use |
-|---|---|---|
-| `GET /api/audio/analysis/{filename}` | `AudioAnalysisResult` | Beat times, BPM, energy curve, sections |
-| `GET /api/audio/hyperframes-payload/{filename}?fps=30&bands=16` | Deterministic `AUDIO_DATA` | Inline HyperFrames audio reactivity |
-| `GET /api/audio/stems/{filename}` | Stem URLs | Optional per-stem reactivity |
-| `POST /api/audio/transcribe` | Word timestamps | Lyric karaoke |
+| Endpoint                                                        | Returns                    | Use                                     |
+| --------------------------------------------------------------- | -------------------------- | --------------------------------------- |
+| `GET /api/audio/analysis/{filename}`                            | `AudioAnalysisResult`      | Beat times, BPM, energy curve, sections |
+| `GET /api/audio/hyperframes-payload/{filename}?fps=30&bands=16` | Deterministic `AUDIO_DATA` | Inline HyperFrames audio reactivity     |
+| `GET /api/audio/stems/{filename}`                               | Stem URLs                  | Optional per-stem reactivity            |
+| `POST /api/audio/transcribe`                                    | Word timestamps            | Lyric karaoke                           |
 
 `POST /api/hyperframes/compile-storyboard` accepts the resulting `audio_data`
 alongside the storyboard. The compiler embeds it inline as `AUDIO_DATA`; it
@@ -398,7 +452,12 @@ Three.js. This is how the studio's existing `VisualizerScene.tsx` patterns
 ### 5.1 Mounting a Three.js Scene
 
 ```html
-<div data-composition-id="main" data-duration="30" data-width="1920" data-height="1080">
+<div
+  data-composition-id="main"
+  data-duration="30"
+  data-width="1920"
+  data-height="1080"
+>
   <div id="three-container" style="position:absolute; inset:0;"></div>
   <div id="dom-overlay" style="position:relative; z-index:10;">
     <!-- lyrics, titles, etc. -->
@@ -406,16 +465,16 @@ Three.js. This is how the studio's existing `VisualizerScene.tsx` patterns
 </div>
 
 <script type="module">
-  import * as THREE from 'three/webgpu';
-  import { gsap } from 'gsap';
+  import * as THREE from "three/webgpu";
+  import { gsap } from "gsap";
 
   const renderer = new THREE.WebGPURenderer({ antialias: true });
   await renderer.init();
   renderer.setSize(1920, 1080);
-  document.getElementById('three-container').appendChild(renderer.domElement);
+  document.getElementById("three-container").appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(55, 1920/1080, 0.1, 100);
+  const camera = new THREE.PerspectiveCamera(55, 1920 / 1080, 0.1, 100);
   camera.position.z = 7;
 
   // Audio-reactive uniforms
@@ -446,7 +505,7 @@ Three.js. This is how the studio's existing `VisualizerScene.tsx` patterns
     }, f / AUDIO_DATA.fps);
   }
 
-  window.__timelines['main'] = tl;
+  window.__timelines["main"] = tl;
 
   // Render loop — driven by HyperFrames seek, not rAF
   function render(time) {
@@ -461,7 +520,15 @@ Three.js. This is how the studio's existing `VisualizerScene.tsx` patterns
 ### 5.2 TSL Shader Patterns for Audio Reactivity
 
 ```ts
-import { uniform, positionLocal, texture, Fn, vec3, float, time } from 'three/tsl';
+import {
+  uniform,
+  positionLocal,
+  texture,
+  Fn,
+  vec3,
+  float,
+  time,
+} from "three/tsl";
 
 const uBass = uniform(0);
 const uMid = uniform(0);
@@ -471,7 +538,7 @@ const uTreble = uniform(0);
 const displace = Fn(() => {
   const noise = texture(noiseMap, positionLocal.mul(2).add(time.mul(0.1))).r;
   return positionLocal.add(
-    positionLocal.normalize().mul(noise.mul(uBass).mul(0.5))
+    positionLocal.normalize().mul(noise.mul(uBass).mul(0.5)),
   );
 })();
 
@@ -484,8 +551,8 @@ const emissive = Fn(() => {
 ### 5.3 R3F Integration (if the project uses R3F for 3D scenes)
 
 ```tsx
-import { Canvas, useFrame } from '@react-three/fiber';
-import { useTimeline } from 'hyperframes/react'; // hypothetical bridge
+import { Canvas, useFrame } from "@react-three/fiber";
+import { useTimeline } from "hyperframes/react"; // hypothetical bridge
 
 function AudioReactiveMesh() {
   const meshRef = useRef<Mesh>(null);
@@ -495,10 +562,16 @@ function AudioReactiveMesh() {
     if (!meshRef.current || frame >= AUDIO_DATA.totalFrames) return;
     const { bands } = AUDIO_DATA.frames[frame];
     meshRef.current.scale.setScalar(1 + bands[0] * 0.3);
-    (meshRef.current.material as MeshPhysicalNodeMaterial).emissiveIntensity = bands[12] * 2;
+    (meshRef.current.material as MeshPhysicalNodeMaterial).emissiveIntensity =
+      bands[12] * 2;
   });
 
-  return <mesh ref={meshRef}><sphereGeometry /><meshPhysicalNodeMaterial /></mesh>;
+  return (
+    <mesh ref={meshRef}>
+      <sphereGeometry />
+      <meshPhysicalNodeMaterial />
+    </mesh>
+  );
 }
 ```
 
@@ -516,14 +589,14 @@ function AudioReactiveMesh() {
 The frontend already has 13 genre presets in `visualPresets.ts`. Each preset
 controls:
 
-| Property | Effect |
-|---|---|
-| `bloomStrength` | Glow intensity |
-| `glitchIntensity` | Distortion amount |
-| `colorShift` | Hue rotation speed |
-| `beatPunch` | Scale response to bass |
-| `particleDensity` | Number of particles |
-| `cameraShake` | Camera jitter on beat |
+| Property          | Effect                 |
+| ----------------- | ---------------------- |
+| `bloomStrength`   | Glow intensity         |
+| `glitchIntensity` | Distortion amount      |
+| `colorShift`      | Hue rotation speed     |
+| `beatPunch`       | Scale response to bass |
+| `particleDensity` | Number of particles    |
+| `cameraShake`     | Camera jitter on beat  |
 
 **Use these presets in HyperFrames by mapping the genre to preset values in
 the extraction step:**
@@ -544,21 +617,25 @@ audio_data["visualPreset"] = {
 
 ```js
 const SECTION_MOOD = {
-  intro:    { hue: 220, saturation: 30, lightness: 15 },
-  verse:    { hue: 200, saturation: 50, lightness: 20 },
-  chorus:   { hue: 280, saturation: 70, lightness: 25 },
-  drop:     { hue: 0,   saturation: 80, lightness: 30 },
-  bridge:   { hue: 260, saturation: 40, lightness: 18 },
-  outro:    { hue: 240, saturation: 20, lightness: 12 },
+  intro: { hue: 220, saturation: 30, lightness: 15 },
+  verse: { hue: 200, saturation: 50, lightness: 20 },
+  chorus: { hue: 280, saturation: 70, lightness: 25 },
+  drop: { hue: 0, saturation: 80, lightness: 30 },
+  bridge: { hue: 260, saturation: 40, lightness: 18 },
+  outro: { hue: 240, saturation: 20, lightness: 12 },
 };
 
-sections.forEach(section => {
+sections.forEach((section) => {
   const mood = SECTION_MOOD[section.type] || SECTION_MOOD.verse;
   const startFrame = Math.floor(section.start * AUDIO_DATA.fps);
-  tl.to(".mood-bg", {
-    backgroundColor: `hsl(${mood.hue}, ${mood.saturation}%, ${mood.lightness}%)`,
-    duration: 0.5,
-  }, startFrame / AUDIO_DATA.fps);
+  tl.to(
+    ".mood-bg",
+    {
+      backgroundColor: `hsl(${mood.hue}, ${mood.saturation}%, ${mood.lightness}%)`,
+      duration: 0.5,
+    },
+    startFrame / AUDIO_DATA.fps,
+  );
 });
 ```
 
@@ -568,11 +645,11 @@ sections.forEach(section => {
 
 ### 7.1 DOM vs Three.js Budget
 
-| Element count | Recommended approach |
-|---|---|
-| ≤ 64 bars/particles | DOM elements with `tl.call()` sampling |
-| 64–10,000 | Three.js `InstancedMesh` |
-| 10,000–1,000,000 | WebGPU compute shaders + `StorageBufferAttribute` |
+| Element count       | Recommended approach                              |
+| ------------------- | ------------------------------------------------- |
+| ≤ 64 bars/particles | DOM elements with `tl.call()` sampling            |
+| 64–10,000           | Three.js `InstancedMesh`                          |
+| 10,000–1,000,000    | WebGPU compute shaders + `StorageBufferAttribute` |
 
 ### 7.2 Per-Frame Sampling Performance
 
@@ -585,16 +662,20 @@ The `tl.call()` pattern creates one GSAP callback per frame. At 30fps × 180s
 
 ```js
 // ✅ Fast — refs cached outside the loop
-const titleEl = document.getElementById('title');
-const bars = document.querySelectorAll('.bar');
+const titleEl = document.getElementById("title");
+const bars = document.querySelectorAll(".bar");
 
 for (let f = 0; f < totalFrames; f++) {
-  tl.call((frame) => {
-    titleEl.style.transform = `scale(${1 + frame.bands[0] * 0.1})`;
-    bars.forEach((bar, i) => {
-      bar.style.height = `${frame.bands[i % 16] * 100}%`;
-    });
-  }, [AUDIO_DATA.frames[f]], f / fps);
+  tl.call(
+    (frame) => {
+      titleEl.style.transform = `scale(${1 + frame.bands[0] * 0.1})`;
+      bars.forEach((bar, i) => {
+        bar.style.height = `${frame.bands[i % 16] * 100}%`;
+      });
+    },
+    [AUDIO_DATA.frames[f]],
+    f / fps,
+  );
 }
 ```
 
@@ -611,12 +692,12 @@ When a HyperFrames composition includes a Three.js WebGPU scene:
 
 ### 7.4 Memory Budget
 
-| Asset | Budget |
-|---|---|
-| `AUDIO_DATA` JSON | ~5–15 MB for 16 bands × 30fps × 3min |
-| DOM elements | ≤ 200 for 60fps on mid-range hardware |
-| Three.js meshes | ≤ 500 draw calls |
-| Texture memory | ≤ 256 MB (KTX2 compressed) |
+| Asset             | Budget                                |
+| ----------------- | ------------------------------------- |
+| `AUDIO_DATA` JSON | ~5–15 MB for 16 bands × 30fps × 3min  |
+| DOM elements      | ≤ 200 for 60fps on mid-range hardware |
+| Three.js meshes   | ≤ 500 draw calls                      |
+| Texture memory    | ≤ 256 MB (KTX2 compressed)            |
 
 ---
 
@@ -644,30 +725,30 @@ To make HyperFrames audio-reactive renders a first-class output of the studio:
 
 Create starter templates in `tools/hyperframes-test/compositions/`:
 
-| Template | Description |
-|---|---|
-| `bass-pulse-title.html` | Single hero element, bass-driven scale + glow |
-| `spectrum-bars.html` | 32–64 bars, per-band height mapping |
-| `lyric-karaoke.html` | LRC-driven word highlight with beat accent |
-| `section-journey.html` | Multi-scene, section-aware color + visibility |
+| Template                   | Description                                   |
+| -------------------------- | --------------------------------------------- |
+| `bass-pulse-title.html`    | Single hero element, bass-driven scale + glow |
+| `spectrum-bars.html`       | 32–64 bars, per-band height mapping           |
+| `lyric-karaoke.html`       | LRC-driven word highlight with beat accent    |
+| `section-journey.html`     | Multi-scene, section-aware color + visibility |
 | `threejs-audio-scene.html` | WebGPU Three.js scene with TSL audio uniforms |
 
 ---
 
 ## 9. Common Pitfalls
 
-| Pitfall | Symptom | Fix |
-|---|---|---|
-| Runtime `AudioContext` | `hyperframes check` fails, render silent | Pre-extract all data |
-| `Math.random()` in callbacks | Different output on every render | Pre-compute in extraction step |
-| `fetch()` for audio data | Non-deterministic, 404 in render | Embed inline |
-| DOM nodes > 200 | Stutters at 1080p | Move particles to Three.js |
-| Missing `data-duration` | Timeline length inferred wrong | Always set `data-duration` explicitly |
-| Nested `data-start` | `video_nested_in_timed_element` lint error | Time wrapper OR video, not both |
-| `crossorigin` on `<video>` | `media_crossorigin_breaks_preview` lint error | Remove crossorigin attribute |
-| `tl.to()` on `.clip` | `lint` rejects visibility tween | Animate inner wrapper, not `.clip` |
-| Infinite `repeat: -1` | Render never ends | Use finite repeat count |
-| Unregistered timeline | `window.__timelines[id]` missing | Register before render |
+| Pitfall                      | Symptom                                       | Fix                                   |
+| ---------------------------- | --------------------------------------------- | ------------------------------------- |
+| Runtime `AudioContext`       | `hyperframes check` fails, render silent      | Pre-extract all data                  |
+| `Math.random()` in callbacks | Different output on every render              | Pre-compute in extraction step        |
+| `fetch()` for audio data     | Non-deterministic, 404 in render              | Embed inline                          |
+| DOM nodes > 200              | Stutters at 1080p                             | Move particles to Three.js            |
+| Missing `data-duration`      | Timeline length inferred wrong                | Always set `data-duration` explicitly |
+| Nested `data-start`          | `video_nested_in_timed_element` lint error    | Time wrapper OR video, not both       |
+| `crossorigin` on `<video>`   | `media_crossorigin_breaks_preview` lint error | Remove crossorigin attribute          |
+| `tl.to()` on `.clip`         | `lint` rejects visibility tween               | Animate inner wrapper, not `.clip`    |
+| Infinite `repeat: -1`        | Render never ends                             | Use finite repeat count               |
+| Unregistered timeline        | `window.__timelines[id]` missing              | Register before render                |
 
 ---
 
@@ -693,6 +774,7 @@ npx hyperframes render --quality high --output output/video/song.mp4
 ```
 
 **Key snapshots to capture:**
+
 - `t=0` — first frame, no animation yet
 - First beat — confirm bass pulse fires
 - First section change — confirm scene/color transition
@@ -703,17 +785,17 @@ npx hyperframes render --quality high --output output/video/song.mp4
 
 ## 11. 2026 Tooling Landscape
 
-| Tool | Role | Notes |
-|---|---|---|
-| `extract-audio-data.py` | Per-frame band extraction | Bundled with HyperFrames skill |
-| `tools/analyze_and_sync.py` | Beat grid + sections + lyrics | Project-specific, Python |
-| `audio_analyzer.py` | Multi-backend analysis (librosa/madmom/sonara) | Backend API |
-| `madmom-infer` | BLSTM beat/downbeat tracking | Most accurate for 4/4 |
-| `sonara` | Rust beat tracking, fast | Fallback when madmom slow |
-| `ffmpeg` | Audio decode + loudness + waveform | Required by all extractors |
-| `hyperframes check` | Determinism + lint gate | Must pass before render |
-| Three.js r185 + TSL | WebGPU/WebGL2 audio-reactive shaders | Pascal fallback to WebGL2 |
-| GSAP 3.12 | Timeline + per-frame callbacks | Render-safe when paused + registered |
+| Tool                        | Role                                           | Notes                                |
+| --------------------------- | ---------------------------------------------- | ------------------------------------ |
+| `extract-audio-data.py`     | Per-frame band extraction                      | Bundled with HyperFrames skill       |
+| `tools/analyze_and_sync.py` | Beat grid + sections + lyrics                  | Project-specific, Python             |
+| `audio_analyzer.py`         | Multi-backend analysis (librosa/madmom/sonara) | Backend API                          |
+| `madmom-infer`              | BLSTM beat/downbeat tracking                   | Most accurate for 4/4                |
+| `sonara`                    | Rust beat tracking, fast                       | Fallback when madmom slow            |
+| `ffmpeg`                    | Audio decode + loudness + waveform             | Required by all extractors           |
+| `hyperframes check`         | Determinism + lint gate                        | Must pass before render              |
+| Three.js r185 + TSL         | WebGPU/WebGL2 audio-reactive shaders           | Pascal fallback to WebGL2            |
+| GSAP 3.12                   | Timeline + per-frame callbacks                 | Render-safe when paused + registered |
 
 ---
 
@@ -730,4 +812,4 @@ npx hyperframes render --quality high --output output/video/song.mp4
 
 ---
 
-*Last updated: 2026-09-24*
+_Last updated: 2026-09-24_

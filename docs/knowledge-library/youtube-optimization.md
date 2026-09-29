@@ -1,16 +1,14 @@
 ---
 tags:
-  - youtube
-  - optimization
-  - music-video
-  - distribution
+  - production
+  - platform-youtube
 aliases:
   - YouTube Optimization
   - YouTube Music Video
   - Platform Optimization
 cssclasses:
-  - platform-guide
-date: 2026-08-24
+  - production-guide
+date: 2026-09-29
 ---
 
 # 📺 YouTube Optimization
@@ -88,26 +86,28 @@ Audio: [producer info]
 > Mix broad and specific tags:
 
 ### Required Tags
+
 ```
-music video, official music video, [artist name], [song name], 
+music video, official music video, [artist name], [song name],
 [genre], ai music video, ai generated, music visualizer
 ```
 
 ### Genre-Specific Tags
 
-| Genre | Tags |
-|-------|------|
+| Genre      | Tags                                            |
+| ---------- | ----------------------------------------------- |
 | Electronic | electronic music, synthwave, EDM, house, techno |
-| Pop | pop music, catchy, upbeat, summer vibes |
-| Hip-Hop | hip hop, rap, trap, beats, urban |
-| Rock | rock music, alternative, indie, guitar |
-| Lo-fi | lo-fi, chill, study beats, relaxing |
-| Tropical | tropical, summer, beach, ocean, island |
+| Pop        | pop music, catchy, upbeat, summer vibes         |
+| Hip-Hop    | hip hop, rap, trap, beats, urban                |
+| Rock       | rock music, alternative, indie, guitar          |
+| Lo-fi      | lo-fi, chill, study beats, relaxing             |
+| Tropical   | tropical, summer, beach, ocean, island          |
 
 ### Discovery Tags
+
 ```
-new music 2026, new music video, trending music, 
-viral music, best music video, top hits, 
+new music 2026, new music video, trending music,
+viral music, best music video, top hits,
 [season] hits, [year] music
 ```
 
@@ -138,12 +138,12 @@ viral music, best music video, top hits,
 
 ### Tools for Thumbnail Creation
 
-| Tool | Purpose | Best For |
-|------|---------|----------|
-| ComfyUI | AI-generated thumbnails | Consistent style |
-| Canva | Template-based design | Quick creation |
-| Photoshop | Professional editing | Maximum control |
-| Blender | 3D rendered thumbnails | 3D characters |
+| Tool      | Purpose                 | Best For         |
+| --------- | ----------------------- | ---------------- |
+| ComfyUI   | AI-generated thumbnails | Consistent style |
+| Canva     | Template-based design   | Quick creation   |
+| Photoshop | Professional editing    | Maximum control  |
+| Blender   | 3D rendered thumbnails  | 3D characters    |
 
 ---
 
@@ -173,22 +173,22 @@ viral music, best music video, top hits,
 
 ### The 3 Core Layers
 
-| Layer | What It Measures | Gateway? |
-|-------|------------------|----------|
-| **1. CTR (Click-Through Rate)** | Thumbnail + title promise for that viewer segment | Yes — <3-4% stalls at Stage 1; no CTR → no broader testing |
-| **2. Retention (Avg View Duration + Satisfaction)** | Did you deliver on promise? Post-watch surveys, return visits, end-card clicks | Very High — satisfaction > raw clicks |
-| **3. Session Watch Time** | Does your video keep viewers *on YouTube* longer vs ending session? Leads to next video | High — rewards videos that extend session |
+| Layer                                               | What It Measures                                                                        | Gateway?                                                   |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **1. CTR (Click-Through Rate)**                     | Thumbnail + title promise for that viewer segment                                       | Yes — <3-4% stalls at Stage 1; no CTR → no broader testing |
+| **2. Retention (Avg View Duration + Satisfaction)** | Did you deliver on promise? Post-watch surveys, return visits, end-card clicks          | Very High — satisfaction > raw clicks                      |
+| **3. Session Watch Time**                           | Does your video keep viewers _on YouTube_ longer vs ending session? Leads to next video | High — rewards videos that extend session                  |
 
 **System layers on top:**
 
-| Factor | Weight (2026 OutlierKit) | How to Optimize |
-|--------|--------------------------|-----------------|
-| **Viewer Satisfaction Score** | Very High | Deliver on title promise, clear conclusion, track post-watch likes/return visits |
-| **CTR** | High | A/B test thumbnails (YT Studio native), outcome-oriented titles <60 chars |
-| **Avg View Duration / Retention** | High | Hook in first 30s (hook in first 15s = retention trajectory), pattern interrupts, payoffs |
-| **Session Amplification** | High | Tight niche clustering → suggested videos surface; end screens to related content |
-| **Freshness** | Medium | Trending topics favor recency |
-| **Metadata Quality** | Low (table stakes) | Keywords still needed for search, but CTR+retention decides ranking, not stuffing |
+| Factor                            | Weight (2026 OutlierKit) | How to Optimize                                                                           |
+| --------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------- |
+| **Viewer Satisfaction Score**     | Very High                | Deliver on title promise, clear conclusion, track post-watch likes/return visits          |
+| **CTR**                           | High                     | A/B test thumbnails (YT Studio native), outcome-oriented titles <60 chars                 |
+| **Avg View Duration / Retention** | High                     | Hook in first 30s (hook in first 15s = retention trajectory), pattern interrupts, payoffs |
+| **Session Amplification**         | High                     | Tight niche clustering → suggested videos surface; end screens to related content         |
+| **Freshness**                     | Medium                   | Trending topics favor recency                                                             |
+| **Metadata Quality**              | Low (table stakes)       | Keywords still needed for search, but CTR+retention decides ranking, not stuffing         |
 
 > [!warning] In 2026 the algorithm is **predictive, not reactive** — it predicts satisfaction from early signals, not just tallies views.
 
@@ -200,12 +200,12 @@ viral music, best music video, top hits,
 
 Reposter Network Feb 2026 — YouTube runs **distinct algorithmic systems** per surface:
 
-| Surface | Primary Signal | What Wins | Notes |
-|---------|---------------|-----------|-------|
-| **Long-Form / Home / Suggested** | Watch time + session duration | 50%+ avg view duration, session extension | CTR gateway, then retention |
-| **Shorts** | Watch-through % + replays + swipe-through rate | Near-100% completion, loops, first frame decisive | Completely decoupled from long-form; likes secondary; autoplay feed |
-| **YouTube Music** | Audio quality, library saves, playlist adds | Proper distribution via aggregator | Video channel must link to YT Music artist profile |
-| **Search** | CTR + retention *for that query* (personalized) | Outlier packaging per niche, topical authority via clustering | Keyword optimization table-stakes; best CTR/retention ranks long-term |
+| Surface                          | Primary Signal                                  | What Wins                                                     | Notes                                                                 |
+| -------------------------------- | ----------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------- |
+| **Long-Form / Home / Suggested** | Watch time + session duration                   | 50%+ avg view duration, session extension                     | CTR gateway, then retention                                           |
+| **Shorts**                       | Watch-through % + replays + swipe-through rate  | Near-100% completion, loops, first frame decisive             | Completely decoupled from long-form; likes secondary; autoplay feed   |
+| **YouTube Music**                | Audio quality, library saves, playlist adds     | Proper distribution via aggregator                            | Video channel must link to YT Music artist profile                    |
+| **Search**                       | CTR + retention _for that query_ (personalized) | Outlier packaging per niche, topical authority via clustering | Keyword optimization table-stakes; best CTR/retention ranks long-term |
 
 **Shorts best practices:** hook in 1-2s, first frame decisive, 30s @ 85% beats 60s @ 50%, seamless loop → replays, trending audio. Post 1-3×/week; long-form hero 1×/month; Community tab 1-2×/week.
 
@@ -214,7 +214,7 @@ Reposter Network Feb 2026 — YouTube runs **distinct algorithmic systems** per 
 - **Fire-spread model:** Small subscribed/core audience test → Stage 2 (known audience) → Stage 3 (related interests) → Stage 4 (broad expansion). Each stage widens only if CTR + retention pass threshold.
 - **Outlier analysis:** Study thumbnail/title packaging that beats niche average CTR; use thumbnail A/B test (YT Studio) — one improvement compounds across all future impressions.
 - **No gaming:** Misleading thumbnail inflates CTR but destroys retention → deprioritized within hours. Buying views destroys audience-match signals.
-- **Fix failed videos, don't just post more:** Every underperforming video is negative data point. Diagnose *stage* of stall (CTR low? retention drop?) before re-uploading.
+- **Fix failed videos, don't just post more:** Every underperforming video is negative data point. Diagnose _stage_ of stall (CTR low? retention drop?) before re-uploading.
 
 ### Thumbnail Strategy — Highest Leverage Point (OverTheTopSeo Apr 2026)
 
@@ -230,11 +230,11 @@ Reposter Network Feb 2026 — YouTube runs **distinct algorithmic systems** per 
 > Post when your audience is most active:
 
 | Region | Best Days | Best Times (Local) |
-|--------|-----------|-------------------|
-| US | Thu-Sat | 2-4 PM EST |
-| Europe | Fri-Sun | 9-11 AM GMT |
-| Asia | Sat-Sun | 7-9 PM JST |
-| Global | Friday | 12-3 PM EST |
+| ------ | --------- | ------------------ |
+| US     | Thu-Sat   | 2-4 PM EST         |
+| Europe | Fri-Sun   | 9-11 AM GMT        |
+| Asia   | Sat-Sun   | 7-9 PM JST         |
+| Global | Friday    | 12-3 PM EST        |
 
 ---
 
@@ -243,14 +243,14 @@ Reposter Network Feb 2026 — YouTube runs **distinct algorithmic systems** per 
 > [!important] Platform Specs
 > Export different versions for each platform:
 
-| Platform | Resolution | Aspect Ratio | Max Duration |
-|----------|------------|--------------|--------------|
-| YouTube | 3840×2160 | 16:9 | 12 hours |
-| YouTube Shorts | 1080×1920 | 9:16 | 60 seconds |
-| TikTok | 1080×1920 | 9:16 | 10 minutes |
-| Instagram Reels | 1080×1920 | 9:16 | 90 seconds |
-| Twitter/X | 1920×1080 | 16:9 | 2 min 20 sec |
-| Facebook | 1920×1080 | 16/9:16 | 240 minutes |
+| Platform        | Resolution | Aspect Ratio | Max Duration |
+| --------------- | ---------- | ------------ | ------------ |
+| YouTube         | 3840×2160  | 16:9         | 12 hours     |
+| YouTube Shorts  | 1080×1920  | 9:16         | 60 seconds   |
+| TikTok          | 1080×1920  | 9:16         | 10 minutes   |
+| Instagram Reels | 1080×1920  | 9:16         | 90 seconds   |
+| Twitter/X       | 1920×1080  | 16:9         | 2 min 20 sec |
+| Facebook        | 1920×1080  | 16/9:16      | 240 minutes  |
 
 ---
 
@@ -259,23 +259,25 @@ Reposter Network Feb 2026 — YouTube runs **distinct algorithmic systems** per 
 > [!note] Key Metrics (targets reflect music-channel benchmarks)
 > Monitor in YouTube Studio — new metrics added Aug 2026:
 
-| Metric | Target | Action if Low | Notes (2026) |
-|--------|--------|---------------|--------------|
-| CTR | > 4% (4-10% established, 15%+ viral) | Improve thumbnail/title; A/B test | Gateway; track *per impression source* |
-| Avg View Duration | > 50% (Shorts: >85%) | Improve content pacing, eliminate energy drops | Primary value signal |
-| Retention at 30s | > 70% | Strengthen hook (first 15s) | Determines trajectory |
-| Viewer Satisfaction | N/A (survey + return) | Deliver on title promise, clear conclusion | **Very High weight** — new #1 |
-| New Viewer Attraction | Trending up | Broaden packaging beyond core niche | New distribution metric 2026 |
-| Likes Ratio | > 4% | Improve content quality | Secondary to retention |
-| Comments | > 0.5% | Add engagement prompts, reply with question | Conversations > reactions |
-| Shares / Replays (Shorts) | > 0.1% / loops ↑ | Create shareable/loopable moments | Replay drives Shorts distribution |
-| Session Time Contribution | ↑ vs baseline | End screen to tight-niche next video | Channels with tight niche cluster best |
-| Static vs Visualizer Lift | 2-5× (visualizer) | Replace static album-art uploads | Shimga May 2026 |
+| Metric                    | Target                               | Action if Low                                  | Notes (2026)                           |
+| ------------------------- | ------------------------------------ | ---------------------------------------------- | -------------------------------------- |
+| CTR                       | > 4% (4-10% established, 15%+ viral) | Improve thumbnail/title; A/B test              | Gateway; track _per impression source_ |
+| Avg View Duration         | > 50% (Shorts: >85%)                 | Improve content pacing, eliminate energy drops | Primary value signal                   |
+| Retention at 30s          | > 70%                                | Strengthen hook (first 15s)                    | Determines trajectory                  |
+| Viewer Satisfaction       | N/A (survey + return)                | Deliver on title promise, clear conclusion     | **Very High weight** — new #1          |
+| New Viewer Attraction     | Trending up                          | Broaden packaging beyond core niche            | New distribution metric 2026           |
+| Likes Ratio               | > 4%                                 | Improve content quality                        | Secondary to retention                 |
+| Comments                  | > 0.5%                               | Add engagement prompts, reply with question    | Conversations > reactions              |
+| Shares / Replays (Shorts) | > 0.1% / loops ↑                     | Create shareable/loopable moments              | Replay drives Shorts distribution      |
+| Session Time Contribution | ↑ vs baseline                        | End screen to tight-niche next video           | Channels with tight niche cluster best |
+| Static vs Visualizer Lift | 2-5× (visualizer)                    | Replace static album-art uploads               | Shimga May 2026                        |
 
 ### Social SEO Is Rising (2026 Macro)
+
 Retention > Likes, Conversations > superficial reactions, Specialization > generic content. Social SEO (YouTube Search + browse clustering by sub-niche) now a first-class discovery path. Build **topical authority**: tightly themed catalog → suggested-video clustering; generic variety channel → no clustering → poor suggestion rate.
 
 ### Publishing & Authority
+
 - **Social SEO:** Mood/activity searches ("music for studying") are opportunistic queries — create tutorial/behind-the-scenes + Short that funnels to music.
 - **Posting rhythm > punishing schedule:** 1 long-form/month + 1-3 Shorts/week + Community updates sustains without burnout; catalog creates compounding discovery.
 
@@ -303,4 +305,4 @@ Retention > Likes, Conversations > superficial reactions, Specialization > gener
 
 ---
 
-*Last updated: 2026-08-24*
+_Last updated: 2026-08-24_

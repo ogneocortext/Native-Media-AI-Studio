@@ -1,17 +1,14 @@
 ---
 tags:
-  - comfyui
-  - ai-generation
-  - workflows
-  - image-generation
-  - video-generation
+  - technical
+  - platform-comfyui
 aliases:
   - ComfyUI Workflows
   - Custom Workflows
   - ComfyUI Integration
 cssclasses:
   - technical-guide
-date: 2026-08-24
+date: 2026-09-29
 ---
 
 # 🎨 ComfyUI Workflows
@@ -25,6 +22,7 @@ date: 2026-08-24
 ## System Overview
 
 > [!note] ComfyUI Instance
+>
 > - **Location:** `D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI`
 > - **Port:** 8188
 > - **API:** REST API for programmatic control
@@ -49,17 +47,17 @@ date: 2026-08-24
 
 ### Installed Models
 
-| Model | Type | Path | VRAM Usage | Status |
-|-------|------|------|------------|--------|
-| hunyuan3D-2mini / **3.0 8GB** | 3D Diffusion | `models/diffusion_models/hunyuan3d-2mini/` or `hunyuan3d-3.0/` | ~4-5 GB | ✅ Active (geometry, 3.0 adds segmentation/UV/optimization) |
-| **Wan 2.2 TI2V-5B GGUF** | Video T2V/I2V (MoE) | `models/unet/` + GGUF loader | **~6-8GB ✅** | ✅ Active — 480p-720p with CPU T5 offload |
-| Wan 2.2 14B | Video T2V/I2V MoE (dual) | `models/diffusion_models/wan2.2_t2v_14B/` | 24 GB+ (A6000/48GB) | **Cloud-only** — not for GTX 1070 Ti |
-| **Gemma 4 E2B** | LLM text encoder (ComfyUI native) | `models/text_encoders/gemma-4-E2B-it` | ~2.9 GB | ✅ New Sep 2026 — fits 8GB, TextGenerate node |
-| [AnimateDiff Evolved] | Stylized motion 2-16s | `custom_nodes/ComfyUI-AnimateDiff-Evolved/models/` | 8GB with `--lowvram` | ✅ Active — **primary video for 8GB** |
-| [SVD] | Image→Video 2-4s | `models/checkpoints/` | 12GB+ | ❌ Not for 8GB — exceeds |
-| [Add SD1.5/SDXL/SD3] | Checkpoint | `models/checkpoints/` | 2-7 GB | ✅ Add as needed (8GB-safe) |
-| **BiRefNet** | Background removal (hair/fur) | `models/background_removal/birefnet.safetensors` | <2 GB | ✅ New Sep 2026 — fits 8GB |
-| **VOID** | Video object deletion | API node | <4 GB | ✅ New Sep 2026 — fits 8GB |
+| Model                         | Type                              | Path                                                           | VRAM Usage           | Status                                                      |
+| ----------------------------- | --------------------------------- | -------------------------------------------------------------- | -------------------- | ----------------------------------------------------------- |
+| hunyuan3D-2mini / **3.0 8GB** | 3D Diffusion                      | `models/diffusion_models/hunyuan3d-2mini/` or `hunyuan3d-3.0/` | ~4-5 GB              | ✅ Active (geometry, 3.0 adds segmentation/UV/optimization) |
+| **Wan 2.2 TI2V-5B GGUF**      | Video T2V/I2V (MoE)               | `models/unet/` + GGUF loader                                   | **~6-8GB ✅**        | ✅ Active — 480p-720p with CPU T5 offload                   |
+| Wan 2.2 14B                   | Video T2V/I2V MoE (dual)          | `models/diffusion_models/wan2.2_t2v_14B/`                      | 24 GB+ (A6000/48GB)  | **Cloud-only** — not for GTX 1070 Ti                        |
+| **Gemma 4 E2B**               | LLM text encoder (ComfyUI native) | `models/text_encoders/gemma-4-E2B-it`                          | ~2.9 GB              | ✅ New Sep 2026 — fits 8GB, TextGenerate node               |
+| [AnimateDiff Evolved]         | Stylized motion 2-16s             | `custom_nodes/ComfyUI-AnimateDiff-Evolved/models/`             | 8GB with `--lowvram` | ✅ Active — **primary video for 8GB**                       |
+| [SVD]                         | Image→Video 2-4s                  | `models/checkpoints/`                                          | 12GB+                | ❌ Not for 8GB — exceeds                                    |
+| [Add SD1.5/SDXL/SD3]          | Checkpoint                        | `models/checkpoints/`                                          | 2-7 GB               | ✅ Add as needed (8GB-safe)                                 |
+| **BiRefNet**                  | Background removal (hair/fur)     | `models/background_removal/birefnet.safetensors`               | <2 GB                | ✅ New Sep 2026 — fits 8GB                                  |
+| **VOID**                      | Video object deletion             | API node                                                       | <4 GB                | ✅ New Sep 2026 — fits 8GB                                  |
 
 > [!warning] Wan 2.2 5B/14B FP16 models deleted — too large for 8GB GPU
 > The Wan 2.2 5B FP16 model (`wan2.2_ti2v_5B_fp16.safetensors`, 9.5GB), UMT5 XXL text encoder (`umt5_xxl_fp8_e4m3fn_scaled.safetensors`, 6.4GB), and associated text encoder (`model.safetensors`, 8.9GB) have been deleted. They require 16-24GB VRAM and will OOM on GTX 1070 Ti (8GB). **Do not re-download FP16 models.** Use **Wan 2.2 TI2V-5B GGUF** (Q4/Q5 + CPU T5 offload) for 8GB-quality video, or **AnimateDiff Evolved** for fastest iteration — both work with your 8GB GPU using `--lowvram` mode.
@@ -67,6 +65,7 @@ date: 2026-08-24
 ### Model Management
 
 > [!tip] Adding Models
+>
 > 1. Download model file (`.safetensors`, `.ckpt`)
 > 2. Place in appropriate `models/` subdirectory
 > 3. Restart ComfyUI or refresh model list
@@ -98,14 +97,14 @@ comfyui_generate_image(
 
 **Parameters:**
 
-| Parameter | Range | Default | Effect |
-|-----------|-------|---------|--------|
-| width | 256-2048 | 512 | Image width (multiple of 64) |
-| height | 256-2048 | 512 | Image height (multiple of 64) |
-| steps | 1-100 | 20 | More = slower but better quality |
-| cfg | 1-20 | 7.0 | Higher = more prompt-faithful |
-| sampler | varies | euler | Affects style/quality |
-| scheduler | varies | normal | Affects generation curve |
+| Parameter | Range    | Default | Effect                           |
+| --------- | -------- | ------- | -------------------------------- |
+| width     | 256-2048 | 512     | Image width (multiple of 64)     |
+| height    | 256-2048 | 512     | Image height (multiple of 64)    |
+| steps     | 1-100    | 20      | More = slower but better quality |
+| cfg       | 1-20     | 7.0     | Higher = more prompt-faithful    |
+| sampler   | varies   | euler   | Affects style/quality            |
+| scheduler | varies   | normal  | Affects generation curve         |
 
 ### 2. Image-to-Image (Img2Img)
 
@@ -158,15 +157,16 @@ POST /api/3d/generate
 
 **Modes (via official ComfyUI templates ≥0.3.46 + GGUF loader):**
 
-| Mode | Input | Template | Frames | Notes |
-|------|-------|----------|--------|-------|
-| **T2V/I2V 5B GGUF** | Text/Image | `TI2V-5B` + GGUF loader | 81f @ 480p-720p | GGUF Q4/Q5 (~3-4GB UNet) + VAE (~1.3GB) + T5 CPU offload (~9GB RAM) |
-| **T2V 14B GGUF** | Text | `T2V 14B` + GGUF loader | 81f @ 480-720p | Dual GGUF experts; still tight on 8GB — 480p only, slow |
-| **I2V 5B/14B** | Image | `I2V` | 81f | Image-conditioned; better character consistency |
-| **FLF2V (First-Last-Frame)** | 2 images | `FLF2V` | Interp | Smooth continuous transforms; conservative on distant keyframes |
-| **ControlNet (WanFunControl)** | Video reference | `VideoX-Fun` node | — | Canny/Depth/OpenPose/MLSD drives motion, prompt drives appearance |
+| Mode                           | Input           | Template                | Frames          | Notes                                                               |
+| ------------------------------ | --------------- | ----------------------- | --------------- | ------------------------------------------------------------------- |
+| **T2V/I2V 5B GGUF**            | Text/Image      | `TI2V-5B` + GGUF loader | 81f @ 480p-720p | GGUF Q4/Q5 (~3-4GB UNet) + VAE (~1.3GB) + T5 CPU offload (~9GB RAM) |
+| **T2V 14B GGUF**               | Text            | `T2V 14B` + GGUF loader | 81f @ 480-720p  | Dual GGUF experts; still tight on 8GB — 480p only, slow             |
+| **I2V 5B/14B**                 | Image           | `I2V`                   | 81f             | Image-conditioned; better character consistency                     |
+| **FLF2V (First-Last-Frame)**   | 2 images        | `FLF2V`                 | Interp          | Smooth continuous transforms; conservative on distant keyframes     |
+| **ControlNet (WanFunControl)** | Video reference | `VideoX-Fun` node       | —               | Canny/Depth/OpenPose/MLSD drives motion, prompt drives appearance   |
 
 **ComfyUI install (5B GGUF path — 8GB-safe):**
+
 ```bash
 # ✅ GGUF path for 8GB GPUs (GTX 1070 Ti)
 # 1. Install ComfyUI-GGUF or use Unet Loader (GGUF) node (bootleg category)
@@ -181,6 +181,7 @@ POST /api/3d/generate
 ```
 
 **ComfyUI install (FP16 path — ⚠️ NOT FOR 8GB GPUs):**
+
 ```bash
 # ⚠️ WARNING: FP16 models require 16-24GB VRAM and will OOM on GTX 1070 Ti (8GB)
 # DO NOT DOWNLOAD FP16 weights on this machine
@@ -194,11 +195,11 @@ POST /api/3d/generate
 
 ### 4c. Animation Alternatives — AnimateDiff & SVD (Stylized vs Realistic)
 
-| Method | Duration | Style | Input | VRAM Comfort | Use For |
-|--------|----------|-------|-------|--------------|---------|
-| **AnimateDiff Evolved** | 2-16s | Stylized artistic | Text/image + motion model `mm_sd15_v3` / `mm_sd_v15_v2` | ✅ 8GB with `--lowvram` | Character loops, motion graphics — **primary video method for 8GB** |
-| **SVD** | 2-4s | Realistic natural | Static image | 12GB+ | Product/scene subtle motion |
-| **Frame-by-frame + FILM/RIFE interp** | Unlimited | Depends on base | Prompts + prev frames | Base model VRAM | Long-form precise control |
+| Method                                | Duration  | Style             | Input                                                   | VRAM Comfort            | Use For                                                             |
+| ------------------------------------- | --------- | ----------------- | ------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------- |
+| **AnimateDiff Evolved**               | 2-16s     | Stylized artistic | Text/image + motion model `mm_sd15_v3` / `mm_sd_v15_v2` | ✅ 8GB with `--lowvram` | Character loops, motion graphics — **primary video method for 8GB** |
+| **SVD**                               | 2-4s      | Realistic natural | Static image                                            | 12GB+                   | Product/scene subtle motion                                         |
+| **Frame-by-frame + FILM/RIFE interp** | Unlimited | Depends on base   | Prompts + prev frames                                   | Base model VRAM         | Long-form precise control                                           |
 
 - ControlNet for animation: OpenPose (pose), Canny (structure), Depth (3D), Temporal variants.
 - Motion LoRAs: camera, gesture, loop. Stack on motion model.
@@ -250,24 +251,24 @@ comfyui_generate_image(
 
 ### Samplers
 
-| Sampler | Speed | Quality | Best For |
-|---------|-------|---------|----------|
-| euler | Fast | Good | General purpose |
-| euler_ancestral | Fast | Artistic | Stylized images |
-| dpmpp_2m | Medium | Very Good | Balanced |
-| dpmpp_3m_sde | Slow | Excellent | Maximum quality |
-| ddim | Fast | Good | Quick iterations |
-| uni_pc | Fast | Good | Fast preview |
+| Sampler         | Speed  | Quality   | Best For         |
+| --------------- | ------ | --------- | ---------------- |
+| euler           | Fast   | Good      | General purpose  |
+| euler_ancestral | Fast   | Artistic  | Stylized images  |
+| dpmpp_2m        | Medium | Very Good | Balanced         |
+| dpmpp_3m_sde    | Slow   | Excellent | Maximum quality  |
+| ddim            | Fast   | Good      | Quick iterations |
+| uni_pc          | Fast   | Good      | Fast preview     |
 
 ### Schedulers
 
-| Scheduler | Effect |
-|-----------|--------|
-| normal | Standard generation |
-| karras | Smoother noise curve |
-| exponential | More detail at end |
+| Scheduler   | Effect               |
+| ----------- | -------------------- |
+| normal      | Standard generation  |
+| karras      | Smoother noise curve |
+| exponential | More detail at end   |
 | sgm_uniform | Improved consistency |
-| simple | Fast, simple curve |
+| simple      | Fast, simple curve   |
 
 ---
 
@@ -362,30 +363,30 @@ comfyui_get_system_stats(action="stats")
 
 ## Wan 2.2 Troubleshooting
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| Needs C compiler + python3-devel | Wan 2.2 build on Linux | `sudo zypper install gcc python3-devel` |
-| OOM at default 720×1280 | 14B default res | Reduce to 832×480 for 8GB |
-| Want flash-attention speed | Not installed | Add flash-attn → 2-3× faster (see ComfyUI discussion 2026-01) |
-| Two model nodes empty | 14B MoE needs both | Load high_noise + low_noise fp8_scaled |
+| Issue                            | Cause                  | Solution                                                      |
+| -------------------------------- | ---------------------- | ------------------------------------------------------------- |
+| Needs C compiler + python3-devel | Wan 2.2 build on Linux | `sudo zypper install gcc python3-devel`                       |
+| OOM at default 720×1280          | 14B default res        | Reduce to 832×480 for 8GB                                     |
+| Want flash-attention speed       | Not installed          | Add flash-attn → 2-3× faster (see ComfyUI discussion 2026-01) |
+| Two model nodes empty            | 14B MoE needs both     | Load high_noise + low_noise fp8_scaled                        |
 
 ## Troubleshooting
 
 ### Common Issues
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| `CUDA out of memory` | Image too large | Reduce resolution |
-| `Model not found` | Wrong path | Check model location |
-| Slow generation | CPU fallback | Verify CUDA installation |
-| Black output | Wrong model | Check model compatibility |
-| Import error | Missing dependency | Install in correct env |
-| `AnimateDiff ... upper limit of 32 frames` | v2 motion module cap without context window (verified live 2026-09-20: 240f batch rejected) | Generate ≤32-frame segments, concat/loop with FFmpeg; or use Wan GGUF path |
-| AnimateDiff abstract mush (verified live 2026-09-20) | Same prompt/seed gives coherent SD1.5 txt2img but structureless video; worse at 25 steps than 12 | Motion-module/context tuning needed (not step count) — try Evolved defaults, motion LoRA, or Wan GGUF |
-| Wan `precision: 'fp16' not in ['fp32','bf16']` | T5 loader node only accepts fp32/bf16 (verified live) | Use `bf16` for `LoadWanVideoT5TextEncoder` (runs CPU-offloaded, no Pascal issue) |
-| Wan `latent` / `samples` / `image_embeds` / `riflex_freq_index` validation errors | Guessed node schema (verified live 2026-09-20) | Sampler takes `samples` (omit entirely per Kijai T2V example — it self-generates), `image_embeds` from `WanVideoEmptyEmbeds`, `riflex_freq_index: 6` |
-| Wan `google/t5-xxl is not a local folder` | Standard T5-XXL checkpoint triggers HF tokenizer fallback (repo 401s); `scaled_fp8` umt5 rejected by node | Use locally de-scaled plain-fp8 umt5 (`umt5-xxl-plain-fp8.safetensors`, marker key removed) |
-| ComfyUI process vanishes mid-Wan-render | `nvlddmkm` Event ID 153 driver fault under sustained DiT load | Shrink envelope (480p/≤81f); if it recurs at small sizes, suspect sm_61 kernel/driver limits |
+| Issue                                                                             | Cause                                                                                                     | Solution                                                                                                                                             |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CUDA out of memory`                                                              | Image too large                                                                                           | Reduce resolution                                                                                                                                    |
+| `Model not found`                                                                 | Wrong path                                                                                                | Check model location                                                                                                                                 |
+| Slow generation                                                                   | CPU fallback                                                                                              | Verify CUDA installation                                                                                                                             |
+| Black output                                                                      | Wrong model                                                                                               | Check model compatibility                                                                                                                            |
+| Import error                                                                      | Missing dependency                                                                                        | Install in correct env                                                                                                                               |
+| `AnimateDiff ... upper limit of 32 frames`                                        | v2 motion module cap without context window (verified live 2026-09-20: 240f batch rejected)               | Generate ≤32-frame segments, concat/loop with FFmpeg; or use Wan GGUF path                                                                           |
+| AnimateDiff abstract mush (verified live 2026-09-20)                              | Same prompt/seed gives coherent SD1.5 txt2img but structureless video; worse at 25 steps than 12          | Motion-module/context tuning needed (not step count) — try Evolved defaults, motion LoRA, or Wan GGUF                                                |
+| Wan `precision: 'fp16' not in ['fp32','bf16']`                                    | T5 loader node only accepts fp32/bf16 (verified live)                                                     | Use `bf16` for `LoadWanVideoT5TextEncoder` (runs CPU-offloaded, no Pascal issue)                                                                     |
+| Wan `latent` / `samples` / `image_embeds` / `riflex_freq_index` validation errors | Guessed node schema (verified live 2026-09-20)                                                            | Sampler takes `samples` (omit entirely per Kijai T2V example — it self-generates), `image_embeds` from `WanVideoEmptyEmbeds`, `riflex_freq_index: 6` |
+| Wan `google/t5-xxl is not a local folder`                                         | Standard T5-XXL checkpoint triggers HF tokenizer fallback (repo 401s); `scaled_fp8` umt5 rejected by node | Use locally de-scaled plain-fp8 umt5 (`umt5-xxl-plain-fp8.safetensors`, marker key removed)                                                          |
+| ComfyUI process vanishes mid-Wan-render                                           | `nvlddmkm` Event ID 153 driver fault under sustained DiT load                                             | Shrink envelope (480p/≤81f); if it recurs at small sizes, suspect sm_61 kernel/driver limits                                                         |
 
 > [!success] Wan 2.2 TI2V-5B GGUF verified on GTX 1070 Ti 8GB (2026-09-20)
 > 81f @ 832×480, 8 steps, Q4_K_M + CPU-offloaded umt5-plain-fp8 + tiled VAE decode:
@@ -433,10 +434,12 @@ Frontend (React) → Backend (FastAPI) → ComfyUI REST API (port 8188)
 ```
 
 **Frontend paths:**
+
 - `packages/frontend/src/services/comfyui.ts` — Direct ComfyUI calls (image generation, model listing)
 - `packages/frontend/src/services/api.ts` — Backend-proxied calls (job queue, progress)
 
 **Backend paths:**
+
 - `packages/backend/app/adapters/comfyui.py` — Core adapter (health, generation, workflow building)
 - `packages/backend/app/services/comfyui_manager.py` — Process lifecycle (start/stop/update)
 - `packages/backend/app/services/gen3d/gen3d_service.py` — 3D generation via Kijai Wrapper
@@ -445,32 +448,32 @@ Frontend (React) → Backend (FastAPI) → ComfyUI REST API (port 8188)
 
 ### REST API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/services/comfyui/status` | GET | Process status (installed, running, version) |
-| `/api/services/comfyui/start` | POST | Start ComfyUI headlessly |
-| `/api/services/comfyui/stop` | POST | Stop ComfyUI |
-| `/api/services/comfyui/restart` | POST | Restart ComfyUI |
-| `/api/services/comfyui/update` | POST | Git pull + restart |
-| `/api/services/comfyui/version` | GET | Git version info |
-| `/api/integrations/{service}/generate` | POST | Submit image generation job |
-| `/api/integrations/{service}/result/{prompt_id}` | GET | Get completed result |
-| `/api/integrations/comfyui/progress/{prompt_id}` | GET | Poll generation progress |
-| `/api/integrations/{service}/generate-video` | POST | Submit video generation job |
-| `/api/integrations/comfyui/checkpoints` | GET | List available checkpoints |
-| `/api/integrations/comfyui/video-models` | GET | List video motion modules |
+| Endpoint                                         | Method | Description                                  |
+| ------------------------------------------------ | ------ | -------------------------------------------- |
+| `/api/services/comfyui/status`                   | GET    | Process status (installed, running, version) |
+| `/api/services/comfyui/start`                    | POST   | Start ComfyUI headlessly                     |
+| `/api/services/comfyui/stop`                     | POST   | Stop ComfyUI                                 |
+| `/api/services/comfyui/restart`                  | POST   | Restart ComfyUI                              |
+| `/api/services/comfyui/update`                   | POST   | Git pull + restart                           |
+| `/api/services/comfyui/version`                  | GET    | Git version info                             |
+| `/api/integrations/{service}/generate`           | POST   | Submit image generation job                  |
+| `/api/integrations/{service}/result/{prompt_id}` | GET    | Get completed result                         |
+| `/api/integrations/comfyui/progress/{prompt_id}` | GET    | Poll generation progress                     |
+| `/api/integrations/{service}/generate-video`     | POST   | Submit video generation job                  |
+| `/api/integrations/comfyui/checkpoints`          | GET    | List available checkpoints                   |
+| `/api/integrations/comfyui/video-models`         | GET    | List video motion modules                    |
 
 ### Input Validation
 
 Generation requests are validated at the API layer:
 
-| Parameter | Range | Notes |
-|-----------|-------|-------|
-| steps | 1-150 | Sampler steps |
-| cfg_scale | 0.0-30.0 | Classifier-free guidance |
-| width, height | 64-4096, multiple of 8 | Image dimensions |
-| num_frames | 1-256 | Video frames |
-| fps | 1-60 | Video frame rate |
+| Parameter     | Range                  | Notes                    |
+| ------------- | ---------------------- | ------------------------ |
+| steps         | 1-150                  | Sampler steps            |
+| cfg_scale     | 0.0-30.0               | Classifier-free guidance |
+| width, height | 64-4096, multiple of 8 | Image dimensions         |
+| num_frames    | 1-256                  | Video frames             |
+| fps           | 1-60                   | Video frame rate         |
 
 ### Error Handling
 
@@ -556,4 +559,4 @@ Generation requests are validated at the API layer:
 
 ---
 
-*Last updated: 2026-09-09 — Sep 2026 sweep: Gemma 4 native (E2B 8GB), Hunyuan3D 3.0, VOID/BiRefNet, Subgraphs, 8GB-capped tables*
+_Last updated: 2026-09-09 — Sep 2026 sweep: Gemma 4 native (E2B 8GB), Hunyuan3D 3.0, VOID/BiRefNet, Subgraphs, 8GB-capped tables_

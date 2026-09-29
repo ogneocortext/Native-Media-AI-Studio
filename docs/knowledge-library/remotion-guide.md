@@ -1,9 +1,14 @@
 ---
-title: Remotion Video Compositing Guide
-tags: [remotion, video, compositing, react, music-video]
-aliases: [Remotion Guide, Video Composition, Remotion Patterns]
-date: 2026-09-01
-cssclasses: [technical-reference]
+tags:
+  - technical
+  - platform-remotion
+aliases:
+  - Remotion Guide
+  - Video Composition
+  - Remotion Patterns
+cssclasses:
+  - technical-guide
+date: 2026-09-29
 ---
 
 # 🎬 Remotion Video Compositing Guide
@@ -16,6 +21,7 @@ cssclasses: [technical-reference]
 Remotion lets you define videos using React components. Each frame is rendered based on `useCurrentFrame()` and `useVideoConfig()`.
 
 **Key Packages:**
+
 - `remotion` — Core library (Composition, Sequence, Audio, Img, interpolate, spring)
 - `@remotion/media-utils` — Audio visualization (useWindowedAudioData, visualizeAudio, visualizeAudioWaveform)
 - `@remotion/three` — Three.js integration (ThreeCanvas)
@@ -48,7 +54,7 @@ import { Composition } from "remotion";
 <Composition
   id="MyVideo"
   component={MyComponent}
-  durationInFrames={7269}  // 242.32s @ 30fps
+  durationInFrames={7269} // 242.32s @ 30fps
   fps={30}
   width={1920}
   height={1080}
@@ -57,7 +63,7 @@ import { Composition } from "remotion";
     visualStyle: "bars",
     colorScheme: "neon",
   }}
-/>
+/>;
 ```
 
 ### 2. Frame-Based Animation
@@ -68,20 +74,20 @@ import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 function MyComponent() {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
-  
-  const t = frame / fps;  // Time in seconds
+
+  const t = frame / fps; // Time in seconds
   const progress = frame / totalFrames;
-  
+
   // Interpolate values
   const opacity = interpolate(progress, [0, 0.1, 0.9, 1], [0, 1, 1, 0]);
-  
+
   // Eased animation
   const x = interpolate(progress, [0, 1], [-100, 100], {
     easing: Easing.bezier(0, 0, 0.2, 1),
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  
+
   return <div style={{ opacity, transform: `translateX(${x}px)` }} />;
 }
 ```
@@ -89,12 +95,16 @@ function MyComponent() {
 ### 3. Audio-Reactive Animation
 
 ```tsx
-import { useWindowedAudioData, visualizeAudio, visualizeAudioWaveform } from "@remotion/media-utils";
+import {
+  useWindowedAudioData,
+  visualizeAudio,
+  visualizeAudioWaveform,
+} from "@remotion/media-utils";
 
 function AudioReactiveComponent() {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  
+
   // Get windowed audio data (30s window for smooth analysis)
   const { audioData, dataOffsetInSeconds } = useWindowedAudioData({
     src: staticFile("song.mp3"),
@@ -102,22 +112,36 @@ function AudioReactiveComponent() {
     fps,
     windowInSeconds: 30,
   });
-  
+
   // Visualize as frequency spectrum (64 samples)
   const spectrum = audioData
-    ? visualizeAudio({ fps, frame, audioData, numberOfSamples: 64, optimizeFor: "speed", dataOffsetInSeconds })
+    ? visualizeAudio({
+        fps,
+        frame,
+        audioData,
+        numberOfSamples: 64,
+        optimizeFor: "speed",
+        dataOffsetInSeconds,
+      })
     : new Array(64).fill(0);
-  
+
   // Visualize as waveform (280 points)
   const waveform = audioData
-    ? visualizeAudioWaveform({ fps, frame, audioData, numberOfSamples: 280, windowInSeconds: 0.6, dataOffsetInSeconds })
+    ? visualizeAudioWaveform({
+        fps,
+        frame,
+        audioData,
+        numberOfSamples: 280,
+        windowInSeconds: 0.6,
+        dataOffsetInSeconds,
+      })
     : new Array(280).fill(0);
-  
+
   // Extract frequency bands
   const bass = spectrum.slice(0, 10).reduce((a, b) => a + b, 0) / 10;
   const mid = spectrum.slice(10, 28).reduce((a, b) => a + b, 0) / 18;
   const treble = spectrum.slice(28, 52).reduce((a, b) => a + b, 0) / 24;
-  
+
   return (
     <div style={{ transform: `scale(${1 + bass * 0.3})` }}>
       Bass level: {bass.toFixed(2)}
@@ -132,9 +156,9 @@ function AudioReactiveComponent() {
 import { spring } from "remotion";
 
 const beatSpring = spring({
-  frame: frame % 14,  // 136 BPM → ~13.2 frames per beat at 30fps
+  frame: frame % 14, // 136 BPM → ~13.2 frames per beat at 30fps
   fps: 30,
-  config: { damping: 18, stiffness: 180, mass: 0.6 }
+  config: { damping: 18, stiffness: 180, mass: 0.6 },
 });
 
 // Use for smooth beat-reactive motion
@@ -147,14 +171,22 @@ const scale = 1 + (beatSpring - 0.5) * 0.1;
 import { ThreeCanvas } from "@remotion/three";
 import * as THREE from "three";
 
-<ThreeCanvas width={width} height={height} style={{ backgroundColor: "transparent" }}>
+<ThreeCanvas
+  width={width}
+  height={height}
+  style={{ backgroundColor: "transparent" }}
+>
   <ambientLight intensity={0.5} />
   <directionalLight position={[4, 7, 5]} intensity={1.2} />
   <mesh castShadow receiveShadow>
     <icosahedronGeometry args={[0.95, 0]} />
-    <meshStandardMaterial color="#818cf8" emissive="#818cf8" emissiveIntensity={0.5} />
+    <meshStandardMaterial
+      color="#818cf8"
+      emissive="#818cf8"
+      emissiveIntensity={0.5}
+    />
   </mesh>
-</ThreeCanvas>
+</ThreeCanvas>;
 ```
 
 ### 6. Lyric Synchronization
@@ -168,8 +200,9 @@ const lyrics: LyricLine[] = [
 ];
 
 const t = frame / fps;
-const currentLyric = lyrics.find(l => t >= l.start && t < l.end) ?? lyrics[0];
-const lyricProgress = (t - currentLyric.start) / (currentLyric.end - currentLyric.start);
+const currentLyric = lyrics.find((l) => t >= l.start && t < l.end) ?? lyrics[0];
+const lyricProgress =
+  (t - currentLyric.start) / (currentLyric.end - currentLyric.start);
 ```
 
 ### 7. Section-Based Styling
@@ -191,6 +224,7 @@ const PALETTE = {
 ## Rendering
 
 ### Preview (Dev Server)
+
 ```bash
 cd packages/video-editor
 npx remotion studio
@@ -198,6 +232,7 @@ npx remotion studio
 ```
 
 ### Render to Video
+
 ```bash
 # Render specific composition
 npx remotion render src/index.tsx MyComposition output.mp4
@@ -210,6 +245,7 @@ npx remotion render src/index.tsx MyComposition output.mp4 --frames=0-100
 ```
 
 ### Programmatic Render (Node.js)
+
 ```tsx
 import { renderMedia, selectComposition } from "@remotion/renderer";
 
@@ -233,12 +269,14 @@ The backend provides pre-computed audio analysis that can drive animations:
 
 ```tsx
 // Fetch from backend
-const analysis = await fetch(`/api/audio/analysis/${filename}`).then(r => r.json());
+const analysis = await fetch(`/api/audio/analysis/${filename}`).then((r) =>
+  r.json(),
+);
 
 // Use beat times for precise synchronization
-const beatTimes = analysis.beat_times;  // Array of timestamps
-const energyCurve = analysis.energy_curve;  // Array of energy values
-const sections = analysis.sections;  // [{type, start, end, energy}]
+const beatTimes = analysis.beat_times; // Array of timestamps
+const energyCurve = analysis.energy_curve; // Array of energy values
+const sections = analysis.sections; // [{type, start, end, energy}]
 ```
 
 ### Timing Contract (shared + AI-friendly)
@@ -246,7 +284,13 @@ const sections = analysis.sections;  // [{type, start, end, energy}]
 Use `shared/timing.ts` as the single source of truth for timing lookups:
 
 ```tsx
-import { getSectionAtTime, getBeatNearTime, getNextBeatIn, interpolateEnergy, generateTimingHints } from "../../../shared/timing";
+import {
+  getSectionAtTime,
+  getBeatNearTime,
+  getNextBeatIn,
+  interpolateEnergy,
+  generateTimingHints,
+} from "../../../shared/timing";
 import type { TimingContract } from "../../../shared/timing";
 
 // 1. Fetch TimingContract (Remotion/AI-agent optimized)
@@ -284,7 +328,7 @@ import { blur, chromaticAberration, vignette } from "@remotion/effects";
     chromaticAberration({ amount: 0.3 + bass * 0.8 }),
     vignette({ amount: 0.35, radius: 0.7, feather: 0.3 }),
   ]}
-/>
+/>;
 ```
 
 ### Reactive CSS/SVG Effects Layer (DOM compositions)
@@ -296,13 +340,17 @@ const blurAmount = isChorus ? 0.6 + bass * 1.2 : 0.2 + bass * 0.4;
 const brightness = 1 + bass * 0.08;
 const contrast = isChorus ? 1.1 : 1 + bass * 0.04;
 
-<AbsoluteFill style={{
-  filter: `blur(${blurAmount}px) brightness(${brightness}) contrast(${contrast})`,
-  opacity: 0.35 + pulse * 0.25,
-  mixBlendMode: "screen",
-}} />
+<AbsoluteFill
+  style={{
+    filter: `blur(${blurAmount}px) brightness(${brightness}) contrast(${contrast})`,
+    opacity: 0.35 + pulse * 0.25,
+    mixBlendMode: "screen",
+  }}
+/>;
 
-{/* Film grain */}
+{
+  /* Film grain */
+}
 <AbsoluteFill style={{ opacity: 0.06 + bass * 0.04, mixBlendMode: "overlay" }}>
   <svg width="100%" height="100%">
     <filter id="grain">
@@ -311,21 +359,21 @@ const contrast = isChorus ? 1.1 : 1 + bass * 0.04;
     </filter>
     <rect width="100%" height="100%" filter="url(#grain)" />
   </svg>
-</AbsoluteFill>
+</AbsoluteFill>;
 ```
 
 ### Available Effects
 
-| Effect | Import | Key Params |
-|--------|--------|-----------|
-| `blur` | `@remotion/effects/blur` | `radius` |
-| `chromaticAberration` | `@remotion/effects/chromatic-aberration` | `amount`, `angle` |
-| `vignette` | `@remotion/effects/vignette` | `amount`, `radius`, `feather` |
-| `noise` | `@remotion/effects/noise` | `amount`, `seed` |
-| `lightLeak` | `@remotion/effects/light-leak` | `progress`, `hueShift` |
-| `brightness` | `@remotion/effects/brightness` | `brightness` |
-| `contrast` | `@remotion/effects/contrast` | `contrast` |
-| `saturate` | `@remotion/effects/saturation` | `saturation` |
+| Effect                | Import                                   | Key Params                    |
+| --------------------- | ---------------------------------------- | ----------------------------- |
+| `blur`                | `@remotion/effects/blur`                 | `radius`                      |
+| `chromaticAberration` | `@remotion/effects/chromatic-aberration` | `amount`, `angle`             |
+| `vignette`            | `@remotion/effects/vignette`             | `amount`, `radius`, `feather` |
+| `noise`               | `@remotion/effects/noise`                | `amount`, `seed`              |
+| `lightLeak`           | `@remotion/effects/light-leak`           | `progress`, `hueShift`        |
+| `brightness`          | `@remotion/effects/brightness`           | `brightness`                  |
+| `contrast`            | `@remotion/effects/contrast`             | `contrast`                    |
+| `saturate`            | `@remotion/effects/saturation`           | `saturation`                  |
 
 ## Best Practices
 
@@ -340,14 +388,14 @@ const contrast = isChorus ? 1.1 : 1 + bass * 0.04;
 
 ## Common Patterns
 
-| Pattern | Use Case | API |
-|---------|----------|-----|
-| Fade in/out | Intro/outro | `interpolate(progress, [0, 0.1], [0, 1])` |
-| Beat pulse | Bass-reactive scale | `spring({ frame: frame % beatFrames, fps })` |
-| Section color | Mood changes | Section → color map |
+| Pattern         | Use Case            | API                                                     |
+| --------------- | ------------------- | ------------------------------------------------------- |
+| Fade in/out     | Intro/outro         | `interpolate(progress, [0, 0.1], [0, 1])`               |
+| Beat pulse      | Bass-reactive scale | `spring({ frame: frame % beatFrames, fps })`            |
+| Section color   | Mood changes        | Section → color map                                     |
 | Lyric highlight | Word-by-word reveal | `lyricProgress >= wordStart && lyricProgress < wordEnd` |
-| Camera movement | Dynamic shots | `interpolate` on position/rotation |
-| Wipe transition | Section changes | Animated gradient overlay |
+| Camera movement | Dynamic shots       | `interpolate` on position/rotation                      |
+| Wipe transition | Section changes     | Animated gradient overlay                               |
 
 ## References
 

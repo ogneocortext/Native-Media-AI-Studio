@@ -1,13 +1,13 @@
 ---
 tags:
-  - frontend-css
-  - tailwind-v4
-  - design-system
-  - accessibility
+  - technical
+  - design
 aliases:
   - Modern CSS 2026
   - Frontend Styling Guide
-date: 2026-09-23
+cssclasses:
+  - technical-guide
+date: 2026-09-29
 ---
 
 # 🎨 Modern CSS 2026 — Frontend Styling Guide
@@ -83,7 +83,7 @@ date: 2026-09-23
 
 - `transition: all` forces the browser to watch every property including
   layout ones. Scope to `color, background-color, border-color, box-shadow,
-  transform, filter, opacity` (done across `components/sidebar/theatre.css`).
+transform, filter, opacity` (done across `components/sidebar/theatre.css`).
 - Theme flips fade smoothly because surfaces already transition
   color/background-color; `body` carries the page-level transition.
 

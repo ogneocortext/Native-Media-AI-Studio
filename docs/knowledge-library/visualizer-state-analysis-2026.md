@@ -1,19 +1,15 @@
 ---
 tags:
+  - creative
   - visualization
-  - vision-analysis
-  - gemma4
-  - visualizer
-  - feedback
-  - music-video
+  - ai
 aliases:
   - Visualizer State Analysis
   - FX Visualizer Feedback
   - Visualization Improvement Report
 cssclasses:
-  - analysis
-  - vision-feedback
-date: 2026-09-10
+  - creative-guide
+date: 2026-09-29
 ---
 
 # 🎬 Visualizer State Analysis — FX Visualizer Feedback

@@ -1,3 +1,16 @@
+---
+tags:
+  - research
+  - design
+  - testing
+aliases:
+  - 3D Studio UX Audit Report
+  - UX Audit 2026
+cssclasses:
+  - research-report
+date: 2026-08-24
+---
+
 # 3D Studio UX Audit Report
 
 **Date:** 2026-08-24  

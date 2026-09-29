@@ -1,13 +1,14 @@
 ---
 tags:
-  - frontend-css
-  - design-qa
-  - accessibility
-  - axe-core
+  - creative
+  - design
+  - testing
 aliases:
   - Design Auditing 2026
   - UI QA System Guide
-date: 2026-09-23
+cssclasses:
+  - creative-guide
+date: 2026-09-29
 ---
 
 # 🔍 Design Auditing 2026 — Contrast, axe-core, Visual Review

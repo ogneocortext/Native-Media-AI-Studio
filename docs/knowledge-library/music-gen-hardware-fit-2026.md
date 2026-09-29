@@ -1,3 +1,16 @@
+---
+tags:
+  - performance
+  - hardware-8gb
+  - hardware-pascal
+  - music-gen
+aliases:
+  - ACE-Step 1.5 Hardware Fit
+cssclasses:
+  - performance-guide
+date: 2026-09-29
+---
+
 # ACE-Step 1.5 — Hardware-Fit Analysis for GTX 1070 Ti
 
 > **Last Updated:** 2026-09-20

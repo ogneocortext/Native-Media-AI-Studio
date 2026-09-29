@@ -1,18 +1,14 @@
 ---
 tags:
-  - minicpm-v
-  - ollama
-  - vision
-  - ocr
-  - multimodal
-  - gpu
+  - ai
+  - hardware-8gb
 aliases:
   - MiniCPM-V 2.6 Best Practices
   - minicpm-v:8b Usage Guide
   - Vision Model Guide MiniCPM
 cssclasses:
-  - knowledge-ocr
-date: 2026-09-06
+  - ai-guide
+date: 2026-09-29
 ---
 
 # 🔍 MiniCPM-V 2.6 (`minicpm-v:8b`) — Best Practices for Native Media AI Studio
@@ -28,14 +24,14 @@ date: 2026-09-06
 
 ## 1) What it does best (from 2025-2026 web research)
 
-| Strength | Proof | Your leverage |
-|---|---|---|
-| **Any-aspect high-res OCR** | 1344×1344, 1.8 MP, OCRBench SOTA, full-page article → plain text, **table → markdown** in one call | Media Library: album covers, lyric sheets, scanned tracklists → auto-tag without manual typing |
-| **Multi-image + in-context learning** | SOTA on Mantis-Eval/BLINK/MathVerse-mv; `(<image>...</image>)+prompt` style | UI regression: send `before.png + after.png` **in one request** → direct diff reasoning (not two separate calls) |
-| **Video understanding** | Dense captions, Video-MME > GPT-4V/Claude 3.5 Sonnet/LLaVA-NeXT-Video-34B | Auto-caption generated `output/video/*.mp4` into storyboard shot descriptions |
-| **Low hallucination** | RLAIF-V (CVPR'24) + VisCPM; divide-and-conquer feedback → DPO | Chart reading: ask for *trend* not exact pixel value → trustworthy |
-| **Token-efficient** | 640 tokens / 1.8 MP (75% saving) → ~1.5× throughput vs 0.8B models | Batch OCR 20+ covers on 8 GB without OOM (vs Qwen 72B needs 48 GB) |
-| **Multilingual** | EN/ZH/DE/FR/IT/KR via VisCPM generalization, <0.5% multilingual SFT data | Future: auto-translate prompts/lyrics |
+| Strength                              | Proof                                                                                              | Your leverage                                                                                                    |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Any-aspect high-res OCR**           | 1344×1344, 1.8 MP, OCRBench SOTA, full-page article → plain text, **table → markdown** in one call | Media Library: album covers, lyric sheets, scanned tracklists → auto-tag without manual typing                   |
+| **Multi-image + in-context learning** | SOTA on Mantis-Eval/BLINK/MathVerse-mv; `(<image>...</image>)+prompt` style                        | UI regression: send `before.png + after.png` **in one request** → direct diff reasoning (not two separate calls) |
+| **Video understanding**               | Dense captions, Video-MME > GPT-4V/Claude 3.5 Sonnet/LLaVA-NeXT-Video-34B                          | Auto-caption generated `output/video/*.mp4` into storyboard shot descriptions                                    |
+| **Low hallucination**                 | RLAIF-V (CVPR'24) + VisCPM; divide-and-conquer feedback → DPO                                      | Chart reading: ask for _trend_ not exact pixel value → trustworthy                                               |
+| **Token-efficient**                   | 640 tokens / 1.8 MP (75% saving) → ~1.5× throughput vs 0.8B models                                 | Batch OCR 20+ covers on 8 GB without OOM (vs Qwen 72B needs 48 GB)                                               |
+| **Multilingual**                      | EN/ZH/DE/FR/IT/KR via VisCPM generalization, <0.5% multilingual SFT data                           | Future: auto-translate prompts/lyrics                                                                            |
 
 > [!warning] What it does **not** do
 > `minicpm-v:8b` on Ollama **does not support `tools` nor `thinking`** (Ollama returns `400`). Do not set `tools: [...]` or `think: true` — use plain `messages: [{role:"user", content:"...", images:[b64]}]` with `temperature:0`.
@@ -57,7 +53,16 @@ res = chat(model="minicpm-v:8b", messages=[{
 
 ```js
 // our tools/vision/analyze.mjs path
-await ollama.chat({ model:"minicpm-v:8b", messages:[{role:"user", content:"Transcribe all text, preserve layout.", images:[b64]}] })
+await ollama.chat({
+  model: "minicpm-v:8b",
+  messages: [
+    {
+      role: "user",
+      content: "Transcribe all text, preserve layout.",
+      images: [b64],
+    },
+  ],
+});
 ```
 
 ### Options to set for this model
@@ -88,11 +93,11 @@ await ollama.chat({ model:"minicpm-v:8b", messages:[{role:"user", content:"Trans
 
 ### Implemented
 
-| # | Feature | File | How it uses the research |
-|---|---|---|---|
-| **A** | **Vision MCP upgrade** | `tools/vision/analyze.mjs` — `VISION_MODES: ocr/table/chart/multicomp/regression` + `ensureVisionModel()` VRAM unload + model-aware dispatch (`temperature:0`, no `tools`/`think` for `minicpm-v`) | Uses the 640-token efficiency + OCR SOTA + no-hallucination prompts |
-| **B** | **Backend OCR endpoint** | `packages/backend/app/api/vision.py` — `POST /api/vision/ocr` (file → `ollama/chat` with `minicpm-v:8b`, `temperature:0`, fallback to `qwen3-vl`) | Media Library “Scan Text (MiniCPM)” button → auto-tags from covers/lyrics without manual OCR service |
-| **C** | **GPU chart reader** | `packages/frontend/src/features/gpu/GpuMonitorPage.tsx` — “AI Chart Summary” button sends canvas PNG to `minicpm-v:8b` via `/api/vision/chart` with chart-trend prompt (not exact-value extraction) | Leverages RLAIF-V trustworthy behavior for GPU telemetry patterns |
+| #     | Feature                  | File                                                                                                                                                                                                | How it uses the research                                                                             |
+| ----- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **A** | **Vision MCP upgrade**   | `tools/vision/analyze.mjs` — `VISION_MODES: ocr/table/chart/multicomp/regression` + `ensureVisionModel()` VRAM unload + model-aware dispatch (`temperature:0`, no `tools`/`think` for `minicpm-v`)  | Uses the 640-token efficiency + OCR SOTA + no-hallucination prompts                                  |
+| **B** | **Backend OCR endpoint** | `packages/backend/app/api/vision.py` — `POST /api/vision/ocr` (file → `ollama/chat` with `minicpm-v:8b`, `temperature:0`, fallback to `qwen3-vl`)                                                   | Media Library “Scan Text (MiniCPM)” button → auto-tags from covers/lyrics without manual OCR service |
+| **C** | **GPU chart reader**     | `packages/frontend/src/features/gpu/GpuMonitorPage.tsx` — “AI Chart Summary” button sends canvas PNG to `minicpm-v:8b` via `/api/vision/chart` with chart-trend prompt (not exact-value extraction) | Leverages RLAIF-V trustworthy behavior for GPU telemetry patterns                                    |
 
 ### `GET /api/vision/ocr` example
 
@@ -106,8 +111,12 @@ curl -F file=@output/audio/cover.jpg http://127.0.0.1:8000/api/vision/ocr
 ```ts
 // MediaLibrary.tsx — Scan button
 async function scanCover(path: string) {
-  const fd = new FormData(); fd.append("file", await fetch(`/output/${path}`).then(r=>r.blob()));
-  const { text } = await fetch("/api/vision/ocr", {method:"POST", body: fd}).then(r=>r.json());
+  const fd = new FormData();
+  fd.append("file", await fetch(`/output/${path}`).then((r) => r.blob()));
+  const { text } = await fetch("/api/vision/ocr", {
+    method: "POST",
+    body: fd,
+  }).then((r) => r.json());
   // text → auto-tag / filename hint
 }
 ```
@@ -153,4 +162,4 @@ Your Ollama library (2026-09-05):
 - CookBook: `github.com/OpenSQZ/MiniCPM-V-CookBook/deployment/ollama` (4.6/4.5/4.0 guides)
 - Local model list: `curl http://127.0.0.1:11434/api/tags` — minicpm-v:8b `c92bfad01205` 5.5 GB, latest 2026-09-05T16:52
 
-*This doc was auto-generated from web research + local Ollama introspection and is the **single source of truth** for using `minicpm-v:8b` in this repo. Link here from `VISION_MCP` and `MediaLibrary` code comments.*
+_This doc was auto-generated from web research + local Ollama introspection and is the **single source of truth** for using `minicpm-v:8b` in this repo. Link here from `VISION_MCP` and `MediaLibrary` code comments._

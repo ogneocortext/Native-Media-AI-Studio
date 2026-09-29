@@ -1,7 +1,22 @@
+---
+tags:
+  - technical
+  - platform-comfyui
+  - platform-blender
+  - hardware-8gb
+aliases:
+  - Technical Reference
+  - System Architecture
+  - API Reference
+cssclasses:
+  - technical-guide
+date: 2026-09-29
+---
+
 # 3D Rendering Pipeline - Technical Knowledge Library
 
-**Purpose:** AI agent reference for the Native Media AI Studio 3D rendering system  
-**Last Updated:** 2026-09-05 — Async refactoring, VRAM management fixes, ComfyUI error handling, backend startup resilience, frontend fallback connectivity  
+**Purpose:** AI agent reference for the Native Media AI Studio 3D rendering system
+**Last Updated:** 2026-09-29 — Updated tags to new hierarchical system
 **Audience:** AI agents, developers, automated systems
 
 ---
@@ -141,44 +156,50 @@ Multiple tabs use `BroadcastChannel('notifications')` to sync SSE events. The le
 ### Backend (FastAPI)
 
 ```
-packages/backend/app/sse/handler.py      SSEManager — broadcast, replay buffer
-packages/backend/app/queue/manager.py    QueueManager → _broadcast_job_event()
-packages/backend/app/main.py             GET /api/events — SSE endpoint
+
+packages/backend/app/sse/handler.py SSEManager — broadcast, replay buffer
+packages/backend/app/queue/manager.py QueueManager → \_broadcast_job_event()
+packages/backend/app/main.py GET /api/events — SSE endpoint
+
 ```
 
 ### Frontend (React + Zustand)
 
 ```
-packages/frontend/src/services/sseService.ts   SSEService singleton
-packages/frontend/src/state/jobStore.ts        Zustand store + SSE handler
-packages/frontend/src/utils/toast.ts           DOM-based toast notifications
+
+packages/frontend/src/services/sseService.ts SSEService singleton
+packages/frontend/src/state/jobStore.ts Zustand store + SSE handler
+packages/frontend/src/utils/toast.ts DOM-based toast notifications
+
 ```
 
 ### Event Flow
 
 ```
+
 Job status change
-    ↓
+↓
 QueueManager.update_job()
-    ↓
-├── JobDatabaseManager.update_job_async()  (persist)
-├── _notify_subscribers(job)               (in-process callbacks)
-└── _broadcast_job_event(event_type, job)  (SSE)
-        ↓
-    sse_manager.broadcast(type, data, priority)
-        ↓
-    ├── Store in _replay_buffer (ring buffer, maxlen=100)
-        ↓
-    ├── Send to all active SSE connections
-        ↓
-    └── Fan out to go-dashboard (optional)
-            ↓
-    EventSource receives event
-        ↓
-    ├── Capture lastEventId for replay
-        ├── Dispatch to Zustand store
-        ├── Broadcast via BroadcastChannel (cross-tab)
-        └── Route to toast based on priority
+↓
+├── JobDatabaseManager.update_job_async() (persist)
+├── \_notify_subscribers(job) (in-process callbacks)
+└── \_broadcast_job_event(event_type, job) (SSE)
+↓
+sse_manager.broadcast(type, data, priority)
+↓
+├── Store in \_replay_buffer (ring buffer, maxlen=100)
+↓
+├── Send to all active SSE connections
+↓
+└── Fan out to go-dashboard (optional)
+↓
+EventSource receives event
+↓
+├── Capture lastEventId for replay
+├── Dispatch to Zustand store
+├── Broadcast via BroadcastChannel (cross-tab)
+└── Route to toast based on priority
+
 ```
 
 ## 3D Generation

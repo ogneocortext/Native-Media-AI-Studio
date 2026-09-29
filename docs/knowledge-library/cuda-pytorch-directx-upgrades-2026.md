@@ -1,3 +1,15 @@
+---
+tags:
+  - performance
+  - hardware-pascal
+  - cuda
+aliases:
+  - CUDA PyTorch DirectX Upgrades 2026
+cssclasses:
+  - performance-guide
+date: 2026-09-29
+---
+
 # CUDA / PyTorch / DirectX Tech Stack Upgrade Research (2026)
 
 > **Last Updated:** 2026-09-22

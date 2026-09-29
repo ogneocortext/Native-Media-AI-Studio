@@ -1,18 +1,13 @@
 ---
 tags:
-  - kilo-code
-  - subagent
-  - orchestration
-  - architecture
-  - provider
-  - retry
-  - concurrency
+  - platform
 aliases:
   - Kilo Code Subagent Orchestration
   - Subagent Provider Errors
   - Kilo Task Tool Architecture
 cssclasses:
-  - technical-reference
+  - platform-guide
+date: 2026-09-29
 date: 2026-08-27
 ---
 
@@ -67,15 +62,15 @@ date: 2026-08-27
 
 ### Key Source Files
 
-| Component | File Path | Role |
-|-----------|-----------|------|
-| Task Tool | `packages/opencode/src/tool/task.ts` | Subagent creation, lifecycle, model selection |
-| Background Job | `@opencode-ai/core/background-job` | Execution management, wait/promote/cancel |
-| Provider Router | `packages/opencode/src/provider/provider.ts` | Model routing, auth, request transformation |
-| Session Retry | `packages/opencode/src/session/retry.ts` | Retry policy, backoff, error classification |
-| LLM Stream | `packages/opencode/src/session/llm.ts` | Streaming, provider calls, timeout handling |
-| Session Processor | `packages/opencode/src/kilocode/session/processor.ts` | Error recovery, telemetry, offline handling |
-| Network Detection | `packages/opencode/src/session/network.ts` | Offline detection, reconnect, MCP recovery |
+| Component         | File Path                                             | Role                                          |
+| ----------------- | ----------------------------------------------------- | --------------------------------------------- |
+| Task Tool         | `packages/opencode/src/tool/task.ts`                  | Subagent creation, lifecycle, model selection |
+| Background Job    | `@opencode-ai/core/background-job`                    | Execution management, wait/promote/cancel     |
+| Provider Router   | `packages/opencode/src/provider/provider.ts`          | Model routing, auth, request transformation   |
+| Session Retry     | `packages/opencode/src/session/retry.ts`              | Retry policy, backoff, error classification   |
+| LLM Stream        | `packages/opencode/src/session/llm.ts`                | Streaming, provider calls, timeout handling   |
+| Session Processor | `packages/opencode/src/kilocode/session/processor.ts` | Error recovery, telemetry, offline handling   |
+| Network Detection | `packages/opencode/src/session/network.ts`            | Offline detection, reconnect, MCP recovery    |
 
 ---
 
@@ -119,15 +114,15 @@ Parent Session (depth 0)
 
 ```typescript
 // From task.ts
-const cfg = yield* config.get()
-let depth = 0
-let current = parent
+const cfg = yield * config.get();
+let depth = 0;
+let current = parent;
 while (current.parentID) {
-  depth++
-  current = current.parentID
+  depth++;
+  current = current.parentID;
 }
 if (depth >= (cfg.subagent_depth ?? 1)) {
-  throw new Error(`Subagent depth limit reached (${cfg.subagent_depth ?? 1})`)
+  throw new Error(`Subagent depth limit reached (${cfg.subagent_depth ?? 1})`);
 }
 ```
 
@@ -137,11 +132,11 @@ if (depth >= (cfg.subagent_depth ?? 1)) {
 
 ### Foreground vs Background
 
-| Mode | Behavior | Use Case |
-|------|----------|----------|
-| **Foreground** | Parent blocks until child completes | Need result before continuing |
-| **Background** | Parent continues immediately; notified on completion | Non-overlapping work, parallel exploration |
-| **Extended Background** | Existing background job receives additional context | Iterative refinement |
+| Mode                    | Behavior                                             | Use Case                                   |
+| ----------------------- | ---------------------------------------------------- | ------------------------------------------ |
+| **Foreground**          | Parent blocks until child completes                  | Need result before continuing              |
+| **Background**          | Parent continues immediately; notified on completion | Non-overlapping work, parallel exploration |
+| **Extended Background** | Existing background job receives additional context  | Iterative refinement                       |
 
 ---
 
@@ -149,16 +144,16 @@ if (depth >= (cfg.subagent_depth ?? 1)) {
 
 ### Error Types and Retry Behavior
 
-| Error | Source | Retry? | Backoff |
-|-------|--------|--------|---------|
-| 5xx Server Error | Provider API | ✅ Yes | Exponential (2s base, 2x factor) |
-| 429 Rate Limit | Provider API | ✅ Yes | Respects `retry-after` header |
-| "Overloaded" | Kilo Gateway | ✅ Yes | Exponential |
-| "Provider is unavailable" | Kilo Gateway | ✅ Yes | Exponential |
-| Network disconnect | Transport | ✅ Yes (offline handler) | User prompt + reconnect |
-| Context overflow | Provider API | ❌ No | N/A — requires compaction |
-| Auth failure | Provider API | ❌ No | N/A — requires re-auth |
-| FreeUsageLimitError | Kilo Gateway | ❌ No | N/A — requires model switch |
+| Error                     | Source       | Retry?                   | Backoff                          |
+| ------------------------- | ------------ | ------------------------ | -------------------------------- |
+| 5xx Server Error          | Provider API | ✅ Yes                   | Exponential (2s base, 2x factor) |
+| 429 Rate Limit            | Provider API | ✅ Yes                   | Respects `retry-after` header    |
+| "Overloaded"              | Kilo Gateway | ✅ Yes                   | Exponential                      |
+| "Provider is unavailable" | Kilo Gateway | ✅ Yes                   | Exponential                      |
+| Network disconnect        | Transport    | ✅ Yes (offline handler) | User prompt + reconnect          |
+| Context overflow          | Provider API | ❌ No                    | N/A — requires compaction        |
+| Auth failure              | Provider API | ❌ No                    | N/A — requires re-auth           |
+| FreeUsageLimitError       | Kilo Gateway | ❌ No                    | N/A — requires model switch      |
 
 ### Retry Policy (from `session/retry.ts`)
 
@@ -271,33 +266,34 @@ Attempt 4: All retry at 16s
 ```typescript
 // Proposed: Per-provider semaphore
 class ProviderConcurrency {
-  private slots = new Map<string, { max: number, active: number }>()
-  
+  private slots = new Map<string, { max: number; active: number }>();
+
   async acquire(providerID: string) {
-    const config = this.slots.get(providerID) ?? { max: 2, active: 0 }
+    const config = this.slots.get(providerID) ?? { max: 2, active: 0 };
     while (config.active >= config.max) {
-      await this.waitForSlot(providerID)
+      await this.waitForSlot(providerID);
     }
-    config.active++
+    config.active++;
   }
-  
+
   release(providerID: string) {
-    const config = this.slots.get(providerID)
-    if (config) config.active--
-    this.notifyWaiters(providerID)
+    const config = this.slots.get(providerID);
+    if (config) config.active--;
+    this.notifyWaiters(providerID);
   }
 }
 ```
 
 **Configuration**:
+
 ```jsonc
 // kilo.jsonc
 {
   "subagent": {
     "max_parallel": 2,
     "max_parallel_per_provider": 2,
-    "max_parallel_total": 4
-  }
+    "max_parallel_total": 4,
+  },
 }
 ```
 
@@ -309,10 +305,11 @@ class ProviderConcurrency {
 // Modified delay() in retry.ts
 function delay(attempt: number, error?: APIError) {
   // ... existing header-based logic ...
-  
-  const base = RETRY_INITIAL_DELAY * Math.pow(RETRY_BACKOFF_FACTOR, attempt - 1)
-  const jitter = base * (0.5 + Math.random() * 0.5)  // 50-100% of base
-  return cap(Math.min(base + jitter, RETRY_MAX_DELAY_NO_HEADERS))
+
+  const base =
+    RETRY_INITIAL_DELAY * Math.pow(RETRY_BACKOFF_FACTOR, attempt - 1);
+  const jitter = base * (0.5 + Math.random() * 0.5); // 50-100% of base
+  return cap(Math.min(base + jitter, RETRY_MAX_DELAY_NO_HEADERS));
 }
 ```
 
@@ -322,15 +319,17 @@ function delay(attempt: number, error?: APIError) {
 
 ```typescript
 // Proposed: Independent timeout for subagent execution
-const SUBAGENT_LIFETIME_TIMEOUT = 600_000  // 10 minutes
+const SUBAGENT_LIFETIME_TIMEOUT = 600_000; // 10 minutes
 
 // In task.ts foreground path:
-const result = yield* Effect.raceFirst(
-  background.wait({ id: nextSession.id }),
-  Effect.sleep(SUBAGENT_LIFETIME_TIMEOUT).pipe(
-    Effect.flatMap(() => Effect.fail(new Error("Subagent lifetime timeout")))
-  )
-)
+const result =
+  yield *
+  Effect.raceFirst(
+    background.wait({ id: nextSession.id }),
+    Effect.sleep(SUBAGENT_LIFETIME_TIMEOUT).pipe(
+      Effect.flatMap(() => Effect.fail(new Error("Subagent lifetime timeout"))),
+    ),
+  );
 ```
 
 **Expected Improvement**: Eliminates false timeouts from chunkTimeout conflation.
@@ -340,19 +339,19 @@ const result = yield* Effect.raceFirst(
 ```typescript
 // Proposed: Token bucket rate limiter per provider
 class ProviderRateLimiter {
-  private buckets = new Map<string, TokenBucket>()
-  
+  private buckets = new Map<string, TokenBucket>();
+
   constructor() {
     // Kilo Gateway: 60 requests/minute
-    this.buckets.set("kilo", new TokenBucket(60, 60))
+    this.buckets.set("kilo", new TokenBucket(60, 60));
     // Anthropic: varies by tier
-    this.buckets.set("anthropic", new TokenBucket(100, 50))
+    this.buckets.set("anthropic", new TokenBucket(100, 50));
   }
-  
+
   async throttle(providerID: string) {
-    const bucket = this.buckets.get(providerID)
+    const bucket = this.buckets.get(providerID);
     if (bucket && !bucket.consume()) {
-      await bucket.waitForRefill()
+      await bucket.waitForRefill();
     }
   }
 }
@@ -365,17 +364,17 @@ class ProviderRateLimiter {
 ```typescript
 // Proposed: Queue subagents when provider is overloaded
 class SubagentQueue {
-  private queues = new Map<string, Queue<SubagentTask>>()
-  
+  private queues = new Map<string, Queue<SubagentTask>>();
+
   async enqueue(task: SubagentTask) {
-    const providerID = task.model.providerID
-    const queue = this.queues.get(providerID) ?? new Queue()
-    
+    const providerID = task.model.providerID;
+    const queue = this.queues.get(providerID) ?? new Queue();
+
     if (await this.isProviderOverloaded(providerID)) {
-      queue.push(task)
-      await this.waitForCapacity(providerID)
+      queue.push(task);
+      await this.waitForCapacity(providerID);
     } else {
-      await this.execute(task)
+      await this.execute(task);
     }
   }
 }
@@ -392,14 +391,14 @@ class SubagentQueue {
 ```jsonc
 // kilo.jsonc — Current workarounds
 {
-  "subagent_depth": 1,           // Prevent nested subagents
+  "subagent_depth": 1, // Prevent nested subagents
   "provider": {
     "openai": {
       "options": {
-        "chunkTimeout": 600000  // Increase from default 300s
-      }
-    }
-  }
+        "chunkTimeout": 600000, // Increase from default 300s
+      },
+    },
+  },
 }
 ```
 
@@ -413,12 +412,12 @@ class SubagentQueue {
 
 ### Model Selection Strategy
 
-| Task Type | Recommended Model | Reason |
-|-----------|------------------|--------|
-| Code exploration | `kilo-auto/balanced` | Fast, good understanding |
-| File editing | Same as parent | Consistency |
-| Research | `kilo-auto/economy` | Cheaper, parallel-safe |
-| Complex reasoning | `kilo-auto/premium` | Best quality, use sparingly |
+| Task Type         | Recommended Model    | Reason                      |
+| ----------------- | -------------------- | --------------------------- |
+| Code exploration  | `kilo-auto/balanced` | Fast, good understanding    |
+| File editing      | Same as parent       | Consistency                 |
+| Research          | `kilo-auto/economy`  | Cheaper, parallel-safe      |
+| Complex reasoning | `kilo-auto/premium`  | Best quality, use sparingly |
 
 ---
 
@@ -429,11 +428,19 @@ class SubagentQueue {
 ```typescript
 // Network error codes that trigger offline mode
 const codes = new Set([
-  "ECONNRESET", "ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN",
-  "ETIMEDOUT", "ENETUNREACH", "EHOSTUNREACH", "ENETDOWN",
-  "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_SOCKET",
-  "ERR_SOCKET_CONNECTION_TIMEOUT"
-])
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ETIMEDOUT",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+  "ENETDOWN",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_SOCKET",
+  "ERR_SOCKET_CONNECTION_TIMEOUT",
+]);
 ```
 
 ### Offline Recovery Flow
@@ -464,10 +471,10 @@ When network is restored, the system automatically reconnects failed MCP servers
 
 ```typescript
 // From network.ts reply()
-const statuses = yield* mcp.status()
+const statuses = yield * mcp.status();
 for (const [name, status] of Object.entries(statuses)) {
   if (status.status === "failed") {
-    yield* mcp.connect(name)
+    yield * mcp.connect(name);
   }
 }
 ```
@@ -480,23 +487,23 @@ for (const [name, status] of Object.entries(statuses)) {
 
 ```typescript
 // Key error handling functions
-KiloSessionProcessor.handleOffline(error, sessionID, abort, set)
-KiloSessionProcessor.retryOpts(sessionID, abort, set, used)
-KiloSessionProcessor.recover({ run, replayable, discard, set })
-KiloSessionProcessor.parseError(error, { providerID, aborted })
+KiloSessionProcessor.handleOffline(error, sessionID, abort, set);
+KiloSessionProcessor.retryOpts(sessionID, abort, set, used);
+KiloSessionProcessor.recover({ run, replayable, discard, set });
+KiloSessionProcessor.parseError(error, { providerID, aborted });
 ```
 
 ### Incomplete Response Recovery
 
 ```typescript
 // Retries for incomplete responses (no text, no tools, no usage)
-INCOMPLETE_RESPONSE_RETRIES = 2
+INCOMPLETE_RESPONSE_RETRIES = 2;
 
 // Recovery loop:
 for (let i = 0; i <= INCOMPLETE_RESPONSE_RETRIES; i++) {
-  result = await run()
-  if (result.ok || !replayable()) break
-  await sleep(delay(i + 1))
+  result = await run();
+  if (result.ok || !replayable()) break;
+  await sleep(delay(i + 1));
 }
 ```
 
@@ -506,9 +513,10 @@ for (let i = 0; i <= INCOMPLETE_RESPONSE_RETRIES; i++) {
 // When provider ends with "error" finish reason but no details
 if (msg.finish === "error" && !msg.error) {
   msg.error = {
-    message: "The provider ended the response with an error before returning details.",
-    isRetryable: true
-  }
+    message:
+      "The provider ended the response with an error before returning details.",
+    isRetryable: true,
+  };
 }
 ```
 
@@ -516,13 +524,13 @@ if (msg.finish === "error" && !msg.error) {
 
 ## Related GitHub Issues
 
-| Issue | Title | Status | Relevance |
-|-------|-------|--------|-----------|
-| #10111 | Parallel Agent Calls Exhaust API Rate Limits | 🔴 Open | No concurrency control |
-| #12706 | Task subagents retry overloads, then abort | 🔴 Open | chunkTimeout conflation |
-| #1768 | Failed to load provider model list for subtasks | 🔴 Open | Provider init failures |
-| #10567 | MCP tools block in subagent context | 🔴 Open | Interactive tools in subagents |
-| #9722 | Retryable provider failures not handled cleanly | 🟡 Stale | Error classification |
+| Issue  | Title                                           | Status   | Relevance                      |
+| ------ | ----------------------------------------------- | -------- | ------------------------------ |
+| #10111 | Parallel Agent Calls Exhaust API Rate Limits    | 🔴 Open  | No concurrency control         |
+| #12706 | Task subagents retry overloads, then abort      | 🔴 Open  | chunkTimeout conflation        |
+| #1768  | Failed to load provider model list for subtasks | 🔴 Open  | Provider init failures         |
+| #10567 | MCP tools block in subagent context             | 🔴 Open  | Interactive tools in subagents |
+| #9722  | Retryable provider failures not handled cleanly | 🟡 Stale | Error classification           |
 
 ---
 
@@ -531,6 +539,7 @@ if (msg.finish === "error" && !msg.error) {
 ### Kilo Gateway
 
 The Kilo Gateway (`packages/kilo-gateway/`) is the first-party model routing boundary. It:
+
 - Routes requests to underlying providers (Anthropic, OpenAI, etc.)
 - Handles billing and rate limiting
 - Provides free tier models with usage caps
@@ -539,6 +548,7 @@ The Kilo Gateway (`packages/kilo-gateway/`) is the first-party model routing bou
 ### Agent Manager (VS Code Extension)
 
 The VS Code extension's Agent Manager provides:
+
 - Visual subagent orchestration
 - Worktree isolation for parallel agents
 - Session grouping and management
@@ -547,6 +557,7 @@ The VS Code extension's Agent Manager provides:
 ### Cloud Agent
 
 For hosted execution (separate from local):
+
 - Runs in Kilo Cloud services
 - Uses `services/cloud-agent-next/`
 - Separate provider routing and rate limits
@@ -556,16 +567,16 @@ For hosted execution (separate from local):
 
 ## Quick Reference: Error Messages
 
-| Error Message | Meaning | Action |
-|---------------|---------|--------|
-| "Provider is overloaded" | Kilo Gateway capacity exceeded | Wait, retry, or switch provider |
-| "Provider is unavailable" | Provider not responding | Check network, retry |
-| "Rate Limited" | Too many requests | Wait for retry-after period |
-| "Subagent depth limit reached" | Too many nesting levels | Increase `subagent_depth` or flatten |
-| "Tool execution aborted" | Subagent cancelled (timeout) | Increase chunkTimeout or simplify task |
-| "Failed to load Kilo Code provider model list" | Provider auth/init failure | Re-authenticate or check API key |
-| "Network connection failed" | Internet unreconnect | Check connection, wait for recovery |
-| "Model not found" | Invalid provider/model combo | Check model name and provider |
+| Error Message                                  | Meaning                        | Action                                 |
+| ---------------------------------------------- | ------------------------------ | -------------------------------------- |
+| "Provider is overloaded"                       | Kilo Gateway capacity exceeded | Wait, retry, or switch provider        |
+| "Provider is unavailable"                      | Provider not responding        | Check network, retry                   |
+| "Rate Limited"                                 | Too many requests              | Wait for retry-after period            |
+| "Subagent depth limit reached"                 | Too many nesting levels        | Increase `subagent_depth` or flatten   |
+| "Tool execution aborted"                       | Subagent cancelled (timeout)   | Increase chunkTimeout or simplify task |
+| "Failed to load Kilo Code provider model list" | Provider auth/init failure     | Re-authenticate or check API key       |
+| "Network connection failed"                    | Internet unreconnect           | Check connection, wait for recovery    |
+| "Model not found"                              | Invalid provider/model combo   | Check model name and provider          |
 
 ---
 
@@ -578,4 +589,4 @@ For hosted execution (separate from local):
 
 ---
 
-*Last updated: 2026-08-27 — Kilo Code Subagent Orchestration Analysis*
+_Last updated: 2026-08-27 — Kilo Code Subagent Orchestration Analysis_

@@ -1,11 +1,13 @@
 ---
 tags:
-  - go
-  - stack-extensions
-  - infrastructure
-  - sse
-  - media-pipeline
-  - architecture
+  - platform
+aliases:
+  - Go Benefits Deep Dive
+  - Go Architecture
+  - Infrastructure Performance
+cssclasses:
+  - platform-guide
+date: 2026-09-29
 ---
 
 # Go Benefits Deep Dive — Native Media AI Studio (2026)
@@ -37,13 +39,13 @@ make it measurably better than Python (or Node.js) for those exact jobs?**
 
 ### 2.1 Memory
 
-| Binary | Role | Typical RSS | Python equivalent |
-|--------|------|-------------|-------------------|
-| `go-dashboard.exe` | SSE server + publish | 8–14 MB | Python `sse-starlette` + uvicorn: 80–150 MB |
-| `go-media.exe` | FFmpeg wrapper | 12–20 MB | Python `subprocess` runner + FastAPI wrapper: 60–120 MB |
-| `go-worker.exe` | Job + sidecar store | 10–18 MB | Python `fastapi` + SQLite: 90–180 MB |
-| `go-gateway.exe` | MCP router + proxy | 14–22 MB | Node.js + Express + http-proxy: 100–200 MB |
-| `go-ports.exe` | Port scanner | 6–10 MB | PowerShell / Python watcher: 40–80 MB |
+| Binary             | Role                 | Typical RSS | Python equivalent                                       |
+| ------------------ | -------------------- | ----------- | ------------------------------------------------------- |
+| `go-dashboard.exe` | SSE server + publish | 8–14 MB     | Python `sse-starlette` + uvicorn: 80–150 MB             |
+| `go-media.exe`     | FFmpeg wrapper       | 12–20 MB    | Python `subprocess` runner + FastAPI wrapper: 60–120 MB |
+| `go-worker.exe`    | Job + sidecar store  | 10–18 MB    | Python `fastapi` + SQLite: 90–180 MB                    |
+| `go-gateway.exe`   | MCP router + proxy   | 14–22 MB    | Node.js + Express + http-proxy: 100–200 MB              |
+| `go-ports.exe`     | Port scanner         | 6–10 MB     | PowerShell / Python watcher: 40–80 MB                   |
 
 **Why it matters here:** The studio runs 6+ long-lived processes on a
 Windows machine. Keeping Go sidecars under 25 MB each leaves the 8 GB VRAM
@@ -52,9 +54,9 @@ hundred MB matters.
 
 ### 2.2 Startup latency
 
-| Binary | Cold start | Python `uvicorn` equivalent |
-|--------|-----------|---------------------------|
-| Any Go sidecar | 20–60 ms | 300–1200 ms (venv + import resolution) |
+| Binary         | Cold start | Python `uvicorn` equivalent            |
+| -------------- | ---------- | -------------------------------------- |
+| Any Go sidecar | 20–60 ms   | 300–1200 ms (venv + import resolution) |
 
 **Why it matters here:** `scripts\start-services.ps1` launches everything on
 studio open. Sub-second startup compounds across 5 sidecars + backend +
@@ -148,7 +150,7 @@ A `/scan?ports=...` endpoint running 100 concurrent TCP dials is a textbook
 - Starts in < 50 ms
 - Is single-file deployable
 - Works on Linux/macOS without modification (cross-compile: `GOOS=linux
-  GOARCH=arm64 go build -o go-ports-linux-arm64`)
+GOARCH=arm64 go build -o go-ports-linux-arm64`)
 
 PowerShell's `Test-NetConnection` is single-threaded for port scans. Python
 `socket.create_connection` in a ThreadPoolExecutor works, but Windows file
@@ -192,14 +194,14 @@ schemas without spinning up a live server. The FastAPI equivalent requires
 
 ## 5. What Go Does NOT Replace
 
-| Component | Kept in Python / Node | Reason |
-|-----------|----------------------|--------|
-| FastAPI backend | ✅ | AI adapters, SSE routes, queue logic |
-| Audio analysis | ✅ | librosa, madmom-infer, CUDA FFT |
-| ComfyUI integration | ✅ | Python-first API |
-| Blender MCP bridge | ✅ | Stable Python TCP bridge |
-| Unity MCP bridge | ✅ | Node.js acceptable |
-| Frontend | ✅ | React/Vite |
+| Component           | Kept in Python / Node | Reason                               |
+| ------------------- | --------------------- | ------------------------------------ |
+| FastAPI backend     | ✅                    | AI adapters, SSE routes, queue logic |
+| Audio analysis      | ✅                    | librosa, madmom-infer, CUDA FFT      |
+| ComfyUI integration | ✅                    | Python-first API                     |
+| Blender MCP bridge  | ✅                    | Stable Python TCP bridge             |
+| Unity MCP bridge    | ✅                    | Node.js acceptable                   |
+| Frontend            | ✅                    | React/Vite                           |
 
 **The rule:** Go owns infrastructure with no AI-model dependency. Python
 owns anything that touches PyTorch, librosa, or ComfyUI.
@@ -208,13 +210,13 @@ owns anything that touches PyTorch, librosa, or ComfyUI.
 
 ## 6. Go Module Health
 
-| Module | Framework | Stdlib | Notable deps |
-|--------|-----------|--------|--------------|
+| Module         | Framework               | Stdlib                              | Notable deps               |
+| -------------- | ----------------------- | ----------------------------------- | -------------------------- |
 | `go-dashboard` | `net/http` + r3labs SSE | `net/http`, `time`, `encoding/json` | `github.com/r3labs/sse/v2` |
-| `go-media` | `net/http` | `os/exec`, `sync`, `encoding/json` | r3labs SSE |
-| `go-worker` | `gin-gonic/gin` | `net/http`, `os`, `encoding/json` | gin |
-| `go-gateway` | `gin-gonic/gin` | `net/http`, `io`, `net/url` | gin |
-| `go-ports` | `net/http` | `net`, `sync`, `strconv` | none |
+| `go-media`     | `net/http`              | `os/exec`, `sync`, `encoding/json`  | r3labs SSE                 |
+| `go-worker`    | `gin-gonic/gin`         | `net/http`, `os`, `encoding/json`   | gin                        |
+| `go-gateway`   | `gin-gonic/gin`         | `net/http`, `io`, `net/url`         | gin                        |
+| `go-ports`     | `net/http`              | `net`, `sync`, `strconv`            | none                       |
 
 `go-gateway` uses Gin for routing convenience, but the other modules use
 stdlib HTTP. If Gin is removed later, only `go-gateway` needs updating.
@@ -261,37 +263,37 @@ alloc MB) from `expvar`.
 These are infrastructure jobs that exist today in Python or PowerShell and
 could be evaluated for Go replacement:
 
-| Candidate | Current impl | Go benefit | Effort |
-|-----------|-------------|------------|--------|
-| `check_updates.ps1` | PowerShell | Cross-platform, typed JSON | Low |
-| `update_dashboard_server.ps1` | PowerShell (replaced) | Already done | — |
-| File watcher for `output/` | Python / polling | `fsnotify`-based watcher | Low |
-| Pipeline health heartbeat | Python Thread | Go ticker + SSE publish | Low |
-| Sidecar TLS / mTLS | None | Go `crypto/tls` stdlib | Medium |
+| Candidate                     | Current impl          | Go benefit                 | Effort |
+| ----------------------------- | --------------------- | -------------------------- | ------ |
+| `check_updates.ps1`           | PowerShell            | Cross-platform, typed JSON | Low    |
+| `update_dashboard_server.ps1` | PowerShell (replaced) | Already done               | —      |
+| File watcher for `output/`    | Python / polling      | `fsnotify`-based watcher   | Low    |
+| Pipeline health heartbeat     | Python Thread         | Go ticker + SSE publish    | Low    |
+| Sidecar TLS / mTLS            | None                  | Go `crypto/tls` stdlib     | Medium |
 
 ---
 
 ## 10. Failure-Mode Comparison
 
-| Failure mode | Python FastAPI | Go sidecar |
-|-------------|---------------|------------|
-| OOM crash | Python allocator fragmentation; hard to recover | Go GC more predictable; bounded RSS |
-| Unhandled exception in handler | 500 + asyncio task leak | Gin recovery middleware + stack trace in response |
-| Zombie child process (FFmpeg) | `subprocess.Popen` without wait → zombie | `cmd.Wait()` enforced by defer or context cancel |
-| Port already in use | uvicorn retries bind → delayed failure | `ListenAndServe` returns immediately → health endpoint reflects it |
-| Config file corruption | `pydantic` validation error on import | JSON parse error at startup → binary exits with log |
+| Failure mode                   | Python FastAPI                                  | Go sidecar                                                         |
+| ------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------ |
+| OOM crash                      | Python allocator fragmentation; hard to recover | Go GC more predictable; bounded RSS                                |
+| Unhandled exception in handler | 500 + asyncio task leak                         | Gin recovery middleware + stack trace in response                  |
+| Zombie child process (FFmpeg)  | `subprocess.Popen` without wait → zombie        | `cmd.Wait()` enforced by defer or context cancel                   |
+| Port already in use            | uvicorn retries bind → delayed failure          | `ListenAndServe` returns immediately → health endpoint reflects it |
+| Config file corruption         | `pydantic` validation error on import           | JSON parse error at startup → binary exits with log                |
 
 ---
 
 ## 11. Decision Record
 
-| Question | Answer |
-|----------|--------|
-| Does Go add measurable value? | Yes — lower memory, faster startup, true parallelism for I/O stages |
-| Is Go the primary backend language? | No — Python remains the AI/audio/compositing layer |
+| Question                             | Answer                                                                                                    |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Does Go add measurable value?        | Yes — lower memory, faster startup, true parallelism for I/O stages                                       |
+| Is Go the primary backend language?  | No — Python remains the AI/audio/compositing layer                                                        |
 | Are all 5 sidecars production-ready? | `go-dashboard` / `go-media` / `go-worker` / `go-gateway` / `go-ports` are built, compiled, and registered |
-| Next Go expansion? | Evaluate file watcher and update-checker for Go replacement when they need cross-platform support |
-| Rollback path? | Keep Python fallback servers; Go sidecars run on alternate ports until validated |
+| Next Go expansion?                   | Evaluate file watcher and update-checker for Go replacement when they need cross-platform support         |
+| Rollback path?                       | Keep Python fallback servers; Go sidecars run on alternate ports until validated                          |
 
 ---
 

@@ -1,7 +1,20 @@
+---
+tags:
+  - production
+  - platform-youtube
+  - audio
+aliases:
+  - Music Video Production Guide
+  - Production Workflow
+cssclasses:
+  - production-guide
+date: 2026-09-29
+---
+
 # 3D Rendering & Music Video Production Knowledge Library
 
-**Purpose:** Centralized knowledge for AI agents to create compelling music videos for YouTube  
-**Last Updated:** 2026-08-24  
+**Purpose:** Centralized knowledge for AI agents to create compelling music videos for YouTube
+**Last Updated:** 2026-09-29
 **Target Platform:** YouTube (16:9 landscape + 9:16 vertical Shorts)
 
 ---

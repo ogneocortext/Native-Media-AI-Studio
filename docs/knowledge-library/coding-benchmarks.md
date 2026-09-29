@@ -1,3 +1,15 @@
+---
+tags:
+  - research
+  - ai
+  - coding-benchmarks
+aliases:
+  - Coding Model Benchmark
+cssclasses:
+  - research-report
+date: 2026-09-29
+---
+
 # Coding Model Benchmark
 
 > Standardized benchmark for evaluating Ollama coding models on Python code generation, tool use, test generation, and edge-case identification.

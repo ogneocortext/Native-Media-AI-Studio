@@ -1,3 +1,16 @@
+---
+tags:
+  - production
+  - 3d
+aliases:
+  - Character-Driven Visualization
+  - Character Research
+  - Visualization Research
+cssclasses:
+  - production-guide
+date: 2026-09-29
+---
+
 # Character-Driven Visualization — Research Report
 
 > Generated: 2026-09-01
@@ -19,6 +32,7 @@ The Blender-generated character is universally described as a **low-poly placeho
 File: `tools/blender/builder.py` (lines 325-401)
 
 The `create_character()` method generates:
+
 - An armature with bone hierarchy (Spine → Chest → Head, UpperArm_L/R, LowerArm_L/R, UpperLeg_L/R, LowerLeg_L/R)
 - **A single cylinder mesh** (`primitive_cylinder_add(radius=0.25, depth=1.4)`) as the body
 - Automatic weight skinning (`ARMATURE_AUTO`)
@@ -29,6 +43,7 @@ The `style` parameter is accepted but **completely unused** — no branching on 
 ### 1.3 Composition Problems
 
 From `MINDFUL_LAYERING_2026.md`:
+
 - Character centered 48-52% x with identical scenery horizon — monotonous composition
 - 27 layers simultaneously — no hierarchy, no reduction test
 - Character occluded 30-60% by lyric glass + waveform crossing waist
@@ -40,17 +55,18 @@ From `MINDFUL_LAYERING_2026.md`:
 
 ### 2.1 Rendering Stack (from `visualization-effects.md`)
 
-| Technique | Status in Code |
-|-----------|---------------|
-| WebGPURenderer replaces WebGLRenderer | ❌ Still WebGL2 |
-| TSL replaces GLSL | ❌ Not adopted |
-| Compute shaders (100k→1M particles) | ❌ CPU particles |
-| Gaussian Splatting + NeRF for photoreal scans | ❌ Not implemented |
+| Technique                                       | Status in Code       |
+| ----------------------------------------------- | -------------------- |
+| WebGPURenderer replaces WebGLRenderer           | ❌ Still WebGL2      |
+| TSL replaces GLSL                               | ❌ Not adopted       |
+| Compute shaders (100k→1M particles)             | ❌ CPU particles     |
+| Gaussian Splatting + NeRF for photoreal scans   | ❌ Not implemented   |
 | Blender 5.2 EEVEE Next with per-BSDF raytracing | ✅ Available via MCP |
 
 ### 2.2 AI 3D Generation Pipeline (from `hunyuan3d-setup.md`)
 
 Full texture pipeline for quality character meshes:
+
 ```
 Hy3DGenerateMesh → Hy3DVAEDecode → Hy3DPostprocessMesh (remove floaters, target_faces 50000)
 → Hy3DMeshUVWrap → Hy3DCameraConfig → Hy3DRenderMultiView → Hy3DSampleMultiView
@@ -62,6 +78,7 @@ Hy3DGenerateMesh → Hy3DVAEDecode → Hy3DPostprocessMesh (remove floaters, tar
 ### 2.3 Character Consistency Method (from `prompt-engineering.md`)
 
 Negative prompts to avoid ugly/generic AI characters:
+
 ```
 blurry, low quality, distorted, deformed, ugly, bad anatomy, bad proportions,
 extra limbs, disfigured, poorly drawn face, mutation, mutated, watermark,
@@ -69,6 +86,7 @@ text, signature, out of frame, oversaturated, underexposed, overexposed, grainy,
 ```
 
 4-Step Character Consistency Method:
+
 1. Create a character bible with detailed description
 2. Use reference images for face lock
 3. Include character name in every prompt
@@ -86,28 +104,28 @@ text, signature, out of frame, oversaturated, underexposed, overexposed, grainy,
 
 ### 3.1 Blender Backend (`builder.py`)
 
-| Capability | Status |
-|-----------|--------|
-| Armature creation | ✅ Stick-figure bones |
-| Mesh body | ❌ Single cylinder primitive |
-| Skinning | ✅ Automatic weights |
-| PBR materials | ❌ Flat color only |
-| Style variation | ❌ Parameter unused |
-| Beat-synced animation | ✅ Arm swing ±20° on beats |
-| Face/clothing/detail | ❌ None |
+| Capability            | Status                       |
+| --------------------- | ---------------------------- |
+| Armature creation     | ✅ Stick-figure bones        |
+| Mesh body             | ❌ Single cylinder primitive |
+| Skinning              | ✅ Automatic weights         |
+| PBR materials         | ❌ Flat color only           |
+| Style variation       | ❌ Parameter unused          |
+| Beat-synced animation | ✅ Arm swing ±20° on beats   |
+| Face/clothing/detail  | ❌ None                      |
 
 ### 3.2 Three.js Studio (`ThreeJSStudio.tsx`)
 
-| Capability | Status |
-|-----------|--------|
-| Renderer | WebGL2 (not WebGPU) |
-| Post-FX chain | ✅ Bloom, RGBShift, Film, Vignette |
-| Beat timeline | ✅ Bass/mid/treble + beat detection |
-| Primitive shapes | ✅ sphere, box, cylinder, cone, torus, crown, bars |
-| GLB model loader | ❌ Not present |
-| Skeleton/skinning | ❌ Not present |
-| Character rigging | ❌ Not present |
-| AI scene generator | ✅ Constrained to primitives only |
+| Capability         | Status                                             |
+| ------------------ | -------------------------------------------------- |
+| Renderer           | WebGL2 (not WebGPU)                                |
+| Post-FX chain      | ✅ Bloom, RGBShift, Film, Vignette                 |
+| Beat timeline      | ✅ Bass/mid/treble + beat detection                |
+| Primitive shapes   | ✅ sphere, box, cylinder, cone, torus, crown, bars |
+| GLB model loader   | ❌ Not present                                     |
+| Skeleton/skinning  | ❌ Not present                                     |
+| Character rigging  | ❌ Not present                                     |
+| AI scene generator | ✅ Constrained to primitives only                  |
 
 Available ObjectType values: `"crown" | "box" | "sphere" | "cylinder" | "cone" | "torus" | "bars"`
 
@@ -130,18 +148,18 @@ Current Unity project: Crown prop only (cylinder band + 6 spike cones + apex orb
 
 ## 4. Gap Analysis
 
-| Need | Current State | Gap |
-|------|--------------|-----|
-| Quality character mesh | Cylinder placeholder | Need GLB import from Hunyuan3D/Blender |
-| Character rigging | Stick armature only | Need proper bone hierarchy + skinning |
-| PBR materials | Flat color | Need metallic/roughness/normal maps |
-| Facial features | None | Need blendshapes or textured face |
-| Clothing | None | Need separate mesh or textured detail |
-| Style variation | Unused parameter | Need branching logic |
-| Beat-synced body animation | Arm swing only | Need full-body dance/idle animations |
-| Three.js character display | No GLB loader | Need GLTFLoader + animation system |
-| Character consistency | No bible/lock | Need reference image + seed locking |
-| Narrative shot variety | Static centered | Need act-specific cameras + composition |
+| Need                       | Current State        | Gap                                     |
+| -------------------------- | -------------------- | --------------------------------------- |
+| Quality character mesh     | Cylinder placeholder | Need GLB import from Hunyuan3D/Blender  |
+| Character rigging          | Stick armature only  | Need proper bone hierarchy + skinning   |
+| PBR materials              | Flat color           | Need metallic/roughness/normal maps     |
+| Facial features            | None                 | Need blendshapes or textured face       |
+| Clothing                   | None                 | Need separate mesh or textured detail   |
+| Style variation            | Unused parameter     | Need branching logic                    |
+| Beat-synced body animation | Arm swing only       | Need full-body dance/idle animations    |
+| Three.js character display | No GLB loader        | Need GLTFLoader + animation system      |
+| Character consistency      | No bible/lock        | Need reference image + seed locking     |
+| Narrative shot variety     | Static centered      | Need act-specific cameras + composition |
 
 ---
 
@@ -161,12 +179,12 @@ Extracted from `MINDFUL_LAYERING_2026.md` and `VISUAL_STORYTELLING_2026.md`:
 
 Concrete 2026 technique mappings:
 
-| Technique | Parameters |
-|-----------|-----------|
-| Cinematic letterbox + retro film | letterbox 18px, slow push 0.99→1.01, cool 220° palette, grain 0.075 |
-| Maximalist fluid light + kinetic hero | split-letter bounce sin(t*3.2), light leak 0.16 |
-| Refined bento editorial + cutout collage | liquid glass variable blur, character parallax 8px |
-| Retro VHS/Super8 + desaturated bridge | grain 0.075, vignette 0.52, halation |
+| Technique                                | Parameters                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------- |
+| Cinematic letterbox + retro film         | letterbox 18px, slow push 0.99→1.01, cool 220° palette, grain 0.075 |
+| Maximalist fluid light + kinetic hero    | split-letter bounce sin(t\*3.2), light leak 0.16                    |
+| Refined bento editorial + cutout collage | liquid glass variable blur, character parallax 8px                  |
+| Retro VHS/Super8 + desaturated bridge    | grain 0.075, vignette 0.52, halation                                |
 
 > "2026 lesson: StudioMeyer — kinetic type + heavy glass + WebGL often demo-only; needs restraint + act-specific cameras, not one AbsoluteFill with opacity tweaks."
 
@@ -175,18 +193,21 @@ Concrete 2026 technique mappings:
 ## 7. Recommended Implementation Path
 
 ### Phase 1: Character Mesh Generation
+
 1. Extend `Generation3DPage.tsx` with character-specific prompt templates (humanoid, avatar, creature)
 2. Add reference-image upload for face-lock consistency
 3. Implement character bible (name, description, seed, reference image)
 4. Use multi-view Hunyuan3D pipeline for quality geometry
 
 ### Phase 2: Blender Character Upgrade
+
 1. Replace cylinder body with imported GLB mesh (from Phase 1)
 2. Branch on `style` parameter: humanoid / robot / creature / abstract
 3. Add PBR material pipeline (metallic/roughness/normal from Hunyuan3D bake)
 4. Extend `animate_to_beats` for full-body dance animations (not just arm swing)
 
 ### Phase 3: Three.js Studio Character Integration
+
 1. Add `"character"` to ObjectType union
 2. Implement `createCharacterMesh` factory using `THREE.GLTFLoader`
 3. Add animation mixer for GLB-embedded animations (idle, dance, gesture)
@@ -194,11 +215,13 @@ Concrete 2026 technique mappings:
 5. Extend AI scene generator system prompt to allow skeleton/animation APIs for character objects
 
 ### Phase 4: Unity Character Bridge
+
 1. Expose character prefab instantiation via Unity MCP
 2. Add Animator controller creation for humanoid characters
 3. Bridge beat-synced animation clips to Unity's animation system
 
 ### Phase 5: Narrative Composition
+
 1. Implement act-specific camera positions per storyboard
 2. Add character parallax (8px) and depth-of-field
 3. Apply mindful-layering constraints (max 3 focal movements, 800ms budget)
@@ -207,23 +230,23 @@ Concrete 2026 technique mappings:
 
 ## 8. Key Files for Implementation
 
-| File | Role |
-|------|------|
-| `tools/blender/builder.py` | Blender character generation (lines 325-480) |
-| `packages/frontend/src/features/three-js-studio/ThreeJSStudio.tsx` | Main 3D canvas + render loop |
-| `packages/frontend/src/features/three-js-studio/types.ts` | AnimObject / SceneConfig types |
-| `packages/frontend/src/features/three-js-studio/sceneTemplates.ts` | 6 template definitions |
-| `packages/frontend/src/features/three-js-studio/components/ObjectsTab.tsx` | Object list + add-shape UI |
-| `packages/frontend/src/features/three-js-studio/components/InspectorTab.tsx` | Per-object property editor |
-| `packages/frontend/src/features/three-js-studio/components/AISceneGenerator.tsx` | Ollama LLM scene generator |
-| `packages/frontend/src/features/three-js-studio/services/sceneGuidelines.ts` | Design constraint injection |
-| `packages/frontend/src/features/generate3D/Generation3DPage.tsx` | Text-to-3D generation UI |
-| `tools/mcp/unity-mcp-bridge.mjs` | Unity MCP command bridge |
-| `unity-project-mcp/Assets/Scripts/CoronationScene.cs` | Current crown prop example |
-| `docs/knowledge-library/prompt-engineering.md` | Character bible + negative prompts |
-| `docs/knowledge-library/hunyuan3d-setup.md` | Multi-view pipeline for quality meshes |
-| `docs/visual-storytelling/VISUAL_STORYTELLING_2026.md` | Critique + design requirements |
-| `docs/visual-storytelling/MINDFUL_LAYERING_2026.md` | Layering + composition rules |
+| File                                                                             | Role                                         |
+| -------------------------------------------------------------------------------- | -------------------------------------------- |
+| `tools/blender/builder.py`                                                       | Blender character generation (lines 325-480) |
+| `packages/frontend/src/features/three-js-studio/ThreeJSStudio.tsx`               | Main 3D canvas + render loop                 |
+| `packages/frontend/src/features/three-js-studio/types.ts`                        | AnimObject / SceneConfig types               |
+| `packages/frontend/src/features/three-js-studio/sceneTemplates.ts`               | 6 template definitions                       |
+| `packages/frontend/src/features/three-js-studio/components/ObjectsTab.tsx`       | Object list + add-shape UI                   |
+| `packages/frontend/src/features/three-js-studio/components/InspectorTab.tsx`     | Per-object property editor                   |
+| `packages/frontend/src/features/three-js-studio/components/AISceneGenerator.tsx` | Ollama LLM scene generator                   |
+| `packages/frontend/src/features/three-js-studio/services/sceneGuidelines.ts`     | Design constraint injection                  |
+| `packages/frontend/src/features/generate3D/Generation3DPage.tsx`                 | Text-to-3D generation UI                     |
+| `tools/mcp/unity-mcp-bridge.mjs`                                                 | Unity MCP command bridge                     |
+| `unity-project-mcp/Assets/Scripts/CoronationScene.cs`                            | Current crown prop example                   |
+| `docs/knowledge-library/prompt-engineering.md`                                   | Character bible + negative prompts           |
+| `docs/knowledge-library/hunyuan3d-setup.md`                                      | Multi-view pipeline for quality meshes       |
+| `docs/visual-storytelling/VISUAL_STORYTELLING_2026.md`                           | Critique + design requirements               |
+| `docs/visual-storytelling/MINDFUL_LAYERING_2026.md`                              | Layering + composition rules                 |
 
 ---
 

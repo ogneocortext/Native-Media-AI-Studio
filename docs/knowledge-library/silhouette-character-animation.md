@@ -1,3 +1,16 @@
+---
+tags:
+  - production
+  - 3d
+aliases:
+  - Silhouette Character Animation
+  - Beat-Synced Visuals
+  - Character Design
+cssclasses:
+  - production-guide
+date: 2026-09-29
+---
+
 # Silhouette Character Animation for Beat-Synced Visuals
 
 > Added: 2026-09-03 — web research synthesis behind the "Builder" silhouette decision.
@@ -22,14 +35,14 @@ Real-time beat-synced music visuals punish realistic characters three ways: gene
 
 ## Architecture patterns worth stealing
 
-| Source | Pattern | Our adoption |
-|--------|---------|--------------|
-| `zeikar/iki` (open Live2D alternative) | Parameter-driven puppet: parts + linear bindings to named params | Storyboard mood/beat → named puppet params (`bounce`, `sway`, `workPulse`) |
-| `askrobots/dbbasic-face` | Character = SVG + JSON manifest; animation scheduled on the **audio clock**; amplitude fallback when phonemes missing | Builder poses as data; all motion reads the compensated audio clock / live audio ref, never wall time |
-| `bolasatu/prompt-to-animation` | **Anchor-locked consistency**: one anchor portrait, every expression/gesture derived from it | Phase 2 path: generate ONE anchor silhouette PNG, derive pose variants from it instead of procedural drawing |
-| `semantic-foragecast-engine` | Beats → phonemes → gestures pipeline; Grease Pencil 2D mode ~2x faster than 3D | Beat→gesture mapping table per motif; Blender Grease Pencil as the offline-render alternative |
-| `Lulzx/pip-and-bean` | Deterministic seeded scenery; geometric **stage audit** against a stage contract | Our capture harness + ASCII/pixel-diff checks are the same idea; extend with composition rules (figure never center-frame in acts I–III) |
-| Morphic / AI-video character lineup | Lock profile shape once, reference it in every shot | Builder proportions frozen in one `BUILDER_PROPORTIONS` constant |
+| Source                                 | Pattern                                                                                                               | Our adoption                                                                                                                             |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `zeikar/iki` (open Live2D alternative) | Parameter-driven puppet: parts + linear bindings to named params                                                      | Storyboard mood/beat → named puppet params (`bounce`, `sway`, `workPulse`)                                                               |
+| `askrobots/dbbasic-face`               | Character = SVG + JSON manifest; animation scheduled on the **audio clock**; amplitude fallback when phonemes missing | Builder poses as data; all motion reads the compensated audio clock / live audio ref, never wall time                                    |
+| `bolasatu/prompt-to-animation`         | **Anchor-locked consistency**: one anchor portrait, every expression/gesture derived from it                          | Phase 2 path: generate ONE anchor silhouette PNG, derive pose variants from it instead of procedural drawing                             |
+| `semantic-foragecast-engine`           | Beats → phonemes → gestures pipeline; Grease Pencil 2D mode ~2x faster than 3D                                        | Beat→gesture mapping table per motif; Blender Grease Pencil as the offline-render alternative                                            |
+| `Lulzx/pip-and-bean`                   | Deterministic seeded scenery; geometric **stage audit** against a stage contract                                      | Our capture harness + ASCII/pixel-diff checks are the same idea; extend with composition rules (figure never center-frame in acts I–III) |
+| Morphic / AI-video character lineup    | Lock profile shape once, reference it in every shot                                                                   | Builder proportions frozen in one `BUILDER_PROPORTIONS` constant                                                                         |
 
 ## Builder figure design (this repo)
 

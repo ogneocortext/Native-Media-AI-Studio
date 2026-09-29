@@ -1,18 +1,16 @@
 ---
 tags:
-  - unity
-  - 3d-rendering
-  - mcp
-  - scene-building
-  - audio-reactive
-  - frame-capture
+  - platform
+  - platform-unity
+  - 3d
+  - audio
 aliases:
   - Unity MCP Integration
   - Unity Integration
   - Unity Scene Builder
 cssclasses:
-  - technical-guide
-date: 2026-09-24
+  - platform-guide
+date: 2026-09-29
 ---
 
 # 🎮 Unity MCP Integration
@@ -35,10 +33,10 @@ date: 2026-09-24
 
 ## Current Unity Footprint
 
-| Project | Purpose | Unity Version | Render Path |
-|---------|---------|---------------|-------------|
+| Project              | Purpose                                                    | Unity Version    | Render Path       |
+| -------------------- | ---------------------------------------------------------- | ---------------- | ----------------- |
 | `unity-project-mcp/` | Headless scene generation + frame capture for music videos | 6000.x (Unity 6) | Built-in Pipeline |
-| `unity-visualizer/` | Standalone audio-reactive visualization (URP 17.0.0) | 6000.6.0f1 | URP |
+| `unity-visualizer/`  | Standalone audio-reactive visualization (URP 17.0.0)       | 6000.6.0f1       | URP               |
 
 ### Key Scripts
 
@@ -100,6 +98,7 @@ void Update() {
 ### 3. MCP Bridge + Agent Control
 
 The `unity-mcp-bridge.mjs` exposes 100+ Unity commands through MCP. Agents can:
+
 - Build scenes from natural language (`plan_unity_scene`)
 - Read beat data and generate keyframed animations (`create_beat_animation`)
 - Capture frame sequences programmatically
@@ -114,12 +113,12 @@ The `unity-mcp-bridge.mjs` exposes 100+ Unity commands through MCP. Agents can:
 
 ### 5. GTX 1070 Ti Fit
 
-| Task | VRAM | Notes |
-|------|------|-------|
-| URP real-time viewport | ~1 GB | 1080p viewport |
-| Frame capture (no scene complexity) | ~1-2 GB | No ray tracing |
-| Particle systems (50-100 embers) | ~500 MB | Simulated on CPU |
-| Audio analysis (Ollama/heavy models) | N/A | Offloaded to backend |
+| Task                                 | VRAM    | Notes                |
+| ------------------------------------ | ------- | -------------------- |
+| URP real-time viewport               | ~1 GB   | 1080p viewport       |
+| Frame capture (no scene complexity)  | ~1-2 GB | No ray tracing       |
+| Particle systems (50-100 embers)     | ~500 MB | Simulated on CPU     |
+| Audio analysis (Ollama/heavy models) | N/A     | Offloaded to backend |
 
 Unity's SRP + URP keeps the GPU light compared to Cycles/Blender GPU rendering.
 
@@ -129,16 +128,16 @@ Unity's SRP + URP keeps the GPU light compared to Cycles/Blender GPU rendering.
 
 > See Q1 in [[decision-log|Architecture Decision Log]] for the full convergence question.
 
-| Criterion | Unity | Blender | Three.js Studio |
-|-----------|-------|---------|-----------------|
-| **Deterministic frame capture** | ✅ Best (Play Mode + ScreenCapture) | ✅ Good (background mode) | ❌ No (browser screenshot limits) |
-| **Real-time audio reactivity** | ✅ Best (AudioSource + Particles) | ⚠️ Manual (driver/keyframe) | ✅ Good (Web Audio API) |
-| **Artist tooling depth** | ✅ Best (Cinemachine, Shader Graph) | ✅ Best (full DCC) | ❌ Limited |
-| **Agent MCP control** | ✅ 100+ commands via bridge | ✅ Blender MCP 1.5 | ✅ Direct DOM/API |
-| **Version stability** | ⚠️ Unity 6 LTS is stable | ⚠️ 5.x → 6.x API drift | ✅ No external editor |
-| **Maintenance cost** | ⚠️ Medium (Unity Hub, editor) | ❌ High (addon version chase) | ✅ Lowest |
-| **Deployability** | ⚠️ Needs Unity Editor + license | ⚠️ Needs Blender + addon | ✅ Runs in browser |
-| **Hero render quality** | ✅ Good (HDRP/URP path tracer) | ✅ Best (Cycles) | ❌ WebGL/WebGPU limits |
+| Criterion                       | Unity                               | Blender                       | Three.js Studio                   |
+| ------------------------------- | ----------------------------------- | ----------------------------- | --------------------------------- |
+| **Deterministic frame capture** | ✅ Best (Play Mode + ScreenCapture) | ✅ Good (background mode)     | ❌ No (browser screenshot limits) |
+| **Real-time audio reactivity**  | ✅ Best (AudioSource + Particles)   | ⚠️ Manual (driver/keyframe)   | ✅ Good (Web Audio API)           |
+| **Artist tooling depth**        | ✅ Best (Cinemachine, Shader Graph) | ✅ Best (full DCC)            | ❌ Limited                        |
+| **Agent MCP control**           | ✅ 100+ commands via bridge         | ✅ Blender MCP 1.5            | ✅ Direct DOM/API                 |
+| **Version stability**           | ⚠️ Unity 6 LTS is stable            | ⚠️ 5.x → 6.x API drift        | ✅ No external editor             |
+| **Maintenance cost**            | ⚠️ Medium (Unity Hub, editor)       | ❌ High (addon version chase) | ✅ Lowest                         |
+| **Deployability**               | ⚠️ Needs Unity Editor + license     | ⚠️ Needs Blender + addon      | ✅ Runs in browser                |
+| **Hero render quality**         | ✅ Good (HDRP/URP path tracer)      | ✅ Best (Cycles)              | ❌ WebGL/WebGPU limits            |
 
 ### Recommendation
 
@@ -211,12 +210,12 @@ Unity URP fits comfortably within this envelope:
 
 ### Render Time Estimates (1080p, 24fps, 10s clip = 240 frames)
 
-| Path | Per Frame | Total (240 frames) |
-|------|-----------|-------------------|
-| Unity URP (no FX) | ~0.3s | ~1.5 min |
-| Unity URP + particles | ~0.5s | ~3 min |
-| Blender EEVEE | ~2s | ~8 min |
-| Blender Cycles | ~15s | ~60 min |
+| Path                  | Per Frame | Total (240 frames) |
+| --------------------- | --------- | ------------------ |
+| Unity URP (no FX)     | ~0.3s     | ~1.5 min           |
+| Unity URP + particles | ~0.5s     | ~3 min             |
+| Blender EEVEE         | ~2s       | ~8 min             |
+| Blender Cycles        | ~15s      | ~60 min            |
 
 ---
 
@@ -295,13 +294,13 @@ Unity is a **render + pre-vis node** in the pipeline, not a replacement for the 
 
 ### Entry Points
 
-| Agent Action | Unity Tool | Output |
-|-------------|------------|--------|
-| "Build a stage with beat-synced spotlight" | `plan_unity_scene` → `unity_command` | Scene in Editor |
-| "Render 10 seconds at 24fps" | `capture_frame_sequence` + `AutoCapture.cs` | PNG sequence |
-| "Animate crown to beat" | `create_beat_animation` | AnimationClip asset |
-| "Capture hero frame" | `capture_scene_view` | PNG file |
-| "Check if Unity is compiling" | `editor_status` | Status JSON |
+| Agent Action                               | Unity Tool                                  | Output              |
+| ------------------------------------------ | ------------------------------------------- | ------------------- |
+| "Build a stage with beat-synced spotlight" | `plan_unity_scene` → `unity_command`        | Scene in Editor     |
+| "Render 10 seconds at 24fps"               | `capture_frame_sequence` + `AutoCapture.cs` | PNG sequence        |
+| "Animate crown to beat"                    | `create_beat_animation`                     | AnimationClip asset |
+| "Capture hero frame"                       | `capture_scene_view`                        | PNG file            |
+| "Check if Unity is compiling"              | `editor_status`                             | Status JSON         |
 
 ### Asset Handoff
 
@@ -350,18 +349,18 @@ node -e "const bridge = require('./tools/mcp/unity-mcp-bridge.mjs'); bridge.list
 
 ### Unity Not Responding
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `Unity API error: 404` | Pipeline server not started | Start Unity headless or open project in Editor |
-| `no port file` | Unity hasn't initialized Pipeline | Wait for `Library/Pipeline/` to appear |
-| `Command not found` | Agent invented invalid command | Use `list_pipeline_commands` to verify |
+| Error                  | Cause                             | Solution                                       |
+| ---------------------- | --------------------------------- | ---------------------------------------------- |
+| `Unity API error: 404` | Pipeline server not started       | Start Unity headless or open project in Editor |
+| `no port file`         | Unity hasn't initialized Pipeline | Wait for `Library/Pipeline/` to appear         |
+| `Command not found`    | Agent invented invalid command    | Use `list_pipeline_commands` to verify         |
 
 ### Render Artifacts
 
-| Issue | Cause | Fix |
-|-------|-------|-----|
-| Black frames | Camera inside geometry | Move camera back, check `near` clip plane |
-| Blurry output | Resolution mismatch | Set `Screen.SetResolution` before capture |
+| Issue             | Cause                   | Fix                                        |
+| ----------------- | ----------------------- | ------------------------------------------ |
+| Black frames      | Camera inside geometry  | Move camera back, check `near` clip plane  |
+| Blurry output     | Resolution mismatch     | Set `Screen.SetResolution` before capture  |
 | Missing particles | Simulating in Edit mode | Start Play mode; particles need simulation |
 
 ---
@@ -379,4 +378,4 @@ node -e "const bridge = require('./tools/mcp/unity-mcp-bridge.mjs'); bridge.list
 
 ---
 
-*Last updated: 2026-09-24*
+_Last updated: 2026-09-24_

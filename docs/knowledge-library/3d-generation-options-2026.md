@@ -1,20 +1,16 @@
 ---
 tags:
-  - 3d-generation
-  - comfyui
-  - pytorch-2.14
-  - pascal-gpu
-  - vram-optimization
-  - hunyuan3d
-  - triposr
-  - stable-fast-3d
+  - ai
+  - hardware-pascal
+  - hardware-8gb
+  - platform-comfyui
 aliases:
   - 3D Generation Options 2026
   - Pascal 8GB 3D
   - Image to 3D Local
 cssclasses:
-  - technical-guide
-date: 2026-09-07
+  - ai-guide
+date: 2026-09-29
 ---
 
 # 🧊 3D Generation Options for Pascal / 8GB VRAM (PyTorch 2.14)

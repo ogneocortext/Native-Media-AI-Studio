@@ -1,13 +1,13 @@
 ---
 tags:
-  - javascript
-  - typescript
-  - react
-  - vite
-  - tailwind
-  - frontend
-  - stack-extensions
-  - upgrade
+  - technical
+aliases:
+  - JavaScript Upgrade Research
+  - TypeScript Upgrade
+  - Frontend Stack
+cssclasses:
+  - technical-guide
+date: 2026-09-29
 ---
 
 # JavaScript / TypeScript Upgrade Research — Native Media AI Studio (2026)
@@ -35,36 +35,36 @@ Everything else is incremental improvement.
 
 ## 2. Current Stack Audit
 
-| Layer | Current | Status | Notes |
-|-------|---------|--------|-------|
-| Node.js | v24.20.0 | ✅ Modern | Engines: `>=22.13.0` |
-| pnpm | 11.24.0 | ✅ Modern | Monorepo with catalog + workspaces |
-| React | 19.2.8 | ✅ Latest | React 19 stable |
-| React DOM | 19.2.8 | ✅ Latest | |
-| Vite | 8.2.2 | ✅ Latest | Uses Rolldown under the hood |
-| @vitejs/plugin-react | 6.1.1 | ✅ Latest | React 19 / Vite 8 compatible |
-| TypeScript | 5.9.3 | ⚠️ Upgrade available | TS 7.0.2 available via `@typescript/native` side-by-side |
-| Tailwind CSS | 4.3.3 | ✅ Latest | v4 with `@theme` + `@import` |
-| @tailwindcss/vite | 4.3.3 | ✅ Latest | |
-| ESLint | 10.9.1 | ✅ Latest | Flat config |
-| typescript-eslint | 8.69.0 | ✅ Latest | |
-| @types/node | 26.4.0 | ✅ Latest | Node 26 types |
-| @types/react | 19.2.18 | ✅ Latest | |
-| @types/three | 0.185.4 | ✅ Latest | |
-| React Router | 7.18.3 | ✅ Latest | |
-| Zustand | 5.0.15 | ✅ Latest | v5 with middleware |
-| Three.js | 0.185.1 | ✅ Latest | |
-| @react-three/fiber | 9.7.0 | ✅ Latest | R3F v9 for React 19 |
-| @react-three/drei | 10.7.8 | ✅ Latest | |
-| animejs | 4.5.0 | ✅ Latest | |
-| lucide-react | 1.38.0 | ✅ Latest | |
-| wavesurfer.js | 7.12.12 | ✅ Updated | Patch upgrade verified by build and browser tests |
-| mediabunny | 1.59.1 | ✅ Replacement | Replaces deprecated mp4-muxer for browser MP4 recording |
-| postcss | 8.5.26 | ✅ Latest | Tailwind v4 bundles its own PostCSS |
-| autoprefixer | — | ✅ Removed | Tailwind v4 does not need autoprefixer |
-| Remotion | 4.0.522 | ⚠️ Pinned | minimumReleaseAgeExclude in workspace; newer 4.x available |
-| Playwright | 1.63.0 | ✅ Latest available | Registry currently reports 1.63.0; targeted tests pass |
-| turbo | 2.10.12 | ✅ Latest | Monorepo build system |
+| Layer                | Current  | Status               | Notes                                                      |
+| -------------------- | -------- | -------------------- | ---------------------------------------------------------- |
+| Node.js              | v24.20.0 | ✅ Modern            | Engines: `>=22.13.0`                                       |
+| pnpm                 | 11.24.0  | ✅ Modern            | Monorepo with catalog + workspaces                         |
+| React                | 19.2.8   | ✅ Latest            | React 19 stable                                            |
+| React DOM            | 19.2.8   | ✅ Latest            |                                                            |
+| Vite                 | 8.2.2    | ✅ Latest            | Uses Rolldown under the hood                               |
+| @vitejs/plugin-react | 6.1.1    | ✅ Latest            | React 19 / Vite 8 compatible                               |
+| TypeScript           | 5.9.3    | ⚠️ Upgrade available | TS 7.0.2 available via `@typescript/native` side-by-side   |
+| Tailwind CSS         | 4.3.3    | ✅ Latest            | v4 with `@theme` + `@import`                               |
+| @tailwindcss/vite    | 4.3.3    | ✅ Latest            |                                                            |
+| ESLint               | 10.9.1   | ✅ Latest            | Flat config                                                |
+| typescript-eslint    | 8.69.0   | ✅ Latest            |                                                            |
+| @types/node          | 26.4.0   | ✅ Latest            | Node 26 types                                              |
+| @types/react         | 19.2.18  | ✅ Latest            |                                                            |
+| @types/three         | 0.185.4  | ✅ Latest            |                                                            |
+| React Router         | 7.18.3   | ✅ Latest            |                                                            |
+| Zustand              | 5.0.15   | ✅ Latest            | v5 with middleware                                         |
+| Three.js             | 0.185.1  | ✅ Latest            |                                                            |
+| @react-three/fiber   | 9.7.0    | ✅ Latest            | R3F v9 for React 19                                        |
+| @react-three/drei    | 10.7.8   | ✅ Latest            |                                                            |
+| animejs              | 4.5.0    | ✅ Latest            |                                                            |
+| lucide-react         | 1.38.0   | ✅ Latest            |                                                            |
+| wavesurfer.js        | 7.12.12  | ✅ Updated           | Patch upgrade verified by build and browser tests          |
+| mediabunny           | 1.59.1   | ✅ Replacement       | Replaces deprecated mp4-muxer for browser MP4 recording    |
+| postcss              | 8.5.26   | ✅ Latest            | Tailwind v4 bundles its own PostCSS                        |
+| autoprefixer         | —        | ✅ Removed           | Tailwind v4 does not need autoprefixer                     |
+| Remotion             | 4.0.522  | ⚠️ Pinned            | minimumReleaseAgeExclude in workspace; newer 4.x available |
+| Playwright           | 1.63.0   | ✅ Latest available  | Registry currently reports 1.63.0; targeted tests pass     |
+| turbo                | 2.10.12  | ✅ Latest            | Monorepo build system                                      |
 
 ---
 
@@ -95,6 +95,7 @@ Updated `wavesurfer.js` from `7.12.11` to `7.12.12`. The production build and br
 Tailwind v4 bundles its own PostCSS pipeline and **does not require** autoprefixer. The browser targets in `vite.config.ts` (`target: "es2022"`) already imply modern browsers.
 
 **Action:**
+
 1. Remove `autoprefixer` from `devDependencies`
 2. Delete any `postcss.config.*` if it only existed for autoprefixer
 3. Verify the CSS build still passes
@@ -119,12 +120,12 @@ Tailwind v4 bundles its own PostCSS pipeline and **does not require** autoprefix
 
 **Candidate patterns to modernize:**
 
-| Pattern | Current code | React 19 equivalent | Benefit |
-|---------|-------------|---------------------|---------|
-| Async data in render | `useEffect` + state + loading flag | `use(fetchPromise)` inside `<Suspense>` | Eliminates loading flags, native backpressure |
-| Ref callbacks | `useRef` + `.current` | `ref` prop on DOM elements (stable in 19) | Simpler code |
-| Error boundaries | Class components or custom hooks | `react-error-boundary` v5 (uses new `use()` internally) | Better error recovery |
-| Form actions | `onSubmit` + manual fetch | `action` + `useActionState` | Progressive enhancement |
+| Pattern              | Current code                       | React 19 equivalent                                     | Benefit                                       |
+| -------------------- | ---------------------------------- | ------------------------------------------------------- | --------------------------------------------- |
+| Async data in render | `useEffect` + state + loading flag | `use(fetchPromise)` inside `<Suspense>`                 | Eliminates loading flags, native backpressure |
+| Ref callbacks        | `useRef` + `.current`              | `ref` prop on DOM elements (stable in 19)               | Simpler code                                  |
+| Error boundaries     | Class components or custom hooks   | `react-error-boundary` v5 (uses new `use()` internally) | Better error recovery                         |
+| Form actions         | `onSubmit` + manual fetch          | `action` + `useActionState`                             | Progressive enhancement                       |
 
 **Recommended approach:** Do not rewrite working pages. Apply these patterns to **new pages** and **new form flows** only.
 
@@ -133,6 +134,7 @@ Tailwind v4 bundles its own PostCSS pipeline and **does not require** autoprefix
 **Finding:** Vite 8 uses Rolldown (Rust-based bundler) instead of Rollup. The `vite.config.ts` already uses Rollup-specific `manualChunks` syntax.
 
 **Action:**
+
 1. Verify the current `manualChunks` function works correctly under Rolldown — Rolldown supports the same API in Vite 8, but edge cases exist.
 2. Consider switching to `rollupOptions.output.manualChunks` id-based strategy that plays well with Rolldown caching.
 3. Add `build.incremental: true` if not already inherited by Vite 8 defaults.
@@ -142,6 +144,7 @@ Tailwind v4 bundles its own PostCSS pipeline and **does not require** autoprefix
 **Finding:** `video-editor` pins Remotion to `4.0.522`. The workspace `minimumReleaseAgeExclude` list suggests this was pinned deliberately, but newer 4.x releases may contain stability fixes.
 
 **Action:**
+
 1. Check `remotion upgrade` output for the video-editor package
 2. Review Remotion changelog for 4.0.523+ for breaking changes
 3. Bump if no breaking changes affect the current `remotion.config.ts`
@@ -191,7 +194,9 @@ Generic utility functions can be tightened:
 
 ```ts
 // Before
-function first<T>(arr: T[]): T { return arr[0]; }
+function first<T>(arr: T[]): T {
+  return arr[0];
+}
 
 // After (TS 7)
 function first<T extends readonly unknown[]>(arr: T): T[0] {
@@ -218,7 +223,9 @@ The `fetchWithTimeout` + `useEffect` pattern in stores can be modernized:
 ```tsx
 // Current (useEffect)
 const [data, setData] = useState(null);
-useEffect(() => { fetch().then(setData); }, []);
+useEffect(() => {
+  fetch().then(setData);
+}, []);
 
 // React 19 (use)
 const data = use(fetchWithTimeout(url));
@@ -233,7 +240,10 @@ The `App.tsx` lazy-load pattern with `loadNamedModule` is a workaround for named
 
 ```tsx
 // Current custom loader
-const HealthPage = lazyNamed(() => import("./features/health/HealthPage"), "HealthPage");
+const HealthPage = lazyNamed(
+  () => import("./features/health/HealthPage"),
+  "HealthPage",
+);
 
 // React Router v7 (when adopting route objects)
 const routes = [
@@ -260,7 +270,9 @@ The project already uses cascade layers and OKLCH. Container queries are the nex
     container-type: inline-size;
   }
   @container (min-width: 768px) {
-    .dashboard-grid { grid-template-columns: repeat(3, 1fr); }
+    .dashboard-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
   }
 }
 ```
@@ -325,6 +337,7 @@ build: {
 **Finding:** `tsconfig.json` is already `strict: true` with `noUnusedLocals` and `noUnusedParameters`.
 
 **Additional flags to enable when TS 7 is adopted:**
+
 ```json
 {
   "noUncheckedSideEffectImports": true,
@@ -339,60 +352,60 @@ build: {
 
 The project runs Node v24.20.0. New built-ins available:
 
-| Feature | Use case | Effort |
-|---------|----------|--------|
+| Feature                                  | Use case                                               | Effort                                            |
+| ---------------------------------------- | ------------------------------------------------------ | ------------------------------------------------- |
 | `fetch` / `Request` / `Response` globals | Replace any remaining `node-fetch` or axios in tooling | Already using in-browser; check Node-side scripts |
-| `WebSocket` client | Replace `ws` package in dev tooling | Low |
-| `URL.canParse` | Validate URLs without try/catch | Low |
-| `structuredClone` | Deep-clone state for time-travel debugging | Low |
-| `EventSource` server-side | Test SSE endpoints in Node tests | Low |
+| `WebSocket` client                       | Replace `ws` package in dev tooling                    | Low                                               |
+| `URL.canParse`                           | Validate URLs without try/catch                        | Low                                               |
+| `structuredClone`                        | Deep-clone state for time-travel debugging             | Low                                               |
+| `EventSource` server-side                | Test SSE endpoints in Node tests                       | Low                                               |
 
 ---
 
 ## 9. Upgrade Roadmap (Ranked)
 
-| Priority | Item | Effort | Risk | Impact |
-|----------|------|--------|------|--------|
-| P0 | Replace deprecated `mp4-muxer` | Low | Low | High |
-| P0 | Adopt TypeScript 7 (side-by-side) | Medium | Low | High |
-| P1 | Update `wavesurfer.js` | Low | Low | Low |
-| P1 | Remove `autoprefixer` | Low | Low | Medium |
-| P1 | Update Playwright | Low | Low | Medium |
-| P2 | React 19 `use()` / Suspense in new code | Medium | Medium | Medium |
-| P2 | Vite 8 Rolldown manualChunks audit | Medium | Low | Medium |
-| P2 | Add Prettier to frontend | Low | Low | Medium |
-| P2 | Add Husky + lint-staged | Low | Low | Medium |
-| P3 | Tailwind v4 container queries | Low | Low | Low |
-| P3 | View Transitions API | Low | Low | Low |
-| P3 | Remotion 4.x refresh | Low | Medium | Low |
-| P3 | Node 24 globals in scripts | Low | Low | Low |
-| P4 | TypeScript strictness tightening | Low | Low | Low |
-| P4 | CI/CD with bundle enforcement | High | Medium | High |
+| Priority | Item                                    | Effort | Risk   | Impact |
+| -------- | --------------------------------------- | ------ | ------ | ------ |
+| P0       | Replace deprecated `mp4-muxer`          | Low    | Low    | High   |
+| P0       | Adopt TypeScript 7 (side-by-side)       | Medium | Low    | High   |
+| P1       | Update `wavesurfer.js`                  | Low    | Low    | Low    |
+| P1       | Remove `autoprefixer`                   | Low    | Low    | Medium |
+| P1       | Update Playwright                       | Low    | Low    | Medium |
+| P2       | React 19 `use()` / Suspense in new code | Medium | Medium | Medium |
+| P2       | Vite 8 Rolldown manualChunks audit      | Medium | Low    | Medium |
+| P2       | Add Prettier to frontend                | Low    | Low    | Medium |
+| P2       | Add Husky + lint-staged                 | Low    | Low    | Medium |
+| P3       | Tailwind v4 container queries           | Low    | Low    | Low    |
+| P3       | View Transitions API                    | Low    | Low    | Low    |
+| P3       | Remotion 4.x refresh                    | Low    | Medium | Low    |
+| P3       | Node 24 globals in scripts              | Low    | Low    | Low    |
+| P4       | TypeScript strictness tightening        | Low    | Low    | Low    |
+| P4       | CI/CD with bundle enforcement           | High   | Medium | High   |
 
 ---
 
 ## 10. Risks & Mitigations
 
-| Risk | Mitigation |
-|------|-----------|
-| TS 7 breakage in type inference | Run side-by-side first; do not delete TS 6 until all CI passes |
+| Risk                                             | Mitigation                                                                                  |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| TS 7 breakage in type inference                  | Run side-by-side first; do not delete TS 6 until all CI passes                              |
 | `mp4-muxer` replacement breaks Remotion timeline | Verify replacement in `video-editor` first; keep old import as fallback behind feature flag |
-| Rolldown manualChunks edge cases | Pin Vite 8.2.x; test bundle diff after any `manualChunks` change |
-| React 19 `use()` adoption complexity | Only apply in new Suspense boundaries; never retrofit working `useEffect` code |
-| Playwright browser refresh breaks tests | Run `playwright install --with-deps` on a clean VM before merging |
+| Rolldown manualChunks edge cases                 | Pin Vite 8.2.x; test bundle diff after any `manualChunks` change                            |
+| React 19 `use()` adoption complexity             | Only apply in new Suspense boundaries; never retrofit working `useEffect` code              |
+| Playwright browser refresh breaks tests          | Run `playwright install --with-deps` on a clean VM before merging                           |
 
 ---
 
 ## 12. Decision Record
 
-| Question | Answer |
-|----------|--------|
-| Is the frontend on modern tooling? | Yes — React 19, Vite 8, TS 5.9, Tailwind v4, ESLint 10 flat config |
-| Are there deprecated packages in the active frontend path? | No — `mp4-muxer` was replaced with Mediabunny |
-| Is TypeScript 7 available in the configured registry? | No — `@typescript/native` currently returns 404; keep TS 5.9.3 active |
-| What was the highest-impact completed upgrade? | Replace `mp4-muxer`, then update WaveSurfer and remove Autoprefixer |
-| Is frontend formatting configured? | Yes — Prettier is installed with a frontend configuration and script |
-| Is HTTP contract auditing documented? | Yes — see the contract audit below |
+| Question                                                   | Answer                                                                |
+| ---------------------------------------------------------- | --------------------------------------------------------------------- |
+| Is the frontend on modern tooling?                         | Yes — React 19, Vite 8, TS 5.9, Tailwind v4, ESLint 10 flat config    |
+| Are there deprecated packages in the active frontend path? | No — `mp4-muxer` was replaced with Mediabunny                         |
+| Is TypeScript 7 available in the configured registry?      | No — `@typescript/native` currently returns 404; keep TS 5.9.3 active |
+| What was the highest-impact completed upgrade?             | Replace `mp4-muxer`, then update WaveSurfer and remove Autoprefixer   |
+| Is frontend formatting configured?                         | Yes — Prettier is installed with a frontend configuration and script  |
+| Is HTTP contract auditing documented?                      | Yes — see the contract audit below                                    |
 
 ---
 

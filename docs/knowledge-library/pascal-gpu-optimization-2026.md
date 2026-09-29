@@ -1,6 +1,20 @@
+---
+tags:
+  - performance
+  - hardware-pascal
+  - hardware-8gb
+aliases:
+  - Pascal GPU Optimization 2026
+  - GTX 1070 Ti Guide
+  - sm_61 Constraints
+cssclasses:
+  - performance-guide
+date: 2026-09-29
+---
+
 # Pascal GPU Optimization Guide — GTX 1070 Ti / sm_61
 
-> **Last Updated:** 2026-09-20
+> **Last Updated:** 2026-09-29
 > **Hardware baseline:** GTX 1070 Ti 8 GB VRAM / Ryzen 5 5500 / 32 GB RAM / Windows 11 / Pascal (sm_61)
 
 ---
@@ -169,13 +183,13 @@ from torchao.quantization import Int8WeightOnlyConfig, quantize_
 quantize_(model, Int8WeightOnlyConfig())
 ```
 
-| Config | Memory Reduction | Speed | Accuracy | Pascal? |
-|--------|-----------------|-------|----------|---------|
-| INT8 weight-only | ~2× | High | Better | ✅ Yes |
-| INT8 dynamic activation + weight | ~2× | Very High | Good | ✅ Yes |
-| FP8 weight-only | ~2× | Very High | Excellent | ❌ No (sm_80+) |
-| MXFP8 dynamic | ~2× | Very High | Excellent | ❌ No (sm_80+) |
-| INT4 | ~4× | High | Model-dependent | ⚠️ Experimental on Pascal |
+| Config                           | Memory Reduction | Speed     | Accuracy        | Pascal?                   |
+| -------------------------------- | ---------------- | --------- | --------------- | ------------------------- |
+| INT8 weight-only                 | ~2×              | High      | Better          | ✅ Yes                    |
+| INT8 dynamic activation + weight | ~2×              | Very High | Good            | ✅ Yes                    |
+| FP8 weight-only                  | ~2×              | Very High | Excellent       | ❌ No (sm_80+)            |
+| MXFP8 dynamic                    | ~2×              | Very High | Excellent       | ❌ No (sm_80+)            |
+| INT4                             | ~4×              | High      | Model-dependent | ⚠️ Experimental on Pascal |
 
 **Recommendation:** Use INT8 weight-only via TorchAO if ACE-Step's internal INT8 path proves unstable. Otherwise, the current `quantization="int8"` in ACE-Step Tier 3 config is sufficient.
 

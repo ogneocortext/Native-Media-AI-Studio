@@ -1,17 +1,15 @@
 ---
 tags:
-  - hunyuan3d
-  - comfyui
-  - 3d-generation
-  - workflow
-  - kijai-wrapper
+  - platform
+  - platform-comfyui
+  - 3d
 aliases:
   - Hunyuan3D-2mini Setup
   - ComfyUI 3D Generation
   - Kijai Wrapper Guide
 cssclasses:
-  - technical-guide
-date: 2026-08-27
+  - platform-guide
+date: 2026-09-29
 ---
 
 # 🧊 Hunyuan3D-2mini ComfyUI Setup
@@ -32,6 +30,7 @@ date: 2026-08-27
 ## Installation Status
 
 ### ✅ What's Installed
+
 - **ComfyUI-Hunyuan3DWrapper** (Kijai) in `custom_nodes/`
 - **Models** in `models/diffusion_models/hunyuan3d-2mini/`:
   - `hunyuan3d-dit-v2-mini/model.fp16.safetensors`
@@ -41,11 +40,14 @@ date: 2026-08-27
   - `hunyuan3d-vae-v2-mini-turbo/model.fp16.safetensors`
 
 ### ⚠️ Texture Generation (Optional)
+
 For textured output, you need to compile:
+
 1. `custom_rasterizer` - CUDA module for rendering
 2. `differentiable_renderer` - For vertex inpainting
 
 **Pre-built wheels** available in `ComfyUI-Hunyuan3DWrapper/wheels/`:
+
 ```powershell
 # For Python 3.12 + CUDA 12.4/12.6
 pip install wheels\custom_rasterizer-0.1-cp312-cp312-win_amd64.whl
@@ -56,7 +58,7 @@ pip install wheels\custom_rasterizer-0.1-cp312-cp312-win_amd64.whl
 > works with the comfyui-cuda env's torch **2.14.0+cu126**. The
 > `0.1.0+torch260.cuda126` wheel is compiled against torch 2.6.0 and **fails to
 > import** on torch 2.5.1 (`ImportError: DLL load failed ... procedure could not
-> be found` — ABI symbol mismatch). Do not "upgrade" to the torch260/torch270
+be found` — ABI symbol mismatch). Do not "upgrade" to the torch260/torch270
 > wheels unless torch in that env is upgraded to match.
 >
 > Also note: always `import torch` **before** `import custom_rasterizer` on
@@ -81,25 +83,32 @@ Load Image → [Preprocess] → Hy3DGenerateMesh → Hy3DVAEDecode → Hy3DExpor
 ### Step-by-Step
 
 #### 1. Load the Model
+
 **Node:** `Hy3DModelLoader`
+
 - **model:** `hunyuan3d-2mini\hunyuan3d-dit-v2-mini\model.fp16.safetensors`
 - Outputs: `pipeline`, `vae`
 
 #### 2. Prepare Input Image
+
 **Node:** `LoadImage` or `EmptyImage`
+
 - Recommended size: 512×512 or 518×518
 - Clean/transparent background preferred
 - Center the subject
 
 > [!tip] Image Preprocessing
 > For best results:
+>
 > 1. Remove background (use `TransparentBGSession+` or alpha channel)
 > 2. Center the subject
 > 3. Use square aspect ratio
 > 4. Good contrast between subject and background
 
 #### 3. Generate Mesh
+
 **Node:** `Hy3DGenerateMesh`
+
 - **pipeline:** from Hy3DModelLoader
 - **image:** preprocessed image
 - **guidance_scale:** 5.5 (range: 0-100)
@@ -108,7 +117,9 @@ Load Image → [Preprocess] → Hy3DGenerateMesh → Hy3DVAEDecode → Hy3DExpor
 - Output: `latents`
 
 #### 4. Decode Mesh
+
 **Node:** `Hy3DVAEDecode`
+
 - **latents:** from Hy3DGenerateMesh
 - **vae:** from Hy3DModelLoader
 - **box_v:** 1.01 (bounding box size)
@@ -119,7 +130,9 @@ Load Image → [Preprocess] → Hy3DGenerateMesh → Hy3DVAEDecode → Hy3DExpor
 - Output: `trimesh`
 
 #### 5. Export Mesh
+
 **Node:** `Hy3DExportMesh`
+
 - **trimesh:** from Hy3DVAEDecode
 - **filename_prefix:** "output/3d/your_model"
 - **file_format:** "glb" (or obj, ply, stl)
@@ -165,19 +178,19 @@ Load Image → [Preprocess] → Hy3DGenerateMesh → Hy3DVAEDecode → Hy3DExpor
 
 ### Texture Pipeline Nodes
 
-| Node | Purpose | Key Settings |
-|------|---------|--------------|
-| `Hy3DDelightImage` | Remove harsh lighting | cfg_image: 1.0 |
-| `Hy3DPostprocessMesh` | Clean mesh | target_faces: 50000 |
-| `Hy3DMeshUVWrap` | Generate UV coords | - |
-| `Hy3DCameraConfig` | Set render angles | - |
-| `Hy3DRenderMultiView` | Create normal/position maps | - |
-| `Hy3DPaintModelLoader` | Load texture model | - |
-| `Hy3DSampleMultiView` | Generate textures | steps: 20-30 |
-| `Hy3DBakeFromMultiview` | Bake texture to mesh | - |
-| `Hy3DMeshVerticeInpaintTexture` | Fix seams | - |
-| `CV2InpaintTexture` | Final texture fix | radius: 3, method: "ns" |
-| `Hy3DApplyTexture` | Apply texture to mesh | - |
+| Node                            | Purpose                     | Key Settings            |
+| ------------------------------- | --------------------------- | ----------------------- |
+| `Hy3DDelightImage`              | Remove harsh lighting       | cfg_image: 1.0          |
+| `Hy3DPostprocessMesh`           | Clean mesh                  | target_faces: 50000     |
+| `Hy3DMeshUVWrap`                | Generate UV coords          | -                       |
+| `Hy3DCameraConfig`              | Set render angles           | -                       |
+| `Hy3DRenderMultiView`           | Create normal/position maps | -                       |
+| `Hy3DPaintModelLoader`          | Load texture model          | -                       |
+| `Hy3DSampleMultiView`           | Generate textures           | steps: 20-30            |
+| `Hy3DBakeFromMultiview`         | Bake texture to mesh        | -                       |
+| `Hy3DMeshVerticeInpaintTexture` | Fix seams                   | -                       |
+| `CV2InpaintTexture`             | Final texture fix           | radius: 3, method: "ns" |
+| `Hy3DApplyTexture`              | Apply texture to mesh       | -                       |
 
 ---
 
@@ -187,6 +200,7 @@ Load Image → [Preprocess] → Hy3DGenerateMesh → Hy3DVAEDecode → Hy3DExpor
 > Provide multiple views (front, left, right, back) for more accurate geometry. Front-only works but may have artifacts on unseen sides.
 
 ### Node Chain
+
 ```
 Front Image ─┐
 Left Image ──┤
@@ -196,7 +210,9 @@ Right Image ─┘              ↑
 ```
 
 ### Multi-View Model
+
 Use `hunyuan3d-dit-v2-mv` instead of `hunyuan3d-dit-v2-mini`:
+
 - Model: `hunyuan3d-dit-v2-mv\model.fp16.safetensors`
 - Node: `Hy3DGenerateMeshMultiView` (not `Hy3DGenerateMesh`)
 
@@ -204,15 +220,16 @@ Use `hunyuan3d-dit-v2-mv` instead of `hunyuan3d-dit-v2-mini`:
 
 ## VRAM Requirements
 
-| Configuration | VRAM | Our GPU |
-|---------------|------|---------|
-| Hunyuan3D-2mini shape only | ~5 GB | ✅ 8 GB |
-| Standard shape generation | ~6 GB | ✅ 8 GB |
-| Full shape + texture | ~12 GB | ❌ Need 16+ GB |
-| 2mini-turbo (fastest) | ~4 GB | ✅ 8 GB |
+| Configuration              | VRAM   | Our GPU        |
+| -------------------------- | ------ | -------------- |
+| Hunyuan3D-2mini shape only | ~5 GB  | ✅ 8 GB        |
+| Standard shape generation  | ~6 GB  | ✅ 8 GB        |
+| Full shape + texture       | ~12 GB | ❌ Need 16+ GB |
+| 2mini-turbo (fastest)      | ~4 GB  | ✅ 8 GB        |
 
 > [!warning] 8 GB Limit
 > With our GTX 1070 Ti (8GB), stick to:
+>
 > - Shape-only generation (geometry)
 > - Hunyuan3D-2mini models
 > - Lower octree resolution (256)
@@ -223,6 +240,7 @@ Use `hunyuan3d-dit-v2-mv` instead of `hunyuan3d-dit-v2-mini`:
 ## Recommended Settings for 8GB VRAM
 
 ### Fast Preview
+
 ```json
 {
   "guidance_scale": 5.5,
@@ -233,6 +251,7 @@ Use `hunyuan3d-dit-v2-mv` instead of `hunyuan3d-dit-v2-mini`:
 ```
 
 ### Standard Quality
+
 ```json
 {
   "guidance_scale": 5.5,
@@ -243,6 +262,7 @@ Use `hunyuan3d-dit-v2-mv` instead of `hunyuan3d-dit-v2-mini`:
 ```
 
 ### High Quality (if VRAM allows)
+
 ```json
 {
   "guidance_scale": 5.5,
@@ -258,25 +278,27 @@ Use `hunyuan3d-dit-v2-mv` instead of `hunyuan3d-dit-v2-mini`:
 
 ### Common Errors
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `OSError: [Errno 22] Invalid argument` | `prepare_image` was commented out | ✅ **FIXED:** Uncommented line 559 in `pipelines.py` |
-| `OpenCV resize error: src is not a numpy array` | Tensor passed directly to image_processor | ✅ **FIXED:** Added tensor-to-PIL conversion in `prepare_image` |
-| `CUDA out of memory` | Image too large or too many steps | Reduce resolution to 512, reduce steps to 15 |
-| `custom_rasterizer not found` | Texture module not compiled | Install wheel or compile from source |
-| `ImportError: cannot import name 'Hunyuan3DDiTPipeline'` | Wrong pipeline class | Use Kijai wrapper nodes (Hy3DGenerateMesh) |
-| Black mesh | Bad input image | Use clean background, center subject |
-| Flat back (single-view) | AI guessing unseen geometry | Use multi-view workflow |
-| `Cannot handle this data type: (1, 1, 512), \|u1` | Tensor format mismatch in `prepare_image` | ✅ **FIXED:** Handle `[B,C,H,W]` → `[B,H,W,C]` and `[-1,1]` → `[0,1]` conversion |
-| `expected Tensor as element 0 in argument 0, but got str` | Dictionary unpacked as tuple | ✅ **FIXED:** Handle dict return from `image_processor` |
-| `cannot access local variable 'mask'` | Numpy array not handled in `load_image` | ✅ **FIXED:** Added numpy array branch |
+| Error                                                     | Cause                                     | Solution                                                                         |
+| --------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------- |
+| `OSError: [Errno 22] Invalid argument`                    | `prepare_image` was commented out         | ✅ **FIXED:** Uncommented line 559 in `pipelines.py`                             |
+| `OpenCV resize error: src is not a numpy array`           | Tensor passed directly to image_processor | ✅ **FIXED:** Added tensor-to-PIL conversion in `prepare_image`                  |
+| `CUDA out of memory`                                      | Image too large or too many steps         | Reduce resolution to 512, reduce steps to 15                                     |
+| `custom_rasterizer not found`                             | Texture module not compiled               | Install wheel or compile from source                                             |
+| `ImportError: cannot import name 'Hunyuan3DDiTPipeline'`  | Wrong pipeline class                      | Use Kijai wrapper nodes (Hy3DGenerateMesh)                                       |
+| Black mesh                                                | Bad input image                           | Use clean background, center subject                                             |
+| Flat back (single-view)                                   | AI guessing unseen geometry               | Use multi-view workflow                                                          |
+| `Cannot handle this data type: (1, 1, 512), \|u1`         | Tensor format mismatch in `prepare_image` | ✅ **FIXED:** Handle `[B,C,H,W]` → `[B,H,W,C]` and `[-1,1]` → `[0,1]` conversion |
+| `expected Tensor as element 0 in argument 0, but got str` | Dictionary unpacked as tuple              | ✅ **FIXED:** Handle dict return from `image_processor`                          |
+| `cannot access local variable 'mask'`                     | Numpy array not handled in `load_image`   | ✅ **FIXED:** Added numpy array branch                                           |
 
 ### Bug Fixes Applied
 
 #### Fix 1: Commented-out `prepare_image` call
+
 **File:** `ComfyUI/custom_nodes/ComfyUI-Hunyuan3DWrapper/hy3dgen/shapegen/pipelines.py`
 
 **Line 559** had `prepare_image` commented out:
+
 ```python
 # BEFORE (broken):
 #image, mask = self.prepare_image(image)
@@ -286,9 +308,11 @@ image, mask = self.prepare_image(image)
 ```
 
 #### Fix 2: Tensor-to-PIL conversion
+
 **File:** `ComfyUI/custom_nodes/ComfyUI-Hunyuan3DWrapper/hy3dgen/shapegen/pipelines.py`
 
 **`prepare_image` method** now handles ComfyUI tensors:
+
 ```python
 def prepare_image(self, image):
     from PIL import Image
@@ -316,6 +340,7 @@ def prepare_image(self, image):
 ```
 
 #### Fix 4: Dictionary vs tuple unpacking in prepare_image
+
 **File:** `ComfyUI/custom_nodes/ComfyUI-Hunyuan3DWrapper/hy3dgen/shapegen/pipelines.py`
 
 **Error:** `expected Tensor as element 0 in argument 0, but got str`
@@ -323,6 +348,7 @@ def prepare_image(self, image):
 **Root cause:** `ImageProcessorV2.__call__` returns a dictionary `{'image': ..., 'mask': ...}`, but `prepare_image` unpacks it as a tuple. Unpacking a dictionary yields its keys (strings), not values.
 
 **Solution:** Handle both dictionary and tuple returns:
+
 ```python
 result = self.image_processor(img, return_mask=True)
 if isinstance(result, dict):
@@ -332,6 +358,7 @@ else:
 ```
 
 #### Fix 5: Numpy array handling in load_image
+
 **File:** `ComfyUI/custom_nodes/ComfyUI-Hunyuan3DWrapper/hy3dgen/shapegen/preprocessors.py`
 
 **Error:** `cannot access local variable 'mask' where it is not associated with a value`
@@ -339,6 +366,7 @@ else:
 **Root cause:** `load_image` only handled `str` and `PIL.Image` inputs, not numpy arrays.
 
 **Solution:** Added numpy array handling:
+
 ```python
 elif isinstance(image, np.ndarray):
     if image.shape[-1] == 4:
@@ -352,6 +380,7 @@ elif isinstance(image, np.ndarray):
 ```
 
 #### Fix 6: Tensor format handling in prepare_image
+
 **File:** `ComfyUI/custom_nodes/ComfyUI-Hunyuan3DWrapper/hy3dgen\shapegen\pipelines.py`
 
 **Error:** `Cannot handle this data type: (1, 1, 512), |u1`
@@ -359,6 +388,7 @@ elif isinstance(image, np.ndarray):
 **Root cause:** The `Hy3DGenerateMesh` node permutes images to `[B, C, H, W]` format with values in [-1, 1], but `prepare_image` expected `[B, H, W, C]` in [0, 1].
 
 **Solution:** Detect channels-first format and convert:
+
 ```python
 if img_tensor.dim() == 4 and img_tensor.shape[1] in (1, 3, 4):
     img_tensor = img_tensor.permute(0, 2, 3, 1)  # [B, H, W, C]
@@ -374,6 +404,7 @@ if img_min < 0:
 > When using `uvicorn.run("app.main:app", ...)` with a string target, uvicorn spawns a child process on Windows. This child process inherits the system PATH and runs with the **system Python** instead of the venv Python, causing import failures and loading stale `.pyc` caches.
 
 **Fix in `packages/backend/app/main.py`:**
+
 ```python
 # BEFORE (broken on Windows with venv):
 uvicorn.run("app.main:app", ...)
@@ -385,6 +416,7 @@ asyncio.run(server.serve())
 ```
 
 **Debugging tip:** If you see `ModuleNotFoundError` for modules that exist, check which Python is running:
+
 ```powershell
 Get-Process -Name "python" | Select-Object Id, @{N='Exe';E={$_.CommandLine.Split('"')[1]}}
 ```
@@ -395,6 +427,7 @@ Multiple Python processes = uvicorn spawned a child with the wrong interpreter.
 
 > [!important] Correct Model Paths
 > Kijai wrapper expects models in `diffusion_models/`:
+>
 > ```
 > ComfyUI/models/diffusion_models/hunyuan3d-2mini/hunyuan3d-dit-v2-mini/model.fp16.safetensors
 > ```
@@ -405,6 +438,7 @@ Multiple Python processes = uvicorn spawned a child with the wrong interpreter.
 
 > [!caution] Use Correct Nodes
 > **For Kijai wrapper:**
+>
 > - `Hy3DModelLoader` (NOT `CheckpointLoaderSimple`)
 > - `Hy3DGenerateMesh` (NOT `KSampler`)
 > - `Hy3DVAEDecode` (NOT `VAEDecode`)
@@ -416,11 +450,46 @@ Multiple Python processes = uvicorn spawned a child with the wrong interpreter.
 
 ```json
 {
-  "1": {"class_type": "Hy3DModelLoader", "inputs": {"model": "hunyuan3d-2mini\\hunyuan3d-dit-v2-mini\\model.fp16.safetensors"}},
-  "2": {"class_type": "EmptyImage", "inputs": {"width": 512, "height": 512, "batch_size": 1, "color": 8421504}},
-  "3": {"class_type": "Hy3DGenerateMesh", "inputs": {"pipeline": ["1", 0], "image": ["2", 0], "guidance_scale": 5.5, "steps": 15, "seed": 42}},
-  "4": {"class_type": "Hy3DVAEDecode", "inputs": {"vae": ["1", 1], "latents": ["3", 0], "box_v": 1.01, "octree_resolution": 256, "num_chunks": 8000, "mc_level": 0, "mc_algo": "mc"}},
-  "5": {"class_type": "Hy3DExportMesh", "inputs": {"trimesh": ["4", 0], "filename_prefix": "output/3d/test_mesh", "file_format": "glb"}}
+  "1": {
+    "class_type": "Hy3DModelLoader",
+    "inputs": {
+      "model": "hunyuan3d-2mini\\hunyuan3d-dit-v2-mini\\model.fp16.safetensors"
+    }
+  },
+  "2": {
+    "class_type": "EmptyImage",
+    "inputs": { "width": 512, "height": 512, "batch_size": 1, "color": 8421504 }
+  },
+  "3": {
+    "class_type": "Hy3DGenerateMesh",
+    "inputs": {
+      "pipeline": ["1", 0],
+      "image": ["2", 0],
+      "guidance_scale": 5.5,
+      "steps": 15,
+      "seed": 42
+    }
+  },
+  "4": {
+    "class_type": "Hy3DVAEDecode",
+    "inputs": {
+      "vae": ["1", 1],
+      "latents": ["3", 0],
+      "box_v": 1.01,
+      "octree_resolution": 256,
+      "num_chunks": 8000,
+      "mc_level": 0,
+      "mc_algo": "mc"
+    }
+  },
+  "5": {
+    "class_type": "Hy3DExportMesh",
+    "inputs": {
+      "trimesh": ["4", 0],
+      "filename_prefix": "output/3d/test_mesh",
+      "file_format": "glb"
+    }
+  }
 }
 ```
 
@@ -447,11 +516,12 @@ Multiple Python processes = uvicorn spawned a child with the wrong interpreter.
 
 ---
 
-*Last updated: 2026-09-09 — Sep 2026: Hunyuan3D 3.0 added (8GB geometry+segmentation/UV local), 2mini stays fallback*
+_Last updated: 2026-09-09 — Sep 2026: Hunyuan3D 3.0 added (8GB geometry+segmentation/UV local), 2mini stays fallback_
 
 ## Sep 2026 Update — Hunyuan3D 3.0 (8GB-local)
 
 > **Hunyuan3D 3.0** (Mar 2026) replaces 2.1 wrapper (`visualbruno/ComfyUI-Hunyuan3d-2-1`) and adds to ComfyUI nightly:
+>
 > - **3.0 assets**: `hunyuan3d-dit-v2-0-fp16.safetensors` → `models/unet/`, `hunyuan3d-delight-v2-0`/`hunyuan3d-paint-v2-0` → `models/diffusers/`
 > - **New post-processing (fits 8GB)**: asset segmentation (split plates/attachments), UV preparation, mesh optimization — all local; full PBR texture still 12GB+ (cloud)
 > - Templates: `HunYuan3D: Text to Model`, `HY 3D: Image to Model` (2-4 multi-view improves fidelity, ~4-5GB)
@@ -459,26 +529,28 @@ Multiple Python processes = uvicorn spawned a child with the wrong interpreter.
 
 ### Sep 2026 Node Mapping
 
-| Goal | 2mini nodes | 3.0 nodes (nightly) |
-|------|-------------|---------------------|
-| Text→3D | `EmptyImage` → `Hy3DGenerateMesh` | `HunYuan3D: Text to Model` template (handles text→image→mesh) |
-| Image→3D | `Hy3DGenerateMesh` | `HY 3D: Image to Model` | 
-| Segmentation | — | `HY 3D: 3D Parts Decomposition` |
-| UV prep | `Hy3DMeshUVWrap` | `HY 3D: UV Map Preparation` |
-| Optimization | — | `HY 3D: Intelligent Mesh Optimization` |
+| Goal         | 2mini nodes                       | 3.0 nodes (nightly)                                           |
+| ------------ | --------------------------------- | ------------------------------------------------------------- |
+| Text→3D      | `EmptyImage` → `Hy3DGenerateMesh` | `HunYuan3D: Text to Model` template (handles text→image→mesh) |
+| Image→3D     | `Hy3DGenerateMesh`                | `HY 3D: Image to Model`                                       |
+| Segmentation | —                                 | `HY 3D: 3D Parts Decomposition`                               |
+| UV prep      | `Hy3DMeshUVWrap`                  | `HY 3D: UV Map Preparation`                                   |
+| Optimization | —                                 | `HY 3D: Intelligent Mesh Optimization`                        |
 
 > **8GB rule**: Segmentation/UV/optimization are now **8GB-local** (unlike texture). Only PBR texture (`Hy3DSampleMultiView`/`Hy3DBake`) is cloud on GTX 1070 Ti.
 
-*Last updated: 2026-08-27 — Added Fixes 4-6 for ComfyUI pipeline tensor format and dictionary unpacking issues*
+_Last updated: 2026-08-27 — Added Fixes 4-6 for ComfyUI pipeline tensor format and dictionary unpacking issues_
 
 ---
 
 ## Backend Integration Notes (2026-09-06)
 
 ### Fix: VRAM manager import error
+
 **File:** `packages/backend/app/adapters/ollama.py`
 
 **Symptom:** `500 Internal Server Error` on `POST /api/3d/generate`; backend error log shows:
+
 ```
 ImportError: cannot import name 'ollama_adapter' from 'app.adapters.ollama'
 ```
@@ -486,11 +558,13 @@ ImportError: cannot import name 'ollama_adapter' from 'app.adapters.ollama'
 **Root cause:** `vram_manager.py` imports `ollama_adapter` from `app.adapters.ollama`, but `ollama.py` only exposed the `OllamaAdapter` class, not a module-level instance.
 
 **Fix applied:** Added a backward-compatible singleton at the bottom of `ollama.py`:
+
 ```python
 ollama_adapter = OllamaAdapter()
 ```
 
 **Files changed:**
+
 - `packages/backend/app/adapters/ollama.py`
 
 ---
@@ -498,27 +572,31 @@ ollama_adapter = OllamaAdapter()
 ## 2026 Best Practices: Hunyuan3D + ComfyUI
 
 ### Path selection
-| Goal | Path | Why |
-|------|------|-----|
-| Geometry only, 8GB VRAM | **Native ComfyUI** support | Easiest install, lowest VRAM (~5 GB) |
+
+| Goal                        | Path                               | Why                                    |
+| --------------------------- | ---------------------------------- | -------------------------------------- |
+| Geometry only, 8GB VRAM     | **Native ComfyUI** support         | Easiest install, lowest VRAM (~5 GB)   |
 | Textured output, 12GB+ VRAM | **Kijai ComfyUI-Hunyuan3DWrapper** | Full PBR pipeline (geometry + texture) |
-| Best quality/speed on 8GB | **2mini-turbo at 1024, 15 steps** | Community-verified sweet spot |
+| Best quality/speed on 8GB   | **2mini-turbo at 1024, 15 steps**  | Community-verified sweet spot          |
 
 > [!important] Native ComfyUI = geometry only.
 > If you want textured meshes, you need the Kijai wrapper. Our GTX 1070 Ti (8GB) fits shape-only comfortably; full textured output via Kijai wrapper pushes toward 12 GB and is not practical on this machine.
 
 ### Input image rules
+
 - Transparent/clean background is mandatory. Busy backgrounds become unwanted geometry.
 - Kijai wrapper auto-removes backgrounds via `ComfyUI_essentials`.
 - Single-view works; multi-view (front + side) improves geometry but increases inference time.
 
 ### Node schema updates (as of 2026-07)
+
 - `Hy3DGenerateMesh` requires an IMAGE input (it is image-to-3D, not pure text-to-3D).
 - For text prompts, the working pattern is: text → SD1.5 image → Hy3DGenerateMesh.
 - The raw `Hy3DVAEDecode` output is an unindexed octree voxel mesh; always run `Hy3DPostprocessMesh` with `smooth_normals=True` before export.
 - `Hy3DMeshUVWrap` is needed if the GLB should carry UVs for downstream materials/viewers.
 
 ### Version note
+
 - Hunyuan3D-2.1 wrapper exists (`visualbruno/ComfyUI-Hunyuan3d-2-1`) with improved UV mapping, but we currently use Kijai’s 2.0 wrapper.
 - Recheck model versions and ComfyUI compatibility every few months; this space moves fast.
 
@@ -527,11 +605,13 @@ ollama_adapter = OllamaAdapter()
 ## Current Machine Status (2026-09-07)
 
 ### PyTorch environment
+
 - **nma-studio-cuda**: torch **2.14.0+cu126** — the **last Pascal-compatible release**
 - **comfyui-cuda**: torch **2.14.0+cu126**
 - From PyTorch 2.15 onward, `cu126` wheels are dropped for Pascal; must stay on 2.14 or build from source.
 
 ### ComfyUI install
+
 - Path: `D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI`
 - Custom nodes: `ComfyUI-Hunyuan3DWrapper` present
 - Models: `hunyuan3d-2mini/hunyuan3d-dit-v2-mini/model.fp16.safetensors` present
@@ -539,13 +619,16 @@ ollama_adapter = OllamaAdapter()
 - Native Hunyuan3D-2 support: available in ComfyUI core (update to latest)
 
 ### Recommended additions for 8GB VRAM
+
 See [[3d-generation-options-2026]] for the full landscape:
+
 - **TripoSR** — ~0.5s generation, ~4-5GB VRAM, install via `ComfyUI-3D-Pack`
 - **Stable Fast 3D** — ~6GB VRAM, UV-unwrapped output, install via `ComfyUI-3D-Pack`
 - **Hunyuan3D-2mv** — native ComfyUI, multi-view, ~6GB VRAM
 - Full texture pipelines (~12GB+) are **not practical** on GTX 1070 Ti
 
 ### Backend config
+
 - Service file: `packages/backend/app/services/gen3d/gen3d_service.py`
 - API routes: `packages/backend/app/api/health.py`
   - `POST /3d/generate`
@@ -553,6 +636,7 @@ See [[3d-generation-options-2026]] for the full landscape:
 - Frontend wizard: `packages/frontend/src/features/generate3d/`
 
 ### Known issues
+
 - 3D generation currently returns 500 due to VRAM manager Ollama reload import path; fixed in `ollama.py`.
 - Full texture generation exceeds 8GB VRAM; we intentionally stay on geometry-only tier.
 - PyTorch 2.14 is the last prebuilt wheel for Pascal; pin this version.

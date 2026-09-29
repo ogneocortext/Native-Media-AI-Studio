@@ -1,3 +1,16 @@
+---
+tags:
+  - performance
+  - hardware-pascal
+  - unsloth
+  - triton
+aliases:
+  - Unsloth Triton Windows Fixes
+cssclasses:
+  - performance-guide
+date: 2026-09-29
+---
+
 # Unsloth Triton Windows Fixes & Cross-Entropy Replacement
 
 > **Collected:** 2026-09-09 — **Updated Sep 09 2026** for Unsloth 2026.8.6 + Gemma 4 fixes

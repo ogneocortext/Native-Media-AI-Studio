@@ -1,7 +1,21 @@
+---
+tags:
+  - ai
+  - hardware-8gb
+  - platform-comfyui
+aliases:
+  - Gemma 4 ComfyUI MCP
+  - QLoRA Fine-Tuning
+  - Tool Use Models
+cssclasses:
+  - ai-guide
+date: 2026-09-29
+---
+
 # Gemma 4 ComfyUI MCP Fine-Tune — September 2026 (8GB-Capped)
 
-> **Scope:** QLoRA on ComfyUI MCP tool-use for GTX 1070 Ti 8GB strict.  
-> **Date:** 2026-09-09  
+> **Scope:** QLoRA on ComfyUI MCP tool-use for GTX 1070 Ti 8GB strict.
+> **Date:** 2026-09-29
 > **Source:** `artokun/gemma4-comfyui-mcp` (Ollama), Unsloth Gemma 4 train docs
 
 ## Summary
@@ -15,11 +29,11 @@
 
 ## Hardware Rule for This Studio
 
-| Variant | Training VRAM | Inference VRAM | Fits GTX 1070 Ti 8GB? |
-|---------|---------------|----------------|----------------------|
-| `:e2b` / `E2B-it` | **8GB** (Unsloth Jul 18 2026) | ~2.9GB Q4 | ✅ **Yes — use this** |
-| `:e4b` / `E4B-it` | **10GB** | ~4.5GB Q4 | ❌ **No — cloud/A40 only** |
-| `:12b` / `:31b` | 17-22GB+ | 6.7-17.5GB | ❌ No |
+| Variant           | Training VRAM                 | Inference VRAM | Fits GTX 1070 Ti 8GB?      |
+| ----------------- | ----------------------------- | -------------- | -------------------------- |
+| `:e2b` / `E2B-it` | **8GB** (Unsloth Jul 18 2026) | ~2.9GB Q4      | ✅ **Yes — use this**      |
+| `:e4b` / `E4B-it` | **10GB**                      | ~4.5GB Q4      | ❌ **No — cloud/A40 only** |
+| `:12b` / `:31b`   | 17-22GB+                      | 6.7-17.5GB     | ❌ No                      |
 
 > **Strict 8GB**: Only `:e2b` fits local QLoRA on this GPU. `:e4b` is reported in search results but **exceeds** 8GB — do not select it for local training on GTX 1070 Ti.
 
@@ -43,9 +57,11 @@ ollama run artokun/gemma4-comfyui-mcp:e2b
 ```
 
 Ollama params (from blob `dcaf83c203b7`):
+
 ```json
-{"num_ctx": 65536, "temperature": 1.0, "top_p": 0.95, "top_k": 64}
+{ "num_ctx": 65536, "temperature": 1.0, "top_p": 0.95, "top_k": 64 }
 ```
+
 Gemma 4 recommended sampling is `temp 1.0 / top_p 0.95 / top_k 64` — artokun inherits this.
 
 ## Unsloth Training from Artokun Base (8GB)
@@ -85,4 +101,4 @@ All tools in `comfyui-mcp` (image, img2img, controlnet, upscale, remove_backgrou
 - Unsloth Gemma 4: https://unsloth.ai/docs/models/gemma-4/train (E2B 8GB / E4B 10GB, fixes)
 - Unsloth artifacts: https://github.com/unslothai/unsloth/discussions/4921 (Apr 8 2026, grad-accum/`use_cache`/audio fixes)
 
-*Last updated: 2026-09-09 — 8GB-capped; E4B is cloud-only*
+_Last updated: 2026-09-09 — 8GB-capped; E4B is cloud-only_

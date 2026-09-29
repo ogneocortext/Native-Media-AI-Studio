@@ -1,18 +1,15 @@
 ---
 tags:
-  - vision
-  - ollama
+  - creative
   - visualization
-  - music-video
-  - prompts
-  - analysis
+  - ai
 aliases:
   - Visualization Vision Prompts
   - Music Video Analysis Prompts
   - VFX Review Prompts
 cssclasses:
-  - technical-reference
-date: 2026-09-08
+  - creative-guide
+date: 2026-09-29
 ---
 
 # 🎬 Visualization Vision Prompts

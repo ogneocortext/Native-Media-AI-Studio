@@ -1,18 +1,13 @@
 ---
 tags:
-  - notifications
-  - sse
-  - real-time
-  - frontend
-  - backend
-  - queue
-  - ux
-  - accessibility
-  - websocket
-  - events
+  - technical
 aliases:
   - Notification System Research 2026
   - SSE Notification Improvements
+  - Real-time Events
+cssclasses:
+  - technical-guide
+date: 2026-09-29
   - Real-time Notification Best Practices
 cssclasses:
   - research
@@ -92,12 +87,14 @@ date: 2026-09-29
 **Problem:** Long-running jobs emit dozens of `job.progress` events, flooding the toast queue and burying critical errors.
 
 **Solution:** Add a `priority` field to SSE events:
+
 - `urgent` — job.failed, job.dead, system errors → immediate toast + sound
 - `high` — job.completed, job.cancelled → toast with longer duration
 - `medium` — job.queued, job.started → subtle toast
 - `low` — job.progress → suppress toast, update UI only
 
 **Implementation:**
+
 - Backend: Add `priority` to `_format_message()` envelope in `sse/handler.py`
 - Frontend: Route events by priority in `sseService.ts` → `jobStore.ts`
 - Toast: `showToast()` accepts priority; urgent toasts use `requireInteraction: true`
@@ -110,12 +107,14 @@ date: 2026-09-29
 
 **Problem:** If SSE disconnects for >15s, the client misses all intermediate events. The current code has no replay mechanism.
 
-**Solution:** 
+**Solution:**
+
 - Backend: Track last N events (e.g., 100) in a ring buffer; on connect, send `Last-Event-ID` header
 - Frontend: Pass `lastEventId` query param on reconnect; server replays missed events
 - SSE endpoint: `EventSourceResponse` supports `Last-Event-ID` via Starlette's `last_event_id`
 
 **Implementation:**
+
 - Backend: Add `_recent_events: deque(maxlen=100)` to `SSEManager`
 - On `send_message()`, store `(event_id, message)` in ring buffer
 - On `connect()`, return buffer if `Last-Event-ID` header present
@@ -132,6 +131,7 @@ date: 2026-09-29
 **Solution:** Use `BroadcastChannel` API to sync SSE events across tabs.
 
 **Implementation:**
+
 - Frontend: Create `notificationSyncChannel = new BroadcastChannel('notifications')`
 - Leader tab: Maintains SSE connection; broadcasts events to channel
 - Follower tabs: Listen to channel; update local store without own SSE connection
@@ -146,6 +146,7 @@ date: 2026-09-29
 **Problem:** Toasts are ephemeral; users have no way to review missed notifications.
 
 **Solution:** Add a notification center (bell icon + dropdown):
+
 - Store last 100 notifications in Zustand + `localStorage`
 - Show unread count badge on bell icon
 - Dropdown shows grouped notification history
@@ -153,6 +154,7 @@ date: 2026-09-29
 - Click notification → navigate to relevant job
 
 **Implementation:**
+
 - Frontend: Add `useNotificationStore` Zustand slice
 - Components: `NotificationBell.tsx`, `NotificationPanel.tsx`, `NotificationItem.tsx`
 - Backend: Add `GET /api/notifications` endpoint (if not exists)
@@ -168,6 +170,7 @@ date: 2026-09-29
 **Problem:** Rapid `job.progress` updates (e.g., "Step 5/20", "Step 6/20", ...) create toast spam.
 
 **Solution:** Collapse identical event types within a time window:
+
 - Frontend: Track last N event types per job; if same type within 5s, show "Job X: 3 updates"
 - Toast: Replace existing toast with updated count instead of stacking
 
@@ -180,11 +183,13 @@ date: 2026-09-29
 **Problem:** Users don't know if SSE is connected; silent failures during network issues.
 
 **Solution:** Add a subtle connection status dot in the header:
+
 - Green = connected
 - Yellow = reconnecting
 - Red = disconnected (show "Offline — retrying..." tooltip)
 
 **Implementation:**
+
 - Frontend: Expose `sseConnected` from `useJobStore` (already exists!)
 - Add `ConnectionStatusDot` component to `Layout.tsx`
 
@@ -197,6 +202,7 @@ date: 2026-09-29
 **Problem:** When the tab is hidden, users miss critical job completions/failures.
 
 **Solution:** Use Notification API for high-priority events:
+
 - Request permission on first user interaction
 - Show browser notification when `document.visibilityState === 'hidden'`
 - Click notification → focus tab and navigate to job
@@ -212,6 +218,7 @@ date: 2026-09-29
 **Problem:** No way to mute notifications during focus time or sleep.
 
 **Solution:** Add notification preferences:
+
 - Per-category toggles (progress, completed, failed, system)
 - Quiet hours (e.g., 22:00–07:00)
 - Backend stores preferences; SSE checks before broadcasting
@@ -224,7 +231,8 @@ date: 2026-09-29
 
 **Problem:** Network interruptions cause event loss; no recovery mechanism.
 
-**Solution:** 
+**Solution:**
+
 - Frontend: Queue events in IndexedDB when offline
 - On reconnect: Replay queued events + fetch `?since=lastEventId` from REST API
 - Backend: Add `GET /api/events/since?last_id=X` endpoint

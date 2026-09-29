@@ -1,7 +1,20 @@
+---
+tags:
+  - performance
+  - hardware-8gb
+aliases:
+  - Hardware Verified Models
+  - Model Inventory
+  - 8GB VRAM Models
+cssclasses:
+  - performance-guide
+date: 2026-09-29
+---
+
 # Hardware-Vetted Model Inventory & Expansion Guide
 
-> **Last Updated:** 2026-09-09  
-> **Status:** Active reference for model selection, quantization, and AnimateDiff expansion on the local workstation  
+> **Last Updated:** 2026-09-29
+> **Status:** Active reference for model selection, quantization, and AnimateDiff expansion on the local workstation
 > **Hardware baseline:** GTX 1070 Ti 8 GB VRAM / Ryzen 5 5500 / 32 GB RAM / Windows 11
 
 ---
@@ -10,27 +23,27 @@
 
 ### 1.1 Finding: Local 9B models are NOT quantized
 
-| Model | Size | Format | Quantized? |
-|---|---|---|---|
-| `qwen3.5:9b` | 6.6 GB | Full precision (fp16/bf16 blobs) | ❌ No |
-| `ornith-1.5:9b` | 6.6 GB | Full precision (fp16/bf16 blobs) | ❌ No |
-| `deepseek-r1:7b` | 4.7 GB | Full precision | ❌ No |
-| `qwen3.5:4b` | 3.4 GB | Full precision | ❌ No |
-| `gemma4:e2b-it-qat` | 4.3 GB | QAT-trained, but stored as full precision in Ollama | Partial |
-| `qwen3-vl:4b` | 3.3 GB | Full precision | ❌ No |
-| `qwen3-vl:2b` | 1.9 GB | Full precision | ❌ No |
-| `llama3.2:3b` | 2.0 GB | Full precision | ❌ No |
+| Model               | Size   | Format                                              | Quantized? |
+| ------------------- | ------ | --------------------------------------------------- | ---------- |
+| `qwen3.5:9b`        | 6.6 GB | Full precision (fp16/bf16 blobs)                    | ❌ No      |
+| `ornith-1.5:9b`     | 6.6 GB | Full precision (fp16/bf16 blobs)                    | ❌ No      |
+| `deepseek-r1:7b`    | 4.7 GB | Full precision                                      | ❌ No      |
+| `qwen3.5:4b`        | 3.4 GB | Full precision                                      | ❌ No      |
+| `gemma4:e2b-it-qat` | 4.3 GB | QAT-trained, but stored as full precision in Ollama | Partial    |
+| `qwen3-vl:4b`       | 3.3 GB | Full precision                                      | ❌ No      |
+| `qwen3-vl:2b`       | 1.9 GB | Full precision                                      | ❌ No      |
+| `llama3.2:3b`       | 2.0 GB | Full precision                                      | ❌ No      |
 
 **Evidence:** `ollama show <model> --modelfile` reveals single `FROM` blob paths under `D:\AI\Models\Ollama\.ollama\models\blobs\` with no GGUF quantization suffix. The 9B models each occupy ~6.6 GB, confirming they are unquantized fp16 weights.
 
 ### 1.2 VRAM impact on 8 GB GPU
 
-| Model class | Typical VRAM usage | Verdict |
-|---|---|---|
-| 2B–3B | ~1.9–2.5 GB | ✅ Safe |
-| 4B | ~3.3–3.4 GB | ✅ Good |
-| 7B | ~4.7 GB | ⚠️ Tight but runnable |
-| 9B | ~6.6 GB | ❌ Poor fit; will OOM under moderate KV-cache load |
+| Model class | Typical VRAM usage | Verdict                                            |
+| ----------- | ------------------ | -------------------------------------------------- |
+| 2B–3B       | ~1.9–2.5 GB        | ✅ Safe                                            |
+| 4B          | ~3.3–3.4 GB        | ✅ Good                                            |
+| 7B          | ~4.7 GB            | ⚠️ Tight but runnable                              |
+| 9B          | ~6.6 GB            | ❌ Poor fit; will OOM under moderate KV-cache load |
 
 ### 1.3 Recommendations
 
@@ -49,16 +62,16 @@
 
 **8 official camera-motion LoRAs** from the AnimateDiff team (guoyww), each ~73.9 MB:
 
-| File | Camera Motion | Typical Use |
-|---|---|---|
-| `v2_lora_ZoomIn.ckpt` | Gradual zoom into center | Focus pull, detail reveal |
-| `v2_lora_ZoomOut.ckpt` | Gradual zoom away | Establishing shot, context |
-| `v2_lora_PanLeft.ckpt` | Horizontal pan left | Scene reveal left-to-right |
-| `v2_lora_PanRight.ckpt` | Horizontal pan right | Scene reveal right-to-left |
-| `v2_lora_TiltUp.ckpt` | Vertical tilt up | Reveal height, sky |
-| `v2_lora_TiltDown.ckpt` | Vertical tilt down | Reveal ground, subject |
-| `v2_lora_RollingClockwise.ckpt` | Barrel roll clockwise | Dynamic action, spiral |
-| `v2_lora_RollingAnticlockwise.ckpt` | Barrel roll counter-clockwise | Dynamic action, spiral |
+| File                                | Camera Motion                 | Typical Use                |
+| ----------------------------------- | ----------------------------- | -------------------------- |
+| `v2_lora_ZoomIn.ckpt`               | Gradual zoom into center      | Focus pull, detail reveal  |
+| `v2_lora_ZoomOut.ckpt`              | Gradual zoom away             | Establishing shot, context |
+| `v2_lora_PanLeft.ckpt`              | Horizontal pan left           | Scene reveal left-to-right |
+| `v2_lora_PanRight.ckpt`             | Horizontal pan right          | Scene reveal right-to-left |
+| `v2_lora_TiltUp.ckpt`               | Vertical tilt up              | Reveal height, sky         |
+| `v2_lora_TiltDown.ckpt`             | Vertical tilt down            | Reveal ground, subject     |
+| `v2_lora_RollingClockwise.ckpt`     | Barrel roll clockwise         | Dynamic action, spiral     |
+| `v2_lora_RollingAnticlockwise.ckpt` | Barrel roll counter-clockwise | Dynamic action, spiral     |
 
 **Source:** HuggingFace `guoyww/animatediff` + CivitAI mirror  
 **Compatibility:** Designed for **AnimateDiff v2 motion module** (`mm_sd_v15_v2.ckpt`). They may have reduced effect on v3 but are still usable.  
@@ -83,11 +96,11 @@ Motion LoRAs are tiny (~74 MB each) and load into the motion-module parameter sp
 
 ### 3.1 Available ControlNet families
 
-| ControlNet variant | Size (fp32) | Size (fp16) | Size (LoRA) | 8 GB VRAM fit with AnimateDiff? |
-|---|---|---|---|---|
+| ControlNet variant                                        | Size (fp32)  | Size (fp16) | Size (LoRA) | 8 GB VRAM fit with AnimateDiff?                |
+| --------------------------------------------------------- | ------------ | ----------- | ----------- | ---------------------------------------------- |
 | Official SD1.5 ControlNet 1.1 (canny/depth/openpose/etc.) | 1.45 GB each | 723 MB each | 136 MB each | ❌ fp32 too heavy; ⚠️ fp16 tight; ✅ LoRA safe |
-| ControlNet++ (better alignment) | ~1.5 GB | ~750 MB | N/A | ❌ Too heavy |
-| T2I-Adapters (lightweight conditioning) | Varies | Varies | Small | ✅ Usually safe |
+| ControlNet++ (better alignment)                           | ~1.5 GB      | ~750 MB     | N/A         | ❌ Too heavy                                   |
+| T2I-Adapters (lightweight conditioning)                   | Varies       | Varies      | Small       | ✅ Usually safe                                |
 
 ### 3.2 Recommended ControlNet strategy for 8 GB VRAM
 
@@ -96,16 +109,19 @@ Motion LoRAs are tiny (~74 MB each) and load into the motion-module parameter sp
 **Headroom remaining:** ~3–4 GB.
 
 **Safe choices:**
+
 - **ControlNet LoRA variants** (~136 MB each) — can fit one or two alongside AnimateDiff.
 - **T2I-Adapters** — lightweight conditioning layers; some are <200 MB.
 
 **Risky choices:**
+
 - Full fp16 ControlNet models (~723 MB each) — may OOM when combined with AnimateDiff + SD 1.5.
 - Full fp32 ControlNet models (~1.45 GB each) — will OOM.
 
 ### 3.3 Recommended ControlNet models to install (if needed)
 
 For structure/pose guidance on AnimateDiff clips:
+
 - **ControlNet LoRA - Canny** (`comfyanonymous/ControlNet-v1-1_fp16_safetensors` LoRA subset, ~136 MB)
 - **ControlNet LoRA - OpenPose** (~136 MB)
 - **ControlNet LoRA - Depth** (~136 MB)
@@ -120,23 +136,23 @@ For structure/pose guidance on AnimateDiff clips:
 
 ### 4.1 Confirmed specs
 
-| Component | Spec | Notes |
-|---|---|---|
-| GPU | NVIDIA GTX 1070 Ti | 8 GB GDDR5, driver 582.66 |
-| VRAM free | ~6.34 GB | At time of measurement |
-| CPU | AMD Ryzen 5 5500 | 6C/12T |
-| RAM | 32 GB | Ample for CPU-bound tasks |
-| ComfyUI | Not running | `localhost:8188` refused |
+| Component | Spec               | Notes                     |
+| --------- | ------------------ | ------------------------- |
+| GPU       | NVIDIA GTX 1070 Ti | 8 GB GDDR5, driver 582.66 |
+| VRAM free | ~6.34 GB           | At time of measurement    |
+| CPU       | AMD Ryzen 5 5500   | 6C/12T                    |
+| RAM       | 32 GB              | Ample for CPU-bound tasks |
+| ComfyUI   | Not running        | `localhost:8188` refused  |
 
 ### 4.2 Safe-to-run model tiers
 
-| Tier | Model examples | VRAM estimate | Status |
-|---|---|---|
-| **Tier 1 — Safe** | 2B–3B LLMs, 4B VL, AnimateDiff SD1.5 + motion LoRA | <4 GB | ✅ Run now |
-| **Tier 2 — Workable** | 4B LLMs, SD1.5 + AnimateDiff + 1× ControlNet LoRA | 4–6 GB | ✅ Run now |
-| **Tier 3 — Tight** | 7B LLMs, SD1.5 + AnimateDiff + fp16 ControlNet | 6–8 GB | ⚠️ May OOM under load |
-| **Tier 4 — Infeasible (FP16)** | 9B LLMs unquantized, WAN 14B FP16, LTX 22B, SDXL AnimateDiff | >8 GB | ❌ Skip or quantize |
-| **Tier 4 — GGUF path** | Wan 2.2 TI2V-5B GGUF Q4/Q5 + CPU T5 offload | ~6-8 GB | ✅ Now feasible on 8GB |
+| Tier                           | Model examples                                               | VRAM estimate | Status                 |
+| ------------------------------ | ------------------------------------------------------------ | ------------- | ---------------------- |
+| **Tier 1 — Safe**              | 2B–3B LLMs, 4B VL, AnimateDiff SD1.5 + motion LoRA           | <4 GB         | ✅ Run now             |
+| **Tier 2 — Workable**          | 4B LLMs, SD1.5 + AnimateDiff + 1× ControlNet LoRA            | 4–6 GB        | ✅ Run now             |
+| **Tier 3 — Tight**             | 7B LLMs, SD1.5 + AnimateDiff + fp16 ControlNet               | 6–8 GB        | ⚠️ May OOM under load  |
+| **Tier 4 — Infeasible (FP16)** | 9B LLMs unquantized, WAN 14B FP16, LTX 22B, SDXL AnimateDiff | >8 GB         | ❌ Skip or quantize    |
+| **Tier 4 — GGUF path**         | Wan 2.2 TI2V-5B GGUF Q4/Q5 + CPU T5 offload                  | ~6-8 GB       | ✅ Now feasible on 8GB |
 
 ### 4.3 Recommended daily-driver stack
 
@@ -149,13 +165,13 @@ For structure/pose guidance on AnimateDiff clips:
 
 ## 5. What Was Installed This Session
 
-| Asset | Location | Count | Size |
-|---|---|---|---|
-| AnimateDiff motion LoRAs | `ComfyUI\custom_nodes\ComfyUI-AnimateDiff-Evolved\motion_lora\` | 8 files | ~591 MB |
-| SD 1.5 checkpoint | `ComfyUI\models\checkpoints\` | 1 | Pre-existing |
-| AnimateDiff v3 motion module | `ComfyUI\models\animatediff\` | 1 | Pre-existing |
-| AnimateDiff v2 motion module | `ComfyUI\models\animatediff_models\` | 1 | Pre-existing |
-| AnimateDiff stabilized motion module | `ComfyUI\models\animatediff_models\` | 1 | Pre-existing |
+| Asset                                | Location                                                        | Count   | Size         |
+| ------------------------------------ | --------------------------------------------------------------- | ------- | ------------ |
+| AnimateDiff motion LoRAs             | `ComfyUI\custom_nodes\ComfyUI-AnimateDiff-Evolved\motion_lora\` | 8 files | ~591 MB      |
+| SD 1.5 checkpoint                    | `ComfyUI\models\checkpoints\`                                   | 1       | Pre-existing |
+| AnimateDiff v3 motion module         | `ComfyUI\models\animatediff\`                                   | 1       | Pre-existing |
+| AnimateDiff v2 motion module         | `ComfyUI\models\animatediff_models\`                            | 1       | Pre-existing |
+| AnimateDiff stabilized motion module | `ComfyUI\models\animatediff_models\`                            | 1       | Pre-existing |
 
 ---
 
@@ -173,13 +189,17 @@ For structure/pose guidance on AnimateDiff clips:
    - No API key required
 
 2. **OpenCode provider registration** (`~/.config/opencode/opencode.json`):
+
    ```json
    {
      "provider": {
        "ornith": {
          "npm": "@ai-sdk/openai-compatible",
          "name": "Ornith (local)",
-         "options": { "baseURL": "http://localhost:11434/v1", "apiKey": "EMPTY" },
+         "options": {
+           "baseURL": "http://localhost:11434/v1",
+           "apiKey": "EMPTY"
+         },
          "models": { "ornith-ai/Ornith-1.5-9B": { "name": "Ornith-1.5-9B" } }
        }
      }
@@ -187,6 +207,7 @@ For structure/pose guidance on AnimateDiff clips:
    ```
 
 3. **Proper tool-calling / reasoning parser** — requires vLLM or SGLang, not raw Ollama:
+
    ```bash
    vllm serve ornith-ai/Ornith-1.5-9B \
      --served-model-name Ornith-1.5-9B \
@@ -198,6 +219,7 @@ For structure/pose guidance on AnimateDiff clips:
      --reasoning-parser qwen3 \
      --trust-remote-code
    ```
+
    Then point OpenCode at `http://localhost:8000/v1` instead of Ollama.
 
 4. **Quantized path for 8 GB VRAM** — use AtomicChat GGUF builds:
@@ -219,4 +241,4 @@ For structure/pose guidance on AnimateDiff clips:
 
 ---
 
-*Last updated: 2026-09-09*
+_Last updated: 2026-09-09_

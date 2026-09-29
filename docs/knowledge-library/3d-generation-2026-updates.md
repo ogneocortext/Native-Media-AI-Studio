@@ -1,18 +1,14 @@
 ---
 tags:
-  - 3d-generation
-  - text-to-3d
-  - image-to-3d
-  - 8gb-vram
-  - 2026
-  - open-source
-  - hunyuan3d
+  - ai
+  - hardware-8gb
 aliases:
   - 3D Generation 2026 Updates
   - Hunyuan3D 2.1
   - Text-to-3D VRAM
 cssclasses:
-  - technical-guide
+  - ai-guide
+date: 2026-09-29
 date: 2026-09-20
 ---
 
@@ -35,6 +31,7 @@ date: 2026-09-20
 - **Production Ready** - Optimized for professional 3D production workflows
 
 **VRAM Requirements:**
+
 - Shape generation: 10 GB VRAM
 - Texture generation: 21 GB VRAM
 - Shape + texture generation: 29 GB VRAM total
@@ -47,17 +44,19 @@ date: 2026-09-20
 
 ### VRAM Requirements by Version
 
-|| Model | Shape VRAM | Texture VRAM | Total VRAM | 8GB Feasible? |
-|-------|-----------|--------------|------------|---------------|
-| **Hunyuan3D 2.0** | 6 GB | 16 GB | 16 GB | ❌ NO |
-| **Hunyuan3D 2.1** | 10 GB | 21 GB | 29 GB | ❌ NO |
-| **Hunyuan3D-2mini** | ~5 GB | ~3 GB | ~8 GB | ✅ YES (optimized) |
+|                     | Model | Shape VRAM | Texture VRAM | Total VRAM         | 8GB Feasible? |
+| ------------------- | ----- | ---------- | ------------ | ------------------ | ------------- |
+| **Hunyuan3D 2.0**   | 6 GB  | 16 GB      | 16 GB        | ❌ NO              |
+| **Hunyuan3D 2.1**   | 10 GB | 21 GB      | 29 GB        | ❌ NO              |
+| **Hunyuan3D-2mini** | ~5 GB | ~3 GB      | ~8 GB        | ✅ YES (optimized) |
 
 **Hunyuan3D 2.1 Models:**
+
 - Hunyuan3D-Shape-v2-1 (3.3B) - Image to Shape Model
 - Hunyuan3D-Paint-v2-1 (2B) - Texture Generation Model
 
 **PBR Texture Advantages:**
+
 - Photorealistic light interaction
 - Metallic reflections
 - Subsurface scattering
@@ -70,12 +69,14 @@ date: 2026-09-20
 ### Optimized Version Specifications
 
 **Official Requirements:**
+
 - Geometry Generation: Minimum 6GB VRAM
 - Complete Pipeline: 16GB VRAM recommended
 - Optimized Version (2.1): Geometry ≥3GB, Texture ≥6GB VRAM
 - System Memory: ≥24GB RAM for optimal performance
 
 **Hunyuan3D 2.0 Models:**
+
 - Hunyuan3D-DiT-v2-0-Turbo (1.1B) - Step Distillation Model
 - Hunyuan3D-DiT-v2-0-Fast (1.1B) - Guidance Distillation Model
 - Hunyuan3D-DiT-v2-0 (1.1B) - Image to Shape Model
@@ -94,6 +95,7 @@ date: 2026-09-20
 **June 2026 Release:** Next-Gen Local 3D Generation Studio
 
 **Key Features:**
+
 - **Zero-Cost Local Compute** - Leverage your own GPU for offline 3D inference
 - **Hybrid Local/Cloud Architecture** - Seamlessly switch to cloud API mode when VRAM insufficient
 - **Python 3.10+** and `pip` for setup
@@ -101,19 +103,21 @@ date: 2026-09-20
 
 **Hardware Requirements:**
 
-|| Mode | Resolution | VRAM Required | Example GPUs |
-|-----------|-----------|---------------|--------------|
-| Fast | 256 | 4GB+ | GTX 1650, RTX 3050 |
-| Standard | 320 | 6-8GB | RTX 3060, RTX 4060 |
-| Extreme | 512 | 12GB+ | RTX 3080, RTX 4070+ |
+|          | Mode | Resolution | VRAM Required       | Example GPUs |
+| -------- | ---- | ---------- | ------------------- | ------------ |
+| Fast     | 256  | 4GB+       | GTX 1650, RTX 3050  |
+| Standard | 320  | 6-8GB      | RTX 3060, RTX 4060  |
+| Extreme  | 512  | 12GB+      | RTX 3080, RTX 4070+ |
 
 **For GTX 1070 Ti (8GB):**
+
 - Use **Standard mode** (320 resolution)
 - 6-8GB VRAM required
 - Acceptable for hobbyist work
 - Fall back to cloud API if needed
 
 **Implementation:**
+
 - TripoSR core engine
 - FastAPI application & WebUI
 - Hybrid local/cloud switching
@@ -126,16 +130,19 @@ date: 2026-09-20
 ### CVPR 2026 Framework
 
 **TIGON Features:**
+
 - Text-to-3D generation
 - Image-to-3D generation
 - Interleaved text-image conditioned 3D generation
 
 **Implementation:**
+
 - Supports three generation modes: text only, image only, text + image interleaved
 - Enables pipeline offloading by default through `TIGON_ENABLE_OFFLOAD=1`
 - Checkpoint provides `gaussian` output format for rendering and visualization
 
 **VRAM Optimization:**
+
 - Pipeline offloading enabled by default
 - Suitable for 8GB GPUs with offloading
 - Checkpoint available on Hugging Face
@@ -149,18 +156,21 @@ date: 2026-09-20
 Based on hardware constraints (GTX 1070 Ti 8GB), the current strategy:
 
 **Focus on Geometry-Only Generation:**
+
 - Hunyuan3D-2mini for image-to-3D geometry (~5GB VRAM)
 - Skip full texture generation (requires additional 16-21GB)
 - Use Blender for texture painting after geometry export
 - Use CPU offloading for intermediate steps
 
 **Recommended Workflow:**
+
 1. Generate geometry with Hunyuan3D-2mini (8GB VRAM feasible)
 2. Export to Blender
 3. Apply textures manually or with procedural materials
 4. Render with EEVEE (GPU-accelerated, works on Pascal)
 
 **Alternative:**
+
 - Use Super 3D Pro Standard mode (320 resolution)
 - Accept lower resolution for local generation
 - Fall back to cloud API for high-quality outputs
@@ -174,17 +184,20 @@ Based on hardware constraints (GTX 1070 Ti 8GB), the current strategy:
 **TripoSR** is currently integrated for fast image-to-3D:
 
 **Advantages:**
+
 - Lightweight (fits in 8GB VRAM)
 - Fast generation
 - Good for props and simple objects
 - Community workflows available
 
 **Limitations:**
+
 - Lower quality than Hunyuan3D
 - Limited texture generation
 - Best for geometry-only use cases
 
 **Use Cases:**
+
 - Quick prop generation
 - Simple object creation
 - When texture quality is not critical
@@ -198,17 +211,20 @@ Based on hardware constraints (GTX 1070 Ti 8GB), the current strategy:
 Since full PBR texture generation requires 16-21GB VRAM:
 
 **Option 1: External Texture Generation**
+
 - Generate geometry locally (8GB feasible)
 - Upload geometry to cloud service for texture generation
 - Download textured model
 
 **Option 2: Manual Texture Painting**
+
 - Generate geometry locally
 - Import to Blender
 - Paint textures manually or use procedural materials
 - Render with EEVEE
 
 **Option 3: Simplified Textures**
+
 - Use basic materials in Blender
 - Procedural textures (noise, patterns)
 - Image-based textures from AI image generators
@@ -221,16 +237,19 @@ Since full PBR texture generation requires 16-21GB VRAM:
 ### Hardware Considerations
 
 **For Serious 3D Generation:**
+
 - 16GB VRAM minimum for modern pipelines
 - 24GB VRAM recommended for professional work
 - GTX 1070 Ti is below the floor for current SOTA models
 
 **Upgrade Path:**
+
 - RTX 3060 12GB (entry-level for 3D generation)
 - RTX 4060 Ti 16GB (sweet spot for local work)
 - RTX 4090 24GB (professional work)
 
 **Cloud Fallback:**
+
 - Use cloud APIs for high-quality texture generation
 - Hybrid local/cloud approach (Super 3D Pro)
 - Pay-per-use for production work
@@ -242,11 +261,13 @@ Since full PBR texture generation requires 16-21GB VRAM:
 ### 3D Generation Nodes
 
 **ComfyUI 3D-Pack:**
+
 - Hunyuan3D integration nodes
 - TripoSR nodes
 - Other 3D generation models
 
 **For 8GB GPUs:**
+
 - Use TripoSR nodes for geometry
 - Skip texture generation nodes
 - Use external Blender workflow for textures
@@ -258,14 +279,15 @@ Since full PBR texture generation requires 16-21GB VRAM:
 
 ### Generation Times on 8GB
 
-|| Model | Resolution | Mode | Time (8GB) |
-|-------|-----------|------|-------------|
-| Hunyuan3D-2mini | Geometry only | 8GB | 2-5 min |
-| TripoSR | 256 | 8GB | 30-60s |
-| Super 3D Pro | 320 | Standard | 1-3 min |
-| TIGON | 256 | Offloading | 2-4 min |
+|                 | Model         | Resolution | Mode    | Time (8GB) |
+| --------------- | ------------- | ---------- | ------- | ---------- |
+| Hunyuan3D-2mini | Geometry only | 8GB        | 2-5 min |
+| TripoSR         | 256           | 8GB        | 30-60s  |
+| Super 3D Pro    | 320           | Standard   | 1-3 min |
+| TIGON           | 256           | Offloading | 2-4 min |
 
 **Time Impact of Optimizations:**
+
 - CPU offloading: +30-50% time
 - Lower resolution: -40-60% time
 - Cloud texture generation: +5-10 min (network dependent)
@@ -293,4 +315,4 @@ Since full PBR texture generation requires 16-21GB VRAM:
 
 ---
 
-*Last updated: 2026-09-20 — Hunyuan3D 2.1 breakthrough, Super 3D Pro local generation, and VRAM optimization strategies*
+_Last updated: 2026-09-20 — Hunyuan3D 2.1 breakthrough, Super 3D Pro local generation, and VRAM optimization strategies_

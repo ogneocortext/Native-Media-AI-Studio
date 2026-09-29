@@ -1,10 +1,14 @@
 ---
-title: Music Video Vision Analysis Prompts
-tags: [music-video, vision, QA, quality-check, still-analysis]
-aliases: [MV Vision Prompts, Still Analysis, Music Video QA]
-date: 2026-09-08
-source: internal
-cssclasses: [technical-reference]
+tags:
+  - production
+  - ai
+aliases:
+  - Music Video Vision Prompts
+  - Still Analysis
+  - Music Video QA
+cssclasses:
+  - production-guide
+date: 2026-09-29
 ---
 
 # Music Video Vision Analysis Prompts
@@ -33,13 +37,13 @@ FIX: [3 specific fixes]
 
 ## Section Energy Reference
 
-| Section | Expected Energy | Visual Treatment |
-|---------|-----------------|------------------|
-| Intro | 2-3/10 | Minimal, slow camera push, dust particles, subtle glow |
-| Verse | 4-5/10 | Character enters, parallax, handheld camera, moderate particles |
-| Chorus | 8-10/10 | Maximalist, fluid light, hero typography, fast camera, bursts |
-| Bridge | 3-4/10 | Intimate, desaturated, slow zoom, whispered feel |
-| Outro | 5-7/10 | Resolve, warm tones, fade to loopable |
+| Section | Expected Energy | Visual Treatment                                                |
+| ------- | --------------- | --------------------------------------------------------------- |
+| Intro   | 2-3/10          | Minimal, slow camera push, dust particles, subtle glow          |
+| Verse   | 4-5/10          | Character enters, parallax, handheld camera, moderate particles |
+| Chorus  | 8-10/10         | Maximalist, fluid light, hero typography, fast camera, bursts   |
+| Bridge  | 3-4/10          | Intimate, desaturated, slow zoom, whispered feel                |
+| Outro   | 5-7/10          | Resolve, warm tones, fade to loopable                           |
 
 ## Example: Intro @10s
 

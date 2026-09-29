@@ -1,18 +1,14 @@
 ---
 tags:
-  - video-generation
-  - 8gb-vram
-  - quantization
-  - gguf
-  - fp8
-  - consumer-gpu
-  - 2026
+  - ai
+  - hardware-8gb
 aliases:
   - Video Generation VRAM 2026
   - 8GB Video Models
   - Consumer GPU Video
 cssclasses:
-  - technical-guide
+  - ai-guide
+date: 2026-09-29
 date: 2026-09-20
 ---
 
@@ -57,12 +53,14 @@ Generation time: 2-10 minutes per clip
 ```
 
 **Key Advantages:**
+
 - Hybrid text-to-video and image-to-video
 - Consumer champion designed for RTX 3060/4060 class GPUs
 - 720p@24fps output on RTX 3060, 480p on GTX 1070 Ti
 - GGUF quantization reduces VRAM by 89%
 
 **Implementation Path:**
+
 - Use GGUF quantized model (not FP16 weights)
 - Reduce resolution to 480p for 8GB safety
 - Enable CPU offloading for intermediate frames
@@ -84,12 +82,14 @@ Quality: Better than AnimateDiff, below Wan 14B
 ```
 
 **Optimization Techniques:**
+
 - FP8 precision (8-bit floats)
 - Tiled rendering (split frames into tiles)
 - Aggressive tiling for 720p on 8GB
 - CPU offload for VAE decoding
 
 **Use Cases:**
+
 - When AnimateDiff quality is insufficient
 - When you need video from images (I2V)
 - Short clips with decent motion
@@ -113,12 +113,14 @@ Reduction: 83-86%
 ```
 
 **Technical Implementation:**
+
 - FP8 precision for model weights
 - Aggressive frame tiling
 - Sequential expert loading (for MoE models)
 - CPU offload for intermediate results
 
 **Considerations:**
+
 - Generation times longer than lighter models
 - May require community workflows not in official repo
 - Quality remains excellent for the VRAM cost
@@ -137,12 +139,14 @@ Quality: Solid mid-range
 ```
 
 **Advantages:**
+
 - Fully open-source (unlike Wan/HunyuanVideo)
 - FP8 quantization well-documented
 - 2B parameter size is reasonable for 8GB
 - Community workflows available
 
 **Limitations:**
+
 - Lower frame rate (8fps vs 24fps)
 - Limited resolution (480p max)
 - Quality below commercial models
@@ -161,12 +165,14 @@ Quality: Stylized, artistic motion
 ```
 
 **Advantages:**
+
 - Reliable on 8GB GPUs
 - Extensive motion model ecosystem
 - Can animate any SD 1.5 checkpoint
 - Works with `--lowvram` mode
 
 **Limitations:**
+
 - Limited to 16 frames per clip
 - 512x512 resolution cap
 - Stylized rather than realistic
@@ -189,6 +195,7 @@ Duration: 3-4 second clips
 **Status:** Dated by 2026 standards but still functional on 8GB with optimization.
 
 **Use Cases:**
+
 - Simple image-to-video conversion
 - Product/scene subtle motion
 - When other models are unavailable
@@ -199,15 +206,16 @@ Duration: 3-4 second clips
 
 ### FP8 vs FP16 vs GGUF
 
-|| Technique | VRAM Reduction | Quality Impact | Best For |
-|-----------|----------------|----------------|----------|
-| **FP8** | 50-70% | Minor to moderate | Most models |
-| **GGUF** | 70-90% | Moderate (Q4_K_S, Q5_K_S) | Large models (Wan 14B) |
-| **NF4** | 60-75% | Moderate | Alternative to GGUF |
-| **INT8** | 50% | Minimal | Older models |
-| **Tiling** | Variable | None | High-resolution outputs |
+|            | Technique | VRAM Reduction            | Quality Impact          | Best For |
+| ---------- | --------- | ------------------------- | ----------------------- | -------- |
+| **FP8**    | 50-70%    | Minor to moderate         | Most models             |
+| **GGUF**   | 70-90%    | Moderate (Q4_K_S, Q5_K_S) | Large models (Wan 14B)  |
+| **NF4**    | 60-75%    | Moderate                  | Alternative to GGUF     |
+| **INT8**   | 50%       | Minimal                   | Older models            |
+| **Tiling** | Variable  | None                      | High-resolution outputs |
 
 **Implementation Requirements:**
+
 - Custom quantization workflows
 - GGUF llama.cpp servers for large models
 - Tiling support in inference pipeline
@@ -221,13 +229,14 @@ Duration: 3-4 second clips
 
 Tiling splits high-resolution renders into smaller tiles that fit in VRAM, processes them sequentially, and stitches the results together.
 
-|| Resolution | Without Tiling | With Tiling | Time Impact |
-|-----------|---------------|-------------|-------------|
-| 720p | ❌ OOM on 8GB | ✅ Fits | +20-40% time |
-| 1080p | ❌ OOM on 8GB | ⚠️ Possible | +40-80% time |
-| 480p | ✅ Fits | ✅ Fits | Minimal |
+|       | Resolution    | Without Tiling | With Tiling  | Time Impact |
+| ----- | ------------- | -------------- | ------------ | ----------- |
+| 720p  | ❌ OOM on 8GB | ✅ Fits        | +20-40% time |
+| 1080p | ❌ OOM on 8GB | ⚠️ Possible    | +40-80% time |
+| 480p  | ✅ Fits       | ✅ Fits        | Minimal      |
 
 **Implementation:**
+
 - Enable tiling in model inference pipeline
 - Configure tile size (256x256 or 512x512 common)
 - Accept increased generation time for higher resolution
@@ -241,15 +250,16 @@ Tiling splits high-resolution renders into smaller tiles that fit in VRAM, proce
 
 > **Research Finding:** 12 GB VRAM is the practical floor for serious local video generation. 8 GB is now possible but constrained.
 
-|| VRAM Tier | Status | Use Case |
-|------------|--------|----------|
-| **8 GB** | ✅ Possible with quantization | Entry-level, 480p clips, hobbyist work |
-| **12 GB** | ✅ Practical floor | 720p clips, moderate lengths |
-| **16 GB** | ✅ Comfortable | 720p extended clips, 1080p with tiling |
-| **24 GB** | ✅ Optimal | 1080p native, long clips, full workflows |
-| **32-48 GB** | ✅ Professional | Production work, batch processing |
+|              | VRAM Tier                     | Status                                   | Use Case |
+| ------------ | ----------------------------- | ---------------------------------------- | -------- |
+| **8 GB**     | ✅ Possible with quantization | Entry-level, 480p clips, hobbyist work   |
+| **12 GB**    | ✅ Practical floor            | 720p clips, moderate lengths             |
+| **16 GB**    | ✅ Comfortable                | 720p extended clips, 1080p with tiling   |
+| **24 GB**    | ✅ Optimal                    | 1080p native, long clips, full workflows |
+| **32-48 GB** | ✅ Professional               | Production work, batch processing        |
 
 **Persistent Memory Bottleneck:**
+
 - New video models (Mirage, HunyuanVideo) maintain rolling context in VRAM
 - This "constant-cost memory tensor" adds 12GB+ overhead
 - Explains why 8GB cards struggle with longer clips despite quantization
@@ -261,18 +271,22 @@ Tiling splits high-resolution renders into smaller tiles that fit in VRAM, proce
 ### For GTX 1070 Ti (8GB VRAM)
 
 **Primary (Fast Iteration):**
+
 - **AnimateDiff Evolved** with `--lowvram` - motion graphics, loops
 - **CogVideoX 2B** with FP8 - realistic short clips
 
 **Secondary (Quality):**
+
 - **Wan 2.2 5B GGUF** - if added back to stack
 - **LTX Video 2B** with FP8+tiling - image-to-video
 
 **Experimental:**
+
 - **HunyuanVideo** with FP8+tiling - community workflows only
 - **SVD** with tiling - basic image-to-video
 
 **Avoid:**
+
 - Wan 2.2 14B (requires 24GB+ even with quantization)
 - LTX Video 13B (14-18GB even with FP8)
 - CogVideoX 5B (16GB+)
@@ -286,18 +300,21 @@ Tiling splits high-resolution renders into smaller tiles that fit in VRAM, proce
 Based on 2026 ComfyUI research:
 
 **Yvann Audio Reactivity Nodes:**
+
 - Audio analysis with stem separation
 - Peak detection for transitions
 - Works with AnimateDiff, ControlNet, IPAdapter
 - Drop-in workflows for audio-reactive generation
 
 **LTX 2.3 Audio-Reactive LoRA:**
+
 - Audio-reactive motion modulation
 - LoRA strength 1.0-2.0 (1.4+ for strong effects)
 - Single image + audio → reactive video
 - Integrated with GeminiNode for prompt generation
 
 **Implementation Path:**
+
 - Add audio-reactive custom nodes to ComfyUI
 - Use LTX 2.3 + Audio-Reactive LoRA for beat-synced clips
 - Combine with existing AnimateDiff motion models
@@ -309,15 +326,16 @@ Based on 2026 ComfyUI research:
 
 ### Generation Time Estimates
 
-|| Model | Resolution | Clip Length | Time (8GB) |
-|-------|-----------|-------------|-------------|
-| AnimateDiff | 512x512 | 16 frames @ 24fps | 30-60s |
-| CogVideoX 2B | 480p | 49 frames @ 8fps | 2-5 min |
-| LTX Video 2B | 480p | 81 frames @ 24fps | 2-5 min |
-| Wan 2.2 5B GGUF | 480p | 81 frames @ 24fps | 2-10 min |
-| HunyuanVideo | 480p | 49 frames @ 8fps | 5-15 min |
+|                 | Model   | Resolution        | Clip Length | Time (8GB) |
+| --------------- | ------- | ----------------- | ----------- | ---------- |
+| AnimateDiff     | 512x512 | 16 frames @ 24fps | 30-60s      |
+| CogVideoX 2B    | 480p    | 49 frames @ 8fps  | 2-5 min     |
+| LTX Video 2B    | 480p    | 81 frames @ 24fps | 2-5 min     |
+| Wan 2.2 5B GGUF | 480p    | 81 frames @ 24fps | 2-10 min    |
+| HunyuanVideo    | 480p    | 49 frames @ 8fps  | 5-15 min    |
 
 **Time Impact of Optimizations:**
+
 - Quantization: -20-40% time (smaller models)
 - Tiling: +20-80% time (higher resolution)
 - CPU offload: +30-50% time (VRAM safety)
@@ -348,4 +366,4 @@ Based on 2026 ComfyUI research:
 
 ---
 
-*Last updated: 2026-09-20 — Major update reflecting quantization breakthroughs and corrected Wan 2.2 5B 8GB feasibility*
+_Last updated: 2026-09-20 — Major update reflecting quantization breakthroughs and corrected Wan 2.2 5B 8GB feasibility_

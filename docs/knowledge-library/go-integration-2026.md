@@ -1,3 +1,15 @@
+---
+tags:
+  - platform
+aliases:
+  - Go Integration 2026
+  - Go Sidecars
+  - Split-Stack Architecture
+cssclasses:
+  - platform-guide
+date: 2026-09-29
+---
+
 # Go Integration in Native Media AI Studio (2026)
 
 > **Status:** Historical integration/implementation record. For the canonical
@@ -18,13 +30,13 @@ The 2026 production-AI pattern is a **split stack**:
 - **Python** stays the model layer: training, inference, PyTorch, librosa, ComfyUI, Ollama.
 - **Go** takes the infrastructure layer: gateways, SSE/WebSocket fanout, media pipelines, job workers, CLI tooling.
 
-| Concern | Python today | Go opportunity |
-|---------|--------------|----------------|
-| Dashboard SSE server | Python + PS1 scripts | Single binary, lower memory, faster startup |
+| Concern                    | Python today              | Go opportunity                                    |
+| -------------------------- | ------------------------- | ------------------------------------------------- |
+| Dashboard SSE server       | Python + PS1 scripts      | Single binary, lower memory, faster startup       |
 | Concurrent event streaming | `sse-starlette` + asyncio | Goroutines handle 500+ concurrent streams cheaply |
-| Media post-processing | FFmpeg shell-outs | Typed in-process pipelines via `ffgo` / MovieGo |
-| Port/health management | Python watchers | Tiny Go binaries, cross-compile to any platform |
-| MCP bridge routing | Node.js + Express | Lower per-connection memory, predictable latency |
+| Media post-processing      | FFmpeg shell-outs         | Typed in-process pipelines via `ffgo` / MovieGo   |
+| Port/health management     | Python watchers           | Tiny Go binaries, cross-compile to any platform   |
+| MCP bridge routing         | Node.js + Express         | Lower per-connection memory, predictable latency  |
 
 **Do NOT rewrite** the FastAPI backend, ComfyUI integration, or audio analysis in Go. The Python AI ecosystem (PyTorch, librosa, transformers) is not replaceable.
 
@@ -37,6 +49,7 @@ The 2026 production-AI pattern is a **split stack**:
 **Replace** `scripts/utility/update_dashboard_server.ps1` + any Python SSE helpers with a single Go binary.
 
 Benefits:
+
 - Single static executable, no venv, no dependency resolution at deploy time.
 - Goroutines make concurrent SSE connections trivial.
 - Startup in milliseconds, memory footprint ~10–20 MB vs Python's 100–200 MB.
@@ -52,10 +65,12 @@ Tech: `net/http` stdlib + `github.com/inoth/go-sse` or hand-rolled SSE.
 **Replace** ad-hoc FFmpeg shell commands with a typed Go pipeline.
 
 Libraries:
+
 - [`ffgo`](https://github.com/obinnaokechukwu/ffgo) — pure Go FFmpeg bindings, no CGO, CUDA/VA-API hardware acceleration.
 - [`MovieGo`](https://github.com/...) — fluent video editing graph; single ffmpeg invocation when possible.
 
 Use cases:
+
 - Thumbnail extraction
 - Concatenation / crossfade assembly
 - Audio muxing / normalization
@@ -103,14 +118,14 @@ Suggested location: `tools/go-ports/`
 
 ## 3. What NOT to Rewrite in Go
 
-| Component | Keep in Python | Reason |
-|-----------|----------------|--------|
-| FastAPI backend (`packages/backend/`) | ✅ | All AI adapters, SSE routes, queue logic |
-| Audio analysis (`librosa`, `madmom-infer`) | ✅ | Python DSP ecosystem is unmatched |
-| ComfyUI integration | ✅ | Python-first API |
-| Blender MCP bridge | ✅ | Already stable Python TCP bridge |
-| Unity MCP bridge | ✅ | Node.js is fine here |
-| Frontend (React/Vite) | ✅ | Not a backend language |
+| Component                                  | Keep in Python | Reason                                   |
+| ------------------------------------------ | -------------- | ---------------------------------------- |
+| FastAPI backend (`packages/backend/`)      | ✅             | All AI adapters, SSE routes, queue logic |
+| Audio analysis (`librosa`, `madmom-infer`) | ✅             | Python DSP ecosystem is unmatched        |
+| ComfyUI integration                        | ✅             | Python-first API                         |
+| Blender MCP bridge                         | ✅             | Already stable Python TCP bridge         |
+| Unity MCP bridge                           | ✅             | Node.js is fine here                     |
+| Frontend (React/Vite)                      | ✅             | Not a backend language                   |
 
 ---
 
@@ -251,28 +266,28 @@ Or use `go env GOROOT` to find the active install.
 
 ## 8. Implementation Status (2026-09-10)
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| `go-dashboard` | ✅ Done | Binary at `bin/go-dashboard.exe`, registered in `start-services.ps1` and `manage-servers.ps1`. Health at `/api/health`, SSE at `/events`. **Fix:** stream `"events"` is now created in `main()`; missing-stream 500s eliminated. Frontend falls back to go-dashboard SSE when backend SSE is unreachable. |
-| `go-media` | ✅ Done | Binary at `bin/go-media.exe`. Typed FFmpeg wrapper (thumbnail/normalize/concat). |
-| `go-worker` | ✅ Done | Binary at `bin/go-worker.exe`. Queue I/O worker with job + sidecar endpoints. **New:** `POST /jobs/:id/sidecar?filename=` supports custom output filenames. Backend `GoWorkerClient` writes JSON sidecars asynchronously for image/video/audio outputs. |
-| `go-gateway` | ✅ Done | Binary at `bin/go-gateway.exe`. MCP bridge router with `/proxy/:bridge/*path` on `:3850`. **Fix applied:** response proxy now uses `io.Copy` instead of single `Read` call (was truncating responses). **New:** Unity MCP refresh in `native_open.py` routes through go-gateway; Blender MCP still uses raw socket. |
-| `go-ports` | ✅ Done | Binary at `bin/go-ports.exe`. Port availability checker on `:3851` (`/api/health`, `/check/<port>`, `/scan?ports=...`). |
+| Component            | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `go-dashboard`       | ✅ Done | Binary at `bin/go-dashboard.exe`, registered in `start-services.ps1` and `manage-servers.ps1`. Health at `/api/health`, SSE at `/events`. **Fix:** stream `"events"` is now created in `main()`; missing-stream 500s eliminated. Frontend falls back to go-dashboard SSE when backend SSE is unreachable.                                                                                |
+| `go-media`           | ✅ Done | Binary at `bin/go-media.exe`. Typed FFmpeg wrapper (thumbnail/normalize/concat).                                                                                                                                                                                                                                                                                                         |
+| `go-worker`          | ✅ Done | Binary at `bin/go-worker.exe`. Queue I/O worker with job + sidecar endpoints. **New:** `POST /jobs/:id/sidecar?filename=` supports custom output filenames. Backend `GoWorkerClient` writes JSON sidecars asynchronously for image/video/audio outputs.                                                                                                                                  |
+| `go-gateway`         | ✅ Done | Binary at `bin/go-gateway.exe`. MCP bridge router with `/proxy/:bridge/*path` on `:3850`. **Fix applied:** response proxy now uses `io.Copy` instead of single `Read` call (was truncating responses). **New:** Unity MCP refresh in `native_open.py` routes through go-gateway; Blender MCP still uses raw socket.                                                                      |
+| `go-ports`           | ✅ Done | Binary at `bin/go-ports.exe`. Port availability checker on `:3851` (`/api/health`, `/check/<port>`, `/scan?ports=...`).                                                                                                                                                                                                                                                                  |
 | Frontend integration | ✅ Done | `config/ports.json` includes `dashboard_port`/`dashboard_url`. `portConfig.ts` exposes `getDashboardUrl()`. `GoServicesCard` component added to HealthPage, polls all 5 Go sidecars every 15s (was 5s, throttled 2026-09-08). SSE fallback: frontend `sseService.ts` uses go-dashboard as primary, backend as fallback. Playwright test helpers preserve real SSE `/events` passthrough. |
-| Backend integration | ✅ Done | `go_gateway_client.py` + `go_worker_client.py` added under `packages/backend/app/services/`. Sidecar writes offloaded to go-worker in `image_generator.py`, `comfyui_workflow_handler.py`, `music_video_handler.py`, `export_matrix.py`, `storyboard_generator.py`. Health diagnostics `/api/health/diagnostics/services` now returns `sidecars` block with live go-sidecar status. |
-| CORS / URL hardening | ✅ Done | `packages/backend/app/core/cors.py` allowlist centralized to `127.0.0.1` only. `hyperframes.py` URL parsing fixed to `127.0.0.1`. All service URLs standardized to `127.0.0.1` in frontend/backend configs. |
-| Service lifecycle | ✅ Done | All Go sidecars start automatically with `scripts\start-services.ps1`. Managed via `scripts\manage-servers.ps1 -Action status` (supports `go-dashboard`, `go-media`, `go-worker`, `go-gateway`, `go-ports`). |
-| Technical reference | ✅ Done | Service map updated in `docs/knowledge-library/technical-reference.md`. Architecture diagram updated in `docs/architecture/ARCHITECTURE.md`. API reference updated in `docs/api/API_REFERENCE.md`. |
+| Backend integration  | ✅ Done | `go_gateway_client.py` + `go_worker_client.py` added under `packages/backend/app/services/`. Sidecar writes offloaded to go-worker in `image_generator.py`, `comfyui_workflow_handler.py`, `music_video_handler.py`, `export_matrix.py`, `storyboard_generator.py`. Health diagnostics `/api/health/diagnostics/services` now returns `sidecars` block with live go-sidecar status.      |
+| CORS / URL hardening | ✅ Done | `packages/backend/app/core/cors.py` allowlist centralized to `127.0.0.1` only. `hyperframes.py` URL parsing fixed to `127.0.0.1`. All service URLs standardized to `127.0.0.1` in frontend/backend configs.                                                                                                                                                                              |
+| Service lifecycle    | ✅ Done | All Go sidecars start automatically with `scripts\start-services.ps1`. Managed via `scripts\manage-servers.ps1 -Action status` (supports `go-dashboard`, `go-media`, `go-worker`, `go-gateway`, `go-ports`).                                                                                                                                                                             |
+| Technical reference  | ✅ Done | Service map updated in `docs/knowledge-library/technical-reference.md`. Architecture diagram updated in `docs/architecture/ARCHITECTURE.md`. API reference updated in `docs/api/API_REFERENCE.md`.                                                                                                                                                                                       |
 
 ## 9. Decision Record
 
-| Question | Answer |
-|----------|--------|
-| Do we need Go? | Yes, for high-concurrency infrastructure (dashboard SSE, media workers, gateway). |
-| Do we rewrite Python in Go? | No. Keep FastAPI, audio analysis, and ComfyUI in Python. |
-| First deliverable | `go-dashboard` — single-binary SSE server on :3847. |
-| Success metric | Memory < 25 MB, startup < 100 ms, 500+ concurrent SSE connections without degradation. |
-| Rollback | Keep Python server as fallback; run Go sidecar on alternate port until validated. |
+| Question                    | Answer                                                                                 |
+| --------------------------- | -------------------------------------------------------------------------------------- |
+| Do we need Go?              | Yes, for high-concurrency infrastructure (dashboard SSE, media workers, gateway).      |
+| Do we rewrite Python in Go? | No. Keep FastAPI, audio analysis, and ComfyUI in Python.                               |
+| First deliverable           | `go-dashboard` — single-binary SSE server on :3847.                                    |
+| Success metric              | Memory < 25 MB, startup < 100 ms, 500+ concurrent SSE connections without degradation. |
+| Rollback                    | Keep Python server as fallback; run Go sidecar on alternate port until validated.      |
 
 ---
 

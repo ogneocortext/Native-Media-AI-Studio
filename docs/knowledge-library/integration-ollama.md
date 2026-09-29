@@ -1,6 +1,18 @@
+---
+tags:
+  - platform
+aliases:
+  - Ollama Integration
+  - Tool Calling
+  - Local LLM
+cssclasses:
+  - platform-guide
+date: 2026-09-29
+---
+
 # Ollama Integration & Tool Calling
 
-> **Last Updated:** 2026-09-24
+> **Last Updated:** 2026-09-29
 > **Ollama Version:** 0.34.x
 > **API Version:** v1
 > **Workstation Profile:** GTX 1070 Ti (8 GB VRAM), 32 GB RAM
@@ -9,13 +21,13 @@
 
 The local Ollama catalog is discovered at runtime from `GET /api/tags`; do not hard-code a model list. The current workstation catalog includes:
 
-| Role | Model | Capability / size | Use |
-|---|---|---|---|
-| Default chat + vision | `gemma4:e2b-it-qat` | 4.04 GB; vision, audio, tools, thinking | General local inference and vision |
-| Vision alternative | `gemma4-vision-optimized:latest` | 4.04 GB; vision, tools, thinking | High-quality visual analysis |
-| Fast vision fallback | `qwen3-vl:2b` | 1.76 GB; vision, tools, thinking | Low-VRAM triage and multi-image work |
-| OCR specialist | `minicpm-v:8b` | 5.1 GB; vision | OCR/table/chart extraction when resident |
-| Embeddings | `nomic-embed-text:v1.5` | 0.26 GB; embedding | Embeddings only; exclude from chat model selectors |
+| Role                  | Model                            | Capability / size                       | Use                                                |
+| --------------------- | -------------------------------- | --------------------------------------- | -------------------------------------------------- |
+| Default chat + vision | `gemma4:e2b-it-qat`              | 4.04 GB; vision, audio, tools, thinking | General local inference and vision                 |
+| Vision alternative    | `gemma4-vision-optimized:latest` | 4.04 GB; vision, tools, thinking        | High-quality visual analysis                       |
+| Fast vision fallback  | `qwen3-vl:2b`                    | 1.76 GB; vision, tools, thinking        | Low-VRAM triage and multi-image work               |
+| OCR specialist        | `minicpm-v:8b`                   | 5.1 GB; vision                          | OCR/table/chart extraction when resident           |
+| Embeddings            | `nomic-embed-text:v1.5`          | 0.26 GB; embedding                      | Embeddings only; exclude from chat model selectors |
 
 Model capability metadata from Ollama is authoritative. Name-based capability detection is only a fallback for older Ollama responses. VRAM estimates use Ollama's reported model byte size with a conservative runtime multiplier.
 
@@ -38,11 +50,11 @@ This document describes how AI agents should interact with Ollama for local LLM 
 
 ### Primary Endpoints
 
-| Endpoint | Method | Use Case |
-|----------|--------|----------|
-| `/api/chat` | POST | Multi-turn conversations with tool calling |
-| `/api/generate` | POST | Single-turn generation (legacy, no tools) |
-| `/api/tags` | GET | List available models |
+| Endpoint        | Method | Use Case                                   |
+| --------------- | ------ | ------------------------------------------ |
+| `/api/chat`     | POST   | Multi-turn conversations with tool calling |
+| `/api/generate` | POST   | Single-turn generation (legacy, no tools)  |
+| `/api/tags`     | GET    | List available models                      |
 
 **Important:** Always use `/api/chat` for tool calling. The `/api/generate` endpoint does NOT support tools.
 
@@ -139,12 +151,12 @@ messages.append({
 
 ### Known Issues & Workarounds
 
-| Issue | Workaround |
-|-------|------------|
-| Tool calls with `key=value` format fail to parse | Enable thinking mode (`think: true`) |
+| Issue                                              | Workaround                            |
+| -------------------------------------------------- | ------------------------------------- |
+| Tool calls with `key=value` format fail to parse   | Enable thinking mode (`think: true`)  |
 | System prompt + `think: false` breaks tool parsing | Use `think: true` or no system prompt |
-| Nested tool arguments cause failures | Use flat argument structures |
-| Special tokens leak into output | Enable thinking filter in client |
+| Nested tool arguments cause failures               | Use flat argument structures          |
+| Special tokens leak into output                    | Enable thinking filter in client      |
 
 ### Recommended Configuration for Gemma 4
 
@@ -172,13 +184,13 @@ Correct example: call the tool silently then provide the answer.
 
 ## Model Capabilities
 
-| Model | Params | VRAM | Tool Accuracy | Notes |
-|-------|--------|------|---------------|-------|
-| Qwen 3 (all sizes) | 8B-235B | 6GB+ | Excellent | Best overall for tool calling |
-| Gemma 4 | 9B-27B | 7GB+ | Very good | Strong reasoning with tools |
-| Llama 3.1/3.3 | 8B-70B | 6GB+ | Good | Reliable for simple tool sets |
-| DeepSeek R1 | 14B | 10GB+ | Good | Slower but thorough |
-| Mistral Small 3.1 | 24B | 6GB+ | Good | Fast, reliable |
+| Model              | Params  | VRAM  | Tool Accuracy | Notes                         |
+| ------------------ | ------- | ----- | ------------- | ----------------------------- |
+| Qwen 3 (all sizes) | 8B-235B | 6GB+  | Excellent     | Best overall for tool calling |
+| Gemma 4            | 9B-27B  | 7GB+  | Very good     | Strong reasoning with tools   |
+| Llama 3.1/3.3      | 8B-70B  | 6GB+  | Good          | Reliable for simple tool sets |
+| DeepSeek R1        | 14B     | 10GB+ | Good          | Slower but thorough           |
+| Mistral Small 3.1  | 24B     | 6GB+  | Good          | Fast, reliable                |
 
 ## Configuration Options
 
@@ -197,7 +209,7 @@ Correct example: call the tool silently then provide the answer.
 ```json
 {
   "options": {
-    "num_ctx": 32000    // Increase for better tool calling (default: 4096)
+    "num_ctx": 32000 // Increase for better tool calling (default: 4096)
   }
 }
 ```
@@ -207,10 +219,10 @@ Correct example: call the tool silently then provide the answer.
 ```json
 {
   "options": {
-    "temperature": 0.1,  // Lower for deterministic tool selection
+    "temperature": 0.1, // Lower for deterministic tool selection
     "top_k": 40,
     "top_p": 0.9,
-    "num_predict": 4096  // Max tokens to generate
+    "num_predict": 4096 // Max tokens to generate
   }
 }
 ```
@@ -219,12 +231,12 @@ Correct example: call the tool silently then provide the answer.
 
 ### Common Errors
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `tool_calls: []` with empty content | Parser failure (Gemma 4) | Enable thinking mode |
-| Tool not found | Wrong tool name | Verify tool name matches definition |
-| Invalid JSON arguments | Model hallucination | Retry with lower temperature |
-| Timeout | Model too slow | Increase timeout or use smaller model |
+| Error                               | Cause                    | Solution                              |
+| ----------------------------------- | ------------------------ | ------------------------------------- |
+| `tool_calls: []` with empty content | Parser failure (Gemma 4) | Enable thinking mode                  |
+| Tool not found                      | Wrong tool name          | Verify tool name matches definition   |
+| Invalid JSON arguments              | Model hallucination      | Retry with lower temperature          |
+| Timeout                             | Model too slow           | Increase timeout or use smaller model |
 
 ### Retry Strategy
 
@@ -248,11 +260,11 @@ packages/backend/app/
 
 ### API Routes
 
-| Route | Method | Description |
-|-------|--------|-------------|
-| `/api/integrations/ollama/models` | GET | List available models |
-| `/api/integrations/ollama/chat` | POST | Chat with tool calling |
-| `/api/integrations/ollama/generate` | POST | Legacy text generation |
+| Route                               | Method | Description            |
+| ----------------------------------- | ------ | ---------------------- |
+| `/api/integrations/ollama/models`   | GET    | List available models  |
+| `/api/integrations/ollama/chat`     | POST   | Chat with tool calling |
+| `/api/integrations/ollama/generate` | POST   | Legacy text generation |
 
 ### Chat Request Format
 
@@ -322,21 +334,25 @@ parseOllamaStream(stream);
 ## Integration with Other Features
 
 ### Art Direction
+
 - Generate color palettes, typography suggestions
 - Get project structure for asset management
 - Search documentation for style references
 
 ### Music Video Production
+
 - Generate video concepts and scene descriptions
 - Get system health before starting long renders
 - Check job queue status
 
 ### Storyboards
+
 - Generate structured storyboard JSON
 - Validate scene descriptions
 - Auto-detect visual elements
 
 ### 3D Studio
+
 - Get project structure for asset paths
 - Check GPU/VRAM availability before generation
 - Monitor job progress
@@ -344,18 +360,21 @@ parseOllamaStream(stream);
 ## Troubleshooting
 
 ### Tools Not Being Called
+
 - Verify model supports tool calling (check capabilities)
 - Enable thinking mode
 - Lower temperature to 0.1
 - Add explicit instructions to system prompt
 
 ### Tool Calls Returning Empty
+
 - Check tool name matches definition exactly
 - Verify arguments match JSON schema
 - Enable thinking mode (especially for Gemma 4)
 - Retry with same messages
 
 ### Streaming Issues
+
 - Ensure SSE client handles `event:` and `data:` as separate lines
 - Accumulate thinking/content/tool_calls separately
 - Track last seen `event:` line and pair with next `data:` line

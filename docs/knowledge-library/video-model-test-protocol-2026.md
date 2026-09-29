@@ -1,15 +1,15 @@
 ---
 tags:
-  - video-generation
-  - gpu-test
-  - ltx
-  - mochi
-  - 8gb-vram
-  - protocol
+  - performance
+  - hardware-8gb
+  - hardware-pascal
+  - testing
 aliases:
   - LTX/Mochi 8GB Test Protocol
   - Video Model Sweep Protocol
-date: 2026-09-24
+cssclasses:
+  - performance-guide
+date: 2026-09-29
 ---
 
 # 🧪 LTX / Mochi 8GB Viability Test Protocol

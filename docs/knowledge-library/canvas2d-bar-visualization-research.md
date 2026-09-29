@@ -1,3 +1,16 @@
+---
+tags:
+  - creative
+  - visualization
+  - audio
+  - Canvas2D Bar Visualization Research
+aliases:
+  - Canvas2D Bar Mode Findings
+cssclasses:
+  - creative-guide
+date: 2026-09-29
+---
+
 # Canvas2D Bar Visualization — Research Findings
 
 Date: 2026-09-18

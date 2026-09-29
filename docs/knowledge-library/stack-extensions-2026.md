@@ -1,3 +1,15 @@
+---
+tags:
+  - technical
+  - stack-extensions
+  - python
+aliases:
+  - Stack Extensions 2026
+cssclasses:
+  - technical-guide
+date: 2026-09-29
+---
+
 # Stack Extensions: Languages & Python Tools (2026)
 
 > **Scope:** Optional programming languages and Python packages that can add measurable value to the Native Media AI Studio stack without bloating it.

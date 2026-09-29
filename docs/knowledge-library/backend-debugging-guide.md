@@ -1,19 +1,30 @@
+---
+tags:
+  - technical
+aliases:
+  - Backend Debugging Guide
+  - Debugging Patterns
+  - Troubleshooting
+cssclasses:
+  - technical-guide
+date: 2026-09-29
+---
+
 # Backend Debugging & ComfyUI Integration Findings
 
-> Date: 2026-09-05 (updated — SSE supersedes WebSocket; 2026-09-07 stale-server playbook added)
+> Date: 2026-09-29 (updated tags to new hierarchical system)
 > Author: Kilo (AI Assistant)
 > Status: Active — SSE is canonical; legacy `ws://…/ws` returns 426
 
 ## Playbook: "Port occupied but server won't start" (Windows, 2026-09-07)
 
-Symptom: `manage-servers.ps1` reports *Backend: STOPPED* yet *port 8000 occupied*; starting fails forever.
+Symptom: `manage-servers.ps1` reports _Backend: STOPPED_ yet _port 8000 occupied_; starting fails forever.
 
 1. **Map listeners to processes:** `scripts\check_ports.ps1` (LISTENING port → PID → process name).
 2. **Watch for stale sockets:** `netstat -ano` can show LISTENING entries whose PID no longer exists (uvicorn `--reload` children orphaned after their reloader parent died). `Stop-Service` in `manage-servers.ps1` now kills the reloader parent (`app.main:app` cmdline match) first, then reaps listeners in up to 3 passes.
 3. **Health-probe timeouts matter:** `/api/health` probes adapters live (a down ComfyUI alone took ~2.1 s to answer). A 2 s probe timeout reports false STOPPED — the script now allows 6 s.
 4. **Sticky port:** the backend itself (`main.py` + `port_manager.resolve_port`) detects a healthy instance already on the resolved port and exits instead of spawning a duplicate — don't "fix" port drift by force-killing a responding server.
 5. **Vite variant:** if the frontend port is listening but unreachable on `127.0.0.1`, suspect an IPv6-only bind caused by a compiled `vite.config.js` shadowing `vite.config.ts` (see `frontend-build-pipeline.md` §7.6).
-
 
 ## Overview
 
@@ -72,15 +83,15 @@ When FastAPI returns 500 without a clear error message:
 
 ### Key Endpoints
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/prompt` | POST | Submit workflow, returns `prompt_id` |
-| `/prompt` | GET | Get queue status |
-| `/queue` | GET | Detailed queue view |
-| `/history` | GET | Full execution history |
-| `/history/{prompt_id}` | GET | Results for specific prompt |
-| `/view` | GET | Download output files |
-| `/system_stats` | GET | Server status |
+| Endpoint               | Method | Purpose                              |
+| ---------------------- | ------ | ------------------------------------ |
+| `/prompt`              | POST   | Submit workflow, returns `prompt_id` |
+| `/prompt`              | GET    | Get queue status                     |
+| `/queue`               | GET    | Detailed queue view                  |
+| `/history`             | GET    | Full execution history               |
+| `/history/{prompt_id}` | GET    | Results for specific prompt          |
+| `/view`                | GET    | Download output files                |
+| `/system_stats`        | GET    | Server status                        |
 
 ### Workflow Submission Format
 
@@ -116,9 +127,9 @@ payload = {
 
 ```json
 {
-    "prompt_id": "uuid-here",
-    "number": 1,
-    "node_errors": {}
+  "prompt_id": "uuid-here",
+  "number": 1,
+  "node_errors": {}
 }
 ```
 
@@ -131,6 +142,7 @@ If `node_errors` is not empty, the workflow validation failed.
 ### Problem
 
 Each API call created a new `aiohttp.ClientSession()`, causing:
+
 - Thread leak (13,856+ threads)
 - Health check timeouts (10+ seconds)
 - Event loop blocking
@@ -204,6 +216,7 @@ async def _auto_cleanup_unlocked(self):
 ### ComfyUI Progress Data
 
 The `/queue` endpoint returns:
+
 ```json
 {
     "queue_running": [[prompt_id, data], ...],
@@ -217,8 +230,8 @@ The `/queue` endpoint returns:
 
 ```javascript
 // Check browser console for EventSource errors
-const es = new EventSource('/api/events');
-es.onerror = () => console.error('SSE error', es.readyState);
+const es = new EventSource("/api/events");
+es.onerror = () => console.error("SSE error", es.readyState);
 // readyState: 0=CONNECTING, 1=OPEN, 2=CLOSED
 ```
 
@@ -228,9 +241,9 @@ es.onerror = () => console.error('SSE error', es.readyState);
 // Backend now supports Last-Event-ID replay
 // Frontend captures lastEventId automatically
 es.onmessage = (event) => {
-    if (event.lastEventId) {
-        localStorage.setItem('sse_last_id', event.lastEventId);
-    }
+  if (event.lastEventId) {
+    localStorage.setItem("sse_last_id", event.lastEventId);
+  }
 };
 ```
 
@@ -238,8 +251,8 @@ es.onmessage = (event) => {
 
 ```javascript
 // Check BroadcastChannel support
-const channel = new BroadcastChannel('notifications');
-channel.onmessage = (e) => console.log('Sync:', e.data);
+const channel = new BroadcastChannel("notifications");
+channel.onmessage = (e) => console.log("Sync:", e.data);
 ```
 
 #### Priority routing not working
@@ -256,13 +269,13 @@ curl -N http://localhost:8000/api/events
 
 ### VRAM Requirements (8GB GTX 1070 Ti)
 
-| Model | Size | VRAM | Status |
-|-------|------|------|--------|
-| mm_sd15_v3.safetensors | 798MB | ~1GB | ✅ Works |
-| v1-5-pruned-emaonly.safetensors | 4068MB | ~4GB | ✅ Works |
-| hunyuan3d-dit-v2-mini | 3643MB | ~4GB | ✅ Works |
-| wan2.2_ti2v_5B_fp16.safetensors | 9536MB | ~16GB | ❌ Deleted |
-| umt5_xxl_fp8_e4m3fn_scaled.safetensors | 6424MB | ~8GB | ❌ Deleted |
+| Model                                  | Size   | VRAM  | Status     |
+| -------------------------------------- | ------ | ----- | ---------- |
+| mm_sd15_v3.safetensors                 | 798MB  | ~1GB  | ✅ Works   |
+| v1-5-pruned-emaonly.safetensors        | 4068MB | ~4GB  | ✅ Works   |
+| hunyuan3d-dit-v2-mini                  | 3643MB | ~4GB  | ✅ Works   |
+| wan2.2_ti2v_5B_fp16.safetensors        | 9536MB | ~16GB | ❌ Deleted |
+| umt5_xxl_fp8_e4m3fn_scaled.safetensors | 6424MB | ~8GB  | ❌ Deleted |
 
 > See [[pascal-gpu-optimization-2026|Pascal GPU Optimization 2026]] for environment
 > variables, torch version caps, and SDPA backend requirements on sm_61.

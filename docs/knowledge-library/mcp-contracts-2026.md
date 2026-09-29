@@ -1,18 +1,14 @@
 ---
 tags:
+  - platform
   - mcp
-  - contracts
-  - agents
-  - orchestration
-  - knowledge-gap
 aliases:
   - MCP Tool Contracts
   - MCP Contract Standard
   - Agent Tool Contracts
 cssclasses:
-  - mcp
-  - contracts
-date: 2026-09-24
+  - platform-guide
+date: 2026-09-29
 ---
 
 # 🤝 MCP Tool Contracts 2026
@@ -28,6 +24,7 @@ date: 2026-09-24
 > [[app-research-gaps-2026#13-agent-orchestration|App Research Gaps 2026]].
 
 > [!tip] How to Use
+>
 > - Each tool lists `input`, `output`, `errors`, and `example`.
 > - Schemas are expressed as JSON Schema (Draft 2020-12) so they can be
 >   consumed by code validators or agent pre-call guards.
@@ -41,14 +38,14 @@ date: 2026-09-24
 
 Every tool in this document follows this shape:
 
-| Section | What it documents |
-|---------|------------------|
-| `name` | Exact tool name used in `tools/call`. |
+| Section       | What it documents                                                 |
+| ------------- | ----------------------------------------------------------------- |
+| `name`        | Exact tool name used in `tools/call`.                             |
 | `description` | Human-readable intent. Agents SHOULD re-read this before calling. |
-| `input` | JSON Schema for `arguments`. `required` fields MUST be supplied. |
-| `output` | JSON Schema for the successful return value. |
-| `errors` | Known failure modes and their response shape. |
-| `example` | Minimal valid call + response. |
+| `input`       | JSON Schema for `arguments`. `required` fields MUST be supplied.  |
+| `output`      | JSON Schema for the successful return value.                      |
+| `errors`      | Known failure modes and their response shape.                     |
+| `example`     | Minimal valid call + response.                                    |
 
 ### 1.1 MCP Response Envelope
 
@@ -57,10 +54,8 @@ All in-repo MCP servers return text results inside the standard MCP
 
 ```jsonc
 {
-  "content": [
-    { "type": "text", "text": "<stringified JSON or plain text>" }
-  ],
-  "isError": false // present on some servers; not required by spec
+  "content": [{ "type": "text", "text": "<stringified JSON or plain text>" }],
+  "isError": false, // present on some servers; not required by spec
 }
 ```
 
@@ -70,12 +65,12 @@ readable** for interactive use.
 
 ### 1.2 Timeouts & Retries
 
-| Server | Default timeout | Notes |
-|--------|----------------|-------|
-| Unity MCP Bridge | 30s per HTTP call | `unityFetch` uses `AbortController` |
-| Ollama Tools MCP | 30s fetch, 180s for Ollama chat | Retries 2× with 5s backoff on Ollama chat |
-| Vision MCP | 300s for Node child process | Primary analyzer + Python fallback |
-| HyperFrames MCP | 600s render, 120s init/preview | Long-running renders spawn `detached: true` for preview |
+| Server           | Default timeout                 | Notes                                                   |
+| ---------------- | ------------------------------- | ------------------------------------------------------- |
+| Unity MCP Bridge | 30s per HTTP call               | `unityFetch` uses `AbortController`                     |
+| Ollama Tools MCP | 30s fetch, 180s for Ollama chat | Retries 2× with 5s backoff on Ollama chat               |
+| Vision MCP       | 300s for Node child process     | Primary analyzer + Python fallback                      |
+| HyperFrames MCP  | 600s render, 120s init/preview  | Long-running renders spawn `detached: true` for preview |
 
 ### 1.3 Rate Limits
 
@@ -104,14 +99,14 @@ Execute any Unity Editor command. Prefer specific tools when available.
   "properties": {
     "command": {
       "type": "string",
-      "description": "Unity command name (e.g. create_gameobject, add_component, capture_scene_view)"
+      "description": "Unity command name (e.g. create_gameobject, add_component, capture_scene_view)",
     },
     "parameters": {
       "type": "object",
-      "description": "Command parameters as key-value pairs"
-    }
+      "description": "Command parameters as key-value pairs",
+    },
   },
-  "required": ["command"]
+  "required": ["command"],
 }
 ```
 
@@ -307,8 +302,12 @@ Execute any Unity Editor command. Prefer specific tools when available.
   "object_name": "Speaker",
   "clip_name": "beat_anim",
   "speed": { "type": "number", "default": 1 },
-  "wrap_mode": { "type": "string", "default": "once", "enum": ["once","loop","pingpong","clamp"] },
-  "fade_time": { "type": "number" }
+  "wrap_mode": {
+    "type": "string",
+    "default": "once",
+    "enum": ["once", "loop", "pingpong", "clamp"],
+  },
+  "fade_time": { "type": "number" },
 }
 ```
 
@@ -318,7 +317,7 @@ Execute any Unity Editor command. Prefer specific tools when available.
 // input
 {
   "object_name": "Speaker",
-  "return_to_bind_pose": { "type": "boolean", "default": true }
+  "return_to_bind_pose": { "type": "boolean", "default": true },
 }
 ```
 
@@ -330,7 +329,7 @@ Execute any Unity Editor command. Prefer specific tools when available.
   "object_name": "Speaker",
   "from_clip": "idle",
   "to_clip": "beat_anim",
-  "fade_time": { "type": "number", "default": 0.5 }
+  "fade_time": { "type": "number", "default": 0.5 },
 }
 ```
 
@@ -874,24 +873,25 @@ Execute any Unity Editor command. Prefer specific tools when available.
 These servers are referenced in [[app-research-gaps-2026#13-agent-orchestration|agent orchestration]]
 and `AGENTS.md`, but are **not** implemented in this repo.
 
-| Server | Install | Contract Source |
-|--------|---------|-----------------|
-| **Blender MCP** | `uvx blender-mcp` | `bpy` RNA docs + `get_addon_status()` runtime check |
-| **ComfyUI MCP** | `npx comfyui-mcp` | ComfyUI workflow JSON schema + custom node docs |
-| **Remotion MCP** | `npx -y @remotion/mcp@latest` | Remotion CLI + `@remotion/*` package schemas |
+| Server           | Install                       | Contract Source                                     |
+| ---------------- | ----------------------------- | --------------------------------------------------- |
+| **Blender MCP**  | `uvx blender-mcp`             | `bpy` RNA docs + `get_addon_status()` runtime check |
+| **ComfyUI MCP**  | `npx comfyui-mcp`             | ComfyUI workflow JSON schema + custom node docs     |
+| **Remotion MCP** | `npx -y @remotion/mcp@latest` | Remotion CLI + `@remotion/*` package schemas        |
 
 ### 6.1 Blender MCP (upstream)
 
 Key tools used by agents:
 
-| Tool | Description |
-|------|-------------|
-| `get_scene_info` | Scene overview |
-| `get_addon_status` | Version + telemetry state |
-| `blender_execute_blender_code` | Runs arbitrary Python in Blender |
-| `blender_*` asset tools | Poly Haven, Sketchfab, Poly Pizza, Hyper3D Rodin, Hunyuan3D |
+| Tool                           | Description                                                 |
+| ------------------------------ | ----------------------------------------------------------- |
+| `get_scene_info`               | Scene overview                                              |
+| `get_addon_status`             | Version + telemetry state                                   |
+| `blender_execute_blender_code` | Runs arbitrary Python in Blender                            |
+| `blender_*` asset tools        | Poly Haven, Sketchfab, Poly Pizza, Hyper3D Rodin, Hunyuan3D |
 
 **Contract notes**:
+
 - Node names are localized; always look up by `node.type` (e.g. `BSDF_PRINCIPLED`), never by display name.
 - Enum identifiers change between Blender versions; query `bl_rna.properties[...].enum_items` before hardcoding.
 - `scene.render.engine` is a dynamic enum; read current value before switching.
@@ -942,12 +942,12 @@ unchanged so upstream servers (Blender MCP, Remotion MCP) still work.
 
 ### 7.3 Error Handling Rules
 
-| Error pattern | Agent action |
-|---------------|--------------|
-| `not running` / `no port file` | Start the service; do not retry. |
-| `timeout` | Retry once with same args; if repeated, surface to user. |
-| `Unknown tool` | Do not retry; this is a code/config bug. |
-| `Image not found` / `File not found` | Check path resolution; retry with corrected path. |
+| Error pattern                        | Agent action                                             |
+| ------------------------------------ | -------------------------------------------------------- |
+| `not running` / `no port file`       | Start the service; do not retry.                         |
+| `timeout`                            | Retry once with same args; if repeated, surface to user. |
+| `Unknown tool`                       | Do not retry; this is a code/config bug.                 |
+| `Image not found` / `File not found` | Check path resolution; retry with corrected path.        |
 
 ---
 
@@ -972,4 +972,4 @@ unchanged so upstream servers (Blender MCP, Remotion MCP) still work.
 
 ---
 
-*Last updated: 2026-09-24*
+_Last updated: 2026-09-24_

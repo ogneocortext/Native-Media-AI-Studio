@@ -1,12 +1,25 @@
+---
+tags:
+  - ai
+aliases:
+  - Ollama Thinking Mode
+  - Structured Outputs
+  - JSON Extraction
+cssclasses:
+  - ai-guide
+date: 2026-09-29
+---
+
 # Ollama Thinking Mode & Structured Outputs
 
-> **Last Updated:** 2026-09-18
+> **Last Updated:** 2026-09-29
 > **Ollama Version:** 0.34.2+
 > **Relevant Models:** Qwen3.5, Qwen3, Gemma4, DeepSeek R1
 
 ## Problem
 
 When using Qwen3.5:9b (and other Qwen3/DeepSeek reasoning models) via `/api/generate`, the model operates in **thinking mode by default**. Even with `think: false` in options, the model may still:
+
 - Route all output to the `thinking` field
 - Leave the `response` field empty
 - Return `done_reason: length` without producing usable JSON in `response`
@@ -29,23 +42,29 @@ The reliable way to disable thinking on Qwen3/Qwen3.5 is via the `/api/chat` end
 {
   "model": "qwen3.5:9b",
   "messages": [
-    {"role": "system", "content": "You are a Blender Python (bpy) expert. Return ONLY valid JSON."},
-    {"role": "user", "content": "Create a Blender Python script for: a low-poly stone obelisk"}
+    {
+      "role": "system",
+      "content": "You are a Blender Python (bpy) expert. Return ONLY valid JSON."
+    },
+    {
+      "role": "user",
+      "content": "Create a Blender Python script for: a low-poly stone obelisk"
+    }
   ],
   "stream": false,
   "keep_alive": "60s",
   "think": false,
-  "options": {"num_ctx": 8192, "num_predict": 2048, "temperature": 0.2}
+  "options": { "num_ctx": 8192, "num_predict": 2048, "temperature": 0.2 }
 }
 ```
 
 ### Response Fields
 
-| Field | Description |
-|-------|-------------|
-| `message.content` | Final answer text |
+| Field              | Description                                    |
+| ------------------ | ---------------------------------------------- |
+| `message.content`  | Final answer text                              |
 | `message.thinking` | Reasoning trace (empty when thinking disabled) |
-| `done_reason` | `stop` when generation completed fully |
+| `done_reason`      | `stop` when generation completed fully         |
 
 ## Structured Outputs
 
@@ -85,16 +104,16 @@ Ollama supports constrained JSON generation via the `format` parameter.
 
 ## Model Behavior Matrix (Tested 2026-09-18)
 
-| Model | Endpoint | Thinking Disabled | JSON in Response | Notes |
-|-------|----------|-------------------|------------------|-------|
-| qwen3.5:9b | `/api/generate` | No | No | Outputs to `thinking` field |
-| qwen3.5:9b | `/api/chat` + `think:false` | Yes | Yes | **Recommended for code gen** |
-| qwen3.5:4b | `/api/generate` | No | No | Same issue as 9b |
-| qwen3.5:4b | `/api/chat` + `think:false` | Partial | Partial | Smaller model, less reliable |
-| llama3.2:3b | `/api/generate` | N/A | Yes | No thinking mode, reliable JSON |
-| llama3.2:3b | `/api/chat` | N/A | Yes | Good fallback for simple tasks |
-| gemma4:e2b-it-qat | `/api/generate` | N/A | Partial | JSON parse failures on complex output |
-| gemma4:e2b-it-qat | `/api/chat` | N/A | Partial | Better but still inconsistent for code |
+| Model             | Endpoint                    | Thinking Disabled | JSON in Response | Notes                                  |
+| ----------------- | --------------------------- | ----------------- | ---------------- | -------------------------------------- |
+| qwen3.5:9b        | `/api/generate`             | No                | No               | Outputs to `thinking` field            |
+| qwen3.5:9b        | `/api/chat` + `think:false` | Yes               | Yes              | **Recommended for code gen**           |
+| qwen3.5:4b        | `/api/generate`             | No                | No               | Same issue as 9b                       |
+| qwen3.5:4b        | `/api/chat` + `think:false` | Partial           | Partial          | Smaller model, less reliable           |
+| llama3.2:3b       | `/api/generate`             | N/A               | Yes              | No thinking mode, reliable JSON        |
+| llama3.2:3b       | `/api/chat`                 | N/A               | Yes              | Good fallback for simple tasks         |
+| gemma4:e2b-it-qat | `/api/generate`             | N/A               | Partial          | JSON parse failures on complex output  |
+| gemma4:e2b-it-qat | `/api/chat`                 | N/A               | Partial          | Better but still inconsistent for code |
 
 ## Recommendations
 
@@ -108,7 +127,6 @@ Ollama supports constrained JSON generation via the `format` parameter.
 - `/api/generate` is retained only for legacy/text-specific routes. New multimodal, reasoning, structured-output, and tool-using paths should use `/api/chat` so `message.content`, `message.thinking`, and `message.tool_calls` are handled consistently.
 - The browser AI Tools path uses `/api/chat` SSE. If a small model only describes a requested tool instead of emitting native `tool_calls`, the backend narrows the registry to one explicitly named tool and executes a guarded fallback; ambiguous requests fail visibly rather than guessing.
 - The adapter applies an 8 GB workstation ceiling of `num_ctx: 8192` even when a caller requests a larger context.
-
 
 ## Implementation Notes
 
