@@ -1,5 +1,7 @@
 # Native Media AI Studio
 
+![Native Media AI Studio banner](packages/frontend/public/brand/readme-banner.webp)
+
 A full-stack AI-powered creative production environment for music-driven media generation, image workflows, video creation, and narrative scene rendering.
 
 ## Features
