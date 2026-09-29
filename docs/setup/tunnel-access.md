@@ -27,18 +27,28 @@ choco install ngrok
 ngrok config add-authtoken <your-token>
 ```
 
-### 2. Start the tunnels
+### 2. Start the tunnel
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-tunnel.ps1
 ```
 
-Output shows the public URLs plus a verification line, e.g.:
+Only the **Vite dev server** is published. Vite proxies `/api`, `/output` and
+`/ws` to `127.0.0.1:8000`, so one public URL reaches both the UI and the API:
 
 ```
-  Backend  : https://a1b2c3d4.ngrok-free.app
-  Frontend : https://e5f6g7h8.ngrok-free.app
-  Verified : True
+  Frontend    : https://a1b2c3d4.ngrok-free.app
+  API         : https://a1b2c3d4.ngrok-free.app/api/...   (proxied by Vite)
+  Verified    : True
+```
+
+A free ngrok account serves **one endpoint at a time**, so the backend cannot
+be published as well on the free tier - this mode is the default for that reason.
+To publish the backend directly instead (handy when a non-browser client calls
+the API and you would rather not depend on the Vite proxy):
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-tunnel.ps1 -Target both
 ```
 
 If `Verified : False`, the tunnel is not usable - check

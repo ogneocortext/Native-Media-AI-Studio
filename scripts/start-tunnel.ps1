@@ -36,7 +36,9 @@
 [CmdletBinding()]
 param(
     [ValidateSet("ngrok", "localtunnel")]
-    [string]$Provider = "ngrok"
+    [string]$Provider = "ngrok",
+    [ValidateSet("both", "frontend")]
+    [string]$Target = "frontend"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -183,24 +185,38 @@ Write-Host "`nStarting $Provider tunnels..." -ForegroundColor Cyan
 # ---------------------------------------------------------------------------
 # Start tunnels
 # ---------------------------------------------------------------------------
-$backendTunnel = if ($Provider -eq 'ngrok') {
-    Start-NgrokTunnel -Port 8000 -Label 'backend'
-} else {
-    Start-LocaltunnelTunnel -Port 8000 -Label 'backend'
+# -Target frontend (default) publishes ONLY the Vite dev server. It proxies
+# /api, /output and /ws to 127.0.0.1:8000, so a single public endpoint reaches
+# both the UI and the API. This is what fits a free ngrok account, which serves
+# one endpoint at a time (ERR_NGROK_334 on the second).
+#
+# -Target both publishes the backend API directly instead. Useful when the
+# agent calls the API from a non-browser client and you would rather not depend
+# on the Vite proxy, but it consumes the account's single endpoint.
+$startFrontend = {
+    if ($Provider -eq 'ngrok') { Start-NgrokTunnel -Port 5173 -Label 'frontend' }
+    else { Start-LocaltunnelTunnel -Port 5173 -Label 'frontend' }
+}
+$startBackend = {
+    if ($Provider -eq 'ngrok') { Start-NgrokTunnel -Port 8000 -Label 'backend' }
+    else { Start-LocaltunnelTunnel -Port 8000 -Label 'backend' }
 }
 
-# A free ngrok account serves ONE endpoint at a time (ERR_NGROK_334 if a second
-# process asks for the same hostname), so the frontend tunnel is optional: fall
-# back to localtunnel for it, and skip it entirely if that fails too. Agents
-# mostly need the backend API, which is the tunnel that must not be dropped.
+$backendTunnel = $null
 $frontendTunnel = $null
 $frontendError = $null
-if ($Provider -eq 'ngrok') {
+
+if ($Target -eq 'frontend') {
+    $frontendTunnel = & $startFrontend
+} else {
+    $backendTunnel = & $startBackend
+    # The second ngrok endpoint is refused on a free account; fall back to
+    # localtunnel, and carry on backend-only if that fails too.
     try {
-        $frontendTunnel = Start-NgrokTunnel -Port 5173 -Label 'frontend'
+        $frontendTunnel = & $startFrontend
     } catch {
         $frontendError = $_.Exception.Message
-        Write-Log "ngrok frontend tunnel failed: $frontendError"
+        Write-Log "frontend tunnel failed: $frontendError"
         Write-Log "Falling back to localtunnel for the frontend."
         try {
             $frontendTunnel = Start-LocaltunnelTunnel -Port 5173 -Label 'frontend'
@@ -208,12 +224,10 @@ if ($Provider -eq 'ngrok') {
             Write-Warning "Frontend tunnel unavailable; the backend tunnel is still live."
         }
     }
-} else {
-    $frontendTunnel = Start-LocaltunnelTunnel -Port 5173 -Label 'frontend'
 }
 
 # Strip trailing slashes for clean URLs.
-$backendUrl  = $backendTunnel.Url.TrimEnd('/')
+$backendUrl  = if ($backendTunnel) { $backendTunnel.Url.TrimEnd('/') } else { '' }
 $frontendUrl = if ($frontendTunnel) { $frontendTunnel.Url.TrimEnd('/') } else { '' }
 
 # ---------------------------------------------------------------------------
@@ -223,21 +237,33 @@ $frontendUrl = if ($frontendTunnel) { $frontendTunnel.Url.TrimEnd('/') } else { 
 # no clue why). Probe the backend through the tunnel, including the
 # bypass-tunnel-reminder header localtunnel requires, and abort on failure.
 # ---------------------------------------------------------------------------
-$probeHeaders = @{ 'bypass-tunnel-reminder' = 'true' }
+# Probe whichever endpoint is public. In -Target frontend the API is reached via
+# the Vite proxy, so the frontend URL is the one that must answer /api/health.
+# ngrok serves an interstitial to unknown clients, so send Accept: application/json
+# to prove an API request reaches the app rather than the warning page.
+$probeHeaders = @{
+    'bypass-tunnel-reminder' = 'true'
+    'Accept'                 = 'application/json'
+}
+$probeUrl = if ($backendUrl) { $backendUrl } else { $frontendUrl }
 $verified = $false
-try {
-    $probe = Invoke-WebRequest -Uri "$backendUrl/api/health" -Headers $probeHeaders -UseBasicParsing -TimeoutSec 25
-    if ($probe.StatusCode -eq 200) {
-        $verified = $true
-        Write-Log "Verified backend tunnel end-to-end: $backendUrl/api/health -> 200"
+if ($probeUrl) {
+    try {
+        $probe = Invoke-WebRequest -Uri "$probeUrl/api/health" -Headers $probeHeaders -UseBasicParsing -TimeoutSec 25
+        if ($probe.StatusCode -eq 200) {
+            $verified = $true
+            Write-Log "Verified end-to-end: $probeUrl/api/health -> 200"
+        }
+    } catch {
+        Write-Log "WARNING: probe failed: $($_.Exception.Message)"
     }
-} catch {
-    Write-Log "WARNING: backend tunnel probe failed: $($_.Exception.Message)"
+} else {
+    Write-Log "WARNING: no public URL to probe."
 }
 
 if (-not $verified) {
-    Write-Warning "Tunnel did not verify. A sandbox VM agent will NOT be able to reach the backend."
-    Write-Warning "Check $($backendTunnel.Log) and that the backend is listening on 127.0.0.1:8000."
+    Write-Warning "Tunnel did not verify. A sandbox VM agent will NOT be able to reach the app."
+    Write-Warning "Check scripts/utility/*.log and that the services are listening on 127.0.0.1."
 }
 
 # ---------------------------------------------------------------------------
@@ -252,11 +278,11 @@ $state = @{
 
     backend_url  = $backendUrl
     frontend_url = $frontendUrl
-    backend_pid  = $backendTunnel.Pid
+    backend_pid  = if ($backendTunnel) { $backendTunnel.Pid } else { $null }
     frontend_pid = if ($frontendTunnel) { $frontendTunnel.Pid } else { $null }
-    backend_node_pid  = $backendTunnel.NodePid
+    backend_node_pid  = if ($backendTunnel) { $backendTunnel.NodePid } else { $null }
     frontend_node_pid = if ($frontendTunnel) { $frontendTunnel.NodePid } else { $null }
-    backend_process_tree  = @($backendTunnel.Tree)
+    backend_process_tree  = if ($backendTunnel) { @($backendTunnel.Tree) } else { @() }
     frontend_process_tree = if ($frontendTunnel) { @($frontendTunnel.Tree) } else { @() }
     verified     = $verified
     # localtunnel serves an interstitial to unknown clients; agents must send
@@ -273,18 +299,23 @@ Set-Content -LiteralPath $TunnelStateFile -Value $state -Encoding UTF8
 
 Write-Host "`n============================================================" -ForegroundColor Green
 Write-Host " Tunnels active" -ForegroundColor Green
-Write-Host " Backend  : $backendUrl" -ForegroundColor Green
 Write-Host " Frontend : $frontendUrl" -ForegroundColor Green
+if ($backendUrl) { Write-Host " Backend  : $backendUrl" -ForegroundColor Green }
 Write-Host " State    : $TunnelStateFile" -ForegroundColor Green
 Write-Host "============================================================`n" -ForegroundColor Green
 Write-Host "Sandbox VM agent should use:" -ForegroundColor Yellow
-Write-Host "  Backend API : $backendUrl" -ForegroundColor Yellow
+if ($backendUrl) { Write-Host "  Backend API : $backendUrl" -ForegroundColor Yellow }
 Write-Host "  Frontend    : $frontendUrl" -ForegroundColor Yellow
 Write-Host "  Verified    : $verified" -ForegroundColor $(if ($verified) { 'Green' } else { 'Red' })
-Write-Host "`nlocaltunnel requires this header on EVERY request (otherwise the" -ForegroundColor Cyan
-Write-Host "agent gets an HTML interstitial instead of JSON):" -ForegroundColor Cyan
-Write-Host "  bypass-tunnel-reminder: true" -ForegroundColor Cyan
+
+if ($backendUrl) {
+    Write-Host "  API        : $backendUrl/api/..." -ForegroundColor Yellow
+} else {
+    Write-Host "  API        : $frontendUrl/api/...   (proxied to the local backend by Vite)" -ForegroundColor Yellow
+}
+
+Write-Host "`nlocaltunnel requires bypass-tunnel-reminder: true on every request" -ForegroundColor Cyan
+Write-Host "(otherwise the agent gets an HTML interstitial instead of JSON)." -ForegroundColor Cyan
 Write-Host "`nExample:" -ForegroundColor Cyan
-Write-Host "  curl -H 'bypass-tunnel-reminder: true' $backendUrl/api/health" -ForegroundColor Cyan
-Write-Host "`nTo stop tunnels:" -ForegroundColor Cyan
+Write-Host "  curl -H 'Accept: application/json' -H 'bypass-tunnel-reminder: true' $(if ($backendUrl) { $backendUrl } else { $frontendUrl })/api/health" -ForegroundColor Cyan
 Write-Host "  .\scripts\stop-tunnel.ps1`n" -ForegroundColor Cyan
