@@ -519,11 +519,8 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           ctx.font = `${24 * dpr}px monospace`;
           ctx.textAlign = "center";
           ctx.globalAlpha = 0.7 + idlePulse;
-          ctx.fillText(`${section} — ${mode}`, w / 2, h / 2 - 6 * dpr);
-          ctx.globalAlpha = 1;
-          ctx.fillStyle = colors[1] + "30";
-          ctx.font = `${11 * dpr}px monospace`;
           ctx.fillText(`▶ play a track for audio-reactive`, w / 2, h / 2 + 18 * dpr);
+          ctx.globalAlpha = 1;
           raf = requestAnimationFrame(draw);
           return;
         }
