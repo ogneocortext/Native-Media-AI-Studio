@@ -14,7 +14,7 @@ date: 2026-09-29
 # 🎬 Remotion Video Compositing Guide
 
 > [!info] Purpose
-> Programmatic video creation with React + Remotion. This guide covers the patterns used in Native Media AI Studio for music video production.
+> Programmatic video creation with React + Remotion **4.0** (current: 4.0.528). This guide covers the patterns used in Native Media AI Studio for music video production.
 
 ## Overview
 

@@ -14,7 +14,7 @@ External tools and system-level dependencies that are **not** installable via `p
 | **Git** | ComfyUI self-update (`git pull`) in `comfyui_manager.py` | https://git-scm.com/downloads |
 | **PowerShell 7+** | Service scripts (`scripts/*.ps1`) | Windows 11 ships with pwsh; otherwise `winget install Microsoft.PowerShell` |
 | **Python** (`python.exe`) | Backend venv (`D:\conda-envs\nma-studio-cuda\Scripts\python.exe`), ComfyUI runtime venv, standalone tooling venv (`D:\conda-envs\studio-tools\Scripts\python.exe`) | Python 3.11+ (backend/CUDA), Python 3.14+ (standalone tools) |
-| **Node.js 22+** | Frontend dev server, Vite build, MCP tool scripts | https://nodejs.org/ or `fnm use 22` |
+| **Node.js 24+ (LTS)** | Frontend dev server, Vite build, MCP tool scripts | https://nodejs.org/ or `fnm use 24` |
 
 ---
 

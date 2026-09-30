@@ -26,7 +26,7 @@ date: 2026-09-29
 **Remaining:** 0
 
 This tracker also lists `../ux-audit/audit-report.md`, which is tagged but lives
-outside the library, so it appears in a section but is not one of the 76.
+outside the library, so it appears in a section but is not one of the 77.
 
 Every document carries exactly one primary category as its **first** tag. The
 per-section counts below are derived from the documents' actual frontmatter, not

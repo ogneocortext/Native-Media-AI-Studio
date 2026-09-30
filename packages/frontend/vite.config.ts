@@ -20,8 +20,8 @@ interface PortConfig {
 }
 
 /**
- * Load port configuration from config/ports.json
- * Falls back to environment variables or defaults
+ * Load port configuration from config/ports.json (single source of truth).
+ * Falls back to environment variables or defaults that match ports.json.
  *
  * Tunnel mode: VITE_PUBLIC_BACKEND_URL overrides backend_url so the frontend
  * code calls the public tunnel endpoint instead of localhost when accessed
@@ -72,6 +72,10 @@ export default defineConfig(({ mode }) => {
   const isAnalyze = mode === "analyze";
 
   return {
+    // Use the project tsconfig.json for path resolution (Vite 8.3 feature)
+    tsconfig: "tsconfig.json",
+    // Vite 8 built-in devtools integration (install @vitejs/devtools to activate)
+    devtools: { apply: "serve" },
     plugins: [
       react(),
       tailwindcss(),
@@ -91,6 +95,8 @@ export default defineConfig(({ mode }) => {
         "three/addons": path.resolve(__dirname, "./node_modules/three/examples/jsm"),
       },
       dedupe: ["three", "three-stdlib"],
+      // Use tsconfig.json paths for alias resolution (Vite 8 feature)
+      tsconfigPaths: true,
     },
     server: {
       host: "0.0.0.0",

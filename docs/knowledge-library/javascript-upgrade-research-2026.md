@@ -13,7 +13,7 @@ date: 2026-09-29
 # JavaScript / TypeScript Upgrade Research — Native Media AI Studio (2026)
 
 > **Scope:** Concrete upgrade paths for the frontend JS/TS stack, ranked by impact and effort.
-> **Current baseline:** Node v24, pnpm 11, React 19, Vite 8, TypeScript 5.9, Tailwind v4, ESLint 10 flat config.
+> **Current baseline:** Node v24.21.0 (LTS Krypton), pnpm 11, React 19, Vite 8.3.1, TypeScript 5.9, Tailwind v4, ESLint 10 flat config.
 > **Prerequisite:** Read [[technical-reference]] for the service map and [[go-integration-2026]] for the sidecar context.
 > **Last updated:** 2026-09-24
 
@@ -37,11 +37,11 @@ Everything else is incremental improvement.
 
 | Layer                | Current  | Status               | Notes                                                      |
 | -------------------- | -------- | -------------------- | ---------------------------------------------------------- |
-| Node.js              | v24.20.0 | ✅ Modern            | Engines: `>=22.13.0`                                       |
+| Node.js              | v24.21.0 | ✅ Modern            | Engines: `>=22.13.0`                                       |
 | pnpm                 | 11.24.0  | ✅ Modern            | Monorepo with catalog + workspaces                         |
 | React                | 19.2.8   | ✅ Latest            | React 19 stable                                            |
 | React DOM            | 19.2.8   | ✅ Latest            |                                                            |
-| Vite                 | 8.2.2    | ✅ Latest            | Uses Rolldown under the hood                               |
+| Vite                 | 8.3.1    | ✅ Latest            | Uses Rolldown under the hood                               |
 | @vitejs/plugin-react | 6.1.1    | ✅ Latest            | React 19 / Vite 8 compatible                               |
 | TypeScript           | 5.9.3    | ⚠️ Upgrade available | TS 7.0.2 available via `@typescript/native` side-by-side   |
 | Tailwind CSS         | 4.3.3    | ✅ Latest            | v4 with `@theme` + `@import`                               |
@@ -59,10 +59,10 @@ Everything else is incremental improvement.
 | animejs              | 4.5.0    | ✅ Latest            |                                                            |
 | lucide-react         | 1.38.0   | ✅ Latest            |                                                            |
 | wavesurfer.js        | 7.12.12  | ✅ Updated           | Patch upgrade verified by build and browser tests          |
-| mediabunny           | 1.59.1   | ✅ Replacement       | Replaces deprecated mp4-muxer for browser MP4 recording    |
+| mediabunny           | 1.61.0   | ✅ Replacement       | Replaces deprecated mp4-muxer for browser MP4 recording    |
 | postcss              | 8.5.26   | ✅ Latest            | Tailwind v4 bundles its own PostCSS                        |
 | autoprefixer         | —        | ✅ Removed           | Tailwind v4 does not need autoprefixer                     |
-| Remotion             | 4.0.522  | ⚠️ Pinned            | minimumReleaseAgeExclude in workspace; newer 4.x available |
+| Remotion             | 4.0.528  | ⚠️ Pinned            | minimumReleaseAgeExclude in workspace; newer 4.x available |
 | Playwright           | 1.63.0   | ✅ Latest available  | Registry currently reports 1.63.0; targeted tests pass     |
 | turbo                | 2.10.12  | ✅ Latest            | Monorepo build system                                      |
 
@@ -72,7 +72,7 @@ Everything else is incremental improvement.
 
 ### 3.1 Replace deprecated `mp4-muxer` (COMPLETED)
 
-`mp4-muxer@5.2.2` was replaced with `mediabunny@1.59.1` in the frontend MP4 recorder. The recorder now uses `CanvasSource`, `Output`, `Mp4OutputFormat`, and `BufferTarget`, with serialized frame backpressure and async finalization. TypeScript, ESLint, Prettier, production build, and targeted Playwright checks pass.
+`mp4-muxer@5.2.2` was replaced with `mediabunny@1.61.0` in the frontend MP4 recorder. The recorder now uses `CanvasSource`, `Output`, `Mp4OutputFormat`, and `BufferTarget`, with serialized frame backpressure and async finalization. TypeScript, ESLint, Prettier, production build, and targeted Playwright checks pass.
 
 The replacement is browser-only and does not change the Remotion/video-editor server-side rendering path.
 
@@ -141,7 +141,7 @@ Tailwind v4 bundles its own PostCSS pipeline and **does not require** autoprefix
 
 ### 4.6 Remotion 4.x refresh (MEDIUM)
 
-**Finding:** `video-editor` pins Remotion to `4.0.522`. The workspace `minimumReleaseAgeExclude` list suggests this was pinned deliberately, but newer 4.x releases may contain stability fixes.
+**Finding:** `video-editor` pins Remotion to `4.0.528`. The workspace `minimumReleaseAgeExclude` list suggests this was pinned deliberately, but newer 4.x releases may contain stability fixes.
 
 **Action:**
 
@@ -364,7 +364,7 @@ the owner asking.
 
 ## 8. Node.js 24 Opportunities
 
-The project runs Node v24.20.0. New built-ins available:
+The project runs Node v24.21.0. New built-ins available:
 
 | Feature                                  | Use case                                               | Effort                                            |
 | ---------------------------------------- | ------------------------------------------------------ | ------------------------------------------------- |
@@ -404,7 +404,7 @@ The project runs Node v24.20.0. New built-ins available:
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------- |
 | TS 7 breakage in type inference                  | Run side-by-side first; do not delete TS 6 until all CI passes                              |
 | `mp4-muxer` replacement breaks Remotion timeline | Verify replacement in `video-editor` first; keep old import as fallback behind feature flag |
-| Rolldown manualChunks edge cases                 | Pin Vite 8.2.x; test bundle diff after any `manualChunks` change                            |
+| Rolldown manualChunks edge cases                 | Pin Vite 8.3.x; test bundle diff after any `manualChunks` change                            |
 | React 19 `use()` adoption complexity             | Only apply in new Suspense boundaries; never retrofit working `useEffect` code              |
 | Playwright browser refresh breaks tests          | Run `playwright install --with-deps` on a clean VM before merging                           |
 

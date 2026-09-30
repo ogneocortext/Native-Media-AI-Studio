@@ -1,6 +1,6 @@
 # Setup Summary — Native Media AI Studio
 
-> **Last Updated:** 2026-09-07 — ComfyUI updated to ea33b154, Manager enabled with `--enable-manager`, backend running on 8001, frontend on 5174. Supersedes Aug 2026 setup snapshot. See `docs/setup/CONDA_SETUP.md` + `docs/setup/python-environments.md` for canonical env docs.
+> **Last Updated:** 2026-09-30 — ComfyUI v0.26.0, Manager enabled with `--enable-manager`, backend on 8001, frontend on 5174. Supersedes Aug 2026 setup snapshot.
 
 ## ✅ Current System Status
 
@@ -97,7 +97,7 @@ See `docs/setup/CONDA_SETUP.md`, `docs/setup/VIDEO_SETUP.md`, `docs/setup/MODEL_
 - `output/images/`, `output/video/`, `output/audio/`, `output/generated_3d/`, `output/audio_analysis/`
 
 ### Knowledge Library
-- `docs/knowledge-library/` — Vault: 27 md + 4 json + 1 canvas (see `index.md`, `README.md`)
+- `docs/knowledge-library/` — Vault: 79 md + 19 json + 1 canvas (see `index.md`, `README.md`)
 
 ---
 

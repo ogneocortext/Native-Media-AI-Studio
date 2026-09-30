@@ -12,7 +12,7 @@ This directory contains project documentation, knowledge base articles, and setu
 
 | Directory / File | Purpose |
 |------------------|---------|
-| `knowledge-library/` | **The research library.** 76 tagged articles (3D gen, Ollama, Blender MCP, Remotion, visualization, YouTube) plus 9 JSON data files (`prompts.json`, `mcp-registry.json`, `api-registry.json`, `music-prompt-presets.json`, `pronunciation-guide-2026.json`, `codebase.json`, `credit-economics-2026.json`, `lyric-techniques-2026.json`) and a `benchmarks/` subfolder of results. Start at `index.md`. Every article carries a primary category as its first tag. |
+| `knowledge-library/` | **The research library.** 77 tagged articles (3D gen, Ollama, Blender MCP, Remotion, visualization, YouTube) plus 9 JSON data files (`prompts.json`, `mcp-registry.json`, `api-registry.json`, `music-prompt-presets.json`, `pronunciation-guide-2026.json`, `codebase.json`, `credit-economics-2026.json`, `lyric-techniques-2026.json`, `agent.manifest.json`) and a `benchmarks/` subfolder of results. Start at `index.md`. Every article carries a primary category as its first tag. |
 | `knowledge/` | Separate doc set on frontend craft (kinetic typography, modern CSS, Three.js, audio visualization). **App-served but not part of the library** — see D12 in the decision log. |
 | `guides/` | Production guides: GPU pipeline, visualizer debugging, music video workflow, file management |
 | `setup/` | Environment setup: Conda, Python envs, model setup, video setup, tunnel access |

@@ -30,7 +30,7 @@ in the decision log; there is no CI for this repo).
 ```
 knowledge-library/
 ├── .obsidian/              ← Obsidian configuration (gitignored)
-├── index.md                ← Start here (76 docs indexed, reorganized 2026-09-29)
+├── index.md                ← Start here (77 docs indexed, reorganized 2026-09-29)
 ├── tagging-guide.md        ← Hierarchical tagging system (2026-09-29)
 ├── migration-progress.md   ← Tag migration record (2026-09-29)
 ├── README.md               ← This file
@@ -63,13 +63,13 @@ knowledge-library/
 
 The library is now organized into 7 logical categories (see `index.md`):
 
-1. **🎬 Production Pipeline** — Workflow & creative guides (9 docs)
-2. **🛠️ Technical Implementation** — Code & systems (10 docs)
-3. **🎮 MCP & Platform Integrations** — Platform-specific tools (10 docs)
-4. **🎨 Creative & Visual** — Design & effects (16 docs)
-5. **⚙️ Performance & Hardware** — Optimization (6 docs)
-6. **🤖 AI & ML** — Models & training (10 docs)
-7. **📊 Research & Reference** — Industry analysis (11 docs)
+1. **🎬 Production Pipeline** — Workflow & creative guides (10 docs)
+2. **🛠️ Technical Implementation** — Code & systems (13 docs)
+3. **🎮 MCP & Platform Integrations** — Platform-specific tools (11 docs)
+4. **🎨 Creative & Visual** — Design & effects (17 docs)
+5. **⚙️ Performance & Hardware** — Optimization (7 docs)
+6. **🤖 AI & ML** — Models & training (11 docs)
+7. **📊 Research & Reference** — Industry analysis (8 docs)
 
 See [[tagging-guide]] for the new hierarchical tagging system.
 

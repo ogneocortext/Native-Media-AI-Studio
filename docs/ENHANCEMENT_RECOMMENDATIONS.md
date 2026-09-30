@@ -73,15 +73,15 @@ This enables AI agents to orchestrate full video creation pipelines using local 
 - Particle systems synced to beat detection
 
 ## 5. AI Video Generation Models (Open Source 2026)
-**Source**: ltx.io, hyperstack.cloud
+**Source:** ltx.io, hyperstack.cloud, ComfyUI registry
 
-| Model | Strength | VRAM |
-|-------|----------|------|
-| LTX-2.5 | Native audio-video generation | 32GB |
-| Wan 2.1 | High quality motion | 24GB |
-| HunyuanVideo | Cinematic output | 80GB |
-| CogVideoX | Flexible | 24GB |
-| SkyReels V1 | Realistic humans | 40GB |
+| Model | Strength | VRAM | Notes |
+|-------|----------|------|-------|
+| LTX-2.5 | Native audio-video generation | 32GB | Latest gen; audio-conditioned |
+| Wan 2.2 5B | High quality motion, 480p | 6-8GB | Fits 8GB VRAM with quantization |
+| Hunyuan3D-2mini | 3D scene generation | ~5GB | Fast 3D asset creation |
+| CogVideoX | Flexible text-to-video | 24GB | Good quality/speed balance |
+| SkyReels V1 | Realistic humans | 40GB | Character-focused generation |
 
 ## 6. Recommended Implementation Priority
 

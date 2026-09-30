@@ -111,7 +111,7 @@ date: 2026-09-29
 
 ### Current State
 
-- React 19.2.18, Vite (catalog:), Three.js r185, Remotion 4.0.522
+- React 19.2.18, Vite (catalog:), Three.js r185, Remotion 4.0.528
 - Prettier added (2026-09-24), Tailwind v4, TypeScript strict
 - WaveSurfer 7.12.12, Mediabunny (replaced mp4-muxer)
 - Playwright 1.63.0 for E2E
@@ -294,7 +294,7 @@ date: 2026-09-29
 
 ### Current State
 
-- `packages/video-editor/` — Remotion 4.0.522 project with compositions
+- `packages/video-editor/` — Remotion 4.0.528 project with compositions
 - `HyperFramesPage.tsx` — preview/render trigger
 - `tools/hyperframes-test/` — test project
 - `docs/knowledge-library/` has no HyperFrames research doc

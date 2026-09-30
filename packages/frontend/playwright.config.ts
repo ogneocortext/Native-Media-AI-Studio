@@ -1,4 +1,22 @@
 import { defineConfig, devices } from '@playwright/test';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as url from 'node:url';
+
+// Load frontend port from config/ports.json (single source of truth)
+function getFrontendPort(): string {
+  try {
+    const raw = JSON.parse(
+      fs.readFileSync(path.resolve(url.fileURLToPath(import.meta.url), '../../config/ports.json'), 'utf-8'),
+    );
+    return String(raw.frontend_port ?? 5173);
+  } catch {
+    return '5173';
+  }
+}
+
+const FRONTEND_PORT = getFrontendPort();
+const BASE_URL = `http://localhost:${FRONTEND_PORT}`;
 
 export default defineConfig({
   testDir: './tests',
@@ -16,7 +34,7 @@ export default defineConfig({
     ['html', { open: 'never', outputFolder: 'playwright-report' }],
   ],
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: BASE_URL,
     // These are `PlaywrightTestOptions` (i.e. `use`) fields — at the top level of
     // `defineConfig` they are not part of the `Config` type and are ignored.
     actionTimeout: 10_000,
@@ -31,7 +49,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:5173',
+    url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },

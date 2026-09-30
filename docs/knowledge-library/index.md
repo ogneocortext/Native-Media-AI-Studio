@@ -224,7 +224,7 @@ graph LR
 
 || Metric | Count |
 || --------------- | ----------------------------------------------------------------------------- |
-|| Total Documents | 76 |
+|| Total Documents | 77 |
 || Total Tags | 69 |
 || Total Links | 115+ |
 || Last Updated | 2026-09-29 (Categorization improvements) |

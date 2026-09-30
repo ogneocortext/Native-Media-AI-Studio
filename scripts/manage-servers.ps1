@@ -35,9 +35,10 @@ $Ports = Get-PortsConfig -ProjectRoot $ProjectRoot
 # Service configuration
 # Backend/GPU: dedicated studio env (standalone venv, decoupled from
 # space-analyzer-cuda and from ComfyUI). ComfyUI service uses comfyui-cuda.
-$studioPython = 'D:\conda-envs\nma-studio-cuda\Scripts\python.exe'
-$condaPython = 'D:\conda-envs\comfyui-cuda\Scripts\python.exe'
-$venvPython = Join-Path -Path $ProjectRoot -ChildPath 'venv', 'Scripts', 'python.exe'
+$envs = Get-PythonEnvs
+$studioPython = $envs.StudioPython
+$condaPython  = $envs.ComfyPython
+$venvPython   = $envs.VenvPython
 
 # Prefer studio env > ComfyUI env > CPU fallback
 $backendPython = if (Test-Path $studioPython) { $studioPython }
@@ -49,7 +50,7 @@ $backendPython = if (Test-Path $studioPython) { $studioPython }
 # CTRL_C_EVENT-based restart wedges against this venv's launcher chain
 # (the detached worker never receives the event, so the reloader blocks in
 # join() forever), while watchfiles stops the child via TerminateProcess.
-$backendTarget = '"' + (($backendPython -replace '\\', '/') + ' -m uvicorn app.main:app --host 127.0.0.1 --port ' + "$($Ports.backend_port)") + '"'
+$backendTarget = Get-BackendTarget -Python $backendPython -Port $Ports.backend_port
 
 $ServiceConfig = @{
     backend = @{

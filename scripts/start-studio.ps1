@@ -65,7 +65,11 @@ $BackendDir    = Join-Path $ProjectRoot 'packages\backend'
 $FrontendDir   = Join-Path $ProjectRoot 'packages\frontend'
 $VideoDir      = Join-Path $ProjectRoot 'packages\video-editor'
 $LogDir        = Join-Path $ProjectRoot 'output\logs'
-$ProjectVenv   = Join-Path $ProjectRoot 'venv\Scripts\python.exe'
+
+$envs = Get-PythonEnvs
+$StudioPython = $envs.StudioPython
+$ComfyPython  = $envs.ComfyPython
+$ProjectVenv  = $envs.VenvPython
 
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
@@ -96,23 +100,19 @@ $python = if (Test-Path $StudioPython) {
     exit 1
 }
 
-# Backend dev auto-reload: outer watchfiles watcher restarts uvicorn on .py
-# changes. uvicorn's own --reload is deliberately not used - its Windows
-# CTRL_C_EVENT-based restart wedges against this venv's launcher chain
-# (the detached worker never receives the event, so the reloader blocks in
-# join() forever), while watchfiles stops the child via TerminateProcess.
-$backendTarget = '"' + (($python -replace '\\', '/') + ' -m uvicorn app.main:app --host 127.0.0.1 --port ' + "$BackendPort") + '"'
+$backendTarget = Get-BackendTarget -Python $python -Port $BackendPort
 
 # ---------------------------------------------------------------------------
 # Service startup helpers
 # ---------------------------------------------------------------------------
 
 function Start-Backend {
-    if (Test-PortInUse -Port $BackendPort) {
-        if (Test-ServiceRunning -Port $BackendPort) {
-            Write-Ok "Backend already running on port $BackendPort"
-            return
-        }
+    $status = Test-ServicePort -Port $BackendPort
+    if ($status.Running) {
+        Write-Ok "Backend already running on port $BackendPort"
+        return
+    }
+    if ($status.Note) {
         Write-Warn "Port $BackendPort occupied but backend not responding"
         return
     }
@@ -132,11 +132,12 @@ function Start-Backend {
 }
 
 function Start-ComfyUI {
-    if (Test-PortInUse -Port $ComfyUIPort) {
-        if (Test-ServiceRunning -Port $ComfyUIPort -HealthPath '/') {
-            Write-Ok "ComfyUI already running on port $ComfyUIPort"
-            return
-        }
+    $status = Test-ServicePort -Port $ComfyUIPort -HealthPath '/'
+    if ($status.Running) {
+        Write-Ok "ComfyUI already running on port $ComfyUIPort"
+        return
+    }
+    if ($status.Note) {
         Write-Warn "Port $ComfyUIPort occupied but ComfyUI not responding"
         return
     }
@@ -164,11 +165,12 @@ function Start-ComfyUI {
 }
 
 function Start-Frontend {
-    if (Test-PortInUse -Port $FrontendPort) {
-        if (Test-ServiceRunning -Port $FrontendPort -HealthPath '/') {
-            Write-Ok "Frontend already running on port $FrontendPort"
-            return
-        }
+    $status = Test-ServicePort -Port $FrontendPort -HealthPath '/'
+    if ($status.Running) {
+        Write-Ok "Frontend already running on port $FrontendPort"
+        return
+    }
+    if ($status.Note) {
         Write-Warn "Port $FrontendPort occupied but frontend not responding"
         return
     }

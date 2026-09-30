@@ -16,21 +16,8 @@
 
 import { fetchWithTimeout } from "./fetchWithTimeout";
 
-export interface PortConfig {
-  backend_url: string;
-  backend_port: number;
-  frontend_port: number;
-  // Canonical realtime endpoint (SSE). `ws_*` kept as deprecated alias for compat.
-  events_url?: string;
-  sse_url?: string;
-  ws_port: number;
-  ws_url?: string;
-  video_editor_port?: number;
-  comfyui_port?: number;
-  comfyui_url?: string;
-  dashboard_port?: number;
-  dashboard_url?: string;
-}
+// Port defaults below match config/ports.json (single source of truth).
+// Do not edit these literals without updating config/ports.json.
 
 // Cache for the port configuration
 let cachedConfig: PortConfig | null = null;

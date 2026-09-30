@@ -207,13 +207,42 @@ export interface MockGoServiceHealthResponse {
 // Go sidecar mock data
 // ---------------------------------------------------------------------------
 
-const GO_SERVICE_PORTS: Record<string, number> = {
-  'go-dashboard': 3847,
-  'go-media': 3848,
-  'go-worker': 3849,
-  'go-gateway': 3850,
-  'go-ports': 3851,
-};
+// Go service ports — consolidated from config/ports.json (single source of truth).
+// Do not edit here; update config/ports.json instead.
+function loadGoServicePorts(): Record<string, number> {
+  try {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const raw = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, "../../config/ports.json"), "utf-8"),
+    );
+    // Extract port from URLs like "http://127.0.0.1:3847"
+    const portFromUrl = (key: string): number => {
+      const url = raw[key] as string | undefined;
+      if (!url) return 0;
+      const m = url.match(/:(\d+)(?:\/|$)/);
+      return m ? parseInt(m[1], 10) : 0;
+    };
+    return {
+      "go-dashboard": portFromUrl("go_dashboard_url"),
+      "go-media": portFromUrl("go_media_url"),
+      "go-worker": portFromUrl("go_worker_url"),
+      "go-gateway": portFromUrl("go_gateway_url"),
+      "go-ports": portFromUrl("go_ports_url"),
+    };
+  } catch {
+    // Fallback defaults matching config/ports.json
+    return {
+      "go-dashboard": 3847,
+      "go-media": 3848,
+      "go-worker": 3849,
+      "go-gateway": 3850,
+      "go-ports": 3851,
+    };
+  }
+}
+
+const GO_SERVICE_PORTS = loadGoServicePorts();
 
 const DEFAULT_GO_HEALTH_RESPONSE: MockGoServiceHealthResponse = {
   status: 'ok',

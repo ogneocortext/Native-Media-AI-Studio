@@ -235,9 +235,10 @@ python ../../scripts/ai-test-analyzer.py --last-failure
 
 ## Requirements
 
-- **Python:** 3.10+ (project standard)
+- **Python:** 3.11+ (project standard: 3.11.9 nma-studio-cuda, 3.14 studio-tools)
 - **Ollama:** Running locally with models pulled:
-  - `qwen2.5:7b` (test generation + failure analysis)
-  - `gemma4:e2b-it-qat` or `qwen3-vl:4b` (visual regression)
+  - `gemma4:e2b-it-qat` (vision/test generation — project default)
+  - `qwen3-vl:4b` (fast fallback vision)
+  - `qwen2.5:7b` (legacy test generation — replace with `gemma4` if available)
 - **Playwright:** `pip install playwright && playwright install chromium`
 - **Backend:** Running or testable via ASGI transport (no external services needed for most tests)
