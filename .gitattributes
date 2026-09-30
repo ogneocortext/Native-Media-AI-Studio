@@ -6,12 +6,15 @@
 # to docs/knowledge-library/index.md in commit 22ff3d5 (234 added / 234 deleted
 # for a 20-line edit).
 #
-# Scoped to markdown on purpose. A repo-wide `* text=auto eol=lf` would also
-# renormalise every source file in the tree, which is a much larger change than
-# this problem warrants. Widen it deliberately, not by accident.
+# Scoped to the library on purpose. A repo-wide `* text=auto eol=lf` would
+# renormalise every source file in the tree, and `*.md` alone would rewrite the
+# 8 markdown files still stored with CRLF (the storyboards and tools/README.md)
+# as an unrelated side effect of an unrelated commit. Widen this deliberately,
+# converting those files in their own change, not by accident.
 
-docs/**/*.md text eol=lf
-*.md text eol=lf
+docs/knowledge-library/*.md text eol=lf
+docs/architecture/*.md text eol=lf
+docs/ux-audit/*.md text eol=lf
 
 # Keep diffs quiet for generated and vendored paths.
 output/** binary

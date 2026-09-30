@@ -322,15 +322,29 @@ build: {
 
 ### 7.2 Husky + lint-staged
 
-**Finding:** No pre-commit hooks found.
+**Finding:** Frontend formatting is not gated on commit. A pre-commit hook now
+exists (`scripts/git-hooks/pre-commit`, installed by
+`scripts/install-git-hooks.sh`), but it only validates the knowledge-library
+taxonomy - it does not run ESLint or Prettier. Husky itself is still not
+installed.
 
-**Action:** Add `@husky/husky` + `lint-staged` to run `eslint --fix` and `prettier --write` on staged files. This prevents lint/format debt from accumulating.
+**Action:** If frontend lint/format gating is wanted, either extend the
+existing shell hook (no new dependency) or add `@husky/husky` + `lint-staged` to
+run `eslint --fix` and `prettier --write` on staged files. Prefer extending the
+existing hook: Husky adds a Node dependency and a second install path, and this
+repo has no CI to run it from (D10), so a local hook is the only thing that
+would actually execute.
 
-### 7.3 Bundle size monitoring in CI
+### 7.3 Bundle size monitoring
 
-**Finding:** `rollup-plugin-visualizer` generates `dist/stats.html` on demand, but there is **no CI** (`.github/workflows` missing).
+**Finding:** `rollup-plugin-visualizer` generates `dist/stats.html` on demand,
+but nothing checks it automatically. There is **no CI** (`.github/workflows`
+missing), and per D10 that is a deliberate decision, not an oversight.
 
-**Action:** When CI is added, enforce a `chunkSizeWarningLimit` of 1500 KB (already set) and fail the build if `stats.html` shows any single chunk exceeding it.
+**Action:** Enforce `chunkSizeWarningLimit` of 1500 KB (already set) at build
+time rather than in CI, and add the size check to a local script an agent or
+developer runs when it matters. Do not propose a CI workflow for this without
+the owner asking.
 
 ### 7.4 TypeScript strictness tightening
 

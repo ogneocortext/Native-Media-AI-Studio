@@ -19,13 +19,20 @@
 3. Use `[[wiki-links]]` for cross-references
 4. Return to update knowledge as new techniques are discovered
 
+When adding a document, follow `tagging-guide.md`: give it a primary category as
+the **first** tag, then 2-4 cross-cutting tags from the tables there. Run
+`python tools/validate-knowledge-tags.py` before committing - a pre-commit hook
+does this for you once `bash scripts/install-git-hooks.sh` has been run (see D10
+in the decision log; there is no CI for this repo).
+
 ## Vault Structure
 
 ```
 knowledge-library/
 ├── .obsidian/              ← Obsidian configuration (gitignored)
-├── index.md                ← Start here (72 docs indexed, reorganized 2026-09-29)
-├── tagging-guide.md        ← New hierarchical tagging system (2026-09-29)
+├── index.md                ← Start here (76 docs indexed, reorganized 2026-09-29)
+├── tagging-guide.md        ← Hierarchical tagging system (2026-09-29)
+├── migration-progress.md   ← Tag migration record (2026-09-29)
 ├── README.md               ← This file
 ├── music-video-production.md
 ├── youtube-optimization.md

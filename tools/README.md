@@ -164,6 +164,41 @@ python tools/analyze_and_sync.py <audio_file> [--output <json_file>] [--fps 24]
 
 - `tests/test_mcp.py` — Test MCP server via HTTP (port 9876)
 - `tests/test_mcp_stdio.py` — Test Blender MCP via stdio
+- `validate-knowledge-tags.py` — Validate knowledge-library frontmatter, the tag
+  taxonomy, `index.md` counts, and the migration tracker. Exits non-zero on
+  problems:
+
+  ```bash
+  python tools/validate-knowledge-tags.py
+  ```
+
+  Checks that every library document has YAML frontmatter whose **first** tag is
+  a primary category, that required keys (`aliases`, `cssclasses`, `date`) are
+  present, that no mojibake remains, that the tracker lists each document in the
+  right section with correct counts, and that line endings are LF.
+
+## Git Hooks
+
+This repo has **no CI** (D10 in `docs/architecture/decision-log.md`), so local
+git hooks are the only automated guard. `.git/hooks` is not tracked by git, so
+install them once after cloning:
+
+```bash
+bash scripts/install-git-hooks.sh
+```
+
+- `scripts/git-hooks/pre-commit` — runs `validate-knowledge-tags.py` when staged
+  changes touch `docs/knowledge-library/`. Silent and instant (~250ms) on every
+  other commit; does not run pytest/pnpm/ruff.
+- The installer is idempotent, backs up any hook it replaces, and preserves a
+  pre-existing `pre-commit` (the new hook calls it).
+- Bypass for a deliberate one-off: `git commit --no-verify`.
+
+> [!note] Git LFS hooks
+> `.git/hooks` also contains four Git LFS hooks (`pre-push`, `post-commit`,
+> `post-merge`, `post-checkout`) that currently track nothing (D11). They exit
+> non-zero if `git-lfs` is missing from PATH, which would block commits. The
+> installer lists unmanaged hooks on each run.
 
 ---
 

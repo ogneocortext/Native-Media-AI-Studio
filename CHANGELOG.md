@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - Knowledge-library validation and local pre-commit guard
+
+- `tools/validate-knowledge-tags.py` checks every library document has YAML
+  frontmatter whose **first** tag is a primary category, that `aliases`,
+  `cssclasses` and `date` are present, that no mojibake remains, that
+  `migration-progress.md` lists each document in the correct section with
+  correct counts, and that markdown is LF. Vocabulary drift is reported in both
+  directions: a tag in use but absent from the guide, and a guide tag no
+  document uses.
+- `scripts/git-hooks/pre-commit` runs that validator when staged changes touch
+  `docs/knowledge-library/`, and is silent on every other commit (~250ms).
+  Installed by `scripts/install-git-hooks.sh`, which is idempotent, backs up any
+  hook it replaces, and preserves a pre-existing `pre-commit` by calling it.
+- No CI (D10): local hooks are the only automated guard, so they must be
+  installed once after cloning with `bash scripts/install-git-hooks.sh`.
+- `docs/knowledge-library/tagging-guide.md` documents the extended tag vocabulary
+  actually in use; the migration checklist now requires the primary tag first.
+
+### Fixed - Knowledge-library tag consistency
+
+- Repaired double-encoded emoji in `migration-progress.md`, where a lossy console
+  round-trip had rendered every heading marker and entry tick as mojibake.
+- Corrected the primary category on four documents that led with a cross-cutting
+  tag, and re-filed tracker entries whose section contradicted their tag.
+- Restored LF line endings in `index.md` and added `.gitattributes` pinning
+  markdown to LF, after a text-mode rewrite turned a 20-line count edit into a
+  234-line diff.
+- Recomputed `index.md` tag counts from the documents themselves; they had
+  drifted to totals of 72 against a stated 64.
 
 ### Added - Toast system
 
