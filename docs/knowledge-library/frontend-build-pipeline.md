@@ -282,6 +282,9 @@ node scripts/analyze-bundle-stats.mjs
 | 2026-09-30 | 2D visualizer idle state: two-line layout, glow, breathe animation (no section label) | Cleaner, less distracting idle canvas |
 | 2026-09-30 | Stem mixer: progress UI for checking/separating + retry button on error | Clearer feedback during Demucs separation |
 | 2026-09-30 | Audio error recovery: `onCanPlay` clears error; retry button remounts the player | Self-healing instead of dead-ending on load failure |
+| 2026-09-30 | audio_agent_profile.py: fix div-by-zero (empty onsets), NaN stereo corr, negative key_conf clamp, ffmpeg fd leak, zero-length section | Module now produces valid JSON on all test tracks |
+| 2026-09-30 | Backend agent-profile: resolve stored_path against AUDIO_DIR (not CWD) | Re-analysis works when CWD differs from project root |
+| 2026-09-30 | Add requests>=2.32.0 to backend requirements | tools/audio_analysis_agent.py dependency was undeclared |
 | 2026-09-08 | Visualizer empty hero + Remotion 3× vertical `1080×1920`                           | Vertical-first master per ai-video-trends P0                  |
 
 ---

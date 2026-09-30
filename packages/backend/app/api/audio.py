@@ -1370,6 +1370,147 @@ class RenameAudioRequest(BaseModel):
     new_filename: str
 
 
+def _agent_profile_from_cached(data: dict) -> dict:
+    """Build a lightweight agent profile from cached analysis JSON.
+
+    Used when the original audio file is no longer on disk and we cannot
+    re-run librosa. Returns the same schema as ``profile_for_file`` but
+    with ``None`` for fields that require raw audio.
+    """
+    spectral = data.get("spectral", {}) or {}
+    sections = data.get("sections", []) or []
+    beat_times = data.get("beat_times", []) or []
+    duration = float(data.get("duration_seconds") or 0.0)
+    tempo = float(data.get("tempo_bpm") or 0.0)
+    tc = data.get("timing_contract", {}) or {}
+    timing_sections = tc.get("sections", []) or sections
+
+    band_energy = {}
+    raw_bands = data.get("band_energy_pct")
+    if isinstance(raw_bands, dict):
+        band_energy = {k: float(v) for k, v in raw_bands.items() if isinstance(v, (int, float))}
+
+    centroid = spectral.get("centroid_mean")
+    rolloff = spectral.get("rolloff_mean")
+    zcr = spectral.get("zcr_mean")
+
+    # Infer some fields from cached data
+    high_energy = any(s.get("energy", 0) > 0.65 for s in timing_sections)
+    has_chorus = any(s.get("type") == "chorus" for s in timing_sections)
+
+    energy_level = "medium"
+    if tempo > 135 and high_energy:
+        energy_level = "very high"
+    elif high_energy or tempo > 120:
+        energy_level = "high"
+    elif tempo > 100:
+        energy_level = "medium"
+    else:
+        energy_level = "low"
+
+    mood: list[str] = []
+    if band_energy.get("sub_20_120", 0) > 28 and energy_level in ("high", "very high"):
+        mood.append("driving")
+    if (centroid or 0) > 3000 and energy_level in ("high", "very high"):
+        mood.append("aggressive")
+    if has_chorus and energy_level == "medium":
+        mood.append("balanced")
+    if not mood:
+        mood.append("neutral")
+
+    scene_fit: list[str] = []
+    if energy_level == "very high":
+        scene_fit.extend(["action", "chase", "sports", "title_sequence"])
+    elif energy_level == "high":
+        scene_fit.extend(["promo", "trailer", "montage"])
+    elif has_chorus:
+        scene_fit.extend(["narrative", "emotional_peak"])
+    elif energy_level == "low":
+        scene_fit.extend(["ambient", "credits", "slow_pan"])
+    else:
+        scene_fit.append("general")
+
+    eq_preset = "flat"
+    if band_energy.get("sub_20_120", 0) > 28 and (centroid or 0) > 3000:
+        eq_preset = "warm"
+    elif band_energy.get("sub_20_120", 0) > 28:
+        eq_preset = "vocalPresence"
+    elif (centroid or 0) > 3000:
+        eq_preset = "bassBoost"
+    elif energy_level == "low":
+        eq_preset = "bright"
+
+    cut_points = [s["end"] for s in timing_sections if s.get("type") in ("verse", "pre-chorus", "chorus")]
+    loop_candidates = [s["start"] for s in timing_sections if s.get("type") == "chorus"]
+    best_loop = loop_candidates[0] if loop_candidates else beat_times[0] if beat_times else 0.0
+
+    return {
+        "file": data.get("relative_path") or data.get("stored_path", "unknown"),
+        "path": data.get("stored_path"),
+        "duration_seconds": duration,
+        "tempo_bpm": tempo,
+        "beat_count": data.get("beat_count", 0),
+        "estimated_key": data.get("estimated_key"),
+        "key_confidence": data.get("key_confidence"),
+        "dynamic_range_db": data.get("dynamic_range_db"),
+        "band_energy_pct": band_energy,
+        "spectral": {
+            "centroid_mean": round(centroid) if centroid is not None else None,
+            "rolloff_mean": round(rolloff) if rolloff is not None else None,
+            "zcr_mean": round(zcr, 4) if zcr is not None else None,
+        },
+        "stereo_correlation": data.get("stereo_correlation"),
+        "sections": timing_sections,
+        "agent_profile": {
+            "energy_level": energy_level,
+            "moods": mood[:4],
+            "scene_fit": scene_fit[:5],
+            "suggested_eq_preset": eq_preset,
+            "editing": {
+                "cut_points_s": cut_points[:10],
+                "best_loop_start_s": round(best_loop, 2),
+                "estimated_best_intro_s": round(timing_sections[0]["end"], 2) if timing_sections else 0.0,
+            },
+            "description": (
+                f"{tempo:.1f} BPM track, {duration:.1f}s, {energy_level} energy, "
+                f"{', '.join(mood)}. "
+                f"Scene fit: {', '.join(scene_fit[:3])}. "
+                f"Suggested EQ preset: {eq_preset}."
+            ),
+        },
+    }
+
+
+@router.get("/agent-profile/{filename:path}")
+async def get_agent_profile(filename: str):
+    """Return an agent-facing audio profile for *filename*.
+
+    Compact, plain-language-friendly view of tempo, key, energy, spectral
+    balance, section labels, scene fit, and EQ suggestions — optimized for
+    AI agents that cannot process raw audio themselves.
+    """
+    import urllib.parse
+    filename = urllib.parse.unquote(filename)
+
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    data = await get_analysis_by_filename(filename)
+    stored = data.get("stored_path") or data.get("relative_path")
+    if stored:
+        # Resolve relative paths against AUDIO_DIR, not the process CWD.
+        stored_path = Path(stored)
+        if not stored_path.is_absolute():
+            stored_path = AUDIO_DIR / stored_path
+        if stored_path.exists():
+            try:
+                from tools.audio_agent_profile import profile_for_file
+                return profile_for_file(str(stored_path))
+            except Exception as exc:
+                logger.debug("agent-profile re-analysis failed for %s: %s", stored, exc)
+    return _agent_profile_from_cached(data)
+
+
 class ExtractAudioRequest(BaseModel):
     """Extract the audio track from a video file into the audio library.
 
