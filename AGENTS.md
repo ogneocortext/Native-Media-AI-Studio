@@ -4,7 +4,18 @@
 > **Status:** Active Development (Phase 1+2)
 > **Platform:** Windows 11 local development machine
 
-> **Agent bootstrap:** read `docs/architecture/decision-log.md` before writing code. It records stack/architecture decisions (D1–D8 — do not re-litigate) and open questions (Q1–Q4). Update the log when you make or reverse an architecture decision.
+> **Agent bootstrap:** read `docs/README.md` first — it maps every documentation
+> directory and says which are authoritative. Then read
+> `docs/architecture/decision-log.md` before writing code. It records
+> stack/architecture decisions (D1–D12 — do not re-litigate) and open questions
+> (Q1–Q4). Update the log when you make or reverse an architecture decision.
+>
+> **Finding documentation:** the tree is 146 files across 14 directories, so
+> searching blind returns the wrong document. `docs/README.md` is the index;
+> `docs/knowledge-library/index.md` is the entry point for the 76-article
+> research library. Note that `docs/knowledge/` is a *separate* doc set from the
+> library and `docs/notes/` and `docs/scratch/` are explicitly not authoritative
+> (D12).
 
 ## Project Overview
 

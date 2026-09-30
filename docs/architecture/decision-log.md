@@ -165,6 +165,32 @@
   have frontmatter there use a `unity` vocabulary the library guide does not
   define, which is further evidence this set follows its own conventions.
 
+### D13 — docs/README.md is the documentation index; keep it honest with a check
+- **Status:** Decided
+- **Context:** `docs/` holds 146 tracked files across 14 directories, and a
+  search for a common term returns the wrong document: `unity` hits 4
+  directories, `audio` 3, `gpu` 3. The tree was not restructured. Instead it was
+  measured: 88 of the 146 files are the knowledge library, and the remaining
+  directories are distinct genres (guides, setup, architecture, plans,
+  storyboards, notes) rather than arbitrary scattering. A `docs/README.md` map
+  already existed, but it had drifted — it listed `api-database/` and `archive/`
+  which do not exist, omitted `plans/`, never mentioned the 9 JSON data files in
+  the library, and `AGENTS.md` did not point at it, so no agent read it first.
+- **Decision:** **Keep the directory layout; make the map authoritative and
+  verified.** Restructuring 146 files would break `docs.py`
+  (`DOCS_ROOT.rglob("*.md")`), the frontend Docs page, and every `[[wiki-link]]`,
+  for a problem that an index solves. `docs/README.md` is now that index, and
+  `tools/check-docs-map.py` fails the pre-commit hook when it drifts.
+- **Consequences:** Run `python tools/check-docs-map.py` after adding or removing
+  a documentation directory; the pre-commit hook runs it automatically whenever
+  anything under `docs/` is staged. Gitignored directories that may be absent on
+  a fresh clone (`screenshots/`, `archive/`, `output/`) are allowed to be listed
+  without existing. `AGENTS.md` now leads with `docs/README.md` in its bootstrap
+  block and names the non-authoritative directories explicitly, so an agent
+  landing on the wrong file has a stated reason to back up. If the tree ever
+  needs restructuring, that is a deliberate change with a migration, not an
+  accident of where files were created.
+
 ---
 
 ## Open questions
@@ -234,4 +260,5 @@
 - 2026-09-29: D10 recorded — no GitHub Actions. Knowledge-library validation runs via a local pre-commit hook (`scripts/git-hooks/pre-commit`, installed by `scripts/install-git-hooks.sh`) instead. Do not add CI workflows to this repo.
 - 2026-09-29: D11 recorded — the four Git LFS hooks in `.git/hooks` are installed but track nothing (no `filter=lfs`, no pointer files). Left in place; note they block commits/pushes if `git-lfs` is ever missing from PATH. The hook installer now preserves and calls any pre-existing `pre-commit` rather than overwriting it, and is idempotent across re-runs.
 - 2026-09-29: D12 recorded — `docs/knowledge/` is application-served content (`docs.py` rglobs all of `docs/`, and the frontend Docs page displays and searches each document's `tags`), not unfinished migration debt. `tools/docs-triage.py` groups the 65 untagged markdown files outside the library by disposition, so the decision is six group rules rather than 65 per-file calls.
+- 2026-09-29: D13 recorded — the 146-file `docs/` tree keeps its layout (88 of those files are the knowledge library); `docs/README.md` is the documentation index and `tools/check-docs-map.py` fails the pre-commit hook when it drifts. The map previously listed two directories that do not exist, omitted `plans/`, ignored the library's 9 JSON data files, and was not pointed to from `AGENTS.md`.
 

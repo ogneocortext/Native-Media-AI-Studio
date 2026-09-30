@@ -197,6 +197,21 @@ python tools/analyze_and_sync.py <audio_file> [--output <json_file>] [--fps 24]
   triage (migrate, keep as a separate doc set, or archive) is a deliberate
   decision, not a lint fix.
 
+- `check-docs-map.py` verifies `docs/README.md` is an accurate map of `docs/`:
+  every directory it names exists, every real directory it omits, the library's
+  JSON data files are mentioned, and `AGENTS.md` actually points agents at the
+  map. Runs in the pre-commit hook whenever anything under `docs/` is staged.
+
+  ```bash
+  python tools/check-docs-map.py
+  ```
+
+  This exists because the map had drifted: it listed `api-database/` and
+  `archive/`, which do not exist, omitted `plans/`, never mentioned the 9 JSON
+  data files in the library, and was not referenced from `AGENTS.md` — so an
+  agent following it would have been sent to a directory that isn't there, and
+  no agent would have read it first. A stale map is worse than none.
+
 - `docs-triage.py` groups the untagged markdown outside the library by
   disposition, so triage is six decisions rather than 65 filenames:
 

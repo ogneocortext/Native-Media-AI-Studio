@@ -28,8 +28,20 @@ run_chained_hook() {
     fi
 }
 
-# Nothing staged under the library? Nothing to validate.
-if ! git diff --cached --name-only | grep -q '^docs/knowledge-library/'; then
+# Which checks apply depends on what is staged: the library check only concerns
+# docs/knowledge-library/, the map check only concerns the map and directories.
+staged=$(git diff --cached --name-only)
+need_lib=0
+need_map=0
+for f in $staged; do
+    case "$f" in
+        docs/knowledge-library/*) need_lib=1 ;;
+        docs/README.md|AGENTS.md)  need_map=1 ;;
+        docs/*)                    need_map=1 ;;
+    esac
+done
+
+if [ "$need_lib" -eq 0 ] && [ "$need_map" -eq 0 ]; then
     run_chained_hook "$@"
     exit 0
 fi
@@ -49,15 +61,33 @@ if [ -z "$PYTHON" ] && command -v python >/dev/null 2>&1; then
 fi
 
 if [ -z "$PYTHON" ]; then
-    echo "pre-commit: no Python interpreter found; skipping knowledge-tag validation." >&2
+    echo "pre-commit: no Python interpreter found; skipping doc checks." >&2
     echo "            Set one in scripts/git-hooks/pre-commit or install Python." >&2
     run_chained_hook "$@"
     exit 0
 fi
 
-if ! "$PYTHON" tools/validate-knowledge-tags.py; then
-    echo >&2
-    echo "pre-commit: knowledge-library validation failed (see above)." >&2
+status=0
+
+if [ "$need_lib" -eq 1 ]; then
+    if ! "$PYTHON" tools/validate-knowledge-tags.py; then
+        echo >&2
+        echo "pre-commit: knowledge-library validation failed (see above)." >&2
+        status=1
+    fi
+fi
+
+# The map is how agents find documentation, so drift in it is a real defect:
+# it can point at directories that do not exist. Runs whenever docs/ is staged.
+if [ "$need_map" -eq 1 ]; then
+    if ! "$PYTHON" tools/check-docs-map.py; then
+        echo >&2
+        echo "pre-commit: docs/README.md map is out of date (see above)." >&2
+        status=1
+    fi
+fi
+
+if [ "$status" -ne 0 ]; then
     echo "            Fix the reported problems, or bypass once with --no-verify." >&2
     exit 1
 fi
