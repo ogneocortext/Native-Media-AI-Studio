@@ -11,7 +11,14 @@ export interface ResourceCardProps {
   subtext?: string;
 }
 
-export function ResourceCard({ icon: Icon, iconColor, label, cores, usage, subtext }: ResourceCardProps) {
+export function ResourceCard({
+  icon: Icon,
+  iconColor,
+  label,
+  cores,
+  usage,
+  subtext,
+}: ResourceCardProps) {
   // Static class map to avoid Tailwind purging dynamic classes
   const colorMap: Record<string, { bg: string; text: string }> = {
     blue: { bg: "bg-blue-500/20", text: "text-blue-400" },
@@ -34,12 +41,10 @@ export function ResourceCard({ icon: Icon, iconColor, label, cores, usage, subte
         </div>
         <span
           className="text-xs px-2 py-1 rounded-full font-medium"
-          style={
-            {
-              background: `${getUsageColor(usage)}20`,
-              color: getUsageTextColor(usage),
-            }
-          }
+          style={{
+            background: `${getUsageColor(usage)}20`,
+            color: getUsageTextColor(usage),
+          }}
         >
           {usage.toFixed(1)}%
         </span>

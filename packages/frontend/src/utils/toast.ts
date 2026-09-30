@@ -48,7 +48,7 @@ const DEFAULT_DURATIONS: Record<ToastType, number> = {
 
 /** Priority overrides: urgent stays until dismissed, low auto-dismisses quickly. */
 const PRIORITY_DURATIONS: Record<ToastPriority, number | null> = {
-  urgent: null,   // requireInteraction: true — stays until dismissed
+  urgent: null, // requireInteraction: true — stays until dismissed
   high: 10000,
   medium: 5000,
   low: 3000,
@@ -237,9 +237,8 @@ export function showToast(
         // Update any visible toast with this collapse key
         for (const [element, state] of live) {
           if (state.collapseKey === collapseKey) {
-            const countText = existing.count > 1
-              ? `${message} (${existing.count} updates)`
-              : message;
+            const countText =
+              existing.count > 1 ? `${message} (${existing.count} updates)` : message;
             state.message = countText;
             state.collapseCount = existing.count;
             render(state, element);
@@ -367,4 +366,3 @@ export function clearToasts(): void {
     removeToast(element);
   }
 }
-

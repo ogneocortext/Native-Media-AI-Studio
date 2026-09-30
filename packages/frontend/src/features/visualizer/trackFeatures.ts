@@ -70,7 +70,8 @@ function ensureCached(analysisData: AudioAnalysisData | null | undefined): boole
  * Binary search to find the beat index closest to time t
  */
 function findBeatIndex(beatTimes: number[], t: number): number {
-  let lo = 0, hi = beatTimes.length - 1;
+  let lo = 0,
+    hi = beatTimes.length - 1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
     if (beatTimes[mid] < t) lo = mid + 1;
@@ -106,10 +107,7 @@ export function updateTrackFeatures(
   const progress = t / duration;
 
   // Energy from curve
-  const energyIdx = Math.min(
-    Math.floor(progress * cachedEnergy!.length),
-    cachedEnergy!.length - 1,
-  );
+  const energyIdx = Math.min(Math.floor(progress * cachedEnergy!.length), cachedEnergy!.length - 1);
   const energy = energyIdx >= 0 ? cachedEnergy![energyIdx] : 0.5;
 
   // Onset detection (within 80ms window)
@@ -142,18 +140,14 @@ export function updateTrackFeatures(
     Math.floor(progress * cachedCentroid!.length),
     cachedCentroid!.length - 1,
   );
-  const brightness = specIdx >= 0 && cachedCentroid![specIdx]
-    ? Math.min(1, cachedCentroid![specIdx] / 8000)
-    : 0.5;
-  const rolloff = specIdx >= 0 && cachedRolloff![specIdx]
-    ? Math.min(1, cachedRolloff![specIdx] / 12000)
-    : 0.5;
-  const bandwidth = specIdx >= 0 && cachedBandwidth![specIdx]
-    ? Math.min(1, cachedBandwidth![specIdx] / 4000)
-    : 0.5;
-  const noisiness = specIdx >= 0 && cachedZCR![specIdx]
-    ? Math.min(1, cachedZCR![specIdx] / 0.5)
-    : 0.5;
+  const brightness =
+    specIdx >= 0 && cachedCentroid![specIdx] ? Math.min(1, cachedCentroid![specIdx] / 8000) : 0.5;
+  const rolloff =
+    specIdx >= 0 && cachedRolloff![specIdx] ? Math.min(1, cachedRolloff![specIdx] / 12000) : 0.5;
+  const bandwidth =
+    specIdx >= 0 && cachedBandwidth![specIdx] ? Math.min(1, cachedBandwidth![specIdx] / 4000) : 0.5;
+  const noisiness =
+    specIdx >= 0 && cachedZCR![specIdx] ? Math.min(1, cachedZCR![specIdx] / 0.5) : 0.5;
 
   // Downbeat detection (within 150ms window of backend downbeat times)
   const downbeatT = Math.round(t * 100);

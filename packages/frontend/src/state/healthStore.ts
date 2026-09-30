@@ -27,7 +27,11 @@ import {
 import { sseService } from "../services/sseService";
 
 interface GranularHealthData {
-  gpu: { snapshot: Awaited<ReturnType<typeof getGPUSnapshot>> | null; processes: Awaited<ReturnType<typeof getGPUProcesses>>; error: string | null };
+  gpu: {
+    snapshot: Awaited<ReturnType<typeof getGPUSnapshot>> | null;
+    processes: Awaited<ReturnType<typeof getGPUProcesses>>;
+    error: string | null;
+  };
   ffmpeg: Awaited<ReturnType<typeof getFFmpegStatus>> | null;
   ollamaModels: Awaited<ReturnType<typeof getLoadedModels>> | null;
   comfyui: ComfyUIStatus | null;
@@ -167,10 +171,7 @@ export const useHealthStore = create<HealthState>((set, get) => ({
     if (healthSubscriptions) return;
     const unsubMessage = sseService.subscribe((message) => {
       // Handle health change events
-      if (
-        message.type === "system.health_changed" ||
-        message.event === "health_changed"
-      ) {
+      if (message.type === "system.health_changed" || message.event === "health_changed") {
         const healthData = (message.data || message) as Record<string, unknown>;
 
         const health: AggregateHealth = {
@@ -183,9 +184,7 @@ export const useHealthStore = create<HealthState>((set, get) => ({
             (healthData.status as AggregateHealth["overall"]) ||
             "unhealthy",
           adapters: (healthData.adapters as Record<string, AdapterHealth>) || {},
-          timestamp:
-            (healthData.timestamp as string | undefined) ||
-            new Date().toISOString(),
+          timestamp: (healthData.timestamp as string | undefined) || new Date().toISOString(),
         };
 
         get().setHealth(health);
@@ -222,7 +221,10 @@ export const useHealthStore = create<HealthState>((set, get) => ({
       set((s) => ({
         granular: {
           ...s.granular,
-          gpu: { ...s.granular.gpu, error: error instanceof Error ? error.message : "GPU unavailable" },
+          gpu: {
+            ...s.granular.gpu,
+            error: error instanceof Error ? error.message : "GPU unavailable",
+          },
         },
       }));
     }
@@ -242,7 +244,9 @@ export const useHealthStore = create<HealthState>((set, get) => ({
       const data = await getLoadedModels();
       set((s) => ({ granular: { ...s.granular, ollamaModels: data } }));
     } catch {
-      set((s) => ({ granular: { ...s.granular, ollamaModels: { loaded: false, models: [], activity: {} } } }));
+      set((s) => ({
+        granular: { ...s.granular, ollamaModels: { loaded: false, models: [], activity: {} } },
+      }));
     }
   },
 
@@ -300,9 +304,7 @@ export const useHealthActions = () =>
   }));
 
 /** Subscribe to extended system-health (CPU/memory/disk) data only */
-export const useSystemHealth = () =>
-  useHealthStore((state) => state.systemHealth);
+export const useSystemHealth = () => useHealthStore((state) => state.systemHealth);
 
 /** Subscribe to adapter service status only */
-export const useServiceStatus = () =>
-  useHealthStore((state) => state.serviceStatus);
+export const useServiceStatus = () => useHealthStore((state) => state.serviceStatus);

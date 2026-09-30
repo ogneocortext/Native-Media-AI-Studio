@@ -99,7 +99,10 @@ export async function recordPromptUse(promptId: string): Promise<void> {
 
 export async function togglePromptFavorite(promptId: string): Promise<boolean> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/data/${promptId}/favorite`, { method: "POST", timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/data/${promptId}/favorite`, {
+    method: "POST",
+    timeout: 30000,
+  });
   if (!res.ok) return false;
   const data = await res.json();
   return data.is_favorite;
@@ -123,7 +126,9 @@ export async function getAIVisuals(params?: {
   if (params?.favorite) searchParams.set("favorite", "true");
   if (params?.selected) searchParams.set("selected", "true");
   if (params?.limit) searchParams.set("limit", String(params.limit));
-  const res = await fetchWithTimeout(`${base}/api/data/visuals/?${searchParams}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/data/visuals/?${searchParams}`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get visuals");
   return res.json();
 }
@@ -151,7 +156,9 @@ export async function getSessions(params?: {
   if (params?.status) searchParams.set("status", params.status);
   if (params?.audio_id) searchParams.set("audio_id", params.audio_id);
   if (params?.limit) searchParams.set("limit", String(params.limit));
-  const res = await fetchWithTimeout(`${base}/api/data/sessions/?${searchParams}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/data/sessions/?${searchParams}`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get sessions");
   return res.json();
 }
@@ -186,7 +193,7 @@ export async function getPreferences(category?: string): Promise<Record<string, 
 export async function setPreference(
   key: string,
   value: unknown,
-  category = "general"
+  category = "general",
 ): Promise<void> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/data/preferences/${key}`, {
@@ -225,7 +232,11 @@ export async function fetchTracks(): Promise<APITrack[]> {
 }
 
 // Saved scenes
-export async function saveGeneratedScene(code: string, track: string, model: string): Promise<{ success: boolean; filename: string; path: string }> {
+export async function saveGeneratedScene(
+  code: string,
+  track: string,
+  model: string,
+): Promise<{ success: boolean; filename: string; path: string }> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/data/saved-scenes`, {
     method: "POST",
@@ -237,7 +248,10 @@ export async function saveGeneratedScene(code: string, track: string, model: str
   return res.json();
 }
 
-export async function cleanupIncompleteScenes(track: string, keep = 3): Promise<{ removed: number; kept: number }> {
+export async function cleanupIncompleteScenes(
+  track: string,
+  keep = 3,
+): Promise<{ removed: number; kept: number }> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/data/saved-scenes/cleanup`, {
     method: "POST",
@@ -249,7 +263,9 @@ export async function cleanupIncompleteScenes(track: string, keep = 3): Promise<
   return res.json();
 }
 
-export async function listSavedScenes(): Promise<{ scenes: Array<{ filename: string; path: string; size: number; modified: string }> }> {
+export async function listSavedScenes(): Promise<{
+  scenes: Array<{ filename: string; path: string; size: number; modified: string }>;
+}> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/data/saved-scenes`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to list saved scenes");
@@ -284,7 +300,9 @@ export async function getPromptHistory(params?: {
   if (params?.track_filename) qs.set("track_filename", params.track_filename);
   if (params?.section) qs.set("section", params.section);
   if (params?.limit) qs.set("limit", String(params.limit));
-  const res = await fetchWithTimeout(`${base}/api/data/prompt-history?${qs.toString()}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/data/prompt-history?${qs.toString()}`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to load prompt history");
   return res.json();
 }
@@ -318,14 +336,19 @@ export async function savePromptVersion(entry: {
 
 export async function getPromptChain(entryId: string): Promise<PromptHistoryEntry[]> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/data/prompt-history/${entryId}/chain`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/data/prompt-history/${entryId}/chain`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to load prompt chain");
   return res.json();
 }
 
 export async function deletePromptVersion(entryId: string): Promise<{ success: boolean }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/data/prompt-history/${entryId}`, { method: "DELETE", timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/data/prompt-history/${entryId}`, {
+    method: "DELETE",
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to delete prompt version");
   return res.json();
 }

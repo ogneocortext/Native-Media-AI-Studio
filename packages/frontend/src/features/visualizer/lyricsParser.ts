@@ -7,17 +7,11 @@ import type { LyricLine } from "./components/KineticPresets";
  * This is the preferred format - each lyric line has its own row
  * with explicit timing.
  */
-export function parseLyricsFromNormalizedCsv(
-  csvContent: string,
-  trackName: string,
-): LyricLine[] {
+export function parseLyricsFromNormalizedCsv(csvContent: string, trackName: string): LyricLine[] {
   if (!csvContent || !trackName) return [];
 
   // Normalize line endings and split
-  const lines = csvContent
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .split("\n");
+  const lines = csvContent.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
   if (lines.length < 2) return [];
 
   // Find the header row to determine column indices
@@ -28,13 +22,7 @@ export function parseLyricsFromNormalizedCsv(
   const endIdx = header.indexOf("end_time");
   const textIdx = header.indexOf("text");
 
-  if (
-    trackIdx < 0 ||
-    sectionIdx < 0 ||
-    startIdx < 0 ||
-    endIdx < 0 ||
-    textIdx < 0
-  ) {
+  if (trackIdx < 0 || sectionIdx < 0 || startIdx < 0 || endIdx < 0 || textIdx < 0) {
     return []; // Invalid format
   }
 
@@ -50,10 +38,7 @@ export function parseLyricsFromNormalizedCsv(
 
     // Parse CSV line (handle quoted fields)
     const fields = parseCsvLine(line);
-    if (
-      fields.length <= Math.max(trackIdx, sectionIdx, startIdx, endIdx, textIdx)
-    )
-      continue;
+    if (fields.length <= Math.max(trackIdx, sectionIdx, startIdx, endIdx, textIdx)) continue;
 
     const csvName = fields[trackIdx]
       .toLowerCase()
@@ -102,8 +87,10 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
     if (marker.includes("bridge")) return "BRIDGE";
     if (marker.includes("drop")) return "DROP";
     if (marker.includes("breakdown")) return "BREAKDOWN";
-    if (marker.includes("build-up") || marker.includes("build up") || marker.includes("buildup")) return "BUILD-UP";
-    if (marker.includes("instrumental") || marker.includes("interlude") || marker.includes("solo")) return "INSTRUMENTAL";
+    if (marker.includes("build-up") || marker.includes("build up") || marker.includes("buildup"))
+      return "BUILD-UP";
+    if (marker.includes("instrumental") || marker.includes("interlude") || marker.includes("solo"))
+      return "INSTRUMENTAL";
     if (marker.includes("outro")) return "OUTRO";
     if (marker.includes("hook") || marker.includes("refrain")) return "CHORUS";
     return marker.toUpperCase();
@@ -118,7 +105,9 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
     if (/^\[offset:/i.test(line)) continue;
 
     // Standalone section marker like [Chorus] (no timestamp)
-    const standaloneSection = line.match(/^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i);
+    const standaloneSection = line.match(
+      /^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i,
+    );
     if (standaloneSection) {
       currentSection = sectionFor(standaloneSection[1]);
       continue;
@@ -133,7 +122,9 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
     const wordTagRegex = /<(\d{1,3}):(\d{2})[.:](\d{1,3})>/g;
     const inlineWordTags = [...text.matchAll(wordTagRegex)];
     // Section marker embedded as text after timestamps: [00:12.00][Chorus]
-    const embeddedSection = text.match(/^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i);
+    const embeddedSection = text.match(
+      /^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i,
+    );
     if (embeddedSection) {
       currentSection = sectionFor(embeddedSection[1]);
       continue;
@@ -145,8 +136,13 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
       const lineStartMins = parseInt(stamps[0][1], 10);
       const lineStartSecs = parseInt(stamps[0][2], 10);
       const lineStartFrac = stamps[0][3];
-      const lineStartDiv = lineStartFrac.length === 3 ? 1000 : lineStartFrac.length === 1 ? 10 : 100;
-      const lineStart = lineStartMins * 60 + lineStartSecs + parseInt(lineStartFrac, 10) / lineStartDiv + offsetMs / 1000;
+      const lineStartDiv =
+        lineStartFrac.length === 3 ? 1000 : lineStartFrac.length === 1 ? 10 : 100;
+      const lineStart =
+        lineStartMins * 60 +
+        lineStartSecs +
+        parseInt(lineStartFrac, 10) / lineStartDiv +
+        offsetMs / 1000;
       // Split text by word tags to reconstruct words with timing
       const words: Array<{ word: string; start: number; end: number }> = [];
       const lastTime = Math.max(0, lineStart);
@@ -163,19 +159,33 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
         // Text between this tag and next tag (or end) is the word
         const tagEnd = (wt as any).index! + wt[0].length;
         const nextTagIdx = text.indexOf("<", tagEnd);
-        const wordText = (nextTagIdx >= 0 ? text.slice(tagEnd, nextTagIdx) : text.slice(tagEnd)).trim().split(/\s+/)[0] || "";
+        const wordText =
+          (nextTagIdx >= 0 ? text.slice(tagEnd, nextTagIdx) : text.slice(tagEnd))
+            .trim()
+            .split(/\s+/)[0] || "";
         if (wordText) {
           // Close previous word's end at this word's start
-          if (words.length > 0) words[words.length - 1].end = Math.max(words[words.length - 1].start + 0.2, wStart);
-          words.push({ word: wordText, start: Math.max(0, wStart), end: Math.max(0, wStart) + 0.5 });
+          if (words.length > 0)
+            words[words.length - 1].end = Math.max(words[words.length - 1].start + 0.2, wStart);
+          words.push({
+            word: wordText,
+            start: Math.max(0, wStart),
+            end: Math.max(0, wStart) + 0.5,
+          });
         }
       }
       // Fix last word end to next line's start or +1.2s
       if (words.length > 0) {
         // Derive line end from next timestamp in file (peek ahead) or default
-        const lineText = words.map(w => w.word).join(" ");
+        const lineText = words.map((w) => w.word).join(" ");
         const lastWordEnd = words[words.length - 1].start + 0.6;
-        result.push({ start: Math.max(0, lineStart), end: lastWordEnd, text: lineText, section: currentSection, words } as any);
+        result.push({
+          start: Math.max(0, lineStart),
+          end: lastWordEnd,
+          text: lineText,
+          section: currentSection,
+          words,
+        } as any);
       }
       continue;
     }
@@ -277,10 +287,7 @@ function parseLyricsFromLegacyCsv(
       .trim();
 
     // Fuzzy match: track name contains CSV name or vice versa
-    if (
-      cleanTrackName.includes(cleanCsvName) ||
-      cleanCsvName.includes(cleanTrackName)
-    ) {
+    if (cleanTrackName.includes(cleanCsvName) || cleanCsvName.includes(cleanTrackName)) {
       // Extract lyrics from the 4th column - everything after the 3rd comma-separated field
       const lyricsColMatch = line.match(/^"\d+","[^"]*","[^"]*","(.*)"$/);
       if (!lyricsColMatch) continue;
@@ -300,10 +307,7 @@ function parseLyricsFromLegacyCsv(
  * 1. Section markers: 'Structure: Verse–Verse–Pre-Chorus–Chorus(""lyric..."")–Breakdown–Build-Up–Verse–Final Chorus'
  * 2. Theme + quoted: 'Theme: description. ""lyric 1 / lyric 2 / lyric 3""'
  */
-export function generateTimedLyrics(
-  lyricsText: string,
-  duration: number,
-): LyricLine[] {
+export function generateTimedLyrics(lyricsText: string, duration: number): LyricLine[] {
   if (!lyricsText || lyricsText.length < 10) return [];
 
   const sections: { section: string; lines: string[] }[] = [];
@@ -312,9 +316,7 @@ export function generateTimedLyrics(
 
   // Check if this is format 1 (has explicit section markers)
   const hasSectionMarkers =
-    /(?:VERSE|CHORUS|BRIDGE|INTRO|FINAL\s*Chorus|PRE-CHORUS|BREAKDOWN|BUILD-UP)/i.test(
-      lyricsText,
-    );
+    /(?:VERSE|CHORUS|BRIDGE|INTRO|FINAL\s*Chorus|PRE-CHORUS|BREAKDOWN|BUILD-UP)/i.test(lyricsText);
 
   if (hasSectionMarkers) {
     // Parse lyrics text into sections
@@ -423,7 +425,7 @@ export function generateTimedLyrics(
     }
   }
   // Clamp last end to duration
-  if (result.length) result[result.length-1].end = Math.round(duration * 100) / 100;
+  if (result.length) result[result.length - 1].end = Math.round(duration * 100) / 100;
 
   return result;
 }

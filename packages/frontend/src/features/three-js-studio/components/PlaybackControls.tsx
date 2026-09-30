@@ -38,13 +38,13 @@ export function PlaybackControls({
           <button
             onClick={onRenderPlayPause}
             className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${renderPlaying ? "bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-900/40" : "bg-gray-700 hover:bg-gray-600"}`}
-            title={renderPlaying ? "Pause preview" : "Preview play — plays the live canvas, no file is rendered"}
+            title={
+              renderPlaying
+                ? "Pause preview"
+                : "Preview play — plays the live canvas, no file is rendered"
+            }
           >
-            {renderPlaying ? (
-              <Pause size={16} />
-            ) : (
-              <Play size={16} className="ml-0.5" />
-            )}
+            {renderPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
           </button>
           <button
             onClick={onRenderRewind}
@@ -60,9 +60,7 @@ export function PlaybackControls({
               {Math.floor(animationTime / 60)}:
               {String(Math.floor(animationTime % 60)).padStart(2, "0")}
             </span>
-            <span className="text-[9px] text-gray-500 uppercase tracking-wider">
-              Preview
-            </span>
+            <span className="text-[9px] text-gray-500 uppercase tracking-wider">Preview</span>
           </div>
         </div>
 
@@ -76,11 +74,7 @@ export function PlaybackControls({
             className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${isAudioPlaying ? "bg-purple-600 hover:bg-purple-500 shadow-lg shadow-purple-900/40" : "bg-gray-700 hover:bg-gray-600"}`}
             title={isAudioPlaying ? "Pause audio" : "Play audio"}
           >
-            {isAudioPlaying ? (
-              <Pause size={16} />
-            ) : (
-              <Play size={16} className="ml-0.5" />
-            )}
+            {isAudioPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
           </button>
           <button
             onClick={onAudioStop}
@@ -95,9 +89,7 @@ export function PlaybackControls({
             >
               {isAudioPlaying ? "LIVE" : "— : —"}
             </span>
-            <span className="text-[9px] text-gray-500 uppercase tracking-wider">
-              Audio
-            </span>
+            <span className="text-[9px] text-gray-500 uppercase tracking-wider">Audio</span>
           </div>
         </div>
 
@@ -106,9 +98,7 @@ export function PlaybackControls({
 
         {/* Timeline Scrubber */}
         <div className="flex-1 flex items-center gap-2 px-2">
-          <span className="text-[10px] text-gray-500 font-mono">
-            {animationTime.toFixed(1)}s
-          </span>
+          <span className="text-[10px] text-gray-500 font-mono">{animationTime.toFixed(1)}s</span>
           <div className="flex-1 relative">
             <input
               type="range"

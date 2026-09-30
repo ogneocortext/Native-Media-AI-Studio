@@ -40,7 +40,12 @@ interface UseFileUploadReturn {
   openFileDialog: () => void;
   clearFiles: () => void;
   setFiles: (files: File[]) => void;
-  uploadWithProgress: (url: string, fileToUpload: File, fieldName?: string, extraFields?: Record<string, string>) => Promise<Response>;
+  uploadWithProgress: (
+    url: string,
+    fileToUpload: File,
+    fieldName?: string,
+    extraFields?: Record<string, string>,
+  ) => Promise<Response>;
   cancelUpload: () => void;
 }
 
@@ -66,10 +71,13 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
   const dragCounter = useRef(0);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
 
-  const fail = useCallback((msg: string) => {
-    setError(msg);
-    onError?.(msg);
-  }, [onError]);
+  const fail = useCallback(
+    (msg: string) => {
+      setError(msg);
+      onError?.(msg);
+    },
+    [onError],
+  );
 
   const validateFile = useCallback(
     (f: File): string | null => {
@@ -82,43 +90,49 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
       }
       return null;
     },
-    [maxSizeMB, kind, accept]
+    [maxSizeMB, kind, accept],
   );
 
-  const runProbe = useCallback(async (f: File) => {
-    if (!probeAudio || kind !== "audio") {
-      setAudioMeta(null);
-      return;
-    }
-    setProbing(true);
-    try {
-      const meta = await probeAudioFile(f);
-      setAudioMeta(meta);
-      if (meta.durationSeconds !== null && meta.durationSeconds < 1) {
-        fail(`"${f.name}" decoded to ${meta.durationSeconds.toFixed(2)}s — file looks corrupt`);
+  const runProbe = useCallback(
+    async (f: File) => {
+      if (!probeAudio || kind !== "audio") {
+        setAudioMeta(null);
+        return;
       }
-    } finally {
-      setProbing(false);
-    }
-  }, [probeAudio, kind, fail]);
+      setProbing(true);
+      try {
+        const meta = await probeAudioFile(f);
+        setAudioMeta(meta);
+        if (meta.durationSeconds !== null && meta.durationSeconds < 1) {
+          fail(`"${f.name}" decoded to ${meta.durationSeconds.toFixed(2)}s — file looks corrupt`);
+        }
+      } finally {
+        setProbing(false);
+      }
+    },
+    [probeAudio, kind, fail],
+  );
 
-  const commitFiles = useCallback((valid: File[]) => {
-    if (valid.length === 0) return;
-    if (multiple) {
-      setFilesState(valid);
-      if (valid.length === 1) {
+  const commitFiles = useCallback(
+    (valid: File[]) => {
+      if (valid.length === 0) return;
+      if (multiple) {
+        setFilesState(valid);
+        if (valid.length === 1) {
+          setFile(valid[0]);
+          onFileSelected?.(valid[0]);
+          void runProbe(valid[0]);
+        } else {
+          setAudioMeta(null);
+        }
+      } else {
         setFile(valid[0]);
         onFileSelected?.(valid[0]);
         void runProbe(valid[0]);
-      } else {
-        setAudioMeta(null);
       }
-    } else {
-      setFile(valid[0]);
-      onFileSelected?.(valid[0]);
-      void runProbe(valid[0]);
-    }
-  }, [multiple, onFileSelected, runProbe]);
+    },
+    [multiple, onFileSelected, runProbe],
+  );
 
   const processFiles = useCallback(
     (fileList: FileList | File[] | null) => {
@@ -146,7 +160,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
 
       commitFiles(valid);
     },
-    [multiple, validateFile, commitFiles, fail]
+    [multiple, validateFile, commitFiles, fail],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -175,14 +189,14 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
       setIsDragging(false);
       processFiles(e.dataTransfer.files);
     },
-    [processFiles]
+    [processFiles],
   );
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       processFiles(e.target.files);
     },
-    [processFiles]
+    [processFiles],
   );
 
   const handlePaste = useCallback(
@@ -193,7 +207,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
         processFiles(pasted);
       }
     },
-    [processFiles]
+    [processFiles],
   );
 
   const openFileDialog = useCallback(() => {
@@ -240,7 +254,9 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
         xhr.onload = () => {
           xhrRef.current = null;
           setUploadProgress(100);
-          resolve(new Response(xhr.responseText, { status: xhr.status, statusText: xhr.statusText }));
+          resolve(
+            new Response(xhr.responseText, { status: xhr.status, statusText: xhr.statusText }),
+          );
         };
         xhr.onerror = () => {
           xhrRef.current = null;
@@ -260,7 +276,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
         xhr.send(form);
       });
     },
-    []
+    [],
   );
 
   return {

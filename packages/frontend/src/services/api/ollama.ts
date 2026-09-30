@@ -39,15 +39,23 @@ export async function getOllamaModels(): Promise<OllamaModel[]> {
   const res = await fetchWithTimeout(`${base}/api/integrations/ollama/models`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get Ollama models");
   const payload = await res.json();
-  const entries = Array.isArray(payload) ? payload : (payload.models || []);
-  return entries.map((model: OllamaModel & { id?: string; model_name?: string; model_size?: number }) => ({
-    ...model,
-    name: model.name || model.id || model.model_name || "",
-    size: model.size ?? model.model_size ?? 0,
-  })).filter((m: OllamaModel) => {
-    const name = m.name.toLowerCase();
-    return name && !name.includes("embed") && !name.includes("nomic") && !name.includes("minigpt") && !name.includes("clip");
-  });
+  const entries = Array.isArray(payload) ? payload : payload.models || [];
+  return entries
+    .map((model: OllamaModel & { id?: string; model_name?: string; model_size?: number }) => ({
+      ...model,
+      name: model.name || model.id || model.model_name || "",
+      size: model.size ?? model.model_size ?? 0,
+    }))
+    .filter((m: OllamaModel) => {
+      const name = m.name.toLowerCase();
+      return (
+        name &&
+        !name.includes("embed") &&
+        !name.includes("nomic") &&
+        !name.includes("minigpt") &&
+        !name.includes("clip")
+      );
+    });
 }
 
 export interface OllamaBenchmarkResult {
@@ -63,21 +71,35 @@ export interface OllamaBenchmarkResult {
     passed_rules: number;
     total_rules: number;
     details: Array<{ rule: string; description: string; weight: number; passed: boolean }>;
-    metrics: { lines: number; chars: number; balanced_braces: boolean; node_valid: boolean | null; node_error: string | null };
+    metrics: {
+      lines: number;
+      chars: number;
+      balanced_braces: boolean;
+      node_valid: boolean | null;
+      node_error: string | null;
+    };
   };
   preview: string;
   error: string | null;
   timestamp: string;
 }
 
-export async function getBenchmarkResults(): Promise<{ updated_at: string | null; results: Record<string, OllamaBenchmarkResult> }> {
+export async function getBenchmarkResults(): Promise<{
+  updated_at: string | null;
+  results: Record<string, OllamaBenchmarkResult>;
+}> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/benchmark/results`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/benchmark/results`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get benchmark results");
   return res.json();
 }
 
-export async function runBenchmark(models?: string[], max_models = 8): Promise<{ updated_at: string | null; results: Record<string, OllamaBenchmarkResult> }> {
+export async function runBenchmark(
+  models?: string[],
+  max_models = 8,
+): Promise<{ updated_at: string | null; results: Record<string, OllamaBenchmarkResult> }> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/integrations/ollama/benchmark/run`, {
     method: "POST",
@@ -92,9 +114,15 @@ export async function runBenchmark(models?: string[], max_models = 8): Promise<{
   return res.json();
 }
 
-export async function getBestBenchmarkModel(): Promise<{ best: string | null; result?: OllamaBenchmarkResult; results: { updated_at: string | null; results: Record<string, OllamaBenchmarkResult> } }> {
+export async function getBestBenchmarkModel(): Promise<{
+  best: string | null;
+  result?: OllamaBenchmarkResult;
+  results: { updated_at: string | null; results: Record<string, OllamaBenchmarkResult> };
+}> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/benchmark/best`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/benchmark/best`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get best benchmark model");
   return res.json();
 }
@@ -128,14 +156,22 @@ export interface CodingBenchmarkResult {
   timestamp: string;
 }
 
-export async function getCodingBenchmarkResults(): Promise<{ updated_at: string | null; results: Record<string, CodingBenchmarkResult> }> {
+export async function getCodingBenchmarkResults(): Promise<{
+  updated_at: string | null;
+  results: Record<string, CodingBenchmarkResult>;
+}> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/coding-benchmark/results`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/coding-benchmark/results`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get coding benchmark results");
   return res.json();
 }
 
-export async function runCodingBenchmark(models?: string[], max_models = 12): Promise<{ updated_at: string | null; results: Record<string, CodingBenchmarkResult> }> {
+export async function runCodingBenchmark(
+  models?: string[],
+  max_models = 12,
+): Promise<{ updated_at: string | null; results: Record<string, CodingBenchmarkResult> }> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/integrations/ollama/coding-benchmark/run`, {
     method: "POST",
@@ -150,9 +186,15 @@ export async function runCodingBenchmark(models?: string[], max_models = 12): Pr
   return res.json();
 }
 
-export async function getBestCodingModel(): Promise<{ best: string | null; result?: CodingBenchmarkResult; results: { updated_at: string | null; results: Record<string, CodingBenchmarkResult> } }> {
+export async function getBestCodingModel(): Promise<{
+  best: string | null;
+  result?: CodingBenchmarkResult;
+  results: { updated_at: string | null; results: Record<string, CodingBenchmarkResult> };
+}> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/coding-benchmark/best`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/coding-benchmark/best`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get best coding model");
   return res.json();
 }
@@ -166,7 +208,12 @@ export async function ollamaChat(
     think?: boolean | string;
     maxToolCalls?: number;
   },
-): Promise<{ response: string; model: string; toolCalls: number; toolDetails?: Array<{ name: string; arguments: Record<string, unknown>; result: string }> }> {
+): Promise<{
+  response: string;
+  model: string;
+  toolCalls: number;
+  toolDetails?: Array<{ name: string; arguments: Record<string, unknown>; result: string }>;
+}> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/integrations/ollama/chat`, {
     method: "POST",
@@ -210,7 +257,16 @@ export async function ollamaChatStream(
     ...(options?.ollamaOptions || {}),
   };
   const optionsRecord = options as Record<string, unknown> | undefined;
-  for (const k of ["temperature", "top_p", "top_k", "num_predict", "repeat_penalty", "num_ctx", "seed", "stop"]) {
+  for (const k of [
+    "temperature",
+    "top_p",
+    "top_k",
+    "num_predict",
+    "repeat_penalty",
+    "num_ctx",
+    "seed",
+    "stop",
+  ]) {
     if (optionsRecord?.[k] !== undefined) ollamaOpts[k] = optionsRecord[k];
   }
   const res = await fetch(`${base}/api/integrations/ollama/chat`, {
@@ -233,9 +289,10 @@ export async function ollamaChatStream(
   return res.body!;
 }
 
-export async function* parseOllamaStream(
-  stream: ReadableStream<Uint8Array>,
-): AsyncGenerator<{ type: "content" | "tool_calls" | "done" | "connected" | "error"; data: unknown }> {
+export async function* parseOllamaStream(stream: ReadableStream<Uint8Array>): AsyncGenerator<{
+  type: "content" | "tool_calls" | "done" | "connected" | "error";
+  data: unknown;
+}> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -317,7 +374,12 @@ export interface AIGeneratedPreset {
     rotation: boolean;
   };
   camera: {
-    keyframes: Array<{ at: number; position: [number, number, number]; target: [number, number, number]; easing?: string }>;
+    keyframes: Array<{
+      at: number;
+      position: [number, number, number];
+      target: [number, number, number];
+      easing?: string;
+    }>;
     mode: string;
     fov: number;
   };

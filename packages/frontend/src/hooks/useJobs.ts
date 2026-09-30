@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import { useJobStore } from "../state/jobStore";
-import {
-  useHealthStore,
-  useSystemHealth,
-  useServiceStatus,
-} from "../state/healthStore";
+import { useHealthStore, useSystemHealth, useServiceStatus } from "../state/healthStore";
 
 /**
  * Jobs + stats view model backed by the shared jobStore.
@@ -50,8 +46,14 @@ export function useHealth() {
     setInitialLoading(true);
 
     Promise.all([
-      useHealthStore.getState().fetchHealth().catch(() => {}),
-      useHealthStore.getState().fetchSystemStatus().catch(() => {}),
+      useHealthStore
+        .getState()
+        .fetchHealth()
+        .catch(() => {}),
+      useHealthStore
+        .getState()
+        .fetchSystemStatus()
+        .catch(() => {}),
     ]).finally(() => {
       if (!cancelled) setInitialLoading(false);
     });

@@ -57,7 +57,10 @@ export function templateRandom(i: number, salt = 0): number {
  * scenes. Each bar is a tall box centered at the origin and offset along
  * the X axis. They animate to live audio bass when `audioDriven: "bars"`.
  */
-function buildBars(count: number, opts: { color: string; emissive: string; y?: number; gap?: number }): AnimObject[] {
+function buildBars(
+  count: number,
+  opts: { color: string; emissive: string; y?: number; gap?: number },
+): AnimObject[] {
   const gap = opts.gap ?? 0.18;
   const y = opts.y ?? 0;
   const totalWidth = (count - 1) * gap;
@@ -186,7 +189,15 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
         bloom: true,
       },
     ],
-    particleConfig: { enabled: true, count: 200, size: 0.02, color: "#ff66cc", spread: 6, speed: 0.4, opacity: 0.7 },
+    particleConfig: {
+      enabled: true,
+      count: 200,
+      size: 0.02,
+      color: "#ff66cc",
+      spread: 6,
+      speed: 0.4,
+      opacity: 0.7,
+    },
     cameraMode: "orbit",
     sceneConfig: { fogDensity: 0.018, bloomStrength: 0.9, vignetteStrength: 0.6 },
   },
@@ -233,9 +244,22 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
         bloom: true,
       },
     ],
-    particleConfig: { enabled: true, count: 400, size: 0.03, color: "#ffffff", spread: 10, speed: 0.05, opacity: 0.6 },
+    particleConfig: {
+      enabled: true,
+      count: 400,
+      size: 0.03,
+      color: "#ffffff",
+      spread: 10,
+      speed: 0.05,
+      opacity: 0.6,
+    },
     cameraMode: "orbit",
-    sceneConfig: { fogDensity: 0.005, backgroundColor: "#000005", bloomStrength: 1.1, vignetteStrength: 0.7 },
+    sceneConfig: {
+      fogDensity: 0.005,
+      backgroundColor: "#000005",
+      bloomStrength: 1.1,
+      vignetteStrength: 0.7,
+    },
   },
   {
     id: "equalizer",
@@ -243,9 +267,22 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
     description: "32 bars that pulse to live audio bass",
     emoji: "🎚️",
     objects: buildBars(32, { color: "#00ffcc", emissive: "#00ccaa" }),
-    particleConfig: { enabled: true, count: 80, size: 0.02, color: "#00ffff", spread: 4, speed: 0.2, opacity: 0.7 },
+    particleConfig: {
+      enabled: true,
+      count: 80,
+      size: 0.02,
+      color: "#00ffff",
+      spread: 4,
+      speed: 0.2,
+      opacity: 0.7,
+    },
     cameraMode: "orbit",
-    sceneConfig: { fogDensity: 0.012, bloomStrength: 1.2, chromaticAberration: 0.003, beatPunch: 0.25 },
+    sceneConfig: {
+      fogDensity: 0.012,
+      bloomStrength: 1.2,
+      chromaticAberration: 0.003,
+      beatPunch: 0.25,
+    },
     audioDriven: "bars",
   },
   {
@@ -308,7 +345,15 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
       });
       return pillars;
     })(),
-    particleConfig: { enabled: true, count: 150, size: 0.02, color: "#aaaaff", spread: 8, speed: 0.1, opacity: 0.5 },
+    particleConfig: {
+      enabled: true,
+      count: 150,
+      size: 0.02,
+      color: "#aaaaff",
+      spread: 8,
+      speed: 0.1,
+      opacity: 0.5,
+    },
     cameraMode: "dolly",
     sceneConfig: { fogDensity: 0.02, backgroundColor: "#0a0014", bloomStrength: 1.0 },
     audioDriven: "pillars",
@@ -392,9 +437,22 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
         bloom: false,
       },
     ],
-    particleConfig: { enabled: false, count: 0, size: 0.02, color: "#ffffff", spread: 0, speed: 0, opacity: 0.5 },
+    particleConfig: {
+      enabled: false,
+      count: 0,
+      size: 0.02,
+      color: "#ffffff",
+      spread: 0,
+      speed: 0,
+      opacity: 0.5,
+    },
     cameraMode: "dolly",
-    sceneConfig: { fogDensity: 0.008, backgroundColor: "#18181c", bloomStrength: 0.5, vignetteStrength: 0.4 },
+    sceneConfig: {
+      fogDensity: 0.008,
+      backgroundColor: "#18181c",
+      bloomStrength: 0.5,
+      vignetteStrength: 0.4,
+    },
   },
   {
     id: "pulse-orb",
@@ -421,9 +479,22 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
         bloom: true,
       },
     ],
-    particleConfig: { enabled: true, count: 300, size: 0.02, color: "#ff66cc", spread: 5, speed: 0.3, opacity: 0.7 },
+    particleConfig: {
+      enabled: true,
+      count: 300,
+      size: 0.02,
+      color: "#ff66cc",
+      spread: 5,
+      speed: 0.3,
+      opacity: 0.7,
+    },
     cameraMode: "orbit",
-    sceneConfig: { fogDensity: 0.015, backgroundColor: "#100018", bloomStrength: 1.3, beatPunch: 0.35 },
+    sceneConfig: {
+      fogDensity: 0.015,
+      backgroundColor: "#100018",
+      bloomStrength: 1.3,
+      beatPunch: 0.35,
+    },
   },
   {
     id: "character-stage",
@@ -545,8 +616,22 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
         bloom: true,
       },
     ],
-    particleConfig: { enabled: true, count: 250, size: 0.025, color: "#fbbf24", spread: 7, speed: 0.35, opacity: 0.65 },
+    particleConfig: {
+      enabled: true,
+      count: 250,
+      size: 0.025,
+      color: "#fbbf24",
+      spread: 7,
+      speed: 0.35,
+      opacity: 0.65,
+    },
     cameraMode: "orbit",
-    sceneConfig: { fogDensity: 0.012, backgroundColor: "#0a0010", bloomStrength: 1.1, vignetteStrength: 0.55, beatPunch: 0.2 },
+    sceneConfig: {
+      fogDensity: 0.012,
+      backgroundColor: "#0a0010",
+      bloomStrength: 1.1,
+      vignetteStrength: 0.55,
+      beatPunch: 0.2,
+    },
   },
 ];

@@ -13,7 +13,14 @@ import {
 import { InstancedParticles } from "./instancedParticles";
 import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
 
-export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReducedMotion, stems, audioElapsedRef }: VizProps) {
+export function GeometricViz({
+  audioData,
+  vizParams,
+  sceneFrozen,
+  prefersReducedMotion,
+  stems,
+  audioElapsedRef,
+}: VizProps) {
   const coreRef = useRef<THREE.Mesh>(null);
   const wireRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
@@ -60,11 +67,7 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
       pos[i * 3] = Math.cos(angle) * radius;
       pos[i * 3 + 1] = height;
       pos[i * 3 + 2] = Math.sin(angle) * radius;
-      const c = new THREE.Color().setHSL(
-        0.5 + Math.random() * 0.3,
-        1.0,
-        0.6 + Math.random() * 0.3,
-      );
+      const c = new THREE.Color().setHSL(0.5 + Math.random() * 0.3, 1.0, 0.6 + Math.random() * 0.3);
       col[i * 3] = c.r;
       col[i * 3 + 1] = c.g;
       col[i * 3 + 2] = c.b;
@@ -110,11 +113,21 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
       }),
     [],
   );
-  useEffect(() => () => { backdropMat.dispose(); }, [backdropMat]);
+  useEffect(
+    () => () => {
+      backdropMat.dispose();
+    },
+    [backdropMat],
+  );
 
   // Dispose the memoised BufferGeometry on unmount (R3F does not auto-dispose
   // useMemo'd geometries; style switches mount/unmount whole scenes).
-  useEffect(() => () => { orbitGeom.g.dispose(); }, [orbitGeom]);
+  useEffect(
+    () => () => {
+      orbitGeom.g.dispose();
+    },
+    [orbitGeom],
+  );
 
   useFrame((s, delta) => {
     // Frame-rate-independent motion: normalize legacy per-frame constants to
@@ -181,30 +194,24 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
 
     // Layer 0: Core (radius ~0.6) — TSL audio-reactive on WebGPU, JS-driven on WebGL
     if (coreRef.current) {
-      const s =
-        vizParams.scale *
-        0.6 *
-        (1 + bass * vizParams.scaleBoost * 0.4) *
-        pulseScale;
+      const s = vizParams.scale * 0.6 * (1 + bass * vizParams.scaleBoost * 0.4) * pulseScale;
       coreRef.current.scale.setScalar(s);
       coreRef.current.rotation.y = rotRef.current;
       coreRef.current.rotation.x = Math.sin(t * 0.3) * 0.2;
       if (isWebGPU && coreMat) {
-        updateTerrainMaterialTSL(coreMat, t, { bass, mid, treble, energy }, vizParams.glowIntensity * 0.6);
+        updateTerrainMaterialTSL(
+          coreMat,
+          t,
+          { bass, mid, treble, energy },
+          vizParams.glowIntensity * 0.6,
+        );
       } else if (coreRef.current.material) {
         const m = coreRef.current.material as THREE.MeshStandardMaterial;
         // Exposure-capped: the pre-2026-09-16 gains clipped the core to a
         // featureless white disc under bloom (see 0:07–0:12 captures).
         m.emissiveIntensity =
-          0.6 +
-          bass * vizParams.glowIntensity * 2 +
-          beatPulse.current * 1.4 +
-          features.onset * 2;
-        m.color.setHSL(
-          hueRef.current + features.brightness * 0.2,
-          0.9,
-          0.55 + bass * 0.15,
-        );
+          0.6 + bass * vizParams.glowIntensity * 2 + beatPulse.current * 1.4 + features.onset * 2;
+        m.color.setHSL(hueRef.current + features.brightness * 0.2, 0.9, 0.55 + bass * 0.15);
         m.emissive.setHSL(
           hueRef.current + 0.1 + features.brightness * 0.15 + beatHue,
           1.0,
@@ -214,8 +221,7 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
     }
     // Layer 1: Glow (radius ~1.2)
     if (glowRef.current) {
-      const s =
-        vizParams.scale * 1.2 * (1 + bass * 0.5 + beatPulse.current * 0.3);
+      const s = vizParams.scale * 1.2 * (1 + bass * 0.5 + beatPulse.current * 0.3);
       glowRef.current.scale.setScalar(s);
       glowRef.current.rotation.y = rotRef.current * 0.5;
       const m = glowRef.current.material as THREE.MeshStandardMaterial;
@@ -244,8 +250,7 @@ export function GeometricViz({ audioData, vizParams, sceneFrozen, prefersReduced
     }
     // Layer 4: Orbital spiral (radius 3.5-5)
     if (orbitRef.current) {
-      orbitRef.current.rotation.y =
-        rotRef.current * 1.5 * (1 + features.energy * 2);
+      orbitRef.current.rotation.y = rotRef.current * 1.5 * (1 + features.energy * 2);
       orbitRef.current.rotation.x = Math.sin(t * 0.15) * 0.4 * mid;
       const om = orbitRef.current.material as THREE.PointsMaterial;
       om.size = 0.05 + treble * 0.06 + beatPulse.current * 0.04;
@@ -421,13 +426,17 @@ export function AudioReactiveCore({
     const { bass, mid, treble, energy } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
     if (isWebGPU) {
-      updateTerrainMaterialTSL(mat, t, { bass, mid, treble, energy }, vizParams.glowIntensity * 0.6);
+      updateTerrainMaterialTSL(
+        mat,
+        t,
+        { bass, mid, treble, energy },
+        vizParams.glowIntensity * 0.6,
+      );
     } else {
       updateTerrainMaterial(mat, t, { bass, mid, treble, energy }, vizParams.glowIntensity * 0.6);
     }
     meshRef.current.rotation.x = -Math.PI / 2.5;
-    if (!sceneFrozen)
-      meshRef.current.rotation.z = t * 0.02 * vizParams.rotationSpeed * speedMul;
+    if (!sceneFrozen) meshRef.current.rotation.z = t * 0.02 * vizParams.rotationSpeed * speedMul;
     meshRef.current.scale.setScalar(vizParams.scale * (1 + bass * 0.15));
   });
 

@@ -5,7 +5,7 @@
   display: flex;
   flex-direction: column;
   block-size: 100%;
-  background: linear-gradient(180deg in oklch,  var(--bg-surface) 0%, var(--bg-primary) 100%);
+  background: linear-gradient(180deg in oklch, var(--bg-surface) 0%, var(--bg-primary) 100%);
   border-inline-end: 1px solid var(--border-color);
   position: relative;
   z-index: 30;
@@ -66,12 +66,14 @@
   inline-size: 38px;
   block-size: 38px;
   border-radius: 12px;
-  background: linear-gradient(135deg in oklch,  var(--color-primary), var(--color-accent));
+  background: linear-gradient(135deg in oklch, var(--color-primary), var(--color-accent));
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 4px 14px var(--glow-primary), inset 0 1px 0 oklch(100% 0 0 / 0.25);
+  box-shadow:
+    0 4px 14px var(--glow-primary),
+    inset 0 1px 0 oklch(100% 0 0 / 0.25);
   border: 1px solid oklch(100% 0 0 / 0.12);
 }
 
@@ -84,8 +86,13 @@
 /* ...plus gently breathing equalizer bars (staggered via inline delay).
    transform-box: fill-box makes each bar scale around its own center. */
 @keyframes brand-eq {
-  0%, 100% { transform: scaleY(0.35); }
-  50% { transform: scaleY(1); }
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
 }
 
 .brand-eq-bar {
@@ -245,7 +252,9 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
 
-  &::placeholder { color: var(--text-tertiary); }
+  &::placeholder {
+    color: var(--text-tertiary);
+  }
 
   &:focus {
     outline: none;
@@ -297,7 +306,14 @@
   font-size: 14px;
   color: var(--text-secondary);
   text-decoration: none;
-  transition: color, background-color, border-color, box-shadow, transform, filter, opacity 0.2s;
+  transition:
+    color,
+    background-color,
+    border-color,
+    box-shadow,
+    transform,
+    filter,
+    opacity 0.2s;
 
   &:hover {
     color: var(--text-primary);
@@ -317,8 +333,12 @@
   &-icon {
     flex-shrink: 0;
 
-    &.active { color: oklch(98% 0 0); }
-    &.inactive { color: var(--text-tertiary); }
+    &.active {
+      color: oklch(98% 0 0);
+    }
+    &.inactive {
+      color: var(--text-tertiary);
+    }
   }
 
   &-text {
@@ -334,7 +354,11 @@
   padding: 10px;
   border-block-start: 1px solid var(--border-subtle);
   flex-shrink: 0;
-  background: linear-gradient(180deg in oklch,  color-mix(in oklch, var(--bg-primary) 92%, transparent), var(--bg-primary));
+  background: linear-gradient(
+    180deg in oklch,
+    color-mix(in oklch, var(--bg-primary) 92%, transparent),
+    var(--bg-primary)
+  );
   margin-block-start: auto;
   display: flex;
   flex-direction: column;
@@ -352,14 +376,21 @@
   margin: 10px 12px 6px;
   padding: 10px 14px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg in oklch,  var(--color-primary), var(--color-accent));
+  background: linear-gradient(135deg in oklch, var(--color-primary), var(--color-accent));
   color: oklch(98% 0 0);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.02em;
   text-decoration: none;
   box-shadow: 0 4px 14px var(--glow-primary);
-  transition: color, background-color, border-color, box-shadow, transform, filter, opacity 0.2s;
+  transition:
+    color,
+    background-color,
+    border-color,
+    box-shadow,
+    transform,
+    filter,
+    opacity 0.2s;
 
   &:hover {
     filter: brightness(1.12);
@@ -389,7 +420,14 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: color, background-color, border-color, box-shadow, transform, filter, opacity 0.2s;
+  transition:
+    color,
+    background-color,
+    border-color,
+    box-shadow,
+    transform,
+    filter,
+    opacity 0.2s;
 
   &:hover {
     background: color-mix(in oklch, var(--text-primary) 6%, transparent);
@@ -413,7 +451,14 @@
   border-radius: var(--radius-md);
   background: color-mix(in oklch, var(--text-primary) 3%, transparent);
   border: 1px solid color-mix(in oklch, var(--text-primary) 10%, transparent);
-  transition: color, background-color, border-color, box-shadow, transform, filter, opacity 0.2s;
+  transition:
+    color,
+    background-color,
+    border-color,
+    box-shadow,
+    transform,
+    filter,
+    opacity 0.2s;
 
   &:hover {
     border-color: color-mix(in oklch, var(--text-primary) 18%, transparent);
@@ -460,10 +505,18 @@
   font-weight: 700;
   color: var(--text-primary);
 
-  &.online { color: oklch(75% 0.15 145); }
-  &.offline { color: oklch(65% 0.2 25); }
-  &.unknown { color: var(--text-tertiary); }
-  &.degraded { color: oklch(80% 0.15 80); }
+  &.online {
+    color: oklch(75% 0.15 145);
+  }
+  &.offline {
+    color: oklch(65% 0.2 25);
+  }
+  &.unknown {
+    color: var(--text-tertiary);
+  }
+  &.degraded {
+    color: oklch(80% 0.15 80);
+  }
 }
 
 .system-status-count {
@@ -493,7 +546,14 @@
   border-radius: 6px;
   font-size: 12px;
   color: var(--text-secondary);
-  transition: color, background-color, border-color, box-shadow, transform, filter, opacity 0.15s;
+  transition:
+    color,
+    background-color,
+    border-color,
+    box-shadow,
+    transform,
+    filter,
+    opacity 0.15s;
 
   &:hover {
     background: color-mix(in oklch, var(--text-primary) 6%, transparent);
@@ -547,9 +607,15 @@
   letter-spacing: 0.05em;
   flex-shrink: 0;
 
-  &.online { color: oklch(75% 0.15 145); }
-  &.offline { color: oklch(65% 0.2 25); }
-  &.unknown { color: var(--text-tertiary); }
+  &.online {
+    color: oklch(75% 0.15 145);
+  }
+  &.offline {
+    color: oklch(65% 0.2 25);
+  }
+  &.unknown {
+    color: var(--text-tertiary);
+  }
 }
 
 /* Diagnostics quick-link */
@@ -563,7 +629,14 @@
   font-weight: 600;
   color: var(--text-tertiary);
   text-decoration: none;
-  transition: color, background-color, border-color, box-shadow, transform, filter, opacity 0.15s;
+  transition:
+    color,
+    background-color,
+    border-color,
+    box-shadow,
+    transform,
+    filter,
+    opacity 0.15s;
   margin-block-start: 4px;
 
   &:hover {
@@ -590,7 +663,14 @@
   block-size: 32px;
   border-radius: var(--radius-md);
   color: var(--text-tertiary);
-  transition: color, background-color, border-color, box-shadow, transform, filter, opacity 0.15s;
+  transition:
+    color,
+    background-color,
+    border-color,
+    box-shadow,
+    transform,
+    filter,
+    opacity 0.15s;
 
   &:hover {
     color: var(--text-primary);
@@ -655,7 +735,14 @@
   background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;
-  transition: color, background-color, border-color, box-shadow, transform, filter, opacity 0.15s;
+  transition:
+    color,
+    background-color,
+    border-color,
+    box-shadow,
+    transform,
+    filter,
+    opacity 0.15s;
 
   &:hover {
     color: var(--text-primary);

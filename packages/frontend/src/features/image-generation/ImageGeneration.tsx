@@ -1,5 +1,19 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { Image, Play, Clock, Settings2, Sparkles, Download, RefreshCw, Zap, Square, Gem, RectangleVertical, RectangleHorizontal, Crown } from "lucide-react";
+import {
+  Image,
+  Play,
+  Clock,
+  Settings2,
+  Sparkles,
+  Download,
+  RefreshCw,
+  Zap,
+  Square,
+  Gem,
+  RectangleVertical,
+  RectangleHorizontal,
+  Crown,
+} from "lucide-react";
 import { Card, LoadingSpinner, EmptyState, StatusBadge, ErrorState } from "../../components/common";
 import * as api from "../../services/api";
 import { getLogger } from "../../services/logger";
@@ -22,22 +36,46 @@ interface ModelInfo {
 function getModelInfo(modelName: string): ModelInfo {
   const baseName = modelName.replace(/\.(safetensors|ckpt|pt)$/i, "").toLowerCase();
   if (baseName.includes("hunyuan3d") || baseName.includes("3d")) {
-    return { description: "3D model generation", type: "3D Generation", bestFor: "3D model creation, mesh generation, assets" };
+    return {
+      description: "3D model generation",
+      type: "3D Generation",
+      bestFor: "3D model creation, mesh generation, assets",
+    };
   }
   if (baseName.includes("sdxl") || baseName.includes("xl")) {
-    return { description: "Stable Diffusion XL — high-resolution image generation", type: "Image (SDXL)", bestFor: "High-res images, detailed portraits, landscapes" };
+    return {
+      description: "Stable Diffusion XL — high-resolution image generation",
+      type: "Image (SDXL)",
+      bestFor: "High-res images, detailed portraits, landscapes",
+    };
   }
   if (baseName.includes("sd") || baseName.includes("v1-5") || baseName.includes("v15")) {
-    return { description: "Stable Diffusion 1.5 — versatile general-purpose image generation", type: "Image (SD 1.5)", bestFor: "General images, portraits, landscapes, concept art" };
+    return {
+      description: "Stable Diffusion 1.5 — versatile general-purpose image generation",
+      type: "Image (SD 1.5)",
+      bestFor: "General images, portraits, landscapes, concept art",
+    };
   }
   if (baseName.includes("flux")) {
-    return { description: "Flux — high-quality image generation with fast inference", type: "Image (Flux)", bestFor: "High-quality images, creative concepts, artistic styles" };
+    return {
+      description: "Flux — high-quality image generation with fast inference",
+      type: "Image (Flux)",
+      bestFor: "High-quality images, creative concepts, artistic styles",
+    };
   }
   if (baseName.includes("wan")) {
-    return { description: "Wan — video generation model", type: "Video", bestFor: "Video generation, motion synthesis" };
+    return {
+      description: "Wan — video generation model",
+      type: "Video",
+      bestFor: "Video generation, motion synthesis",
+    };
   }
   // Generic fallback for any model
-  return { description: `AI model: ${modelName}`, type: "Image/Video", bestFor: "Image and video generation" };
+  return {
+    description: `AI model: ${modelName}`,
+    type: "Image/Video",
+    bestFor: "Image and video generation",
+  };
 }
 
 interface GenerationOptions {
@@ -125,12 +163,42 @@ const presets: GenerationPreset[] = [
 ];
 
 const colorMap: Record<string, { bg: string; border: string; text: string; ring: string }> = {
-  amber: { bg: "bg-amber-500/10", border: "border-amber-500/30", text: "text-amber-400", ring: "ring-amber-500/20" },
-  blue: { bg: "bg-blue-500/10", border: "border-blue-500/30", text: "text-blue-400", ring: "ring-blue-500/20" },
-  purple: { bg: "bg-purple-500/10", border: "border-purple-500/30", text: "text-purple-400", ring: "ring-purple-500/20" },
-  pink: { bg: "bg-pink-500/10", border: "border-pink-500/30", text: "text-pink-400", ring: "ring-pink-500/20" },
-  emerald: { bg: "bg-emerald-500/10", border: "border-emerald-500/30", text: "text-emerald-400", ring: "ring-emerald-500/20" },
-  red: { bg: "bg-red-500/10", border: "border-red-500/30", text: "text-red-400", ring: "ring-red-500/20" },
+  amber: {
+    bg: "bg-amber-500/10",
+    border: "border-amber-500/30",
+    text: "text-amber-400",
+    ring: "ring-amber-500/20",
+  },
+  blue: {
+    bg: "bg-blue-500/10",
+    border: "border-blue-500/30",
+    text: "text-blue-400",
+    ring: "ring-blue-500/20",
+  },
+  purple: {
+    bg: "bg-purple-500/10",
+    border: "border-purple-500/30",
+    text: "text-purple-400",
+    ring: "ring-purple-500/20",
+  },
+  pink: {
+    bg: "bg-pink-500/10",
+    border: "border-pink-500/30",
+    text: "text-pink-400",
+    ring: "ring-pink-500/20",
+  },
+  emerald: {
+    bg: "bg-emerald-500/10",
+    border: "border-emerald-500/30",
+    text: "text-emerald-400",
+    ring: "ring-emerald-500/20",
+  },
+  red: {
+    bg: "bg-red-500/10",
+    border: "border-red-500/30",
+    text: "text-red-400",
+    ring: "ring-red-500/20",
+  },
 };
 
 function getFriendlyError(err: unknown): string {
@@ -172,16 +240,20 @@ export function ImageGeneration() {
           const imageModels = data.checkpoints.filter((name: string) => {
             const baseName = name.toLowerCase();
             // Exclude video/3D/motion models
-            return !baseName.includes("wan") && 
-                   !baseName.includes("animate") && 
-                   !baseName.includes("motion") &&
-                   !baseName.includes("hunyuan") &&
-                   !baseName.includes("3d") &&
-                   !baseName.includes("kandinsky");  // Kandinsky is also not SD
+            return (
+              !baseName.includes("wan") &&
+              !baseName.includes("animate") &&
+              !baseName.includes("motion") &&
+              !baseName.includes("hunyuan") &&
+              !baseName.includes("3d") &&
+              !baseName.includes("kandinsky")
+            ); // Kandinsky is also not SD
           });
           // If no models found, show all (fallback)
           const finalModels = imageModels.length > 0 ? imageModels : data.checkpoints;
-          setModels(finalModels.map((name: string) => ({ name, filename: name, path: "", size: 0 })));
+          setModels(
+            finalModels.map((name: string) => ({ name, filename: name, path: "", size: 0 })),
+          );
         }
       })
       .catch(() => {})
@@ -246,7 +318,9 @@ export function ImageGeneration() {
                 const previewData = await previewRes.json();
                 if (previewData.filename && previewData.filename !== lastPreviewFilename) {
                   lastPreviewFilename = previewData.filename;
-                  setLivePreviewUrl(`/api/integrations/comfyui/view/${encodeURIComponent(promptId)}/${encodeURIComponent(previewData.filename)}?t=${Date.now()}`);
+                  setLivePreviewUrl(
+                    `/api/integrations/comfyui/view/${encodeURIComponent(promptId)}/${encodeURIComponent(previewData.filename)}?t=${Date.now()}`,
+                  );
                 }
               }
             } catch {
@@ -291,7 +365,12 @@ export function ImageGeneration() {
       return;
     }
 
-    logger.info("Starting image generation", { prompt: options.prompt.slice(0, 50), steps: options.steps, width: options.width, height: options.height });
+    logger.info("Starting image generation", {
+      prompt: options.prompt.slice(0, 50),
+      steps: options.steps,
+      width: options.width,
+      height: options.height,
+    });
     setGenerating(true);
     setError(null);
     setResult(null);
@@ -330,7 +409,9 @@ export function ImageGeneration() {
       setProgressStatus("Queued");
     } catch (e) {
       setError(getFriendlyError(e));
-      logger.error("Image generation failed", { error: e instanceof Error ? e.message : String(e) });
+      logger.error("Image generation failed", {
+        error: e instanceof Error ? e.message : String(e),
+      });
       setGenerating(false);
     }
   };
@@ -386,11 +467,7 @@ export function ImageGeneration() {
           </h1>
           <p className="text-muted mt-1">Create images with AI via ComfyUI</p>
         </div>
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={handleReset}
-          title="Reset all settings"
-        >
+        <button className="btn btn-ghost btn-sm" onClick={handleReset} title="Reset all settings">
           <RefreshCw size={14} />
           Reset
         </button>
@@ -401,7 +478,9 @@ export function ImageGeneration() {
         <div className="space-y-4">
           <Card glow={!!options.prompt.trim()}>
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-primary/20 text-primary text-xs flex items-center justify-center font-bold">1</span>
+              <span className="w-6 h-6 rounded-full bg-primary/20 text-primary text-xs flex items-center justify-center font-bold">
+                1
+              </span>
               Prompt
             </h3>
             <textarea
@@ -410,14 +489,14 @@ export function ImageGeneration() {
               value={options.prompt}
               onChange={(e) => setOptions({ ...options, prompt: e.target.value })}
             />
-            <div className="mt-2 text-xs text-muted">
-              {options.prompt.length} characters
-            </div>
+            <div className="mt-2 text-xs text-muted">{options.prompt.length} characters</div>
           </Card>
 
           <Card>
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-secondary/20 text-secondary text-xs flex items-center justify-center font-bold">2</span>
+              <span className="w-6 h-6 rounded-full bg-secondary/20 text-secondary text-xs flex items-center justify-center font-bold">
+                2
+              </span>
               Negative Prompt
             </h3>
             <textarea
@@ -429,7 +508,9 @@ export function ImageGeneration() {
           </Card>
 
           <Card title="Quick Presets" icon={<Sparkles size={18} />}>
-            <p className="text-xs text-muted mb-3">Choose a starting point. You can still tweak individual settings below.</p>
+            <p className="text-xs text-muted mb-3">
+              Choose a starting point. You can still tweak individual settings below.
+            </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {presets.map((preset) => {
                 const colors = colorMap[preset.color] || colorMap.blue;
@@ -444,7 +525,8 @@ export function ImageGeneration() {
                     }`}
                     onClick={() => handleApplyPreset(preset)}
                   >
-                    <div className={`flex items-center gap-1.5 mb-1 ${isActive ? colors.text : "text-foreground"}`}
+                    <div
+                      className={`flex items-center gap-1.5 mb-1 ${isActive ? colors.text : "text-foreground"}`}
                     >
                       {preset.icon}
                       <span className="text-xs font-semibold">{preset.name}</span>
@@ -453,7 +535,9 @@ export function ImageGeneration() {
                     <div className="mt-1.5 flex items-center gap-1 text-[9px] text-muted/70">
                       <span>{preset.settings.steps} steps</span>
                       <span>·</span>
-                      <span>{preset.settings.width}×{preset.settings.height}</span>
+                      <span>
+                        {preset.settings.width}×{preset.settings.height}
+                      </span>
                     </div>
                   </button>
                 );
@@ -547,17 +631,18 @@ export function ImageGeneration() {
           {generating && (
             <Card>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">{progressStatus === "completed" ? "Complete!" : "Generating..."}</span>
+                <span className="text-sm font-medium">
+                  {progressStatus === "completed" ? "Complete!" : "Generating..."}
+                </span>
                 <span className="text-sm text-muted">{Math.round(progress)}%</span>
               </div>
               <div className="progress-bar h-2 mb-2">
-                <div
-                  className="progress-fill progress-stripe"
-                  style={{ width: `${progress}%` }}
-                />
+                <div className="progress-fill progress-stripe" style={{ width: `${progress}%` }} />
               </div>
               <div className="flex items-center justify-between text-xs text-muted">
-                <span>Step {currentStep} / {totalSteps}</span>
+                <span>
+                  Step {currentStep} / {totalSteps}
+                </span>
                 <span>{progressStatus}</span>
               </div>
             </Card>
@@ -566,7 +651,9 @@ export function ImageGeneration() {
           {/* Model Selector */}
           <Card>
             <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-accent/20 text-accent text-xs flex items-center justify-center font-bold">3</span>
+              <span className="w-6 h-6 rounded-full bg-accent/20 text-accent text-xs flex items-center justify-center font-bold">
+                3
+              </span>
               Model
             </h3>
             {loadingModels ? (
@@ -596,7 +683,9 @@ export function ImageGeneration() {
                         <div className="mt-1.5 space-y-1">
                           <p className="text-xs text-muted">{info.description}</p>
                           <div className="flex items-center gap-3 text-[10px]">
-                            <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">{info.type}</span>
+                            <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                              {info.type}
+                            </span>
                             <span className="text-muted">Best for: {info.bestFor}</span>
                           </div>
                         </div>
@@ -650,7 +739,11 @@ export function ImageGeneration() {
 
         {/* Preview */}
         <div>
-          <Card title={generating ? "Live Preview" : "Preview"} className="h-full min-h-[500px]" glow={!!result || generating}>
+          <Card
+            title={generating ? "Live Preview" : "Preview"}
+            className="h-full min-h-[500px]"
+            glow={!!result || generating}
+          >
             {generating && livePreviewUrl ? (
               <div className="space-y-4 animate-fade-in">
                 <div className="relative aspect-square bg-background rounded-lg overflow-hidden border border-border">
@@ -666,7 +759,9 @@ export function ImageGeneration() {
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs text-muted">
-                    <span>Step {currentStep} / {totalSteps}</span>
+                    <span>
+                      Step {currentStep} / {totalSteps}
+                    </span>
                     <span>{progressStatus}</span>
                   </div>
                   <div className="progress-bar h-2">

@@ -22,11 +22,7 @@ export async function fetchWithTimeout(
       clearTimeout(timeoutId);
       throw new Error("Request aborted");
     }
-    signal.addEventListener(
-      "abort",
-      () => controller.abort(),
-      { once: true }
-    );
+    signal.addEventListener("abort", () => controller.abort(), { once: true });
   }
 
   try {

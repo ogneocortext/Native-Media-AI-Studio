@@ -453,7 +453,9 @@ const explodePreset: KineticPreset = {
   wordClass: "kinetic-word-explode",
   enterAnimation: (el) => {
     const chars = el.textContent?.split("") || [];
-    el.innerHTML = chars.map((c) => `<span class="char" style="display:inline-block">${c}</span>`).join("");
+    el.innerHTML = chars
+      .map((c) => `<span class="char" style="display:inline-block">${c}</span>`)
+      .join("");
     const charEls = el.querySelectorAll(".char");
     animate(charEls, {
       opacity: [0, 1],
@@ -561,11 +563,7 @@ const clipUpPreset: KineticPreset = {
 // ============================================================
 
 /** Word-level animation - highlights individual words on beat */
-export function animateWordsOnBeat(
-  _el: HTMLElement,
-  words: HTMLElement[],
-  currentWordIdx: number,
-) {
+export function animateWordsOnBeat(_el: HTMLElement, words: HTMLElement[], currentWordIdx: number) {
   words.forEach((wordEl, idx) => {
     if (idx === currentWordIdx) {
       animate(wordEl, {
@@ -636,10 +634,7 @@ export function estimateWordTiming(
   // Weight by visible length + syllable heuristic (longer words & those with more vowels take longer)
   const weights = words.map((w) => {
     const clean = w.replace(/[^a-zA-Z0-9']/g, "");
-    const syllables = Math.max(
-      1,
-      (clean.match(/[aeiouy]{1,2}/gi) || []).length,
-    );
+    const syllables = Math.max(1, (clean.match(/[aeiouy]{1,2}/gi) || []).length);
     return Math.max(1.5, clean.length * 0.6 + syllables * 0.9);
   });
   const totalWeight = weights.reduce((a, b) => a + b, 0);
@@ -711,8 +706,7 @@ function includesKineticToken(haystack: string, token: string): boolean {
  */
 export function selectPresetForTrack(genre: string, energy: number): string {
   const haystack = normalizeKineticText(genre);
-  const has = (...tokens: string[]) =>
-    tokens.some((t) => includesKineticToken(haystack, t));
+  const has = (...tokens: string[]) => tokens.some((t) => includesKineticToken(haystack, t));
 
   // Specific multi-word genres first (longest-match wins over single words).
   if (has("trap metal", "rap metal", "nu metal")) return "dubstep";

@@ -42,7 +42,9 @@ export function PerformanceHistoryCard() {
       });
       const { granular: currentGranular } = useHealthStore.getState();
       const gpuData = currentGranular.gpu.snapshot;
-      const vramData = currentGranular.vram as { vram?: { percent?: number; gpu_utilization?: number; temperature?: number } } | null;
+      const vramData = currentGranular.vram as {
+        vram?: { percent?: number; gpu_utilization?: number; temperature?: number };
+      } | null;
       const systemHealth = useHealthStore.getState().systemHealth;
       setHistory((prev) => {
         return [
@@ -59,7 +61,7 @@ export function PerformanceHistoryCard() {
         ];
       });
     } catch (err) {
-      console.error('[PerfHistory] loadData error', err);
+      console.error("[PerfHistory] loadData error", err);
     }
   }, [fetchGPUData, fetchVRAMStatus]);
 
@@ -75,11 +77,51 @@ export function PerformanceHistoryCard() {
   // `statColor` is the AA-safe lighter tone for the stat text below the chart
   // (e.g. violet-500 text on the near-black card only reaches ~4.4:1).
   const metrics = [
-    { key: "gpu", label: "GPU", color: "#8b5cf6", activeBg: "#7c3aed", statColor: "#a78bfa", unit: "%", domain: [0, 100] as [number, number] },
-    { key: "vram", label: "VRAM", color: "#06b6d4", activeBg: "#0e7490", statColor: "#22d3ee", unit: "%", domain: [0, 100] as [number, number] },
-    { key: "cpu", label: "CPU", color: "#10b981", activeBg: "#047857", statColor: "#34d399", unit: "%", domain: [0, 100] as [number, number] },
-    { key: "memory", label: "Memory", color: "#f59e0b", activeBg: "#b45309", statColor: "#fbbf24", unit: "%", domain: [0, 100] as [number, number] },
-    { key: "temp", label: "Temp", color: "#f87171", activeBg: "#dc2626", statColor: "#f87171", unit: "°C", domain: "temp" as const },
+    {
+      key: "gpu",
+      label: "GPU",
+      color: "#8b5cf6",
+      activeBg: "#7c3aed",
+      statColor: "#a78bfa",
+      unit: "%",
+      domain: [0, 100] as [number, number],
+    },
+    {
+      key: "vram",
+      label: "VRAM",
+      color: "#06b6d4",
+      activeBg: "#0e7490",
+      statColor: "#22d3ee",
+      unit: "%",
+      domain: [0, 100] as [number, number],
+    },
+    {
+      key: "cpu",
+      label: "CPU",
+      color: "#10b981",
+      activeBg: "#047857",
+      statColor: "#34d399",
+      unit: "%",
+      domain: [0, 100] as [number, number],
+    },
+    {
+      key: "memory",
+      label: "Memory",
+      color: "#f59e0b",
+      activeBg: "#b45309",
+      statColor: "#fbbf24",
+      unit: "%",
+      domain: [0, 100] as [number, number],
+    },
+    {
+      key: "temp",
+      label: "Temp",
+      color: "#f87171",
+      activeBg: "#dc2626",
+      statColor: "#f87171",
+      unit: "°C",
+      domain: "temp" as const,
+    },
   ];
   const activeMetric = metrics.find((m) => m.key === activeChart) || metrics[0];
 
@@ -113,14 +155,20 @@ export function PerformanceHistoryCard() {
     >
       {history.length > 1 ? (
         <>
-          <div className="flex items-center gap-1 mb-4 flex-wrap" role="group" aria-label="Performance metric">
+          <div
+            className="flex items-center gap-1 mb-4 flex-wrap"
+            role="group"
+            aria-label="Performance metric"
+          >
             {metrics.map((m) => (
               <button
                 key={m.key}
                 onClick={() => setActiveChart(m.key)}
                 aria-pressed={activeChart === m.key}
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                  activeChart === m.key ? "text-white" : "bg-gray-700/50 text-gray-400 hover:bg-gray-700"
+                  activeChart === m.key
+                    ? "text-white"
+                    : "bg-gray-700/50 text-gray-400 hover:bg-gray-700"
                 }`}
                 style={activeChart === m.key ? { backgroundColor: m.activeBg } : {}}
               >
@@ -145,7 +193,11 @@ export function PerformanceHistoryCard() {
                   scale="time"
                   domain={["dataMin", "dataMax"]}
                   tickFormatter={(ms: number) =>
-                    new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+                    new Date(ms).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })
                   }
                   tick={{ fontSize: 10, fill: "#9ca3af" }}
                   tickCount={4}
@@ -161,11 +213,19 @@ export function PerformanceHistoryCard() {
                   tickFormatter={yTick}
                 />
                 <Tooltip
-                  contentStyle={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "8px" }}
+                  contentStyle={{
+                    background: "#1f2937",
+                    border: "1px solid #374151",
+                    borderRadius: "8px",
+                  }}
                   labelStyle={{ color: "#9ca3af" }}
                   labelFormatter={(ms) =>
                     typeof ms === "number"
-                      ? new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+                      ? new Date(ms).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                        })
                       : String(ms)
                   }
                   formatter={(value) => [`${value}${activeMetric.unit}`, activeMetric.label]}
@@ -196,7 +256,8 @@ export function PerformanceHistoryCard() {
                 >
                   <span className="text-[10px] text-gray-400 block">{m.label}</span>
                   <span className="text-sm font-bold tabular-nums" style={{ color: m.statColor }}>
-                    {last?.toFixed(0) ?? "—"}{m.unit}
+                    {last?.toFixed(0) ?? "—"}
+                    {m.unit}
                   </span>
                 </button>
               );
@@ -204,7 +265,9 @@ export function PerformanceHistoryCard() {
           </div>
         </>
       ) : (
-        <div className="h-48 flex items-center justify-center text-sm text-muted">Collecting data…</div>
+        <div className="h-48 flex items-center justify-center text-sm text-muted">
+          Collecting data…
+        </div>
       )}
     </Card>
   );

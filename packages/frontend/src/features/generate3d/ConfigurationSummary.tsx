@@ -6,7 +6,18 @@ interface ConfigurationSummaryProps {
 }
 
 export function ConfigurationSummary({ hook }: ConfigurationSummaryProps) {
-  const { prompt, wordCount, selectedModel, steps, vizParams, seed, genMode, charName, charNotes, refFile } = hook;
+  const {
+    prompt,
+    wordCount,
+    selectedModel,
+    steps,
+    vizParams,
+    seed,
+    genMode,
+    charName,
+    charNotes,
+    refFile,
+  } = hook;
 
   const truncatedPrompt = prompt.length > 120 ? prompt.slice(0, 120) + "..." : prompt;
 
@@ -18,15 +29,21 @@ export function ConfigurationSummary({ hook }: ConfigurationSummaryProps) {
           <FileText size={14} className="text-sky-400 mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
             <span className="text-gray-400 block">Prompt ({wordCount} words)</span>
-            <span className="text-gray-300 block truncate" title={prompt}>{truncatedPrompt}</span>
+            <span className="text-gray-300 block truncate" title={prompt}>
+              {truncatedPrompt}
+            </span>
           </div>
         </div>
         <div className="flex items-start gap-2">
           <Cpu size={14} className="text-violet-400 mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
             <span className="text-gray-400 block">Model</span>
-            <span className="text-gray-300">{selectedModel.name} • {selectedModel.vram} • ~{selectedModel.time}</span>
-            {selectedModel.desc && <span className="text-gray-500 block text-[10px]">{selectedModel.desc}</span>}
+            <span className="text-gray-300">
+              {selectedModel.name} • {selectedModel.vram} • ~{selectedModel.time}
+            </span>
+            {selectedModel.desc && (
+              <span className="text-gray-500 block text-[10px]">{selectedModel.desc}</span>
+            )}
           </div>
         </div>
         <div className="flex items-start gap-2">
@@ -38,7 +55,8 @@ export function ConfigurationSummary({ hook }: ConfigurationSummaryProps) {
             </span>
             {charName && (
               <span className="text-gray-400 block text-[10px] mt-0.5">
-                Character: {charName}{charNotes ? ` — ${charNotes.slice(0, 60)}` : ""}
+                Character: {charName}
+                {charNotes ? ` — ${charNotes.slice(0, 60)}` : ""}
               </span>
             )}
             {genMode === "reference" && refFile && (

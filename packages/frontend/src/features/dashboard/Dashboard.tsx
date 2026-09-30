@@ -5,7 +5,18 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Music2, Wand2, ArrowRight, Sparkles, Check, Image, Film, Trash2, AlertCircle, Loader2 } from "lucide-react";
+import {
+  Music2,
+  Wand2,
+  ArrowRight,
+  Sparkles,
+  Check,
+  Image,
+  Film,
+  Trash2,
+  AlertCircle,
+  Loader2,
+} from "lucide-react";
 import { Card } from "../../components/common";
 import { StageHero } from "./StageHero";
 import { useJobs } from "../../hooks";
@@ -29,16 +40,24 @@ export function Dashboard() {
   // instead of a broken-image glyph.
   const [failedThumbs, setFailedThumbs] = useState<Set<string>>(new Set());
   const markThumbFailed = (url: string) =>
-    setFailedThumbs((prev) => { const next = new Set(prev); next.add(url); return next; });
+    setFailedThumbs((prev) => {
+      const next = new Set(prev);
+      next.add(url);
+      return next;
+    });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
 
-  useEffect(() => { fetchRecent(4); }, [fetchRecent]);
+  useEffect(() => {
+    fetchRecent(4);
+  }, [fetchRecent]);
 
   const hasOutputs = recentOutputs.length > 0;
-  const hasActiveJobs = jobs.some(j => j.status === "pending" || j.status === "queued" || j.status === "running");
+  const hasActiveJobs = jobs.some(
+    (j) => j.status === "pending" || j.status === "queued" || j.status === "running",
+  );
 
-  const handleDelete = async (e: React.MouseEvent, output: typeof recentOutputs[0]) => {
+  const handleDelete = async (e: React.MouseEvent, output: (typeof recentOutputs)[0]) => {
     e.preventDefault();
     e.stopPropagation();
     if (deleting) return;
@@ -63,7 +82,9 @@ export function Dashboard() {
       return;
     }
     if (f.size > MAX_AUDIO_MB * 1024 * 1024) {
-      setDropError(`"${f.name}" exceeds ${MAX_AUDIO_MB}MB (${(f.size / 1024 / 1024).toFixed(1)}MB)`);
+      setDropError(
+        `"${f.name}" exceeds ${MAX_AUDIO_MB}MB (${(f.size / 1024 / 1024).toFixed(1)}MB)`,
+      );
       return;
     }
     if (f.size === 0) {
@@ -78,7 +99,9 @@ export function Dashboard() {
         setProbeHint(`${formatDuration(meta.durationSeconds)} • ready to analyze`);
       }
       if (meta.durationSeconds !== null && meta.durationSeconds < 1) {
-        setDropError(`"${f.name}" decoded to ${meta.durationSeconds.toFixed(2)}s — file looks corrupt`);
+        setDropError(
+          `"${f.name}" decoded to ${meta.durationSeconds.toFixed(2)}s — file looks corrupt`,
+        );
         return;
       }
     } finally {
@@ -99,7 +122,8 @@ export function Dashboard() {
           <Sparkles size={12} /> Local • private • no upload limits
         </div>
         <h1 className="text-4xl font-extrabold tracking-tight mt-4">
-          Drop your song.<br />
+          Drop your song.
+          <br />
           <span className="text-violet-400">Get your video.</span>
         </h1>
         <p className="text-muted mt-3 max-w-[560px] mx-auto leading-relaxed">
@@ -110,7 +134,7 @@ export function Dashboard() {
       {/* P1 — the stage leads. Latest render (or the sweep) is the hero,
           the drop zone stays the single primary action below it. */}
       <StageHero
-        latestVideo={recentOutputs.find(o => o.file_type === "video") ?? null}
+        latestVideo={recentOutputs.find((o) => o.file_type === "video") ?? null}
         hasOutputs={hasOutputs}
         onOpenStage={() => navigate("/visualizer")}
       />
@@ -121,19 +145,41 @@ export function Dashboard() {
         type="file"
         accept={AUDIO_ACCEPT}
         className="hidden"
-        onChange={(e) => { void handleFiles(e.target.files); e.target.value = ""; }}
+        onChange={(e) => {
+          void handleFiles(e.target.files);
+          e.target.value = "";
+        }}
       />
       <div
         role="button"
         tabIndex={0}
         aria-label="Drop audio file here or click to browse. You can also paste an audio file."
-        onDragEnter={(e) => { e.preventDefault(); dragCounter.current += 1; setDragOver(true); }}
-        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={(e) => { e.preventDefault(); dragCounter.current = Math.max(0, dragCounter.current - 1); if (dragCounter.current === 0) setDragOver(false); }}
-        onDrop={e => { e.preventDefault(); dragCounter.current = 0; setDragOver(false); void handleFiles(e.dataTransfer.files); }}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          dragCounter.current += 1;
+          setDragOver(true);
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          dragCounter.current = Math.max(0, dragCounter.current - 1);
+          if (dragCounter.current === 0) setDragOver(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          dragCounter.current = 0;
+          setDragOver(false);
+          void handleFiles(e.dataTransfer.files);
+        }}
         onPaste={(e) => {
           const pasted = Array.from(e.clipboardData?.files ?? []);
-          if (pasted.length > 0) { e.preventDefault(); void handleFiles(pasted); }
+          if (pasted.length > 0) {
+            e.preventDefault();
+            void handleFiles(pasted);
+          }
         }}
         onClick={openPicker}
         onKeyDown={(e) => {
@@ -144,27 +190,45 @@ export function Dashboard() {
         }}
         className={`group relative rounded-2xl border-2 border-dashed p-10 text-center cursor-pointer transition-all ${dragOver ? "border-violet-500 bg-violet-500/10" : "border-white/10 bg-white/[0.02] hover:border-violet-500/40 hover:bg-violet-500/5"}`}
       >
-        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-violet-600/20 group-hover:scale-105 transition-transform" style={{ background: "linear-gradient(in oklch, 135deg, oklch(55% 0.22 260), oklch(65% 0.25 310))" }}>
+        <div
+          className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-violet-600/20 group-hover:scale-105 transition-transform"
+          style={{
+            background:
+              "linear-gradient(in oklch, 135deg, oklch(55% 0.22 260), oklch(65% 0.25 310))",
+          }}
+        >
           <Music2 size={24} className="text-white" />
         </div>
         <p className="text-lg font-bold text-foreground mt-4">Drop audio file here</p>
-        <p className="text-sm text-muted mt-1">MP3, WAV, FLAC • max 500 MB • or click to browse • paste works too</p>
+        <p className="text-sm text-muted mt-1">
+          MP3, WAV, FLAC • max 500 MB • or click to browse • paste works too
+        </p>
         {probing && (
-          <p className="text-xs text-violet-300 mt-3 inline-flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Checking audio…</p>
+          <p className="text-xs text-violet-300 mt-3 inline-flex items-center gap-1.5">
+            <Loader2 size={12} className="animate-spin" /> Checking audio…
+          </p>
         )}
-        {!probing && probeHint && (
-          <p className="text-xs text-emerald-400 mt-3">{probeHint}</p>
-        )}
+        {!probing && probeHint && <p className="text-xs text-emerald-400 mt-3">{probeHint}</p>}
         {dropError && (
-          <p role="alert" className="text-xs text-amber-300 mt-3 inline-flex items-center gap-1.5 max-w-[480px] mx-auto"><AlertCircle size={12} className="shrink-0" /> {dropError}</p>
+          <p
+            role="alert"
+            className="text-xs text-amber-300 mt-3 inline-flex items-center gap-1.5 max-w-[480px] mx-auto"
+          >
+            <AlertCircle size={12} className="shrink-0" /> {dropError}
+          </p>
         )}
-        <p className="text-xs text-muted mt-3 inline-flex items-center gap-1.5"><Check size={12} className="text-emerald-400" /> Analyzed on your GPU — beats, tempo, sections auto-detected</p>
+        <p className="text-xs text-muted mt-3 inline-flex items-center gap-1.5">
+          <Check size={12} className="text-emerald-400" /> Analyzed on your GPU — beats, tempo,
+          sections auto-detected
+        </p>
         <div className="mt-6">
           <span className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-violet-600 text-white font-semibold shadow-md">
             <Wand2 size={16} /> Start — 3 steps <ArrowRight size={14} />
           </span>
         </div>
-        <p className="text-[11px] text-muted mt-3">You’ll pick style next. We handle cuts on the beat.</p>
+        <p className="text-[11px] text-muted mt-3">
+          You’ll pick style next. We handle cuts on the beat.
+        </p>
       </div>
 
       {/* 3 steps — not 4, not 6 */}
@@ -173,9 +237,14 @@ export function Dashboard() {
           { n: 1, title: "Drop song", desc: "We find tempo & sections" },
           { n: 2, title: "Pick style", desc: "One prompt, 6 vibes" },
           { n: 3, title: "Export", desc: "YouTube 16:9 + Shorts 9:16" },
-        ].map(s => (
-          <div key={s.n} className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-            <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-xs font-bold text-white">{s.n}</div>
+        ].map((s) => (
+          <div
+            key={s.n}
+            className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center"
+          >
+            <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-xs font-bold text-white">
+              {s.n}
+            </div>
             <p className="text-sm font-bold text-foreground mt-2">{s.title}</p>
             <p className="text-xs text-muted mt-1">{s.desc}</p>
           </div>
@@ -186,9 +255,17 @@ export function Dashboard() {
       {hasOutputs && (
         <Card title="Your recent videos" className="mt-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {recentOutputs.slice(0, 4).map(o => (
-              <div key={o.path} className="group relative rounded-xl overflow-hidden border border-white/5 bg-black/20 hover:border-violet-500/30 transition-colors">
-                <a href={getOutputUrl(o.relative_path)} target="_blank" rel="noreferrer" className="block">
+            {recentOutputs.slice(0, 4).map((o) => (
+              <div
+                key={o.path}
+                className="group relative rounded-xl overflow-hidden border border-white/5 bg-black/20 hover:border-violet-500/30 transition-colors"
+              >
+                <a
+                  href={getOutputUrl(o.relative_path)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block"
+                >
                   <div className="aspect-video bg-white/5 flex items-center justify-center">
                     {o.cover_image && !failedThumbs.has(o.cover_image) ? (
                       <img
@@ -211,7 +288,9 @@ export function Dashboard() {
                     )}
                   </div>
                   <div className="p-2">
-                    <p className="text-xs font-medium text-foreground truncate" title={o.filename}>{o.filename}</p>
+                    <p className="text-xs font-medium text-foreground truncate" title={o.filename}>
+                      {o.filename}
+                    </p>
                     <p className="text-[11px] text-muted">{formatFileSize(o.size_bytes)}</p>
                   </div>
                 </a>
@@ -231,24 +310,56 @@ export function Dashboard() {
 
       {hasActiveJobs && !hasOutputs && (
         <Card className="mt-6">
-          <p className="text-sm text-foreground font-semibold flex items-center gap-2"><Film size={14} className="text-violet-400" /> Jobs in progress</p>
-          <p className="text-xs text-muted mt-1">Check Queue — videos render one at a time to avoid VRAM errors.</p>
-          <button onClick={() => navigate("/queue")} className="mt-3 text-xs px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10">View Queue →</button>
+          <p className="text-sm text-foreground font-semibold flex items-center gap-2">
+            <Film size={14} className="text-violet-400" /> Jobs in progress
+          </p>
+          <p className="text-xs text-muted mt-1">
+            Check Queue — videos render one at a time to avoid VRAM errors.
+          </p>
+          <button
+            onClick={() => navigate("/queue")}
+            className="mt-3 text-xs px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10"
+          >
+            View Queue →
+          </button>
         </Card>
       )}
 
       {!hasOutputs && !hasActiveJobs && (
         <div className="mt-6 rounded-xl border border-white/5 bg-white/[0.02] p-4 flex items-start gap-3">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center shrink-0"><Image size={14} className="text-emerald-400" /></div>
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center shrink-0">
+            <Image size={14} className="text-emerald-400" />
+          </div>
           <div>
-            <p className="text-sm font-bold text-foreground">First time? Use the Happyshrimp demo</p>
-            <p className="text-xs text-muted mt-1">We tested with your 7 tracks on E:\Generated by HappyShrimp(beta)\ — Try “Take the Crown” (4 min, 152 BPM, shortest). It analyzed in 3.1s and rendered a real 1080p clip in 6s.</p>
-            <button onClick={() => navigate("/music-video-wizard")} className="mt-2 text-xs text-violet-300 light:text-violet-700 hover:underline">Open wizard →</button>
+            <p className="text-sm font-bold text-foreground">
+              First time? Use the Happyshrimp demo
+            </p>
+            <p className="text-xs text-muted mt-1">
+              We tested with your 7 tracks on E:\Generated by HappyShrimp(beta)\ — Try “Take the
+              Crown” (4 min, 152 BPM, shortest). It analyzed in 3.1s and rendered a real 1080p clip
+              in 6s.
+            </p>
+            <button
+              onClick={() => navigate("/music-video-wizard")}
+              className="mt-2 text-xs text-violet-300 light:text-violet-700 hover:underline"
+            >
+              Open wizard →
+            </button>
           </div>
         </div>
       )}
 
-      <p className="text-center text-[11px] text-muted mt-6">Need the old layout? Switch to <button onClick={() => navigate("/music-video")} className="underline hover:text-white">Classic Studio</button> or <button onClick={() => navigate("/visualizer")} className="underline hover:text-white">Visualizer</button> — hidden from this view on purpose.</p>
+      <p className="text-center text-[11px] text-muted mt-6">
+        Need the old layout? Switch to{" "}
+        <button onClick={() => navigate("/music-video")} className="underline hover:text-white">
+          Classic Studio
+        </button>{" "}
+        or{" "}
+        <button onClick={() => navigate("/visualizer")} className="underline hover:text-white">
+          Visualizer
+        </button>{" "}
+        — hidden from this view on purpose.
+      </p>
     </div>
   );
 }

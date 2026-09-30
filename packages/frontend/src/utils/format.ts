@@ -21,9 +21,7 @@ export function formatTime(seconds: number, showHundredths = false): string {
   const secs = Math.floor(safe % 60);
   if (showHundredths) {
     const hundredths = Math.floor((safe % 1) * 100);
-    return `${mins}:${secs.toString().padStart(2, "0")}.${hundredths
-      .toString()
-      .padStart(2, "0")}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}.${hundredths.toString().padStart(2, "0")}`;
   }
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }

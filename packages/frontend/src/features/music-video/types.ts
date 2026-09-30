@@ -49,7 +49,15 @@ export interface GenerationConfig {
   cfgScale: number;
   seed: number;
   styleReferences: string[];
-  structuredPrompt: { shotSize: string; cameraAngle: string; subject: string; action: string; setting: string; lighting: string; mood: string };
+  structuredPrompt: {
+    shotSize: string;
+    cameraAngle: string;
+    subject: string;
+    action: string;
+    setting: string;
+    lighting: string;
+    mood: string;
+  };
   verticalFirst: boolean;
   sectionOverrides: Record<string, string>;
 }
@@ -73,7 +81,12 @@ export const VISUAL_TREATMENTS: Record<string, string> = {
   outro: "Wind down, defocus, final frame",
 };
 
-export const STEPS: { id: WizardStep; label: string; icon: React.ComponentType<{ size?: number; className?: string }>; desc: string }[] = [
+export const STEPS: {
+  id: WizardStep;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  desc: string;
+}[] = [
   { id: "upload", label: "Upload", icon: Upload, desc: "MP3/WAV/FLAC" },
   { id: "analyze", label: "Analyze", icon: Music, desc: "Beats BPM sections" },
   { id: "configure", label: "Style", icon: Wand2, desc: "Prompt + refs" },
@@ -82,4 +95,30 @@ export const STEPS: { id: WizardStep; label: string; icon: React.ComponentType<{
 ];
 
 // Re-export icons used by step components
-export { Upload, Music, Wand2, Sparkles, Play, Download, ChevronRight, ChevronLeft, Check, Loader2, AlertCircle, Zap, Clock, ImageIcon, Layers, Video, Smartphone, Lightbulb, Target, BookOpen, Sliders, Eye, FileWarning, ExternalLink, CheckCircle2 };
+export {
+  Upload,
+  Music,
+  Wand2,
+  Sparkles,
+  Play,
+  Download,
+  ChevronRight,
+  ChevronLeft,
+  Check,
+  Loader2,
+  AlertCircle,
+  Zap,
+  Clock,
+  ImageIcon,
+  Layers,
+  Video,
+  Smartphone,
+  Lightbulb,
+  Target,
+  BookOpen,
+  Sliders,
+  Eye,
+  FileWarning,
+  ExternalLink,
+  CheckCircle2,
+};

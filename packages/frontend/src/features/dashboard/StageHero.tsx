@@ -15,7 +15,10 @@ interface StageHeroProps {
 
 export function StageHero({ latestVideo, hasOutputs, onOpenStage }: StageHeroProps) {
   return (
-    <section aria-label="Stage" className="relative rounded-2xl overflow-hidden border border-white/10 bg-black/30 mb-6">
+    <section
+      aria-label="Stage"
+      className="relative rounded-2xl overflow-hidden border border-white/10 bg-black/30 mb-6"
+    >
       {latestVideo ? (
         <>
           <a
@@ -37,13 +40,18 @@ export function StageHero({ latestVideo, hasOutputs, onOpenStage }: StageHeroPro
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
           <div className="absolute bottom-0 inset-x-0 p-4 flex items-end justify-between gap-3 pointer-events-none">
             <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-widest text-white/60 font-semibold">Latest render</p>
+              <p className="text-[11px] uppercase tracking-widest text-white/60 font-semibold">
+                Latest render
+              </p>
               <p className="text-sm font-semibold text-white truncate" title={latestVideo.filename}>
                 {latestVideo.filename}
               </p>
               <p className="text-[11px] text-white/50">{formatFileSize(latestVideo.size_bytes)}</p>
             </div>
-            <button onClick={onOpenStage} className="btn btn-primary btn-sm shrink-0 pointer-events-auto">
+            <button
+              onClick={onOpenStage}
+              className="btn btn-primary btn-sm shrink-0 pointer-events-auto"
+            >
               <Zap size={14} /> Open stage
             </button>
           </div>

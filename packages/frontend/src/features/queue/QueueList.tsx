@@ -83,9 +83,7 @@ export function JobRow({
           getStatusIcon(job.status)
         )}
         <div>
-          <p className="font-medium capitalize">
-            {job.job_type.replace(/_/g, " ")}
-          </p>
+          <p className="font-medium capitalize">{job.job_type.replace(/_/g, " ")}</p>
           <p className="text-xs text-muted">
             ID: {job.id.slice(0, 8)}... | {tsLabel}: {tsValue}
           </p>
@@ -95,80 +93,82 @@ export function JobRow({
             </p>
           )}
           {isFailed && job.error && (
-            <p className="text-sm text-error-text mt-1">
-              Error: {job.error}
-            </p>
+            <p className="text-sm text-error-text mt-1">Error: {job.error}</p>
           )}
           {isFailed && job.retry_count > 0 && (
             <p className="text-xs text-muted mt-1">
               Retry attempts: {job.retry_count}/{job.max_retries}
             </p>
           )}
-          {job.message && (
-            <p className="text-sm text-muted mt-1">
-              {job.message}
-            </p>
-          )}
+          {job.message && <p className="text-sm text-muted mt-1">{job.message}</p>}
           {job.output_path && (
             <p className="text-xs text-muted mt-1 truncate" title={job.output_path}>
               Output: {job.output_path.split(/[\\/]/).pop()}
             </p>
           )}
-          {isCompleted && !!(job.output_path || (((job.result as Record<string, unknown> | null)?.output_path as string) || "")) && (() => {
-            const raw = (job.output_path || (((job.result as Record<string, unknown> | null)?.output_path as string) || "")) as string;
-            // Extract filename from absolute Windows path or relative
-            const filename = raw.split(/[\\/]/).pop() || "";
-            if (!filename) return null;
-            // Try to determine subfolder from path
-            const isPreview = raw.includes("previews") || filename.includes("preview");
-            const videoUrl = `${getApiBase()}/output/${isPreview ? "previews" : "video"}/${filename}`;
-            const isMp4 = filename.toLowerCase().endsWith(".mp4");
-            return (
-              <div className="mt-3">
-                {isMp4 ? (
-                  <video
-                    controls
-                    preload="metadata"
-                    className="w-full max-w-full sm:max-w-md rounded-lg border border-border bg-black"
-                    style={{ maxHeight: 240 }}
-                    src={videoUrl}
-                    aria-label={`Video for job ${job.id.slice(0,8)}`}
-                  />
-                ) : (
-                  <a
-                    href={videoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-link hover:underline flex items-center gap-1"
-                  >
-                    <ExternalLink size={12} /> View output
-                  </a>
-                )}
-                <div className="flex gap-2 mt-2">
-                  <a
-                    href={videoUrl}
-                    download={filename}
-                    className="btn btn-secondary p-2 text-xs flex items-center gap-1"
-                    title="Download video"
-                  >
-                    <Download size={14} /> Download
-                  </a>
-                  <a
-                    href={videoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-secondary p-2 text-xs flex items-center gap-1"
-                    title="Open in new tab"
-                  >
-                    <ExternalLink size={14} /> Open
-                  </a>
-                  <span className="text-xs text-muted flex items-center gap-1">
-                    <Play size={12} /> {isPreview ? "Preview" : "Video"} · {filename}
-                  </span>
+          {isCompleted &&
+            !!(
+              job.output_path ||
+              ((job.result as Record<string, unknown> | null)?.output_path as string) ||
+              ""
+            ) &&
+            (() => {
+              const raw = (job.output_path ||
+                ((job.result as Record<string, unknown> | null)?.output_path as string) ||
+                "") as string;
+              // Extract filename from absolute Windows path or relative
+              const filename = raw.split(/[\\/]/).pop() || "";
+              if (!filename) return null;
+              // Try to determine subfolder from path
+              const isPreview = raw.includes("previews") || filename.includes("preview");
+              const videoUrl = `${getApiBase()}/output/${isPreview ? "previews" : "video"}/${filename}`;
+              const isMp4 = filename.toLowerCase().endsWith(".mp4");
+              return (
+                <div className="mt-3">
+                  {isMp4 ? (
+                    <video
+                      controls
+                      preload="metadata"
+                      className="w-full max-w-full sm:max-w-md rounded-lg border border-border bg-black"
+                      style={{ maxHeight: 240 }}
+                      src={videoUrl}
+                      aria-label={`Video for job ${job.id.slice(0, 8)}`}
+                    />
+                  ) : (
+                    <a
+                      href={videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-link hover:underline flex items-center gap-1"
+                    >
+                      <ExternalLink size={12} /> View output
+                    </a>
+                  )}
+                  <div className="flex gap-2 mt-2">
+                    <a
+                      href={videoUrl}
+                      download={filename}
+                      className="btn btn-secondary p-2 text-xs flex items-center gap-1"
+                      title="Download video"
+                    >
+                      <Download size={14} /> Download
+                    </a>
+                    <a
+                      href={videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-secondary p-2 text-xs flex items-center gap-1"
+                      title="Open in new tab"
+                    >
+                      <ExternalLink size={14} /> Open
+                    </a>
+                    <span className="text-xs text-muted flex items-center gap-1">
+                      <Play size={12} /> {isPreview ? "Preview" : "Video"} · {filename}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
         </div>
       </div>
 
@@ -183,11 +183,7 @@ export function JobRow({
               disabled={loading}
               title="Cancel"
             >
-              {loading ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <XCircle size={16} />
-              )}
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
             </button>
           )}
           {showRetry && (
@@ -198,11 +194,7 @@ export function JobRow({
               disabled={loading}
               title="Retry"
             >
-              {loading ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <RotateCcw size={16} />
-              )}
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
             </button>
           )}
           {showDelete && (
@@ -213,11 +205,7 @@ export function JobRow({
               disabled={loading}
               title="Delete"
             >
-              {loading ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Trash2 size={16} />
-              )}
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
             </button>
           )}
         </div>
@@ -250,9 +238,7 @@ export function JobListSection({
   if (jobs.length === 0) return null;
   return (
     <div className="mb-6">
-      <h3
-        className={`text-sm font-medium ${titleColor} mb-3 uppercase tracking-wide`}
-      >
+      <h3 className={`text-sm font-medium ${titleColor} mb-3 uppercase tracking-wide`}>
         {heading}
       </h3>
       <div className="space-y-2">

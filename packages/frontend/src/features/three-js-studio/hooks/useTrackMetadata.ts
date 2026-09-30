@@ -10,8 +10,12 @@ export interface TrackMetadata {
   energyCurve: number[];
   confidence: number;
   suggestedVisualization?: string;
+  suggestedVisualizationConfidence?: number;
+  suggestedVisualizationCandidates?: Array<{ value: string; confidence: number }>;
   suggestedKineticPreset?: string;
+  suggestedKineticPresetConfidence?: number;
   suggestedThemeSeed?: string;
+  suggestedThemeSeedConfidence?: number;
 }
 
 export function useTrackMetadata(selectedTrack: string | null) {
@@ -39,8 +43,12 @@ export function useTrackMetadata(selectedTrack: string | null) {
           energyCurve: data.energy_curve,
           confidence: data.confidence,
           suggestedVisualization: data.suggested_visualization,
+          suggestedVisualizationConfidence: data.suggested_visualization_confidence,
+          suggestedVisualizationCandidates: data.suggested_visualization_candidates,
           suggestedKineticPreset: data.suggested_kinetic_preset,
+          suggestedKineticPresetConfidence: data.suggested_kinetic_preset_confidence,
           suggestedThemeSeed: data.suggested_theme_seed,
+          suggestedThemeSeedConfidence: data.suggested_theme_seed_confidence,
         });
       })
       .catch((err) => {
@@ -52,7 +60,9 @@ export function useTrackMetadata(selectedTrack: string | null) {
         if (!cancelled) setLoading(false);
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [selectedTrack]);
 
   return { metadata, loading, error };
@@ -66,14 +76,17 @@ export interface PromptVariation {
 }
 
 function analyzeTrackCharacteristics(meta: TrackMetadata) {
-  const avgEnergy = meta.energyCurve.length > 0
-    ? meta.energyCurve.reduce((a, b) => a + b, 0) / meta.energyCurve.length
-    : 0.5;
-  const energyVariance = meta.energyCurve.length > 0
-    ? meta.energyCurve.reduce((sum, e) => sum + Math.pow(e - avgEnergy, 2), 0) / meta.energyCurve.length
-    : 0;
-  const hasBuildups = meta.sections.some(s => s.type === "chorus" || s.type === "bridge");
-  const hasDrops = meta.sections.filter(s => s.energy > 0.7).length > meta.sections.length * 0.3;
+  const avgEnergy =
+    meta.energyCurve.length > 0
+      ? meta.energyCurve.reduce((a, b) => a + b, 0) / meta.energyCurve.length
+      : 0.5;
+  const energyVariance =
+    meta.energyCurve.length > 0
+      ? meta.energyCurve.reduce((sum, e) => sum + Math.pow(e - avgEnergy, 2), 0) /
+        meta.energyCurve.length
+      : 0;
+  const hasBuildups = meta.sections.some((s) => s.type === "chorus" || s.type === "bridge");
+  const hasDrops = meta.sections.filter((s) => s.energy > 0.7).length > meta.sections.length * 0.3;
   const isHighEnergy = avgEnergy > 0.65;
   const isLowEnergy = avgEnergy < 0.35;
   const isDynamic = energyVariance > 0.05;
@@ -95,7 +108,18 @@ function analyzeTrackCharacteristics(meta: TrackMetadata) {
   if (hasBuildups) visualStyles.push("building tension", "rising structures");
   if (hasDrops) visualStyles.push("impact flashes", "shockwave rings");
 
-  return { avgEnergy, isHighEnergy, isLowEnergy, isDynamic, isFast, isSlow, hasBuildups, hasDrops, moods, visualStyles };
+  return {
+    avgEnergy,
+    isHighEnergy,
+    isLowEnergy,
+    isDynamic,
+    isFast,
+    isSlow,
+    hasBuildups,
+    hasDrops,
+    moods,
+    visualStyles,
+  };
 }
 
 export function generatePromptVariations(meta: TrackMetadata): PromptVariation[] {
@@ -103,9 +127,8 @@ export function generatePromptVariations(meta: TrackMetadata): PromptVariation[]
   const { bpm, duration, sections } = meta;
   const moodStr = c.moods.slice(0, 2).join(", ");
   const styleStr = c.visualStyles.slice(0, 3).join(", ");
-  const sectionSummary = sections.length > 0
-    ? `Sections: ${sections.map(s => s.type).join(", ")}.`
-    : "";
+  const sectionSummary =
+    sections.length > 0 ? `Sections: ${sections.map((s) => s.type).join(", ")}.` : "";
 
   return [
     {

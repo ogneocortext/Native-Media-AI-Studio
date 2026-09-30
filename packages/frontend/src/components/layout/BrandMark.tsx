@@ -14,13 +14,7 @@ export function BrandMark({ size = 20 }: { size?: number }) {
     { x: 16, delay: "-1.65s" },
   ];
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 22 22"
-      fill="none"
-      aria-hidden
-    >
+    <svg width={size} height={size} viewBox="0 0 22 22" fill="none" aria-hidden>
       {bars.map((b) => (
         <rect
           key={b.x}

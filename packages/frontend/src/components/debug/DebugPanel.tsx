@@ -19,12 +19,18 @@ function statusColor(status?: number): string {
 
 function methodColor(method: string): string {
   switch (method) {
-    case "GET": return "text-blue-400";
-    case "POST": return "text-green-400";
-    case "PUT": return "text-yellow-400";
-    case "DELETE": return "text-red-400";
-    case "PATCH": return "text-purple-400";
-    default: return "text-gray-400";
+    case "GET":
+      return "text-blue-400";
+    case "POST":
+      return "text-green-400";
+    case "PUT":
+      return "text-yellow-400";
+    case "DELETE":
+      return "text-red-400";
+    case "PATCH":
+      return "text-purple-400";
+    default:
+      return "text-gray-400";
   }
 }
 
@@ -46,7 +52,12 @@ export function DebugPanel() {
   const filtered = useMemo(() => {
     if (!filter) return logs;
     const q = filter.toLowerCase();
-    return logs.filter((l) => l.url.toLowerCase().includes(q) || l.method.toLowerCase().includes(q) || String(l.status ?? "").includes(q));
+    return logs.filter(
+      (l) =>
+        l.url.toLowerCase().includes(q) ||
+        l.method.toLowerCase().includes(q) ||
+        String(l.status ?? "").includes(q),
+    );
   }, [logs, filter]);
 
   const counts = useMemo(() => {
@@ -55,7 +66,10 @@ export function DebugPanel() {
     let count = 0;
     for (const l of logs) {
       if (l.error || (l.status && l.status >= 400)) errors++;
-      if (l.durationMs) { totalMs += l.durationMs; count++; }
+      if (l.durationMs) {
+        totalMs += l.durationMs;
+        count++;
+      }
     }
     return { errors, avgMs: count ? Math.round(totalMs / count) : 0, total: logs.length };
   }, [logs]);
@@ -73,8 +87,14 @@ export function DebugPanel() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
-      <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+      onClick={() => setOpen(false)}
+    >
+      <div
+        className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <div>
             <h2 className="text-sm font-semibold text-white">Debug Panel</h2>
@@ -114,12 +134,18 @@ export function DebugPanel() {
               key={entry.id}
               className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 items-center px-3 py-2 hover:bg-gray-800/50 rounded text-xs border-b border-gray-800 last:border-0"
             >
-              <span className={`font-mono font-bold ${methodColor(entry.method)}`}>{entry.method}</span>
-              <span className="text-gray-300 truncate font-mono max-w-[300px]" title={entry.url}>{entry.url}</span>
-              <span className={`font-mono w-12 text-right ${statusColor(entry.status)}`}>
-                {entry.error ? "ERR" : entry.status ?? "-"}
+              <span className={`font-mono font-bold ${methodColor(entry.method)}`}>
+                {entry.method}
               </span>
-              <span className="text-gray-500 w-16 text-right">{entry.durationMs ? `${entry.durationMs}ms` : "-"}</span>
+              <span className="text-gray-300 truncate font-mono max-w-[300px]" title={entry.url}>
+                {entry.url}
+              </span>
+              <span className={`font-mono w-12 text-right ${statusColor(entry.status)}`}>
+                {entry.error ? "ERR" : (entry.status ?? "-")}
+              </span>
+              <span className="text-gray-500 w-16 text-right">
+                {entry.durationMs ? `${entry.durationMs}ms` : "-"}
+              </span>
               <span className="text-gray-500 w-20 text-right font-mono">
                 {formatBytes(entry.requestSize)} &rarr; {formatBytes(entry.responseSize)}
               </span>

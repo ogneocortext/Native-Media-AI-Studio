@@ -128,7 +128,19 @@ const FinalGradeShader = {
   `,
 };
 
-export function PostFX({ audioData, lrcSync, lrcSyncRef, safeMode = false }: { audioData: React.MutableRefObject<AudioData>; lrcSync?: { isPhraseStart: boolean; currentSection: string } | null; lrcSyncRef?: { current: { isPhraseStart: boolean; currentSection: string } | null }; /** WCAG 2.3.1 photosensitivity guard: halves beat/phrase flash gain and caps bloom. */ safeMode?: boolean }) {
+export function PostFX({
+  audioData,
+  lrcSync,
+  lrcSyncRef,
+  safeMode = false,
+  postfx,
+}: {
+  audioData: React.MutableRefObject<AudioData>;
+  lrcSync?: { isPhraseStart: boolean; currentSection: string } | null;
+  lrcSyncRef?: { current: { isPhraseStart: boolean; currentSection: string } | null };
+  safeMode?: boolean;
+  postfx?: { bloom?: number; vignette?: number; glitch?: number } | null;
+}) {
   const { gl, scene, camera, size } = useThree();
   const beatPulse = useRef(0);
 
@@ -184,14 +196,22 @@ export function PostFX({ audioData, lrcSync, lrcSyncRef, safeMode = false }: { a
     const beatGain = safeMode ? 0.17 : 0.35;
     const phraseGain = safeMode ? 0.12 : 0.25;
     const bloomCap = safeMode ? 0.55 : 0.9;
+    const baseBloom = postfx?.bloom ?? 0.22;
+    const baseVignette = postfx?.vignette ?? 0.35;
     fx.bloom.strength = Math.min(
       bloomCap,
-      0.22 + bass * 0.6 + beatPulse.current * beatGain + energy * 0.15 + phrasePulse.current * phraseGain,
+      0.02 +
+        baseBloom *
+          (bass * 0.6 +
+            beatPulse.current * beatGain +
+            energy * 0.15 +
+            phrasePulse.current * phraseGain),
     );
     fx.grade.uniforms.uTime.value = state.clock.elapsedTime;
     // Phrase-driven vignette pulse via uniform (subtle; damped in safe mode)
     const vignettePulse = safeMode ? phrasePulse.current * 0.08 : phrasePulse.current * 0.2;
-    fx.grade.uniforms.uVignette.value = phrasePulse.current > 0.1 ? 0.35 + vignettePulse : 0.35;
+    fx.grade.uniforms.uVignette.value =
+      phrasePulse.current > 0.1 ? baseVignette + vignettePulse : baseVignette;
     fx.composer.render();
   }, 1);
 
@@ -203,15 +223,15 @@ export function PostFX({ audioData, lrcSync, lrcSyncRef, safeMode = false }: { a
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface TerrainMaterialOpts {
-  colorA?: string;      // valley color
-  colorB?: string;      // peak color
-  rim?: string;         // fresnel rim color
+  colorA?: string; // valley color
+  colorB?: string; // peak color
+  rim?: string; // fresnel rim color
   opacity?: number;
-  displace?: number;    // base displacement amplitude
-  freq1?: number;       // large noise frequency
-  freq2?: number;       // detail noise frequency
-  speed?: number;       // noise evolution speed
-  ripple?: number;      // radial ripple strength
+  displace?: number; // base displacement amplitude
+  freq1?: number; // large noise frequency
+  freq2?: number; // detail noise frequency
+  speed?: number; // noise evolution speed
+  ripple?: number; // radial ripple strength
 }
 
 export function makeTerrainMaterial(opts: TerrainMaterialOpts = {}): THREE.ShaderMaterial {
@@ -316,7 +336,9 @@ export function updateTerrainMaterial(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** WebGPU-safe terrain material (MeshStandardMaterial, no vertex displacement). */
-export function makeTerrainMaterialWebGPU(opts: TerrainMaterialOpts = {}): THREE.MeshStandardMaterial {
+export function makeTerrainMaterialWebGPU(
+  opts: TerrainMaterialOpts = {},
+): THREE.MeshStandardMaterial {
   const o = {
     colorA: "#0b1530",
     colorB: "#7dd3fc",
@@ -352,7 +374,6 @@ export function updateTerrainMaterialWebGPU(
   mat.metalness = Math.min(1, 0.3 + audio.mid * 0.5);
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Streak material — velocity-stretched additive particles
 // ─────────────────────────────────────────────────────────────────────────────
@@ -368,7 +389,9 @@ export function applyStreakVelocity(
     const vel = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
       const [vx, vy, vz] = getVel(i, pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]);
-      vel[i * 3] = vx; vel[i * 3 + 1] = vy; vel[i * 3 + 2] = vz;
+      vel[i * 3] = vx;
+      vel[i * 3 + 1] = vy;
+      vel[i * 3 + 2] = vz;
     }
     geom.setAttribute("aVel", new THREE.BufferAttribute(vel, 3));
   }
@@ -489,7 +512,8 @@ export function makeTerrainMaterialTSL(opts: TSLTerrainMaterialOpts = {}): any {
     const n1 = triNoise3D(vec3(p.x.mul(uFreq1), p.y.mul(uFreq1), float(0)), uSpeed, t);
     const n2 = triNoise3D(vec3(p.x.mul(uFreq2).add(13.7), p.y.mul(uFreq2), float(0)), uSpeed, t);
     const ripple = float(Math.sin(p.length().mul(2.2).sub(t.mul(2.4)))).mul(uRipple);
-    return n1.mul(float(0.35).add(uBass.mul(uDisplace).mul(0.8)))
+    return n1
+      .mul(float(0.35).add(uBass.mul(uDisplace).mul(0.8)))
       .add(n2.mul(float(0.12).add(uMid.mul(0.5))).mul(0.5))
       .add(ripple.mul(float(0.15).add(uTreble.mul(0.6))));
   });
@@ -535,7 +559,22 @@ export function makeTerrainMaterialTSL(opts: TSLTerrainMaterialOpts = {}): any {
   })();
 
   (material as any).userData = {
-    uniforms: { uTime, uBass, uMid, uTreble, uEnergy, uGlow, uColorA, uColorB, uRim, uDisplace, uFreq1, uFreq2, uSpeed, uRipple },
+    uniforms: {
+      uTime,
+      uBass,
+      uMid,
+      uTreble,
+      uEnergy,
+      uGlow,
+      uColorA,
+      uColorB,
+      uRim,
+      uDisplace,
+      uFreq1,
+      uFreq2,
+      uSpeed,
+      uRipple,
+    },
   };
 
   return material;
@@ -612,7 +651,18 @@ export function makeAudioReactiveMaterialTSL(opts: AudioReactiveMaterialOpts = {
   })();
 
   (material as any).userData = {
-    uniforms: { uBass, uMid, uTreble, uEnergy, uGlow, uColor, uEmissive, uOpacity, uRoughness, uMetalness },
+    uniforms: {
+      uBass,
+      uMid,
+      uTreble,
+      uEnergy,
+      uGlow,
+      uColor,
+      uEmissive,
+      uOpacity,
+      uRoughness,
+      uMetalness,
+    },
   };
 
   return material;
@@ -661,11 +711,13 @@ export function makeStreakMaterialTSL(opts: StreakMaterialOpts = {}): THREE.Poin
     sizeAttenuation: true,
   });
 
-  material.sizeNode = float(size).mul(float(1).add(uBass.mul(1.2))).div(uPixelRatio);
+  material.sizeNode = float(size)
+    .mul(float(1).add(uBass.mul(1.2)))
+    .div(uPixelRatio);
 
-    material.colorNode = Fn(() => {
+  material.colorNode = Fn(() => {
     const pointUV = uv().sub(0.5).mul(2.0);
-    const vel = attribute('aVel') as any;
+    const vel = attribute("aVel") as any;
     const speed = vel.length();
     const velDir = vel.normalize();
     const stretchAmt = float(1).add(speed.mul(uStretchLocal));
@@ -676,7 +728,7 @@ export function makeStreakMaterialTSL(opts: StreakMaterialOpts = {}): THREE.Poin
     const alpha = float(Math.exp(-r2.mul(3.2)))
       .mul(uOpacity)
       .mul(float(0.65).add(speed.mul(0.6)).add(uTreble.mul(0.25)));
-    const vColor = attribute('color') as any;
+    const vColor = attribute("color") as any;
     return vec4(vColor.mul(float(0.75).add(speed.mul(0.8))), alpha);
   })();
 
@@ -696,4 +748,3 @@ export function updateStreakMaterialTSL(
   u.uBass.value = audio.bass;
   u.uTreble.value = audio.treble;
 }
-

@@ -120,7 +120,11 @@ export function LogAnalytics() {
     setIngesting(true);
     setIngestResult(null);
     try {
-      const result = await ingestLogsForAnalytics({ source: selectedLog, log_name: selectedLog, limit: 20000 });
+      const result = await ingestLogsForAnalytics({
+        source: selectedLog,
+        log_name: selectedLog,
+        limit: 20000,
+      });
       setIngestResult(`Ingested ${result.inserted} events from ${result.path}`);
       await refreshAll();
     } catch (e) {
@@ -169,10 +173,7 @@ export function LogAnalytics() {
     [levelCounts],
   );
 
-  const topErrors = useMemo(
-    () => (errorPatterns || []).slice(0, 10),
-    [errorPatterns],
-  );
+  const topErrors = useMemo(() => (errorPatterns || []).slice(0, 10), [errorPatterns]);
 
   return (
     <div className="p-6 animate-fade-in h-full flex flex-col">
@@ -183,14 +184,12 @@ export function LogAnalytics() {
             <TrendingUp className="text-accent" size={24} />
             Log Analytics
           </h1>
-          <p className="text-muted mt-1">Trend analysis and pattern detection across application logs</p>
+          <p className="text-muted mt-1">
+            Trend analysis and pattern detection across application logs
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            className="btn btn-sm btn-primary"
-            onClick={handleIngest}
-            disabled={ingesting}
-          >
+          <button className="btn btn-sm btn-primary" onClick={handleIngest} disabled={ingesting}>
             {ingesting ? <RefreshCw size={14} className="animate-spin" /> : <Activity size={14} />}
             {ingesting ? "Ingesting..." : "Ingest Logs"}
           </button>
@@ -198,10 +197,7 @@ export function LogAnalytics() {
             <Trash2 size={14} />
             Cleanup
           </button>
-          <button
-            className="btn btn-sm btn-ghost"
-            onClick={refreshAll}
-          >
+          <button className="btn btn-sm btn-ghost" onClick={refreshAll}>
             <RefreshCw size={14} />
           </button>
         </div>
@@ -217,7 +213,8 @@ export function LogAnalytics() {
         <div className="mb-4 p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-[10px] flex items-center gap-2 text-emerald-300">
           <Activity size={12} className="shrink-0" />
           <span>
-            Auto-cleanup ran on {new Date(summary.last_cleanup_at).toLocaleString()} — events older than 30 days removed.
+            Auto-cleanup ran on {new Date(summary.last_cleanup_at).toLocaleString()} — events older
+            than 30 days removed.
           </span>
         </div>
       )}
@@ -226,7 +223,8 @@ export function LogAnalytics() {
         <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs flex items-center gap-2">
           <AlertTriangle size={14} className="text-amber-400 shrink-0" />
           <span>
-            High event count ({summary.total_events.toLocaleString()}). Run Cleanup to remove events older than 30 days.
+            High event count ({summary.total_events.toLocaleString()}). Run Cleanup to remove events
+            older than 30 days.
           </span>
         </div>
       )}
@@ -237,7 +235,9 @@ export function LogAnalytics() {
           <div className="text-xs text-muted uppercase tracking-wide mb-1 flex items-center gap-1.5">
             <Hash size={12} /> Total Events
           </div>
-          <p className="text-2xl font-bold tabular-nums">{summary?.total_events?.toLocaleString() || 0}</p>
+          <p className="text-2xl font-bold tabular-nums">
+            {summary?.total_events?.toLocaleString() || 0}
+          </p>
         </Card>
         <Card className="p-3">
           <div className="text-xs text-muted uppercase tracking-wide mb-1 flex items-center gap-1.5">
@@ -280,7 +280,10 @@ export function LogAnalytics() {
           <div className="text-[10px] text-muted uppercase tracking-wide mb-2">Sources</div>
           <div className="flex flex-wrap gap-2">
             {summary.sources.map((s) => (
-              <span key={s.source} className="text-[10px] bg-white/5 border border-border rounded-full px-2 py-0.5 tabular-nums">
+              <span
+                key={s.source}
+                className="text-[10px] bg-white/5 border border-border rounded-full px-2 py-0.5 tabular-nums"
+              >
                 {s.source}: {s.count}
               </span>
             ))}
@@ -300,11 +303,7 @@ export function LogAnalytics() {
           <option value="queue">queue.log</option>
           <option value="comfyui">comfyui.log</option>
         </select>
-        <button
-          className="btn btn-sm btn-primary"
-          onClick={handleIngest}
-          disabled={ingesting}
-        >
+        <button className="btn btn-sm btn-primary" onClick={handleIngest} disabled={ingesting}>
           {ingesting ? <RefreshCw size={14} className="animate-spin" /> : <Activity size={14} />}
           {ingesting ? "Ingesting..." : "Ingest Logs"}
         </button>
@@ -312,10 +311,7 @@ export function LogAnalytics() {
           <Trash2 size={14} />
           Cleanup
         </button>
-        <button
-          className="btn btn-sm btn-ghost"
-          onClick={refreshAll}
-        >
+        <button className="btn btn-sm btn-ghost" onClick={refreshAll}>
           <RefreshCw size={14} />
         </button>
         <label className="flex items-center gap-1.5 text-[10px] text-muted cursor-pointer select-none">
@@ -372,12 +368,7 @@ export function LogAnalytics() {
                       <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <XAxis
-                    dataKey="time"
-                    tick={{ fontSize: 10 }}
-                    stroke="#6b7280"
-                    minTickGap={60}
-                  />
+                  <XAxis dataKey="time" tick={{ fontSize: 10 }} stroke="#6b7280" minTickGap={60} />
                   <YAxis
                     tick={{ fontSize: 10 }}
                     stroke="#6b7280"
@@ -391,7 +382,7 @@ export function LogAnalytics() {
                       borderRadius: "8px",
                       fontSize: "12px",
                     }}
-                     formatter={(value: unknown, name: unknown) => {
+                    formatter={(value: unknown, name: unknown) => {
                       if (name === "errors") return [`${value} errors`, "Errors"];
                       return [`${value} entries`, "Logs"];
                     }}
@@ -420,7 +411,9 @@ export function LogAnalytics() {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="text-muted text-xs text-center py-6">No trend data yet. Click Ingest Logs to populate.</div>
+            <div className="text-muted text-xs text-center py-6">
+              No trend data yet. Click Ingest Logs to populate.
+            </div>
           )}
         </Card>
 
@@ -457,7 +450,7 @@ export function LogAnalytics() {
                         borderRadius: "8px",
                         fontSize: "12px",
                       }}
-                       formatter={(value: unknown) => [`${value} entries`, ""]}
+                      formatter={(value: unknown) => [`${value} entries`, ""]}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -509,7 +502,7 @@ export function LogAnalytics() {
                     tick={{ fontSize: 10 }}
                     stroke="#6b7280"
                     width={110}
-                    tickFormatter={(v) => v.length > 14 ? v.slice(0, 12) + "…" : v}
+                    tickFormatter={(v) => (v.length > 14 ? v.slice(0, 12) + "…" : v)}
                   />
                   <Tooltip
                     contentStyle={{
@@ -518,7 +511,7 @@ export function LogAnalytics() {
                       borderRadius: "8px",
                       fontSize: "12px",
                     }}
-                     formatter={(value: unknown) => [`${value} events`, "Count"]}
+                    formatter={(value: unknown) => [`${value} events`, "Count"]}
                   />
                   <Bar
                     dataKey="count"
@@ -597,7 +590,9 @@ export function LogAnalytics() {
           {loading ? (
             <div className="text-muted text-xs text-center py-4">Loading...</div>
           ) : events.length === 0 ? (
-            <div className="text-muted text-xs text-center py-4">No events. Click Ingest Logs to populate.</div>
+            <div className="text-muted text-xs text-center py-4">
+              No events. Click Ingest Logs to populate.
+            </div>
           ) : (
             <table className="w-full text-xs">
               <thead>
@@ -609,30 +604,31 @@ export function LogAnalytics() {
                 </tr>
               </thead>
               <tbody>
-                {events
-                  .slice(-200)
-                  .map((entry, idx) => (
-                    <tr key={idx} className="border-b border-border/50 hover:bg-white/5">
-                      <td className="py-1.5 pr-2 text-muted tabular-nums whitespace-nowrap">
-                        {entry.ts_iso.slice(5)}
-                      </td>
-                      <td className="py-1.5 pr-2">
-                        <span
-                          className="px-1.5 py-0.5 rounded text-[10px] font-medium"
-                          style={{
-                            color: LEVEL_COLORS[entry.level] || "#6b7280",
-                            background: `${LEVEL_COLORS[entry.level] || "#6b7280"}20`,
-                          }}
-                        >
-                          {entry.level}
-                        </span>
-                      </td>
-                      <td className="py-1.5 pr-2 text-cyan-400 max-w-[140px] truncate" title={entry.logger}>
-                        {entry.logger.split(".").pop()}
-                      </td>
-                      <td className="py-1.5 break-all">{entry.message}</td>
-                    </tr>
-                  ))}
+                {events.slice(-200).map((entry, idx) => (
+                  <tr key={idx} className="border-b border-border/50 hover:bg-white/5">
+                    <td className="py-1.5 pr-2 text-muted tabular-nums whitespace-nowrap">
+                      {entry.ts_iso.slice(5)}
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      <span
+                        className="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                        style={{
+                          color: LEVEL_COLORS[entry.level] || "#6b7280",
+                          background: `${LEVEL_COLORS[entry.level] || "#6b7280"}20`,
+                        }}
+                      >
+                        {entry.level}
+                      </span>
+                    </td>
+                    <td
+                      className="py-1.5 pr-2 text-cyan-400 max-w-[140px] truncate"
+                      title={entry.logger}
+                    >
+                      {entry.logger.split(".").pop()}
+                    </td>
+                    <td className="py-1.5 break-all">{entry.message}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}

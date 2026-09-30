@@ -5,7 +5,12 @@
  * Frozen generated data — do not hand-edit.
  */
 
-import type { TimingContract, SectionEvent, BeatEvent, EnergyCurvePoint } from "./timing";
+import type {
+  TimingContract,
+  SectionEvent,
+  BeatEvent,
+  EnergyCurvePoint,
+} from "./timing";
 
 export const SIR_DURATION_SECONDS = 234.12;
 export const SIR_BPM = 97.5;
@@ -13,8 +18,9 @@ export const SIR_BPM_CONFIDENCE = 0.365;
 export const SIR_BEAT_INTERVAL = 0.6154;
 
 // ─── 336 beats (analysis beat_times: uniform 0.615s spacing from 20.329s) ───
-export const SIR_BEAT_TIMES: number[] = Array.from({ length: 336 }, (_, i) =>
-  Math.round((20.329 + i * 0.6154) * 1000) / 1000
+export const SIR_BEAT_TIMES: number[] = Array.from(
+  { length: 336 },
+  (_, i) => Math.round((20.329 + i * 0.6154) * 1000) / 1000,
 );
 
 // ─── Real sections (8) from analysis JSON ───
@@ -43,10 +49,14 @@ const RAW_ENERGY = [
   0.007, 0.006, 0.005, 0.004, 0.003, 0.002, 0.002, 0.0015, 0.001, 0.0005,
 ];
 
-export const SIR_ENERGY_CURVE: EnergyCurvePoint[] = RAW_ENERGY.map((value, i) => ({
-  time: Math.round((SIR_DURATION_SECONDS / (RAW_ENERGY.length - 1)) * i * 1000) / 1000,
-  value,
-}));
+export const SIR_ENERGY_CURVE: EnergyCurvePoint[] = RAW_ENERGY.map(
+  (value, i) => ({
+    time:
+      Math.round((SIR_DURATION_SECONDS / (RAW_ENERGY.length - 1)) * i * 1000) /
+      1000,
+    value,
+  }),
+);
 
 export const SIR_AMPLITUDE_ENVELOPE: number[] = [...RAW_ENERGY];
 
@@ -57,7 +67,7 @@ export const STILL_I_RISE_TIMING: TimingContract = {
   bpmConfidence: SIR_BPM_CONFIDENCE,
   beats: SIR_BEAT_TIMES.map((time, i): BeatEvent => ({
     time,
-    drumType: (i % 4 === 0 ? "kick" : i % 4 === 2 ? "snare" : null),
+    drumType: i % 4 === 0 ? "kick" : i % 4 === 2 ? "snare" : null,
     energy: 1.0,
     isDownbeat: i % 4 === 0,
     bpm: SIR_BPM,
@@ -68,59 +78,106 @@ export const STILL_I_RISE_TIMING: TimingContract = {
 };
 
 // ─── Lyric blocks aligned to REAL section boundaries ───
-export const lyricBlocks: { start: number; end: number; section: string; lines: string[] }[] = [
-  { start: 0, end: 29.5, section: "INTRO", lines: [
-    "Midnight hums in shades of blue",
-    "A map unwritten, waiting to be drawn anew",
-    "Streetlight ghosts on wet asphalt",
-    "The compass spins toward what comes next",
-  ] },
-  { start: 29.5, end: 58.29, section: "CHORUS", lines: [
-    "Still I rise before the fade",
-    "Still I chase the light I made",
-    "Out on the edge where tomorrow waits",
-    "I'm becoming what tomorrow makes",
-  ] },
-  { start: 58.29, end: 87.68, section: "CHORUS", lines: [
-    "I walk where the streetlight loses its name",
-    "Learning the language of a different rain",
-    "Each wrong turn leaves a mark on my sleeve",
-    "Proof of the roads I was scared to believe",
-  ] },
-  { start: 87.68, end: 117.09, section: "CHORUS", lines: [
-    "The horizon moves, so I move with it too",
-    "Past all the rules that never came true",
-    "I wear the unknown like a second skin",
-    "Keeping one small match alive in the wind",
-  ] },
-  { start: 117.09, end: 146.46, section: "CHORUS", lines: [
-    "Deep in the fog, I found a steadier hand",
-    "Every river redrew where I stand",
-    "I keep small hours like coins in my coat",
-    "Warm from the crossing, enough to stay afloat",
-  ] },
-  { start: 146.46, end: 175.88, section: "VERSE", lines: [
-    "They watched from the shore while I learned to swim",
-    "Now even the tide has changed its hymn",
-    "Softer than thunder, clear as the glass",
-    "I build what will stay when the old days pass",
-  ] },
-  { start: 175.88, end: 204.58, section: "CHORUS", lines: [
-    "I thought the map had to tell me where",
-    "But dawn found my footprints already there",
-    "No finish line, no hand to hold",
-    "Just my own fire against the cold",
-  ] },
-  { start: 204.86, end: 234.12, section: "FINAL CHORUS", lines: [
-    "Still I rise before the fade",
-    "Still I chase the light I made",
-    "Out on the edge where tomorrow waits",
-    "I'm becoming what tomorrow makes",
-    "Still I rise — still I rise",
-  ] },
+export const lyricBlocks: {
+  start: number;
+  end: number;
+  section: string;
+  lines: string[];
+}[] = [
+  {
+    start: 0,
+    end: 29.5,
+    section: "INTRO",
+    lines: [
+      "Midnight hums in shades of blue",
+      "A map unwritten, waiting to be drawn anew",
+      "Streetlight ghosts on wet asphalt",
+      "The compass spins toward what comes next",
+    ],
+  },
+  {
+    start: 29.5,
+    end: 58.29,
+    section: "CHORUS",
+    lines: [
+      "Still I rise before the fade",
+      "Still I chase the light I made",
+      "Out on the edge where tomorrow waits",
+      "I'm becoming what tomorrow makes",
+    ],
+  },
+  {
+    start: 58.29,
+    end: 87.68,
+    section: "CHORUS",
+    lines: [
+      "I walk where the streetlight loses its name",
+      "Learning the language of a different rain",
+      "Each wrong turn leaves a mark on my sleeve",
+      "Proof of the roads I was scared to believe",
+    ],
+  },
+  {
+    start: 87.68,
+    end: 117.09,
+    section: "CHORUS",
+    lines: [
+      "The horizon moves, so I move with it too",
+      "Past all the rules that never came true",
+      "I wear the unknown like a second skin",
+      "Keeping one small match alive in the wind",
+    ],
+  },
+  {
+    start: 117.09,
+    end: 146.46,
+    section: "CHORUS",
+    lines: [
+      "Deep in the fog, I found a steadier hand",
+      "Every river redrew where I stand",
+      "I keep small hours like coins in my coat",
+      "Warm from the crossing, enough to stay afloat",
+    ],
+  },
+  {
+    start: 146.46,
+    end: 175.88,
+    section: "VERSE",
+    lines: [
+      "They watched from the shore while I learned to swim",
+      "Now even the tide has changed its hymn",
+      "Softer than thunder, clear as the glass",
+      "I build what will stay when the old days pass",
+    ],
+  },
+  {
+    start: 175.88,
+    end: 204.58,
+    section: "CHORUS",
+    lines: [
+      "I thought the map had to tell me where",
+      "But dawn found my footprints already there",
+      "No finish line, no hand to hold",
+      "Just my own fire against the cold",
+    ],
+  },
+  {
+    start: 204.86,
+    end: 234.12,
+    section: "FINAL CHORUS",
+    lines: [
+      "Still I rise before the fade",
+      "Still I chase the light I made",
+      "Out on the edge where tomorrow waits",
+      "I'm becoming what tomorrow makes",
+      "Still I rise — still I rise",
+    ],
+  },
 ];
 
 // ─── Section transition wipe points (real section starts, skipping 0) ───
-export const transitionTimes: number[] = SIR_SECTIONS.slice(1).map((s) => s.start);
+export const transitionTimes: number[] = SIR_SECTIONS.slice(1).map(
+  (s) => s.start,
+);
 
 export default STILL_I_RISE_TIMING;

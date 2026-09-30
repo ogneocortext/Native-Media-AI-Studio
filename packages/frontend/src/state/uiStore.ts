@@ -26,19 +26,23 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>()(
-  devtools((set) => ({
-    focusMode: false,
-    autoPlay: getStoredAutoPlay(),
-    setFocusMode: (active) => set({ focusMode: active }),
-    toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode })),
-    setAutoPlay: (enabled) => {
-      set({ autoPlay: enabled });
-      localStorage.setItem(AUTO_PLAY_KEY, String(enabled));
-    },
-    toggleAutoPlay: () => set((s) => {
-      const next = !s.autoPlay;
-      localStorage.setItem(AUTO_PLAY_KEY, String(next));
-      return { autoPlay: next };
+  devtools(
+    (set) => ({
+      focusMode: false,
+      autoPlay: getStoredAutoPlay(),
+      setFocusMode: (active) => set({ focusMode: active }),
+      toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode })),
+      setAutoPlay: (enabled) => {
+        set({ autoPlay: enabled });
+        localStorage.setItem(AUTO_PLAY_KEY, String(enabled));
+      },
+      toggleAutoPlay: () =>
+        set((s) => {
+          const next = !s.autoPlay;
+          localStorage.setItem(AUTO_PLAY_KEY, String(next));
+          return { autoPlay: next };
+        }),
     }),
-  }), { name: "UIStore" })
+    { name: "UIStore" },
+  ),
 );

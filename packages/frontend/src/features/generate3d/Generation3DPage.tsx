@@ -49,7 +49,8 @@ export function Generation3DPage() {
                 <div className="p-5 border-b border-gray-700">
                   <h2 className="text-sm font-semibold text-gray-200">Prompt</h2>
                   <p className="text-xs text-gray-400 mt-1">
-                    Start with what you want to build. Pick a template or write your own prompt, then lock the character identity if this is a recurring subject.
+                    Start with what you want to build. Pick a template or write your own prompt,
+                    then lock the character identity if this is a recurring subject.
                   </p>
                 </div>
                 <div className="p-5">
@@ -68,7 +69,8 @@ export function Generation3DPage() {
                 <div className="p-5 border-b border-gray-700">
                   <h2 className="text-sm font-semibold text-gray-200">Character Bible</h2>
                   <p className="text-xs text-gray-400 mt-1">
-                    Optional but recommended for characters. This bibles the model so reruns stay consistent across shots.
+                    Optional but recommended for characters. This bibles the model so reruns stay
+                    consistent across shots.
                   </p>
                 </div>
                 <div className="p-5">
@@ -96,7 +98,8 @@ export function Generation3DPage() {
                 <div className="p-5 border-b border-gray-700">
                   <h2 className="text-sm font-semibold text-gray-200">Model</h2>
                   <p className="text-xs text-gray-400 mt-1">
-                    Pick the model and quality level. Hunyuan3D-2mini is the safe default for 8GB VRAM.
+                    Pick the model and quality level. Hunyuan3D-2mini is the safe default for 8GB
+                    VRAM.
                   </p>
                 </div>
                 <div className="p-5">
@@ -108,7 +111,8 @@ export function Generation3DPage() {
                 <div className="p-5 border-b border-gray-700">
                   <h2 className="text-sm font-semibold text-gray-200">Advanced Parameters</h2>
                   <p className="text-xs text-gray-400 mt-1">
-                    Fine-tune generation behavior. Leave these at defaults unless you know what you&apos;re changing.
+                    Fine-tune generation behavior. Leave these at defaults unless you know what
+                    you&apos;re changing.
                   </p>
                 </div>
                 <div className="p-5">
@@ -141,7 +145,8 @@ export function Generation3DPage() {
                 <div className="p-5 border-b border-gray-700">
                   <h2 className="text-sm font-semibold text-gray-200">Generate</h2>
                   <p className="text-xs text-gray-400 mt-1">
-                    Ready to render. Keep this tab open; VRAM swapping may pause Ollama while the model loads.
+                    Ready to render. Keep this tab open; VRAM swapping may pause Ollama while the
+                    model loads.
                   </p>
                 </div>
                 <div className="p-5 space-y-4">
@@ -183,9 +188,7 @@ export function Generation3DPage() {
               <RenderingGuideCard />
             </>
           )}
-          {hook.wizardStep === "style" && (
-            <RenderingGuideCard />
-          )}
+          {hook.wizardStep === "style" && <RenderingGuideCard />}
         </div>
       </div>
     </div>

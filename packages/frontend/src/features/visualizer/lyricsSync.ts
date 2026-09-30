@@ -12,7 +12,7 @@
 
 export interface LyricLine {
   start: number; // seconds
-  end: number;   // seconds
+  end: number; // seconds
   text: string;
   words?: WordTiming[];
 }
@@ -30,7 +30,7 @@ export function parseLRC(lrcContent: string): LyricLine[] {
   const lines: LyricLine[] = [];
   const timestampRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/g;
 
-  for (const line of lrcContent.split('\n')) {
+  for (const line of lrcContent.split("\n")) {
     const matches = [...line.matchAll(timestampRegex)];
     if (matches.length === 0) continue;
 
@@ -42,9 +42,8 @@ export function parseLRC(lrcContent: string): LyricLine[] {
     // Use the first timestamp as the line start time
     const minutes = parseInt(matches[0][1]);
     const seconds = parseInt(matches[0][2]);
-    const centis = matches[0][3].length === 2
-      ? parseInt(matches[0][3])
-      : parseInt(matches[0][3]) / 10;
+    const centis =
+      matches[0][3].length === 2 ? parseInt(matches[0][3]) : parseInt(matches[0][3]) / 10;
     const start = minutes * 60 + seconds + centis / 100;
 
     lines.push({ start, end: start + 5, text }); // end will be updated
@@ -68,15 +67,13 @@ export function parseWordLevelLRC(lrcContent: string): LyricLine[] {
   const lineTimestampRegex = /^\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
   const wordTimestampRegex = /<(\d{2}):(\d{2})\.(\d{2,3})>\s*([^<]+)/g;
 
-  for (const line of lrcContent.split('\n')) {
+  for (const line of lrcContent.split("\n")) {
     const lineMatch = line.match(lineTimestampRegex);
     if (!lineMatch) continue;
 
     const minutes = parseInt(lineMatch[1]);
     const seconds = parseInt(lineMatch[2]);
-    const centis = lineMatch[3].length === 2
-      ? parseInt(lineMatch[3])
-      : parseInt(lineMatch[3]) / 10;
+    const centis = lineMatch[3].length === 2 ? parseInt(lineMatch[3]) : parseInt(lineMatch[3]) / 10;
     const lineStart = minutes * 60 + seconds + centis / 100;
 
     // Extract word timings
@@ -87,9 +84,7 @@ export function parseWordLevelLRC(lrcContent: string): LyricLine[] {
     for (const match of wordLine.matchAll(wordTimestampRegex)) {
       const wMin = parseInt(match[1]);
       const wSec = parseInt(match[2]);
-      const wCent = match[3].length === 2
-        ? parseInt(match[3])
-        : parseInt(match[3]) / 10;
+      const wCent = match[3].length === 2 ? parseInt(match[3]) : parseInt(match[3]) / 10;
       const wStart = wMin * 60 + wSec + wCent / 100;
       const wText = match[4].trim();
 
@@ -98,7 +93,7 @@ export function parseWordLevelLRC(lrcContent: string): LyricLine[] {
     }
 
     if (words.length > 0) {
-      const text = wordText.join(' ');
+      const text = wordText.join(" ");
       const end = words[words.length - 1].end;
       lines.push({ start: lineStart, end, text, words });
     } else {
@@ -135,7 +130,10 @@ export function findCurrentLine(lines: LyricLine[], time: number): LyricLine | n
 /**
  * Find the current word within a line at a given time.
  */
-export function findCurrentWord(line: LyricLine, time: number): { word: WordTiming; index: number } | null {
+export function findCurrentWord(
+  line: LyricLine,
+  time: number,
+): { word: WordTiming; index: number } | null {
   if (!line.words) return null;
 
   for (let i = 0; i < line.words.length; i++) {

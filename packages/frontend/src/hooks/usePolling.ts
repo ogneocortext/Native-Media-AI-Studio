@@ -52,7 +52,7 @@ export function usePolling(
     pauseWhenHidden = true,
     leaderChannel,
     backoff,
-  }: UsePollingOptions = {}
+  }: UsePollingOptions = {},
 ) {
   const callbackRef = useRef(callback);
   const tabId = useRef(`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
@@ -72,14 +72,10 @@ export function usePolling(
     let heartbeat: ReturnType<typeof setInterval> | null = null;
     let bc: BroadcastChannel | null = null;
 
-    const isHidden = () =>
-      pauseWhenHidden &&
-      (typeof document !== "undefined" && document.hidden);
+    const isHidden = () => pauseWhenHidden && typeof document !== "undefined" && document.hidden;
 
     const isOffline = () =>
-      pauseWhenHidden &&
-      typeof navigator !== "undefined" &&
-      navigator.onLine === false;
+      pauseWhenHidden && typeof navigator !== "undefined" && navigator.onLine === false;
 
     const checkLeader = () => {
       if (!leaderChannel) return true;
@@ -137,7 +133,9 @@ export function usePolling(
         if (isLeader) {
           try {
             localStorage.setItem(leaderKey, JSON.stringify({ id: tabId.current, ts: Date.now() }));
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
           bc?.postMessage({ type: "leader-heartbeat", id: tabId.current });
         } else {
           checkLeader();
@@ -175,5 +173,13 @@ export function usePolling(
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("online", onOnline);
     };
-  }, [enabled, intervalMs, immediate, pauseWhenHidden, leaderChannel, backoff?.maxMs, backoff?.factor]);
+  }, [
+    enabled,
+    intervalMs,
+    immediate,
+    pauseWhenHidden,
+    leaderChannel,
+    backoff?.maxMs,
+    backoff?.factor,
+  ]);
 }

@@ -198,7 +198,14 @@ export function StyleTemplateGallery({
   const filteredTemplates =
     filterCategory === "all" ? templates : templates.filter((t) => t.category === filterCategory);
 
-  const categories = ["all", "abstract", "organic", "geometric", "energetic", "atmospheric"] as const;
+  const categories = [
+    "all",
+    "abstract",
+    "organic",
+    "geometric",
+    "energetic",
+    "atmospheric",
+  ] as const;
 
   return (
     <div className="space-y-4">
@@ -313,15 +320,21 @@ export function StyleTemplateGallery({
           <div className="grid grid-cols-3 gap-2 text-xs">
             <div className="p-2 bg-black/20 rounded">
               <span className="text-muted">Motion</span>
-              <div className="font-medium">{Math.round(selectedTemplate.params.motionStrength * 100)}%</div>
+              <div className="font-medium">
+                {Math.round(selectedTemplate.params.motionStrength * 100)}%
+              </div>
             </div>
             <div className="p-2 bg-black/20 rounded">
               <span className="text-muted">Complexity</span>
-              <div className="font-medium">{Math.round(selectedTemplate.params.complexity * 100)}%</div>
+              <div className="font-medium">
+                {Math.round(selectedTemplate.params.complexity * 100)}%
+              </div>
             </div>
             <div className="p-2 bg-black/20 rounded">
               <span className="text-muted">Reactivity</span>
-              <div className="font-medium">{Math.round(selectedTemplate.params.beatReactivity * 100)}%</div>
+              <div className="font-medium">
+                {Math.round(selectedTemplate.params.beatReactivity * 100)}%
+              </div>
             </div>
           </div>
 

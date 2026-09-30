@@ -25,7 +25,6 @@
   background: #4a4a5a;
 }
 
-
 /* ===== APP LAYOUT ===== */
 /* Base layout structure — restores side-by-side flex layout lost during CSS modularization */
 
@@ -77,7 +76,6 @@
   white-space: nowrap;
 }
 
-
 /* ===== GRID LAYOUTS ===== */
 /* Container query contexts enable component-level responsive behavior */
 .grid-2,
@@ -120,49 +118,90 @@
   }
 }
 
-
 /* ===== RESPONSIVE LAYOUT — rewired for vertical + small windows ===== */
 
 /* Large displays (desktops) */
 @media (min-width: 1920px) {
-  .sidebar-container { inline-size: 280px; min-inline-size: 280px; }
+  .sidebar-container {
+    inline-size: 280px;
+    min-inline-size: 280px;
+  }
 }
 
 /* Medium displays (laptops) */
 @media (max-width: 1400px) {
-  .sidebar-container { inline-size: 220px; min-inline-size: 220px; }
-  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .sidebar-container {
+    inline-size: 220px;
+    min-inline-size: 220px;
+  }
+  .grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 1100px) {
-  .sidebar-container { inline-size: 200px; min-inline-size: 200px; }
-  .grid-3 { grid-template-columns: repeat(2, 1fr); }
-  .card { padding: 16px; margin-bottom: 12px; }
+  .sidebar-container {
+    inline-size: 200px;
+    min-inline-size: 200px;
+  }
+  .grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .card {
+    padding: 16px;
+    margin-bottom: 12px;
+  }
 }
 
 /* Tablet + phone: sidebar becomes overlay drawer (handled in Sidebar.tsx isMobile) */
 @media (max-width: 900px) {
-  .layout-root { flex-direction: row; } /* keep row — drawer overlays, not top bar */
-  .layout-main { block-size: 100vh; block-size: 100dvh; }
-  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .layout-root {
+    flex-direction: row;
+  } /* keep row — drawer overlays, not top bar */
+  .layout-main {
+    block-size: 100vh;
+    block-size: 100dvh;
+  }
+  .grid-2,
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: 1fr;
+  }
   /* Ensure sidebar nav scrolls and health never pushes offscreen */
-  .sidebar-container { max-block-size: 100vh; max-block-size: 100dvh; }
-  .sidebar-container nav { -webkit-overflow-scrolling: touch; }
+  .sidebar-container {
+    max-block-size: 100vh;
+    max-block-size: 100dvh;
+  }
+  .sidebar-container nav {
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* Very narrow (320-600px) — tighter padding, still all content fits via scroll */
 @media (max-width: 600px) {
-  .card { padding: 12px; border-radius: 12px; }
-  .btn-lg { padding: 12px 20px; font-size: 14px; }
-  .layout-main { padding-block-end: env(safe-area-inset-bottom); }
+  .card {
+    padding: 12px;
+    border-radius: 12px;
+  }
+  .btn-lg {
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+  .layout-main {
+    padding-block-end: env(safe-area-inset-bottom);
+  }
 }
 
 /* Vertical portrait monitors (height >> width) — keep sidebar narrow, not top bar */
 @media (max-height: 700px) {
-  .sidebar-container .p-3 { padding-block-start: 0.5rem; padding-block-end: 0.5rem; }
-  .sidebar-container nav { gap: 0; }
+  .sidebar-container .p-3 {
+    padding-block-start: 0.5rem;
+    padding-block-end: 0.5rem;
+  }
+  .sidebar-container nav {
+    gap: 0;
+  }
 }
-
 
 /* ===== SECTION HEADERS ===== */
 .section-header {
@@ -173,7 +212,6 @@
   color: var(--text-secondary);
   margin-bottom: 16px;
 }
-
 
 /* ===== RESPONSIVE GRID EXTENSIONS ===== */
 .grid-1 {
@@ -187,7 +225,6 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
-
 
 /* ===== LAYOUT FOCUS MODE ===== */
 .layout-focus-mode .sidebar-container {

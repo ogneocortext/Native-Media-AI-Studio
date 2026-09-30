@@ -40,9 +40,7 @@ function friendlyStatusError(code?: string): string {
     case "unreachable":
       return "Unity Pipeline server not reachable";
     default:
-      return code.startsWith("http_")
-        ? `Unity Pipeline returned HTTP ${code.slice(5)}`
-        : code;
+      return code.startsWith("http_") ? `Unity Pipeline returned HTTP ${code.slice(5)}` : code;
   }
 }
 
@@ -234,8 +232,7 @@ export function UnityControlPage() {
     const result = await listUnityShaders();
     if (result?.ok) {
       const payload = result.data as
-        | { success?: boolean; result?: Array<{ name?: string }> }
-        | undefined;
+        { success?: boolean; result?: Array<{ name?: string }> } | undefined;
       const names = (payload?.result ?? [])
         .map((item) => item.name)
         .filter((name): name is string => typeof name === "string");
@@ -322,11 +319,17 @@ export function UnityControlPage() {
         save_path: "output/unity_control_preview.png",
         include_inline_image: true,
       });
-      const payload = (result?.data as { result?: { base64?: string; width?: number; height?: number; savedPath?: string } } | undefined)?.result;
+      const payload = (
+        result?.data as
+          | { result?: { base64?: string; width?: number; height?: number; savedPath?: string } }
+          | undefined
+      )?.result;
       setPreviewDataUrl(payload?.base64 ? `data:image/png;base64,${payload.base64}` : null);
       const dims = payload?.width && payload?.height ? ` (${payload.width}×${payload.height})` : "";
       showToast(
-        payload?.savedPath ? `Scene captured${dims}: ${payload.savedPath}` : `Scene captured${dims}`,
+        payload?.savedPath
+          ? `Scene captured${dims}: ${payload.savedPath}`
+          : `Scene captured${dims}`,
         "success",
       );
     } catch (e) {
@@ -385,13 +388,21 @@ export function UnityControlPage() {
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${statusState === "online" ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-white/10 bg-white/5 text-gray-400"}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${statusState === "online" ? "bg-emerald-300 animate-pulse-glow" : "bg-gray-500"}`} />
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${statusState === "online" ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-white/10 bg-white/5 text-gray-400"}`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${statusState === "online" ? "bg-emerald-300 animate-pulse-glow" : "bg-gray-500"}`}
+                />
                 {statusState === "online" ? "Live" : "Standby"}
               </span>
-              <h2 className="font-semibold flex items-center gap-2"><Camera size={18} /> Live Unity Preview</h2>
+              <h2 className="font-semibold flex items-center gap-2">
+                <Camera size={18} /> Live Unity Preview
+              </h2>
             </div>
-            <p className="text-xs text-gray-400 mt-2">Capture the active Unity camera to preview the current scene.</p>
+            <p className="text-xs text-gray-400 mt-2">
+              Capture the active Unity camera to preview the current scene.
+            </p>
           </div>
           <button
             onClick={handleCapture}
@@ -402,9 +413,15 @@ export function UnityControlPage() {
             {capturing ? "Rendering..." : "Refresh preview"}
           </button>
         </div>
-        <div className={`unity-preview-frame w-full max-w-3xl aspect-video ${capturing ? "shimmer" : ""}`}>
+        <div
+          className={`unity-preview-frame w-full max-w-3xl aspect-video ${capturing ? "shimmer" : ""}`}
+        >
           {previewDataUrl ? (
-            <img src={previewDataUrl} alt="Latest Unity camera capture" className="w-full h-full object-contain" />
+            <img
+              src={previewDataUrl}
+              alt="Latest Unity camera capture"
+              className="w-full h-full object-contain"
+            />
           ) : (
             <div className="unity-preview-empty w-full h-full flex items-center justify-center text-sm text-gray-400">
               No preview yet. Use “Refresh preview” to render the current Unity camera.
@@ -428,9 +445,7 @@ export function UnityControlPage() {
                 </span>
               )}
             </div>
-            {statusError && (
-              <div className="text-sm text-red-400 mt-1">{statusError}</div>
-            )}
+            {statusError && <div className="text-sm text-red-400 mt-1">{statusError}</div>}
             {statusDetail !== null && statusState === "online" && (
               <details className="mt-2">
                 <summary className="text-sm text-gray-400 cursor-pointer hover:text-white">
@@ -495,7 +510,9 @@ export function UnityControlPage() {
             </h3>
             <div className="space-y-3">
               <div>
-                <label htmlFor="uc-object-name" className="block text-sm text-gray-400 mb-1">Name</label>
+                <label htmlFor="uc-object-name" className="block text-sm text-gray-400 mb-1">
+                  Name
+                </label>
                 <input
                   id="uc-object-name"
                   type="text"
@@ -506,7 +523,9 @@ export function UnityControlPage() {
                 />
               </div>
               <div>
-                <label htmlFor="uc-primitive" className="block text-sm text-gray-400 mb-1">Primitive</label>
+                <label htmlFor="uc-primitive" className="block text-sm text-gray-400 mb-1">
+                  Primitive
+                </label>
                 <select
                   id="uc-primitive"
                   value={primitive}
@@ -539,7 +558,9 @@ export function UnityControlPage() {
             </h3>
             <div className="space-y-3">
               <div>
-                <label htmlFor="uc-vis-target" className="block text-sm text-gray-400 mb-1">GameObject Name</label>
+                <label htmlFor="uc-vis-target" className="block text-sm text-gray-400 mb-1">
+                  GameObject Name
+                </label>
                 <input
                   id="uc-vis-target"
                   type="text"
@@ -575,7 +596,9 @@ export function UnityControlPage() {
             </h3>
             <div className="space-y-3">
               <div>
-                <label htmlFor="uc-component-target" className="block text-sm text-gray-400 mb-1">Target GameObject</label>
+                <label htmlFor="uc-component-target" className="block text-sm text-gray-400 mb-1">
+                  Target GameObject
+                </label>
                 <input
                   id="uc-component-target"
                   type="text"
@@ -586,7 +609,9 @@ export function UnityControlPage() {
                 />
               </div>
               <div>
-                <label htmlFor="uc-component-type" className="block text-sm text-gray-400 mb-1">Component Type</label>
+                <label htmlFor="uc-component-type" className="block text-sm text-gray-400 mb-1">
+                  Component Type
+                </label>
                 <input
                   id="uc-component-type"
                   type="text"
@@ -614,7 +639,9 @@ export function UnityControlPage() {
             </h3>
             <div className="space-y-3">
               <div>
-                <label htmlFor="uc-anim-target" className="block text-sm text-gray-400 mb-1">Target GameObject</label>
+                <label htmlFor="uc-anim-target" className="block text-sm text-gray-400 mb-1">
+                  Target GameObject
+                </label>
                 <input
                   id="uc-anim-target"
                   type="text"
@@ -625,7 +652,9 @@ export function UnityControlPage() {
                 />
               </div>
               <div>
-                <label htmlFor="uc-anim-clip" className="block text-sm text-gray-400 mb-1">Animation Clip Name</label>
+                <label htmlFor="uc-anim-clip" className="block text-sm text-gray-400 mb-1">
+                  Animation Clip Name
+                </label>
                 <input
                   id="uc-anim-clip"
                   type="text"
@@ -635,24 +664,24 @@ export function UnityControlPage() {
                   placeholder="MyClip"
                 />
               </div>
-               <div className="flex gap-2">
-                 <button
-                   onClick={handleQuickPlayAnim}
-                   disabled={running || statusState !== "online"}
-                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-500/80 hover:bg-emerald-600 disabled:bg-emerald-500/30 rounded-lg transition-colors"
-                 >
-                   <Play size={16} /> Play
-                 </button>
-                 <button
-                   onClick={handleQuickStopAnim}
-                   disabled={running || statusState !== "online"}
-                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-500/80 hover:bg-red-600 disabled:bg-red-500/30 rounded-lg transition-colors"
-                 >
-                   <Square size={16} /> Stop
-                 </button>
-               </div>
-             </div>
-           </Card>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleQuickPlayAnim}
+                  disabled={running || statusState !== "online"}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-500/80 hover:bg-emerald-600 disabled:bg-emerald-500/30 rounded-lg transition-colors"
+                >
+                  <Play size={16} /> Play
+                </button>
+                <button
+                  onClick={handleQuickStopAnim}
+                  disabled={running || statusState !== "online"}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-500/80 hover:bg-red-600 disabled:bg-red-500/30 rounded-lg transition-colors"
+                >
+                  <Square size={16} /> Stop
+                </button>
+              </div>
+            </div>
+          </Card>
 
           {/* Shader / Material */}
           <Card className="lg:col-span-2">
@@ -667,7 +696,11 @@ export function UnityControlPage() {
                     disabled={running || statusState !== "online"}
                     className="flex items-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/40 rounded-lg transition-colors text-sm"
                   >
-                    {running ? <Loader2 className="animate-spin" size={16} /> : <Terminal size={16} />}
+                    {running ? (
+                      <Loader2 className="animate-spin" size={16} />
+                    ) : (
+                      <Terminal size={16} />
+                    )}
                     List Shaders
                   </button>
                   <select
@@ -676,9 +709,13 @@ export function UnityControlPage() {
                     onChange={(e) => setSelectedShader(e.target.value)}
                     className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
                   >
-                    <option value="" disabled>Select shader...</option>
+                    <option value="" disabled>
+                      Select shader...
+                    </option>
                     {shaderList.map((name) => (
-                      <option key={name} value={name}>{name}</option>
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -741,11 +778,17 @@ export function UnityControlPage() {
                     value={materialPropertyValue}
                     onChange={(e) => setMaterialPropertyValue(e.target.value)}
                     className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-500"
-                    placeholder='Value (JSON or string)'
+                    placeholder="Value (JSON or string)"
                   />
                   <button
                     onClick={handleSetMaterialProperty}
-                    disabled={running || statusState !== "online" || !materialTarget || !materialPropertyKey || materialPropertyValue === ""}
+                    disabled={
+                      running ||
+                      statusState !== "online" ||
+                      !materialTarget ||
+                      !materialPropertyKey ||
+                      materialPropertyValue === ""
+                    }
                     className="px-3 py-2 bg-emerald-500/80 hover:bg-emerald-600 disabled:bg-emerald-500/30 rounded-lg transition-colors text-sm"
                   >
                     Set
@@ -771,76 +814,84 @@ export function UnityControlPage() {
           tabIndex={0}
         >
           <Card>
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <Terminal size={18} /> Custom Command
-          </h3>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="uc-custom-command" className="block text-sm text-gray-400 mb-1">Command</label>
-              <input
-                id="uc-custom-command"
-                type="text"
-                value={customCommand}
-                onChange={(e) => setCustomCommand(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleCustomCommand()}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-500"
-                placeholder="e.g. create_gameobject, editor_status, list_animations"
-              />
-            </div>
-            <div>
-              <label htmlFor="uc-custom-params" className="block text-sm text-gray-400 mb-1">Parameters (JSON)</label>
-              <textarea
-                id="uc-custom-params"
-                value={customParams}
-                onChange={(e) => setCustomParams(e.target.value)}
-                rows={4}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-500 resize-y"
-                placeholder='{"name": "Foo", "primitive": "sphere"}'
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleCustomCommand}
-                disabled={running || !customCommand.trim() || statusState !== "online"}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/40 rounded-lg transition-colors"
-              >
-                {running ? <Loader2 className="animate-spin" size={16} /> : <Terminal size={16} />}
-                Run Command
-              </button>
-              {commandsError ? (
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <Terminal size={18} /> Custom Command
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="uc-custom-command" className="block text-sm text-gray-400 mb-1">
+                  Command
+                </label>
+                <input
+                  id="uc-custom-command"
+                  type="text"
+                  value={customCommand}
+                  onChange={(e) => setCustomCommand(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCustomCommand()}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-500"
+                  placeholder="e.g. create_gameobject, editor_status, list_animations"
+                />
+              </div>
+              <div>
+                <label htmlFor="uc-custom-params" className="block text-sm text-gray-400 mb-1">
+                  Parameters (JSON)
+                </label>
+                <textarea
+                  id="uc-custom-params"
+                  value={customParams}
+                  onChange={(e) => setCustomParams(e.target.value)}
+                  rows={4}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-500 resize-y"
+                  placeholder='{"name": "Foo", "primitive": "sphere"}'
+                />
+              </div>
+              <div className="flex gap-2">
                 <button
-                  onClick={() => loadCommands()}
-                  className="px-3 py-2 text-xs bg-amber-500/10 border border-amber-500/40 text-amber-300 rounded-lg transition-colors hover:bg-amber-500/20"
-                  title={commandsError}
+                  onClick={handleCustomCommand}
+                  disabled={running || !customCommand.trim() || statusState !== "online"}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/40 rounded-lg transition-colors"
                 >
-                  Command list failed to load — Retry
+                  {running ? (
+                    <Loader2 className="animate-spin" size={16} />
+                  ) : (
+                    <Terminal size={16} />
+                  )}
+                  Run Command
                 </button>
-              ) : (
-                commandsLoaded && (
-                  <select
-                    aria-label="Insert a Unity command"
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        setCustomCommand(e.target.value);
-                        setCustomParams("{}");
-                      }
-                    }}
-                    value=""
-                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+                {commandsError ? (
+                  <button
+                    onClick={() => loadCommands()}
+                    className="px-3 py-2 text-xs bg-amber-500/10 border border-amber-500/40 text-amber-300 rounded-lg transition-colors hover:bg-amber-500/20"
+                    title={commandsError}
                   >
-                    <option value="" disabled>
-                      Insert command...
-                    </option>
-                    {commands.map((cmd) => (
-                      <option key={cmd.name} value={cmd.name} title={cmd.description}>
-                        {cmd.name}
+                    Command list failed to load — Retry
+                  </button>
+                ) : (
+                  commandsLoaded && (
+                    <select
+                      aria-label="Insert a Unity command"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setCustomCommand(e.target.value);
+                          setCustomParams("{}");
+                        }
+                      }}
+                      value=""
+                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="" disabled>
+                        Insert command...
                       </option>
-                    ))}
-                  </select>
-                )
-              )}
+                      {commands.map((cmd) => (
+                        <option key={cmd.name} value={cmd.name} title={cmd.description}>
+                          {cmd.name}
+                        </option>
+                      ))}
+                    </select>
+                  )
+                )}
+              </div>
             </div>
-          </div>
           </Card>
         </div>
       )}
@@ -854,44 +905,39 @@ export function UnityControlPage() {
           tabIndex={0}
         >
           <Card>
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <Terminal size={18} /> Command History
-          </h3>
-          {commandHistory.length === 0 ? (
-            <div className="text-sm text-gray-400 text-center py-8">
-              No commands executed yet. Run a command to see it here.
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-[60vh] overflow-auto">
-              {commandHistory.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex items-start gap-3 p-3 bg-white/5 rounded-lg"
-                >
-                  <span className="text-xs text-gray-500 whitespace-nowrap mt-0.5">
-                    {entry.time}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-mono text-sm text-indigo-300">
-                      {entry.command}
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <Terminal size={18} /> Command History
+            </h3>
+            {commandHistory.length === 0 ? (
+              <div className="text-sm text-gray-400 text-center py-8">
+                No commands executed yet. Run a command to see it here.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[60vh] overflow-auto">
+                {commandHistory.map((entry) => (
+                  <div key={entry.id} className="flex items-start gap-3 p-3 bg-white/5 rounded-lg">
+                    <span className="text-xs text-gray-500 whitespace-nowrap mt-0.5">
+                      {entry.time}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-mono text-sm text-indigo-300">{entry.command}</div>
+                      <pre className="mt-1 text-xs bg-black/30 p-2 rounded overflow-auto max-h-40 whitespace-pre-wrap">
+                        {entry.result.ok
+                          ? prettyPrint(entry.result.data)
+                          : `ERROR: ${entry.result.error}`}
+                      </pre>
                     </div>
-                    <pre className="mt-1 text-xs bg-black/30 p-2 rounded overflow-auto max-h-40 whitespace-pre-wrap">
-                      {entry.result.ok
-                        ? prettyPrint(entry.result.data)
-                        : `ERROR: ${entry.result.error}`}
-                    </pre>
+                    <span
+                      className={`shrink-0 mt-0.5 ${
+                        entry.result.ok ? "text-green-400" : "text-red-400"
+                      }`}
+                    >
+                      {entry.result.ok ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+                    </span>
                   </div>
-                  <span
-                    className={`shrink-0 mt-0.5 ${
-                      entry.result.ok ? "text-green-400" : "text-red-400"
-                    }`}
-                  >
-                    {entry.result.ok ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
           </Card>
         </div>
       )}

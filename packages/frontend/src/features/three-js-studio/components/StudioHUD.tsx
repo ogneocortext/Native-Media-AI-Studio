@@ -29,13 +29,7 @@ export function StudioHUD({
       </span>
       <span title={beatSync ? "Beat sync on" : "Beat sync off — enable it in the track bar"}>
         BPM{" "}
-        <span
-          className={
-            beatSync
-              ? "text-green-400 font-mono"
-              : "text-gray-500 font-mono"
-          }
-        >
+        <span className={beatSync ? "text-green-400 font-mono" : "text-gray-500 font-mono"}>
           {beatSync ? bpm : "—"}
         </span>
       </span>
@@ -52,9 +46,7 @@ export function StudioHUD({
           <span
             className={`w-1.5 h-1.5 rounded-full transition-all duration-75 ${beatActive ? "bg-green-400 scale-125" : "bg-gray-600 scale-100"}`}
           />
-          <span className={beatActive ? "text-green-400" : "text-gray-500"}>
-            Beat
-          </span>
+          <span className={beatActive ? "text-green-400" : "text-gray-500"}>Beat</span>
         </span>
       )}
     </div>

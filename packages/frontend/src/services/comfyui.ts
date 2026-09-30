@@ -7,7 +7,10 @@ import { getComfyuiUrl, getComfyuiWsUrl } from "./portConfig";
 import { fetchWithTimeout } from "./fetchWithTimeout";
 
 export class ComfyUIError extends Error {
-  constructor(message: string, public statusCode?: number) {
+  constructor(
+    message: string,
+    public statusCode?: number,
+  ) {
     super(message);
     this.name = "ComfyUIError";
   }
@@ -59,7 +62,9 @@ export interface AvailableModels {
 /**
  * Queue a prompt for execution on ComfyUI.
  */
-export async function queuePrompt(workflow: Record<string, unknown>): Promise<{ prompt_id: string }> {
+export async function queuePrompt(
+  workflow: Record<string, unknown>,
+): Promise<{ prompt_id: string }> {
   const COMFYUI_URL = getComfyuiUrl();
   const response = await fetchWithTimeout(`${COMFYUI_URL}/prompt`, {
     method: "POST",
@@ -108,7 +113,7 @@ export async function getQueueStatus(): Promise<{
   const COMFYUI_URL = getComfyuiUrl();
   const response = await checkResponse(
     await fetchWithTimeout(`${COMFYUI_URL}/queue`, { timeout: 8000 }),
-    "queue status"
+    "queue status",
   );
   return response.json();
 }
@@ -130,7 +135,7 @@ export async function getSystemStats(): Promise<{
   const COMFYUI_URL = getComfyuiUrl();
   const response = await checkResponse(
     await fetchWithTimeout(`${COMFYUI_URL}/system_stats`, { timeout: 8000 }),
-    "system stats"
+    "system stats",
   );
   return response.json();
 }
@@ -210,7 +215,7 @@ export async function getAvailableModels(): Promise<AvailableModels> {
   try {
     const response = await checkResponse(
       await fetchWithTimeout(`${COMFYUI_URL}/object_info`, { timeout: 15000 }),
-      "object_info"
+      "object_info",
     );
     const data = (await response.json()) as Record<string, unknown>;
 
@@ -218,7 +223,7 @@ export async function getAvailableModels(): Promise<AvailableModels> {
     models.vae = extractFileList(data.VAELoader);
     models.loras = extractFileList(data.LoraLoader);
     models.diffusion_models = extractFileList(
-      data.UNETLoader ?? data.DiffusionModelLoader ?? data.UnetLoaderGGUF
+      data.UNETLoader ?? data.DiffusionModelLoader ?? data.UnetLoaderGGUF,
     );
     models.text_encoders = extractFileList(data.CLIPLoader);
   } catch (e) {
@@ -268,7 +273,7 @@ export async function generateText2Image(options: {
   if (validWidth > 768 || validHeight > 768) {
     console.warn(
       `[ComfyUI] ${validWidth}x${validHeight} exceeds the 8GB-safe 768px ceiling ` +
-        `(GTX 1070 Ti). Expect ~6-8GB+ VRAM; close other GPU apps or reduce to 512px.`
+        `(GTX 1070 Ti). Expect ~6-8GB+ VRAM; close other GPU apps or reduce to 512px.`,
     );
   }
 
@@ -321,16 +326,12 @@ export async function generateText2Image(options: {
 /**
  * Fetch a generated image from ComfyUI.
  */
-export async function getImage(
-  filename: string,
-  subfolder = "",
-  type = "output"
-): Promise<string> {
+export async function getImage(filename: string, subfolder = "", type = "output"): Promise<string> {
   const COMFYUI_URL = getComfyuiUrl();
   const params = new URLSearchParams({ filename, subfolder, type });
   const response = await checkResponse(
     await fetchWithTimeout(`${COMFYUI_URL}/view?${params}`, { timeout: 30000 }),
-    "fetch image"
+    "fetch image",
   );
   const blob = await response.blob();
   return URL.createObjectURL(blob);

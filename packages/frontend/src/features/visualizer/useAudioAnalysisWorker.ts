@@ -26,7 +26,7 @@ export interface UseAudioAnalysisWorkerResult {
     duration: number,
     beatTimes?: number[],
     downbeatTimes?: number[],
-    energyCurve?: number[]
+    energyCurve?: number[],
   ) => void;
   destroy: () => void;
   /** False after a worker failure so callers can use the inline fallback. */
@@ -73,10 +73,9 @@ export function useAudioAnalysisWorker({
 
     let worker: Worker | null = null;
     try {
-      worker = new Worker(
-        new URL("./audioAnalysis.worker.ts", import.meta.url),
-        { type: "module" }
-      );
+      worker = new Worker(new URL("./audioAnalysis.worker.ts", import.meta.url), {
+        type: "module",
+      });
     } catch {
       // Unsupported bundler/runtime — fall back silently.
       return;
@@ -138,7 +137,7 @@ export function useAudioAnalysisWorker({
       duration: number,
       beatTimes?: number[],
       downbeatTimes?: number[],
-      energyCurve?: number[]
+      energyCurve?: number[],
     ) => {
       const worker = workerRef.current;
       if (!worker || pendingRef.current) return;
@@ -166,7 +165,7 @@ export function useAudioAnalysisWorker({
         watchdogRef.current = null;
       }, RESULT_TIMEOUT_MS);
     },
-    [perceptualScale, numPerceptualBands, clearWatchdog]
+    [perceptualScale, numPerceptualBands, clearWatchdog],
   );
 
   const failedRef = useRef(false);
@@ -181,6 +180,9 @@ export function useAudioAnalysisWorker({
 
   // Return null when disabled so callers fall back to the inline analyser path
   // instead of reading a worker ref that has no active worker.
-  const isAvailable = useCallback(() => Boolean(enabled && workerRef.current && !failedRef.current), [enabled]);
+  const isAvailable = useCallback(
+    () => Boolean(enabled && workerRef.current && !failedRef.current),
+    [enabled],
+  );
   return enabled && !failedRef.current ? { data: dataRef, send, destroy, isAvailable } : null;
 }

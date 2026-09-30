@@ -17,7 +17,13 @@
   padding: 24px;
   margin-bottom: 20px;
   box-shadow: var(--shadow-md);
-  transition: color, background-color, border-color, box-shadow, transform, opacity var(--duration-normal) var(--ease-out);
+  transition:
+    color,
+    background-color,
+    border-color,
+    box-shadow,
+    transform,
+    opacity var(--duration-normal) var(--ease-out);
   animation: scale-in var(--duration-normal) ease-out;
   position: relative;
   overflow: hidden;
@@ -67,9 +73,18 @@
       inset: -1px;
       border-radius: calc(var(--radius-lg) + 1px);
       padding: 1px;
-      background: linear-gradient(135deg in oklch, var(--color-primary), var(--color-accent), var(--color-cyan));
-      -webkit-mask: linear-gradient(in oklch, #fff 0 0) content-box, linear-gradient(in oklch, #fff 0 0);
-      mask: linear-gradient(in oklch, #fff 0 0) content-box, linear-gradient(in oklch, #fff 0 0);
+      background: linear-gradient(
+        135deg in oklch,
+        var(--color-primary),
+        var(--color-accent),
+        var(--color-cyan)
+      );
+      -webkit-mask:
+        linear-gradient(in oklch, #fff 0 0) content-box,
+        linear-gradient(in oklch, #fff 0 0);
+      mask:
+        linear-gradient(in oklch, #fff 0 0) content-box,
+        linear-gradient(in oklch, #fff 0 0);
       -webkit-mask-composite: xor;
       mask-composite: exclude;
       opacity: 0;
@@ -94,15 +109,24 @@
   }
 }
 
-
 /* ===== METRIC CARDS ===== */
 .metric-card {
-  background: linear-gradient(135deg in oklch, var(--bg-surface) 0%, color-mix(in oklch, var(--color-primary) 8%, var(--bg-surface)) 100%);
+  background: linear-gradient(
+    135deg in oklch,
+    var(--bg-surface) 0%,
+    color-mix(in oklch, var(--color-primary) 8%, var(--bg-surface)) 100%
+  );
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   padding: 24px;
   text-align: center;
-  transition: color, background-color, border-color, box-shadow, transform, opacity var(--duration-normal) var(--ease-out);
+  transition:
+    color,
+    background-color,
+    border-color,
+    box-shadow,
+    transform,
+    opacity var(--duration-normal) var(--ease-out);
   position: relative;
   overflow: hidden;
 
@@ -148,14 +172,19 @@
   font-weight: 600;
 }
 
-
 /* ===== BUTTONS ===== */
 .btn {
   padding: 10px 18px;
   border-radius: var(--radius-md);
   font-weight: 600;
   cursor: pointer;
-  transition: color, background-color, border-color, box-shadow, transform, opacity var(--duration-normal) var(--ease-out);
+  transition:
+    color,
+    background-color,
+    border-color,
+    box-shadow,
+    transform,
+    opacity var(--duration-normal) var(--ease-out);
   border: none;
   display: inline-flex;
   align-items: center;
@@ -168,7 +197,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at center, rgba(255,255,255,0.15) 0%, transparent 70%);
+    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.15) 0%, transparent 70%);
     opacity: 0;
     transition: opacity var(--duration-normal) ease;
   }
@@ -182,16 +211,29 @@
   }
 
   &-primary {
-    background: linear-gradient(135deg in oklch, var(--color-primary) 0%, var(--color-accent) 50%, oklch(65% 0.25 280) 100%);
+    background: linear-gradient(
+      135deg in oklch,
+      var(--color-primary) 0%,
+      var(--color-accent) 50%,
+      oklch(65% 0.25 280) 100%
+    );
     background-size: 200% 200%;
     color: var(--text-inverse);
     font-weight: 700;
     box-shadow: var(--shadow-md), var(--shadow-glow);
-    transition: color, background-color, border-color, box-shadow, transform, opacity var(--duration-normal) var(--ease-out);
+    transition:
+      color,
+      background-color,
+      border-color,
+      box-shadow,
+      transform,
+      opacity var(--duration-normal) var(--ease-out);
 
     &:hover {
       background-position: 100% 100%;
-      box-shadow: var(--shadow-lg), 0 0 40px var(--glow-primary);
+      box-shadow:
+        var(--shadow-lg),
+        0 0 40px var(--glow-primary);
       transform: translateY(-2px);
     }
 
@@ -211,15 +253,25 @@
   }
 
   &-secondary {
-    background: linear-gradient(135deg in oklch, var(--bg-surface-hover) 0%, color-mix(in oklch, var(--text-primary) 6%, var(--bg-surface-hover)) 100%);
+    background: linear-gradient(
+      135deg in oklch,
+      var(--bg-surface-hover) 0%,
+      color-mix(in oklch, var(--text-primary) 6%, var(--bg-surface-hover)) 100%
+    );
     color: var(--text-primary);
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
 
     &:hover {
-      background: linear-gradient(135deg in oklch, color-mix(in oklch, var(--text-primary) 8%, var(--bg-surface-hover)) 0%, color-mix(in oklch, var(--text-primary) 12%, var(--bg-surface-hover)) 100%);
+      background: linear-gradient(
+        135deg in oklch,
+        color-mix(in oklch, var(--text-primary) 8%, var(--bg-surface-hover)) 0%,
+        color-mix(in oklch, var(--text-primary) 12%, var(--bg-surface-hover)) 100%
+      );
       border-color: var(--color-primary);
-      box-shadow: var(--shadow-md), 0 0 10px color-mix(in oklch, var(--color-primary) 20%, transparent);
+      box-shadow:
+        var(--shadow-md),
+        0 0 10px color-mix(in oklch, var(--color-primary) 20%, transparent);
       transform: translateY(-1px);
     }
   }
@@ -262,7 +314,6 @@
   }
 }
 
-
 /* ===== INPUTS ===== */
 .input {
   padding: 12px 16px;
@@ -271,7 +322,12 @@
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   inline-size: 100%;
-  transition: color, background-color, border-color, box-shadow, opacity var(--duration-fast) ease;
+  transition:
+    color,
+    background-color,
+    border-color,
+    box-shadow,
+    opacity var(--duration-fast) ease;
 
   &:focus {
     outline: none;
@@ -288,7 +344,12 @@
   color: var(--text-primary);
   inline-size: 100%;
   cursor: pointer;
-  transition: color, background-color, border-color, box-shadow, opacity var(--duration-fast) ease;
+  transition:
+    color,
+    background-color,
+    border-color,
+    box-shadow,
+    opacity var(--duration-fast) ease;
 
   &:focus {
     outline: none;
@@ -314,37 +375,48 @@ option {
   color: var(--text-primary);
 }
 
-
 /* ===== FOCUS & ACTIVE STATES ===== */
 .focus-glow {
   &:focus,
   &:focus-visible {
     outline: none;
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px var(--glow-primary), 0 0 15px var(--glow-primary);
+    box-shadow:
+      0 0 0 3px var(--glow-primary),
+      0 0 15px var(--glow-primary);
   }
 }
 
 .active-glow {
-  box-shadow: 0 0 15px var(--glow-primary), inset 0 0 10px oklch(55% 0.22 260 / 0.1);
+  box-shadow:
+    0 0 15px var(--glow-primary),
+    inset 0 0 10px oklch(55% 0.22 260 / 0.1);
 }
-
 
 /* ===== SUCCESS ANIMATION ===== */
 @keyframes success-pulse {
-  0% { box-shadow: 0 0 0 0 oklch(70% 0.15 145 / 0.4); }
-  70% { box-shadow: 0 0 0 10px oklch(70% 0.15 145 / 0); }
-  100% { box-shadow: 0 0 0 0 oklch(70% 0.15 145 / 0); }
+  0% {
+    box-shadow: 0 0 0 0 oklch(70% 0.15 145 / 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px oklch(70% 0.15 145 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 oklch(70% 0.15 145 / 0);
+  }
 }
 
 .success-pulse {
   animation: success-pulse 1s ease-out;
 }
 
-
 /* ===== NEUMORPHIC EFFECTS ===== */
 .neumorphic {
-  background: linear-gradient(145deg in oklch, var(--bg-surface), color-mix(in oklch, var(--text-primary) 4%, var(--bg-surface)));
+  background: linear-gradient(
+    145deg in oklch,
+    var(--bg-surface),
+    color-mix(in oklch, var(--text-primary) 4%, var(--bg-surface))
+  );
   box-shadow:
     5px 5px 15px oklch(0% 0 0 / 0.4),
     -5px -5px 15px oklch(100% 0 0 / 0.02);
@@ -365,7 +437,6 @@ option {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
-
 
 /* ===== STATUS INDICATORS ===== */
 .status-dot {
@@ -390,7 +461,6 @@ option {
   background: var(--color-danger);
   box-shadow: 0 0 8px oklch(55% 0.22 25 / 0.5);
 }
-
 
 /* ===== PROGRESS BAR ===== */
 .progress-bar {
@@ -417,7 +487,8 @@ option {
     content: "";
     position: absolute;
     inset: 0;
-    background: repeating-linear-gradient(-45deg in oklch,
+    background: repeating-linear-gradient(
+      -45deg in oklch,
       transparent,
       transparent 8px,
       rgba(255, 255, 255, 0.15) 8px,
@@ -426,7 +497,6 @@ option {
     animation: progress-stripe 1s linear infinite;
   }
 }
-
 
 /* ===== BADGES ===== */
 .badge {
@@ -463,10 +533,11 @@ option {
   border: 1px solid color-mix(in oklch, var(--color-danger) 30%, transparent);
 }
 
-
 /* ===== SPINNERS ===== */
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .spinner {
@@ -493,12 +564,24 @@ option {
 /* P1/P6 - stage hero sweep: slow blue->pink pan for the empty stage.
    Killed automatically by the prefers-reduced-motion rule in globals.css. */
 @keyframes sweep-pan {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 .stage-hero-sweep {
-  background: linear-gradient(120deg in oklch, oklch(20% 0.06 260), oklch(32% 0.12 290), oklch(30% 0.14 330), oklch(20% 0.06 260));
+  background: linear-gradient(
+    120deg in oklch,
+    oklch(20% 0.06 260),
+    oklch(32% 0.12 290),
+    oklch(30% 0.14 330),
+    oklch(20% 0.06 260)
+  );
   background-size: 300% 300%;
   animation: sweep-pan 14s ease-in-out infinite;
   transition: transform var(--duration-normal) var(--ease-out);

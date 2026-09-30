@@ -96,9 +96,7 @@ export interface GenerationProgressResponse {
   error?: string;
 }
 
-export async function getGenerationProgress(
-  promptId: string,
-): Promise<GenerationProgressResponse> {
+export async function getGenerationProgress(promptId: string): Promise<GenerationProgressResponse> {
   const base = getApiBase();
   const res = await fetchWithTimeout(
     `${base}/api/integrations/comfyui/progress/${encodeURIComponent(promptId)}`,
@@ -118,9 +116,7 @@ export interface GenerationPreviewResponse {
   error?: string;
 }
 
-export async function getGenerationPreview(
-  promptId: string,
-): Promise<GenerationPreviewResponse> {
+export async function getGenerationPreview(promptId: string): Promise<GenerationPreviewResponse> {
   const base = getApiBase();
   const res = await fetchWithTimeout(
     `${base}/api/integrations/comfyui/preview/${encodeURIComponent(promptId)}`,

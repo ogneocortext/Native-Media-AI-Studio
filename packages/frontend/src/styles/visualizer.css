@@ -734,11 +734,7 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.35rem 0.7rem;
-    background: linear-gradient(
-      135deg,
-      rgba(168, 85, 247, 0.2),
-      rgba(99, 102, 241, 0.2)
-    );
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(99, 102, 241, 0.2));
     border: 1px solid rgba(168, 85, 247, 0.4);
     border-radius: 6px;
     font-size: 0.72rem;
@@ -748,11 +744,7 @@
     white-space: nowrap;
   }
   .viz-ai-generate-btn:hover:not(:disabled) {
-    background: linear-gradient(
-      135deg,
-      rgba(168, 85, 247, 0.3),
-      rgba(99, 102, 241, 0.3)
-    );
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(99, 102, 241, 0.3));
     border-color: rgba(168, 85, 247, 0.6);
   }
   .viz-ai-generate-btn:disabled {
@@ -826,11 +818,7 @@
     gap: 0.35rem;
     flex: 1;
     padding: 0.4rem 0.75rem;
-    background: linear-gradient(
-      135deg,
-      rgba(34, 197, 94, 0.2),
-      rgba(16, 185, 129, 0.2)
-    );
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.2));
     border: 1px solid rgba(34, 197, 94, 0.4);
     border-radius: 6px;
     font-size: 0.75rem;
@@ -840,11 +828,7 @@
     transition: all 0.15s;
   }
   .viz-ai-apply-btn:hover {
-    background: linear-gradient(
-      135deg,
-      rgba(34, 197, 94, 0.3),
-      rgba(16, 185, 129, 0.3)
-    );
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.3), rgba(16, 185, 129, 0.3));
     border-color: rgba(34, 197, 94, 0.6);
   }
   .viz-ai-regen-btn {
@@ -1280,8 +1264,7 @@
   }
   .viz-upload.drag-over {
     background: rgba(20, 20, 32, 0.88);
-    border: 1px dashed
-      color-mix(in oklch, var(--color-primary) 60%, transparent);
+    border: 1px dashed color-mix(in oklch, var(--color-primary) 60%, transparent);
   }
   .viz-upload svg {
     color: #404040;
@@ -1903,6 +1886,26 @@
     flex-shrink: 0;
   }
 
+  .viz-preset-search {
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: #a1a1aa;
+    font-size: 0.7rem;
+    margin-bottom: 0.5rem;
+    outline: none;
+    box-sizing: border-box;
+  }
+  .viz-preset-search:focus {
+    border-color: rgba(99, 102, 241, 0.4);
+    color: #e0e0e0;
+  }
+  .viz-preset-search::placeholder {
+    color: #52525b;
+  }
+
   @media (max-width: 900px) {
     .viz-preset-badge {
       display: none;
@@ -2174,13 +2177,7 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
   padding: 0.5rem 0;
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    black 18%,
-    black 82%,
-    transparent 100%
-  );
+  mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0%,
@@ -3162,11 +3159,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  background: linear-gradient(
-    135deg,
-    rgba(99, 102, 241, 0.3),
-    rgba(168, 85, 247, 0.3)
-  );
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(168, 85, 247, 0.3));
   border-color: #6366f1;
   color: #a5b4fc;
   animation: ai-pulse 2s ease-in-out infinite;

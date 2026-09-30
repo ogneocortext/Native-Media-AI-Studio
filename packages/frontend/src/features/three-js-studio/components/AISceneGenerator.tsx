@@ -1,9 +1,33 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Sparkles, Play, Square, Copy, Check, ChevronDown, ChevronUp, Zap, Save, FileCode, Info } from "lucide-react";
-import { useTrackMetadata, generatePromptVariations, type PromptVariation } from "../hooks/useTrackMetadata";
+import {
+  Sparkles,
+  Play,
+  Square,
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Zap,
+  Save,
+  FileCode,
+  Info,
+} from "lucide-react";
+import {
+  useTrackMetadata,
+  generatePromptVariations,
+  type PromptVariation,
+} from "../hooks/useTrackMetadata";
 import { useOllamaStream } from "../hooks/useOllamaStream";
 import { getGuidelinesPrompt } from "../services/sceneGuidelines";
-import { getOllamaModels, saveGeneratedScene, cleanupIncompleteScenes, getBenchmarkResults, runBenchmark, type OllamaModel, type OllamaBenchmarkResult } from "../../../services/api";
+import {
+  getOllamaModels,
+  saveGeneratedScene,
+  cleanupIncompleteScenes,
+  getBenchmarkResults,
+  runBenchmark,
+  type OllamaModel,
+  type OllamaBenchmarkResult,
+} from "../../../services/api";
 import { getGPUSnapshot } from "../../../services/api";
 
 interface AISceneGeneratorProps {
@@ -14,14 +38,27 @@ interface AISceneGeneratorProps {
   storyboardScene?: number | null;
 }
 
-export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoGenerate, storyboardScene }: AISceneGeneratorProps) {
+export function AISceneGenerator({
+  selectedTrack,
+  onApplyCode,
+  storyboard,
+  autoGenerate,
+  storyboardScene,
+}: AISceneGeneratorProps) {
   const { metadata, loading: metaLoading } = useTrackMetadata(selectedTrack || null);
-   const { generate, cancel, generating, output, getOutput } = useOllamaStream();
+  const { generate, cancel, generating, output, getOutput } = useOllamaStream();
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState("");
-  const [variations, setVariations] = useState<PromptVariation[]>(() => generatePromptVariations({
-    filename: "default", bpm: 120, duration: 180, sections: [], energyCurve: [], confidence: 0,
-  }));
+  const [variations, setVariations] = useState<PromptVariation[]>(() =>
+    generatePromptVariations({
+      filename: "default",
+      bpm: 120,
+      duration: 180,
+      sections: [],
+      energyCurve: [],
+      confidence: 0,
+    }),
+  );
   const [activeVariation, setActiveVariation] = useState(0);
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -33,7 +70,12 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
   const [benchError, setBenchError] = useState<string | null>(null);
   const [benchUpdatedAt, setBenchUpdatedAt] = useState<string | null>(null);
   const [showBenchDetails, setShowBenchDetails] = useState(false);
-  const [sectionsOpen, setSectionsOpen] = useState({ model: true, prompt: false, preview: false, bench: false });
+  const [sectionsOpen, setSectionsOpen] = useState({
+    model: true,
+    prompt: false,
+    preview: false,
+    bench: false,
+  });
 
   // Fetch storyboard content if specified
   useEffect(() => {
@@ -44,7 +86,10 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
     };
     const path = storyboardPaths[storyboard];
     if (path) {
-      fetch(path).then((r) => r.text()).then(setStoryboardContent).catch(() => {});
+      fetch(path)
+        .then((r) => r.text())
+        .then(setStoryboardContent)
+        .catch(() => {});
     }
   }, [storyboard]);
 
@@ -72,7 +117,9 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
         benchMap = data.results || {};
         setBenchmarks(benchMap);
         setBenchUpdatedAt(data.updated_at || null);
-      } catch { /* no benchmarks yet */ }
+      } catch {
+        /* no benchmarks yet */
+      }
 
       // Sort by benchmark score desc, then latency asc — best first
       const sorted = [...m].sort((a, b) => {
@@ -88,12 +135,20 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
       if (sorted.length > 0 && !selectedModel) {
         // Prefer highest benchmark score; fallback to qwen3.5:4b
         const best = sorted[0];
-        const benchBest = best?.benchmark?.success !== false && (best?.benchmark?.score ?? benchMap[best.name]?.validation?.score ?? 0) >= 40 ? best : null;
-        const fallback = sorted.find((x) => x.name === "qwen3.5:4b (3389983735)") || sorted.find((x) => x.name.includes("qwen3.5:4b"));
+        const benchBest =
+          best?.benchmark?.success !== false &&
+          (best?.benchmark?.score ?? benchMap[best.name]?.validation?.score ?? 0) >= 40
+            ? best
+            : null;
+        const fallback =
+          sorted.find((x) => x.name === "qwen3.5:4b (3389983735)") ||
+          sorted.find((x) => x.name.includes("qwen3.5:4b"));
         const preferred = benchBest || fallback || sorted[0];
         setSelectedModel(preferred.name);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [selectedModel]);
 
   // Load models + benchmarks on mount
@@ -114,7 +169,10 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
           const sa = data.results[a.name]?.validation?.score ?? -1;
           const sb = data.results[b.name]?.validation?.score ?? -1;
           if (sa !== sb) return sb - sa;
-          return (data.results[a.name]?.latency_ms ?? 999999) - (data.results[b.name]?.latency_ms ?? 999999);
+          return (
+            (data.results[a.name]?.latency_ms ?? 999999) -
+            (data.results[b.name]?.latency_ms ?? 999999)
+          );
         });
         // Auto-switch to new best if current is not best
         const best = sorted[0];
@@ -211,7 +269,7 @@ function applyScene(scene,camera,renderer,THREE){
   return (t,d)=>{ m.rotation.y+=d*0.4; m.position.y=Math.sin(t*1.2)*0.1; m.scale.setScalar(1+Math.sin(t*2.2)*0.05); };
 }
 
-Track: ${metadata.bpm} BPM, ${Math.round(metadata.duration)}s, sections: ${metadata.sections.map((s: any) => s.type).join(", ")}, avgEnergy ${Math.round(metadata.sections.reduce((a:any,c:any)=>a+c.energy,0)/(metadata.sections.length||1)*100)}%
+Track: ${metadata.bpm} BPM, ${Math.round(metadata.duration)}s, sections: ${metadata.sections.map((s: any) => s.type).join(", ")}, avgEnergy ${Math.round((metadata.sections.reduce((a: any, c: any) => a + c.energy, 0) / (metadata.sections.length || 1)) * 100)}%
 ${sceneContext}
 User request: ${variations[activeVariation].prompt}
 Return ONLY the function, no fences.`;
@@ -221,7 +279,11 @@ Return ONLY the function, no fences.`;
     let num_ctx = 4096;
     try {
       const gpu = await getGPUSnapshot();
-      const free = (gpu as any).memory_free_mb ?? (gpu as any).vram_free_mb ?? (gpu as any).memoryFreeMb ?? 2048;
+      const free =
+        (gpu as any).memory_free_mb ??
+        (gpu as any).vram_free_mb ??
+        (gpu as any).memoryFreeMb ??
+        2048;
       const isLarge = /9b|7b|13b|14b/i.test(selectedModel);
       if (free > 4000) num_ctx = isLarge ? 8192 : 6144;
       else if (free > 2000) num_ctx = 4096;
@@ -245,13 +307,30 @@ Return ONLY the function, no fences.`;
     const result: any[] = [];
     let inOverview = false;
     for (const line of lines) {
-      if (line.includes("## Overview Map")) { inOverview = true; continue; }
-      if (inOverview && line.startsWith("#") && !line.includes("Overview")) { inOverview = false; continue; }
+      if (line.includes("## Overview Map")) {
+        inOverview = true;
+        continue;
+      }
+      if (inOverview && line.startsWith("#") && !line.includes("Overview")) {
+        inOverview = false;
+        continue;
+      }
       if (!inOverview || !line.startsWith("|")) continue;
       if (line.includes("SEQ") || line.includes("---")) continue;
-      const cells = line.split("|").map((c) => c.trim()).filter(Boolean);
+      const cells = line
+        .split("|")
+        .map((c) => c.trim())
+        .filter(Boolean);
       if (cells.length >= 7) {
-        result.push({ seq: cells[0], section: cells[1], timecode: cells[2], duration: cells[3], lyric: cells[4], visual: cells[5], technique: cells[6] });
+        result.push({
+          seq: cells[0],
+          section: cells[1],
+          timecode: cells[2],
+          duration: cells[3],
+          lyric: cells[4],
+          visual: cells[5],
+          technique: cells[6],
+        });
       }
     }
     return result;
@@ -268,7 +347,11 @@ Return ONLY the function, no fences.`;
     if (!code) return;
     setSaving(true);
     try {
-      const result = await saveGeneratedScene(code, selectedTrack || "unknown", selectedModel || "unknown");
+      const result = await saveGeneratedScene(
+        code,
+        selectedTrack || "unknown",
+        selectedModel || "unknown",
+      );
       setSavedFile(result.filename);
     } catch {
       // Silently fail — save is best-effort
@@ -297,8 +380,17 @@ Return ONLY the function, no fences.`;
         <div className="flex items-center gap-2">
           <Sparkles size={14} className="text-purple-400" />
           <span className="text-sm font-semibold text-purple-300">AI Scene Generator</span>
-          {metadata && <span className="text-[10px] text-green-400 bg-green-900/30 px-1.5 py-0.5 rounded">Track loaded</span>}
-          <span className="text-[10px] text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded" title="Scene design guidelines active">Guidelines</span>
+          {metadata && (
+            <span className="text-[10px] text-green-400 bg-green-900/30 px-1.5 py-0.5 rounded">
+              Track loaded
+            </span>
+          )}
+          <span
+            className="text-[10px] text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded"
+            title="Scene design guidelines active"
+          >
+            Guidelines
+          </span>
         </div>
         {panelOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
@@ -315,7 +407,9 @@ Return ONLY the function, no fences.`;
               </div>
               <div className="bg-gray-800/50 rounded p-1.5 text-center">
                 <div className="text-gray-500">Duration</div>
-                <div className="text-white font-mono font-bold">{Math.round(metadata.duration)}s</div>
+                <div className="text-white font-mono font-bold">
+                  {Math.round(metadata.duration)}s
+                </div>
               </div>
               <div className="bg-gray-800/50 rounded p-1.5 text-center">
                 <div className="text-gray-500">Sections</div>
@@ -326,123 +420,253 @@ Return ONLY the function, no fences.`;
 
           {/* Model Selection — collapsible, was dense with 15 repeated prompts */}
           <div className="rounded-lg bg-black/20 border border-white/5 overflow-hidden">
-            <button onClick={() => setSectionsOpen(s => ({ ...s, model: !s.model }))} className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 transition-colors">
-              <span className="text-[11px] font-medium text-white flex items-center gap-1.5"><Zap size={12} className="text-amber-400" /> Model <span className="text-[10px] text-white/40">({models.length} available)</span></span>
+            <button
+              onClick={() => setSectionsOpen((s) => ({ ...s, model: !s.model }))}
+              className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 transition-colors"
+            >
+              <span className="text-[11px] font-medium text-white flex items-center gap-1.5">
+                <Zap size={12} className="text-amber-400" /> Model{" "}
+                <span className="text-[10px] text-white/40">({models.length} available)</span>
+              </span>
               <span className="flex items-center gap-2">
-                <span onClick={(e) => { e.stopPropagation(); handleRunBenchmark(); }} className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 ${benchLoading ? "bg-amber-900/50 text-amber-200 border-amber-700/50" : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/20"}`} title="Benchmark all models">{benchLoading ? <span className="w-3 h-3 border border-amber-300 border-t-transparent rounded-full animate-spin inline-block" /> : "⚡"} {benchLoading ? "…" : "Benchmark"}</span>
-                {sectionsOpen.model ? <ChevronUp size={12} className="text-white/40" /> : <ChevronDown size={12} className="text-white/40" />}
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRunBenchmark();
+                  }}
+                  className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 ${benchLoading ? "bg-amber-900/50 text-amber-200 border-amber-700/50" : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/20"}`}
+                  title="Benchmark all models"
+                >
+                  {benchLoading ? (
+                    <span className="w-3 h-3 border border-amber-300 border-t-transparent rounded-full animate-spin inline-block" />
+                  ) : (
+                    "⚡"
+                  )}{" "}
+                  {benchLoading ? "…" : "Benchmark"}
+                </span>
+                {sectionsOpen.model ? (
+                  <ChevronUp size={12} className="text-white/40" />
+                ) : (
+                  <ChevronDown size={12} className="text-white/40" />
+                )}
               </span>
             </button>
             {sectionsOpen.model && (
               <div className="p-2 pt-0">
-              <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] text-white/40">Selected</span>
-            </div>
-            <div className="flex gap-1.5 min-w-0">
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className="flex-1 min-w-0 w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white truncate"
-                title={selectedModel || "No model selected"}
-                onClick={loadModels}
-              >
-                {models.length === 0 && <option value="">Click to load models...</option>}
-                {models.map((m) => {
-                  const full = benchmarks[m.name] as any;
-                  const bench = (full || m.benchmark) as any;
-                  const score = bench?.validation?.score ?? bench?.score ?? null;
-                  const latency = bench?.latency_ms ?? null;
-                  const success = bench?.success;
-                  let badge = "";
-                  if (score !== null && score >= 0) {
-                    const s = Math.round(score);
-                    const ok = success === false ? "✗" : s >= 70 ? "✓" : s >= 40 ? "~" : "✗";
-                    badge = ` [${ok} ${s}/100${latency ? ` ${Math.round(latency/1000*10)/10}s` : ""}]`;
-                  } else if (score === null) {
-                    badge = " [—]";
-                  }
-                  const isBest = models[0]?.name === m.name && score !== null && score >= 60;
-                  return (
-                    <option key={m.name} value={m.name}>
-                      {m.name} ({formatModelSize(m.size)}){badge}{isBest ? " ★ Best" : ""}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-            <div
-              className="mt-1 text-[10px] text-white/45 truncate"
-              title={selectedModel || "No model selected"}
-            >
-              {selectedModel || "No model selected"}
-            </div>
-            {(() => {
-              const active = models.find((x) => x.name === selectedModel);
-              const bFull = active ? (benchmarks[active.name] as any) : null;
-              const bShallow = active?.benchmark as any;
-              const b = (bFull || bShallow) as any;
-              // Need full validation for details view; if only shallow, show summary and prompt to benchmark
-              if (!b || !b.validation) {
-                if (b && b.score !== undefined) {
-                  const scShallow = b.score;
-                  const colS = scShallow >= 80 ? "text-green-400" : scShallow >= 60 ? "text-amber-300" : "text-orange-400";
-                  return (
-                    <div className="mt-1.5 bg-gray-900/70 border border-gray-800 rounded p-1.5 text-[10px]">
-                      <span className={`font-mono font-bold ${colS}`}>{Math.round(scShallow)}/100 {b.success ? "✓" : "✗"}</span>
-                      <span className="text-gray-400 ml-2">{b.latency_ms}ms</span>
-                      <div className="text-gray-500 mt-1">Details from models list only — run <span className="text-amber-400">Benchmark</span> for full report.</div>
-                    </div>
-                  );
-                }
-                return (
-                  <div className="mt-1 text-[10px] text-gray-500">
-                    No benchmark yet — click <span className="text-amber-400">Benchmark</span> to rank models. Best will be auto-selected.
-                    {benchUpdatedAt && <span className="ml-1">Last: {new Date(benchUpdatedAt).toLocaleString()}</span>}
-                  </div>
-                );
-              }
-              const sc = b.validation.score;
-              const col = sc >= 80 ? "text-green-400" : sc >= 60 ? "text-amber-300" : sc >= 40 ? "text-orange-400" : "text-red-400";
-              return (
-                <div className="mt-1.5 bg-gray-900/70 border border-gray-800 rounded p-1.5 text-[10px] space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className={`font-mono font-bold ${col}`}>{Math.round(sc)}/100 {b.success ? "✓ valid" : "✗ failed"}</span>
-                    <span className="text-gray-400">{b.latency_ms}ms • {b.lines} lines • {b.chars} chars</span>
-                  </div>
-                  <div className="flex gap-1 text-[9px]">
-                    <span className={b.validation.details.find((d:any)=>d.rule==="has_applyScene")?.passed ? "text-green-400" : "text-red-400"}>applyScene {b.validation.details.find((d:any)=>d.rule==="has_applyScene")?.passed ? "✓" : "✗"}</span>
-                    <span className={b.validation.details.find((d:any)=>d.rule==="has_ai_group")?.passed ? "text-green-400" : "text-red-400"}>__aiGroup {b.validation.details.find((d:any)=>d.rule==="has_ai_group")?.passed ? "✓" : "✗"}</span>
-                    <span className={b.validation.details.find((d:any)=>d.rule==="no_rAF")?.passed ? "text-green-400" : "text-red-400"}>no-rAF {b.validation.details.find((d:any)=>d.rule==="no_rAF")?.passed ? "✓" : "✗"}</span>
-                    <span className={b.validation.details.find((d:any)=>d.rule==="no_markdown_fence")?.passed ? "text-green-400" : "text-red-400"}>no-fence {b.validation.details.find((d:any)=>d.rule==="no_markdown_fence")?.passed ? "✓" : "✗"}</span>
-                  </div>
-                  {showBenchDetails ? (
-                    <div className="pt-1 border-t border-gray-800 space-y-0.5 max-h-32 overflow-y-auto">
-                      {b.validation.details.map((d: any) => (
-                        <div key={d.rule} className={`flex justify-between ${d.passed ? "text-gray-400" : "text-red-300"}`}>
-                          <span>{d.description}</span><span>{d.passed ? "✓" : "✗"}</span>
-                        </div>
-                      ))}
-                      {b.error && <div className="text-red-400 pt-1">Error: {b.error}</div>}
-                      {b.preview && <pre className="mt-1 bg-black/30 p-1 rounded text-[9px] text-gray-500 max-h-20 overflow-y-auto whitespace-pre-wrap">{b.preview.slice(0,300)}…</pre>}
-                    </div>
-                  ) : null}
-                  <button onClick={() => setShowBenchDetails(!showBenchDetails)} className="text-purple-400 hover:text-purple-300">
-                    {showBenchDetails ? "Hide details" : "Show details"}
-                  </button>
-                  {benchUpdatedAt && <div className="text-[9px] text-gray-600">Benchmarked: {new Date(benchUpdatedAt).toLocaleString()}</div>}
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] text-white/40">Selected</span>
                 </div>
-              );
-            })()}
-            {benchError && <div className="mt-1 text-[10px] text-red-400 bg-red-900/20 border border-red-700/30 rounded px-2 py-1">{benchError}</div>}
+                <div className="flex gap-1.5 min-w-0">
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="flex-1 min-w-0 w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white truncate"
+                    title={selectedModel || "No model selected"}
+                    onClick={loadModels}
+                  >
+                    {models.length === 0 && <option value="">Click to load models...</option>}
+                    {models.map((m) => {
+                      const full = benchmarks[m.name] as any;
+                      const bench = (full || m.benchmark) as any;
+                      const score = bench?.validation?.score ?? bench?.score ?? null;
+                      const latency = bench?.latency_ms ?? null;
+                      const success = bench?.success;
+                      let badge = "";
+                      if (score !== null && score >= 0) {
+                        const s = Math.round(score);
+                        const ok = success === false ? "✗" : s >= 70 ? "✓" : s >= 40 ? "~" : "✗";
+                        badge = ` [${ok} ${s}/100${latency ? ` ${Math.round((latency / 1000) * 10) / 10}s` : ""}]`;
+                      } else if (score === null) {
+                        badge = " [—]";
+                      }
+                      const isBest = models[0]?.name === m.name && score !== null && score >= 60;
+                      return (
+                        <option key={m.name} value={m.name}>
+                          {m.name} ({formatModelSize(m.size)}){badge}
+                          {isBest ? " ★ Best" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div
+                  className="mt-1 text-[10px] text-white/45 truncate"
+                  title={selectedModel || "No model selected"}
+                >
+                  {selectedModel || "No model selected"}
+                </div>
+                {(() => {
+                  const active = models.find((x) => x.name === selectedModel);
+                  const bFull = active ? (benchmarks[active.name] as any) : null;
+                  const bShallow = active?.benchmark as any;
+                  const b = (bFull || bShallow) as any;
+                  // Need full validation for details view; if only shallow, show summary and prompt to benchmark
+                  if (!b || !b.validation) {
+                    if (b && b.score !== undefined) {
+                      const scShallow = b.score;
+                      const colS =
+                        scShallow >= 80
+                          ? "text-green-400"
+                          : scShallow >= 60
+                            ? "text-amber-300"
+                            : "text-orange-400";
+                      return (
+                        <div className="mt-1.5 bg-gray-900/70 border border-gray-800 rounded p-1.5 text-[10px]">
+                          <span className={`font-mono font-bold ${colS}`}>
+                            {Math.round(scShallow)}/100 {b.success ? "✓" : "✗"}
+                          </span>
+                          <span className="text-gray-400 ml-2">{b.latency_ms}ms</span>
+                          <div className="text-gray-500 mt-1">
+                            Details from models list only — run{" "}
+                            <span className="text-amber-400">Benchmark</span> for full report.
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="mt-1 text-[10px] text-gray-500">
+                        No benchmark yet — click <span className="text-amber-400">Benchmark</span>{" "}
+                        to rank models. Best will be auto-selected.
+                        {benchUpdatedAt && (
+                          <span className="ml-1">
+                            Last: {new Date(benchUpdatedAt).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  }
+                  const sc = b.validation.score;
+                  const col =
+                    sc >= 80
+                      ? "text-green-400"
+                      : sc >= 60
+                        ? "text-amber-300"
+                        : sc >= 40
+                          ? "text-orange-400"
+                          : "text-red-400";
+                  return (
+                    <div className="mt-1.5 bg-gray-900/70 border border-gray-800 rounded p-1.5 text-[10px] space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className={`font-mono font-bold ${col}`}>
+                          {Math.round(sc)}/100 {b.success ? "✓ valid" : "✗ failed"}
+                        </span>
+                        <span className="text-gray-400">
+                          {b.latency_ms}ms • {b.lines} lines • {b.chars} chars
+                        </span>
+                      </div>
+                      <div className="flex gap-1 text-[9px]">
+                        <span
+                          className={
+                            b.validation.details.find((d: any) => d.rule === "has_applyScene")
+                              ?.passed
+                              ? "text-green-400"
+                              : "text-red-400"
+                          }
+                        >
+                          applyScene{" "}
+                          {b.validation.details.find((d: any) => d.rule === "has_applyScene")
+                            ?.passed
+                            ? "✓"
+                            : "✗"}
+                        </span>
+                        <span
+                          className={
+                            b.validation.details.find((d: any) => d.rule === "has_ai_group")?.passed
+                              ? "text-green-400"
+                              : "text-red-400"
+                          }
+                        >
+                          __aiGroup{" "}
+                          {b.validation.details.find((d: any) => d.rule === "has_ai_group")?.passed
+                            ? "✓"
+                            : "✗"}
+                        </span>
+                        <span
+                          className={
+                            b.validation.details.find((d: any) => d.rule === "no_rAF")?.passed
+                              ? "text-green-400"
+                              : "text-red-400"
+                          }
+                        >
+                          no-rAF{" "}
+                          {b.validation.details.find((d: any) => d.rule === "no_rAF")?.passed
+                            ? "✓"
+                            : "✗"}
+                        </span>
+                        <span
+                          className={
+                            b.validation.details.find((d: any) => d.rule === "no_markdown_fence")
+                              ?.passed
+                              ? "text-green-400"
+                              : "text-red-400"
+                          }
+                        >
+                          no-fence{" "}
+                          {b.validation.details.find((d: any) => d.rule === "no_markdown_fence")
+                            ?.passed
+                            ? "✓"
+                            : "✗"}
+                        </span>
+                      </div>
+                      {showBenchDetails ? (
+                        <div className="pt-1 border-t border-gray-800 space-y-0.5 max-h-32 overflow-y-auto">
+                          {b.validation.details.map((d: any) => (
+                            <div
+                              key={d.rule}
+                              className={`flex justify-between ${d.passed ? "text-gray-400" : "text-red-300"}`}
+                            >
+                              <span>{d.description}</span>
+                              <span>{d.passed ? "✓" : "✗"}</span>
+                            </div>
+                          ))}
+                          {b.error && <div className="text-red-400 pt-1">Error: {b.error}</div>}
+                          {b.preview && (
+                            <pre className="mt-1 bg-black/30 p-1 rounded text-[9px] text-gray-500 max-h-20 overflow-y-auto whitespace-pre-wrap">
+                              {b.preview.slice(0, 300)}…
+                            </pre>
+                          )}
+                        </div>
+                      ) : null}
+                      <button
+                        onClick={() => setShowBenchDetails(!showBenchDetails)}
+                        className="text-purple-400 hover:text-purple-300"
+                      >
+                        {showBenchDetails ? "Hide details" : "Show details"}
+                      </button>
+                      {benchUpdatedAt && (
+                        <div className="text-[9px] text-gray-600">
+                          Benchmarked: {new Date(benchUpdatedAt).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+                {benchError && (
+                  <div className="mt-1 text-[10px] text-red-400 bg-red-900/20 border border-red-700/30 rounded px-2 py-1">
+                    {benchError}
+                  </div>
+                )}
               </div>
             )}
           </div>
 
           {/* Prompt Strategy — collapsible, was dense 2x2 grid */}
           <div className="rounded-lg bg-black/20 border border-white/5 overflow-hidden">
-            <button onClick={() => setSectionsOpen(s => ({ ...s, prompt: !s.prompt }))} className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 transition-colors">
-              <span className="text-[11px] font-medium text-white flex items-center gap-1.5"><Sparkles size={12} className="text-violet-400" /> Prompt Strategy <span className="text-[10px] text-white/40">({variations[activeVariation]?.name})</span></span>
-              {sectionsOpen.prompt ? <ChevronUp size={12} className="text-white/40" /> : <ChevronDown size={12} className="text-white/40" />}
+            <button
+              onClick={() => setSectionsOpen((s) => ({ ...s, prompt: !s.prompt }))}
+              className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 transition-colors"
+            >
+              <span className="text-[11px] font-medium text-white flex items-center gap-1.5">
+                <Sparkles size={12} className="text-violet-400" /> Prompt Strategy{" "}
+                <span className="text-[10px] text-white/40">
+                  ({variations[activeVariation]?.name})
+                </span>
+              </span>
+              {sectionsOpen.prompt ? (
+                <ChevronUp size={12} className="text-white/40" />
+              ) : (
+                <ChevronDown size={12} className="text-white/40" />
+              )}
             </button>
             {sectionsOpen.prompt && (
               <div className="p-2 pt-0 space-y-2">
@@ -461,9 +685,19 @@ Return ONLY the function, no fences.`;
                 <div className="rounded-lg bg-black/30 border border-white/5 p-2">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] text-white/40">Preview</span>
-                    <button onClick={() => navigator.clipboard.writeText(variations[activeVariation]?.prompt || "")} className="text-[10px] text-violet-300 hover:text-violet-200 flex items-center gap-1"><Copy size={10} />Copy</button>
+                    <button
+                      onClick={() =>
+                        navigator.clipboard.writeText(variations[activeVariation]?.prompt || "")
+                      }
+                      className="text-[10px] text-violet-300 hover:text-violet-200 flex items-center gap-1"
+                    >
+                      <Copy size={10} />
+                      Copy
+                    </button>
                   </div>
-                  <pre className="text-[11px] text-white/70 max-h-28 overflow-auto whitespace-pre-wrap leading-relaxed">{variations[activeVariation]?.prompt}</pre>
+                  <pre className="text-[11px] text-white/70 max-h-28 overflow-auto whitespace-pre-wrap leading-relaxed">
+                    {variations[activeVariation]?.prompt}
+                  </pre>
                 </div>
               </div>
             )}
@@ -484,7 +718,15 @@ Return ONLY the function, no fences.`;
                 : "bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-40 disabled:cursor-not-allowed"
             }`}
           >
-            {generating ? <><Square size={12} /> Stop</> : <><Play size={12} /> Generate Scene</>}
+            {generating ? (
+              <>
+                <Square size={12} /> Stop
+              </>
+            ) : (
+              <>
+                <Play size={12} /> Generate Scene
+              </>
+            )}
           </button>
           {!generating && generateBlockedReason && (
             <div className="flex items-start gap-1.5 rounded bg-amber-900/20 border border-amber-700/40 px-2 py-1.5 text-[10px] leading-snug text-amber-200/90">
@@ -497,13 +739,28 @@ Return ONLY the function, no fences.`;
           {output && (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase tracking-wider text-gray-500">Generated Code</span>
+                <span className="text-[10px] uppercase tracking-wider text-gray-500">
+                  Generated Code
+                </span>
                 <div className="flex gap-1">
-                  <button onClick={handleCopy} className="p-1 text-gray-400 hover:text-white" title="Copy">
+                  <button
+                    onClick={handleCopy}
+                    className="p-1 text-gray-400 hover:text-white"
+                    title="Copy"
+                  >
                     {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
                   </button>
-                  <button onClick={handleSave} disabled={saving} className="p-1 text-gray-400 hover:text-white" title="Save to file">
-                    {saving ? <span className="inline-block w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" /> : <Save size={12} />}
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="p-1 text-gray-400 hover:text-white"
+                    title="Save to file"
+                  >
+                    {saving ? (
+                      <span className="inline-block w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Save size={12} />
+                    )}
                   </button>
                 </div>
               </div>

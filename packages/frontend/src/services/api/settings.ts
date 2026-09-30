@@ -15,7 +15,9 @@ export interface AppSettings {
 
 export async function getSettings(): Promise<AppSettings> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/config/settings`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/integrations/config/settings`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get settings");
   return res.json();
 }

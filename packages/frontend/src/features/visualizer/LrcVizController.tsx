@@ -122,13 +122,19 @@ export function LrcVizController({
     }
 
     if (groupRef.current) {
-      const targetScale = 1 + (intensity - 0.6) * 0.32 + vizState.current.phraseFlash * 0.28 + lineBoost * 0.2;
+      const targetScale =
+        1 + (intensity - 0.6) * 0.32 + vizState.current.phraseFlash * 0.28 + lineBoost * 0.2;
       groupScaleScratch.setScalar(targetScale);
       groupRef.current.scale.lerp(groupScaleScratch, delta * 4.5);
       // Phrase-advance nudges rotation; story orbit hint steers drift per act
-      groupRef.current.rotation.y += delta * (0.15 + intensity * 0.25 + vizState.current.phraseFlash * 0.6 + orbitDrift);
+      groupRef.current.rotation.y +=
+        delta * (0.15 + intensity * 0.25 + vizState.current.phraseFlash * 0.6 + orbitDrift);
       // SectionProgress drives subtle pitch for verse→chorus lift
-      groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, (lrcSync?.sectionProgress ?? 0) * 0.08 - 0.04, delta * 2);
+      groupRef.current.rotation.x = THREE.MathUtils.lerp(
+        groupRef.current.rotation.x,
+        (lrcSync?.sectionProgress ?? 0) * 0.08 - 0.04,
+        delta * 2,
+      );
     }
   });
 

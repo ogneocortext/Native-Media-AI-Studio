@@ -1,9 +1,25 @@
 import "./index.css";
 import { MyComposition } from "./Composition";
-import { StillIRiseComposition, StillIRiseDuration, StillIRiseFps } from "./StillIRise";
-import { StillIRiseV7Composition, StillIRiseV7Duration, StillIRiseV7Fps } from "./StillIRiseV7";
-import { SiliconDreamsPreview, SiliconDreamsDuration, SiliconDreamsFps } from "./SiliconDreamsPreview";
-import { TakeTheCrownComposition, TakeTheCrownDuration, TakeTheCrownFps } from "./TakeTheCrown";
+import {
+  StillIRiseComposition,
+  StillIRiseDuration,
+  StillIRiseFps,
+} from "./StillIRise";
+import {
+  StillIRiseV7Composition,
+  StillIRiseV7Duration,
+  StillIRiseV7Fps,
+} from "./StillIRiseV7";
+import {
+  SiliconDreamsPreview,
+  SiliconDreamsDuration,
+  SiliconDreamsFps,
+} from "./SiliconDreamsPreview";
+import {
+  TakeTheCrownComposition,
+  TakeTheCrownDuration,
+  TakeTheCrownFps,
+} from "./TakeTheCrown";
 import { Composition } from "remotion";
 
 export const RemotionRoot: React.FC = () => {

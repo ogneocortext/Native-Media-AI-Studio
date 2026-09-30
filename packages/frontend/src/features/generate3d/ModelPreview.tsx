@@ -51,7 +51,11 @@ function ModelView({ url, onLoading }: { url: string; onLoading?: (v: boolean) =
         onLoading?.(false);
       }
     }, 50);
-    return () => { cancelled = true; clearTimeout(timer); onLoading?.(false); };
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      onLoading?.(false);
+    };
   }, [scene]);
 
   // Gentle hover so the model feels alive while auto-rotating.

@@ -77,12 +77,20 @@ export interface UseObjectManagerOptions {
 }
 
 export interface UseObjectManagerResult {
-  addObject: (type: AnimObject["type"], overrides?: Omit<Partial<AnimObject>, "id" | "type">) => void;
+  addObject: (
+    type: AnimObject["type"],
+    overrides?: Omit<Partial<AnimObject>, "id" | "type">,
+  ) => void;
   removeObject: (id: string) => void;
   updateObject: (id: string, updates: Partial<AnimObject>) => void;
   loadTemplate: (template: any) => void;
-  characterAnimState: { isPlaying: boolean; currentTime: number; duration: number; clipNames: string[] } | undefined;
-  setCharacterAnimState: React.Dispatch<React.SetStateAction<{ isPlaying: boolean; currentTime: number; duration: number; clipNames: string[] } | undefined>>;
+  characterAnimState:
+    { isPlaying: boolean; currentTime: number; duration: number; clipNames: string[] } | undefined;
+  setCharacterAnimState: React.Dispatch<
+    React.SetStateAction<
+      { isPlaying: boolean; currentTime: number; duration: number; clipNames: string[] } | undefined
+    >
+  >;
   refreshCharacterAnimState: (objId: string) => void;
   handleAnimPlayPause: () => void;
   handleAnimSeek: (time: number) => void;
@@ -100,11 +108,16 @@ export interface UseTrackManagerOptions {
   setRenderPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   setBeatSync: React.Dispatch<React.SetStateAction<boolean>>;
   setBpm: React.Dispatch<React.SetStateAction<number>>;
-  setTrackMetadata: React.Dispatch<React.SetStateAction<Record<string, { bpm?: number; duration?: number }>>>;
+  setTrackMetadata: React.Dispatch<
+    React.SetStateAction<Record<string, { bpm?: number; duration?: number }>>
+  >;
   setLibraryTracks: React.Dispatch<React.SetStateAction<Array<{ filename: string }>>>;
   setTracksLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setTracksError: React.Dispatch<React.SetStateAction<string | null>>;
-  addObject: (type: AnimObject["type"], overrides?: Omit<Partial<AnimObject>, "id" | "type">) => void;
+  addObject: (
+    type: AnimObject["type"],
+    overrides?: Omit<Partial<AnimObject>, "id" | "type">,
+  ) => void;
   audioElementRef: React.RefObject<HTMLAudioElement | null>;
   audioContextRef: React.RefObject<AudioContext | null>;
   analyserRef: React.RefObject<AnalyserNode | null>;

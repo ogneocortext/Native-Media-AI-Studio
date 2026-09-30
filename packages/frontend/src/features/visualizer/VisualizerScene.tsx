@@ -34,18 +34,40 @@ import type { AudioData, VisualizerSceneProps } from "./types";
 // ---------------------------------------------------------------------------
 // PostFX selector — chooses TSL (WebGPU) or GLSL (WebGL) pipeline
 // ---------------------------------------------------------------------------
-function PostFXSelector({ audioData, lrcSync, lrcSyncRef, prefersReducedMotion }: {
+function PostFXSelector({
+  audioData,
+  lrcSync,
+  lrcSyncRef,
+  prefersReducedMotion,
+  postfx,
+}: {
   audioData: React.MutableRefObject<AudioData>;
   lrcSync?: { isPhraseStart: boolean; currentSection: string } | null;
   lrcSyncRef?: { current: { isPhraseStart: boolean; currentSection: string } | null };
   prefersReducedMotion?: boolean;
+  postfx?: { bloom?: number; vignette?: number; glitch?: number } | null;
 }) {
   const { gl } = useThree();
   const isWebGPU = (gl as any)?.isWebGPURenderer === true;
   if (isWebGPU) {
-    return <WebGPUPostFX audioData={audioData} lrcSync={lrcSync} lrcSyncRef={lrcSyncRef} />;
+    return (
+      <WebGPUPostFX
+        audioData={audioData}
+        lrcSync={lrcSync}
+        lrcSyncRef={lrcSyncRef}
+        postfx={postfx}
+      />
+    );
   }
-  return <PostFX audioData={audioData} lrcSync={lrcSync} lrcSyncRef={lrcSyncRef} safeMode={prefersReducedMotion} />;
+  return (
+    <PostFX
+      audioData={audioData}
+      lrcSync={lrcSync}
+      lrcSyncRef={lrcSyncRef}
+      safeMode={prefersReducedMotion}
+      postfx={postfx}
+    />
+  );
 }
 
 interface Props extends VisualizerSceneProps {
@@ -99,11 +121,7 @@ export function VisualizerScene({
     undefined,
     audioWorker,
   );
-  const demoData = useDemoAudio(
-    demoEnabled && !isPlaying && !isPaused,
-    demoBpm,
-    perceptualScale,
-  );
+  const demoData = useDemoAudio(demoEnabled && !isPlaying && !isPaused, demoBpm, perceptualScale);
   const audioData = isPlaying ? realData : demoData;
 
   // Per-frame LRC + story state from the compensated audio clock (see audioTiming.ts).
@@ -122,7 +140,9 @@ export function VisualizerScene({
     // the R3F useFrame callback.
     const heard = sampleAudio ? sampleAudio() : (audioElapsedRef?.current ?? 0);
     updateTrackFeatures(analysisData, heard);
-    lrcSyncLiveRef.current = lyrics.length ? computeLrcSync(lyrics, heard, sectionBounds) : EMPTY_LRC_SYNC;
+    lrcSyncLiveRef.current = lyrics.length
+      ? computeLrcSync(lyrics, heard, sectionBounds)
+      : EMPTY_LRC_SYNC;
     storyLiveRef.current = getStoryState(storyboardRef.current, heard).beat;
   });
 
@@ -206,19 +226,14 @@ export function VisualizerScene({
     <group visible={active}>
       <>
         {vizParams.fogEnabled && (
-          <fogExp2
-            attach="fog"
-            args={[bgColor ?? "#050505", vizParams.fogDensity]}
-          />
+          <fogExp2 attach="fog" args={[bgColor ?? "#050505", vizParams.fogDensity]} />
         )}
         {/* IBL studio environment (local Lightformers — no HDR fetch) gives metals
             and clearcoat materials real reflections; 2026 standard lighting rig. */}
         <Environment resolution={64} frames={1}>
           <Lightformer
             form="rect"
-            intensity={
-              2.2 * (lrcSync ? getSectionIntensity(lrcSync.currentSection) : 1)
-            }
+            intensity={2.2 * (lrcSync ? getSectionIntensity(lrcSync.currentSection) : 1)}
             position={[0, 5, -4]}
             rotation={[Math.PI / 2.4, 0, 0]}
             scale={[9, 4, 1]}
@@ -248,10 +263,7 @@ export function VisualizerScene({
           />
         </Environment>
         {/* Key/fill/rim — physical falloff (decay 2) instead of legacy decay-0 */}
-        <ambientLight
-          intensity={vizParams.lightIntensity * 0.35}
-          color={vizParams.ambientColor}
-        />
+        <ambientLight intensity={vizParams.lightIntensity * 0.35} color={vizParams.ambientColor} />
         <pointLight
           position={[6, 6, 6]}
           intensity={vizParams.lightIntensity * (prefersReducedMotion ? 15 : 40)}
@@ -274,22 +286,20 @@ export function VisualizerScene({
         {renderVisualization()}
 
         {vizParams.showGround && (
-          <mesh
-            rotation={[-Math.PI / 2, 0, 0]}
-            position={[0, -3, 0]}
-            receiveShadow={false}
-          >
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3, 0]} receiveShadow={false}>
             <planeGeometry args={[20, 20]} />
-            <meshStandardMaterial
-              color="#111111"
-              metalness={0.9}
-              roughness={0.15}
-            />
+            <meshStandardMaterial color="#111111" metalness={0.9} roughness={0.15} />
           </mesh>
         )}
 
         {/* Post pipeline: bloom + film grade — now LRC-reactive (phrase pulse boosts bloom) */}
-        <PostFXSelector audioData={audioData} lrcSync={lrcSync} lrcSyncRef={lrcSyncLiveRef} prefersReducedMotion={prefersReducedMotion} />
+        <PostFXSelector
+          audioData={audioData}
+          lrcSync={lrcSync}
+          lrcSyncRef={lrcSyncLiveRef}
+          prefersReducedMotion={prefersReducedMotion}
+          postfx={vizParams.postfx}
+        />
 
         <OrbitControls
           enablePan={false}

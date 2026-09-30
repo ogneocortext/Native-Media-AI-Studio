@@ -1,12 +1,12 @@
 /**
  * Theatre.js Studio Service
- * 
+ *
  * Singleton that manages Theatre.js initialization globally.
  * Uses dynamic imports to avoid the "not initialized" warning.
- * 
+ *
  * Usage:
  *   import { useTheatreStudio } from './theatreStudio';
- *   
+ *
  *   // In component:
  *   const { studio, ready } = useTheatreStudio();
  */
@@ -66,12 +66,9 @@ export function isStudioReady(): boolean {
 /**
  * Create a Theatre.js project. Ensures studio is initialized first.
  */
-export async function createTheatreProject(
-  projectId: string,
-  sheetId: string = "Scene"
-) {
+export async function createTheatreProject(projectId: string, sheetId: string = "Scene") {
   await getStudio();
-  
+
   const project = theatreCore.getProject(projectId);
   const sheet = project.sheet(sheetId);
   return { project, sheet, studio: studioInstance };
@@ -82,7 +79,7 @@ export async function createTheatreProject(
  */
 export function createAnimationTracks(
   sheet: any,
-  trackDefs: Array<{ label: string; prop: string; min: number; max: number }>
+  trackDefs: Array<{ label: string; prop: string; min: number; max: number }>,
 ) {
   const objects: Record<string, any> = {};
   for (const def of trackDefs) {
@@ -97,9 +94,7 @@ export function createAnimationTracks(
 /**
  * Read current values from all objects.
  */
-export function readObjectValues(
-  objects: Record<string, any>
-): Record<string, number> {
+export function readObjectValues(objects: Record<string, any>): Record<string, number> {
   const values: Record<string, number> = {};
   for (const [key, obj] of Object.entries(objects)) {
     try {
@@ -114,10 +109,7 @@ export function readObjectValues(
 /**
  * Write values to objects.
  */
-export function writeObjectValues(
-  objects: Record<string, any>,
-  values: Record<string, number>
-) {
+export function writeObjectValues(objects: Record<string, any>, values: Record<string, number>) {
   for (const [key, value] of Object.entries(values)) {
     const obj = objects[key];
     if (obj) {

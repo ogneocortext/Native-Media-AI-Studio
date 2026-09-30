@@ -62,13 +62,11 @@ export function useTrackManager({
     const fetchMetadata = async () => {
       const metadata: Record<string, { bpm?: number; duration?: number }> = {};
       try {
-      const data = await getAnalysis(selectedTrack);
-      metadata[selectedTrack] = {
-        bpm: data.tempo_bpm ? Math.round(data.tempo_bpm) : undefined,
-        duration: data.duration_seconds
-          ? Math.round(data.duration_seconds)
-          : undefined,
-      };
+        const data = await getAnalysis(selectedTrack);
+        metadata[selectedTrack] = {
+          bpm: data.tempo_bpm ? Math.round(data.tempo_bpm) : undefined,
+          duration: data.duration_seconds ? Math.round(data.duration_seconds) : undefined,
+        };
       } catch {
         /* ignore */
       }
@@ -100,8 +98,7 @@ export function useTrackManager({
     if (!audioElementRef.current) return;
     try {
       if (!audioContextRef.current) {
-        const AudioCtx =
-          window.AudioContext || (window as any).webkitAudioContext;
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
         const ctx = new AudioCtx();
         audioContextRef.current = ctx;
         const analyser = ctx.createAnalyser();
@@ -114,8 +111,7 @@ export function useTrackManager({
           audioSourceRef.current = source;
         }
       }
-      if (audioContextRef.current.state === "suspended")
-        await audioContextRef.current.resume();
+      if (audioContextRef.current.state === "suspended") await audioContextRef.current.resume();
       if (isAudioPlaying) {
         audioElementRef.current.pause();
         setIsAudioPlaying(false);

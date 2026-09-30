@@ -9,12 +9,12 @@ export interface TrackConcept {
   recommendedViz: VisualizationStyle;
 }
 
-export type VisualizationStyle = 
-  | "geometric" 
-  | "waveform" 
-  | "particles" 
-  | "neural" 
-  | "cosmic" 
+export type VisualizationStyle =
+  | "geometric"
+  | "waveform"
+  | "particles"
+  | "neural"
+  | "cosmic"
   | "fractal"
   | "pulse"
   | "storm"
@@ -137,14 +137,14 @@ export const VISUALIZATION_OPTIONS: VisualizationOption[] = [
 export function parseTrackCSV(csvContent: string): TrackConcept[] {
   const lines = csvContent.trim().split("\n");
   const tracks: TrackConcept[] = [];
-  
+
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
     // Parse CSV with quoted fields
     const fields: string[] = [];
     let current = "";
     let inQuotes = false;
-    
+
     for (const char of line) {
       if (char === '"') {
         inQuotes = !inQuotes;
@@ -156,42 +156,92 @@ export function parseTrackCSV(csvContent: string): TrackConcept[] {
       }
     }
     fields.push(current.trim());
-    
+
     if (fields.length >= 4) {
       const trackName = fields[1]?.replace(/^["']|["']$/g, "") || "";
       const prompt = fields[2]?.replace(/^["']|["']$/g, "") || "";
       const lyrics = fields[3]?.replace(/^["']|["']$/g, "") || "";
-      
+
       const analysis = analyzeTrackConcept(trackName, prompt, lyrics);
       tracks.push(analysis);
     }
   }
-  
+
   return tracks;
 }
 
 function analyzeTrackConcept(trackName: string, prompt: string, lyrics: string): TrackConcept {
   const combined = `${trackName} ${prompt} ${lyrics}`.toLowerCase();
-  
+
   // Extract mood keywords — expanded to cover NeoCortext library (ghost, burnout, grind, etc.)
   const moodKeywords: string[] = [];
   const moodMap: Record<string, string[]> = {
-    melancholic: ["melancholic", "sad", "grief", "mournful", "somber", "ghost", "fade", "stay", "learning"],
+    melancholic: [
+      "melancholic",
+      "sad",
+      "grief",
+      "mournful",
+      "somber",
+      "ghost",
+      "fade",
+      "stay",
+      "learning",
+    ],
     euphoric: ["euphoric", "triumphant", "uplifting", "euphoria", "crown", "triumph", "light"],
-    aggressive: ["aggressive", "intense", "heavy", "dark", "distorted", "burn", "fire", "phonk", "cowbell", "808"],
-    dreamy: ["dream", "ethereal", "ambient", "space", "cosmic", "aether", "signal", "noise", "horizon"],
+    aggressive: [
+      "aggressive",
+      "intense",
+      "heavy",
+      "dark",
+      "distorted",
+      "burn",
+      "fire",
+      "phonk",
+      "cowbell",
+      "808",
+    ],
+    dreamy: [
+      "dream",
+      "ethereal",
+      "ambient",
+      "space",
+      "cosmic",
+      "aether",
+      "signal",
+      "noise",
+      "horizon",
+    ],
     energetic: ["energetic", "fast", "upbeat", "dance", "party", "grind", "hustle", "ship it"],
-    introspective: ["introspective", "reflective", "thoughtful", "meditative", "window", "context", "clever", "architect"],
-    futuristic: ["futuristic", "cyberpunk", "synthwave", "retro", "neon", "system", "override", "grid", "override"],
+    introspective: [
+      "introspective",
+      "reflective",
+      "thoughtful",
+      "meditative",
+      "window",
+      "context",
+      "clever",
+      "architect",
+    ],
+    futuristic: [
+      "futuristic",
+      "cyberpunk",
+      "synthwave",
+      "retro",
+      "neon",
+      "system",
+      "override",
+      "grid",
+      "override",
+    ],
     peaceful: ["peaceful", "calm", "serene", "gentle", "soft", "still", "rise", "ground"],
   };
-  
+
   for (const [mood, keywords] of Object.entries(moodMap)) {
-    if (keywords.some(k => combined.includes(k))) {
+    if (keywords.some((k) => combined.includes(k))) {
       moodKeywords.push(mood);
     }
   }
-  
+
   // Extract genre keywords — expanded for NeoCortext catalog
   const genreKeywords: string[] = [];
   const genreMap: Record<string, string[]> = {
@@ -212,28 +262,38 @@ function analyzeTrackConcept(trackName: string, prompt: string, lyrics: string):
     indie: ["indie", "indie rock", "indie folk", "alternative", "folk"],
     "trap-metal": ["trap metal", "trap-metal", "nu metal", "rap metal"],
   };
-  
+
   for (const [genre, keywords] of Object.entries(genreMap)) {
-    if (keywords.some(k => combined.includes(k))) {
+    if (keywords.some((k) => combined.includes(k))) {
       genreKeywords.push(genre);
     }
   }
-  
+
   // Extract BPM
   const bpmMatch = combined.match(/(\d+)\s*bpm/);
   const bpm = bpmMatch ? parseInt(bpmMatch[1]) : 120;
-  
+
   // Determine energy level
   let energy: "low" | "medium" | "high" = "medium";
-  if (combined.includes("aggressive") || combined.includes("heavy") || combined.includes("intense") || bpm > 140) {
+  if (
+    combined.includes("aggressive") ||
+    combined.includes("heavy") ||
+    combined.includes("intense") ||
+    bpm > 140
+  ) {
     energy = "high";
-  } else if (combined.includes("ambient") || combined.includes("calm") || combined.includes("peaceful") || bpm < 100) {
+  } else if (
+    combined.includes("ambient") ||
+    combined.includes("calm") ||
+    combined.includes("peaceful") ||
+    bpm < 100
+  ) {
     energy = "low";
   }
-  
+
   // Recommend visualization based on analysis
   const recommendedViz = recommendVisualization(moodKeywords, genreKeywords, energy);
-  
+
   return {
     trackName,
     prompt,
@@ -249,80 +309,124 @@ function analyzeTrackConcept(trackName: string, prompt: string, lyrics: string):
 function recommendVisualization(
   mood: string[],
   genre: string[],
-  energy: "low" | "medium" | "high"
+  energy: "low" | "medium" | "high",
 ): VisualizationStyle {
   const combined = [...mood, ...genre].join(" ");
-  
+
   // High energy aggressive → Inferno or Storm
   if (energy === "high" && (combined.includes("metal") || combined.includes("heavy"))) {
     return "inferno";
   }
-  if (energy === "high" && (combined.includes("dubstep") || combined.includes("brostep") || combined.includes("drum-and-bass"))) {
+  if (
+    energy === "high" &&
+    (combined.includes("dubstep") ||
+      combined.includes("brostep") ||
+      combined.includes("drum-and-bass"))
+  ) {
     return "particles";
   }
   if (combined.includes("metal") || combined.includes("rock") || combined.includes("aggressive")) {
     return "storm";
   }
-  
+
   // Cyberpunk/synthwave → Synthwave or Neural
-  if (combined.includes("cyberpunk") || combined.includes("neon") || combined.includes("retrowave")) {
+  if (
+    combined.includes("cyberpunk") ||
+    combined.includes("neon") ||
+    combined.includes("retrowave")
+  ) {
     return "synthwave";
   }
   if (combined.includes("synthwave") || combined.includes("futuristic")) {
     return "neural";
   }
-  
+
   // Ambient/ethereal → Aurora or Cosmic
-  if (combined.includes("ethereal") || combined.includes("dream") || combined.includes("peaceful")) {
+  if (
+    combined.includes("ethereal") ||
+    combined.includes("dream") ||
+    combined.includes("peaceful")
+  ) {
     return "aurora";
   }
   if (combined.includes("ambient") || combined.includes("space") || combined.includes("cosmic")) {
     return "cosmic";
   }
-  
+
   // Peaceful/calm → Ocean or Waveform
-  if (combined.includes("peaceful") || combined.includes("calm") || combined.includes("chill") || combined.includes("lo-fi")) {
+  if (
+    combined.includes("peaceful") ||
+    combined.includes("calm") ||
+    combined.includes("chill") ||
+    combined.includes("lo-fi")
+  ) {
     return "ocean";
   }
   if (combined.includes("ambient") || combined.includes("downtempo")) {
     return "waveform";
   }
-  
+
   // Funk/retro → Vinyl
-  if (combined.includes("funk") || combined.includes("g-funk") || combined.includes("retro") || combined.includes("west-coast")) {
+  if (
+    combined.includes("funk") ||
+    combined.includes("g-funk") ||
+    combined.includes("retro") ||
+    combined.includes("west-coast")
+  ) {
     return "vinyl";
   }
-  
+
   // Psychedelic → Fractal
-  if (combined.includes("psychedelic") || combined.includes("experimental") || combined.includes("trippy")) {
+  if (
+    combined.includes("psychedelic") ||
+    combined.includes("experimental") ||
+    combined.includes("trippy")
+  ) {
     return "fractal";
   }
-  
+
   // Dance/pop → Pulse
   if (combined.includes("pop") || combined.includes("dance") || combined.includes("disco")) {
     return "pulse";
   }
-  
+
   // R&B → Waveform
-  if (combined.includes("r&b") || combined.includes("rnb") || combined.includes("soul") || combined.includes("neo-soul")) {
+  if (
+    combined.includes("r&b") ||
+    combined.includes("rnb") ||
+    combined.includes("soul") ||
+    combined.includes("neo-soul")
+  ) {
     return "waveform";
   }
-  
+
   // Indie/folk → Aurora
   if (combined.includes("indie") || combined.includes("folk") || combined.includes("alternative")) {
     return "aurora";
   }
-  
+
   // Trap metal → Inferno
-  if (combined.includes("trap metal") || combined.includes("trap-metal") || combined.includes("nu metal")) {
+  if (
+    combined.includes("trap metal") ||
+    combined.includes("trap-metal") ||
+    combined.includes("nu metal")
+  ) {
     return "inferno";
   }
-  
+
   return "geometric";
 }
 
-export function getVisualizationForTrack(trackName: string, csvContent: string): TrackConcept | null {
+export function getVisualizationForTrack(
+  trackName: string,
+  csvContent: string,
+): TrackConcept | null {
   const tracks = parseTrackCSV(csvContent);
-  return tracks.find(t => t.trackName.toLowerCase().includes(trackName.toLowerCase()) || 
-                          trackName.toLowerCase().includes(t.trackName.toLowerCase())) || null;
+  return (
+    tracks.find(
+      (t) =>
+        t.trackName.toLowerCase().includes(trackName.toLowerCase()) ||
+        trackName.toLowerCase().includes(t.trackName.toLowerCase()),
+    ) || null
+  );
 }

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, StatusBadge, LoadingSpinner } from "../../components/common";
 import {
@@ -44,7 +43,9 @@ export function HealthPage() {
   const [comfyuiLoading, setComfyuiLoading] = useState(false);
   const [comfyuiAction, setComfyuiAction] = useState<string | null>(null);
   const [vramStatus, setVramStatus] = useState<Record<string, unknown> | null>(null);
-  const [actionLog, setActionLog] = useState<Array<{ time: string; message: string; type: string }>>([]);
+  const [actionLog, setActionLog] = useState<
+    Array<{ time: string; message: string; type: string }>
+  >([]);
   const [pendingHighVram, setPendingHighVram] = useState<number | null>(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -113,7 +114,10 @@ export function HealthPage() {
             if (_vram && _vram.percent > 80 && pendingHighVram !== _vram.percent) {
               // Non-blocking two-step confirm: arm the inline banner, let the user decide.
               setPendingHighVram(_vram.percent);
-              addLog(`Warning: VRAM is at ${_vram.percent}% — confirm Start below to proceed`, "warning");
+              addLog(
+                `Warning: VRAM is at ${_vram.percent}% — confirm Start below to proceed`,
+                "warning",
+              );
               setComfyuiLoading(false);
               setComfyuiAction(null);
               return;
@@ -223,8 +227,7 @@ export function HealthPage() {
     .filter(([, s]) => s !== "connected" && s !== "online" && s !== "healthy")
     .map(([name]) => name.replace(/_/g, " "));
   const hostStatus = health?.status || "unknown";
-  const overallHealth =
-    offlineAdapters.length > 0 ? "degraded" : hostStatus;
+  const overallHealth = offlineAdapters.length > 0 ? "degraded" : hostStatus;
   const overallDetail =
     offlineAdapters.length > 0
       ? `${offlineAdapters.join(", ")} ${offlineAdapters.length === 1 ? "is" : "are"} unreachable`
@@ -306,10 +309,14 @@ export function HealthPage() {
 
       {/* High-VRAM start confirmation (non-blocking — replaces window.confirm) */}
       {pendingHighVram != null && (
-        <div className="rounded-lg bg-amber-500/10 border border-amber-500/25 px-3 py-2.5 mb-6 flex flex-wrap items-center gap-2" role="alert">
+        <div
+          className="rounded-lg bg-amber-500/10 border border-amber-500/25 px-3 py-2.5 mb-6 flex flex-wrap items-center gap-2"
+          role="alert"
+        >
           <AlertTriangle size={14} className="text-amber-400" />
           <span className="text-xs text-amber-200 flex-1 min-w-[220px]">
-            VRAM is at {pendingHighVram}%. Starting ComfyUI may cause performance issues — close a heavy app first, or confirm below.
+            VRAM is at {pendingHighVram}%. Starting ComfyUI may cause performance issues — close a
+            heavy app first, or confirm below.
           </span>
           <button
             onClick={() => handleComfyUIAction("start")}
@@ -345,11 +352,15 @@ export function HealthPage() {
         />
 
         {/* Resource Usage - main area */}
-        <div
-          className={`${comfyui?.installed ? "lg:col-span-2" : "lg:col-span-3"}`}
-        >
+        <div className={`${comfyui?.installed ? "lg:col-span-2" : "lg:col-span-3"}`}>
           <div className="grid grid-cols-2 gap-4">
-            <ResourceCard icon={Cpu} iconColor="blue" label="CPU" cores={health?.cpu?.count} usage={cpuUsage} />
+            <ResourceCard
+              icon={Cpu}
+              iconColor="blue"
+              label="CPU"
+              cores={health?.cpu?.count}
+              usage={cpuUsage}
+            />
             <div className="relative">
               <ResourceCard
                 icon={HardDrive}
@@ -381,12 +392,20 @@ export function HealthPage() {
                 </button>
               )}
             </div>
-            <ResourceCard icon={Database} iconColor="amber" label="Disk" cores={undefined} usage={diskUsage} subtext={`${health?.disk?.free_gb?.toFixed(1)}GB free`} />
+            <ResourceCard
+              icon={Database}
+              iconColor="amber"
+              label="Disk"
+              cores={undefined}
+              usage={diskUsage}
+              subtext={`${health?.disk?.free_gb?.toFixed(1)}GB free`}
+            />
             <GPUCard />
           </div>
           {memUsage >= 80 && (
             <p className="text-xs text-amber-400 mt-2">
-              Memory high — queue will auto-clean before new jobs. Click Clean RAM for GC + Ollama offload.
+              Memory high — queue will auto-clean before new jobs. Click Clean RAM for GC + Ollama
+              offload.
             </p>
           )}
         </div>
@@ -451,9 +470,7 @@ export function HealthPage() {
                   </div>
 
                   {/* Service URL */}
-                  {url && (
-                    <p className="text-xs text-muted mb-2 font-mono">{url}</p>
-                  )}
+                  {url && <p className="text-xs text-muted mb-2 font-mono">{url}</p>}
 
                   {/* Error Message */}
                   {error && (
@@ -469,7 +486,9 @@ export function HealthPage() {
                       <ol className="text-xs text-muted list-decimal list-inside space-y-1">
                         <li>
                           Start ComfyUI from this page (Start button above), or run{" "}
-                          <code className="bg-background px-1 rounded">scripts\start-services.ps1 -ComfyUI</code>
+                          <code className="bg-background px-1 rounded">
+                            scripts\start-services.ps1 -ComfyUI
+                          </code>
                         </li>
                         <li>Or update URL in Settings if using a different port</li>
                       </ol>

@@ -1,7 +1,5 @@
 import React from "react";
-import {
-  Plus, Trash2, Settings, Wrench, Sparkles, Cpu, MessageSquare,
-} from "lucide-react";
+import { Plus, Trash2, Settings, Wrench, Sparkles, Cpu, MessageSquare } from "lucide-react";
 import { DS } from "../../styles/designSystem";
 import type { Tool, HistoryEntry } from "./types";
 import type { OllamaModel } from "../../services/api";
@@ -23,18 +21,43 @@ interface SidebarProps {
 }
 
 const promptTemplates = [
-  { label: "Video Concept", text: "Generate a creative music video concept for a [genre] song about [theme]. Include visual style, color palette, and camera movements." },
-  { label: "Scene Description", text: "Describe a cinematic scene for a music video chorus section. Include lighting, mood, and visual elements." },
-  { label: "Color Palette", text: "Suggest a color palette for a music video with [mood] mood. Include hex codes and usage guidelines." },
-  { label: "Transition Ideas", text: "Suggest creative video transitions for a music video that sync to beat drops." },
+  {
+    label: "Video Concept",
+    text: "Generate a creative music video concept for a [genre] song about [theme]. Include visual style, color palette, and camera movements.",
+  },
+  {
+    label: "Scene Description",
+    text: "Describe a cinematic scene for a music video chorus section. Include lighting, mood, and visual elements.",
+  },
+  {
+    label: "Color Palette",
+    text: "Suggest a color palette for a music video with [mood] mood. Include hex codes and usage guidelines.",
+  },
+  {
+    label: "Transition Ideas",
+    text: "Suggest creative video transitions for a music video that sync to beat drops.",
+  },
   { label: "Project Status", text: "What's the current system health and job queue status?" },
-  { label: "Visualization", text: "Use the generate_visualization tool to create a particles visualization with neon colors and high intensity" },
+  {
+    label: "Visualization",
+    text: "Use the generate_visualization tool to create a particles visualization with neon colors and high intensity",
+  },
 ];
 
 export function Sidebar({
-  tools, enabledTools, setEnabledTools, setEditingTool, setToolJsonValid,
-  setShowToolEditor, setTools, setPrompt, selectedModel, setSelectedModel,
-  models, history, setResponse,
+  tools,
+  enabledTools,
+  setEnabledTools,
+  setEditingTool,
+  setToolJsonValid,
+  setShowToolEditor,
+  setTools,
+  setPrompt,
+  selectedModel,
+  setSelectedModel,
+  models,
+  history,
+  setResponse,
 }: SidebarProps) {
   const formatSize = (bytes: number) => {
     if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
@@ -112,10 +135,20 @@ export function Sidebar({
                 className="accent-violet-500"
               />
               <span className="text-sm text-gray-300 flex-1 truncate">{tool.name}</span>
-              <button onClick={() => { setEditingTool(tool); setToolJsonValid(true); setShowToolEditor(true); }} className="text-gray-500 hover:text-white">
+              <button
+                onClick={() => {
+                  setEditingTool(tool);
+                  setToolJsonValid(true);
+                  setShowToolEditor(true);
+                }}
+                className="text-gray-500 hover:text-white"
+              >
                 <Settings size={12} />
               </button>
-              <button onClick={() => deleteTool(tool.id)} className="text-gray-500 hover:text-red-400">
+              <button
+                onClick={() => deleteTool(tool.id)}
+                className="text-gray-500 hover:text-red-400"
+              >
                 <Trash2 size={12} />
               </button>
             </div>
@@ -139,7 +172,9 @@ export function Sidebar({
                 key={m.name}
                 onClick={() => setSelectedModel(m.name)}
                 className={`w-full text-left px-2 py-1.5 rounded text-sm ${
-                  selectedModel === m.name ? "bg-violet-600/30 text-violet-300" : "text-gray-400 hover:bg-gray-700"
+                  selectedModel === m.name
+                    ? "bg-violet-600/30 text-violet-300"
+                    : "text-gray-400 hover:bg-gray-700"
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -167,7 +202,10 @@ export function Sidebar({
             {history.map((h, i) => (
               <button
                 key={i}
-                onClick={() => { setPrompt(h.prompt); setResponse(h.response); }}
+                onClick={() => {
+                  setPrompt(h.prompt);
+                  setResponse(h.response);
+                }}
                 className="w-full text-left px-2 py-1.5 bg-gray-700/50 rounded text-xs text-gray-400 truncate hover:bg-gray-700"
               >
                 <div className="flex items-center justify-between">

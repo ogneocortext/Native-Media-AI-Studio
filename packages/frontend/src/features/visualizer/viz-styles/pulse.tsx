@@ -2,16 +2,20 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { VizProps } from "./types";
-import {
-  makeAudioReactiveMaterialTSL,
-  updateAudioReactiveMaterialTSL,
-} from "../VisualizationFX";
+import { makeAudioReactiveMaterialTSL, updateAudioReactiveMaterialTSL } from "../VisualizationFX";
 import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
 
 // =============================================================================
 // PULSE — Concentric rings emitting from center on beats
 // =============================================================================
-export function PulseRings({ audioData, vizParams, sceneFrozen, prefersReducedMotion, stems, audioElapsedRef }: VizProps) {
+export function PulseRings({
+  audioData,
+  vizParams,
+  sceneFrozen,
+  prefersReducedMotion,
+  stems,
+  audioElapsedRef,
+}: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const ringRefs = useRef<(THREE.Mesh | null)[]>([]);
   const ringCount = 12;
@@ -57,7 +61,8 @@ export function PulseRings({ audioData, vizParams, sceneFrozen, prefersReducedMo
       } else {
         const m = ring.material as THREE.MeshStandardMaterial;
         m.opacity = (1 - phase) * (0.5 + bass * 0.4 + stemEnergyRef.current.drums * 0.3);
-        m.emissiveIntensity = (1 - phase) * vizParams.glowIntensity * 2 + stemEnergyRef.current.drums;
+        m.emissiveIntensity =
+          (1 - phase) * vizParams.glowIntensity * 2 + stemEnergyRef.current.drums;
         const hue = 0.5 + bass * 0.3 + stemEnergyRef.current.other * 0.15;
         m.color.setHSL(hue, 0.8, 0.6);
       }
@@ -67,8 +72,7 @@ export function PulseRings({ audioData, vizParams, sceneFrozen, prefersReducedMo
         m.emissiveIntensity = 2 + beatPeak * 3 + stemEnergyRef.current.drums * 2;
       }
     });
-    if (!sceneFrozen)
-      groupRef.current.rotation.y = t * 0.02 * vizParams.rotationSpeed * speedMul;
+    if (!sceneFrozen) groupRef.current.rotation.y = t * 0.02 * vizParams.rotationSpeed * speedMul;
   });
 
   return (
@@ -105,7 +109,12 @@ export function PulseRings({ audioData, vizParams, sceneFrozen, prefersReducedMo
 // =============================================================================
 // SPECTRUM — Circular frequency bars with HSL mapping
 // =============================================================================
-export function SpectrumBars({ audioData, vizParams, sceneFrozen, prefersReducedMotion }: VizProps) {
+export function SpectrumBars({
+  audioData,
+  vizParams,
+  sceneFrozen,
+  prefersReducedMotion,
+}: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const barRefs = useRef<(THREE.Mesh | null)[]>([]);
   const barCount = 48;
@@ -133,18 +142,20 @@ export function SpectrumBars({ audioData, vizParams, sceneFrozen, prefersReduced
     if (!groupRef.current) return;
     const { bass, mid, treble, peak } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
-    if (!sceneFrozen)
-      rotRef.current += 0.004 * vizParams.rotationSpeed * speedMul * (1 + peak);
+    if (!sceneFrozen) rotRef.current += 0.004 * vizParams.rotationSpeed * speedMul * (1 + peak);
 
     barRefs.current.forEach((bar, i) => {
       if (!bar) return;
-      const freq =
-        i < barCount * 0.25 ? bass : i < barCount * 0.6 ? mid : treble;
+      const freq = i < barCount * 0.25 ? bass : i < barCount * 0.6 ? mid : treble;
       const h = 0.1 + freq * 4.5;
       bar.scale.set(1, Math.max(0.01, h), 1);
       bar.position.y = h / 2 - 1.5;
       if (isWebGPU && barMat) {
-        updateAudioReactiveMaterialTSL(barMat, { bass, mid, treble, energy: 0.5 }, vizParams.glowIntensity);
+        updateAudioReactiveMaterialTSL(
+          barMat,
+          { bass, mid, treble, energy: 0.5 },
+          vizParams.glowIntensity,
+        );
       } else {
         const m = bar.material as THREE.MeshStandardMaterial;
         const hue = 0.55 + (i / barCount) * 0.4;

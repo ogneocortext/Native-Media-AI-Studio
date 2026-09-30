@@ -13,12 +13,7 @@ import {
   Activity,
 } from "lucide-react";
 import { Card } from "../../components/common";
-import {
-  startComfyUI,
-  getLogInfo,
-  getLogContent,
-  type LogInfo,
-} from "../../services/api";
+import { startComfyUI, getLogInfo, getLogContent, type LogInfo } from "../../services/api";
 
 interface ParsedLogLine {
   timestamp: string;
@@ -185,9 +180,7 @@ export function LogsViewer() {
       });
   }, [logContent, showOnlyErrors, searchFilter]);
 
-  const errorCount = logContent.filter(
-    (l) => l.includes("ERROR") || l.includes("error"),
-  ).length;
+  const errorCount = logContent.filter((l) => l.includes("ERROR") || l.includes("error")).length;
   const warnCount = logContent.filter((l) => l.includes("WARNING")).length;
 
   const logTabs = [
@@ -264,9 +257,7 @@ export function LogsViewer() {
                 >
                   <Icon size={14} />
                   <span>{label}</span>
-                  {hasContent && (
-                    <span className="text-[10px] opacity-60">({fileSize})</span>
-                  )}
+                  {hasContent && <span className="text-[10px] opacity-60">({fileSize})</span>}
                 </button>
               );
             })}
@@ -324,11 +315,7 @@ export function LogsViewer() {
                       <div
                         key={i}
                         className={`flex items-start gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors ${
-                          line.isError
-                            ? "bg-red-500/5"
-                            : line.isWarning
-                              ? "bg-yellow-500/5"
-                              : ""
+                          line.isError ? "bg-red-500/5" : line.isWarning ? "bg-yellow-500/5" : ""
                         }`}
                       >
                         {/* Level icon */}
@@ -360,9 +347,7 @@ export function LogsViewer() {
                             )}
                           </div>
                           {/* Message */}
-                          <p className="text-sm text-gray-300 mt-1 break-words">
-                            {line.message}
-                          </p>
+                          <p className="text-sm text-gray-300 mt-1 break-words">{line.message}</p>
                         </div>
 
                         {/* Timestamp */}
@@ -391,7 +376,8 @@ export function LogsViewer() {
                           <Server size={28} className="mx-auto mb-3 opacity-50" />
                           <p className="font-medium">No ComfyUI logs yet</p>
                           <p className="text-xs mt-1 mb-4 max-w-xs mx-auto">
-                            Start ComfyUI to see logs here. Logs capture generation progress, errors, and connection status.
+                            Start ComfyUI to see logs here. Logs capture generation progress,
+                            errors, and connection status.
                           </p>
                           <button
                             onClick={handleStartComfyUI}
@@ -403,11 +389,12 @@ export function LogsViewer() {
                         </>
                       ) : activeLog === "error" ? (
                         <>
-                          <CheckCircle size={28} className="mx-auto mb-3 text-green-400 opacity-50" />
+                          <CheckCircle
+                            size={28}
+                            className="mx-auto mb-3 text-green-400 opacity-50"
+                          />
                           <p className="font-medium text-green-400">No errors!</p>
-                          <p className="text-xs mt-1">
-                            Your application is running smoothly.
-                          </p>
+                          <p className="text-xs mt-1">Your application is running smoothly.</p>
                         </>
                       ) : (
                         <>
@@ -433,12 +420,8 @@ export function LogsViewer() {
                   Showing {parsedLines.length} of {logContent.length} entries
                 </span>
                 <div className="flex items-center gap-3">
-                  {errorCount > 0 && (
-                    <span className="text-red-400">{errorCount} errors</span>
-                  )}
-                  {warnCount > 0 && (
-                    <span className="text-yellow-400">{warnCount} warnings</span>
-                  )}
+                  {errorCount > 0 && <span className="text-red-400">{errorCount} errors</span>}
+                  {warnCount > 0 && <span className="text-yellow-400">{warnCount} warnings</span>}
                 </div>
               </div>
             )}

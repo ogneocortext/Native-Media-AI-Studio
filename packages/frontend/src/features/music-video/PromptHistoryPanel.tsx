@@ -11,7 +11,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { History, Loader2, RefreshCw, GitBranch, Trash2, RotateCcw, X, Check } from "lucide-react";
-import { getPromptHistory, savePromptVersion, getPromptChain, deletePromptVersion, type PromptHistoryEntry } from "../../services/api";
+import {
+  getPromptHistory,
+  savePromptVersion,
+  getPromptChain,
+  deletePromptVersion,
+  type PromptHistoryEntry,
+} from "../../services/api";
 
 interface Props {
   trackFilename: string;
@@ -90,7 +96,10 @@ export function PromptHistoryPanel({ trackFilename, section = "full", onApplyPro
   if (!trackFilename) return null;
 
   return (
-    <div className="rounded-xl border border-white/10 bg-black/30 p-4 mt-3" data-testid="prompt-history">
+    <div
+      className="rounded-xl border border-white/10 bg-black/30 p-4 mt-3"
+      data-testid="prompt-history"
+    >
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-semibold text-white flex items-center gap-2">
           <History size={16} className="text-primary" /> Prompt History
@@ -98,38 +107,81 @@ export function PromptHistoryPanel({ trackFilename, section = "full", onApplyPro
         </span>
         <div className="flex items-center gap-2">
           {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted" />}
-          <button onClick={load} className="p-1.5 hover:bg-white/10 rounded-lg text-muted hover:text-white" title="Refresh"><RefreshCw size={13} /></button>
+          <button
+            onClick={load}
+            className="p-1.5 hover:bg-white/10 rounded-lg text-muted hover:text-white"
+            title="Refresh"
+          >
+            <RefreshCw size={13} />
+          </button>
         </div>
       </div>
 
       {entries.length === 0 && !loading && (
-        <p className="text-xs text-muted">No version history yet — generations are auto-logged as they run.</p>
+        <p className="text-xs text-muted">
+          No version history yet — generations are auto-logged as they run.
+        </p>
       )}
 
       <div className="space-y-2">
         {entries.map((e) => (
-          <div key={e.id} className="bg-white/5 hover:bg-white/[0.08] rounded-lg px-3 py-2 border border-white/5">
+          <div
+            key={e.id}
+            className="bg-white/5 hover:bg-white/[0.08] rounded-lg px-3 py-2 border border-white/5"
+          >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-xs">
                 <span className="font-mono text-violet-300">v{e.version}</span>
-                <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${
-                  e.action === "repair" ? "bg-amber-500/20 text-amber-300" :
-                  e.action === "create" ? "bg-emerald-500/20 text-emerald-300" :
-                  "bg-blue-500/20 text-blue-300"
-                }`}>{e.action}</span>
-                <span className="text-[10px] text-muted">{new Date(e.created_at).toLocaleString()}</span>
-                <span className={`text-[10px] ${e.outcome === "failed" ? "text-red-400" : e.outcome === "generated" ? "text-emerald-400" : "text-muted"}`}>{e.outcome}</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded-md text-[10px] ${
+                    e.action === "repair"
+                      ? "bg-amber-500/20 text-amber-300"
+                      : e.action === "create"
+                        ? "bg-emerald-500/20 text-emerald-300"
+                        : "bg-blue-500/20 text-blue-300"
+                  }`}
+                >
+                  {e.action}
+                </span>
+                <span className="text-[10px] text-muted">
+                  {new Date(e.created_at).toLocaleString()}
+                </span>
+                <span
+                  className={`text-[10px] ${e.outcome === "failed" ? "text-red-400" : e.outcome === "generated" ? "text-emerald-400" : "text-muted"}`}
+                >
+                  {e.outcome}
+                </span>
               </div>
               <div className="flex items-center gap-1">
-                <button onClick={() => setShowFork(showFork === e.id ? null : e.id)} className="p-1 hover:bg-white/10 rounded-lg text-muted hover:text-white" title="Fork repair"><GitBranch size={13} /></button>
-                <button onClick={() => void handleShowChain(e.id)} className="p-1 hover:bg-white/10 rounded-lg text-muted hover:text-white" title="View chain"><RefreshCw size={13} /></button>
-                <button onClick={() => void handleDelete(e.id)} className="p-1 hover:bg-red-500/20 rounded-lg text-muted hover:text-red-400" title="Delete"><Trash2 size={13} /></button>
+                <button
+                  onClick={() => setShowFork(showFork === e.id ? null : e.id)}
+                  className="p-1 hover:bg-white/10 rounded-lg text-muted hover:text-white"
+                  title="Fork repair"
+                >
+                  <GitBranch size={13} />
+                </button>
+                <button
+                  onClick={() => void handleShowChain(e.id)}
+                  className="p-1 hover:bg-white/10 rounded-lg text-muted hover:text-white"
+                  title="View chain"
+                >
+                  <RefreshCw size={13} />
+                </button>
+                <button
+                  onClick={() => void handleDelete(e.id)}
+                  className="p-1 hover:bg-red-500/20 rounded-lg text-muted hover:text-red-400"
+                  title="Delete"
+                >
+                  <Trash2 size={13} />
+                </button>
               </div>
             </div>
             {e.repair_reason && (
               <p className="text-[10px] text-amber-300 mt-1">repair: {e.repair_reason}</p>
             )}
-            <p className="text-xs text-white/90 font-mono mt-1 line-clamp-2" title={e.prompt}>{e.prompt}</p>
+            <p className="text-xs text-white/90 font-mono mt-1 line-clamp-2" title={e.prompt}>
+              {e.prompt}
+            </p>
             {onApplyPrompt && (
               <button
                 onClick={() => onApplyPrompt(e.prompt, e.negative_prompt)}
@@ -148,13 +200,19 @@ export function PromptHistoryPanel({ trackFilename, section = "full", onApplyPro
                   placeholder="Repair reason (e.g. 'drums clashed with vocal mix')"
                   className="flex-1 text-xs bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-white placeholder:text-muted"
                 />
-                <button onClick={() => setShowFork(null)} className="p-1.5 hover:bg-white/10 rounded-lg text-muted"><X size={13} /></button>
+                <button
+                  onClick={() => setShowFork(null)}
+                  className="p-1.5 hover:bg-white/10 rounded-lg text-muted"
+                >
+                  <X size={13} />
+                </button>
                 <button
                   onClick={() => void handleFork(e)}
                   disabled={forking}
                   className="px-2 py-1.5 rounded-lg bg-violet-600/80 hover:bg-violet-500 text-white text-xs flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  {forking ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Fork
+                  {forking ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}{" "}
+                  Fork
                 </button>
               </div>
             )}
@@ -166,7 +224,15 @@ export function PromptHistoryPanel({ trackFilename, section = "full", onApplyPro
         <div className="mt-3 rounded-lg bg-black/40 border border-white/10 p-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-white">Version chain</span>
-            <button onClick={() => { setChain(null); setChainEntry(null); }} className="p-1 hover:bg-white/10 rounded-lg text-muted"><X size={13} /></button>
+            <button
+              onClick={() => {
+                setChain(null);
+                setChainEntry(null);
+              }}
+              className="p-1 hover:bg-white/10 rounded-lg text-muted"
+            >
+              <X size={13} />
+            </button>
           </div>
           <div className="space-y-1">
             {chain.map((c) => (

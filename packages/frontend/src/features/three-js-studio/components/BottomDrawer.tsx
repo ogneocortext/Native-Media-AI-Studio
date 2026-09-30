@@ -23,7 +23,10 @@ interface BottomDrawerProps {
   libraryImages: Array<{ url: string; label: string }>;
   onDrawerTabChange: (tab: "objects" | "inspector" | "scene") => void;
   onSelectObject: (id: string) => void;
-  onAddObject: (type: AnimObject["type"], overrides?: Omit<Partial<AnimObject>, "id" | "type">) => void;
+  onAddObject: (
+    type: AnimObject["type"],
+    overrides?: Omit<Partial<AnimObject>, "id" | "type">,
+  ) => void;
   onRemoveObject: (id: string) => void;
   onUpdateObject: (id: string, updates: Partial<AnimObject>) => void;
   onLoadTemplate: (template: any) => void;
@@ -82,25 +85,20 @@ export function BottomDrawer({
           onClick={() => onDrawerTabChange("objects")}
           className={`px-2 sm:px-3 py-1 rounded text-xs flex items-center gap-1 sm:gap-1.5 shrink-0 ${drawerTab === "objects" ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}
         >
-          <Box size={12} />{" "}
-          <span className="hidden sm:inline">Objects</span>
-          <span className="opacity-60 hidden sm:inline">
-            ({objects.length})
-          </span>
+          <Box size={12} /> <span className="hidden sm:inline">Objects</span>
+          <span className="opacity-60 hidden sm:inline">({objects.length})</span>
         </button>
         <button
           onClick={() => onDrawerTabChange("inspector")}
           className={`px-2 sm:px-3 py-1 rounded text-xs flex items-center gap-1 sm:gap-1.5 shrink-0 ${drawerTab === "inspector" ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}
         >
-          <Zap size={12} />{" "}
-          <span className="hidden sm:inline">Inspector</span>
+          <Zap size={12} /> <span className="hidden sm:inline">Inspector</span>
         </button>
         <button
           onClick={() => onDrawerTabChange("scene")}
           className={`px-2 sm:px-3 py-1 rounded text-xs flex items-center gap-1 sm:gap-1.5 shrink-0 ${drawerTab === "scene" ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}
         >
-          <Settings size={12} />{" "}
-          <span className="hidden sm:inline">Scene</span>
+          <Settings size={12} /> <span className="hidden sm:inline">Scene</span>
         </button>
         <div className="flex-1" />
         <button
@@ -129,11 +127,7 @@ export function BottomDrawer({
           <InspectorTab
             object={selectedObj}
             onUpdate={onUpdateObject}
-            animationState={
-              selectedObj?.type === "character"
-                ? characterAnimState
-                : undefined
-            }
+            animationState={selectedObj?.type === "character" ? characterAnimState : undefined}
             onAnimationPlayPause={onAnimationPlayPause}
             onAnimationSeek={onAnimationSeek}
             onAnimationSelect={onAnimationSelect}

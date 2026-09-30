@@ -20,7 +20,8 @@ const threeClockWarn = /THREE\.Clock: This module has been deprecated/;
 const origWarn = console.warn;
 const origError = console.error;
 console.warn = (...args: unknown[]) => {
-  if (typeof args[0] === "string" && (theatreWarn.test(args[0]) || threeClockWarn.test(args[0]))) return;
+  if (typeof args[0] === "string" && (theatreWarn.test(args[0]) || threeClockWarn.test(args[0])))
+    return;
   origWarn.apply(console, args);
 };
 console.error = (...args: unknown[]) => {
@@ -43,7 +44,7 @@ async function initApp() {
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
       <App />
-    </StrictMode>
+    </StrictMode>,
   );
 }
 

@@ -5,7 +5,12 @@ import type { AIGeneratedPreset, OllamaModel } from "../../../services/api";
 import type { VisualPreset } from "../visualPreset";
 import { AIPresetGallery } from "./AIPresetGallery";
 
-const TOOL_CAPABLE_MODELS = ["gemma4:e2b-it-qat", "gemma4-vision-optimized:latest", "qwen3.5:9b", "qwen3.5:4b"];
+const TOOL_CAPABLE_MODELS = [
+  "gemma4:e2b-it-qat",
+  "gemma4-vision-optimized:latest",
+  "qwen3.5:9b",
+  "qwen3.5:4b",
+];
 
 interface TrackMeta {
   bpm?: number;
@@ -20,7 +25,11 @@ interface AIVisualizerPromptProps {
   trackName?: string;
 }
 
-export function AIVisualizerPrompt({ onApplyPreset, trackMeta, trackName }: AIVisualizerPromptProps) {
+export function AIVisualizerPrompt({
+  onApplyPreset,
+  trackMeta,
+  trackName,
+}: AIVisualizerPromptProps) {
   const [description, setDescription] = useState("");
   const [model, setModel] = useState("gemma4:e2b-it-qat");
   const [models, setModels] = useState<OllamaModel[]>([]);
@@ -31,13 +40,15 @@ export function AIVisualizerPrompt({ onApplyPreset, trackMeta, trackName }: AIVi
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    getOllamaModels().then(data => {
-      if (data?.length) {
-        setModels(data);
-        const toolModel = data.find(m => TOOL_CAPABLE_MODELS.includes(m.name));
-        if (toolModel) setModel(toolModel.name);
-      }
-    }).catch(() => {});
+    getOllamaModels()
+      .then((data) => {
+        if (data?.length) {
+          setModels(data);
+          const toolModel = data.find((m) => TOOL_CAPABLE_MODELS.includes(m.name));
+          if (toolModel) setModel(toolModel.name);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const handleGenerate = useCallback(async () => {
@@ -46,7 +57,12 @@ export function AIVisualizerPrompt({ onApplyPreset, trackMeta, trackName }: AIVi
     setError(null);
     setGeneratedPreset(null);
     try {
-      const result = await generateVisualizerPreset(description, model, 0.7, trackMeta ?? undefined);
+      const result = await generateVisualizerPreset(
+        description,
+        model,
+        0.7,
+        trackMeta ?? undefined,
+      );
       setGeneratedPreset(result.preset);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generation failed");
@@ -59,21 +75,29 @@ export function AIVisualizerPrompt({ onApplyPreset, trackMeta, trackName }: AIVi
     console.log("[AIVisualizerPrompt] handleApply called, generatedPreset:", !!generatedPreset);
     if (!generatedPreset) return;
     onApplyPreset(generatedPreset as unknown as VisualPreset);
-    setRefreshKey(k => k + 1);
+    setRefreshKey((k) => k + 1);
     setGeneratedPreset(null);
     setDescription("");
   }, [generatedPreset, onApplyPreset]);
 
   const hasTrack = trackMeta && (trackMeta.bpm || trackMeta.energy !== undefined);
 
-  const presetSummary = generatedPreset ? [
-    { label: "Style", value: generatedPreset.visualizer?.style },
-    { label: "Colors", value: `${generatedPreset.theme?.primary}, ${generatedPreset.theme?.secondary}` },
-    { label: "Intensity", value: `${Math.round((generatedPreset.visualizer?.intensity ?? 0.5) * 100)}%` },
-    { label: "Particles", value: generatedPreset.visualizer?.particleCount?.toString() },
-    { label: "Lyrics", value: generatedPreset.lyrics?.style },
-    { label: "Bass React", value: generatedPreset.audioReactivity?.bass },
-  ].filter(v => v.value) : [];
+  const presetSummary = generatedPreset
+    ? [
+        { label: "Style", value: generatedPreset.visualizer?.style },
+        {
+          label: "Colors",
+          value: `${generatedPreset.theme?.primary}, ${generatedPreset.theme?.secondary}`,
+        },
+        {
+          label: "Intensity",
+          value: `${Math.round((generatedPreset.visualizer?.intensity ?? 0.5) * 100)}%`,
+        },
+        { label: "Particles", value: generatedPreset.visualizer?.particleCount?.toString() },
+        { label: "Lyrics", value: generatedPreset.lyrics?.style },
+        { label: "Bass React", value: generatedPreset.audioReactivity?.bass },
+      ].filter((v) => v.value)
+    : [];
 
   return (
     <div className="viz-ai-panel">
@@ -100,8 +124,10 @@ export function AIVisualizerPrompt({ onApplyPreset, trackMeta, trackName }: AIVi
           className="viz-ai-input"
           placeholder="Describe your visual style... e.g. 'dark phonk with aggressive red glitch and screen shake on the beat'"
           value={description}
-          onChange={e => setDescription(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleGenerate(); }}
+          onChange={(e) => setDescription(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleGenerate();
+          }}
           rows={3}
         />
       </div>
@@ -122,15 +148,22 @@ export function AIVisualizerPrompt({ onApplyPreset, trackMeta, trackName }: AIVi
               {models.length === 0 ? (
                 <div className="viz-ai-model-empty">No models loaded</div>
               ) : (
-                models.map(m => (
+                models.map((m) => (
                   <button
                     key={m.name}
                     className={`viz-ai-model-option ${m.name === model ? "active" : ""}`}
-                    onClick={() => { setModel(m.name); setShowModelPicker(false); }}
+                    onClick={() => {
+                      setModel(m.name);
+                      setShowModelPicker(false);
+                    }}
                   >
                     <span>{m.name}</span>
-                    {TOOL_CAPABLE_MODELS.includes(m.name) && <span className="viz-ai-badge">tool</span>}
-                    {m.benchmark && <span className="viz-ai-vram">score {Math.round(m.benchmark.score)}</span>}
+                    {TOOL_CAPABLE_MODELS.includes(m.name) && (
+                      <span className="viz-ai-badge">tool</span>
+                    )}
+                    {m.benchmark && (
+                      <span className="viz-ai-vram">score {Math.round(m.benchmark.score)}</span>
+                    )}
                   </button>
                 ))
               )}
@@ -157,7 +190,7 @@ export function AIVisualizerPrompt({ onApplyPreset, trackMeta, trackName }: AIVi
             <span className="viz-ai-preview-desc">{generatedPreset.description}</span>
           </div>
           <div className="viz-ai-summary">
-            {presetSummary.map(s => (
+            {presetSummary.map((s) => (
               <div key={s.label} className="viz-ai-summary-item">
                 <span className="viz-ai-summary-label">{s.label}</span>
                 <span className="viz-ai-summary-value">{s.value}</span>

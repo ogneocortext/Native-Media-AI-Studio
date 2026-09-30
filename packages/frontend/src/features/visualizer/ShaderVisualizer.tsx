@@ -55,10 +55,13 @@ function readFxFromApi(): Promise<FxValues | null> {
         const candidate = raw as Partial<FxValues>;
         const next: FxValues = {
           speed: typeof candidate.speed === "number" ? candidate.speed : DEFAULT_FX.speed,
-          brightness: typeof candidate.brightness === "number" ? candidate.brightness : DEFAULT_FX.brightness,
-          contrast: typeof candidate.contrast === "number" ? candidate.contrast : DEFAULT_FX.contrast,
+          brightness:
+            typeof candidate.brightness === "number" ? candidate.brightness : DEFAULT_FX.brightness,
+          contrast:
+            typeof candidate.contrast === "number" ? candidate.contrast : DEFAULT_FX.contrast,
           hue: typeof candidate.hue === "number" ? candidate.hue : DEFAULT_FX.hue,
-          saturation: typeof candidate.saturation === "number" ? candidate.saturation : DEFAULT_FX.saturation,
+          saturation:
+            typeof candidate.saturation === "number" ? candidate.saturation : DEFAULT_FX.saturation,
         };
         return next;
       }
@@ -67,7 +70,10 @@ function readFxFromApi(): Promise<FxValues | null> {
     .catch(() => null);
 }
 
-function sampleStemEnergy(stem: StemAnalysisData[keyof StemAnalysisData] | undefined, elapsed: number): number {
+function sampleStemEnergy(
+  stem: StemAnalysisData[keyof StemAnalysisData] | undefined,
+  elapsed: number,
+): number {
   if (!stem || stem.energy_curve.length === 0 || !Number.isFinite(elapsed)) return 0;
   const duration = stem.duration > 0 ? stem.duration : 1;
   const index = Math.min(
@@ -115,18 +121,40 @@ interface ShaderVisualizerProps {
  * Shader-driven visualization that auto-selects a preset based on track mood.
  * Audio data drives shader uniforms in real-time.
  */
-export function ShaderVisualizer({ audioData, trackName, isPlaying, className, lrcSync, lrcSyncLive, stems, sampleAudio, stemsMuted, stemsVolumes }: ShaderVisualizerProps) {
+export function ShaderVisualizer({
+  audioData,
+  trackName,
+  isPlaying,
+  className,
+  lrcSync,
+  lrcSyncLive,
+  stems,
+  sampleAudio,
+  stemsMuted,
+  stemsVolumes,
+}: ShaderVisualizerProps) {
   const [preset, setPreset] = useState<ShaderPresetName>(() => getShaderPresetForTrack(trackName));
   const [showSelector, setShowSelector] = useState(false);
   const [showFx, setShowFx] = useState(true);
   const [fxSpeed, setFxSpeed] = useState(() => readFxNumber("fxSpeed", DEFAULT_FX.speed));
-  const [fxBrightness, setFxBrightness] = useState(() => readFxNumber("fxBrightness", DEFAULT_FX.brightness));
-  const [fxContrast, setFxContrast] = useState(() => readFxNumber("fxContrast", DEFAULT_FX.contrast));
+  const [fxBrightness, setFxBrightness] = useState(() =>
+    readFxNumber("fxBrightness", DEFAULT_FX.brightness),
+  );
+  const [fxContrast, setFxContrast] = useState(() =>
+    readFxNumber("fxContrast", DEFAULT_FX.contrast),
+  );
   const [fxHue, setFxHue] = useState(() => readFxNumber("fxHue", DEFAULT_FX.hue));
-  const [fxSaturation, setFxSaturation] = useState(() => readFxNumber("fxSaturation", DEFAULT_FX.saturation));
+  const [fxSaturation, setFxSaturation] = useState(() =>
+    readFxNumber("fxSaturation", DEFAULT_FX.saturation),
+  );
   const [loadedFromApi, setLoadedFromApi] = useState(false);
   const uniformsRef = useRef({
-    bass: 0, mid: 0, treble: 0, beat: 0, energy: 0, peak: 0,
+    bass: 0,
+    mid: 0,
+    treble: 0,
+    beat: 0,
+    energy: 0,
+    peak: 0,
   });
   const userSelectedPreset = useRef(false);
   const lrcSyncPropRef = useRef(lrcSync);
@@ -183,12 +211,24 @@ export function ShaderVisualizer({ audioData, trackName, isPlaying, className, l
       const lrcEnergy = d.energy + phraseFlash * 0.3;
       const elapsed = sampleAudio?.() ?? 0;
       const stemEnergy = {
-        vocals: (stemsMutedRef.current?.vocals ? 0 : sampleStemEnergy(stems?.vocals, elapsed)) * (stemsVolumesRef.current?.vocals ?? 1),
-        drums: (stemsMutedRef.current?.drums ? 0 : sampleStemEnergy(stems?.drums, elapsed)) * (stemsVolumesRef.current?.drums ?? 1),
-        bass: (stemsMutedRef.current?.bass ? 0 : sampleStemEnergy(stems?.bass, elapsed)) * (stemsVolumesRef.current?.bass ?? 1),
-        other: (stemsMutedRef.current?.other ? 0 : sampleStemEnergy(stems?.other, elapsed)) * (stemsVolumesRef.current?.other ?? 1),
+        vocals:
+          (stemsMutedRef.current?.vocals ? 0 : sampleStemEnergy(stems?.vocals, elapsed)) *
+          (stemsVolumesRef.current?.vocals ?? 1),
+        drums:
+          (stemsMutedRef.current?.drums ? 0 : sampleStemEnergy(stems?.drums, elapsed)) *
+          (stemsVolumesRef.current?.drums ?? 1),
+        bass:
+          (stemsMutedRef.current?.bass ? 0 : sampleStemEnergy(stems?.bass, elapsed)) *
+          (stemsVolumesRef.current?.bass ?? 1),
+        other:
+          (stemsMutedRef.current?.other ? 0 : sampleStemEnergy(stems?.other, elapsed)) *
+          (stemsVolumesRef.current?.other ?? 1),
       };
-      const stemBoost = stemEnergy.vocals * 0.18 + stemEnergy.drums * 0.32 + stemEnergy.bass * 0.28 + stemEnergy.other * 0.12;
+      const stemBoost =
+        stemEnergy.vocals * 0.18 +
+        stemEnergy.drums * 0.32 +
+        stemEnergy.bass * 0.28 +
+        stemEnergy.other * 0.12;
       uniformsRef.current = {
         bass: Math.min(1, d.bass * 0.7 + stemEnergy.bass * 0.3),
         mid: Math.min(1, d.mid * 0.75 + stemEnergy.vocals * 0.25),
@@ -231,7 +271,13 @@ export function ShaderVisualizer({ audioData, trackName, isPlaying, className, l
 
   // Persist FX values to localStorage and backend whenever they change
   useEffect(() => {
-    const values: FxValues = { speed: fxSpeed, brightness: fxBrightness, contrast: fxContrast, hue: fxHue, saturation: fxSaturation };
+    const values: FxValues = {
+      speed: fxSpeed,
+      brightness: fxBrightness,
+      contrast: fxContrast,
+      hue: fxHue,
+      saturation: fxSaturation,
+    };
     writeFxNumber("fxSpeed", fxSpeed);
     writeFxNumber("fxBrightness", fxBrightness);
     writeFxNumber("fxContrast", fxContrast);
@@ -245,7 +291,12 @@ export function ShaderVisualizer({ audioData, trackName, isPlaying, className, l
   // Keyboard shortcut: F to toggle FX panel visibility
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      )
+        return;
       if (e.key === "f" || e.key === "F") {
         setShowFx((prev) => !prev);
       }

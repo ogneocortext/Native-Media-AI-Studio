@@ -188,11 +188,14 @@ export interface VisualPreset {
   beatMarkers: Record<string, BeatMarkerConfig>;
 
   // Per-section overrides
-  sections?: Record<string, {
-    theme?: Partial<ColorTheme>;
-    visualizer?: Partial<VisualizerConfig>;
-    postfx?: Partial<PostProcessingConfig>;
-  }>;
+  sections?: Record<
+    string,
+    {
+      theme?: Partial<ColorTheme>;
+      visualizer?: Partial<VisualizerConfig>;
+      postfx?: Partial<PostProcessingConfig>;
+    }
+  >;
 
   /** AI-generated timing hints for Remotion / agent-driven animations */
   timingHints?: TimingHint[];
@@ -318,9 +321,7 @@ export const PRESET_LIBRARY: VisualPreset[] = [
       rotation: false,
     },
     camera: {
-      keyframes: [
-        { at: 0, position: [0, 3, 8], target: [0, 0, 0], easing: "linear" },
-      ],
+      keyframes: [{ at: 0, position: [0, 3, 8], target: [0, 0, 0], easing: "linear" }],
       mode: "fixed",
       fov: 50,
     },
@@ -660,9 +661,7 @@ export const PRESET_LIBRARY: VisualPreset[] = [
       rotation: false,
     },
     camera: {
-      keyframes: [
-        { at: 0, position: [0, 2.5, 7], target: [0, 0, 0], easing: "linear" },
-      ],
+      keyframes: [{ at: 0, position: [0, 2.5, 7], target: [0, 0, 0], easing: "linear" }],
       mode: "fixed",
       fov: 50,
     },
@@ -1060,7 +1059,7 @@ export function getPresetsByTag(tag: string): VisualPreset[] {
 
 export function createPresetFromCurrent(
   base: VisualPreset,
-  overrides: Partial<VisualPreset>
+  overrides: Partial<VisualPreset>,
 ): VisualPreset {
   return {
     ...base,
@@ -1088,7 +1087,8 @@ export function importPresetFromString(json: string): VisualPreset | null {
     if (typeof parsed.id !== "string" || typeof parsed.name !== "string") return null;
     if (!parsed.theme || !parsed.visualizer || !parsed.camera) return null;
     if (!parsed.postfx || !parsed.lyrics || !parsed.audioReactivity) return null;
-    if (!Array.isArray(parsed.camera.keyframes) || parsed.camera.keyframes.length === 0) return null;
+    if (!Array.isArray(parsed.camera.keyframes) || parsed.camera.keyframes.length === 0)
+      return null;
     return parsed as VisualPreset;
   } catch {
     return null;
@@ -1096,10 +1096,7 @@ export function importPresetFromString(json: string): VisualPreset | null {
 }
 
 /** Apply a camera easing curve to a [0, 1] interpolation factor. */
-function applyCameraEasing(
-  easing: CameraKeyframe["easing"],
-  t: number
-): number {
+function applyCameraEasing(easing: CameraKeyframe["easing"], t: number): number {
   const clamped = Math.min(1, Math.max(0, t));
   switch (easing) {
     case "easeIn":
@@ -1107,9 +1104,7 @@ function applyCameraEasing(
     case "easeOut":
       return 1 - (1 - clamped) * (1 - clamped);
     case "easeInOut":
-      return clamped < 0.5
-        ? 2 * clamped * clamped
-        : 1 - Math.pow(-2 * clamped + 2, 2) / 2;
+      return clamped < 0.5 ? 2 * clamped * clamped : 1 - Math.pow(-2 * clamped + 2, 2) / 2;
     case "linear":
     default:
       return clamped;
@@ -1123,7 +1118,7 @@ function applyCameraEasing(
 export function getConfigAtTime(
   preset: VisualPreset,
   time: number,
-  section?: string
+  section?: string,
 ): {
   theme: ColorTheme;
   visualizer: VisualizerConfig;
@@ -1132,9 +1127,7 @@ export function getConfigAtTime(
   lyrics: LyricAnimationConfig;
 } {
   // Apply section overrides
-  const sectionOverrides = section && preset.sections
-    ? preset.sections[section]
-    : undefined;
+  const sectionOverrides = section && preset.sections ? preset.sections[section] : undefined;
   const theme = sectionOverrides?.theme
     ? { ...preset.theme, ...sectionOverrides.theme }
     : { ...preset.theme };

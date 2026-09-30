@@ -31,11 +31,9 @@ export function extractFrequencyBands(freq: Uint8Array, sampleRate: number): Fre
 
   const rawBass = freq.slice(0, bassBins).reduce((a, b) => a + b, 0) / (bassBins * 255 || 1);
   const rawMid =
-    freq.slice(bassBins, midBins).reduce((a, b) => a + b, 0) /
-    ((midBins - bassBins) * 255 || 1);
+    freq.slice(bassBins, midBins).reduce((a, b) => a + b, 0) / ((midBins - bassBins) * 255 || 1);
   const rawTreble =
-    freq.slice(midBins).reduce((a, b) => a + b, 0) /
-    ((freq.length - midBins) * 255 || 1);
+    freq.slice(midBins).reduce((a, b) => a + b, 0) / ((freq.length - midBins) * 255 || 1);
 
   const bass = rawBass;
   const mid = rawMid;

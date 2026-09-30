@@ -48,20 +48,29 @@ export async function createJob(
 
 export async function cancelJob(id: string): Promise<void> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/jobs/${id}/cancel`, { method: "POST", timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/jobs/${id}/cancel`, {
+    method: "POST",
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to cancel job");
 }
 
 export async function retryJob(id: string): Promise<Job> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/jobs/${id}/retry`, { method: "POST", timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/jobs/${id}/retry`, {
+    method: "POST",
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to retry job");
   return res.json();
 }
 
 export async function deleteJob(id: string): Promise<void> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/jobs/${id}`, { method: "DELETE", timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/jobs/${id}`, {
+    method: "DELETE",
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to delete job");
 }
 

@@ -2,11 +2,7 @@
 // gpuHelpers.ts — pure functions for the GPU Monitor page
 // ---------------------------------------------------------------------------
 import { PROCESS_LABELS, DataPoint } from "./gpuConstants";
-import {
-  TrendingUp,
-  TrendingDown,
-  Minus,
-} from "lucide-react";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { CSSProperties } from "react";
 
 // ---------------------------------------------------------------------------
@@ -183,7 +179,8 @@ export function makeTimeTick(rangeMs: number) {
   return (ms: number) => {
     const d = new Date(ms);
     const hm = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    if (!long) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    if (!long)
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const day = d.toLocaleDateString([], { month: "numeric", day: "numeric" });
     return `${day} ${hm}`;
   };
@@ -213,12 +210,28 @@ export function ChartTooltip({ active, payload, label }: ChartTipProps) {
   if (!active || !payload?.length) return null;
   const ms = typeof label === "number" ? label : payload[0]?.payload?.time;
   return (
-    <div style={{"background": "rgba(13,14,19,0.97)","border": "1px solid rgba(255,255,255,0.12)","borderRadius": 10,"fontSize": 12,"padding": "8px 10px","boxShadow": "0 8px 24px rgba(0,0,0,0.5)"} as CSSProperties}>
+    <div
+      style={
+        {
+          background: "rgba(13,14,19,0.97)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 10,
+          fontSize: 12,
+          padding: "8px 10px",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+        } as CSSProperties
+      }
+    >
       {typeof ms === "number" && (
-        <p style={{ color: "#e5e7eb", fontSize: 11, marginBottom: 6, whiteSpace: "nowrap" }}>{formatFullTime(ms)}</p>
+        <p style={{ color: "#e5e7eb", fontSize: 11, marginBottom: 6, whiteSpace: "nowrap" }}>
+          {formatFullTime(ms)}
+        </p>
       )}
       {payload.map((p, i) => (
-        <p key={i} style={{ color: "#e5e7eb", fontSize: 12, margin: "2px 0", whiteSpace: "nowrap" }}>
+        <p
+          key={i}
+          style={{ color: "#e5e7eb", fontSize: 12, margin: "2px 0", whiteSpace: "nowrap" }}
+        >
           <span
             style={{
               display: "inline-block",
@@ -229,7 +242,11 @@ export function ChartTooltip({ active, payload, label }: ChartTipProps) {
               marginRight: 6,
             }}
           />
-          {p.name}: <strong style={{ fontVariantNumeric: "tabular-nums" }}>{p.value}{p.unit}</strong>
+          {p.name}:{" "}
+          <strong style={{ fontVariantNumeric: "tabular-nums" }}>
+            {p.value}
+            {p.unit}
+          </strong>
         </p>
       ))}
     </div>

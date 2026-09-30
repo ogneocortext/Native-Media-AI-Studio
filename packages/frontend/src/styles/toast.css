@@ -31,7 +31,9 @@
   backdrop-filter: blur(8px);
   box-shadow: 0 4px 12px oklch(0% 0 0 / 0.3);
   pointer-events: auto;
-  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+  transition:
+    opacity 0.25s ease-out,
+    transform 0.25s ease-out;
 }
 
 /* Off-screen start / end states, toggled by the utility. */

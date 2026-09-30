@@ -1,9 +1,5 @@
 import { useState, useCallback } from "react";
-import {
-  PRESET_LIBRARY,
-  type VisualPreset,
-  getPresetById,
-} from "./visualPreset";
+import { PRESET_LIBRARY, type VisualPreset, getPresetById } from "./visualPreset";
 
 export type { VisualPreset } from "./visualPreset";
 
@@ -21,7 +17,7 @@ export function PresetSelector({ currentPresetId, onSelect }: PresetSelectorProp
       const preset = getPresetById(id);
       if (preset) onSelect(preset);
     },
-    [onSelect]
+    [onSelect],
   );
 
   return (
@@ -33,17 +29,12 @@ export function PresetSelector({ currentPresetId, onSelect }: PresetSelectorProp
             className={`kt-preset-tab ${selectedId === preset.id ? "active" : ""}`}
             onClick={() => handleSelect(preset.id)}
           >
-            <span
-              className="kt-preset-tab-dot"
-              style={{ background: preset.theme.primary }}
-            />
+            <span className="kt-preset-tab-dot" style={{ background: preset.theme.primary }} />
             <span className="kt-preset-tab-name">{preset.name}</span>
           </button>
         ))}
       </div>
-      {selectedId && (
-        <PresetPreview preset={getPresetById(selectedId)!} />
-      )}
+      {selectedId && <PresetPreview preset={getPresetById(selectedId)!} />}
     </div>
   );
 }

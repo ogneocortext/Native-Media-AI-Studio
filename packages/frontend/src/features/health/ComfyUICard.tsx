@@ -93,9 +93,7 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
       {status.version && (
         <div className="flex items-center justify-between text-xs text-muted pt-3 border-t border-border">
           <div className="flex items-center gap-4">
-            {status.version.branch && (
-              <span>Branch: {status.version.branch}</span>
-            )}
+            {status.version.branch && <span>Branch: {status.version.branch}</span>}
             {status.version.commit && (
               <span className="font-mono">{status.version.commit.split(" ")[0]}</span>
             )}
@@ -103,7 +101,8 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
           {status.version.behind_remote !== undefined && status.version.behind_remote > 0 && (
             <span className="text-yellow-400 flex items-center gap-1">
               <RefreshCw size={12} />
-              {status.version.behind_remote} update{status.version.behind_remote > 1 ? "s" : ""} available
+              {status.version.behind_remote} update{status.version.behind_remote > 1 ? "s" : ""}{" "}
+              available
             </span>
           )}
           {status.version.up_to_date && (
@@ -123,8 +122,8 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
             <div>
               {status.running && status.uptime_seconds && (
                 <span>
-                  Uptime: {Math.floor(status.uptime_seconds / 60)}m {Math.floor(status.uptime_seconds % 60)}s
-                  {status.pid && ` • PID: ${status.pid}`}
+                  Uptime: {Math.floor(status.uptime_seconds / 60)}m{" "}
+                  {Math.floor(status.uptime_seconds % 60)}s{status.pid && ` • PID: ${status.pid}`}
                 </span>
               )}
             </div>

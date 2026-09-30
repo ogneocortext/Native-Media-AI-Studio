@@ -145,7 +145,7 @@ export function getPromptForTrack(trackName: string): string {
   // If it's a variation, find the base track prompt
   if (track.isVariation && track.prompt.startsWith("Same prompt as")) {
     const baseTrack = getUniqueTracks().find((t) =>
-      track.trackName.toLowerCase().includes(t.trackName.toLowerCase().split(" ")[0])
+      track.trackName.toLowerCase().includes(t.trackName.toLowerCase().split(" ")[0]),
     );
     return baseTrack?.prompt || track.prompt;
   }

@@ -10,7 +10,9 @@ export function CharacterBiblePanel({ hook }: CharacterBiblePanelProps) {
 
   return (
     <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-      <label className="text-sm font-medium text-gray-300 block mb-2">Character bible <span className="text-gray-500 font-normal">— consistency lock</span></label>
+      <label className="text-sm font-medium text-gray-300 block mb-2">
+        Character bible <span className="text-gray-500 font-normal">— consistency lock</span>
+      </label>
       <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-2">
         <input
           value={charName}
@@ -28,7 +30,9 @@ export function CharacterBiblePanel({ hook }: CharacterBiblePanelProps) {
         />
       </div>
       <div className="flex items-center gap-2 mt-2">
-        <label className="text-xs text-gray-400" htmlFor="gen3d-seed">Seed</label>
+        <label className="text-xs text-gray-400" htmlFor="gen3d-seed">
+          Seed
+        </label>
         <input
           id="gen3d-seed"
           type="number"
@@ -44,7 +48,9 @@ export function CharacterBiblePanel({ hook }: CharacterBiblePanelProps) {
         >
           <RefreshCw size={12} /> Random
         </button>
-        <span className="text-[11px] text-gray-500">Same seed + same prompt = same mesh. Pick a template to prefill.</span>
+        <span className="text-[11px] text-gray-500">
+          Same seed + same prompt = same mesh. Pick a template to prefill.
+        </span>
       </div>
     </div>
   );

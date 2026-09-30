@@ -126,9 +126,7 @@ export function Queue() {
 
   // Separate jobs by status for organized display
   const runningJob = jobs.find((j) => j.status === "running");
-  const pendingJobs = jobs.filter(
-    (j) => j.status === "pending" || j.status === "queued",
-  );
+  const pendingJobs = jobs.filter((j) => j.status === "pending" || j.status === "queued");
   const completedJobs = jobs.filter((j) => j.status === "completed");
   const failedJobs = jobs.filter((j) => j.status === "failed");
   const cancelledJobs = jobs.filter((j) => j.status === "cancelled");
@@ -190,7 +188,9 @@ export function Queue() {
           <AlertCircle size={18} className="text-error-text mt-0.5 shrink-0" />
           <div className="flex-1">
             <p className="text-sm text-error-text font-medium">{getFriendlyError(error)}</p>
-            <p className="text-xs text-muted mt-1">Try refreshing the page or check the Diagnostics page for more info.</p>
+            <p className="text-xs text-muted mt-1">
+              Try refreshing the page or check the Diagnostics page for more info.
+            </p>
             <button className="btn btn-secondary btn-sm mt-2" onClick={() => fetchJobs()}>
               <RotateCcw size={14} className="inline mr-1" />
               Retry
@@ -255,9 +255,7 @@ export function Queue() {
                           : "N/A"}
                       </p>
                       {runningJob.message && (
-                        <p className="text-sm text-muted mt-1">
-                          {runningJob.message}
-                        </p>
+                        <p className="text-sm text-muted mt-1">{runningJob.message}</p>
                       )}
                     </div>
                   </div>

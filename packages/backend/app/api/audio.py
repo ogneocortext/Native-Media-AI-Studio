@@ -122,8 +122,14 @@ class AudioAnalysisResult(BaseModel):
     timing_contract: dict | None = None
     # Suggested visualization parameters for AI/agent-driven presets
     suggested_visualization: str | None = None
+    suggested_visualization_confidence: float | None = None
+    suggested_visualization_candidates: list[dict] | None = None
     suggested_kinetic_preset: str | None = None
+    suggested_kinetic_preset_confidence: float | None = None
     suggested_theme_seed: str | None = None
+    suggested_theme_seed_confidence: float | None = None
+
+    model_config = {"extra": "ignore"}
 
 
 class EnsureAnalysisRequest(BaseModel):
@@ -503,6 +509,13 @@ def _build_analysis_result(
     )
     from ..services.audio_analyzer import detect_meter
     meter = detect_meter(beat_times_full) if beat_times_full else 4
+    spectral_summary = _spectral_summary(result)
+
+    viz_suggestion = _suggest_visualization(
+        tempo, duration, sections, envelope_full, spectral_summary
+    )
+    kinetic_suggestion = _suggest_kinetic_preset(tempo, sections)
+    theme_suggestion = _suggest_theme_seed(sections, envelope_full)
 
     return {
         "tempo_bpm": round(float(tempo), 1),
@@ -516,7 +529,7 @@ def _build_analysis_result(
         "energy_curve": energy_curve,
         "confidence": round(float(confidence), 3),
         "amplitude_envelope": envelope,
-        "spectral": _spectral_summary(result),
+        "spectral": spectral_summary,
         # Full spectral curves for visualization (downsampled to keep payload small).
         # Consumers that only need timbre summary should continue using ``spectral``.
         "spectral_centroid": [
@@ -553,17 +566,17 @@ def _build_analysis_result(
             "duration": round(float(duration), 2),
             "bpm": round(float(tempo), 1),
             "bpmConfidence": round(float(confidence), 3),
-                "beats": [
-                    {
-                        "time": bt,
-                        "drumType": None,
-                        "energy": round(float(_rms_at_time(rms_norm, sr, hop, bt)), 4),
-                        # Meter-aware downbeat detection (replaces hardcoded 4/4).
-                        "isDownbeat": _is_downbeat(i, meter),
-                        "bpm": round(float(tempo), 1),
-                    }
-                    for i, bt in enumerate(beat_times)
-                ],
+            "beats": [
+                {
+                    "time": bt,
+                    "drumType": None,
+                    "energy": round(float(_rms_at_time(rms_norm, sr, hop, bt)), 4),
+                    # Meter-aware downbeat detection (replaces hardcoded 4/4).
+                    "isDownbeat": _is_downbeat(i, meter),
+                    "bpm": round(float(tempo), 1),
+                }
+                for i, bt in enumerate(beat_times)
+            ],
             "sections": sections,
             "energyCurve": [
                 {"time": round(float(i) * duration / max(len(energy_curve) - 1, 1), 3), "value": v}
@@ -571,10 +584,14 @@ def _build_analysis_result(
             ],
             "amplitudeEnvelope": envelope,
         },
-        # Visualization hints for AI-driven preset generation
-        "suggested_visualization": _suggest_visualization(tempo, duration, sections, envelope_full),
-        "suggested_kinetic_preset": _suggest_kinetic_preset(tempo, sections),
-        "suggested_theme_seed": _suggest_theme_seed(sections, envelope_full),
+        # Visualization hints for AI/agent-driven preset generation
+        "suggested_visualization": viz_suggestion.get("value"),
+        "suggested_visualization_confidence": round(viz_suggestion.get("confidence", 0.0), 3),
+        "suggested_visualization_candidates": _visualization_candidates(tempo, duration, sections, envelope_full, spectral_summary),
+        "suggested_kinetic_preset": kinetic_suggestion.get("value"),
+        "suggested_kinetic_preset_confidence": round(kinetic_suggestion.get("confidence", 0.0), 3),
+        "suggested_theme_seed": theme_suggestion.get("value"),
+        "suggested_theme_seed_confidence": round(theme_suggestion.get("confidence", 0.0), 3),
     }
 
 
@@ -611,48 +628,114 @@ def _spectral_summary(result) -> dict:
     return {k: v for k, v in summary.items() if v is not None}
 
 
-def _suggest_visualization(tempo: float, duration: float, sections: list[dict], energy_curve: list[float]) -> str | None:
-    """Suggest a visualization style based on track characteristics."""
+def _suggest_visualization(tempo: float, duration: float, sections: list[dict], energy_curve: list[float], spectral: dict | None = None) -> dict:
+    """Suggest a visualization style based on track characteristics.
+
+    Returns ``{"value": str, "confidence": float}`` so callers can weight the
+    suggestion instead of blindly applying it.
+    """
     avg_energy = sum(energy_curve) / len(energy_curve) if energy_curve else 0.5
+    has_chorus = any(s.get("type") == "chorus" for s in sections)
+    spectral = spectral or {}
+
+    # Spectral brightness: high centroid + rolloff → bright/aggressive styles
+    centroid_mean = spectral.get("centroid_mean")
+    rolloff_mean = spectral.get("rolloff_mean")
+    is_bright = (centroid_mean is not None and centroid_mean > 3000) or (rolloff_mean is not None and rolloff_mean > 8000)
+    is_dark = (centroid_mean is not None and centroid_mean < 1500) and (rolloff_mean is not None and rolloff_mean < 5000)
+
     if avg_energy > 0.65 and tempo > 135:
-        return "geometric"
+        return {"value": "geometric", "confidence": 0.85}
     if avg_energy > 0.65 and tempo <= 135:
-        return "pulse"
+        return {"value": "pulse", "confidence": 0.8}
     if avg_energy > 0.45 and tempo > 120:
-        return "particles"
+        return {"value": "particles", "confidence": 0.75}
     if avg_energy < 0.4 and tempo < 100:
-        return "aurora"
-    if any(s.get("type") == "chorus" for s in sections) and avg_energy > 0.5:
-        return "synthwave"
+        return {"value": "aurora", "confidence": 0.8}
+    if has_chorus and avg_energy > 0.5:
+        return {"value": "synthwave", "confidence": 0.7}
     if avg_energy < 0.35:
-        return "cosmic"
+        return {"value": "cosmic", "confidence": 0.75}
     if tempo > 140:
-        return "pulse"
+        return {"value": "pulse", "confidence": 0.6}
     if tempo < 90:
-        return "aurora"
-    return "geometric"
+        return {"value": "aurora", "confidence": 0.6}
+    # Spectral tie-breaker for mid-energy tracks
+    if is_bright:
+        return {"value": "geometric", "confidence": 0.55}
+    if is_dark:
+        return {"value": "cosmic", "confidence": 0.55}
+    return {"value": "geometric", "confidence": 0.5}
 
 
-def _suggest_kinetic_preset(tempo: float, sections: list[dict]) -> str | None:
-    """Suggest a kinetic typography preset based on track characteristics."""
+def _suggest_kinetic_preset(tempo: float, sections: list[dict]) -> dict:
+    """Suggest a kinetic typography preset based on track characteristics.
+
+    Returns ``{"value": str, "confidence": float}``.
+    """
     has_chorus = any(s.get("type") == "chorus" for s in sections)
     if tempo > 140 and has_chorus:
-        return "dubstep"
+        return {"value": "dubstep", "confidence": 0.85}
     if tempo > 130:
-        return "cinematic"
+        return {"value": "cinematic", "confidence": 0.75}
     if tempo < 100:
-        return "ambient"
-    return "synthwave"
+        return {"value": "ambient", "confidence": 0.8}
+    return {"value": "synthwave", "confidence": 0.6}
 
 
-def _suggest_theme_seed(sections: list[dict], energy_curve: list[float]) -> str | None:
-    """Suggest a theme seed string for AI-driven color generation."""
+def _suggest_theme_seed(sections: list[dict], energy_curve: list[float]) -> dict:
+    """Suggest a theme seed string for AI-driven color generation.
+
+    Returns ``{"value": str, "confidence": float}``.
+    """
     avg_energy = sum(energy_curve) / len(energy_curve) if energy_curve else 0.5
     if avg_energy > 0.7:
-        return "neon"
+        return {"value": "neon", "confidence": 0.85}
     if avg_energy < 0.35:
-        return "ethereal"
-    return "balanced"
+        return {"value": "ethereal", "confidence": 0.8}
+    return {"value": "balanced", "confidence": 0.6}
+
+
+def _visualization_candidates(
+    tempo: float,
+    duration: float,
+    sections: list[dict],
+    energy_curve: list[float],
+    spectral: dict | None = None,
+) -> list[dict]:
+    """Return a ranked shortlist of visualization candidates with confidence scores.
+
+    The primary suggestion is always first; candidates let the frontend show
+    alternatives or fall back gracefully when the top pick is missing from the
+    preset catalog.
+    """
+    primary = _suggest_visualization(tempo, duration, sections, energy_curve, spectral)
+    seen = {primary["value"]}
+    candidates = [{"value": primary["value"], "confidence": primary["confidence"]}]
+
+    # Add 1-2 fallback candidates from the same heuristic space.
+    avg_energy = sum(energy_curve) / len(energy_curve) if energy_curve else 0.5
+    has_chorus = any(s.get("type") == "chorus" for s in sections)
+    fallbacks: list[tuple[str, float]] = []
+    if avg_energy > 0.5 and tempo > 120:
+        fallbacks.append(("pulse", 0.5))
+    if has_chorus:
+        fallbacks.append(("synthwave", 0.45))
+    if avg_energy < 0.4:
+        fallbacks.append(("aurora", 0.45))
+    if tempo > 130:
+        fallbacks.append(("geometric", 0.4))
+    if avg_energy > 0.6:
+        fallbacks.append(("particles", 0.4))
+
+    for value, confidence in fallbacks:
+        if value not in seen:
+            candidates.append({"value": value, "confidence": confidence})
+            seen.add(value)
+        if len(candidates) >= 3:
+            break
+
+    return candidates
 
 
 def _generate_sections_from_analysis(

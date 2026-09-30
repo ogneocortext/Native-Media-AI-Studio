@@ -19,7 +19,8 @@ interface InspectorTabProps {
 }
 
 export function InspectorTab({
-  object, onUpdate,
+  object,
+  onUpdate,
   animationState,
   onAnimationPlayPause,
   onAnimationSeek,
@@ -29,7 +30,11 @@ export function InspectorTab({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!object) {
-    return <div className="text-gray-500 text-xs py-8 text-center">Select an object in the Objects tab to inspect its properties.</div>;
+    return (
+      <div className="text-gray-500 text-xs py-8 text-center">
+        Select an object in the Objects tab to inspect its properties.
+      </div>
+    );
   }
 
   const handleDrop = (e: React.DragEvent) => {
@@ -65,19 +70,66 @@ export function InspectorTab({
         </div>
       </div>
 
-      <SliderRow label="Rotation Speed" min={0} max={3} step={0.1} value={object.rotateSpeed} onChange={(v) => onUpdate(object.id, { rotateSpeed: v })} />
-      <SliderRow label="Bob Speed" min={0} max={5} step={0.1} value={object.bobSpeed} onChange={(v) => onUpdate(object.id, { bobSpeed: v })} />
-      <SliderRow label="Bob Amount" min={0} max={0.5} step={0.02} value={object.bobAmount} onChange={(v) => onUpdate(object.id, { bobAmount: v })} />
+      <SliderRow
+        label="Rotation Speed"
+        min={0}
+        max={3}
+        step={0.1}
+        value={object.rotateSpeed}
+        onChange={(v) => onUpdate(object.id, { rotateSpeed: v })}
+      />
+      <SliderRow
+        label="Bob Speed"
+        min={0}
+        max={5}
+        step={0.1}
+        value={object.bobSpeed}
+        onChange={(v) => onUpdate(object.id, { bobSpeed: v })}
+      />
+      <SliderRow
+        label="Bob Amount"
+        min={0}
+        max={0.5}
+        step={0.02}
+        value={object.bobAmount}
+        onChange={(v) => onUpdate(object.id, { bobAmount: v })}
+      />
 
       <div className="border-t border-gray-800 pt-2 space-y-2">
         <div className="text-gray-400 font-medium">Material & Shading</div>
         <div className="flex items-center justify-between">
           <span className="text-gray-400">Diffuse Color</span>
-          <input type="color" value={object.color} onChange={(e) => onUpdate(object.id, { color: e.target.value })} className="w-9 h-7 rounded cursor-pointer bg-transparent" />
+          <input
+            type="color"
+            value={object.color}
+            onChange={(e) => onUpdate(object.id, { color: e.target.value })}
+            className="w-9 h-7 rounded cursor-pointer bg-transparent"
+          />
         </div>
-        <SliderRow label="Metalness" min={0} max={1} step={0.05} value={object.metalness} onChange={(v) => onUpdate(object.id, { metalness: v })} />
-        <SliderRow label="Roughness" min={0} max={1} step={0.05} value={object.roughness} onChange={(v) => onUpdate(object.id, { roughness: v })} />
-        <SliderRow label="Glow / Emissive" min={0} max={2} step={0.1} value={object.emissiveIntensity} onChange={(v) => onUpdate(object.id, { emissiveIntensity: v })} />
+        <SliderRow
+          label="Metalness"
+          min={0}
+          max={1}
+          step={0.05}
+          value={object.metalness}
+          onChange={(v) => onUpdate(object.id, { metalness: v })}
+        />
+        <SliderRow
+          label="Roughness"
+          min={0}
+          max={1}
+          step={0.05}
+          value={object.roughness}
+          onChange={(v) => onUpdate(object.id, { roughness: v })}
+        />
+        <SliderRow
+          label="Glow / Emissive"
+          min={0}
+          max={2}
+          step={0.1}
+          value={object.emissiveIntensity}
+          onChange={(v) => onUpdate(object.id, { emissiveIntensity: v })}
+        />
       </div>
 
       {/* Model/Animation controls — any object with modelUrl (blend->glb pipeline) or character */}
@@ -87,11 +139,16 @@ export function InspectorTab({
 
           {/* Drag-and-drop zone + file picker */}
           <div
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
             className={`border-2 border-dashed rounded p-3 text-center transition-colors cursor-pointer ${
-              dragOver ? "border-amber-400 bg-amber-900/20" : "border-gray-600 hover:border-gray-500 bg-gray-800/50"
+              dragOver
+                ? "border-amber-400 bg-amber-900/20"
+                : "border-gray-600 hover:border-gray-500 bg-gray-800/50"
             }`}
             onClick={() => fileInputRef.current?.click()}
           >
@@ -129,7 +186,9 @@ export function InspectorTab({
                   onClick={() => onUpdate(object.id, { modelUrl: "" })}
                   className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-gray-400 hover:text-white"
                   title="Clear model"
-                >X</button>
+                >
+                  X
+                </button>
               )}
             </div>
           </div>
@@ -151,7 +210,9 @@ export function InspectorTab({
                   className="bg-gray-800 rounded px-1.5 py-1 text-xs border border-gray-700 w-full"
                 >
                   {animationState.clipNames.map((name) => (
-                    <option key={name} value={name}>{name}</option>
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -197,7 +258,14 @@ export function InspectorTab({
               </div>
             )}
 
-            <SliderRow label="Speed" min={0.1} max={3} step={0.1} value={object.animationSpeed ?? 1} onChange={(v) => onUpdate(object.id, { animationSpeed: v })} />
+            <SliderRow
+              label="Speed"
+              min={0.1}
+              max={3}
+              step={0.1}
+              value={object.animationSpeed ?? 1}
+              onChange={(v) => onUpdate(object.id, { animationSpeed: v })}
+            />
 
             <div className="flex items-center justify-between">
               <span className="text-gray-400">Loop</span>

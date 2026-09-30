@@ -14,17 +14,7 @@
 
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef, useEffect } from "react";
-import {
-  Fn,
-  float,
-  uniform,
-  vec2,
-  vec3,
-  pass,
-  renderOutput,
-  screenUV,
-  texture,
-} from "three/tsl";
+import { Fn, float, uniform, vec2, vec3, pass, renderOutput, screenUV, texture } from "three/tsl";
 
 // ---------------------------------------------------------------------------
 // TSL effect functions
@@ -37,17 +27,25 @@ const bloomEffect = Fn(([input, strength, radius]: [any, any, any]) => {
   const lumB = float(0.0722).mul(input.b) as any;
   const lum = lumR.add(lumG).add(lumB) as any;
   const bright = float(1).sub(float(1).div(float(1).add(lum.mul(float(20))))) as any;
-  
+
   const o00 = texture(input, uv.add(vec2(-1, -1).mul(radius))).mul(bright) as any;
-  const o01 = texture(input, uv.add(vec2( 0, -1).mul(radius))).mul(bright) as any;
-  const o02 = texture(input, uv.add(vec2( 1, -1).mul(radius))).mul(bright) as any;
-  const o03 = texture(input, uv.add(vec2(-1,  0).mul(radius))).mul(bright) as any;
-  const o04 = texture(input, uv.add(vec2( 1,  0).mul(radius))).mul(bright) as any;
-  const o05 = texture(input, uv.add(vec2(-1,  1).mul(radius))).mul(bright) as any;
-  const o06 = texture(input, uv.add(vec2( 0,  1).mul(radius))).mul(bright) as any;
-  const o07 = texture(input, uv.add(vec2( 1,  1).mul(radius))).mul(bright) as any;
-  
-  const blurred = o00.add(o01).add(o02).add(o03).add(o04).add(o05).add(o06).add(o07).mul(float(0.125)) as any;
+  const o01 = texture(input, uv.add(vec2(0, -1).mul(radius))).mul(bright) as any;
+  const o02 = texture(input, uv.add(vec2(1, -1).mul(radius))).mul(bright) as any;
+  const o03 = texture(input, uv.add(vec2(-1, 0).mul(radius))).mul(bright) as any;
+  const o04 = texture(input, uv.add(vec2(1, 0).mul(radius))).mul(bright) as any;
+  const o05 = texture(input, uv.add(vec2(-1, 1).mul(radius))).mul(bright) as any;
+  const o06 = texture(input, uv.add(vec2(0, 1).mul(radius))).mul(bright) as any;
+  const o07 = texture(input, uv.add(vec2(1, 1).mul(radius))).mul(bright) as any;
+
+  const blurred = o00
+    .add(o01)
+    .add(o02)
+    .add(o03)
+    .add(o04)
+    .add(o05)
+    .add(o06)
+    .add(o07)
+    .mul(float(0.125)) as any;
   return input.add(blurred.mul(strength)) as any;
 });
 
@@ -74,8 +72,15 @@ const vignetteEffect = Fn(([input, strength, smoothness]: [any, any, any]) => {
 
 const grainEffect = Fn(([input, amount, time]: [any, any, any]) => {
   const noise = float(
-    Math.sin((screenUV.x.mul(127.1).add(screenUV.y.mul(311.7)).add(time.mod(float(100)) as any)) as any),
-  ).fract().sub(0.5);
+    Math.sin(
+      screenUV.x
+        .mul(127.1)
+        .add(screenUV.y.mul(311.7))
+        .add(time.mod(float(100)) as any) as any,
+    ),
+  )
+    .fract()
+    .sub(0.5);
   return input.add(noise.mul(amount));
 });
 
@@ -84,7 +89,9 @@ const grainEffect = Fn(([input, amount, time]: [any, any, any]) => {
 // ---------------------------------------------------------------------------
 
 interface WebGPUPostFXProps {
-  audioData: { current: { bass: number; mid: number; treble: number; energy: number; beat: boolean } };
+  audioData: {
+    current: { bass: number; mid: number; treble: number; energy: number; beat: boolean };
+  };
   lrcSync?: { isPhraseStart: boolean } | null;
   /**
    * Per-frame live LRC sync (written by the parent each frame from the
@@ -92,9 +99,10 @@ interface WebGPUPostFXProps {
    * so the 150 ms phrase pulse is not missed — same contract as the WebGL PostFX.
    */
   lrcSyncRef?: { current: { isPhraseStart: boolean } | null };
+  postfx?: { bloom?: number; vignette?: number; glitch?: number } | null;
 }
 
-export function WebGPUPostFX({ audioData, lrcSync, lrcSyncRef }: WebGPUPostFXProps) {
+export function WebGPUPostFX({ audioData, lrcSync, lrcSyncRef, postfx }: WebGPUPostFXProps) {
   const { gl, scene, camera } = useThree();
   const beatPulse = useRef(0);
   const phrasePulse = useRef(0);
@@ -173,14 +181,16 @@ export function WebGPUPostFX({ audioData, lrcSync, lrcSyncRef }: WebGPUPostFXPro
 
     const bp = beatPulse.current;
     const pp = phrasePulse.current;
+    const baseBloom = postfx?.bloom ?? 0.35;
+    const baseVignette = postfx?.vignette ?? 0.4;
 
     u.bloomStrength.value = Math.min(
       0.9,
-      0.2 + bass * 0.5 + bp * 0.3 + energy * 0.1 + pp * 0.2,
+      0.02 + baseBloom * (bass * 0.5 + bp * 0.3 + energy * 0.1 + pp * 0.2),
     );
     u.bloomRadius.value = 0.3 + bp * 0.3;
     u.chromaticStrength.value = 0.001 + bp * 0.003 + pp * 0.002;
-    u.vignetteStrength.value = 0.35 + pp * 0.15;
+    u.vignetteStrength.value = baseVignette + pp * 0.15;
     u.grainAmount.value = 0.03 + bp * 0.02;
     u.timeUniform.value = state.clock.elapsedTime;
   });

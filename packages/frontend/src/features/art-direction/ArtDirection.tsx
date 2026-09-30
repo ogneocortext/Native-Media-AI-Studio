@@ -23,11 +23,7 @@ import {
   Info,
   BookOpen,
 } from "lucide-react";
-import {
-  defaultModules,
-  paletteVariants,
-  typographyVariants,
-} from "./art-direction-data";
+import { defaultModules, paletteVariants, typographyVariants } from "./art-direction-data";
 import type { ModuleId, ModuleState } from "./art-direction-data";
 import { listAudioFiles, getAnalysis } from "../../services/api";
 
@@ -140,10 +136,13 @@ export function ArtDirection() {
   const enabledCount = modules.filter((m) => m.enabled).length;
 
   // Compute derived values for the style tile
-  const activePalette = paletteVariants[modules.find((m) => m.id === "palette")?.variant || "nocturnal"];
+  const activePalette =
+    paletteVariants[modules.find((m) => m.id === "palette")?.variant || "nocturnal"];
   const activeMotion = modules.find((m) => m.id === "motion")?.variant || "restrained";
-  const activeTypography = typographyVariants[modules.find((m) => m.id === "typography")?.variant || "kinetic"];
-  const motionIntensity = activeMotion === "restrained" ? 0.42 : activeMotion === "maximalist" ? 0.88 : 0.05;
+  const activeTypography =
+    typographyVariants[modules.find((m) => m.id === "typography")?.variant || "kinetic"];
+  const motionIntensity =
+    activeMotion === "restrained" ? 0.42 : activeMotion === "maximalist" ? 0.88 : 0.05;
 
   return (
     <div className="p-6">
@@ -168,9 +167,13 @@ export function ArtDirection() {
           {libraryTracks.length === 0 && <option value="">No tracks in library</option>}
           {libraryTracks.map((t) => {
             const displayName = t.filename
-              .replace(/^[0-9a-f]{8}_[0-9a-f]{8}_/i, '')
-              .replace(/\.(mp3|wav|flac|ogg)$/i, '');
-            return (<option key={t.filename} value={t.filename}>{displayName}</option>);
+              .replace(/^[0-9a-f]{8}_[0-9a-f]{8}_/i, "")
+              .replace(/\.(mp3|wav|flac|ogg)$/i, "");
+            return (
+              <option key={t.filename} value={t.filename}>
+                {displayName}
+              </option>
+            );
           })}
         </select>
         {trackBadge && (
@@ -205,7 +208,9 @@ export function ArtDirection() {
           </div>
           <div className="flex items-center gap-2 text-xs text-muted">
             <span className="px-2 py-1 bg-background rounded capitalize">{activePalette.name}</span>
-            <span className="px-2 py-1 bg-background rounded capitalize">{activeTypography.name}</span>
+            <span className="px-2 py-1 bg-background rounded capitalize">
+              {activeTypography.name}
+            </span>
           </div>
         </div>
 
@@ -242,7 +247,10 @@ export function ArtDirection() {
               }`}
               style={{
                 color: activePalette.swatches[2] || "#ffffff",
-                fontFamily: modules.find((m) => m.id === "typography")?.variant === "editorial" ? "serif" : "inherit",
+                fontFamily:
+                  modules.find((m) => m.id === "typography")?.variant === "editorial"
+                    ? "serif"
+                    : "inherit",
                 transform: modules.find((m) => m.id === "motion")?.enabled
                   ? `scale(${1 + motionIntensity * 0.05})`
                   : "scale(1)",
@@ -309,7 +317,9 @@ export function ArtDirection() {
                 onClick={() => setExpandedModule(isExpanded ? null : mod.id)}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-lg bg-background flex items-center justify-center ${color}`}>
+                  <div
+                    className={`w-9 h-9 rounded-lg bg-background flex items-center justify-center ${color}`}
+                  >
                     <Icon size={18} />
                   </div>
                   <div>
@@ -332,22 +342,50 @@ export function ArtDirection() {
                     type="button"
                     role="switch"
                     aria-checked={mod.enabled}
-                    onClick={(e) => { e.stopPropagation(); toggle(mod.id); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggle(mod.id);
+                    }}
                     className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                       mod.enabled ? "bg-primary" : "bg-muted"
                     }`}
                   >
                     <span className="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out translate-y-[-1px]">
-                      <span className={`absolute inset-0 flex h-full w-full items-center justify-center transition-opacity ${mod.enabled ? "opacity-0" : "opacity-100"}`}>
-                        <svg className="h-3 w-3 text-muted" fill="none" viewBox="0 0 12 12"><path d="M4 8l2-2m0 0l2-2M6 6L4 4m2 2l2 2" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      <span
+                        className={`absolute inset-0 flex h-full w-full items-center justify-center transition-opacity ${mod.enabled ? "opacity-0" : "opacity-100"}`}
+                      >
+                        <svg className="h-3 w-3 text-muted" fill="none" viewBox="0 0 12 12">
+                          <path
+                            d="M4 8l2-2m0 0l2-2M6 6L4 4m2 2l2 2"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
                       </span>
-                      <span className={`absolute inset-0 flex h-full w-full items-center justify-center transition-opacity ${mod.enabled ? "opacity-100" : "opacity-0"}`}>
-                        <svg className="h-3 w-3 text-primary" fill="currentColor" viewBox="0 0 12 12"><path d="M3.707 5.293a1 1 0 00-1.414 1.414l1.414-1.414zM5 8l-.707.707a1 1 0 001.414 0L5 8zm4.707-3.293a1 1 0 00-1.414-1.414l1.414 1.414zm-7.414 2l2 2 1.414-1.414-2-2-1.414 1.414zm3.414 2l4-4-1.414-1.414-4 4 1.414 1.414z" /></svg>
+                      <span
+                        className={`absolute inset-0 flex h-full w-full items-center justify-center transition-opacity ${mod.enabled ? "opacity-100" : "opacity-0"}`}
+                      >
+                        <svg
+                          className="h-3 w-3 text-primary"
+                          fill="currentColor"
+                          viewBox="0 0 12 12"
+                        >
+                          <path d="M3.707 5.293a1 1 0 00-1.414 1.414l1.414-1.414zM5 8l-.707.707a1 1 0 001.414 0L5 8zm4.707-3.293a1 1 0 00-1.414-1.414l1.414 1.414zm-7.414 2l2 2 1.414-1.414-2-2-1.414 1.414zm3.414 2l4-4-1.414-1.414-4 4 1.414 1.414z" />
+                        </svg>
                       </span>
                     </span>
-                    <span aria-hidden="true" className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${mod.enabled ? "translate-x-4" : "translate-x-0"}`} />
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${mod.enabled ? "translate-x-4" : "translate-x-0"}`}
+                    />
                   </button>
-                  {isExpanded ? <ChevronDown size={16} className="text-muted" /> : <ChevronRight size={16} className="text-muted" />}
+                  {isExpanded ? (
+                    <ChevronDown size={16} className="text-muted" />
+                  ) : (
+                    <ChevronRight size={16} className="text-muted" />
+                  )}
                 </div>
               </div>
 
@@ -378,11 +416,15 @@ export function ArtDirection() {
                           <div className="grid grid-cols-2 gap-2">
                             <div className="p-2.5 bg-background rounded-lg">
                               <span className="text-xs text-muted">Key</span>
-                              <p className="font-mono font-medium text-sm">{String((analysis as Record<string, unknown>).estimated_key ?? "")}</p>
+                              <p className="font-mono font-medium text-sm">
+                                {String((analysis as Record<string, unknown>).estimated_key ?? "")}
+                              </p>
                             </div>
                             <div className="p-2.5 bg-background rounded-lg">
                               <span className="text-xs text-muted">Loudness</span>
-                              <p className="font-mono font-medium text-sm">{String((analysis as Record<string, unknown>).rms_db ?? "")} dB</p>
+                              <p className="font-mono font-medium text-sm">
+                                {String((analysis as Record<string, unknown>).rms_db ?? "")} dB
+                              </p>
                             </div>
                           </div>
                         )}
@@ -401,7 +443,9 @@ export function ArtDirection() {
                             className="select text-sm w-full"
                           >
                             {Object.keys(paletteVariants).map((k) => (
-                              <option key={k} value={k}>{paletteVariants[k].name}</option>
+                              <option key={k} value={k}>
+                                {paletteVariants[k].name}
+                              </option>
                             ))}
                           </select>
                           <p className="text-xs text-muted mt-2">
@@ -437,7 +481,9 @@ export function ArtDirection() {
                             className="select text-sm w-full"
                           >
                             {Object.keys(typographyVariants).map((k) => (
-                              <option key={k} value={k}>{typographyVariants[k].name}</option>
+                              <option key={k} value={k}>
+                                {typographyVariants[k].name}
+                              </option>
                             ))}
                           </select>
                           <p className="text-xs text-muted mt-2">
@@ -448,13 +494,20 @@ export function ArtDirection() {
                           <span
                             className="font-bold"
                             style={{
-                              fontSize: mod.variant === "hero" ? "32px" : mod.variant === "editorial" ? "18px" : "22px",
+                              fontSize:
+                                mod.variant === "hero"
+                                  ? "32px"
+                                  : mod.variant === "editorial"
+                                    ? "18px"
+                                    : "22px",
                               fontFamily: mod.variant === "editorial" ? "serif" : "inherit",
                             }}
                           >
                             STILL I RISE
                           </span>
-                          <p className="text-xs text-muted mt-2">{typographyVariants[mod.variant]?.desc}</p>
+                          <p className="text-xs text-muted mt-2">
+                            {typographyVariants[mod.variant]?.desc}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -514,14 +567,30 @@ export function ArtDirection() {
                         <div className="space-y-2">
                           <div className="flex justify-between text-xs">
                             <span className="text-muted">Motion Budget</span>
-                            <span className="font-mono">{mod.variant === "restrained" ? "42%" : mod.variant === "maximalist" ? "88%" : "5%"}</span>
+                            <span className="font-mono">
+                              {mod.variant === "restrained"
+                                ? "42%"
+                                : mod.variant === "maximalist"
+                                  ? "88%"
+                                  : "5%"}
+                            </span>
                           </div>
                           <div className="h-2 bg-background rounded-full overflow-hidden">
                             <div
                               className="h-full rounded-full transition-all duration-500"
                               style={{
-                                width: mod.variant === "restrained" ? "42%" : mod.variant === "maximalist" ? "88%" : "5%",
-                                background: mod.variant === "maximalist" ? "#f472b6" : mod.variant === "stillness" ? "#666" : "#a78bfa",
+                                width:
+                                  mod.variant === "restrained"
+                                    ? "42%"
+                                    : mod.variant === "maximalist"
+                                      ? "88%"
+                                      : "5%",
+                                background:
+                                  mod.variant === "maximalist"
+                                    ? "#f472b6"
+                                    : mod.variant === "stillness"
+                                      ? "#666"
+                                      : "#a78bfa",
                               }}
                             />
                           </div>
@@ -560,10 +629,14 @@ export function ArtDirection() {
                           </p>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
-                          <div className={`col-span-1 h-16 rounded-lg border flex items-center justify-center text-xs text-muted ${mod.variant === "1-card" ? "opacity-30" : "border-border bg-background"}`}>
+                          <div
+                            className={`col-span-1 h-16 rounded-lg border flex items-center justify-center text-xs text-muted ${mod.variant === "1-card" ? "opacity-30" : "border-border bg-background"}`}
+                          >
                             Meta
                           </div>
-                          <div className={`col-span-2 h-16 rounded-lg border flex items-center justify-center text-xs text-muted ${mod.variant === "hidden" ? "opacity-30" : "border-border bg-background"}`}>
+                          <div
+                            className={`col-span-2 h-16 rounded-lg border flex items-center justify-center text-xs text-muted ${mod.variant === "hidden" ? "opacity-30" : "border-border bg-background"}`}
+                          >
                             32-bar
                           </div>
                         </div>
@@ -591,7 +664,10 @@ export function ArtDirection() {
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           {["Terrain", "Planet", "Floaters"].map((name) => (
-                            <div key={name} className="aspect-square rounded-lg bg-background border border-white/10 flex items-center justify-center text-[10px] text-muted">
+                            <div
+                              key={name}
+                              className="aspect-square rounded-lg bg-background border border-white/10 flex items-center justify-center text-[10px] text-muted"
+                            >
                               {name}
                             </div>
                           ))}
@@ -626,10 +702,16 @@ export function ArtDirection() {
                             "S08 BRIDGE 02:25 I thought map…",
                             "S10 FINAL 03:24 Still I rise — still…",
                           ].map((s) => (
-                            <div key={s} className="text-muted truncate py-0.5">• {s}</div>
+                            <div key={s} className="text-muted truncate py-0.5">
+                              • {s}
+                            </div>
                           ))}
                         </div>
-                        <a href="/docs/STORYBOARD_StillIRise.md" target="_blank" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                        <a
+                          href="/docs/STORYBOARD_StillIRise.md"
+                          target="_blank"
+                          className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                        >
                           Open full storyboard →
                         </a>
                       </div>
@@ -660,10 +742,16 @@ export function ArtDirection() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <a href="/preview/" className="flex-1 text-center text-xs py-2 rounded bg-primary text-primary-foreground font-medium">
+                          <a
+                            href="/preview/"
+                            className="flex-1 text-center text-xs py-2 rounded bg-primary text-primary-foreground font-medium"
+                          >
                             Open Filmstrip
                           </a>
-                          <a href="/preview/take-crown-10s.mp4" className="flex-1 text-center text-xs py-2 rounded border border-border">
+                          <a
+                            href="/preview/take-crown-10s.mp4"
+                            className="flex-1 text-center text-xs py-2 rounded border border-border"
+                          >
                             Download
                           </a>
                         </div>
@@ -686,7 +774,11 @@ export function ArtDirection() {
               <span className="font-semibold">Documentation</span>
             </div>
             <div className="flex items-center gap-2">
-              <select value={activeDoc} onChange={(e) => setActiveDoc(e.target.value)} className="select text-sm">
+              <select
+                value={activeDoc}
+                onChange={(e) => setActiveDoc(e.target.value)}
+                className="select text-sm"
+              >
                 {DOC_FILES.map((f) => (
                   <option key={f}>{f}</option>
                 ))}
@@ -705,7 +797,8 @@ export function ArtDirection() {
       {/* Footer */}
       <div className="mt-4 flex items-center gap-2 text-xs text-muted">
         <Settings2 size={14} />
-        Toggle modules on/off to build your visual identity. Expand a card to configure variants. Changes update the Style Tile above.
+        Toggle modules on/off to build your visual identity. Expand a card to configure variants.
+        Changes update the Style Tile above.
       </div>
     </div>
   );
@@ -726,7 +819,11 @@ function getVariantLabel(moduleId: ModuleId, variant: string): string {
     case "blender":
       return variant;
     case "bento":
-      return variant === "2-card" ? "2-Card Layout" : variant === "1-card" ? "1-Card Layout" : "Hidden";
+      return variant === "2-card"
+        ? "2-Card Layout"
+        : variant === "1-card"
+          ? "1-Card Layout"
+          : "Hidden";
     case "storyboard":
       return variant;
     case "preview":

@@ -39,7 +39,10 @@ export function UpscalePanel({ imagePath, onComplete }: Props) {
   };
 
   return (
-    <div className="rounded-xl border border-white/10 bg-black/30 p-4 mt-3" data-testid="upscale-panel">
+    <div
+      className="rounded-xl border border-white/10 bg-black/30 p-4 mt-3"
+      data-testid="upscale-panel"
+    >
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-semibold text-white flex items-center gap-2">
           <ZoomIn size={16} className="text-primary" /> Upscale
@@ -48,8 +51,8 @@ export function UpscalePanel({ imagePath, onComplete }: Props) {
       </div>
 
       <p className="text-xs text-muted mb-3">
-        Upscale this image without re-rendering at 4K. Uses ComfyUI 4x-ClearRealityV1 when
-        running, otherwise an FFmpeg lanczos resize.
+        Upscale this image without re-rendering at 4K. Uses ComfyUI 4x-ClearRealityV1 when running,
+        otherwise an FFmpeg lanczos resize.
       </p>
 
       <div className="flex items-center gap-3 mb-3">
@@ -71,9 +74,13 @@ export function UpscalePanel({ imagePath, onComplete }: Props) {
         className="w-full py-2 rounded-lg bg-violet-600/80 hover:bg-violet-500 disabled:bg-gray-700 disabled:cursor-wait text-white text-sm flex items-center justify-center gap-2 transition-colors"
       >
         {running ? (
-          <><Loader2 className="w-4 h-4 animate-spin" /> Upscaling…</>
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" /> Upscaling…
+          </>
         ) : (
-          <><ZoomIn size={15} /> Upscale {scale}×</>
+          <>
+            <ZoomIn size={15} /> Upscale {scale}×
+          </>
         )}
       </button>
 
@@ -94,11 +101,23 @@ export function UpscalePanel({ imagePath, onComplete }: Props) {
           )}
           {result.relative_path && (
             <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5">
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300">OUT</span>
-              <p className="text-xs text-white font-mono truncate flex-1" title={result.relative_path!}>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300">
+                OUT
+              </span>
+              <p
+                className="text-xs text-white font-mono truncate flex-1"
+                title={result.relative_path!}
+              >
                 {result.relative_path.split("/").pop()}
               </p>
-              <a href={getOutputUrl(result.relative_path)} download className="p-1.5 hover:bg-white/10 rounded-lg text-muted hover:text-white" title="Download"><Download size={13} /></a>
+              <a
+                href={getOutputUrl(result.relative_path)}
+                download
+                className="p-1.5 hover:bg-white/10 rounded-lg text-muted hover:text-white"
+                title="Download"
+              >
+                <Download size={13} />
+              </a>
             </div>
           )}
         </div>

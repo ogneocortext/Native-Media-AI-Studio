@@ -1,4 +1,13 @@
-type ModuleId = "audio" | "palette" | "typography" | "bento" | "texture" | "blender" | "motion" | "storyboard" | "preview";
+type ModuleId =
+  | "audio"
+  | "palette"
+  | "typography"
+  | "bento"
+  | "texture"
+  | "blender"
+  | "motion"
+  | "storyboard"
+  | "preview";
 
 interface ModuleState {
   id: ModuleId;

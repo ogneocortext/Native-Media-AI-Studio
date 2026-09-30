@@ -1,12 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import {
-  Send,
-  Loader2,
-  Bot,
-  User,
-  ChevronDown,
-  Wrench,
-} from "lucide-react";
+import { Send, Loader2, Bot, User, ChevronDown, Wrench } from "lucide-react";
 import { Card } from "../../components/common";
 import {
   getApiBase,
@@ -35,7 +28,9 @@ export function OllamaChat() {
       try {
         const [data, toolsData] = await Promise.all([
           getOllamaModels(),
-          fetch(`${getApiBase()}/api/integrations/ollama/tools`, { signal: AbortSignal.timeout(10000) })
+          fetch(`${getApiBase()}/api/integrations/ollama/tools`, {
+            signal: AbortSignal.timeout(10000),
+          })
             .then((r) => r.json())
             .catch(() => ({ tools: [] })),
         ]);
@@ -118,7 +113,12 @@ export function OllamaChat() {
             break;
           }
           case "tool_calls": {
-            const calls = (chunk.data as { tool_calls?: Array<{ name: string; arguments: Record<string, unknown> }> })?.tool_calls || [];
+            const calls =
+              (
+                chunk.data as {
+                  tool_calls?: Array<{ name: string; arguments: Record<string, unknown> }>;
+                }
+              )?.tool_calls || [];
             toolCalls = calls;
             setMessages((prev) => {
               const next = [...prev];
@@ -185,7 +185,9 @@ export function OllamaChat() {
       <div className="flex items-center justify-between mb-4 shrink-0">
         <div>
           <h1 className="text-2xl font-bold">Ollama Chat</h1>
-          <p className="text-sm text-muted mt-1">Chat with local LLM models via Ollama (streaming + tools)</p>
+          <p className="text-sm text-muted mt-1">
+            Chat with local LLM models via Ollama (streaming + tools)
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none">
@@ -211,7 +213,9 @@ export function OllamaChat() {
                 <option>No models found</option>
               ) : (
                 models.map((m) => (
-                  <option key={m.name} value={m.name}>{m.name}</option>
+                  <option key={m.name} value={m.name}>
+                    {m.name}
+                  </option>
                 ))
               )}
             </select>
@@ -224,7 +228,11 @@ export function OllamaChat() {
                 const isHigh = vram > 7000;
                 return (
                   <>
-                    <span className={`text-[10px] ${isHigh ? "text-amber-400" : "text-emerald-400"}`}>{gb}GB</span>
+                    <span
+                      className={`text-[10px] ${isHigh ? "text-amber-400" : "text-emerald-400"}`}
+                    >
+                      {gb}GB
+                    </span>
                     <ChevronDown size={14} className="text-muted" />
                   </>
                 );
@@ -242,7 +250,9 @@ export function OllamaChat() {
               <div>
                 <Bot size={40} className="text-muted/30 mx-auto mb-3" />
                 <p className="text-sm text-muted">Ask anything about your music video project</p>
-                <p className="text-xs text-muted mt-1">Powered by {selectedModel || "Ollama"} running locally</p>
+                <p className="text-xs text-muted mt-1">
+                  Powered by {selectedModel || "Ollama"} running locally
+                </p>
               </div>
             </div>
           )}
@@ -253,11 +263,16 @@ export function OllamaChat() {
                   <Bot size={16} className="text-white" />
                 </div>
               )}
-              <div className={`max-w-[70%] rounded-xl px-4 py-3 text-sm ${msg.role === "user" ? "bg-violet-600 text-white" : "bg-white/5 text-gray-200 border border-white/5"}`}>
+              <div
+                className={`max-w-[70%] rounded-xl px-4 py-3 text-sm ${msg.role === "user" ? "bg-violet-600 text-white" : "bg-white/5 text-gray-200 border border-white/5"}`}
+              >
                 {msg.tool_calls && msg.tool_calls.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-1">
                     {msg.tool_calls.map((tc, idx) => (
-                      <span key={idx} className="inline-flex items-center gap-1 rounded-md bg-violet-500/20 px-2 py-0.5 text-xs text-violet-200">
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 rounded-md bg-violet-500/20 px-2 py-0.5 text-xs text-violet-200"
+                      >
                         <Wrench size={12} />
                         {tc.name}
                       </span>
@@ -268,7 +283,9 @@ export function OllamaChat() {
                   <div className="mb-1 text-xs text-muted">tool result: {msg.tool_name}</div>
                 )}
                 {msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>}
-                <p className="text-[10px] text-muted mt-1">{msg.timestamp?.toLocaleTimeString() ?? ""}</p>
+                <p className="text-[10px] text-muted mt-1">
+                  {msg.timestamp?.toLocaleTimeString() ?? ""}
+                </p>
               </div>
               {msg.role === "user" && (
                 <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
@@ -296,7 +313,12 @@ export function OllamaChat() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
               placeholder={selectedModel ? `Message ${selectedModel}…` : "Select a model first…"}
               disabled={!selectedModel || loading}
               className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-muted focus:outline-none focus:border-violet-500 disabled:opacity-50"

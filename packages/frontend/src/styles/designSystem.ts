@@ -1,7 +1,7 @@
 /**
  * Shared design system for Native Media AI Studio
  * Import these constants to ensure consistent styling across all pages.
- * 
+ *
  * Usage:
  *   import { DS } from "../../styles/designSystem";
  *   <div className={DS.card}>...</div>
@@ -27,9 +27,12 @@ export const DS = {
   card: "bg-surface rounded-xl p-4 border border-token shadow-md",
   cardTight: "bg-surface rounded-xl p-3 border border-token shadow-md",
   cardHighlight: "bg-surface rounded-xl p-4 border border-violet-500/30 shadow-md",
-  cardGradient: "rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/10 via-transparent to-transparent p-4",
-  cardError: "p-4 bg-red-900/30 border border-red-700 rounded-xl flex items-center gap-3 text-red-300 light:text-red-700",
-  cardWarning: "flex gap-2 text-sm text-muted bg-amber-500/5 border border-amber-500/20 rounded-xl p-3",
+  cardGradient:
+    "rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/10 via-transparent to-transparent p-4",
+  cardError:
+    "p-4 bg-red-900/30 border border-red-700 rounded-xl flex items-center gap-3 text-red-300 light:text-red-700",
+  cardWarning:
+    "flex gap-2 text-sm text-muted bg-amber-500/5 border border-amber-500/20 rounded-xl p-3",
   cardSuccess: "p-4 bg-green-900/20 border border-green-700 rounded-lg",
 
   // Headers (text-foreground: near-white in dark, near-black in light —
@@ -69,29 +72,42 @@ export const DS = {
   statSub: "text-xs text-muted",
 
   // Buttons (solid fills are identical islands in both themes — keep white)
-  btnPrimary: "px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-semibold flex items-center gap-2",
-  btnPrimarySm: "px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm font-medium flex items-center gap-2",
-  btnSecondary: "px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-xl text-sm font-medium flex items-center gap-2",
-  btnSecondarySm: "px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium flex items-center gap-2",
+  btnPrimary:
+    "px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-semibold flex items-center gap-2",
+  btnPrimarySm:
+    "px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm font-medium flex items-center gap-2",
+  btnSecondary:
+    "px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-xl text-sm font-medium flex items-center gap-2",
+  btnSecondarySm:
+    "px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium flex items-center gap-2",
   btnGhost: "p-1.5 hover:bg-gray-700 rounded-lg text-muted",
   btnGhostSm: "p-1 hover:bg-gray-700 rounded text-muted",
   btnDisabled: "disabled:bg-gray-600 disabled:cursor-not-allowed",
-  btnFull: "w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-gray-600 text-white rounded-xl font-medium flex items-center justify-center gap-2",
+  btnFull:
+    "w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-gray-600 text-white rounded-xl font-medium flex items-center justify-center gap-2",
 
   // Inputs
-  input: "w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-violet-500 focus:outline-none",
+  input:
+    "w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-violet-500 focus:outline-none",
   inputSm: "px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm",
-  textarea: "w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white resize-none focus:border-violet-500 focus:outline-none",
-  select: "w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-violet-500 focus:outline-none",
+  textarea:
+    "w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white resize-none focus:border-violet-500 focus:outline-none",
+  select:
+    "w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-violet-500 focus:outline-none",
   selectSm: "px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm",
   range: "w-full accent-violet-500",
 
   // Badges (tinted fills adapt; text gets a light-theme escape hatch)
-  badge: "text-xs px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/30 text-violet-300 light:text-violet-700",
-  badgeGreen: "text-xs px-2 py-0.5 rounded-full bg-green-900/30 border border-green-700 text-green-400 light:text-green-700",
-  badgeRed: "text-xs px-2 py-0.5 rounded-full bg-red-900/30 border border-red-700 text-red-400 light:text-red-700",
-  badgeAmber: "text-xs px-2 py-0.5 rounded-full bg-amber-900/30 border border-amber-700 text-amber-400 light:text-amber-700",
-  badgeBlue: "text-xs px-2 py-0.5 rounded-full bg-blue-900/30 border border-blue-700 text-blue-400 light:text-blue-700",
+  badge:
+    "text-xs px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/30 text-violet-300 light:text-violet-700",
+  badgeGreen:
+    "text-xs px-2 py-0.5 rounded-full bg-green-900/30 border border-green-700 text-green-400 light:text-green-700",
+  badgeRed:
+    "text-xs px-2 py-0.5 rounded-full bg-red-900/30 border border-red-700 text-red-400 light:text-red-700",
+  badgeAmber:
+    "text-xs px-2 py-0.5 rounded-full bg-amber-900/30 border border-amber-700 text-amber-400 light:text-amber-700",
+  badgeBlue:
+    "text-xs px-2 py-0.5 rounded-full bg-blue-900/30 border border-blue-700 text-blue-400 light:text-blue-700",
 
   // Upload
   uploadZone: "relative border-2 border-dashed rounded-xl p-8 text-center transition-colors",

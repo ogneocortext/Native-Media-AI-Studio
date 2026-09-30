@@ -125,19 +125,14 @@ function WaveformVisualization({ config }: { config: VisualizationConfig }) {
     }
     geo.attributes.position.needsUpdate = true;
 
-    const hue = (Math.sin(time * 0.5) * 0.5 + 0.5);
+    const hue = Math.sin(time * 0.5) * 0.5 + 0.5;
     materialRef.current.color.setHSL(hue, 0.8, 0.5);
   });
 
   return (
     <mesh ref={meshRef} rotation={[-Math.PI / 4, 0, 0]} position={[0, 0, 0]}>
       <planeGeometry args={[8, 8, 64, 64]} />
-      <meshStandardMaterial
-        ref={materialRef}
-        color={primary}
-        side={THREE.DoubleSide}
-        wireframe
-      />
+      <meshStandardMaterial ref={materialRef} color={primary} side={THREE.DoubleSide} wireframe />
     </mesh>
   );
 }
@@ -176,7 +171,11 @@ function PulseVisualization({ config }: { config: VisualizationConfig }) {
   );
 }
 
-export function VisualizationCanvas({ config, width = 400, height = 300 }: VisualizationCanvasProps) {
+export function VisualizationCanvas({
+  config,
+  width = 400,
+  height = 300,
+}: VisualizationCanvasProps) {
   if (!config) {
     return (
       <div className="viz-canvas-placeholder" style={{ width, height }}>

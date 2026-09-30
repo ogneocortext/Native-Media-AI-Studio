@@ -17,7 +17,15 @@ const DEFAULT_CONFIG: GenerationConfig = {
   cfgScale: 7.0,
   seed: -1,
   styleReferences: [],
-  structuredPrompt: { shotSize: "Medium", cameraAngle: "Eye Level", subject: "", action: "", setting: "", lighting: "", mood: "" },
+  structuredPrompt: {
+    shotSize: "Medium",
+    cameraAngle: "Eye Level",
+    subject: "",
+    action: "",
+    setting: "",
+    lighting: "",
+    mood: "",
+  },
   verticalFirst: false,
   sectionOverrides: {},
 };
@@ -69,28 +77,44 @@ export function MusicVideoWizard() {
     const pending = peekPendingTrack();
     if (!pending) return;
     fetch(`/api/audio/file/${encodeURIComponent(pending)}`)
-      .then(r => {
+      .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.blob();
       })
-      .then(blob => {
+      .then((blob) => {
         if (cancelled) return;
         const ext = pending.split(".").pop()?.toLowerCase() || "mp3";
-        const mime = ext === "wav" ? "audio/wav" : ext === "ogg" ? "audio/ogg" : ext === "m4a" ? "audio/mp4" : ext === "flac" ? "audio/flac" : "audio/mpeg";
+        const mime =
+          ext === "wav"
+            ? "audio/wav"
+            : ext === "ogg"
+              ? "audio/ogg"
+              : ext === "m4a"
+                ? "audio/mp4"
+                : ext === "flac"
+                  ? "audio/flac"
+                  : "audio/mpeg";
         const file = new File([blob], pending, { type: mime });
         clearPendingTrack();
         handleFileUpload(file);
       })
-      .catch(() => { if (!cancelled) setError("Failed to load track from Media Library"); });
-    return () => { cancelled = true; };
+      .catch(() => {
+        if (!cancelled) setError("Failed to load track from Media Library");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [handleFileUpload]);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && isAudioFile(file)) handleFileUpload(file);
-    else setError("Please upload an audio file (MP3, WAV, FLAC)");
-  }, [handleFileUpload]);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const file = e.dataTransfer.files[0];
+      if (file && isAudioFile(file)) handleFileUpload(file);
+      else setError("Please upload an audio file (MP3, WAV, FLAC)");
+    },
+    [handleFileUpload],
+  );
 
   const analyzeAudio = useCallback(async () => {
     if (!audioFile) return;
@@ -105,16 +129,21 @@ export function MusicVideoWizard() {
         throw new Error(detail.detail || `Analysis failed (${res.status})`);
       }
       const data: AudioAnalysis = await res.json();
-      if (!data.sections || data.sections.length === 0) throw new Error("Analysis returned no sections");
+      if (!data.sections || data.sections.length === 0)
+        throw new Error("Analysis returned no sections");
       setAnalysis(data);
       setCurrentStep("analyze");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Analysis failed";
       let hint = "";
-      if (msg.includes("librosa not installed")) hint = " — Backend needs: pip install librosa soundfile";
-      else if (msg.includes("Failed to fetch") || msg.includes("Backend not available")) hint = " — Ensure backend is running";
+      if (msg.includes("librosa not installed"))
+        hint = " — Backend needs: pip install librosa soundfile";
+      else if (msg.includes("Failed to fetch") || msg.includes("Backend not available"))
+        hint = " — Ensure backend is running";
       setError(`${msg}${hint}`);
-    } finally { setAnalyzing(false); }
+    } finally {
+      setAnalyzing(false);
+    }
   }, [audioFile]);
 
   const composedPrompt = useMemo(() => {
@@ -123,7 +152,9 @@ export function MusicVideoWizard() {
   }, [config.structuredPrompt]);
 
   const generateVideo = useCallback(async () => {
-    setGenerating(true); setGenerationProgress(0); setError(null);
+    setGenerating(true);
+    setGenerationProgress(0);
+    setError(null);
     const sections = analysis?.sections || [{ type: "full", start: 0, end: 10, energy: 0.5 }];
     const results: string[] = [];
 
@@ -134,25 +165,38 @@ export function MusicVideoWizard() {
         const r = await fetch(`/api/jobs/${jobId}`);
         if (!r.ok) throw new Error(`Job poll failed ${r.status}`);
         const job = await r.json();
-        if (job.status === "completed") return (job.output_path as string) || (job.result?.output_path as string) || `output/video/${sectionLabel}_${jobId}.mp4`;
+        if (job.status === "completed")
+          return (
+            (job.output_path as string) ||
+            (job.result?.output_path as string) ||
+            `output/video/${sectionLabel}_${jobId}.mp4`
+          );
         if (job.status === "failed") throw new Error(job.error || `Section ${sectionLabel} failed`);
-        await new Promise(res => setTimeout(res, 1200));
+        await new Promise((res) => setTimeout(res, 1200));
       }
       throw new Error(`Timeout waiting for section ${sectionLabel}`);
     };
 
     for (let i = 0; i < sections.length; i++) {
       const section = sections[i];
-      const sectionPrompt = config.sectionOverrides[`${section.type}-${i}`] || config.prompt || composedPrompt;
-      const duration = (section.end - section.start) || 10;
+      const sectionPrompt =
+        config.sectionOverrides[`${section.type}-${i}`] || config.prompt || composedPrompt;
+      const duration = section.end - section.start || 10;
       try {
         const res = await fetch("/api/video/generate-section", {
-          method: "POST", headers: { "Content-Type": "application/json" },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            prompt: sectionPrompt, negative_prompt: config.negativePrompt, steps: config.steps,
-            cfg_scale: config.cfgScale, seed: config.seed === -1 ? Math.floor(Math.random() * 100000) : config.seed,
-            section: section.type, duration, vertical_first: config.verticalFirst,
-            audio_path: analysis?.stored_path || undefined, audio_filename: audioFile?.name,
+            prompt: sectionPrompt,
+            negative_prompt: config.negativePrompt,
+            steps: config.steps,
+            cfg_scale: config.cfgScale,
+            seed: config.seed === -1 ? Math.floor(Math.random() * 100000) : config.seed,
+            section: section.type,
+            duration,
+            vertical_first: config.verticalFirst,
+            audio_path: analysis?.stored_path || undefined,
+            audio_filename: audioFile?.name,
           }),
         });
         if (!res.ok) {
@@ -195,36 +239,84 @@ export function MusicVideoWizard() {
       }
       setGenerationProgress(((i + 1) / sections.length) * 100);
     }
-    setGeneratedSections(results.filter(r => !r.startsWith("FAILED:")));
-    if (results.some(r => r.startsWith("FAILED:"))) setError(prev => prev ? `${prev} — some sections failed` : null);
+    setGeneratedSections(results.filter((r) => !r.startsWith("FAILED:")));
+    if (results.some((r) => r.startsWith("FAILED:")))
+      setError((prev) => (prev ? `${prev} — some sections failed` : null));
     setGenerating(false);
     setCurrentStep("review");
   }, [config, analysis, composedPrompt, audioFile]);
 
   const addPromptSuggestion = (word: string) => {
-    if (!config.prompt.toLowerCase().includes(word.toLowerCase())) setConfig((prev) => ({ ...prev, prompt: prev.prompt ? `${prev.prompt}, ${word}` : word }));
+    if (!config.prompt.toLowerCase().includes(word.toLowerCase()))
+      setConfig((prev) => ({ ...prev, prompt: prev.prompt ? `${prev.prompt}, ${word}` : word }));
   };
 
   const renderStep = () => {
     switch (currentStep) {
-      case "upload": return <UploadStep audioFile={audioFile} audioUrl={audioUrl} onDrop={handleDrop} onFileSelect={handleFileUpload} onNext={() => audioFile && analyzeAudio()} analyzing={analyzing} />;
-      case "analyze": return analysis ? <AnalyzeStep analysis={analysis} audioUrl={audioUrl} onNext={() => setCurrentStep("configure")} /> : null;
-      case "configure": return <ConfigureStep config={config} composedPrompt={composedPrompt} onConfigChange={setConfig} onSuggestionClick={addPromptSuggestion} onNext={() => setCurrentStep("generate")} onGenerateMusicPrompt={() => setShowMusicPrompt(true)} />;
-      case "generate": return <GenerateStep generating={generating} progress={generationProgress} analysis={analysis} config={config} onStart={generateVideo} />;
-      case "review": return (
-        <>
-          <ReviewStep generatedSections={generatedSections} audioUrl={audioUrl} analysis={analysis} />
-          {audioFile?.name && (
-            <PromptHistoryPanel
-              trackFilename={audioFile.name}
-              onApplyPrompt={(prompt, negative) => {
-                setConfig((prev) => ({ ...prev, prompt, negativePrompt: negative || prev.negativePrompt }));
-              }}
+      case "upload":
+        return (
+          <UploadStep
+            audioFile={audioFile}
+            audioUrl={audioUrl}
+            onDrop={handleDrop}
+            onFileSelect={handleFileUpload}
+            onNext={() => audioFile && analyzeAudio()}
+            analyzing={analyzing}
+          />
+        );
+      case "analyze":
+        return analysis ? (
+          <AnalyzeStep
+            analysis={analysis}
+            audioUrl={audioUrl}
+            onNext={() => setCurrentStep("configure")}
+          />
+        ) : null;
+      case "configure":
+        return (
+          <ConfigureStep
+            config={config}
+            composedPrompt={composedPrompt}
+            onConfigChange={setConfig}
+            onSuggestionClick={addPromptSuggestion}
+            onNext={() => setCurrentStep("generate")}
+            onGenerateMusicPrompt={() => setShowMusicPrompt(true)}
+          />
+        );
+      case "generate":
+        return (
+          <GenerateStep
+            generating={generating}
+            progress={generationProgress}
+            analysis={analysis}
+            config={config}
+            onStart={generateVideo}
+          />
+        );
+      case "review":
+        return (
+          <>
+            <ReviewStep
+              generatedSections={generatedSections}
+              audioUrl={audioUrl}
+              analysis={analysis}
             />
-          )}
-        </>
-      );
-      default: return null;
+            {audioFile?.name && (
+              <PromptHistoryPanel
+                trackFilename={audioFile.name}
+                onApplyPrompt={(prompt, negative) => {
+                  setConfig((prev) => ({
+                    ...prev,
+                    prompt,
+                    negativePrompt: negative || prev.negativePrompt,
+                  }));
+                }}
+              />
+            )}
+          </>
+        );
+      default:
+        return null;
     }
   };
 
@@ -233,30 +325,60 @@ export function MusicVideoWizard() {
       <div className="mb-6">
         <div className="flex items-center gap-1 md:gap-0 justify-between bg-gray-800/70 border border-gray-700 rounded-xl p-3">
           {STEPS.map((step, index) => {
-            const Icon = step.icon; const isActive = index === currentStepIndex; const isComplete = index < currentStepIndex;
+            const Icon = step.icon;
+            const isActive = index === currentStepIndex;
+            const isComplete = index < currentStepIndex;
             return (
               <div key={step.id} className="flex items-center flex-1 min-w-0">
                 <div className="flex flex-col items-center flex-1 min-w-0 px-1">
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all shrink-0 ${isComplete ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20" : isActive ? "bg-violet-600 text-white ring-2 ring-violet-400/30 shadow-lg shadow-violet-600/20" : "bg-gray-700 text-gray-400"}`}>
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all shrink-0 ${isComplete ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20" : isActive ? "bg-violet-600 text-white ring-2 ring-violet-400/30 shadow-lg shadow-violet-600/20" : "bg-gray-700 text-gray-400"}`}
+                  >
                     {isComplete ? <Check size={16} strokeWidth={3} /> : <Icon size={16} />}
                   </div>
-                  <span className={`text-[11px] md:text-xs mt-1.5 font-semibold truncate ${isActive ? "text-violet-300" : isComplete ? "text-emerald-400" : "text-gray-500"}`}>{step.label}</span>
-                  <span className="text-[10px] text-gray-500 hidden md:block truncate">{step.desc}</span>
+                  <span
+                    className={`text-[11px] md:text-xs mt-1.5 font-semibold truncate ${isActive ? "text-violet-300" : isComplete ? "text-emerald-400" : "text-gray-500"}`}
+                  >
+                    {step.label}
+                  </span>
+                  <span className="text-[10px] text-gray-500 hidden md:block truncate">
+                    {step.desc}
+                  </span>
                 </div>
-                {index < STEPS.length - 1 && <div className={`hidden md:block flex-1 h-0.5 mx-1 rounded ${index < currentStepIndex ? "bg-emerald-600" : "bg-gray-700"}`} />}
+                {index < STEPS.length - 1 && (
+                  <div
+                    className={`hidden md:block flex-1 h-0.5 mx-1 rounded ${index < currentStepIndex ? "bg-emerald-600" : "bg-gray-700"}`}
+                  />
+                )}
               </div>
             );
           })}
         </div>
       </div>
 
-      {error && <div className="mb-4 p-3 bg-amber-900/20 border border-amber-700/50 rounded-lg flex items-start gap-2 text-amber-200 text-sm"><AlertCircle size={16} className="mt-0.5 shrink-0" /><span>{error}</span><button onClick={() => setError(null)} className="ml-auto text-amber-300 hover:text-white text-xs">Dismiss</button></div>}
+      {error && (
+        <div className="mb-4 p-3 bg-amber-900/20 border border-amber-700/50 rounded-lg flex items-start gap-2 text-amber-200 text-sm">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <span>{error}</span>
+          <button
+            onClick={() => setError(null)}
+            className="ml-auto text-amber-300 hover:text-white text-xs"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       {showMusicPrompt && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start justify-center p-4 overflow-auto">
           <div className="bg-gray-900 border border-gray-700 rounded-2xl max-w-5xl w-full my-8 shadow-2xl">
             <div className="flex items-center justify-between p-4 border-b border-gray-700">
               <h3 className="text-sm font-semibold text-white">Music Prompt Generator</h3>
-              <button onClick={() => setShowMusicPrompt(false)} className="text-xs text-white/60 hover:text-white border border-white/10 rounded-lg px-3 py-1.5">Back to Wizard</button>
+              <button
+                onClick={() => setShowMusicPrompt(false)}
+                className="text-xs text-white/60 hover:text-white border border-white/10 rounded-lg px-3 py-1.5"
+              >
+                Back to Wizard
+              </button>
             </div>
             <div className="max-h-[75vh] overflow-auto">
               <MusicPromptGenerator
@@ -274,11 +396,31 @@ export function MusicVideoWizard() {
         </div>
       )}
 
-      <div className="bg-gray-800 rounded-xl border border-gray-700 shadow-xl overflow-hidden">{renderStep()}</div>
+      <div className="bg-gray-800 rounded-xl border border-gray-700 shadow-xl overflow-hidden">
+        {renderStep()}
+      </div>
 
       <div className="flex justify-between mt-4">
-        <button onClick={() => { const prev = STEPS[currentStepIndex - 1]; if (prev) setCurrentStep(prev.id); }} disabled={currentStepIndex === 0} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg flex items-center gap-2 text-sm font-medium"><ChevronLeft size={16} /> Back</button>
-        <button onClick={() => { const next = STEPS[currentStepIndex + 1]; if (next) setCurrentStep(next.id); }} disabled={currentStepIndex === STEPS.length - 1 || !audioFile} className="px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg flex items-center gap-2 text-sm font-medium">Next <ChevronRight size={16} /></button>
+        <button
+          onClick={() => {
+            const prev = STEPS[currentStepIndex - 1];
+            if (prev) setCurrentStep(prev.id);
+          }}
+          disabled={currentStepIndex === 0}
+          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg flex items-center gap-2 text-sm font-medium"
+        >
+          <ChevronLeft size={16} /> Back
+        </button>
+        <button
+          onClick={() => {
+            const next = STEPS[currentStepIndex + 1];
+            if (next) setCurrentStep(next.id);
+          }}
+          disabled={currentStepIndex === STEPS.length - 1 || !audioFile}
+          className="px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg flex items-center gap-2 text-sm font-medium"
+        >
+          Next <ChevronRight size={16} />
+        </button>
       </div>
     </div>
   );

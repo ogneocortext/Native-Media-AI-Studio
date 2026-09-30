@@ -16,7 +16,10 @@ export async function withDirectBackendFallback<T>(
     const cached = getCachedConfig();
     const backendUrl = cached?.backend_url || getBackendUrl();
     const directUrl = `${backendUrl.replace(/\/$/, "")}${directPath}`;
-    console.warn(`[api] proxy call failed, falling back to direct backend URL: ${directUrl}`, error);
+    console.warn(
+      `[api] proxy call failed, falling back to direct backend URL: ${directUrl}`,
+      error,
+    );
     const init: RequestInit = {
       method: options?.method || "GET",
       ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
@@ -24,10 +27,12 @@ export async function withDirectBackendFallback<T>(
     if (options?.method === "POST") {
       init.headers = { "Content-Type": "application/json", ...(init.headers || {}) };
     }
-    return fetchWithTimeout(directUrl, { timeout: options?.timeout || 30000, ...init }).then((res) => {
-      if (!res.ok) throw new Error(`Direct backend request failed: ${res.status}`);
-      return res.json();
-    });
+    return fetchWithTimeout(directUrl, { timeout: options?.timeout || 30000, ...init }).then(
+      (res) => {
+        if (!res.ok) throw new Error(`Direct backend request failed: ${res.status}`);
+        return res.json();
+      },
+    );
   }
 }
 

@@ -31,9 +31,7 @@ export function ShaderCanvas({
   const bufferRef = useRef<WebGLBuffer | null>(null);
   const vsRef = useRef<WebGLShader | null>(null);
   const fsRef = useRef<WebGLShader | null>(null);
-  const uniformLocsRef = useRef<Record<string, WebGLUniformLocation | null>>(
-    {},
-  );
+  const uniformLocsRef = useRef<Record<string, WebGLUniformLocation | null>>({});
   const [contextRestored, setContextRestored] = useState(0);
   const rafRef = useRef<number>(0);
   const startTimeRef = useRef(Date.now());

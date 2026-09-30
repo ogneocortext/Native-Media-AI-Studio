@@ -41,9 +41,11 @@ function getEnvVar(key: string, fallback: string): string {
 }
 
 function isTunnelMode(): boolean {
-  return !!(getEnvVar("VITE_PUBLIC_BACKEND_URL", "") ||
-            getEnvVar("VITE_PUBLIC_FRONTEND_URL", "") ||
-            getEnvVar("VITE_PUBLIC_ORIGIN", ""));
+  return !!(
+    getEnvVar("VITE_PUBLIC_BACKEND_URL", "") ||
+    getEnvVar("VITE_PUBLIC_FRONTEND_URL", "") ||
+    getEnvVar("VITE_PUBLIC_ORIGIN", "")
+  );
 }
 
 /**
@@ -58,12 +60,16 @@ function normalizePortConfig(raw: Record<string, unknown>): PortConfig {
 
   // Tunnel mode: public URLs take precedence so sandbox agents can reach us.
   const publicBackend = getEnvVar("VITE_PUBLIC_BACKEND_URL", "").trim();
-  const backendUrl = publicBackend || ((raw.backend_url as string) || `http://127.0.0.1:${backendPort}`);
+  const backendUrl =
+    publicBackend || (raw.backend_url as string) || `http://127.0.0.1:${backendPort}`;
 
   const publicEvents = getEnvVar("VITE_PUBLIC_EVENTS_URL", "").trim();
   const publicSse = getEnvVar("VITE_PUBLIC_SSE_URL", "").trim();
 
-  let eventsUrl = (raw.events_url as string) || (raw.sse_url as string) || `http://127.0.0.1:${backendPort}/api/events`;
+  let eventsUrl =
+    (raw.events_url as string) ||
+    (raw.sse_url as string) ||
+    `http://127.0.0.1:${backendPort}/api/events`;
   let sseUrl = (raw.sse_url as string) || (raw.events_url as string) || eventsUrl;
 
   // In tunnel mode, rewrite SSE/events URLs to the public tunnel endpoint.
@@ -143,7 +149,8 @@ export function getPortConfigFromEnv(): PortConfig {
 
   const backendPortInt = parseInt(backendPort, 10);
   const publicBackend = getEnvVar("VITE_PUBLIC_BACKEND_URL", "").trim();
-  const backendUrl = publicBackend || getEnvVar("VITE_BACKEND_URL", `http://127.0.0.1:${backendPort}`);
+  const backendUrl =
+    publicBackend || getEnvVar("VITE_BACKEND_URL", `http://127.0.0.1:${backendPort}`);
 
   const publicEvents = getEnvVar("VITE_PUBLIC_EVENTS_URL", "").trim();
   const publicSse = getEnvVar("VITE_PUBLIC_SSE_URL", "").trim();
@@ -180,7 +187,10 @@ export function getCachedConfig(): PortConfig | null {
 export function getBackendUrl(): string {
   if (!cachedConfig) {
     // Sync fallback to env vars (non-async path)
-    return getEnvVar("VITE_BACKEND_URL", getEnvVar("VITE_PUBLIC_BACKEND_URL", "http://127.0.0.1:8000"));
+    return getEnvVar(
+      "VITE_BACKEND_URL",
+      getEnvVar("VITE_PUBLIC_BACKEND_URL", "http://127.0.0.1:8000"),
+    );
   }
   return cachedConfig.backend_url;
 }

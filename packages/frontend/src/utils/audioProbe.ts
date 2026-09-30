@@ -13,7 +13,7 @@ const AUDIO_EXTENSIONS = ["mp3", "wav", "flac", "ogg", "m4a", "aac", "opus", "we
 
 export function getFileExtension(name: string): string {
   const parts = (name || "").toLowerCase().split(".");
-  return parts.length > 1 ? parts.pop() as string : "";
+  return parts.length > 1 ? (parts.pop() as string) : "";
 }
 
 /** MIME may be empty on Windows — accept by extension fallback. */

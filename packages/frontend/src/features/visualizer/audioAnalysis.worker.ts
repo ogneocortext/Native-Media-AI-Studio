@@ -16,10 +16,7 @@ import { ATTACK, RELEASE, smoothBeatPhase } from "./audioTiming";
 import { mapToPerceptualBands } from "./perceptualScales";
 import type { PerceptualScale } from "./perceptualScales";
 import { classifyDrumType } from "./drumClassifier";
-import {
-  extractFrequencyBands,
-  updatePeakHold,
-} from "./audioAnalysisHelpers";
+import { extractFrequencyBands, updatePeakHold } from "./audioAnalysisHelpers";
 import {
   getBeatNearTimeFromArray,
   getBeatPhase as getBeatPhaseFromGrid,
@@ -93,7 +90,17 @@ let lastBeatTime = 0;
 let nextBeatIn = 0;
 
 function analyze(msg: AnalyzeMessage): WorkerAudioData {
-  const { freq, sampleRate, elapsed, duration, beatTimes, downbeatTimes, energyCurve, perceptualScale = "mel", numPerceptualBands = 40 } = msg.payload;
+  const {
+    freq,
+    sampleRate,
+    elapsed,
+    duration,
+    beatTimes,
+    downbeatTimes,
+    energyCurve,
+    perceptualScale = "mel",
+    numPerceptualBands = 40,
+  } = msg.payload;
 
   const { bass, mid, treble } = extractFrequencyBands(freq, sampleRate);
 
@@ -106,7 +113,10 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
   const trebleSmoothed = smoothedTreble;
   const overallSmoothed = bassSmoothed * 0.4 + midSmoothed * 0.35 + trebleSmoothed * 0.25;
 
-  updatePeakHold({ peak: peakHold, decayFrames: peakDecay }, Math.max(bassSmoothed, midSmoothed, trebleSmoothed));
+  updatePeakHold(
+    { peak: peakHold, decayFrames: peakDecay },
+    Math.max(bassSmoothed, midSmoothed, trebleSmoothed),
+  );
 
   let isBeat: boolean;
   let drumType: "kick" | "snare" | "hat" | null = null;
@@ -152,7 +162,13 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
   let isDownbeat = false;
   if (downbeatTimes && downbeatTimes.length > 0) {
     for (let delta = 0; delta <= 15; delta++) {
-      if (downbeatTimes.some((bt) => Math.round(bt * 100) === downbeatT - delta || Math.round(bt * 100) === downbeatT + delta)) {
+      if (
+        downbeatTimes.some(
+          (bt) =>
+            Math.round(bt * 100) === downbeatT - delta ||
+            Math.round(bt * 100) === downbeatT + delta,
+        )
+      ) {
         isDownbeat = true;
         break;
       }

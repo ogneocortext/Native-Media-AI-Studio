@@ -86,7 +86,9 @@ export interface CompileStoryboardResponse {
   message: string;
 }
 
-export async function compileStoryboard(params: CompileStoryboardRequest): Promise<CompileStoryboardResponse> {
+export async function compileStoryboard(
+  params: CompileStoryboardRequest,
+): Promise<CompileStoryboardResponse> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/hyperframes/compile-storyboard`, {
     method: "POST",
@@ -108,13 +110,27 @@ export interface HyperFramesAudioPayload {
   totalFrames: number;
   beat_times: number[];
   downbeat_times: number[];
-  frames: Array<{ time: number; rms: number; energy: number; bands: number[]; isBeat: boolean; isDownbeat: boolean }>;
+  frames: Array<{
+    time: number;
+    rms: number;
+    energy: number;
+    bands: number[];
+    isBeat: boolean;
+    isDownbeat: boolean;
+  }>;
   lyrics: unknown[];
 }
 
-export async function getHyperFramesAudioPayload(filename: string, fps = 30, bands = 16): Promise<HyperFramesAudioPayload> {
+export async function getHyperFramesAudioPayload(
+  filename: string,
+  fps = 30,
+  bands = 16,
+): Promise<HyperFramesAudioPayload> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/audio/hyperframes-payload/${encodeURIComponent(filename)}?fps=${fps}&bands=${bands}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(
+    `${base}/api/audio/hyperframes-payload/${encodeURIComponent(filename)}?fps=${fps}&bands=${bands}`,
+    { timeout: 30000 },
+  );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "Failed to build HyperFrames audio payload");

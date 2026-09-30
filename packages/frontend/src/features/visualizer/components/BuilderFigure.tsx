@@ -46,10 +46,14 @@ interface Pose {
   rootX: number;
   torsoLean: number;
   headTilt: number;
-  shL: number; elL: number;
-  shR: number; elR: number;
-  hipL: number; kneeL: number;
-  hipR: number; kneeR: number;
+  shL: number;
+  elL: number;
+  shR: number;
+  elR: number;
+  hipL: number;
+  kneeL: number;
+  hipR: number;
+  kneeR: number;
   hammer: number;
   bob: number;
 }
@@ -64,25 +68,175 @@ const DEFAULT_ACCENT = "#a5b4fc";
 // Motif = acting choice, not style preset. Each is pushed 30-40% past naturalism for silhouette read at thumbnail (Ollama Fix #1, #2).
 const POSES: Record<StoryMotif, Pose> = {
   // I. ESTABLISHING — hunched at bench, blue lamp is the only warm thing. Performance: tired, inspecting.
-  establishing: { sit: 1, rootX: 0.22, torsoLean: 14, headTilt: 10, shL: 38, elL: -18, shR: 52, elR: -30, hipL: -82, kneeL: 88, hipR: -78, kneeR: 84, hammer: 0, bob: 2 },
+  establishing: {
+    sit: 1,
+    rootX: 0.22,
+    torsoLean: 14,
+    headTilt: 10,
+    shL: 38,
+    elL: -18,
+    shR: 52,
+    elR: -30,
+    hipL: -82,
+    kneeL: 88,
+    hipR: -78,
+    kneeR: 84,
+    hammer: 0,
+    bob: 2,
+  },
   // I. SOLITUDE — Ollama Fix #2: slumped shoulders, head down, forward lean (not just walk). Isolation must read as fatigue.
-  solitude: { sit: 1, rootX: 0.19, torsoLean: 26, headTilt: 22, shL: 22, elL: -8, shR: 34, elR: -18, hipL: -86, kneeL: 92, hipR: -82, kneeR: 88, hammer: 0, bob: 1.2 },
+  solitude: {
+    sit: 1,
+    rootX: 0.19,
+    torsoLean: 26,
+    headTilt: 22,
+    shL: 22,
+    elL: -8,
+    shR: 34,
+    elR: -18,
+    hipL: -86,
+    kneeL: 92,
+    hipR: -82,
+    kneeR: 88,
+    hammer: 0,
+    bob: 1.2,
+  },
   // II. STRUGGLE — arms flung wide, head thrown back, knees splayed per "half-built, stubborn machine"
-  struggle: { sit: 1, rootX: 0.24, torsoLean: 8, headTilt: -14, shL: 96, elL: -110, shR: 40, elR: -20, hipL: -80, kneeL: 86, hipR: -70, kneeR: 78, hammer: 0, bob: 3 },
+  struggle: {
+    sit: 1,
+    rootX: 0.24,
+    torsoLean: 8,
+    headTilt: -14,
+    shL: 96,
+    elL: -110,
+    shR: 40,
+    elR: -20,
+    hipL: -80,
+    kneeL: 86,
+    hipR: -70,
+    kneeR: 78,
+    hammer: 0,
+    bob: 3,
+  },
   // II. ASSEMBLY — Ollama Fix #3: figure-8 hammer arc, not straight swing. Right arm winds -8° then strikes.
-  assembly: { sit: 1, rootX: 0.24, torsoLean: 12, headTilt: 6, shL: 44, elL: -32, shR: 58, elR: -48, hipL: -82, kneeL: 88, hipR: -78, kneeR: 84, hammer: 42, bob: 3 },
+  assembly: {
+    sit: 1,
+    rootX: 0.24,
+    torsoLean: 12,
+    headTilt: 6,
+    shL: 44,
+    elL: -32,
+    shR: 58,
+    elR: -48,
+    hipL: -82,
+    kneeL: 88,
+    hipR: -78,
+    kneeR: 84,
+    hammer: 42,
+    bob: 3,
+  },
   // III. BUILD — half-standing, weight shifting, hammer lighter. Midpoint of left-bench→center.
-  build: { sit: 0.35, rootX: 0.34, torsoLean: 10, headTilt: 0, shL: 55, elL: -30, shR: 70, elR: -40, hipL: -40, kneeL: 44, hipR: -34, kneeR: 38, hammer: 18, bob: 5 },
+  build: {
+    sit: 0.35,
+    rootX: 0.34,
+    torsoLean: 10,
+    headTilt: 0,
+    shL: 55,
+    elL: -30,
+    shR: 70,
+    elR: -40,
+    hipL: -40,
+    kneeL: 44,
+    hipR: -34,
+    kneeR: 38,
+    hammer: 18,
+    bob: 5,
+  },
   // III. PAYOFF — "it runs" — full stand, breath held, knees soft, arms ready
-  payoff: { sit: 0, rootX: 0.42, torsoLean: -4, headTilt: -6, shL: 70, elL: -24, shR: 88, elR: -30, hipL: -8, kneeL: 10, hipR: -4, kneeR: 6, hammer: 0, bob: 7 },
+  payoff: {
+    sit: 0,
+    rootX: 0.42,
+    torsoLean: -4,
+    headTilt: -6,
+    shL: 70,
+    elL: -24,
+    shR: 88,
+    elR: -30,
+    hipL: -8,
+    kneeL: 10,
+    hipR: -4,
+    kneeR: 6,
+    hammer: 0,
+    bob: 7,
+  },
   // III. TRIUMPH — Ollama Fix #1: STANDING center-frame, arms raised PAST naturalism (165°/172°) + torso back -10° + head -15° for victory read.
-  triumph: { sit: 0, rootX: 0.52, torsoLean: -10, headTilt: -15, shL: 165, elL: -10, shR: 172, elR: -6, hipL: -4, kneeL: 6, hipR: -1, kneeR: 3, hammer: 0, bob: 8 },
+  triumph: {
+    sit: 0,
+    rootX: 0.52,
+    torsoLean: -10,
+    headTilt: -15,
+    shL: 165,
+    elL: -10,
+    shR: 172,
+    elR: -6,
+    hipL: -4,
+    kneeL: 6,
+    hipR: -1,
+    kneeR: 3,
+    hammer: 0,
+    bob: 8,
+  },
   // Reflection — seated again but looser, looking down at the work. Not the same as solitude.
-  reflection: { sit: 0.6, rootX: 0.3, torsoLean: 16, headTilt: 12, shL: 34, elL: -16, shR: 42, elR: -22, hipL: -60, kneeL: 66, hipR: -56, kneeR: 62, hammer: 0, bob: 2 },
-  outro: { sit: 1, rootX: 0.22, torsoLean: 18, headTilt: 14, shL: 32, elL: -14, shR: 40, elR: -22, hipL: -82, kneeL: 88, hipR: -78, kneeR: 84, hammer: 0, bob: 1.5 },
+  reflection: {
+    sit: 0.6,
+    rootX: 0.3,
+    torsoLean: 16,
+    headTilt: 12,
+    shL: 34,
+    elL: -16,
+    shR: 42,
+    elR: -22,
+    hipL: -60,
+    kneeL: 66,
+    hipR: -56,
+    kneeR: 62,
+    hammer: 0,
+    bob: 2,
+  },
+  outro: {
+    sit: 1,
+    rootX: 0.22,
+    torsoLean: 18,
+    headTilt: 14,
+    shL: 32,
+    elL: -14,
+    shR: 40,
+    elR: -22,
+    hipL: -82,
+    kneeL: 88,
+    hipR: -78,
+    kneeR: 84,
+    hammer: 0,
+    bob: 1.5,
+  },
 };
 
-const IDLE_POSE: Pose = { sit: 0, rootX: 0.42, torsoLean: 0, headTilt: 0, shL: 14, elL: -10, shR: 20, elR: -14, hipL: -4, kneeL: 6, hipR: 0, kneeR: 2, hammer: 0, bob: 3 };
+const IDLE_POSE: Pose = {
+  sit: 0,
+  rootX: 0.42,
+  torsoLean: 0,
+  headTilt: 0,
+  shL: 14,
+  elL: -10,
+  shR: 20,
+  elR: -14,
+  hipL: -4,
+  kneeL: 6,
+  hipR: 0,
+  kneeR: 2,
+  hammer: 0,
+  bob: 3,
+};
 
 // Tuned per joint group — slow mass (torso/root) vs fast extremities (head/hands)
 function springK(key: keyof Pose): number {
@@ -101,10 +255,19 @@ function smoothstep(a: number, b: number, x: number): number {
 const DEG = Math.PI / 180;
 
 interface DrawAngles {
-  rootX: number; rootY: number; sway: number;
-  torsoLean: number; headTilt: number;
-  shL: number; elL: number; shR: number; elR: number;
-  hipL: number; kneeL: number; hipR: number; kneeR: number;
+  rootX: number;
+  rootY: number;
+  sway: number;
+  torsoLean: number;
+  headTilt: number;
+  shL: number;
+  elL: number;
+  shR: number;
+  elR: number;
+  hipL: number;
+  kneeL: number;
+  hipR: number;
+  kneeR: number;
   showHammer: boolean;
 }
 
@@ -124,42 +287,71 @@ function strokeSeg(ctx: CanvasRenderingContext2D, len: number, w: number) {
 function drawFigure(ctx: CanvasRenderingContext2D, a: DrawAngles, halo = 0) {
   ctx.lineCap = "round";
   const dot = (r: number) => {
-    ctx.beginPath(); ctx.arc(0, 0, r + halo / 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, 0, r + halo / 2, 0, Math.PI * 2);
+    ctx.fill();
   };
   // Legs — far (left) first so the near leg overlaps.
-  ctx.save(); ctx.rotate(a.hipL * DEG);
+  ctx.save();
+  ctx.rotate(a.hipL * DEG);
   ctx.globalAlpha *= 0.55;
   strokeSeg(ctx, LIMB.thigh, 11 + halo);
-  ctx.translate(0, LIMB.thigh); ctx.rotate(a.kneeL * DEG);
+  ctx.translate(0, LIMB.thigh);
+  ctx.rotate(a.kneeL * DEG);
   strokeSeg(ctx, LIMB.shin, 9 + halo);
-  ctx.lineWidth = 7 + halo; ctx.beginPath(); ctx.moveTo(0, LIMB.shin); ctx.lineTo(LIMB.foot, LIMB.shin); ctx.stroke();
+  ctx.lineWidth = 7 + halo;
+  ctx.beginPath();
+  ctx.moveTo(0, LIMB.shin);
+  ctx.lineTo(LIMB.foot, LIMB.shin);
+  ctx.stroke();
   ctx.restore();
-  ctx.save(); ctx.rotate(a.hipR * DEG);
+  ctx.save();
+  ctx.rotate(a.hipR * DEG);
   strokeSeg(ctx, LIMB.thigh, 11 + halo);
-  ctx.translate(0, LIMB.thigh); ctx.rotate(a.kneeR * DEG);
+  ctx.translate(0, LIMB.thigh);
+  ctx.rotate(a.kneeR * DEG);
   strokeSeg(ctx, LIMB.shin, 9 + halo);
-  ctx.lineWidth = 7 + halo; ctx.beginPath(); ctx.moveTo(0, LIMB.shin); ctx.lineTo(LIMB.foot, LIMB.shin); ctx.stroke();
+  ctx.lineWidth = 7 + halo;
+  ctx.beginPath();
+  ctx.moveTo(0, LIMB.shin);
+  ctx.lineTo(LIMB.foot, LIMB.shin);
+  ctx.stroke();
   ctx.restore();
   // Torso + head + arms.
-  ctx.save(); ctx.rotate(a.torsoLean * DEG);
+  ctx.save();
+  ctx.rotate(a.torsoLean * DEG);
   strokeSeg(ctx, -LIMB.torso, 16 + halo);
-  ctx.save(); ctx.translate(4, -LIMB.torso - 14); ctx.rotate(a.headTilt * DEG);
+  ctx.save();
+  ctx.translate(4, -LIMB.torso - 14);
+  ctx.rotate(a.headTilt * DEG);
   dot(LIMB.head);
   ctx.restore();
   // Left (far) arm.
-  ctx.save(); ctx.translate(0, -54); ctx.rotate(a.shL * DEG);
+  ctx.save();
+  ctx.translate(0, -54);
+  ctx.rotate(a.shL * DEG);
   ctx.globalAlpha *= 0.55;
   strokeSeg(ctx, LIMB.upper, 8 + halo);
-  ctx.translate(0, LIMB.upper); ctx.rotate(a.elL * DEG);
+  ctx.translate(0, LIMB.upper);
+  ctx.rotate(a.elL * DEG);
   strokeSeg(ctx, LIMB.fore, 7 + halo);
-  ctx.save(); ctx.translate(0, LIMB.fore); dot(4); ctx.restore();
+  ctx.save();
+  ctx.translate(0, LIMB.fore);
+  dot(4);
+  ctx.restore();
   ctx.restore();
   // Right (near) arm + hammer prop.
-  ctx.save(); ctx.translate(0, -54); ctx.rotate(a.shR * DEG);
+  ctx.save();
+  ctx.translate(0, -54);
+  ctx.rotate(a.shR * DEG);
   strokeSeg(ctx, LIMB.upper, 8 + halo);
-  ctx.translate(0, LIMB.upper); ctx.rotate(a.elR * DEG);
+  ctx.translate(0, LIMB.upper);
+  ctx.rotate(a.elR * DEG);
   strokeSeg(ctx, LIMB.fore, 7 + halo);
-  ctx.save(); ctx.translate(0, LIMB.fore); dot(4); ctx.restore();
+  ctx.save();
+  ctx.translate(0, LIMB.fore);
+  dot(4);
+  ctx.restore();
   if (a.showHammer) {
     ctx.fillRect(-2.5, 20, 5, 22);
     ctx.fillRect(-9, 36, 18, 8);
@@ -217,8 +409,12 @@ export function BuilderFigure({ audioData, storyBeat, visible, calm = false }: P
       rect(28, 260, 8, 44, 0);
       rect(176, 180, 5, 58, 0);
       b.beginPath();
-      b.moveTo(178, 180); b.lineTo(196, 180); b.lineTo(188, 196); b.lineTo(172, 196);
-      b.closePath(); b.fill();
+      b.moveTo(178, 180);
+      b.lineTo(196, 180);
+      b.lineTo(188, 196);
+      b.lineTo(172, 196);
+      b.closePath();
+      b.fill();
       rect(110, 226, 26, 12);
     };
 
@@ -259,7 +455,7 @@ export function BuilderFigure({ audioData, storyBeat, visible, calm = false }: P
       const d = audioData.current;
       const beat = beatRef.current.storyBeat;
       const isCalm = calmRef.current;
-      const target = beat ? POSES[beat.motif] ?? IDLE_POSE : IDLE_POSE;
+      const target = beat ? (POSES[beat.motif] ?? IDLE_POSE) : IDLE_POSE;
 
       // --- Base pose: story truth, frame-rate independent, per-joint tuned ---
       (Object.keys(target) as Array<keyof Pose>).forEach((k) => {
@@ -290,9 +486,9 @@ export function BuilderFigure({ audioData, storyBeat, visible, calm = false }: P
         : Math.sin(t * Math.PI * 2 * 0.19) * 1.1 + Math.sin(t * Math.PI * 2 * 0.37 + 1.3) * 0.45;
       const sway = isCalm
         ? 0
-        : Math.sin(t * Math.PI * 2 * 0.09) * (0.9 + energy * 1.8)
-          + Math.sin(t * Math.PI * 2 * 0.14 + 0.8) * 0.28
-          + Math.sin(t * 4.2) * 0.07;
+        : Math.sin(t * Math.PI * 2 * 0.09) * (0.9 + energy * 1.8) +
+          Math.sin(t * Math.PI * 2 * 0.14 + 0.8) * 0.28 +
+          Math.sin(t * 4.2) * 0.07;
 
       // Hammer: raised between beats, driven down through the beat
       // (raise 0.15 at impact → 1 mid-interval), plus the anticipatory
@@ -305,13 +501,15 @@ export function BuilderFigure({ audioData, storyBeat, visible, calm = false }: P
 
       const stageW = 240;
       const rootX = cur.rootX * stageW;
-      const bobVal = cur.bob * (0.35 + 0.65 * pulse)
-        + (isCalm ? 0 : Math.abs(Math.sin(t * 2.2)) * energy * 1.2);
+      const bobVal =
+        cur.bob * (0.35 + 0.65 * pulse) + (isCalm ? 0 : Math.abs(Math.sin(t * 2.2)) * energy * 1.2);
       const rootY = HIP_Y - (1 - cur.sit) * STAND_LIFT - bobVal;
       const nodSign = target === POSES.payoff || target === POSES.triumph ? -5 : 2;
 
       const angles: DrawAngles = {
-        rootX, rootY, sway,
+        rootX,
+        rootY,
+        sway,
         torsoLean: cur.torsoLean + breath * (0.9 + energy * 0.4),
         headTilt: cur.headTilt + sway * 0.22 + pulse * nodSign,
         shL: cur.shL + sway * 0.5,

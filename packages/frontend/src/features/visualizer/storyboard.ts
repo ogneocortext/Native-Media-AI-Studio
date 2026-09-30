@@ -86,24 +86,125 @@ export const EMPTY_STORYBOARD: Storyboard = Object.freeze({
 
 const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
 
-const MOTIF_META: Record<StoryMotif, { title: string; palette: StoryPalette; camera: StoryCamera; cinematic: boolean }> = {
-  establishing: { title: "ESTABLISHING", palette: { base: "#050510", primary: "#3b82f6", accent: "#93c5fd" }, camera: { dolly: 0.3, orbit: 0.1, lift: 0.1 }, cinematic: false },
-  solitude: { title: "ISOLATION", palette: { base: "#070714", primary: "#6366f1", accent: "#a5b4fc" }, camera: { dolly: 0.15, orbit: -0.2, lift: 0 }, cinematic: false },
-  struggle: { title: "FRICTION", palette: { base: "#0a0a12", primary: "#f59e0b", accent: "#fbbf24" }, camera: { dolly: -0.2, orbit: 0.5, lift: -0.1 }, cinematic: false },
-  assembly: { title: "THE BUILD", palette: { base: "#061014", primary: "#06b6d4", accent: "#67e8f9" }, camera: { dolly: 0.5, orbit: 0.3, lift: 0.2 }, cinematic: false },
-  build: { title: "ASCENT", palette: { base: "#0d0a14", primary: "#eab308", accent: "#fde047" }, camera: { dolly: 0.6, orbit: 0.2, lift: 0.4 }, cinematic: false },
-  payoff: { title: "IGNITION", palette: { base: "#12060a", primary: "#ef4444", accent: "#fca5a5" }, camera: { dolly: 0.85, orbit: 0.4, lift: 0.3 }, cinematic: true },
-  triumph: { title: "ARRIVAL", palette: { base: "#0a0f1e", primary: "#f97316", accent: "#fdba74" }, camera: { dolly: 0.4, orbit: 0.6, lift: 0.6 }, cinematic: true },
-  reflection: { title: "AFTERMATH", palette: { base: "#0b0b10", primary: "#a855f7", accent: "#d8b4fe" }, camera: { dolly: -0.4, orbit: -0.3, lift: 0.1 }, cinematic: false },
-  outro: { title: "CODA", palette: { base: "#050505", primary: "#6b7280", accent: "#d1d5db" }, camera: { dolly: -0.6, orbit: 0.1, lift: -0.2 }, cinematic: false },
+const MOTIF_META: Record<
+  StoryMotif,
+  { title: string; palette: StoryPalette; camera: StoryCamera; cinematic: boolean }
+> = {
+  establishing: {
+    title: "ESTABLISHING",
+    palette: { base: "#050510", primary: "#3b82f6", accent: "#93c5fd" },
+    camera: { dolly: 0.3, orbit: 0.1, lift: 0.1 },
+    cinematic: false,
+  },
+  solitude: {
+    title: "ISOLATION",
+    palette: { base: "#070714", primary: "#6366f1", accent: "#a5b4fc" },
+    camera: { dolly: 0.15, orbit: -0.2, lift: 0 },
+    cinematic: false,
+  },
+  struggle: {
+    title: "FRICTION",
+    palette: { base: "#0a0a12", primary: "#f59e0b", accent: "#fbbf24" },
+    camera: { dolly: -0.2, orbit: 0.5, lift: -0.1 },
+    cinematic: false,
+  },
+  assembly: {
+    title: "THE BUILD",
+    palette: { base: "#061014", primary: "#06b6d4", accent: "#67e8f9" },
+    camera: { dolly: 0.5, orbit: 0.3, lift: 0.2 },
+    cinematic: false,
+  },
+  build: {
+    title: "ASCENT",
+    palette: { base: "#0d0a14", primary: "#eab308", accent: "#fde047" },
+    camera: { dolly: 0.6, orbit: 0.2, lift: 0.4 },
+    cinematic: false,
+  },
+  payoff: {
+    title: "IGNITION",
+    palette: { base: "#12060a", primary: "#ef4444", accent: "#fca5a5" },
+    camera: { dolly: 0.85, orbit: 0.4, lift: 0.3 },
+    cinematic: true,
+  },
+  triumph: {
+    title: "ARRIVAL",
+    palette: { base: "#0a0f1e", primary: "#f97316", accent: "#fdba74" },
+    camera: { dolly: 0.4, orbit: 0.6, lift: 0.6 },
+    cinematic: true,
+  },
+  reflection: {
+    title: "AFTERMATH",
+    palette: { base: "#0b0b10", primary: "#a855f7", accent: "#d8b4fe" },
+    camera: { dolly: -0.4, orbit: -0.3, lift: 0.1 },
+    cinematic: false,
+  },
+  outro: {
+    title: "CODA",
+    palette: { base: "#050505", primary: "#6b7280", accent: "#d1d5db" },
+    camera: { dolly: -0.6, orbit: 0.1, lift: -0.2 },
+    cinematic: false,
+  },
 };
 
 const KEYWORDS: Array<{ motif: StoryMotif; words: string[] }> = [
-  { motif: "triumph", words: ["worth it", "finally works", "crown", "rise", "arrived", "triumph", "victory", "worth"] },
-  { motif: "payoff", words: ["watch it grow", "it runs", "it holds", "click", "works right", "come alive", "glow", "ignite"] },
-  { motif: "assembly", words: ["build", "rebuild", "piece by piece", "fix", "machine", "thread", "evidence", "break it down", "start again"] },
-  { motif: "struggle", words: ["doubt", "fail", "broke", "stuck", "half-built", "gives out", "mess", "stubborn", "quietly"] },
-  { motif: "solitude", words: ["alone", "night", "sleep", "quiet hour", "nobody", "2 in the morning", "late night", "home"] },
+  {
+    motif: "triumph",
+    words: ["worth it", "finally works", "crown", "rise", "arrived", "triumph", "victory", "worth"],
+  },
+  {
+    motif: "payoff",
+    words: [
+      "watch it grow",
+      "it runs",
+      "it holds",
+      "click",
+      "works right",
+      "come alive",
+      "glow",
+      "ignite",
+    ],
+  },
+  {
+    motif: "assembly",
+    words: [
+      "build",
+      "rebuild",
+      "piece by piece",
+      "fix",
+      "machine",
+      "thread",
+      "evidence",
+      "break it down",
+      "start again",
+    ],
+  },
+  {
+    motif: "struggle",
+    words: [
+      "doubt",
+      "fail",
+      "broke",
+      "stuck",
+      "half-built",
+      "gives out",
+      "mess",
+      "stubborn",
+      "quietly",
+    ],
+  },
+  {
+    motif: "solitude",
+    words: [
+      "alone",
+      "night",
+      "sleep",
+      "quiet hour",
+      "nobody",
+      "2 in the morning",
+      "late night",
+      "home",
+    ],
+  },
   { motif: "build", words: ["again", "higher", "climb", "more", "till it's clean", "then i know"] },
   { motif: "reflection", words: ["remember", "used to", "cost", "year", "maybe", "meant"] },
 ];
@@ -124,7 +225,12 @@ const ESCALATION: Partial<Record<StoryMotif, StoryMotif>> = {
   payoff: "triumph",
 };
 
-function inferMotif(section: string, lines: LyricLine[], isLast: boolean, position01: number): StoryMotif {
+function inferMotif(
+  section: string,
+  lines: LyricLine[],
+  isLast: boolean,
+  position01: number,
+): StoryMotif {
   const s = (section || "").toUpperCase();
   const text = lines.map((l) => l.text.toLowerCase()).join(" \n ");
   const has = (words: string[]) => words.some((w) => text.includes(w));
@@ -145,7 +251,12 @@ function inferMotif(section: string, lines: LyricLine[], isLast: boolean, positi
   return allowed[Math.min(1, allowed.length - 1)];
 }
 
-function meanEnergy(energy: number[] | undefined, start: number, end: number, duration: number): number {
+function meanEnergy(
+  energy: number[] | undefined,
+  start: number,
+  end: number,
+  duration: number,
+): number {
   if (!energy?.length || !(duration > 0)) return 0.5;
   const n = energy.length;
   const i0 = Math.max(0, Math.floor((start / duration) * n));
@@ -175,7 +286,8 @@ export function buildStoryboard(
   lyrics: LyricLine[],
   analysis: AudioAnalysisData | null,
 ): Storyboard {
-  const duration = analysis?.duration_seconds ?? (lyrics.length ? lyrics[lyrics.length - 1].end + 5 : 0);
+  const duration =
+    analysis?.duration_seconds ?? (lyrics.length ? lyrics[lyrics.length - 1].end + 5 : 0);
   const energy = analysis?.energy_curve;
 
   type Run = { section: string; lines: LyricLine[]; start: number; end: number };
@@ -202,7 +314,12 @@ export function buildStoryboard(
     if (cur) runs.push(cur);
   } else if (analysis?.sections?.length) {
     for (const s of analysis.sections) {
-      runs.push({ section: (s.type || "VERSE").toUpperCase(), lines: [], start: s.start, end: s.end });
+      runs.push({
+        section: (s.type || "VERSE").toUpperCase(),
+        lines: [],
+        start: s.start,
+        end: s.end,
+      });
     }
   }
 
@@ -285,16 +402,27 @@ export function getStoryState(board: Storyboard | null, elapsed: number): StoryS
   if (elapsed < beats[0].start) {
     return { ...empty, next: beats[0], timeToNext: Math.max(0, beats[0].start - elapsed) };
   }
-  let lo = 0, hi = beats.length - 1, found = beats.length - 1;
+  let lo = 0,
+    hi = beats.length - 1,
+    found = beats.length - 1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
     if (elapsed < beats[mid].start) hi = mid - 1;
     else if (mid + 1 < beats.length && elapsed >= beats[mid + 1].start) lo = mid + 1;
-    else { found = mid; break; }
+    else {
+      found = mid;
+      break;
+    }
   }
   const beat = beats[found];
   const span = beat.end - beat.start;
   const shotProgress = span > 1e-6 ? Math.max(0, Math.min(1, (elapsed - beat.start) / span)) : 0;
   const next = found + 1 < beats.length ? beats[found + 1] : null;
-  return { beat, index: found, shotProgress, next, timeToNext: next ? Math.max(0, next.start - elapsed) : Math.max(0, beat.end - elapsed) };
+  return {
+    beat,
+    index: found,
+    shotProgress,
+    next,
+    timeToNext: next ? Math.max(0, next.start - elapsed) : Math.max(0, beat.end - elapsed),
+  };
 }

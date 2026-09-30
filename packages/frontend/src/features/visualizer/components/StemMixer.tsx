@@ -38,7 +38,10 @@ interface StemMixerProps {
   /** Called every animation frame with current per-stem levels (0-1). */
   onLevels?: (levels: StemLevels) => void;
   compact?: boolean;
-  onStateChange?: (state: { muted: Record<StemName, boolean>; volumes: Record<StemName, number> }) => void;
+  onStateChange?: (state: {
+    muted: Record<StemName, boolean>;
+    volumes: Record<StemName, number>;
+  }) => void;
 }
 
 interface LoadedStem {
@@ -53,16 +56,31 @@ interface LoadedStem {
 
 /** Prefer MP3 stem URLs (~87% smaller transfer, lazy-encoded server-side on
  *  first request); fall back to WAV when the backend predates stems_mp3. */
-function pickStemUrls(data: { stems: Record<string, string>; stems_mp3?: Record<string, string> }): Record<string, string> {
+function pickStemUrls(data: {
+  stems: Record<string, string>;
+  stems_mp3?: Record<string, string>;
+}): Record<string, string> {
   return data.stems_mp3 && Object.keys(data.stems_mp3).length > 0 ? data.stems_mp3 : data.stems;
 }
 
 export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
   const [stems, setStems] = useState<Record<StemName, string> | null>(null);
-  const [status, setStatus] = useState<"idle" | "checking" | "separating" | "ready" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "checking" | "separating" | "ready" | "error">(
+    "idle",
+  );
   const [error, setError] = useState<string | null>(null);
-  const [volumes, setVolumes] = useState<Record<StemName, number>>({ vocals: 1, drums: 1, bass: 1, other: 1 });
-  const [muted, setMuted] = useState<Record<StemName, boolean>>({ vocals: false, drums: false, bass: false, other: false });
+  const [volumes, setVolumes] = useState<Record<StemName, number>>({
+    vocals: 1,
+    drums: 1,
+    bass: 1,
+    other: 1,
+  });
+  const [muted, setMuted] = useState<Record<StemName, boolean>>({
+    vocals: false,
+    drums: false,
+    bass: false,
+    other: false,
+  });
   const loadedRef = useRef<LoadedStem[]>([]);
   const ctxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number>(0);
@@ -154,7 +172,9 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
           try {
             source = ctx.createMediaElementSource(el);
           } catch (e) {
-            setError(`Failed to wire stem "${name}" — ${e instanceof Error ? e.message : String(e)}`);
+            setError(
+              `Failed to wire stem "${name}" — ${e instanceof Error ? e.message : String(e)}`,
+            );
             continue;
           }
           const gain = ctx.createGain();
@@ -163,7 +183,15 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
           source.connect(gain);
           gain.connect(analyser);
           gain.connect(ctx.destination);
-          created.push({ name, url, element: el, source, gain, analyser, buf: new Uint8Array(analyser.frequencyBinCount) });
+          created.push({
+            name,
+            url,
+            element: el,
+            source,
+            gain,
+            analyser,
+            buf: new Uint8Array(analyser.frequencyBinCount),
+          });
         }
         if (cancelled) {
           created.forEach((s) => s.element.pause());
@@ -254,7 +282,7 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
       setVolumes((prev) => ({ ...prev, [name]: vol }));
       applyMixerState(name, vol, muted[name]);
     },
-    [applyMixerState, muted]
+    [applyMixerState, muted],
   );
 
   const toggleMute = useCallback(
@@ -265,10 +293,20 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
         return { ...prev, [name]: next };
       });
     },
-    [applyMixerState, volumes]
+    [applyMixerState, volumes],
   );
 
-  return { stems, status, error, volumes, muted, setVolume, toggleMute, ensureStems, syncTransport };
+  return {
+    stems,
+    status,
+    error,
+    volumes,
+    muted,
+    setVolume,
+    toggleMute,
+    ensureStems,
+    syncTransport,
+  };
 }
 
 export function StemMixerPanel({ audioFilename, compact = false, onStateChange }: StemMixerProps) {
@@ -291,13 +329,17 @@ export function StemMixerPanel({ audioFilename, compact = false, onStateChange }
   return (
     <div className="rounded-xl border border-white/10 bg-black/30 p-3" data-testid="stem-mixer">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted">Stem Mixer</span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+          Stem Mixer
+        </span>
         {status === "ready" ? (
           <span className="text-[10px] text-emerald-400">4 stems ready</span>
         ) : status === "checking" ? (
           <span className="text-[10px] text-muted">checking…</span>
         ) : status === "error" ? (
-          <span className="text-[10px] text-red-400" title={error || undefined}>unavailable</span>
+          <span className="text-[10px] text-red-400" title={error || undefined}>
+            unavailable
+          </span>
         ) : null}
       </div>
 

@@ -3,12 +3,15 @@ import { fetchWithTimeout } from "../fetchWithTimeout";
 
 export interface LogInfo {
   log_directory: string;
-  files: Record<string, {
-    path: string;
-    size_bytes: number;
-    size_human: string;
-    modified?: number;
-  }>;
+  files: Record<
+    string,
+    {
+      path: string;
+      size_bytes: number;
+      size_human: string;
+      modified?: number;
+    }
+  >;
 }
 
 export interface LogContent {
@@ -26,7 +29,9 @@ export async function getLogInfo(): Promise<LogInfo> {
 
 export async function getLogContent(logName: string, lines: number = 100): Promise<LogContent> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/logs/${logName}?lines=${lines}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/logs/${logName}?lines=${lines}`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get log content");
   return res.json();
 }
@@ -75,7 +80,9 @@ export interface LogAnalyticsErrors {
 
 export async function getLogAnalyticsErrors(limit = 20): Promise<LogAnalyticsErrors> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/logs/analytics/errors?limit=${limit}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/logs/analytics/errors?limit=${limit}`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get log analytics errors");
   return res.json();
 }
@@ -89,17 +96,21 @@ export interface LogAnalyticsEvent {
   source: string;
 }
 
-export async function getLogAnalyticsEvents(params: {
-  level?: string;
-  source?: string;
-  limit?: number;
-} = {}): Promise<{ count: number; events: LogAnalyticsEvent[] }> {
+export async function getLogAnalyticsEvents(
+  params: {
+    level?: string;
+    source?: string;
+    limit?: number;
+  } = {},
+): Promise<{ count: number; events: LogAnalyticsEvent[] }> {
   const base = getApiBase();
   const qs = new URLSearchParams();
   if (params.level) qs.set("level", params.level);
   if (params.source) qs.set("source", params.source);
   qs.set("limit", String(params.limit ?? 200));
-  const res = await fetchWithTimeout(`${base}/api/logs/analytics/events?${qs.toString()}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/logs/analytics/events?${qs.toString()}`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get log analytics events");
   return res.json();
 }
@@ -111,19 +122,26 @@ export async function getLogAnalyticsSummary(): Promise<LogAnalyticsSummary> {
   return res.json();
 }
 
-export async function getLogAnalyticsTrends(sinceMs?: number, limit = 5000): Promise<{ count: number; points: LogAnalyticsTrendPoint[] }> {
+export async function getLogAnalyticsTrends(
+  sinceMs?: number,
+  limit = 5000,
+): Promise<{ count: number; points: LogAnalyticsTrendPoint[] }> {
   const base = getApiBase();
   const params = new URLSearchParams();
   if (sinceMs !== undefined) params.set("since_ms", String(sinceMs));
   params.set("limit", String(limit));
-  const res = await fetchWithTimeout(`${base}/api/logs/analytics/trends?${params.toString()}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/logs/analytics/trends?${params.toString()}`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get log analytics trends");
   return res.json();
 }
 
 export async function getLogAnalyticsPatterns(limit = 20): Promise<LogAnalyticsPatterns> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/logs/analytics/patterns?limit=${limit}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/logs/analytics/patterns?limit=${limit}`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get log analytics patterns");
   return res.json();
 }
@@ -149,9 +167,14 @@ export async function ingestLogsForAnalytics(params: {
   return res.json();
 }
 
-export async function cleanupLogAnalytics(keepDays = 30): Promise<{ deleted: number; keep_days: number }> {
+export async function cleanupLogAnalytics(
+  keepDays = 30,
+): Promise<{ deleted: number; keep_days: number }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/logs/analytics/cleanup?keep_days=${keepDays}`, { method: "POST", timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/logs/analytics/cleanup?keep_days=${keepDays}`, {
+    method: "POST",
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to cleanup log analytics");
   return res.json();
 }

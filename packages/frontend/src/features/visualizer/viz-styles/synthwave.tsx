@@ -3,16 +3,20 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { VizProps } from "./types";
 import { getNoiseTex } from "./textures";
-import {
-  makeAudioReactiveMaterialTSL,
-  updateAudioReactiveMaterialTSL,
-} from "../VisualizationFX";
+import { makeAudioReactiveMaterialTSL, updateAudioReactiveMaterialTSL } from "../VisualizationFX";
 import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
 
 // =============================================================================
 // VINYL — Rotating disc with grooves
 // =============================================================================
-export function VinylDisc({ audioData, vizParams, sceneFrozen, prefersReducedMotion, stems, audioElapsedRef }: VizProps) {
+export function VinylDisc({
+  audioData,
+  vizParams,
+  sceneFrozen,
+  prefersReducedMotion,
+  stems,
+  audioElapsedRef,
+}: VizProps) {
   const discRef = useRef<THREE.Mesh>(null);
   const groovesRef = useRef<THREE.Group>(null);
   const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
@@ -88,21 +92,23 @@ export function VinylDisc({ audioData, vizParams, sceneFrozen, prefersReducedMot
 
     if (discRef.current) {
       if (!sceneFrozen)
-        discRef.current.rotation.y =
-          t * 0.5 * vizParams.rotationSpeed * speedMul * (1 + bass);
+        discRef.current.rotation.y = t * 0.5 * vizParams.rotationSpeed * speedMul * (1 + bass);
       discRef.current.scale.setScalar(vizParams.scale * stemScale);
       if (isWebGPU && discMat) {
         updateAudioReactiveMaterialTSL(discMat, { bass, mid: 0, treble }, vizParams.glowIntensity);
       } else {
         const m = discRef.current.material as THREE.MeshStandardMaterial;
-        m.emissiveIntensity = 0.1 + treble * vizParams.glowIntensity * 0.8 + stemEnergyRef.current.vocals * 0.3 + stemEnergyRef.current.other * 0.2;
+        m.emissiveIntensity =
+          0.1 +
+          treble * vizParams.glowIntensity * 0.8 +
+          stemEnergyRef.current.vocals * 0.3 +
+          stemEnergyRef.current.other * 0.2;
         m.roughness = 0.2 - peak * 0.1;
         m.metalness = 0.85;
       }
     }
     if (groovesRef.current && !sceneFrozen)
-      groovesRef.current.rotation.y =
-        t * 0.5 * vizParams.rotationSpeed * speedMul * (1 + bass);
+      groovesRef.current.rotation.y = t * 0.5 * vizParams.rotationSpeed * speedMul * (1 + bass);
   });
 
   return (

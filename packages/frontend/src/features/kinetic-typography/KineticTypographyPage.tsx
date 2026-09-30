@@ -1,17 +1,55 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Type, RotateCcw, Mic, Loader2, Edit3, Film, ChevronDown } from "lucide-react";
-import { kineticPresets, kineticPresetList, selectPresetForTrack, type LyricLine } from "../visualizer/components/KineticPresets";
-import { listAudioFiles, ensureAnalysis, transcribeAudio, getLyricsByFilename } from "../../services/api";
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  VolumeX,
+  Type,
+  RotateCcw,
+  Mic,
+  Loader2,
+  Edit3,
+  Film,
+  ChevronDown,
+} from "lucide-react";
+import {
+  kineticPresets,
+  kineticPresetList,
+  selectPresetForTrack,
+  type LyricLine,
+} from "../visualizer/components/KineticPresets";
+import {
+  listAudioFiles,
+  ensureAnalysis,
+  transcribeAudio,
+  getLyricsByFilename,
+} from "../../services/api";
 import { parseLyricsFromCsv, parseLrc } from "../visualizer/lyricsParser";
-import { createDefaultLyricsData, lyricsDataToLegacy, legacyToLyricsData } from "../visualizer/lyricsData";
-import { fetchTrackLyricsIndex, fetchTrackLyrics, toLyricLines, type TrackLyricsIndexEntry } from "../../data/trackLyrics";
+import {
+  createDefaultLyricsData,
+  lyricsDataToLegacy,
+  legacyToLyricsData,
+} from "../visualizer/lyricsData";
+import {
+  fetchTrackLyricsIndex,
+  fetchTrackLyrics,
+  toLyricLines,
+  type TrackLyricsIndexEntry,
+} from "../../data/trackLyrics";
 import { LyricsEditorModal } from "./components/LyricsEditorModal";
 import { PresetSelector, type VisualPreset } from "../visualizer/PresetSelector";
 import { consumePendingTrack } from "../../utils/pendingTrack";
 import { generateKineticVideo, type KineticVideoResponse } from "../../services/api";
 
 // Word-level highlight component for karaoke-style display
-function WordHighlight({ line, time, color, glowIntensity }: {
+function WordHighlight({
+  line,
+  time,
+  color,
+  glowIntensity,
+}: {
   line: LyricLine;
   time: number;
   color: string;
@@ -33,9 +71,10 @@ function WordHighlight({ line, time, color, glowIntensity }: {
               className={`kt-word ${isCurrent ? "current" : ""} ${isPast ? "past" : ""}`}
               style={{
                 color: isPast || isCurrent ? color : `${color}60`,
-                textShadow: isCurrent && glowIntensity > 0
-                  ? `0 0 ${18 * glowIntensity}px ${color}, 0 0 ${36 * glowIntensity}px ${color}80`
-                  : "none",
+                textShadow:
+                  isCurrent && glowIntensity > 0
+                    ? `0 0 ${18 * glowIntensity}px ${color}, 0 0 ${36 * glowIntensity}px ${color}80`
+                    : "none",
                 transition: "color 0.12s ease, text-shadow 0.12s ease",
               }}
             >
@@ -78,7 +117,10 @@ function findBeatIndex(beatTimes: number[], time: number): number {
   let minDist = Infinity;
   for (let i = 0; i < beatTimes.length; i++) {
     const dist = Math.abs(beatTimes[i] - time);
-    if (dist < minDist) { minDist = dist; closest = i; }
+    if (dist < minDist) {
+      minDist = dist;
+      closest = i;
+    }
   }
   return minDist < 0.1 ? closest : -1;
 }
@@ -86,7 +128,9 @@ function findBeatIndex(beatTimes: number[], time: number): number {
 // Helper: m:ss time display
 function formatTime(s: number): string {
   const safe = Math.max(0, s || 0);
-  return `${Math.floor(safe / 60)}:${Math.floor(safe % 60).toString().padStart(2, "0")}`;
+  return `${Math.floor(safe / 60)}:${Math.floor(safe % 60)
+    .toString()
+    .padStart(2, "0")}`;
 }
 
 // Normalize a track name for matching against the track-lyrics library
@@ -97,11 +141,14 @@ function normalizeTrackName(s: string): string {
 // Find a track-lyrics library entry for an audio track name.
 // Exact normalized id/title match wins; otherwise the most specific
 // (longest) entry whose id/title contains or is contained in the name.
-function findLibraryTrack(name: string, entries: TrackLyricsIndexEntry[]): TrackLyricsIndexEntry | null {
+function findLibraryTrack(
+  name: string,
+  entries: TrackLyricsIndexEntry[],
+): TrackLyricsIndexEntry | null {
   const norm = normalizeTrackName(name);
   if (!norm) return null;
-  const exact = entries.find(e =>
-    normalizeTrackName(e.id) === norm || normalizeTrackName(e.title) === norm
+  const exact = entries.find(
+    (e) => normalizeTrackName(e.id) === norm || normalizeTrackName(e.title) === norm,
   );
   if (exact) return exact;
   let best: TrackLyricsIndexEntry | null = null;
@@ -110,11 +157,16 @@ function findLibraryTrack(name: string, entries: TrackLyricsIndexEntry[]): Track
     const idNorm = normalizeTrackName(e.id);
     const titleNorm = normalizeTrackName(e.title);
     const matches =
-      idNorm.includes(norm) || norm.includes(idNorm) ||
-      titleNorm.includes(norm) || norm.includes(titleNorm);
+      idNorm.includes(norm) ||
+      norm.includes(idNorm) ||
+      titleNorm.includes(norm) ||
+      norm.includes(titleNorm);
     if (matches) {
       const len = Math.max(idNorm.length, titleNorm.length);
-      if (len > bestLen) { best = e; bestLen = len; }
+      if (len > bestLen) {
+        best = e;
+        bestLen = len;
+      }
     }
   }
   return best;
@@ -168,37 +220,48 @@ export function KineticTypographyPage() {
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
 
   // Audio URL for selected track
-  const audioUrl = selectedTrack ? `/api/audio/file/${encodeURIComponent(selectedTrack.filename)}` : null;
+  const audioUrl = selectedTrack
+    ? `/api/audio/file/${encodeURIComponent(selectedTrack.filename)}`
+    : null;
 
   // Compute current line and its index for distance-based effects
-  const currentLineIndex = lyrics.findIndex(l => elapsed >= l.start && elapsed < l.end);
+  const currentLineIndex = lyrics.findIndex((l) => elapsed >= l.start && elapsed < l.end);
   const currentLine = currentLineIndex >= 0 ? lyrics[currentLineIndex] : null;
 
   // Load library files and normalized lyrics CSV
   useEffect(() => {
-    listAudioFiles().then(files => {
-      if (Array.isArray(files)) {
-        setLibraryFiles(files.map(f => ({
-          filename: f.filename,
-          name: f.filename.replace(/^([0-9a-f]{8}_)+/i, "").replace(/\.(mp3|wav|flac|ogg|m4a)$/i, ""),
-        })));
-      }
-    }).catch(() => {});
+    listAudioFiles()
+      .then((files) => {
+        if (Array.isArray(files)) {
+          setLibraryFiles(
+            files.map((f) => ({
+              filename: f.filename,
+              name: f.filename
+                .replace(/^([0-9a-f]{8}_)+/i, "")
+                .replace(/\.(mp3|wav|flac|ogg|m4a)$/i, ""),
+            })),
+          );
+        }
+      })
+      .catch(() => {});
     // Load the track-lyrics library index (user's own tracks, no LRC needed)
     fetchTrackLyricsIndex()
-      .then(idx => {
-        const complete = (idx.tracks || []).filter(t => t.lyricsStatus === "complete");
+      .then((idx) => {
+        const complete = (idx.tracks || []).filter((t) => t.lyricsStatus === "complete");
         libraryTracksRef.current = complete;
         setLibraryTracks(complete);
       })
       .catch(() => {});
     // Load normalized lyrics CSV (fallback to legacy if not found)
     fetch("/track-lyrics-normalized.csv")
-      .then(r => r.text())
+      .then((r) => r.text())
       .then(setCsvContent)
       .catch(() => {
         // Fallback to legacy CSV
-        fetch("/track-prompts-lyrics.csv").then(r => r.text()).then(setCsvContent).catch(() => {});
+        fetch("/track-prompts-lyrics.csv")
+          .then((r) => r.text())
+          .then(setCsvContent)
+          .catch(() => {});
       });
   }, []);
 
@@ -217,7 +280,10 @@ export function KineticTypographyPage() {
     const onTimeUpdate = () => setElapsed(audio.currentTime);
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
-    const onEnded = () => { setIsPlaying(false); setElapsed(0); };
+    const onEnded = () => {
+      setIsPlaying(false);
+      setElapsed(0);
+    };
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
@@ -239,7 +305,9 @@ export function KineticTypographyPage() {
   const demoDuration = playbackDuration;
   const elapsedRef = useRef(elapsed);
   const demoBaseRef = useRef(0);
-  useEffect(() => { elapsedRef.current = elapsed; }, [elapsed]);
+  useEffect(() => {
+    elapsedRef.current = elapsed;
+  }, [elapsed]);
   useEffect(() => {
     if (!isPlaying || audioUrl) return;
     demoBaseRef.current = performance.now() - elapsedRef.current * 1000;
@@ -257,16 +325,19 @@ export function KineticTypographyPage() {
   }, [isPlaying, audioUrl, demoDuration]);
 
   // Unified seek — works for real audio and demo-mode timer playback.
-  const seekTo = useCallback((t: number) => {
-    const clamped = Math.max(0, Math.min(t, playbackDuration));
-    if (audioRef.current) {
-      audioRef.current.currentTime = clamped;
-    } else {
-      elapsedRef.current = clamped;
-      if (isPlaying) demoBaseRef.current = performance.now() - clamped * 1000;
-    }
-    setElapsed(clamped);
-  }, [isPlaying, playbackDuration]);
+  const seekTo = useCallback(
+    (t: number) => {
+      const clamped = Math.max(0, Math.min(t, playbackDuration));
+      if (audioRef.current) {
+        audioRef.current.currentTime = clamped;
+      } else {
+        elapsedRef.current = clamped;
+        if (isPlaying) demoBaseRef.current = performance.now() - clamped * 1000;
+      }
+      setElapsed(clamped);
+    },
+    [isPlaying, playbackDuration],
+  );
 
   // Sync volume (re-applied when the audio element remounts on track change)
   useEffect(() => {
@@ -309,7 +380,8 @@ export function KineticTypographyPage() {
         target instanceof HTMLSelectElement ||
         target instanceof HTMLTextAreaElement ||
         target?.isContentEditable
-      ) return;
+      )
+        return;
       // Space on a focused button already activates it — don't double-toggle.
       if (e.code === "Space" && target instanceof HTMLButtonElement) return;
       if (e.code === "Space") {
@@ -318,7 +390,7 @@ export function KineticTypographyPage() {
           if (audioRef.current.paused) audioRef.current.play().catch(() => {});
           else audioRef.current.pause();
         } else {
-          setIsPlaying(p => !p);
+          setIsPlaying((p) => !p);
         }
       }
       if (e.code === "ArrowLeft") {
@@ -335,7 +407,7 @@ export function KineticTypographyPage() {
       }
       if (e.code === "KeyM") {
         e.preventDefault();
-        setIsMuted(m => !m);
+        setIsMuted((m) => !m);
       }
     };
     window.addEventListener("keydown", handler);
@@ -364,90 +436,96 @@ export function KineticTypographyPage() {
     const activeEl = wrapper.querySelector<HTMLElement>(`[data-line-index="${currentLineIndex}"]`);
     if (!scroller || !activeEl) return;
     const targetScroll =
-      activeEl.offsetTop - scroller.offsetTop - scroller.clientHeight / 2 + activeEl.offsetHeight / 2;
+      activeEl.offsetTop -
+      scroller.offsetTop -
+      scroller.clientHeight / 2 +
+      activeEl.offsetHeight / 2;
     scroller.scrollTo({ top: Math.max(0, targetScroll), behavior: "smooth" });
   }, [currentLineIndex, lyrics]);
 
   // Parse lyrics from CSV for a track (fallback)
-  const loadLyricsForTrack = useCallback(async (trackName: string, filename: string, duration: number) => {
-    // First try to load from database
-    try {
-      const dbLyrics = await getLyricsByFilename(filename);
-      if (dbLyrics.lines && dbLyrics.lines.length > 0) {
-        // Ensure section is always a string
-        const lines: LyricLine[] = dbLyrics.lines.map(l => ({
-          ...l,
-          section: l.section || "VERSE",
-        }));
-        setLyrics(lines);
-        setLyricsData(legacyToLyricsData(lines));
-        setLyricsSource("database");
-        return;
-      }
-    } catch {
-      // No database lyrics found, try LRC
-    }
-
-    // Try bundled LRC file (prefer over CSV when available).
-    // Public dir first (/audio/*.lrc in vite public), then the backend's
-    // audio file endpoint — mirrors Visualizer.tsx's fallback chain.
-    try {
-      // Try exact track name first, then with spaces normalized
-      const candidates = [
-        `${trackName}.lrc`,
-        `${trackName.replace(/[^a-z0-9]+/gi, " ").trim()}.lrc`,
-      ];
-      const sources = [
-        (f: string) => `/audio/${encodeURIComponent(f)}`,
-        (f: string) => `/api/audio/file/${encodeURIComponent(f)}`,
-      ];
-      for (const lrcFile of candidates) {
-        for (const toUrl of sources) {
-          const lrcResponse = await fetch(toUrl(lrcFile));
-          if (lrcResponse.ok) {
-            const lrcContent = await lrcResponse.text();
-            const lrcLines = parseLrc(lrcContent);
-            if (lrcLines.length > 0) {
-              setLyrics(lrcLines);
-              setLyricsData(legacyToLyricsData(lrcLines));
-              setLyricsSource("lrc");
-              return;
-            }
-          }
-        }
-      }
-    } catch {
-      // No LRC file found, try CSV
-    }
-
-    // Track-lyrics library: the user's own tracks with no LRC — match by
-    // normalized title and use the library's estimated timing.
-    const libraryEntry = findLibraryTrack(trackName, libraryTracksRef.current);
-    if (libraryEntry) {
+  const loadLyricsForTrack = useCallback(
+    async (trackName: string, filename: string, duration: number) => {
+      // First try to load from database
       try {
-        const doc = await fetchTrackLyrics(libraryEntry);
-        const libraryLines = toLyricLines(doc, { fallbackDurationSec: duration });
-        if (libraryLines.length > 0) {
-          setLyrics(libraryLines);
-          setLyricsData(legacyToLyricsData(libraryLines));
-          setLyricsSource("track-lyrics");
+        const dbLyrics = await getLyricsByFilename(filename);
+        if (dbLyrics.lines && dbLyrics.lines.length > 0) {
+          // Ensure section is always a string
+          const lines: LyricLine[] = dbLyrics.lines.map((l) => ({
+            ...l,
+            section: l.section || "VERSE",
+          }));
+          setLyrics(lines);
+          setLyricsData(legacyToLyricsData(lines));
+          setLyricsSource("database");
           return;
         }
       } catch {
-        // Library fetch failed — fall through to CSV
+        // No database lyrics found, try LRC
       }
-    }
 
-    // Fallback to CSV parsing
-    const parsedLyrics = parseLyricsFromCsv(csvContent, trackName, duration);
-    if (parsedLyrics.length > 0) {
-      setLyrics(parsedLyrics);
-      setLyricsData(legacyToLyricsData(parsedLyrics));
-      setLyricsSource("csv");
-    } else {
-      setLyricsSource("none");
-    }
-  }, [csvContent]);
+      // Try bundled LRC file (prefer over CSV when available).
+      // Public dir first (/audio/*.lrc in vite public), then the backend's
+      // audio file endpoint — mirrors Visualizer.tsx's fallback chain.
+      try {
+        // Try exact track name first, then with spaces normalized
+        const candidates = [
+          `${trackName}.lrc`,
+          `${trackName.replace(/[^a-z0-9]+/gi, " ").trim()}.lrc`,
+        ];
+        const sources = [
+          (f: string) => `/audio/${encodeURIComponent(f)}`,
+          (f: string) => `/api/audio/file/${encodeURIComponent(f)}`,
+        ];
+        for (const lrcFile of candidates) {
+          for (const toUrl of sources) {
+            const lrcResponse = await fetch(toUrl(lrcFile));
+            if (lrcResponse.ok) {
+              const lrcContent = await lrcResponse.text();
+              const lrcLines = parseLrc(lrcContent);
+              if (lrcLines.length > 0) {
+                setLyrics(lrcLines);
+                setLyricsData(legacyToLyricsData(lrcLines));
+                setLyricsSource("lrc");
+                return;
+              }
+            }
+          }
+        }
+      } catch {
+        // No LRC file found, try CSV
+      }
+
+      // Track-lyrics library: the user's own tracks with no LRC — match by
+      // normalized title and use the library's estimated timing.
+      const libraryEntry = findLibraryTrack(trackName, libraryTracksRef.current);
+      if (libraryEntry) {
+        try {
+          const doc = await fetchTrackLyrics(libraryEntry);
+          const libraryLines = toLyricLines(doc, { fallbackDurationSec: duration });
+          if (libraryLines.length > 0) {
+            setLyrics(libraryLines);
+            setLyricsData(legacyToLyricsData(libraryLines));
+            setLyricsSource("track-lyrics");
+            return;
+          }
+        } catch {
+          // Library fetch failed — fall through to CSV
+        }
+      }
+
+      // Fallback to CSV parsing
+      const parsedLyrics = parseLyricsFromCsv(csvContent, trackName, duration);
+      if (parsedLyrics.length > 0) {
+        setLyrics(parsedLyrics);
+        setLyricsData(legacyToLyricsData(parsedLyrics));
+        setLyricsSource("csv");
+      } else {
+        setLyricsSource("none");
+      }
+    },
+    [csvContent],
+  );
 
   // Apply visual preset to current settings
   const applyVisualPreset = useCallback((preset: VisualPreset) => {
@@ -493,112 +571,119 @@ export function KineticTypographyPage() {
   }, []);
 
   const trackRequestRef = useRef(0);
-  const handleTrackSelect = useCallback(async (filename: string) => {
-    const file = libraryFiles.find(f => f.filename === filename);
-    if (!file) return;
+  const handleTrackSelect = useCallback(
+    async (filename: string) => {
+      const file = libraryFiles.find((f) => f.filename === filename);
+      if (!file) return;
 
-    // Leaving lyric-library mode: an audio file takes over playback
-    setSelectedLibraryTrackId(null);
-    setLibraryTrackDuration(null);
+      // Leaving lyric-library mode: an audio file takes over playback
+      setSelectedLibraryTrackId(null);
+      setLibraryTrackDuration(null);
 
-    // Guard against out-of-order responses when switching tracks quickly:
-    // only the latest request may update state.
-    const requestId = ++trackRequestRef.current;
+      // Guard against out-of-order responses when switching tracks quickly:
+      // only the latest request may update state.
+      const requestId = ++trackRequestRef.current;
 
-    // Pause current audio
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-
-    setSelectedTrack(file);
-    setElapsed(0);
-    lastBeatIdxRef.current = -1;
-    setIsLoadingAnalysis(true);
-    setLyricsSource("loading");
-
-    try {
-      // Ensure analysis exists (runs if not cached)
-      const result = await ensureAnalysis(filename);
-      if (trackRequestRef.current !== requestId) return;
-      const analysis = result.analysis;
-      if (analysis) {
-        const energy = analysis.energy_curve?.length
-          ? analysis.energy_curve.reduce((a: number, b: number) => a + b, 0) / analysis.energy_curve.length
-          : 0.5;
-        const trackInfo: TrackInfo = {
-          ...file,
-          bpm: Math.round(analysis.tempo_bpm),
-          duration: Math.round(analysis.duration_seconds),
-          energy,
-          beatTimes: analysis.beat_times || [],
-          energyCurve: analysis.energy_curve || [],
-          sections: analysis.sections || [],
-        };
-        setSelectedTrack(trackInfo);
-        if (autoPreset) {
-          const presetId = selectPresetForTrack(file.name, energy);
-          setActivePreset(presetId);
-        }
-        // Load lyrics from database (or CSV fallback)
-        loadLyricsForTrack(file.name, filename, analysis.duration_seconds || 60);
+      // Pause current audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
       }
-    } catch {
-      if (trackRequestRef.current !== requestId) return;
-      // Fallback to basic info
-      setSelectedTrack({ ...file, duration: 60 });
-    } finally {
-      if (trackRequestRef.current === requestId) setIsLoadingAnalysis(false);
-    }
-  }, [libraryFiles, autoPreset, loadLyricsForTrack]);
+
+      setSelectedTrack(file);
+      setElapsed(0);
+      lastBeatIdxRef.current = -1;
+      setIsLoadingAnalysis(true);
+      setLyricsSource("loading");
+
+      try {
+        // Ensure analysis exists (runs if not cached)
+        const result = await ensureAnalysis(filename);
+        if (trackRequestRef.current !== requestId) return;
+        const analysis = result.analysis;
+        if (analysis) {
+          const energy = analysis.energy_curve?.length
+            ? analysis.energy_curve.reduce((a: number, b: number) => a + b, 0) /
+              analysis.energy_curve.length
+            : 0.5;
+          const trackInfo: TrackInfo = {
+            ...file,
+            bpm: Math.round(analysis.tempo_bpm),
+            duration: Math.round(analysis.duration_seconds),
+            energy,
+            beatTimes: analysis.beat_times || [],
+            energyCurve: analysis.energy_curve || [],
+            sections: analysis.sections || [],
+          };
+          setSelectedTrack(trackInfo);
+          if (autoPreset) {
+            const presetId = selectPresetForTrack(file.name, energy);
+            setActivePreset(presetId);
+          }
+          // Load lyrics from database (or CSV fallback)
+          loadLyricsForTrack(file.name, filename, analysis.duration_seconds || 60);
+        }
+      } catch {
+        if (trackRequestRef.current !== requestId) return;
+        // Fallback to basic info
+        setSelectedTrack({ ...file, duration: 60 });
+      } finally {
+        if (trackRequestRef.current === requestId) setIsLoadingAnalysis(false);
+      }
+    },
+    [libraryFiles, autoPreset, loadLyricsForTrack],
+  );
 
   // Select a track from the track-lyrics library (no audio file).
   // Loads the library lyrics with estimated timing and previews them in
   // demo mode — the demo timer drives `elapsed` since there is no audio.
-  const handleLibraryTrackSelect = useCallback(async (id: string) => {
-    if (!id) {
-      setSelectedLibraryTrackId(null);
-      setLibraryTrackDuration(null);
-      return;
-    }
-    const entry = libraryTracks.find(e => e.id === id);
-    if (!entry) return;
-
-    // Guard against out-of-order responses when switching tracks quickly
-    const requestId = ++trackRequestRef.current;
-
-    // Stop any playing audio — library tracks have no audio file
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-
-    setSelectedTrack(null);
-    setSelectedLibraryTrackId(id);
-    setElapsed(0);
-    lastBeatIdxRef.current = -1;
-    setIsLoadingAnalysis(true);
-    setLyricsSource("loading");
-
-    try {
-      const doc = await fetchTrackLyrics(entry);
-      if (trackRequestRef.current !== requestId) return;
-      const lines = toLyricLines(doc, { fallbackDurationSec: entry.durationSec ?? 180 });
-      if (lines.length > 0) {
-        setLyrics(lines);
-        setLyricsData(legacyToLyricsData(lines));
-        setLyricsSource("track-lyrics");
-        setLibraryTrackDuration(doc.durationSec ?? entry.durationSec ?? null);
-      } else {
-        setLyricsSource("none");
+  const handleLibraryTrackSelect = useCallback(
+    async (id: string) => {
+      if (!id) {
+        setSelectedLibraryTrackId(null);
+        setLibraryTrackDuration(null);
+        return;
       }
-    } catch {
-      if (trackRequestRef.current !== requestId) return;
-      setLyricsSource("none");
-    } finally {
-      if (trackRequestRef.current === requestId) setIsLoadingAnalysis(false);
-    }
-  }, [libraryTracks]);
+      const entry = libraryTracks.find((e) => e.id === id);
+      if (!entry) return;
+
+      // Guard against out-of-order responses when switching tracks quickly
+      const requestId = ++trackRequestRef.current;
+
+      // Stop any playing audio — library tracks have no audio file
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+
+      setSelectedTrack(null);
+      setSelectedLibraryTrackId(id);
+      setElapsed(0);
+      lastBeatIdxRef.current = -1;
+      setIsLoadingAnalysis(true);
+      setLyricsSource("loading");
+
+      try {
+        const doc = await fetchTrackLyrics(entry);
+        if (trackRequestRef.current !== requestId) return;
+        const lines = toLyricLines(doc, { fallbackDurationSec: entry.durationSec ?? 180 });
+        if (lines.length > 0) {
+          setLyrics(lines);
+          setLyricsData(legacyToLyricsData(lines));
+          setLyricsSource("track-lyrics");
+          setLibraryTrackDuration(doc.durationSec ?? entry.durationSec ?? null);
+        } else {
+          setLyricsSource("none");
+        }
+      } catch {
+        if (trackRequestRef.current !== requestId) return;
+        setLyricsSource("none");
+      } finally {
+        if (trackRequestRef.current === requestId) setIsLoadingAnalysis(false);
+      }
+    },
+    [libraryTracks],
+  );
 
   // If the lyrics CSV or the track-lyrics index finished loading after a
   // track was selected (all load in parallel on mount), retry the fallback
@@ -613,7 +698,7 @@ export function KineticTypographyPage() {
   // or auto-select the first real track
   useEffect(() => {
     if (pendingTrackRef.current && libraryFiles.length > 0) {
-      const match = libraryFiles.find(f => f.filename === pendingTrackRef.current);
+      const match = libraryFiles.find((f) => f.filename === pendingTrackRef.current);
       if (match) {
         handleTrackSelect(match.filename);
         pendingTrackRef.current = null;
@@ -648,7 +733,7 @@ export function KineticTypographyPage() {
   }, []);
 
   const toggleSection = useCallback((key: string) => {
-    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
   const handleGenerateVideo = useCallback(async () => {
@@ -678,12 +763,16 @@ export function KineticTypographyPage() {
       if (audioRef.current.paused) audioRef.current.play().catch(() => {});
       else audioRef.current.pause();
     } else {
-      setIsPlaying(p => !p);
+      setIsPlaying((p) => !p);
     }
   }, []);
 
   const sectionColors: Record<string, string> = {
-    INTRO: "#818cf8", VERSE: "#60a5fa", CHORUS: "#c084fc", BRIDGE: "#f59e0b", "FINAL CHORUS": "#f472b6",
+    INTRO: "#818cf8",
+    VERSE: "#60a5fa",
+    CHORUS: "#c084fc",
+    BRIDGE: "#f59e0b",
+    "FINAL CHORUS": "#f472b6",
   };
   const currentColor = currentLine ? sectionColors[currentLine.section] || "#a5b4fc" : "#a5b4fc";
 
@@ -721,64 +810,101 @@ export function KineticTypographyPage() {
         {/* Preview Panel */}
         <div className="kt-preview-panel" ref={previewRef}>
           <div className="kt-preview-stage">
-             <div className="kt-preview-bg">
-               <div className="kt-preview-grid" />
-               {/* Audio visualizer bars */}
-               <div className="kt-audio-bass">
-                 <div className="kt-bass-bar" style={{ height: `${Math.min(100, (selectedTrack?.energy || 0.5) * 100 * (isPlaying ? 1.2 : 0.3))}%` }} />
-               </div>
-             </div>
-             <div
-               className="kt-preview-lyrics"
-               ref={lyricsContainerRef}
-             >
-               {showSectionLabel && currentLine && (
-                 <div className="kt-preview-section" style={{ color: currentColor }}>{currentLine.section}</div>
-               )}
-               <div className="kt-preview-lines">
-                 {lyrics.map((line, idx) => {
-                   const isCurrent = idx === currentLineIndex;
-                   const distance = currentLineIndex >= 0 ? Math.abs(idx - currentLineIndex) : 99;
-                   const opacity = distance === 0 ? 1 : distance <= 1 ? 0.55 : distance <= 2 ? 0.25 : 0.08;
-                   const scale = distance === 0 ? 1 : distance <= 1 ? 0.97 : 0.94;
-                   const filter = distance >= 3 ? "blur(2px)" : distance === 2 ? "blur(1px)" : "none";
-                   const isPast = currentLineIndex >= 0 && idx < currentLineIndex;
-                   const lineColor = isCurrent ? currentColor : isPast ? `${currentColor}60` : "#52525b";
-                   return (
-                     <div
-                       key={idx}
-                       data-line-index={idx}
-                       className={`kt-preview-line ${isCurrent ? "kt-preview-line--active" : ""} ${isPast ? "kt-preview-line--past" : ""}`}
-                       style={{
-                         color: lineColor,
-                         fontSize: `${fontSize * scale}px`,
-                         opacity,
-                         filter,
-                         textShadow: isCurrent && glowIntensity > 0
-                           ? `0 0 ${20 * glowIntensity}px ${currentColor}, 0 0 ${40 * glowIntensity}px ${currentColor}40`
-                           : "none",
-                         transition: "opacity 0.35s ease, transform 0.35s ease, filter 0.35s ease, color 0.35s ease, font-size 0.2s ease",
-                       }}
-                     >
-                       {line.words && line.words.length > 0 ? (
-                         <WordHighlight line={line} time={elapsed} color={lineColor} glowIntensity={isCurrent ? glowIntensity : 0} />
-                       ) : (
-                         line.text || (selectedTrack ? "Press Play to start" : "Select a track and press Play")
-                       )}
-                     </div>
-                   );
-                 })}
-               </div>
-             </div>
+            <div className="kt-preview-bg">
+              <div className="kt-preview-grid" />
+              {/* Audio visualizer bars */}
+              <div className="kt-audio-bass">
+                <div
+                  className="kt-bass-bar"
+                  style={{
+                    height: `${Math.min(100, (selectedTrack?.energy || 0.5) * 100 * (isPlaying ? 1.2 : 0.3))}%`,
+                  }}
+                />
+              </div>
+            </div>
+            <div className="kt-preview-lyrics" ref={lyricsContainerRef}>
+              {showSectionLabel && currentLine && (
+                <div className="kt-preview-section" style={{ color: currentColor }}>
+                  {currentLine.section}
+                </div>
+              )}
+              <div className="kt-preview-lines">
+                {lyrics.map((line, idx) => {
+                  const isCurrent = idx === currentLineIndex;
+                  const distance = currentLineIndex >= 0 ? Math.abs(idx - currentLineIndex) : 99;
+                  const opacity =
+                    distance === 0 ? 1 : distance <= 1 ? 0.55 : distance <= 2 ? 0.25 : 0.08;
+                  const scale = distance === 0 ? 1 : distance <= 1 ? 0.97 : 0.94;
+                  const filter =
+                    distance >= 3 ? "blur(2px)" : distance === 2 ? "blur(1px)" : "none";
+                  const isPast = currentLineIndex >= 0 && idx < currentLineIndex;
+                  const lineColor = isCurrent
+                    ? currentColor
+                    : isPast
+                      ? `${currentColor}60`
+                      : "#52525b";
+                  return (
+                    <div
+                      key={idx}
+                      data-line-index={idx}
+                      className={`kt-preview-line ${isCurrent ? "kt-preview-line--active" : ""} ${isPast ? "kt-preview-line--past" : ""}`}
+                      style={{
+                        color: lineColor,
+                        fontSize: `${fontSize * scale}px`,
+                        opacity,
+                        filter,
+                        textShadow:
+                          isCurrent && glowIntensity > 0
+                            ? `0 0 ${20 * glowIntensity}px ${currentColor}, 0 0 ${40 * glowIntensity}px ${currentColor}40`
+                            : "none",
+                        transition:
+                          "opacity 0.35s ease, transform 0.35s ease, filter 0.35s ease, color 0.35s ease, font-size 0.2s ease",
+                      }}
+                    >
+                      {line.words && line.words.length > 0 ? (
+                        <WordHighlight
+                          line={line}
+                          time={elapsed}
+                          color={lineColor}
+                          glowIntensity={isCurrent ? glowIntensity : 0}
+                        />
+                      ) : (
+                        line.text ||
+                        (selectedTrack ? "Press Play to start" : "Select a track and press Play")
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Transport */}
           <div className="kt-transport" role="group" aria-label="Playback controls">
-            <button className="kt-transport-btn" onClick={() => seekTo(0)} aria-label="Restart" title="Restart (R)"><SkipBack size={14} /></button>
-            <button className="kt-transport-btn kt-transport-play" onClick={togglePlay} aria-label={isPlaying ? "Pause" : "Play"} title="Play/Pause (Space)">
+            <button
+              className="kt-transport-btn"
+              onClick={() => seekTo(0)}
+              aria-label="Restart"
+              title="Restart (R)"
+            >
+              <SkipBack size={14} />
+            </button>
+            <button
+              className="kt-transport-btn kt-transport-play"
+              onClick={togglePlay}
+              aria-label={isPlaying ? "Pause" : "Play"}
+              title="Play/Pause (Space)"
+            >
               {isPlaying ? <Pause size={18} /> : <Play size={18} />}
             </button>
-            <button className="kt-transport-btn" onClick={() => seekTo(elapsedRef.current + 5)} aria-label="Forward 5 seconds" title="Forward 5s (→)"><SkipForward size={14} /></button>
+            <button
+              className="kt-transport-btn"
+              onClick={() => seekTo(elapsedRef.current + 5)}
+              aria-label="Forward 5 seconds"
+              title="Forward 5s (→)"
+            >
+              <SkipForward size={14} />
+            </button>
             <div className="kt-scrubber">
               <input
                 type="range"
@@ -791,8 +917,15 @@ export function KineticTypographyPage() {
                 aria-label="Seek"
               />
             </div>
-            <span className="kt-time">{formatTime(elapsed)} / {formatTime(playbackDuration)}</span>
-            <button className="kt-transport-btn" onClick={() => setIsMuted(m => !m)} aria-label={isMuted ? "Unmute" : "Mute"} title="Mute (M)">
+            <span className="kt-time">
+              {formatTime(elapsed)} / {formatTime(playbackDuration)}
+            </span>
+            <button
+              className="kt-transport-btn"
+              onClick={() => setIsMuted((m) => !m)}
+              aria-label={isMuted ? "Unmute" : "Mute"}
+              title="Mute (M)"
+            >
               {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
             </button>
             <input
@@ -801,7 +934,10 @@ export function KineticTypographyPage() {
               max="1"
               step="0.05"
               value={isMuted ? 0 : volume}
-              onChange={(e) => { setVolume(parseFloat(e.target.value)); setIsMuted(false); }}
+              onChange={(e) => {
+                setVolume(parseFloat(e.target.value));
+                setIsMuted(false);
+              }}
               className="kt-volume-slider"
               aria-label="Volume"
             />
@@ -809,10 +945,19 @@ export function KineticTypographyPage() {
 
           {/* Keyboard hints */}
           <div className="kt-keyboard-hints">
-            <span className="kt-keyboard-hint"><kbd>Space</kbd> Play/Pause</span>
-            <span className="kt-keyboard-hint"><kbd>←</kbd><kbd>→</kbd> Scrub</span>
-            <span className="kt-keyboard-hint"><kbd>R</kbd> Restart</span>
-            <span className="kt-keyboard-hint"><kbd>M</kbd> Mute</span>
+            <span className="kt-keyboard-hint">
+              <kbd>Space</kbd> Play/Pause
+            </span>
+            <span className="kt-keyboard-hint">
+              <kbd>←</kbd>
+              <kbd>→</kbd> Scrub
+            </span>
+            <span className="kt-keyboard-hint">
+              <kbd>R</kbd> Restart
+            </span>
+            <span className="kt-keyboard-hint">
+              <kbd>M</kbd> Mute
+            </span>
           </div>
         </div>
 
@@ -820,31 +965,44 @@ export function KineticTypographyPage() {
         <div className="kt-controls">
           {/* Track Selector */}
           <div className="kt-section-collapsible">
-            <button className="kt-section-toggle" data-open={openSections.track ? "true" : "false"} onClick={() => toggleSection("track")}>
+            <button
+              className="kt-section-toggle"
+              data-open={openSections.track ? "true" : "false"}
+              onClick={() => toggleSection("track")}
+            >
               <ChevronDown size={12} />
               <span>Track Selection</span>
             </button>
             <div className="kt-section-body" data-open={openSections.track ? "true" : "false"}>
               <div className="kt-section">
-                <label className="kt-field-label" htmlFor="kt-track-select">Track</label>
+                <label className="kt-field-label" htmlFor="kt-track-select">
+                  Track
+                </label>
                 <select
                   id="kt-track-select"
                   className="kt-select"
                   aria-label="Select track"
                   value={selectedTrack?.filename || ""}
-                  onChange={(e) => e.target.value ? handleTrackSelect(e.target.value) : setSelectedTrack(null)}
+                  onChange={(e) =>
+                    e.target.value ? handleTrackSelect(e.target.value) : setSelectedTrack(null)
+                  }
                 >
                   <option value="">Demo Mode (Sample Lyrics)</option>
-                  {libraryFiles.map(f => (
-                    <option key={f.filename} value={f.filename}>{f.name}</option>
+                  {libraryFiles.map((f) => (
+                    <option key={f.filename} value={f.filename}>
+                      {f.name}
+                    </option>
                   ))}
                 </select>
                 {libraryFiles.length === 0 && (
                   <span className="kt-transcription-status">
-                    No audio in the library yet — upload a track from Audio Analysis to enable real playback.
+                    No audio in the library yet — upload a track from Audio Analysis to enable real
+                    playback.
                   </span>
                 )}
-                <label className="kt-field-label" htmlFor="kt-lyrics-library-select">Your tracks (lyric library)</label>
+                <label className="kt-field-label" htmlFor="kt-lyrics-library-select">
+                  Your tracks (lyric library)
+                </label>
                 <select
                   id="kt-lyrics-library-select"
                   className="kt-select"
@@ -853,7 +1011,7 @@ export function KineticTypographyPage() {
                   onChange={(e) => handleLibraryTrackSelect(e.target.value)}
                 >
                   <option value="">None — use audio library above</option>
-                  {libraryTracks.map(t => (
+                  {libraryTracks.map((t) => (
                     <option key={t.id} value={t.id}>
                       {`${t.title}${t.bpm ? ` · ${t.bpm} BPM` : ""}${t.durationSec ? ` · ${Math.round(t.durationSec)}s` : ""}`}
                     </option>
@@ -872,14 +1030,31 @@ export function KineticTypographyPage() {
                 {selectedTrack && (
                   <div className="kt-track-meta">
                     {selectedTrack.bpm && <span className="kt-badge">{selectedTrack.bpm} BPM</span>}
-                    {selectedTrack.duration && <span className="kt-badge">{Math.round(selectedTrack.duration)}s</span>}
-                    {selectedTrack.energy && <span className="kt-badge">Energy {(selectedTrack.energy * 100).toFixed(0)}%</span>}
-                    {selectedTrack.beatTimes && <span className="kt-badge">{selectedTrack.beatTimes.length} beats</span>}
+                    {selectedTrack.duration && (
+                      <span className="kt-badge">{Math.round(selectedTrack.duration)}s</span>
+                    )}
+                    {selectedTrack.energy && (
+                      <span className="kt-badge">
+                        Energy {(selectedTrack.energy * 100).toFixed(0)}%
+                      </span>
+                    )}
+                    {selectedTrack.beatTimes && (
+                      <span className="kt-badge">{selectedTrack.beatTimes.length} beats</span>
+                    )}
                   </div>
                 )}
                 {selectedTrack && lyricsSource !== "none" && lyricsSource !== "loading" && (
-                  <span className={`kt-transcription-status ${lyricsSource === "lrc" ? "text-emerald-400" : lyricsSource === "database" ? "text-blue-400" : "text-amber-400"}`}>
-                    Lyrics: {lyricsSource === "lrc" ? "LRC file" : lyricsSource === "database" ? "Saved lyrics" : lyricsSource === "track-lyrics" ? "Track library (estimated timing)" : "CSV fallback"}
+                  <span
+                    className={`kt-transcription-status ${lyricsSource === "lrc" ? "text-emerald-400" : lyricsSource === "database" ? "text-blue-400" : "text-amber-400"}`}
+                  >
+                    Lyrics:{" "}
+                    {lyricsSource === "lrc"
+                      ? "LRC file"
+                      : lyricsSource === "database"
+                        ? "Saved lyrics"
+                        : lyricsSource === "track-lyrics"
+                          ? "Track library (estimated timing)"
+                          : "CSV fallback"}
                   </span>
                 )}
                 {selectedTrack && (
@@ -889,18 +1064,21 @@ export function KineticTypographyPage() {
                     disabled={isTranscribing}
                   >
                     {isTranscribing ? (
-                      <><Loader2 size={12} className="kt-spin" /> Transcribing...</>
+                      <>
+                        <Loader2 size={12} className="kt-spin" /> Transcribing...
+                      </>
                     ) : (
-                      <><Mic size={12} /> Transcribe</>
+                      <>
+                        <Mic size={12} /> Transcribe
+                      </>
                     )}
                   </button>
                 )}
                 {selectedTrack && (
-                  <button
-                    className="kt-transcribe-btn"
-                    onClick={() => setShowLyricsEditor(true)}
-                  >
-                    <><Edit3 size={12} /> Edit Lyrics</>
+                  <button className="kt-transcribe-btn" onClick={() => setShowLyricsEditor(true)}>
+                    <>
+                      <Edit3 size={12} /> Edit Lyrics
+                    </>
                   </button>
                 )}
                 {selectedTrack && (
@@ -910,9 +1088,13 @@ export function KineticTypographyPage() {
                     disabled={isGeneratingVideo}
                   >
                     {isGeneratingVideo ? (
-                      <><Loader2 size={12} className="kt-spin" /> Generating...</>
+                      <>
+                        <Loader2 size={12} className="kt-spin" /> Generating...
+                      </>
                     ) : (
-                      <><Film size={12} /> Generate Lyric Video</>
+                      <>
+                        <Film size={12} /> Generate Lyric Video
+                      </>
                     )}
                   </button>
                 )}
@@ -933,18 +1115,26 @@ export function KineticTypographyPage() {
 
           {/* Preset Selector */}
           <div className="kt-section-collapsible">
-            <button className="kt-section-toggle" data-open={openSections.preset ? "true" : "false"} onClick={() => toggleSection("preset")}>
+            <button
+              className="kt-section-toggle"
+              data-open={openSections.preset ? "true" : "false"}
+              onClick={() => toggleSection("preset")}
+            >
               <ChevronDown size={12} />
               <span>Animation Preset</span>
             </button>
             <div className="kt-section-body" data-open={openSections.preset ? "true" : "false"}>
               <div className="kt-section">
                 <label className="kt-auto-toggle">
-                  <input type="checkbox" checked={autoPreset} onChange={(e) => setAutoPreset(e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={autoPreset}
+                    onChange={(e) => setAutoPreset(e.target.checked)}
+                  />
                   Auto
                 </label>
                 <div className="kt-preset-grid">
-                  {kineticPresetList.map(p => (
+                  {kineticPresetList.map((p) => (
                     <button
                       key={p.id}
                       className={`kt-preset-card ${activePreset === p.id ? "active" : ""}`}
@@ -957,8 +1147,10 @@ export function KineticTypographyPage() {
                       </span>
                       <span className="kt-preset-desc">{p.description}</span>
                       <div className="kt-preset-genres">
-                        {p.genres.slice(0, 3).map(g => (
-                          <span key={g} className="kt-preset-genre">{g}</span>
+                        {p.genres.slice(0, 3).map((g) => (
+                          <span key={g} className="kt-preset-genre">
+                            {g}
+                          </span>
                         ))}
                       </div>
                     </button>
@@ -970,11 +1162,18 @@ export function KineticTypographyPage() {
 
           {/* Visual Preset Selector */}
           <div className="kt-section-collapsible">
-            <button className="kt-section-toggle" data-open={openSections.visualPreset ? "true" : "false"} onClick={() => toggleSection("visualPreset")}>
+            <button
+              className="kt-section-toggle"
+              data-open={openSections.visualPreset ? "true" : "false"}
+              onClick={() => toggleSection("visualPreset")}
+            >
               <ChevronDown size={12} />
               <span>Visual Preset</span>
             </button>
-            <div className="kt-section-body" data-open={openSections.visualPreset ? "true" : "false"}>
+            <div
+              className="kt-section-body"
+              data-open={openSections.visualPreset ? "true" : "false"}
+            >
               <div className="kt-section">
                 <PresetSelector
                   currentPresetId={visualPresetId}
@@ -991,7 +1190,11 @@ export function KineticTypographyPage() {
 
           {/* Style Controls */}
           <div className="kt-section-collapsible">
-            <button className="kt-section-toggle" data-open={openSections.style ? "true" : "false"} onClick={() => toggleSection("style")}>
+            <button
+              className="kt-section-toggle"
+              data-open={openSections.style ? "true" : "false"}
+              onClick={() => toggleSection("style")}
+            >
               <ChevronDown size={12} />
               <span>Style</span>
             </button>
@@ -999,12 +1202,25 @@ export function KineticTypographyPage() {
               <div className="kt-section">
                 <div className="kt-slider-row">
                   <label>Size</label>
-                  <input type="range" min="24" max="96" value={fontSize} onChange={(e) => setFontSize(parseInt(e.target.value))} />
+                  <input
+                    type="range"
+                    min="24"
+                    max="96"
+                    value={fontSize}
+                    onChange={(e) => setFontSize(parseInt(e.target.value))}
+                  />
                   <span className="kt-slider-val">{fontSize}px</span>
                 </div>
                 <div className="kt-slider-row">
                   <label>Glow</label>
-                  <input type="range" min="0" max="1" step="0.05" value={glowIntensity} onChange={(e) => setGlowIntensity(parseFloat(e.target.value))} />
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={glowIntensity}
+                    onChange={(e) => setGlowIntensity(parseFloat(e.target.value))}
+                  />
                   <span className="kt-slider-val">{(glowIntensity * 100).toFixed(0)}%</span>
                 </div>
               </div>
@@ -1013,18 +1229,30 @@ export function KineticTypographyPage() {
 
           {/* Display Options */}
           <div className="kt-section-collapsible">
-            <button className="kt-section-toggle" data-open={openSections.display ? "true" : "false"} onClick={() => toggleSection("display")}>
+            <button
+              className="kt-section-toggle"
+              data-open={openSections.display ? "true" : "false"}
+              onClick={() => toggleSection("display")}
+            >
               <ChevronDown size={12} />
               <span>Display</span>
             </button>
             <div className="kt-section-body" data-open={openSections.display ? "true" : "false"}>
               <div className="kt-section">
                 <label className="kt-toggle">
-                  <input type="checkbox" checked={showSectionLabel} onChange={(e) => setShowSectionLabel(e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={showSectionLabel}
+                    onChange={(e) => setShowSectionLabel(e.target.checked)}
+                  />
                   <span>Show section labels</span>
                 </label>
                 <label className="kt-toggle">
-                  <input type="checkbox" checked={beatPulse} onChange={(e) => setBeatPulse(e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={beatPulse}
+                    onChange={(e) => setBeatPulse(e.target.checked)}
+                  />
                   <span>Beat pulse animation</span>
                 </label>
               </div>
@@ -1033,16 +1261,25 @@ export function KineticTypographyPage() {
 
           {/* Preset Details */}
           <div className="kt-section-collapsible">
-            <button className="kt-section-toggle" data-open={openSections.presetDetails ? "true" : "false"} onClick={() => toggleSection("presetDetails")}>
+            <button
+              className="kt-section-toggle"
+              data-open={openSections.presetDetails ? "true" : "false"}
+              onClick={() => toggleSection("presetDetails")}
+            >
               <ChevronDown size={12} />
               <span>Active Preset: {preset.name}</span>
             </button>
-            <div className="kt-section-body" data-open={openSections.presetDetails ? "true" : "false"}>
+            <div
+              className="kt-section-body"
+              data-open={openSections.presetDetails ? "true" : "false"}
+            >
               <div className="kt-section">
                 <p className="kt-preset-detail">{preset.description}</p>
                 <div className="kt-preset-genres">
-                  {preset.genres.map(g => (
-                    <span key={g} className="kt-preset-genre">{g}</span>
+                  {preset.genres.map((g) => (
+                    <span key={g} className="kt-preset-genre">
+                      {g}
+                    </span>
                   ))}
                 </div>
               </div>

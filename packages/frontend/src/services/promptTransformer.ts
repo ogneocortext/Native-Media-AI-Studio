@@ -27,12 +27,48 @@ export interface VisualPromptResult {
 
 // Genre-to-visual mappings
 const GENRE_VISUAL_MAP: Record<string, string[]> = {
-  synthwave: ["neon grids", "retro-futuristic", "chrome", "sunset gradients", "80s aesthetic", "cyberpunk cityscapes"],
-  electronic: ["particle systems", "geometric patterns", "LED arrays", "holographic", "digital art", "data streams"],
-  "hip hop": ["urban landscapes", "graffiti art", "street culture", "gold chains", "boom box", "city nights"],
+  synthwave: [
+    "neon grids",
+    "retro-futuristic",
+    "chrome",
+    "sunset gradients",
+    "80s aesthetic",
+    "cyberpunk cityscapes",
+  ],
+  electronic: [
+    "particle systems",
+    "geometric patterns",
+    "LED arrays",
+    "holographic",
+    "digital art",
+    "data streams",
+  ],
+  "hip hop": [
+    "urban landscapes",
+    "graffiti art",
+    "street culture",
+    "gold chains",
+    "boom box",
+    "city nights",
+  ],
   rock: ["electric guitars", "stages", "crowds", "smoke", "spotlights", "amplifiers", "energy"],
-  jazz: ["smoke-filled rooms", "saxophones", "piano keys", "vinyl records", "dim lighting", "sophistication"],
-  classical: ["orchestras", "concert halls", "violins", "pianos", "elegant", "symphony", "formal attire"],
+  jazz: [
+    "smoke-filled rooms",
+    "saxophones",
+    "piano keys",
+    "vinyl records",
+    "dim lighting",
+    "sophistication",
+  ],
+  classical: [
+    "orchestras",
+    "concert halls",
+    "violins",
+    "pianos",
+    "elegant",
+    "symphony",
+    "formal attire",
+  ],
   ambient: ["nature", "underwater", "clouds", "mist", "ethereal", "space", "floating"],
   pop: ["colorful", "bright", "dancing", "confetti", "stages", "crowds", "vibrant"],
   metal: ["dark", "fire", "skulls", "heavy", "aggressive", "lightning", "demonic"],
@@ -68,7 +104,17 @@ const INSTRUMENT_VISUAL_MAP: Record<string, string[]> = {
   guitar: ["acoustic guitar", "strings", "wood", "fingerpicking"],
   drums: ["drum kit", "cymbals", "sticks", "rhythm"],
   bass: ["bass guitar", "low frequencies", "vibration", "subwoofer"],
-  synthesizer: ["synthesizer", "retro", "analog", "knobs", "patch cables", "synth pads", "waveforms", "oscillators", "modular"],
+  synthesizer: [
+    "synthesizer",
+    "retro",
+    "analog",
+    "knobs",
+    "patch cables",
+    "synth pads",
+    "waveforms",
+    "oscillators",
+    "modular",
+  ],
   violin: ["violin", "bow", "strings", "classical"],
   saxophone: ["saxophone", "brass", "jazz club", "golden"],
   trumpet: ["trumpet", "brass", "shining", "bold"],
@@ -118,27 +164,70 @@ export function analyzeMusicPrompt(prompt: string): MusicPromptAnalysis {
   }
 
   // Detect energy level
-  const highEnergyWords = ["fast", "upbeat", "energetic", "intense", "aggressive", "hard", "heavy", "banger", "hype"];
-  const lowEnergyWords = ["slow", "calm", "peaceful", "ambient", "chill", "relaxing", "soft", "gentle", "mellow"];
+  const highEnergyWords = [
+    "fast",
+    "upbeat",
+    "energetic",
+    "intense",
+    "aggressive",
+    "hard",
+    "heavy",
+    "banger",
+    "hype",
+  ];
+  const lowEnergyWords = [
+    "slow",
+    "calm",
+    "peaceful",
+    "ambient",
+    "chill",
+    "relaxing",
+    "soft",
+    "gentle",
+    "mellow",
+  ];
   let energyScore = 0;
   for (const word of words) {
-    if (highEnergyWords.some(w => word.includes(w))) energyScore++;
-    if (lowEnergyWords.some(w => word.includes(w))) energyScore--;
+    if (highEnergyWords.some((w) => word.includes(w))) energyScore++;
+    if (lowEnergyWords.some((w) => word.includes(w))) energyScore--;
   }
-  const energy: "high" | "medium" | "low" = energyScore > 1 ? "high" : energyScore < -1 ? "low" : "medium";
+  const energy: "high" | "medium" | "low" =
+    energyScore > 1 ? "high" : energyScore < -1 ? "low" : "medium";
 
   // Detect tempo
   const fastWords = ["fast", "upbeat", "quick", "rapid", "high bpm", "fast tempo"];
   const slowWords = ["slow", "downtempo", "ballad", "low bpm", "slow tempo", "laid back"];
   let tempoScore = 0;
   for (const word of words) {
-    if (fastWords.some(w => word.includes(w))) tempoScore++;
-    if (slowWords.some(w => word.includes(w))) tempoScore--;
+    if (fastWords.some((w) => word.includes(w))) tempoScore++;
+    if (slowWords.some((w) => word.includes(w))) tempoScore--;
   }
-  const tempo: "fast" | "medium" | "slow" = tempoScore > 0 ? "fast" : tempoScore < 0 ? "slow" : "medium";
+  const tempo: "fast" | "medium" | "slow" =
+    tempoScore > 0 ? "fast" : tempoScore < 0 ? "slow" : "medium";
 
   // Detect themes
-  const themeKeywords = ["love", "heartbreak", "party", "dance", "night", "dream", "rebellion", "freedom", "nostalgia", "hope", "fear", "joy", "anger", "peace", "war", "nature", "city", "space", "ocean", "mountain"];
+  const themeKeywords = [
+    "love",
+    "heartbreak",
+    "party",
+    "dance",
+    "night",
+    "dream",
+    "rebellion",
+    "freedom",
+    "nostalgia",
+    "hope",
+    "fear",
+    "joy",
+    "anger",
+    "peace",
+    "war",
+    "nature",
+    "city",
+    "space",
+    "ocean",
+    "mountain",
+  ];
   const themes: string[] = [];
   for (const theme of themeKeywords) {
     if (lower.includes(theme)) {
@@ -176,7 +265,7 @@ export function transformMusicToVisualPrompt(
   options?: {
     style?: "cinematic" | "abstract" | "geometric" | "nature" | "glitch" | "minimal" | "surreal";
     duration?: number;
-  }
+  },
 ): VisualPromptResult {
   const analysis = analyzeMusicPrompt(musicPrompt);
   const style = options?.style || selectBestStyle(analysis);
@@ -217,23 +306,24 @@ export function transformMusicToVisualPrompt(
   }
 
   // Add energy-based descriptors
-  const energyDesc = analysis.energy === "high"
-    ? "high-energy, dynamic motion, fast cuts, explosive visuals"
-    : analysis.energy === "low"
-      ? "slow, meditative, gentle transitions, ambient"
-      : "balanced rhythm, moderate pacing, flowing motion";
+  const energyDesc =
+    analysis.energy === "high"
+      ? "high-energy, dynamic motion, fast cuts, explosive visuals"
+      : analysis.energy === "low"
+        ? "slow, meditative, gentle transitions, ambient"
+        : "balanced rhythm, moderate pacing, flowing motion";
 
   // Add tempo-based descriptors
-  const tempoDesc = analysis.tempo === "fast"
-    ? "rapid transitions, quick cuts, staccato motion"
-    : analysis.tempo === "slow"
-      ? "long takes, slow reveals, gradual builds"
-      : "steady pacing, consistent rhythm";
+  const tempoDesc =
+    analysis.tempo === "fast"
+      ? "rapid transitions, quick cuts, staccato motion"
+      : analysis.tempo === "slow"
+        ? "long takes, slow reveals, gradual builds"
+        : "steady pacing, consistent rhythm";
 
   // Add theme-based visuals
-  const themeDesc = analysis.themes.length > 0
-    ? `Thematic elements: ${analysis.themes.join(", ")}`
-    : "";
+  const themeDesc =
+    analysis.themes.length > 0 ? `Thematic elements: ${analysis.themes.join(", ")}` : "";
 
   // Build the final prompt
   const uniqueElements = [...new Set(visualElements)].slice(0, 8);
@@ -247,7 +337,9 @@ export function transformMusicToVisualPrompt(
     themeDesc,
     "Deep vibrant colors, volumetric lighting, 4K, ultra detailed",
     "Professional music video, audio-reactive elements, synchronized to rhythm",
-  ].filter(Boolean).join(". ");
+  ]
+    .filter(Boolean)
+    .join(". ");
 
   // Negative prompt to avoid common issues
   const negative = [
@@ -326,16 +418,16 @@ function getStyleSettings(style: string): {
  */
 export function parseFromGenerationTags(tags: string[]): string {
   const tagMap: Record<string, string> = {
-    "synthwave": "synthwave, retro-futuristic, neon, 80s aesthetic",
-    "electronic": "electronic, digital, futuristic, synthetic",
-    "upbeat": "energetic, fast tempo, happy, dance",
-    "melancholy": "sad, slow, emotional, reflective",
-    "dark": "dark, moody, intense, atmospheric",
-    "epic": "epic, grand, cinematic, orchestral",
-    "chill": "chill, relaxed, ambient, downtempo",
-    "aggressive": "aggressive, heavy, intense, powerful",
-    "dreamy": "dreamy, ethereal, soft, floating",
-    "groovy": "groovy, funky, rhythmic, dance",
+    synthwave: "synthwave, retro-futuristic, neon, 80s aesthetic",
+    electronic: "electronic, digital, futuristic, synthetic",
+    upbeat: "energetic, fast tempo, happy, dance",
+    melancholy: "sad, slow, emotional, reflective",
+    dark: "dark, moody, intense, atmospheric",
+    epic: "epic, grand, cinematic, orchestral",
+    chill: "chill, relaxed, ambient, downtempo",
+    aggressive: "aggressive, heavy, intense, powerful",
+    dreamy: "dreamy, ethereal, soft, floating",
+    groovy: "groovy, funky, rhythmic, dance",
   };
 
   const visualTags: string[] = [];

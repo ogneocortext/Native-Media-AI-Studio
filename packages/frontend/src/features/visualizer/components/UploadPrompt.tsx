@@ -38,12 +38,21 @@ export function UploadPrompt({ hasAudio, onFile, quiet = false }: Props) {
         if (file) onFile(file);
       }}
     >
-      <input id="viz-file-input" type="file" accept="audio/*" className="hidden" aria-label="Audio file" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+      <input
+        id="viz-file-input"
+        type="file"
+        accept="audio/*"
+        className="hidden"
+        aria-label="Audio file"
+        onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+      />
       {!quiet && (
         <>
           <Upload size={32} aria-hidden="true" />
           <span>Drop audio file or click to upload</span>
-          <span className="viz-upload-hint">Select a track from the dropdown above, or upload your own</span>
+          <span className="viz-upload-hint">
+            Select a track from the dropdown above, or upload your own
+          </span>
         </>
       )}
     </div>

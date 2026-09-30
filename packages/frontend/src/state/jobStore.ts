@@ -43,7 +43,11 @@ interface JobState {
   removeJob: (jobId: string) => void;
   setStats: (stats: QueueStats) => void;
   fetchJobs: () => Promise<void>;
-  createJob: (jobType: string, params: Record<string, unknown>, maxRetries?: number) => Promise<Job>;
+  createJob: (
+    jobType: string,
+    params: Record<string, unknown>,
+    maxRetries?: number,
+  ) => Promise<Job>;
   cancelJob: (jobId: string) => Promise<void>;
   retryJob: (jobId: string) => Promise<void>;
   deleteJob: (jobId: string) => Promise<void>;
@@ -54,12 +58,12 @@ interface JobState {
 }
 
 export const useJobStore = create<JobState>((set, get) => ({
-    jobs: [],
-    stats: null,
-    currentJob: null,
-    isLoading: false,
-    error: null,
-    sseConnected: false,
+  jobs: [],
+  stats: null,
+  currentJob: null,
+  isLoading: false,
+  error: null,
+  sseConnected: false,
 
   setJobs: (jobs: Job[]) => {
     // Find the currently running job
@@ -77,11 +81,10 @@ export const useJobStore = create<JobState>((set, get) => ({
   updateJob: (jobId: string, updates: Partial<Job>) => {
     set((state) => {
       const updatedJobs = state.jobs.map((job) =>
-        job.id === jobId ? { ...job, ...updates } : job
+        job.id === jobId ? { ...job, ...updates } : job,
       );
       const updatedJob = updatedJobs.find((j) => j.id === jobId);
-      const currentJob =
-        updatedJob?.status === "running" ? updatedJob : state.currentJob;
+      const currentJob = updatedJob?.status === "running" ? updatedJob : state.currentJob;
       return { jobs: updatedJobs, currentJob, error: null };
     });
   },
@@ -103,10 +106,7 @@ export const useJobStore = create<JobState>((set, get) => ({
     try {
       await fetchPortConfig();
 
-      const [jobsData, statsData] = await Promise.all([
-        fetchJobs(),
-        fetchQueueStats(),
-      ]);
+      const [jobsData, statsData] = await Promise.all([fetchJobs(), fetchQueueStats()]);
 
       get().setJobs(jobsData);
       get().setStats(statsData);
@@ -119,11 +119,7 @@ export const useJobStore = create<JobState>((set, get) => ({
     }
   },
 
-  createJob: async (
-    jobType: string,
-    params: Record<string, unknown>,
-    maxRetries: number = 3
-  ) => {
+  createJob: async (jobType: string, params: Record<string, unknown>, maxRetries: number = 3) => {
     set({ isLoading: true, error: null });
 
     try {
@@ -211,10 +207,7 @@ export const useJobStore = create<JobState>((set, get) => ({
       await get().fetchJobs();
     } catch (error) {
       set({
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to clear completed jobs",
+        error: error instanceof Error ? error.message : "Failed to clear completed jobs",
       });
       throw error;
     } finally {
@@ -231,10 +224,7 @@ export const useJobStore = create<JobState>((set, get) => ({
       await get().fetchJobs();
     } catch (error) {
       set({
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to clear failed jobs",
+        error: error instanceof Error ? error.message : "Failed to clear failed jobs",
       });
       throw error;
     } finally {
@@ -275,7 +265,7 @@ export const useJobStore = create<JobState>((set, get) => ({
 function handleSSEMessage(
   message: Record<string, unknown>,
   get: () => JobState,
-  _set: (state: Partial<JobState>) => void
+  _set: (state: Partial<JobState>) => void,
 ) {
   const eventType = message.type as string;
   const event = message.event as string;
@@ -292,9 +282,7 @@ function handleSSEMessage(
   // some legacy senders use { data: { job_id, ...fields } } or a bare job object.
   const nestedJob = data.job as Record<string, unknown> | undefined;
   const jobId =
-    (data.job_id as string) ||
-    (data.id as string) ||
-    ((nestedJob?.id as string) ?? undefined);
+    (data.job_id as string) || (data.id as string) || ((nestedJob?.id as string) ?? undefined);
   if (!jobId) return;
 
   // Route to toast based on priority
@@ -302,9 +290,12 @@ function handleSSEMessage(
   if (shouldToast) {
     const jobStatus = nestedJob?.status || data.status || eventName;
     const toastType = priority === "urgent" ? "error" : "success";
-    const toastMessage = typeof nestedJob?.message === "string" ? nestedJob.message :
-                         typeof data.message === "string" ? data.message :
-                         `Job ${jobId}: ${jobStatus}`;
+    const toastMessage =
+      typeof nestedJob?.message === "string"
+        ? nestedJob.message
+        : typeof data.message === "string"
+          ? data.message
+          : `Job ${jobId}: ${jobStatus}`;
     import("../utils/toast").then(({ showToast }) => {
       showToast(toastMessage, {
         type: toastType,
@@ -433,4 +424,3 @@ export function stopAutoRefresh() {
     autoRefreshInterval = null;
   }
 }
-

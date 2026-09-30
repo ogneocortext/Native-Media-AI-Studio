@@ -60,8 +60,21 @@ export function AudioReactiveVisualizer({
 
   if (!audioData) {
     return (
-      <AbsoluteFill className={className} style={{ background: "linear-gradient(135deg, #1a1a2e 0%, #0a0a0f 100%)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>
+      <AbsoluteFill
+        className={className}
+        style={{
+          background: "linear-gradient(135deg, #1a1a2e 0%, #0a0a0f 100%)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "100%",
+            height: "100%",
+          }}
+        >
           <div style={{ textAlign: "center", color: "#6b7280" }}>
             <div style={{ fontSize: 24, marginBottom: 8 }}>🔊</div>
             <div style={{ fontSize: 14 }}>Loading audio...</div>
@@ -97,7 +110,7 @@ export function AudioReactiveVisualizer({
         effectiveColors,
         width,
         height,
-        sensitivity
+        sensitivity,
       )}
     </AbsoluteFill>
   );
@@ -110,7 +123,7 @@ function renderVisualization(
   colors: string[],
   width: number,
   height: number,
-  sensitivity: number
+  sensitivity: number,
 ) {
   switch (style) {
     case "bars":
@@ -128,7 +141,7 @@ function renderVisualization(
           {visualization.map((value, i) => {
             const barHeight = Math.max(0, value * height * 0.4 * sensitivity);
             const colorIndex = Math.floor(
-              (i / visualization.length) * colors.length
+              (i / visualization.length) * colors.length,
             );
             return (
               <div
@@ -190,7 +203,7 @@ function renderVisualization(
               const radius = Math.min(width, height) * 0.25;
               const barLength = value * radius * sensitivity;
               const colorIndex = Math.floor(
-                (i / visualization.length) * colors.length
+                (i / visualization.length) * colors.length,
               );
               return (
                 <div
@@ -235,7 +248,7 @@ function renderVisualization(
             const y = height / 2 + (value - 0.5) * height * 0.5 * sensitivity;
             const size = 5 + value * 20 * sensitivity;
             const colorIndex = Math.floor(
-              (i / visualization.length) * colors.length
+              (i / visualization.length) * colors.length,
             );
             return (
               <div
@@ -266,7 +279,8 @@ function renderVisualization(
             const barHeight = value * height * sensitivity * 0.8;
             const x = (i / visualization.length) * width;
             const y = height - barHeight;
-            const color = colors[Math.floor((i / visualization.length) * colors.length)];
+            const color =
+              colors[Math.floor((i / visualization.length) * colors.length)];
             return (
               <div
                 key={i}
@@ -292,7 +306,7 @@ function generateWaveformPath(
   waveform: number[],
   width: number,
   height: number,
-  sensitivity: number
+  sensitivity: number,
 ): string {
   const centerY = height / 2;
   const points: string[] = [];

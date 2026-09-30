@@ -126,7 +126,10 @@ export function useBeatTimeline(filename: string | null) {
         const envIdx = Math.floor(envPos);
         const envFrac = envPos - envIdx;
         const envA = analysis!.amplitude_envelope[envIdx] ?? 0;
-        const envB = analysis!.amplitude_envelope[Math.min(envIdx + 1, analysis!.amplitude_envelope.length - 1)] ?? 0;
+        const envB =
+          analysis!.amplitude_envelope[
+            Math.min(envIdx + 1, analysis!.amplitude_envelope.length - 1)
+          ] ?? 0;
         const target = envA + (envB - envA) * envFrac;
         smoothedEnergyRef.current += (target - smoothedEnergyRef.current) * SMOOTH_ENERGY_LERP;
       }
@@ -141,7 +144,7 @@ export function useBeatTimeline(filename: string | null) {
         ready: true,
       };
     },
-    [analysis]
+    [analysis],
   );
 
   return { analysis, loading, error, getCurrentBeat };

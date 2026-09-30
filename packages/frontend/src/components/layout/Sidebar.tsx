@@ -58,37 +58,112 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/", label: "Dashboard", icon: <Home size={18} />, keywords: "home overview start" },
     ],
   },
-    {
-      id: "create",
-      title: "Create",
-      items: [
-        { path: "/music-video-wizard", label: "Music Video", icon: <Wand2 size={18} />, keywords: "wizard song video maker" },
-        { path: "/three-js-studio", label: "Three.js Studio", icon: <Sparkles size={18} />, keywords: "3d scene studio character" },
-        { path: "/audio-analysis", label: "Audio Analysis", icon: <BarChart3 size={18} />, keywords: "audio beat bpm analyze" },
-        { path: "/visualizer", label: "Visualizer", icon: <Zap size={18} />, keywords: "visualizer shader realtime" },
-        { path: "/kinetic-typography", label: "Kinetic Type", icon: <Type size={18} />, keywords: "lyrics kinetic typography text" },
-        { path: "/hyperframes", label: "HyperFrames", icon: <Play size={18} />, keywords: "hyperframes animation frames" },
-        { path: "/ai-tools", label: "AI Tools", icon: <Brain size={18} />, keywords: "ai tools models chat" },
-        { path: "/music-prompts", label: "Music Prompts", icon: <Mic size={18} />, keywords: "music prompts lyrics suno" },
-        { path: "/unity", label: "Unity Control", icon: <Gamepad2 size={18} />, keywords: "unity editor control remote" },
-      ],
-    },
+  {
+    id: "create",
+    title: "Create",
+    items: [
+      {
+        path: "/music-video-wizard",
+        label: "Music Video",
+        icon: <Wand2 size={18} />,
+        keywords: "wizard song video maker",
+      },
+      {
+        path: "/three-js-studio",
+        label: "Three.js Studio",
+        icon: <Sparkles size={18} />,
+        keywords: "3d scene studio character",
+      },
+      {
+        path: "/audio-analysis",
+        label: "Audio Analysis",
+        icon: <BarChart3 size={18} />,
+        keywords: "audio beat bpm analyze",
+      },
+      {
+        path: "/visualizer",
+        label: "Visualizer",
+        icon: <Zap size={18} />,
+        keywords: "visualizer shader realtime",
+      },
+      {
+        path: "/kinetic-typography",
+        label: "Kinetic Type",
+        icon: <Type size={18} />,
+        keywords: "lyrics kinetic typography text",
+      },
+      {
+        path: "/hyperframes",
+        label: "HyperFrames",
+        icon: <Play size={18} />,
+        keywords: "hyperframes animation frames",
+      },
+      {
+        path: "/ai-tools",
+        label: "AI Tools",
+        icon: <Brain size={18} />,
+        keywords: "ai tools models chat",
+      },
+      {
+        path: "/music-prompts",
+        label: "Music Prompts",
+        icon: <Mic size={18} />,
+        keywords: "music prompts lyrics suno",
+      },
+      {
+        path: "/unity",
+        label: "Unity Control",
+        icon: <Gamepad2 size={18} />,
+        keywords: "unity editor control remote",
+      },
+    ],
+  },
   {
     id: "generate",
     title: "Generate",
     items: [
-      { path: "/image-generation", label: "Image Gen", icon: <Image size={18} />, keywords: "image picture comfyui" },
-      { path: "/video-generation", label: "Video Gen", icon: <Clapperboard size={18} />, keywords: "video generate motion" },
-      { path: "/generate-3d", label: "3D Gen", icon: <Box size={18} />, keywords: "3d model mesh generate" },
+      {
+        path: "/image-generation",
+        label: "Image Gen",
+        icon: <Image size={18} />,
+        keywords: "image picture comfyui",
+      },
+      {
+        path: "/video-generation",
+        label: "Video Gen",
+        icon: <Clapperboard size={18} />,
+        keywords: "video generate motion",
+      },
+      {
+        path: "/generate-3d",
+        label: "3D Gen",
+        icon: <Box size={18} />,
+        keywords: "3d model mesh generate",
+      },
     ],
   },
   {
     id: "manage",
     title: "Manage",
     items: [
-      { path: "/library", label: "Media Library", icon: <FolderOpen size={18} />, keywords: "library media files audio video image" },
-      { path: "/queue", label: "Queue", icon: <ListOrdered size={18} />, keywords: "queue jobs tasks" },
-      { path: "/storyboards", label: "Storyboards", icon: <BookOpen size={18} />, keywords: "storyboard plan scenes" },
+      {
+        path: "/library",
+        label: "Media Library",
+        icon: <FolderOpen size={18} />,
+        keywords: "library media files audio video image",
+      },
+      {
+        path: "/queue",
+        label: "Queue",
+        icon: <ListOrdered size={18} />,
+        keywords: "queue jobs tasks",
+      },
+      {
+        path: "/storyboards",
+        label: "Storyboards",
+        icon: <BookOpen size={18} />,
+        keywords: "storyboard plan scenes",
+      },
     ],
   },
   {
@@ -96,11 +171,36 @@ const NAV_GROUPS: NavGroup[] = [
     title: "System",
     collapsedByDefault: true,
     items: [
-      { path: "/health", label: "Health", icon: <Activity size={18} />, keywords: "health status diagnostics adapters" },
-      { path: "/gpu", label: "GPU", icon: <Thermometer size={18} />, keywords: "gpu vram cuda temperature" },
-      { path: "/log-analytics", label: "Log Analytics", icon: <BarChart3 size={18} />, keywords: "logs analytics charts" },
-      { path: "/settings", label: "Settings", icon: <Settings size={18} />, keywords: "settings config preferences" },
-      { path: "/docs", label: "Docs", icon: <FileText size={18} />, keywords: "docs help guide documentation" },
+      {
+        path: "/health",
+        label: "Health",
+        icon: <Activity size={18} />,
+        keywords: "health status diagnostics adapters",
+      },
+      {
+        path: "/gpu",
+        label: "GPU",
+        icon: <Thermometer size={18} />,
+        keywords: "gpu vram cuda temperature",
+      },
+      {
+        path: "/log-analytics",
+        label: "Log Analytics",
+        icon: <BarChart3 size={18} />,
+        keywords: "logs analytics charts",
+      },
+      {
+        path: "/settings",
+        label: "Settings",
+        icon: <Settings size={18} />,
+        keywords: "settings config preferences",
+      },
+      {
+        path: "/docs",
+        label: "Docs",
+        icon: <FileText size={18} />,
+        keywords: "docs help guide documentation",
+      },
     ],
   },
 ];
@@ -110,7 +210,12 @@ function isPathActive(current: string, target: string) {
   return current === target || current.startsWith(target + "/");
 }
 
-function NavEntry({ item, active, collapsed, onNavigate }: {
+function NavEntry({
+  item,
+  active,
+  collapsed,
+  onNavigate,
+}: {
   item: NavItem;
   active: boolean;
   collapsed: boolean;
@@ -125,13 +230,23 @@ function NavEntry({ item, active, collapsed, onNavigate }: {
       {!collapsed && item.badge && (
         <span className={`nav-badge ${active ? "active" : "inactive"}`}>{item.badge}</span>
       )}
-      {!collapsed && item.external && <span className="nav-external-hint" aria-hidden>↗</span>}
+      {!collapsed && item.external && (
+        <span className="nav-external-hint" aria-hidden>
+          ↗
+        </span>
+      )}
     </>
   );
   if (item.external) {
     return (
       <li>
-        <a href={item.path} target="_blank" rel="noopener noreferrer" title={label} className={className}>
+        <a
+          href={item.path}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={label}
+          className={className}
+        >
           {body}
         </a>
       </li>
@@ -139,21 +254,35 @@ function NavEntry({ item, active, collapsed, onNavigate }: {
   }
   return (
     <li>
-      <NavLink to={item.path} title={label} className={className} onClick={onNavigate} end={item.path === "/"}>
+      <NavLink
+        to={item.path}
+        title={label}
+        className={className}
+        onClick={onNavigate}
+        end={item.path === "/"}
+      >
         {body}
       </NavLink>
     </li>
   );
 }
 
-function SidebarGroup({ group, location, collapsed, onNavigate, forceOpen }: {
+function SidebarGroup({
+  group,
+  location,
+  collapsed,
+  onNavigate,
+  forceOpen,
+}: {
   group: NavGroup;
   location: ReturnType<typeof useLocation>;
   collapsed: boolean;
   onNavigate: () => void;
   forceOpen: boolean;
 }) {
-  const groupActive = group.items.some((i) => !i.external && isPathActive(location.pathname, i.path));
+  const groupActive = group.items.some(
+    (i) => !i.external && isPathActive(location.pathname, i.path),
+  );
   const [userToggled, setUserToggled] = useState<boolean | null>(null);
   // Default: everything visible. Only groups flagged collapsedByDefault
   // (System) start folded; the active group always opens itself.
@@ -220,7 +349,9 @@ export function Sidebar() {
   const [filter, setFilter] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => { fetchHealth(); }, [fetchHealth]);
+  useEffect(() => {
+    fetchHealth();
+  }, [fetchHealth]);
 
   useEffect(() => {
     // Single source of truth for the mobile drawer breakpoint — must match
@@ -238,18 +369,36 @@ export function Sidebar() {
     return () => mq.removeEventListener("change", check);
   }, []);
 
-  useEffect(() => { if (isMobile) setMobileOpen(false); }, [location.pathname, isMobile]);
+  useEffect(() => {
+    if (isMobile) setMobileOpen(false);
+  }, [location.pathname, isMobile]);
 
   const [systemFooterOpen, setSystemFooterOpen] = useState(false);
 
   const getOverallStatus = (): "online" | "offline" | "unknown" => {
     if (isLoading && Object.keys(adapters).length === 0) return "unknown";
-    switch (overall) { case "healthy": return "online"; case "degraded": return "online"; case "unhealthy": return "offline"; default: return "unknown"; }
+    switch (overall) {
+      case "healthy":
+        return "online";
+      case "degraded":
+        return "online";
+      case "unhealthy":
+        return "offline";
+      default:
+        return "unknown";
+    }
   };
   const getStatusLabel = (): string => {
     const status = getOverallStatus();
     if (isLoading && Object.keys(adapters).length === 0) return "Checking...";
-    switch (status) { case "online": return overall === "degraded" ? "Degraded" : "Online"; case "offline": return "Offline"; default: return "Unknown"; }
+    switch (status) {
+      case "online":
+        return overall === "degraded" ? "Degraded" : "Online";
+      case "offline":
+        return "Offline";
+      default:
+        return "Unknown";
+    }
   };
 
   const formatAdapterName = (key: string, fallbackName: string | undefined): string => {
@@ -266,7 +415,12 @@ export function Sidebar() {
   }));
   const hasBackend = adapterList.some((a) => a.name.toLowerCase() === "backend");
   if (!hasBackend) {
-    const backendStatus = isLoading && Object.keys(adapters).length === 0 ? "unknown" : (overall !== "unhealthy" ? "online" as const : "offline" as const);
+    const backendStatus =
+      isLoading && Object.keys(adapters).length === 0
+        ? "unknown"
+        : overall !== "unhealthy"
+          ? ("online" as const)
+          : ("offline" as const);
     adapterList.unshift({ name: "Backend", status: backendStatus });
   }
   const overallStatus = getOverallStatus();
@@ -280,7 +434,8 @@ export function Sidebar() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
-      const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      const typing =
+        !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
       if (e.key === "/" && !typing && !rail) {
         e.preventDefault();
         searchRef.current?.focus();
@@ -309,7 +464,7 @@ export function Sidebar() {
     if (!q) return withExternal;
     const terms = q.split(/\s+/).filter(Boolean);
     const matches = (i: NavItem) => {
-      const hay = `${i.label} ${(i.keywords ?? "")}`.toLowerCase();
+      const hay = `${i.label} ${i.keywords ?? ""}`.toLowerCase();
       return terms.every((t) => hay.includes(t));
     };
     return withExternal
@@ -331,7 +486,16 @@ export function Sidebar() {
 
       {/* Backdrop for mobile drawer */}
       {isMobile && mobileOpen && (
-        <div className="sidebar-backdrop" role="button" tabIndex={0} aria-label="Close navigation" onClick={() => setMobileOpen(false)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setMobileOpen(false); }} />
+        <div
+          className="sidebar-backdrop"
+          role="button"
+          tabIndex={0}
+          aria-label="Close navigation"
+          onClick={() => setMobileOpen(false)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") setMobileOpen(false);
+          }}
+        />
       )}
 
       <aside
@@ -392,7 +556,9 @@ export function Sidebar() {
                 ref={searchRef}
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Escape") setFilter(""); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setFilter("");
+                }}
                 placeholder="Filter…  ( / )"
                 aria-label="Filter navigation"
                 className="sidebar-search-input"
@@ -437,7 +603,10 @@ export function Sidebar() {
               >
                 <span className="health-label">System</span>
                 <span className="sidebar-footer-toggle-indicator">
-                  <span className={`system-status-indicator ${dotStatus}`} title={getStatusLabel()} />
+                  <span
+                    className={`system-status-indicator ${dotStatus}`}
+                    title={getStatusLabel()}
+                  />
                   {systemFooterOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                 </span>
               </button>
@@ -447,7 +616,9 @@ export function Sidebar() {
                     <div className={`system-status-indicator ${dotStatus}`} />
                     <div className="system-status-text">
                       <div className={`system-status-label ${dotStatus}`}>{getStatusLabel()}</div>
-                      <div className="system-status-count">{adapterList.length} adapter{adapterList.length === 1 ? "" : "s"}</div>
+                      <div className="system-status-count">
+                        {adapterList.length} adapter{adapterList.length === 1 ? "" : "s"}
+                      </div>
                     </div>
                   </div>
                   <div className="adapter-list">
@@ -457,7 +628,9 @@ export function Sidebar() {
                           <span className={`adapter-status-dot ${adapter.status}`} />
                           <span className="adapter-name-text">{adapter.name}</span>
                         </div>
-                        <span className={`adapter-status-text ${adapter.status}`}>{adapter.status}</span>
+                        <span className={`adapter-status-text ${adapter.status}`}>
+                          {adapter.status}
+                        </span>
                       </div>
                     ))}
                   </div>

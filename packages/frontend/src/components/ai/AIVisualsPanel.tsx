@@ -21,9 +21,7 @@ import {
   type ComfyUIImage,
 } from "../../services/comfyui";
 import { getComfyuiUrl } from "../../services/portConfig";
-import {
-  estimateImageGeneration,
-} from "../../services/generationEstimator";
+import { estimateImageGeneration } from "../../services/generationEstimator";
 
 interface GeneratedImage {
   id: string;
@@ -131,7 +129,7 @@ export function AIVisualsPanel({
 }: AIVisualsPanelProps) {
   const [prompt, setPrompt] = useState(defaultPrompt);
   const [negativePrompt, setNegativePrompt] = useState(
-    initialNegativePrompt || DEFAULT_NEGATIVE_PROMPT
+    initialNegativePrompt || DEFAULT_NEGATIVE_PROMPT,
   );
   const [width, setWidth] = useState(512);
   const [height, setHeight] = useState(512);
@@ -175,20 +173,18 @@ export function AIVisualsPanel({
     const trackName = trackMatch ? trackMatch[1] : "music track";
 
     // Initialize previews as loading
-    const initialPreviews: StylePreview[] = PROMPT_STYLES.filter(
-      (s) => s.id !== "auto"
-    ).map((style) => ({
-      styleId: style.id,
-      styleLabel: style.label,
-      url: null,
-      isLoading: true,
-    }));
+    const initialPreviews: StylePreview[] = PROMPT_STYLES.filter((s) => s.id !== "auto").map(
+      (style) => ({
+        styleId: style.id,
+        styleLabel: style.label,
+        url: null,
+        isLoading: true,
+      }),
+    );
     setPreviews(initialPreviews);
 
     // Generate previews for each style in parallel (low quality for speed)
-    const previewPromises = PROMPT_STYLES.filter(
-      (s) => s.id !== "auto"
-    ).map(async (style) => {
+    const previewPromises = PROMPT_STYLES.filter((s) => s.id !== "auto").map(async (style) => {
       try {
         const stylePrompt = style.buildPrompt(trackName);
         const result = await generateText2Image({
@@ -210,9 +206,7 @@ export function AIVisualsPanel({
           attempts++;
 
           try {
-            const historyRes = await fetch(
-              `${getComfyuiUrl()}/history/${result.prompt_id}`
-            );
+            const historyRes = await fetch(`${getComfyuiUrl()}/history/${result.prompt_id}`);
             if (historyRes.ok) {
               const history = await historyRes.json();
               if (history[result.prompt_id]?.outputs) {
@@ -221,17 +215,11 @@ export function AIVisualsPanel({
                   const nodeOutput = outputs[nodeId];
                   if (nodeOutput.images && nodeOutput.images.length > 0) {
                     const imgInfo: ComfyUIImage = nodeOutput.images[0];
-                    const url = await getImage(
-                      imgInfo.filename,
-                      imgInfo.subfolder,
-                      imgInfo.type
-                    );
+                    const url = await getImage(imgInfo.filename, imgInfo.subfolder, imgInfo.type);
                     setPreviews((prev) =>
                       prev.map((p) =>
-                        p.styleId === style.id
-                          ? { ...p, url, isLoading: false }
-                          : p
-                      )
+                        p.styleId === style.id ? { ...p, url, isLoading: false } : p,
+                      ),
                     );
                     completed = true;
                   }
@@ -246,10 +234,8 @@ export function AIVisualsPanel({
         if (!completed) {
           setPreviews((prev) =>
             prev.map((p) =>
-              p.styleId === style.id
-                ? { ...p, isLoading: false, error: "Timeout" }
-                : p
-            )
+              p.styleId === style.id ? { ...p, isLoading: false, error: "Timeout" } : p,
+            ),
           );
         }
       } catch (err) {
@@ -261,8 +247,8 @@ export function AIVisualsPanel({
                   isLoading: false,
                   error: err instanceof Error ? err.message : "Failed",
                 }
-              : p
-          )
+              : p,
+          ),
         );
       }
     });
@@ -282,7 +268,7 @@ export function AIVisualsPanel({
         setPrompt(style.buildPrompt(trackName));
       }
     },
-    [defaultPrompt]
+    [defaultPrompt],
   );
 
   const handleGenerate = useCallback(async () => {
@@ -321,9 +307,7 @@ export function AIVisualsPanel({
         attempts++;
 
         try {
-          const historyRes = await fetch(
-            `${getComfyuiUrl()}/history/${result.prompt_id}`
-          );
+          const historyRes = await fetch(`${getComfyuiUrl()}/history/${result.prompt_id}`);
           if (historyRes.ok) {
             const history = await historyRes.json();
             if (history[result.prompt_id]?.outputs) {
@@ -332,11 +316,7 @@ export function AIVisualsPanel({
                 const nodeOutput = outputs[nodeId];
                 if (nodeOutput.images && nodeOutput.images.length > 0) {
                   const imgInfo: ComfyUIImage = nodeOutput.images[0];
-                  const url = await getImage(
-                    imgInfo.filename,
-                    imgInfo.subfolder,
-                    imgInfo.type
-                  );
+                  const url = await getImage(imgInfo.filename, imgInfo.subfolder, imgInfo.type);
                   const newImage: GeneratedImage = {
                     id: `${result.prompt_id}_${nodeId}`,
                     url,
@@ -369,7 +349,7 @@ export function AIVisualsPanel({
       setSelectedImage(imageUrl);
       onSelectImage?.(imageUrl);
     },
-    [onSelectImage]
+    [onSelectImage],
   );
 
   return (
@@ -479,9 +459,7 @@ export function AIVisualsPanel({
                   </div>
                 )}
                 <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-1 py-0.5">
-                  <p className="text-[9px] text-gray-300 truncate">
-                    {preview.styleLabel}
-                  </p>
+                  <p className="text-[9px] text-gray-300 truncate">{preview.styleLabel}</p>
                 </div>
               </div>
             ))}
@@ -514,14 +492,18 @@ export function AIVisualsPanel({
                 </div>
                 <div className="flex justify-between text-gray-300">
                   <span>VRAM usage:</span>
-                  <span className={imageEstimate.vramUsageMB > 7000 ? "text-red-400" : "text-green-300"}>
+                  <span
+                    className={imageEstimate.vramUsageMB > 7000 ? "text-red-400" : "text-green-300"}
+                  >
                     ~{imageEstimate.vramUsageMB} MB
                   </span>
                 </div>
                 {imageEstimate.warnings.length > 0 && (
                   <div className="mt-1 space-y-0.5">
                     {imageEstimate.warnings.map((w, i) => (
-                      <p key={i} className="text-yellow-400 text-[10px]">⚠ {w}</p>
+                      <p key={i} className="text-yellow-400 text-[10px]">
+                        ⚠ {w}
+                      </p>
                     ))}
                   </div>
                 )}
@@ -545,9 +527,7 @@ export function AIVisualsPanel({
 
       {/* Negative Prompt */}
       <div className="space-y-2">
-        <label className="text-xs font-medium text-gray-300">
-          Negative Prompt
-        </label>
+        <label className="text-xs font-medium text-gray-300">Negative Prompt</label>
         <input
           type="text"
           value={negativePrompt}
@@ -640,9 +620,7 @@ export function AIVisualsPanel({
       {/* Generated Images Grid */}
       {images.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-xs font-medium text-gray-300">
-            Generated Images ({images.length})
-          </h4>
+          <h4 className="text-xs font-medium text-gray-300">Generated Images ({images.length})</h4>
           <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
             {images.map((img) => (
               <div
@@ -654,11 +632,7 @@ export function AIVisualsPanel({
                 }`}
                 onClick={() => handleSelectImage(img.url)}
               >
-                <img
-                  src={img.url}
-                  alt={img.prompt}
-                  className="w-full h-20 object-cover"
-                />
+                <img src={img.url} alt={img.prompt} className="w-full h-20 object-cover" />
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                   <Download className="w-4 h-4 text-white" />
                 </div>

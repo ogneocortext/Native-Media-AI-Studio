@@ -41,12 +41,7 @@ const TRACKS: AnimationTrack[] = [
 
 type AnimationPhase = "enter" | "beat" | "exit";
 
-export function TheatreStudioPanel({
-  visible,
-  onClose,
-  activePresetId,
-  onPresetChange,
-}: Props) {
+export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetChange }: Props) {
   const previewRef = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<AnimationPhase>("enter");
   const [duration, setDuration] = useState(600);
@@ -75,9 +70,7 @@ export function TheatreStudioPanel({
 
     (async () => {
       try {
-        const { sheet } = await createTheatreProject(
-          `Kinetic Studio — ${activePresetId}/${phase}`,
-        );
+        const { sheet } = await createTheatreProject(`Kinetic Studio — ${activePresetId}/${phase}`);
         if (cancelled) return;
 
         const objects = createAnimationTracks(sheet, TRACKS);
@@ -113,25 +106,13 @@ export function TheatreStudioPanel({
       const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
       const t = Math.min(1, Math.max(0, progress));
 
-      const finalTranslateX = lerp(
-        startValues.translateX,
-        values.translateX,
-        t,
-      );
-      const finalTranslateY = lerp(
-        startValues.translateY,
-        values.translateY,
-        t,
-      );
+      const finalTranslateX = lerp(startValues.translateX, values.translateX, t);
+      const finalTranslateY = lerp(startValues.translateY, values.translateY, t);
       const finalOpacity = lerp(startValues.opacity, values.opacity, t);
       const finalScale = lerp(startValues.scale, values.scale, t);
       const finalRotateZ = lerp(startValues.rotateZ, values.rotateZ, t);
       const finalSkewX = lerp(startValues.skewX, values.skewX, t);
-      const finalLetterSpacing = lerp(
-        startValues.letterSpacing,
-        values.letterSpacing,
-        t,
-      );
+      const finalLetterSpacing = lerp(startValues.letterSpacing, values.letterSpacing, t);
       const finalBlur = lerp(startValues.blur, values.blur, t);
 
       el.style.transform = `translateX(${finalTranslateX}px) translateY(${finalTranslateY}px) scale(${finalScale}) rotateZ(${finalRotateZ}deg) skewX(${finalSkewX}deg)`;
@@ -268,11 +249,7 @@ export function TheatreStudioPanel({
               </div>
             </div>
             <div className="theatre-preview-controls">
-              <button
-                onClick={playAnimation}
-                className="theatre-play-btn"
-                disabled={playingPhase}
-              >
+              <button onClick={playAnimation} className="theatre-play-btn" disabled={playingPhase}>
                 {playingPhase ? "Playing..." : "▶ Play"}
               </button>
               <button onClick={resetPreview} className="theatre-reset-btn">
@@ -303,9 +280,7 @@ export function TheatreStudioPanel({
           <div className="theatre-timeline-area">
             <div className="theatre-timeline-header">
               <span className="theatre-timeline-title">Properties</span>
-              <span className="theatre-timeline-time">
-                0s — {(duration / 1000).toFixed(1)}s
-              </span>
+              <span className="theatre-timeline-time">0s — {(duration / 1000).toFixed(1)}s</span>
             </div>
             <div className="theatre-tracks">
               {TRACKS.map((track) => (
@@ -318,12 +293,7 @@ export function TheatreStudioPanel({
                       max={track.max}
                       step={track.step}
                       value={values[track.prop] ?? 0}
-                      onChange={(e) =>
-                        handleSliderChange(
-                          track.prop,
-                          parseFloat(e.target.value),
-                        )
-                      }
+                      onChange={(e) => handleSliderChange(track.prop, parseFloat(e.target.value))}
                       className="theatre-track-input"
                     />
                     <span className="theatre-track-value">
@@ -430,11 +400,7 @@ function getPresetStartValues(phase: AnimationPhase, presetId: string) {
   }
 }
 
-function exportPreset(
-  presetId: string,
-  phase: string,
-  values: Record<string, number>,
-) {
+function exportPreset(presetId: string, phase: string, values: Record<string, number>) {
   const exportData = {
     preset: presetId,
     phase,

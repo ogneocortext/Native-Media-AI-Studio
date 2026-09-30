@@ -3,10 +3,7 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { VizProps } from "./types";
 import { getTrackFeatures } from "../trackFeatures";
-import {
-  makeAudioReactiveMaterialTSL,
-  updateAudioReactiveMaterialTSL,
-} from "../VisualizationFX";
+import { makeAudioReactiveMaterialTSL, updateAudioReactiveMaterialTSL } from "../VisualizationFX";
 import { setPositionAttribute, useDisposeOnUnmount, getStemEnergy } from "./helpers";
 
 /** Link radius (world units) for the connection graph. */
@@ -85,11 +82,8 @@ export function FrequencyRings({
   // Rebuilt in place every frame: allocating a fresh Float32BufferAttribute per
   // frame orphaned a GPU buffer every 16 ms (three's attribute cache is a
   // WeakMap, so those buffers were never deleted).
-  const maxLinkVerts = (nodeCount * (nodeCount - 1)) / 2 * 2;
-  const linkPositions = useMemo(
-    () => new Float32Array(maxLinkVerts * 3),
-    [maxLinkVerts],
-  );
+  const maxLinkVerts = ((nodeCount * (nodeCount - 1)) / 2) * 2;
+  const linkPositions = useMemo(() => new Float32Array(maxLinkVerts * 3), [maxLinkVerts]);
 
   useDisposeOnUnmount(nodeMat, shockMat);
 
@@ -110,7 +104,10 @@ export function FrequencyRings({
     beatPulse.current *= 0.88;
     if (!sceneFrozen)
       rotRef.current +=
-        0.004 * vizParams.rotationSpeed * speedMul * (1 + features.energy * 2 + stemEnergyRef.current.bass * 0.4);
+        0.004 *
+        vizParams.rotationSpeed *
+        speedMul *
+        (1 + features.energy * 2 + stemEnergyRef.current.bass * 0.4);
 
     nodeRefs.current.forEach((node, i) => {
       if (!node) return;
@@ -127,7 +124,8 @@ export function FrequencyRings({
       );
       // Scale pulses dramatically on beats + onset
       const baseScale = 0.06 + freq * 0.15;
-      const beatScale = beatPulse.current * 0.4 + features.onset * 0.3 + stemEnergyRef.current.drums * 0.2;
+      const beatScale =
+        beatPulse.current * 0.4 + features.onset * 0.3 + stemEnergyRef.current.drums * 0.2;
       node.scale.setScalar(baseScale + beatScale);
       if (isWebGPU && nodeMat) {
         updateAudioReactiveMaterialTSL(
@@ -146,7 +144,11 @@ export function FrequencyRings({
           stemEnergyRef.current.drums * 1.5;
         // Color shifts with spectral brightness + vocal stem hue shift
         m.color.setHSL(
-          0.55 + freq * 0.3 + beatPulse.current * 0.1 + features.brightness * 0.2 + stemEnergyRef.current.vocals * 0.12,
+          0.55 +
+            freq * 0.3 +
+            beatPulse.current * 0.1 +
+            features.brightness * 0.2 +
+            stemEnergyRef.current.vocals * 0.12,
           0.9,
           0.5 + features.brightness * 0.2 + stemEnergyRef.current.other * 0.1,
         );
@@ -189,7 +191,10 @@ export function FrequencyRings({
       }
       setPositionAttribute(lineRef.current.geometry, linkPositions, vertex);
       (lineRef.current.material as THREE.LineBasicMaterial).opacity =
-        0.1 + features.brightness * 0.5 + beatPulse.current * 0.3 + stemEnergyRef.current.other * 0.2;
+        0.1 +
+        features.brightness * 0.5 +
+        beatPulse.current * 0.3 +
+        stemEnergyRef.current.other * 0.2;
     }
 
     // Shockwave ring expands from center on beat
@@ -197,7 +202,11 @@ export function FrequencyRings({
       const sScale = 0.3 + beatPulse.current * 4 + stemEnergyRef.current.bass * 0.5;
       shockRef.current.scale.setScalar(sScale);
       if (isWebGPU && shockMat) {
-        updateAudioReactiveMaterialTSL(shockMat, { bass, mid, treble, energy: 0.5 }, vizParams.glowIntensity);
+        updateAudioReactiveMaterialTSL(
+          shockMat,
+          { bass, mid, treble, energy: 0.5 },
+          vizParams.glowIntensity,
+        );
       } else {
         const sm = shockRef.current.material as THREE.MeshStandardMaterial;
         sm.opacity = (1 - beatPulse.current) * 0.4 + stemEnergyRef.current.drums * 0.2;
@@ -206,7 +215,8 @@ export function FrequencyRings({
     }
 
     groupRef.current.rotation.y = rotRef.current;
-    groupRef.current.rotation.x = Math.sin(t * 0.2 * speedMul) * 0.1 * mid + stemEnergyRef.current.bass * 0.05;
+    groupRef.current.rotation.x =
+      Math.sin(t * 0.2 * speedMul) * 0.1 * mid + stemEnergyRef.current.bass * 0.05;
   });
 
   return (

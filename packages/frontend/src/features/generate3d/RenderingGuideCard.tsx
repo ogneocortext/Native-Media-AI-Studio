@@ -17,13 +17,22 @@ export function RenderingGuideCard() {
       {show && (
         <div className="space-y-3 text-xs">
           <div className="bg-gray-900 rounded-xl p-3 border border-gray-700">
-            <p className="font-bold text-white flex items-center gap-1"><Zap size={12} className="text-amber-400" /> EEVEE Next (recommended)</p>
-            <p className="text-gray-400 mt-1">Real-time 1080p ≈2s/frame • 240f ≈8 min. Enable ray-traced shadows/GI only when needed.</p>
+            <p className="font-bold text-white flex items-center gap-1">
+              <Zap size={12} className="text-amber-400" /> EEVEE Next (recommended)
+            </p>
+            <p className="text-gray-400 mt-1">
+              Real-time 1080p ≈2s/frame • 240f ≈8 min. Enable ray-traced shadows/GI only when
+              needed.
+            </p>
             <p className="text-violet-300 mt-1">Use for: previz, stylized, fast iteration.</p>
           </div>
           <div className="bg-gray-900 rounded-xl p-3 border border-gray-700">
-            <p className="font-bold text-white flex items-center gap-1"><Sliders size={12} className="text-violet-400" /> Cycles CUDA (quality)</p>
-            <p className="text-gray-400 mt-1">128 samples ≈30s/frame • 240f ≈120 min. GPU Compute, denoise + OpenImageDenoise.</p>
+            <p className="font-bold text-white flex items-center gap-1">
+              <Sliders size={12} className="text-violet-400" /> Cycles CUDA (quality)
+            </p>
+            <p className="text-gray-400 mt-1">
+              128 samples ≈30s/frame • 240f ≈120 min. GPU Compute, denoise + OpenImageDenoise.
+            </p>
             <p className="text-violet-300 mt-1">Use for: finals, photoreal.</p>
           </div>
         </div>

@@ -1,9 +1,9 @@
 /**
  * Perceptual Frequency Scales for Audio Visualization
- * 
+ *
  * Implements ERB (Equivalent Rectangular Bandwidth), Bark, and Mel scales
  * for more accurate frequency mapping that matches human hearing perception.
- * 
+ *
  * Source: Research from Cortix library and audioMotion-analyzer
  * Reference: docs/knowledge-library/advanced-visualization-techniques-2026.md
  */
@@ -11,7 +11,7 @@
 /**
  * Perceptual Frequency Scale type
  */
-export type PerceptualScale = 'bark' | 'erb' | 'mel' | 'log' | 'linear';
+export type PerceptualScale = "bark" | "erb" | "mel" | "log" | "linear";
 
 /**
  * Convert Hz to Bark scale (critical band rate)
@@ -30,7 +30,7 @@ export function barkToHz(bark: number): number {
     return 1960 * (bark / (26.28 - bark));
   }
   // For higher bark values, use approximation
-  return 1960 * (bark + 0.53) / (26.28 - bark);
+  return (1960 * (bark + 0.53)) / (26.28 - bark);
 }
 
 /**
@@ -67,7 +67,7 @@ export function melToHz(mel: number): number {
 
 /**
  * Generate frequency bins for a perceptual scale
- * 
+ *
  * @param scale - 'bark' | 'erb' | 'mel' | 'log' | 'linear'
  * @param numBands - Number of frequency bands to generate
  * @param minHz - Minimum frequency (default: 20 Hz)
@@ -75,18 +75,18 @@ export function melToHz(mel: number): number {
  * @returns Array of frequency bin center frequencies in Hz
  */
 export function generatePerceptualBands(
-  scale: 'bark' | 'erb' | 'mel' | 'log' | 'linear',
+  scale: "bark" | "erb" | "mel" | "log" | "linear",
   numBands: number,
   minHz: number = 20,
-  maxHz: number = 22050
+  maxHz: number = 22050,
 ): number[] {
   // Band centers are interpolated with i / (numBands - 1): a single band would
   // divide by zero and return NaN centers, poisoning every mapped band value.
   const bands: number[] = [];
   const n = Math.max(2, Math.floor(numBands) || 2);
-  
+
   switch (scale) {
-    case 'bark': {
+    case "bark": {
       const minBark = hzToBark(minHz);
       const maxBark = hzToBark(maxHz);
       for (let i = 0; i < n; i++) {
@@ -96,7 +96,7 @@ export function generatePerceptualBands(
       break;
     }
 
-    case 'erb': {
+    case "erb": {
       const minErb = hzToErb(minHz);
       const maxErb = hzToErb(maxHz);
       for (let i = 0; i < n; i++) {
@@ -106,7 +106,7 @@ export function generatePerceptualBands(
       break;
     }
 
-    case 'mel': {
+    case "mel": {
       const minMel = hzToMel(minHz);
       const maxMel = hzToMel(maxHz);
       for (let i = 0; i < n; i++) {
@@ -116,7 +116,7 @@ export function generatePerceptualBands(
       break;
     }
 
-    case 'log': {
+    case "log": {
       // Logarithmic (octave-based) scale
       const minLog = Math.log10(minHz);
       const maxLog = Math.log10(maxHz);
@@ -127,7 +127,7 @@ export function generatePerceptualBands(
       break;
     }
 
-    case 'linear':
+    case "linear":
     default:
       // Linear frequency spacing
       for (let i = 0; i < n; i++) {
@@ -135,13 +135,13 @@ export function generatePerceptualBands(
       }
       break;
   }
-  
+
   return bands;
 }
 
 /**
  * Map frequency data to perceptual bands
- * 
+ *
  * @param freqData - Raw frequency data from AnalyserNode
  * @param sampleRate - Audio sample rate
  * @param scale - Perceptual scale to use
@@ -153,9 +153,9 @@ export function generatePerceptualBands(
 export function mapToPerceptualBands(
   freqData: Uint8Array,
   sampleRate: number,
-  scale: 'bark' | 'erb' | 'mel' | 'log' | 'linear' = 'mel',
+  scale: "bark" | "erb" | "mel" | "log" | "linear" = "mel",
   numBands: number = 40,
-  bands?: number[]
+  bands?: number[],
 ): number[] {
   const centers = bands ?? generatePerceptualBands(scale, numBands, 20, sampleRate / 2);
   // Convert band centers to upper-boundary list for the two-pointer sweep.
@@ -172,9 +172,9 @@ export function mapToPerceptualBands(
   const bandCount = centers.length;
   const bandEnergies = new Array(bandCount).fill(0);
   const bandCounts = new Array(bandCount).fill(0);
-  
+
   const binSize = sampleRate / (freqData.length * 2);
-  
+
   // Two-pointer sweep: both freq bins and band boundaries are sorted by Hz,
   // so we advance the band index monotonically instead of rescanning from 0
   // each frame. Reduces per-frame cost from O(n*m) to O(n+m).
@@ -182,24 +182,22 @@ export function mapToPerceptualBands(
   for (let i = 0; i < freqData.length; i++) {
     const hz = i * binSize;
     const energy = freqData[i] / 255;
-    
+
     while (bandIdx < bandCount - 1 && hz >= boundaries[bandIdx + 1]) {
       bandIdx++;
     }
-    
+
     bandEnergies[bandIdx] += energy;
     bandCounts[bandIdx]++;
   }
-  
+
   // Average energy per band
-  return bandEnergies.map((energy, i) => 
-    bandCounts[i] > 0 ? energy / bandCounts[i] : 0
-  );
+  return bandEnergies.map((energy, i) => (bandCounts[i] > 0 ? energy / bandCounts[i] : 0));
 }
 
 /**
  * Get center frequency for a specific band index
- * 
+ *
  * @param bandIndex - Index of the band (0-based)
  * @param numBands - Total number of bands
  * @param scale - Perceptual scale
@@ -210,9 +208,9 @@ export function mapToPerceptualBands(
 export function getBandCenterHz(
   bandIndex: number,
   numBands: number,
-  scale: 'bark' | 'erb' | 'mel' | 'log' | 'linear' = 'mel',
+  scale: "bark" | "erb" | "mel" | "log" | "linear" = "mel",
   minHz: number = 20,
-  maxHz: number = 22050
+  maxHz: number = 22050,
 ): number {
   const bands = generatePerceptualBands(scale, numBands, minHz, maxHz);
   return bands[bandIndex] || 0;
@@ -234,18 +232,18 @@ export function linearToDb(linear: number): number {
 
 /**
  * Apply Hamming window to frequency data for improved frequency resolution
- * 
+ *
  * @param data - Input frequency or time-domain data
  * @returns Windowed data
  */
 export function applyHammingWindow(data: Float32Array | Uint8Array): Float32Array {
   const N = data.length;
   const windowed = new Float32Array(N);
-  
+
   for (let i = 0; i < N; i++) {
     const hamming = 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (N - 1));
     windowed[i] = (data[i] / 255) * hamming;
   }
-  
+
   return windowed;
 }

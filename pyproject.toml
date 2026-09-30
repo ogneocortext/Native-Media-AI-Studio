@@ -5,8 +5,8 @@ description = "AI-powered media generation studio with image, video, and audio c
 requires-python = ">=3.10"
 
 dependencies = [
-    "fastapi>=0.141.0",
-    "uvicorn[standard]>=0.52.0",
+    "fastapi>=0.142.1",
+    "uvicorn[standard]>=0.54.0",
     "pydantic>=2.13.3",
     "pydantic-settings>=2.0.0",
     "python-multipart>=0.0.20",
@@ -20,9 +20,9 @@ dependencies = [
     "numpy>=1.24.0",
     "httpx>=0.25.0",
     "python-dotenv>=1.0.0",
-    "sse-starlette>=2.0.0",
+    "sse-starlette>=3.5.0",
     "gpustat>=1.1.1",
-    "nvidia-ml-py>=13.0",
+    "nvidia-ml-py>=13.615.71",
 ]
 
 [project.optional-dependencies]

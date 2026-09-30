@@ -11,41 +11,15 @@ import {
   type GPUSnapshot,
   type GPUProcessInfo,
 } from "../../services/api";
-import {
-  AlertTriangle,
-  Loader2,
-} from "lucide-react";
-import {
-  downsample,
-  calcStats,
-  loadHistory,
-  trendIcon,
-  labelForProcess,
-} from "./gpuHelpers";
-import {
-  GpuMonitorHeader,
-} from "./GpuMonitorHeader";
-import {
-  GpuMetricCards,
-} from "./GpuMetricCards";
-import {
-  GpuTrendingControls,
-} from "./GpuTrendingControls";
-import {
-  GpuCharts,
-} from "./GpuCharts";
-import {
-  GpuLongTermOverview,
-} from "./GpuLongTermOverview";
-import {
-  GpuProcessList,
-} from "./GpuProcessList";
-import {
-  MAX_HISTORY,
-  RANGE_OPTIONS,
-  RangeId,
-  DataPoint,
-} from "./gpuConstants";
+import { AlertTriangle, Loader2 } from "lucide-react";
+import { downsample, calcStats, loadHistory, trendIcon, labelForProcess } from "./gpuHelpers";
+import { GpuMonitorHeader } from "./GpuMonitorHeader";
+import { GpuMetricCards } from "./GpuMetricCards";
+import { GpuTrendingControls } from "./GpuTrendingControls";
+import { GpuCharts } from "./GpuCharts";
+import { GpuLongTermOverview } from "./GpuLongTermOverview";
+import { GpuProcessList } from "./GpuProcessList";
+import { MAX_HISTORY, RANGE_OPTIONS, RangeId, DataPoint } from "./gpuConstants";
 
 const POLL_OPTIONS = [5, 10, 30] as const;
 
@@ -84,12 +58,16 @@ export function GpuMonitorPage() {
   // Load active inference engine setting
   useEffect(() => {
     let cancelled = false;
-    getSettings().then((s) => {
-      if (cancelled) return;
-      const hasOllama = processes.some((p) => /ollama|llama-server/i.test(p.name));
-      setInferenceEngine(s.atomic_chat_enabled && !hasOllama ? "Atomic Chat" : "Ollama");
-    }).catch(() => {});
-    return () => { cancelled = true; };
+    getSettings()
+      .then((s) => {
+        if (cancelled) return;
+        const hasOllama = processes.some((p) => /ollama|llama-server/i.test(p.name));
+        setInferenceEngine(s.atomic_chat_enabled && !hasOllama ? "Atomic Chat" : "Ollama");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [processes]);
 
   // persist interval + range
@@ -110,7 +88,11 @@ export function GpuMonitorPage() {
     try {
       localStorage.setItem("gpu:history:v2", JSON.stringify(history.slice(-MAX_HISTORY)));
     } catch {
-      try { localStorage.setItem("gpu:history:v2", JSON.stringify(history.slice(-4320))); } catch { /* ignore */ }
+      try {
+        localStorage.setItem("gpu:history:v2", JSON.stringify(history.slice(-4320)));
+      } catch {
+        /* ignore */
+      }
     }
   }, [history]);
 
@@ -139,7 +121,11 @@ export function GpuMonitorPage() {
       if (points.length === 0) return;
       const dbPoints: DataPoint[] = points.map((p) => ({
         time: p.ts_ms,
-        label: new Date(p.ts_ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+        label: new Date(p.ts_ms).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
         temp: p.temperature_c,
         vram: p.memory_percent,
         util: p.gpu_util,
@@ -153,7 +139,11 @@ export function GpuMonitorPage() {
           .filter((p) => (seen.has(p.time) ? false : (seen.add(p.time), true)))
           .slice(-MAX_HISTORY);
         persistAtRef.current = 0;
-        try { localStorage.setItem("gpu:history:v2", JSON.stringify(merged.slice(-MAX_HISTORY))); } catch { /* ignore */ }
+        try {
+          localStorage.setItem("gpu:history:v2", JSON.stringify(merged.slice(-MAX_HISTORY)));
+        } catch {
+          /* ignore */
+        }
         return merged;
       });
       setDbSynced(true);
@@ -161,57 +151,65 @@ export function GpuMonitorPage() {
       setDbSynced(false);
     }
   }, []);
-  useEffect(() => { hydrateFromDB(range); }, [hydrateFromDB, range]);
+  useEffect(() => {
+    hydrateFromDB(range);
+  }, [hydrateFromDB, range]);
 
-  const fetchAll = useCallback(
-    async (isManual = false) => {
-      if (isHiddenRef.current && !isManual) return;
-      if (inFlightRef.current) return;
-      inFlightRef.current = true;
-      if (!hasLoadedRef.current) setInitialLoading(true);
-      else setRefreshing(true);
-      setError(null);
-      try {
-        const [gpu, procs] = await Promise.all([
-          getGPUSnapshot(),
-          getGPUProcesses().catch(() => ({ processes: [] as GPUProcessInfo[], count: 0 })),
-        ]);
-        setSnapshot(gpu);
-        const snapshotProcs = (gpu.processes || [])
-          .map((p) => ({ pid: p.pid, name: p.name, mem_mb: (p.used_mb || 0) as number }));
-        const hasSnapshotMemory = snapshotProcs.some((p) => p.mem_mb > 0);
-        setProcesses(hasSnapshotMemory ? snapshotProcs : (procs.processes || []));
-        setLastUpdated(Date.now());
-        setNowTick(Date.now());
-        setConsecutiveErrors(0);
-        hasLoadedRef.current = true;
-        if (gpu.available) {
-          setHistory((prev) => {
-            const now = Date.now();
-            if (prev.length && now - prev[prev.length - 1].time < 2000) return prev;
-            const point: DataPoint = {
-              time: now,
-              label: new Date(now).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-              temp: gpu.temperature_c,
-              vram: gpu.memory_percent,
-              util: gpu.gpu_utilization,
-            };
-            return [...prev, point].slice(-MAX_HISTORY);
-          });
-        }
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to fetch GPU telemetry");
-        setConsecutiveErrors((c) => c + 1);
-      } finally {
-        setInitialLoading(false);
-        setRefreshing(false);
-        inFlightRef.current = false;
+  const fetchAll = useCallback(async (isManual = false) => {
+    if (isHiddenRef.current && !isManual) return;
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    if (!hasLoadedRef.current) setInitialLoading(true);
+    else setRefreshing(true);
+    setError(null);
+    try {
+      const [gpu, procs] = await Promise.all([
+        getGPUSnapshot(),
+        getGPUProcesses().catch(() => ({ processes: [] as GPUProcessInfo[], count: 0 })),
+      ]);
+      setSnapshot(gpu);
+      const snapshotProcs = (gpu.processes || []).map((p) => ({
+        pid: p.pid,
+        name: p.name,
+        mem_mb: (p.used_mb || 0) as number,
+      }));
+      const hasSnapshotMemory = snapshotProcs.some((p) => p.mem_mb > 0);
+      setProcesses(hasSnapshotMemory ? snapshotProcs : procs.processes || []);
+      setLastUpdated(Date.now());
+      setNowTick(Date.now());
+      setConsecutiveErrors(0);
+      hasLoadedRef.current = true;
+      if (gpu.available) {
+        setHistory((prev) => {
+          const now = Date.now();
+          if (prev.length && now - prev[prev.length - 1].time < 2000) return prev;
+          const point: DataPoint = {
+            time: now,
+            label: new Date(now).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            }),
+            temp: gpu.temperature_c,
+            vram: gpu.memory_percent,
+            util: gpu.gpu_utilization,
+          };
+          return [...prev, point].slice(-MAX_HISTORY);
+        });
       }
-    },
-    [],
-  );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to fetch GPU telemetry");
+      setConsecutiveErrors((c) => c + 1);
+    } finally {
+      setInitialLoading(false);
+      setRefreshing(false);
+      inFlightRef.current = false;
+    }
+  }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
   useEffect(() => {
     if (paused) return;
     const id = setInterval(() => fetchAll(false), intervalSec * 1000);
@@ -230,7 +228,10 @@ export function GpuMonitorPage() {
   const tempStats = useMemo(() => calcStats(windowHistory.map((d) => d.temp)), [windowHistory]);
   const vramStats = useMemo(() => calcStats(windowHistory.map((d) => d.vram)), [windowHistory]);
   const utilStats = useMemo(() => calcStats(windowHistory.map((d) => d.util)), [windowHistory]);
-  const rangeLabel = useMemo(() => RANGE_OPTIONS.find((r) => r.id === range)?.label ?? range, [range]);
+  const rangeLabel = useMemo(
+    () => RANGE_OPTIONS.find((r) => r.id === range)?.label ?? range,
+    [range],
+  );
 
   const filtered = useMemo(() => {
     let list = processes;
@@ -264,7 +265,8 @@ export function GpuMonitorPage() {
 
   const categoryTrends = useMemo(() => {
     const prev = prevCategoriesRef.current;
-    const result: { name: string; vram: number; trend: "up" | "down" | "flat"; delta: number }[] = [];
+    const result: { name: string; vram: number; trend: "up" | "down" | "flat"; delta: number }[] =
+      [];
     for (const [name, vram] of Object.entries(categoryBreakdown)) {
       const prevVram = prev[name] || 0;
       const delta = vram - prevVram;
@@ -283,7 +285,13 @@ export function GpuMonitorPage() {
   const handleExport = useCallback(() => {
     const rows = [["time", "iso", "temp_c", "vram_pct", "gpu_pct"]];
     for (const p of windowHistory)
-      rows.push([String(p.time), new Date(p.time).toISOString(), String(p.temp ?? ""), String(p.vram ?? ""), String(p.util ?? "")]);
+      rows.push([
+        String(p.time),
+        new Date(p.time).toISOString(),
+        String(p.temp ?? ""),
+        String(p.vram ?? ""),
+        String(p.util ?? ""),
+      ]);
     const csv = rows.map((r) => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -303,10 +311,17 @@ export function GpuMonitorPage() {
     setConfirmClear(false);
     setHistory([]);
     localStorage.removeItem("gpu:history:v2");
-    try { await clearGPUHistory(0); hydrateFromDB(range); } catch { /* ignore */ }
+    try {
+      await clearGPUHistory(0);
+      hydrateFromDB(range);
+    } catch {
+      /* ignore */
+    }
   }, [confirmClear, hydrateFromDB, range]);
 
-  const lastUpdatedAgo = lastUpdated ? Math.max(0, Math.round((nowTick - lastUpdated) / 1000)) : null;
+  const lastUpdatedAgo = lastUpdated
+    ? Math.max(0, Math.round((nowTick - lastUpdated) / 1000))
+    : null;
 
   if (initialLoading) {
     return (
@@ -323,7 +338,9 @@ export function GpuMonitorPage() {
       <div className="max-w-[1100px] mx-auto p-6 pb-24 space-y-4">
         <div className="rounded-lg bg-white/5 border border-white/10 px-4 py-6 text-sm text-muted">
           GPU monitoring requires NVIDIA drivers with NVML support.
-          <p className="text-xs text-muted/60 mt-1">Checked NVML + torch.cuda fallback — neither reported a GPU.</p>
+          <p className="text-xs text-muted/60 mt-1">
+            Checked NVML + torch.cuda fallback — neither reported a GPU.
+          </p>
         </div>
       </div>
     );
@@ -348,11 +365,15 @@ export function GpuMonitorPage() {
       />
 
       {error && (
-        <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-300 flex flex-wrap items-center gap-2" role="alert">
+        <div
+          className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-300 flex flex-wrap items-center gap-2"
+          role="alert"
+        >
           <AlertTriangle size={14} />
           <span className="flex-1 min-w-[200px]">
             {error}
-            {consecutiveErrors > 1 && ` (attempt ${consecutiveErrors} — auto-retries every ${intervalSec}s)`}
+            {consecutiveErrors > 1 &&
+              ` (attempt ${consecutiveErrors} — auto-retries every ${intervalSec}s)`}
           </span>
           <button
             onClick={() => fetchAll(true)}

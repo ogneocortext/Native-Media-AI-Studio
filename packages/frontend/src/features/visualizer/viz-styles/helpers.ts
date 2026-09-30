@@ -52,9 +52,7 @@ export function setPositionAttribute(
   values: Float32Array,
   count: number,
 ): void {
-  const existing = geometry.getAttribute("position") as
-    | THREE.BufferAttribute
-    | undefined;
+  const existing = geometry.getAttribute("position") as THREE.BufferAttribute | undefined;
   if (existing && existing.array === values) {
     existing.needsUpdate = true;
     geometry.setDrawRange(0, count);
@@ -65,10 +63,7 @@ export function setPositionAttribute(
 }
 
 /** Get color based on current LRC section */
-export function getSectionColor(
-  section: string,
-  meshColor: string,
-): THREE.Color {
+export function getSectionColor(section: string, meshColor: string): THREE.Color {
   return new THREE.Color(getSectionColorHelper(section, meshColor));
 }
 
@@ -94,4 +89,3 @@ export function getStemEnergy(
     other: stems.other?.energy_curve[idx] ?? 0,
   };
 }
-

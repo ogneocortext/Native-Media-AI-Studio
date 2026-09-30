@@ -1,7 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Brain, Send, Loader2, AlertCircle, CheckCircle, Zap,
-  Wifi, WifiOff, Palette, X, Wrench,
+  Brain,
+  Send,
+  Loader2,
+  AlertCircle,
+  CheckCircle,
+  Zap,
+  Wifi,
+  WifiOff,
+  Palette,
+  X,
+  Wrench,
 } from "lucide-react";
 import {
   getOllamaModels,
@@ -21,7 +30,9 @@ export function AIToolsPage() {
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [prompt, setPrompt] = useState("");
   const [response, setResponse] = useState<string>("");
-  const [toolCalls, setToolCalls] = useState<Array<{ name: string; arguments: Record<string, unknown>; result?: string }>>([]);
+  const [toolCalls, setToolCalls] = useState<
+    Array<{ name: string; arguments: Record<string, unknown>; result?: string }>
+  >([]);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -29,9 +40,13 @@ export function AIToolsPage() {
   const [showToolEditor, setShowToolEditor] = useState(false);
   const [editingTool, setEditingTool] = useState<Tool | null>(null);
   const [toolJsonValid, setToolJsonValid] = useState(true);
-  const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set(DEFAULT_TOOLS.map((t) => t.id)));
+  const [enabledTools, setEnabledTools] = useState<Set<string>>(
+    new Set(DEFAULT_TOOLS.map((t) => t.id)),
+  );
   const [ollamaConnected, setOllamaConnected] = useState(false);
-  const [vizConfig, setVizConfig] = useState<import("./VisualizationCanvas").VisualizationConfig | null>(null);
+  const [vizConfig, setVizConfig] = useState<
+    import("./VisualizationCanvas").VisualizationConfig | null
+  >(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -43,7 +58,8 @@ export function AIToolsPage() {
       const modelList = await getOllamaModels();
       const enhanced = modelList.map((m) => ({
         ...m,
-        supportsTools: m.capabilities?.includes("tools") || m.name.includes("qwen") || m.name.includes("gemma"),
+        supportsTools:
+          m.capabilities?.includes("tools") || m.name.includes("qwen") || m.name.includes("gemma"),
         supportsVision: m.capabilities?.includes("vision") || m.name.includes("vl"),
       }));
       setModels(enhanced);
@@ -57,14 +73,16 @@ export function AIToolsPage() {
   };
 
   const convertToToolDefinitions = useCallback((): ToolDefinition[] => {
-    return tools.filter((t) => enabledTools.has(t.id)).map((t) => ({
-      type: "function" as const,
-      function: {
-        name: t.name,
-        description: t.description,
-        parameters: t.parameters,
-      },
-    }));
+    return tools
+      .filter((t) => enabledTools.has(t.id))
+      .map((t) => ({
+        type: "function" as const,
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters,
+        },
+      }));
   }, [tools, enabledTools]);
 
   const handleGenerate = async () => {
@@ -82,14 +100,23 @@ export function AIToolsPage() {
     abortRef.current = controller;
 
     try {
-      const stream = await ollamaChatStream(prompt, selectedModel, {
-        tools: activeTools,
-        think: true,
-        maxToolCalls: 5,
-      }, controller.signal);
+      const stream = await ollamaChatStream(
+        prompt,
+        selectedModel,
+        {
+          tools: activeTools,
+          think: true,
+          maxToolCalls: 5,
+        },
+        controller.signal,
+      );
 
       let fullResponse = "";
-      const toolDetails: Array<{ name: string; arguments: Record<string, unknown>; result?: string }> = [];
+      const toolDetails: Array<{
+        name: string;
+        arguments: Record<string, unknown>;
+        result?: string;
+      }> = [];
 
       for await (const event of parseOllamaStream(stream)) {
         if (controller.signal.aborted) break;
@@ -98,7 +125,9 @@ export function AIToolsPage() {
           fullResponse += data.content;
           setResponse(fullResponse);
         } else if (event.type === "tool_calls") {
-          const data = event.data as { tool_calls: Array<{ name: string; arguments: Record<string, unknown> }> };
+          const data = event.data as {
+            tool_calls: Array<{ name: string; arguments: Record<string, unknown> }>;
+          };
           for (const tc of data.tool_calls) {
             toolDetails.push(tc);
           }
@@ -111,7 +140,13 @@ export function AIToolsPage() {
 
       if (fullResponse) {
         setHistory((prev) => [
-          { prompt, response: fullResponse, model: selectedModel, toolCalls: toolDetails.length, timestamp: new Date() },
+          {
+            prompt,
+            response: fullResponse,
+            model: selectedModel,
+            toolCalls: toolDetails.length,
+            timestamp: new Date(),
+          },
           ...prev.slice(0, 19),
         ]);
       }
@@ -163,7 +198,9 @@ export function AIToolsPage() {
           </div>
           <div>
             <h1 className={DS.pageTitle}>AI Tools</h1>
-            <p className={DS.pageSubtitle}>Generate creative ideas using local AI models with tool support.</p>
+            <p className={DS.pageSubtitle}>
+              Generate creative ideas using local AI models with tool support.
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -194,8 +231,7 @@ export function AIToolsPage() {
                 >
                   {models.map((m) => (
                     <option key={m.name} value={m.name}>
-                      {m.name} ({formatSize(m.size)})
-                      {m.supportsTools ? " 🔧" : ""}
+                      {m.name} ({formatSize(m.size)}){m.supportsTools ? " 🔧" : ""}
                       {m.supportsVision ? " 👁" : ""}
                     </option>
                   ))}
@@ -214,7 +250,9 @@ export function AIToolsPage() {
                 )}
               </div>
             ) : (
-              <p className={DS.textXs}>No Ollama models available. Start Ollama to use this feature.</p>
+              <p className={DS.textXs}>
+                No Ollama models available. Start Ollama to use this feature.
+              </p>
             )}
           </div>
 
@@ -300,9 +338,7 @@ export function AIToolsPage() {
                       <Zap size={12} className="text-amber-400" />
                       <span className="text-amber-400 text-sm font-medium">{tc.name}</span>
                     </div>
-                    {tc.result && (
-                      <p className="text-xs text-green-400 mt-1">{tc.result}</p>
-                    )}
+                    {tc.result && <p className="text-xs text-green-400 mt-1">{tc.result}</p>}
                     <pre className={DS.mono + " overflow-auto mt-1"}>
                       {JSON.stringify(tc.arguments, null, 2)}
                     </pre>
@@ -339,7 +375,10 @@ export function AIToolsPage() {
           toolJsonValid={toolJsonValid}
           setToolJsonValid={setToolJsonValid}
           onSave={saveTool}
-          onClose={() => { setShowToolEditor(false); setEditingTool(null); }}
+          onClose={() => {
+            setShowToolEditor(false);
+            setEditingTool(null);
+          }}
         />
       )}
     </div>

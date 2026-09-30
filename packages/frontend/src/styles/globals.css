@@ -68,7 +68,8 @@
     --border-subtle: light-dark(oklch(95% 0 0), oklch(29% 0.015 260));
 
     /* === Typography === */
-    --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-sans:
+      "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-mono: "JetBrains Mono", "Fira Code", monospace;
 
     /* === Spacing === */
@@ -106,20 +107,24 @@
     background: color-mix(in oklch, var(--color-primary) 30%, transparent);
   }
 
-  h1, h2 {
+  h1,
+  h2 {
     text-wrap: balance;
   }
 
   /* Smooth theme flips: surfaces already transition color/background-color,
      this covers the page background + inherited text. */
   body {
-    transition: background-color var(--duration-normal) var(--ease-out),
+    transition:
+      background-color var(--duration-normal) var(--ease-out),
       color var(--duration-normal) var(--ease-out);
   }
 
   /* Respect user motion preferences */
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
+    *,
+    *::before,
+    *::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
@@ -149,7 +154,7 @@
 @layer theme {
   /* Light theme is handled by :root defaults above */
   /* Dark theme is handled by :root defaults above */
-  
+
   /* For manual force-light / force-dark toggles.
      `html[...]` (not bare `[...]`) so these beat the base-layer
      `:root { color-scheme: light dark }` on equal elements regardless of
@@ -213,7 +218,7 @@
      on dark surfaces (≈2.3–2.7:1), so interactive/error TEXT uses these
      lightened twins while fills keep the saturated tokens. */
   --color-link: light-dark(oklch(55% 0.22 260), oklch(78% 0.18 260));
-  --color-error-text: light-dark(oklch(55% 0.22 25), oklch(72% 0.20 25));
+  --color-error-text: light-dark(oklch(55% 0.22 25), oklch(72% 0.2 25));
   --color-success-text: light-dark(oklch(47% 0.15 145), oklch(78% 0.16 145));
   --color-border: light-dark(oklch(88% 0 0), oklch(30% 0 0 260));
   --color-border-subtle: light-dark(oklch(95% 0 0), oklch(25% 0 0 260));

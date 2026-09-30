@@ -4,16 +4,19 @@ import * as THREE from "three";
 import type { VizProps } from "./types";
 import { InstancedParticles } from "./instancedParticles";
 import { DEFAULT_VIZ_PARAMS } from "../types";
-import {
-  makeAudioReactiveMaterialTSL,
-  updateAudioReactiveMaterialTSL,
-} from "../VisualizationFX";
+import { makeAudioReactiveMaterialTSL, updateAudioReactiveMaterialTSL } from "../VisualizationFX";
 import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
 
 // =============================================================================
 // INFERNO — Rising fire and ember particles
 // =============================================================================
-export function InfernoViz({ audioData, vizParams, prefersReducedMotion, stems, audioElapsedRef }: VizProps) {
+export function InfernoViz({
+  audioData,
+  vizParams,
+  prefersReducedMotion,
+  stems,
+  audioElapsedRef,
+}: VizProps) {
   const coreRef = useRef<THREE.Mesh>(null);
   const { gl } = useThree();
   const isWebGPU = (gl as any)?.isWebGPURenderer === true;
@@ -42,10 +45,19 @@ export function InfernoViz({ audioData, vizParams, prefersReducedMotion, stems, 
 
     stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
-    const coreScale = 0.3 + bass * 0.6 + (beat ? 0.3 : 0) + stemEnergyRef.current.drums * 0.4 + stemEnergyRef.current.other * 0.2;
+    const coreScale =
+      0.3 +
+      bass * 0.6 +
+      (beat ? 0.3 : 0) +
+      stemEnergyRef.current.drums * 0.4 +
+      stemEnergyRef.current.other * 0.2;
     coreRef.current.scale.setScalar(coreScale);
     if (isWebGPU && coreMat) {
-      updateAudioReactiveMaterialTSL(coreMat, { bass, mid: 0, treble: 0, energy: 0.5 }, vizParams.glowIntensity);
+      updateAudioReactiveMaterialTSL(
+        coreMat,
+        { bass, mid: 0, treble: 0, energy: 0.5 },
+        vizParams.glowIntensity,
+      );
       coreRef.current.rotation.y = t * 0.5 * vizParams.rotationSpeed * speedMul;
     } else {
       const cm = coreRef.current.material as THREE.MeshStandardMaterial;

@@ -1,5 +1,5 @@
-fastapi>=0.141.0
-uvicorn[standard]>=0.52.0
+fastapi>=0.142.1
+uvicorn[standard]>=0.54.0
 pydantic>=2.13.3
 python-multipart>=0.0.20
 aiohttp>=3.13.5
@@ -12,11 +12,11 @@ numpy>=1.24.0
 
 # GPU/VRAM monitoring for resource warnings
 gpustat>=1.1.1  # Easier setup, recommended
-nvidia-ml-py>=13.0  # pynvml for VRAM monitoring (required by gpustat)
+nvidia-ml-py>=13.615.71  # pynvml for VRAM monitoring (required by gpustat)
 
 # Additional dependencies for improved functionality
 httpx>=0.25.0  # Async HTTP client
-sse-starlette>=2.0.0
+sse-starlette>=3.5.0
 pytest-asyncio>=0.24.0  # Async test support (required for tests/test_*.py)
 pytest-cov>=5.0.0  # Coverage reporting
 pytest-xdist>=3.6.0  # Parallel test execution

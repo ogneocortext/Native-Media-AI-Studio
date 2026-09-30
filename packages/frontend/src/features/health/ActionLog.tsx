@@ -19,9 +19,7 @@ export function ActionLog({ logs, onClear }: ActionLogProps) {
         <div className="flex items-center gap-2">
           <Terminal size={16} className="text-indigo-400" />
           <h3 className="font-semibold text-sm">Action Log</h3>
-          {logs.length > 0 && (
-            <span className="text-xs text-muted">({logs.length} entries)</span>
-          )}
+          {logs.length > 0 && <span className="text-xs text-muted">({logs.length} entries)</span>}
         </div>
         {logs.length > 0 && (
           <button

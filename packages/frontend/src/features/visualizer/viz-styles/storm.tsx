@@ -3,16 +3,20 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { VizProps } from "./types";
 import { getTrackFeatures } from "../trackFeatures";
-import {
-  makeAudioReactiveMaterialTSL,
-  updateAudioReactiveMaterialTSL,
-} from "../VisualizationFX";
+import { makeAudioReactiveMaterialTSL, updateAudioReactiveMaterialTSL } from "../VisualizationFX";
 import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
 
 // =============================================================================
 // STORM — Lightning bolts and energy discharges
 // =============================================================================
-export function StormViz({ audioData, vizParams, sceneFrozen, prefersReducedMotion, stems, audioElapsedRef }: VizProps) {
+export function StormViz({
+  audioData,
+  vizParams,
+  sceneFrozen,
+  prefersReducedMotion,
+  stems,
+  audioElapsedRef,
+}: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   const boltRefs = useRef<(THREE.Mesh | null)[]>([]);
   const glowRef = useRef<THREE.Mesh>(null);
@@ -63,24 +67,20 @@ export function StormViz({ audioData, vizParams, sceneFrozen, prefersReducedMoti
     if (beat || features.onset > 0.6 || stemEnergyRef.current.drums > 0.5) boltFlash.current = 1.0;
     boltFlash.current *= 0.85;
     if (!sceneFrozen)
-      rotRef.current += 0.006 * vizParams.rotationSpeed * speedMul * (1 + treble * 3 + stemEnergyRef.current.bass * 0.3);
+      rotRef.current +=
+        0.006 *
+        vizParams.rotationSpeed *
+        speedMul *
+        (1 + treble * 3 + stemEnergyRef.current.bass * 0.3);
 
     boltRefs.current.forEach((bolt, i) => {
       if (!bolt) return;
       const freq = i % 2 === 0 ? bass : treble;
       const angle = (i / 6) * Math.PI * 2 + rotRef.current;
       const length = 2 + freq * 3 + boltFlash.current * 2 + stemEnergyRef.current.drums * 0.5;
-      bolt.position.set(
-        Math.cos(angle) * 0.5,
-        length / 2 - 1,
-        Math.sin(angle) * 0.5,
-      );
+      bolt.position.set(Math.cos(angle) * 0.5, length / 2 - 1, Math.sin(angle) * 0.5);
       bolt.rotation.set(0, 0, angle + Math.PI / 2);
-      bolt.scale.set(
-        1 + boltFlash.current * 0.5,
-        length,
-        1 + boltFlash.current * 0.5,
-      );
+      bolt.scale.set(1 + boltFlash.current * 0.5, length, 1 + boltFlash.current * 0.5);
       if (isWebGPU && boltMat) {
         updateAudioReactiveMaterialTSL(
           boltMat,
@@ -89,7 +89,8 @@ export function StormViz({ audioData, vizParams, sceneFrozen, prefersReducedMoti
         );
       } else {
         const m = bolt.material as THREE.MeshStandardMaterial;
-        m.emissiveIntensity = 0.5 + boltFlash.current * 4 + freq * 2 + stemEnergyRef.current.drums * 1.5;
+        m.emissiveIntensity =
+          0.5 + boltFlash.current * 4 + freq * 2 + stemEnergyRef.current.drums * 1.5;
         m.opacity = 0.3 + boltFlash.current * 0.7 + stemEnergyRef.current.other * 0.2;
         m.color.setHSL(
           0.6 + boltFlash.current * 0.1 + stemEnergyRef.current.vocals * 0.1,
@@ -100,13 +101,19 @@ export function StormViz({ audioData, vizParams, sceneFrozen, prefersReducedMoti
     });
 
     if (glowRef.current) {
-      const glowScale = 0.3 + bass * 0.5 + boltFlash.current * 0.8 + stemEnergyRef.current.bass * 0.3;
+      const glowScale =
+        0.3 + bass * 0.5 + boltFlash.current * 0.8 + stemEnergyRef.current.bass * 0.3;
       glowRef.current.scale.setScalar(glowScale);
       if (isWebGPU && glowMat) {
-        updateAudioReactiveMaterialTSL(glowMat, { bass, mid: 0, treble, energy: 0.5 }, vizParams.glowIntensity + stemEnergyRef.current.other * 0.5);
+        updateAudioReactiveMaterialTSL(
+          glowMat,
+          { bass, mid: 0, treble, energy: 0.5 },
+          vizParams.glowIntensity + stemEnergyRef.current.other * 0.5,
+        );
       } else {
         const gm = glowRef.current.material as THREE.MeshStandardMaterial;
-        gm.emissiveIntensity = 1 + bass * 3 + boltFlash.current * 5 + stemEnergyRef.current.drums * 1.5;
+        gm.emissiveIntensity =
+          1 + bass * 3 + boltFlash.current * 5 + stemEnergyRef.current.drums * 1.5;
         gm.opacity = 0.3 + boltFlash.current * 0.4 + stemEnergyRef.current.other * 0.2;
       }
     }

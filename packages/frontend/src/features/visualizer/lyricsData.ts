@@ -280,13 +280,15 @@ export function validateLyricsData(data: LyricsData): string[] {
 /**
  * Convert legacy LyricLine format to new JSON format.
  */
-export function legacyToLyricsData(lines: Array<{
-  start: number;
-  end: number;
-  text: string;
-  section?: string;
-  words?: Array<{ word: string; start: number; end: number }>;
-}>): LyricsData {
+export function legacyToLyricsData(
+  lines: Array<{
+    start: number;
+    end: number;
+    text: string;
+    section?: string;
+    words?: Array<{ word: string; start: number; end: number }>;
+  }>,
+): LyricsData {
   return {
     version: "1.0",
     colorScheme: { ...DEFAULT_COLOR_SCHEME },
@@ -326,10 +328,7 @@ export function lyricsDataToLegacy(data: LyricsData): Array<{
 /**
  * Find the current line for a given time from lyrics data.
  */
-export function findCurrentLineFromData(
-  data: LyricsData,
-  time: number
-): LyricLine | null {
+export function findCurrentLineFromData(data: LyricsData, time: number): LyricLine | null {
   for (const line of data.lines) {
     if (time >= line.start && time < line.end) {
       return line;

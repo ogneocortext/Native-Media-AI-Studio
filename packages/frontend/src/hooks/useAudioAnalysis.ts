@@ -62,45 +62,39 @@ export function useAudioAnalysis() {
     }
   }, []);
 
-  const ensure = useCallback(
-    async (filename: string, backend = "sonara") => {
-      setLastBackend(backend);
-      setAnalyzing(true);
-      setError(null);
-      try {
-        const result = await ensureAnalysis(filename, backend);
-        if (result.analysis) {
-          setAnalysis(result.analysis as AudioAnalysisResult);
-        }
-        return result;
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Failed to ensure analysis");
-        return null;
-      } finally {
-        setAnalyzing(false);
+  const ensure = useCallback(async (filename: string, backend = "sonara") => {
+    setLastBackend(backend);
+    setAnalyzing(true);
+    setError(null);
+    try {
+      const result = await ensureAnalysis(filename, backend);
+      if (result.analysis) {
+        setAnalysis(result.analysis as AudioAnalysisResult);
       }
-    },
-    [],
-  );
+      return result;
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to ensure analysis");
+      return null;
+    } finally {
+      setAnalyzing(false);
+    }
+  }, []);
 
-  const analyze = useCallback(
-    async (file: File, backend = "sonara", useCuda = false) => {
-      setLastBackend(useCuda ? "cuda" : backend);
-      setAnalyzing(true);
-      setError(null);
-      try {
-        const result = useCuda ? await analyzeAudioCuda(file) : await analyzeAudio(file, backend);
-        setAnalysis(result);
-        return result;
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Analysis failed");
-        return null;
-      } finally {
-        setAnalyzing(false);
-      }
-    },
-    [],
-  );
+  const analyze = useCallback(async (file: File, backend = "sonara", useCuda = false) => {
+    setLastBackend(useCuda ? "cuda" : backend);
+    setAnalyzing(true);
+    setError(null);
+    try {
+      const result = useCuda ? await analyzeAudioCuda(file) : await analyzeAudio(file, backend);
+      setAnalysis(result);
+      return result;
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Analysis failed");
+      return null;
+    } finally {
+      setAnalyzing(false);
+    }
+  }, []);
 
   const reset = useCallback(() => {
     setSummary(null);

@@ -87,7 +87,9 @@ export function FileUploadZone({
         onClick={onOpenDialog}
         role="button"
         tabIndex={0}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpenDialog(); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") onOpenDialog();
+        }}
       >
         <input
           ref={inputRef}
@@ -125,7 +127,10 @@ export function FileUploadZone({
               {(displayFile.size / 1024 / 1024).toFixed(2)} MB
             </span>
             <button
-              onClick={(e) => { e.stopPropagation(); onClear(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClear();
+              }}
               className="file-upload-clear"
             >
               <X size={14} />
@@ -134,7 +139,9 @@ export function FileUploadZone({
         )}
 
         {multiple && files.length > 0 && !compact && (
-          <div className="file-upload-count">{files.length} file{files.length > 1 ? "s" : ""} selected</div>
+          <div className="file-upload-count">
+            {files.length} file{files.length > 1 ? "s" : ""} selected
+          </div>
         )}
       </div>
 

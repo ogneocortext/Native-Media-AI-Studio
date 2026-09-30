@@ -6,7 +6,9 @@ import { useHealthStore } from "../../state/healthStore";
 import { useJobStore } from "../../state/jobStore";
 import pkg from "../../../package.json";
 
-interface LayoutProps { children: React.ReactNode; }
+interface LayoutProps {
+  children: React.ReactNode;
+}
 
 // Single source of truth: package.json version (bumped per release).
 const APP_VERSION = pkg.version as string;
@@ -52,9 +54,7 @@ export function Layout({ children }: LayoutProps) {
     <div className={`layout-root${focusMode ? " layout-focus-mode" : ""}`}>
       <Sidebar />
       <div className="layout-content">
-        <main className="layout-main">
-          {children}
-        </main>
+        <main className="layout-main">{children}</main>
         <footer className="layout-footer">
           <span className="layout-footer-version">V{APP_VERSION}</span>
           <span className="layout-footer-copyright">© 2026 {COPYRIGHT}</span>

@@ -25,16 +25,19 @@ export interface PromptVariation {
  * Analyze track metadata to extract mood, energy, and visual characteristics
  */
 function analyzeTrackCharacteristics(meta: TrackMetadata) {
-  const avgEnergy = meta.energyCurve.length > 0
-    ? meta.energyCurve.reduce((a, b) => a + b, 0) / meta.energyCurve.length
-    : 0.5;
+  const avgEnergy =
+    meta.energyCurve.length > 0
+      ? meta.energyCurve.reduce((a, b) => a + b, 0) / meta.energyCurve.length
+      : 0.5;
 
-  const energyVariance = meta.energyCurve.length > 0
-    ? meta.energyCurve.reduce((sum, e) => sum + Math.pow(e - avgEnergy, 2), 0) / meta.energyCurve.length
-    : 0;
+  const energyVariance =
+    meta.energyCurve.length > 0
+      ? meta.energyCurve.reduce((sum, e) => sum + Math.pow(e - avgEnergy, 2), 0) /
+        meta.energyCurve.length
+      : 0;
 
-  const hasBuildups = meta.sections.some(s => s.type === "chorus" || s.type === "bridge");
-  const hasDrops = meta.sections.filter(s => s.energy > 0.7).length > meta.sections.length * 0.3;
+  const hasBuildups = meta.sections.some((s) => s.type === "chorus" || s.type === "bridge");
+  const hasDrops = meta.sections.filter((s) => s.energy > 0.7).length > meta.sections.length * 0.3;
   const isHighEnergy = avgEnergy > 0.65;
   const isLowEnergy = avgEnergy < 0.35;
   const isDynamic = energyVariance > 0.05;
@@ -63,7 +66,21 @@ function analyzeTrackCharacteristics(meta: TrackMetadata) {
   if (hasBuildups) visualStyles.push("building tension", "rising structures", "crescendo bursts");
   if (hasDrops) visualStyles.push("impact flashes", "shockwave rings", "color explosions");
 
-  return { avgEnergy, energyVariance, isHighEnergy, isLowEnergy, isDynamic, isSteady, isFast, isMidTempo, isSlow, hasBuildups, hasDrops, moods, visualStyles };
+  return {
+    avgEnergy,
+    energyVariance,
+    isHighEnergy,
+    isLowEnergy,
+    isDynamic,
+    isSteady,
+    isFast,
+    isMidTempo,
+    isSlow,
+    hasBuildups,
+    hasDrops,
+    moods,
+    visualStyles,
+  };
 }
 
 /**
@@ -76,9 +93,10 @@ export function generatePromptVariations(meta: TrackMetadata): PromptVariation[]
 
   const moodStr = chars.moods.slice(0, 2).join(", ");
   const styleStr = chars.visualStyles.slice(0, 3).join(", ");
-  const sectionSummary = sections.length > 0
-    ? `The track has ${sections.length} sections: ${sections.map(s => s.type).join(", ")}.`
-    : "";
+  const sectionSummary =
+    sections.length > 0
+      ? `The track has ${sections.length} sections: ${sections.map((s) => s.type).join(", ")}.`
+      : "";
 
   return [
     {

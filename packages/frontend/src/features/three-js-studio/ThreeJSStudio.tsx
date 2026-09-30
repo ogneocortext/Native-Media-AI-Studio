@@ -4,12 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { useUIStore } from "../../state/uiStore";
 import { showToast } from "../../utils/toast";
 import { AISceneGenerator } from "./components/AISceneGenerator";
-import type {
-  AnimObject,
-  CameraMode,
-  ParticleConfig,
-  SceneConfig,
-} from "./types";
+import type { AnimObject, CameraMode, ParticleConfig, SceneConfig } from "./types";
 import { DEFAULT_OBJECTS, DEFAULT_PARTICLES, DEFAULT_SCENE } from "./threeStudioConfig";
 import { StudioHeader } from "./components/StudioHeader";
 import { TrackInfoBar } from "./components/TrackInfoBar";
@@ -35,29 +30,20 @@ export function ThreeJSStudio() {
   // ---- State ----
   const [isPlaying, setIsPlaying] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<"objects" | "inspector" | "scene">(
-    "objects",
-  );
+  const [drawerTab, setDrawerTab] = useState<"objects" | "inspector" | "scene">("objects");
   const [sceneConfig, setSceneConfig] = useState<SceneConfig>(DEFAULT_SCENE);
-  const [particleConfig, setParticleConfig] =
-    useState<ParticleConfig>(DEFAULT_PARTICLES);
+  const [particleConfig, setParticleConfig] = useState<ParticleConfig>(DEFAULT_PARTICLES);
   const [objects, setObjects] = useState<AnimObject[]>(DEFAULT_OBJECTS);
-  const [selectedObject, setSelectedObject] = useState<string | null>(
-    "crown-1",
-  );
+  const [selectedObject, setSelectedObject] = useState<string | null>("crown-1");
   const [cameraMode, setCameraMode] = useState<CameraMode>("orbit");
   const [activeTemplateId, _setActiveTemplateId] = useState<string | null>(null);
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string>("");
   const [backgroundImageVisible, setBackgroundImageVisible] = useState(true);
-  const [libraryImages, _setLibraryImages] = useState<
-    Array<{ url: string; label: string }>
-  >([]);
+  const [libraryImages, _setLibraryImages] = useState<Array<{ url: string; label: string }>>([]);
   const [bpm, setBpm] = useState(150);
   const [beatSync, setBeatSync] = useState(false);
   const [fps, setFps] = useState(24);
-  const [libraryTracks, setLibraryTracks] = useState<
-    Array<{ filename: string }>
-  >([]);
+  const [libraryTracks, setLibraryTracks] = useState<Array<{ filename: string }>>([]);
   const [tracksLoading, setTracksLoading] = useState(true);
   const [tracksError, setTracksError] = useState<string | null>(null);
   const [trackMetadata, setTrackMetadata] = useState<
@@ -83,11 +69,10 @@ export function ThreeJSStudio() {
   const { createMeshForObject } = useMeshFactory();
 
   // ---- Code applier ----
-  const { handleApplyCode, generatedSceneUpdateRef } =
-    useCodeApplier({
-      sceneRef: { current: null },
-      setCodeError,
-    });
+  const { handleApplyCode, generatedSceneUpdateRef } = useCodeApplier({
+    sceneRef: { current: null },
+    setCodeError,
+  });
 
   // ---- Three scene engine ----
   // beatAnalysis is read via ref (set by useTrackManager below) to avoid
@@ -119,7 +104,12 @@ export function ThreeJSStudio() {
     animationDuration,
     keyframeTracks,
     createMeshForObject,
-    getCurrentBeat: () => ({ ready: false, isOnBeat: false, timeSinceLastBeat: 0, beatWindowSec: 0 }),
+    getCurrentBeat: () => ({
+      ready: false,
+      isOnBeat: false,
+      timeSinceLastBeat: 0,
+      beatWindowSec: 0,
+    }),
     generatedSceneUpdateRef,
     onAnimationTimeChange: setAnimationTime,
     onSelectObject: setSelectedObject,
@@ -162,10 +152,7 @@ export function ThreeJSStudio() {
   // User-initiated adds get explicit feedback: without it an object that
   // spawns out of frame reads as a no-op (audit F2).
   const handleAddObject = useCallback(
-    (
-      type: AnimObject["type"],
-      overrides?: Omit<Partial<AnimObject>, "id" | "type">,
-    ) => {
+    (type: AnimObject["type"], overrides?: Omit<Partial<AnimObject>, "id" | "type">) => {
       addObject(type, overrides);
       const label = type.charAt(0).toUpperCase() + type.slice(1);
       showToast(`${label} added — pick it in the Objects list to edit`, {
@@ -207,7 +194,7 @@ export function ThreeJSStudio() {
   beatAnalysisRef.current = beatAnalysisValue;
 
   // ---- Effects that stay in main component ----
-  
+
   // Auto-close panels when entering focus mode
   useEffect(() => {
     if (focusMode) {
@@ -236,8 +223,7 @@ export function ThreeJSStudio() {
       const target = e.target as HTMLElement | null;
       if (
         target &&
-        (target.isContentEditable ||
-          ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+        (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
       ) {
         return;
       }
@@ -306,24 +292,17 @@ export function ThreeJSStudio() {
         focusMode={focusMode}
         onBpmChange={setBpm}
         onBeatSyncToggle={() => setBeatSync((v) => !v)}
-        onBeatPunchChange={(value) =>
-          setSceneConfig((prev) => ({ ...prev, beatPunch: value }))
-        }
+        onBeatPunchChange={(value) => setSceneConfig((prev) => ({ ...prev, beatPunch: value }))}
       />
 
-      <div
-        ref={containerRef}
-        className="flex-1 relative bg-[#0a0a0f] overflow-hidden min-h-0"
-      >
+      <div ref={containerRef} className="flex-1 relative bg-[#0a0a0f] overflow-hidden min-h-0">
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
 
         {sceneLoading && (
           <div className="absolute inset-0 bg-[#0a0a0f] flex items-center justify-center z-20">
             <div className="flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm text-purple-300">
-                Initializing 3D scene…
-              </span>
+              <span className="text-sm text-purple-300">Initializing 3D scene…</span>
             </div>
           </div>
         )}
@@ -336,9 +315,7 @@ export function ThreeJSStudio() {
             onApplyCode={handleApplyCode}
             storyboard={storyboardParam}
             autoGenerate={autoGenerateParam === "true"}
-            storyboardScene={
-              storyboardSceneParam ? parseInt(storyboardSceneParam, 10) : null
-            }
+            storyboardScene={storyboardSceneParam ? parseInt(storyboardSceneParam, 10) : null}
           />
         </div>
 

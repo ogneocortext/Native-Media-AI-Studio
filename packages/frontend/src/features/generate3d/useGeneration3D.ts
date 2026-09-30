@@ -1,11 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  generate3D,
-  generate3DFromImage,
-  get3DStatus,
-  updateMCPContext,
-} from "../../services/api";
+import { generate3D, generate3DFromImage, get3DStatus, updateMCPContext } from "../../services/api";
 
 export interface CharacterBible {
   name: string;
@@ -42,33 +37,101 @@ export interface ModelInfo {
 }
 
 export const PROMPT_EXAMPLES = [
-  { label: "Robot", prompt: "a futuristic robot, chrome metallic, highly detailed, standing pose", tag: "character" },
-  { label: "Neon Mic", prompt: "a neon microphone, cyberpunk style, glowing accents, floating", tag: "prop" },
-  { label: "DJ Console", prompt: "a DJ console, modern minimalist, LED indicators, top-down view", tag: "prop" },
-  { label: "Stage", prompt: "concert stage platform, LED walls, fog, cinematic volumetric lighting", tag: "environment" },
+  {
+    label: "Robot",
+    prompt: "a futuristic robot, chrome metallic, highly detailed, standing pose",
+    tag: "character",
+  },
+  {
+    label: "Neon Mic",
+    prompt: "a neon microphone, cyberpunk style, glowing accents, floating",
+    tag: "prop",
+  },
+  {
+    label: "DJ Console",
+    prompt: "a DJ console, modern minimalist, LED indicators, top-down view",
+    tag: "prop",
+  },
+  {
+    label: "Stage",
+    prompt: "concert stage platform, LED walls, fog, cinematic volumetric lighting",
+    tag: "environment",
+  },
 ] as const;
 
 export const CHARACTER_TEMPLATES = [
-  { label: "Humanoid", prompt: "a stylized humanoid character, athletic build, matte bodysuit with glowing seam lines, symmetrical proportions, neutral A-pose, highly detailed, standing pose", bible: "Stylized humanoid; athletic build; matte bodysuit, glowing seams" },
-  { label: "Avatar Bust", prompt: "a stylized avatar bust, androgynous face, short dark hair, smooth skin, studio lighting, front-facing portrait, highly detailed", bible: "Avatar bust; androgynous face; short dark hair" },
-  { label: "Creature", prompt: "a small forest creature mascot, big expressive eyes, soft fur, rounded friendly forms, standing pose, highly detailed", bible: "Forest creature mascot; big eyes; soft fur; rounded forms" },
-  { label: "Robot", prompt: "a futuristic robot, chrome metallic, highly detailed, standing pose", bible: "Futuristic robot; chrome metallic" },
+  {
+    label: "Humanoid",
+    prompt:
+      "a stylized humanoid character, athletic build, matte bodysuit with glowing seam lines, symmetrical proportions, neutral A-pose, highly detailed, standing pose",
+    bible: "Stylized humanoid; athletic build; matte bodysuit, glowing seams",
+  },
+  {
+    label: "Avatar Bust",
+    prompt:
+      "a stylized avatar bust, androgynous face, short dark hair, smooth skin, studio lighting, front-facing portrait, highly detailed",
+    bible: "Avatar bust; androgynous face; short dark hair",
+  },
+  {
+    label: "Creature",
+    prompt:
+      "a small forest creature mascot, big expressive eyes, soft fur, rounded friendly forms, standing pose, highly detailed",
+    bible: "Forest creature mascot; big eyes; soft fur; rounded forms",
+  },
+  {
+    label: "Robot",
+    prompt: "a futuristic robot, chrome metallic, highly detailed, standing pose",
+    bible: "Futuristic robot; chrome metallic",
+  },
 ] as const;
 
 export const MATERIAL_TEMPLATES = [
-  { label: "Leather Jacket", prompt: "a stylized character wearing a worn brown leather jacket, metal zippers, fabric folds, neutral A-pose, front view, studio lighting, white background, highly detailed, game-ready", tag: "clothing" },
-  { label: "Chainmail", prompt: "a stylized character wearing intricate chainmail armor, metallic rings, subsurface metal reflections, neutral A-pose, front view, studio lighting, white background, highly detailed, game-ready", tag: "clothing" },
-  { label: "Silk Robe", prompt: "a stylized character wearing a flowing silk robe, fabric drape, soft highlights, neutral A-pose, front view, studio lighting, white background, highly detailed, game-ready", tag: "clothing" },
-  { label: "Skin Material", prompt: "character skin material reference, subsurface scattering, pore detail, freckles, neutral expression, studio lighting, reference plate, highly detailed", tag: "skin" },
-  { label: "Robot Plating", prompt: "a futuristic robot character with panel plating, wear and tear, scuff marks, exposed wiring joints, neutral A-pose, front view, studio lighting, white background, highly detailed, game-ready", tag: "material" },
-  { label: "Environment Prop", prompt: "a detailed environment prop, weathered wood and rusted metal, cinematic lighting, matte painting style, game engine ready, highly detailed", tag: "environment" },
+  {
+    label: "Leather Jacket",
+    prompt:
+      "a stylized character wearing a worn brown leather jacket, metal zippers, fabric folds, neutral A-pose, front view, studio lighting, white background, highly detailed, game-ready",
+    tag: "clothing",
+  },
+  {
+    label: "Chainmail",
+    prompt:
+      "a stylized character wearing intricate chainmail armor, metallic rings, subsurface metal reflections, neutral A-pose, front view, studio lighting, white background, highly detailed, game-ready",
+    tag: "clothing",
+  },
+  {
+    label: "Silk Robe",
+    prompt:
+      "a stylized character wearing a flowing silk robe, fabric drape, soft highlights, neutral A-pose, front view, studio lighting, white background, highly detailed, game-ready",
+    tag: "clothing",
+  },
+  {
+    label: "Skin Material",
+    prompt:
+      "character skin material reference, subsurface scattering, pore detail, freckles, neutral expression, studio lighting, reference plate, highly detailed",
+    tag: "skin",
+  },
+  {
+    label: "Robot Plating",
+    prompt:
+      "a futuristic robot character with panel plating, wear and tear, scuff marks, exposed wiring joints, neutral A-pose, front view, studio lighting, white background, highly detailed, game-ready",
+    tag: "material",
+  },
+  {
+    label: "Environment Prop",
+    prompt:
+      "a detailed environment prop, weathered wood and rusted metal, cinematic lighting, matte painting style, game engine ready, highly detailed",
+    tag: "environment",
+  },
 ] as const;
 
 const PENDING_CHARACTER_KEY = "pendingCharacter";
 
 function loadBibles(): Record<string, CharacterBible> {
   try {
-    return JSON.parse(localStorage.getItem("characterBibles") || "{}") as Record<string, CharacterBible>;
+    return JSON.parse(localStorage.getItem("characterBibles") || "{}") as Record<
+      string,
+      CharacterBible
+    >;
   } catch {
     return {};
   }
@@ -144,7 +207,9 @@ export interface UseGeneration3DReturn {
 }
 
 export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGeneration3DReturn {
-  const [prompt, setPrompt] = useState("a futuristic robot, chrome metallic, highly detailed, standing pose");
+  const [prompt, setPrompt] = useState(
+    "a futuristic robot, chrome metallic, highly detailed, standing pose",
+  );
   const [model, setModel] = useState("hunyuan3d-2mini");
   const [steps, setSteps] = useState(15);
   const [generating, setGenerating] = useState(false);
@@ -178,7 +243,11 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
   const saveBible = useCallback((filename: string, bible: CharacterBible) => {
     setBibles((prev) => {
       const next = { ...prev, [filename]: bible };
-      try { localStorage.setItem("characterBibles", JSON.stringify(next)); } catch { /* ignore */ }
+      try {
+        localStorage.setItem("characterBibles", JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
       return next;
     });
   }, []);
@@ -187,43 +256,57 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
     setSeed(Math.floor(Math.random() * 2 ** 31));
   }, []);
 
-  const handleReferenceFile = useCallback((file: File | null) => {
-    if (refPreviewUrl) URL.revokeObjectURL(refPreviewUrl);
-    setRefPreviewUrl(null);
-    setRefFile(null);
-    setRefError(null);
-    if (!file) return;
-    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
-      setRefError("Reference must be PNG, JPEG, or WebP.");
-      return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      setRefError("Reference image exceeds 15 MB.");
-      return;
-    }
-    setRefFile(file);
-    setRefPreviewUrl(URL.createObjectURL(file));
-  }, [refPreviewUrl]);
+  const handleReferenceFile = useCallback(
+    (file: File | null) => {
+      if (refPreviewUrl) URL.revokeObjectURL(refPreviewUrl);
+      setRefPreviewUrl(null);
+      setRefFile(null);
+      setRefError(null);
+      if (!file) return;
+      if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+        setRefError("Reference must be PNG, JPEG, or WebP.");
+        return;
+      }
+      if (file.size > 15 * 1024 * 1024) {
+        setRefError("Reference image exceeds 15 MB.");
+        return;
+      }
+      setRefFile(file);
+      setRefPreviewUrl(URL.createObjectURL(file));
+    },
+    [refPreviewUrl],
+  );
 
-  const bibleForResult = useCallback((): CharacterBible => ({
-    name: charName.trim(),
-    notes: charNotes.trim(),
-    seed,
-    prompt,
-  }), [charName, charNotes, seed, prompt]);
+  const bibleForResult = useCallback(
+    (): CharacterBible => ({
+      name: charName.trim(),
+      notes: charNotes.trim(),
+      seed,
+      prompt,
+    }),
+    [charName, charNotes, seed, prompt],
+  );
 
-  const sendToStudio = useCallback((filename: string) => {
-    const bible = bibles[filename] ?? bibleForResult();
-    const servable = `/output/generated_3d/${filename}`;
-    try {
-      localStorage.setItem(PENDING_CHARACTER_KEY, JSON.stringify({
-        modelUrl: servable,
-        name: bible.name || filename.replace(/\.glb$/i, ""),
-        bible: [bible.name, bible.notes].filter(Boolean).join(" — ") || bible.prompt,
-      }));
-    } catch { /* ignore */ }
-    navigate("/three-js-studio");
-  }, [bibles, bibleForResult, navigate]);
+  const sendToStudio = useCallback(
+    (filename: string) => {
+      const bible = bibles[filename] ?? bibleForResult();
+      const servable = `/output/generated_3d/${filename}`;
+      try {
+        localStorage.setItem(
+          PENDING_CHARACTER_KEY,
+          JSON.stringify({
+            modelUrl: servable,
+            name: bible.name || filename.replace(/\.glb$/i, ""),
+            bible: [bible.name, bible.notes].filter(Boolean).join(" — ") || bible.prompt,
+          }),
+        );
+      } catch {
+        /* ignore */
+      }
+      navigate("/three-js-studio");
+    },
+    [bibles, bibleForResult, navigate],
+  );
 
   const loadStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -246,13 +329,21 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
         if (Array.isArray(models) && models.length > 0) {
           const mapped = models
             .slice(0, 10)
-            .map((m: { filename: string; path: string; size_bytes: number; servable_url?: string | null; modified?: number }) => ({
-              filename: m.filename,
-              path: m.path,
-              servable_url: m.servable_url ?? null,
-              size_bytes: m.size_bytes,
-              modified: m.modified ?? 0,
-            }));
+            .map(
+              (m: {
+                filename: string;
+                path: string;
+                size_bytes: number;
+                servable_url?: string | null;
+                modified?: number;
+              }) => ({
+                filename: m.filename,
+                path: m.path,
+                servable_url: m.servable_url ?? null,
+                size_bytes: m.size_bytes,
+                modified: m.modified ?? 0,
+              }),
+            );
           setGeneratedList(mapped);
           return;
         }
@@ -262,7 +353,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
         const d2 = await res2.json();
         const outs = d2.outputs || [];
         setGeneratedList(
-          outs.filter((f: { filename: string }) => f.filename.endsWith(".glb")).slice(0, 10)
+          outs.filter((f: { filename: string }) => f.filename.endsWith(".glb")).slice(0, 10),
         );
       }
     } catch {
@@ -287,8 +378,24 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
   }, [generating]);
 
   const models: readonly ModelInfo[] = [
-    { id: "hunyuan3d-2mini", name: "Hunyuan3D-2mini", vram: "5GB", time: "3-5 min", desc: "0.6B • Installed & 8GB-safe", color: "text-emerald-400", available: true },
-    { id: "hunyuan3d-2", name: "Hunyuan3D-2", vram: "9GB+", time: "6-8 min", desc: "1.2B • Not installed on this system", color: "text-amber-400", available: false },
+    {
+      id: "hunyuan3d-2mini",
+      name: "Hunyuan3D-2mini",
+      vram: "5GB",
+      time: "3-5 min",
+      desc: "0.6B • Installed & 8GB-safe",
+      color: "text-emerald-400",
+      available: true,
+    },
+    {
+      id: "hunyuan3d-2",
+      name: "Hunyuan3D-2",
+      vram: "9GB+",
+      time: "6-8 min",
+      desc: "1.2B • Not installed on this system",
+      color: "text-amber-400",
+      available: false,
+    },
   ];
 
   const selectedModel = models.find((m) => m.id === model) ?? models[0];
@@ -298,10 +405,13 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
   const estimatedSec = steps <= 10 ? 90 : steps <= 15 ? 150 : steps <= 20 ? 210 : 300;
 
   const resultModelPath = (result as { model_path?: string } | null)?.model_path;
-  const glbFilename = resultModelPath ? String(resultModelPath).split(/[\\/]/).pop() ?? null : null;
-  const glbUrl = glbFilename && (result as { success?: boolean } | null)?.success
-    ? `/output/generated_3d/${glbFilename}`
+  const glbFilename = resultModelPath
+    ? (String(resultModelPath).split(/[\\/]/).pop() ?? null)
     : null;
+  const glbUrl =
+    glbFilename && (result as { success?: boolean } | null)?.success
+      ? `/output/generated_3d/${glbFilename}`
+      : null;
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -314,10 +424,19 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
     setResult(null);
     const start = Date.now();
     try {
-      const data = await generate3D({ prompt, model, steps, seed, cfg: vizParams.cfg, params: vizParams as unknown as Record<string, unknown> });
+      const data = await generate3D({
+        prompt,
+        model,
+        steps,
+        seed,
+        cfg: vizParams.cfg,
+        params: vizParams as unknown as Record<string, unknown>,
+      });
       setResult(data);
       if ((data as { success?: boolean }).success === false) {
-        setError((data as { error?: string }).error || "Generation failed — check ComfyUI and VRAM");
+        setError(
+          (data as { error?: string }).error || "Generation failed — check ComfyUI and VRAM",
+        );
       } else {
         const mp = (data as { model_path?: string }).model_path;
         const fn = mp ? String(mp).split(/[\\/]/).pop() : null;
@@ -332,7 +451,9 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
               visible: true,
             },
             scene: { name: "Generated3D" },
-          }).catch(() => { /* non-fatal */ });
+          }).catch(() => {
+            /* non-fatal */
+          });
         }
       }
       loadStatus();
@@ -340,9 +461,13 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("timeout") || msg.includes("504")) {
-        setError("Generation timed out — Hunyuan3D-2mini takes 2-4 min on 8GB. Check Queue or try fewer steps.");
+        setError(
+          "Generation timed out — Hunyuan3D-2mini takes 2-4 min on 8GB. Check Queue or try fewer steps.",
+        );
       } else if (msg.includes("VRAM") || msg.includes("memory")) {
-        setError("VRAM full — close ComfyUI/Blender, reduce steps to 10, or use 2mini. See /health.");
+        setError(
+          "VRAM full — close ComfyUI/Blender, reduce steps to 10, or use 2mini. See /health.",
+        );
       } else {
         setError(msg || "Generation failed");
       }
@@ -363,7 +488,10 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
       const data = await generate3DFromImage(refFile, { steps });
       setResult(data);
       if ((data as { success?: boolean }).success === false) {
-        setError((data as { error?: string }).error || "Reference generation failed — check ComfyUI and VRAM");
+        setError(
+          (data as { error?: string }).error ||
+            "Reference generation failed — check ComfyUI and VRAM",
+        );
       } else {
         const mp = (data as { model_path?: string }).model_path;
         const fn = mp ? String(mp).split(/[\\/]/).pop() : null;
@@ -381,27 +509,54 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
   };
 
   return {
-    prompt, setPrompt,
-    model, setModel,
-    steps, setSteps,
-    generating, result, setResult,
-    status3d, statusLoading,
-    error, setError,
+    prompt,
+    setPrompt,
+    model,
+    setModel,
+    steps,
+    setSteps,
+    generating,
+    result,
+    setResult,
+    status3d,
+    statusLoading,
+    error,
+    setError,
     elapsed,
-    generatedList, historyLoading,
-    wizardStep, setWizardStep,
-    vizParams, setVizParams,
-    genMode, setGenMode,
-    charName, setCharName,
-    charNotes, setCharNotes,
-    seed, setSeed,
-    refFile, refPreviewUrl, refError,
+    generatedList,
+    historyLoading,
+    wizardStep,
+    setWizardStep,
+    vizParams,
+    setVizParams,
+    genMode,
+    setGenMode,
+    charName,
+    setCharName,
+    charNotes,
+    setCharNotes,
+    seed,
+    setSeed,
+    refFile,
+    refPreviewUrl,
+    refError,
     bibles,
-    selectedModel, wordCount, isAvailable, comfyRunning, estimatedSec,
-    glbUrl, glbFilename, resultModelPath,
-    saveBible, randomizeSeed, handleReferenceFile,
-    sendToStudio, loadStatus, loadHistory,
-    handleGenerate, handleGenerateFromReference,
+    selectedModel,
+    wordCount,
+    isAvailable,
+    comfyRunning,
+    estimatedSec,
+    glbUrl,
+    glbFilename,
+    resultModelPath,
+    saveBible,
+    randomizeSeed,
+    handleReferenceFile,
+    sendToStudio,
+    loadStatus,
+    loadHistory,
+    handleGenerate,
+    handleGenerateFromReference,
     models,
     navigate,
   };

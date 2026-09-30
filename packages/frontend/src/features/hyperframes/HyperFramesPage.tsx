@@ -1,5 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
-import { Film, Play, ExternalLink, FolderOpen, Clock, HardDrive, Loader2, Info, RefreshCw, AlertTriangle } from "lucide-react";
+import {
+  Film,
+  Play,
+  ExternalLink,
+  FolderOpen,
+  Clock,
+  HardDrive,
+  Loader2,
+  Info,
+  RefreshCw,
+  AlertTriangle,
+} from "lucide-react";
 import {
   getHyperFramesStatus,
   getHyperFramesExamples,
@@ -30,7 +41,7 @@ export function HyperFramesPage() {
   }, []);
 
   const handleRetry = useCallback(async () => {
-    setRetryCount(c => c + 1);
+    setRetryCount((c) => c + 1);
     setError(null);
     await loadStatus();
     await loadExamples();
@@ -42,7 +53,9 @@ export function HyperFramesPage() {
     loadExamples().then(() => {
       if (!cancelled) setLoading(false);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [loadStatus, retryCount]);
 
   const loadExamples = async () => {
@@ -133,11 +146,15 @@ export function HyperFramesPage() {
               <FolderOpen className="h-4 w-4 text-gray-400" />
               <span>Project</span>
             </div>
-            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${status?.exists ? "bg-green-500/10 text-green-300" : "bg-red-500/10 text-red-300"}`}>
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${status?.exists ? "bg-green-500/10 text-green-300" : "bg-red-500/10 text-red-300"}`}
+            >
               {status?.exists ? "Exists" : "Missing"}
             </span>
           </div>
-          <p className="text-xs text-gray-400 break-all leading-relaxed">{status?.test_project ?? "tools/hyperframes-built-this-from-a-dream"}</p>
+          <p className="text-xs text-gray-400 break-all leading-relaxed">
+            {status?.test_project ?? "tools/hyperframes-built-this-from-a-dream"}
+          </p>
         </div>
 
         <div className="group rounded-xl border border-gray-700/60 bg-gray-900/40 p-5 space-y-3 transition-colors hover:border-gray-600/60">
@@ -146,11 +163,15 @@ export function HyperFramesPage() {
               <Clock className="h-4 w-4 text-gray-400" />
               <span>CLI</span>
             </div>
-            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${status?.cli_available ? "bg-green-500/10 text-green-300" : "bg-red-500/10 text-red-300"}`}>
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${status?.cli_available ? "bg-green-500/10 text-green-300" : "bg-red-500/10 text-red-300"}`}
+            >
               {status?.cli_available ? "Available" : "Unavailable"}
             </span>
           </div>
-          <p className="text-xs text-gray-400 break-all leading-relaxed">{status?.hyperframes_cli ?? "npx"}</p>
+          <p className="text-xs text-gray-400 break-all leading-relaxed">
+            {status?.hyperframes_cli ?? "npx"}
+          </p>
         </div>
 
         <div className="group rounded-xl border border-gray-700/60 bg-gray-900/40 p-5 space-y-3 transition-colors hover:border-gray-600/60">
@@ -218,8 +239,23 @@ export function HyperFramesPage() {
           <span>Current Project</span>
         </div>
         <p className="text-xs text-gray-400 leading-relaxed">
-          The active HyperFrames project is <code className="rounded bg-gray-800/60 px-1.5 py-0.5 text-xs text-gray-200">tools/hyperframes-built-this-from-a-dream</code>.
-          {" "}Compositions: <code className="rounded bg-gray-800/60 px-1.5 py-0.5 text-xs text-gray-200">index.html</code>, <code className="rounded bg-gray-800/60 px-1.5 py-0.5 text-xs text-gray-200">v2/index.html</code>, <code className="rounded bg-gray-800/60 px-1.5 py-0.5 text-xs text-gray-200">v3/index.html</code>.
+          The active HyperFrames project is{" "}
+          <code className="rounded bg-gray-800/60 px-1.5 py-0.5 text-xs text-gray-200">
+            tools/hyperframes-built-this-from-a-dream
+          </code>
+          . Compositions:{" "}
+          <code className="rounded bg-gray-800/60 px-1.5 py-0.5 text-xs text-gray-200">
+            index.html
+          </code>
+          ,{" "}
+          <code className="rounded bg-gray-800/60 px-1.5 py-0.5 text-xs text-gray-200">
+            v2/index.html
+          </code>
+          ,{" "}
+          <code className="rounded bg-gray-800/60 px-1.5 py-0.5 text-xs text-gray-200">
+            v3/index.html
+          </code>
+          .
         </p>
       </div>
     </div>

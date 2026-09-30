@@ -124,9 +124,7 @@ export function useWebGPUDector(): WebGPUDetectResult {
  * This function keeps a stable identity, reads the decision at configure time,
  * and falls back to WebGL if WebGPU is opted-in but fails to initialize.
  */
-export async function createVisualizerRenderer(
-  defaultProps: RendererInitProps,
-): Promise<any> {
+export async function createVisualizerRenderer(defaultProps: RendererInitProps): Promise<any> {
   if (isWebGPUOptIn() && (await detectWebGPUSupport())) {
     try {
       const renderer = await createWebGPURenderer(defaultProps);
@@ -148,8 +146,10 @@ export async function createVisualizerRenderer(
  * R3F calls it as `gl(canvas, options)` — accepts either shape.
  */
 export async function createWebGPURenderer(
-  canvasOrOptions: HTMLCanvasElement | { canvas: HTMLCanvasElement; antialias?: boolean; alpha?: boolean; powerPreference?: string },
-  maybeOptions: { antialias?: boolean; alpha?: boolean; powerPreference?: string } = {}
+  canvasOrOptions:
+    | HTMLCanvasElement
+    | { canvas: HTMLCanvasElement; antialias?: boolean; alpha?: boolean; powerPreference?: string },
+  maybeOptions: { antialias?: boolean; alpha?: boolean; powerPreference?: string } = {},
 ): Promise<any> {
   let canvas: HTMLCanvasElement;
   let options: { antialias?: boolean; alpha?: boolean; powerPreference?: string };

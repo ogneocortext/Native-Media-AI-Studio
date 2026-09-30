@@ -58,12 +58,17 @@ export interface GPUHistoryPoint {
   temperature_c?: number;
 }
 
-export async function getGPUHistory(range?: string, limit: number = 2000): Promise<{ points: GPUHistoryPoint[]; count: number }> {
+export async function getGPUHistory(
+  range?: string,
+  limit: number = 2000,
+): Promise<{ points: GPUHistoryPoint[]; count: number }> {
   const base = getApiBase();
   const params = new URLSearchParams();
   if (range) params.set("range", range);
   params.set("limit", String(limit));
-  const res = await fetchWithTimeout(`${base}/api/health/gpu/history?${params.toString()}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/health/gpu/history?${params.toString()}`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get GPU history");
   return res.json();
 }
@@ -72,14 +77,19 @@ export async function getGPUStats(range?: string): Promise<Record<string, unknow
   const base = getApiBase();
   const params = new URLSearchParams();
   if (range) params.set("range", range);
-  const res = await fetchWithTimeout(`${base}/api/health/gpu/stats?${params.toString()}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/health/gpu/stats?${params.toString()}`, {
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to get GPU stats");
   return res.json();
 }
 
 export async function clearGPUHistory(keepDays: number = 0): Promise<{ deleted: number }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health/gpu/history?keep_days=${keepDays}`, { method: "DELETE", timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/health/gpu/history?keep_days=${keepDays}`, {
+    method: "DELETE",
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to clear GPU history");
   return res.json();
 }
@@ -128,7 +138,9 @@ export async function generate3DFromImage(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error((err as { detail?: string }).detail || "Failed to trigger image-to-3D generation");
+    throw new Error(
+      (err as { detail?: string }).detail || "Failed to trigger image-to-3D generation",
+    );
   }
   return res.json();
 }

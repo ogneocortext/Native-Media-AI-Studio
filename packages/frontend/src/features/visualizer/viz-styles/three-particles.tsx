@@ -66,7 +66,12 @@ export function ThreeParticlesDemo({ audioData, sceneFrozen, stems, audioElapsed
 
     stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
-    const speed = 1 + d.energy * 3 + d.bass * 2 + stemEnergyRef.current.drums * 0.5 + stemEnergyRef.current.other * 0.3;
+    const speed =
+      1 +
+      d.energy * 3 +
+      d.bass * 2 +
+      stemEnergyRef.current.drums * 0.5 +
+      stemEnergyRef.current.other * 0.3;
     systemRef.current.update({
       now: performance.now(),
       delta: Math.min(delta, 0.1) * speed,

@@ -59,12 +59,32 @@ export function getShaderPresetForTrack(trackName: string): ShaderPresetName {
   }
 
   // Keyword-based fallback
-  if (lower.includes("signal") || lower.includes("noise") || lower.includes("horizon")) return "electricHorizon";
+  if (lower.includes("signal") || lower.includes("noise") || lower.includes("horizon"))
+    return "electricHorizon";
   if (lower.includes("fade") || lower.includes("noir") || lower.includes("fog")) return "foggyNoir";
-  if (lower.includes("rain") || lower.includes("cyberpunk") || lower.includes("neon")) return "neonRain";
-  if (lower.includes("grid") || lower.includes("system") || lower.includes("override") || lower.includes("glitch")) return "neonGrid";
-  if (lower.includes("fire") || lower.includes("crown") || lower.includes("burn") || lower.includes("flame")) return "fireCrown";
-  if (lower.includes("west") || lower.includes("coast") || lower.includes("g-funk") || lower.includes("sunset")) return "westCoastSunset";
+  if (lower.includes("rain") || lower.includes("cyberpunk") || lower.includes("neon"))
+    return "neonRain";
+  if (
+    lower.includes("grid") ||
+    lower.includes("system") ||
+    lower.includes("override") ||
+    lower.includes("glitch")
+  )
+    return "neonGrid";
+  if (
+    lower.includes("fire") ||
+    lower.includes("crown") ||
+    lower.includes("burn") ||
+    lower.includes("flame")
+  )
+    return "fireCrown";
+  if (
+    lower.includes("west") ||
+    lower.includes("coast") ||
+    lower.includes("g-funk") ||
+    lower.includes("sunset")
+  )
+    return "westCoastSunset";
 
   return "abstractWaves";
 }
@@ -77,12 +97,49 @@ export interface ShaderPresetFxDefaults {
   saturation?: number;
 }
 
-export const SHADER_PRESET_INFO: Record<ShaderPresetName, { name: string; description: string; bestFor: string; fxDefaults?: ShaderPresetFxDefaults }> = {
-  electricHorizon: { name: "Electric Horizon", description: "Dawn landscape with electric blue signal waves", bestFor: "Progressive Trance, Euphoric", fxDefaults: { brightness: 1.1, saturation: 1.1 } },
-  foggyNoir: { name: "Foggy Noir", description: "Layered fog with warm sub-bass glow", bestFor: "Future-garage, Nocturnal", fxDefaults: { brightness: 0.9, contrast: 1.15, saturation: 0.85 } },
-  neonRain: { name: "Neon Rain", description: "Rain-soaked neon reflections, cyberpunk", bestFor: "Neo-noir, Cyberpunk Synth", fxDefaults: { brightness: 1.15, saturation: 1.2 } },
-  neonGrid: { name: "Neon Grid", description: "Retro-futuristic grid with glitch effects", bestFor: "Dubstep, Synthwave", fxDefaults: { contrast: 1.2, saturation: 1.15 } },
-  fireCrown: { name: "Fire Crown", description: "Rising flames with ember particles", bestFor: "Drift Phonk, Triumphant", fxDefaults: { brightness: 1.1, saturation: 1.1 } },
-  westCoastSunset: { name: "West Coast Sunset", description: "Sunset gradient with palm silhouettes", bestFor: "G-Funk, Laid-back", fxDefaults: { brightness: 1.05, saturation: 1.1 } },
-  abstractWaves: { name: "Abstract Waves", description: "Flowing waveform interference patterns", bestFor: "Any genre" },
+export const SHADER_PRESET_INFO: Record<
+  ShaderPresetName,
+  { name: string; description: string; bestFor: string; fxDefaults?: ShaderPresetFxDefaults }
+> = {
+  electricHorizon: {
+    name: "Electric Horizon",
+    description: "Dawn landscape with electric blue signal waves",
+    bestFor: "Progressive Trance, Euphoric",
+    fxDefaults: { brightness: 1.1, saturation: 1.1 },
+  },
+  foggyNoir: {
+    name: "Foggy Noir",
+    description: "Layered fog with warm sub-bass glow",
+    bestFor: "Future-garage, Nocturnal",
+    fxDefaults: { brightness: 0.9, contrast: 1.15, saturation: 0.85 },
+  },
+  neonRain: {
+    name: "Neon Rain",
+    description: "Rain-soaked neon reflections, cyberpunk",
+    bestFor: "Neo-noir, Cyberpunk Synth",
+    fxDefaults: { brightness: 1.15, saturation: 1.2 },
+  },
+  neonGrid: {
+    name: "Neon Grid",
+    description: "Retro-futuristic grid with glitch effects",
+    bestFor: "Dubstep, Synthwave",
+    fxDefaults: { contrast: 1.2, saturation: 1.15 },
+  },
+  fireCrown: {
+    name: "Fire Crown",
+    description: "Rising flames with ember particles",
+    bestFor: "Drift Phonk, Triumphant",
+    fxDefaults: { brightness: 1.1, saturation: 1.1 },
+  },
+  westCoastSunset: {
+    name: "West Coast Sunset",
+    description: "Sunset gradient with palm silhouettes",
+    bestFor: "G-Funk, Laid-back",
+    fxDefaults: { brightness: 1.05, saturation: 1.1 },
+  },
+  abstractWaves: {
+    name: "Abstract Waves",
+    description: "Flowing waveform interference patterns",
+    bestFor: "Any genre",
+  },
 };

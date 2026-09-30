@@ -40,16 +40,37 @@ export function GoServicesCard() {
         signal: signal ?? AbortSignal.timeout(4000),
       });
       if (!response.ok) throw new Error(`Service diagnostics returned HTTP ${response.status}`);
-      type SidecarResponse = { status?: string; url?: string | null; port?: number; error?: string; role?: string; latency_ms?: number };
+      type SidecarResponse = {
+        status?: string;
+        url?: string | null;
+        port?: number;
+        error?: string;
+        role?: string;
+        latency_ms?: number;
+      };
 
-      const payload = await response.json() as { sidecars?: Record<string, SidecarResponse> };
+      const payload = (await response.json()) as { sidecars?: Record<string, SidecarResponse> };
       return GO_SERVICES.map((svc) => {
         const key = svc.name.toLowerCase().replaceAll(" ", "-");
         const result = payload.sidecars?.[key];
-        return { name: svc.name, running: result?.status === "online", port: result?.port ?? svc.fallbackPort, url: result?.url ?? undefined, error: result?.error, role: result?.role ?? svc.role, latency_ms: result?.latency_ms };
+        return {
+          name: svc.name,
+          running: result?.status === "online",
+          port: result?.port ?? svc.fallbackPort,
+          url: result?.url ?? undefined,
+          error: result?.error,
+          role: result?.role ?? svc.role,
+          latency_ms: result?.latency_ms,
+        };
       });
     } catch (error) {
-      return GO_SERVICES.map((svc) => ({ name: svc.name, running: false, port: svc.fallbackPort, role: svc.role, error: error instanceof Error ? error.message : "Health check failed" }));
+      return GO_SERVICES.map((svc) => ({
+        name: svc.name,
+        running: false,
+        port: svc.fallbackPort,
+        role: svc.role,
+        error: error instanceof Error ? error.message : "Health check failed",
+      }));
     }
   }, []);
 
@@ -66,7 +87,11 @@ export function GoServicesCard() {
     };
     run();
     const interval = setInterval(run, 15000);
-    return () => { cancelled = true; controller.abort(); clearInterval(interval); };
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearInterval(interval);
+    };
   }, [check]);
 
   const online = services.filter((s) => s.running).length;
@@ -134,7 +159,8 @@ export function GoServicesCard() {
         </div>
       )}
       <p className="text-[11px] text-muted mt-3">
-        Go sidecars provide high-concurrency infrastructure (SSE, media workers, MCP gateway, port checks).
+        Go sidecars provide high-concurrency infrastructure (SSE, media workers, MCP gateway, port
+        checks).
       </p>
     </Card>
   );

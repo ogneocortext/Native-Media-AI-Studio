@@ -15,7 +15,12 @@ import { extractFrequencyBands, updatePeakHoldRefs } from "./audioAnalysisHelper
 import type { UseAudioAnalysisWorkerResult } from "./useAudioAnalysisWorker";
 
 // Demo fallback — synthetic audio for when no track is playing
-export function useDemoAudio(enabled: boolean, bpm: number, perceptualScale: PerceptualScale = "mel", numPerceptualBands: number = 40) {
+export function useDemoAudio(
+  enabled: boolean,
+  bpm: number,
+  perceptualScale: PerceptualScale = "mel",
+  numPerceptualBands: number = 40,
+) {
   const data = useRef<AudioData>({
     bass: 0,
     mid: 0,
@@ -38,7 +43,7 @@ export function useDemoAudio(enabled: boolean, bpm: number, perceptualScale: Per
     const mid = (Math.sin(t * f * 3.5) + 1) / 2;
     const treble = (Math.sin(t * f * 5) + 1) / 2;
     const bands = generatePerceptualBands(perceptualScale, numPerceptualBands, 20, 22050);
-    const perceptualBands = bands.map(() => (bass * 0.4 + mid * 0.35 + treble * 0.25));
+    const perceptualBands = bands.map(() => bass * 0.4 + mid * 0.35 + treble * 0.25);
     data.current = {
       bass,
       mid,
@@ -110,11 +115,7 @@ export function useRealAudio(
     const analyser = analyserRef.current;
     if (!analyser) return;
     if (isPaused || !isPlaying) {
-      if (
-        data.current.bass !== 0 ||
-        data.current.mid !== 0 ||
-        data.current.treble !== 0
-      ) {
+      if (data.current.bass !== 0 || data.current.mid !== 0 || data.current.treble !== 0) {
         data.current = {
           bass: 0,
           mid: 0,
@@ -149,13 +150,8 @@ export function useRealAudio(
       return;
     }
 
-    if (
-      !freqArray.current ||
-      freqArray.current.length !== analyser.frequencyBinCount
-    ) {
-      freqArray.current = new Uint8Array(
-        analyser.frequencyBinCount,
-      ) as Uint8Array;
+    if (!freqArray.current || freqArray.current.length !== analyser.frequencyBinCount) {
+      freqArray.current = new Uint8Array(analyser.frequencyBinCount) as Uint8Array;
     }
     analyser.getByteFrequencyData(freqArray.current as Uint8Array<ArrayBuffer>);
     const arr = freqArray.current;
@@ -173,7 +169,11 @@ export function useRealAudio(
 
     // Frequency-based bin mapping using actual sample rate
     const sampleRate = ctx.sampleRate;
-    const { bass: rawBass, mid: rawMid, treble: rawTreble } = extractFrequencyBands(arr, sampleRate);
+    const {
+      bass: rawBass,
+      mid: rawMid,
+      treble: rawTreble,
+    } = extractFrequencyBands(arr, sampleRate);
 
     // Attack/release smoothing from shared timing constants (kept in sync with
     // the shader-mode loop in Visualizer.tsx — see audioTiming.ts).
@@ -198,11 +198,7 @@ export function useRealAudio(
     const elapsed = audioElapsedRef?.current ?? 0;
     if (analysisData && analysisData.beat_times.length > 0 && elapsed > 0) {
       // Use shared timing helper for binary-search beat lookup
-      const near = getBeatNearTimeFromArray(
-        analysisData.beat_times,
-        elapsed,
-        0.06,
-      );
+      const near = getBeatNearTimeFromArray(analysisData.beat_times, elapsed, 0.06);
       if (near) {
         isBeat = true;
         // Drum classification: use current frequency energy ratios at the beat instant
@@ -211,19 +207,13 @@ export function useRealAudio(
         }
       }
       // Predictive next-beat countdown from analyzed beat_times
-      nextBeatInRef.current = getNextBeatInFromArray(
-        analysisData.beat_times,
-        elapsed,
-      );
+      nextBeatInRef.current = getNextBeatInFromArray(analysisData.beat_times, elapsed);
     } else {
       // Adaptive bass spike detection with dynamic threshold
       const avgEnergy = (bass + mid + treble) / 3;
       const threshold = 0.4 + avgEnergy * 0.3; // Adapt to track loudness
       beatCooldown.current = Math.max(0, beatCooldown.current - 1);
-      isBeat =
-        bass > threshold &&
-        bass > lastBass.current * 1.1 &&
-        beatCooldown.current === 0;
+      isBeat = bass > threshold && bass > lastBass.current * 1.1 && beatCooldown.current === 0;
       if (isBeat) {
         beatCooldown.current = 6;
         // Drum classification for fallback detector
@@ -235,8 +225,7 @@ export function useRealAudio(
           const interval = elapsed - lastBeatTime.current;
           if (interval > 0.15 && interval < 2.0) {
             recentBeatIntervals.current.push(interval);
-            if (recentBeatIntervals.current.length > 8)
-              recentBeatIntervals.current.shift();
+            if (recentBeatIntervals.current.length > 8) recentBeatIntervals.current.shift();
           }
         }
         lastBeatTime.current = elapsed;
@@ -272,11 +261,7 @@ export function useRealAudio(
       analysisData.energy_curve.length > 0 &&
       analysisDurationRef.current > 0 &&
       elapsed > 0
-        ? getEnergyAtTime(
-            analysisData.energy_curve,
-            analysisDurationRef.current,
-            elapsed,
-          )
+        ? getEnergyAtTime(analysisData.energy_curve, analysisDurationRef.current, elapsed)
         : 0;
 
     // Perceptual frequency band mapping for more accurate visualization.
@@ -293,7 +278,12 @@ export function useRealAudio(
         scale: perceptualScale,
         numBands: numPerceptualBands,
         sampleRate,
-        boundaries: generatePerceptualBands(perceptualScale, numPerceptualBands, 20, sampleRate / 2),
+        boundaries: generatePerceptualBands(
+          perceptualScale,
+          numPerceptualBands,
+          20,
+          sampleRate / 2,
+        ),
       };
     }
     const bands = perceptualBandCache.current!.boundaries;
@@ -308,18 +298,24 @@ export function useRealAudio(
     const rawEnergy = (bass + mid + treble) / 3;
     // Blend live energy with analyzed energy curve for stable, section-aware intensity.
     // 60% live keeps transients; 40% analysis anchors to track structure.
-    const energy =
-      analyzedEnergy > 0
-        ? rawEnergy * 0.6 + analyzedEnergy * 0.4
-        : rawEnergy;
+    const energy = analyzedEnergy > 0 ? rawEnergy * 0.6 + analyzedEnergy * 0.4 : rawEnergy;
 
     // Downbeat detection from backend downbeat times (150ms window)
     let isDownbeat = false;
-    if (analysisData && analysisData.downbeat_times && analysisData.downbeat_times.length > 0 && elapsed > 0) {
+    if (
+      analysisData &&
+      analysisData.downbeat_times &&
+      analysisData.downbeat_times.length > 0 &&
+      elapsed > 0
+    ) {
       const downbeatT = Math.round(elapsed * 100);
       for (let delta = 0; delta <= 15; delta++) {
         if (
-          analysisData.downbeat_times.some((bt) => Math.round(bt * 100) === downbeatT - delta || Math.round(bt * 100) === downbeatT + delta)
+          analysisData.downbeat_times.some(
+            (bt) =>
+              Math.round(bt * 100) === downbeatT - delta ||
+              Math.round(bt * 100) === downbeatT + delta,
+          )
         ) {
           isDownbeat = true;
           break;

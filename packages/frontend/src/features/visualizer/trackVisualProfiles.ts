@@ -161,7 +161,7 @@ export const trackVisualProfiles: Record<string, TrackVisualProfile> = {
   // ============================================================
   // UNPRODUCTIVE (V2) — midtempo major-key groove, brightest mix
   // ============================================================
-  "unproductive": {
+  unproductive: {
     id: "unproductive",
     title: "Unproductive",
     matchFragments: ["unproductive"],
@@ -335,7 +335,10 @@ export function resolveTrackVisualProfile(trackName: string): TrackVisualProfile
  */
 export function buildTunedPreset(profile: TrackVisualProfile): VisualPreset {
   const base = visualPresets[profile.basePresetId];
-  if (!base) throw new Error(`Unknown base preset "${profile.basePresetId}" for track profile "${profile.id}"`);
+  if (!base)
+    throw new Error(
+      `Unknown base preset "${profile.basePresetId}" for track profile "${profile.id}"`,
+    );
   return {
     ...base,
     vizParams: { ...base.vizParams, ...profile.vizParamOverrides },

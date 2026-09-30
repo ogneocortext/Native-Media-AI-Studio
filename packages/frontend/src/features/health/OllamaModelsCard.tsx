@@ -24,18 +24,24 @@ export function OllamaModelsCard() {
   const activity = data.activity || {};
 
   return (
-    <Card className="ollama-card mb-6" title="Ollama Models" icon={<Cpu size={16} className="text-violet-400" />}>
+    <Card
+      className="ollama-card mb-6"
+      title="Ollama Models"
+      icon={<Cpu size={16} className="text-violet-400" />}
+    >
       {models.length === 0 ? (
         <div className="text-center py-6">
           <Cpu size={28} className="mx-auto mb-3 opacity-30 text-violet-400" />
           <p className="text-sm text-muted">No model currently loaded in VRAM</p>
-          <p className="text-xs text-muted mt-1">A model loads on first request and may persist for a while</p>
+          <p className="text-xs text-muted mt-1">
+            A model loads on first request and may persist for a while
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
           {models.map((m) => {
             const active = activity[m.name];
-            const elapsed = active?.started_at ? Math.floor((now / 1000) - active.started_at) : null;
+            const elapsed = active?.started_at ? Math.floor(now / 1000 - active.started_at) : null;
             return (
               <div
                 key={m.name}
@@ -59,9 +65,15 @@ export function OllamaModelsCard() {
                     <Loader2 size={12} className="animate-spin text-yellow-400" />
                     <span className="text-xs text-yellow-300 capitalize">{active.task}</span>
                     {active.description && (
-                      <span className="text-xs text-muted truncate flex-1">— {active.description}</span>
+                      <span className="text-xs text-muted truncate flex-1">
+                        — {active.description}
+                      </span>
                     )}
-                    {elapsed != null && <span className="text-xs text-yellow-400/70 font-mono">{formatElapsed(elapsed)}</span>}
+                    {elapsed != null && (
+                      <span className="text-xs text-yellow-400/70 font-mono">
+                        {formatElapsed(elapsed)}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

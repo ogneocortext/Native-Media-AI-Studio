@@ -26,14 +26,9 @@ export function CodePanel({
         <div className="flex items-center justify-between px-3 py-2 bg-emerald-900/20 border-b border-emerald-500/20">
           <div className="flex items-center gap-2">
             <FileCode size={14} className="text-emerald-400" />
-            <span className="text-sm font-semibold text-emerald-300">
-              Paste Code
-            </span>
+            <span className="text-sm font-semibold text-emerald-300">Paste Code</span>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white p-0.5"
-          >
+          <button onClick={onClose} className="text-gray-400 hover:text-white p-0.5">
             <ChevronDown size={14} />
           </button>
         </div>
@@ -58,8 +53,8 @@ export function CodePanel({
             </div>
           )}
           <p className="text-[10px] text-gray-500 leading-relaxed">
-            Paste JavaScript or JSON from an AI agent. The code runs in
-            the scene context with access to Three.js.
+            Paste JavaScript or JSON from an AI agent. The code runs in the scene context with
+            access to Three.js.
           </p>
         </div>
       </div>

@@ -1,9 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { animate } from "animejs";
-import {
-  getSectionColors,
-  getSectionIntensity,
-} from "../sectionHelpers";
+import { getSectionColors, getSectionIntensity } from "../sectionHelpers";
 import { getTrackFeatures } from "../trackFeatures";
 import {
   animateSectionTransition,
@@ -50,15 +47,25 @@ export function KineticLyricOverlay({
   // Use binary search via lrcSync if available, else O(log n) local; avoid O(n) findIndex per frame
   const { currentLine, nextLine, currentSection } = useMemo(() => {
     if (!lyrics.length) return { currentLine: null, nextLine: null, currentSection: "VERSE" };
-    let lo = 0, hi = lyrics.length - 1, found = -1;
+    let lo = 0,
+      hi = lyrics.length - 1,
+      found = -1;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
       const l = lyrics[mid];
       if (elapsed < l.start) hi = mid - 1;
       else if (elapsed >= l.end) lo = mid + 1;
-      else { found = mid; break; }
+      else {
+        found = mid;
+        break;
+      }
     }
-    if (found === -1) return { currentLine: null, nextLine: lyrics[lo] || null, currentSection: lyrics[lo]?.section || "VERSE" };
+    if (found === -1)
+      return {
+        currentLine: null,
+        nextLine: lyrics[lo] || null,
+        currentSection: lyrics[lo]?.section || "VERSE",
+      };
     const line = lyrics[found];
     return { currentLine: line, nextLine: lyrics[found + 1] || null, currentSection: line.section };
   }, [lyrics, elapsed]);
@@ -76,9 +83,7 @@ export function KineticLyricOverlay({
   // (VERSE→cinematic, CHORUS→dubstep, etc.) was the primary source of
   // "incredibly buggy" flicker, as the entire animation preset would snap
   // mid-song. Section-derived colors/intensity still vary via getSectionColors.
-  const preset =
-    kineticPresets[presetId] ||
-    kineticPresets.cinematic;
+  const preset = kineticPresets[presetId] || kineticPresets.cinematic;
 
   // Track animation handles so overlapping triggers don't stack and cause jank.
   const lineAnimRef = useRef<ReturnType<typeof animate> | null>(null);
@@ -92,7 +97,11 @@ export function KineticLyricOverlay({
     if (prevSectionRef.current !== activeSection && prevSectionRef.current) {
       const el = containerRef.current.querySelector(".kinetic-active-line");
       if (el) {
-        try { lineAnimRef.current?.pause(); } catch { /* already finished */ }
+        try {
+          lineAnimRef.current?.pause();
+        } catch {
+          /* already finished */
+        }
         animateSectionTransition(el as HTMLElement, activeSection);
       }
     }
@@ -109,7 +118,11 @@ export function KineticLyricOverlay({
       if (el) {
         const intensity = getSectionIntensity(displayLine.section);
         (el as HTMLElement).style.setProperty("--section-intensity", String(intensity));
-        try { lineAnimRef.current?.pause(); } catch { /* already finished */ }
+        try {
+          lineAnimRef.current?.pause();
+        } catch {
+          /* already finished */
+        }
         // `animate` returns a JSAnimatable; keep handle so beat/section don't pile up.
         // Cast to any — animejs v4 types are loose.
         lineAnimRef.current = preset.enterAnimation(el as HTMLElement) as any;
@@ -124,9 +137,14 @@ export function KineticLyricOverlay({
     if (!beat || !displayLine || !containerRef.current || isGapPreview) return;
     const el = containerRef.current.querySelector(".kinetic-active-line");
     if (el && preset.beatAnimation) {
-      const intensity = 0.4 + features.energy * 0.4 + getSectionIntensity(displayLine!.section) * 0.2;
+      const intensity =
+        0.4 + features.energy * 0.4 + getSectionIntensity(displayLine!.section) * 0.2;
       (el as HTMLElement).style.setProperty("--beat-intensity", String(intensity));
-      try { beatAnimRef.current?.pause(); } catch { /* already finished */ }
+      try {
+        beatAnimRef.current?.pause();
+      } catch {
+        /* already finished */
+      }
       beatAnimRef.current = preset.beatAnimation(el as HTMLElement) as any;
     }
   }, [beat, preset, features.energy, displayLine, isGapPreview]);
@@ -137,9 +155,7 @@ export function KineticLyricOverlay({
     if (!displayLine || isGapPreview || !containerRef.current) return;
     const dl = displayLine!;
     const words =
-      dl.words && dl.words.length > 0
-        ? dl.words
-        : estimateWordTiming(dl.text, dl.start, dl.end);
+      dl.words && dl.words.length > 0 ? dl.words : estimateWordTiming(dl.text, dl.start, dl.end);
     const currentWordIdx = findCurrentWord(words, elapsed);
     if (currentWordIdx < 0 || currentWordIdx === prevWordIdxRef.current) return;
     prevWordIdxRef.current = currentWordIdx;
@@ -219,7 +235,13 @@ export function KineticLyricOverlay({
         }}
       >
         {displayLine.section}
-        {isGapPreview && <span style={{ marginLeft: 8, opacity: 0.55, fontSize: "0.7em", letterSpacing: "0.12em" }}>NEXT</span>}
+        {isGapPreview && (
+          <span
+            style={{ marginLeft: 8, opacity: 0.55, fontSize: "0.7em", letterSpacing: "0.12em" }}
+          >
+            NEXT
+          </span>
+        )}
       </div>
       <div
         className={`kinetic-active-line ${phrasePulse ? "phrase-pulse" : ""} ${isGapPreview ? "gap-preview" : ""}`}
@@ -237,9 +259,7 @@ export function KineticLyricOverlay({
         ref={(el) => {
           if (el) {
             // Cache word elements for word-level animation
-            wordElementsRef.current = Array.from(
-              el.querySelectorAll(".lyric-word"),
-            );
+            wordElementsRef.current = Array.from(el.querySelectorAll(".lyric-word"));
           }
         }}
       >
@@ -248,7 +268,11 @@ export function KineticLyricOverlay({
             <span className="lyric-word-container" style={{ display: "inline-block" }}>
               <span className="lyric-word">{word}</span>
             </span>
-            {idx < words.length - 1 && <span style={{ display: "inline-block", width: "0.32em" }} aria-hidden="true"> </span>}
+            {idx < words.length - 1 && (
+              <span style={{ display: "inline-block", width: "0.32em" }} aria-hidden="true">
+                {" "}
+              </span>
+            )}
           </React.Fragment>
         ))}
       </div>

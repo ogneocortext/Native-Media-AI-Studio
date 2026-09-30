@@ -50,7 +50,16 @@ export const visualPresets: Record<string, VisualPreset> = {
     meshColor: "#ff0044",
     kineticPreset: "phonk",
     visualizationStyle: "geometric",
-    theatreValues: { translateX: 0, translateY: 0, opacity: 1, scale: 1, rotateZ: 0, skewX: -5, letterSpacing: 2, blur: 0 },
+    theatreValues: {
+      translateX: 0,
+      translateY: 0,
+      opacity: 1,
+      scale: 1,
+      rotateZ: 0,
+      skewX: -5,
+      letterSpacing: 2,
+      blur: 0,
+    },
   },
 
   // ============================================================
@@ -88,7 +97,16 @@ export const visualPresets: Record<string, VisualPreset> = {
     meshColor: "#ff00ff",
     kineticPreset: "synthwave",
     visualizationStyle: "cosmic",
-    theatreValues: { translateX: 0, translateY: 0, opacity: 1, scale: 1, rotateZ: 0, skewX: 0, letterSpacing: 8, blur: 0 },
+    theatreValues: {
+      translateX: 0,
+      translateY: 0,
+      opacity: 1,
+      scale: 1,
+      rotateZ: 0,
+      skewX: 0,
+      letterSpacing: 8,
+      blur: 0,
+    },
   },
 
   // ============================================================
@@ -126,7 +144,16 @@ export const visualPresets: Record<string, VisualPreset> = {
     meshColor: "#00ccff",
     kineticPreset: "ambient",
     visualizationStyle: "cosmic",
-    theatreValues: { translateX: 0, translateY: 0, opacity: 0.9, scale: 1, rotateZ: 0, skewX: 0, letterSpacing: 4, blur: 2 },
+    theatreValues: {
+      translateX: 0,
+      translateY: 0,
+      opacity: 0.9,
+      scale: 1,
+      rotateZ: 0,
+      skewX: 0,
+      letterSpacing: 4,
+      blur: 2,
+    },
   },
 
   // ============================================================
@@ -164,7 +191,16 @@ export const visualPresets: Record<string, VisualPreset> = {
     meshColor: "#ff8800",
     kineticPreset: "gfunk",
     visualizationStyle: "geometric",
-    theatreValues: { translateX: 0, translateY: 0, opacity: 1, scale: 1, rotateZ: -2, skewX: 0, letterSpacing: 3, blur: 0 },
+    theatreValues: {
+      translateX: 0,
+      translateY: 0,
+      opacity: 1,
+      scale: 1,
+      rotateZ: -2,
+      skewX: 0,
+      letterSpacing: 3,
+      blur: 0,
+    },
   },
 
   // ============================================================
@@ -202,7 +238,16 @@ export const visualPresets: Record<string, VisualPreset> = {
     meshColor: "#ffff00",
     kineticPreset: "grime",
     visualizationStyle: "geometric",
-    theatreValues: { translateX: 0, translateY: 0, opacity: 1, scale: 1.1, rotateZ: 0, skewX: -8, letterSpacing: 1, blur: 0 },
+    theatreValues: {
+      translateX: 0,
+      translateY: 0,
+      opacity: 1,
+      scale: 1.1,
+      rotateZ: 0,
+      skewX: -8,
+      letterSpacing: 1,
+      blur: 0,
+    },
   },
 
   // ============================================================
@@ -240,7 +285,16 @@ export const visualPresets: Record<string, VisualPreset> = {
     meshColor: "#00ff44",
     kineticPreset: "dubstep",
     visualizationStyle: "geometric",
-    theatreValues: { translateX: 0, translateY: 0, opacity: 1, scale: 1.2, rotateZ: 0, skewX: 0, letterSpacing: 0, blur: 0 },
+    theatreValues: {
+      translateX: 0,
+      translateY: 0,
+      opacity: 1,
+      scale: 1.2,
+      rotateZ: 0,
+      skewX: 0,
+      letterSpacing: 0,
+      blur: 0,
+    },
   },
 
   // ============================================================
@@ -278,7 +332,16 @@ export const visualPresets: Record<string, VisualPreset> = {
     meshColor: "#cc8844",
     kineticPreset: "lofi",
     visualizationStyle: "cosmic",
-    theatreValues: { translateX: 0, translateY: 0, opacity: 0.85, scale: 1, rotateZ: 0, skewX: 0, letterSpacing: 2, blur: 1 },
+    theatreValues: {
+      translateX: 0,
+      translateY: 0,
+      opacity: 0.85,
+      scale: 1,
+      rotateZ: 0,
+      skewX: 0,
+      letterSpacing: 2,
+      blur: 1,
+    },
   },
 
   // ============================================================
@@ -316,7 +379,16 @@ export const visualPresets: Record<string, VisualPreset> = {
     meshColor: "#ffffff",
     kineticPreset: "cinematic",
     visualizationStyle: "cosmic",
-    theatreValues: { translateX: 0, translateY: 0, opacity: 1, scale: 1, rotateZ: 0, skewX: 0, letterSpacing: 12, blur: 0 },
+    theatreValues: {
+      translateX: 0,
+      translateY: 0,
+      opacity: 1,
+      scale: 1,
+      rotateZ: 0,
+      skewX: 0,
+      letterSpacing: 12,
+      blur: 0,
+    },
   },
 
   // ============================================================
@@ -354,7 +426,16 @@ export const visualPresets: Record<string, VisualPreset> = {
     meshColor: "#ff77aa",
     kineticPreset: "cinematic",
     visualizationStyle: "waveform",
-    theatreValues: { translateX: 0, translateY: 0, opacity: 0.95, scale: 1, rotateZ: 0, skewX: 0, letterSpacing: 6, blur: 0 },
+    theatreValues: {
+      translateX: 0,
+      translateY: 0,
+      opacity: 0.95,
+      scale: 1,
+      rotateZ: 0,
+      skewX: 0,
+      letterSpacing: 6,
+      blur: 0,
+    },
   },
 
   // ============================================================
@@ -392,7 +473,16 @@ export const visualPresets: Record<string, VisualPreset> = {
     meshColor: "#ff00ff",
     kineticPreset: "synthwave",
     visualizationStyle: "pulse",
-    theatreValues: { translateX: 0, translateY: 0, opacity: 1, scale: 1, rotateZ: 0, skewX: 0, letterSpacing: 5, blur: 0 },
+    theatreValues: {
+      translateX: 0,
+      translateY: 0,
+      opacity: 1,
+      scale: 1,
+      rotateZ: 0,
+      skewX: 0,
+      letterSpacing: 5,
+      blur: 0,
+    },
   },
 
   // ============================================================
@@ -430,7 +520,16 @@ export const visualPresets: Record<string, VisualPreset> = {
     meshColor: "#88cc66",
     kineticPreset: "ambient",
     visualizationStyle: "aurora",
-    theatreValues: { translateX: 0, translateY: 0, opacity: 0.9, scale: 1, rotateZ: 0, skewX: 0, letterSpacing: 3, blur: 1 },
+    theatreValues: {
+      translateX: 0,
+      translateY: 0,
+      opacity: 0.9,
+      scale: 1,
+      rotateZ: 0,
+      skewX: 0,
+      letterSpacing: 3,
+      blur: 1,
+    },
   },
 
   // ============================================================
@@ -468,7 +567,16 @@ export const visualPresets: Record<string, VisualPreset> = {
     meshColor: "#ff2200",
     kineticPreset: "dubstep",
     visualizationStyle: "inferno",
-    theatreValues: { translateX: 0, translateY: 0, opacity: 1, scale: 1.25, rotateZ: 0, skewX: 0, letterSpacing: 0, blur: 0 },
+    theatreValues: {
+      translateX: 0,
+      translateY: 0,
+      opacity: 1,
+      scale: 1.25,
+      rotateZ: 0,
+      skewX: 0,
+      letterSpacing: 0,
+      blur: 0,
+    },
   },
 
   // ============================================================
@@ -506,7 +614,16 @@ export const visualPresets: Record<string, VisualPreset> = {
     meshColor: "#6366f1",
     kineticPreset: "cinematic",
     visualizationStyle: "geometric",
-    theatreValues: { translateX: 0, translateY: 0, opacity: 1, scale: 1, rotateZ: 0, skewX: 0, letterSpacing: 4, blur: 0 },
+    theatreValues: {
+      translateX: 0,
+      translateY: 0,
+      opacity: 1,
+      scale: 1,
+      rotateZ: 0,
+      skewX: 0,
+      letterSpacing: 4,
+      blur: 0,
+    },
   },
 };
 
@@ -536,7 +653,7 @@ export function selectVisualPreset(
   trackName: string,
   genre?: string,
   energy?: number,
-  bpm?: number
+  bpm?: number,
 ): string {
   // Combined normalized haystack: genre + track name. All catalog genres are
   // matched longest-first so "trap metal" wins over "trap"/"metal" and

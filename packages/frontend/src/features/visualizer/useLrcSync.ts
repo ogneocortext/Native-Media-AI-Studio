@@ -40,7 +40,10 @@ export interface LrcSyncData {
  */
 export function useLrcSync(lyrics: LyricLine[], elapsed: number): LrcSyncData {
   const sectionBounds = useMemo(() => computeSectionBounds(lyrics), [lyrics]);
-  return useMemo(() => computeLrcSync(lyrics, elapsed, sectionBounds), [lyrics, elapsed, sectionBounds]);
+  return useMemo(
+    () => computeLrcSync(lyrics, elapsed, sectionBounds),
+    [lyrics, elapsed, sectionBounds],
+  );
 }
 
 /** Shared empty sync state (frozen — readers must not mutate). */
@@ -57,7 +60,9 @@ export const EMPTY_LRC_SYNC: LrcSyncData = Object.freeze({
 } as LrcSyncData);
 
 /** Precompute per-section time bounds (handles non-contiguous sections). */
-export function computeSectionBounds(lyrics: LyricLine[]): Map<string, { start: number; end: number }> {
+export function computeSectionBounds(
+  lyrics: LyricLine[],
+): Map<string, { start: number; end: number }> {
   const map = new Map<string, { start: number; end: number }>();
   for (const line of lyrics) {
     const sec = line.section || "VERSE";
@@ -89,13 +94,18 @@ export function computeLrcSync(
   }
 
   // Binary search for current line (O(log n)) — return null in gaps
-  let lo = 0, hi = lyrics.length - 1, found = -1;
+  let lo = 0,
+    hi = lyrics.length - 1,
+    found = -1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
     const line = lyrics[mid];
     if (elapsed < line.start) hi = mid - 1;
     else if (elapsed >= line.end) lo = mid + 1;
-    else { found = mid; break; }
+    else {
+      found = mid;
+      break;
+    }
   }
   if (found === -1) {
     // Gap or before first line — show next line preview, no stale lyric
@@ -103,17 +113,28 @@ export function computeLrcSync(
     if (nextIdx < 0) nextIdx = 0;
     if (nextIdx >= lyrics.length) {
       return {
-        currentLine: null, nextLine: null, lineProgress: 0, sectionProgress: 0,
+        currentLine: null,
+        nextLine: null,
+        lineProgress: 0,
+        sectionProgress: 0,
         currentSection: lyrics[lyrics.length - 1]?.section || "VERSE",
-        timeToNextPhrase: 0, isPhraseStart: false, totalLines: lyrics.length, currentIndex: -1,
+        timeToNextPhrase: 0,
+        isPhraseStart: false,
+        totalLines: lyrics.length,
+        currentIndex: -1,
       };
     }
     const nextLine = lyrics[nextIdx] || null;
     return {
-      currentLine: null, nextLine, lineProgress: 0, sectionProgress: 0,
+      currentLine: null,
+      nextLine,
+      lineProgress: 0,
+      sectionProgress: 0,
       currentSection: nextLine?.section || lyrics[0]?.section || "VERSE",
       timeToNextPhrase: nextLine ? Math.max(0, nextLine.start - elapsed) : 0,
-      isPhraseStart: false, totalLines: lyrics.length, currentIndex: -1,
+      isPhraseStart: false,
+      totalLines: lyrics.length,
+      currentIndex: -1,
     };
   }
   const currentIdx = found;
@@ -129,12 +150,17 @@ export function computeLrcSync(
   const sectionProgress = sectionDuration > 1e-6 ? (elapsed - sectionStart) / sectionDuration : 0;
   const isPhraseStart = elapsed - activeLine.start < 0.15;
   return {
-    currentLine: activeLine, nextLine,
+    currentLine: activeLine,
+    nextLine,
     lineProgress: Math.max(0, Math.min(1, lineProgress)),
     sectionProgress: Math.max(0, Math.min(1, sectionProgress)),
     currentSection: activeLine.section,
-    timeToNextPhrase: nextLine ? Math.max(0, nextLine.start - elapsed) : Math.max(0, activeLine.end - elapsed),
-    isPhraseStart, totalLines: lyrics.length, currentIndex: currentIdx,
+    timeToNextPhrase: nextLine
+      ? Math.max(0, nextLine.start - elapsed)
+      : Math.max(0, activeLine.end - elapsed),
+    isPhraseStart,
+    totalLines: lyrics.length,
+    currentIndex: currentIdx,
   };
 }
 
@@ -163,18 +189,27 @@ export function usePhraseTrigger(
 ): { isTriggering: boolean; currentIdx: number; progress: number } {
   return useMemo(() => {
     if (!lyrics.length) return { isTriggering: false, currentIdx: -1, progress: 0 };
-    let lo = 0, hi = lyrics.length - 1, found = -1;
+    let lo = 0,
+      hi = lyrics.length - 1,
+      found = -1;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
       const l = lyrics[mid];
       if (elapsed < l.start) hi = mid - 1;
       else if (elapsed >= l.end) lo = mid + 1;
-      else { found = mid; break; }
+      else {
+        found = mid;
+        break;
+      }
     }
     if (found === -1) return { isTriggering: false, currentIdx: -1, progress: 0 };
     const line = lyrics[found];
     const dur = line.end - line.start;
     const progress = dur > 1e-6 ? (elapsed - line.start) / dur : 0;
-    return { isTriggering: elapsed - line.start < windowMs / 1000, currentIdx: found, progress: Math.max(0, Math.min(1, progress)) };
+    return {
+      isTriggering: elapsed - line.start < windowMs / 1000,
+      currentIdx: found,
+      progress: Math.max(0, Math.min(1, progress)),
+    };
   }, [lyrics, elapsed, windowMs]);
 }

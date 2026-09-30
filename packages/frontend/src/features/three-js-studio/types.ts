@@ -6,7 +6,8 @@
  * dependencies.
  */
 
-export type ObjectType = "crown" | "box" | "sphere" | "cylinder" | "cone" | "torus" | "bars" | "character";
+export type ObjectType =
+  "crown" | "box" | "sphere" | "cylinder" | "cone" | "torus" | "bars" | "character";
 
 export interface AnimObject {
   id: string;

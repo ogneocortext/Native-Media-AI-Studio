@@ -118,29 +118,61 @@ export function useThreeScene({
   const getCurrentBeatRef = useRef(getCurrentBeat);
   const renderPlayingRef = useRef(renderPlaying);
 
-  useEffect(() => { keyframeTracksRef.current = keyframeTracks; }, [keyframeTracks]);
-  useEffect(() => { beatAnalysisRef.current = beatAnalysis; }, [beatAnalysis]);
-  useEffect(() => { objectsRef.current = objects; }, [objects]);
-  useEffect(() => { beatSyncRef.current = beatSync; }, [beatSync]);
-  useEffect(() => { bpmRef.current = bpm; }, [bpm]);
-  useEffect(() => { cameraModeRef.current = cameraMode; }, [cameraMode]);
-  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
-  useEffect(() => { isAudioPlayingRef.current = isAudioPlaying; }, [isAudioPlaying]);
-  useEffect(() => { particleConfigRef.current = particleConfig; }, [particleConfig]);
-  useEffect(() => { sceneConfigRef.current = sceneConfig; }, [sceneConfig]);
+  useEffect(() => {
+    keyframeTracksRef.current = keyframeTracks;
+  }, [keyframeTracks]);
+  useEffect(() => {
+    beatAnalysisRef.current = beatAnalysis;
+  }, [beatAnalysis]);
+  useEffect(() => {
+    objectsRef.current = objects;
+  }, [objects]);
+  useEffect(() => {
+    beatSyncRef.current = beatSync;
+  }, [beatSync]);
+  useEffect(() => {
+    bpmRef.current = bpm;
+  }, [bpm]);
+  useEffect(() => {
+    cameraModeRef.current = cameraMode;
+  }, [cameraMode]);
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+  useEffect(() => {
+    isAudioPlayingRef.current = isAudioPlaying;
+  }, [isAudioPlaying]);
+  useEffect(() => {
+    particleConfigRef.current = particleConfig;
+  }, [particleConfig]);
+  useEffect(() => {
+    sceneConfigRef.current = sceneConfig;
+  }, [sceneConfig]);
   useEffect(() => {
     activeAudioDrivenRef.current = SCENE_TEMPLATES.find(
       (t: any) => t.id === activeTemplateId,
     )?.audioDriven;
   }, [activeTemplateId]);
-  useEffect(() => { animationTimeRef.current = animationTime; }, [animationTime]);
-  useEffect(() => { beatActiveRef.current = beatActive; }, [beatActive]);
-  useEffect(() => { getCurrentBeatRef.current = getCurrentBeat; }, [getCurrentBeat]);
-  useEffect(() => { renderPlayingRef.current = renderPlayingState; }, [renderPlayingState]);
+  useEffect(() => {
+    animationTimeRef.current = animationTime;
+  }, [animationTime]);
+  useEffect(() => {
+    beatActiveRef.current = beatActive;
+  }, [beatActive]);
+  useEffect(() => {
+    getCurrentBeatRef.current = getCurrentBeat;
+  }, [getCurrentBeat]);
+  useEffect(() => {
+    renderPlayingRef.current = renderPlayingState;
+  }, [renderPlayingState]);
   // The parent owns the transport state; without this reverse sync the
   // Preview button only toggled the UI and never reached the render loop.
-  useEffect(() => { setRenderPlaying(renderPlaying); }, [renderPlaying]);
-  useEffect(() => { onSelectObjectRef.current = onSelectObject; }, [onSelectObject]);
+  useEffect(() => {
+    setRenderPlaying(renderPlaying);
+  }, [renderPlaying]);
+  useEffect(() => {
+    onSelectObjectRef.current = onSelectObject;
+  }, [onSelectObject]);
 
   // Release GPU resources held by a removed object. Without this the scene
   // accumulates undisposed geometries/materials for the whole session (F1).
@@ -179,8 +211,7 @@ export function useThreeScene({
     const canvas = canvasRef.current;
     const container = containerRef.current;
     const onResize = () => {
-      if (!containerRef.current || !cameraRef.current || !rendererRef.current)
-        return;
+      if (!containerRef.current || !cameraRef.current || !rendererRef.current) return;
       const w = containerRef.current.clientWidth,
         h = containerRef.current.clientHeight;
       cameraRef.current.aspect = w / h;
@@ -194,9 +225,7 @@ export function useThreeScene({
       threeRef.current = THREE;
 
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(
-        sceneConfigRef.current.backgroundColor,
-      );
+      scene.background = new THREE.Color(sceneConfigRef.current.backgroundColor);
       scene.fog = new THREE.FogExp2(
         sceneConfigRef.current.fogColor,
         sceneConfigRef.current.fogDensity,
@@ -258,9 +287,7 @@ export function useThreeScene({
           -((event.clientY - rect.top) / rect.height) * 2 + 1,
         );
         raycaster.setFromCamera(ndc, camera);
-        const targets = Array.from(objectsMapRef.current.values()).filter(
-          (o) => o.visible,
-        );
+        const targets = Array.from(objectsMapRef.current.values()).filter((o) => o.visible);
         const hits = raycaster.intersectObjects(targets, true);
         if (!hits.length) {
           onSelectObjectRef.current?.(null);
@@ -305,10 +332,8 @@ export function useThreeScene({
       if (grainPass.uniforms.intensity.value > 0.01) finalComposer.addPass(grainPass);
       grainPassRef.current = grainPass;
       const vignettePass = new ShaderPass(VIGNETTE_SHADER);
-      vignettePass.uniforms.offset.value =
-        sceneConfigRef.current.vignetteRadius;
-      vignettePass.uniforms.darkness.value =
-        sceneConfigRef.current.vignetteStrength;
+      vignettePass.uniforms.offset.value = sceneConfigRef.current.vignetteRadius;
+      vignettePass.uniforms.darkness.value = sceneConfigRef.current.vignetteStrength;
       if (vignettePass.uniforms.darkness.value > 0.05) finalComposer.addPass(vignettePass);
       vignettePassRef.current = vignettePass;
       finalComposer.addPass(new OutputPass());
@@ -358,8 +383,7 @@ export function useThreeScene({
       for (let i = 0; i < particleConfigRef.current.count * 3; i += 3) {
         pArr[i] = (Math.random() - 0.5) * particleConfigRef.current.spread * 2;
         pArr[i + 1] = Math.random() * particleConfigRef.current.spread;
-        pArr[i + 2] =
-          (Math.random() - 0.5) * particleConfigRef.current.spread * 2;
+        pArr[i + 2] = (Math.random() - 0.5) * particleConfigRef.current.spread * 2;
       }
       pGeo.setAttribute("position", new THREE.BufferAttribute(pArr, 3));
       const particles = new THREE.Points(
@@ -401,12 +425,9 @@ export function useThreeScene({
         if (analyserRef.current && isAudioPlayingRef.current) {
           if (
             !audioFreqArrayRef.current ||
-            audioFreqArrayRef.current.length !==
-              analyserRef.current.frequencyBinCount
+            audioFreqArrayRef.current.length !== analyserRef.current.frequencyBinCount
           )
-            audioFreqArrayRef.current = new Uint8Array(
-              analyserRef.current.frequencyBinCount,
-            );
+            audioFreqArrayRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
           analyserRef.current.getByteFrequencyData(
             audioFreqArrayRef.current as Uint8Array<ArrayBuffer>,
           );
@@ -429,14 +450,9 @@ export function useThreeScene({
         let beatSpike = 0;
         let newBeatActive = false;
         if (renderPlayingRef.current && beatState.ready && beatState.isOnBeat) {
-          beatSpike =
-            beatPunchAmp *
-            (1 - beatState.timeSinceLastBeat / beatState.beatWindowSec);
+          beatSpike = beatPunchAmp * (1 - beatState.timeSinceLastBeat / beatState.beatWindowSec);
           if (beatState.timeSinceLastBeat < 0.016) {
-            shakeRef.current = Math.min(
-              shakeRef.current + beatPunchAmp * 0.3,
-              0.15,
-            );
+            shakeRef.current = Math.min(shakeRef.current + beatPunchAmp * 0.3, 0.15);
             newBeatActive = true;
           }
         }
@@ -452,18 +468,14 @@ export function useThreeScene({
           if (mesh && obj.visible) {
             if (isPlay) {
               mesh.rotation.y += delta * (obj.rotateSpeed + audioTreble * 2);
-              mesh.position.y =
-                obj.position[1] +
-                Math.sin(elapsed * obj.bobSpeed) * obj.bobAmount;
+              mesh.position.y = obj.position[1] + Math.sin(elapsed * obj.bobSpeed) * obj.bobAmount;
             }
             let pulse = 1;
-            if (isPlay && beatState.ready && beatSpike > 0)
-              pulse = 1 + beatSpike;
+            if (isPlay && beatState.ready && beatSpike > 0) pulse = 1 + beatSpike;
             else if (isPlay && beatSyncRef.current) {
               const bi = 60 / bpmRef.current;
               pulse =
-                (1 + Math.sin(((elapsed % bi) / bi) * Math.PI * 2) * 0.08) *
-                (1 + audioBass * 0.35);
+                (1 + Math.sin(((elapsed % bi) / bi) * Math.PI * 2) * 0.08) * (1 + audioBass * 0.35);
             } else if (isPlay && audioBass > 0) pulse = 1 + audioBass * 0.3;
             if (isPlay && audioDrivenMode === "bars" && obj.type === "bars") {
               const barIdx = parseInt(obj.id.replace("bar-", "")) || 0;
@@ -474,11 +486,7 @@ export function useThreeScene({
               const barPulse = 1 + freqVal * 3;
               const s = obj.scale;
               mesh.scale.set(s[0] * barPulse, s[1], s[2]);
-            } else if (
-              isPlay &&
-              audioDrivenMode === "pillars" &&
-              obj.type === "box"
-            ) {
+            } else if (isPlay && audioDrivenMode === "pillars" && obj.type === "box") {
               const pillarPulse = 1 + audioBass * 1.5;
               const s = obj.scale;
               mesh.scale.set(s[0], s[1] * pillarPulse, s[2]);
@@ -506,7 +514,8 @@ export function useThreeScene({
             pos[i] += delta * spd * 0.8;
             if (pos[i] > particleConfigRef.current.spread) pos[i] = Math.random() * 0.5;
           }
-          (particlesRef.current.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+          (particlesRef.current.geometry.attributes.position as THREE.BufferAttribute).needsUpdate =
+            true;
           particlesRef.current.rotation.y += delta * 0.03;
         } else if (particlesRef.current && isPlay) {
           particlesRef.current.rotation.y += delta * 0.02;
@@ -539,8 +548,7 @@ export function useThreeScene({
 
         if (renderPlayingRef.current) {
           const nextTime = animationTimeRef.current + delta;
-          animationTimeRef.current =
-            nextTime >= animationDuration ? 0 : nextTime;
+          animationTimeRef.current = nextTime >= animationDuration ? 0 : nextTime;
           const now = performance.now();
           if (now - lastUiUpdateRef.current > 100) {
             lastUiUpdateRef.current = now;
@@ -575,22 +583,16 @@ export function useThreeScene({
               const t = duration > 0 ? (time - prevKf.time) / duration : 0;
               if (prevKf.position && nextKf.position) {
                 mesh.position.set(
-                  prevKf.position[0] +
-                    (nextKf.position[0] - prevKf.position[0]) * t,
-                  prevKf.position[1] +
-                    (nextKf.position[1] - prevKf.position[1]) * t,
-                  prevKf.position[2] +
-                    (nextKf.position[2] - prevKf.position[2]) * t,
+                  prevKf.position[0] + (nextKf.position[0] - prevKf.position[0]) * t,
+                  prevKf.position[1] + (nextKf.position[1] - prevKf.position[1]) * t,
+                  prevKf.position[2] + (nextKf.position[2] - prevKf.position[2]) * t,
                 );
               }
               if (prevKf.rotation && nextKf.rotation) {
                 mesh.rotation.set(
-                  prevKf.rotation[0] +
-                    (nextKf.rotation[0] - prevKf.rotation[0]) * t,
-                  prevKf.rotation[1] +
-                    (nextKf.rotation[1] - prevKf.rotation[1]) * t,
-                  prevKf.rotation[2] +
-                    (nextKf.rotation[2] - prevKf.rotation[2]) * t,
+                  prevKf.rotation[0] + (nextKf.rotation[0] - prevKf.rotation[0]) * t,
+                  prevKf.rotation[1] + (nextKf.rotation[1] - prevKf.rotation[1]) * t,
+                  prevKf.rotation[2] + (nextKf.rotation[2] - prevKf.rotation[2]) * t,
                 );
               }
               if (prevKf.scale && nextKf.scale) {
@@ -708,9 +710,7 @@ export function useThreeScene({
   useEffect(() => {
     sceneConfigRef.current = sceneConfig;
     if (sceneRef.current) {
-      sceneRef.current.background = new THREE.Color(
-        sceneConfig.backgroundColor,
-      );
+      sceneRef.current.background = new THREE.Color(sceneConfig.backgroundColor);
       if (sceneRef.current.fog) {
         sceneRef.current.fog.color.set(sceneConfig.fogColor);
         if (sceneRef.current.fog instanceof THREE.FogExp2) {
@@ -718,17 +718,14 @@ export function useThreeScene({
         }
       }
     }
-    if (bloomPassRef.current)
-      bloomPassRef.current.strength = sceneConfig.bloomStrength;
+    if (bloomPassRef.current) bloomPassRef.current.strength = sceneConfig.bloomStrength;
     if (caPassRef.current)
       caPassRef.current.uniforms.amount.value = sceneConfig.chromaticAberration;
     if (grainPassRef.current)
       (grainPassRef.current.uniforms as any).intensity.value = sceneConfig.filmGrain;
     if (vignettePassRef.current) {
-      vignettePassRef.current.uniforms.offset.value =
-        sceneConfig.vignetteRadius;
-      vignettePassRef.current.uniforms.darkness.value =
-        sceneConfig.vignetteStrength;
+      vignettePassRef.current.uniforms.offset.value = sceneConfig.vignetteRadius;
+      vignettePassRef.current.uniforms.darkness.value = sceneConfig.vignetteStrength;
     }
   }, [sceneConfig]);
 
@@ -752,7 +749,8 @@ export function useThreeScene({
       particlesRef.current.geometry = pGeo;
       scene.add(particlesRef.current);
     }
-    const mat = particlesRef.current.material as THREE.PointsMaterial | THREE.PointsMaterial[] | null;
+    const mat = particlesRef.current.material as
+      THREE.PointsMaterial | THREE.PointsMaterial[] | null;
     if (mat) {
       const applyMat = (m: THREE.PointsMaterial) => {
         m.color.set(particleConfig.color);
@@ -796,8 +794,7 @@ export function useThreeScene({
         const s = sceneRef.current;
         if (s) s.background = tex;
       };
-      img.onerror = (err) =>
-        console.error("BG image failed:", backgroundImageUrl, err);
+      img.onerror = (err) => console.error("BG image failed:", backgroundImageUrl, err);
       img.src = backgroundImageUrl;
     })();
     return () => {

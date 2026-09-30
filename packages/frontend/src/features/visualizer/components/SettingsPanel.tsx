@@ -1,9 +1,10 @@
 import type { VizParams } from "../types";
 import { DEFAULT_VIZ_PARAMS } from "../types";
 import { kineticPresetList } from "./KineticPresets";
-import { visualPresetList } from "../visualPresets";
+import { visualPresetList, visualPresets } from "../visualPresets";
 import type { VisualizationStyle } from "../trackConceptAnalyzer";
 import type { PerceptualScale } from "../perceptualScales";
+import { useState } from "react";
 
 interface Props {
   params: VizParams;
@@ -26,60 +27,154 @@ interface Props {
   onPerceptualScaleChange?: (s: PerceptualScale) => void;
 }
 
-export function SettingsPanel({ params, onChange, bgColor, meshColor, onBgChange, onMeshChange, demoEnabled, onDemoToggle, kineticPreset, onKineticPresetChange, visualizationStyle, onVisualizationStyleChange, vizMode, onVizModeChange, activeVisualPresetId, onVisualPresetSelect, perceptualScale, onPerceptualScaleChange }: Props) {
+export function SettingsPanel({
+  params,
+  onChange,
+  bgColor,
+  meshColor,
+  onBgChange,
+  onMeshChange,
+  demoEnabled,
+  onDemoToggle,
+  kineticPreset,
+  onKineticPresetChange,
+  visualizationStyle,
+  onVisualizationStyleChange,
+  vizMode,
+  onVizModeChange,
+  activeVisualPresetId,
+  onVisualPresetSelect,
+  perceptualScale,
+  onPerceptualScaleChange,
+}: Props) {
+  const [presetSearch, setPresetSearch] = useState("");
+  const filteredPresets = visualPresetList.filter((p) => {
+    if (p.id === "balanced") return false;
+    const q = presetSearch.toLowerCase();
+    return (
+      !q ||
+      p.name.toLowerCase().includes(q) ||
+      p.description.toLowerCase().includes(q) ||
+      p.genres.some((g) => g.toLowerCase().includes(q))
+    );
+  });
   return (
     <aside className="viz-settings">
       <div className="viz-settings-section">
         <h4>Visual Presets</h4>
+        <input
+          type="search"
+          className="viz-preset-search"
+          placeholder="Search presets..."
+          value={presetSearch}
+          onChange={(e) => setPresetSearch(e.target.value)}
+        />
         <div className="kinetic-preset-list">
-          {visualPresetList.filter(p => p.id !== "balanced").map(p => {
+          {filteredPresets.map((p) => {
             const isActive = activeVisualPresetId
               ? activeVisualPresetId === p.id
               : visualizationStyle
                 ? visualizationStyle === p.visualizationStyle && kineticPreset === p.kineticPreset
                 : kineticPreset === p.kineticPreset;
             return (
-            <button
-              key={p.id}
-              className={`kinetic-preset-btn ${isActive ? "active" : ""}`}
-              onClick={() => {
-                if (onVisualPresetSelect) {
-                  onVisualPresetSelect(p.id);
-                } else {
-                  onChange({ ...DEFAULT_VIZ_PARAMS, ...p.vizParams });
-                  onBgChange(p.bgColor);
-                  onMeshChange(p.meshColor);
-                  onKineticPresetChange(p.kineticPreset);
-                  onVisualizationStyleChange?.(p.visualizationStyle);
-                  if (vizMode && vizMode !== "3d" && onVizModeChange) {
-                    onVizModeChange("3d");
+              <button
+                key={p.id}
+                className={`kinetic-preset-btn ${isActive ? "active" : ""}`}
+                onClick={() => {
+                  if (onVisualPresetSelect) {
+                    onVisualPresetSelect(p.id);
+                  } else {
+                    onChange({ ...DEFAULT_VIZ_PARAMS, ...p.vizParams });
+                    onBgChange(p.bgColor);
+                    onMeshChange(p.meshColor);
+                    onKineticPresetChange(p.kineticPreset);
+                    onVisualizationStyleChange?.(p.visualizationStyle);
+                    if (vizMode && vizMode !== "3d" && onVizModeChange) {
+                      onVizModeChange("3d");
+                    }
                   }
-                }
-              }}
-              title={`${p.description} — 3D style: ${p.visualizationStyle}`}
-            >
-              {p.name}
-            </button>
+                }}
+                title={`${p.description} — 3D style: ${p.visualizationStyle}${p.genres.length ? ` — ${p.genres.join(", ")}` : ""}`}
+              >
+                {p.name}
+              </button>
             );
           })}
+          {filteredPresets.length === 0 && (
+            <small className="viz-hint">No presets match "{presetSearch}"</small>
+          )}
         </div>
       </div>
       <div className="viz-settings-section">
         <h4>Appearance</h4>
-        <div className="viz-slider-row"><label>Scale</label><input type="range" min="0.5" max="3" step="0.1" value={params.scale} onChange={(e) => onChange({ ...params, scale: parseFloat(e.target.value) })} /><span>{params.scale.toFixed(1)}</span></div>
-        <div className="viz-slider-row"><label>Glow</label><input type="range" min="0" max="1" step="0.05" value={params.glowIntensity} onChange={(e) => onChange({ ...params, glowIntensity: parseFloat(e.target.value) })} /><span>{params.glowIntensity.toFixed(2)}</span></div>
-        <div className="viz-slider-row"><label>Response</label><input type="range" min="0.1" max="1" step="0.05" value={params.lerpSpeed} onChange={(e) => onChange({ ...params, lerpSpeed: parseFloat(e.target.value) })} /><span>{params.lerpSpeed.toFixed(2)}</span></div>
-        <div className="viz-slider-row"><label>Rotation</label><input type="range" min="0.1" max="5" step="0.1" value={params.rotationSpeed} onChange={(e) => onChange({ ...params, rotationSpeed: parseFloat(e.target.value) })} /><span>{params.rotationSpeed.toFixed(1)}</span></div>
+        <div className="viz-slider-row">
+          <label>Scale</label>
+          <input
+            type="range"
+            min="0.5"
+            max="3"
+            step="0.1"
+            value={params.scale}
+            onChange={(e) => onChange({ ...params, scale: parseFloat(e.target.value) })}
+          />
+          <span>{params.scale.toFixed(1)}</span>
+        </div>
+        <div className="viz-slider-row">
+          <label>Glow</label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={params.glowIntensity}
+            onChange={(e) => onChange({ ...params, glowIntensity: parseFloat(e.target.value) })}
+          />
+          <span>{params.glowIntensity.toFixed(2)}</span>
+        </div>
+        <div className="viz-slider-row">
+          <label>Response</label>
+          <input
+            type="range"
+            min="0.1"
+            max="1"
+            step="0.05"
+            value={params.lerpSpeed}
+            onChange={(e) => onChange({ ...params, lerpSpeed: parseFloat(e.target.value) })}
+          />
+          <span>{params.lerpSpeed.toFixed(2)}</span>
+        </div>
+        <div className="viz-slider-row">
+          <label>Rotation</label>
+          <input
+            type="range"
+            min="0.1"
+            max="5"
+            step="0.1"
+            value={params.rotationSpeed}
+            onChange={(e) => onChange({ ...params, rotationSpeed: parseFloat(e.target.value) })}
+          />
+          <span>{params.rotationSpeed.toFixed(1)}</span>
+        </div>
       </div>
       <div className="viz-settings-section">
         <h4>Colors</h4>
-        <div className="viz-color-row"><label>Background</label><input type="color" value={bgColor} onChange={(e) => onBgChange(e.target.value)} /></div>
-        <div className="viz-color-row"><label>Mesh</label><input type="color" value={meshColor} onChange={(e) => onMeshChange(e.target.value)} /></div>
+        <div className="viz-color-row">
+          <label>Background</label>
+          <input type="color" value={bgColor} onChange={(e) => onBgChange(e.target.value)} />
+        </div>
+        <div className="viz-color-row">
+          <label>Mesh</label>
+          <input type="color" value={meshColor} onChange={(e) => onMeshChange(e.target.value)} />
+        </div>
       </div>
       <div className="viz-settings-section">
         <h4>Audio Analysis</h4>
-        <div className="viz-slider-row"><label>Frequency Scale</label>
-          <select value={perceptualScale ?? "mel"} onChange={(e) => onPerceptualScaleChange?.(e.target.value as PerceptualScale)}>
+        <div className="viz-slider-row">
+          <label>Frequency Scale</label>
+          <select
+            value={perceptualScale ?? "mel"}
+            onChange={(e) => onPerceptualScaleChange?.(e.target.value as PerceptualScale)}
+          >
             <option value="mel">Mel (pitch)</option>
             <option value="log">Log (octaves)</option>
             <option value="bark">Bark (critical bands)</option>
@@ -91,7 +186,7 @@ export function SettingsPanel({ params, onChange, bgColor, meshColor, onBgChange
       <div className="viz-settings-section">
         <h4>Lyric Animation</h4>
         <div className="kinetic-preset-list">
-          {kineticPresetList.map(p => (
+          {kineticPresetList.map((p) => (
             <button
               key={p.id}
               className={`kinetic-preset-btn ${kineticPreset === p.id ? "active" : ""}`}
@@ -105,10 +200,46 @@ export function SettingsPanel({ params, onChange, bgColor, meshColor, onBgChange
         <small className="viz-hint">Auto-switches based on LRC section when track loads</small>
       </div>
       <div className="viz-settings-section">
-        <label className="viz-check"><input type="checkbox" checked={demoEnabled} onChange={(e) => onDemoToggle(e.target.checked)} /><span>Demo animation</span></label>
-        <label className="viz-check"><input type="checkbox" checked={params.fogEnabled} onChange={(e) => onChange({ ...params, fogEnabled: e.target.checked })} /><span>Fog</span></label>
-        <label className="viz-check"><input type="checkbox" checked={params.showGround} onChange={(e) => onChange({ ...params, showGround: e.target.checked })} /><span>Ground</span></label>
-        <button className="viz-reset" onClick={() => onChange(DEFAULT_VIZ_PARAMS)}>Reset All</button>
+        <label className="viz-check">
+          <input
+            type="checkbox"
+            checked={demoEnabled}
+            onChange={(e) => onDemoToggle(e.target.checked)}
+          />
+          <span>Demo animation</span>
+        </label>
+        <label className="viz-check">
+          <input
+            type="checkbox"
+            checked={params.fogEnabled}
+            onChange={(e) => onChange({ ...params, fogEnabled: e.target.checked })}
+          />
+          <span>Fog</span>
+        </label>
+        <label className="viz-check">
+          <input
+            type="checkbox"
+            checked={params.showGround}
+            onChange={(e) => onChange({ ...params, showGround: e.target.checked })}
+          />
+          <span>Ground</span>
+        </label>
+        {activeVisualPresetId && visualPresets[activeVisualPresetId] && (
+          <button
+            className="viz-reset"
+            onClick={() => {
+              const p = visualPresets[activeVisualPresetId];
+              onChange({ ...DEFAULT_VIZ_PARAMS, ...p.vizParams });
+              onBgChange(p.bgColor);
+              onMeshChange(p.meshColor);
+            }}
+          >
+            Reset to {visualPresets[activeVisualPresetId].name}
+          </button>
+        )}
+        <button className="viz-reset" onClick={() => onChange(DEFAULT_VIZ_PARAMS)}>
+          Reset All
+        </button>
       </div>
     </aside>
   );

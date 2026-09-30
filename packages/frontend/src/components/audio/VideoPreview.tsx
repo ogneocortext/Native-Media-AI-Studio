@@ -2,15 +2,7 @@
  * VideoPreview - Frame-by-frame preview with scrubbing for music videos
  */
 
-import {
-  Download,
-  Film,
-  Pause,
-  Play,
-  RefreshCw,
-  SkipBack,
-  SkipForward,
-} from "lucide-react";
+import { Download, Film, Pause, Play, RefreshCw, SkipBack, SkipForward } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { formatTime } from "../../utils/format";
 
@@ -79,9 +71,7 @@ export function VideoPreview({
   };
 
   const handleScrub = useCallback(
-    (
-      e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
-    ) => {
+    (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
       if (!scrubberRef.current || duration === 0) return;
 
       const rect = scrubberRef.current.getBoundingClientRect();
@@ -103,17 +93,12 @@ export function VideoPreview({
     const video = videoRef.current;
     if (!video) return;
 
-    video.currentTime = Math.max(
-      0,
-      Math.min(video.currentTime + seconds, duration),
-    );
+    video.currentTime = Math.max(0, Math.min(video.currentTime + seconds, duration));
   };
 
   // Generate placeholder frames if none provided
   const displayFrames =
-    frames.length > 0
-      ? frames
-      : Array.from({ length: 10 }, (_, i) => `frame-${i}`);
+    frames.length > 0 ? frames : Array.from({ length: 10 }, (_, i) => `frame-${i}`);
 
   return (
     <div className="space-y-3">
@@ -190,9 +175,7 @@ export function VideoPreview({
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <Film className="w-12 h-12 text-muted mb-3" />
             <p className="text-muted text-sm">No preview available</p>
-            <p className="text-xs text-muted mt-1">
-              Generate a preview to see your video
-            </p>
+            <p className="text-xs text-muted mt-1">Generate a preview to see your video</p>
           </div>
         )}
       </div>
@@ -225,9 +208,7 @@ export function VideoPreview({
                     key={i}
                     className="flex-1 border-r border-border/30 bg-background/50 flex items-center justify-center"
                     style={{
-                      backgroundImage: frame.startsWith("http")
-                        ? `url(${frame})`
-                        : undefined,
+                      backgroundImage: frame.startsWith("http") ? `url(${frame})` : undefined,
                       backgroundSize: "cover",
                       backgroundPosition: "center",
                     }}
@@ -284,10 +265,7 @@ export function VideoPreview({
 
         {previewUrl && (
           <>
-            <button
-              onClick={onGenerate}
-              className="btn btn-secondary flex items-center gap-2"
-            >
+            <button onClick={onGenerate} className="btn btn-secondary flex items-center gap-2">
               <RefreshCw size={16} />
               Regenerate
             </button>

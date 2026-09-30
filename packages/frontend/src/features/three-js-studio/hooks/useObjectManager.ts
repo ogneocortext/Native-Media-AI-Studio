@@ -107,9 +107,7 @@ export function useObjectManager({
 
   const updateObject = useCallback(
     (id: string, updates: Partial<AnimObject>) => {
-      setObjects((prev) =>
-        prev.map((obj) => (obj.id === id ? { ...obj, ...updates } : obj)),
-      );
+      setObjects((prev) => prev.map((obj) => (obj.id === id ? { ...obj, ...updates } : obj)));
     },
     [setObjects],
   );
@@ -173,9 +171,7 @@ export function useObjectManager({
       if (!selectedObject) return;
       const data = characterAnimDataRef.current.get(selectedObject);
       if (data && data.mixer) {
-        const clip = data.mixer.existingAction(clipName)
-          ? clipName
-          : data.clips[0];
+        const clip = data.mixer.existingAction(clipName) ? clipName : data.clips[0];
         if (clip) {
           data.action?.stop();
           const newAction = data.mixer.clipAction(clip);

@@ -105,8 +105,12 @@ export interface AudioAnalysisData {
   };
   // Suggested visualization parameters for AI/agent-driven presets
   suggested_visualization?: string;
+  suggested_visualization_confidence?: number;
+  suggested_visualization_candidates?: Array<{ value: string; confidence: number }>;
   suggested_kinetic_preset?: string;
+  suggested_kinetic_preset_confidence?: number;
   suggested_theme_seed?: string;
+  suggested_theme_seed_confidence?: number;
   /** Backend-returned metadata (backend name, computed_on, analysis parameters). */
   metadata?: {
     backend?: string;
@@ -125,14 +129,7 @@ export interface VizParams {
   colorShift: number;
   glowIntensity: number;
   lerpSpeed: number;
-  materialType:
-    | "standard"
-    | "metallic"
-    | "glass"
-    | "neon"
-    | "matte"
-    | "chrome"
-    | "holographic";
+  materialType: "standard" | "metallic" | "glass" | "neon" | "matte" | "chrome" | "holographic";
   wireframe: boolean;
   opacity: number;
   shadowEnabled: boolean;
@@ -219,9 +216,9 @@ export interface VisualizerSceneProps {
    */
   stems?: StemAnalysisData;
   /**
-    * Latency-compensated audio clock sampler (see audioTiming.ts).
-    * When provided, frame-critical consumers use this instead of `audioElapsedRef`
-    * to avoid stale reads from the parent rAF loop.
-    */
+   * Latency-compensated audio clock sampler (see audioTiming.ts).
+   * When provided, frame-critical consumers use this instead of `audioElapsedRef`
+   * to avoid stale reads from the parent rAF loop.
+   */
   sampleAudio?: () => number;
 }

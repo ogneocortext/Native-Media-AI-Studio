@@ -52,7 +52,10 @@ export const DEFAULT_TOOLS: Tool[] = [
     parameters: {
       type: "object",
       properties: {
-        status: { type: "string", description: "Filter by status: queued, running, completed, failed" },
+        status: {
+          type: "string",
+          description: "Filter by status: queued, running, completed, failed",
+        },
       },
       required: [],
     },
@@ -76,8 +79,14 @@ export const DEFAULT_TOOLS: Tool[] = [
     parameters: {
       type: "object",
       properties: {
-        style: { type: "string", description: "Visualization style: particles, waveform, or pulse" },
-        color_scheme: { type: "string", description: "Color scheme: neon, fire, ocean, forest, sunset, monochrome" },
+        style: {
+          type: "string",
+          description: "Visualization style: particles, waveform, or pulse",
+        },
+        color_scheme: {
+          type: "string",
+          description: "Color scheme: neon, fire, ocean, forest, sunset, monochrome",
+        },
         intensity: { type: "number", description: "Visualization intensity from 0.0 to 1.0" },
         bpm: { type: "integer", description: "Beats per minute for rhythm sync" },
       },

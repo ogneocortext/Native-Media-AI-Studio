@@ -1,12 +1,35 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  BookOpen, FileText, Search, ChevronRight, Box, Sparkles,
-  Music, Clock, Zap, Layers, Quote, Palette, Crown, Film,
-  Drum, Video, Headphones, Eye, BarChart3, FileMusic,
+  BookOpen,
+  FileText,
+  Search,
+  ChevronRight,
+  Box,
+  Sparkles,
+  Music,
+  Clock,
+  Zap,
+  Layers,
+  Quote,
+  Palette,
+  Crown,
+  Film,
+  Drum,
+  Video,
+  Headphones,
+  Eye,
+  BarChart3,
+  FileMusic,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { fetchUniqueTracksFromAPI, type TrackLyricsData } from "../../services/trackLyrics";
-import { listAudioFiles, getAnalysis, compileStoryboard, getHyperFramesAudioPayload, type CompileStoryboardResponse } from "../../services/api";
+import {
+  listAudioFiles,
+  getAnalysis,
+  compileStoryboard,
+  getHyperFramesAudioPayload,
+  type CompileStoryboardResponse,
+} from "../../services/api";
 
 interface StoryboardFile {
   name: string;
@@ -21,8 +44,18 @@ interface AudioAnalysisResponse {
 }
 
 const STORYBOARDS: StoryboardFile[] = [
-  { name: "take-the-crown", path: "/docs/STORYBOARD_TakeTheCrown.md", title: "Take the Crown", trackName: "Take the Crown" },
-  { name: "still-i-rise", path: "/docs/STORYBOARD_StillIRise.md", title: "Still I Rise", trackName: "Still I Rise" },
+  {
+    name: "take-the-crown",
+    path: "/docs/STORYBOARD_TakeTheCrown.md",
+    title: "Take the Crown",
+    trackName: "Take the Crown",
+  },
+  {
+    name: "still-i-rise",
+    path: "/docs/STORYBOARD_StillIRise.md",
+    title: "Still I Rise",
+    trackName: "Still I Rise",
+  },
 ];
 
 interface TrackMetadata {
@@ -82,8 +115,8 @@ export function StoryboardPage() {
     const metadata: Record<string, TrackMetadata> = {};
     libraryTracks.forEach((t) => {
       const cleanName = t.filename
-        .replace(/^[0-9a-f]{8}_[0-9a-f]{8}_/i, '')
-        .replace(/\.(mp3|wav|flac|ogg)$/i, '');
+        .replace(/^[0-9a-f]{8}_[0-9a-f]{8}_/i, "")
+        .replace(/\.(mp3|wav|flac|ogg)$/i, "");
       // Match if the filename contains the track name (handles variations like "Still I Rise (variation)")
       const match = STORYBOARDS.find((s) => {
         const nameLower = s.trackName.toLowerCase();
@@ -134,13 +167,30 @@ export function StoryboardPage() {
     const result: SceneData[] = [];
     let inOverview = false;
     for (const line of lines) {
-      if (line.includes("## Overview Map")) { inOverview = true; continue; }
-      if (inOverview && line.startsWith("#")) { inOverview = false; continue; }
+      if (line.includes("## Overview Map")) {
+        inOverview = true;
+        continue;
+      }
+      if (inOverview && line.startsWith("#")) {
+        inOverview = false;
+        continue;
+      }
       if (!inOverview || !line.startsWith("|")) continue;
       if (line.includes("SEQ") || line.includes("---")) continue;
-      const cells = line.split("|").map((c) => c.trim()).filter(Boolean);
+      const cells = line
+        .split("|")
+        .map((c) => c.trim())
+        .filter(Boolean);
       if (cells.length >= 7) {
-        result.push({ seq: cells[0], section: cells[1], timecode: cells[2], duration: cells[3], lyric: cells[4], visual: cells[5], technique: cells[6] });
+        result.push({
+          seq: cells[0],
+          section: cells[1],
+          timecode: cells[2],
+          duration: cells[3],
+          lyric: cells[4],
+          visual: cells[5],
+          technique: cells[6],
+        });
       }
     }
     return result;
@@ -148,55 +198,78 @@ export function StoryboardPage() {
 
   const parseTimecode = (value: string): number => {
     const [minutes, seconds] = value.split(":").map(Number);
-    return Number.isFinite(minutes * 60 + seconds) ? minutes * 60 + seconds : parseFloat(value) || 0;
+    return Number.isFinite(minutes * 60 + seconds)
+      ? minutes * 60 + seconds
+      : parseFloat(value) || 0;
   };
 
-  const buildCompilePayload = useCallback((board: StoryboardFile, boardScenes: SceneData[]) => ({
-    track: board.trackName || board.title,
-    title: board.title,
-    duration: boardScenes.reduce((max, scene) => max + parseTimecode(scene.duration), 0),
-    scenes: boardScenes.map((scene, index) => ({
-      id: scene.seq || `scene-${index + 1}`,
-      title: scene.section,
-      description: scene.visual,
-      start: boardScenes.slice(0, index).reduce((sum, item) => sum + parseTimecode(item.duration), 0),
-      end: boardScenes.slice(0, index + 1).reduce((sum, item) => sum + parseTimecode(item.duration), 0),
-    })),
-  }), []);
+  const buildCompilePayload = useCallback(
+    (board: StoryboardFile, boardScenes: SceneData[]) => ({
+      track: board.trackName || board.title,
+      title: board.title,
+      duration: boardScenes.reduce((max, scene) => max + parseTimecode(scene.duration), 0),
+      scenes: boardScenes.map((scene, index) => ({
+        id: scene.seq || `scene-${index + 1}`,
+        title: scene.section,
+        description: scene.visual,
+        start: boardScenes
+          .slice(0, index)
+          .reduce((sum, item) => sum + parseTimecode(item.duration), 0),
+        end: boardScenes
+          .slice(0, index + 1)
+          .reduce((sum, item) => sum + parseTimecode(item.duration), 0),
+      })),
+    }),
+    [],
+  );
 
   const handleCompile = useCallback(async () => {
     if (!selected || scenes.length === 0) return;
-    setCompiling(true); setCompileError(null);
+    setCompiling(true);
+    setCompileError(null);
     try {
       const audioFilename = trackMetadata[selected.name]?.filename;
-      const audioData = audioFilename ? await getHyperFramesAudioPayload(audioFilename).catch(() => undefined) : undefined;
+      const audioData = audioFilename
+        ? await getHyperFramesAudioPayload(audioFilename).catch(() => undefined)
+        : undefined;
       const result = await compileStoryboard({
-        name: selected.name, title: selected.title, storyboard: buildCompilePayload(selected, scenes),
-        audio_path: audioFilename || undefined, audio_data: audioData,
+        name: selected.name,
+        title: selected.title,
+        storyboard: buildCompilePayload(selected, scenes),
+        audio_path: audioFilename || undefined,
+        audio_data: audioData,
       });
       setCompileResult(result);
     } catch (error) {
       setCompileError(error instanceof Error ? error.message : String(error));
-    } finally { setCompiling(false); }
+    } finally {
+      setCompiling(false);
+    }
   }, [buildCompilePayload, scenes, selected, trackMetadata]);
 
-  const handleOpenIn3DStudio = useCallback((storyboard: StoryboardFile) => {
-    const params = new URLSearchParams();
-    const meta = trackMetadata[storyboard.name];
-    if (meta?.filename) params.set("track", meta.filename);
-    params.set("storyboard", storyboard.name);
-    navigate(`/three-js-studio?${params.toString()}`);
-  }, [navigate, trackMetadata]);
+  const handleOpenIn3DStudio = useCallback(
+    (storyboard: StoryboardFile) => {
+      const params = new URLSearchParams();
+      const meta = trackMetadata[storyboard.name];
+      if (meta?.filename) params.set("track", meta.filename);
+      params.set("storyboard", storyboard.name);
+      navigate(`/three-js-studio?${params.toString()}`);
+    },
+    [navigate, trackMetadata],
+  );
 
-  const handleGenerateScene = useCallback((storyboard: StoryboardFile, sceneIdx: number) => {
-    const params = new URLSearchParams();
-    const meta = trackMetadata[storyboard.name];
-    if (meta?.filename) params.set("track", meta.filename);
-    params.set("storyboard", storyboard.name);
-    params.set("scene", String(sceneIdx));
-    params.set("autogenerate", "true");
-    navigate(`/three-js-studio?${params.toString()}`);
-  }, [navigate, trackMetadata]);
+  const handleGenerateScene = useCallback(
+    (storyboard: StoryboardFile, sceneIdx: number) => {
+      const params = new URLSearchParams();
+      const meta = trackMetadata[storyboard.name];
+      if (meta?.filename) params.set("track", meta.filename);
+      params.set("storyboard", storyboard.name);
+      params.set("scene", String(sceneIdx));
+      params.set("autogenerate", "true");
+      navigate(`/three-js-studio?${params.toString()}`);
+    },
+    [navigate, trackMetadata],
+  );
 
   const renderInline = (text: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = [];
@@ -211,11 +284,26 @@ export function StoryboardPage() {
       }
       const token = match[0];
       if (token.startsWith("`")) {
-        parts.push(<code key={key++} className="px-1.5 py-0.5 bg-gray-800 text-amber-300 rounded text-xs font-mono">{token.slice(1, -1)}</code>);
+        parts.push(
+          <code
+            key={key++}
+            className="px-1.5 py-0.5 bg-gray-800 text-amber-300 rounded text-xs font-mono"
+          >
+            {token.slice(1, -1)}
+          </code>,
+        );
       } else if (token.startsWith("**")) {
-        parts.push(<strong key={key++} className="font-semibold text-white">{token.slice(2, -2)}</strong>);
+        parts.push(
+          <strong key={key++} className="font-semibold text-white">
+            {token.slice(2, -2)}
+          </strong>,
+        );
       } else {
-        parts.push(<em key={key++} className="text-gray-400 italic">{token.slice(1, -1)}</em>);
+        parts.push(
+          <em key={key++} className="text-gray-400 italic">
+            {token.slice(1, -1)}
+          </em>,
+        );
       }
       lastIndex = match.index + token.length;
     }
@@ -235,20 +323,34 @@ export function StoryboardPage() {
     const flushTable = () => {
       if (tableHeaders.length === 0) return;
       elements.push(
-        <div key={`table-${elements.length}`} className="overflow-x-auto rounded-xl border border-gray-700/60 mb-2 shadow-lg shadow-black/20">
+        <div
+          key={`table-${elements.length}`}
+          className="overflow-x-auto rounded-xl border border-gray-700/60 mb-2 shadow-lg shadow-black/20"
+        >
           <table className="w-full text-sm min-w-[640px]">
             <thead className="sticky top-0 z-10">
               <tr className="bg-gray-800">
                 {tableHeaders.map((h, i) => (
-                  <th key={i} className="px-3 py-2.5 text-left text-[11px] font-bold text-purple-300 uppercase tracking-wider whitespace-nowrap bg-gray-800">{h.trim()}</th>
+                  <th
+                    key={i}
+                    className="px-3 py-2.5 text-left text-[11px] font-bold text-purple-300 uppercase tracking-wider whitespace-nowrap bg-gray-800"
+                  >
+                    {h.trim()}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {tableRows.map((row, ri) => (
-                <tr key={ri} className={`border-t border-gray-700/40 transition-colors ${ri % 2 === 0 ? "bg-gray-900/20" : "bg-gray-900/5"} hover:bg-purple-900/15`}>
+                <tr
+                  key={ri}
+                  className={`border-t border-gray-700/40 transition-colors ${ri % 2 === 0 ? "bg-gray-900/20" : "bg-gray-900/5"} hover:bg-purple-900/15`}
+                >
                   {row.map((cell, ci) => (
-                    <td key={ci} className="px-3 py-2 text-gray-300 text-xs leading-relaxed max-w-[280px]">
+                    <td
+                      key={ci}
+                      className="px-3 py-2 text-gray-300 text-xs leading-relaxed max-w-[280px]"
+                    >
                       <div className="line-clamp-3">{renderInline(cell.trim())}</div>
                     </td>
                   ))}
@@ -256,7 +358,7 @@ export function StoryboardPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </div>,
       );
       tableRows = [];
       tableHeaders = [];
@@ -265,18 +367,21 @@ export function StoryboardPage() {
 
     // Detect production notes section for card-based rendering
     let inProductionNotes = false;
-    const noteIcons: Record<string, { icon: React.ComponentType<{size?: number; className?: string}>; color: string }> = {
-      'Palette': { icon: Palette, color: 'text-amber-400' },
-      'Three.js crown': { icon: Crown, color: 'text-yellow-400' },
-      'Three.js': { icon: Crown, color: 'text-yellow-400' },
-      'Motion budget': { icon: Film, color: 'text-blue-400' },
-      'BPM': { icon: Drum, color: 'text-red-400' },
-      'Render': { icon: Video, color: 'text-emerald-400' },
-      'Remaster': { icon: Headphones, color: 'text-purple-400' },
-      'Preview': { icon: Eye, color: 'text-cyan-400' },
-      'Analysis': { icon: BarChart3, color: 'text-pink-400' },
+    const noteIcons: Record<
+      string,
+      { icon: React.ComponentType<{ size?: number; className?: string }>; color: string }
+    > = {
+      Palette: { icon: Palette, color: "text-amber-400" },
+      "Three.js crown": { icon: Crown, color: "text-yellow-400" },
+      "Three.js": { icon: Crown, color: "text-yellow-400" },
+      "Motion budget": { icon: Film, color: "text-blue-400" },
+      BPM: { icon: Drum, color: "text-red-400" },
+      Render: { icon: Video, color: "text-emerald-400" },
+      Remaster: { icon: Headphones, color: "text-purple-400" },
+      Preview: { icon: Eye, color: "text-cyan-400" },
+      Analysis: { icon: BarChart3, color: "text-pink-400" },
     };
-    const defaultNoteIcon = { icon: FileMusic, color: 'text-gray-400' };
+    const defaultNoteIcon = { icon: FileMusic, color: "text-gray-400" };
 
     const getNoteStyle = (label: string) => {
       for (const [key, val] of Object.entries(noteIcons)) {
@@ -289,14 +394,31 @@ export function StoryboardPage() {
       const line = lines[i];
       if (line.startsWith("|")) {
         const cells = line.split("|").filter((c) => c.trim() !== "");
-        if (line.includes("---")) { inTable = true; tableHeaders = cells; continue; }
-        if (inTable) { tableRows.push(cells); continue; }
-      } else if (inTable) { flushTable(); }
+        if (line.includes("---")) {
+          inTable = true;
+          tableHeaders = cells;
+          continue;
+        }
+        if (inTable) {
+          tableRows.push(cells);
+          continue;
+        }
+      } else if (inTable) {
+        flushTable();
+      }
 
       // Detect Production Notes section
       if (line.startsWith("## ") && line.includes("Production Notes")) {
         inProductionNotes = true;
-        elements.push(<h2 key={i} className="text-xl font-semibold text-purple-300 mt-8 mb-4 flex items-center gap-2 pb-2 border-b border-gray-800"><Layers size={18} />{renderInline(line.slice(3))}</h2>);
+        elements.push(
+          <h2
+            key={i}
+            className="text-xl font-semibold text-purple-300 mt-8 mb-4 flex items-center gap-2 pb-2 border-b border-gray-800"
+          >
+            <Layers size={18} />
+            {renderInline(line.slice(3))}
+          </h2>,
+        );
         continue;
       }
 
@@ -309,34 +431,83 @@ export function StoryboardPage() {
           const value = match[2];
           const { icon: Icon, color } = getNoteStyle(label);
           elements.push(
-            <div key={i} className="bg-[#0d0d15] border border-gray-800/60 rounded-xl p-4 mb-3 hover:border-gray-700/80 transition-colors">
+            <div
+              key={i}
+              className="bg-[#0d0d15] border border-gray-800/60 rounded-xl p-4 mb-3 hover:border-gray-700/80 transition-colors"
+            >
               <div className="flex items-center gap-2 mb-2">
                 <Icon size={16} className={color} />
-                <span className={`text-xs font-bold uppercase tracking-wider ${color}`}>{label}</span>
+                <span className={`text-xs font-bold uppercase tracking-wider ${color}`}>
+                  {label}
+                </span>
               </div>
-              <div className="text-sm text-gray-300 leading-relaxed pl-6">{renderInline(value)}</div>
-            </div>
+              <div className="text-sm text-gray-300 leading-relaxed pl-6">
+                {renderInline(value)}
+              </div>
+            </div>,
           );
           continue;
         }
       }
 
-      if (line.startsWith("# ")) elements.push(<h1 key={i} className="text-2xl font-bold text-foreground mt-6 mb-3">{renderInline(line.slice(2))}</h1>);
-      else if (line.startsWith("## ")) elements.push(<h2 key={i} className="text-xl font-semibold text-purple-300 mt-8 mb-3 flex items-center gap-2 pb-2 border-b border-gray-800"><Layers size={18} />{renderInline(line.slice(3))}</h2>);
-      else if (line.startsWith("### ")) elements.push(<h3 key={i} className="text-lg font-medium text-gray-200 mt-5 mb-2">{renderInline(line.slice(4))}</h3>);
-      else if (line.startsWith("> ")) elements.push(<blockquote key={i} className="border-l-4 border-purple-500/70 pl-4 py-3 my-4 text-gray-400 italic bg-purple-900/10 rounded-r-lg shadow-sm"><span className="text-purple-400 mr-1">"</span>{renderInline(line.slice(2))}<span className="text-purple-400 ml-1">"</span></blockquote>);
-      else if (line.startsWith("- ") || line.startsWith("* ")) elements.push(<li key={i} className="ml-4 text-gray-300 list-disc leading-relaxed">{renderInline(line.slice(2))}</li>);
-      else if (line.trim() === "---") { inProductionNotes = false; elements.push(<hr key={i} className="border-gray-700/50 my-5" />); }
-      else if (line.trim() === "") elements.push(<div key={i} className="h-2" />);
-      else elements.push(<p key={i} className="text-gray-300 leading-relaxed">{renderInline(line)}</p>);
+      if (line.startsWith("# "))
+        elements.push(
+          <h1 key={i} className="text-2xl font-bold text-foreground mt-6 mb-3">
+            {renderInline(line.slice(2))}
+          </h1>,
+        );
+      else if (line.startsWith("## "))
+        elements.push(
+          <h2
+            key={i}
+            className="text-xl font-semibold text-purple-300 mt-8 mb-3 flex items-center gap-2 pb-2 border-b border-gray-800"
+          >
+            <Layers size={18} />
+            {renderInline(line.slice(3))}
+          </h2>,
+        );
+      else if (line.startsWith("### "))
+        elements.push(
+          <h3 key={i} className="text-lg font-medium text-gray-200 mt-5 mb-2">
+            {renderInline(line.slice(4))}
+          </h3>,
+        );
+      else if (line.startsWith("> "))
+        elements.push(
+          <blockquote
+            key={i}
+            className="border-l-4 border-purple-500/70 pl-4 py-3 my-4 text-gray-400 italic bg-purple-900/10 rounded-r-lg shadow-sm"
+          >
+            <span className="text-purple-400 mr-1">"</span>
+            {renderInline(line.slice(2))}
+            <span className="text-purple-400 ml-1">"</span>
+          </blockquote>,
+        );
+      else if (line.startsWith("- ") || line.startsWith("* "))
+        elements.push(
+          <li key={i} className="ml-4 text-gray-300 list-disc leading-relaxed">
+            {renderInline(line.slice(2))}
+          </li>,
+        );
+      else if (line.trim() === "---") {
+        inProductionNotes = false;
+        elements.push(<hr key={i} className="border-gray-700/50 my-5" />);
+      } else if (line.trim() === "") elements.push(<div key={i} className="h-2" />);
+      else
+        elements.push(
+          <p key={i} className="text-gray-300 leading-relaxed">
+            {renderInline(line)}
+          </p>,
+        );
     }
     flushTable();
     return elements;
   };
 
-  const filtered = STORYBOARDS.filter((s) =>
-    s.title.toLowerCase().includes(query.toLowerCase()) ||
-    s.trackName.toLowerCase().includes(query.toLowerCase())
+  const filtered = STORYBOARDS.filter(
+    (s) =>
+      s.title.toLowerCase().includes(query.toLowerCase()) ||
+      s.trackName.toLowerCase().includes(query.toLowerCase()),
   );
 
   return (
@@ -346,8 +517,12 @@ export function StoryboardPage() {
         <div className="flex items-center gap-3">
           <BookOpen size={24} className="text-purple-400" />
           <h1 className="text-xl font-bold">Storyboards</h1>
-          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">{STORYBOARDS.length} boards</span>
-          <span className="text-xs text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded">{trackLyricsData.length} tracks</span>
+          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">
+            {STORYBOARDS.length} boards
+          </span>
+          <span className="text-xs text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded">
+            {trackLyricsData.length} tracks
+          </span>
         </div>
         {/* Tabs */}
         <div className="flex items-center gap-1 mt-3">
@@ -355,13 +530,17 @@ export function StoryboardPage() {
             onClick={() => setActiveTab("storyboards")}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeTab === "storyboards" ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}
           >
-            <span className="flex items-center gap-1.5"><BookOpen size={12} /> Storyboards</span>
+            <span className="flex items-center gap-1.5">
+              <BookOpen size={12} /> Storyboards
+            </span>
           </button>
           <button
             onClick={() => setActiveTab("tracks")}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeTab === "tracks" ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}
           >
-            <span className="flex items-center gap-1.5"><Music size={12} /> Track Prompts & Lyrics</span>
+            <span className="flex items-center gap-1.5">
+              <Music size={12} /> Track Prompts & Lyrics
+            </span>
           </button>
         </div>
       </div>
@@ -389,7 +568,12 @@ export function StoryboardPage() {
             scenes={scenes}
             activeScene={activeScene}
             onSelectScene={setActiveScene}
-            onBack={() => { setSelected(null); setContent(""); setScenes([]); setActiveScene(null); }}
+            onBack={() => {
+              setSelected(null);
+              setContent("");
+              setScenes([]);
+              setActiveScene(null);
+            }}
             onOpen3D={() => handleOpenIn3DStudio(selected)}
             onGenerateScene={(idx) => handleGenerateScene(selected, idx)}
             onCompile={handleCompile}
@@ -399,7 +583,7 @@ export function StoryboardPage() {
             renderMarkdown={renderMarkdown}
           />
         ) : (
-           <StoryboardGrid
+          <StoryboardGrid
             storyboards={filtered}
             trackMetadata={trackMetadata}
             query={query}
@@ -416,7 +600,13 @@ export function StoryboardPage() {
 
 /* ============ Sub-components ============ */
 
-function TracksTab({ tracks, loading, selectedTrack, onSelectTrack, onGenerateScene }: {
+function TracksTab({
+  tracks,
+  loading,
+  selectedTrack,
+  onSelectTrack,
+  onGenerateScene,
+}: {
   tracks: TrackLyricsData[];
   loading: boolean;
   selectedTrack: TrackLyricsData | null;
@@ -442,7 +632,9 @@ function TracksTab({ tracks, loading, selectedTrack, onSelectTrack, onGenerateSc
     <div className="flex h-full overflow-hidden">
       <div className="w-80 bg-[#0e0e16] border-r border-gray-800 overflow-y-auto shrink-0">
         <div className="p-3 border-b border-gray-800">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tracks ({tracks.length})</h3>
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            Tracks ({tracks.length})
+          </h3>
         </div>
         {loading ? (
           <div className="p-4 text-center text-gray-500 text-sm">Loading tracks...</div>
@@ -450,32 +642,43 @@ function TracksTab({ tracks, loading, selectedTrack, onSelectTrack, onGenerateSc
           <div className="p-4 text-center text-gray-500 text-sm">No tracks found</div>
         ) : (
           tracks.map((track) => (
-          <button
-            key={track.id}
-            onClick={() => onSelectTrack(track)}
-            className={`w-full text-left px-3 py-3 border-b border-gray-800/50 transition-colors ${
-              selectedTrack?.id === track.id ? "bg-purple-900/20 border-l-2 border-l-purple-500" : "hover:bg-gray-800/40"
-            }`}
-          >
-            <div className="text-sm font-medium text-gray-200 truncate">{track.trackName}</div>
-            <div className="text-[10px] text-gray-500 truncate mt-0.5">{track.prompt.slice(0, 60)}...</div>
-          </button>
-        )))}
+            <button
+              key={track.id}
+              onClick={() => onSelectTrack(track)}
+              className={`w-full text-left px-3 py-3 border-b border-gray-800/50 transition-colors ${
+                selectedTrack?.id === track.id
+                  ? "bg-purple-900/20 border-l-2 border-l-purple-500"
+                  : "hover:bg-gray-800/40"
+              }`}
+            >
+              <div className="text-sm font-medium text-gray-200 truncate">{track.trackName}</div>
+              <div className="text-[10px] text-gray-500 truncate mt-0.5">
+                {track.prompt.slice(0, 60)}...
+              </div>
+            </button>
+          ))
+        )}
       </div>
       <div className="flex-1 overflow-y-auto">
         {selectedTrack ? (
           <div className="p-6 max-w-3xl">
             <h2 className="text-xl font-bold text-white mb-4">{selectedTrack.trackName}</h2>
             <div className="mb-6">
-              <h3 className="text-sm font-semibold text-purple-300 mb-2 flex items-center gap-2"><Sparkles size={14} /> Generation Prompt</h3>
+              <h3 className="text-sm font-semibold text-purple-300 mb-2 flex items-center gap-2">
+                <Sparkles size={14} /> Generation Prompt
+              </h3>
               <div className="bg-[#12121a] border border-gray-800 rounded-lg p-4">
                 <p className="text-sm text-gray-300 leading-relaxed">{selectedTrack.prompt}</p>
               </div>
             </div>
             <div className="mb-6">
-              <h3 className="text-sm font-semibold text-purple-300 mb-2 flex items-center gap-2"><Quote size={14} /> Lyrics / Theme</h3>
+              <h3 className="text-sm font-semibold text-purple-300 mb-2 flex items-center gap-2">
+                <Quote size={14} /> Lyrics / Theme
+              </h3>
               <div className="bg-[#12121a] border border-gray-800 rounded-lg p-4">
-                <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{selectedTrack.lyrics}</p>
+                <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+                  {selectedTrack.lyrics}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -494,14 +697,24 @@ function TracksTab({ tracks, loading, selectedTrack, onSelectTrack, onGenerateSc
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full text-gray-500 text-sm">Select a track to view its prompt and lyrics</div>
+          <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+            Select a track to view its prompt and lyrics
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-function StoryboardGrid({ storyboards, trackMetadata, query, onSearch, onSelect, onOpen3D, onGenerate }: {
+function StoryboardGrid({
+  storyboards,
+  trackMetadata,
+  query,
+  onSearch,
+  onSelect,
+  onOpen3D,
+  onGenerate,
+}: {
   storyboards: StoryboardFile[];
   trackMetadata: Record<string, TrackMetadata>;
   query: string;
@@ -526,36 +739,93 @@ function StoryboardGrid({ storyboards, trackMetadata, query, onSearch, onSelect,
         {storyboards.map((s) => {
           const meta = trackMetadata[s.name];
           return (
-          <div key={s.name} className="bg-[#12121a] border border-gray-800 rounded-xl p-5 hover:border-purple-500/50 transition-all group">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-purple-900/30 flex items-center justify-center"><FileText size={20} className="text-purple-400" /></div>
-                <div>
-                  <h3 className="font-semibold text-white group-hover:text-purple-300 transition-colors">{s.title}</h3>
-                  {s.trackName && <p className="text-xs text-gray-500 flex items-center gap-1"><Music size={10} />{s.trackName}</p>}
+            <div
+              key={s.name}
+              className="bg-[#12121a] border border-gray-800 rounded-xl p-5 hover:border-purple-500/50 transition-all group"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-purple-900/30 flex items-center justify-center">
+                    <FileText size={20} className="text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white group-hover:text-purple-300 transition-colors">
+                      {s.title}
+                    </h3>
+                    {s.trackName && (
+                      <p className="text-xs text-gray-500 flex items-center gap-1">
+                        <Music size={10} />
+                        {s.trackName}
+                      </p>
+                    )}
+                  </div>
                 </div>
+                <ChevronRight
+                  size={18}
+                  className="text-gray-600 group-hover:text-purple-400 transition-colors"
+                />
               </div>
-              <ChevronRight size={18} className="text-gray-600 group-hover:text-purple-400 transition-colors" />
+              <div className="flex items-center gap-4 mb-4 text-xs text-gray-400">
+                {meta?.bpm && (
+                  <span className="flex items-center gap-1">
+                    <Zap size={10} className="text-amber-400" />
+                    {meta.bpm} BPM
+                  </span>
+                )}
+                {meta?.duration && (
+                  <span className="flex items-center gap-1">
+                    <Clock size={10} />
+                    {meta.duration}s
+                  </span>
+                )}
+                {!meta?.filename && (
+                  <span className="text-gray-600 italic">Track not in library</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => onSelect(s)}
+                  className="flex-1 px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5"
+                >
+                  <BookOpen size={12} /> View Board
+                </button>
+                <button
+                  onClick={() => onOpen3D(s)}
+                  className="flex-1 px-3 py-2 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5"
+                >
+                  <Box size={12} /> 3D Studio
+                </button>
+                <button
+                  onClick={() => onGenerate(s, 0)}
+                  className="flex-1 px-3 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-300 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5"
+                >
+                  <Sparkles size={12} /> Generate
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-4 mb-4 text-xs text-gray-400">
-              {meta?.bpm && <span className="flex items-center gap-1"><Zap size={10} className="text-amber-400" />{meta.bpm} BPM</span>}
-              {meta?.duration && <span className="flex items-center gap-1"><Clock size={10} />{meta.duration}s</span>}
-              {!meta?.filename && <span className="text-gray-600 italic">Track not in library</span>}
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => onSelect(s)} className="flex-1 px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5"><BookOpen size={12} /> View Board</button>
-              <button onClick={() => onOpen3D(s)} className="flex-1 px-3 py-2 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5"><Box size={12} /> 3D Studio</button>
-              <button onClick={() => onGenerate(s, 0)} className="flex-1 px-3 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-300 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5"><Sparkles size={12} /> Generate</button>
-            </div>
-           </div>
-        );
-      })}
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function StoryboardDetail({ storyboard, trackMetadata, content, scenes, activeScene, onSelectScene, onBack, onOpen3D, onGenerateScene, onCompile, compiling, compileResult, compileError, renderMarkdown }: {
+function StoryboardDetail({
+  storyboard,
+  trackMetadata,
+  content,
+  scenes,
+  activeScene,
+  onSelectScene,
+  onBack,
+  onOpen3D,
+  onGenerateScene,
+  onCompile,
+  compiling,
+  compileResult,
+  compileError,
+  renderMarkdown,
+}: {
   storyboard: StoryboardFile;
   trackMetadata?: TrackMetadata;
   content: string;
@@ -571,7 +841,8 @@ function StoryboardDetail({ storyboard, trackMetadata, content, scenes, activeSc
   compileError: string | null;
   renderMarkdown: (md: string) => React.ReactElement[];
 }) {
-  const visualPreview = (visual: string) => visual.length <= 60 ? visual : visual.slice(0, 57) + "...";
+  const visualPreview = (visual: string) =>
+    visual.length <= 60 ? visual : visual.slice(0, 57) + "...";
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -586,9 +857,14 @@ function StoryboardDetail({ storyboard, trackMetadata, content, scenes, activeSc
               role="button"
               tabIndex={0}
               onClick={() => onSelectScene(activeScene === idx ? null : idx)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectScene(activeScene === idx ? null : idx); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ")
+                  onSelectScene(activeScene === idx ? null : idx);
+              }}
               className={`w-full text-left px-3 py-2.5 border-b border-gray-800/50 transition-colors cursor-pointer ${
-                activeScene === idx ? "bg-purple-900/20 border-l-2 border-l-purple-500" : "hover:bg-gray-800/40"
+                activeScene === idx
+                  ? "bg-purple-900/20 border-l-2 border-l-purple-500"
+                  : "hover:bg-gray-800/40"
               }`}
             >
               <div className="flex items-center justify-between mb-1">
@@ -596,13 +872,31 @@ function StoryboardDetail({ storyboard, trackMetadata, content, scenes, activeSc
                 <span className="text-[10px] text-gray-500">{scene.duration}</span>
               </div>
               <div className="text-xs font-medium text-gray-200 truncate">{scene.section}</div>
-              <div className="text-[10px] text-gray-500 truncate mt-0.5">{visualPreview(scene.visual)}</div>
+              <div className="text-[10px] text-gray-500 truncate mt-0.5">
+                {visualPreview(scene.visual)}
+              </div>
               {activeScene === idx && (
                 <div className="mt-2 pt-2 border-t border-gray-700/50">
                   <p className="text-[10px] text-gray-400 mb-2 line-clamp-2">{scene.visual}</p>
                   <div className="flex gap-1">
-                    <button onClick={(e) => { e.stopPropagation(); onGenerateScene(idx); }} className="flex-1 px-2 py-1 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-300 rounded text-[10px] font-medium flex items-center justify-center gap-1"><Sparkles size={9} /> Gen Scene</button>
-                    <button onClick={(e) => { e.stopPropagation(); onOpen3D(); }} className="flex-1 px-2 py-1 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 rounded text-[10px] font-medium flex items-center justify-center gap-1"><Box size={9} /> 3D</button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onGenerateScene(idx);
+                      }}
+                      className="flex-1 px-2 py-1 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-300 rounded text-[10px] font-medium flex items-center justify-center gap-1"
+                    >
+                      <Sparkles size={9} /> Gen Scene
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpen3D();
+                      }}
+                      className="flex-1 px-2 py-1 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 rounded text-[10px] font-medium flex items-center justify-center gap-1"
+                    >
+                      <Box size={9} /> 3D
+                    </button>
                   </div>
                 </div>
               )}
@@ -613,7 +907,12 @@ function StoryboardDetail({ storyboard, trackMetadata, content, scenes, activeSc
       <div className="flex-1 overflow-y-auto">
         <div className="sticky top-0 z-10 bg-[#0a0a0f]/95 backdrop-blur border-b border-gray-800 px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={onBack} className="text-gray-400 hover:text-white transition-colors text-sm">← Back</button>
+            <button
+              onClick={onBack}
+              className="text-gray-400 hover:text-white transition-colors text-sm"
+            >
+              ← Back
+            </button>
             <div>
               <h2 className="font-semibold text-white">{storyboard.title}</h2>
               {storyboard.trackName && (
@@ -627,13 +926,34 @@ function StoryboardDetail({ storyboard, trackMetadata, content, scenes, activeSc
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={onCompile} disabled={compiling || scenes.length === 0} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-700 rounded-lg text-xs font-medium flex items-center gap-1.5"><Film size={12} /> {compiling ? "Compiling…" : "Compile HyperFrames"}</button>
-            <button onClick={onOpen3D} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded-lg text-xs font-medium flex items-center gap-1.5"><Box size={12} /> Open in 3D Studio</button>
-            <button onClick={() => onGenerateScene(activeScene || 0)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-xs font-medium flex items-center gap-1.5"><Sparkles size={12} /> Generate Scene</button>
+            <button
+              onClick={onCompile}
+              disabled={compiling || scenes.length === 0}
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-700 rounded-lg text-xs font-medium flex items-center gap-1.5"
+            >
+              <Film size={12} /> {compiling ? "Compiling…" : "Compile HyperFrames"}
+            </button>
+            <button
+              onClick={onOpen3D}
+              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded-lg text-xs font-medium flex items-center gap-1.5"
+            >
+              <Box size={12} /> Open in 3D Studio
+            </button>
+            <button
+              onClick={() => onGenerateScene(activeScene || 0)}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-xs font-medium flex items-center gap-1.5"
+            >
+              <Sparkles size={12} /> Generate Scene
+            </button>
           </div>
         </div>
         {compileError && <p className="mt-3 text-xs text-red-400">{compileError}</p>}
-        {compileResult && <p className="mt-3 text-xs text-emerald-400">Compiled {compileResult.scene_count} scenes · {compileResult.duration_seconds}s. Use HyperFrames render to produce the final video.</p>}
+        {compileResult && (
+          <p className="mt-3 text-xs text-emerald-400">
+            Compiled {compileResult.scene_count} scenes · {compileResult.duration_seconds}s. Use
+            HyperFrames render to produce the final video.
+          </p>
+        )}
         <div className="p-6 max-w-4xl">
           <div className="bg-[#0d0d15] rounded-2xl border border-gray-800/60 p-6 shadow-xl shadow-black/20">
             {renderMarkdown(content)}
@@ -643,5 +963,3 @@ function StoryboardDetail({ storyboard, trackMetadata, content, scenes, activeSc
     </div>
   );
 }
-
-

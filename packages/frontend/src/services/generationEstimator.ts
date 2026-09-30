@@ -147,15 +147,14 @@ export function estimateVideoGeneration(options: {
   const estimatedKeyframeTime = imageEstimate.estimatedTimeSeconds;
 
   // Estimate interpolation time (if enabled)
-  const interpolationFrames = interpolationEnabled
-    ? totalFrames - keyframeCount
-    : 0;
+  const interpolationFrames = interpolationEnabled ? totalFrames - keyframeCount : 0;
   const estimatedInterpolationTime = interpolationFrames * INTERPOLATION_TIME_PER_FRAME;
 
   const totalTime = estimatedKeyframeTime + estimatedInterpolationTime;
 
   // Estimate output size
-  const resolution = width >= 2560 ? "4k" : width >= 1920 ? "1440p" : width >= 1280 ? "1080p" : "720p";
+  const resolution =
+    width >= 2560 ? "4k" : width >= 1920 ? "1440p" : width >= 1280 ? "1080p" : "720p";
   const sizePerFrame = OUTPUT_SIZE_PER_FRAME[resolution as keyof typeof OUTPUT_SIZE_PER_FRAME];
   const estimatedOutputSizeMB = Math.round(totalFrames * sizePerFrame);
 
@@ -164,16 +163,22 @@ export function estimateVideoGeneration(options: {
     warnings.push("Generation will take over 1 hour. Consider shorter duration or lower FPS.");
   }
   if (totalTime > 7200) {
-    warnings.push("Generation will take over 2 hours. Consider reducing keyframe interval or resolution.");
+    warnings.push(
+      "Generation will take over 2 hours. Consider reducing keyframe interval or resolution.",
+    );
   }
   if (estimatedOutputSizeMB > 1000) {
-    warnings.push(`Large output file (~${Math.round(estimatedOutputSizeMB / 1000)}GB). Ensure sufficient disk space.`);
+    warnings.push(
+      `Large output file (~${Math.round(estimatedOutputSizeMB / 1000)}GB). Ensure sufficient disk space.`,
+    );
   }
   if (totalFrames > 5000) {
     warnings.push(`High frame count (${totalFrames}). Generation will be very long.`);
   }
   if (fps > 30) {
-    warnings.push("High FPS increases generation time. 30 FPS is recommended for most music videos.");
+    warnings.push(
+      "High FPS increases generation time. 30 FPS is recommended for most music videos.",
+    );
   }
 
   return {
@@ -294,7 +299,7 @@ export function estimateVRAMUsage(width: number, height: number, batchSize: numb
   const imageMB = (pixelCount * 4 * 3) / (1024 * 1024);
   const modelOverheadMB = 1500; // SD 1.5 model
   const bufferMB = 500; // Working buffer
-  return Math.round((imageMB * batchSize) + modelOverheadMB + bufferMB);
+  return Math.round(imageMB * batchSize + modelOverheadMB + bufferMB);
 }
 
 export default {

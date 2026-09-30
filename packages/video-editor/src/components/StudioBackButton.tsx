@@ -14,13 +14,20 @@ export const StudioBackButton: React.FC = () => {
         const res = await fetch("/config/ports.json");
         if (res.ok) {
           const data = await res.json();
-          setFrontendUrl(data.frontend_url || `http://127.0.0.1:${data.frontend_port || 5173}`);
+          setFrontendUrl(
+            data.frontend_url ||
+              `http://127.0.0.1:${data.frontend_port || 5173}`,
+          );
           return;
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       // Fallback: use same hostname with default frontend port
       if (typeof window !== "undefined") {
-        setFrontendUrl(`${window.location.protocol}//${window.location.hostname}:5173`);
+        setFrontendUrl(
+          `${window.location.protocol}//${window.location.hostname}:5173`,
+        );
       } else {
         setFrontendUrl("http://localhost:5173");
       }

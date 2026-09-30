@@ -44,7 +44,7 @@ export function Settings() {
     const loadSettings = async () => {
       try {
         const data = await getSettings();
-        setSettings(prev => ({ ...prev, ...data }));
+        setSettings((prev) => ({ ...prev, ...data }));
       } catch {
         setError("Failed to load settings from backend");
       } finally {
@@ -114,7 +114,12 @@ export function Settings() {
         {error && (
           <div className="col-span-2 p-3 bg-red-900/20 border border-red-700/50 rounded-lg flex items-start gap-2 text-red-200 text-sm">
             <span>{error}</span>
-            <button onClick={() => setError(null)} className="ml-auto text-red-300 hover:text-white text-xs">Dismiss</button>
+            <button
+              onClick={() => setError(null)}
+              className="ml-auto text-red-300 hover:text-white text-xs"
+            >
+              Dismiss
+            </button>
           </div>
         )}
         {/* ComfyUI Configuration */}
@@ -128,10 +133,16 @@ export function Settings() {
                   className="input flex-1"
                   aria-label="ComfyUI URL"
                   value={settings.comfyui_url}
-                  onChange={(e) => setSettings(prev => ({ ...prev, comfyui_url: e.target.value }))}
+                  onChange={(e) =>
+                    setSettings((prev) => ({ ...prev, comfyui_url: e.target.value }))
+                  }
                   placeholder="http://127.0.0.1:8188"
                 />
-                <button className="btn btn-secondary" title="Test Connection" onClick={() => testConnection(settings.comfyui_url, "comfyui")}>
+                <button
+                  className="btn btn-secondary"
+                  title="Test Connection"
+                  onClick={() => testConnection(settings.comfyui_url, "comfyui")}
+                >
                   <Link2 size={16} />
                 </button>
               </div>
@@ -152,9 +163,7 @@ export function Settings() {
                   </p>
                 </div>
               </div>
-              <StatusBadge
-                status={serviceStatus?.adapters?.comfyui || "offline"}
-              />
+              <StatusBadge status={serviceStatus?.adapters?.comfyui || "offline"} />
             </div>
 
             <div>
@@ -196,16 +205,18 @@ export function Settings() {
                   type="text"
                   className="input flex-1"
                   value={settings.ollama_url}
-                  onChange={(e) => setSettings(prev => ({ ...prev, ollama_url: e.target.value }))}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, ollama_url: e.target.value }))}
                   placeholder="http://127.0.0.1:11434"
                 />
-                <button className="btn btn-secondary" title="Test Connection" onClick={() => testConnection(settings.ollama_url, "ollama")}>
+                <button
+                  className="btn btn-secondary"
+                  title="Test Connection"
+                  onClick={() => testConnection(settings.ollama_url, "ollama")}
+                >
                   <Link2 size={16} />
                 </button>
               </div>
-              <p className="text-xs text-muted mt-1">
-                Base Ollama server for LLM text generation
-              </p>
+              <p className="text-xs text-muted mt-1">Base Ollama server for LLM text generation</p>
             </div>
 
             <div className="flex items-center justify-between p-3 bg-background rounded-lg">
@@ -220,9 +231,7 @@ export function Settings() {
                   </p>
                 </div>
               </div>
-              <StatusBadge
-                status={serviceStatus?.adapters?.ollama || "offline"}
-              />
+              <StatusBadge status={serviceStatus?.adapters?.ollama || "offline"} />
             </div>
 
             <div className="border-t border-border pt-4">
@@ -239,7 +248,9 @@ export function Settings() {
                     className="sr-only peer"
                     aria-label="Enable Atomic Chat TurboQuant"
                     checked={settings.atomic_chat_enabled}
-                    onChange={(e) => setSettings(prev => ({ ...prev, atomic_chat_enabled: e.target.checked }))}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, atomic_chat_enabled: e.target.checked }))
+                    }
                   />
                   <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                 </label>
@@ -252,7 +263,9 @@ export function Settings() {
                     className="input flex-1"
                     aria-label="Atomic Chat URL"
                     value={settings.atomic_chat_url}
-                    onChange={(e) => setSettings(prev => ({ ...prev, atomic_chat_url: e.target.value }))}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, atomic_chat_url: e.target.value }))
+                    }
                     placeholder="http://127.0.0.1:1337"
                     disabled={!settings.atomic_chat_enabled}
                   />
@@ -273,7 +286,14 @@ export function Settings() {
 
             <div>
               <label className="label">Default Model</label>
-              <select className="select" aria-label="Default model" value={settings.default_model || "qwen3.5:4b"} onChange={(e) => setSettings(prev => ({ ...prev, default_model: e.target.value }))}>
+              <select
+                className="select"
+                aria-label="Default model"
+                value={settings.default_model || "qwen3.5:4b"}
+                onChange={(e) =>
+                  setSettings((prev) => ({ ...prev, default_model: e.target.value }))
+                }
+              >
                 <option value="qwen3.5:4b">qwen3.5:4b (fast, 4B)</option>
                 <option value="qwen3.5:9b">qwen3.5:9b (quality, 9B)</option>
                 <option value="ornith-1.5:9b">ornith-1.5:9b (vision+tools)</option>
@@ -281,7 +301,9 @@ export function Settings() {
                 <option value="gemma4:e2b-it-qat">gemma4:e2b-it-qat (vision)</option>
                 <option value="llama3.2:3b">llama3.2:3b (lightweight)</option>
               </select>
-              <p className="text-xs text-muted mt-1">Used for chat, visualizer, and 3D generation</p>
+              <p className="text-xs text-muted mt-1">
+                Used for chat, visualizer, and 3D generation
+              </p>
             </div>
           </div>
         </Card>
@@ -299,7 +321,11 @@ export function Settings() {
                   defaultValue="./output"
                   readOnly
                 />
-                <button className="btn btn-secondary" aria-label="Browse output directory" title="Browse output directory">
+                <button
+                  className="btn btn-secondary"
+                  aria-label="Browse output directory"
+                  title="Browse output directory"
+                >
                   <FolderOpen size={16} />
                 </button>
               </div>
@@ -307,7 +333,17 @@ export function Settings() {
 
             <div>
               <label className="label">Max Queue Workers</label>
-              <select className="select" aria-label="Max queue workers" value={settings.max_queue_workers} onChange={(e) => setSettings(prev => ({ ...prev, max_queue_workers: parseInt(e.target.value, 10) }))}>
+              <select
+                className="select"
+                aria-label="Max queue workers"
+                value={settings.max_queue_workers}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    max_queue_workers: parseInt(e.target.value, 10),
+                  }))
+                }
+              >
                 <option value={1}>1 (Serial)</option>
                 <option value={2}>2</option>
                 <option value={3}>3</option>
@@ -321,33 +357,30 @@ export function Settings() {
 
         {/* Log Level */}
         <Card title="Logging">
-            <div>
-              <label className="label">Log Level</label>
-              <select className="select" aria-label="Log level" value={settings.log_level} onChange={(e) => setSettings(prev => ({ ...prev, log_level: e.target.value }))}>
-                <option value="DEBUG">Debug</option>
-                <option value="INFO">Info</option>
-                <option value="WARNING">Warning</option>
-                <option value="ERROR">Error</option>
-              </select>
-            </div>
+          <div>
+            <label className="label">Log Level</label>
+            <select
+              className="select"
+              aria-label="Log level"
+              value={settings.log_level}
+              onChange={(e) => setSettings((prev) => ({ ...prev, log_level: e.target.value }))}
+            >
+              <option value="DEBUG">Debug</option>
+              <option value="INFO">Info</option>
+              <option value="WARNING">Warning</option>
+              <option value="ERROR">Error</option>
+            </select>
+          </div>
         </Card>
 
         {/* Appearance / Theme */}
-        <Card
-          title="Appearance"
-          icon={theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
-        >
+        <Card title="Appearance" icon={theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}>
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">Theme</p>
-              <p className="text-xs text-muted">
-                {theme === "dark" ? "Dark mode" : "Light mode"}
-              </p>
+              <p className="text-xs text-muted">{theme === "dark" ? "Dark mode" : "Light mode"}</p>
             </div>
-            <button
-              className="btn btn-secondary flex items-center gap-2"
-              onClick={toggleTheme}
-            >
+            <button className="btn btn-secondary flex items-center gap-2" onClick={toggleTheme}>
               {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
               Switch to {theme === "dark" ? "Light" : "Dark"}
             </button>
@@ -378,7 +411,9 @@ export function Settings() {
               </>
             )}
           </button>
-          <p className="text-xs text-muted mt-2 text-center">Changes are persisted to config/settings.json</p>
+          <p className="text-xs text-muted mt-2 text-center">
+            Changes are persisted to config/settings.json
+          </p>
         </Card>
       </div>
     </div>

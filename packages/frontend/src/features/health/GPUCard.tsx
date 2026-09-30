@@ -1,17 +1,13 @@
 import { useState, useEffect } from "react";
-import {
-  CpuIcon,
-  MemoryStick,
-  Activity,
-  Thermometer,
-  RefreshCw,
-} from "lucide-react";
+import { CpuIcon, MemoryStick, Activity, Thermometer, RefreshCw } from "lucide-react";
 import { Card } from "../../components/common";
 import { useHealthStore } from "../../state/healthStore";
 import { getUsageColor, getUsageTextColor } from "./utils";
 
 export function GPUCard() {
-  const [gpu, setGpu] = useState<Awaited<ReturnType<typeof import("../../services/api").getGPUSnapshot>> | null>(null);
+  const [gpu, setGpu] = useState<Awaited<
+    ReturnType<typeof import("../../services/api").getGPUSnapshot>
+  > | null>(null);
   const [processes, setProcesses] = useState<import("../../services/api").GPUProcessInfo[]>([]);
   const fetchGPUData = useHealthStore((s) => s.fetchGPUData);
   const granular = useHealthStore((s) => s.granular);
@@ -42,17 +38,25 @@ export function GPUCard() {
               <p className="text-xs text-muted">Not available</p>
             </div>
           </div>
-          <button onClick={fetchGPUData} className="h-6 w-6 flex items-center justify-center rounded text-muted hover:text-white hover:bg-white/10" title="Refresh GPU data" aria-label="Refresh GPU data">
+          <button
+            onClick={fetchGPUData}
+            className="h-6 w-6 flex items-center justify-center rounded text-muted hover:text-white hover:bg-white/10"
+            title="Refresh GPU data"
+            aria-label="Refresh GPU data"
+          >
             <RefreshCw size={14} />
           </button>
         </div>
-        <p className="text-xs text-muted">GPU monitoring requires NVIDIA drivers with NVML support</p>
+        <p className="text-xs text-muted">
+          GPU monitoring requires NVIDIA drivers with NVML support
+        </p>
       </Card>
     );
   }
 
   const memPercent = gpu.memory_percent || 0;
-  const tempColor = gpu.temperature_c > 80 ? "#ef4444" : gpu.temperature_c > 70 ? "#f59e0b" : "#22c55e";
+  const tempColor =
+    gpu.temperature_c > 80 ? "#ef4444" : gpu.temperature_c > 70 ? "#f59e0b" : "#22c55e";
   const formatGB = (mb: number) =>
     mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.round(mb)} MB`;
 
@@ -80,10 +84,19 @@ export function GPUCard() {
           >
             {memPercent.toFixed(1)}%
           </span>
-          <a href="/gpu" className="text-[11px] text-violet-300 hover:text-violet-200" title="Open full GPU monitor">
+          <a
+            href="/gpu"
+            className="text-[11px] text-violet-300 hover:text-violet-200"
+            title="Open full GPU monitor"
+          >
             Details →
           </a>
-          <button onClick={fetchGPUData} className="h-6 w-6 flex items-center justify-center rounded text-muted hover:text-white hover:bg-white/10" title="Refresh GPU data" aria-label="Refresh GPU data">
+          <button
+            onClick={fetchGPUData}
+            className="h-6 w-6 flex items-center justify-center rounded text-muted hover:text-white hover:bg-white/10"
+            title="Refresh GPU data"
+            aria-label="Refresh GPU data"
+          >
             <RefreshCw size={14} />
           </button>
         </div>
@@ -117,7 +130,10 @@ export function GPUCard() {
           <div className="h-2.5 bg-background rounded-full overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${gpu.gpu_utilization}%`, background: getUsageColor(gpu.gpu_utilization) }}
+              style={{
+                width: `${gpu.gpu_utilization}%`,
+                background: getUsageColor(gpu.gpu_utilization),
+              }}
             />
           </div>
         </div>
@@ -127,7 +143,17 @@ export function GPUCard() {
           <span className="text-sm text-muted flex items-center gap-1">
             <Thermometer size={12} /> Temperature
           </span>
-          <span className="font-bold tabular-nums" style={{ color: tempColor }} title={gpu.temperature_c >= 80 ? "Hot — approaching throttle" : gpu.temperature_c >= 70 ? "Warm" : "Normal"}>
+          <span
+            className="font-bold tabular-nums"
+            style={{ color: tempColor }}
+            title={
+              gpu.temperature_c >= 80
+                ? "Hot — approaching throttle"
+                : gpu.temperature_c >= 70
+                  ? "Warm"
+                  : "Normal"
+            }
+          >
             {gpu.temperature_c}°C
           </span>
         </div>

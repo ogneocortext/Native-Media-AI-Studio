@@ -68,7 +68,7 @@ export function BeatTimeline({
         onTimeChange(Math.max(0, Math.min(time, duration)));
       }
     },
-    [isAddingMarker, duration, markers, onMarkersChange, onTimeChange, zoom]
+    [isAddingMarker, duration, markers, onMarkersChange, onTimeChange, zoom],
   );
 
   // Delete marker
@@ -82,9 +82,7 @@ export function BeatTimeline({
   // Update marker
   const updateMarker = (id: string, updates: Partial<BeatMarker>) => {
     onMarkersChange(
-      markers
-        .map((m) => (m.id === id ? { ...m, ...updates } : m))
-        .sort((a, b) => a.time - b.time)
+      markers.map((m) => (m.id === id ? { ...m, ...updates } : m)).sort((a, b) => a.time - b.time),
     );
   };
 
@@ -140,10 +138,7 @@ export function BeatTimeline({
         }
         const localMean = localSum / (windowSize * 2 + 1);
 
-        if (
-          spectralFlux[i] > localMean * thresholdMultiplier &&
-          spectralFlux[i] > 0.001
-        ) {
+        if (spectralFlux[i] > localMean * thresholdMultiplier && spectralFlux[i] > 0.001) {
           let isMax = true;
           for (let j = Math.max(0, i - 4); j <= Math.min(spectralFlux.length - 1, i + 4); j++) {
             if (j !== i && spectralFlux[j] > spectralFlux[i]) {
@@ -158,7 +153,8 @@ export function BeatTimeline({
       }
 
       // Classify beats by energy level
-      const avgEnergy = onsets.length > 0 ? onsets.reduce((sum, o) => sum + o.energy, 0) / onsets.length : 0;
+      const avgEnergy =
+        onsets.length > 0 ? onsets.reduce((sum, o) => sum + o.energy, 0) / onsets.length : 0;
       const highEnergyThreshold = avgEnergy * 1.5;
 
       const newMarkers: BeatMarker[] = onsets.map((onset, i) => {
@@ -219,7 +215,11 @@ export function BeatTimeline({
             {isAddingMarker ? "Click timeline to add" : "Add Marker"}
           </button>
 
-          <button onClick={autoDetectBeats} className="btn btn-secondary btn-sm" disabled={!audioElement}>
+          <button
+            onClick={autoDetectBeats}
+            className="btn btn-secondary btn-sm"
+            disabled={!audioElement}
+          >
             Auto-Detect
           </button>
 
@@ -267,10 +267,7 @@ export function BeatTimeline({
         style={{ cursor: isAddingMarker ? "crosshair" : "pointer" }}
         onClick={handleTimelineClick}
       >
-        <div
-          className="relative h-full"
-          style={{ width: `${totalWidth}px`, minWidth: "100%" }}
-        >
+        <div className="relative h-full" style={{ width: `${totalWidth}px`, minWidth: "100%" }}>
           {/* Time grid lines */}
           {Array.from({ length: Math.ceil(duration) + 1 }).map((_, i) => (
             <div
@@ -347,7 +344,10 @@ export function BeatTimeline({
         <div className="p-4 bg-background/50 rounded-lg border border-border space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="font-medium">Edit Marker</h4>
-            <button onClick={() => setSelectedMarker(null)} className="text-muted hover:text-foreground">
+            <button
+              onClick={() => setSelectedMarker(null)}
+              className="text-muted hover:text-foreground"
+            >
               ×
             </button>
           </div>
@@ -359,7 +359,9 @@ export function BeatTimeline({
                 type="number"
                 step="0.1"
                 value={selectedMarker.time.toFixed(1)}
-                onChange={(e) => updateMarker(selectedMarker.id, { time: parseFloat(e.target.value) })}
+                onChange={(e) =>
+                  updateMarker(selectedMarker.id, { time: parseFloat(e.target.value) })
+                }
                 className="input w-full"
               />
             </div>
@@ -426,7 +428,10 @@ export function BeatTimeline({
           Break
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: markerColors.transition }} />
+          <span
+            className="w-3 h-3 rounded-full"
+            style={{ backgroundColor: markerColors.transition }}
+          />
           Transition
         </span>
       </div>

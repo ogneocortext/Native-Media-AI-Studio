@@ -66,8 +66,10 @@ export function AudioVisualizer({
         });
 
         // Create audio context
-        const audioContext = new (window.AudioContext ||
-          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        const audioContext = new (
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+        )();
         audioContextRef.current = audioContext;
 
         // Create analyser
@@ -106,9 +108,8 @@ export function AudioVisualizer({
         }
 
         // Normalize waveform to use full canvas height
-        const normalized = maxAmplitude > 0
-          ? waveform.map(v => Math.max(0.05, v / maxAmplitude))
-          : waveform;
+        const normalized =
+          maxAmplitude > 0 ? waveform.map((v) => Math.max(0.05, v / maxAmplitude)) : waveform;
         setWaveformData(normalized);
 
         if (onAudioBufferLoaded) {
@@ -170,7 +171,12 @@ export function AudioVisualizer({
       const x = i * barWidth;
 
       // Gradient based on amplitude
-      const gradient = ctx.createLinearGradient(0, centerY - barHeight / 2, 0, centerY + barHeight / 2);
+      const gradient = ctx.createLinearGradient(
+        0,
+        centerY - barHeight / 2,
+        0,
+        centerY + barHeight / 2,
+      );
       gradient.addColorStop(0, "#00ffff");
       gradient.addColorStop(0.4, "#6366f1");
       gradient.addColorStop(0.6, "#8b5cf6");

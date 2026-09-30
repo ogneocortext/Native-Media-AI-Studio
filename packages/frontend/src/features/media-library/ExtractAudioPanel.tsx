@@ -38,10 +38,18 @@ export function ExtractAudioPanel({ sourcePath, onComplete }: Props) {
     setError(null);
     setResult(null);
     try {
-      const params: { source_path: string; format: "original" | "mp3"; bitrate?: "128k" | "192k" | "320k" } =
+      const params: {
+        source_path: string;
+        format: "original" | "mp3";
+        bitrate?: "128k" | "192k" | "320k";
+      } =
         formatId === "original"
           ? { source_path: sourcePath, format: "original" }
-          : { source_path: sourcePath, format: "mp3", bitrate: formatId.slice(4) as "128k" | "192k" | "320k" };
+          : {
+              source_path: sourcePath,
+              format: "mp3",
+              bitrate: formatId.slice(4) as "128k" | "192k" | "320k",
+            };
       const res = await extractVideoAudio(params);
       setResult(res);
       onComplete?.();
@@ -53,7 +61,10 @@ export function ExtractAudioPanel({ sourcePath, onComplete }: Props) {
   };
 
   return (
-    <div className="rounded-xl border border-white/10 bg-black/30 p-4 mt-3" data-testid="extract-audio">
+    <div
+      className="rounded-xl border border-white/10 bg-black/30 p-4 mt-3"
+      data-testid="extract-audio"
+    >
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-semibold text-white flex items-center gap-2">
           <Music size={16} className="text-emerald-400" /> Extract Audio
@@ -67,7 +78,9 @@ export function ExtractAudioPanel({ sourcePath, onComplete }: Props) {
       </p>
 
       <div className="flex items-center gap-3 mb-3">
-        <label className="text-xs text-muted" htmlFor="extract-format">Format:</label>
+        <label className="text-xs text-muted" htmlFor="extract-format">
+          Format:
+        </label>
         <select
           id="extract-format"
           value={formatId}
@@ -75,7 +88,11 @@ export function ExtractAudioPanel({ sourcePath, onComplete }: Props) {
           className="bg-black/30 border border-white/10 rounded-lg text-xs text-white px-2 py-1.5"
           aria-label="Audio format"
         >
-          {FORMATS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+          {FORMATS.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.label}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -85,9 +102,13 @@ export function ExtractAudioPanel({ sourcePath, onComplete }: Props) {
         className="w-full py-2 rounded-lg bg-emerald-600/80 hover:bg-emerald-500 disabled:bg-gray-700 disabled:cursor-wait text-white text-sm flex items-center justify-center gap-2 transition-colors"
       >
         {running ? (
-          <><Loader2 className="w-4 h-4 animate-spin" /> Extracting…</>
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" /> Extracting…
+          </>
         ) : (
-          <><Music size={15} /> Extract Song</>
+          <>
+            <Music size={15} /> Extract Song
+          </>
         )}
       </button>
 
@@ -100,22 +121,40 @@ export function ExtractAudioPanel({ sourcePath, onComplete }: Props) {
       {result?.success && (
         <div className="mt-4 space-y-2">
           <div className="flex items-center gap-2 text-xs text-emerald-400">
-            <Check size={14} /> {result.message} · {result.render_s}s{result.lossless ? " · lossless" : ""}
+            <Check size={14} /> {result.message} · {result.render_s}s
+            {result.lossless ? " · lossless" : ""}
           </div>
           {result.source_codec && (
             <p className="text-[11px] text-muted font-mono">
-              source: {result.source_codec}{result.source_sample_rate ? ` · ${(Number(result.source_sample_rate) / 1000).toFixed(1)} kHz` : ""}{result.lossless ? " · copied" : " · re-encoded"}
+              source: {result.source_codec}
+              {result.source_sample_rate
+                ? ` · ${(Number(result.source_sample_rate) / 1000).toFixed(1)} kHz`
+                : ""}
+              {result.lossless ? " · copied" : " · re-encoded"}
             </p>
           )}
-          <audio controls src={getOutputUrl(result.relative_path)} className="w-full rounded" aria-label={`Play ${result.filename}`} />
+          <audio
+            controls
+            src={getOutputUrl(result.relative_path)}
+            className="w-full rounded"
+            aria-label={`Play ${result.filename}`}
+          />
           <div className="flex items-center justify-between gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5">
-            <p className="text-xs text-white font-mono truncate" title={result.relative_path}>{result.filename}</p>
-            <a href={getOutputUrl(result.relative_path)} download className="p-1.5 hover:bg-white/10 rounded-lg text-muted hover:text-white shrink-0" title="Download audio file">
+            <p className="text-xs text-white font-mono truncate" title={result.relative_path}>
+              {result.filename}
+            </p>
+            <a
+              href={getOutputUrl(result.relative_path)}
+              download
+              className="p-1.5 hover:bg-white/10 rounded-lg text-muted hover:text-white shrink-0"
+              title="Download audio file"
+            >
               <Download size={13} />
             </a>
           </div>
           <p className="text-[11px] text-muted">
-            Saved to the audio library — open <span className="text-white">Audio Analysis</span> to analyze tempo &amp; beats.
+            Saved to the audio library — open <span className="text-white">Audio Analysis</span> to
+            analyze tempo &amp; beats.
           </p>
         </div>
       )}

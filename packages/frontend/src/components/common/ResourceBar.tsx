@@ -57,7 +57,8 @@ export function ResourceBar({
           <span className="resource-bar-text">{label}</span>
         </div>
         <span className="resource-bar-value" style={{ color: barColor }}>
-          {value.toFixed(1)}{unit}
+          {value.toFixed(1)}
+          {unit}
         </span>
       </div>
       {showBar && (

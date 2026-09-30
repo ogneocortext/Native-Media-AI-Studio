@@ -13,13 +13,7 @@ interface StatCardProps {
 }
 
 /** Reusable stat summary card (used by the Media Library stats row). */
-export function StatCard({
-  icon: Icon,
-  iconWrapperClass,
-  iconClass,
-  value,
-  label,
-}: StatCardProps) {
+export function StatCard({ icon: Icon, iconWrapperClass, iconClass, value, label }: StatCardProps) {
   return (
     <div className="card p-4">
       <div className="flex items-center gap-3">

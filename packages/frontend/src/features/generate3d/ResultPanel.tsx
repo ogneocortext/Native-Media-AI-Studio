@@ -21,7 +21,9 @@ export function ResultPanel({ hook }: ResultPanelProps) {
       await openInBlender(`generated_3d/${glbFilename}`);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to open in Blender");
-    } finally { setOpening(null); }
+    } finally {
+      setOpening(null);
+    }
   };
   const handleOpenUnity = async () => {
     if (!glbFilename) return;
@@ -30,7 +32,9 @@ export function ResultPanel({ hook }: ResultPanelProps) {
       await openInUnity(`generated_3d/${glbFilename}`);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to open in Unity");
-    } finally { setOpening(null); }
+    } finally {
+      setOpening(null);
+    }
   };
 
   return (
@@ -42,8 +46,18 @@ export function ResultPanel({ hook }: ResultPanelProps) {
           <div>
             <p className="text-sm font-medium">{error}</p>
             <div className="flex gap-2 mt-2">
-              <button onClick={hook.handleGenerate} className="text-xs px-2 py-1 bg-red-800 hover:bg-red-700 rounded text-white">Retry</button>
-              <button onClick={() => setError(null)} className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white">Dismiss</button>
+              <button
+                onClick={hook.handleGenerate}
+                className="text-xs px-2 py-1 bg-red-800 hover:bg-red-700 rounded text-white"
+              >
+                Retry
+              </button>
+              <button
+                onClick={() => setError(null)}
+                className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white"
+              >
+                Dismiss
+              </button>
             </div>
           </div>
         </div>
@@ -56,27 +70,46 @@ export function ResultPanel({ hook }: ResultPanelProps) {
             <CheckCircle size={16} className="text-green-400" />
             <span className="text-white font-medium">Generation Result</span>
             {(result as { success?: boolean }).success ? (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/20 text-green-300">Success</span>
+              <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/20 text-green-300">
+                Success
+              </span>
             ) : (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">Failed</span>
+              <span className="text-xs px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">
+                Failed
+              </span>
             )}
           </div>
           {(result as { model_path?: string }).model_path ? (
             <div className="space-y-3">
               <div className="bg-gray-900 rounded-lg p-3 border border-gray-700">
                 <p className="text-xs text-gray-400">Model</p>
-                <p className="text-sm text-white font-mono truncate" title={String((result as { model_path?: string }).model_path)}>{String((result as { model_path?: string }).model_path).split(/[\\/]/).pop()}</p>
-                <p className="text-xs text-gray-500 mt-1">{String((result as { model_path?: string }).model_path)}</p>
+                <p
+                  className="text-sm text-white font-mono truncate"
+                  title={String((result as { model_path?: string }).model_path)}
+                >
+                  {String((result as { model_path?: string }).model_path)
+                    .split(/[\\/]/)
+                    .pop()}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {String((result as { model_path?: string }).model_path)}
+                </p>
               </div>
               {glbUrl && (
                 <div className="space-y-1">
-                  <p className="text-xs text-gray-400 flex items-center gap-1"><Box size={12} className="text-violet-400" /> Live 3D preview</p>
+                  <p className="text-xs text-gray-400 flex items-center gap-1">
+                    <Box size={12} className="text-violet-400" /> Live 3D preview
+                  </p>
                   <ModelPreview url={glbUrl} />
                 </div>
               )}
               <div className="flex gap-2 flex-wrap">
                 <a
-                  href={`/output/generated_3d/${String((result as { model_path?: string }).model_path).split(/[\\/]/).pop()}`}
+                  href={`/output/generated_3d/${String(
+                    (result as { model_path?: string }).model_path,
+                  )
+                    .split(/[\\/]/)
+                    .pop()}`}
                   download
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white text-sm flex items-center gap-2"
                 >
@@ -91,7 +124,11 @@ export function ResultPanel({ hook }: ResultPanelProps) {
                       className="px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-white text-sm flex items-center gap-2 disabled:opacity-50"
                       title="Open this GLB in Blender (launches Blender with auto-import)"
                     >
-                      {opening === "blender" ? <Loader2 size={14} className="animate-spin" /> : <Box size={14} />}
+                      {opening === "blender" ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Box size={14} />
+                      )}
                       Open in Blender
                     </button>
                     <button
@@ -100,7 +137,11 @@ export function ResultPanel({ hook }: ResultPanelProps) {
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white text-sm flex items-center gap-2 disabled:opacity-50"
                       title="Copy to Unity project Assets/GeneratedModels and trigger import"
                     >
-                      {opening === "unity" ? <Loader2 size={14} className="animate-spin" /> : <Layers size={14} />}
+                      {opening === "unity" ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Layers size={14} />
+                      )}
                       Open in Unity
                     </button>
                     <button

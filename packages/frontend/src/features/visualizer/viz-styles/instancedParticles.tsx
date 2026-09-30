@@ -15,12 +15,7 @@ import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
 //  - Work under both WebGL and WebGPU renderers (GLSL transpiles to WGSL)
 // =============================================================================
 
-const QUAD_VERTS = new Float32Array([
-  -0.5, -0.5, 0,
-  0.5, -0.5, 0,
-  -0.5, 0.5, 0,
-  0.5, 0.5, 0,
-]);
+const QUAD_VERTS = new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, -0.5, 0.5, 0, 0.5, 0.5, 0]);
 const QUAD_INDEX = new Uint16Array([0, 1, 2, 2, 1, 3]);
 
 interface ParticleState {
@@ -95,26 +90,11 @@ export function InstancedParticles({
     const geo = new THREE.InstancedBufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(QUAD_VERTS, 3));
     geo.setIndex(new THREE.BufferAttribute(QUAD_INDEX, 1));
-    geo.setAttribute(
-      "instancePosition",
-      new THREE.InstancedBufferAttribute(state.positions, 3),
-    );
-    geo.setAttribute(
-      "instanceSize",
-      new THREE.InstancedBufferAttribute(state.baseSizes, 1),
-    );
-    geo.setAttribute(
-      "instanceColor",
-      new THREE.InstancedBufferAttribute(state.colors, 3),
-    );
-    geo.setAttribute(
-      "instancePhase",
-      new THREE.InstancedBufferAttribute(state.phases, 1),
-    );
-    geo.setAttribute(
-      "instanceVelocity",
-      new THREE.InstancedBufferAttribute(state.velocities, 3),
-    );
+    geo.setAttribute("instancePosition", new THREE.InstancedBufferAttribute(state.positions, 3));
+    geo.setAttribute("instanceSize", new THREE.InstancedBufferAttribute(state.baseSizes, 1));
+    geo.setAttribute("instanceColor", new THREE.InstancedBufferAttribute(state.colors, 3));
+    geo.setAttribute("instancePhase", new THREE.InstancedBufferAttribute(state.phases, 1));
+    geo.setAttribute("instanceVelocity", new THREE.InstancedBufferAttribute(state.velocities, 3));
     geo.instanceCount = count;
     return geo;
   }, [state, count]);
@@ -238,9 +218,18 @@ export function InstancedParticles({
         Math.cos(t * 1.5 + phase) * mid * 0.2 +
         Math.sin(t * 3 + phase) * bass * 0.15 +
         stemEnergyRef.current.vocals * 0.1;
-      posArr[idx] += velArr[idx] * (1 + energy * 2) * speedMul + drift * 0.02 + stemEnergyRef.current.drums * 0.01;
-      posArr[idx + 1] += velArr[idx + 1] * (1 + energy * 2) * speedMul + drift * 0.03 + stemEnergyRef.current.bass * 0.01;
-      posArr[idx + 2] += velArr[idx + 2] * (1 + energy * 2) * speedMul + drift * 0.02 + stemEnergyRef.current.other * 0.01;
+      posArr[idx] +=
+        velArr[idx] * (1 + energy * 2) * speedMul +
+        drift * 0.02 +
+        stemEnergyRef.current.drums * 0.01;
+      posArr[idx + 1] +=
+        velArr[idx + 1] * (1 + energy * 2) * speedMul +
+        drift * 0.03 +
+        stemEnergyRef.current.bass * 0.01;
+      posArr[idx + 2] +=
+        velArr[idx + 2] * (1 + energy * 2) * speedMul +
+        drift * 0.02 +
+        stemEnergyRef.current.other * 0.01;
 
       const dist = Math.sqrt(posArr[idx] ** 2 + posArr[idx + 1] ** 2 + posArr[idx + 2] ** 2);
       if (dist > spread * 1.2) {
@@ -259,7 +248,5 @@ export function InstancedParticles({
     posAttr.needsUpdate = true;
   });
 
-  return (
-    <mesh geometry={geometry} material={material} frustumCulled={false} />
-  );
+  return <mesh geometry={geometry} material={material} frustumCulled={false} />;
 }

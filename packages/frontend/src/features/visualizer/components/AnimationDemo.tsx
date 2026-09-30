@@ -1,7 +1,7 @@
 /**
  * Anime.js + Theatre.js Integration Demo
  * Showcases kinetic typography effects for the visualizer lyric overlay.
- * 
+ *
  * Anime.js — Lightweight animation engine for CSS, SVG, DOM, and JS objects
  * Theatre.js — Motion design editor with visual timeline for high-fidelity animation
  */
@@ -34,17 +34,25 @@ export function AnimationDemo({ visible, onClose }: Props) {
     let cancelled = false;
     setLoading(true);
     Promise.all([
-      import("animejs").then(m => ({ animate: m.animate, stagger: m.stagger })),
-      import("@theatre/core").then(m => ({ getProject: m.getProject })),
-    ]).then(([anime, theatre]) => {
-      if (!cancelled) {
-        setLibs({ animate: anime.animate, stagger: anime.stagger, getProject: theatre.getProject });
-        setLoading(false);
-      }
-    }).catch(() => {
-      if (!cancelled) setLoading(false);
-    });
-    return () => { cancelled = true; };
+      import("animejs").then((m) => ({ animate: m.animate, stagger: m.stagger })),
+      import("@theatre/core").then((m) => ({ getProject: m.getProject })),
+    ])
+      .then(([anime, theatre]) => {
+        if (!cancelled) {
+          setLibs({
+            animate: anime.animate,
+            stagger: anime.stagger,
+            getProject: theatre.getProject,
+          });
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [visible]);
 
   // Anime.js demo: Staggered word reveal
@@ -53,7 +61,7 @@ export function AnimationDemo({ visible, onClose }: Props) {
     setActiveDemo("anime");
     if (!wordsRef.current) return;
     const words = wordsRef.current.querySelectorAll(".demo-word");
-    words.forEach(w => {
+    words.forEach((w) => {
       (w as HTMLElement).style.opacity = "0";
       (w as HTMLElement).style.transform = "translateY(20px)";
     });
@@ -73,7 +81,7 @@ export function AnimationDemo({ visible, onClose }: Props) {
     setActiveDemo("anime");
     if (!svgRef.current) return;
     const paths = svgRef.current.querySelectorAll("path");
-    paths.forEach(path => {
+    paths.forEach((path) => {
       const length = (path as SVGPathElement).getTotalLength();
       path.style.strokeDasharray = `${length}`;
       path.style.strokeDashoffset = `${length}`;
@@ -131,17 +139,31 @@ export function AnimationDemo({ visible, onClose }: Props) {
       <div className="anim-demo-panel">
         <div className="anim-demo-header">
           <h2 ref={titleRef}>Animation Libraries Demo</h2>
-          <button onClick={onClose} className="anim-demo-close">✕</button>
+          <button onClick={onClose} className="anim-demo-close">
+            ✕
+          </button>
         </div>
 
         <div className="anim-demo-buttons">
-          <button onClick={runAnimeDemo} disabled={loading} className={`anim-demo-btn ${activeDemo === "anime" ? "active" : ""}`}>
+          <button
+            onClick={runAnimeDemo}
+            disabled={loading}
+            className={`anim-demo-btn ${activeDemo === "anime" ? "active" : ""}`}
+          >
             Anime.js — Stagger Words
           </button>
-          <button onClick={runSvgDemo} disabled={loading} className={`anim-demo-btn ${activeDemo === "anime" ? "active" : ""}`}>
+          <button
+            onClick={runSvgDemo}
+            disabled={loading}
+            className={`anim-demo-btn ${activeDemo === "anime" ? "active" : ""}`}
+          >
             Anime.js — SVG Draw
           </button>
-          <button onClick={runTheatreDemo} disabled={loading} className={`anim-demo-btn ${activeDemo === "theatre" ? "active" : ""}`}>
+          <button
+            onClick={runTheatreDemo}
+            disabled={loading}
+            className={`anim-demo-btn ${activeDemo === "theatre" ? "active" : ""}`}
+          >
             Theatre.js — Object Animate
           </button>
         </div>
@@ -149,7 +171,9 @@ export function AnimationDemo({ visible, onClose }: Props) {
         <div className="anim-demo-stage">
           <div ref={wordsRef} className="demo-words">
             {["Still", "I", "Rise", "Before", "The", "Fade"].map((w, i) => (
-              <span key={i} className="demo-word" style={{ opacity: 0 }}>{w} </span>
+              <span key={i} className="demo-word" style={{ opacity: 0 }}>
+                {w}{" "}
+              </span>
             ))}
           </div>
 

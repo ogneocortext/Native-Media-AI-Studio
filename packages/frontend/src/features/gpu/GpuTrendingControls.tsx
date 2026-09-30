@@ -84,7 +84,9 @@ export function GpuTrendingControls({
               onClick={() => onSetRange(r.id)}
               aria-pressed={range === r.id}
               className={`text-[11px] px-2.5 py-1 rounded-md transition ${
-                range === r.id ? "bg-violet-600 text-white" : "text-muted hover:text-white hover:bg-white/10"
+                range === r.id
+                  ? "bg-violet-600 text-white"
+                  : "text-muted hover:text-white hover:bg-white/10"
               }`}
             >
               {r.label}
@@ -117,7 +119,9 @@ export function GpuTrendingControls({
                 : "Clear local cache + database history"
             }
             className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border disabled:opacity-40 transition ${
-              confirmClear ? "bg-red-500/20 border-red-500/40 text-red-200" : "bg-white/5 border-white/10 text-muted hover:text-red-300"
+              confirmClear
+                ? "bg-red-500/20 border-red-500/40 text-red-200"
+                : "bg-white/5 border-white/10 text-muted hover:text-red-300"
             }`}
           >
             <Trash2 size={12} /> {confirmClear ? "Confirm wipe?" : "Clear"}
@@ -136,7 +140,8 @@ export function GpuTrendingControls({
           <p className="text-sm font-semibold text-white mt-1">
             {tempStats.cur.toFixed(0)}°C{" "}
             <span className="text-[11px] font-normal text-muted">
-              avg {tempStats.avg.toFixed(0)}° • {tempStats.min.toFixed(0)}–{tempStats.max.toFixed(0)}°
+              avg {tempStats.avg.toFixed(0)}° • {tempStats.min.toFixed(0)}–
+              {tempStats.max.toFixed(0)}°
             </span>
           </p>
         </div>
@@ -150,7 +155,8 @@ export function GpuTrendingControls({
           <p className="text-sm font-semibold text-white mt-1">
             {vramStats.cur.toFixed(1)}%{" "}
             <span className="text-[11px] font-normal text-muted">
-              avg {vramStats.avg.toFixed(1)}% • {vramStats.min.toFixed(1)}–{vramStats.max.toFixed(1)}%
+              avg {vramStats.avg.toFixed(1)}% • {vramStats.min.toFixed(1)}–
+              {vramStats.max.toFixed(1)}%
             </span>
           </p>
         </div>
@@ -164,7 +170,8 @@ export function GpuTrendingControls({
           <p className="text-sm font-semibold text-white mt-1">
             {utilStats.cur.toFixed(0)}%{" "}
             <span className="text-[11px] font-normal text-muted">
-              avg {utilStats.avg.toFixed(0)}% • {utilStats.min.toFixed(0)}–{utilStats.max.toFixed(0)}%
+              avg {utilStats.avg.toFixed(0)}% • {utilStats.min.toFixed(0)}–
+              {utilStats.max.toFixed(0)}%
             </span>
           </p>
         </div>

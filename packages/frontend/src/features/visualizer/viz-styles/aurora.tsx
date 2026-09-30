@@ -13,7 +13,14 @@ import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
 // =============================================================================
 // AURORA — Flowing ribbon/curtain (dreamy)
 // =============================================================================
-export function AuroraRibbon({ audioData, vizParams, sceneFrozen, prefersReducedMotion, stems, audioElapsedRef }: VizProps) {
+export function AuroraRibbon({
+  audioData,
+  vizParams,
+  sceneFrozen,
+  prefersReducedMotion,
+  stems,
+  audioElapsedRef,
+}: VizProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const { gl } = useThree();
   const isWebGPU = (gl as any)?.isWebGPURenderer === true;
@@ -58,13 +65,19 @@ export function AuroraRibbon({ audioData, vizParams, sceneFrozen, prefersReduced
     stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
     if (isWebGPU) {
-      updateTerrainMaterialTSL(mat, t, { bass, mid, treble, energy }, vizParams.glowIntensity * 0.8);
+      updateTerrainMaterialTSL(
+        mat,
+        t,
+        { bass, mid, treble, energy },
+        vizParams.glowIntensity * 0.8,
+      );
     } else {
       updateTerrainMaterial(mat, t, { bass, mid, treble, energy }, vizParams.glowIntensity * 0.8);
     }
     meshRef.current.rotation.x = -Math.PI / 3 + stemEnergyRef.current.drums * 0.05;
     if (!sceneFrozen)
-      meshRef.current.rotation.z = t * 0.01 * vizParams.rotationSpeed * speedMul + stemEnergyRef.current.bass * 0.03;
+      meshRef.current.rotation.z =
+        t * 0.01 * vizParams.rotationSpeed * speedMul + stemEnergyRef.current.bass * 0.03;
   });
 
   return (

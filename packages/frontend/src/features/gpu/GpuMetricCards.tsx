@@ -3,17 +3,8 @@
 // ---------------------------------------------------------------------------
 import { Card } from "../../components/common";
 import type { ReactNode } from "react";
-import {
-  Thermometer,
-  MemoryStick,
-  Activity,
-  Zap,
-} from "lucide-react";
-import {
-  AreaChart,
-  Area,
-  ResponsiveContainer,
-} from "recharts";
+import { Thermometer, MemoryStick, Activity, Zap } from "lucide-react";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { getTempColor, getUsageColor, formatMB } from "./gpuHelpers";
 import { THROTTLE_TEMP } from "./gpuConstants";
 
@@ -37,18 +28,15 @@ interface MetricCardsProps {
   historyLength: number;
 }
 
-export function GpuMetricCards({
-  snapshot,
-  windowHistory,
-  historyLength,
-}: MetricCardsProps) {
+export function GpuMetricCards({ snapshot, windowHistory, historyLength }: MetricCardsProps) {
   const temp = snapshot.temperature_c;
   const memPct = snapshot.memory_percent;
   const util = snapshot.gpu_utilization;
   const tempColor = getTempColor(temp);
 
   const thermalStatus = (() => {
-    if (!snapshot.available) return { text: "Unavailable", color: "text-muted", icon: null as ReactNode };
+    if (!snapshot.available)
+      return { text: "Unavailable", color: "text-muted", icon: null as ReactNode };
     if (temp >= 90) return { text: "Critical", color: "text-red-400", icon: null };
     if (temp >= 80) return { text: "Hot", color: "text-orange-400", icon: null };
     if (temp >= 70) return { text: "Warm", color: "text-amber-400", icon: null };
@@ -78,7 +66,10 @@ export function GpuMetricCards({
         </p>
         <div className="h-[36px] mt-2 -mx-1 opacity-90">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={windowHistory.slice(-30)} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+            <AreaChart
+              data={windowHistory.slice(-30)}
+              margin={{ top: 2, right: 0, left: 0, bottom: 0 }}
+            >
               <Area
                 type="monotone"
                 dataKey="temp"
@@ -108,7 +99,14 @@ export function GpuMetricCards({
           </p>
           {/* donut */}
           <svg width={36} height={36} viewBox="0 0 36 36" className="ml-auto shrink-0">
-            <circle cx={18} cy={18} r={14} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={4} />
+            <circle
+              cx={18}
+              cy={18}
+              r={14}
+              fill="none"
+              stroke="rgba(255,255,255,0.08)"
+              strokeWidth={4}
+            />
             <circle
               cx={18}
               cy={18}
@@ -128,14 +126,21 @@ export function GpuMetricCards({
             className="h-full rounded-full transition-all"
             style={{ width: `${Math.min(memPct, 100)}%`, background: getUsageColor(memPct) }}
           />
-          <div className="absolute top-0 bottom-0 w-0.5 bg-white/30" style={{ left: "75%" }} title="75% warn" />
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-white/30"
+            style={{ left: "75%" }}
+            title="75% warn"
+          />
         </div>
         <p className="text-[11px] text-muted mt-1.5 flex items-center gap-1">
           <Zap size={11} className="text-violet-400" /> {formatMB(snapshot.memory_free_mb)} free
         </p>
         <div className="h-[28px] mt-1 -mx-1 opacity-90">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={windowHistory.slice(-30)} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+            <AreaChart
+              data={windowHistory.slice(-30)}
+              margin={{ top: 2, right: 0, left: 0, bottom: 0 }}
+            >
               <Area
                 type="monotone"
                 dataKey="vram"
@@ -165,10 +170,15 @@ export function GpuMetricCards({
             style={{ width: `${Math.min(util, 100)}%`, background: getUsageColor(util) }}
           />
         </div>
-        <p className="text-xs text-muted mt-1.5">Mem ctrl: {snapshot.memory_controller_utilization ?? 0}%</p>
+        <p className="text-xs text-muted mt-1.5">
+          Mem ctrl: {snapshot.memory_controller_utilization ?? 0}%
+        </p>
         <div className="h-[36px] mt-2 -mx-1 opacity-90">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={windowHistory.slice(-30)} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+            <AreaChart
+              data={windowHistory.slice(-30)}
+              margin={{ top: 2, right: 0, left: 0, bottom: 0 }}
+            >
               <Area
                 type="monotone"
                 dataKey="util"
@@ -192,13 +202,18 @@ export function GpuMetricCards({
             {headroom.toFixed(0)}°C to throttle
           </span>
         </div>
-        <p className="text-2xl font-bold text-white">{temp >= 85 ? "Low" : temp >= 70 ? "Medium" : "High"}</p>
+        <p className="text-2xl font-bold text-white">
+          {temp >= 85 ? "Low" : temp >= 70 ? "Medium" : "High"}
+        </p>
         <div
           className="mt-2 flex gap-1"
           role="img"
           aria-label={`Thermal headroom ${temp >= 85 ? "low" : temp >= 70 ? "medium" : "high"}, ${headroom.toFixed(0)} degrees below ${THROTTLE_TEMP} degree throttle point`}
         >
-          <div className={`h-1.5 flex-1 rounded-full ${temp < 65 ? "bg-emerald-500" : "bg-emerald-500/25"}`} title="Cool zone (<65°C)" />
+          <div
+            className={`h-1.5 flex-1 rounded-full ${temp < 65 ? "bg-emerald-500" : "bg-emerald-500/25"}`}
+            title="Cool zone (<65°C)"
+          />
           <div
             className={`h-1.5 flex-1 rounded-full ${temp >= 85 ? "bg-amber-500/30" : temp >= 65 ? "bg-amber-500" : "bg-white/10"}`}
             title="Warm zone (65–85°C)"

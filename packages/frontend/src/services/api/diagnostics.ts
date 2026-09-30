@@ -41,7 +41,10 @@ export async function cleanupSystemMemory(): Promise<{
   memory: { total_mb: number; used_mb: number; available_mb: number; percent: number };
 }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health/diagnostics/memory/cleanup`, { method: "POST", timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/health/diagnostics/memory/cleanup`, {
+    method: "POST",
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error("Failed to cleanup memory");
   return res.json();
 }
@@ -56,7 +59,10 @@ export interface DiagnosticsModel {
 export interface DiagnosticsModelsResponse {
   loaded: boolean;
   models: DiagnosticsModel[];
-  activity?: Record<string, { task: string; description: string; started_at: number; elapsed_seconds?: number }>;
+  activity?: Record<
+    string,
+    { task: string; description: string; started_at: number; elapsed_seconds?: number }
+  >;
   error?: string;
 }
 
@@ -69,7 +75,10 @@ export async function getLoadedModels(): Promise<DiagnosticsModelsResponse> {
 
 export async function checkService(service: string): Promise<Record<string, unknown>> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health/services/${service}/check`, { method: "POST", timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/health/services/${service}/check`, {
+    method: "POST",
+    timeout: 30000,
+  });
   if (!res.ok) throw new Error(`Failed to check service: ${service}`);
   return res.json();
 }

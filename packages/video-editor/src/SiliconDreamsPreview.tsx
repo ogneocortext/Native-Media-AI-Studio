@@ -1,6 +1,13 @@
 /* Silicon Dreams 10s Preview — 5s to 15s of Still I Rise */
 /* Aesthetic: Early CGI / Bryce 3D / Trapper Keeper — sparse low-poly terrain, big pastel planet, floating chrome torus/ico, checker grid, uncanny dream */
-import { AbsoluteFill, Audio, Img, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import {
+  AbsoluteFill,
+  Audio,
+  Img,
+  staticFile,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
 import { useWindowedAudioData, visualizeAudio } from "@remotion/media-utils";
 import React from "react";
 
@@ -11,8 +18,18 @@ const DURATION_FRAMES = PREVIEW_DURATION * FPS; // 300
 
 // Lyric slice for 5-15s: intro tail + verse start
 const lyricsForPreview = [
-  { start: 5, end: 9, text: "Midnight hums in shades of blue", section: "INTRO" },
-  { start: 9, end: 15, text: "A map unwritten, waiting to be drawn anew", section: "INTRO" },
+  {
+    start: 5,
+    end: 9,
+    text: "Midnight hums in shades of blue",
+    section: "INTRO",
+  },
+  {
+    start: 9,
+    end: 15,
+    text: "A map unwritten, waiting to be drawn anew",
+    section: "INTRO",
+  },
   { start: 15, end: 18, text: "A map unwritten, waiting...", section: "INTRO" },
 ];
 
@@ -29,7 +46,16 @@ export const SiliconDreamsPreview: React.FC = () => {
     fps,
     windowInSeconds: 12,
   });
-  const spectrum = audioData ? visualizeAudio({ fps, frame: audioFrame, audioData, numberOfSamples: 32, optimizeFor: "speed", dataOffsetInSeconds }) : new Array(32).fill(0);
+  const spectrum = audioData
+    ? visualizeAudio({
+        fps,
+        frame: audioFrame,
+        audioData,
+        numberOfSamples: 32,
+        optimizeFor: "speed",
+        dataOffsetInSeconds,
+      })
+    : new Array(32).fill(0);
   const bass = spectrum.slice(0, 6).reduce((a, b) => a + b, 0) / 6 || 0;
   const mid = spectrum.slice(6, 14).reduce((a, b) => a + b, 0) / 8 || 0;
 
@@ -37,8 +63,12 @@ export const SiliconDreamsPreview: React.FC = () => {
   const progress = frame / DURATION_FRAMES;
 
   // Current lyric for preview window
-  const current = lyricsForPreview.find((l) => absoluteTime >= l.start && absoluteTime < l.end) ?? lyricsForPreview[0];
-  const lineProg = (absoluteTime - current.start) / (current.end - current.start);
+  const current =
+    lyricsForPreview.find(
+      (l) => absoluteTime >= l.start && absoluteTime < l.end,
+    ) ?? lyricsForPreview[0];
+  const lineProg =
+    (absoluteTime - current.start) / (current.end - current.start);
   const words = current.text.split(" ");
 
   // Low-poly drift for floaters (early CGI had stiff, low frame-rate drift)
@@ -47,21 +77,59 @@ export const SiliconDreamsPreview: React.FC = () => {
   const gridShift = (frame * 0.6) % 40;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "#0a0f1e", fontFamily: "Space Grotesk, sans-serif", overflow: "hidden" }}>
+    <AbsoluteFill
+      style={{
+        backgroundColor: "#0a0f1e",
+        fontFamily: "Space Grotesk, sans-serif",
+        overflow: "hidden",
+      }}
+    >
       {/* Audio slice 5-15s */}
-      <Audio src={staticFile("still-i-rise.mp3")} trimBefore={PREVIEW_START * fps} trimAfter={(234.12 - (PREVIEW_START + PREVIEW_DURATION)) * fps} />
+      <Audio
+        src={staticFile("still-i-rise.mp3")}
+        trimBefore={PREVIEW_START * fps}
+        trimAfter={(234.12 - (PREVIEW_START + PREVIEW_DURATION)) * fps}
+      />
 
       {/* 1. BACKGROUND: Sparse low-poly terrain checker + pastel sky gradient (Bryce) */}
       <AbsoluteFill>
-        <Img src={staticFile("sd-terrain.png")} style={{ width: "100%", height: "100%", objectFit: "cover", filter: "contrast(1.02) saturate(0.96)" }} />
+        <Img
+          src={staticFile("sd-terrain.png")}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            filter: "contrast(1.02) saturate(0.96)",
+          }}
+        />
         {/* Grid overlay — classic Silicon Dreams laser grid */}
-        <AbsoluteFill style={{ opacity: 0.22, backgroundImage: `linear-gradient(rgba(140,200,220,0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(140,200,220,0.18) 1px, transparent 1px)`, backgroundSize: `40px 40px`, backgroundPosition: `${gridShift}px ${gridShift * 0.5}px` } as React.CSSProperties} />
+        <AbsoluteFill
+          style={
+            {
+              opacity: 0.22,
+              backgroundImage: `linear-gradient(rgba(140,200,220,0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(140,200,220,0.18) 1px, transparent 1px)`,
+              backgroundSize: `40px 40px`,
+              backgroundPosition: `${gridShift}px ${gridShift * 0.5}px`,
+            } as React.CSSProperties
+          }
+        />
         {/* Fog haze */}
-        <AbsoluteFill style={{ background: `linear-gradient(180deg, transparent 28%, rgba(10,15,30,0.42) 78%), radial-gradient(700px 400px at 52% 34%, rgba(180,210,255,0.14) 0%, transparent 62%)` }} />
+        <AbsoluteFill
+          style={{
+            background: `linear-gradient(180deg, transparent 28%, rgba(10,15,30,0.42) 78%), radial-gradient(700px 400px at 52% 34%, rgba(180,210,255,0.14) 0%, transparent 62%)`,
+          }}
+        />
       </AbsoluteFill>
 
       {/* 2. BIG PASTEL PLANET — low-poly icosphere, wobbles slowly (uncanny) */}
-      <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "flex-end", paddingRight: 42, paddingTop: 32 }}>
+      <AbsoluteFill
+        style={{
+          justifyContent: "flex-start",
+          alignItems: "flex-end",
+          paddingRight: 42,
+          paddingTop: 32,
+        }}
+      >
         <Img
           src={staticFile("sd-planet.png")}
           style={{
@@ -93,8 +161,19 @@ export const SiliconDreamsPreview: React.FC = () => {
       </AbsoluteFill>
 
       {/* 4. CHROME TITLE — Silicon Dreams chrome + low-poly grid, not liquid glass */}
-      <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", pointerEvents: "none" }}>
-        <div style={{ textAlign: "center", transform: `scale(${1 + bass * 0.03})` }}>
+      <AbsoluteFill
+        style={{
+          justifyContent: "center",
+          alignItems: "center",
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            textAlign: "center",
+            transform: `scale(${1 + bass * 0.03})`,
+          }}
+        >
           <div
             style={{
               fontSize: 56,
@@ -114,7 +193,15 @@ export const SiliconDreamsPreview: React.FC = () => {
           >
             SILICON DREAMS
           </div>
-          <div style={{ marginTop: 6, fontFamily: "DM Mono, monospace", fontSize: 11, letterSpacing: "0.22em", color: "rgba(180,210,255,0.78)" }}>
+          <div
+            style={{
+              marginTop: 6,
+              fontFamily: "DM Mono, monospace",
+              fontSize: 11,
+              letterSpacing: "0.22em",
+              color: "rgba(180,210,255,0.78)",
+            }}
+          >
             05:00 — 15:00 • INTRO → VERSE • PREVIEW
           </div>
           {/* Lyric as Trapper Keeper sub-title — low-res, 1px outline */}
@@ -126,10 +213,19 @@ export const SiliconDreamsPreview: React.FC = () => {
               border: "1px solid rgba(160,180,210,0.22)",
               borderRadius: 12,
               padding: "10px 18px",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.08)",
+              boxShadow:
+                "0 8px 24px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.08)",
             }}
           >
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", maxWidth: 720 }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 6,
+                flexWrap: "wrap",
+                justifyContent: "center",
+                maxWidth: 720,
+              }}
+            >
               {words.map((w, i) => {
                 const s = i / words.length;
                 const e = (i + 1) / words.length;
@@ -142,10 +238,18 @@ export const SiliconDreamsPreview: React.FC = () => {
                       fontFamily: "Space Grotesk, sans-serif",
                       fontSize: 16,
                       fontWeight: active ? 700 : 500,
-                      color: done ? "#e6eef6" : active ? "#a8d8ff" : "rgba(220,230,245,0.42)",
+                      color: done
+                        ? "#e6eef6"
+                        : active
+                          ? "#a8d8ff"
+                          : "rgba(220,230,245,0.42)",
                       transform: active ? "translateY(-1px)" : "none",
-                      textShadow: active ? "0 0 8px rgba(168,216,255,0.9)" : "none",
-                      WebkitTextStroke: active ? "0.4px rgba(168,216,255,0.9)" : "none",
+                      textShadow: active
+                        ? "0 0 8px rgba(168,216,255,0.9)"
+                        : "none",
+                      WebkitTextStroke: active
+                        ? "0.4px rgba(168,216,255,0.9)"
+                        : "none",
                     }}
                   >
                     {w}
@@ -153,34 +257,148 @@ export const SiliconDreamsPreview: React.FC = () => {
                 );
               })}
             </div>
-            <div style={{ width: "100%", height: 2, background: "rgba(255,255,255,0.08)", borderRadius: 99, marginTop: 10, overflow: "hidden" }}>
-              <div style={{ width: `${lineProg * 100}%`, height: "100%", background: "#a8d8ff", boxShadow: "0 0 8px #a8d8ff" }} />
+            <div
+              style={{
+                width: "100%",
+                height: 2,
+                background: "rgba(255,255,255,0.08)",
+                borderRadius: 99,
+                marginTop: 10,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  width: `${lineProg * 100}%`,
+                  height: "100%",
+                  background: "#a8d8ff",
+                  boxShadow: "0 0 8px #a8d8ff",
+                }}
+              />
             </div>
           </div>
-          <div style={{ marginTop: 10, fontFamily: "DM Mono, monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(180,210,255,0.52)" }}>
+          <div
+            style={{
+              marginTop: 10,
+              fontFamily: "DM Mono, monospace",
+              fontSize: 10,
+              letterSpacing: "0.16em",
+              color: "rgba(180,210,255,0.52)",
+            }}
+          >
             {current.section} • {current.text.slice(0, 48)}
           </div>
         </div>
       </AbsoluteFill>
 
       {/* 5. SPECTRUM as low-res bars (early CGI had chunky bars) */}
-      <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 18, pointerEvents: "none" }}>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 56, padding: "8px 14px", borderRadius: 12, background: "rgba(12,16,28,0.68)", border: "1px solid rgba(160,180,210,0.14)", backdropFilter: "blur(6px)" }}>
+      <AbsoluteFill
+        style={{
+          justifyContent: "flex-end",
+          alignItems: "center",
+          paddingBottom: 18,
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-end",
+            gap: 4,
+            height: 56,
+            padding: "8px 14px",
+            borderRadius: 12,
+            background: "rgba(12,16,28,0.68)",
+            border: "1px solid rgba(160,180,210,0.14)",
+            backdropFilter: "blur(6px)",
+          }}
+        >
           {spectrum.slice(0, 20).map((v, i) => {
             const h = 6 + v * 42 + (i < 4 ? bass * 10 : 0);
-            return <div key={i} style={{ width: 10, height: h, background: i < 4 ? "#a8d8ff" : i < 8 ? "#d8dde6" : "rgba(160,180,210,0.55)", borderRadius: 2, boxShadow: i < 4 ? "0 0 8px #a8d8ff" : "none" }} />;
+            return (
+              <div
+                key={i}
+                style={{
+                  width: 10,
+                  height: h,
+                  background:
+                    i < 4
+                      ? "#a8d8ff"
+                      : i < 8
+                        ? "#d8dde6"
+                        : "rgba(160,180,210,0.55)",
+                  borderRadius: 2,
+                  boxShadow: i < 4 ? "0 0 8px #a8d8ff" : "none",
+                }}
+              />
+            );
           })}
-          <span style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(160,180,210,0.62)", marginLeft: 8, letterSpacing: "0.12em" }}>{(absoluteTime).toFixed(2)}s / 234.12s</span>
+          <span
+            style={{
+              fontFamily: "DM Mono, monospace",
+              fontSize: 9,
+              color: "rgba(160,180,210,0.62)",
+              marginLeft: 8,
+              letterSpacing: "0.12em",
+            }}
+          >
+            {absoluteTime.toFixed(2)}s / 234.12s
+          </span>
         </div>
       </AbsoluteFill>
 
       {/* 6. Progress bar chrome */}
-      <div style={{ position: "absolute", bottom: 0, left: 0, width: `${progress * 100}%`, height: 3, background: "linear-gradient(90deg, #a8d8ff 0%, #d8dde6 50%, #8ea0b8 100%)", boxShadow: "0 0 10px #a8d8ff" }} />
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          width: `${progress * 100}%`,
+          height: 3,
+          background:
+            "linear-gradient(90deg, #a8d8ff 0%, #d8dde6 50%, #8ea0b8 100%)",
+          boxShadow: "0 0 10px #a8d8ff",
+        }}
+      />
 
       {/* Top HUD chrome pill */}
-      <div style={{ position: "absolute", top: 18, left: 18, right: 18, display: "flex", justifyContent: "space-between", fontFamily: "DM Mono, monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(180,210,255,0.78)" }}>
-        <span style={{ background: "rgba(12,16,28,0.62)", border: "1px solid rgba(160,180,210,0.18)", padding: "6px 12px", borderRadius: 99, backdropFilter: "blur(8px)" }}>SILICON DREAMS • BRYCE 3D • 1994</span>
-        <span style={{ background: "rgba(12,16,28,0.62)", border: "1px solid rgba(160,180,210,0.18)", padding: "6px 12px", borderRadius: 99, backdropFilter: "blur(8px)" }}>{String(Math.floor(absoluteTime / 60)).padStart(2, "0")}:{(Math.floor(absoluteTime % 60) + "").padStart(2, "0")} / 03:54</span>
+      <div
+        style={{
+          position: "absolute",
+          top: 18,
+          left: 18,
+          right: 18,
+          display: "flex",
+          justifyContent: "space-between",
+          fontFamily: "DM Mono, monospace",
+          fontSize: 10,
+          letterSpacing: "0.14em",
+          color: "rgba(180,210,255,0.78)",
+        }}
+      >
+        <span
+          style={{
+            background: "rgba(12,16,28,0.62)",
+            border: "1px solid rgba(160,180,210,0.18)",
+            padding: "6px 12px",
+            borderRadius: 99,
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          SILICON DREAMS • BRYCE 3D • 1994
+        </span>
+        <span
+          style={{
+            background: "rgba(12,16,28,0.62)",
+            border: "1px solid rgba(160,180,210,0.18)",
+            padding: "6px 12px",
+            borderRadius: 99,
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          {String(Math.floor(absoluteTime / 60)).padStart(2, "0")}:
+          {(Math.floor(absoluteTime % 60) + "").padStart(2, "0")} / 03:54
+        </span>
       </div>
     </AbsoluteFill>
   );

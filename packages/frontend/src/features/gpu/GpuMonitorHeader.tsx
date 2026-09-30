@@ -1,15 +1,7 @@
 // ---------------------------------------------------------------------------
 // GpuMonitorHeader.tsx — title bar, subtitle, polling controls, action buttons
 // ---------------------------------------------------------------------------
-import {
-  Cpu as CpuIcon,
-  Clock3,
-  Loader2,
-  Pause,
-  Play,
-  RefreshCw,
-  Database,
-} from "lucide-react";
+import { Cpu as CpuIcon, Clock3, Loader2, Pause, Play, RefreshCw, Database } from "lucide-react";
 import { POLL_OPTIONS } from "./gpuConstants";
 
 interface HeaderProps {
@@ -49,7 +41,9 @@ export function GpuMonitorHeader({
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <CpuIcon size={22} className="text-violet-400" />
           GPU Monitor
-          {refreshing && <Loader2 size={14} className="animate-spin text-violet-400" aria-label="Refreshing" />}
+          {refreshing && (
+            <Loader2 size={14} className="animate-spin text-violet-400" aria-label="Refreshing" />
+          )}
           {paused && (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/20">
               Paused
@@ -62,7 +56,8 @@ export function GpuMonitorHeader({
           )}
         </h1>
         <p className="text-xs text-muted mt-1">
-          Real-time telemetry for {snapshotName || "your GPU"} — temperature, VRAM, utilization, and per-process attribution.
+          Real-time telemetry for {snapshotName || "your GPU"} — temperature, VRAM, utilization, and
+          per-process attribution.
         </p>
         {lastUpdated && (
           <p className="text-[11px] text-muted/60 mt-1 flex items-center gap-1.5">
@@ -88,7 +83,9 @@ export function GpuMonitorHeader({
               key={s}
               onClick={() => onSetIntervalSec(s)}
               className={`text-[11px] px-2 py-1 rounded-md transition ${
-                intervalSec === s ? "bg-violet-600 text-white" : "text-muted hover:text-white hover:bg-white/10"
+                intervalSec === s
+                  ? "bg-violet-600 text-white"
+                  : "text-muted hover:text-white hover:bg-white/10"
               }`}
             >
               {s}s

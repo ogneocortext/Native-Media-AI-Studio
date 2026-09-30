@@ -29,39 +29,40 @@ export const useGPUStore = create<GPUState>()(
     error: null,
     lastUpdated: null,
 
-  fetchGPU: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      const gpu = await getGPUSnapshot();
-      set({ gpu, isLoading: false, lastUpdated: new Date() });
-    } catch (error) {
-      set({
-        isLoading: false,
-        error: error instanceof Error ? error.message : "Failed to fetch GPU data",
-      });
-    }
-  },
+    fetchGPU: async () => {
+      set({ isLoading: true, error: null });
+      try {
+        const gpu = await getGPUSnapshot();
+        set({ gpu, isLoading: false, lastUpdated: new Date() });
+      } catch (error) {
+        set({
+          isLoading: false,
+          error: error instanceof Error ? error.message : "Failed to fetch GPU data",
+        });
+      }
+    },
 
-  startPolling: (intervalMs = 5000) => {
-    if (pollingInterval) {
-      pollingRefCount++;
-      return;
-    }
-    pollingRefCount = 1;
-    get().fetchGPU();
-    pollingInterval = setInterval(() => {
+    startPolling: (intervalMs = 5000) => {
+      if (pollingInterval) {
+        pollingRefCount++;
+        return;
+      }
+      pollingRefCount = 1;
       get().fetchGPU();
-    }, intervalMs);
-  },
+      pollingInterval = setInterval(() => {
+        get().fetchGPU();
+      }, intervalMs);
+    },
 
-  stopPolling: () => {
-    pollingRefCount = Math.max(0, pollingRefCount - 1);
-    if (pollingRefCount === 0 && pollingInterval) {
-      clearInterval(pollingInterval);
-      pollingInterval = null;
-    }
-  },
-})));
+    stopPolling: () => {
+      pollingRefCount = Math.max(0, pollingRefCount - 1);
+      if (pollingRefCount === 0 && pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+      }
+    },
+  })),
+);
 
 // Selectors
 export const useGPUSnapshot = () => useGPUStore((state) => state.gpu);

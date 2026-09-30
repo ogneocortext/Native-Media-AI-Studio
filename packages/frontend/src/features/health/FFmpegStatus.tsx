@@ -54,12 +54,12 @@ export function FFmpegStatus() {
       </div>
       {ffmpeg.processes.length > 0 && (
         <div className="mt-3 pt-3 border-t border-white/5 space-y-1">
-           {ffmpeg.processes.map((p: FFmpegProcessInfo, i: number) => (
-             <div key={i} className="flex items-center justify-between text-xs">
-               <span className="text-muted">PID {String(p.pid)}</span>
-               <span className="text-white">{Math.round(Number(p.cpu || 0))}% CPU</span>
-             </div>
-           ))}
+          {ffmpeg.processes.map((p: FFmpegProcessInfo, i: number) => (
+            <div key={i} className="flex items-center justify-between text-xs">
+              <span className="text-muted">PID {String(p.pid)}</span>
+              <span className="text-white">{Math.round(Number(p.cpu || 0))}% CPU</span>
+            </div>
+          ))}
         </div>
       )}
     </Card>

@@ -164,7 +164,9 @@ class SSEService {
 
     const attempt = (url: string) => {
       // Build URL with Last-Event-ID for replay on reconnect
-      const urlWithReplay = this.lastEventId ? `${url}?lastEventId=${encodeURIComponent(this.lastEventId)}` : url;
+      const urlWithReplay = this.lastEventId
+        ? `${url}?lastEventId=${encodeURIComponent(this.lastEventId)}`
+        : url;
       this.eventSource = new EventSource(urlWithReplay);
 
       this.eventSource.onopen = () => {

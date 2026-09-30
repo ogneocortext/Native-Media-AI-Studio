@@ -51,7 +51,10 @@ export function WaveformDisplay({
 
   if (!peaks?.length) {
     return (
-      <div className={`bg-black/40 rounded-lg border border-white/5 flex items-center justify-center text-xs text-muted ${className}`} style={{ height }}>
+      <div
+        className={`bg-black/40 rounded-lg border border-white/5 flex items-center justify-center text-xs text-muted ${className}`}
+        style={{ height }}
+      >
         No waveform data
       </div>
     );

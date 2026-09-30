@@ -12,10 +12,7 @@ export interface SectionColors {
 /**
  * Get section color for visual effects.
  */
-export function getSectionColor(
-  section: string,
-  defaultColor: string = "#6366f1",
-): string {
+export function getSectionColor(section: string, defaultColor: string = "#6366f1"): string {
   const sectionColors: Record<string, string> = {
     INTRO: "#818cf8",
     VERSE: "#60a5fa",

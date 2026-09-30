@@ -13,7 +13,14 @@ import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
 // =============================================================================
 // OCEAN — Wave simulation with peaks and valleys
 // =============================================================================
-export function OceanWaves({ audioData, vizParams, sceneFrozen, prefersReducedMotion, stems, audioElapsedRef }: VizProps) {
+export function OceanWaves({
+  audioData,
+  vizParams,
+  sceneFrozen,
+  prefersReducedMotion,
+  stems,
+  audioElapsedRef,
+}: VizProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const { gl } = useThree();
   const isWebGPU = (gl as any)?.isWebGPURenderer === true;
@@ -59,13 +66,24 @@ export function OceanWaves({ audioData, vizParams, sceneFrozen, prefersReducedMo
 
     const stemLift = 1 + stemEnergyRef.current.vocals * 0.6 + stemEnergyRef.current.bass * 0.2;
     if (isWebGPU) {
-      updateTerrainMaterialTSL(mat, t, { bass, mid, treble, energy }, vizParams.glowIntensity * 0.5 * stemLift);
+      updateTerrainMaterialTSL(
+        mat,
+        t,
+        { bass, mid, treble, energy },
+        vizParams.glowIntensity * 0.5 * stemLift,
+      );
     } else {
-      updateTerrainMaterial(mat, t, { bass, mid, treble, energy }, vizParams.glowIntensity * 0.5 * stemLift);
+      updateTerrainMaterial(
+        mat,
+        t,
+        { bass, mid, treble, energy },
+        vizParams.glowIntensity * 0.5 * stemLift,
+      );
     }
     meshRef.current.rotation.x = -Math.PI / 2.2;
     if (!sceneFrozen)
-      meshRef.current.rotation.z = t * 0.005 * vizParams.rotationSpeed * speedMul + stemEnergyRef.current.bass * 0.02;
+      meshRef.current.rotation.z =
+        t * 0.005 * vizParams.rotationSpeed * speedMul + stemEnergyRef.current.bass * 0.02;
   });
 
   return (

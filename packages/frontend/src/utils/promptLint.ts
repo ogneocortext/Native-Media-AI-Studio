@@ -12,8 +12,29 @@ export interface PromptCheck {
 }
 
 const SHOT_TOKENS = ["extreme wide", "wide", "medium", "close-up", "close up", "extreme close"];
-const ANGLE_TOKENS = ["eye level", "eye-level", "low angle", "high angle", "bird", "dutch", "aerial", "overhead"];
-const LIGHT_TOKENS = ["light", "neon", "golden hour", "backlight", "lamp", "laser", "glow", "cinematic", "moody", "bright", "dark"];
+const ANGLE_TOKENS = [
+  "eye level",
+  "eye-level",
+  "low angle",
+  "high angle",
+  "bird",
+  "dutch",
+  "aerial",
+  "overhead",
+];
+const LIGHT_TOKENS = [
+  "light",
+  "neon",
+  "golden hour",
+  "backlight",
+  "lamp",
+  "laser",
+  "glow",
+  "cinematic",
+  "moody",
+  "bright",
+  "dark",
+];
 const GENERIC_WORDS = ["beautiful", "atmospheric", "nice", "cool", "awesome", "good"];
 
 export function countWords(text: string): number {
@@ -22,7 +43,11 @@ export function countWords(text: string): number {
   return t.split(/\s+/).length;
 }
 
-export function lintVideoPrompt(prompt: string): { checks: PromptCheck[]; wordCount: number; score: number } {
+export function lintVideoPrompt(prompt: string): {
+  checks: PromptCheck[];
+  wordCount: number;
+  score: number;
+} {
   const p = (prompt || "").toLowerCase();
   const words = countWords(prompt);
   const has = (tokens: string[]) => tokens.some((t) => p.includes(t));
