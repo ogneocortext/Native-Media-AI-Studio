@@ -22,12 +22,15 @@ A typed loader with a `LyricLine[]` converter lives at
 | `rinse-and-repeat` | Rinse and Repeat (V3 preferred) | complete | Suno v6-mini, 130 BPM, 3:29 |
 | `human-in-the-loop-v2` | Human in the Loop V2 | complete | Flow Music (Lyria 3.5), 145 BPM, C minor, 4:06 |
 | `unproductive-valley-phonk` | Unproductive (Valley Phonk) | complete | Flow Music v1, 136 BPM, 2:47 |
-| `ad-nauseam` | Ad Nauseam (V2) | **missing** | Suno v6-mini, 145 BPM — generation record only |
+| `ad-nauseam` | Ad Nauseam (V2) | complete | Suno v6-mini, 145 BPM, 3:29 |
+| `unproductive-v6-mini` | Unproductive (V2) | complete | Suno v6-mini, 140 BPM, 3:00 |
+| `patch-notes-v3` | Patch Notes (v3 / v3.5) | complete | Suno v6-mini, 3:05 |
 
 Each track file carries a `provenance` field saying exactly which lyric set it
-captures and what it does *not* cover (e.g. the Suno "Unproductive" V2 used a
-different cleaned lyric set that was never saved — only the phonk rework is
-captured here). Trust `provenance` over assumptions.
+captures and what it does *not* cover (e.g. `unproductive-v6-mini` and
+`unproductive-valley-phonk` capture two different lyric sets for the same song
+idea — the cleaned v6-mini lyrics and the phonk rework). Trust `provenance`
+over assumptions.
 
 ## Schema
 
