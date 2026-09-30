@@ -221,7 +221,7 @@ class MusicGenAdapter(BaseAdapter):
         # reader, a chatty subprocess (~64KB on Windows) fills the OS pipe buffer
         # and deadlocks on its next write — the service then appears "stuck" and
         # times out even though it was starting fine.
-        log_dir = PROJECT_ROOT / "logs"
+        log_dir = PROJECT_ROOT / "output" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log_path = log_dir / f"music-gen-{self.engine}.log"
         self._log_file = open(log_path, "a", encoding="utf-8", buffering=1)
@@ -337,7 +337,7 @@ class MusicGenAdapter(BaseAdapter):
 
     def _read_log_tail(self, max_chars: int = 2000) -> str:
         """Read the last `max_chars` of the subprocess log file."""
-        log_path = PROJECT_ROOT / "logs" / f"music-gen-{self.engine}.log"
+        log_path = PROJECT_ROOT / "output" / "logs" / f"music-gen-{self.engine}.log"
         try:
             if log_path.exists():
                 text = log_path.read_text(encoding="utf-8", errors="replace")

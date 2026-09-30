@@ -4,6 +4,12 @@ import { startAutoRefresh, stopAutoRefresh } from "../../state/jobStore";
 import { useUIStore } from "../../state/uiStore";
 import { useHealthStore } from "../../state/healthStore";
 import { useJobStore } from "../../state/jobStore";
+import {
+  connectNotificationSSE,
+  disconnectNotificationSSE,
+} from "../../state/notificationStore";
+import { NotificationBell } from "../notifications/NotificationBell";
+import { ConnectionStatusDot } from "../notifications/ConnectionStatusDot";
 import pkg from "../../../package.json";
 
 interface LayoutProps {
@@ -42,16 +48,22 @@ export function Layout({ children }: LayoutProps) {
     // opened/closed by every mount/unmount of Sidebar/Queue/etc.
     useHealthStore.getState().connectSSE();
     useJobStore.getState().connectSSE();
+    connectNotificationSSE();
     return () => {
       stopAutoRefresh();
       useHealthStore.getState().disconnectSSE();
       useJobStore.getState().disconnectSSE();
+      disconnectNotificationSSE();
     };
   }, []);
   const { focusMode } = useUIStore();
 
   return (
     <div className={`layout-root${focusMode ? " layout-focus-mode" : ""}`}>
+      <div className="layout-topbar">
+        <ConnectionStatusDot />
+        <NotificationBell />
+      </div>
       <Sidebar />
       <div className="layout-content">
         <main className="layout-main">{children}</main>

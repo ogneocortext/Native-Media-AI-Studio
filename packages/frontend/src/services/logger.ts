@@ -22,19 +22,7 @@ const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
 
 function resolveFrontendLogUrl(): string {
-  try {
-    const base = getBackendUrl().replace(/\/$/, "");
-    // Same-origin dev proxy serves /api/* directly; only use the absolute
-    // backend URL when it differs from the page origin (detached frontend).
-    if (typeof window !== "undefined" && base.startsWith(window.location.origin)) {
-      return "/api/logs/frontend";
-    }
-    // In dev with the Vite proxy, relative URL is preferred (avoids CORS).
-    // Use the direct backend URL only as a fallback when fetch fails (below).
-    return "/api/logs/frontend";
-  } catch {
-    return "/api/logs/frontend";
-  }
+  return "/api/logs/frontend";
 }
 
 function resolveDirectBackendUrl(): string | null {

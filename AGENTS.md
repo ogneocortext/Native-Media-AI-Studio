@@ -31,11 +31,10 @@ Native-Media-AI-Studio/
 ├── scripts/               # PowerShell startup/management
 ├── docs/                  # guides, setup, knowledge-library, scratch
 ├── config/                # ports.json, settings.json, tracks.json
-├── output/                # Generative outputs (gitignored)
+├── output/                # Generative outputs + logs (gitignored)
 ├── unity-project-mcp/     # Unity project for music video generation
 ├── unity-visualizer/      # Native Media Visualizer — standalone Unity audio visualization project
 ├── shared/                # Shared TypeScript types
-├── logs/                  # Application logs
 └── AGENTS.md / Guidelines.md
 ```
 
@@ -133,5 +132,5 @@ Music-gen prefers `tools/music-gen/.venv/Scripts/python.exe`, then `MUSIC_GEN_PY
 | Unity project | `unity-project-mcp/` |
 | Visualizer | `unity-visualizer/` |
 | Port config | `config/ports.json` |
-| Logs | `logs/` |
+| Logs | `output/logs/` |
 | Outputs | `output/` |

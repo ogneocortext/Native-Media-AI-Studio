@@ -70,8 +70,8 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
 When FastAPI returns 500 without a clear error message:
 
 1. Add `print()` statements at key points in the code
-2. Check `logs/app.log` for INFO level messages
-3. Check `logs/error.log` for ERROR level messages
+2. Check `output/logs/app.log` for INFO level messages
+3. Check `output/logs/error.log` for ERROR level messages
 4. Check `output/logs/backend.log` for uvicorn stdout capture
 5. Add `logger.error("message", exc_info=True)` to exception handlers
 
@@ -307,9 +307,9 @@ Always reuse `aiohttp.ClientSession` instances. Creating new sessions per reques
 ### 4. Logging Configuration
 
 - `print()` → captured to `output/logs/backend.log`
-- `logger.info()` → written to `logs/app.log`
-- `logger.error()` → written to `logs/error.log`
-- ComfyUI-specific logs → `logs/comfyui.log`
+- `logger.info()` → written to `output/logs/app.log`
+- `logger.error()` → written to `output/logs/error.log`
+- ComfyUI-specific logs → `output/logs/comfyui.log`
 
 ### 5. ComfyUI API Format
 

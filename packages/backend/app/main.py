@@ -354,6 +354,7 @@ _OPENAPI_TAGS = [
     {"name": "SSE", "description": "Server-sent event stream endpoints."},
     {"name": "Services", "description": "Adapter service status endpoints."},
     {"name": "Render", "description": "Rendering health and diagnostics endpoints."},
+    {"name": "Notifications", "description": "Notification center and event history endpoints."},
 ]
 
 _OPENAPI_SERVERS = [{"url": "/", "description": "Current backend origin"}]
@@ -500,6 +501,7 @@ from .api import (  # noqa: E402
     music_gen,
     music_prompts,
     native_open,
+    notifications,
     outputs,
     transcription,
     unity_control,
@@ -529,6 +531,7 @@ app.include_router(hyperframes.router)
 app.include_router(media.router)
 app.include_router(music_gen.router)
 app.include_router(music_prompts.router)
+app.include_router(notifications.router)
 
 # Additional root-level routes
 @app.get("/api/services/status", response_model=dict)

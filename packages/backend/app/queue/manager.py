@@ -202,7 +202,7 @@ class QueueManager:
         dead_sample = [
             {
                 "id": j.id,
-                "job_type": j.job_type.value,
+                "job_type": j.job_type.value if hasattr(j.job_type, "value") else str(j.job_type),
                 "error": j.error,
                 "failed_at": j.completed_at.isoformat() if j.completed_at else None,
             }

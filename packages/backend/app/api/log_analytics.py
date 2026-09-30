@@ -20,7 +20,7 @@ from ..core.database import (
     get_log_trends,
     ingest_log_file,
 )
-from ..core.logging_config import LOG_DIR
+from ..core.logging_config import LOG_DIR, get_log_files
 
 router = APIRouter(prefix="/api/logs/analytics", tags=["Log Analytics"])
 
@@ -73,13 +73,8 @@ async def ingest_logs(
     limit: int = Query(20000, ge=100, le=100000),
 ) -> IngestResponse:
     """Parse a log file and store structured events for trend analysis."""
-    mapping = {
-        "app": LOG_DIR / "app.log",
-        "error": LOG_DIR / "error.log",
-        "queue": LOG_DIR / "queue.log",
-        "comfyui": LOG_DIR / "comfyui.log",
-    }
-    path = mapping.get(log_name, mapping["app"])
+    log_files = get_log_files()
+    path = log_files.get(log_name, log_files.get("app", LOG_DIR / "app.log"))
     # Default source to log_name so ingested files are labeled accurately.
     effective_source = source if source != "app" else log_name
     inserted = ingest_log_file(path, source=effective_source, limit=limit)

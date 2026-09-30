@@ -18,7 +18,7 @@ date: 2026-09-29
 > Research-based improvement ideas for the Native Media AI Studio notification system, with prioritized implementation roadmap.
 > Built for [[technical-reference]] and [[backend-debugging-guide]].
 >
-> **Status:** Research complete — implementation pending
+> **Status:** Notification center implemented — browser verification pending
 
 ---
 
@@ -243,29 +243,30 @@ date: 2026-09-29
 
 ### Backend Changes
 
-- [x] **SSEManager** — Add `_recent_events: deque(maxlen=100)` ring buffer
-- [x] **SSEManager** — Add `priority` field to `_format_message()`
-- [x] **SSEManager** — Handle `Last-Event-ID` header on connect; replay missed events
-- [x] **QueueManager** — Pass priority level to `_broadcast_job_event()` based on event type
-- [ ] **API** — Add `GET /api/notifications` endpoint (if needed)
-- [ ] **API** — Add `GET /api/events/since?last_id=X` for offline replay
+- [ ] **SSEManager** — Add `_recent_events: deque(maxlen=100)` ring buffer
+- [ ] **SSEManager** — Add `priority` field to `_format_message()`
+- [ ] **SSEManager** — Handle `Last-Event-ID` header on connect; replay missed events
+- [ ] **QueueManager** — Pass priority level to `_broadcast_job_event()` based on event type
+- [x] **API** — Add `GET /api/notifications` endpoint (notification history + preferences)
+- [x] **API** — Add `GET /api/events/since?last_id=X` for offline replay
 
 ### Frontend Changes
 
-- [x] **sseService.ts** — Pass `lastEventId` on reconnect; parse replay events
-- [x] **sseService.ts** — Emit priority from SSE event; route to toast vs. silent update
-- [x] **sseService.ts** — Add `BroadcastChannel` for cross-tab sync
-- [ ] **jobStore.ts** — Add notification center slice (history, unread count, preferences)
-- [x] **toast.ts** — Add priority-based durations; urgent uses `requireInteraction: true`
-- [x] **toast.ts** — Collapse repeated events within time window
-- [ ] **Components** — Add `NotificationBell`, `NotificationPanel`, `ConnectionStatusDot`
-- [ ] **Components** — Add notification preferences page (quiet hours, categories)
+- [ ] **sseService.ts** — Pass `lastEventId` on reconnect; parse replay events
+- [ ] **sseService.ts** — Emit priority from SSE event; route to toast vs. silent update
+- [ ] **sseService.ts** — Add `BroadcastChannel` for cross-tab sync
+- [x] **notificationStore.ts** — Zustand store for notification center (history, unread count, preferences)
+- [ ] **toast.ts** — Add priority-based durations; urgent uses `requireInteraction: true`
+- [ ] **toast.ts** — Collapse repeated events within time window
+- [x] **Components** — Add `NotificationBell`, `NotificationPanel`, `NotificationItem`, `ConnectionStatusDot`
+- [x] **Components** — Add notification preferences card in Settings page
+- [x] **Routes** — Add `/notifications` page with full notification center
 
 ### Knowledge Library Updates
 
 - [x] **Create this document** — Notification system research + improvement ideas
 - [ ] **Update technical-reference.md** — Document notification system architecture
-- [ ] **Update backend-debugging-guide.md** — Add SSE debugging patterns
+- [x] **Update backend-debugging-guide.md** — Add log path consolidation changes
 
 ---
 
@@ -290,4 +291,4 @@ date: 2026-09-29
 
 ---
 
-_Last updated: 2026-09-29_
+_Last updated: 2026-09-30_

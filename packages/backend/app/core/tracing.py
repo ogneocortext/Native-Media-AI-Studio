@@ -1,7 +1,7 @@
 """
 OpenTelemetry tracing setup for the backend.
 
-Configures a console + file exporter so traces are visible during local
+Configures a console exporter so traces are visible during local
 development without requiring an external collector. Instrumentation is
 opt-in via the ``NMA_TRACING`` environment variable (default: false).
 """

@@ -132,6 +132,17 @@ export function JobRow({
                       className="w-full max-w-full sm:max-w-md rounded-lg border border-border bg-black"
                       style={{ maxHeight: 240 }}
                       src={videoUrl}
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.style.display = "none";
+                        const fallback = document.createElement("a");
+                        fallback.href = videoUrl;
+                        fallback.target = "_blank";
+                        fallback.rel = "noopener noreferrer";
+                        fallback.className = "text-xs text-link hover:underline flex items-center gap-1";
+                        fallback.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Video unavailable — try downloading</span>`;
+                        target.parentElement?.appendChild(fallback);
+                      }}
                       aria-label={`Video for job ${job.id.slice(0, 8)}`}
                     />
                   ) : (

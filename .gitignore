@@ -213,6 +213,9 @@ docs/scratch/*.txt
 docs/scratch/*.csv
 docs/scratch/*.err
 docs/scratch/*.out
+docs/scratch/*.py
+docs/scratch/*.yml
+docs/scratch/*.bat
 docs/scratch/.pytest-tmp/
 
 # ComfyUI backup bundles (never part of the app)

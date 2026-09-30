@@ -300,6 +300,7 @@ def setup_logging(level: str = "INFO") -> None:
     logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
     logging.getLogger("websockets").setLevel(logging.WARNING)
     logging.getLogger("aiohttp").setLevel(logging.WARNING)
+    logging.getLogger("sse_starlette").setLevel(logging.WARNING)
 
     # Suppress benign Windows Proactor ConnectionResetError noise
     # (asyncio pipes closed by remote - happens on every SSE disconnect)
@@ -332,14 +333,24 @@ def cleanup_old_logs(log_dir: Path, retention_days: int = 7) -> int:
         return 0
     cutoff = datetime.now() - timedelta(days=retention_days)
     removed = 0
-    for f in log_dir.glob("**/*"):
-        if f.is_file() and f.suffix in (".log", ".err", ".csv", ".json", ".png", ".nsys-rep", ".sqlite"):
-            try:
-                if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
-                    f.unlink()
-                    removed += 1
-            except OSError:
-                pass
+    # Only clean the log directory itself (not subdirectories like test artifacts
+    # or user data that may live under output/logs/).
+    for f in log_dir.iterdir():
+        if not f.is_file():
+            continue
+        # Match active logs (app.log) and rotated logs (app.log.1, app.log.2, ...)
+        name = f.name
+        if not (name.startswith("app.log") or name.startswith("error.log") or
+                name.startswith("queue.log") or name.startswith("comfyui.log") or
+                name.startswith("ollama.log") or
+                f.suffix in (".log", ".err")):
+            continue
+        try:
+            if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
+                f.unlink()
+                removed += 1
+        except OSError:
+            pass
     if removed:
         logging.getLogger(__name__).info("Cleaned up %d old log files (>%d days)", removed, retention_days)
     return removed

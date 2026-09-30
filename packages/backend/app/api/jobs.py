@@ -47,20 +47,22 @@ async def list_jobs(
     # paths that no longer exist: the Queue UI can then show an honest
     # "output unavailable" state instead of issuing broken media requests.
     for job in jobs:
+        # Check top-level output_path
         if job.output_path:
             candidate = Path(job.output_path)
             if not candidate.is_absolute():
                 candidate = PROJECT_ROOT / "output" / candidate
             if not candidate.is_file():
                 job.output_path = None
-                if job.result and "output_path" in job.result:
-                    result_path = job.result.get("output_path")
-                    if isinstance(result_path, str):
-                        result_candidate = Path(result_path)
-                        if not result_candidate.is_absolute():
-                            result_candidate = PROJECT_ROOT / "output" / result_candidate
-                        if not result_candidate.is_file():
-                            job.result = {**job.result, "output_path": None}
+        # Check result.output_path independently
+        if job.result and "output_path" in job.result:
+            result_path = job.result.get("output_path")
+            if isinstance(result_path, str):
+                result_candidate = Path(result_path)
+                if not result_candidate.is_absolute():
+                    result_candidate = PROJECT_ROOT / "output" / result_candidate
+                if not result_candidate.is_file():
+                    job.result = {**job.result, "output_path": None}
     return jobs
 
 
