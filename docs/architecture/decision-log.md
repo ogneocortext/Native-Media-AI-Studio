@@ -139,6 +139,32 @@
   run, so they stay visible. If large media starts being committed, revisit
   this and either adopt LFS deliberately or drop the hooks.
 
+### D12 — docs/knowledge/ is app-served content, not a shadow library
+- **Status:** Decided
+- **Context:** `docs/knowledge/` holds 8 git-tracked documents outside the
+  knowledge library, 7 of them with no frontmatter at all, so every tag check
+  in `tools/validate-knowledge-tags.py` has ignored them. They initially looked
+  like an unfinished part of the tag migration. They are not: they are live
+  application content.
+- **Decision:** **Treat them as a separate doc set, not migration debt.** Do not
+  retro-fit library frontmatter onto them. `docs.py` serves
+  `DOCS_ROOT.rglob("*.md")` across all of `docs/`, and the frontend `DocsPage`
+  parses and displays each document's `tags`; untagged documents therefore
+  render with an empty tag list and cannot be found by tag search in the app.
+  That is a real user-visible cost and the reason to act, but the fix is to
+  decide per group, not to bulk-tag.
+- **Consequences:** `python tools/docs-triage.py` groups the 65 untagged
+  markdown files outside the library by disposition, so triage is six decisions
+  rather than 65 files. The order reflects urgency: **app-served** (7 files in
+  `docs/knowledge/`, user-visible), **production docs** (11 storyboards),
+  **project docs** (21 guides/setup/api — read by path, so untagged is
+  defensible), **notes and scratch** (8, archive candidates), **generated
+  copies** under `packages/`, and **root/tool READMEs** (13, not library
+  material). If a document in an app-served path needs to be findable by tag, it
+  needs a tag - but that is a per-document call, and the two files that already
+  have frontmatter there use a `unity` vocabulary the library guide does not
+  define, which is further evidence this set follows its own conventions.
+
 ---
 
 ## Open questions
@@ -207,4 +233,5 @@
 - 2026-09-29: Competitive landscape research updated (VidMuse, MiniMax H3, LTX 2.5, DreamX-Creator, MAGI-2, MelodicPal.ai) in `docs/knowledge-library/ai-music-video-platforms-2026.md`. Cost estimation feature implemented: backend `POST /api/video/estimate-cost`, frontend `estimateRenderCost()` service, and wizard `Generate` step UI showing time, VRAM, frames, and cloud cost before generation.
 - 2026-09-29: D10 recorded — no GitHub Actions. Knowledge-library validation runs via a local pre-commit hook (`scripts/git-hooks/pre-commit`, installed by `scripts/install-git-hooks.sh`) instead. Do not add CI workflows to this repo.
 - 2026-09-29: D11 recorded — the four Git LFS hooks in `.git/hooks` are installed but track nothing (no `filter=lfs`, no pointer files). Left in place; note they block commits/pushes if `git-lfs` is ever missing from PATH. The hook installer now preserves and calls any pre-existing `pre-commit` rather than overwriting it, and is idempotent across re-runs.
+- 2026-09-29: D12 recorded — `docs/knowledge/` is application-served content (`docs.py` rglobs all of `docs/`, and the frontend Docs page displays and searches each document's `tags`), not unfinished migration debt. `tools/docs-triage.py` groups the 65 untagged markdown files outside the library by disposition, so the decision is six group rules rather than 65 per-file calls.
 

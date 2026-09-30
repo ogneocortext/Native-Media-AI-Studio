@@ -197,6 +197,20 @@ python tools/analyze_and_sync.py <audio_file> [--output <json_file>] [--fps 24]
   triage (migrate, keep as a separate doc set, or archive) is a deliberate
   decision, not a lint fix.
 
+- `docs-triage.py` groups the untagged markdown outside the library by
+  disposition, so triage is six decisions rather than 65 filenames:
+
+  ```bash
+  python tools/docs-triage.py
+  ```
+
+  This exists because `docs/knowledge/` is **application content**, not
+  migration debt (D12): `docs.py` serves `DOCS_ROOT.rglob("*.md")` over all of
+  `docs/`, and the frontend `DocsPage` displays and searches each document's
+  `tags`. A document there without frontmatter renders with an empty tag list and
+  cannot be found by tag search in the app - a user-visible cost, not just
+  untidy metadata. Report-only: it changes no files and no exit code.
+
 ## Git Hooks
 
 This repo has **no CI** (D10 in `docs/architecture/decision-log.md`), so local
