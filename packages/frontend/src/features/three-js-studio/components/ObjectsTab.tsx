@@ -53,7 +53,7 @@ export function ObjectsTab({
           <button onClick={() => onAddObject("cylinder")} className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs flex items-center justify-center min-w-0 truncate">Cyl</button>
           <button onClick={() => onAddObject("cone")} className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs flex items-center justify-center min-w-0 truncate">Cone</button>
           <button onClick={() => onAddObject("torus")} className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs flex items-center justify-center min-w-0 truncate">Torus</button>
-          <button onClick={() => onAddObject("character")} className="px-2 py-1.5 bg-amber-900/40 hover:bg-amber-800/50 rounded text-xs flex items-center justify-center gap-1 min-w-0 truncate text-amber-200"><User size={11} /> <span className="hidden sm:inline">Character</span></button>
+          <button onClick={() => onAddObject("character")} title="Add character — placeholder mesh, quality is WIP" className="px-2 py-1.5 bg-amber-900/40 hover:bg-amber-800/50 rounded text-xs flex items-center justify-center gap-1 min-w-0 truncate text-amber-200"><User size={11} /> <span className="hidden sm:inline">Character</span></button>
         </div>
       </div>
 
@@ -85,6 +85,14 @@ export function ObjectsTab({
             </button>
             <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: obj.color }} />
             <span className="flex-1 truncate min-w-0">{obj.name}</span>
+            {obj.type === "character" && (
+              <span
+                className="text-[9px] text-amber-400/80 border border-amber-500/30 rounded px-1 shrink-0"
+                title="Placeholder character mesh — quality is WIP"
+              >
+                WIP
+              </span>
+            )}
             <button
               onClick={(e) => { e.stopPropagation(); onRemoveObject(obj.id); }}
               className="text-gray-500 hover:text-red-400 shrink-0"

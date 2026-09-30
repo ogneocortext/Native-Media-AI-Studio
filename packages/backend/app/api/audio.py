@@ -1945,6 +1945,43 @@ async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
     return FileResponse(str(stem_path), media_type=media_type, filename=f"{safe_track}_{stem_name}.{format}")
 
 
+class StemVisualizationRequest(BaseModel):
+    """Request model for stem-reactive visualization data (A5)."""
+    filename: str
+
+
+class StemVisualizationResponse(BaseModel):
+    """Response model for stem-reactive visualization data."""
+    stems: dict[str, Any]
+    separated: bool
+    uniforms: dict[str, Any]
+    curve_points: int
+
+
+@router.post("/stem-visualization", response_model=StemVisualizationResponse)
+async def stem_visualization(body: StemVisualizationRequest) -> StemVisualizationResponse:
+    """Return shader-uniform-ready per-stem data for the WebGL visualizer (A5).
+
+    Maps Demucs stems (vocals/drums/bass/other) to normalized uniform curves
+    that the frontend can feed directly into shaders for the deterministic
+    stem-reactive fallback mode.
+    """
+    try:
+        from urllib.parse import unquote
+        filename = unquote(body.filename)
+        if ".." in filename or filename.startswith("/"):
+            raise HTTPException(status_code=400, detail="Invalid filename")
+
+        from ..services.stem_visualization import get_stem_visualization_uniforms
+        data = await get_stem_visualization_uniforms(filename)
+        return StemVisualizationResponse(**data)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Stem visualization failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.get("/file/{filename:path}")
 async def serve_audio_file(request: Request, filename: str):
     """Serve an audio file by filename."""

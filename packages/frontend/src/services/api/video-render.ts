@@ -87,6 +87,22 @@ export interface CostEstimate {
   cloud_cost_usd: number | null;
   cloud_price_per_second: number | null;
   factors: Record<string, any> | null;
+  // A2 per-shot breakdown
+  total_shots?: number | null;
+  total_duration_seconds?: number | null;
+  vram_peak_mb?: number | null;
+  vram_peak_gb?: number | null;
+  shots?: Array<{
+    shot_id: string;
+    model: string;
+    duration_seconds: number;
+    estimated_seconds: number;
+    estimated_minutes: number;
+    total_frames: number;
+    vram_estimate_mb: number;
+    vram_estimate_gb: number;
+    cloud_cost_usd?: number | null;
+  }>;
 }
 
 export async function estimateRenderCost(params: {
@@ -97,6 +113,8 @@ export async function estimateRenderCost(params: {
   duration_seconds: number;
   model: string;
   cloud_price_per_second?: number | null;
+  shot_manifest?: Array<Record<string, any>> | null;
+  default_model?: string;
 }): Promise<CostEstimate> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/video/estimate-cost`, {
@@ -128,6 +146,134 @@ export async function buildExportMatrix(params: {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "Export matrix failed");
+  }
+  return res.json();
+}
+
+// A4 — Spotify Canvas loop extraction
+
+export interface CanvasLoopResponse {
+  success: boolean;
+  output_path: string | null;
+  duration: number | null;
+  width: number | null;
+  height: number | null;
+  error: string | null;
+  message: string | null;
+}
+
+export async function createCanvasLoop(params: {
+  source_path: string;
+  start?: number | null;
+  duration?: number;
+  width?: number;
+  height?: number;
+  output_path?: string | null;
+  crossfade?: number;
+}): Promise<CanvasLoopResponse> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/video/canvas-loop`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+    timeout: 120000,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Canvas loop creation failed");
+  }
+  return res.json();
+}
+
+// A6 — Per-scene model routing
+
+export interface RouteSceneResponse {
+  model: string;
+  tier: string;
+  reason: string;
+  vram_required_mb: number | null;
+  cloud_fallback: string | null;
+  routing_note: string | null;
+}
+
+export async function routeScene(params: {
+  section_type: string;
+  energy?: number | null;
+  duration?: number | null;
+  vram_available_mb?: number | null;
+}): Promise<RouteSceneResponse> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/video/route-scene`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+    timeout: 30000,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Scene routing failed");
+  }
+  return res.json();
+}
+
+// A3 — Beat-quantized assembly
+
+export interface AssembleResponse {
+  success: boolean;
+  output_path: string | null;
+  duration: number | null;
+  shots_used: number | null;
+  render_s: number | null;
+  error: string | null;
+  message: string | null;
+  engine: string | null;
+}
+
+export async function assembleBeatQuantized(params: {
+  shot_manifest: Array<Record<string, any>>;
+  output_path?: string | null;
+  audio_path?: string | null;
+  engine?: string;
+  transition?: string;
+  transition_duration?: number;
+  beat_times?: number[] | null;
+}): Promise<AssembleResponse> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/video/assemble`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+    timeout: 600000,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Assembly failed");
+  }
+  return res.json();
+}
+
+// A5 — Stem-reactive visualization uniforms
+
+export interface StemVisualizationResponse {
+  stems: Record<string, any>;
+  separated: boolean;
+  uniforms: Record<string, any>;
+  curve_points: number;
+}
+
+export async function getStemVisualization(params: {
+  filename: string;
+}): Promise<StemVisualizationResponse> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/audio/stem-visualization`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+    timeout: 120000,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Stem visualization failed");
   }
   return res.json();
 }

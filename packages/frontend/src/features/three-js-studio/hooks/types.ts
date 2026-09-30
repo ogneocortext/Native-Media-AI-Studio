@@ -24,6 +24,7 @@ export interface UseThreeSceneOptions {
   getCurrentBeat: (elapsed: number) => any;
   generatedSceneUpdateRef: React.RefObject<((time: number, delta: number) => void) | null>;
   onAnimationTimeChange: (time: number) => void;
+  onSelectObject?: (id: string | null) => void;
 }
 
 export interface UseThreeSceneResult {

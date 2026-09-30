@@ -138,32 +138,21 @@ and optional asset/caption mapping after validating real storyboard payloads.
 These are data structures that are produced but never consumed by downstream
 stages.
 
-### 3.1 Demucs Stems → Visualizer: No Mapping
+### 3.1 Demucs Stems → Visualizer: Implemented
 
-**Anomaly:** Audio source separation produces 4 stems (vocals, drums, bass,
-other) with MP3 encoding. The visualizer has 3 render modes (bars, waveform,
-radial) but **no per-stem reactivity**.
+**Status:** ✅ Implemented. The visualizer now consumes per-stem energy curves
+and mixer state (`stemsMuted`, `stemsVolumes`) to modulate shader uniforms in
+real time.
 
 **Evidence:**
 - `packages/backend/app/services/source_separation.py` — `STEM_NAMES = ("vocals", "drums", "bass", "other")`
 - `get_stems` returns `stems_mp3` URL map
-- `packages/frontend/src/features/visualizer/` — no stem-aware component
-- `Canvas2DVisualizer.tsx` — 3 modes, all driven by full-track audio analysis
-- `ShaderVisualizer.tsx` — genre presets, no stem routing
+- `packages/frontend/src/features/visualizer/StemMixer.tsx` — per-stem volume/mute UI, propagates state upward
+- `packages/frontend/src/features/visualizer/Visualizer.tsx` — fetches stem analysis, passes `stems`, `sampleAudio`, `stemsMuted`, `stemsVolumes` to `ShaderVisualizer`
+- `packages/frontend/src/features/visualizer/ShaderVisualizer.tsx` — samples stem energy curves per frame and applies mute/volume scaling before blending into shader uniforms
 
-**Impact:** High for the music video use case. The user uploads a track, waits
-for separation, then sees no difference in the visualizer. The stems are
-generated, served, and ignored.
-
-**Data flow break:**
-```
-audio.mp3 → Demucs → stems/{vocals,drums,bass,other}.mp3 → (no consumer)
-```
-
-**Expected flow:**
-```
-stems → visualizer routing: drums→kick flash, bass→pulse, vocals→center, other→particles
-```
+**Impact:** Resolved. Stems now drive visualizer reactivity: drums→beat pulse,
+bass→camera shake, vocals→lyrical emphasis, other→palette shift.
 
 ---
 

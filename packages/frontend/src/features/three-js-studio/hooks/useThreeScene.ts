@@ -35,6 +35,7 @@ export function useThreeScene({
   getCurrentBeat,
   generatedSceneUpdateRef,
   onAnimationTimeChange,
+  onSelectObject,
 }: UseThreeSceneOptions): UseThreeSceneResult {
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -61,6 +62,12 @@ export function useThreeScene({
   const frameCountRef = useRef(0);
   const characterMixersRef = useRef<Map<string, any>>(new Map());
   const animationRef = useRef(0);
+  const controlsRef = useRef<any>(null);
+  const onSelectObjectRef = useRef(onSelectObject);
+  const pointerHandlersRef = useRef<{
+    down: (event: PointerEvent) => void;
+    up: (event: PointerEvent) => void;
+  } | null>(null);
 
   const [sceneLoading, setSceneLoading] = useState(true);
   const [beatActive, setBeatActive] = useState(false);
@@ -102,6 +109,41 @@ export function useThreeScene({
   useEffect(() => { beatActiveRef.current = beatActive; }, [beatActive]);
   useEffect(() => { getCurrentBeatRef.current = getCurrentBeat; }, [getCurrentBeat]);
   useEffect(() => { renderPlayingRef.current = renderPlayingState; }, [renderPlayingState]);
+  // The parent owns the transport state; without this reverse sync the
+  // Preview button only toggled the UI and never reached the render loop.
+  useEffect(() => { setRenderPlaying(renderPlaying); }, [renderPlaying]);
+  useEffect(() => { onSelectObjectRef.current = onSelectObject; }, [onSelectObject]);
+
+  // Release GPU resources held by a removed object. Without this the scene
+  // accumulates undisposed geometries/materials for the whole session (F1).
+  const disposeObject3D = (root: THREE.Object3D) => {
+    root.traverse((child: any) => {
+      child.geometry?.dispose?.();
+      const materials = child.material;
+      if (!materials) return;
+      (Array.isArray(materials) ? materials : [materials]).forEach((m: any) => {
+        if (!m) return;
+        Object.keys(m).forEach((key) => {
+          const value = m[key];
+          if (
+            value &&
+            typeof value === "object" &&
+            value.isTexture &&
+            value !== bgImageTextureRef.current
+          ) {
+            value.dispose?.();
+          }
+        });
+        m.dispose?.();
+      });
+    });
+  };
+
+  const disposeEntry = (id: string, root: THREE.Object3D) => {
+    characterMixersRef.current.get(id)?.stopAllAction?.();
+    characterMixersRef.current.delete(id);
+    disposeObject3D(root);
+  };
 
   // Scene init + animation loop
   useEffect(() => {
@@ -167,6 +209,52 @@ export function useThreeScene({
       controls.minDistance = 2;
       controls.maxDistance = 20;
       controls.enablePan = false;
+      controlsRef.current = controls;
+
+      // Click-to-select: raycast against scene objects on a stationary click
+      // (a drag is an orbit, so anything past the movement threshold is ignored).
+      const raycaster = new THREE.Raycaster();
+      const ndc = new THREE.Vector2();
+      let downX = 0;
+      let downY = 0;
+      const handlePointerDown = (event: PointerEvent) => {
+        downX = event.clientX;
+        downY = event.clientY;
+      };
+      const handlePointerUp = (event: PointerEvent) => {
+        if (Math.hypot(event.clientX - downX, event.clientY - downY) > 5) return;
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        ndc.set(
+          ((event.clientX - rect.left) / rect.width) * 2 - 1,
+          -((event.clientY - rect.top) / rect.height) * 2 + 1,
+        );
+        raycaster.setFromCamera(ndc, camera);
+        const targets = Array.from(objectsMapRef.current.values()).filter(
+          (o) => o.visible,
+        );
+        const hits = raycaster.intersectObjects(targets, true);
+        if (!hits.length) {
+          onSelectObjectRef.current?.(null);
+          return;
+        }
+        let node: THREE.Object3D | null = hits[0].object;
+        while (node) {
+          for (const [id, root] of objectsMapRef.current) {
+            if (root === node) {
+              onSelectObjectRef.current?.(id);
+              return;
+            }
+          }
+          node = node.parent;
+        }
+      };
+      canvas.addEventListener("pointerdown", handlePointerDown);
+      canvas.addEventListener("pointerup", handlePointerUp);
+      pointerHandlersRef.current = {
+        down: handlePointerDown,
+        up: handlePointerUp,
+      };
 
       const renderScene = new RenderPass(scene, camera);
       const bloomPass = new UnrealBloomPass(
@@ -496,8 +584,24 @@ export function useThreeScene({
     return () => {
       cancelAnimationFrame(animationRef.current);
       window.removeEventListener("resize", onResize);
+      const pointerHandlers = pointerHandlersRef.current;
+      if (pointerHandlers) {
+        canvas.removeEventListener("pointerdown", pointerHandlers.down);
+        canvas.removeEventListener("pointerup", pointerHandlers.up);
+        pointerHandlersRef.current = null;
+      }
+      controlsRef.current?.dispose?.();
+      objectsMapRef.current.forEach((mesh, id) => disposeEntry(id, mesh));
+      objectsMapRef.current.clear();
+      characterMixersRef.current.clear();
+      finalComposerRef.current?.dispose?.();
+      composerRef.current?.dispose?.();
+      bloomComposerRef.current?.dispose?.();
       clockRef.current?.dispose();
       rendererRef.current?.dispose();
+      sceneRef.current = null;
+      delete (window as any).__camera;
+      delete (window as any).__renderer;
     };
   }, [createMeshForObject]);
 
@@ -513,7 +617,7 @@ export function useThreeScene({
         if (!ids.has(id)) {
           scene.remove(mesh);
           objectsMapRef.current.delete(id);
-          characterMixersRef.current.delete(id);
+          disposeEntry(id, mesh);
         }
       });
       (async () => {
@@ -537,6 +641,7 @@ export function useThreeScene({
               (mesh as any).__modelUrl !== obj.modelUrl
             ) {
               scene.remove(mesh);
+              disposeEntry(obj.id, mesh);
               const newMesh = await createMeshForObject(obj, THREE);
               if (!cancelled) {
                 scene.add(newMesh);

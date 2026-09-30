@@ -1,0 +1,56 @@
+{
+  "rules": [
+    {
+      "match": { "section_type": "intro", "energy_max": 0.2 },
+      "model": "wan2.1-1.3b",
+      "tier": "draft",
+      "reason": "Low-energy intro; fast draft model is sufficient"
+    },
+    {
+      "match": { "section_type": "outro", "energy_max": 0.25 },
+      "model": "wan2.1-1.3b",
+      "tier": "draft",
+      "reason": "Fade-out outro; draft tier keeps VRAM headroom"
+    },
+    {
+      "match": { "section_type": "verse", "energy_max": 0.5 },
+      "model": "wan2.2-5b",
+      "tier": "balanced",
+      "reason": "Mid-energy verse; balanced quality/speed"
+    },
+    {
+      "match": { "section_type": "pre_chorus", "energy_min": 0.3, "energy_max": 0.7 },
+      "model": "wan2.2-5b",
+      "tier": "balanced",
+      "reason": "Build section; balanced model preserves detail"
+    },
+    {
+      "match": { "section_type": "chorus", "energy_min": 0.5 },
+      "model": "wan2.2-5b",
+      "tier": "hero",
+      "reason": "Hero shot — highest quality local model"
+    },
+    {
+      "match": { "section_type": "drop", "energy_min": 0.6 },
+      "model": "wan2.2-5b",
+      "tier": "hero",
+      "reason": "Drop/buildup — hero tier for peak moments"
+    },
+    {
+      "match": { "section_type": "bridge", "energy_max": 0.4 },
+      "model": "animate-diff-sd15",
+      "tier": "draft",
+      "reason": "Quiet bridge; fastest iteration to preserve contrast"
+    }
+  ],
+  "fallback": {
+    "model": "wan2.2-5b",
+    "tier": "balanced",
+    "reason": "Default when no rule matches"
+  },
+  "cloud_gateway": {
+    "provider": "fal.ai",
+    "fallback_provider": "replicate",
+    "notes": "Cloud-burst for hero shots when local VRAM is saturated"
+  }
+}

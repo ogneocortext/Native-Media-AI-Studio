@@ -45,13 +45,22 @@ export function useObjectManager({
       objectCounterRef.current++;
       const id = `${type}-${Date.now()}-${objectCounterRef.current}`;
       const isCharacter = type === "character";
+      // Golden-angle spiral: every new object lands on its own slot instead of
+      // stacking at the origin, where it would be invisible behind its neighbours.
+      const slot = objects.length;
+      const angle = slot * Math.PI * (3 - Math.sqrt(5));
+      const radius = 1.6 + 0.75 * Math.sqrt(slot);
       const newObj: AnimObject = {
         id,
         name: isCharacter
           ? `Character ${objects.length + 1}`
           : `${type.charAt(0).toUpperCase() + type.slice(1)} ${objects.length + 1}`,
         type,
-        position: [0, isCharacter ? 0 : 0.5, 0],
+        position: [
+          Number((Math.cos(angle) * radius).toFixed(3)),
+          isCharacter ? 0 : 0.5,
+          Number((Math.sin(angle) * radius).toFixed(3)),
+        ],
         rotation: [0, 0, 0],
         scale: [1, 1, 1],
         color:

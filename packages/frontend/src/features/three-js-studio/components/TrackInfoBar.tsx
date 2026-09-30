@@ -45,11 +45,31 @@ export function TrackInfoBar({
       </div>
       <button
         onClick={onBeatSyncToggle}
-        className={`px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all hover:scale-105 active:scale-95 ${beatSync ? "bg-violet-600 text-white shadow-lg shadow-violet-500/20" : "bg-white/5 hover:bg-white/10 text-white/70 border border-white/5"}`}
+        aria-pressed={beatSync}
+        title={
+          beatSync
+            ? "Beat sync ON — click to turn it off"
+            : "Beat sync OFF — click to pulse objects on every beat"
+        }
+        className={`px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all hover:scale-105 active:scale-95 flex items-center gap-2 ${beatSync ? "bg-violet-600 text-white shadow-lg shadow-violet-500/20" : "bg-white/5 hover:bg-white/10 text-white/70 border border-white/5"}`}
       >
-        {beatSync ? "Sync ON" : "Sync OFF"}
+        <span
+          className={`relative inline-block w-6 h-3 rounded-full transition-colors ${beatSync ? "bg-violet-300/80" : "bg-white/25"}`}
+        >
+          <span
+            className={`absolute top-0.5 h-2 w-2 rounded-full bg-white transition-all ${beatSync ? "left-3.5" : "left-0.5"}`}
+          />
+        </span>
+        Beat sync {beatSync ? "ON" : "OFF"}
       </button>
-      <div className="text-gray-400 shrink-0">
+      <div
+        className="text-gray-400 shrink-0"
+        title={
+          beatAnalysis
+            ? "Beats detected in the selected track"
+            : "Select a track to analyse its beats"
+        }
+      >
         Beats:{" "}
         <span
           className={

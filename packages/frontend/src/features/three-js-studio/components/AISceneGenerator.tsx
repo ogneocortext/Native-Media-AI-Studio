@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Sparkles, Play, Square, Copy, Check, ChevronDown, ChevronUp, Zap, Save, FileCode } from "lucide-react";
+import { Sparkles, Play, Square, Copy, Check, ChevronDown, ChevronUp, Zap, Save, FileCode, Info } from "lucide-react";
 import { useTrackMetadata, generatePromptVariations, type PromptVariation } from "../hooks/useTrackMetadata";
 import { useOllamaStream } from "../hooks/useOllamaStream";
 import { getGuidelinesPrompt } from "../services/sceneGuidelines";
@@ -154,7 +154,6 @@ export function AISceneGenerator({ selectedTrack, onApplyCode, storyboard, autoG
 
   const handleGenerate = async () => {
     if (!selectedModel || !metadata) return;
-
     // Reset saved file tracking and cleanup old incomplete files
     setSavedFile(null);
     cleanupIncompleteScenes(selectedTrack || "unknown", 3).catch(() => {});
@@ -278,6 +277,16 @@ Return ONLY the function, no fences.`;
     }
   }, [output, getOutput, selectedTrack, selectedModel]);
 
+  // Precondition for generation, surfaced to the user instead of a silent
+  // disabled button (audit F4).
+  const generateBlockedReason = !selectedModel
+    ? "No Ollama model selected — open the Model section and pick one."
+    : !metadata
+      ? metaLoading
+        ? "Loading track metadata…"
+        : "No track selected — choose a track in the top bar first."
+      : null;
+
   return (
     <div className="border border-purple-500/30 rounded-lg bg-[#0e0e16] overflow-hidden">
       {/* Header */}
@@ -329,11 +338,12 @@ Return ONLY the function, no fences.`;
               <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] text-white/40">Selected</span>
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 min-w-0">
               <select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
-                className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white"
+                className="flex-1 min-w-0 w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white truncate"
+                title={selectedModel || "No model selected"}
                 onClick={loadModels}
               >
                 {models.length === 0 && <option value="">Click to load models...</option>}
@@ -359,6 +369,12 @@ Return ONLY the function, no fences.`;
                   );
                 })}
               </select>
+            </div>
+            <div
+              className="mt-1 text-[10px] text-white/45 truncate"
+              title={selectedModel || "No model selected"}
+            >
+              {selectedModel || "No model selected"}
             </div>
             {(() => {
               const active = models.find((x) => x.name === selectedModel);
@@ -456,7 +472,12 @@ Return ONLY the function, no fences.`;
           {/* Generate Button */}
           <button
             onClick={generating ? cancel : handleGenerate}
-            disabled={!selectedModel || !metadata}
+            disabled={!generating && !!generateBlockedReason}
+            title={
+              generateBlockedReason
+                ? `Cannot generate: ${generateBlockedReason}`
+                : "Generate Three.js scene code for the selected track"
+            }
             className={`w-full py-2 rounded font-medium text-xs flex items-center justify-center gap-2 transition-colors ${
               generating
                 ? "bg-red-600 hover:bg-red-700 text-white"
@@ -465,6 +486,12 @@ Return ONLY the function, no fences.`;
           >
             {generating ? <><Square size={12} /> Stop</> : <><Play size={12} /> Generate Scene</>}
           </button>
+          {!generating && generateBlockedReason && (
+            <div className="flex items-start gap-1.5 rounded bg-amber-900/20 border border-amber-700/40 px-2 py-1.5 text-[10px] leading-snug text-amber-200/90">
+              <Info size={11} className="mt-0.5 shrink-0 text-amber-400" />
+              <span>{generateBlockedReason}</span>
+            </div>
+          )}
 
           {/* Output */}
           {output && (

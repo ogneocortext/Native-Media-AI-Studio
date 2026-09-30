@@ -38,6 +38,7 @@ interface StemMixerProps {
   /** Called every animation frame with current per-stem levels (0-1). */
   onLevels?: (levels: StemLevels) => void;
   compact?: boolean;
+  onStateChange?: (state: { muted: Record<StemName, boolean>; volumes: Record<StemName, number> }) => void;
 }
 
 interface LoadedStem {
@@ -67,6 +68,7 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
   const rafRef = useRef<number>(0);
   const startedRef = useRef(false);
   const trackRef = useRef<string | null>(null);
+  const didMuteMainRef = useRef(false);
 
   // New track → drop previous stems/graph so nothing stale survives a switch.
   useEffect(() => {
@@ -175,6 +177,12 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
         void ctxRef.current.close();
         ctxRef.current = null;
       }
+      // Restore the main track's previous mute state when stems are released.
+      const main = document.querySelector<HTMLAudioElement>("audio[data-main-player]");
+      if (main && didMuteMainRef.current) {
+        main.muted = false;
+        didMuteMainRef.current = false;
+      }
     };
   }, [stems]);
 
@@ -201,6 +209,7 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
 
   /** Sync stem transport with the main player. */
   const syncTransport = useCallback((main: HTMLAudioElement | null) => {
+    const hasLoaded = loadedRef.current.length > 0;
     for (const stem of loadedRef.current) {
       if (!main || main.paused) {
         stem.element.pause();
@@ -210,6 +219,13 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
         stem.element.currentTime = main.currentTime;
       }
       if (stem.element.paused) stem.element.play().catch(() => {});
+    }
+    // Mute the main track when stems are active so they don't overlap in the mix.
+    if (main && hasLoaded) {
+      if (!main.muted) {
+        didMuteMainRef.current = true;
+      }
+      main.muted = true;
     }
   }, []);
 
@@ -240,9 +256,13 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
   return { stems, status, error, volumes, muted, setVolume, toggleMute, ensureStems, syncTransport };
 }
 
-export function StemMixerPanel({ audioFilename, compact = false }: StemMixerProps) {
+export function StemMixerPanel({ audioFilename, compact = false, onStateChange }: StemMixerProps) {
   const { status, error, volumes, muted, setVolume, toggleMute, ensureStems, syncTransport } =
     useStemMixer({ audioFilename });
+
+  useEffect(() => {
+    onStateChange?.({ muted, volumes });
+  }, [muted, volumes, onStateChange]);
 
   useEffect(() => {
     // Sync stem transport with the page's main <audio data-main-player> element

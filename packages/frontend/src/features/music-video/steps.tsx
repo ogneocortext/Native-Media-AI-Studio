@@ -4,11 +4,11 @@ import {
   Upload, Music, Wand2, Sparkles, Play, ChevronRight, Download,
   Loader2, Zap, Layers,
   Smartphone, Lightbulb, Target, Sliders, Eye, FileWarning,
-  CheckCircle2, Calculator,
+  CheckCircle2, Calculator, Scissors, Activity,
 } from "lucide-react";
 import type { AudioAnalysis, GenerationConfig } from "./types";
 import { VISUAL_TREATMENTS } from "./types";
-import { estimateRenderCost, type CostEstimate } from "../../services/api/video-render";
+import { estimateRenderCost, type CostEstimate, createCanvasLoop, routeScene, assembleBeatQuantized, getStemVisualization } from "../../services/api/video-render";
 
 export function UploadStep({ audioFile, audioUrl, onDrop, onFileSelect, onNext, analyzing }: {
   audioFile: File | null; audioUrl: string | null; onDrop: (e: React.DragEvent) => void;
@@ -221,9 +221,128 @@ export function GenerateStep({ generating, progress, analysis, config, onStart }
   const [costEstimate, setCostEstimate] = useState<CostEstimate | null>(null);
   const [estimating, setEstimating] = useState(false);
   const [estimateError, setEstimateError] = useState<string | null>(null);
+  const [sectionRoutes, setSectionRoutes] = useState<Record<string, { model: string; tier: string; reason: string }>>({});
+  const [routing, setRouting] = useState(false);
+  const [canvasOutput, setCanvasOutput] = useState<string | null>(null);
+  const [creatingCanvas, setCreatingCanvas] = useState(false);
+  const [canvasError, setCanvasError] = useState<string | null>(null);
+  const [assemblyOutput, setAssemblyOutput] = useState<string | null>(null);
+  const [assembling, setAssembling] = useState(false);
+  const [assemblyError, setAssemblyError] = useState<string | null>(null);
+  const [stemVizData, setStemVizData] = useState<Record<string, any> | null>(null);
+  const [loadingStemViz, setLoadingStemViz] = useState(false);
+  const [stemVizError, setStemVizError] = useState<string | null>(null);
 
   const sections = analysis?.sections ?? [];
   const duration = analysis?.duration_seconds ?? 0;
+
+  // A6: route each section to its best model
+  const loadRouting = async () => {
+    if (!analysis || sections.length === 0) return;
+    setRouting(true);
+    try {
+      const routes: Record<string, { model: string; tier: string; reason: string }> = {};
+      for (const s of sections) {
+        try {
+          const res = await routeScene({
+            section_type: s.type,
+            energy: s.energy,
+            duration: s.end - s.start,
+            vram_available_mb: 7500,
+          });
+          routes[`${s.type}-${sections.indexOf(s)}`] = { model: res.model, tier: res.tier, reason: res.reason };
+        } catch { /* skip failed section */ }
+      }
+      setSectionRoutes(routes);
+    } finally {
+      setRouting(false);
+    }
+  };
+
+  // A4: create Spotify Canvas loop from the generated video
+  const handleCreateCanvas = async () => {
+    if (!analysis) return;
+    setCreatingCanvas(true);
+    setCanvasError(null);
+    try {
+      // Use the chorus as the Canvas source (most visually active segment)
+      const chorus = sections.find(s => s.type === "chorus") || sections[0];
+      const sourcePath = `output/video/${chorus.type}_latest.mp4`;
+      const res = await createCanvasLoop({
+        source_path: sourcePath,
+        duration: 5.0,
+        width: 720,
+        height: 1280,
+        crossfade: 0.3,
+      });
+      if (res.success && res.output_path) setCanvasOutput(res.output_path);
+      else setCanvasError(res.error || res.message || "Failed");
+    } catch (err: any) {
+      setCanvasError(err.message || "Failed to create Canvas loop");
+    } finally {
+      setCreatingCanvas(false);
+    }
+  };
+
+  // A3: beat-quantized assembly of rendered section clips
+  const handleAssemble = async () => {
+    if (!analysis || sections.length === 0) return;
+    setAssembling(true);
+    setAssemblyError(null);
+    try {
+      const width = config.verticalFirst ? 1080 : 1920;
+      const height = config.verticalFirst ? 1920 : 1080;
+      const shot_manifest = (analysis.sections ?? []).map((s, i) => ({
+        id: `section-${i}`,
+        section: s.type,
+        duration_seconds: s.end - s.start,
+        output_path: `output/video/${s.type}_latest.mp4`,
+        width,
+        height,
+        fps: 24,
+        steps: config.steps,
+      }));
+      const res = await assembleBeatQuantized({
+        shot_manifest,
+        audio_path: analysis.stored_path || undefined,
+        engine: "auto",
+        transition: "xfade",
+        transition_duration: 0.3,
+        beat_times: analysis.beat_times,
+      });
+      if (res.success && res.output_path) setAssemblyOutput(res.output_path);
+      else setAssemblyError(res.error || res.message || "Failed");
+    } catch (err: any) {
+      setAssemblyError(err.message || "Failed to assemble");
+    } finally {
+      setAssembling(false);
+    }
+  };
+
+  // A5: stem-reactive visualization uniforms
+  const handleStemViz = async () => {
+    if (!analysis) return;
+    setLoadingStemViz(true);
+    setStemVizError(null);
+    try {
+      // Find the uploaded filename from analysis
+      const filename = analysis.stored_path?.split(/[\\/]/).pop() || "";
+      if (!filename) {
+        setStemVizError("No audio filename found — upload and analyze first");
+        return;
+      }
+      const res = await getStemVisualization({ filename });
+      if (Object.keys(res.uniforms).length > 0) {
+        setStemVizData(res.uniforms);
+      } else {
+        setStemVizError("Stems not separated yet — run separation first");
+      }
+    } catch (err: any) {
+      setStemVizError(err.message || "Failed to load stem viz");
+    } finally {
+      setLoadingStemViz(false);
+    }
+  };
 
   const handleEstimate = async () => {
     if (!duration) return;
@@ -232,6 +351,17 @@ export function GenerateStep({ generating, progress, analysis, config, onStart }
     try {
       const width = config.verticalFirst ? 1080 : 1920;
       const height = config.verticalFirst ? 1920 : 1080;
+      // Build per-shot manifest from analysis sections (A2 per-shot breakdown)
+      const shot_manifest = (analysis?.sections ?? []).map((s, i) => ({
+        id: `section-${i}`,
+        section: s.type,
+        duration_seconds: s.end - s.start,
+        model: s.type === "chorus" ? "wan2.2-5b" : s.type === "intro" ? "wan2.1-1.3b" : "wan2.2-5b",
+        width,
+        height,
+        fps: 24,
+        steps: config.steps,
+      }));
       const estimate = await estimateRenderCost({
         steps: config.steps,
         width,
@@ -239,6 +369,8 @@ export function GenerateStep({ generating, progress, analysis, config, onStart }
         fps: 24,
         duration_seconds: duration,
         model: "wan2.2-5b",
+        shot_manifest: shot_manifest.length > 0 ? shot_manifest : undefined,
+        default_model: "wan2.2-5b",
       });
       setCostEstimate(estimate);
     } catch (err: any) {
@@ -282,8 +414,8 @@ export function GenerateStep({ generating, progress, analysis, config, onStart }
               <p className="text-lg font-extrabold text-white">{costEstimate.estimated_minutes.toFixed(1)}<span className="text-xs font-normal text-gray-500"> min</span></p>
             </div>
             <div className="text-center">
-              <p className="text-[11px] text-gray-500 uppercase tracking-wide">VRAM</p>
-              <p className="text-lg font-extrabold text-white">{costEstimate.vram_estimate_gb}<span className="text-xs font-normal text-gray-500"> GB</span></p>
+              <p className="text-[11px] text-gray-500 uppercase tracking-wide">Peak VRAM</p>
+              <p className="text-lg font-extrabold text-white">{(costEstimate.vram_peak_gb ?? costEstimate.vram_estimate_gb)}<span className="text-xs font-normal text-gray-500"> GB</span></p>
             </div>
             <div className="text-center">
               <p className="text-[11px] text-gray-500 uppercase tracking-wide">Frames</p>
@@ -291,9 +423,28 @@ export function GenerateStep({ generating, progress, analysis, config, onStart }
             </div>
             <div className="text-center">
               <p className="text-[11px] text-gray-500 uppercase tracking-wide">Cloud</p>
-              <p className="text-lg font-extrabold text-white">{costEstimate.cloud_cost_usd !== null ? `$${costEstimate.cloud_cost_usd.toFixed(2)}` : "—"}</p>
+              <p className="text-lg font-extrabold text-white">{costEstimate.cloud_cost_usd !== null && costEstimate.cloud_cost_usd !== undefined ? `$${costEstimate.cloud_cost_usd.toFixed(2)}` : "—"}</p>
             </div>
           </div>
+          {costEstimate.shots && costEstimate.shots.length > 0 && (
+            <div className="mt-3 border-t border-gray-700 pt-3">
+              <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-2">Per-shot breakdown</p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {costEstimate.shots.map((shot, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs bg-gray-800/60 rounded-lg px-2.5 py-2">
+                    <span className="text-gray-500 shrink-0">#{i + 1}</span>
+                    <span className="text-white font-medium truncate flex-1">{shot.shot_id}</span>
+                    <span className="text-gray-400 shrink-0">{shot.duration_seconds.toFixed(1)}s</span>
+                    <span className="text-gray-500 shrink-0">{shot.total_frames}f</span>
+                    <span className="text-violet-300 shrink-0">{shot.estimated_seconds.toFixed(1)}s</span>
+                    {shot.cloud_cost_usd !== undefined && shot.cloud_cost_usd !== null && (
+                      <span className="text-emerald-400 shrink-0">${shot.cloud_cost_usd.toFixed(3)}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="mt-3 flex items-center justify-between text-[11px] text-gray-500">
             <span>{costEstimate.sec_per_frame.toFixed(2)}s/frame • {costEstimate.estimated_seconds.toFixed(0)}s total</span>
             <button onClick={() => setCostEstimate(null)} className="text-violet-300 hover:text-violet-200">Recalculate</button>
@@ -303,18 +454,73 @@ export function GenerateStep({ generating, progress, analysis, config, onStart }
 
       {!generating ? (
         <>
-          <div className="mt-6 grid md:grid-cols-2 gap-3 max-w-3xl mx-auto">
-            {sections.map((s, i) => (
-              <div key={i} className="bg-gray-900 border border-gray-700 rounded-xl p-3 flex gap-3 items-center">
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${s.type === "chorus" ? "bg-violet-600 text-white" : s.type === "intro" ? "bg-sky-600 text-white" : s.type === "verse" ? "bg-emerald-600 text-white" : "bg-amber-600 text-white"}`}>{i + 1}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white capitalize flex items-center gap-2">{s.type} <span className="text-xs font-normal text-gray-500">{s.start.toFixed(1)}s → {s.end.toFixed(1)}s</span></p>
-                  <p className="text-xs text-gray-500 truncate">{VISUAL_TREATMENTS[s.type] || "Custom"}</p>
-                  <input placeholder="Override prompt for this section (optional)" value={config.sectionOverrides[`${s.type}-${i}`] || ""} onChange={e => { const v = e.target.value; config.sectionOverrides[`${s.type}-${i}`] = v; }} className="w-full mt-1.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded-lg text-xs text-white placeholder-gray-500" />
-                </div>
-                <span className="text-xs text-gray-500 shrink-0">{(s.energy * 100).toFixed(0)}%</span>
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <button type="button" onClick={loadRouting} disabled={routing || sections.length === 0} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white rounded-xl text-xs font-semibold border border-gray-600 flex items-center gap-2">
+              {routing ? <Loader2 size={14} className="animate-spin" /> : <Target size={14} />} Route Scenes (A6)
+            </button>
+            <button type="button" onClick={handleCreateCanvas} disabled={creatingCanvas} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white rounded-xl text-xs font-semibold border border-gray-600 flex items-center gap-2">
+              {creatingCanvas ? <Loader2 size={14} className="animate-spin" /> : <Scissors size={14} />} Spotify Canvas Loop (A4)
+            </button>
+            <button type="button" onClick={handleAssemble} disabled={assembling || sections.length === 0} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white rounded-xl text-xs font-semibold border border-gray-600 flex items-center gap-2">
+              {assembling ? <Loader2 size={14} className="animate-spin" /> : <Layers size={14} />} Assemble Master (A3)
+            </button>
+            <button type="button" onClick={handleStemViz} disabled={loadingStemViz} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white rounded-xl text-xs font-semibold border border-gray-600 flex items-center gap-2">
+              {loadingStemViz ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />} Stem Viz Uniforms (A5)
+            </button>
+          </div>
+          {assemblyOutput && (
+            <p className="mt-2 text-xs text-emerald-400 text-center">Assembled: {assemblyOutput.split(/[\\/]/).pop()} • Beat-quantized master ready</p>
+          )}
+          {assemblyError && (
+            <p className="mt-2 text-xs text-red-400 text-center">{assemblyError}</p>
+          )}
+          {stemVizData && Object.keys(stemVizData).length > 0 && (
+            <div className="mt-3 bg-gray-900 border border-gray-700 rounded-xl p-3">
+              <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-2">Stem-reactive uniforms (A5)</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {Object.entries(stemVizData).map(([key, val]: [string, any]) => (
+                  <div key={key} className="bg-gray-800/60 rounded-lg p-2">
+                    <p className="text-[10px] text-gray-500 uppercase">{key}</p>
+                    <p className="text-xs text-white font-semibold">{val.stem}</p>
+                    <p className="text-[10px] text-gray-400">{val.duration.toFixed(1)}s • rms {val.rms_mean.toFixed(4)}</p>
+                    <div className="mt-1 h-1 bg-gray-700 rounded-full overflow-hidden">
+                      <div className="h-full bg-violet-500" style={{ width: `${Math.min(100, val.rms_mean * 500)}%` }} />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+          )}
+          {stemVizError && (
+            <p className="mt-2 text-xs text-red-400 text-center">{stemVizError}</p>
+          )}
+          {canvasOutput && (
+            <p className="mt-2 text-xs text-emerald-400 text-center">Canvas loop ready: {canvasOutput.split(/[\\/]/).pop()}</p>
+          )}
+          {canvasError && (
+            <p className="mt-2 text-xs text-red-400 text-center">{canvasError}</p>
+          )}
+          <div className="mt-6 grid md:grid-cols-2 gap-3 max-w-3xl mx-auto">
+            {sections.map((s, i) => {
+              const routeKey = `${s.type}-${i}`;
+              const route = sectionRoutes[routeKey];
+              return (
+                <div key={i} className="bg-gray-900 border border-gray-700 rounded-xl p-3 flex gap-3 items-center">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${s.type === "chorus" ? "bg-violet-600 text-white" : s.type === "intro" ? "bg-sky-600 text-white" : s.type === "verse" ? "bg-emerald-600 text-white" : "bg-amber-600 text-white"}`}>{i + 1}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white capitalize flex items-center gap-2">{s.type} <span className="text-xs font-normal text-gray-500">{s.start.toFixed(1)}s → {s.end.toFixed(1)}s</span></p>
+                    <p className="text-xs text-gray-500 truncate">{VISUAL_TREATMENTS[s.type] || "Custom"}</p>
+                    {route && (
+                      <p className="text-[11px] text-violet-300 mt-1 flex items-center gap-1">
+                        <Target size={10} /> {route.model} <span className="text-gray-500">({route.tier})</span>
+                      </p>
+                    )}
+                    <input placeholder="Override prompt for this section (optional)" value={config.sectionOverrides[`${s.type}-${i}`] || ""} onChange={e => { const v = e.target.value; config.sectionOverrides[`${s.type}-${i}`] = v; }} className="w-full mt-1.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded-lg text-xs text-white placeholder-gray-500" />
+                  </div>
+                  <span className="text-xs text-gray-500 shrink-0">{(s.energy * 100).toFixed(0)}%</span>
+                </div>
+              );
+            })}
           </div>
           <button onClick={onStart} className="mt-6 mx-auto flex px-8 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl items-center gap-2 font-semibold shadow-lg shadow-violet-600/20"><Play size={18} /> Generate Video — {sections.length} sections</button>
         </>

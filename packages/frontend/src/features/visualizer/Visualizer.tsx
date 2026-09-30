@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { PerformanceMonitor } from "@react-three/drei";
 import { Music, AlertCircle, Maximize2, Minimize2, Video, Square, Download, Settings, Snowflake, MessageSquare, Sparkles, Play, Wand2, Accessibility, EyeOff, User, Layers, MoreHorizontal, Keyboard } from "lucide-react";
 import { listAudioFiles, ensureAnalysis, getStemsAnalysis } from "../../services/api";
-import type { AudioAnalysisData, AudioData, VizParams, PerceptualScale } from "./types";
+import type { AudioAnalysisData, AudioData, StemAnalysisData, VizParams, PerceptualScale } from "./types";
 import { DEFAULT_VIZ_PARAMS } from "./types";
 import { useUIStore } from "../../state/uiStore";
 import { getVisualizationForTrack, VisualizationStyle } from "./trackConceptAnalyzer";
@@ -16,7 +16,7 @@ import { ShaderVisualizer } from "./ShaderVisualizer";
 import { ACESFilmicToneMapping } from "three";
 import { useWebGPUDector, createVisualizerRenderer, isWebGPUOptIn } from "./webgpu/WebGPURendererDetector";
 import { SpectrumBar } from "./components/SpectrumBar";
-import { StemMixerPanel } from "./components/StemMixer";
+import { StemMixerPanel, type StemName } from "./components/StemMixer";
 import { StylePicker } from "./components/StylePicker";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UploadPrompt } from "./components/UploadPrompt";
@@ -215,18 +215,7 @@ export function Visualizer() {
   const [vizParams, setVizParams] = useState<VizParams>(DEFAULT_VIZ_PARAMS);
   const [trackMetadata, setTrackMetadata] = useState<Record<string, { bpm?: number; duration?: number }>>({});
   const [analysisData, setAnalysisData] = useState<Record<string, AudioAnalysisData>>({});
-  const [stemsData, setStemsData] = useState<Record<string, Record<string, {
-    file: string;
-    url: string;
-    duration: number;
-    sample_rate: number;
-    rms_mean: number;
-    rms_std: number;
-    centroid_mean: number;
-    zcr_mean: number;
-    energy_curve: number[];
-    energy_curve_points: number;
-  }>>>({});
+  const [stemsData, setStemsData] = useState<Record<string, StemAnalysisData>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const [sceneFrozen, setSceneFrozen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -277,6 +266,7 @@ export function Visualizer() {
   const currentStemsData = currentFilename ? stemsData[currentFilename] ?? null : null;
   const currentStemsDataRef = useRef(currentStemsData);
   currentStemsDataRef.current = currentStemsData;
+  const [stemsMixerState, setStemsMixerState] = useState<{ muted: Record<StemName, boolean>; volumes: Record<StemName, number> } | null>(null);
 
   const audioElapsedRef = useRef(0);
   const [elapsed, setElapsed] = useState(0);
@@ -328,6 +318,10 @@ export function Visualizer() {
   // Interpolated, latency-compensated audio clock (see audioTiming.ts).
   const audioClockRef = useRef(createAudioClock());
   const latencyRef = useRef(0);
+  const sampleAudio = useCallback(() => {
+    const el = audioElRef.current;
+    return el ? audioClockRef.current.sample(el, latencyRef.current) : 0;
+  }, []);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mp4RecorderRef = useRef<ReturnType<typeof createMp4Recorder> | null>(null);
@@ -389,7 +383,7 @@ export function Visualizer() {
     getStemsAnalysis(currentFilename)
       .then((data: { stems: Record<string, { file: string; url: string; duration: number; sample_rate: number; rms_mean: number; rms_std: number; centroid_mean: number; zcr_mean: number; energy_curve: number[]; energy_curve_points: number }>; separated: boolean }) => {
         if (!cancelled && data.separated && Object.keys(data.stems).length > 0) {
-          setStemsData(prev => ({ ...prev, [currentFilename]: data.stems }));
+          setStemsData(prev => ({ ...prev, [currentFilename]: data.stems as StemAnalysisData }));
         }
       })
       .catch(() => {/* stems are optional — never block playback on analysis */});
@@ -1399,11 +1393,7 @@ export function Visualizer() {
                 prefersReducedMotion={prefersReducedMotion}
                 perceptualScale={perceptualScale}
                 active={visualsVisible && vizMode === "3d"}
-                sampleAudio={
-                  audioElRef.current
-                    ? () => audioClockRef.current.sample(audioElRef.current, latencyRef.current)
-                    : undefined
-                }
+                 sampleAudio={sampleAudio}
               />
            </Canvas>
            {visualsVisible ? (
@@ -1416,8 +1406,10 @@ export function Visualizer() {
                    lrcSync={lrcSync}
                    lrcSyncLive={lrcSyncLiveRef}
                    lyrics={lyrics}
-                    stems={currentStemsData as Record<string, { file: string; url: string; duration: number; sample_rate: number; rms_mean: number; rms_std: number; centroid_mean: number; zcr_mean: number; energy_curve: number[]; energy_curve_points: number }> | null | undefined}
-                    sampleAudio={audioElRef.current ? () => audioClockRef.current.sample(audioElRef.current, latencyRef.current) : undefined}
+                    stems={currentStemsData}
+                    stemsMuted={stemsMixerState?.muted}
+                    stemsVolumes={stemsMixerState?.volumes}
+                    sampleAudio={sampleAudio}
                    className="absolute inset-0"
                  />
                )}
@@ -1496,7 +1488,11 @@ export function Visualizer() {
             onError={() => { setIsPlaying(false); setError(`Couldn't load audio — the file may have moved. Pick another track or re-upload.`); }}
           />
           {/* Per-stem mixing (Trend 2: drums→pulse, bass→camera shake, vocals→lyric, other→palette) */}
-          <StemMixerPanel audioFilename={currentFilename} compact />
+          <StemMixerPanel
+            audioFilename={currentFilename}
+            compact
+            onStateChange={setStemsMixerState}
+          />
         </div>
       )}
 

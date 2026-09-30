@@ -72,7 +72,7 @@ export function StudioHeader({
         <button onClick={() => onAddObject("crown")} className="p-2 bg-white/5 hover:bg-violet-600 hover:text-white rounded-lg text-xs transition-all hover:scale-105 active:scale-95" title="Add Crown"><span className="text-sm">👑</span></button>
         <button onClick={() => onAddObject("sphere")} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 active:scale-95 hidden sm:flex" title="Add Sphere"><Box size={14} /></button>
         <button onClick={() => onAddObject("box")} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 active:scale-95 hidden sm:flex" title="Add Box"><Box size={14} /></button>
-        <button onClick={() => onAddObject("character")} className="p-2 bg-amber-500/20 hover:bg-amber-500/30 rounded-lg border border-amber-500/20 transition-all hover:scale-105 active:scale-95" title="Add Character"><User size={14} className="text-amber-300" /></button>
+        <button onClick={() => onAddObject("character")} className="p-2 bg-amber-500/20 hover:bg-amber-500/30 rounded-lg border border-amber-500/20 transition-all hover:scale-105 active:scale-95" title="Add character — placeholder mesh, quality is WIP"><User size={14} className="text-amber-300" /></button>
       </div>
       <button onClick={onViewportReset} className="p-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition-all hover:scale-105 active:scale-95 shrink-0" title="Reset Camera"><Maximize2 size={14} /></button>
       {/* Track selector — larger, clearer */}

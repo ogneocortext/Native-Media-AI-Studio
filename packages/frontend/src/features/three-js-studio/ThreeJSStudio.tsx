@@ -1,7 +1,8 @@
 import { Minimize2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useUIStore } from "../../state/uiStore";
+import { showToast } from "../../utils/toast";
 import { AISceneGenerator } from "./components/AISceneGenerator";
 import type {
   AnimObject,
@@ -121,6 +122,7 @@ export function ThreeJSStudio() {
     getCurrentBeat: () => ({ ready: false, isOnBeat: false, timeSinceLastBeat: 0, beatWindowSec: 0 }),
     generatedSceneUpdateRef,
     onAnimationTimeChange: setAnimationTime,
+    onSelectObject: setSelectedObject,
   });
 
   // Sync beatActive from scene engine
@@ -156,6 +158,23 @@ export function ThreeJSStudio() {
     setParticleConfig,
     setCameraMode,
   });
+
+  // User-initiated adds get explicit feedback: without it an object that
+  // spawns out of frame reads as a no-op (audit F2).
+  const handleAddObject = useCallback(
+    (
+      type: AnimObject["type"],
+      overrides?: Omit<Partial<AnimObject>, "id" | "type">,
+    ) => {
+      addObject(type, overrides);
+      const label = type.charAt(0).toUpperCase() + type.slice(1);
+      showToast(`${label} added — pick it in the Objects list to edit`, {
+        type: "success",
+        duration: 3000,
+      });
+    },
+    [addObject],
+  );
 
   // ---- Track manager ----
   const {
@@ -208,6 +227,28 @@ export function ThreeJSStudio() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [focusMode, toggleFocusMode]);
 
+  // Delete/Backspace removes the selected object (audit F3). Skipped while
+  // typing in a field so it never eats text input.
+  useEffect(() => {
+    const handleDelete = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      if (e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+      ) {
+        return;
+      }
+      if (!selectedObject) return;
+      e.preventDefault();
+      removeObject(selectedObject);
+    };
+    window.addEventListener("keydown", handleDelete);
+    return () => window.removeEventListener("keydown", handleDelete);
+  }, [selectedObject, removeObject]);
+
   // Trigger canvas resize after focus mode toggle
   useEffect(() => {
     if (focusMode) {
@@ -250,7 +291,7 @@ export function ThreeJSStudio() {
         onTogglePerformanceMode={() => setPerformanceMode((v) => !v)}
         onToggleFocusMode={toggleFocusMode}
         onToggleDrawer={() => setDrawerOpen((v) => !v)}
-        onAddObject={addObject}
+        onAddObject={handleAddObject}
         onSelectTrack={handleSelectTrack}
         onViewportReset={handleViewportReset}
       />
@@ -384,7 +425,7 @@ export function ThreeJSStudio() {
         libraryImages={libraryImages}
         onDrawerTabChange={setDrawerTab}
         onSelectObject={setSelectedObject}
-        onAddObject={addObject}
+        onAddObject={handleAddObject}
         onRemoveObject={removeObject}
         onUpdateObject={updateObject}
         onLoadTemplate={loadTemplate}

@@ -38,7 +38,7 @@ export function PlaybackControls({
           <button
             onClick={onRenderPlayPause}
             className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${renderPlaying ? "bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-900/40" : "bg-gray-700 hover:bg-gray-600"}`}
-            title={renderPlaying ? "Pause render" : "Play render"}
+            title={renderPlaying ? "Pause preview" : "Preview play — plays the live canvas, no file is rendered"}
           >
             {renderPlaying ? (
               <Pause size={16} />
@@ -61,7 +61,7 @@ export function PlaybackControls({
               {String(Math.floor(animationTime % 60)).padStart(2, "0")}
             </span>
             <span className="text-[9px] text-gray-500 uppercase tracking-wider">
-              Render
+              Preview
             </span>
           </div>
         </div>

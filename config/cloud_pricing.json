@@ -1,0 +1,52 @@
+{
+  "models": {
+    "wan2.2-5b": {
+      "label": "Wan 2.2 5B (GGUF Q4)",
+      "cloud_price_per_second": 0.005,
+      "tier": "hero",
+      "vram_mb": 7500,
+      "notes": "Primary hero-tier model; GGUF Q4 fits 8GB VRAM"
+    },
+    "wan2.1-1.3b": {
+      "label": "Wan 2.1 1.3B",
+      "cloud_price_per_second": 0.002,
+      "tier": "draft",
+      "vram_mb": 6500,
+      "notes": "Fast draft-tier; native 832×480"
+    },
+    "kling-3.0": {
+      "label": "Kling 3.0",
+      "cloud_price_per_second": 0.008,
+      "tier": "hero",
+      "vram_mb": 8000,
+      "notes": "Highest quality; 3–15s hero shots"
+    },
+    "ltx-2.3": {
+      "label": "LTX 2.3",
+      "cloud_price_per_second": 0.006,
+      "tier": "balanced",
+      "vram_mb": 12000,
+      "notes": "16GB+ class; local GGUF path under evaluation"
+    },
+    "mochi-1": {
+      "label": "Mochi 1",
+      "cloud_price_per_second": 0.004,
+      "tier": "draft",
+      "vram_mb": 12000,
+      "notes": "Research target; 8GB viability unvalidated"
+    },
+    "animate-diff-sd15": {
+      "label": "AnimateDiff SD1.5",
+      "cloud_price_per_second": 0.003,
+      "tier": "draft",
+      "vram_mb": 4500,
+      "notes": "Fastest local iteration"
+    }
+  },
+  "defaults": {
+    "currency": "USD",
+    "unit": "per_second",
+    "local_compute_cost_per_second": 0.0001,
+    "notes": "Local compute is approximated at $0.01/min GPU electricity + depreciation"
+  }
+}

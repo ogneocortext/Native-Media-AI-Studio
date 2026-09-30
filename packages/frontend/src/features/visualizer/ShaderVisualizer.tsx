@@ -4,6 +4,7 @@ import { SHADER_PRESETS, type ShaderPresetName } from "./shaders";
 import { getShaderPresetForTrack, SHADER_PRESET_INFO } from "./shaderPresets";
 import { getPreferences, setPreference } from "../../services/api";
 import type { AudioData, StemAnalysisData } from "./types";
+import type { StemName } from "./components/StemMixer";
 import type { LyricLine } from "./components/LyricOverlay";
 
 const FX_STORAGE_PREFIX = "visualizerFx:";
@@ -104,13 +105,17 @@ interface ShaderVisualizerProps {
   stems?: StemAnalysisData | null;
   /** Current audio position used to sample stem energy curves. */
   sampleAudio?: () => number;
+  /** Current mute state from the stem mixer. Muted stems contribute zero energy. */
+  stemsMuted?: Record<StemName, boolean>;
+  /** Current volume state from the stem mixer. Stems are scaled by volume. */
+  stemsVolumes?: Record<StemName, number>;
 }
 
 /**
  * Shader-driven visualization that auto-selects a preset based on track mood.
  * Audio data drives shader uniforms in real-time.
  */
-export function ShaderVisualizer({ audioData, trackName, isPlaying, className, lrcSync, lrcSyncLive, stems, sampleAudio }: ShaderVisualizerProps) {
+export function ShaderVisualizer({ audioData, trackName, isPlaying, className, lrcSync, lrcSyncLive, stems, sampleAudio, stemsMuted, stemsVolumes }: ShaderVisualizerProps) {
   const [preset, setPreset] = useState<ShaderPresetName>(() => getShaderPresetForTrack(trackName));
   const [showSelector, setShowSelector] = useState(false);
   const [showFx, setShowFx] = useState(true);
@@ -126,6 +131,10 @@ export function ShaderVisualizer({ audioData, trackName, isPlaying, className, l
   const userSelectedPreset = useRef(false);
   const lrcSyncPropRef = useRef(lrcSync);
   lrcSyncPropRef.current = lrcSync;
+  const stemsMutedRef = useRef(stemsMuted);
+  stemsMutedRef.current = stemsMuted;
+  const stemsVolumesRef = useRef(stemsVolumes);
+  stemsVolumesRef.current = stemsVolumes;
 
   // Load FX defaults from backend preferences once, then fall back to localStorage.
   useEffect(() => {
@@ -174,10 +183,10 @@ export function ShaderVisualizer({ audioData, trackName, isPlaying, className, l
       const lrcEnergy = d.energy + phraseFlash * 0.3;
       const elapsed = sampleAudio?.() ?? 0;
       const stemEnergy = {
-        vocals: sampleStemEnergy(stems?.vocals, elapsed),
-        drums: sampleStemEnergy(stems?.drums, elapsed),
-        bass: sampleStemEnergy(stems?.bass, elapsed),
-        other: sampleStemEnergy(stems?.other, elapsed),
+        vocals: (stemsMutedRef.current?.vocals ? 0 : sampleStemEnergy(stems?.vocals, elapsed)) * (stemsVolumesRef.current?.vocals ?? 1),
+        drums: (stemsMutedRef.current?.drums ? 0 : sampleStemEnergy(stems?.drums, elapsed)) * (stemsVolumesRef.current?.drums ?? 1),
+        bass: (stemsMutedRef.current?.bass ? 0 : sampleStemEnergy(stems?.bass, elapsed)) * (stemsVolumesRef.current?.bass ?? 1),
+        other: (stemsMutedRef.current?.other ? 0 : sampleStemEnergy(stems?.other, elapsed)) * (stemsVolumesRef.current?.other ?? 1),
       };
       const stemBoost = stemEnergy.vocals * 0.18 + stemEnergy.drums * 0.32 + stemEnergy.bass * 0.28 + stemEnergy.other * 0.12;
       uniformsRef.current = {

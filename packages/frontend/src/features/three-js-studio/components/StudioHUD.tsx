@@ -21,13 +21,13 @@ export function StudioHUD({
     <div
       className={`hud absolute bottom-2 left-2 bg-black/60 backdrop-blur px-2.5 py-1 rounded text-gray-400 text-[11px] flex flex-wrap items-center gap-x-3 gap-y-0.5 pointer-events-none border border-white/5 max-w-[calc(100%-1rem)] ${focusMode ? "hidden" : ""}`}
     >
-      <span>
-        Objs <span className="text-white font-mono">{objects.length}</span>
+      <span title="Number of objects in the scene">
+        Objects <span className="text-white font-mono">{objects.length}</span>
       </span>
-      <span>
-        Cam <span className="text-purple-400 font-mono">{cameraMode}</span>
+      <span title="Camera motion applied while the preview plays">
+        Camera <span className="text-purple-400 font-mono">{cameraMode}</span>
       </span>
-      <span>
+      <span title={beatSync ? "Beat sync on" : "Beat sync off — enable it in the track bar"}>
         BPM{" "}
         <span
           className={
@@ -40,7 +40,7 @@ export function StudioHUD({
         </span>
       </span>
       {sceneConfig.selectiveBloom && (
-        <span>
+        <span title="Objects with hero glow / bloom enabled">
           Bloom{" "}
           <span className="text-amber-300 font-mono">
             {objects.filter((o) => o.bloom).length}/{objects.length}
