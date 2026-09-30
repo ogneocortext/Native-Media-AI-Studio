@@ -120,6 +120,25 @@
   on purpose: it does not run pytest/pnpm/ruff, which stay explicit local runs.
   Bypass for a deliberate one-off with `git commit --no-verify`.
 
+### D11 — Git LFS hooks are installed but track nothing
+- **Status:** Decided
+- **Context:** `.git/hooks` contains LFS hooks (`pre-push`, `post-commit`,
+  `post-merge`, `post-checkout`) installed by `git lfs install`. The repo has
+  **no** LFS configuration: no `filter=lfs` entry in `.gitattributes`, no
+  `lfs.url`, no pointer files in any commit, and `git lfs ls-files` is empty.
+  Each hook `exit 2`s if `git-lfs` is missing from PATH, which **blocks** the
+  push or commit.
+- **Decision:** **Leave them installed, do not add LFS tracking.** They cost
+  nothing today, and removing them would be a change to someone else's setup
+  with no benefit.
+- **Consequences:** If `git-lfs` ever disappears from PATH, a commit or push
+  will fail with a confusing "repository is configured for Git LFS" message
+  even though nothing is tracked. Fix by reinstalling Git LFS, or by removing
+  those four hook files - the repo does not need them until it actually tracks
+  an LFS object. `scripts/install-git-hooks.sh` lists unmanaged hooks on every
+  run, so they stay visible. If large media starts being committed, revisit
+  this and either adopt LFS deliberately or drop the hooks.
+
 ---
 
 ## Open questions
@@ -187,4 +206,5 @@
 - 2026-09-28: Queue hardening: `priority` column added to jobs (schema v17) with index on `(status, priority DESC, created_at ASC)`. Processor now enforces a per-handler timeout, polls for mid-flight cancellation, and reduces wakeup latency from 5s to 1s. Auto-cleanup expanded to dead-letter jobs and batch-deletes outside the in-memory lock to reduce contention.
 - 2026-09-29: Competitive landscape research updated (VidMuse, MiniMax H3, LTX 2.5, DreamX-Creator, MAGI-2, MelodicPal.ai) in `docs/knowledge-library/ai-music-video-platforms-2026.md`. Cost estimation feature implemented: backend `POST /api/video/estimate-cost`, frontend `estimateRenderCost()` service, and wizard `Generate` step UI showing time, VRAM, frames, and cloud cost before generation.
 - 2026-09-29: D10 recorded — no GitHub Actions. Knowledge-library validation runs via a local pre-commit hook (`scripts/git-hooks/pre-commit`, installed by `scripts/install-git-hooks.sh`) instead. Do not add CI workflows to this repo.
+- 2026-09-29: D11 recorded — the four Git LFS hooks in `.git/hooks` are installed but track nothing (no `filter=lfs`, no pointer files). Left in place; note they block commits/pushes if `git-lfs` is ever missing from PATH. The hook installer now preserves and calls any pre-existing `pre-commit` rather than overwriting it, and is idempotent across re-runs.
 

@@ -18,8 +18,19 @@ set -e
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 
+# The installer may append a call to a pre-existing hook at the end of this file.
+# Every exit below therefore goes through run_chained_hook, so a guard we did
+# not write still runs. An early "exit 0" here would silently disable it.
+chain_file="$(dirname "$0")/pre-commit.backup"
+run_chained_hook() {
+    if [ -f "$chain_file" ] && [ "$chain_file" != "$0" ]; then
+        sh "$chain_file" "$@"
+    fi
+}
+
 # Nothing staged under the library? Nothing to validate.
 if ! git diff --cached --name-only | grep -q '^docs/knowledge-library/'; then
+    run_chained_hook "$@"
     exit 0
 fi
 
@@ -40,6 +51,7 @@ fi
 if [ -z "$PYTHON" ]; then
     echo "pre-commit: no Python interpreter found; skipping knowledge-tag validation." >&2
     echo "            Set one in scripts/git-hooks/pre-commit or install Python." >&2
+    run_chained_hook "$@"
     exit 0
 fi
 
@@ -50,4 +62,5 @@ if ! "$PYTHON" tools/validate-knowledge-tags.py; then
     exit 1
 fi
 
+run_chained_hook "$@"
 exit 0
