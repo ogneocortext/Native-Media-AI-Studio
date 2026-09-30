@@ -33,6 +33,7 @@ run_chained_hook() {
 staged=$(git diff --cached --name-only)
 need_lib=0
 need_map=0
+need_layout=0
 for f in $staged; do
     case "$f" in
         docs/knowledge-library/*) need_lib=1 ;;
@@ -40,8 +41,15 @@ for f in $staged; do
         docs/*)                    need_map=1 ;;
     esac
 done
+# Layout hygiene only matters when tracked files are added or removed, or when
+# the ignore rules change. Editing an existing file cannot introduce a new
+# duplicate or a case collision, so ordinary commits skip this check.
+if git diff --cached --name-only --diff-filter=ADR | grep -q . \
+   || git diff --cached --name-only | grep -qE '\.(gitignore|gitattributes)$'; then
+    need_layout=1
+fi
 
-if [ "$need_lib" -eq 0 ] && [ "$need_map" -eq 0 ]; then
+if [ "$need_lib" -eq 0 ] && [ "$need_map" -eq 0 ] && [ "$need_layout" -eq 0 ]; then
     run_chained_hook "$@"
     exit 0
 fi
@@ -83,6 +91,14 @@ if [ "$need_map" -eq 1 ]; then
     if ! "$PYTHON" tools/check-docs-map.py; then
         echo >&2
         echo "pre-commit: docs/README.md map is out of date (see above)." >&2
+        status=1
+    fi
+fi
+
+if [ "$need_layout" -eq 1 ]; then
+    if ! "$PYTHON" tools/check-repo-layout.py; then
+        echo >&2
+        echo "pre-commit: repository layout check failed (see above)." >&2
         status=1
     fi
 fi

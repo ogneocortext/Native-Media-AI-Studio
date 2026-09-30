@@ -43,7 +43,9 @@ Native-Media-AI-Studio/
 
 - **Do not delete/move** `unity-visualizer/` during cleanup.
 - Scratch artifacts → `docs/scratch/` or `packages/frontend/tests/browser/out/`.
-- Agent screenshots → `packages/frontend/tests/browser/out/` (gitignored).
+- Agent screenshots → `packages/frontend/tests/browser/out/` (gitignored; it was
+  not always, so some older scratch output may still be tracked — see
+  `tools/check-repo-layout.py`).
 
 ## MCP Servers
 

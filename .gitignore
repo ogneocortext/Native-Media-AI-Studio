@@ -274,3 +274,17 @@ tools/music-gen/ACE-Step-1.5/
 # per D10 the local hook is the only automated guard (no CI).
 !scripts/install-git-hooks.sh
 !scripts/git-hooks/
+
+# Unity per-user editor state: machine-specific layout, search and window
+# state. Unity's own template .gitignore excludes these; two engineers on
+# different machines would otherwise see constant churn.
+unity-project-mcp/UserSettings/
+unity-visualizer/UserSettings/
+
+# Agent scratch output: AGENTS.md already directs agents here and calls it
+# gitignored, but these files were committed before that rule existed.
+packages/frontend/tests/browser/out/
+
+# HyperFrames render output: 75 MB unreferenced mp4 plus a base64 frame blob,
+# both regenerable from the compositions and neither referenced by any code.
+tools/hyperframes-built-this-from-a-dream/renders/

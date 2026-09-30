@@ -197,6 +197,20 @@ python tools/analyze_and_sync.py <audio_file> [--output <json_file>] [--fps 24]
   triage (migrate, keep as a separate doc set, or archive) is a deliberate
   decision, not a lint fix.
 
+- `check-repo-layout.py` checks repository organisation: tracked files that look
+  like generated output (caches, scratch, Unity per-user `UserSettings/`, large
+  render artifacts), byte-identical files duplicated across the tree, and
+  case-insensitive path collisions that would break on Linux. Reports only.
+
+  ```bash
+  python tools/check-repo-layout.py
+  ```
+
+  It found the repo tracking 273 files of agent scratch under
+  `packages/frontend/tests/browser/out/` (which `AGENTS.md` had claimed was
+  gitignored), 12 Unity `UserSettings/` files that Unity's own template
+  gitignores, an unreferenced 75 MB render, and two byte-identical Unity scenes.
+
 - `check-docs-map.py` verifies `docs/README.md` is an accurate map of `docs/`:
   every directory it names exists, every real directory it omits, the library's
   JSON data files are mentioned, and `AGENTS.md` actually points agents at the
