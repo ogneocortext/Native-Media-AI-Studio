@@ -12,8 +12,9 @@
  * visual channels.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { getApiBase, getAudioStems, separateAudioFile } from "../../../services/api";
+import { createEQ, DEFAULT_EQ_PRESETS, type EQBand, type EQInstance } from "../audioEQ";
 
 export type StemName = "vocals" | "drums" | "bass" | "other";
 export const STEM_NAMES: StemName[] = ["vocals", "drums", "bass", "other"];
@@ -35,13 +36,19 @@ export interface StemLevels {
 
 interface StemMixerProps {
   audioFilename: string | null;
+  sharedAudioContext?: AudioContext | null;
+  mainAudioRef?: React.MutableRefObject<HTMLAudioElement | null>;
+  mainGainRef?: React.MutableRefObject<GainNode | null>;
   /** Called every animation frame with current per-stem levels (0-1). */
   onLevels?: (levels: StemLevels) => void;
   compact?: boolean;
   onStateChange?: (state: {
     muted: Record<StemName, boolean>;
     volumes: Record<StemName, number>;
+    eqBands: Record<StemName, EQBand[]>;
   }) => void;
+  /** Shared EQ presets (optional; defaults to module presets when omitted). */
+  eqPresets?: Record<string, EQBand[]>;
 }
 
 interface LoadedStem {
@@ -52,6 +59,7 @@ interface LoadedStem {
   gain: GainNode;
   analyser: AnalyserNode;
   buf: Uint8Array<ArrayBuffer>;
+  eq: EQInstance | null;
 }
 
 /** Prefer MP3 stem URLs (~87% smaller transfer, lazy-encoded server-side on
@@ -63,7 +71,15 @@ function pickStemUrls(data: {
   return data.stems_mp3 && Object.keys(data.stems_mp3).length > 0 ? data.stems_mp3 : data.stems;
 }
 
-export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
+export function useStemMixer({
+  audioFilename,
+  sharedAudioContext,
+  mainAudioRef: _mainAudioRef,
+  mainGainRef,
+  onLevels,
+  onStateChange,
+  eqPresets,
+}: StemMixerProps) {
   const [stems, setStems] = useState<Record<StemName, string> | null>(null);
   const [status, setStatus] = useState<"idle" | "checking" | "separating" | "ready" | "error">(
     "idle",
@@ -81,12 +97,17 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
     bass: false,
     other: false,
   });
+  const [eqBands, setEqBands] = useState<Record<StemName, EQBand[]>>({
+    vocals: [],
+    drums: [],
+    bass: [],
+    other: [],
+  });
   const loadedRef = useRef<LoadedStem[]>([]);
   const ctxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number>(0);
   const startedRef = useRef(false);
   const trackRef = useRef<string | null>(null);
-  const didMuteMainRef = useRef(false);
 
   // New track → drop previous stems/graph so nothing stale survives a switch.
   useEffect(() => {
@@ -155,15 +176,12 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
     const created: LoadedStem[] = [];
     (async () => {
       try {
-        const ctx = new AudioContext();
+        const ctx = sharedAudioContext ?? new AudioContext();
         ctxRef.current = ctx;
         for (const name of STEM_NAMES) {
           const raw = stems[name];
           if (!raw) continue;
           const url = resolveStemUrl(raw);
-          // Set crossOrigin BEFORE assigning src so the initial request carries
-          // CORS credentials. Assigning crossOrigin after `new Audio(url)` is
-          // too late — the browser may have already fetched the resource.
           const el = new Audio();
           el.crossOrigin = "anonymous";
           el.src = url;
@@ -177,10 +195,13 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
             );
             continue;
           }
+          const eq = createEQ(ctx, eqBands[name] || []);
           const gain = ctx.createGain();
           const analyser = ctx.createAnalyser();
           analyser.fftSize = 256;
-          source.connect(gain);
+          // Graph: source → eq → gain → analyser → destination
+          source.connect(eq.input);
+          eq.output.connect(gain);
           gain.connect(analyser);
           gain.connect(ctx.destination);
           created.push({
@@ -191,11 +212,18 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
             gain,
             analyser,
             buf: new Uint8Array(analyser.frequencyBinCount),
+            eq,
           });
         }
         if (cancelled) {
-          created.forEach((s) => s.element.pause());
-          void ctx.close();
+          created.forEach((s) => {
+            s.element.pause();
+            if (s.eq) s.eq.dispose();
+          });
+          if (!sharedAudioContext && ctxRef.current) {
+            void ctxRef.current.close();
+            ctxRef.current = null;
+          }
           return;
         }
         loadedRef.current = created;
@@ -214,17 +242,19 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
       loadedRef.current.forEach((s) => {
         s.element.pause();
         s.element.src = "";
+        if (s.eq) s.eq.dispose();
       });
       loadedRef.current = [];
-      if (ctxRef.current) {
+      if (ctxRef.current && !sharedAudioContext) {
         void ctxRef.current.close();
         ctxRef.current = null;
       }
-      // Restore the main track's previous mute state when stems are released.
-      const main = document.querySelector<HTMLAudioElement>("audio[data-main-player]");
-      if (main && didMuteMainRef.current) {
-        main.muted = false;
-        didMuteMainRef.current = false;
+      // Restore the main track's output when stems are released.
+      if (mainGainRef?.current) {
+        mainGainRef.current.gain.value = 1;
+      } else {
+        const main = document.querySelector<HTMLAudioElement>("audio[data-main-player]");
+        if (main) main.muted = false;
       }
     };
   }, [stems]);
@@ -251,26 +281,36 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
   }, [onLevels]);
 
   /** Sync stem transport with the main player. */
-  const syncTransport = useCallback((main: HTMLAudioElement | null) => {
-    const hasLoaded = loadedRef.current.length > 0;
-    for (const stem of loadedRef.current) {
-      if (!main || main.paused) {
-        stem.element.pause();
-        continue;
+  const syncTransport = useCallback(
+    (main: HTMLAudioElement | null) => {
+      const hasLoaded = loadedRef.current.length > 0;
+      for (const stem of loadedRef.current) {
+        if (!main || main.paused) {
+          stem.element.pause();
+          continue;
+        }
+        // Drift correction: seek stems only when they drift > 200 ms. Separate
+        // audio elements naturally drift 50–150 ms (buffering, network latency);
+        // seeking below that threshold causes constant re-buffering and audible
+        // skipping. 200 ms is above the inaudible-drift range but still tight
+        // enough to keep stems aligned with the main track.
+        if (Math.abs(stem.element.currentTime - main.currentTime) > 0.2) {
+          stem.element.currentTime = main.currentTime;
+        }
+        if (stem.element.paused) stem.element.play().catch(() => {});
       }
-      if (Math.abs(stem.element.currentTime - main.currentTime) > 0.15) {
-        stem.element.currentTime = main.currentTime;
+      // Mute the main track via shared gain node when stems are active.
+      if (main && hasLoaded) {
+        if (mainGainRef?.current) {
+          mainGainRef.current.gain.value = 0;
+        } else {
+          // Fallback to HTML mute only if the shared gain node isn't wired yet.
+          main.muted = true;
+        }
       }
-      if (stem.element.paused) stem.element.play().catch(() => {});
-    }
-    // Mute the main track when stems are active so they don't overlap in the mix.
-    if (main && hasLoaded) {
-      if (!main.muted) {
-        didMuteMainRef.current = true;
-      }
-      main.muted = true;
-    }
-  }, []);
+    },
+    [mainGainRef],
+  );
 
   const applyMixerState = useCallback((name: StemName, vol: number, isMuted: boolean) => {
     const stem = loadedRef.current.find((s) => s.name === name);
@@ -296,33 +336,96 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
     [applyMixerState, volumes],
   );
 
+  const setStemEQ = useCallback(
+    (name: StemName, bands: EQBand[]) => {
+      setEqBands((prev) => {
+        const next = { ...prev, [name]: bands };
+        const stem = loadedRef.current.find((s) => s.name === name);
+        if (stem?.eq) {
+          stem.eq.setBands(bands);
+        }
+        onStateChange?.({ muted, volumes, eqBands: next });
+        return next;
+      });
+    },
+    [muted, volumes, onStateChange],
+  );
+
+  const applyStemEQPreset = useCallback(
+    (name: StemName, presetName: string) => {
+      const preset = eqPresets?.[presetName] || DEFAULT_EQ_PRESETS[presetName];
+      if (!preset) return;
+      setStemEQ(
+        name,
+        preset.map((b) => ({ ...b })),
+      );
+    },
+    [eqPresets, setStemEQ],
+  );
+
+  // Expose per-stem EQ presets through the hook return.
   return {
     stems,
     status,
     error,
     volumes,
     muted,
+    eqBands,
     setVolume,
     toggleMute,
+    setStemEQ,
+    applyStemEQPreset,
     ensureStems,
     syncTransport,
   };
 }
 
-export function StemMixerPanel({ audioFilename, compact = false, onStateChange }: StemMixerProps) {
-  const { status, error, volumes, muted, setVolume, toggleMute, ensureStems, syncTransport } =
-    useStemMixer({ audioFilename });
+export function StemMixerPanel({
+  audioFilename,
+  compact = false,
+  onStateChange,
+  sharedAudioContext,
+  mainAudioRef,
+  mainGainRef,
+  eqPresets,
+}: StemMixerProps) {
+  const {
+    status,
+    error,
+    volumes,
+    muted,
+    eqBands,
+    setVolume,
+    toggleMute,
+    setStemEQ,
+    ensureStems,
+    syncTransport,
+  } = useStemMixer({
+    audioFilename,
+    sharedAudioContext,
+    mainAudioRef,
+    mainGainRef,
+    onStateChange,
+    eqPresets,
+  });
 
   useEffect(() => {
-    onStateChange?.({ muted, volumes });
-  }, [muted, volumes, onStateChange]);
+    onStateChange?.({ muted, volumes, eqBands });
+  }, [muted, volumes, eqBands, onStateChange]);
 
   useEffect(() => {
-    // Sync stem transport with the page's main <audio data-main-player> element
-    const main = document.querySelector<HTMLAudioElement>("audio[data-main-player]");
-    const id = setInterval(() => syncTransport(main), 500);
+    if (!syncTransport) return;
+    // 500 ms interval sync — seeking is expensive (re-buffers the element),
+    // so checking every frame caused audible skipping. 500 ms is frequent
+    // enough to catch drift before it becomes noticeable.
+    const id = setInterval(() => {
+      const main =
+        mainAudioRef?.current ??
+        document.querySelector<HTMLAudioElement>("audio[data-main-player]");
+      syncTransport(main);
+    }, 500);
     return () => clearInterval(id);
-  }, [syncTransport]);
+  }, [syncTransport, mainAudioRef]);
 
   if (!audioFilename) return null;
 
@@ -354,31 +457,63 @@ export function StemMixerPanel({ audioFilename, compact = false, onStateChange }
 
       {status === "ready" && (
         <div className={compact ? "grid grid-cols-2 gap-2" : "space-y-2"}>
-          {STEM_NAMES.map((name) => (
-            <div key={name} className="flex items-center gap-2" data-stem={name}>
-              <button
-                onClick={() => toggleMute(name)}
-                className={`w-16 text-left text-[11px] px-1.5 py-1 rounded-md border transition-colors ${
-                  muted[name]
-                    ? "bg-red-500/20 border-red-500/40 text-red-300 line-through"
-                    : "bg-white/5 border-white/10 text-white hover:bg-white/10"
-                }`}
-                title={`Mute ${name} — visual: ${STEM_VISUAL_ROLE[name]}`}
-              >
-                {name}
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={volumes[name]}
-                onChange={(e) => setVolume(name, parseFloat(e.target.value))}
-                className="flex-1 h-1 accent-violet-500"
-                aria-label={`${name} volume`}
-              />
-            </div>
-          ))}
+          {STEM_NAMES.map((name) => {
+            const bands = eqBands[name] || [];
+            return (
+              <div key={name} className="flex flex-col gap-1" data-stem={name}>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => toggleMute(name)}
+                    className={`w-16 text-left text-[11px] px-1.5 py-1 rounded-md border transition-colors ${
+                      muted[name]
+                        ? "bg-red-500/20 border-red-500/40 text-red-300 line-through"
+                        : "bg-white/5 border-white/10 text-white hover:bg-white/10"
+                    }`}
+                    title={`Mute ${name} — visual: ${STEM_VISUAL_ROLE[name]}`}
+                  >
+                    {name}
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={volumes[name]}
+                    onChange={(e) => setVolume(name, parseFloat(e.target.value))}
+                    className="flex-1 h-1 accent-violet-500"
+                    aria-label={`${name} volume`}
+                  />
+                </div>
+                {bands.length > 0 && (
+                  <div className="grid grid-cols-5 gap-1 pl-[4.5rem]">
+                    {bands.map((band, idx) => (
+                      <div key={band.id ?? idx} className="flex flex-col items-center gap-0.5">
+                        <input
+                          type="range"
+                          min={-12}
+                          max={12}
+                          step={0.5}
+                          value={band.gain}
+                          onChange={(e) => {
+                            const next = [...bands];
+                            next[idx] = { ...band, gain: parseFloat(e.target.value) };
+                            setStemEQ(name, next);
+                          }}
+                          className="w-full h-1 accent-emerald-400"
+                          aria-label={`${name} ${band.type} ${band.frequency}Hz`}
+                        />
+                        <span className="text-[9px] text-muted leading-none">
+                          {band.frequency >= 1000
+                            ? `${(band.frequency / 1000).toFixed(band.frequency >= 10000 ? 0 : 1)}k`
+                            : band.frequency}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
           <p className="col-span-2 text-[10px] text-muted leading-relaxed">
             drums→pulse · bass→camera shake · vocals→lyric glow · other→palette
           </p>
