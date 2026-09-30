@@ -515,11 +515,21 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           const idlePulse =
             phraseFlash * 0.3 +
             Math.sin(performance.now() * 0.002 * motionScale) * 0.08 * motionScale;
-          ctx.fillStyle = colors[0] + "60";
-          ctx.font = `${24 * dpr}px monospace`;
+          const t = performance.now() * 0.001;
+          const breathe = 0.55 + Math.sin(t * 0.8) * 0.15;
           ctx.textAlign = "center";
-          ctx.globalAlpha = 0.7 + idlePulse;
-          ctx.fillText(`▶ play a track for audio-reactive`, w / 2, h / 2 + 18 * dpr);
+          // Soft glow behind the text so it reads over the particle field.
+          ctx.shadowColor = colors[0] + "80";
+          ctx.shadowBlur = 18 * dpr;
+          ctx.fillStyle = colors[0];
+          ctx.globalAlpha = breathe;
+          ctx.font = `600 ${22 * dpr}px system-ui, sans-serif`;
+          ctx.fillText("Drop a track to see it move", w / 2, h / 2 - 4 * dpr);
+          ctx.shadowBlur = 0;
+          ctx.globalAlpha = 0.45 + idlePulse * 0.5;
+          ctx.fillStyle = colors[1] || "#a5b4fc";
+          ctx.font = `${12 * dpr}px system-ui, sans-serif`;
+          ctx.fillText("pick a track above — visuals react to the beat", w / 2, h / 2 + 20 * dpr);
           ctx.globalAlpha = 1;
           raf = requestAnimationFrame(draw);
           return;

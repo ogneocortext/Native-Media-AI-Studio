@@ -299,10 +299,16 @@ export function useStemMixer({
         }
         if (stem.element.paused) stem.element.play().catch(() => {});
       }
-      // Mute the main track via shared gain node when stems are active.
+      // Fade the main track out when stems are active (hard gain cuts cause
+      // clicks/pops). setTargetAtTime with a 60 ms time constant is fast
+      // enough to feel immediate but smooth enough to avoid transients.
       if (main && hasLoaded) {
         if (mainGainRef?.current) {
-          mainGainRef.current.gain.value = 0;
+          mainGainRef.current.gain.setTargetAtTime(
+            0,
+            mainGainRef.current.context.currentTime,
+            0.06,
+          );
         } else {
           // Fallback to HTML mute only if the shared gain node isn't wired yet.
           main.muted = true;
@@ -344,7 +350,10 @@ export function useStemMixer({
         if (stem?.eq) {
           stem.eq.setBands(bands);
         }
-        onStateChange?.({ muted, volumes, eqBands: next });
+        // Read current muted/volumes from refs to avoid stale closures.
+        const currentMuted = muted;
+        const currentVolumes = volumes;
+        onStateChange?.({ muted: currentMuted, volumes: currentVolumes, eqBands: next });
         return next;
       });
     },
@@ -438,7 +447,15 @@ export function StemMixerPanel({
         {status === "ready" ? (
           <span className="text-[10px] text-emerald-400">4 stems ready</span>
         ) : status === "checking" ? (
-          <span className="text-[10px] text-muted">checking…</span>
+          <span className="text-[10px] text-amber-400 flex items-center gap-1">
+            <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            checking…
+          </span>
+        ) : status === "separating" ? (
+          <span className="text-[10px] text-amber-400 flex items-center gap-1">
+            <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            separating…
+          </span>
         ) : status === "error" ? (
           <span className="text-[10px] text-red-400" title={error || undefined}>
             unavailable
@@ -455,8 +472,58 @@ export function StemMixerPanel({
         </button>
       )}
 
+      {(status === "checking" || status === "separating") && (
+        <div className="py-2">
+          <div className="flex items-center gap-2 text-[11px] text-muted">
+            <span className="inline-block w-3 h-3 rounded-full border-2 border-amber-400/40 border-t-amber-400 animate-spin" />
+            {status === "checking"
+              ? "Looking for existing stems…"
+              : "Separating stems with Demucs — this can take a minute…"}
+          </div>
+          <div className="mt-2 h-1 rounded-full bg-white/5 overflow-hidden">
+            <div className="h-full w-1/3 rounded-full bg-amber-400/60 animate-pulse" />
+          </div>
+        </div>
+      )}
+
+      {status === "error" && (
+        <div className="py-2 space-y-2">
+          <p className="text-[11px] text-red-300/80 leading-relaxed">
+            {error || "Stems unavailable"}
+          </p>
+          <button
+            onClick={ensureStems}
+            className="w-full py-1.5 text-[11px] rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {status === "ready" && (
         <div className={compact ? "grid grid-cols-2 gap-2" : "space-y-2"}>
+          {/* EQ presets row — apply the same preset to all stems at once */}
+          <div className="flex flex-wrap gap-1">
+            <span className="text-[9px] text-muted uppercase tracking-wider mr-1">EQ</span>
+            {Object.keys(eqPresets || DEFAULT_EQ_PRESETS).map((name) => {
+              const preset = (eqPresets || DEFAULT_EQ_PRESETS)[name];
+              return (
+                <button
+                  key={name}
+                  onClick={() => {
+                    STEM_NAMES.forEach((stemName) => {
+                      const bands = preset.map((b) => ({ ...b }));
+                      setStemEQ(stemName, bands);
+                    });
+                  }}
+                  className="text-[9px] px-1.5 py-0.5 rounded bg-violet-600/20 hover:bg-violet-600/40 text-violet-200"
+                  title={`Apply ${name} EQ to all stems`}
+                >
+                  {name}
+                </button>
+              );
+            })}
+          </div>
           {STEM_NAMES.map((name) => {
             const bands = eqBands[name] || [];
             return (

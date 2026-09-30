@@ -38,6 +38,7 @@ import { VisualizerScene } from "./VisualizerScene";
 import { useLrcSync, computeLrcSync, computeSectionBounds } from "./useLrcSync";
 import type { LrcSyncData } from "./useLrcSync";
 import { ANALYSER_SMOOTHING, createAudioClock, estimateOutputLatency } from "./audioTiming";
+import { createEQ, type EQBand } from "./audioEQ";
 import { ShaderVisualizer } from "./ShaderVisualizer";
 import { ACESFilmicToneMapping } from "three";
 import {
@@ -47,6 +48,7 @@ import {
 } from "./webgpu/WebGPURendererDetector";
 import { SpectrumBar } from "./components/SpectrumBar";
 import { StemMixerPanel, type StemName } from "./components/StemMixer";
+import { EqualizerPanel } from "./components/EqualizerPanel";
 import { StylePicker } from "./components/StylePicker";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UploadPrompt } from "./components/UploadPrompt";
@@ -401,9 +403,17 @@ export function Visualizer() {
   const audioElapsedRef = useRef(0);
   const [elapsed, setElapsed] = useState(0);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const mainGainRef = useRef<GainNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const eqRef = useRef<{
+    input: GainNode;
+    output: GainNode;
+    setBands: (bands: any[]) => void;
+    applyPreset: (name: string) => void;
+    dispose: () => void;
+  } | null>(null);
 
   // LRC sync for precise phrase-synchronized visuals — now reactive via elapsed state
   const lrcSync = useLrcSync(lyrics, elapsed);
@@ -823,6 +833,18 @@ export function Visualizer() {
     lastBeatIdxRef.current = -1;
     lastBeatAtRef.current = 0;
     last3DUiUpdateRef.current = 0;
+    // Fade the main track back in (hard gain cuts cause clicks/pops).
+    if (mainGainRef.current) {
+      mainGainRef.current.gain.setTargetAtTime(1, mainGainRef.current.context.currentTime, 0.06);
+    }
+    // Reset main track EQ to flat on track change.
+    if (eqRef.current) {
+      try {
+        eqRef.current.applyPreset("flat");
+      } catch {
+        /* noop */
+      }
+    }
     const idle: AudioData = {
       bass: 0,
       mid: 0,
@@ -935,7 +957,7 @@ export function Visualizer() {
     try {
       connectedElements.current.add(el);
 
-      // Close previous context if switching elements
+      // Disconnect previous source from shared context if switching elements
       if (sourceRef.current) {
         try {
           sourceRef.current.disconnect();
@@ -944,30 +966,47 @@ export function Visualizer() {
         }
         sourceRef.current = null;
       }
-      if (audioCtxRef.current) {
-        try {
-          await audioCtxRef.current.close();
-        } catch {
-          /* already closed */
+
+      // Lazily create shared AudioContext + analyser + mainGain once
+      if (!audioCtxRef.current) {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioCtxRef.current = ctx;
+        latencyRef.current = estimateOutputLatency(ctx);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        // Light analyser smoothing (was 0.8, which trailed onsets ~100 ms+);
+        // punch/decay shaping lives in our own attack/release stage instead.
+        analyser.smoothingTimeConstant = ANALYSER_SMOOTHING;
+        analyserRef.current = analyser;
+        freqArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+        const mainGain = ctx.createGain();
+        mainGainRef.current = mainGain;
+        const eq = createEQ(ctx, []);
+        eqRef.current = eq;
+        // Graph: source → eq → analyser → mainGain → destination
+        eq.output.connect(analyser);
+        analyser.connect(mainGain);
+        mainGain.connect(ctx.destination);
+      } else {
+        latencyRef.current = estimateOutputLatency(audioCtxRef.current);
+        if (audioCtxRef.current.state === "suspended") {
+          try {
+            await audioCtxRef.current.resume();
+          } catch {
+            /* ignore */
+          }
         }
-        audioCtxRef.current = null;
       }
 
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      audioCtxRef.current = ctx;
-      latencyRef.current = estimateOutputLatency(ctx);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
-      // Light analyser smoothing (was 0.8, which trailed onsets ~100 ms+);
-      // punch/decay shaping lives in our own attack/release stage instead.
-      analyser.smoothingTimeConstant = ANALYSER_SMOOTHING;
-      analyserRef.current = analyser;
-      freqArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+      const ctx = audioCtxRef.current;
       const source = ctx.createMediaElementSource(el);
       sourceRef.current = source;
-      source.connect(analyser);
-      analyser.connect(ctx.destination);
-      if (ctx.state === "suspended") await ctx.resume();
+      const eq = eqRef.current;
+      if (eq) {
+        source.connect(eq.input);
+      } else {
+        source.connect(analyserRef.current!);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Web Audio setup failed");
     }
@@ -990,6 +1029,23 @@ export function Visualizer() {
       setAudioUrl(url);
       setDemoEnabled(false);
       setIsPaused(false);
+      // Ensure shared AudioContext exists so stems can reuse it.
+      if (!audioCtxRef.current) {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioCtxRef.current = ctx;
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        analyser.smoothingTimeConstant = ANALYSER_SMOOTHING;
+        analyserRef.current = analyser;
+        freqArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+        const mainGain = ctx.createGain();
+        mainGainRef.current = mainGain;
+        const eq = createEQ(ctx, []);
+        eqRef.current = eq;
+        eq.output.connect(analyser);
+        analyser.connect(mainGain);
+        mainGain.connect(ctx.destination);
+      }
     },
     [resetAudioDerivedState],
   );
@@ -1007,6 +1063,23 @@ export function Visualizer() {
       setAudioUrl(`/api/audio/file/${encodeAudioRef(fileRef)}`);
       setDemoEnabled(false);
       setIsPaused(false);
+      // Ensure shared AudioContext exists before stems can load.
+      if (!audioCtxRef.current) {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioCtxRef.current = ctx;
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        analyser.smoothingTimeConstant = ANALYSER_SMOOTHING;
+        analyserRef.current = analyser;
+        freqArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+        const mainGain = ctx.createGain();
+        mainGainRef.current = mainGain;
+        const eq = createEQ(ctx, []);
+        eqRef.current = eq;
+        eq.output.connect(analyser);
+        analyser.connect(mainGain);
+        mainGain.connect(ctx.destination);
+      }
       // New track: clear manual preset lock so auto-apply is allowed to run.
       setActiveVisualPresetId(null);
       const trackFolder = fileRef.includes("/") ? fileRef.slice(0, fileRef.lastIndexOf("/")) : "";
@@ -2192,20 +2265,52 @@ export function Visualizer() {
                 `Couldn't load audio — the file may have moved. Pick another track or re-upload.`,
               );
             }}
+            onCanPlay={() => {
+              setError(null);
+            }}
           />
           {/* Per-stem mixing (Trend 2: drums→pulse, bass→camera shake, vocals→lyric, other→palette) */}
           <StemMixerPanel
             audioFilename={currentFilename}
             compact
             onStateChange={setStemsMixerState}
+            sharedAudioContext={audioCtxRef.current}
+            mainAudioRef={audioElRef}
+            mainGainRef={mainGainRef}
           />
+          {currentFilename && (
+            <EqualizerPanel
+              title="Master EQ"
+              eqRef={
+                eqRef as React.MutableRefObject<{
+                  setBands: (bands: EQBand[]) => void;
+                  applyPreset: (name: string) => void;
+                } | null>
+              }
+            />
+          )}
         </div>
       )}
 
       {error && (
         <div className="viz-error-bar" role="alert">
           <AlertCircle size={14} />
-          <span>{error}</span>
+          <span className="flex-1">{error}</span>
+          <button
+            onClick={() => {
+              setError(null);
+              // Force the audio element to remount and retry loading.
+              setAudioUrl(null);
+              setTimeout(() => {
+                if (currentFilename) {
+                  setAudioUrl(`/api/audio/file/${encodeAudioRef(currentFilename)}`);
+                }
+              }, 50);
+            }}
+            className="text-[11px] px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white transition-colors"
+          >
+            Retry
+          </button>
         </div>
       )}
     </div>

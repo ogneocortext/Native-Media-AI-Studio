@@ -278,6 +278,10 @@ node scripts/analyze-bundle-stats.mjs
 | 2026-09-08 | Wizard `ConfigureStep` `<details>` for Steps/CFG/Seed                              | Progressive disclosure, defaults 20/7.0/random for Wan 2.2 5B |
 | 2026-09-30 | `portConfig.ts`: import `PortConfig` from `@shared/types`; sync interface (add `dashboard_port`/`dashboard_url`, optional `video_editor_port`/`comfyui_port`/`comfyui_url`) | `tsc -b` clean — fixes 5 pre-existing TS2304 errors              |
 | 2026-09-30 | Settings: `isAdapterUp()` accepts `connected`/`online`/`healthy` for status text    | Status text no longer contradicts the badge                  |
+| 2026-09-30 | Stem mixer: fade main-track mute/unmute via `setTargetAtTime` (60 ms) instead of hard gain cuts | No more clicks/pops when stems load/release |
+| 2026-09-30 | 2D visualizer idle state: two-line layout, glow, breathe animation (no section label) | Cleaner, less distracting idle canvas |
+| 2026-09-30 | Stem mixer: progress UI for checking/separating + retry button on error | Clearer feedback during Demucs separation |
+| 2026-09-30 | Audio error recovery: `onCanPlay` clears error; retry button remounts the player | Self-healing instead of dead-ending on load failure |
 | 2026-09-08 | Visualizer empty hero + Remotion 3× vertical `1080×1920`                           | Vertical-first master per ai-video-trends P0                  |
 
 ---
