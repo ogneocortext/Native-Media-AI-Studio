@@ -5,11 +5,9 @@ aliases:
   - Notification System Research 2026
   - SSE Notification Improvements
   - Real-time Events
-cssclasses:
-  - technical-guide
-date: 2026-09-29
   - Real-time Notification Best Practices
 cssclasses:
+  - technical-guide
   - research
 date: 2026-09-29
 ---

@@ -101,10 +101,26 @@ def check_documents(docs):
         for required in ("aliases:", "cssclasses:", "date:"):
             if required not in block:
                 errors.append("%s: missing '%s'" % (name, required))
+        check_unique_keys(name, block)
         for ch in read(path):
             if 0x80 <= ord(ch) <= 0x9F:
                 errors.append("%s: C1 control U+%04X (mojibake)" % (name, ord(ch)))
                 break
+
+
+def check_unique_keys(name, block):
+    """Reject duplicate top-level YAML keys.
+
+    YAML silently keeps the last value for a repeated key, so a stale second
+    `date:` looks fine in most tools while the first is discarded. Worse, a
+    stray list item after a scalar key reparses the whole block. Eight documents
+    had this and nothing caught it, because most readers do not error.
+    """
+    keys = re.findall(r"^([A-Za-z_][\w-]*):", block, re.M)
+    dupes = sorted(set(k for k in keys if keys.count(k) > 1))
+    if dupes:
+        errors.append("%s: duplicate frontmatter key(s): %s"
+                      % (name, ", ".join(dupes)))
 
 
 def check_tracker(docs):

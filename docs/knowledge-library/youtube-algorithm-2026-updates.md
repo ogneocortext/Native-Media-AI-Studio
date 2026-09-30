@@ -17,6 +17,14 @@ date: 2026-09-29
 > Critical 2026 changes to YouTube's recommendation system affecting music video promotion.
 > Focus: Viewer satisfaction replacing watch time, new view counting rules, and format-aware discovery.
 
+> [!important] Source of truth for 2026 ranking facts
+> This document is the detailed reference. [[youtube-optimization]] is the
+> workflow guide and quotes a few of the same claims when they drive an action
+> (thumbnail strategy, social SEO, the visualizer lift, outlier analysis). If the
+> two ever disagree, **this document wins** and the other should be corrected.
+> Everything else in that guide - titles, tags, descriptions, export, schedule -
+> is its own concern and is not duplicated here.
+
 ---
 
 ## Major Algorithm Shift: Satisfaction > Watch Time
@@ -374,7 +382,7 @@ Shimga May 2026: Same audio with reactive moving visual gets **2-5× more recomm
 
 ## See Also
 
-- [[youtube-optimization]] - Platform-specific optimization guide
+- [[youtube-optimization]] - Workflow guide: titles, tags, descriptions, thumbnails, export
 - [[music-video-production]] - Full production workflow
 - [[ai-video-trends-2026]] - Industry trends and workflow upgrades
 - [[audio-reactive-production]] - Beat-sync techniques

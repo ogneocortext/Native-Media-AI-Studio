@@ -7,7 +7,6 @@ aliases:
   - Kilo Task Tool Architecture
 cssclasses:
   - platform-guide
-date: 2026-09-29
 date: 2026-08-27
 ---
 
@@ -20,6 +19,13 @@ date: 2026-08-27
 > [!tip] For AI Agents
 > This document maps the internal architecture of Kilo Code's task tool, background job system, provider router, and retry mechanism.
 > Use this to understand why subagents fail and how to configure your environment for reliability.
+>
+> [!note] Analysis vs implementation
+> The "Optimization Strategies" section below proposes runtime TypeScript for
+> fixes Kilo Code does not support in config yet.
+> [[kilo-code-subagent-optimization]] covers the same five strategies from the
+> config side, with what is already shipped and a verification checklist. Read
+> this one for the diagnosis, that one for the config.
 
 ---
 

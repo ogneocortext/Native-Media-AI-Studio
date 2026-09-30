@@ -7,7 +7,6 @@ aliases:
   - Subagent Optimization Config
 cssclasses:
   - platform-guide
-date: 2026-09-29
   - optimization
 date: 2026-09-03
 ---
@@ -21,6 +20,13 @@ date: 2026-09-03
 > [!tip] For AI Agents
 > This document contains the exact config snippets and implementation steps to reduce "provider is unavailable" errors,
 > eliminate thundering herds, and make subagent execution reliable at scale.
+>
+> [!note] Analysis vs implementation
+> Both documents cover the same five strategies (concurrency, lifecycle timeout,
+> rate limits, queueing, depth). The split is: this one shows what was actually
+> **implemented** in `kilo.jsonc` with status and verification steps; the
+> orchestration document explains **why** and proposes the runtime code that
+> would be needed upstream. Neither is a duplicate of the other.
 
 ---
 

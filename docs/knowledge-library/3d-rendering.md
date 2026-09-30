@@ -9,7 +9,6 @@ aliases:
   - Rendering Optimization
 cssclasses:
   - creative-guide
-date: 2026-09-29
 date: 2026-08-29
 ---
 

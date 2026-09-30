@@ -17,6 +17,15 @@ date: 2026-09-29
 > Platform-specific optimization for music videos on YouTube.
 > Covers titles, descriptions, tags, thumbnails, and algorithm optimization.
 
+> [!note] Where the 2026 ranking facts live
+> The "YouTube Algorithm Factors" section below quotes claims (satisfaction
+> weighting, thumbnail leverage, social SEO, the visualizer lift, outlier
+> analysis) that are documented in full in
+> [[youtube-algorithm-2026-updates]], which is the **source of truth** for them.
+> They are repeated here only where they change what you should do. Everything
+> else in this guide - titles, tags, descriptions, export, schedule - is not
+> covered there.
+
 ---
 
 ## Title Formats
@@ -298,6 +307,7 @@ Retention > Likes, Conversations > superficial reactions, Specialization > gener
 
 ## See Also
 
+- [[youtube-algorithm-2026-updates]] — **Source of truth** for 2026 ranking signals
 - [[music-video-production]] — Full production workflow
 - [[prompt-engineering]] — Better prompts for thumbnails
 - [[3d-rendering]] — Export settings for different platforms

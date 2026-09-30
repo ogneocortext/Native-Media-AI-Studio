@@ -8,7 +8,6 @@ aliases:
   - Text-to-3D VRAM
 cssclasses:
   - ai-guide
-date: 2026-09-29
 date: 2026-09-20
 ---
 
