@@ -1,0 +1,29 @@
+# Gemini Tutorial Guidance — Native Media AI Studio (2026-09-30)
+
+Five YouTube tutorials run through Gemini 3.5 Flash Lite in Google AI Studio, prompted for **implementation guidance to steal, adapt, and improve** — not video recaps. Packaged for local review/implementation.
+
+## The set
+
+| # | File | Video | Likes | Focus |
+|---|------|-------|-------|-------|
+| 1 | [01-uvr5-headless-stem-separation.md](01-uvr5-headless-stem-separation.md) | UVR5 vocal extraction (soundlearn) | 21,342 | Hierarchical separation pipeline, model picks for GTX 1070 Ti, anti-AI-grit layer |
+| 2 | [02-karra-suno-vocal-enhancer.md](02-karra-suno-vocal-enhancer.md) | Stock-plugin vocal mixing (KARRA) | 46,100 | "Suno Vocal Enhancer" preset: FFmpeg filter strings + Python blueprint |
+| 3 | [03-in-the-mix-mix-upgrades.md](03-in-the-mix-mix-upgrades.md) | Vocal mixing (In The Mix) | 46,847 | Two-stage EQ, parallel weight bus, sidechain "pocket EQ" on Other stem |
+| 4 | [04-bileam-audio-reactivity-module.md](04-bileam-audio-reactivity-module.md) | Audio reactivity (bileam tschepe) | 7,402* | Audio-reactivity module spec: JSON timeline schema + TypeScript processor |
+| 5 | [05-pppanik-instanced-blob-field.md](05-pppanik-instanced-blob-field.md) | Blob instancing (PPPANIK) | 9,788* | Instanced blob-field: GLSL shaders + Three.js component, 40k-instance budget |
+
+\* Videos 4 and 5 are approved exceptions to the ≥10,000-like rule — no qualifying tutorial exists in the audio-reactive niche (closest alternatives: 9,788 and 7,402 likes).
+
+## Cross-cutting decisions for the implementer
+
+1. **Separation goes hierarchical.** Dedicated vocal model first (`UVR-MDX-NET-Voc_FT` / `Kim_Vocal_2`), then Demucs `htdemucs_ft` on the instrumental residual. Use the `audio-separator` Python package; async job queue for 30–90s jobs; expose `segment_size`/overlap/denoise via `/api/audio/separate`.
+2. **Mixing preset is fully specified.** "Suno Vocal Enhancer": `highpass=f=110` → dynamic tamer @ 2.6/3.8kHz → de-ess 6.5kHz → air boost → 2.5:1 leveling → limiter −1.0dB. Restructure into two-stage EQ (subtractive before comp, character after), add a parallel weight bus (−12 to −18dB), and sidechain-duck 2.5–3.5kHz on the Other stem while vocals sing. Don't compress Suno vocals harder — they're already brickwalled; expand instead.
+3. **Reactivity gets a module.** Per-frame JSON timeline lookup → exponential smoothing (0.35) → gamma-curve mapping to uniforms. Replace `snoise()` drift with deterministic beat-phase waves for re-render stability.
+4. **3D scenes get dense.** 30k–60k instanced tetrahedra on a Fibonacci shell (40k in the sketch), per-instance phase attributes, bass = noise displacement, transients = spore ejection + color-temperature shift. Verify the embedded Ashima `snoise` GLSL against a known-good copy before shipping.
+
+## Provenance
+
+- Each file preserves Gemini's full response verbatim (reconstructed from page extraction; code blocks kept content-identical).
+- Gemini chat links are in each file header (account: ogneocortext@gmail.com).
+- Nothing here has been committed to the Native Media AI Studio repo — review first, then decide what to implement.
+- Feeding this to a local coding agent: start with files 01–03 (audio pipeline, fully specified), then 04–05 (visuals, reference implementations included).
