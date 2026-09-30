@@ -56,12 +56,25 @@ The default scene includes a stylized crown with:
 
 ### Adding Objects
 
-Objects are added via the toolbar:
+Objects come from two places:
 
-1. **Crown** - Adds a pre-built crown prop
-2. **Particles** - Adds particle system
-3. **Export Frame** - Saves current frame as PNG
-4. **Record** - Captures frame sequence for video
+- **Header palette** — 👑 Crown, Sphere, Box, Character
+- **Drawer quick-add row** — the same palette plus Cylinder, Cone, Torus
+
+Each new object gets its **own golden-angle spiral slot** instead of stacking at
+the origin, is selected immediately, and confirms with a toast — so the new
+object is always visible and reachable even when the scene already has objects.
+
+### Selecting & Removing Objects
+
+- **Click an object in the canvas** to select it (dragging still orbits the
+  camera; clicking empty space deselects)
+- **Delete / Backspace** removes the selected object — ignored while focus is
+  in an input/textarea
+- The **Objects list** in the bottom drawer shows every object with visibility,
+  hero-glow (bloom) and per-row remove controls
+- Removing an object releases its GPU resources (`geometry.dispose()`,
+  `material.dispose()`, mixer stop) so long sessions do not leak
 
 ---
 
@@ -69,12 +82,12 @@ Objects are added via the toolbar:
 
 | Property | Range     | Default | Effect                       |
 | -------- | --------- | ------- | ---------------------------- |
-| Count    | 100-10000 | 500     | Number of particles          |
-| Size     | 0.01-0.1  | 0.03    | Particle size in world units |
+| Count    | 100-10000 | 150     | Number of particles          |
+| Size     | 0.01-0.1  | 0.018   | Particle size in world units |
 | Color    | Any       | #8b5cf6 | Particle color               |
-| Speed    | 0-5       | 1.0     | Rise speed                   |
-| Spread   | 1-20      | 5       | Spread radius                |
-| Opacity  | 0-1       | 0.8     | Particle transparency        |
+| Speed    | 0-5       | 0.4     | Rise speed                   |
+| Spread   | 1-20      | 6       | Spread radius                |
+| Opacity  | 0-1       | 0.6     | Particle transparency        |
 
 > [!tip] Music Video Particles
 >
@@ -160,32 +173,53 @@ The scene includes Unreal Bloom post-processing for:
 
 | Parameter | Range | Default | Effect                         |
 | --------- | ----- | ------- | ------------------------------ |
-| Strength  | 0-2   | 0.5     | Intensity of bloom             |
-| Radius    | 0-1   | 0.4     | Spread of glow                 |
-| Threshold | 0-1   | 0.85    | What brightness triggers bloom |
+| Strength  | 0-2   | 0.45    | Intensity of bloom             |
+| Radius    | 0-1   | 0.35    | Spread of glow                 |
+| Threshold | 0-1   | 0.9     | What brightness triggers bloom |
+
+Bloom is **selective**: only objects flagged as hero-glow contribute, so dark
+materials stay dark. The HUD's `Bloom 1/1` counter shows how many objects are
+currently in that layer.
+
+### Vignette, grain & chromatic aberration
+
+| Pass                 | Config key             | Default | Effect                             |
+| -------------------- | ---------------------- | ------- | ---------------------------------- |
+| Vignette             | `vignetteStrength`     | 0.35    | Darkens frame edges toward **black** |
+| Vignette radius      | `vignetteRadius`       | 0.7     | How far in the darkening starts    |
+| Film grain           | `filmGrain`            | 0.04    | Subtle animated noise              |
+| Chromatic aberration | `chromaticAberration`  | 0.0015  | Edge fringing                      |
+
+> [!note] Why a custom vignette
+> Three's stock `VignetteShader` mixes toward `vec3(1.0 - darkness)` — a *grey*
+> wash — which turned the studio background `(78,77,78)` into a flat grey haze.
+> The studio ships its own vignette pass that darkens toward black instead
+> (UX audit finding F8, 2026-09-29). Replacing it re-introduces the haze.
+
+Scene templates override these defaults per preset (`sceneTemplates.ts`), e.g.
+Equalizer Wall sets `bloomStrength: 1.2`, Cosmic Void `vignetteStrength: 0.7`.
 
 ---
 
 ## Export Options
 
+### Preview vs. render
+
+- **Preview** (play button under the canvas) runs the live canvas animation —
+  camera modes, beat pulse, timeline scrub. It writes **no file**.
+- File output is **Export Frame**. Keep the words *render* / *export* for
+  actions that actually produce a file (UX audit finding F9, 2026-09-29).
+
 ### Frame Export
 
-- Click **Export Frame** to save current view as PNG
+- Click the **download icon** in the header to save the current view as PNG
 - Resolution matches canvas size
 - Useful for thumbnails or still renders
 
-### Video Recording
-
-- Click **Record** to start capturing frames
-- Frames captured at selected FPS (24/30/60)
-- Click again to stop and download all frames
-- Compile frames into video externally (FFmpeg, etc.)
-
-> [!tip] Video Creation
->
-> 1. Record at 24fps for cinematic look
-> 2. Record at 30fps for standard video
-> 3. Use FFmpeg to compile frames: `ffmpeg -framerate 24 -i frame_%04d.png -c:v libx264 -pix_fmt yuv420p output.mp4`
+> [!warning] Frame-sequence recording is not implemented
+> The older docs described a **Record** button capturing an FPS-selective PNG
+> sequence — there is no such control in the studio. For frame sequences use
+> the Unity/Blender capture paths (`docs/guides/MUSIC_VIDEO_GUIDE.md`).
 
 ---
 
@@ -255,6 +289,25 @@ beatCallbackRef.current = (elapsedTime) => {
 }
 ```
 
+### Headless hooks
+
+`window.__renderer` — the live `WebGLRenderer` while the studio is mounted
+(assigned in `useThreeScene`, removed on unmount). Browser checks read
+`renderer.info.memory.{geometries,textures}` and `renderer.info.programs.length`
+to prove GPU disposal; everything else is driven through the real UI (HUD
+counters, add toasts, canvas hit-testing, panel selects).
+
+### Regression checks
+
+```bash
+node packages/frontend/tests/browser/three-studio-audit-checks.mjs   # audit F2-F6/F9 (10 checks)
+node packages/frontend/tests/browser/three-studio-dispose-check.mjs  # audit F1 (GPU dispose on removal)
+```
+
+Both scripts need a dev server on `127.0.0.1:5173` and assert **zero console
+errors**. The vignette change alters `/three-js-studio` pixels — re-capture
+`tests/visual/baselines/` when post-processing defaults change.
+
 ---
 
 ## See Also
@@ -267,4 +320,4 @@ beatCallbackRef.current = (elapsedTime) => {
 
 ---
 
-_Last updated: 2026-08-24_
+_Last updated: 2026-09-29_

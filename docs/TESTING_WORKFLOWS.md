@@ -41,6 +41,19 @@ The Playwright suite runs against the loopback Vite server (`127.0.0.1:5173`) an
 
 Route handlers in `tests/helpers.ts` are composable — individual mock functions (`mockApiHealth`, `mockApiQueueEmpty`, `mockApiSystemHealth`, etc.) do **not** call `cleanupRoutes()` internally. This allows stacking multiple mocks in one test without interference. Always call `cleanupRoutes(page)` in `beforeEach` or `afterEach` to reset between tests.
 
+### Three.js Studio audit checks
+
+Two standalone browser scripts regression-test the `/three-js-studio` UX audit
+(`docs/ux-audit/three-js-visualizer-review-2026-09-29.md`). They live under
+`packages/frontend/tests/browser/` (excluded from Playwright discovery), need a
+dev server on `127.0.0.1:5173`, assert zero console errors, and exit non-zero
+on failure:
+
+```bash
+node packages/frontend/tests/browser/three-studio-audit-checks.mjs   # F2-F6/F9 — 10 checks
+node packages/frontend/tests/browser/three-studio-dispose-check.mjs  # F1 — geometry/textures dispose on removal
+```
+
 ### SSE / Polling SPAs
 
 - `navigateWithWait` uses `domcontentloaded` + a stable locator, **not** `networkidle`, which is known to cause flakiness with SSE/polling SPAs.
