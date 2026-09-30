@@ -174,8 +174,28 @@ python tools/analyze_and_sync.py <audio_file> [--output <json_file>] [--fps 24]
 
   Checks that every library document has YAML frontmatter whose **first** tag is
   a primary category, that required keys (`aliases`, `cssclasses`, `date`) are
-  present, that no mojibake remains, that the tracker lists each document in the
-  right section with correct counts, and that line endings are LF.
+  present with no duplicate keys, that no mojibake remains, that the tracker
+  lists each document in the right section with correct counts, and that line
+  endings are LF.
+
+  It also warns about **duplicate markdown basenames** across directories, which
+  make `[[wiki-links]]` ambiguous and let copies drift apart. This is currently
+  reporting 7, including a genuine collision:
+  `docs/knowledge/three-js-studio.md` vs
+  `docs/knowledge-library/three-js-studio.md` are different documents with the
+  same name.
+
+  To inventory markdown **outside** the library, which the tag checks never see:
+
+  ```bash
+  python tools/validate-knowledge-tags.py --scope=all
+  ```
+
+  This is report-only. It applies no checks and never changes the exit code —
+  65 of the 68 tracked markdown files outside the library have no frontmatter at
+  all, and failing them would block every commit until each was triaged. That
+  triage (migrate, keep as a separate doc set, or archive) is a deliberate
+  decision, not a lint fix.
 
 ## Git Hooks
 

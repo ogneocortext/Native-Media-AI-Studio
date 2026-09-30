@@ -1,16 +1,22 @@
-"""Validate knowledge-library frontmatter and the migration tracker.
+"""Validate knowledge-library frontmatter, the tag taxonomy, and doc hygiene.
 
-Checks:
+Library checks (errors fail the pre-commit hook):
   1. every library document has a frontmatter block;
   2. its first tag is one of the seven primary categories (the rule that four
      documents silently violated);
-  3. it declares aliases, cssclasses and a date;
-  4. no mojibake (C1 controls) remains;
+  3. it declares aliases, cssclasses and a date, with no duplicate YAML keys;
+  4. no mojibake (C1 controls) remains, and line endings are LF;
   5. migration-progress.md lists every document exactly once, in the section
      matching that document's primary tag, with correct (N/N) counters;
   6. index.md tag counts match the tags actually present.
 
-Run from anywhere:  python tools/validate-knowledge-tags.py
+Warnings (reported, never fail): tag-vocabulary drift in both directions, and
+duplicate markdown basenames across directories.
+
+Report-only: --scope=all inventories markdown outside the library, which the tag
+checks never see. It applies no checks and never changes the exit code.
+
+Run from anywhere:  python tools/validate-knowledge-tags.py [--scope=all]
 Exit code 0 = clean, 1 = problems found.
 """
 from __future__ import print_function
@@ -63,8 +69,18 @@ def documented_tags():
 
 
 def read(path):
-    with io.open(path, encoding="utf-8") as f:
-        return f.read()
+    """Read a text file, tolerating a UTF-16 BOM.
+
+    A couple of tracked markdown files are UTF-16 (byte-order mark FF FE), which
+    is why a plain utf-8 read raised UnicodeDecodeError and crashed the report.
+    Decoding by BOM keeps the tool working and lets the report name the file;
+    whether those files should be UTF-8 is a separate cleanup.
+    """
+    with io.open(path, "rb") as f:
+        data = f.read()
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return data.decode("utf-16", "replace")
+    return data.decode("utf-8", "replace")
 
 
 def frontmatter(path):
@@ -235,6 +251,52 @@ def check_dead_vocabulary(docs):
                             "no document uses it" % tag)
 
 
+def check_duplicate_basenames():
+    """Warn when two tracked markdown files share a basename.
+
+    Wiki-links resolve by basename, so two files called ``three-js-studio.md``
+    make every ``[[three-js-studio]]`` ambiguous, and the two copies drift
+    silently. The repo already has this: docs/knowledge/three-js-studio.md and
+    docs/knowledge-library/three-js-studio.md are different documents.
+
+    A warning, not an error: README.md legitimately appears in many folders, so
+    this is reported rather than enforced.
+
+    Only git-tracked files are considered. Walking the filesystem picks up
+    vendored trees (.venv, dist, site-packages) that are gitignored and would
+    bury the real signal in dozens of LICENSE.md hits.
+    """
+    try:
+        import subprocess
+        out = subprocess.check_output(
+            ["git", "ls-files", "*.md"], cwd=ROOT,
+            stderr=subprocess.DEVNULL)
+        tracked = out.decode("utf-8", "replace").split("\n")
+    except Exception:
+        return  # not a git checkout, or git unavailable: skip quietly
+
+    seen = {}
+    for rel in tracked:
+        rel = rel.strip()
+        if not rel:
+            continue
+        full = os.path.join(ROOT, rel.replace("/", os.sep))
+        if not os.path.isfile(full):
+            continue
+        seen.setdefault(os.path.basename(rel), []).append(rel.replace("\\", "/"))
+
+    for name, paths in sorted(seen.items()):
+        if len(paths) < 2:
+            continue
+        identical = None
+        if len(paths) == 2:
+            identical = (read(os.path.join(ROOT, paths[0].replace("/", os.sep))) ==
+                         read(os.path.join(ROOT, paths[1].replace("/", os.sep))))
+        kind = "identical copies" if identical else "DIVERGENT copies"
+        warnings.append("duplicate basename '%s' in %d locations (%s): %s"
+                        % (name, len(paths), kind, ", ".join(paths)))
+
+
 def check_line_endings(docs):
     """Guard against CRLF creep.
 
@@ -250,13 +312,76 @@ def check_line_endings(docs):
                           "a rewrite likely converted them" % name)
 
 
+def report_all_docs():
+    """Report-only inventory of markdown outside the knowledge library.
+
+    The tag checks only see docs/knowledge-library/. This walks the rest of the
+    repository so documents the taxonomy has never covered are visible instead
+    of invisible. Reports only - it changes no exit code and no check state,
+    because failing 40+ pre-existing files would block every commit until they
+    were all fixed, which is a separate decision about the docs taxonomy.
+
+    Run:  python tools/validate-knowledge-tags.py --scope=all
+    """
+    try:
+        import subprocess
+        out = subprocess.check_output(
+            ["git", "ls-files", "*.md"], cwd=ROOT,
+            stderr=subprocess.DEVNULL)
+        tracked = [r.strip() for r in out.decode("utf-8", "replace").split("\n") if r.strip()]
+    except Exception:
+        return []
+
+    lib_prefix = "docs" + os.sep + "knowledge-library" + os.sep
+    outside, no_fm, mismatched = [], [], []
+    for rel in tracked:
+        full = os.path.join(ROOT, rel.replace("/", os.sep))
+        if not os.path.isfile(full):
+            continue
+        if rel.startswith("docs/knowledge-library/"):
+            continue
+        outside.append(rel)
+        text = read(full)
+        if not re.match(r"\A---\r?\n", text):
+            no_fm.append(rel)
+            continue
+        # Has frontmatter: is the first tag a library category?
+        block, tags = frontmatter(full)
+        if tags and tags[0] not in CATEGORIES:
+            mismatched.append((rel, tags[0]))
+
+    print("")
+    print("=" * 72)
+    print("REPORT: markdown outside docs/knowledge-library/ (no checks applied)")
+    print("=" * 72)
+    print("  tracked .md outside the library : %d" % len(outside))
+    print("  with no frontmatter at all      : %d" % len(no_fm))
+    print("  frontmatter but no library tag  : %d" % len(mismatched))
+    by_dir = Counter()
+    for rel in no_fm:
+        by_dir[os.path.dirname(rel)] += 1
+    print("\n  untagged files by directory:")
+    for d, n in sorted(by_dir.items(), key=lambda x: (-x[1], x[0])):
+        print("      %3d  %s" % (n, d or "."))
+    if mismatched:
+        print("\n  frontmatter present but not library-tagged:")
+        for rel, tag in mismatched[:10]:
+            print("      %s (first tag: %s)" % (rel, tag))
+    print("\n  These are not failures. Decide deliberately whether each is")
+    print("  (a) library material that needs migrating, (b) a separate doc set")
+    print("  with its own conventions, or (c) a historical artifact to archive.")
+    return no_fm
+
+
 def main():
+    args = sys.argv[1:]
     docs = collect()
     check_documents(docs)
     check_tracker(docs)
     check_index(docs)
     check_vocabulary(docs)
     check_dead_vocabulary(docs)
+    check_duplicate_basenames()
     check_line_endings(docs)
     print("documents checked : %d" % len(docs))
     if warnings:
@@ -268,6 +393,9 @@ def main():
         for e in errors:
             print("  - %s" % e)
         return 1
+    if "--scope=all" in args or "-a" in args:
+        report_all_docs()
+    print("")
     print("all checks passed")
     return 0
 
