@@ -46,6 +46,12 @@
   Pascal/sm_61 → float32, Turing+ → float16). Stems auto-encode MP3 copies
   (~13% of WAV); StemMixer prefers MP3 URLs.
 - **Consequences:** `POST /api/audio/separate`, `POST /api/audio/transcribe`.
+- **Evaluation (2026-09-30):** Frontend `StemMixer.tsx` now handles partial
+  stem-load failures per-stem instead of failing the whole mixer. CORS
+  `crossOrigin` is set before `src` assignment. Unused live-metering rAF loop
+  is gated behind `onLevels` prop so `StemMixerPanel` skips it. Web research
+  (MDN + WebAudio spec) confirms two `AudioContext` instances (main analyser
+  + stem mixer) is functional but a future optimization is to share one.
 
 ### D5 — Vision analysis workflow
 - **Status:** Decided

@@ -8,10 +8,38 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { FilmShader } from "three/examples/jsm/shaders/FilmShader.js";
 import { RGBShiftShader } from "three/examples/jsm/shaders/RGBShiftShader.js";
-import { VignetteShader } from "three/examples/jsm/shaders/VignetteShader.js";
 import { SCENE_TEMPLATES } from "../sceneTemplates";
 import { BLOOM_LAYER } from "../threeStudioConfig";
 import type { UseThreeSceneOptions, UseThreeSceneResult } from "./types";
+
+// Vignette that darkens towards black. three's stock VignetteShader mixes
+// towards `vec3(1 - darkness)`, so a strength below 1.0 washes dark pixels
+// (sky, floor) out to mid-grey instead of shading the frame — which is what
+// read as a washed-out gradient once the orbit moved those areas to the edges.
+const VIGNETTE_SHADER = {
+  uniforms: {
+    tDiffuse: { value: null },
+    offset: { value: 1.0 },
+    darkness: { value: 1.0 },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform float offset;
+    uniform float darkness;
+    uniform sampler2D tDiffuse;
+    varying vec2 vUv;
+    void main() {
+      vec4 texel = texture2D(tDiffuse, vUv);
+      vec2 uv = (vUv - vec2(0.5)) * vec2(offset);
+      float shade = clamp(dot(uv, uv) * darkness * 4.0, 0.0, 1.0);
+      gl_FragColor = vec4(mix(texel.rgb, vec3(0.0), shade), texel.a);
+    }`,
+};
 
 export function useThreeScene({
   canvasRef,
@@ -276,7 +304,7 @@ export function useThreeScene({
       grainPass.uniforms.grayscale.value = false;
       if (grainPass.uniforms.intensity.value > 0.01) finalComposer.addPass(grainPass);
       grainPassRef.current = grainPass;
-      const vignettePass = new ShaderPass(VignetteShader);
+      const vignettePass = new ShaderPass(VIGNETTE_SHADER);
       vignettePass.uniforms.offset.value =
         sceneConfigRef.current.vignetteRadius;
       vignettePass.uniforms.darkness.value =

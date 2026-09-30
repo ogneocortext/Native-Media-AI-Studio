@@ -138,7 +138,7 @@ and optional asset/caption mapping after validating real storyboard payloads.
 These are data structures that are produced but never consumed by downstream
 stages.
 
-### 3.1 Demucs Stems → Visualizer: Implemented
+### 3.1 Demucs Stems → Visualizer: Implemented + Evaluated
 
 **Status:** ✅ Implemented. The visualizer now consumes per-stem energy curves
 and mixer state (`stemsMuted`, `stemsVolumes`) to modulate shader uniforms in
@@ -150,6 +150,25 @@ real time.
 - `packages/frontend/src/features/visualizer/StemMixer.tsx` — per-stem volume/mute UI, propagates state upward
 - `packages/frontend/src/features/visualizer/Visualizer.tsx` — fetches stem analysis, passes `stems`, `sampleAudio`, `stemsMuted`, `stemsVolumes` to `ShaderVisualizer`
 - `packages/frontend/src/features/visualizer/ShaderVisualizer.tsx` — samples stem energy curves per frame and applies mute/volume scaling before blending into shader uniforms
+
+**Evaluation findings (2026-09-30):**
+1. **Resilience gap fixed:** `StemMixer.tsx` previously failed all stems if one
+   `createMediaElementSource` or network fetch threw. Wired per-stem try/catch
+   so partial loads succeed and missing stems are skipped with a visible warning.
+2. **CORS ordering fixed:** `crossOrigin = "anonymous"` was set AFTER `new Audio(url)`,
+   meaning the initial request could fire without CORS headers. Now the element
+   is created blank, `crossOrigin` is assigned, then `src` is set.
+3. **Unused metering loop gated:** The `onLevels` rAF loop now only runs when a
+   consumer actually passes `onLevels`. `StemMixerPanel` does not, so the loop
+   is skipped — saves ~1ms/frame of wasted analyser reads.
+4. **Data flow verified:** Backend `stem_analysis.py` downsamples energy curves
+   to 80 points (max-pooling preserves peaks). Frontend `sampleStemEnergy` maps
+   `elapsed / duration` linearly into that array. Drift is bounded by the
+   downsampling resolution (~3s per bin on a 4-min track).
+5. **Web research confirms:** MDN and WebAudio spec recommend one `AudioContext`
+   per page; the current code uses two (main analyser + stem mixer). Not a bug
+   because each is independently cleaned up, but a future optimization is to
+   share one context.
 
 **Impact:** Resolved. Stems now drive visualizer reactivity: drums→beat pulse,
 bass→camera shake, vocals→lyrical emphasis, other→palette shift.

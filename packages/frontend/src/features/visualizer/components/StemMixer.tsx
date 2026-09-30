@@ -143,10 +143,20 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
           const raw = stems[name];
           if (!raw) continue;
           const url = resolveStemUrl(raw);
-          const el = new Audio(url);
+          // Set crossOrigin BEFORE assigning src so the initial request carries
+          // CORS credentials. Assigning crossOrigin after `new Audio(url)` is
+          // too late — the browser may have already fetched the resource.
+          const el = new Audio();
           el.crossOrigin = "anonymous";
+          el.src = url;
           el.preload = "auto";
-          const source = ctx.createMediaElementSource(el);
+          let source: MediaElementAudioSourceNode;
+          try {
+            source = ctx.createMediaElementSource(el);
+          } catch (e) {
+            setError(`Failed to wire stem "${name}" — ${e instanceof Error ? e.message : String(e)}`);
+            continue;
+          }
           const gain = ctx.createGain();
           const analyser = ctx.createAnalyser();
           analyser.fftSize = 256;
@@ -161,6 +171,11 @@ export function useStemMixer({ audioFilename, onLevels }: StemMixerProps) {
           return;
         }
         loadedRef.current = created;
+        if (created.length === 0) {
+          setError("No stems could be loaded — check server logs");
+          setStatus("error");
+          return;
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
         setStatus("error");
