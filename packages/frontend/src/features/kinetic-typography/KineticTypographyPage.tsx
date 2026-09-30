@@ -4,6 +4,7 @@ import { kineticPresets, kineticPresetList, selectPresetForTrack, type LyricLine
 import { listAudioFiles, ensureAnalysis, transcribeAudio, getLyricsByFilename } from "../../services/api";
 import { parseLyricsFromCsv, parseLrc } from "../visualizer/lyricsParser";
 import { createDefaultLyricsData, lyricsDataToLegacy, legacyToLyricsData } from "../visualizer/lyricsData";
+import { fetchTrackLyricsIndex, fetchTrackLyrics, toLyricLines, type TrackLyricsIndexEntry } from "../../data/trackLyrics";
 import { LyricsEditorModal } from "./components/LyricsEditorModal";
 import { PresetSelector, type VisualPreset } from "../visualizer/PresetSelector";
 import { consumePendingTrack } from "../../utils/pendingTrack";
@@ -88,6 +89,37 @@ function formatTime(s: number): string {
   return `${Math.floor(safe / 60)}:${Math.floor(safe % 60).toString().padStart(2, "0")}`;
 }
 
+// Normalize a track name for matching against the track-lyrics library
+function normalizeTrackName(s: string): string {
+  return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+// Find a track-lyrics library entry for an audio track name.
+// Exact normalized id/title match wins; otherwise the most specific
+// (longest) entry whose id/title contains or is contained in the name.
+function findLibraryTrack(name: string, entries: TrackLyricsIndexEntry[]): TrackLyricsIndexEntry | null {
+  const norm = normalizeTrackName(name);
+  if (!norm) return null;
+  const exact = entries.find(e =>
+    normalizeTrackName(e.id) === norm || normalizeTrackName(e.title) === norm
+  );
+  if (exact) return exact;
+  let best: TrackLyricsIndexEntry | null = null;
+  let bestLen = -1;
+  for (const e of entries) {
+    const idNorm = normalizeTrackName(e.id);
+    const titleNorm = normalizeTrackName(e.title);
+    const matches =
+      idNorm.includes(norm) || norm.includes(idNorm) ||
+      titleNorm.includes(norm) || norm.includes(titleNorm);
+    if (matches) {
+      const len = Math.max(idNorm.length, titleNorm.length);
+      if (len > bestLen) { best = e; bestLen = len; }
+    }
+  }
+  return best;
+}
+
 export function KineticTypographyPage() {
   const [activePreset, setActivePreset] = useState("cinematic");
   const [isPlaying, setIsPlaying] = useState(false);
@@ -99,6 +131,12 @@ export function KineticTypographyPage() {
   const [beatPulse, setBeatPulse] = useState(true);
   const [selectedTrack, setSelectedTrack] = useState<TrackInfo | null>(null);
   const [libraryFiles, setLibraryFiles] = useState<TrackInfo[]>([]);
+  // Track-lyrics library: the user's own tracks with lyrics but no LRC.
+  // Selecting one previews kinetic typography in demo mode (estimated timing).
+  const [libraryTracks, setLibraryTracks] = useState<TrackLyricsIndexEntry[]>([]);
+  const libraryTracksRef = useRef<TrackLyricsIndexEntry[]>([]);
+  const [selectedLibraryTrackId, setSelectedLibraryTrackId] = useState<string | null>(null);
+  const [libraryTrackDuration, setLibraryTrackDuration] = useState<number | null>(null);
   const [autoPreset, setAutoPreset] = useState(true);
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
@@ -146,6 +184,14 @@ export function KineticTypographyPage() {
         })));
       }
     }).catch(() => {});
+    // Load the track-lyrics library index (user's own tracks, no LRC needed)
+    fetchTrackLyricsIndex()
+      .then(idx => {
+        const complete = (idx.tracks || []).filter(t => t.lyricsStatus === "complete");
+        libraryTracksRef.current = complete;
+        setLibraryTracks(complete);
+      })
+      .catch(() => {});
     // Load normalized lyrics CSV (fallback to legacy if not found)
     fetch("/track-lyrics-normalized.csv")
       .then(r => r.text())
@@ -187,7 +233,10 @@ export function KineticTypographyPage() {
   // Demo-mode playback — advance elapsed on a timer when no audio element exists.
   // Without this, Play in "Demo Mode (Sample Lyrics)" toggles state but the
   // preview never advances because nothing drives `elapsed`.
-  const demoDuration = selectedTrack?.duration || 60;
+  // Playback duration: real audio track first, then the lyric-library
+  // preview track (estimated timing), then the 60s demo default.
+  const playbackDuration = selectedTrack?.duration || libraryTrackDuration || 60;
+  const demoDuration = playbackDuration;
   const elapsedRef = useRef(elapsed);
   const demoBaseRef = useRef(0);
   useEffect(() => { elapsedRef.current = elapsed; }, [elapsed]);
@@ -209,7 +258,7 @@ export function KineticTypographyPage() {
 
   // Unified seek — works for real audio and demo-mode timer playback.
   const seekTo = useCallback((t: number) => {
-    const clamped = Math.max(0, Math.min(t, selectedTrack?.duration || 60));
+    const clamped = Math.max(0, Math.min(t, playbackDuration));
     if (audioRef.current) {
       audioRef.current.currentTime = clamped;
     } else {
@@ -217,7 +266,7 @@ export function KineticTypographyPage() {
       if (isPlaying) demoBaseRef.current = performance.now() - clamped * 1000;
     }
     setElapsed(clamped);
-  }, [isPlaying, selectedTrack]);
+  }, [isPlaying, playbackDuration]);
 
   // Sync volume (re-applied when the audio element remounts on track change)
   useEffect(() => {
@@ -371,6 +420,24 @@ export function KineticTypographyPage() {
       // No LRC file found, try CSV
     }
 
+    // Track-lyrics library: the user's own tracks with no LRC — match by
+    // normalized title and use the library's estimated timing.
+    const libraryEntry = findLibraryTrack(trackName, libraryTracksRef.current);
+    if (libraryEntry) {
+      try {
+        const doc = await fetchTrackLyrics(libraryEntry);
+        const libraryLines = toLyricLines(doc, { fallbackDurationSec: duration });
+        if (libraryLines.length > 0) {
+          setLyrics(libraryLines);
+          setLyricsData(legacyToLyricsData(libraryLines));
+          setLyricsSource("track-lyrics");
+          return;
+        }
+      } catch {
+        // Library fetch failed — fall through to CSV
+      }
+    }
+
     // Fallback to CSV parsing
     const parsedLyrics = parseLyricsFromCsv(csvContent, trackName, duration);
     if (parsedLyrics.length > 0) {
@@ -430,6 +497,10 @@ export function KineticTypographyPage() {
     const file = libraryFiles.find(f => f.filename === filename);
     if (!file) return;
 
+    // Leaving lyric-library mode: an audio file takes over playback
+    setSelectedLibraryTrackId(null);
+    setLibraryTrackDuration(null);
+
     // Guard against out-of-order responses when switching tracks quickly:
     // only the latest request may update state.
     const requestId = ++trackRequestRef.current;
@@ -481,14 +552,62 @@ export function KineticTypographyPage() {
     }
   }, [libraryFiles, autoPreset, loadLyricsForTrack]);
 
-  // If the lyrics CSV finished loading after a track was selected (both load
-  // in parallel on mount), retry the CSV fallback once instead of leaving
-  // stale sample lyrics with source "none".
+  // Select a track from the track-lyrics library (no audio file).
+  // Loads the library lyrics with estimated timing and previews them in
+  // demo mode — the demo timer drives `elapsed` since there is no audio.
+  const handleLibraryTrackSelect = useCallback(async (id: string) => {
+    if (!id) {
+      setSelectedLibraryTrackId(null);
+      setLibraryTrackDuration(null);
+      return;
+    }
+    const entry = libraryTracks.find(e => e.id === id);
+    if (!entry) return;
+
+    // Guard against out-of-order responses when switching tracks quickly
+    const requestId = ++trackRequestRef.current;
+
+    // Stop any playing audio — library tracks have no audio file
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+
+    setSelectedTrack(null);
+    setSelectedLibraryTrackId(id);
+    setElapsed(0);
+    lastBeatIdxRef.current = -1;
+    setIsLoadingAnalysis(true);
+    setLyricsSource("loading");
+
+    try {
+      const doc = await fetchTrackLyrics(entry);
+      if (trackRequestRef.current !== requestId) return;
+      const lines = toLyricLines(doc, { fallbackDurationSec: entry.durationSec ?? 180 });
+      if (lines.length > 0) {
+        setLyrics(lines);
+        setLyricsData(legacyToLyricsData(lines));
+        setLyricsSource("track-lyrics");
+        setLibraryTrackDuration(doc.durationSec ?? entry.durationSec ?? null);
+      } else {
+        setLyricsSource("none");
+      }
+    } catch {
+      if (trackRequestRef.current !== requestId) return;
+      setLyricsSource("none");
+    } finally {
+      if (trackRequestRef.current === requestId) setIsLoadingAnalysis(false);
+    }
+  }, [libraryTracks]);
+
+  // If the lyrics CSV or the track-lyrics index finished loading after a
+  // track was selected (all load in parallel on mount), retry the fallback
+  // chain once instead of leaving stale sample lyrics with source "none".
   useEffect(() => {
-    if (csvContent && selectedTrack && lyricsSource === "none") {
+    if ((csvContent || libraryTracks.length > 0) && selectedTrack && lyricsSource === "none") {
       loadLyricsForTrack(selectedTrack.name, selectedTrack.filename, selectedTrack.duration || 60);
     }
-  }, [csvContent, selectedTrack, lyricsSource, loadLyricsForTrack]);
+  }, [csvContent, libraryTracks.length, selectedTrack, lyricsSource, loadLyricsForTrack]);
 
   // When library files load, check for pending track from Audio Analysis
   // or auto-select the first real track
@@ -502,10 +621,11 @@ export function KineticTypographyPage() {
       }
     }
     // Auto-select first real track when library loads and nothing is selected
-    if (!selectedTrack && libraryFiles.length > 0) {
+    // (a lyric-library preview selection also counts as "something selected")
+    if (!selectedTrack && !selectedLibraryTrackId && libraryFiles.length > 0) {
       handleTrackSelect(libraryFiles[0].filename);
     }
-  }, [libraryFiles.length, handleTrackSelect, selectedTrack]);
+  }, [libraryFiles.length, handleTrackSelect, selectedTrack, selectedLibraryTrackId]);
 
   const handlePresetChange = useCallback((id: string) => {
     setAutoPreset(false);
@@ -663,15 +783,15 @@ export function KineticTypographyPage() {
               <input
                 type="range"
                 min="0"
-                max={selectedTrack?.duration || 60}
+                max={playbackDuration}
                 step="0.1"
-                value={Math.min(elapsed, selectedTrack?.duration || 60)}
+                value={Math.min(elapsed, playbackDuration)}
                 onChange={(e) => seekTo(parseFloat(e.target.value))}
                 className="kt-scrubber-input"
                 aria-label="Seek"
               />
             </div>
-            <span className="kt-time">{formatTime(elapsed)} / {formatTime(selectedTrack?.duration || 60)}</span>
+            <span className="kt-time">{formatTime(elapsed)} / {formatTime(playbackDuration)}</span>
             <button className="kt-transport-btn" onClick={() => setIsMuted(m => !m)} aria-label={isMuted ? "Unmute" : "Mute"} title="Mute (M)">
               {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
             </button>
@@ -724,6 +844,31 @@ export function KineticTypographyPage() {
                     No audio in the library yet — upload a track from Audio Analysis to enable real playback.
                   </span>
                 )}
+                <label className="kt-field-label" htmlFor="kt-lyrics-library-select">Your tracks (lyric library)</label>
+                <select
+                  id="kt-lyrics-library-select"
+                  className="kt-select"
+                  aria-label="Select a track from the lyric library"
+                  value={selectedLibraryTrackId || ""}
+                  onChange={(e) => handleLibraryTrackSelect(e.target.value)}
+                >
+                  <option value="">None — use audio library above</option>
+                  {libraryTracks.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {`${t.title}${t.bpm ? ` · ${t.bpm} BPM` : ""}${t.durationSec ? ` · ${Math.round(t.durationSec)}s` : ""}`}
+                    </option>
+                  ))}
+                </select>
+                {libraryTracks.length === 0 && (
+                  <span className="kt-transcription-status">
+                    Lyric library is empty or unreachable — check /track-lyrics/index.json.
+                  </span>
+                )}
+                {selectedLibraryTrackId && lyricsSource !== "loading" && (
+                  <span className="kt-transcription-status text-amber-400">
+                    Lyrics: track-lyrics library (estimated timing — no LRC)
+                  </span>
+                )}
                 {selectedTrack && (
                   <div className="kt-track-meta">
                     {selectedTrack.bpm && <span className="kt-badge">{selectedTrack.bpm} BPM</span>}
@@ -734,7 +879,7 @@ export function KineticTypographyPage() {
                 )}
                 {selectedTrack && lyricsSource !== "none" && lyricsSource !== "loading" && (
                   <span className={`kt-transcription-status ${lyricsSource === "lrc" ? "text-emerald-400" : lyricsSource === "database" ? "text-blue-400" : "text-amber-400"}`}>
-                    Lyrics: {lyricsSource === "lrc" ? "LRC file" : lyricsSource === "database" ? "Saved lyrics" : "CSV fallback"}
+                    Lyrics: {lyricsSource === "lrc" ? "LRC file" : lyricsSource === "database" ? "Saved lyrics" : lyricsSource === "track-lyrics" ? "Track library (estimated timing)" : "CSV fallback"}
                   </span>
                 )}
                 {selectedTrack && (
