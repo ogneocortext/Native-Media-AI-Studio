@@ -75,37 +75,17 @@ if [ -z "$PYTHON" ]; then
     exit 0
 fi
 
-status=0
-
-if [ "$need_lib" -eq 1 ]; then
-    if ! "$PYTHON" tools/validate-knowledge-tags.py; then
+# Run every doc/repo check in one command before committing by hand.
+if [ "$need_lib" -eq 1 ] || [ "$need_map" -eq 1 ] || [ "$need_layout" -eq 1 ]; then
+    if ! "$PYTHON" tools/check-all.py; then
         echo >&2
-        echo "pre-commit: knowledge-library validation failed (see above)." >&2
-        status=1
+        echo "pre-commit: documentation checks failed (see above)." >&2
+        echo "            Run 'python tools/check-all.py' for the full report," >&2
+        echo "            or bypass once with --no-verify." >&2
+        exit 1
     fi
-fi
-
-# The map is how agents find documentation, so drift in it is a real defect:
-# it can point at directories that do not exist. Runs whenever docs/ is staged.
-if [ "$need_map" -eq 1 ]; then
-    if ! "$PYTHON" tools/check-docs-map.py; then
-        echo >&2
-        echo "pre-commit: docs/README.md map is out of date (see above)." >&2
-        status=1
-    fi
-fi
-
-if [ "$need_layout" -eq 1 ]; then
-    if ! "$PYTHON" tools/check-repo-layout.py; then
-        echo >&2
-        echo "pre-commit: repository layout check failed (see above)." >&2
-        status=1
-    fi
-fi
-
-if [ "$status" -ne 0 ]; then
-    echo "            Fix the reported problems, or bypass once with --no-verify." >&2
-    exit 1
+    run_chained_hook "$@"
+    exit 0
 fi
 
 run_chained_hook "$@"

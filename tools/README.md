@@ -197,6 +197,40 @@ python tools/analyze_and_sync.py <audio_file> [--output <json_file>] [--fps 24]
   triage (migrate, keep as a separate doc set, or archive) is a deliberate
   decision, not a lint fix.
 
+## Doc and repo checks
+
+One command runs everything:
+
+```bash
+python tools/check-all.py            # all checks, ~900ms
+python tools/check-all.py -v         # show each check's last line
+```
+
+It is what the pre-commit hook invokes, so running it by hand before committing
+gives the same verdict the hook will.
+
+The individual checkers are still runnable alone and are documented below.
+
+- `check-all.py` — runs `check-docs-map.py`, `validate-knowledge-tags.py`,
+  `check-repo-layout.py`, and the report-only `docs-triage.py`, cheapest first so
+  a fast failure surfaces early. Exits non-zero if any check fails. This exists
+  so there is one command to remember and one list that cannot silently fall
+  behind the set of checkers.
+
+- `tests/test_doc_checkers.py` — self-tests for the checkers. Introduces each
+  defect, confirms the right checker notices, then restores the file
+  byte-for-byte. A checker that silently stops failing is worse than no checker,
+  and this is what catches that:
+
+  ```bash
+  python tools/tests/test_doc_checkers.py
+  ```
+
+  It mutates the working tree in place and restores from memory rather than
+  cloning, because this repository's `.git` is several gigabytes and a
+  `git checkout` would discard unrelated in-flight work. Run it before changing
+  a checker's logic, and expect a failure if a check no longer fires.
+
 - `check-repo-layout.py` checks repository organisation: tracked files that look
   like generated output (caches, scratch, Unity per-user `UserSettings/`, large
   render artifacts), byte-identical files duplicated across the tree, and

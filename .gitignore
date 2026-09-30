@@ -288,3 +288,4 @@ packages/frontend/tests/browser/out/
 # HyperFrames render output: 75 MB unreferenced mp4 plus a base64 frame blob,
 # both regenerable from the compositions and neither referenced by any code.
 tools/hyperframes-built-this-from-a-dream/renders/
+!tools/tests/test_doc_checkers.py
