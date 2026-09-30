@@ -21,8 +21,8 @@ date: 2026-09-29
 
 ## Migration Summary
 
-**Documents in library:** 76 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
-**Migrated:** 76 (100%)
+**Documents in library:** 77 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
+**Migrated:** 77 (100%)
 **Remaining:** 0
 
 This tracker also lists `../ux-audit/audit-report.md`, which is tagged but lives
@@ -36,7 +36,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 
 ## ✅ Completed Migrations
 
-### 🎬 Production Pipeline (9/9 completed) ✅
+### 🎬 Production Pipeline (10/10 completed) ✅
 
 - ✅ `music-video-production.md`  → `#production`, `#platform-youtube`, `#audio`
 - ✅ `youtube-optimization.md`  → `#production`, `#platform-youtube`
@@ -47,6 +47,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `character-driven-visualization-research.md`  → `#production`, `#3d`
 - ✅ `lyric-beat-visualization-2026.md`  → `#production`, `#audio`, `#platform-remotion`
 - ✅ `music-video-vision-prompts.md`  → `#production`, `#ai`
+- ✅ `a1-a6-media-pipeline-tooling-2026.md`  → `#production`, `#audio`, `#tooling`, `#platform-comfyui`
 
 ### 🛠️ Technical Implementation (12/12 completed) ✅
 

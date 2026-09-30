@@ -32,6 +32,7 @@ date: 2026-09-29
 - [[music-video-production|🎵 Music Video Production Guide]] — Complete production workflow from audio upload to final export
 - [[youtube-optimization|📺 YouTube Optimization]] — Platform-specific optimization for reach and engagement
 - [[audio-reactive-production|🎧 Audio-Reactive Production]] — Audio → visual mapping, beat sync
+- [[a1-a6-media-pipeline-tooling-2026|🧰 A1–A6 Media-Pipeline Tooling Map]] — Concrete tooling for the six adopted backlog items: music brain, cost meter, beat-quantized assembler, lyric/Canvas products, stem-reactive viz, model routing (NEW 2026-09-29)
 - [[prompt-engineering|✍️ Prompt Engineering]] — Effective prompts + repair/versioning workflow
 - [[character-animation-2026-summer-synthesis|🎭 Character Animation 2026 — Summer Synthesis]] — Story-first puppet, beatPhase sync, performance-driven
 - [[silhouette-character-animation|🎭 Silhouette Character Animation]] — Character rigging & motion
@@ -131,7 +132,7 @@ date: 2026-09-29
 
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
-|| `#production/*` | Production workflow & creative guides | 9 documents |
+|| `#production/*` | Production workflow & creative guides | 10 documents |
 || `#technical/*` | System implementation & code | 13 documents |
 || `#platform/*` | Platform-specific integrations | 11 documents |
 || `#creative/*` | Design, effects & visualization | 17 documents |
@@ -146,14 +147,14 @@ date: 2026-09-29
 || `#platform-youtube` | YouTube-specific content | 4 documents |
 || `#platform-unity` | Unity-specific integration | 2 documents |
 || `#platform-blender` | Blender-specific | 3 documents |
-|| `#platform-comfyui` | ComfyUI-specific | 5 documents |
+|| `#platform-comfyui` | ComfyUI-specific | 6 documents |
 || `#platform-remotion` | Remotion video compositing | 3 documents |
 || `#hardware-8gb` | 8GB VRAM constraints | 15 documents |
 || `#hardware-pascal` | Pascal architecture specifics | 8 documents |
 || `#mcp` | Model Context Protocol | 1 document |
 || `#testing` | Testing & QA | 3 documents |
 || `#design` | Design systems & UX | 5 documents |
-|| `#audio` | Audio analysis & processing | 10 documents |
+|| `#audio` | Audio analysis & processing | 11 documents |
 || `#visualization` | Visualization techniques | 11 documents |
 || `#3d` | 3D generation & rendering | 12 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
