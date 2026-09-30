@@ -15,6 +15,7 @@
 /// <reference types="vite/client" />
 
 import { fetchWithTimeout } from "./fetchWithTimeout";
+import type { PortConfig } from "@shared/types";
 
 // Port defaults below match config/ports.json (single source of truth).
 // Do not edit these literals without updating config/ports.json.

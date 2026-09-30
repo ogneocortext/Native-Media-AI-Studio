@@ -5,6 +5,9 @@ import { useHealth } from "../../hooks";
 import { useTheme } from "../../utils/theme";
 import { getSettings, getIntegrationStatus, type IntegrationStatus } from "../../services/api";
 import { getPortConfigFromEnv } from "../../services/portConfig";
+import { useNotificationStore } from "../../state/notificationStore";
+import { saveNotificationPreferences } from "../../services/api/notifications";
+import type { NotificationPreferences } from "../../state/notificationStore";
 
 interface AppSettings {
   comfyui_url: string;
@@ -16,6 +19,15 @@ interface AppSettings {
   backend_port: number;
   frontend_port: number;
   default_model?: string;
+}
+
+/**
+ * Adapter status values that mean "up". The backend reports raw
+ * AdapterStatus values ("connected"), while /api/render/health maps them
+ * to "online" — accept both so the text never contradicts the badge.
+ */
+function isAdapterUp(status: string | undefined): boolean {
+  return status === "connected" || status === "online" || status === "healthy";
 }
 
 export function Settings() {
@@ -157,7 +169,7 @@ export function Settings() {
                 <div>
                   <p className="font-medium">ComfyUI Status</p>
                   <p className="text-xs text-muted">
-                    {serviceStatus?.adapters?.comfyui === "online"
+                    {isAdapterUp(serviceStatus?.adapters?.comfyui)
                       ? "Connected and ready"
                       : "Not connected"}
                   </p>
@@ -225,7 +237,7 @@ export function Settings() {
                 <div>
                   <p className="font-medium">Ollama Status</p>
                   <p className="text-xs text-muted">
-                    {serviceStatus?.adapters?.ollama === "online"
+                    {isAdapterUp(serviceStatus?.adapters?.ollama)
                       ? "Connected and ready"
                       : "Not connected"}
                   </p>
@@ -387,6 +399,9 @@ export function Settings() {
           </div>
         </Card>
 
+        {/* Notifications */}
+        <NotificationPreferencesCard />
+
         {/* Save Button */}
         <Card>
           <button
@@ -416,6 +431,141 @@ export function Settings() {
           </p>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function NotificationPreferencesCard() {
+  const preferences = useNotificationStore((s) => s.preferences);
+  const setPreferences = useNotificationStore((s) => s.setPreferences);
+  const [saved, setSaved] = useState(false);
+
+  const toggle = (key: keyof NotificationPreferences) => {
+    if (key === "quietHours") return;
+    setPreferences({
+      ...preferences,
+      [key]: !(preferences as unknown as Record<string, boolean>)[key],
+    });
+    setSaved(false);
+  };
+
+  const handleSave = () => {
+    saveNotificationPreferences(preferences);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  return (
+    <Card title="Notifications">
+      <div className="space-y-3">
+        <ToggleRow
+          label="Job progress updates"
+          checked={preferences.progress}
+          onToggle={() => toggle("progress")}
+        />
+        <ToggleRow
+          label="Job completed"
+          checked={preferences.completed}
+          onToggle={() => toggle("completed")}
+        />
+        <ToggleRow
+          label="Job failed / dead"
+          checked={preferences.failed}
+          onToggle={() => toggle("failed")}
+        />
+        <ToggleRow
+          label="Job cancelled"
+          checked={preferences.cancelled}
+          onToggle={() => toggle("cancelled")}
+        />
+        <ToggleRow
+          label="System notifications"
+          checked={preferences.system}
+          onToggle={() => toggle("system")}
+        />
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-medium text-sm">Quiet hours</p>
+            <p className="text-xs text-muted">Mute notifications during set hours</p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              className="sr-only peer"
+              aria-label="Enable quiet hours"
+              checked={preferences.quietHours.enabled}
+              onChange={(e) =>
+                setPreferences({
+                  ...preferences,
+                  quietHours: { ...preferences.quietHours, enabled: e.target.checked },
+                })
+              }
+            />
+            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+          </label>
+        </div>
+        {preferences.quietHours.enabled && (
+          <div className="flex gap-2">
+            <input
+              type="time"
+              className="input"
+              value={preferences.quietHours.start}
+              onChange={(e) =>
+                setPreferences({
+                  ...preferences,
+                  quietHours: { ...preferences.quietHours, start: e.target.value },
+                })
+              }
+              aria-label="Quiet hours start"
+            />
+            <span className="text-muted self-center">to</span>
+            <input
+              type="time"
+              className="input"
+              value={preferences.quietHours.end}
+              onChange={(e) =>
+                setPreferences({
+                  ...preferences,
+                  quietHours: { ...preferences.quietHours, end: e.target.value },
+                })
+              }
+              aria-label="Quiet hours end"
+            />
+          </div>
+        )}
+        <button
+          className={`btn w-full ${saved ? "btn-primary" : "btn-secondary"}`}
+          onClick={handleSave}
+        >
+          {saved ? "Saved" : "Save notification preferences"}
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+function ToggleRow({
+  label,
+  checked,
+  onToggle,
+}: {
+  label: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <p className="font-medium text-sm">{label}</p>
+      <label className="relative inline-flex items-center cursor-pointer">
+        <input
+          type="checkbox"
+          className="sr-only peer"
+          aria-label={label}
+          checked={checked}
+          onChange={onToggle}
+        />
+        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+      </label>
     </div>
   );
 }

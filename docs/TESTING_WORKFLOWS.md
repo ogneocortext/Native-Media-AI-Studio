@@ -52,6 +52,7 @@ on failure:
 ```bash
 node packages/frontend/tests/browser/three-studio-audit-checks.mjs   # F2-F6/F9 — 10 checks
 node packages/frontend/tests/browser/three-studio-dispose-check.mjs  # F1 — geometry/textures dispose on removal
+node packages/frontend/tests/browser/polish-audit-shots.mjs           # screenshot all main routes → tests/browser/out/polish/
 ```
 
 ### SSE / Polling SPAs

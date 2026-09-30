@@ -276,6 +276,8 @@ node scripts/analyze-bundle-stats.mjs
 | 2026-09-08 | `GoServicesCard` poll `5s→15s`, removed dead imports (`WifiOff`)                   | `tsc -b` clean, aligns with healthStore 15/30s                |
 | 2026-09-08 | `vite.config.ts` alias `three/addons → three/examples/jsm` + dedupe `three-stdlib` | Eliminates duplicate GLTFLoader/OrbitControls (~100KB gz)     |
 | 2026-09-08 | Wizard `ConfigureStep` `<details>` for Steps/CFG/Seed                              | Progressive disclosure, defaults 20/7.0/random for Wan 2.2 5B |
+| 2026-09-30 | `portConfig.ts`: import `PortConfig` from `@shared/types`; sync interface (add `dashboard_port`/`dashboard_url`, optional `video_editor_port`/`comfyui_port`/`comfyui_url`) | `tsc -b` clean — fixes 5 pre-existing TS2304 errors              |
+| 2026-09-30 | Settings: `isAdapterUp()` accepts `connected`/`online`/`healthy` for status text    | Status text no longer contradicts the badge                  |
 | 2026-09-08 | Visualizer empty hero + Remotion 3× vertical `1080×1920`                           | Vertical-first master per ai-video-trends P0                  |
 
 ---
