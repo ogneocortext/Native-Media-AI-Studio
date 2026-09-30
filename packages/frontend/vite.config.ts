@@ -74,8 +74,10 @@ export default defineConfig(({ mode }) => {
   return {
     // Use the project tsconfig.json for path resolution (Vite 8.3 feature)
     tsconfig: "tsconfig.json",
-    // Vite 8 built-in devtools integration (install @vitejs/devtools to activate)
-    devtools: { apply: "serve" },
+    // Vite 8 built-in devtools integration. clientAuth:false skips the
+    // authorization dialog (which blocks the UI) while keeping all DevTools
+    // data-extraction features functional.
+    devtools: { apply: "serve", clientAuth: false },
     plugins: [
       react(),
       tailwindcss(),
