@@ -9,6 +9,7 @@ export { FractalViz } from "./fractal";
 export { StormViz } from "./storm";
 export { InfernoViz } from "./inferno";
 export { ThreeParticlesDemo } from "./three-particles";
+export { PpanikBlobField } from "./pppanik";
 export { InstancedParticles } from "./instancedParticles";
 export { getSectionColor, getSectionIntensity } from "./helpers";
 export { getParticleTex, getNoiseTex } from "./textures";

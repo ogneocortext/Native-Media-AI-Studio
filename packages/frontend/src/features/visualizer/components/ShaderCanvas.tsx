@@ -9,6 +9,53 @@ interface ShaderCanvasProps {
   debug?: boolean;
   /** Time multiplier for speed control (1 = normal, 0.5 = half, 2 = double) */
   timeScale?: number;
+  /** Enable feedback frame buffer (ping-pong FBO for trails/tunnels) */
+  feedback?: boolean;
+  /** Feedback zoom factor per frame (1.0 = no zoom, 1.01 = slow zoom-in) */
+  feedbackZoom?: number;
+  /** Feedback rotation per frame in radians */
+  feedbackRotation?: number;
+  /** Feedback decay/fade factor (0.95 = slow fade, 0.99 = long trails) */
+  feedbackDecay?: number;
+}
+
+interface FBO {
+  framebuffer: WebGLFramebuffer;
+  texture: WebGLTexture;
+  width: number;
+  height: number;
+}
+
+function createFBO(gl: WebGLRenderingContext, width: number, height: number): FBO | null {
+  const texture = gl.createTexture();
+  if (!texture) return null;
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+  const framebuffer = gl.createFramebuffer();
+  if (!framebuffer) return null;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+
+  const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+  if (status !== gl.FRAMEBUFFER_COMPLETE) {
+    gl.deleteFramebuffer(framebuffer);
+    gl.deleteTexture(texture);
+    return null;
+  }
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { framebuffer, texture, width, height };
+}
+
+function deleteFBO(gl: WebGLRenderingContext, fbo: FBO | null) {
+  if (!fbo) return;
+  gl.deleteFramebuffer(fbo.framebuffer);
+  gl.deleteTexture(fbo.texture);
 }
 
 /**
@@ -17,6 +64,8 @@ interface ShaderCanvasProps {
  *
  * Reads uniforms from a ref so the parent can update them every frame
  * without forcing React re-renders.
+ *
+ * Supports optional ping-pong feedback framebuffers for trail/tunnel effects.
  */
 export function ShaderCanvas({
   fragmentShader,
@@ -24,6 +73,10 @@ export function ShaderCanvas({
   className,
   debug = false,
   timeScale = 1,
+  feedback = false,
+  feedbackZoom = 1.0,
+  feedbackRotation = 0.0,
+  feedbackDecay = 0.97,
 }: ShaderCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<WebGLRenderingContext | null>(null);
@@ -36,13 +89,25 @@ export function ShaderCanvas({
   const rafRef = useRef<number>(0);
   const startTimeRef = useRef(Date.now());
   const debugRef = useRef(debug);
+  const feedbackRef = useRef(feedback);
+  const feedbackZoomRef = useRef(feedbackZoom);
+  const feedbackRotationRef = useRef(feedbackRotation);
+  const feedbackDecayRef = useRef(feedbackDecay);
+  const fboRef = useRef<{ read: FBO | null; write: FBO | null }>({ read: null, write: null });
+  const compositeProgramRef = useRef<WebGLProgram | null>(null);
+  const compositeBufferRef = useRef<WebGLBuffer | null>(null);
 
-  // Sync debug prop into ref so the render loop sees live toggles
   useEffect(() => {
     debugRef.current = debug;
   }, [debug]);
 
-  // Toggle debug mode via URL hash (#shader-debug)
+  useEffect(() => {
+    feedbackRef.current = feedback;
+    feedbackZoomRef.current = feedbackZoom;
+    feedbackRotationRef.current = feedbackRotation;
+    feedbackDecayRef.current = feedbackDecay;
+  }, [feedback, feedbackZoom, feedbackRotation, feedbackDecay]);
+
   useEffect(() => {
     const onHash = () => {
       debugRef.current = window.location.hash === "#shader-debug";
@@ -52,7 +117,6 @@ export function ShaderCanvas({
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  // Compile shader and create program
   const initGL = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -68,7 +132,6 @@ export function ShaderCanvas({
     }
     glRef.current = gl;
 
-    // Clean up previous WebGL resources before recompiling new preset
     if (programRef.current) {
       if (vsRef.current) {
         gl.detachShader(programRef.current, vsRef.current);
@@ -146,20 +209,131 @@ export function ShaderCanvas({
       "u_energy",
       "u_peak",
       "u_resolution",
+      "u_sub",
+      "u_high",
+      "u_transient",
+      "u_centroid",
+      "u_trail",
+      "u_feedback_texture",
     ];
     for (const name of uniformNames) {
       uniformLocs[name] = gl.getUniformLocation(program, name);
     }
     uniformLocsRef.current = uniformLocs;
+
+    if (feedbackRef.current) {
+      initCompositeProgram(gl);
+    }
   }, [fragmentShader]);
 
-  // Initialize WebGL
-  // NOTE: intentionally NOT calling loseContext() here.
-  // StrictMode double-invokes effects; losing the context on cleanup
-  // makes the remount's getContext("webgl") return a permanently-lost
-  // context, causing shader compile/link to return null status+infoLog.
-  // Explicit shader/program/buffer deletion above is sufficient cleanup.
-  // HMR cache-buster: 2026-09-14
+  const initCompositeProgram = useCallback((gl: WebGLRenderingContext) => {
+    if (compositeProgramRef.current) {
+      gl.deleteProgram(compositeProgramRef.current);
+      compositeProgramRef.current = null;
+    }
+    if (compositeBufferRef.current) {
+      gl.deleteBuffer(compositeBufferRef.current);
+      compositeBufferRef.current = null;
+    }
+
+    const vsSource = `
+      attribute vec2 a_position;
+      varying vec2 v_uv;
+      void main() {
+        v_uv = a_position * 0.5 + 0.5;
+        gl_Position = vec4(a_position, 0.0, 1.0);
+      }
+    `;
+    const fsSource = `
+      precision mediump float;
+      varying vec2 v_uv;
+      uniform sampler2D u_feedback_texture;
+      uniform float u_feedback_decay;
+      uniform float u_feedback_zoom;
+      uniform float u_feedback_rotation;
+      uniform vec2 u_resolution;
+
+      void main() {
+        vec2 uv = v_uv;
+        vec2 centered = uv - 0.5;
+
+        float cosR = cos(u_feedback_rotation);
+        float sinR = sin(u_feedback_rotation);
+        centered = vec2(
+          centered.x * cosR - centered.y * sinR,
+          centered.x * sinR + centered.y * cosR
+        );
+
+        centered /= u_feedback_zoom;
+        uv = centered + 0.5;
+
+        vec4 prev = texture2D(u_feedback_texture, uv) * u_feedback_decay;
+        gl_FragColor = prev;
+      }
+    `;
+
+    const vs = gl.createShader(gl.VERTEX_SHADER)!;
+    gl.shaderSource(vs, vsSource);
+    gl.compileShader(vs);
+    if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
+      console.error("Composite VS error:", gl.getShaderInfoLog(vs));
+      return;
+    }
+
+    const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
+    gl.shaderSource(fs, fsSource);
+    gl.compileShader(fs);
+    if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
+      console.error("Composite FS error:", gl.getShaderInfoLog(fs));
+      return;
+    }
+
+    const program = gl.createProgram()!;
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error("Composite link error:", gl.getProgramInfoLog(program));
+      return;
+    }
+
+    compositeProgramRef.current = program;
+    gl.useProgram(program);
+
+    const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+    const buffer = gl.createBuffer();
+    compositeBufferRef.current = buffer;
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+    const posLoc = gl.getAttribLocation(program, "a_position");
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+    gl.deleteShader(vs);
+    gl.deleteShader(fs);
+  }, []);
+
+  const ensureFBOs = useCallback(
+    (gl: WebGLRenderingContext, width: number, height: number) => {
+      const current = fboRef.current;
+      if (
+        current.read &&
+        current.write &&
+        current.read.width === width &&
+        current.read.height === height
+      ) {
+        return;
+      }
+      deleteFBO(gl, current.read);
+      deleteFBO(gl, current.write);
+      const read = createFBO(gl, width, height);
+      const write = createFBO(gl, width, height);
+      fboRef.current = { read, write };
+    },
+    [],
+  );
+
   useEffect(() => {
     initGL();
     return () => {
@@ -184,18 +358,27 @@ export function ShaderCanvas({
           gl.deleteBuffer(bufferRef.current);
           bufferRef.current = null;
         }
+        deleteFBO(gl, fboRef.current.read);
+        deleteFBO(gl, fboRef.current.write);
+        fboRef.current = { read: null, write: null };
+        if (compositeProgramRef.current) {
+          gl.deleteProgram(compositeProgramRef.current);
+          compositeProgramRef.current = null;
+        }
+        if (compositeBufferRef.current) {
+          gl.deleteBuffer(compositeBufferRef.current);
+          compositeBufferRef.current = null;
+        }
       }
     };
   }, [initGL]);
 
-  // Resize + render loop
   useEffect(() => {
     const gl = glRef.current;
     const program = programRef.current;
     const canvas = canvasRef.current;
     if (!gl || !program || !canvas) return;
 
-    // Handle WebGL context loss — pause render loop, invalidate GL ref
     const handleContextLost = (e: Event) => {
       e.preventDefault();
       console.warn("WebGL context lost, pausing render loop...");
@@ -203,7 +386,7 @@ export function ShaderCanvas({
         cancelAnimationFrame(rafRef.current);
         rafRef.current = 0;
       }
-      glRef.current = null; // prevent render loop using stale context
+      glRef.current = null;
     };
 
     const handleContextRestored = () => {
@@ -215,15 +398,9 @@ export function ShaderCanvas({
     canvas.addEventListener("webglcontextlost", handleContextLost);
     canvas.addEventListener("webglcontextrestored", handleContextRestored);
 
-    // Size the backing store from layout *only when the container actually
-    // changes* (ResizeObserver). Previously `resize()` ran inside every rAF
-    // frame, forcing a synchronous layout read (clientWidth/clientHeight) at
-    // 60 Hz — a classic layout-thrash cost on every visualizer frame.
     let ro: ResizeObserver | null = null;
     const applySize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      // Min 1×1: a collapsed/hidden container (clientWidth 0) would otherwise
-      // drive the backing store to 0×0 and log WebGL size warnings.
       const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
       const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
       if (canvas.width !== w || canvas.height !== h) {
@@ -231,6 +408,9 @@ export function ShaderCanvas({
         canvas.height = h;
       }
       gl.viewport(0, 0, canvas.width, canvas.height);
+      if (feedbackRef.current) {
+        ensureFBOs(gl, canvas.width, canvas.height);
+      }
     };
     if (typeof ResizeObserver !== "undefined") {
       ro = new ResizeObserver(applySize);
@@ -244,8 +424,6 @@ export function ShaderCanvas({
 
     const render = () => {
       const time = ((Date.now() - startTimeRef.current) / 1000) * timeScale;
-      // Skip frames while the canvas is effectively invisible (hidden tab or a
-      // collapsed container) — the rAF loop stays alive for when it comes back.
       const visible =
         (typeof document === "undefined" || !document.hidden) &&
         canvas.clientWidth > 0 &&
@@ -253,17 +431,83 @@ export function ShaderCanvas({
       if (visible) {
         const locs = uniformLocsRef.current;
         const u = uniformsRef.current;
+        const useFeedback = feedbackRef.current && fboRef.current.read && fboRef.current.write;
 
-        gl.uniform1f(locs["u_time"], time);
-        gl.uniform1f(locs["u_bass"], u.bass ?? 0);
-        gl.uniform1f(locs["u_mid"], u.mid ?? 0);
-        gl.uniform1f(locs["u_treble"], u.treble ?? 0);
-        gl.uniform1f(locs["u_beat"], u.beat ?? 0);
-        gl.uniform1f(locs["u_energy"], u.energy ?? 0);
-        gl.uniform1f(locs["u_peak"], u.peak ?? 0);
-        gl.uniform2f(locs["u_resolution"], canvas.width, canvas.height);
+        if (useFeedback) {
+          const { read, write } = fboRef.current;
+          if (!write || !read) {
+            return;
+          }
 
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+          gl.bindFramebuffer(gl.FRAMEBUFFER, write.framebuffer);
+          gl.viewport(0, 0, write.width, write.height);
+          gl.useProgram(program);
+
+          gl.uniform1f(locs["u_time"], time);
+          gl.uniform1f(locs["u_bass"], u.bass ?? 0);
+          gl.uniform1f(locs["u_mid"], u.mid ?? 0);
+          gl.uniform1f(locs["u_treble"], u.treble ?? 0);
+          gl.uniform1f(locs["u_beat"], u.beat ?? 0);
+          gl.uniform1f(locs["u_energy"], u.energy ?? 0);
+          gl.uniform1f(locs["u_peak"], u.peak ?? 0);
+          gl.uniform1f(locs["u_sub"], u.sub ?? 0);
+          gl.uniform1f(locs["u_high"], u.high ?? 0);
+          gl.uniform1f(locs["u_transient"], u.transient ?? 0);
+          gl.uniform1f(locs["u_centroid"], u.centroid ?? 0);
+          gl.uniform1f(locs["u_trail"], u.trail ?? 0);
+          gl.uniform2f(locs["u_resolution"], write.width, write.height);
+
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, read.texture);
+          const feedbackLoc = locs["u_feedback_texture"];
+          if (feedbackLoc) gl.uniform1i(feedbackLoc, 0);
+
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          gl.viewport(0, 0, canvas.width, canvas.height);
+          const compProgram = compositeProgramRef.current;
+          if (compProgram) {
+            gl.useProgram(compProgram);
+            const compLocs = {
+              u_feedback_texture: gl.getUniformLocation(compProgram, "u_feedback_texture"),
+              u_feedback_decay: gl.getUniformLocation(compProgram, "u_feedback_decay"),
+              u_feedback_zoom: gl.getUniformLocation(compProgram, "u_feedback_zoom"),
+              u_feedback_rotation: gl.getUniformLocation(compProgram, "u_feedback_rotation"),
+              u_resolution: gl.getUniformLocation(compProgram, "u_resolution"),
+            };
+            gl.uniform1f(compLocs.u_feedback_decay, feedbackDecayRef.current);
+            gl.uniform1f(compLocs.u_feedback_zoom, feedbackZoomRef.current);
+            gl.uniform1f(compLocs.u_feedback_rotation, feedbackRotationRef.current);
+            gl.uniform2f(compLocs.u_resolution, canvas.width, canvas.height);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, write.texture);
+            if (compLocs.u_feedback_texture) gl.uniform1i(compLocs.u_feedback_texture, 0);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+          }
+
+          fboRef.current = { read: write, write: read };
+        } else {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          gl.viewport(0, 0, canvas.width, canvas.height);
+          gl.useProgram(program);
+
+          gl.uniform1f(locs["u_time"], time);
+          gl.uniform1f(locs["u_bass"], u.bass ?? 0);
+          gl.uniform1f(locs["u_mid"], u.mid ?? 0);
+          gl.uniform1f(locs["u_treble"], u.treble ?? 0);
+          gl.uniform1f(locs["u_beat"], u.beat ?? 0);
+          gl.uniform1f(locs["u_energy"], u.energy ?? 0);
+          gl.uniform1f(locs["u_peak"], u.peak ?? 0);
+          gl.uniform1f(locs["u_sub"], u.sub ?? 0);
+          gl.uniform1f(locs["u_high"], u.high ?? 0);
+          gl.uniform1f(locs["u_transient"], u.transient ?? 0);
+          gl.uniform1f(locs["u_centroid"], u.centroid ?? 0);
+          gl.uniform1f(locs["u_trail"], u.trail ?? 0);
+          gl.uniform2f(locs["u_resolution"], canvas.width, canvas.height);
+
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        }
       }
 
       if (debugRef.current) {
@@ -306,11 +550,7 @@ export function ShaderCanvas({
       canvas.removeEventListener("webglcontextlost", handleContextLost);
       canvas.removeEventListener("webglcontextrestored", handleContextRestored);
     };
-    // fragmentShader is an intentional dep: when the parent switches presets,
-    // initGL recompiles (init effect above re-runs and cancels this loop), so
-    // this effect MUST re-run to restart rendering on the new program.
-    // Without it the canvas freezes on its last frame after any preset change.
-  }, [uniformsRef, fragmentShader, initGL, contextRestored]);
+  }, [uniformsRef, fragmentShader, initGL, contextRestored, ensureFBOs]);
 
   return (
     <canvas

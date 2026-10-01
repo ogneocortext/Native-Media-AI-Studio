@@ -7,6 +7,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-01
+
+> **Major release.** The audio path is no longer an analysis side-channel — stem
+> separation and mixing are now first-class features. Breaking changes are listed
+> under **Changed**; the `/api/audio` stem endpoints previously failed at runtime
+> (see Fixed) and are now stable.
+
+### Added - Stem separation and mixing as first-class features
+
+- **Per-stem separation** via Demucs 4.1.0 with Spleeter fallback, exposed
+  through `POST /api/audio/separate`, `POST /api/audio/separate-file`, and the
+  async `GET /api/audio/separate-jobs/{job_id}` polling endpoint.
+- **Stem discovery and retrieval** — `GET /api/audio/stems/{filename}`,
+  `GET /api/audio/stems-status`, and `GET /api/audio/stem-file/{track}/{stem}`
+  serve per-stem WAV, plus lightweight MP3 (~13% of WAV size) encoded lazily on
+  first request.
+- **Stem-reactive visualisation** — `POST /api/audio/stem-visualization` returns
+  shader-uniform-ready per-stem curves; `spectral_bands.py` and
+  `useSpectralTimeline` drive band and timeline lookups.
+- **Vocal enhancement** — `suno_enhancer.py` provides compression, de-essing,
+  normalisation, and reverb/delay returns per stem.
+- **Professional mixer** (`professionalMixer/`) — per-channel EQ, compression,
+  pan, fader, FX sends, per-bus and master processing, and live metering, sharing
+  the page's single `AudioContext` (D4).
+- **Equalizer panel, spatial stem assignment** (`stemSpatial.ts`), section-aware
+  shader preset state machine (`sectionStateMachine.ts`), and the instanced blob
+  field style (`viz-styles/pppanik.tsx`).
+- `tools/export_spectral_timeline.py` exports band timelines for offline
+  rendering, and `docs/knowledge-library/stem-system-evaluation-2026.md`
+  records the evaluation.
+
+### Fixed - Undefined-name crashes in the audio, SSE, and video paths
+
+Six `F821` undefined names and a duplicated method definition were reachable at
+runtime and raised `NameError` on execution. They compiled cleanly, so no gate
+caught them; `ruff check` (F821) now reports the backend as clean.
+
+- `app/sse/handler.py`: `JobStatus` was referenced by the job-update priority
+  logic but never imported, so **every job-status SSE broadcast raised
+  `NameError`**. Also removed a second, duplicate `send_job_update` method that
+  silently shadowed the first and made its priority computation dead code.
+- `app/api/audio.py`: `source_separation`, `SourceSeparator`, and `Any` were
+  used but never imported, breaking the stem pipeline — `GET /stems`,
+  `GET /stems-status`, `GET /stem-file`, and `POST /separate-file`. Added the
+  module import and removed the local imports that were shadowing it.
+- `app/services/source_separation.py`: the Spleeter path referenced
+  `source_separation.STEM_NAMES` from inside the `source_separation` module
+  itself.
+- `app/api/video.py`: the canvas-loop endpoint constructed a `RenderSpec(...)`
+  that was both undefined and unused; removed it along with the unused
+  `fade_in`/`fade_out` locals.
+- Removed six genuinely-unused imports and dead locals after confirming each had
+  zero remaining usages.
+
+### Fixed - `pnpm type-check` failed on a clean checkout
+
+`tsconfig.tests.json` globbed `tests/**/*.ts`, which swept in
+`tests/browser/out/` — the gitignored agent-scratch directory that AGENTS.md
+reserves for throwaway artifacts. A fresh clone with scratch output present
+failed the build with `error TS18047` in a file nobody authored. All 17 tracked
+specs live directly in `tests/`, so `tests/browser/out/**` is now excluded.
+
+### Changed - Visualizer decomposition and audio-graph consolidation
+
+`Visualizer.tsx` was 2,361 lines and `Canvas2DVisualizer.tsx` 1,560. Both are
+now orchestration over focused modules, with no logic changes.
+
+- `visualizerHelpers.ts`, `canvas2dHelpers.ts` — pure helpers (file-ref
+  encoding, payload narrowers, colour lerp, easing, noise/FBM).
+- `components/RenderStats.tsx` — renderer telemetry overlay.
+- `useVisualizerRecording.ts` — MP4/WebCodecs capture with WebM fallback; owns
+  its recorder and timer teardown.
+- `useAudioGraph.ts` — the shared `AudioContext` graph.
+
+**Behavioural fix found during the split:** the graph-construction block
+(`AudioContext → analyser → EQ → mainGain → destination`) was copy-pasted three
+times — in `setupAudio`, `handleFile`, and `handleSelectLibraryTrack` — and the
+two handler copies had already drifted from the original (dropping
+`estimateOutputLatency` and its comments). It now exists once, as
+`ensureAudioContext()`, so audio setup no longer depends on whether a track was
+uploaded or picked from the library.
+
+Also removed `freqArrayRef`, which was written in all three copies and never
+read, and a double `AudioContext.close()` on unmount. The recording handlers'
+`useCallback` dependency arrays were `[]` while closing over `setError`; they now
+declare their real dependencies.
+
+### Changed - Trusting gate output on Windows
+
+`pnpm type-check` and `pnpm lint` reported exit code 1 through the PowerShell
+`.ps1` wrapper while actually passing, because the wrapper writes notices to
+stderr and swallows the child's status. For any gate whose exit code matters,
+run it via `pnpm.cmd` from Python `subprocess` with an explicit `cwd` and read
+`returncode`. Treat an empty capture as "failed to capture", never "passed".
+
 ### Added - Knowledge-library validation and local pre-commit guard
 
 - `tools/validate-knowledge-tags.py` checks every library document has YAML
@@ -1515,4 +1610,4 @@ so **`tsc` had never run** and a set of real bugs was invisible:
 
 ---
 
-_Last updated: 2026-08-31_
+_Last updated: 2026-10-01_

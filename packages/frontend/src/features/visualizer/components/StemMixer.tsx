@@ -13,8 +13,9 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { getApiBase, getAudioStems, separateAudioFile } from "../../../services/api";
+import { getApiBase, getAudioStems, separateAudioFile, enhanceStems } from "../../../services/api";
 import { createEQ, DEFAULT_EQ_PRESETS, type EQBand, type EQInstance } from "../audioEQ";
+import { createStemSpatialProcessor, type StemSpatialProcessor } from "../stemSpatial";
 
 export type StemName = "vocals" | "drums" | "bass" | "other";
 export const STEM_NAMES: StemName[] = ["vocals", "drums", "bass", "other"];
@@ -49,6 +50,16 @@ interface StemMixerProps {
   }) => void;
   /** Shared EQ presets (optional; defaults to module presets when omitted). */
   eqPresets?: Record<string, EQBand[]>;
+  /** Separation quality mode exposed to the UI (Gemini UVR5 guidance). */
+  separationMode?: "single" | "hierarchical";
+  onSeparationModeChange?: (mode: "single" | "hierarchical") => void;
+  segmentSize?: number;
+  onSegmentSizeChange?: (size: number) => void;
+  /** KARRA enhancer knobs (optional; defaults baked into backend). */
+  vocalExpander?: boolean;
+  onVocalExpanderChange?: (on: boolean) => void;
+  vocalBalanceDb?: number;
+  onVocalBalanceDbChange?: (db: number) => void;
 }
 
 interface LoadedStem {
@@ -60,6 +71,7 @@ interface LoadedStem {
   analyser: AnalyserNode;
   buf: Uint8Array<ArrayBuffer>;
   eq: EQInstance | null;
+  spatial: StemSpatialProcessor;
 }
 
 /** Prefer MP3 stem URLs (~87% smaller transfer, lazy-encoded server-side on
@@ -77,8 +89,12 @@ export function useStemMixer({
   mainAudioRef: _mainAudioRef,
   mainGainRef,
   onLevels,
-  onStateChange,
+  onStateChange: _onStateChange,
   eqPresets,
+  separationMode = "single",
+  segmentSize,
+  vocalExpander: _vocalExpander = false,
+  vocalBalanceDb: _vocalBalanceDb = 0,
 }: StemMixerProps) {
   const [stems, setStems] = useState<Record<StemName, string> | null>(null);
   const [status, setStatus] = useState<"idle" | "checking" | "separating" | "ready" | "error">(
@@ -151,7 +167,11 @@ export function useStemMixer({
     // No stems yet — trigger separation instead of dead-ending.
     setStatus("separating");
     try {
-      const result = await separateAudioFile(audioFilename);
+      const result = await separateAudioFile(audioFilename, "mdx_extra_q", {
+        mode: separationMode,
+        segment_size: segmentSize,
+        denoise: true,
+      });
       if (!result.success || Object.keys(result.stems || {}).length === 0) {
         throw new Error(result.error || "Separation produced no stems");
       }
@@ -196,12 +216,14 @@ export function useStemMixer({
             continue;
           }
           const eq = createEQ(ctx, eqBands[name] || []);
+          const spatial = createStemSpatialProcessor(ctx, name);
           const gain = ctx.createGain();
           const analyser = ctx.createAnalyser();
           analyser.fftSize = 256;
-          // Graph: source → eq → gain → analyser → destination
+          // Graph: source → eq → spatial → gain → analyser → destination
           source.connect(eq.input);
-          eq.output.connect(gain);
+          eq.output.connect(spatial.input);
+          spatial.output.connect(gain);
           gain.connect(analyser);
           gain.connect(ctx.destination);
           created.push({
@@ -213,6 +235,7 @@ export function useStemMixer({
             analyser,
             buf: new Uint8Array(analyser.frequencyBinCount),
             eq,
+            spatial,
           });
         }
         if (cancelled) {
@@ -243,6 +266,7 @@ export function useStemMixer({
         s.element.pause();
         s.element.src = "";
         if (s.eq) s.eq.dispose();
+        if (s.spatial) s.spatial.dispose();
       });
       loadedRef.current = [];
       if (ctxRef.current && !sharedAudioContext) {
@@ -251,7 +275,11 @@ export function useStemMixer({
       }
       // Restore the main track's output when stems are released.
       if (mainGainRef?.current) {
-        mainGainRef.current.gain.value = 1;
+        mainGainRef.current.gain.setTargetAtTime(
+          1,
+          mainGainRef.current.context.currentTime,
+          0.06,
+        );
       } else {
         const main = document.querySelector<HTMLAudioElement>("audio[data-main-player]");
         if (main) main.muted = false;
@@ -259,9 +287,11 @@ export function useStemMixer({
     };
   }, [stems]);
 
-  // Level metering loop
+  // Level metering loop — onLevels is stabilized via ref so the RAF loop
+  // never restarts when the parent re-renders with a new arrow function.
+  const onLevelsRef = useRef(onLevels);
+  onLevelsRef.current = onLevels;
   useEffect(() => {
-    if (!onLevels) return;
     const tick = () => {
       const levels: StemLevels = { vocals: 0, drums: 0, bass: 0, other: 0 };
       for (const stem of loadedRef.current) {
@@ -273,12 +303,12 @@ export function useStemMixer({
         }
         levels[stem.name] = Math.min(1, Math.sqrt(sum / stem.buf.length) * 2.5);
       }
-      onLevels(levels);
+      if (onLevelsRef.current) onLevelsRef.current(levels);
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [onLevels]);
+  }, []);
 
   /** Sync stem transport with the main player. */
   const syncTransport = useCallback(
@@ -299,13 +329,14 @@ export function useStemMixer({
         }
         if (stem.element.paused) stem.element.play().catch(() => {});
       }
-      // Fade the main track out when stems are active (hard gain cuts cause
-      // clicks/pops). setTargetAtTime with a 60 ms time constant is fast
-      // enough to feel immediate but smooth enough to avoid transients.
+      // Blend the main track down (not mute) when stems are active so the
+      // original stereo imaging and mastering survive underneath the widened
+      // stems. Hard cuts cause clicks/pops, so we use setTargetAtTime with a
+      // 60 ms time constant.
       if (main && hasLoaded) {
         if (mainGainRef?.current) {
           mainGainRef.current.gain.setTargetAtTime(
-            0,
+            0.35,
             mainGainRef.current.context.currentTime,
             0.06,
           );
@@ -350,14 +381,10 @@ export function useStemMixer({
         if (stem?.eq) {
           stem.eq.setBands(bands);
         }
-        // Read current muted/volumes from refs to avoid stale closures.
-        const currentMuted = muted;
-        const currentVolumes = volumes;
-        onStateChange?.({ muted: currentMuted, volumes: currentVolumes, eqBands: next });
         return next;
       });
     },
-    [muted, volumes, onStateChange],
+    [],
   );
 
   const applyStemEQPreset = useCallback(
@@ -397,6 +424,14 @@ export function StemMixerPanel({
   mainAudioRef,
   mainGainRef,
   eqPresets,
+  separationMode = "single",
+  onSeparationModeChange,
+  segmentSize = 256,
+  onSegmentSizeChange,
+  vocalExpander = false,
+  onVocalExpanderChange,
+  vocalBalanceDb = 0,
+  onVocalBalanceDbChange,
 }: StemMixerProps) {
   const {
     status,
@@ -464,12 +499,35 @@ export function StemMixerPanel({
       </div>
 
       {status === "idle" && (
-        <button
-          onClick={ensureStems}
-          className="w-full py-2 text-xs rounded-lg bg-violet-600/80 hover:bg-violet-500 text-white transition-colors"
-        >
-          Load Stems (vocals / drums / bass / other)
-        </button>
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <label className="text-[10px] text-muted uppercase tracking-wider">Mode</label>
+            <select
+              value={separationMode}
+              onChange={(e) => onSeparationModeChange?.(e.target.value as "single" | "hierarchical")}
+              className="text-[11px] bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-white"
+            >
+              <option value="single">Single-pass</option>
+              <option value="hierarchical">Hierarchical (UVR5)</option>
+            </select>
+            <label className="text-[10px] text-muted uppercase tracking-wider">Segment</label>
+            <select
+              value={segmentSize}
+              onChange={(e) => onSegmentSizeChange?.(Number(e.target.value))}
+              className="text-[11px] bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-white"
+            >
+              <option value={128}>128 (fast, 8 GB)</option>
+              <option value={256}>256 (balanced)</option>
+              <option value={512}>512 (pristine)</option>
+            </select>
+          </div>
+          <button
+            onClick={ensureStems}
+            className="w-full py-2 text-xs rounded-lg bg-violet-600/80 hover:bg-violet-500 text-white transition-colors"
+          >
+            Load Stems (vocals / drums / bass / other)
+          </button>
+        </div>
       )}
 
       {(status === "checking" || status === "separating") && (
@@ -483,6 +541,18 @@ export function StemMixerPanel({
           <div className="mt-2 h-1 rounded-full bg-white/5 overflow-hidden">
             <div className="h-full w-1/3 rounded-full bg-amber-400/60 animate-pulse" />
           </div>
+        </div>
+      )}
+
+      {status === "ready" && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          <EnhanceButton
+            filename={audioFilename}
+            vocalExpander={vocalExpander}
+            onVocalExpanderChange={onVocalExpanderChange}
+            vocalBalanceDb={vocalBalanceDb}
+            onVocalBalanceDbChange={onVocalBalanceDbChange}
+          />
         </div>
       )}
 
@@ -586,6 +656,86 @@ export function StemMixerPanel({
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function EnhanceButton({
+  filename,
+  vocalExpander = false,
+  onVocalExpanderChange,
+  vocalBalanceDb = 0,
+  onVocalBalanceDbChange,
+}: {
+  filename: string;
+  vocalExpander?: boolean;
+  onVocalExpanderChange?: (on: boolean) => void;
+  vocalBalanceDb?: number;
+  onVocalBalanceDbChange?: (db: number) => void;
+}) {
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const handleEnhance = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await enhanceStems({
+        filename,
+        model: "mdx_extra_q",
+        output_format: "wav",
+        pre_highpass_hz: 120,
+        vocal_spectral_gate_threshold_db: -40,
+        vocal_dynamic_eq_max_reduction_db: 4,
+        vocal_expander: vocalExpander,
+        deess_freq_hz: 6500,
+        air_boost_gain_db: 2.5,
+        air_boost_freq_hz: 10000,
+        vocal_balance_db: vocalBalanceDb,
+        parallel_weight_bus_db: -15,
+        sidechain_pocket_eq_enabled: true,
+      });
+      alert("Stems enhanced successfully");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Enhancement failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap gap-2">
+        <label className="flex items-center gap-1 text-[10px] text-muted">
+          <input
+            type="checkbox"
+            checked={vocalExpander}
+            onChange={(e) => onVocalExpanderChange?.(e.target.checked)}
+          />
+          Vocal expander (no compression)
+        </label>
+        <label className="flex items-center gap-1 text-[10px] text-muted">
+          Vocal balance
+          <input
+            type="range"
+            min={-3}
+            max={3}
+            step={0.5}
+            value={vocalBalanceDb}
+            onChange={(e) => onVocalBalanceDbChange?.(parseFloat(e.target.value))}
+            className="h-1 accent-emerald-400"
+          />
+          {vocalBalanceDb > 0 ? `+${vocalBalanceDb}` : vocalBalanceDb} dB
+        </label>
+      </div>
+      <button
+        onClick={handleEnhance}
+        disabled={loading}
+        className="w-full py-1.5 text-[11px] rounded-lg bg-emerald-600/80 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50"
+      >
+        {loading ? "Enhancing…" : "Enhance (Suno KARRA preset)"}
+      </button>
+      {error && <p className="text-[10px] text-red-300">{error}</p>}
     </div>
   );
 }

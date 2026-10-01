@@ -247,6 +247,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to start queue processor: {e}")
 
+    # Start the stem separation worker (UVR5 hierarchical + Demucs queue)
+    try:
+        from .services.source_separation import source_separator
+        await source_separator.start_worker()
+        logger.info("Stem separation worker started")
+    except Exception as e:
+        logger.warning(f"Stem separation worker startup skipped: {e}")
+
     logger.info("Native Media AI Studio started successfully")
 
     # Ensure Ollama starts idle — don't auto-load any model on resume/crash.

@@ -508,7 +508,7 @@ export function AudioAnalysisPage() {
     setStemsNote(null);
     setAnalysisStep("Separating stems with Demucs...");
     try {
-      const result = await separateAudioStems(file, "htdemucs");
+      const result = await separateAudioStems(file, "mdx_extra_q");
       if (result.error) {
         setError(result.error);
       } else {

@@ -7,8 +7,10 @@
 > **Agent bootstrap:** read `docs/README.md` first — it maps every documentation
 > directory and says which are authoritative. Then read
 > `docs/architecture/decision-log.md` before writing code. It records
-> stack/architecture decisions (D1–D12 — do not re-litigate) and open questions
+> stack/architecture decisions (D1–D14 — do not re-litigate) and open questions
 > (Q1–Q4). Update the log when you make or reverse an architecture decision.
+> Frontend visualizer work also requires `docs/architecture/visualizer.md` — it
+> maps the module split from D14 and states where new logic belongs.
 >
 > **Finding documentation:** the tree is 146 files across 14 directories, so
 > searching blind returns the wrong document. `docs/README.md` is the index;
@@ -72,7 +74,13 @@ Never send generic prompts like "describe this image"; use mode-specific prompts
 ### Shell / Process Management
 
 - **Requires PowerShell 7.6+.** Verify `$PSVersionTable.PSVersion.Major -ge 7`.
-- On PowerShell failures, **fall back to Python immediately**.
+- On PowerShell failures, **fall back to Python immediately**. This is not just
+  for crashes: PowerShell mangles tool output. `pnpm type-check`/`pnpm lint`
+  report exit code 1 through the `.ps1` wrapper while actually passing, and
+  reading UTF-8 files as ANSI makes correct text look like mojibake. For any
+  gate whose exit code matters, run it from Python `subprocess` via `pnpm.cmd`
+  with an explicit `cwd` and read `returncode`. Treat an **empty** capture as
+  "failed to capture", never as "passed".
 - Long-running sessions must use `background_process` tool.
 - Unity headless mode: `pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\start-unity-headless.ps1` starts the project in persistent `-batchmode` with GPU rendering; use `-Status` and `-Stop` for control. The Unity project stays in Edit mode for shader/material authoring commands.
 

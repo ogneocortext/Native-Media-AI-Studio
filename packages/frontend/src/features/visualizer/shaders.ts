@@ -627,6 +627,130 @@ export const SHADER_PRESETS = {
       gl_FragColor = vec4(color, 1.0);
     }
   `,
+
+  // ============================================================
+  // SPECTRAL REACTOR — "The Data Bridge"
+  // Multi-band audio-reactive with feedback frame buffer.
+  // Kick transient → geometry scale/vertex displacement.
+  // Highs → chromatic aberration / glitch threshold.
+  // Spectral centroid → hue rotation (dark bass = cold blues, bright vocals = reds/golds).
+  // RMS → feedback-trail intensity.
+  // ============================================================
+  spectralReactor: `
+    precision highp float;
+    uniform float u_time;
+    uniform float u_bass;
+    uniform float u_mid;
+    uniform float u_treble;
+    uniform float u_beat;
+    uniform float u_energy;
+    uniform float u_peak;
+    uniform float u_sub;
+    uniform float u_high;
+    uniform float u_transient;
+    uniform float u_centroid;
+    uniform float u_trail;
+    uniform vec2 u_resolution;
+    uniform sampler2D u_feedback_texture;
+
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+
+    vec3 oklch_to_linear_srgb(vec3 lch) {
+      float L = lch.x; float C = lch.y; float H = radians(lch.z);
+      float a = C * cos(H); float b = C * sin(H);
+      float l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+      float m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+      float s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+      float l = l_ * l_ * l_;
+      float m = m_ * m_ * m_;
+      float s = s_ * s_ * s_;
+      return vec3(
+         4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+        -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+        -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s);
+    }
+
+    void main() {
+      vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+      vec2 p = uv * 2.0 - 1.0;
+      p.x *= u_resolution.x / u_resolution.y;
+
+      float t = u_time * 0.4;
+
+      // ── Feedback: sample previous frame with zoom/rotation ──
+      vec4 feedback = texture2D(u_feedback_texture, uv);
+      float trailIntensity = u_trail * 0.8;
+
+      // ── Kick transient → geometry scale ──
+      float kickScale = 1.0 + u_transient * 0.15 + u_sub * 0.1;
+      vec2 kp = p / kickScale;
+
+      // ── Highs → chromatic aberration / glitch ──
+      float glitchThreshold = 0.7 - u_high * 0.4;
+      float glitch = step(glitchThreshold, hash(vec2(floor(t * 8.0), floor(uv.y * 20.0))));
+      float chromaOffset = glitch * 0.02 * u_high + u_transient * 0.01;
+
+      // ── Spectral centroid → hue rotation ──
+      // Dark bass (low centroid) = cold blues (~240°)
+      // Bright vocals (high centroid) = reds/golds (~30°)
+      float hueAngle = mix(240.0, 30.0, u_centroid);
+      float hueRad = radians(hueAngle);
+
+      // ── Primary geometry: reactive tunnel ──
+      float angle = atan(kp.y, kp.x);
+      float radius = length(kp);
+
+      // Tunnel depth pulses with bass
+      float depth = radius * (2.0 + u_bass * 1.5) + t * 0.5;
+
+      // Spiral arms driven by mids
+      float arms = 3.0 + floor(u_mid * 4.0);
+      float spiral = sin(angle * arms + depth * 3.0 + t) * 0.5 + 0.5;
+
+      // Grid pattern in polar space
+      float gridR = fract(depth * 0.5) - 0.5;
+      float gridA = fract(angle / 6.28318 * arms + t * 0.1) - 0.5;
+      float grid = (1.0 - smoothstep(0.0, 0.05 + u_energy * 0.03, abs(gridR)))
+                 * (1.0 - smoothstep(0.0, 0.03 + u_energy * 0.02, abs(gridA)));
+
+      // ── Color from centroid-driven hue ──
+      float L = 0.55 + u_energy * 0.2;
+      float C = 0.12 + u_mid * 0.1 + u_transient * 0.08;
+      vec3 baseColor = oklch_to_linear_srgb(vec3(L, C, hueAngle));
+
+      // Beat flash
+      float flash = u_beat * 0.4 * exp(-radius * 2.0);
+
+      // Compose scene
+      vec3 scene = baseColor * grid * (0.4 + u_energy * 1.2);
+      scene += baseColor * spiral * 0.15 * (0.5 + u_bass);
+      scene += vec3(1.0, 0.9, 0.7) * flash;
+
+      // Chromatic aberration: shift color channels
+      if (chromaOffset > 0.001) {
+        vec2 shift = vec2(chromaOffset, 0.0);
+        float r = texture2D(u_feedback_texture, uv + shift).r;
+        float b = texture2D(u_feedback_texture, uv - shift).b;
+        scene = vec3(r, scene.g, b);
+      }
+
+      // ── Blend with feedback trail ──
+      vec3 color = mix(scene, feedback.rgb, trailIntensity);
+
+      // Vignette
+      float vig = 1.0 - dot(p * 0.4, p * 0.4);
+      color *= vig;
+
+      // Tonemap
+      color = vec3(1.0) - exp(-color * 1.3);
+
+      // Dither
+      float dith = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+      color += (dith - 0.5) / 255.0;
+
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `,
 } as const;
 
 export type ShaderPresetName = keyof typeof SHADER_PRESETS;

@@ -79,6 +79,7 @@ export {
   generateVideoSection,
   generateKineticVideo,
   getStemsAnalysis,
+  enhanceStems,
 } from "./audio";
 export type {
   AudioUploadResponse,
@@ -99,6 +100,8 @@ export type {
   VideoGenerateResponse,
   KineticVideoRequest,
   KineticVideoResponse,
+  EnhanceStemsParams,
+  EnhanceStemsResponse,
 } from "./audio";
 
 // Logs

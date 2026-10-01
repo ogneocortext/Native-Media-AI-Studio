@@ -142,4 +142,10 @@ export const SHADER_PRESET_INFO: Record<
     description: "Flowing waveform interference patterns",
     bestFor: "Any genre",
   },
+  spectralReactor: {
+    name: "Spectral Reactor",
+    description: "Multi-band reactive tunnel with feedback trails, centroid-driven hue",
+    bestFor: "All genres — data-bridge driven",
+    fxDefaults: { brightness: 1.1, contrast: 1.1, saturation: 1.15 },
+  },
 };

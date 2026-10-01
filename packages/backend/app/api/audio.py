@@ -15,12 +15,14 @@ import time
 import urllib.parse
 import uuid
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..core.config import PROJECT_ROOT
+from ..services import source_separation
 from ..services.source_separation import SEPARATION_DIR, source_separator
 
 logger = logging.getLogger(__name__)
@@ -1044,6 +1046,58 @@ async def get_hyperframes_payload(filename: str, fps: int = 30, bands: int = 16)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.get("/spectral-timeline/{filename:path}")
+async def get_spectral_timeline(
+    filename: str,
+    fps: int = 24,
+    sr: int = 22050,
+    hop_length: int = 512,
+    n_fft: int = 2048,
+):
+    """Get dense frame-accurate spectral timeline for visualization binding.
+
+    Returns per-frame sub/mid/high band energies, transient flags, spectral
+    centroid, and RMS — the "data bridge" for Remotion/WebGL uniform binding.
+    Deterministic per-frame, no real-time analysis bottleneck.
+    """
+    import urllib.parse
+    filename = urllib.parse.unquote(filename)
+
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    normalized = filename.replace("\\", "/")
+    if normalized.startswith(str(AUDIO_DIR).replace("\\", "/")):
+        normalized = str(Path(normalized).relative_to(AUDIO_DIR).as_posix())
+
+    audio_path = AUDIO_DIR / normalized
+    if not audio_path.exists():
+        raise HTTPException(status_code=404, detail=f"Audio file not found: {filename}")
+
+    from tools.lib.audio import load_audio
+
+    from ..services.spectral_bands import analyze_audio_bands
+
+    y, sr_loaded = load_audio(str(audio_path), sr=sr)
+    raw_frames = analyze_audio_bands(y, sr=sr_loaded, hop_length=hop_length, n_fft=n_fft)
+
+    from tools.export_spectral_timeline import resample_timeline_to_fps
+
+    timeline = resample_timeline_to_fps(raw_frames, sr_loaded, hop_length, fps)
+
+    return {
+        "audio_file": str(audio_path.resolve()),
+        "duration_seconds": round(len(y) / sr_loaded, 3),
+        "sample_rate": sr_loaded,
+        "fps": fps,
+        "hop_length": hop_length,
+        "n_fft": n_fft,
+        "frame_count": len(timeline),
+        "bands": {"sub": [20, 120], "mid": [500, 2000], "high": [4000, 16000]},
+        "timeline": timeline,
+    }
+
+
 @router.get("/analysis/by-filename/{filename:path}")
 async def get_analysis_by_filename(filename: str):
     """Get cached analysis for an audio file by filename."""
@@ -1926,13 +1980,23 @@ class StemSeparationResponse(BaseModel):
 @router.post("/separate", response_model=StemSeparationResponse)
 async def separate_audio(
     file: UploadFile = File(...),
-    model: str = "htdemucs",
+    model: str = "mdx_extra_q",
+    mode: str = "single",
+    segment_size: int | None = None,
+    overlap: float | None = None,
+    denoise: bool | None = None,
 ) -> StemSeparationResponse:
-    """Separate an uploaded audio file into isolated stems (vocals, drums, bass, other)."""
+    """Separate an uploaded audio file into isolated stems.
+
+    Quality knobs (Gemini UVR5 guidance, 1070 Ti):
+      - segment_size: 128 or 256 keeps VRAM under ~6.5 GB.
+      - overlap: 0.25–0.75 for quality vs speed.
+      - denoise: post-denoise pass.
+      - mode: "single" (one-shot) or "hierarchical" (vocal MDX-Net first, then Demucs residual).
+    """
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
-    # Save uploaded file to audio dir
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -1955,9 +2019,17 @@ async def separate_audio(
             buffer.write(chunk)
 
     try:
+        from ..services.source_separation import SeparationOptions, source_separator
+        opts = SeparationOptions(
+            model=model,
+            segment_size=segment_size,
+            overlap=overlap,
+            denoise=denoise,
+        )
         result = await source_separator.separate(
             audio_path=str(saved_path),
-            model=model,
+            mode=mode,
+            options=opts,
         )
         return StemSeparationResponse(
             success=bool(result.stems) and not result.error,
@@ -1982,7 +2054,7 @@ async def get_stems(filename: str) -> dict:
     stem_dir = _find_stem_dir(filename)
     stems = {}
     if stem_dir is not None and stem_dir.exists():
-        for stem_name in ["vocals", "drums", "bass", "other"]:
+        for stem_name in source_separation.STEM_NAMES:
             stem_path = stem_dir / f"{stem_name}.wav"
             if stem_path.exists():
                 stems[stem_name] = str(stem_path)
@@ -2038,7 +2110,7 @@ async def get_stems_status() -> dict:
                 stem_dir = _find_stem_dir(relative)
                 stems: list[str] = []
                 if stem_dir is not None and stem_dir.exists():
-                    for stem_name in ["vocals", "drums", "bass", "other"]:
+                    for stem_name in source_separation.STEM_NAMES:
                         if (stem_dir / f"{stem_name}.wav").exists():
                             stems.append(stem_name)
                 tracks[relative] = {"has_stems": bool(stems), "stems": stems}
@@ -2051,41 +2123,55 @@ def _find_stem_dir(filename: str) -> Path | None:
     """Locate the Demucs output dir for a library file, tolerating renames.
 
     Separation output dirs are created from the *source* filename at separation
-    time (`output/stems/htdemucs/<stem>/`), so hash prefixes (`85a406ef_…`),
+    time (`output/stems/<model>/<track>/`), so hash prefixes (`85a406ef_…`),
     renames, and case/spacing differences all break an exact lookup. Resolve:
     exact → normalized equality → normalized containment (deterministic order).
+
+    Checks all known model directories (mdx_extra_q first, then htdemucs)
+    so existing stems remain discoverable after the default model change.
     """
-    base = SEPARATION_DIR / "htdemucs"
+    from ..services.source_separation import SourceSeparator
+
+    base_dirs = [SEPARATION_DIR / m for m in SourceSeparator.SUPPORTED_MODELS]
+    # Prefer newer models so a track separated with both returns the best one.
+    base_dirs.sort(key=lambda p: p.name != "mdx_extra_q")
+
     stem = Path(filename).stem
-    exact = base / stem
-    if exact.exists():
-        return exact
-    if not base.exists():
-        return None
 
     def norm(s: str) -> str:
         return re.sub(r"[^a-z0-9]", "", s.lower())
 
     stripped = re.sub(r"^([0-9a-f]{8}_)+", "", stem, flags=re.IGNORECASE)
     targets = {norm(stripped), norm(stem)} - {""}
-    try:
-        dirs = sorted([d for d in base.iterdir() if d.is_dir()], key=lambda d: d.name)
-    except OSError:
-        return None
-    for d in dirs:
-        if norm(d.name) in targets:
-            return d
-    for d in dirs:
-        dn = norm(d.name)
-        if dn and any(t in dn or dn in t for t in targets):
-            return d
+
+    for base in base_dirs:
+        exact = base / stem
+        if exact.exists():
+            return exact
+        if not base.exists():
+            continue
+        try:
+            dirs = sorted([d for d in base.iterdir() if d.is_dir()], key=lambda d: d.name)
+        except OSError:
+            continue
+        for d in dirs:
+            if norm(d.name) in targets:
+                return d
+        for d in dirs:
+            dn = norm(d.name)
+            if dn and any(t in dn or dn in t for t in targets):
+                return d
     return None
 
 
 class SeparateFileRequest(BaseModel):
     """Separate an existing library file (no re-upload)."""
     filename: str
-    model: str = "htdemucs"
+    model: str = "mdx_extra_q"
+    mode: str = "single"  # "single" | "hierarchical"
+    segment_size: int | None = None
+    overlap: float | None = None
+    denoise: bool | None = None
 
 
 @router.post("/separate-file", response_model=StemSeparationResponse)
@@ -2095,7 +2181,7 @@ async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResp
     Powers Visualizer "Load Stems": separating a 2–4 min track takes a few
     minutes (CUDA) — the request stays open up to 10 min like Demucs itself.
     """
-    from ..services.source_separation import SourceSeparator
+    from ..services.source_separation import SeparationOptions, SourceSeparator
 
     if not body.filename or ".." in body.filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
@@ -2109,8 +2195,33 @@ async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResp
     if path.suffix.lower() not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Invalid file type: {path.suffix}")
 
+    # Guard: if stems already exist, return them immediately instead of
+    # re-running Demucs (a 2–10 minute operation on CPU).
+    existing = await get_stems(body.filename)
+    if existing.get("found") and len(existing.get("stems", {})) >= 4:
+        return StemSeparationResponse(
+            success=True,
+            audio_file=body.filename,
+            model="existing",
+            stems=existing["stems"],
+            duration=0.0,
+            computed_at="",
+            error=None,
+            stems_mp3=existing.get("stems_mp3", {}),
+        )
+
     try:
-        result = await source_separator.separate(audio_path=str(path), model=body.model)
+        opts = SeparationOptions(
+            model=body.model,
+            segment_size=body.segment_size,
+            overlap=body.overlap,
+            denoise=body.denoise,
+        )
+        result = await source_separator.separate(
+            audio_path=str(path),
+            mode=body.mode,
+            options=opts,
+        )
         return StemSeparationResponse(
             success=bool(result.stems) and not result.error,
             audio_file=result.audio_file,
@@ -2126,6 +2237,26 @@ async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResp
         raise HTTPException(status_code=500, detail=f"Separation failed: {e}") from e
 
 
+@router.get("/separate-jobs/{job_id}")
+async def get_separation_job(job_id: str):
+    """Get status of an async separation job (hierarchical / queue)."""
+    job = source_separator.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {
+        "job_id": job.job_id,
+        "status": job.status,
+        "error": job.error,
+        "audio_file": job.audio_path,
+        "model": job.options.model,
+        "result": {
+            "stems": job.result.stems if job.result else {},
+            "stems_mp3": job.result.stems_mp3 if job.result else {},
+            "duration": job.result.duration if job.result else 0.0,
+        } if job.result else None,
+    }
+
+
 @router.get("/stem-file/{track_name}/{stem_name}")
 async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
     """Serve a separated stem (WAV, or MP3 via ?format=mp3) for per-stem playback/analysis.
@@ -2139,7 +2270,7 @@ async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
 
     track_name = urllib.parse.unquote(track_name)
     stem_name = urllib.parse.unquote(stem_name)
-    if stem_name not in {"vocals", "drums", "bass", "other"}:
+    if stem_name not in set(source_separation.STEM_NAMES):
         raise HTTPException(status_code=400, detail="stem_name must be vocals|drums|bass|other")
     if format not in {"wav", "mp3"}:
         raise HTTPException(status_code=400, detail="format must be wav|mp3")
@@ -2149,15 +2280,38 @@ async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
         raise HTTPException(status_code=400, detail="Invalid track name")
 
     base_dir = SEPARATION_DIR.resolve()
-    stem_path = (SEPARATION_DIR / "htdemucs" / safe_track / f"{stem_name}.{format}").resolve()
-    if not str(stem_path).startswith(str(base_dir)):
-        raise HTTPException(status_code=400, detail="Invalid track name")
+
+    # Find the track across known model dirs (mdx_extra_q first, then legacy htdemucs).
+    stem_path: Path | None = None
+    wav_path: Path | None = None
+    for model_dir in sorted(SEPARATION_DIR.iterdir()):
+        if not model_dir.is_dir():
+            continue
+        candidate = (model_dir / safe_track / f"{stem_name}.{format}").resolve()
+        if candidate.exists() and str(candidate).startswith(str(base_dir)):
+            stem_path = candidate
+            break
+        wav_candidate = (model_dir / safe_track / f"{stem_name}.wav").resolve()
+        if wav_candidate.exists() and str(wav_candidate).startswith(str(base_dir)):
+            wav_path = wav_candidate
+            stem_path = wav_path
+            break
+
+    if not stem_path:
+        raise HTTPException(status_code=404, detail=f"Stem not found: {safe_track}/{stem_name}.{format} — run POST /api/audio/separate first")
 
     if format == "mp3" and not stem_path.exists():
         # Lazy encode: stems separated before MP3 support have WAV only.
         from ..services.source_separation import encode_wav_to_mp3
-        wav_path = (SEPARATION_DIR / "htdemucs" / safe_track / f"{stem_name}.wav").resolve()
-        if wav_path.exists() and str(wav_path).startswith(str(base_dir)):
+        if wav_path is None:
+            for model_dir in sorted(SEPARATION_DIR.iterdir()):
+                if not model_dir.is_dir():
+                    continue
+                wav_candidate = (model_dir / safe_track / f"{stem_name}.wav").resolve()
+                if wav_candidate.exists() and str(wav_candidate).startswith(str(base_dir)):
+                    wav_path = wav_candidate
+                    break
+        if wav_path is not None:
             encoded = await asyncio.to_thread(encode_wav_to_mp3, wav_path)
             if encoded is not None:
                 stem_path = encoded
@@ -2204,6 +2358,143 @@ async def stem_visualization(body: StemVisualizationRequest) -> StemVisualizatio
     except Exception as exc:
         logger.exception("Stem visualization failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+class EnhanceStemsRequest(BaseModel):
+    """Request model for enhancing separated stems."""
+    filename: str
+    model: str = "mdx_extra_q"
+    target_peak_dbfs: float = -1.0
+    attack_ms: float = 5.0
+    release_ms: float = 80.0
+    ratio: float = 2.5
+    threshold_dbfs: float = -24.0
+    reverb_decay: float = 0.4
+    reverb_mix: float = 0.12
+    delay_mix: float = 0.08
+    stereo_widen_amount: float = 0.3
+    master_ceiling_dbfs: float = -1.0
+    output_format: str = "wav"
+    # Suno-specific (heuristic)
+    pre_highpass_hz: float = 120.0
+    vocal_spectral_gate_threshold_db: float = -40.0
+    vocal_dynamic_eq_max_reduction_db: float = 4.0
+    # KARRA / needs-fallback toggles
+    vocal_expander: bool = False
+    deess_freq_hz: float = 6500.0
+    air_boost_gain_db: float = 2.5
+    air_boost_freq_hz: float = 10000.0
+    vocal_balance_db: float = 0.0
+    # In The Mix upgrades
+    parallel_weight_bus_db: float = -15.0
+    sidechain_pocket_eq_enabled: bool = False
+
+
+class EnhanceStemsResponse(BaseModel):
+    """Response model for stem enhancement."""
+    success: bool
+    input_filename: str
+    model: str
+    stems: list[str]
+    wav_path: str | None = None
+    mp3_path: str | None = None
+    steps: list[dict] = []
+    error: str | None = None
+    duration: float = 0.0
+
+
+@router.post("/enhance-stems", response_model=EnhanceStemsResponse)
+async def enhance_stems(body: EnhanceStemsRequest) -> EnhanceStemsResponse:
+    """Run the 10-step Suno Track Enhancer auto-mix chain on separated stems.
+
+    If stems do not yet exist for the file, separation is run first using the
+    requested model. The enhancer then normalizes, EQ-carves, compresses,
+    de-esses, widens, adds FX sends, mixes, limits, and exports.
+    """
+    filename = body.filename
+    if not filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    src = (AUDIO_DIR / filename).resolve()
+    if not str(src).startswith(str(AUDIO_DIR.resolve())) or not src.exists() or not src.is_file():
+        raise HTTPException(status_code=404, detail=f"Audio file not found: {filename}")
+    if src.suffix.lower() not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Unsupported audio type: {src.suffix}")
+
+    model = body.model or "mdx_extra_q"
+    from ..services.source_separation import SourceSeparator
+    if model not in SourceSeparator.SUPPORTED_MODELS:
+        raise HTTPException(status_code=400, detail=f"Unknown model: {model}. Choose: {', '.join(SourceSeparator.SUPPORTED_MODELS)}")
+
+    stem_info = await get_stems(filename)
+    stems_dir: Path | None = None
+    if stem_info.get("found") and len(stem_info.get("stems", {})) >= 4:
+        first = next(iter(stem_info["stems"].values()))
+        stems_dir = Path(first).parent
+    else:
+        sep = await separate_library_file(SeparateFileRequest(filename=filename, model=model))
+        if not sep.success or not sep.stems:
+            raise HTTPException(status_code=500, detail=sep.error or "Separation failed")
+        first = next(iter(sep.stems.values()))
+        stems_dir = Path(first).parent
+
+    if stems_dir is None or not stems_dir.exists():
+        raise HTTPException(status_code=500, detail="Stems directory missing after separation")
+
+    from app.services.suno_enhancer import EnhanceConfig
+    from app.services.suno_enhancer import enhance_stems as _enhance
+    cfg = EnhanceConfig(
+        target_peak_dbfs=body.target_peak_dbfs,
+        attack_ms=body.attack_ms,
+        release_ms=body.release_ms,
+        ratio=body.ratio,
+        threshold_dbfs=body.threshold_dbfs,
+        reverb_decay=body.reverb_decay,
+        reverb_mix=body.reverb_mix,
+        delay_mix=body.delay_mix,
+        stereo_widen_amount=body.stereo_widen_amount,
+        master_ceiling_dbfs=body.master_ceiling_dbfs,
+        output_format=body.output_format,
+        pre_highpass_hz=body.pre_highpass_hz,
+        vocal_spectral_gate_threshold_db=body.vocal_spectral_gate_threshold_db,
+        vocal_dynamic_eq_max_reduction_db=body.vocal_dynamic_eq_max_reduction_db,
+        vocal_expander=body.vocal_expander,
+        deess_freq_hz=body.deess_freq_hz,
+        air_boost_gain_db=body.air_boost_gain_db,
+        air_boost_freq_hz=body.air_boost_freq_hz,
+        vocal_balance_db=body.vocal_balance_db,
+        parallel_weight_bus_db=body.parallel_weight_bus_db,
+        sidechain_pocket_eq_enabled=body.sidechain_pocket_eq_enabled,
+    )
+    try:
+        result = await _enhance(stems_dir, stems_dir / "enhanced", cfg)
+    except Exception as exc:
+        logger.exception("Suno enhancer failed")
+        raise HTTPException(status_code=500, detail=f"Enhancement failed: {exc}") from exc
+
+    all_stems = [p for p in stems_dir.glob("*.wav") if p.is_file()]
+    wav_path = result.wav_path or (stems_dir / "enhanced" / f"{stems_dir.name}_enhanced.wav")
+    mp3_path = result.mp3_path or (stems_dir / "enhanced" / f"{stems_dir.name}_enhanced.mp3")
+    duration = 0.0
+    try:
+        if wav_path and wav_path.exists():
+            import wave
+            with wave.open(str(wav_path), "rb") as wf:
+                duration = round(wf.getnframes() / max(wf.getframerate(), 1), 3)
+    except Exception:
+        pass
+
+    return EnhanceStemsResponse(
+        success=result.success,
+        input_filename=filename,
+        model=model,
+        stems=[p.name for p in all_stems],
+        wav_path=str(wav_path) if wav_path and wav_path.exists() else None,
+        mp3_path=str(mp3_path) if mp3_path and mp3_path.exists() else None,
+        steps=result.steps,
+        error=result.error,
+        duration=duration,
+    )
 
 
 @router.get("/file/{filename:path}")

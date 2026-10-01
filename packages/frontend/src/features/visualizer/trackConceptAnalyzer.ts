@@ -23,7 +23,8 @@ export type VisualizationStyle =
   | "aurora"
   | "inferno"
   | "ocean"
-  | "three-particles";
+  | "three-particles"
+  | "pppanik";
 
 export interface VisualizationOption {
   id: VisualizationStyle;
@@ -131,6 +132,13 @@ export const VISUALIZATION_OPTIONS: VisualizationOption[] = [
     description: "GPU-accelerated particles with trail renderer (@newkrok/three-particles)",
     icon: "sparkles",
     bestFor: ["experimental", "preview", "vfx", "trails"],
+  },
+  {
+    id: "pppanik",
+    name: "PPPANIK Blob Field",
+    description: "Instanced blob field (30k tetrahedra on Fibonacci shell, bass-driven displacement + transient spore ejection)",
+    icon: "box",
+    bestFor: ["experimental", "instanced", "blob", "spore"],
   },
 ];
 

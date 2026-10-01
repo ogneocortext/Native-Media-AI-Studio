@@ -6,6 +6,9 @@ import { getPreferences, setPreference } from "../../services/api";
 import type { AudioData, StemAnalysisData } from "./types";
 import type { StemName } from "./components/StemMixer";
 import type { LyricLine } from "./components/LyricOverlay";
+import { getSectionPreset } from "./sectionStateMachine";
+import { useSpectralTimeline } from "./useSpectralTimeline";
+import { AudioReactivityProcessor, type ReactivityConfig } from "./audioReactivityProcessor";
 
 const FX_STORAGE_PREFIX = "visualizerFx:";
 const FX_PREF_KEY = "visualizer_fx_defaults";
@@ -115,6 +118,8 @@ interface ShaderVisualizerProps {
   stemsMuted?: Record<StemName, boolean>;
   /** Current volume state from the stem mixer. Stems are scaled by volume. */
   stemsVolumes?: Record<StemName, number>;
+  /** Live per-stem meters from the professional mixer (overrides stemsVolumes when present). */
+  stemsProMeters?: Record<StemName, { rms: number; peak: number; dBFS: number }>;
 }
 
 /**
@@ -132,6 +137,7 @@ export function ShaderVisualizer({
   sampleAudio,
   stemsMuted,
   stemsVolumes,
+  stemsProMeters,
 }: ShaderVisualizerProps) {
   const [preset, setPreset] = useState<ShaderPresetName>(() => getShaderPresetForTrack(trackName));
   const [showSelector, setShowSelector] = useState(false);
@@ -155,6 +161,11 @@ export function ShaderVisualizer({
     beat: 0,
     energy: 0,
     peak: 0,
+    sub: 0,
+    high: 0,
+    transient: 0,
+    centroid: 0,
+    trail: 0,
   });
   const userSelectedPreset = useRef(false);
   const lrcSyncPropRef = useRef(lrcSync);
@@ -163,6 +174,26 @@ export function ShaderVisualizer({
   stemsMutedRef.current = stemsMuted;
   const stemsVolumesRef = useRef(stemsVolumes);
   stemsVolumesRef.current = stemsVolumes;
+  const stemsProMetersRef = useRef(stemsProMeters);
+  stemsProMetersRef.current = stemsProMeters;
+
+  const reactivityProcessorRef = useRef<AudioReactivityProcessor | null>(null);
+  const reactivityConfigRef = useRef<ReactivityConfig>({
+    smoothing: 0.35,
+    gamma: 2.2,
+    transientSensitivity: 1.0,
+    bassSensitivity: 1.0,
+    midSensitivity: 1.0,
+    highSensitivity: 1.0,
+  });
+
+  const { sampleAtTime: sampleSpectral } = useSpectralTimeline(trackName, 24);
+  const sectionPresetRef = useRef(getSectionPreset("verse"));
+  const lastSectionRef = useRef<string>("");
+  const [feedbackEnabled, setFeedbackEnabled] = useState(false);
+  const [feedbackZoom, setFeedbackZoom] = useState(1.0);
+  const [feedbackRotation, setFeedbackRotation] = useState(0.0);
+  const [feedbackDecay, setFeedbackDecay] = useState(0.97);
 
   // Load FX defaults from backend preferences once, then fall back to localStorage.
   useEffect(() => {
@@ -181,6 +212,11 @@ export function ShaderVisualizer({
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Initialize audio reactivity processor
+  useEffect(() => {
+    reactivityProcessorRef.current = new AudioReactivityProcessor(reactivityConfigRef.current);
   }, []);
 
   // Update uniforms from audio — tight, analysis-driven (2026 fix: was lagging ~80ms)
@@ -224,24 +260,86 @@ export function ShaderVisualizer({
           (stemsMutedRef.current?.other ? 0 : sampleStemEnergy(stems?.other, elapsed)) *
           (stemsVolumesRef.current?.other ?? 1),
       };
+
+      // Professional mixer meters override analysis-based stem energy when active.
+      // This gives the visualizer accurate real-time levels per stem channel.
+      if (stemsProMetersRef.current) {
+        const pm = stemsProMetersRef.current;
+        stemEnergy.vocals = pm.vocals?.rms ?? stemEnergy.vocals;
+        stemEnergy.drums = pm.drums?.rms ?? stemEnergy.drums;
+        stemEnergy.bass = pm.bass?.rms ?? stemEnergy.bass;
+        stemEnergy.other = pm.other?.rms ?? stemEnergy.other;
+      }
       const stemBoost =
         stemEnergy.vocals * 0.18 +
         stemEnergy.drums * 0.32 +
         stemEnergy.bass * 0.28 +
         stemEnergy.other * 0.12;
+
+      const spectral = sampleSpectral(elapsed);
+      const sectionType = sync?.currentSection ?? "verse";
+
+      if (sectionType && sectionType !== lastSectionRef.current) {
+        lastSectionRef.current = sectionType;
+        const mapping = getSectionPreset(sectionType);
+        if (!userSelectedPreset.current) {
+          setPreset(mapping.preset);
+          applyFxDefaults(mapping.preset);
+        }
+        setFeedbackEnabled(mapping.feedback);
+        setFeedbackZoom(mapping.feedbackZoom);
+        setFeedbackRotation(mapping.feedbackRotation);
+        setFeedbackDecay(mapping.feedbackDecay);
+      }
+
+      const sectionMapping = getSectionPreset(sectionType);
+      sectionPresetRef.current = sectionMapping;
+
+      // Update audio reactivity processor with spectral data
+      const processor = reactivityProcessorRef.current;
+      const bpm = 120; // Default BPM; AudioData doesn't carry tempo_bpm directly
+      if (processor && spectral) {
+        processor.update(spectral, [], bpm);
+      }
+      const reactivityUniforms = processor?.getUniforms() ?? null;
+
+      // Base uniforms from audio + stems
+      const baseBass = Math.min(1, d.bass * 0.7 + stemEnergy.bass * 0.3);
+      const baseMid = Math.min(1, d.mid * 0.75 + stemEnergy.vocals * 0.25);
+      const baseHigh = Math.min(1, d.treble * 0.75 + stemEnergy.other * 0.25);
+      const baseBeat = Math.min(1, beatPulse + stemEnergy.drums * 0.45);
+      const baseEnergy = Math.min(1, lrcEnergy + stemBoost * 0.25);
+
       uniformsRef.current = {
-        bass: Math.min(1, d.bass * 0.7 + stemEnergy.bass * 0.3),
-        mid: Math.min(1, d.mid * 0.75 + stemEnergy.vocals * 0.25),
-        treble: Math.min(1, d.treble * 0.75 + stemEnergy.other * 0.25),
-        beat: Math.min(1, beatPulse + stemEnergy.drums * 0.45),
-        energy: Math.min(1, lrcEnergy + stemBoost * 0.25),
+        bass: reactivityUniforms
+          ? Math.min(1, reactivityUniforms.bass * 0.6 + baseBass * 0.4)
+          : baseBass,
+        mid: reactivityUniforms
+          ? Math.min(1, reactivityUniforms.mid * 0.6 + baseMid * 0.4)
+          : baseMid,
+        treble: reactivityUniforms
+          ? Math.min(1, reactivityUniforms.high * 0.6 + baseHigh * 0.4)
+          : baseHigh,
+        beat: reactivityUniforms
+          ? Math.min(1, reactivityUniforms.beatPhase * 0.3 + baseBeat * 0.7)
+          : baseBeat,
+        energy: reactivityUniforms
+          ? Math.min(1, reactivityUniforms.energy * 0.5 + baseEnergy * 0.5)
+          : baseEnergy,
         peak: Math.max(d.peak, stemBoost),
+        sub: spectral?.sub ?? 0,
+        high: spectral?.high ?? 0,
+        transient: reactivityUniforms
+          ? Math.min(1, reactivityUniforms.transient * 0.7 + (spectral?.transient ?? 0) * 0.3)
+          : (spectral?.transient ?? 0),
+        centroid: spectral?.centroid ?? 0,
+        trail: sectionMapping.trailIntensity,
       };
       raf = requestAnimationFrame(update);
     };
     if (isPlaying) raf = requestAnimationFrame(update);
     return () => cancelAnimationFrame(raf);
-  }, [isPlaying, audioData, lrcSyncLive, stems, sampleAudio]);
+  }, [isPlaying, audioData, lrcSyncLive, stems, sampleAudio, sampleSpectral]);
 
   // Auto-change preset when track changes (only if user hasn't manually overridden)
   useEffect(() => {
@@ -320,6 +418,10 @@ export function ShaderVisualizer({
           uniformsRef={uniformsRef}
           className="absolute inset-0"
           timeScale={fxSpeed}
+          feedback={feedbackEnabled}
+          feedbackZoom={feedbackZoom}
+          feedbackRotation={feedbackRotation}
+          feedbackDecay={feedbackDecay}
         />
       </div>
 

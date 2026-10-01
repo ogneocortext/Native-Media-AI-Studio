@@ -14,6 +14,7 @@ import {
   InfernoViz,
   OceanWaves,
   OrbitalParticles,
+  PpanikBlobField,
   PulseRings,
   SpectrumBars,
   StormViz,
@@ -203,6 +204,8 @@ export function VisualizerScene({
           return <GeometricViz {...props} />;
         case "three-particles":
           return <ThreeParticlesDemo {...props} />;
+        case "pppanik":
+          return <PpanikBlobField {...props} />;
       }
     })();
 

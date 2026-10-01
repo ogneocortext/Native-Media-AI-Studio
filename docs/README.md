@@ -17,7 +17,7 @@ This directory contains project documentation, knowledge base articles, and setu
 | `guides/` | Production guides: GPU pipeline, visualizer debugging, music video workflow, file management |
 | `setup/` | Environment setup: Conda, Python envs, model setup, video setup, tunnel access |
 | `api/` | API reference |
-| `architecture/` | Architecture overview and the decision log (D1–D12, Q1–Q4) |
+| `architecture/` | Architecture overview, the visualizer module map, and the decision log (D1–D14, Q1–Q4) |
 | `comfyui-workflows/` | ComfyUI workflow reference |
 | `plans/` | Proposed and in-flight implementation plans |
 | `ux-audit/` | UX audit findings |
@@ -32,6 +32,7 @@ This directory contains project documentation, knowledge base articles, and setu
 - `knowledge-library/index.md` — library navigation and tag counts
 - `knowledge-library/tagging-guide.md` — how library articles are tagged
 - `architecture/decision-log.md` — decisions and open questions
+- `architecture/visualizer.md` — visualizer module map and refactor rules (D14)
 - `SYSTEM_REQUIREMENTS.md` — Hardware and software requirements
 - `TESTING_WORKFLOWS.md` — Testing instructions
 - `ENHANCEMENT_RECOMMENDATIONS.md` — Proposed improvements

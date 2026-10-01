@@ -197,6 +197,24 @@
   needs restructuring, that is a deliberate change with a migration, not an
   accident of where files were created.
 
+### D14 — Visualizer module decomposition over monolithic components
+- **Status:** Decided
+- **Context:** `Visualizer.tsx` (2,361 lines) had accumulated pure helpers,
+  the canvas-capture subsystem, the Web Audio graph, track selection, preset
+  application, and the whole JSX surface in one component. `Canvas2DVisualizer.tsx`
+  (1,560 lines) was similar. Both mixed trivially-extractable code with genuinely
+  stateful orchestration, so neither could be tested or changed safely.
+- **Decision:** Split by responsibility, not by line count. Pure helpers →
+  sibling modules; capture and audio-graph lifecycles → hooks that own their own
+  teardown. Keep `handleSelectLibraryTrack` inline (≈152 lines across 17 state
+  setters) — it is the track-loading coordinator, and splitting it trades real
+  behavioural risk for line count alone.
+- **Consequences:** Extraction is verified by diffing normalized code lines
+  against `git show HEAD:`, not by "tests still pass". New visualizer work should
+  go in the matching module rather than growing `Visualizer.tsx`. Only one
+  `AudioContext` may exist per page (see D4); `useAudioGraph.ensureAudioContext`
+  is the single creation site.
+
 ---
 
 ## Open questions
@@ -245,9 +263,9 @@
 - **Recommendation:** Unify behind the Q2 fallback model — modes become a
   priority list, not a toggle.
 
----
-
 ## Changelog
+- 2026-10-01: D14 recorded — the visualizer frontend is decomposed into focused modules rather than held in two monolithic components. `Visualizer.tsx` (2,361 lines) and `Canvas2DVisualizer.tsx` (1,560) are now orchestration over `visualizerHelpers.ts`, `canvas2dHelpers.ts`, `components/RenderStats.tsx`, `useVisualizerRecording.ts`, and `useAudioGraph.ts`. The split was mechanical (verbatim line ranges, verified by a normalized code-line diff against `HEAD`); the one behavioural change was consolidating the Web Audio graph, which had been copy-pasted three times and had already drifted. Recording and AudioContext teardown are now owned by their hooks rather than a shared unmount effect. A single shared `AudioContext` remains the rule (D4) — `ensureAudioContext()` is the only creation site.
+---
 - 2026-09-22: Log created from repo archaeology (README, AGENTS.md,
   `services/video/__init__.py`, recent CHANGELOG entries). Q1–Q4 opened.
 

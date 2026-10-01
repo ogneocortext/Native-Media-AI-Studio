@@ -37,19 +37,31 @@ export interface StemSeparationResponse {
   stems_mp3?: Record<string, string>;
 }
 
+export interface SeparationQualityOptions {
+  mode?: "single" | "hierarchical";
+  segment_size?: number;   // 128 or 256 for 8 GB VRAM
+  overlap?: number;        // 0.25–0.75
+  denoise?: boolean;
+}
+
 export async function separateAudioStems(
   file: File,
-  model: string = "htdemucs",
+  model: string = "mdx_extra_q",
+  quality: SeparationQualityOptions = {},
 ): Promise<StemSeparationResponse> {
   const base = getApiBase();
   const formData = new FormData();
   formData.append("file", file);
   formData.append("model", model);
+  if (quality.mode) formData.append("mode", quality.mode);
+  if (quality.segment_size != null) formData.append("segment_size", String(quality.segment_size));
+  if (quality.overlap != null) formData.append("overlap", String(quality.overlap));
+  if (quality.denoise != null) formData.append("denoise", String(quality.denoise));
 
   const res = await fetchWithTimeout(`${base}/api/audio/separate`, {
     method: "POST",
     body: formData,
-    timeout: 300000,
+    timeout: 600000,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Separation failed" }));
@@ -82,10 +94,11 @@ export async function getAudioStems(filename: string): Promise<AudioStemsRespons
 
 export async function separateAudioFile(
   filename: string,
-  model: string = "htdemucs",
+  model: string = "mdx_extra_q",
+  quality: SeparationQualityOptions = {},
 ): Promise<StemSeparationResponse> {
   const base = getApiBase();
-  const payload = { filename, model };
+  const payload: Record<string, unknown> = { filename, model, ...quality };
   return withDirectBackendFallback(
     () =>
       fetchWithTimeout(`${base}/api/audio/separate-file`, {
@@ -724,6 +737,59 @@ export interface KineticVideoResponse {
   section: string;
   error: string | null;
   message: string | null;
+}
+
+export interface EnhanceStemsResponse {
+  success: boolean;
+  input_filename: string;
+  model: string;
+  stems: string[];
+  wav_path: string | null;
+  mp3_path: string | null;
+  steps: Array<Record<string, unknown>>;
+  error: string | null;
+  duration: number;
+}
+
+export interface EnhanceStemsParams {
+  filename: string;
+  model?: string;
+  target_peak_dbfs?: number;
+  attack_ms?: number;
+  release_ms?: number;
+  ratio?: number;
+  threshold_dbfs?: number;
+  reverb_decay?: number;
+  reverb_mix?: number;
+  delay_mix?: number;
+  stereo_widen_amount?: number;
+  master_ceiling_dbfs?: number;
+  output_format?: "wav" | "mp3" | "both";
+  pre_highpass_hz?: number;
+  vocal_spectral_gate_threshold_db?: number;
+  vocal_dynamic_eq_max_reduction_db?: number;
+  vocal_expander?: boolean;
+  deess_freq_hz?: number;
+  air_boost_gain_db?: number;
+  air_boost_freq_hz?: number;
+  vocal_balance_db?: number;
+  parallel_weight_bus_db?: number;
+  sidechain_pocket_eq_enabled?: boolean;
+}
+
+export async function enhanceStems(params: EnhanceStemsParams): Promise<EnhanceStemsResponse> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/audio/enhance-stems`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+    timeout: 600000,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to enhance stems");
+  }
+  return res.json();
 }
 
 export async function generateKineticVideo(

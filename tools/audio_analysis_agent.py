@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+import urllib.parse
 from typing import Any
 
 import requests  # type: ignore
@@ -110,3 +111,31 @@ def analyze_all(backend: str = "sonara") -> dict[str, Any]:
     except Exception as exc:
         logger.error("analyze-all failed: %s", exc)
         return {"status": "error", "error": str(exc), "analyzed": 0, "total": 0, "files": [], "errors": []}
+
+
+def agent_profile(filename: str) -> dict[str, Any]:
+    """Return an agent-facing profile for a cached audio file.
+
+    The profile is a compact, plain-language-friendly JSON payload with
+    mood tags, scene-fit suggestions, EQ preset hints, and editing cues —
+    so AI agents can reason about the track without processing raw audio.
+    """
+    try:
+        r = requests.get(
+            f"{_AUDIO_AGENT_BASE_URL}/agent-profile/{urllib.parse.quote(filename)}",
+            timeout=30,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as exc:
+        logger.error("agent-profile failed for %s: %s", filename, exc)
+        return {"error": str(exc)}
+
+
+def describe(filename: str) -> str:
+    """Return a one-line plain-language description of a cached audio file."""
+    profile = agent_profile(filename)
+    if "error" in profile:
+        return f"Analysis unavailable for {filename}: {profile['error']}"
+    return profile.get("agent_profile", {}).get("description", "No description available.")
+
