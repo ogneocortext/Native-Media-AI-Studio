@@ -6,6 +6,7 @@ Handles file uploads for music video creation and audio analysis.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -34,6 +35,50 @@ AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 ANALYSIS_DIR = PROJECT_ROOT / "output" / "audio_analysis"
 ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
 ANALYSIS_INDEX = ANALYSIS_DIR / "index.json"
+
+
+async def _store_upload(file: UploadFile) -> str:
+    """Stream an upload to AUDIO_DIR and return its content-derived id.
+
+    The id is sha256(content)[:8], not a random uuid. A random id meant every
+    upload of the same track produced a different filename, a different
+    database row and a different index entry - and because each request then
+    arrived under a new name, the analysis cache could never hit. A content hash
+    makes the identity stable, so the same audio always resolves to the same
+    file and the same cached analysis.
+
+    Writes to a temporary name first and renames on success, so a failed or
+    oversized upload never leaves a half-written file under a real name.
+    """
+    digest = hashlib.sha256()
+    size = 0
+    tmp_path = AUDIO_DIR / (uuid.uuid4().hex + ".upload")
+    try:
+        with open(tmp_path, "wb") as buffer:
+            while chunk := await file.read(8192):
+                size += len(chunk)
+                if size > MAX_FILE_SIZE:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)} MB",
+                    )
+                digest.update(chunk)
+                buffer.write(chunk)
+    except HTTPException:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    except Exception as e:
+        tmp_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}") from e
+
+    unique_id = digest.hexdigest()[:8]
+    final_path = AUDIO_DIR / f"{unique_id}_{file.filename}"
+    try:
+        tmp_path.replace(final_path)   # atomic within the same volume
+    except Exception as e:
+        tmp_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}") from e
+    return unique_id
 
 
 def _is_downbeat(index: int, beats_per_bar: int = 4) -> bool:
@@ -219,27 +264,10 @@ async def upload_audio(file: UploadFile = File(...)) -> AudioUploadResponse:
             detail=f"Invalid file type. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
         )
 
-    unique_id = str(uuid.uuid4())[:8]
+    unique_id = await _store_upload(file)
     safe_name = f"{unique_id}_{file.filename}"
     file_path = AUDIO_DIR / safe_name
-
-    size = 0
-    try:
-        with open(file_path, "wb") as buffer:
-            while chunk := await file.read(8192):
-                size += len(chunk)
-                if size > MAX_FILE_SIZE:
-                    file_path.unlink(missing_ok=True)
-                    raise HTTPException(
-                        status_code=413,
-                        detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)} MB",
-                    )
-                buffer.write(chunk)
-    except HTTPException:
-        raise
-    except Exception as e:
-        file_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}") from e
+    size = file_path.stat().st_size
 
     return AudioUploadResponse(
         success=True,
@@ -266,23 +294,11 @@ async def analyze_audio(
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Invalid file type")
 
-    unique_id = str(uuid.uuid4())[:8]
+    unique_id = await _store_upload(file)
     safe_name = f"{unique_id}_{file.filename}"
     file_path = AUDIO_DIR / safe_name
 
     try:
-        with open(file_path, "wb") as buffer:
-            size = 0
-            while chunk := await file.read(8192):
-                size += len(chunk)
-                if size > MAX_FILE_SIZE:
-                    file_path.unlink(missing_ok=True)
-                    raise HTTPException(
-                        status_code=413,
-                        detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)} MB",
-                    )
-                buffer.write(chunk)
-
         _check_backend_available(backend)
 
         from ..services.audio_analyzer import AudioAnalyzer
@@ -318,23 +334,11 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Invalid file type")
 
-    unique_id = str(uuid.uuid4())[:8]
+    unique_id = await _store_upload(file)
     safe_name = f"{unique_id}_{file.filename}"
     file_path = AUDIO_DIR / safe_name
 
     try:
-        with open(file_path, "wb") as buffer:
-            size = 0
-            while chunk := await file.read(8192):
-                size += len(chunk)
-                if size > MAX_FILE_SIZE:
-                    file_path.unlink(missing_ok=True)
-                    raise HTTPException(
-                        status_code=413,
-                        detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)} MB",
-                    )
-                buffer.write(chunk)
-
         from ..services.audio_analyzer import LIBROSA_AVAILABLE, AudioAnalyzer
         if not LIBROSA_AVAILABLE:
             raise HTTPException(status_code=503, detail="librosa not installed")
