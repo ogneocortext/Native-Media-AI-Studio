@@ -26,6 +26,13 @@ export default defineConfig({
       "@shared": path.resolve(__dirname, "../../shared"),
     },
   },
+  server: {
+    // Vite rejects requests whose Host header is not allow-listed, which made
+    // /__vitest__/ return 403 when opened from anything but the exact origin
+    // the UI was started with. Pinning the hosts keeps `pnpm test:unit:ui`
+    // reachable in a browser.
+    allowedHosts: ["localhost", "127.0.0.1"],
+  },
   test: {
     // Pure-logic unit tests, colocated next to the module they cover.
     include: ["src/**/*.test.ts"],

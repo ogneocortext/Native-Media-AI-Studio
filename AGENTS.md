@@ -230,7 +230,11 @@ Individual gates, for iterating on one area:
 - Unit (pure logic): `pnpm test:unit` in `packages/frontend/` — vitest, for
   `src/**/*.test.ts`. Playwright cannot test these: booting a browser to assert
   `audioTiming.ts`'s latency math costs seconds and is flaky where a unit test
-  costs ~1 ms. Test files are **colocated** under `src/`, not in `tests/`,
+  costs ~1 ms. `pnpm test:unit:ui` opens the same suite in the Vitest UI
+  (browser, watch mode). That URL is **token-authenticated**: copy the
+  `http://localhost:<port>/__vitest__/?token=…` line it prints on startup, or
+  the page returns 403.
+  Test files are **colocated** under `src/`, not in `tests/`,
   because `tests/` holds Playwright specs and its own `tsconfig.tests.json`.
   Covered so far: `keyPalette.ts` (chroma→hue, Q5), `audioTiming.ts`
   (latency/beat clock), `lyricsSync.ts` (LRC parsing and lookup), and
