@@ -182,6 +182,30 @@ displacement") and omitted the ref-based driver handoff. Two `Co-Authored-By`
 trailers had also been left inside the CHANGELOG body, splitting a section and
 interrupting the paragraph flow. Both corrected.
 
+### Fixed - Machine PATH traps documented in AGENTS.md
+
+A `bash` invocation was run expecting Git Bash; on this workstation bare `bash`
+resolves to `C:\Windows\System32\bash.exe`, the **WSL launcher**. It failed while
+translating a Windows PATH entry (an unrelated Android SDK path) and surfaced an
+error mentioning tools that have nothing to do with this project. Running the
+repo hook installer via `C:\Program Files\Git\bin\bash.exe` works.
+
+`AGENTS.md` now records the three bare names that mislead on this machine, each
+verified by resolving it rather than assumed:
+
+| Bare name | Resolves to |
+|---|---|
+| `bash` | WSL launcher (not Git Bash) |
+| `python` | `C:\Python314` **3.14.7** — lacks the backend deps; the project interpreter is `nma-studio-cuda` **3.11.9** |
+| `node` | fnm alias; `npm.cmd` is present on two PATH entries |
+
+Also clarified that the project's PowerShell 7.6+ requirement applies to its own
+scripts, not to the agent shell, which is PowerShell 5.1.
+
+**No PowerShell profile was modified** — none of the four `$PROFILE` paths exist
+on this machine, so the confusion comes from the system PATH, not a profile.
+Editing one would have treated the wrong cause.
+
 ### Changed - Trusting gate output on Windows
 
 `pnpm type-check` and `pnpm lint` reported exit code 1 through the PowerShell

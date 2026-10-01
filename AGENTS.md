@@ -73,7 +73,9 @@ Never send generic prompts like "describe this image"; use mode-specific prompts
 
 ### Shell / Process Management
 
-- **Requires PowerShell 7.6+.** Verify `$PSVersionTable.PSVersion.Major -ge 7`.
+- **Requires PowerShell 7.6+ for the project's own scripts.** The agent shell may
+  itself be PowerShell **5.1** — check `$PSVersionTable.PSVersion.Major` before
+  concluding the scripts are broken.
 - On PowerShell failures, **fall back to Python immediately**. This is not just
   for crashes: PowerShell mangles tool output. `pnpm type-check`/`pnpm lint`
   report exit code 1 through the `.ps1` wrapper while actually passing, and
@@ -83,6 +85,30 @@ Never send generic prompts like "describe this image"; use mode-specific prompts
   "failed to capture", never as "passed".
 - Long-running sessions must use `background_process` tool.
 - Unity headless mode: `pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\start-unity-headless.ps1` starts the project in persistent `-batchmode` with GPU rendering; use `-Status` and `-Stop` for control. The Unity project stays in Edit mode for shader/material authoring commands.
+
+### Machine-specific PATH traps (this workstation)
+
+These are properties of the machine, not the repo. Each has already caused a
+wrong action, so verify before trusting a bare command name.
+
+| Bare name | Resolves to | Why it's a trap |
+|---|---|---|
+| `bash` | `C:\Windows\System32\bash.exe` | The **WSL launcher**, not Git Bash. It fails on Windows PATH entries it cannot translate (e.g. Android SDK), and errors mention unrelated tools. For repo shell scripts use `C:\Program Files\Git\bin\bash.exe` explicitly. |
+| `python` | `C:\Python314\python.exe` (3.14.7) | **Not** the project interpreter. Backend/GPU work needs `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` (3.11.9) — see "Python Environments" below. |
+| `node` | `...\fnm\aliases\default\node.exe` | Resolves, but `npm.cmd` exists on two PATH entries; prefer `pnpm.cmd` from Python with an explicit `cwd`. |
+
+There is **no PowerShell profile** on this machine (none of the four
+`$PROFILE` paths exist), so nothing here is configured by a profile — the
+confusion comes from the system PATH itself. Don't "fix" this by editing a
+profile; the fix is to stop using bare names.
+
+**Do not use bare `python` for repo work.** `C:\Python314` has none of the
+backend dependencies (`import fastapi` fails), while `nma-studio-cuda` has them.
+A wrong-interpreter run can also *silently* differ: 3.14 vs 3.11 changes stdlib
+behaviour, so a script may pass on one and fail on the other.
+
+Unrelated tools on PATH (Android SDK, WSL) are noise from the OS environment —
+they are not part of this project and should never be invoked for repo tasks.
 
 ### Services
 
