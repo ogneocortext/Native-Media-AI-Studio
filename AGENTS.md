@@ -71,6 +71,44 @@ Never send generic prompts like "describe this image"; use mode-specific prompts
 
 ## Development Guidelines
 
+### Services: start once, then leave them alone
+
+**Do not restart a service that is already running.** This is the single most
+common way an agent wastes time here, so it is stated as protocol rather than
+left to judgement.
+
+Both dev servers hot-reload. The Vite dev server recompiles on save, and the
+backend runs under `watchfiles`, so **editing a file is enough** — the change is
+live before you finish reading the terminal. Restarting discards that, costs
+10–90 s of startup, and risks leaving a half-started process behind. Verify with
+a request, not with a restart:
+
+```bash
+python tools/run-gates.py --only type lint   # catches a broken build in ~8s
+curl -s http://127.0.0.1:8000/api/health    # or just reload the browser tab
+```
+
+Rules:
+
+- Check what is up before starting anything: `scripts\check_ports.ps1`.
+- Start only what is actually down. `-Services` takes **one** name, not a list.
+- **Leave services running when you finish.** The next step usually needs them,
+  and a stopped service is a slower "it doesn't work" than a running one.
+- Restart only when the process is *wrong* — wedged, listening on the wrong
+  port, or started before a dependency it needs.
+
+`scripts\start-services.ps1` is currently broken: it builds an array and passes
+it to `manage-servers.ps1`'s `[string]$Services` parameter, which fails with
+"Cannot convert value to type System.String". Until that is fixed, call the
+manager directly:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services all
+```
+
+Note `pwsh`, not `powershell` — the agent shell is 5.1 and these scripts require
+7.6+. ComfyUI and the video editor are optional; the studio runs without them.
+
 ### Shell / Process Management
 
 **Prefer Python over PowerShell for anything an agent runs.** This is now

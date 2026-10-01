@@ -117,6 +117,17 @@ class AudioAnalysisResult(BaseModel):
     energy_curve: list[float] = []  # normalized 0-1, 60-100 points for viz
     confidence: float = 0.0
     amplitude_envelope: list[float] = []
+    # Key detection. These were missing from the model, so a fresh analysis
+    # dropped them on the way out and every stored result predated the
+    # chroma->hue work. The frontend mapper reads key_confidence_r (raw r) to
+    # decide between a direct hue, a runner-up blend, and the neutral fallback;
+    # key_confidence is the clamped display value.
+    # See docs/architecture/chroma-hue-mapping.md.
+    estimated_key: str | None = None
+    key_confidence: float | None = None
+    key_confidence_r: float | None = None
+    key_runner_up: str | None = None
+    key_runner_up_r: float | None = None
     stored_path: str | None = None
     job_id: str | None = None
     beats_truncated: bool = False  # True when beat_times hit the response cap
