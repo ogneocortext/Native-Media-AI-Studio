@@ -82,6 +82,16 @@ scripts/utility/tunnel-urls.json
 
 !scripts/start-studio.ps1
 !scripts/manage-servers.ps1
+# Dot-sourced by manage-servers.ps1, start-studio.ps1 and two others as the
+# single source of truth for python/pnpm/port resolution. Without it those
+# scripts fail at runtime on any clone that did not already have it on disk.
+!scripts/shared-utils.ps1
+# These two are the entry points AGENTS.md tells every agent to run. They were
+# caught by scripts/**/*.ps1 above and are therefore absent from a fresh clone,
+# which makes the documented "Start:" and "Ports:" commands fail for anyone who
+# has not run them by hand on this machine first. Real source, not scratch.
+!scripts/start-services.ps1
+!scripts/check_ports.ps1
 
 # Test
 coverage/
