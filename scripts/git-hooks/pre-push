@@ -1,0 +1,71 @@
+#!/bin/sh
+# Pre-push guard: the fast gates, before anything leaves the machine.
+#
+# Installed locally only (see D10 in docs/architecture/decision-log.md: no CI, so
+# every check must happen here before changes reach the remote). The canonical
+# copy lives at scripts/git-hooks/pre-push; this file is a copy.
+# Re-install with:  bash scripts/install-git-hooks.sh
+#
+# Scope is deliberate. This runs what is cheap enough to run on every push:
+# documentation/repo hygiene, backend lint, frontend type-check and lint, and
+# the fast vitest unit suite. It does NOT run pytest (~40 s) or Playwright
+# (~30 s) - those are what `python tools/run-gates.py --e2e` is for, and a push
+# hook that takes 90 s gets bypassed, which is worse than no hook.
+#
+# The work happens in Python (tools/run-gates.py) rather than inline shell or
+# PowerShell, for the reasons in AGENTS.md: a .ps1 wrapper can report exit 1
+# while passing, and a pipe decoded as the ANSI code page mangles UTF-8 output.
+# This file only decides *what* to run and *whether* to fail; it does not
+# interpret tool output.
+#
+# Bypass for a deliberate one-off:  git push --no-verify
+
+set -e
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+# Chain rather than replace. Git LFS installs its own pre-push hook, and
+# overwriting it silently breaks large-file handling. install-git-hooks.sh keeps
+# the displaced copy as pre-push.backup, and we call it at every exit path.
+chain_file="$(dirname "$0")/pre-push.backup"
+run_chained_hook() {
+    if [ -f "$chain_file" ] && [ "$chain_file" != "$0" ]; then
+        sh "$chain_file" "$@"
+    fi
+}
+
+# Resolve an interpreter: the studio env first, then anything on PATH.
+PYTHON=""
+for candidate in \
+    "D:/conda-envs/nma-studio-cuda/Scripts/python.exe" \
+    "venv/Scripts/python.exe"; do
+    if [ -x "$candidate" ]; then
+        PYTHON="$candidate"
+        break
+    fi
+done
+if [ -z "$PYTHON" ] && command -v python >/dev/null 2>&1; then
+    PYTHON="python"
+fi
+
+if [ -z "$PYTHON" ]; then
+    echo "pre-push: no Python interpreter found; skipping checks." >&2
+    echo "            Set one in scripts/git-hooks/pre-push or install Python." >&2
+    run_chained_hook "$@"
+    exit 0
+fi
+
+# The unit gate is ~1.5 s; the rest are a few seconds each. pytest and Playwright
+# are excluded on purpose (see the header).
+if ! "$PYTHON" tools/run-gates.py --only docs ruff type lint unit; then
+    echo >&2
+    echo "pre-push: fast gates failed (see above)." >&2
+    echo "          Fix and push again, or bypass once with --no-verify." >&2
+    echo "          Full suite: python tools/run-gates.py --e2e" >&2
+    run_chained_hook "$@"
+    exit 1
+fi
+
+run_chained_hook "$@"
+exit 0
