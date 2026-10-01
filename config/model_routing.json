@@ -1,4 +1,21 @@
 {
+  "_about": {
+    "purpose": "Chooses which video model generates each section of a music video, based on the section's type and analysed energy. Keeps the 8GB VRAM budget (D7) by sending only the sections that need quality to an expensive model.",
+    "consumed_by": [
+      "packages/backend/app/core/model_tiers.py",
+      "music-video wizard per-section model selection"
+    ],
+    "schema": {
+      "rules": "evaluated in order; the FIRST matching rule wins",
+      "rules[].match.section_type": "required - the analysed section label (intro, verse, chorus, bridge, drop, breakdown, outro, ...)",
+      "rules[].match.energy_max": "optional - upper bound on the section's 0..1 analysed energy; the rule does not apply above it",
+      "rules[].model": "model id to render with; must exist in app/core/model_tiers.py",
+      "rules[].tier": "draft | balanced | quality - controls VRAM budget and render time",
+      "rules[].reason": "human-readable justification, surfaced in the wizard so a choice is never opaque"
+    },
+    "extending": "Insert a new rule ABOVE any broader rule you want it to override, since first match wins. Keep energy_max consistent with the section type, or a quiet chorus will be caught by the verse rule.",
+    "last_updated": "2026-10-01"
+  },
   "rules": [
     {
       "match": { "section_type": "intro", "energy_max": 0.2 },

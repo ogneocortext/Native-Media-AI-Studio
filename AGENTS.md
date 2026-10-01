@@ -84,6 +84,12 @@ Never send generic prompts like "describe this image"; use mode-specific prompts
   with an explicit `cwd` and read `returncode`. Treat an **empty** capture as
   "failed to capture", never as "passed".
 - Long-running sessions must use `background_process` tool.
+- **Do not leave `tmp_*` scratch files in the repo root.** Names like
+  `tmp_m.txt` or `tmp_g.py` are meaningless to the next reader and are the
+  convention this project is moving away from. If you need a scratch file while
+  a command runs, put it **outside the repo** (e.g. `$env:TEMP`), and delete it
+  when finished. If a helper is worth keeping, give it a descriptive name and
+  commit it under `tools/`.
 - Unity headless mode: `pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\start-unity-headless.ps1` starts the project in persistent `-batchmode` with GPU rendering; use `-Status` and `-Stop` for control. The Unity project stays in Edit mode for shader/material authoring commands.
 
 ### Machine-specific PATH traps (this workstation)

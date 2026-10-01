@@ -1,1 +1,23 @@
-{"tracks":[{"bpm":130,"durationSec":209,"file":"rinse-and-repeat.json","hasLrc":false,"id":"rinse-and-repeat","lyricsStatus":"complete","source":"Suno v6-mini","title":"Rinse and Repeat"},{"bpm":145,"durationSec":246,"file":"human-in-the-loop-v2.json","hasLrc":false,"id":"human-in-the-loop-v2","lyricsStatus":"complete","source":"Flow Music (Lyria 3.5)","title":"Human in the Loop V2"},{"bpm":136,"durationSec":167,"file":"unproductive-valley-phonk.json","hasLrc":false,"id":"unproductive-valley-phonk","lyricsStatus":"complete","source":"Flow Music (Lyria 3.5) v1","title":"Unproductive (Valley Phonk)"},{"bpm":145,"durationSec":209,"file":"ad-nauseam.json","hasLrc":false,"id":"ad-nauseam","lyricsStatus":"complete","source":"Suno v6-mini","title":"Ad Nauseam"},{"bpm":140,"durationSec":180,"file":"unproductive-v6-mini.json","hasLrc":false,"id":"unproductive-v6-mini","lyricsStatus":"complete","source":"Suno v6-mini","title":"Unproductive"},{"durationSec":185,"file":"patch-notes-v3.json","hasLrc":false,"id":"patch-notes-v3","lyricsStatus":"complete","source":"Suno v6-mini","title":"Patch Notes"}]}
+{
+  "_about": {
+    "purpose": "Library manifest for the kinetic-typography lyrics library. Lists every track available to the Kinetic Typography page so it can populate its track picker and load lyric text on demand.",
+    "consumed_by": [
+      "packages/frontend/src/data/trackLyrics.ts (fetchTrackLyricsIndex)",
+      "packages/frontend/src/features/kinetic-typography/KineticTypographyPage.tsx"
+    ],
+    "schema": {
+      "tracks": "array of entries; one per library track",
+      "tracks[].id": "stable slug; matches this entry to its sibling <filename>.json",
+      "tracks[].title": "display title shown in the track picker",
+      "tracks[].file": "sibling filename holding the full lyric document",
+      "tracks[].lyricsStatus": "'complete' | 'missing' - whether lyric text was transcribed",
+      "tracks[].hasLrc": "true when a real LRC file exists; the JSON carries NO per-line timestamps either way",
+      "tracks[].bpm": "optional; absent for tracks that were never analysed",
+      "tracks[].durationSec": "optional; used to spread lines evenly as ESTIMATED timing",
+      "tracks[].source": "which generator produced the track (e.g. 'Suno v6-mini')"
+    },
+    "timing_warning": "Entries carry no word-level timestamps. The loader distributes lines evenly across durationSec as placeholder timing for PREVIEW ONLY - never for final renders. A real LRC or word-timing pass supersedes the estimate.",
+    "extending": "To add a track: create <filename>.json with {id,title,hasLrc,lyricsStatus,sections:[{name,lines[]}]}, then add a matching entry here. Keep ids and filenames in sync.",
+    "last_updated": "2026-10-01"
+  },
+  "tracks": [{"bpm":130,"durationSec":209,"file":"rinse-and-repeat.json","hasLrc":false,"id":"rinse-and-repeat","lyricsStatus":"complete","source":"Suno v6-mini","title":"Rinse and Repeat"},{"bpm":145,"durationSec":246,"file":"human-in-the-loop-v2.json","hasLrc":false,"id":"human-in-the-loop-v2","lyricsStatus":"complete","source":"Flow Music (Lyria 3.5)","title":"Human in the Loop V2"},{"bpm":136,"durationSec":167,"file":"unproductive-valley-phonk.json","hasLrc":false,"id":"unproductive-valley-phonk","lyricsStatus":"complete","source":"Flow Music (Lyria 3.5) v1","title":"Unproductive (Valley Phonk)"},{"bpm":145,"durationSec":209,"file":"ad-nauseam.json","hasLrc":false,"id":"ad-nauseam","lyricsStatus":"complete","source":"Suno v6-mini","title":"Ad Nauseam"},{"bpm":140,"durationSec":180,"file":"unproductive-v6-mini.json","hasLrc":false,"id":"unproductive-v6-mini","lyricsStatus":"complete","source":"Suno v6-mini","title":"Unproductive"},{"durationSec":185,"file":"patch-notes-v3.json","hasLrc":false,"id":"patch-notes-v3","lyricsStatus":"complete","source":"Suno v6-mini","title":"Patch Notes"}]}

@@ -1,4 +1,26 @@
 {
+  "_about": {
+    "purpose": "Single source of truth for every local service port and URL in the studio. Vite proxies /api and /config through these, the startup scripts read them, and the frontend fetches /config/ports.json at runtime. Change a port HERE, not in a script or component.",
+    "consumed_by": [
+      "packages/frontend/src/services/portConfig.ts (fetched at runtime via /config/ports.json)",
+      "packages/frontend/playwright.config.ts (reads frontend_port)",
+      "scripts/manage-servers.ps1, scripts/start-services.ps1, scripts/check_ports.ps1",
+      "packages/backend/app/core/config.py"
+    ],
+    "conventions": {
+      "*_port": "TCP port number only",
+      "*_url": "full base URL including scheme and host",
+      "backend_url": "FastAPI origin. The Vite dev proxy targets this.",
+      "frontend_url": "Vite dev server origin; the Playwright baseURL.",
+      "comfyui_*": "ComfyUI, started separately. Never required for the core app to boot.",
+      "go_*_url": "Go sidecars (see tools/go-*/). Optional: the studio runs without them, but dashboards and media serving degrade.",
+      "sse_url / events_url": "Server-Sent Events feed. Shared with the Go dashboard on 3847.",
+      "ws_url": "WebSocket endpoint for bidirectional traffic (chat, live job control).",
+      "backend_events_url": "Backend's own event stream; distinct from the Go dashboard's."
+    },
+    "note": "Two backend processes cannot bind the same port. Run scripts/check_ports.ps1 before starting a second instance, and prefer changing the value here over editing any script or component that hardcodes a port.",
+    "last_updated": "2026-10-01"
+  },
   "backend_url": "http://127.0.0.1:8000",
   "backend_port": 8000,
   "frontend_url": "http://127.0.0.1:5173",

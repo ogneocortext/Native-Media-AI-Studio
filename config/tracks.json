@@ -1,4 +1,25 @@
 {
+  "_about": {
+    "purpose": "Track catalogue for the music-video pipeline: the source audio, its generation prompt, and the lyrics/themes that drive section planning. Each entry is one song from the user's own library.",
+    "consumed_by": [
+      "music-video wizard track picker",
+      "packages/backend/app/services/music_prompt_generator.py"
+    ],
+    "schema": {
+      "tracks": "array of track entries",
+      "tracks[].id": "stable identifier used by presets and saved jobs",
+      "tracks[].filename": "audio filename as it appears in the audio library",
+      "tracks[].source_path": "original path on the generation machine; NOT a valid path on this one",
+      "tracks[].duration / duration_seconds": "display string and machine-readable seconds",
+      "tracks[].music_prompt": "the prompt that generated the track; reused for visual tone matching",
+      "tracks[].lyrics": "theme summary used for section planning (not full lyrics)",
+      "tracks[].visual_style / visual_prompt": "empty until a visual treatment is chosen; fill these to pin a style",
+      "tracks[].status": "pending until the video has been generated",
+      "tracks[].tags": "free-form labels for filtering"
+    },
+    "extending": "Add an entry per track. Keep id and filename in sync with the audio library; a filename that no longer resolves will 404 in the track picker.",
+    "last_updated": "2026-10-01"
+  },
   "tracks": [
     {
       "id": "track_001",

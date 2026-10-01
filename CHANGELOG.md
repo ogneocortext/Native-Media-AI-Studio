@@ -225,6 +225,33 @@ A repo-wide filename scan also flagged `__init__.py` and the
 `__init__.py` is required by Python's import machinery, and the shouty doc names
 are a consistent house convention, not obfuscation.
 
+### Added - Self-describing `_about` blocks in frontend-driving JSON
+
+The JSON data files that drive frontend features were bare payloads with no
+indication of what they were for. An agent (or a person) opening
+`track-lyrics/index.json` saw only `{tracks:[...]}` with nothing saying it feeds
+the Kinetic Typography page, or that the timing is estimated rather than real.
+The knowledge-library JSONs already carried `title`/`version`/`description`; the
+consumed configs did not.
+
+Added an `_about` block to the four files a reader most needs context for:
+`packages/frontend/public/track-lyrics/index.json`, `config/ports.json`,
+`config/tracks.json`, and `config/model_routing.json`. Each records its purpose,
+the modules that consume it, a per-field schema, and how to extend it safely.
+
+Non-obvious facts now live in the files rather than only in code:
+- `track-lyrics/index.json` timing is **estimated** by spreading lines evenly
+  across `durationSec` — preview only, never for final renders.
+- `model_routing.json` rules are **first-match-wins** and order-dependent, so a
+  new rule must be inserted above any broader rule it should override.
+- `ports.json` naming convention (`*_port` = number, `*_url` = full URL) and
+  which of the services are optional.
+
+Keys are underscore-prefixed so they group together and cannot collide with a
+data key. TypeScript interfaces are structural, and both `portConfig.ts` and
+`vite.config.ts` read only named fields rather than iterating, so the extra keys
+are inert. Verified: tsc 0, eslint 0 errors, Playwright 10/10, 34 routes.
+
 ### Changed - Trusting gate output on Windows
 
 `pnpm type-check` and `pnpm lint` reported exit code 1 through the PowerShell
