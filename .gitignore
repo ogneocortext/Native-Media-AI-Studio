@@ -291,4 +291,11 @@ packages/frontend/tests/browser/out/
 # HyperFrames render output: 75 MB unreferenced mp4 plus a base64 frame blob,
 # both regenerable from the compositions and neither referenced by any code.
 tools/hyperframes-built-this-from-a-dream/renders/
+
+# HyperFrames waveform cache: regenerated per build, and its filenames embed a
+# content hash + epoch-ms run id (e.g. v2_Built This From A Dream.mp3_7325546-1788280340000.json),
+# which is unstable and meaningless to a human reader. Derived data, so it is
+# regenerated rather than versioned.
+tools/hyperframes-built-this-from-a-dream/.waveform-cache/
+
 !tools/tests/test_doc_checkers.py

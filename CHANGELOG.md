@@ -206,6 +206,25 @@ scripts, not to the agent shell, which is PowerShell 5.1.
 on this machine, so the confusion comes from the system PATH, not a profile.
 Editing one would have treated the wrong cause.
 
+### Changed - Renamed machine-generated benchmark files, untracked a build cache
+
+Three benchmark JSON files carried run ids in their names
+(`audio-bench-20260906_194811.json`), which are meaningless to a human reader and
+go stale as soon as the benchmark is re-run. Renamed to describe what they hold:
+`audio-analysis-backends.json`, `audio-analysis-backends-run2.json`, and
+`video-render-backends.json`. The two renderer docstrings that cited the old
+video-bench path were updated to match.
+
+`tools/hyperframes-built-this-from-a-dream/.waveform-cache/` held a single file
+named `v2_Built This From A Dream.mp3_7325546-1788280340000.json` — a content hash
+plus an epoch-ms run id. It is derived data regenerated on every build, so it is
+now gitignored and untracked rather than renamed. The file remains on disk.
+
+A repo-wide filename scan also flagged `__init__.py` and the
+`UPPER_SNAKE_CASE` markdown docs; both were deliberately left alone.
+`__init__.py` is required by Python's import machinery, and the shouty doc names
+are a consistent house convention, not obfuscation.
+
 ### Changed - Trusting gate output on Windows
 
 `pnpm type-check` and `pnpm lint` reported exit code 1 through the PowerShell

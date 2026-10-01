@@ -2,7 +2,7 @@
 
 APIs verified against scripts/benchmark_video_tools.py::render_coreflux
 (core_flux.ColorLayer / Composition) which produced docs/knowledge-library/
-benchmarks/video-bench-20260906_194948.json.
+benchmarks/video-render-backends.json.
 """
 
 from __future__ import annotations
