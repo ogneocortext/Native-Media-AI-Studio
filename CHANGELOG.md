@@ -94,6 +94,33 @@ read, and a double `AudioContext.close()` on unmount. The recording handlers'
 `useCallback` dependency arrays were `[]` while closing over `setError`; they now
 declare their real dependencies.
 
+### Fixed - Transient colour shift in the PPPANIK blob field
+
+`InstancedBlobField` accepted a `transientColorShift` prop, renamed it to
+`_transientColorShift`, and never used it. `pppanik.tsx` passes `0.3`, so the
+value type-checked and looked live while doing nothing — the field rendered a
+single flat violet for every one of its 40,000 instances.
+
+Per-instance colour is now written with `setColorAt`: a resting cold-blue →
+magenta gradient spread by instance phase, lerped toward a hot orange on
+transients. The frame loop reuses the `transientNorm` value already computed for
+ejection so colour and motion stay in sync, and the base colours are precomputed
+once rather than per frame.
+
+`MeshBasicMaterial.color` changed from violet to white, because material colour
+multiplies into the per-instance colour and would otherwise tint every instance.
+
+Verified against Three.js directly: `instanceColor` allocates to 120,000 floats,
+1,166 distinct colours, and the hottest instance shifts (0.059, 0.100, 0.301) →
+(0.340, 0.249, 0.271). tsc 0, eslint 0 errors, build 0, Playwright 9/9.
+
+### Changed - Gemini guidance docs marked as implemented
+
+The set still read "Nothing here has been committed — review first", written
+before the v2.0.0 work landed. Each file now maps to the module that implements
+it, records the one deliberate deviation (unverified Ashima `snoise` was not
+adopted), and points at `docs/architecture/visualizer.md`.
+
 ### Changed - Trusting gate output on Windows
 
 `pnpm type-check` and `pnpm lint` reported exit code 1 through the PowerShell

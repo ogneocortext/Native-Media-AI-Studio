@@ -5,7 +5,9 @@
  * Per-instance phase attributes, bass = noise displacement, transients =
  * spore ejection + color-temperature shift.
  *
- * Uses Three.js InstancedMesh for performance.
+ * Uses Three.js InstancedMesh for performance. Colors are written per instance
+ * via `setColorAt`, so the field reads cold blue → magenta across the phase
+ * range and flashes hot on transients (per the PPPANIK fragment shader).
  */
 
 import { useRef, useMemo } from "react";
@@ -27,9 +29,18 @@ export interface InstancedBlobFieldProps {
 
 const FIBONACCI_GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
 
+/** Base gradient endpoints, linear-space, from the PPPANIK fragment shader. */
+const COLOR_COLD = new THREE.Color(0.05, 0.1, 0.3);
+const COLOR_MAGENTA = new THREE.Color(0.8, 0.1, 0.4);
+/** Transient flash tint: hot orange. */
+const COLOR_TRANSIENT = new THREE.Color(1.0, 0.6, 0.2);
+
+// Reused across frames — allocating 40k Colors per frame would thrash the GC.
+const scratchColor = new THREE.Color();
+
 function fibonacciSphere(index: number, total: number, radius: number): THREE.Vector3 {
-  const theta = 2 * Math.PI * index / FIBONACCI_GOLDEN_RATIO;
-  const phi = Math.acos(1 - 2 * (index + 0.5) / total);
+  const theta = (2 * Math.PI * index) / FIBONACCI_GOLDEN_RATIO;
+  const phi = Math.acos(1 - (2 * (index + 0.5)) / total);
   const x = radius * Math.sin(phi) * Math.cos(theta);
   const y = radius * Math.sin(phi) * Math.sin(theta);
   const z = radius * Math.cos(phi);
@@ -41,7 +52,7 @@ export function InstancedBlobField({
   radius = 2.5,
   bassDisplacement = 0.3,
   transientEject = 0.8,
-  transientColorShift: _transientColorShift = 0.3,
+  transientColorShift = 0.3,
 }: InstancedBlobFieldProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -64,9 +75,27 @@ export function InstancedBlobField({
     return positions;
   }, [count, radius]);
 
+  /**
+   * Resting colour per instance, spread across the cold→magenta gradient by
+   * phase. Written once; the per-frame loop only adds the transient tint.
+   */
+  const baseColors = useMemo(() => {
+    const arr = new Float32Array(count * 3);
+    const c = new THREE.Color();
+    for (let i = 0; i < count; i++) {
+      c.copy(COLOR_COLD).lerp(COLOR_MAGENTA, phases[i] / (Math.PI * 2));
+      arr[i * 3] = c.r;
+      arr[i * 3 + 1] = c.g;
+      arr[i * 3 + 2] = c.b;
+    }
+    return arr;
+  }, [count, phases]);
+
   const material = useMemo(() => {
     return new THREE.MeshBasicMaterial({
-      color: 0x8b5cf6,
+      // White base: MeshBasicMaterial multiplies material.color into the
+      // per-instance color, so a non-white base would tint every instance.
+      color: 0xffffff,
       wireframe: true,
       transparent: true,
       opacity: 0.6,
@@ -90,22 +119,29 @@ export function InstancedBlobField({
       const bassDisp = bassDisplacement * noise;
 
       // Transient spore ejection (along normal = radial direction)
-      const transientDisp = transientEject * Math.max(0, Math.sin(phase + time * 2.0));
+      const transientNorm = Math.max(0, Math.sin(phase + time * 2.0));
+      const transientDisp = transientEject * transientNorm;
 
       const scale = 1 + bassDisp * 0.2 + transientDisp * 0.5;
       const r = radius + bassDisp + transientDisp;
 
-      dummy.position.set(
-        baseX * (r / radius),
-        baseY * (r / radius),
-        baseZ * (r / radius),
-      );
+      dummy.position.set(baseX * (r / radius), baseY * (r / radius), baseZ * (r / radius));
       dummy.scale.setScalar(Math.max(0.01, scale));
       dummy.lookAt(0, 0, 0);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
+
+      // Color-temperature shift: lerp the instance's resting colour toward the
+      // hot transient tint. Reuses `transientNorm` so colour and motion agree.
+      // `setColorAt` lazily allocates `instanceColor`, so no pre-init needed.
+      if (transientColorShift > 0) {
+        scratchColor.setRGB(baseColors[i * 3], baseColors[i * 3 + 1], baseColors[i * 3 + 2]);
+        scratchColor.lerp(COLOR_TRANSIENT, transientColorShift * transientNorm);
+        mesh.setColorAt(i, scratchColor);
+      }
     }
     mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   });
 
   return (

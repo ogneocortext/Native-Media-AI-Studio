@@ -25,5 +25,30 @@ Five YouTube tutorials run through Gemini 3.5 Flash Lite in Google AI Studio, pr
 
 - Each file preserves Gemini's full response verbatim (reconstructed from page extraction; code blocks kept content-identical).
 - Gemini chat links are in each file header (account: ogneocortext@gmail.com).
-- Nothing here has been committed to the Native Media AI Studio repo — review first, then decide what to implement.
-- Feeding this to a local coding agent: start with files 01–03 (audio pipeline, fully specified), then 04–05 (visuals, reference implementations included).
+- **Implementation status (updated 2026-10-01, v2.0.0):** all five guides are now
+  implemented. Do not read the guidance below as a to-do list — it is the
+  original brief, retained as the rationale for what the code does.
+  - **01 — UVR5 hierarchical separation** → `source_separation.py`
+    (`UVR-MDX-NET-Voc_FT` / `Kim_Vocal_2` in `SUPPORTED_MODELS`, plus
+    `segment_size` / `overlap` / `denoise` on `SeparationOptions`, exposed
+    through `/api/audio/separate`).
+  - **02 — Suno Vocal Enhancer preset** → `suno_enhancer.py` (two-stage EQ,
+    de-ess, air boost, limiter).
+  - **03 — In The Mix upgrades** → `suno_enhancer.py`
+    (`_parallel_weight_bus` at −12…−18 dB and `_sidechain_pocket_eq` ducking
+    2.5–3.5 kHz on the Other stem; opt-in via
+    `sidechain_pocket_eq_enabled`, default `False`).
+  - **04 — Bileam reactivity module** → `audioReactivityProcessor.ts` +
+    `useSpectralTimeline.ts`, consumed by `ShaderVisualizer.tsx`. `BeatPhaseWave`
+    replaces the `snoise()` drift the brief asked for.
+  - **05 — PPPANIK blob field** → `components/InstancedBlobField.tsx` +
+    `viz-styles/pppanik.tsx` (40k instanced tetrahedra, Fibonacci shell, bass
+    displacement, transient ejection and colour-temperature shift).
+- **Known deviation (05):** the brief's embedded Ashima `snoise` GLSL came from
+  a garbled page extraction and was never verified against a known-good copy, so
+  it was **not** adopted. Displacement is computed CPU-side with
+  `Math.sin`/`Math.cos` in the `useFrame` loop instead, which needs no
+  verification and keeps 40k instances cheap. `snoise` still exists in
+  `shaders.ts` / `VisualizationFX.tsx` for unrelated presets.
+- For the current module layout and where new visualizer logic belongs, see
+  `docs/architecture/visualizer.md` (decision-log D14).
