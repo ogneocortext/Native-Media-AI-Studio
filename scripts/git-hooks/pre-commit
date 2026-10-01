@@ -34,6 +34,7 @@ staged=$(git diff --cached --name-only)
 need_lib=0
 need_map=0
 need_layout=0
+need_encoding=0
 for f in $staged; do
     case "$f" in
         docs/knowledge-library/*) need_lib=1 ;;
@@ -41,6 +42,12 @@ for f in $staged; do
         docs/*)                    need_map=1 ;;
     esac
 done
+# Encoding corruption is not confined to docs: a UTF-16 write or a truncated
+# edit can hit any tracked text file, and the damage is invisible until a tool
+# misreads it. Cheap enough (reads staged files only) to always run.
+case "$staged" in
+    *.*) need_encoding=1 ;;
+esac
 # Layout hygiene only matters when tracked files are added or removed, or when
 # the ignore rules change. Editing an existing file cannot introduce a new
 # duplicate or a case collision, so ordinary commits skip this check.
@@ -49,7 +56,8 @@ if git diff --cached --name-only --diff-filter=ADR | grep -q . \
     need_layout=1
 fi
 
-if [ "$need_lib" -eq 0 ] && [ "$need_map" -eq 0 ] && [ "$need_layout" -eq 0 ]; then
+if [ "$need_lib" -eq 0 ] && [ "$need_map" -eq 0 ] && [ "$need_layout" -eq 0 ] \
+   && [ "$need_encoding" -eq 0 ]; then
     run_chained_hook "$@"
     exit 0
 fi
@@ -76,7 +84,8 @@ if [ -z "$PYTHON" ]; then
 fi
 
 # Run every doc/repo check in one command before committing by hand.
-if [ "$need_lib" -eq 1 ] || [ "$need_map" -eq 1 ] || [ "$need_layout" -eq 1 ]; then
+if [ "$need_lib" -eq 1 ] || [ "$need_map" -eq 1 ] || [ "$need_layout" -eq 1 ] \
+   || [ "$need_encoding" -eq 1 ]; then
     if ! "$PYTHON" tools/check-all.py; then
         echo >&2
         echo "pre-commit: documentation checks failed (see above)." >&2

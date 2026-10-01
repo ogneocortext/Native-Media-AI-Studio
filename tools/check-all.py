@@ -9,6 +9,7 @@ Checks, in order of cost (cheapest first, so a fast failure surfaces early):
   1. tools/validate-knowledge-tags.py  - frontmatter, tags, tracker, index
   2. tools/check-docs-map.py           - docs/README.md is an accurate map
   3. tools/check-repo-layout.py        - generated output, duplicates, collisions
+  4. tools/check-text-encoding.py      - rejects UTF-16 / NUL / invalid UTF-8
 
 Run:  python tools/check-all.py
 Exit 0 = all pass, 1 = at least one failed.
@@ -25,6 +26,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # (label, script, extra args). Ordered cheapest-first by measured runtime.
 CHECKS = [
     ("docs map", "check-docs-map.py", []),
+    ("text encoding", "check-text-encoding.py", []),
     ("knowledge tags", "validate-knowledge-tags.py", []),
     ("repo layout", "check-repo-layout.py", []),
     # Report-only: exits 0 by design, so it cannot fail the run. Kept here so

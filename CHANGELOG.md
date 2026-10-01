@@ -137,19 +137,17 @@ All motion now derives from live audio:
 - **`audioData.beatPhase`** drives the phase, falling back to a slow free phase
   only when the backend has no analysed grid
 
-Idle motion is welcome and expected — styles must stay previewable before
-playback, which is why `ShaderCanvas` keeps its clock for `u_time`. The rule is
-that idle animation must never *masquerade* as a reaction, so it blends out as
-soon as real audio energy arrives.
-
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-
 `InstancedBlobField` gained an `idlePreview` shimmer (default 0.35) that scales as
 `1 - max(bass, mid, treble) * 1.6`. Measured: in silence the idle mix is 0.350
 with a 0.5177 radius spread so the style is visible pre-playback; under loud
 audio it falls to 0.0000 and the spread becomes 0.4214 from real bass alone; in a
 quiet passage it blends at 0.2660. Idle can therefore never mask a genuine
 reaction.
+
+Idle motion is welcome and expected — styles must stay previewable before
+playback, which is why `ShaderCanvas` keeps its clock for `u_time`. The rule is
+that idle animation must never *masquerade* as a reaction, so it blends out as
+soon as real audio energy arrives.
 
 `pppanik.tsx` feeds real values, preferring the spectral bands in
 `audioData.current` and falling back to analysed stem curves via `getStemEnergy`
@@ -159,9 +157,30 @@ doesn't re-render per frame, so props would freeze at the last React render.
 Per the project rule that visuals follow audio and only UI chrome animates on
 its own, `Canvas2DVisualizer`'s explicitly-labelled idle/ambient layer and
 `three-particles` (clock for integration, audio scales the rate) were audited
-and left alone.
+and left alone. `ShaderCanvas` likewise keeps its clock for `u_time` so shader
+presets stay inspectable before playback.
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+### Fixed - Text files committed as UTF-16, and a text-encoding guard
+
+`tools/design-feedback/README.md` was tracked as **UTF-16LE** — the signature of a
+PowerShell `>` redirect. Git displayed it as a binary blob, every text tool read
+mojibake, and the knowledge-library mojibake checks could not parse it at all.
+Content was intact; only the encoding was wrong. Converted to UTF-8 with LF line
+endings, verified byte-identical after decoding.
+
+Added `tools/check-text-encoding.py` and wired it into `tools/check-all.py` and
+the pre-commit hook. It rejects UTF-16, NUL bytes, and invalid UTF-8 across all
+885 tracked text files, while deliberately **allowing** a UTF-8 BOM — six tracked
+files (`.ps1`, `.csproj`, `.slnx`, `.json`) need one for PowerShell and Unity.
+Verified against deliberately corrupted fixtures: both the UTF-16 and NUL-byte
+cases fail as intended.
+
+### Fixed - Stale pppanik header and stray CHANGELOG trailers
+
+`pppanik.tsx`'s doc comment still described the pre-fix behaviour ("Bass → noise
+displacement") and omitted the ref-based driver handoff. Two `Co-Authored-By`
+trailers had also been left inside the CHANGELOG body, splitting a section and
+interrupting the paragraph flow. Both corrected.
 
 ### Changed - Trusting gate output on Windows
 

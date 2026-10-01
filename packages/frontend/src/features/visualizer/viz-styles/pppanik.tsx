@@ -1,9 +1,17 @@
 /**
  * PPPANIK-style instanced blob field visualization.
  *
- * 30k–60k instanced tetrahedra on a Fibonacci shell, driven by audio:
- * - Bass → noise displacement
- * - Transients → spore ejection + color-temperature shift
+ * 30k–60k instanced tetrahedra on a Fibonacci shell. Audio drivers are written
+ * into a ref each frame and read by InstancedBlobField's own useFrame (props
+ * would freeze — R3F does not re-render per frame):
+ * - bass        → radial displacement
+ * - beat, or loud treble → decaying spore-ejection transient
+ * - mid / treble → overall swell and fine shimmer
+ * - transients  → per-instance colour-temperature shift
+ *
+ * Bands come from audioData.current, falling back to the analysed stem curves
+ * when stems have not been separated. See docs/architecture/visualizer.md for
+ * the audio-vs-idle rule.
  */
 
 import { useRef } from "react";
