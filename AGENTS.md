@@ -73,17 +73,35 @@ Never send generic prompts like "describe this image"; use mode-specific prompts
 
 ### Shell / Process Management
 
+**Prefer Python over PowerShell for anything an agent runs.** This is now
+standing protocol, not a preference. The reasons are measured, not aesthetic:
+
+- A `.ps1` wrapper (`pnpm.ps1`) can **report exit code 1 while the command
+  actually passed**. A gate that "fails" when it succeeded is worse than no gate.
+- PowerShell decodes a pipe using the **ANSI code page**, so UTF-8 output
+  arrives as mojibake — and the repo's own docs contain em dashes and `→`.
+- Native commands writing to stderr surface as `NativeCommandError` even on
+  success, which makes `2>&1 | Select-Object -Last N` unreliable for
+  diagnostics.
+- PowerShell 5.1 is the agent shell; the repo's own scripts need 7.6+. That gap
+  is a recurring source of "the script is broken" conclusions that are wrong.
+
+Concretely: run gates through `python tools/run-gates.py` (it resolves its own
+tools, decodes as UTF-8 and returns a trustworthy exit code). Write new helper
+scripts in Python under `tools/`. Reserve `.ps1` for genuine Windows
+integration — service lifecycle, port binding, Unity launch — where it is the
+right tool and nothing has gone wrong.
+
 - **Requires PowerShell 7.6+ for the project's own scripts.** The agent shell may
   itself be PowerShell **5.1** — check `$PSVersionTable.PSVersion.Major` before
   concluding the scripts are broken.
 - On PowerShell failures, **fall back to Python immediately**. This is not just
-  for crashes: PowerShell mangles tool output. `pnpm type-check`/`pnpm lint`
-  report exit code 1 through the `.ps1` wrapper while actually passing, and
-  reading UTF-8 files as ANSI makes correct text look like mojibake. For any
-  gate whose exit code matters, run it from Python `subprocess` via `pnpm.cmd`
-  with an explicit `cwd` and read `returncode`. Treat an **empty** capture as
-  "failed to capture", never as "passed".
-- Long-running sessions must use `background_process` tool.
+  for crashes: PowerShell mangles tool output. Run any gate whose exit code
+  matters from Python `subprocess` with an explicit `cwd`, and read
+  `returncode`. Treat an **empty** capture as "failed to capture", never
+  "passed". `tools/run-gates.py` already does this; reach for it rather than
+  assembling `subprocess` calls by hand.
+- Long-running sessions must use the `background_process` tool.
 - **Do not leave `tmp_*` scratch files in the repo root.** Names like
   `tmp_m.txt` or `tmp_g.py` are meaningless to the next reader and are the
   convention this project is moving away from. If you need a scratch file while
@@ -100,14 +118,33 @@ wrong action, so verify before trusting a bare command name.
 | Bare name | Resolves to | Why it's a trap |
 |---|---|---|
 | `bash` | `C:\Windows\System32\bash.exe` | The **WSL launcher**, not Git Bash. It fails on Windows PATH entries it cannot translate (e.g. Android SDK), and errors mention unrelated tools. For repo shell scripts use `C:\Program Files\Git\bin\bash.exe` explicitly. |
-| `python` | `C:\Python314\python.exe` (3.14.7) | **Not** the project interpreter. Backend/GPU work needs `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` (3.11.9) — see "Python Environments" below. |
-| `node` | `...\fnm\aliases\default\node.exe` | Resolves, but `npm.cmd` exists on two PATH entries; prefer `pnpm.cmd` from Python with an explicit `cwd`. |
+| `python` | `C:\Python314\python.exe` (3.14.7) | Not the project interpreter, but see the correction below — the failure mode is subtler than "no packages". |
+| `node` | `...\fnm\aliases\default\node.exe` | fnm's **alias**, pinned to whatever was default when it was created. This machine has v24.20.0, v26.0.0 and v26.7.0 installed, but the alias resolves to v24.20.0 — not the newest. Prefer `pnpm.cmd` from Python with an explicit `cwd`. |
 
-**Do not use bare `python` for repo work.** `C:\Python314` has none of the
-backend dependencies (`import fastapi` fails), while `nma-studio-cuda` has them.
-A wrong-interpreter run can also *silently* differ: 3.14 vs 3.11 changes stdlib
-behaviour, so a script may pass on one and fail on the other. Use the absolute
-interpreter paths from "Python Environments" below.
+**Correction (measured 2026-10-01): do not use bare `python` for repo work —
+but the reason is *not* missing packages.** An earlier version of this file
+claimed `C:\Python314` has no backend dependencies and that `import fastapi`
+fails there. That is no longer true: `C:\Python314` (3.14) now imports
+`fastapi`, `pytest`, `ruff`, `numpy`, `pydantic` and `sqlalchemy` cleanly, and
+`ruff check` passes under it.
+
+It still must not be used, because it **fails the backend suite**:
+
+```
+C:\Python314\python.exe                     pytest -> rc=1
+  PermissionError: [WinError 5] ... pytest-of-NeoCortext\pytest-current
+D:\conda-envs\nma-studio-cuda\...\python.exe   pytest -> rc=0, 156 passed in 42.55s
+```
+
+3.14's stricter temp-dir cleanup cannot remove pytest's `pytest-current`
+pointer. The lesson is the general one: **an interpreter having the packages
+installed is not the same as it working.** Verify by running the gate, never by
+inspecting imports. `tools/run-gates.py` does exactly that — it probes
+candidates with a real `ruff` run and caches the winner.
+
+`where python` on this machine returns three interpreters, and one of them is
+`D:\conda-envs\comfyui-cuda\Scripts\python.exe`, which is **never** valid for
+backend work.
 
 There **is** a PowerShell 7 profile at
 `C:\Users\Aomega Imaging\Documents\PowerShell\Microsoft.PowerShell_profile.ps1`
@@ -160,15 +197,68 @@ Music-gen prefers `tools/music-gen/.venv/Scripts/python.exe`, then `MUSIC_GEN_PY
 
 ## Testing
 
-- Frontend: `pnpm test` in `packages/frontend/`
+**One command runs every gate:** `python tools/run-gates.py` (or `pnpm verify`).
+It runs doc checks → ruff → tsc → eslint → pytest → vite build, cheapest first,
+prints one summary, and exits non-zero if any gate fails. Add `--e2e` to include
+the Playwright suite (opt-in: it starts a Vite dev server). `--only <name> ...`
+runs a subset; `--list` shows them. Prefer this over assembling the gates by
+hand — the runner owns the Windows exit-code and UTF-8 decoding problems that
+otherwise produce both false passes and false failures.
+
+**It resolves its own tools, so nothing is hardcoded to one machine's layout.**
+`pnpm` is found on PATH; the interpreter is chosen by probing candidates
+(`$NMA_PYTHON` → `nma-studio-cuda` → any working `D:\conda-envs\*` → PATH) with a
+real `ruff` run. This matters because a hardcoded path is not merely
+machine-specific — it goes stale silently and pins every future agent to
+whatever was current when it was written.
+
+The winner is remembered in `%TEMP%\nma-studio-python-choice.json` purely as a
+**hint to try first**, and it is re-verified on every run like any other
+candidate — so repairing a broken env is picked up with no cache clearing. Set
+`NMA_PYTHON` to override. Two flags diagnose a wrong-interpreter failure:
+
+- `--which-python` — every candidate, its version, and why it was chosen or rejected
+- `--list` — the resolved interpreter plus the gate list
+
+Every gate has a timeout (pytest 300 s, build 600 s, e2e 900 s) and the whole
+child tree is killed on expiry, so a wedged gate (pytest blocked on a locked
+`%TEMP%` pointer, a browser that never exits) reports a failure instead of
+silently hanging the caller.
+
+Individual gates, for iterating on one area:
+
+- Unit (pure logic): `pnpm test:unit` in `packages/frontend/` — vitest, for
+  `src/**/*.test.ts`. Playwright cannot test these: booting a browser to assert
+  `audioTiming.ts`'s latency math costs seconds and is flaky where a unit test
+  costs ~1 ms. Test files are **colocated** under `src/`, not in `tests/`,
+  because `tests/` holds Playwright specs and its own `tsconfig.tests.json`.
+  Covered so far: `keyPalette.ts` (chroma→hue, Q5) and `audioTiming.ts`
+  (latency/beat clock). Both suites were mutation-checked.
+- Frontend E2E: `pnpm test` in `packages/frontend/` (Playwright)
 - Backend: `pytest` in `packages/backend/`
 - E2E: Playwright under `packages/frontend/tests/browser/`
 - Lint/format: `pnpm lint` / `pnpm format` (frontend); `ruff check` / `ruff format` (backend)
+- Docs and repo hygiene: `python tools/check-all.py`
+- Cache cleanup: `python tools/clean-caches.py --dry-run` to preview, without
+  the flag to delete. Deliberately **not** `git clean -xdf`, which would also
+  remove `output/` and the generated waveform cache. It only ever deletes
+  regenerable test/build caches and refuses to touch anything git tracks.
 - Knowledge library: `python tools/validate-knowledge-tags.py` — run this before
   committing any change under `docs/knowledge-library/`. A pre-commit hook does
   it automatically (see D10 in the decision log): run
   `bash scripts/install-git-hooks.sh` once after cloning. There is **no CI**, so
-  this local hook is the only automated guard.
+  these local hooks are the only automated guard.
+- Hooks, and what each is for:
+  - `pre-commit` — doc/repo hygiene, scoped to what the staged paths can affect,
+    so an unrelated commit costs nothing.
+  - `pre-push` — the fast gates (`docs ruff type lint unit`, ~11 s). It
+    deliberately skips pytest (~40 s) and Playwright (~30 s): a 90 s push hook
+    gets bypassed, which is worse than no hook. Run
+    `python tools/run-gates.py --e2e` for those before pushing.
+  - Both **chain** rather than replace. Git LFS ships its own `pre-push`, and
+    `install-git-hooks.sh` keeps the displaced copy as `<name>.backup`, which the
+    new hook calls at every exit path. If you install hooks by hand, preserve
+    that.
 
 ## Quick Reference
 
