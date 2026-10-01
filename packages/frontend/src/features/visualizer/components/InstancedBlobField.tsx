@@ -8,8 +8,8 @@
  * - Mid → overall swell, treble → fine shimmer
  * - Transients → color-temperature shift
  *
- * With no audio (`drivers` absent or all zeros) the field rests still — it does
- * not fall back to animating against a wall clock.
+ * With no audio the field shows a gentle `idlePreview` shimmer so the style is
+ * visible before playback, which fades out as soon as real audio energy arrives.
  *
  * Uses Three.js InstancedMesh for performance. Colors are written per instance
  * via `setColorAt`, so the field reads cold blue → magenta across the phase
@@ -46,11 +46,19 @@ export interface InstancedBlobFieldProps {
   /** Color temperature shift on transient (default 0.3). */
   transientColorShift?: number;
   /**
-   * Per-frame audio drivers. Every movement in the field comes from these —
-   * with no audio the field rests still rather than animating to a clock.
-   * Optional: without it the field is static, which is the safe default.
+   * Per-frame audio drivers. Every movement in the field comes from these.
+   *
+   * Optional: when absent, or while the audio is silent, the field falls back to
+   * a gentle `idlePreview` shimmer so the style is still visible before playback
+   * starts. Idle motion always fades out once real audio energy arrives, so it
+   * can never mask or impersonate a real reaction.
    */
   drivers?: React.RefObject<BlobFieldDrivers>;
+  /**
+   * Amplitude of the pre-playback preview shimmer (default 0.35, 0 disables).
+   * Blended out by real bass/mid/treble energy.
+   */
+  idlePreview?: number;
 }
 
 const FIBONACCI_GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
@@ -80,6 +88,7 @@ export function InstancedBlobField({
   transientEject = 0.8,
   transientColorShift = 0.3,
   drivers,
+  idlePreview = 0.35,
 }: InstancedBlobFieldProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -154,6 +163,12 @@ export function InstancedBlobField({
     if (d?.beat || treble > 0.82) transientEnv.current = 1;
     transientEnv.current = Math.max(0, transientEnv.current - dt * 3.2);
 
+    // Idle preview: let the style be seen before playback, but fade it out in
+    // proportion to real audio energy so it can never mask a real reaction.
+    // `1 - maxBand` means silence previews fully and any real band cancels it.
+    const realEnergy = Math.max(bass, mid, treble);
+    const idleMix = idlePreview * Math.max(0, 1 - realEnergy * 1.6);
+
     // Prefer the analysed musical grid; fall back to a slow free phase so an
     // un-analysed track still has gentle motion instead of a dead field.
     let phase01 = d?.beatPhase;
@@ -169,12 +184,13 @@ export function InstancedBlobField({
       const baseZ = basePositions[i * 3 + 2];
 
       const phase = phases[i];
-      // Idle shimmer. Scaled by audio energy so silence is genuinely still
-      // and loud passages ripple harder — motion tracks the music, not a clock.
+      // Preview/idle shimmer. `idleMix` is ~0.35 while silent and ~0 the moment
+      // real audio energy appears, so motion tracks the music rather than a clock.
       const shimmer = Math.sin(phase + gridPhase) * Math.cos(phase * 1.3 + gridPhase * 0.6);
+      const idleDisp = idleMix;
 
       // Bass-driven radial displacement
-      const bassDisp = bassDisplacement * bass * shimmer;
+      const bassDisp = (bassDisplacement * bass + idleDisp) * shimmer;
 
       // Transient spore ejection (along normal = radial direction). The envelope
       // is shared, but each instance's own phase staggers when it launches, so
@@ -185,7 +201,7 @@ export function InstancedBlobField({
 
       // Mid energy swells the overall scale; treble adds a fine shimmer scale.
       const midScale = mid * 0.25 * (0.5 + 0.5 * Math.sin(gridPhase * 2));
-      const trebleScale = treble * 0.12 * shimmer;
+      const trebleScale = (treble + idleMix * 0.5) * 0.12 * shimmer;
 
       const scale = 1 + bassDisp * 0.2 + transientDisp * 0.5 + midScale + trebleScale;
       const r = radius + bassDisp + transientDisp;

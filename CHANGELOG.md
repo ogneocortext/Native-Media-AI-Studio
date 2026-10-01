@@ -137,9 +137,19 @@ All motion now derives from live audio:
 - **`audioData.beatPhase`** drives the phase, falling back to a slow free phase
   only when the backend has no analysed grid
 
-With no audio the field rests completely still — verified: radius spread across
-4,000 instances is `0.000000` in silence, `0.4214` under loud bass, peaking at
-`3.2936` on a beat then decaying to zero.
+Idle motion is welcome and expected — styles must stay previewable before
+playback, which is why `ShaderCanvas` keeps its clock for `u_time`. The rule is
+that idle animation must never *masquerade* as a reaction, so it blends out as
+soon as real audio energy arrives.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+`InstancedBlobField` gained an `idlePreview` shimmer (default 0.35) that scales as
+`1 - max(bass, mid, treble) * 1.6`. Measured: in silence the idle mix is 0.350
+with a 0.5177 radius spread so the style is visible pre-playback; under loud
+audio it falls to 0.0000 and the spread becomes 0.4214 from real bass alone; in a
+quiet passage it blends at 0.2660. Idle can therefore never mask a genuine
+reaction.
 
 `pppanik.tsx` feeds real values, preferring the spectral bands in
 `audioData.current` and falling back to analysed stem curves via `getStemEnergy`

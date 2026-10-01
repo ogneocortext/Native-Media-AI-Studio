@@ -47,9 +47,12 @@ src/features/visualizer/
    - `Canvas2DVisualizer`'s `updateIdleParticles` / `idlePulse` and
      `three-particles`' use of the clock for integration (audio scales the
      rate) are examples of both allowances.
-   - When there is no audio, a visual should come to rest rather than fall back
-     to a clock. `InstancedBlobField` measures `0.000000` radius spread in
-     silence.
+   - A style should still be **previewable before playback**. Idle motion is
+     welcome — but it must be *blended out* by real audio energy so it can never
+     mask or impersonate a real reaction. `InstancedBlobField`'s `idlePreview`
+     scales as `1 - max(bass, mid, treble) * 1.6`: full shimmer in silence,
+     zero once a real band is present. `ShaderCanvas` likewise keeps its clock
+     for `u_time` so shaders can be inspected before audio plays.
    - Pass per-frame values as a **ref** (`BlobFieldDrivers`), never as props.
      R3F does not re-render every frame, so props would freeze at the last
      React render.
