@@ -3,10 +3,9 @@ Notification and event history API routes.
 """
 
 import logging
-from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 
 from ..sse.handler import sse_manager
 

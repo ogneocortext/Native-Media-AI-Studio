@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any
 
 # Tier table + classifier live in core/model_tiers.py (single source of truth
@@ -172,7 +171,7 @@ def _resolve_cloud_price(model_name: str, cloud_price_per_second: float | None) 
         return pricing["models"][key].get("cloud_price_per_second")
     # Try classify_model_variant tier as fallback
     tier = classify_model_variant(model_name)
-    for mid, info in pricing.get("models", {}).items():
+    for _mid, info in pricing.get("models", {}).items():
         if info.get("tier") == tier:
             return info.get("cloud_price_per_second")
     return None

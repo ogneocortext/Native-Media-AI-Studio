@@ -26,7 +26,7 @@ from typing import Any
 import httpx
 
 from ..core.config import config
-from ..models.job import Job
+from ..models.job import Job, JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -140,14 +140,6 @@ class SSEManager:
 
         # Fan out to go-dashboard without blocking the main path
         asyncio.create_task(_broadcast_to_go_dashboard(message))
-
-    async def send_job_update(self, job: Job):
-        """Send job update to all clients"""
-        logger.debug("Broadcasting job update: %s", job.id)
-        await self.send_message(self._format_message(
-            "job_update",
-            {"job": job.model_dump(mode='json')},
-        ))
 
     async def get_replay_events(self, last_event_id: int) -> list[dict[str, Any]]:
         """Return events newer than last_event_id for client replay."""

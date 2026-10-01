@@ -26,5 +26,8 @@
       "@shared/*": ["../../shared/*"]
     }
   },
-  "include": ["tests/**/*.ts", "playwright.config.ts", "../../shared/**/*.ts"]
+  "include": ["tests/**/*.ts", "playwright.config.ts", "../../shared/**/*.ts"],
+  // tests/browser/out/ is gitignored agent scratch (see AGENTS.md). It contains
+  // throwaway specs and a nested node_modules/ that must never be type-checked.
+  "exclude": ["tests/browser/out/**"]
 }

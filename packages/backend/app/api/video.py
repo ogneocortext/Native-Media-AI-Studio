@@ -485,7 +485,6 @@ async def create_canvas_loop(request: CanvasLoopRequest) -> CanvasLoopResponse:
     - center-crop from source, with optional crossfade at the seam
     """
     try:
-        from ..services.video import get_renderer
         from ..core.config import PROJECT_ROOT
 
         src = Path(request.source_path)
@@ -528,8 +527,6 @@ async def create_canvas_loop(request: CanvasLoopRequest) -> CanvasLoopResponse:
         # When crossfade > 0, we generate a slightly longer segment and xfade the ends
         if crossfade > 0 and duration > crossfade * 2:
             loop_duration = duration + crossfade
-            fade_out = crossfade
-            fade_in = crossfade
             # Filter: take segment, split, xfade
             filter_graph = (
                 f"[0:v]trim=start={start}:duration={loop_duration},"
@@ -556,19 +553,6 @@ async def create_canvas_loop(request: CanvasLoopRequest) -> CanvasLoopResponse:
                 f"setsar=1"
             )
             audio_filter = f"[0:a]atrim=start={start}:duration={duration},asetpts=PTS-STARTPTS"
-
-        renderer = get_renderer("ffmpeg")
-        spec = RenderSpec(
-            kind="frames",
-            engine="ffmpeg",
-            width=request.width,
-            height=request.height,
-            duration=duration,
-            fps=24,
-            output_path=str(out),
-            frames_dir=str(src.parent),
-            frame_pattern=src.name,
-        )
 
         # Use raw FFmpeg for the xfade filter_graph (Renderer abstraction doesn't
         # yet expose complex filter chains); fall back to the engine's subprocess

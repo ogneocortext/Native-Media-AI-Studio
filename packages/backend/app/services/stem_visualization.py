@@ -10,10 +10,7 @@ Reference: Neural Frames' 8-stem → visual-parameter mapping.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Any
-
-from .source_separation import source_separator
 
 logger = logging.getLogger(__name__)
 
