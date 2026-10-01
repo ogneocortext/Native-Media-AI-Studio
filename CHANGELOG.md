@@ -121,6 +121,38 @@ before the v2.0.0 work landed. Each file now maps to the module that implements
 it, records the one deliberate deviation (unverified Ashima `snoise` was not
 adopted), and points at `docs/architecture/visualizer.md`.
 
+### Fixed - PPPANIK blob field now driven by audio, not a clock
+
+`InstancedBlobField` animated against `performance.now()`. Its "transient" was
+`Math.sin(phase + time * 2.0)` — a fixed-frequency oscillation that fired on a
+timer whether or not music was playing. The field was described as
+audio-reactive but would have looked identical playing a track, paused, or with
+no audio at all.
+
+All motion now derives from live audio:
+- **Bass** → radial displacement (was: unscaled clock noise)
+- **Beat, or treble > 0.82** → injects a transient envelope that decays at
+  3.2/s, so hits throw the spores and they settle rather than blinking
+- **Mid** → overall swell on the beat grid; **treble** → fine shimmer
+- **`audioData.beatPhase`** drives the phase, falling back to a slow free phase
+  only when the backend has no analysed grid
+
+With no audio the field rests completely still — verified: radius spread across
+4,000 instances is `0.000000` in silence, `0.4214` under loud bass, peaking at
+`3.2936` on a beat then decaying to zero.
+
+`pppanik.tsx` feeds real values, preferring the spectral bands in
+`audioData.current` and falling back to analysed stem curves via `getStemEnergy`
+when stems aren't separated. Drivers are passed as a **ref**, not props: R3F
+doesn't re-render per frame, so props would freeze at the last React render.
+
+Per the project rule that visuals follow audio and only UI chrome animates on
+its own, `Canvas2DVisualizer`'s explicitly-labelled idle/ambient layer and
+`three-particles` (clock for integration, audio scales the rate) were audited
+and left alone.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
 ### Changed - Trusting gate output on Windows
 
 `pnpm type-check` and `pnpm lint` reported exit code 1 through the PowerShell

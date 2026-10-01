@@ -2,8 +2,14 @@
  * InstancedBlobField — PPPANIK-style instanced blob field.
  *
  * 30k–60k instanced tetrahedra on a Fibonacci shell (40k in the sketch).
- * Per-instance phase attributes, bass = noise displacement, transients =
- * spore ejection + color-temperature shift.
+ * All motion is driven by live audio:
+ * - Bass → radial displacement
+ * - Beats / loud treble → decaying spore-ejection transient
+ * - Mid → overall swell, treble → fine shimmer
+ * - Transients → color-temperature shift
+ *
+ * With no audio (`drivers` absent or all zeros) the field rests still — it does
+ * not fall back to animating against a wall clock.
  *
  * Uses Three.js InstancedMesh for performance. Colors are written per instance
  * via `setColorAt`, so the field reads cold blue → magenta across the phase
@@ -13,6 +19,20 @@
 import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+
+/**
+ * Live audio drivers, written every frame by the owning style's `useFrame` and
+ * read here. Passed as a ref, not spread as props: R3F does not re-render per
+ * frame, so props would freeze at the values from the last React render.
+ */
+export interface BlobFieldDrivers {
+  bass: number;
+  mid: number;
+  treble: number;
+  beat: boolean;
+  /** Musical position in [0, 1) from `audioData.beatPhase`; undefined = no grid. */
+  beatPhase?: number;
+}
 
 export interface InstancedBlobFieldProps {
   /** Instance count (default 40000). */
@@ -25,6 +45,12 @@ export interface InstancedBlobFieldProps {
   transientEject?: number;
   /** Color temperature shift on transient (default 0.3). */
   transientColorShift?: number;
+  /**
+   * Per-frame audio drivers. Every movement in the field comes from these —
+   * with no audio the field rests still rather than animating to a clock.
+   * Optional: without it the field is static, which is the safe default.
+   */
+  drivers?: React.RefObject<BlobFieldDrivers>;
 }
 
 const FIBONACCI_GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
@@ -53,6 +79,7 @@ export function InstancedBlobField({
   bassDisplacement = 0.3,
   transientEject = 0.8,
   transientColorShift = 0.3,
+  drivers,
 }: InstancedBlobFieldProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -102,10 +129,39 @@ export function InstancedBlobField({
     });
   }, []);
 
-  useFrame((_frame) => {
+  /**
+   * Decaying transient envelope, 0..1. Beat frames inject 1; each frame it
+   * falls off, so a hit visibly throws the spores and they settle back rather
+   * than switching on and off. This is what replaced the old `Math.sin`
+   * "transient", which fired on a timer whether or not music was playing.
+   */
+  const transientEnv = useRef(0);
+  /** Free-running phase used only when the backend supplies no beat grid. */
+  const freePhase = useRef(0);
+
+  useFrame((_frame, delta) => {
     if (!meshRef.current) return;
     const mesh = meshRef.current;
-    const time = performance.now() * 0.001;
+    const dt = Math.min(0.1, delta); // clamp so a backgrounded tab can't spike the decay
+
+    const d = drivers?.current;
+    const bass = d?.bass ?? 0;
+    const mid = d?.mid ?? 0;
+    const treble = d?.treble ?? 0;
+
+    // Beat → transient impulse. Also let loud treble re-trigger spore ejection,
+    // so hats and cymbals read as transients too, not just the kick grid.
+    if (d?.beat || treble > 0.82) transientEnv.current = 1;
+    transientEnv.current = Math.max(0, transientEnv.current - dt * 3.2);
+
+    // Prefer the analysed musical grid; fall back to a slow free phase so an
+    // un-analysed track still has gentle motion instead of a dead field.
+    let phase01 = d?.beatPhase;
+    if (phase01 === undefined || !Number.isFinite(phase01)) {
+      freePhase.current = (freePhase.current + dt * 0.25) % 1;
+      phase01 = freePhase.current;
+    }
+    const gridPhase = phase01 * Math.PI * 2;
 
     for (let i = 0; i < count; i++) {
       const baseX = basePositions[i * 3];
@@ -113,16 +169,25 @@ export function InstancedBlobField({
       const baseZ = basePositions[i * 3 + 2];
 
       const phase = phases[i];
-      const noise = Math.sin(phase + time * 0.5) * Math.cos(phase * 1.3 + time * 0.3);
+      // Idle shimmer. Scaled by audio energy so silence is genuinely still
+      // and loud passages ripple harder — motion tracks the music, not a clock.
+      const shimmer = Math.sin(phase + gridPhase) * Math.cos(phase * 1.3 + gridPhase * 0.6);
 
       // Bass-driven radial displacement
-      const bassDisp = bassDisplacement * noise;
+      const bassDisp = bassDisplacement * bass * shimmer;
 
-      // Transient spore ejection (along normal = radial direction)
-      const transientNorm = Math.max(0, Math.sin(phase + time * 2.0));
+      // Transient spore ejection (along normal = radial direction). The envelope
+      // is shared, but each instance's own phase staggers when it launches, so
+      // the burst sweeps across the shell instead of moving as one block.
+      const launch = Math.max(0, Math.sin(phase * 1.7 - gridPhase * 2.0));
+      const transientNorm = transientEnv.current * launch;
       const transientDisp = transientEject * transientNorm;
 
-      const scale = 1 + bassDisp * 0.2 + transientDisp * 0.5;
+      // Mid energy swells the overall scale; treble adds a fine shimmer scale.
+      const midScale = mid * 0.25 * (0.5 + 0.5 * Math.sin(gridPhase * 2));
+      const trebleScale = treble * 0.12 * shimmer;
+
+      const scale = 1 + bassDisp * 0.2 + transientDisp * 0.5 + midScale + trebleScale;
       const r = radius + bassDisp + transientDisp;
 
       dummy.position.set(baseX * (r / radius), baseY * (r / radius), baseZ * (r / radius));

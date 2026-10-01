@@ -35,13 +35,31 @@ src/features/visualizer/
 1. **Put new logic in the matching module, not in `Visualizer.tsx`.** The
    component is the coordinator; helpers belong in a helper module, lifecycles
    in a hook.
-2. **One `AudioContext` per page.** `useAudioGraph().ensureAudioContext()` is
+2. **Visuals are driven by audio data. UI chrome may animate on its own.**
+   A visualization that is described as audio-reactive must derive its motion
+   from real audio — `audioData.current` bands, `getStemEnergy`, or
+   `audioData.beatPhase`. Never drive a visual from `performance.now()`,
+   `Date.now()`, or a bare `Math.sin(t)`: that is the failure mode where a
+   "reactive" scene looks identical playing a track, paused, or silent.
+   - Allowed to animate on their own: notifications, badges, the beat dot,
+     idle/ambient "breathing" while nothing plays, loading states, and any
+     element whose purpose is UI engagement rather than representing the music.
+   - `Canvas2DVisualizer`'s `updateIdleParticles` / `idlePulse` and
+     `three-particles`' use of the clock for integration (audio scales the
+     rate) are examples of both allowances.
+   - When there is no audio, a visual should come to rest rather than fall back
+     to a clock. `InstancedBlobField` measures `0.000000` radius spread in
+     silence.
+   - Pass per-frame values as a **ref** (`BlobFieldDrivers`), never as props.
+     R3F does not re-render every frame, so props would freeze at the last
+     React render.
+3. **One `AudioContext` per page.** `useAudioGraph().ensureAudioContext()` is
    the only creation site. Creating a second context is functional but claims a
    second hardware output device (see D4).
-3. **Hooks own their teardown.** `useVisualizerRecording` disposes its recorder
+4. **Hooks own their teardown.** `useVisualizerRecording` disposes its recorder
    and timer; `useAudioGraph` closes the context. The component's unmount effect
    only handles what the component itself created (the audio object URL).
-4. **`handleSelectLibraryTrack` is intentionally inline** (~152 lines, 17 state
+5. **`handleSelectLibraryTrack` is intentionally inline** (~152 lines, 17 state
    setters). It is the track-loading coordinator; splitting it trades real
    behavioural risk for line count alone.
 
