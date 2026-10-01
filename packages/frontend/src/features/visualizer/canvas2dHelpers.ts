@@ -80,10 +80,14 @@ export function easeOutQuad(t: number): number {
  *  Human pitch perception is logarithmic — allocate more bars to bass/mids,
  *  fewer to highs. Returns a float bin index; caller rounds/floor as needed. */
 export function logFreqMap(barIndex: number, barCount: number, freqLength: number): number {
+  // A zero-length FFT (an empty or not-yet-populated analyser buffer) makes
+  // log(0) -Infinity and exp(-Infinity) 0, so the lerp produced NaN. NaN here
+  // propagates into a bar index and silently blanks the whole spectrum bar.
+  const len = Math.max(1, freqLength);
   const t = barCount > 1 ? barIndex / (barCount - 1) : 0;
   // log-space from ~20 Hz to Nyquist; curve steepens at low end for bass detail
-  const minLog = Math.log(1); // normalized 0 → 20 Hz bin
-  const maxLog = Math.log(freqLength);
+  const minLog = Math.log(1); // normalized 0 -> 20 Hz bin
+  const maxLog = Math.log(len);
   const logIdx = minLog + t * (maxLog - minLog);
   return Math.exp(logIdx);
 }
@@ -100,9 +104,14 @@ export function valueNoise(x: number, y: number, t: number): number {
   const n10 = Math.sin((xi + 1) * 127.1 + yi * 311.7 + t * 0.7) * 43758.5453;
   const n01 = Math.sin(xi * 127.1 + (yi + 1) * 311.7 + t * 0.7) * 43758.5453;
   const n11 = Math.sin((xi + 1) * 127.1 + (yi + 1) * 311.7 + t * 0.7) * 43758.5453;
-  const nx0 = (n00 + sx * (n10 - n00)) % 1;
-  const nx1 = (n01 + sx * (n11 - n01)) % 1;
-  return (nx0 + sy * (nx1 - nx0)) % 1;
+  // fract() must be non-negative: JS `%` keeps the sign of the dividend, and
+  // these products span roughly +/-43758, so a bare `% 1` returned -1..1 with
+  // about half the samples negative — a broken "noise" field rather than a
+  // subtle offset. Adding 1 before the modulo folds negatives back into 0..1.
+  const fract = (n: number) => ((n % 1) + 1) % 1;
+  const nx0 = n00 + sx * (n10 - n00);
+  const nx1 = n01 + sx * (n11 - n01);
+  return fract(nx0 + sy * (nx1 - nx0));
 }
 
 /** Fractal Brownian motion — domain-warped FBM for aurora curtains. */

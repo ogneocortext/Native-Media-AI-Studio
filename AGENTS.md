@@ -232,8 +232,11 @@ Individual gates, for iterating on one area:
   `audioTiming.ts`'s latency math costs seconds and is flaky where a unit test
   costs ~1 ms. Test files are **colocated** under `src/`, not in `tests/`,
   because `tests/` holds Playwright specs and its own `tsconfig.tests.json`.
-  Covered so far: `keyPalette.ts` (chroma→hue, Q5) and `audioTiming.ts`
-  (latency/beat clock). Both suites were mutation-checked.
+  Covered so far: `keyPalette.ts` (chroma→hue, Q5), `audioTiming.ts`
+  (latency/beat clock), `lyricsSync.ts` (LRC parsing and lookup), and
+  `canvas2dHelpers.ts` (colour/easing/noise). All four suites were
+  mutation-checked. Still untested and pure: `perceptualScales.ts`,
+  `sectionStateMachine.ts`, `visualizerHelpers.ts`, `lyricsParser.ts`.
 - Frontend E2E: `pnpm test` in `packages/frontend/` (Playwright)
 - Backend: `pytest` in `packages/backend/`
 - E2E: Playwright under `packages/frontend/tests/browser/`

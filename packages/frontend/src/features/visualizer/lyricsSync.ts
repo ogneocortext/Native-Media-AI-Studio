@@ -149,9 +149,15 @@ export function findCurrentWord(
  * Returns 0-1 for how much of the word has been "sung".
  */
 export function getWordProgress(line: LyricLine, time: number, index: number): number {
-  if (!line.words || index >= line.words.length) return 0;
+  // Guard both ends of the range. `index >= length` alone let a negative index
+  // through and threw on `line.words[index].start`, which takes down the render
+  // loop rather than returning 0.
+  if (!line.words || index < 0 || index >= line.words.length) return 0;
   const word = line.words[index];
+  // A zero-length window would divide by zero and yield NaN.
+  const span = word.end - word.start;
+  if (span <= 0) return time >= word.start ? 1 : 0;
   if (time < word.start) return 0;
   if (time >= word.end) return 1;
-  return (time - word.start) / (word.end - word.start);
+  return (time - word.start) / span;
 }
