@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas } from "@react-three/fiber";
 import { PerformanceMonitor } from "@react-three/drei";
 import {
   Music,
@@ -37,8 +37,7 @@ import { Canvas2DVisualizer } from "./Canvas2DVisualizer";
 import { VisualizerScene } from "./VisualizerScene";
 import { useLrcSync, computeLrcSync, computeSectionBounds } from "./useLrcSync";
 import type { LrcSyncData } from "./useLrcSync";
-import { ANALYSER_SMOOTHING, createAudioClock, estimateOutputLatency } from "./audioTiming";
-import { createEQ, type EQBand } from "./audioEQ";
+import { type EQBand } from "./audioEQ";
 import { ShaderVisualizer } from "./ShaderVisualizer";
 import { ACESFilmicToneMapping } from "three";
 import {
@@ -49,6 +48,8 @@ import {
 import { SpectrumBar } from "./components/SpectrumBar";
 import { StemMixerPanel, type StemName } from "./components/StemMixer";
 import { EqualizerPanel } from "./components/EqualizerPanel";
+import { ProfessionalMixer } from "./professionalMixer/ProfessionalMixer";
+import type { ChannelMeters } from "./professionalMixer/types";
 import { StylePicker } from "./components/StylePicker";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UploadPrompt } from "./components/UploadPrompt";
@@ -68,222 +69,24 @@ import { selectPresetForTrack } from "./components/KineticPresets";
 import { buildStoryboard, getStoryState, EMPTY_STORYBOARD } from "./storyboard";
 import { BuilderFigure } from "./components/BuilderFigure";
 import { useMCPContextSync } from "./useMCPContextSync";
-import { canRecordMp4, createMp4Recorder } from "./mp4Recording";
-
-/** A library entry — `filename` is the bare name; the playable/analyzable
- *  reference is `relative_path` (subfolder-aware). Most of the library lives
- *  in subfolders, so bare names 404 on /api/audio/file/*. */
-interface LibraryFile {
-  filename: string;
-  path?: string;
-  relative_path?: string;
-  folder?: string;
-}
-
-/** Canonical backend reference for a library file (POSIX, subfolder-aware). */
-function audioRefForFile(f: LibraryFile): string {
-  return (f.relative_path || f.path || f.filename).replace(/\\/g, "/");
-}
-
-/** Strip any folder prefix: "Suno-V6-Mini/track.m4a" → "track.m4a". */
-function baseNameOfRef(ref: string): string {
-  const base = ref.split("/").pop() ?? ref;
-  return base || ref;
-}
-
-/** Human display name: no folders, hash prefixes, or extension. */
-function displayNameForFile(f: LibraryFile): string {
-  return baseNameOfRef(audioRefForFile(f))
-    .replace(/^([0-9a-f]{8}_)+/i, "")
-    .replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "");
-}
-
-/** Encode a backend file reference segment-wise (keeps folder slashes intact). */
-function encodeAudioRef(ref: string): string {
-  return ref
-    .split("/")
-    .map((seg) => encodeURIComponent(seg))
-    .join("/");
-}
-
-/** How long a beat stays lit for throttled (React-state) consumers.
- *  Per-frame producers raise `beat` for a single 16 ms frame (shader/2D loop)
- *  while state mirrors update at ~10 Hz — without latching, the footer beat
- *  dot and lyric beat pulses miss most beats and fire up to 100 ms late.
- *  Kept at 80 ms (not longer): measured beat grids run dense double-time
- *  (~190–270 ms spacing), so a longer latch saturates the dot instead of
- *  flashing per beat. */
-const BEAT_LATCH_MS = 80;
-
-/** Clamp a number into [min, max]; falls back to `fallback` when not finite. */
-function clampNum(value: unknown, min: number, max: number, fallback: number): number {
-  const n = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(max, Math.max(min, n));
-}
-
-/** 2D canvas modes in select order; keyboard keys 1–9 jump to the first nine. */
-const CANVAS_2D_MODES = [
-  "bars",
-  "mirrored-bars",
-  "segmented-led-bars",
-  "stereo-split-bars",
-  "stacked-frequency-bands",
-  "dot-peak-matrix",
-  "waveform",
-  "radial",
-  "spectrogram",
-  "lissajous",
-  "constellation",
-  "particles",
-] as const;
-type Canvas2DMode = (typeof CANVAS_2D_MODES)[number];
-
-/** Display labels for the 2D modes (mirrors the mode select options). */
-const CANVAS_2D_MODE_LABELS: Record<Canvas2DMode, string> = {
-  bars: "Bars",
-  "mirrored-bars": "Mirrored Bars",
-  "segmented-led-bars": "Segmented LED Bars",
-  "stereo-split-bars": "Stereo Split Bars",
-  "stacked-frequency-bands": "Stacked Frequency Bands",
-  "dot-peak-matrix": "Dot Peak Matrix",
-  waveform: "Waveform",
-  radial: "Radial",
-  spectrogram: "Spectrogram",
-  lissajous: "Lissajous",
-  constellation: "Constellation",
-  particles: "Particles",
-};
-
-/** Stage mode cycle order for the ←/→ keyboard shortcuts. */
-const VIZ_MODE_ORDER = ["3d", "shader", "2d"] as const;
-
-/** Narrow an unknown backend payload to AudioAnalysisData; null when unusable. */
-function toAnalysisData(raw: unknown): AudioAnalysisData | null {
-  if (!raw || typeof raw !== "object") return null;
-  const r = raw as Record<string, unknown>;
-  if (typeof r.tempo_bpm !== "number" || typeof r.duration_seconds !== "number") return null;
-  if (!Array.isArray(r.beat_times) || !Array.isArray(r.energy_curve)) return null;
-
-  const spectralCentroid = Array.isArray(r.spectral_centroid)
-    ? r.spectral_centroid.filter((v): v is number => typeof v === "number")
-    : undefined;
-  const spectralRolloff = Array.isArray(r.spectral_rolloff)
-    ? r.spectral_rolloff.filter((v): v is number => typeof v === "number")
-    : undefined;
-  const spectralBandwidth = Array.isArray(r.spectral_bandwidth)
-    ? r.spectral_bandwidth.filter((v): v is number => typeof v === "number")
-    : undefined;
-  const zeroCrossingRate = Array.isArray(r.zero_crossing_rate)
-    ? r.zero_crossing_rate.filter((v): v is number => typeof v === "number")
-    : undefined;
-
-  return {
-    tempo_bpm: r.tempo_bpm,
-    beat_count: typeof r.beat_count === "number" ? r.beat_count : r.beat_times.length,
-    beat_times: r.beat_times,
-    onset_times: Array.isArray(r.onset_times) ? r.onset_times : [],
-    energy_curve: r.energy_curve,
-    amplitude_envelope: Array.isArray(r.amplitude_envelope) ? r.amplitude_envelope : [],
-    sections: Array.isArray(r.sections) ? r.sections : [],
-    confidence: typeof r.confidence === "number" ? r.confidence : 0,
-    duration_seconds: r.duration_seconds,
-    spectral_centroid: spectralCentroid,
-    spectral_rolloff: spectralRolloff,
-    spectral_bandwidth: spectralBandwidth,
-    zero_crossing_rate: zeroCrossingRate,
-    timing_contract: r.timing_contract as AudioAnalysisData["timing_contract"],
-    suggested_visualization:
-      typeof r.suggested_visualization === "string" ? r.suggested_visualization : undefined,
-    suggested_visualization_confidence:
-      typeof r.suggested_visualization_confidence === "number"
-        ? r.suggested_visualization_confidence
-        : undefined,
-    suggested_visualization_candidates: Array.isArray(r.suggested_visualization_candidates)
-      ? r.suggested_visualization_candidates
-      : undefined,
-    suggested_kinetic_preset:
-      typeof r.suggested_kinetic_preset === "string" ? r.suggested_kinetic_preset : undefined,
-    suggested_kinetic_preset_confidence:
-      typeof r.suggested_kinetic_preset_confidence === "number"
-        ? r.suggested_kinetic_preset_confidence
-        : undefined,
-    suggested_theme_seed:
-      typeof r.suggested_theme_seed === "string" ? r.suggested_theme_seed : undefined,
-    suggested_theme_seed_confidence:
-      typeof r.suggested_theme_seed_confidence === "number"
-        ? r.suggested_theme_seed_confidence
-        : undefined,
-  };
-}
-
-/** Narrow an unknown backend payload to a VisualPreset; null when unusable. */
-function toVisualPreset(raw: unknown): VisualPreset | null {
-  if (!raw || typeof raw !== "object") return null;
-  const r = raw as Record<string, unknown>;
-  if (typeof r.name !== "string") return null;
-  return raw as VisualPreset;
-}
-
-/** Map backend-suggested visualization style → preset id for fallback auto-apply. */
-function visualizationStyleToPresetId(style: string): string | null {
-  const map: Record<string, string> = {
-    geometric: "balanced",
-    pulse: "pop",
-    particles: "pop",
-    aurora: "indie",
-    synthwave: "synthwave",
-    cosmic: "cinematic",
-    inferno: "trapMetal",
-    waveform: "rb",
-    storm: "grime",
-  };
-  return map[style] || null;
-}
-
-function RenderStatsProbe({
-  enabled,
-  onStats,
-}: {
-  enabled: boolean;
-  onStats: (stats: { fps: number; calls: number; triangles: number }) => void;
-}) {
-  const { gl } = useThree();
-  const frames = useRef(0);
-  const last = useRef(performance.now());
-  useFrame(() => {
-    if (!enabled) return;
-    frames.current += 1;
-    const now = performance.now();
-    if (now - last.current >= 1000) {
-      onStats({
-        fps: Math.round((frames.current * 1000) / (now - last.current)),
-        calls: gl.info.render.calls,
-        triangles: gl.info.render.triangles,
-      });
-      frames.current = 0;
-      last.current = now;
-    }
-  });
-  return null;
-}
-
-function RenderStatsBadge({
-  stats,
-}: {
-  stats: { fps: number; calls: number; triangles: number } | null;
-}) {
-  if (!stats) return null;
-  return (
-    <div
-      className="viz-backend-badge"
-      aria-live="off"
-      title="Renderer telemetry: frames per second, draw calls, triangles"
-    >
-      {stats.fps} FPS · {stats.calls} calls · {(stats.triangles / 1000).toFixed(1)}k tris
-    </div>
-  );
-}
+import { useVisualizerRecording } from "./useVisualizerRecording";
+import { useAudioGraph } from "./useAudioGraph";
+import { RenderStatsProbe, RenderStatsBadge } from "./components/RenderStats";
+import {
+  CANVAS_2D_MODES,
+  CANVAS_2D_MODE_LABELS,
+  VIZ_MODE_ORDER,
+  BEAT_LATCH_MS,
+  audioRefForFile,
+  baseNameOfRef,
+  displayNameForFile,
+  encodeAudioRef,
+  clampNum,
+  visualizationStyleToPresetId,
+  toAnalysisData,
+  toVisualPreset,
+  type LibraryFile,
+} from "./visualizerHelpers";
 
 export function Visualizer() {
   const [bgColor, setBgColor] = useState("#050505");
@@ -333,9 +136,6 @@ export function Visualizer() {
   const [showSettings, setShowSettings] = useState(false);
   const [rendererReady, setRendererReady] = useState(false);
   const [rendererBackend, setRendererBackend] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [lyricsVisible, setLyricsVisible] = useState(true);
   const [visualsVisible, setVisualsVisible] = useState(true);
@@ -400,20 +200,44 @@ export function Visualizer() {
     volumes: Record<StemName, number>;
   } | null>(null);
 
+  // Professional mixer state — per-stem meter data for visualization
+  const [proMixerMeters, _setProMixerMeters] = useState<Record<StemName, ChannelMeters> | null>(
+    null,
+  );
+
+  // Toggle between simple stem mixer and professional mixer
+  const [useProMixer, setUseProMixer] = useState(false);
+
+  // Build stems URL record for the professional mixer from current stems data
+  const proMixerStems = useMemo(() => {
+    if (!currentStemsData || !currentFilename) return null;
+    const stems: Record<StemName, string> = {
+      vocals: currentStemsData.vocals?.url || "",
+      drums: currentStemsData.drums?.url || "",
+      bass: currentStemsData.bass?.url || "",
+      other: currentStemsData.other?.url || "",
+    };
+    return Object.values(stems).some((v) => v) ? stems : null;
+  }, [currentStemsData, currentFilename]);
+
   const audioElapsedRef = useRef(0);
   const [elapsed, setElapsed] = useState(0);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
-  const mainGainRef = useRef<GainNode | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const eqRef = useRef<{
-    input: GainNode;
-    output: GainNode;
-    setBands: (bands: any[]) => void;
-    applyPreset: (name: string) => void;
-    dispose: () => void;
-  } | null>(null);
+
+  // Shared Web Audio graph (context + EQ + analyser + gain). Owns setup/reset/teardown.
+  const {
+    audioCtxRef,
+    analyserRef,
+    mainGainRef,
+    eqRef,
+    ensureAudioContext,
+    setupAudio,
+    sampleAudio,
+    resetGraph,
+    resetClock,
+    audioClockRef,
+    latencyRef,
+  } = useAudioGraph(audioElRef);
 
   // LRC sync for precise phrase-synchronized visuals — now reactive via elapsed state
   const lrcSync = useLrcSync(lyrics, elapsed);
@@ -464,22 +288,18 @@ export function Visualizer() {
     }
     setRendererReady(true);
   }, []);
-  // Interpolated, latency-compensated audio clock (see audioTiming.ts).
-  const audioClockRef = useRef(createAudioClock());
-  const latencyRef = useRef(0);
-  const sampleAudio = useCallback(() => {
-    const el = audioElRef.current;
-    return el ? audioClockRef.current.sample(el, latencyRef.current) : 0;
-  }, []);
+  // Interpolated, latency-compensated audio clock lives in useAudioGraph.
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mp4RecorderRef = useRef<ReturnType<typeof createMp4Recorder> | null>(null);
-  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
   const objectUrlRef = useRef<string | null>(null);
-  const recordingFormatRef = useRef<"webm" | "mp4">("webm");
-  const freqArrayRef = useRef<Uint8Array | null>(null);
-  const connectedElements = useRef<WeakSet<HTMLMediaElement>>(new WeakSet());
+  // Canvas capture (MP4 via WebCodecs, else WebM). Owns its recorder + timer teardown.
+  const {
+    isRecording,
+    recordingTime,
+    recordedBlob,
+    startRecording,
+    stopRecording,
+    downloadRecording,
+  } = useVisualizerRecording(containerRef, setError);
   // Monotonic id guarding async track-select flows against out-of-order resolves.
   const trackRequestRef = useRef(0);
   // Latest vizParams for callbacks that must not re-subscribe on every slider tick.
@@ -824,7 +644,7 @@ export function Visualizer() {
   const resetAudioDerivedState = useCallback(() => {
     audioElapsedRef.current = 0;
     setElapsed(0);
-    audioClockRef.current.reset();
+    resetClock();
     lrcSyncLiveRef.current = null;
     // Lyrics are strictly LRC-derived: a new track starts wordless so stale
     // lines can never linger on the canvas when the next track has no LRC.
@@ -833,18 +653,9 @@ export function Visualizer() {
     lastBeatIdxRef.current = -1;
     lastBeatAtRef.current = 0;
     last3DUiUpdateRef.current = 0;
-    // Fade the main track back in (hard gain cuts cause clicks/pops).
-    if (mainGainRef.current) {
-      mainGainRef.current.gain.setTargetAtTime(1, mainGainRef.current.context.currentTime, 0.06);
-    }
-    // Reset main track EQ to flat on track change.
-    if (eqRef.current) {
-      try {
-        eqRef.current.applyPreset("flat");
-      } catch {
-        /* noop */
-      }
-    }
+    // Fade the main track back in (hard gain cuts cause clicks/pops) and
+    // reset its EQ to flat on track change.
+    resetGraph();
     const idle: AudioData = {
       bass: 0,
       mid: 0,
@@ -922,94 +733,12 @@ export function Visualizer() {
     prevAudioUrlRef.current = audioUrl;
   }, [audioUrl]);
 
-  // Cleanup object URL, AudioContext, and recording on unmount
+  // Cleanup the audio object URL on unmount. AudioContext teardown is owned by
+  // useAudioGraph and recorder teardown by useVisualizerRecording.
   useEffect(() => {
     return () => {
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-      if (audioCtxRef.current) audioCtxRef.current.close().catch(() => {});
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-        mediaRecorderRef.current.stop();
-      }
-      if (mp4RecorderRef.current) {
-        // Flush + mux is async now; fire-and-forget on unmount (the buffer is
-        // unusable once the page is going away anyway).
-        void mp4RecorderRef.current.stop().catch(() => undefined);
-      }
-      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     };
-  }, []);
-
-  const setupAudio = useCallback(async (el: HTMLMediaElement | null) => {
-    if (!el) return;
-    // Element already wired: just ensure the context is running (autoplay-policy
-    // suspensions need resume(), not a rebuild — rebuilding throws "already connected").
-    if (connectedElements.current.has(el)) {
-      latencyRef.current = estimateOutputLatency(audioCtxRef.current);
-      if (audioCtxRef.current?.state === "suspended") {
-        try {
-          await audioCtxRef.current.resume();
-        } catch {
-          /* ignore */
-        }
-      }
-      return;
-    }
-    try {
-      connectedElements.current.add(el);
-
-      // Disconnect previous source from shared context if switching elements
-      if (sourceRef.current) {
-        try {
-          sourceRef.current.disconnect();
-        } catch {
-          /* already disconnected */
-        }
-        sourceRef.current = null;
-      }
-
-      // Lazily create shared AudioContext + analyser + mainGain once
-      if (!audioCtxRef.current) {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        audioCtxRef.current = ctx;
-        latencyRef.current = estimateOutputLatency(ctx);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 2048;
-        // Light analyser smoothing (was 0.8, which trailed onsets ~100 ms+);
-        // punch/decay shaping lives in our own attack/release stage instead.
-        analyser.smoothingTimeConstant = ANALYSER_SMOOTHING;
-        analyserRef.current = analyser;
-        freqArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
-        const mainGain = ctx.createGain();
-        mainGainRef.current = mainGain;
-        const eq = createEQ(ctx, []);
-        eqRef.current = eq;
-        // Graph: source → eq → analyser → mainGain → destination
-        eq.output.connect(analyser);
-        analyser.connect(mainGain);
-        mainGain.connect(ctx.destination);
-      } else {
-        latencyRef.current = estimateOutputLatency(audioCtxRef.current);
-        if (audioCtxRef.current.state === "suspended") {
-          try {
-            await audioCtxRef.current.resume();
-          } catch {
-            /* ignore */
-          }
-        }
-      }
-
-      const ctx = audioCtxRef.current;
-      const source = ctx.createMediaElementSource(el);
-      sourceRef.current = source;
-      const eq = eqRef.current;
-      if (eq) {
-        source.connect(eq.input);
-      } else {
-        source.connect(analyserRef.current!);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Web Audio setup failed");
-    }
   }, []);
 
   const handleFile = useCallback(
@@ -1030,24 +759,9 @@ export function Visualizer() {
       setDemoEnabled(false);
       setIsPaused(false);
       // Ensure shared AudioContext exists so stems can reuse it.
-      if (!audioCtxRef.current) {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        audioCtxRef.current = ctx;
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 2048;
-        analyser.smoothingTimeConstant = ANALYSER_SMOOTHING;
-        analyserRef.current = analyser;
-        freqArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
-        const mainGain = ctx.createGain();
-        mainGainRef.current = mainGain;
-        const eq = createEQ(ctx, []);
-        eqRef.current = eq;
-        eq.output.connect(analyser);
-        analyser.connect(mainGain);
-        mainGain.connect(ctx.destination);
-      }
+      void ensureAudioContext();
     },
-    [resetAudioDerivedState],
+    [resetAudioDerivedState, ensureAudioContext],
   );
 
   const handleSelectLibraryTrack = useCallback(
@@ -1064,22 +778,7 @@ export function Visualizer() {
       setDemoEnabled(false);
       setIsPaused(false);
       // Ensure shared AudioContext exists before stems can load.
-      if (!audioCtxRef.current) {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        audioCtxRef.current = ctx;
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 2048;
-        analyser.smoothingTimeConstant = ANALYSER_SMOOTHING;
-        analyserRef.current = analyser;
-        freqArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
-        const mainGain = ctx.createGain();
-        mainGainRef.current = mainGain;
-        const eq = createEQ(ctx, []);
-        eqRef.current = eq;
-        eq.output.connect(analyser);
-        analyser.connect(mainGain);
-        mainGain.connect(ctx.destination);
-      }
+      void ensureAudioContext();
       // New track: clear manual preset lock so auto-apply is allowed to run.
       setActiveVisualPresetId(null);
       const trackFolder = fileRef.includes("/") ? fileRef.slice(0, fileRef.lastIndexOf("/")) : "";
@@ -1305,96 +1004,6 @@ export function Visualizer() {
       setAiEnhancing(false);
     }
   }, [currentAnalysisData, currentFilename, csvContent, aiEnhancing, applyPreset]);
-
-  const startRecording = useCallback(async () => {
-    const canvas = containerRef.current?.querySelector("canvas") ?? null;
-    if (!canvas) {
-      setError("Recording failed — no visualizer canvas found");
-      return;
-    }
-    try {
-      // Prefer MP4 via WebCodecs when available; fall back to MediaRecorder/WebM.
-      // `canRecordMp4` actually probes the H.264 config — WebCodecs existing does
-      // not mean this profile is encodable.
-      const useMp4 = await canRecordMp4(canvas.width, canvas.height);
-      recordingFormatRef.current = useMp4 ? "mp4" : "webm";
-
-      if (useMp4) {
-        const recorder = createMp4Recorder({ bitrate: 8_000_000, fps: 60 });
-        recorder.start(canvas);
-        mp4RecorderRef.current = recorder;
-        setRecordedBlob(null);
-        setIsRecording(true);
-        recordingTimerRef.current = setInterval(() => setRecordingTime((p) => p + 1), 1000);
-        return;
-      }
-
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9"
-        : "video/webm";
-      const mediaRecorder = new MediaRecorder(canvas.captureStream(60), {
-        mimeType,
-        videoBitsPerSecond: 8000000,
-      });
-      recordedChunksRef.current = [];
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
-      };
-      mediaRecorder.onstop = () => {
-        setRecordedBlob(new Blob(recordedChunksRef.current, { type: "video/webm" }));
-      };
-      mediaRecorder.start(100);
-      mediaRecorderRef.current = mediaRecorder;
-      setIsRecording(true);
-      recordingTimerRef.current = setInterval(() => setRecordingTime((p) => p + 1), 1000);
-    } catch (e) {
-      setError(e instanceof Error ? `Recording failed — ${e.message}` : "Recording failed");
-    }
-  }, []);
-
-  const stopRecording = useCallback(async () => {
-    const fmt = recordingFormatRef.current;
-
-    if (fmt === "mp4") {
-      const recorder = mp4RecorderRef.current;
-      mp4RecorderRef.current = null;
-      setIsRecording(false);
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-      if (recorder) {
-        // Await the encoder flush: the tail frames only reach the muxer after the
-        // flush resolves (see mp4Recording.ts).
-        try {
-          const buffer = await recorder.stop();
-          if (buffer) setRecordedBlob(new Blob([buffer], { type: "video/mp4" }));
-          else setError("MP4 export produced no data — try WebM (see console)");
-        } catch (e) {
-          setError(e instanceof Error ? `MP4 export failed — ${e.message}` : "MP4 export failed");
-        }
-      }
-      return;
-    }
-
-    mediaRecorderRef.current?.stop();
-    setIsRecording(false);
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
-    }
-  }, []);
-
-  const downloadRecording = useCallback(() => {
-    if (!recordedBlob) return;
-    const ext = recordingFormatRef.current;
-    const a = document.createElement("a");
-    const url = URL.createObjectURL(recordedBlob);
-    a.href = url;
-    a.download = `visualizer_${Date.now()}.${ext}`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }, [recordedBlob]);
 
   const [showTestPanel, setShowTestPanel] = useState(false);
 
@@ -2097,6 +1706,7 @@ export function Visualizer() {
                   stems={currentStemsData}
                   stemsMuted={stemsMixerState?.muted}
                   stemsVolumes={stemsMixerState?.volumes}
+                  stemsProMeters={proMixerMeters || undefined}
                   sampleAudio={sampleAudio}
                   className="absolute inset-0"
                 />
@@ -2270,14 +1880,36 @@ export function Visualizer() {
             }}
           />
           {/* Per-stem mixing (Trend 2: drums→pulse, bass→camera shake, vocals→lyric, other→palette) */}
-          <StemMixerPanel
-            audioFilename={currentFilename}
-            compact
-            onStateChange={setStemsMixerState}
-            sharedAudioContext={audioCtxRef.current}
-            mainAudioRef={audioElRef}
-            mainGainRef={mainGainRef}
-          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setUseProMixer((v) => !v)}
+              className={`text-[10px] px-2 py-1 rounded-md border transition-colors ${
+                useProMixer
+                  ? "bg-violet-600/30 border-violet-500/50 text-violet-200"
+                  : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10"
+              }`}
+            >
+              {useProMixer ? "Professional Mixer" : "Simple Mixer"}
+            </button>
+          </div>
+          {useProMixer && proMixerStems ? (
+            <ProfessionalMixer
+              audioFilename={currentFilename}
+              sharedAudioContext={audioCtxRef.current}
+              stems={proMixerStems}
+              compact
+              collapsedBuses
+            />
+          ) : (
+            <StemMixerPanel
+              audioFilename={currentFilename}
+              compact
+              onStateChange={setStemsMixerState}
+              sharedAudioContext={audioCtxRef.current}
+              mainAudioRef={audioElRef}
+              mainGainRef={mainGainRef}
+            />
+          )}
           {currentFilename && (
             <EqualizerPanel
               title="Master EQ"
