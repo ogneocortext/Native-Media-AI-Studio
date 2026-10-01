@@ -97,15 +97,24 @@ wrong action, so verify before trusting a bare command name.
 | `python` | `C:\Python314\python.exe` (3.14.7) | **Not** the project interpreter. Backend/GPU work needs `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` (3.11.9) — see "Python Environments" below. |
 | `node` | `...\fnm\aliases\default\node.exe` | Resolves, but `npm.cmd` exists on two PATH entries; prefer `pnpm.cmd` from Python with an explicit `cwd`. |
 
-There is **no PowerShell profile** on this machine (none of the four
-`$PROFILE` paths exist), so nothing here is configured by a profile — the
-confusion comes from the system PATH itself. Don't "fix" this by editing a
-profile; the fix is to stop using bare names.
-
 **Do not use bare `python` for repo work.** `C:\Python314` has none of the
 backend dependencies (`import fastapi` fails), while `nma-studio-cuda` has them.
 A wrong-interpreter run can also *silently* differ: 3.14 vs 3.11 changes stdlib
-behaviour, so a script may pass on one and fail on the other.
+behaviour, so a script may pass on one and fail on the other. Use the absolute
+interpreter paths from "Python Environments" below.
+
+There **is** a PowerShell 7 profile at
+`C:\Users\Aomega Imaging\Documents\PowerShell\Microsoft.PowerShell_profile.ps1`
+(pwsh uses `Documents\PowerShell\`; Windows PowerShell 5.1 would use
+`Documents\WindowsPowerShell\`, which is empty). It prepends Ollama, VS Code,
+npm, Git and Zed to `PATH`, runs `fnm env --use-on-cd`, runs `conda init`, and
+sources a ~170 KB OpenClaw completion script. It was fixed on 2026-10-01 so it
+no longer writes to stderr on startup and no longer emits startup diagnostics in
+non-interactive sessions. If a tool still sees spurious `NativeCommandError`
+from a command that succeeded, check whether that noise is back.
+
+Note the profile does **not** fix the `python` trap above: `python` resolves to
+`C:\Python314` in both pwsh 7 and the 5.1 agent shell.
 
 Unrelated tools on PATH (Android SDK, WSL) are noise from the OS environment —
 they are not part of this project and should never be invoked for repo tasks.
