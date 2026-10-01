@@ -15,6 +15,9 @@
     "lint": "eslint src",
     "format": "prettier --write src",
     "test": "playwright test",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:all": "vitest run && playwright test",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
     "clean": "node -e \"const fs=require('fs');['dist','node_modules/.vite'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true})}catch(e){}})\""
@@ -55,6 +58,7 @@
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "^8.69.0",
-    "vite": "^8.3.1"
+    "vite": "^8.3.1",
+    "vitest": "^5.0.3"
   }
 }
