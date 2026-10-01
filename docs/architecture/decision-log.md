@@ -263,6 +263,28 @@
 - **Recommendation:** Unify behind the Q2 fallback model — modes become a
   priority list, not a toggle.
 
+### Q5 — Chroma→hue palette mapping for the shader visualizer (2026-10-01)
+- **Status:** Open
+- **Context:** The shader visualizer's uniforms (`u_time`, `u_bass`, `u_mid`,
+  `u_treble`, `u_beat`, `u_energy`, `u_peak`) carry energy but no harmonic
+  information, so palette is arbitrary per preset. The audio-analysis pipeline
+  already emits `estimated_key` ("A minor" format, Krumhansl/Pearson r) plus
+  runner-up and confidence in `analysis.json` — classical DSP, no model, fits
+  the deterministic-fallback design goal (Q2).
+- **Options:** (a) Tier 1: three static per-track uniforms (`u_key_hue`,
+  `u_key_sat`, `u_key_conf`) — pitch class → hue via circle of fifths
+  (harmonically adjacent keys grade-shift smoothly), mode → saturation,
+  confidence → runner-up blend / neutral fallback below r=0.4;
+  (b) Tier 2: per-frame chroma (requires adding `chroma_frames` to
+  `analyze.py` output) for chord-change palette shifts.
+- **Recommendation:** (a) now — 3 floats, unmeasurable on the GTX 1070 Ti,
+  wiring follows the existing `ShaderCanvas.tsx` uniform pattern; (b) later.
+  Full spec: `docs/architecture/chroma-hue-mapping.md`.
+- **Next step:** Windows agent implements Tier 1 wiring per the spec and runs
+  the 3-track key-verification + low-confidence fallback checks.
+
+---
+
 ## Changelog
 - 2026-10-01: D14 recorded — the visualizer frontend is decomposed into focused modules rather than held in two monolithic components. `Visualizer.tsx` (2,361 lines) and `Canvas2DVisualizer.tsx` (1,560) are now orchestration over `visualizerHelpers.ts`, `canvas2dHelpers.ts`, `components/RenderStats.tsx`, `useVisualizerRecording.ts`, and `useAudioGraph.ts`. The split was mechanical (verbatim line ranges, verified by a normalized code-line diff against `HEAD`); the one behavioural change was consolidating the Web Audio graph, which had been copy-pasted three times and had already drifted. Recording and AudioContext teardown are now owned by their hooks rather than a shared unmount effect. A single shared `AudioContext` remains the rule (D4) — `ensureAudioContext()` is the only creation site.
 ---
