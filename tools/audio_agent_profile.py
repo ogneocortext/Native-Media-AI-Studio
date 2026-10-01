@@ -369,6 +369,17 @@ def profile_for_file(path: str | Path, sr: int | None = 22050) -> dict[str, Any]
     # Correlation can be negative; clamp to [0, 1] so the description never
     # shows a misleading "-30% confidence".
     key_conf = round(max(0.0, min(1.0, key_scores[0][0])), 3)
+    # Raw (unclamped) r, under the same key analyze.py uses. Consumers that make
+    # decisions from confidence - e.g. the chroma->hue mapper's 0.4 fallback
+    # threshold - read key_confidence_r so both analyzers stay interchangeable;
+    # key_confidence remains the display-friendly clamped value.
+    key_conf_r = round(key_scores[0][0], 3)
+    # Runner-up, for the chroma->hue mapper to blend between when confidence is
+    # middling (docs/architecture/chroma-hue-mapping.md). analyze.py emits the
+    # same pair of keys; keeping both analyzers aligned is deliberate, so a
+    # consumer does not have to know which tool produced a given analysis file.
+    runner_up_key = key_scores[1][1]
+    runner_up_conf = round(key_scores[1][0], 3)
 
     # Dynamics
     rms = librosa.feature.rms(y=y, frame_length=4096, hop_length=2048)[0]
@@ -431,6 +442,9 @@ def profile_for_file(path: str | Path, sr: int | None = 22050) -> dict[str, Any]
         "beat_count": len(beat_times),
         "estimated_key": estimated_key,
         "key_confidence": key_conf,
+        "key_confidence_r": key_conf_r,
+        "key_runner_up": runner_up_key,
+        "key_runner_up_r": runner_up_conf,
         "dynamic_range_db": dynamic_range,
         "band_energy_pct": band_energy,
         "spectral": {

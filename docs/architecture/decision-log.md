@@ -266,7 +266,21 @@
   priority list, not a toggle.
 
 ### Q5 — Chroma→hue palette mapping for the shader visualizer (2026-10-01)
-- **Status:** Open
+- **Status:** Resolved — Tier 1 implemented 2026-10-01; Tier 2 deferred
+- **Resolution:** Option (a) shipped. `keyPalette.ts` (pure mapping),
+  `useKeyPalette.ts`, the three uniforms wired through `ShaderCanvas.tsx` and
+  `ShaderVisualizer.tsx`, and `spectralReactor` consumes them weighted by
+  confidence. Verified against the spec table, the worked example, both
+  thresholds, and malformed input. Option (b) is not started — it needs
+  `chroma_frames` in the analyzer output.
+- **What the spec got wrong:** it assumed `analysis.json` already carried
+  `key_confidence_r` and `key_runner_up`. There are **two** analyzers, and only
+  `tools/audio-analysis/analyze.py` emitted those fields; `tools/audio_agent_profile.py`
+  — which produced the committed sample files — emitted a clamped
+  `key_confidence` and no runner-up at all. That analyzer and the
+  `GET /api/audio/analysis/by-filename/{filename}` response were aligned to emit
+  the same key fields before Tier 1 was wired against them. Committed analysis
+  files still need re-analysis; they resolve to the neutral fallback until then.
 - **Context:** The shader visualizer's uniforms (`u_time`, `u_bass`, `u_mid`,
   `u_treble`, `u_beat`, `u_energy`, `u_peak`) carry energy but no harmonic
   information, so palette is arbitrary per preset. The audio-analysis pipeline
@@ -281,14 +295,15 @@
   `analyze.py` output) for chord-change palette shifts.
 - **Recommendation:** (a) now — 3 floats, unmeasurable on the GTX 1070 Ti,
   wiring follows the existing `ShaderCanvas.tsx` uniform pattern; (b) later.
-  Full spec: `docs/architecture/chroma-hue-mapping.md`.
-- **Next step:** Windows agent implements Tier 1 wiring per the spec and runs
-  the 3-track key-verification + low-confidence fallback checks.
+  Full spec and status: `docs/architecture/chroma-hue-mapping.md`.
+- **Next step:** re-analyze the committed tracks so their keys resolve, and run
+  the in-browser smoke test (GTX 1070 Ti frame-time check) still outstanding.
 
 ---
 
 ## Changelog
-- 2026-10-01: D14 recorded — the visualizer frontend is decomposed into focused modules rather than held in two monolithic components. `Visualizer.tsx` (2,318 lines) and `Canvas2DVisualizer.tsx` (1,560) are now orchestration over `visualizerHelpers.ts`, `canvas2dHelpers.ts`, `components/RenderStats.tsx`, `useVisualizerRecording.ts`, and `useAudioGraph.ts`. The split was mechanical (verbatim line ranges, verified by a normalized code-line diff against `HEAD`); the one behavioural change was consolidating the Web Audio graph, which had been copy-pasted three times and had already drifted. Recording and AudioContext teardown are now owned by their hooks rather than a shared unmount effect. A single shared `AudioContext` remains the rule (D4) — `ensureAudioContext()` is the only creation site.
+- 2026-10-01: Q5 resolved — the shader visualizer derives its palette from the detected musical key (Tier 1 of `docs/architecture/chroma-hue-mapping.md`). Pitch class maps to hue along the circle of fifths so harmonically adjacent keys grade-shift smoothly, mode maps to saturation, and key confidence decides between a direct hue, a blend toward the runner-up, or a neutral fallback below r=0.4 that never produces a black frame. Classical DSP only, so it doubles as the deterministic fallback layer (Q2). Implementing it exposed that the repo has **two** Krumhansl key analyzers with divergent output schemas — `audio_agent_profile.py` emitted a clamped `key_confidence` and no runner-up — so the spec's assumed fields were absent from every committed analysis file; both analyzers and the analysis endpoint now emit the same key fields. Two wiring details the spec's sketch missed: the rAF loop replaces `uniformsRef.current` wholesale each frame (so static key values need a separate ref), and only the `spectralReactor` preset consumes the uniforms, with confidence as the blend weight. Tier 2 (per-frame chroma) is deferred; it needs `chroma_frames` in the analyzer output.
+- 2026-10-01: D14 recorded — the visualizer frontend is decomposed into focused modules rather than held in two monolithic components. `Visualizer.tsx` (2,318 lines) and `Canvas2DVisualizer.tsx` (1,560) are now orchestration over `visualizerHelpers.ts`, `canvas2dHelpers.ts`, `components/RenderStats.tsx`, `useVisualizerRecording.ts`, and `useAudioGraph.ts`. The split was mechanical (verbatim line ranges, verified by a normalized code-line diff against `HEAD`); the one behavioural change was consolidating the Web Audio graph, which had been copy-pasted three times and had already drifted. Recording and AudioContext teardown are now owned by their hooks rather than a shared unmount effect. Within the visualizer, `useAudioGraph.ensureAudioContext()` is the only `AudioContext` creation site (D4); app-wide, `BeatTimeline.tsx` and the `StemMixer` fallback still construct their own, and consolidating those is open.
 ---
 - 2026-09-22: Log created from repo archaeology (README, AGENTS.md,
   `services/video/__init__.py`, recent CHANGELOG entries). Q1–Q4 opened.

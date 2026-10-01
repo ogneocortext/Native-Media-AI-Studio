@@ -1506,6 +1506,13 @@ def _agent_profile_from_cached(data: dict) -> dict:
         "beat_count": data.get("beat_count", 0),
         "estimated_key": data.get("estimated_key"),
         "key_confidence": data.get("key_confidence"),
+        # Raw correlation and runner-up: consumed by the chroma->hue palette
+        # mapper (docs/architecture/chroma-hue-mapping.md). key_confidence alone
+        # is the clamped display value and loses the sub-0.4 signal that drives
+        # the neutral fallback.
+        "key_confidence_r": data.get("key_confidence_r"),
+        "key_runner_up": data.get("key_runner_up"),
+        "key_runner_up_r": data.get("key_runner_up_r"),
         "dynamic_range_db": data.get("dynamic_range_db"),
         "band_energy_pct": band_energy,
         "spectral": {

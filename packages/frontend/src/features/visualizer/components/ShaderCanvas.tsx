@@ -214,6 +214,13 @@ export function ShaderCanvas({
       "u_transient",
       "u_centroid",
       "u_trail",
+      // Key-derived palette (docs/architecture/chroma-hue-mapping.md, Q5).
+      // Present for every shader; getUniformLocation returns null for any that
+      // does not declare them, and uniform1f(null, x) is a no-op, so a shader
+      // opts in by declaring the uniform and using it.
+      "u_key_hue",
+      "u_key_sat",
+      "u_key_conf",
       "u_feedback_texture",
     ];
     for (const name of uniformNames) {
@@ -455,6 +462,9 @@ export function ShaderCanvas({
           gl.uniform1f(locs["u_transient"], u.transient ?? 0);
           gl.uniform1f(locs["u_centroid"], u.centroid ?? 0);
           gl.uniform1f(locs["u_trail"], u.trail ?? 0);
+          gl.uniform1f(locs["u_key_hue"], u.keyHue ?? 0);
+          gl.uniform1f(locs["u_key_sat"], u.keySat ?? 0);
+          gl.uniform1f(locs["u_key_conf"], u.keyConf ?? 0);
           gl.uniform2f(locs["u_resolution"], write.width, write.height);
 
           gl.activeTexture(gl.TEXTURE0);
@@ -504,6 +514,9 @@ export function ShaderCanvas({
           gl.uniform1f(locs["u_transient"], u.transient ?? 0);
           gl.uniform1f(locs["u_centroid"], u.centroid ?? 0);
           gl.uniform1f(locs["u_trail"], u.trail ?? 0);
+          gl.uniform1f(locs["u_key_hue"], u.keyHue ?? 0);
+          gl.uniform1f(locs["u_key_sat"], u.keySat ?? 0);
+          gl.uniform1f(locs["u_key_conf"], u.keyConf ?? 0);
           gl.uniform2f(locs["u_resolution"], canvas.width, canvas.height);
 
           gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);

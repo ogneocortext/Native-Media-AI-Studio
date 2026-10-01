@@ -9,6 +9,7 @@ import type { LyricLine } from "./components/LyricOverlay";
 import { getSectionPreset } from "./sectionStateMachine";
 import { useSpectralTimeline } from "./useSpectralTimeline";
 import { AudioReactivityProcessor, type ReactivityConfig } from "./audioReactivityProcessor";
+import { useKeyPalette } from "./useKeyPalette";
 
 const FX_STORAGE_PREFIX = "visualizerFx:";
 const FX_PREF_KEY = "visualizer_fx_defaults";
@@ -166,7 +167,20 @@ export function ShaderVisualizer({
     transient: 0,
     centroid: 0,
     trail: 0,
+    // Key-derived palette, written by the rAF loop each frame from
+    // keyPaletteRef (static per track). Declared here so the ref's inferred type
+    // matches what the loop assigns.
+    keyHue: 0,
+    keySat: 0.08,
+    keyConf: 0,
   });
+  // Key-derived palette (docs/architecture/chroma-hue-mapping.md, Q5). Static
+  // per track, so it lives in its own ref rather than in uniformsRef: the rAF
+  // loop reassigns uniformsRef.current wholesale every frame and would discard
+  // these values if they were part of that object.
+  const { palette: keyPaletteState } = useKeyPalette(trackName ?? null);
+  const keyPaletteRef = useRef(keyPaletteState);
+  keyPaletteRef.current = keyPaletteState;
   const userSelectedPreset = useRef(false);
   const lrcSyncPropRef = useRef(lrcSync);
   lrcSyncPropRef.current = lrcSync;
@@ -334,6 +348,10 @@ export function ShaderVisualizer({
           : (spectral?.transient ?? 0),
         centroid: spectral?.centroid ?? 0,
         trail: sectionMapping.trailIntensity,
+        // Static per track; merged here because uniformsRef is rebuilt each frame.
+        keyHue: keyPaletteRef.current.hue,
+        keySat: keyPaletteRef.current.saturation,
+        keyConf: keyPaletteRef.current.confidence,
       };
       raf = requestAnimationFrame(update);
     };

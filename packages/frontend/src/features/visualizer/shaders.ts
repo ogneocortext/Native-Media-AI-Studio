@@ -1,5 +1,11 @@
 // GLSL Fragment Shaders for Audio-Reactive Visualizations
 // Each shader receives uniforms: u_time, u_bass, u_mid, u_treble, u_beat, u_energy, u_peak, u_resolution
+// Key-derived palette uniforms (docs/architecture/chroma-hue-mapping.md, Q5):
+//   u_key_hue - 0..1, pitch class mapped along the circle of fifths
+//   u_key_sat - 0..1, from mode and key confidence
+//   u_key_conf - 0..1, raw key correlation
+// Declared per-shader below only if used, so unused uniforms are optimized out;
+// ShaderCanvas sets all three every frame and WebGL drops the absent ones.
 
 export const SHADER_PRESETS = {
   // ============================================================
@@ -650,6 +656,9 @@ export const SHADER_PRESETS = {
     uniform float u_transient;
     uniform float u_centroid;
     uniform float u_trail;
+    uniform float u_key_hue;
+    uniform float u_key_sat;
+    uniform float u_key_conf;
     uniform vec2 u_resolution;
     uniform sampler2D u_feedback_texture;
 
@@ -690,10 +699,17 @@ export const SHADER_PRESETS = {
       float glitch = step(glitchThreshold, hash(vec2(floor(t * 8.0), floor(uv.y * 20.0))));
       float chromaOffset = glitch * 0.02 * u_high + u_transient * 0.01;
 
-      // ── Spectral centroid → hue rotation ──
+      // ── Spectral centroid → hue rotation, pulled toward the track's key ──
       // Dark bass (low centroid) = cold blues (~240°)
       // Bright vocals (high centroid) = reds/golds (~30°)
-      float hueAngle = mix(240.0, 30.0, u_centroid);
+      // The detected key then biases that hue (docs/architecture/chroma-hue-mapping.md):
+      // a confident key dominates, an ambiguous one barely moves the palette, and
+      // the low-confidence neutral fallback leaves the centroid hue essentially intact.
+      float centroidHue = mix(240.0, 30.0, u_centroid);
+      float keyHue = u_key_hue * 360.0;
+      // Weight by confidence: r=0.6+ takes over, r<0.4 contributes nothing.
+      float keyWeight = smoothstep(0.4, 0.6, u_key_conf);
+      float hueAngle = mix(centroidHue, keyHue, keyWeight);
       float hueRad = radians(hueAngle);
 
       // ── Primary geometry: reactive tunnel ──
@@ -713,9 +729,11 @@ export const SHADER_PRESETS = {
       float grid = (1.0 - smoothstep(0.0, 0.05 + u_energy * 0.03, abs(gridR)))
                  * (1.0 - smoothstep(0.0, 0.03 + u_energy * 0.02, abs(gridA)));
 
-      // ── Color from centroid-driven hue ──
+      // ── Color from the key-influenced hue ──
       float L = 0.55 + u_energy * 0.2;
-      float C = 0.12 + u_mid * 0.1 + u_transient * 0.08;
+      // Chroma follows the key-derived saturation (major = brighter, minor =
+      // moodier), nudged by the live bands so it still moves with the music.
+      float C = (0.06 + u_key_sat * 0.12) + u_mid * 0.1 + u_transient * 0.08;
       vec3 baseColor = oklch_to_linear_srgb(vec3(L, C, hueAngle));
 
       // Beat flash
