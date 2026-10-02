@@ -21,7 +21,7 @@ interface StudioHeaderProps {
   isAudioPlaying: boolean;
   tracksLoading: boolean;
   tracksError: string | null;
-  libraryTracks: Array<{ filename: string }>;
+  libraryTracks: Array<{ filename: string; optionLabel: string }>;
   trackMetadata: Record<string, { bpm?: number; duration?: number }>;
   onExportFrame: () => void;
   onToggleCodePanel: () => void;
@@ -136,28 +136,12 @@ export function StudioHeader({
           )}
           {!tracksLoading &&
             !tracksError &&
-            libraryTracks.map((t) => {
-              const displayName = t.filename
-                .replace(/^[0-9a-f]{8}_[0-9a-f]{8}_/i, "")
-                .replace(/\.(mp3|wav|flac|ogg)$/i, "");
-              const sameNameCount = libraryTracks.filter((x) => {
-                const xName = x.filename
-                  .replace(/^[0-9a-f]{8}_[0-9a-f]{8}_/i, "")
-                  .replace(/\.(mp3|wav|flac|ogg)$/i, "");
-                return xName === displayName;
-              }).length;
-              const needsDisambiguation = sameNameCount > 1;
-              const shortHash = t.filename.match(/^[0-9a-f]{8}/)?.[0] || "";
-              const label =
-                needsDisambiguation && shortHash
-                  ? `${displayName} [${shortHash}]${metaStr}`
-                  : `${displayName}${metaStr}`;
-              return (
-                <option key={t.filename} value={t.filename} className="bg-gray-800">
-                  {label}
-                </option>
-              );
-            })}
+            libraryTracks.map((t) => (
+              <option key={t.filename} value={t.filename} className="bg-gray-800">
+                {t.optionLabel}
+                {metaStr}
+              </option>
+            ))}
         </select>
         {!tracksLoading && selectedTrack && isAudioPlaying && (
           <span

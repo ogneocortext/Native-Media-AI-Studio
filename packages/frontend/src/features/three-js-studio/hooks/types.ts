@@ -111,7 +111,10 @@ export interface UseTrackManagerOptions {
   setTrackMetadata: React.Dispatch<
     React.SetStateAction<Record<string, { bpm?: number; duration?: number }>>
   >;
-  setLibraryTracks: React.Dispatch<React.SetStateAction<Array<{ filename: string }>>>;
+  /** Library entries from the shared audio store; `optionLabel` is display-ready. */
+  setLibraryTracks: React.Dispatch<
+    React.SetStateAction<Array<{ filename: string; optionLabel: string }>>
+  >;
   setTracksLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setTracksError: React.Dispatch<React.SetStateAction<string | null>>;
   addObject: (

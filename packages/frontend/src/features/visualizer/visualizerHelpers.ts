@@ -6,6 +6,12 @@
  */
 import type { AudioAnalysisData } from "./types";
 import type { VisualPreset } from "./visualPreset";
+import {
+  isUnnamedFile,
+  stripAudioExtension,
+  stripHashPrefixes,
+  unnamedFileLabel,
+} from "../../state/audioNaming";
 
 /** A library entry — `filename` is the bare name; the playable/analyzable
  *  reference is `relative_path` (subfolder-aware). Most of the library lives
@@ -28,11 +34,38 @@ export function baseNameOfRef(ref: string): string {
   return base || ref;
 }
 
+/**
+ * Clean a backend reference down to a bare track name: no folder, no stacked
+ * hash prefixes, no audio extension (and `.lrc`, for lyric sidecars).
+ *
+ * Delegates to `state/audioNaming.ts` so track names derived for storyboards,
+ * CSV lookups and shader labels cannot drift from the names the selectors show.
+ */
+export function cleanTrackName(ref: string): string {
+  const base = baseNameOfRef(ref);
+  return stripAudioExtension(stripHashPrefixes(base)).replace(/\.lrc$/i, "");
+}
+
 /** Human display name: no folders, hash prefixes, or extension. */
 export function displayNameForFile(f: LibraryFile): string {
   return baseNameOfRef(audioRefForFile(f))
     .replace(/^([0-9a-f]{8}_)+/i, "")
     .replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "");
+}
+
+/**
+ * Dropdown label for a library file: the shared display name, plus a `[hash]`
+ * suffix only when another track in the same list would render identically.
+ *
+ * Entries from `state/audioNaming.ts` already carry a centrally-computed
+ * `optionLabel`, and that is what we prefer — the disambiguation decision is
+ * then made once against the full library, so the suffix cannot appear in one
+ * dropdown and be missing from another.
+ */
+export function optionLabelForFile(f: LibraryFile & { optionLabel?: string }): string {
+  if (f.optionLabel) return f.optionLabel;
+  if (isUnnamedFile(f)) return unnamedFileLabel(f);
+  return displayNameForFile(f);
 }
 
 /** Encode a backend file reference segment-wise (keeps folder slashes intact). */

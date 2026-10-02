@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Play,
   Pause,
@@ -21,11 +21,11 @@ import {
   type LyricLine,
 } from "../visualizer/components/KineticPresets";
 import {
-  listAudioFiles,
   ensureAnalysis,
   transcribeAudio,
   getLyricsByFilename,
 } from "../../services/api";
+import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { parseLyricsFromCsv, parseLrc } from "../visualizer/lyricsParser";
 import {
   createDefaultLyricsData,
@@ -182,7 +182,13 @@ export function KineticTypographyPage() {
   const [showSectionLabel, setShowSectionLabel] = useState(true);
   const [beatPulse, setBeatPulse] = useState(true);
   const [selectedTrack, setSelectedTrack] = useState<TrackInfo | null>(null);
-  const [libraryFiles, setLibraryFiles] = useState<TrackInfo[]>([]);
+  // Shared media-library source: deduplicated, display-name-tagged, and loaded
+  // once for the whole app rather than per page.
+  const { entries: audioLibrary, isLoading: audioLibraryLoading } = useAudioLibrary();
+  const libraryFiles = useMemo<TrackInfo[]>(
+    () => audioLibrary.map((f) => ({ filename: f.filename, name: f.optionLabel })),
+    [audioLibrary],
+  );
   // Track-lyrics library: the user's own tracks with lyrics but no LRC.
   // Selecting one previews kinetic typography in demo mode (estimated timing).
   const [libraryTracks, setLibraryTracks] = useState<TrackLyricsIndexEntry[]>([]);
@@ -230,20 +236,6 @@ export function KineticTypographyPage() {
 
   // Load library files and normalized lyrics CSV
   useEffect(() => {
-    listAudioFiles()
-      .then((files) => {
-        if (Array.isArray(files)) {
-          setLibraryFiles(
-            files.map((f) => ({
-              filename: f.filename,
-              name: f.filename
-                .replace(/^([0-9a-f]{8}_)+/i, "")
-                .replace(/\.(mp3|wav|flac|ogg|m4a)$/i, ""),
-            })),
-          );
-        }
-      })
-      .catch(() => {});
     // Load the track-lyrics library index (user's own tracks, no LRC needed)
     fetchTrackLyricsIndex()
       .then((idx) => {
@@ -994,7 +986,7 @@ export function KineticTypographyPage() {
                     </option>
                   ))}
                 </select>
-                {libraryFiles.length === 0 && (
+                {!audioLibraryLoading && libraryFiles.length === 0 && (
                   <span className="kt-transcription-status">
                     No audio in the library yet — upload a track from Audio Analysis to enable real
                     playback.

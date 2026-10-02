@@ -252,6 +252,36 @@
 
 ---
 
+### D16 — One shared audio-library store feeds every audio selector
+- **Status:** Decided
+- **Context:** Six pages each called `listAudioFiles()` from their own
+  `useEffect` and kept their own copy: ArtDirection, AudioAnalysisPage,
+  KineticTypographyPage, StoryboardPage, the 3D studio's `useTrackManager`, and
+  the Visualizer. That is six requests per navigation and six independent
+  loading/error states. Worse, the lists did not agree: each site stripped the
+  `<sha256[:8]>_` prefix with its own regex, and two forms were in use —
+  `/^([0-9a-f]{8}_)+/` and `/^[0-9a-f]{8}_[0-9a-f]{8}_/`. The second requires
+  *two* prefixes, so it stripped nothing from single-prefix names; **12 of the 58
+  library rows rendered a raw hash in one selector and a clean name in another**.
+- **Decision:** `state/audioNaming.ts` owns the naming and dedup rules as pure
+  functions, and `state/audioLibraryStore.ts` (Zustand) owns the list. The store
+  keeps one in-flight promise at module scope so concurrent mounters share a
+  single request, and exposes entries already decorated with `displayName`,
+  `optionLabel` and a folder-aware `ref`. `useAudioLibrary()` wraps it with a
+  mount-time load. Selectors render `optionLabel` and never re-derive a name.
+- **Consequences:** New audio selectors must consume `useAudioLibrary()` rather
+  than call `listAudioFiles()`; that function now has exactly one caller (the
+  store), which is the cheapest way to detect a regression — reintroduce a
+  second call site and grep finds it. Rendering a track name outside a selector
+  (storyboard titles, CSV lookups, shader labels) goes through `cleanTrackName`
+  in `visualizerHelpers.ts`, which delegates to the same rules. Note the
+  distinction that matters: `dedupeAudioFiles` collapses by *display name* and
+  is a second gate behind the server, but it **cannot** collapse byte-identical
+  files that have different names — only content hashing can, and that is a
+  `tools/` data concern, not a rendering one.
+
+---
+
 ## Open questions
 
 ### Q1 — 3D path convergence: Unity vs Blender vs Three.js
@@ -339,6 +369,7 @@
 - 2026-10-01: D14 recorded — the visualizer frontend is decomposed into focused modules rather than held in two monolithic components. `Visualizer.tsx` (2,318 lines) and `Canvas2DVisualizer.tsx` (1,560) are now orchestration over `visualizerHelpers.ts`, `canvas2dHelpers.ts`, `components/RenderStats.tsx`, `useVisualizerRecording.ts`, and `useAudioGraph.ts`. The split was mechanical (verbatim line ranges, verified by a normalized code-line diff against `HEAD`); the one behavioural change was consolidating the Web Audio graph, which had been copy-pasted three times and had already drifted. Recording and AudioContext teardown are now owned by their hooks rather than a shared unmount effect. Within the visualizer, `useAudioGraph.ensureAudioContext()` is the only `AudioContext` creation site (D4); app-wide, `BeatTimeline.tsx` and the `StemMixer` fallback still construct their own, and consolidating those is open.
 ---
 - 2026-10-01: D15 recorded — `app/api/audio.py` split from 2,746 lines into four peer modules under the same `/api/audio` prefix: `audio.py` (1,106; upload, analysis endpoints, in-memory cache, JSON index), `audio_stems.py` (540; separation), `audio_edit.py` (504; extract/rename/trim/file serving), `audio_analysis.py` (707; result builder, curve maths, visualization suggestions, section labelling — no routes). All three routers are registered in `main.py`; the route surface is unchanged at 32 paths (verified before and after by `tools/snapshot-audio-routes.py`). Shared constants are mirrored per module rather than centralised, because cross-imports between API modules risk a cycle and the overlap is three path constants. `find_stem_dir` moved from the API layer into `services/source_separation.py`, which owns `SEPARATION_DIR`, ending a `services/` → `app/api` import (verified repo-wide as zero remaining). Two lessons are recorded in D15 because both cost a live 500 during the work: the route snapshot cannot detect a missing import (OpenAPI is decorator-generated and never runs a handler body; `py_compile` and plain imports resolve no free variables), and grep is unreliable for extracting dependencies — it reported docstring mentions as call sites and hid that `audio_stems.py` used none of the shared helpers it appeared to. Dependencies were enumerated with an AST free-variable pass instead.
+- 2026-10-02: D16 recorded — every audio selector now reads one shared store. `state/audioNaming.ts` holds the naming and dedup rules as pure functions and `state/audioLibraryStore.ts` (Zustand) holds the list, with a module-scope in-flight promise so concurrent mounters share one request; `useAudioLibrary()` wraps it with a mount-time load. Motivated by measurement, not taste: six pages each fetched `/api/audio/files` independently, and two different hash-stripping regexes were in circulation — `/^([0-9a-f]{8}_)+/` versus `/^[0-9a-f]{8}_[0-9a-f]{8}_/`. The latter requires *two* prefixes and therefore stripped nothing from single-prefix names, so 12 of 58 library rows showed a raw hash in one selector and a clean name in another. Verified live in a browser after the change: 1 network request per page instead of six, and zero dropdowns showing a raw hash or a duplicate name. A second bug surfaced during that check — four library files are byte-identical and named with a bare uuid (`ec2c1675….wav`), so they now render as `Unnamed track ec2c16`; collapsing them requires content hashing, which is a data decision, not a rendering one.
 - 2026-09-22: Log created from repo archaeology (README, AGENTS.md,
   `services/video/__init__.py`, recent CHANGELOG entries). Q1–Q4 opened.
 

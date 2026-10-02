@@ -26,7 +26,6 @@ import {
 import {
   getApiBase,
   getCudaStatus,
-  listAudioFiles,
   separateAudioStems,
   renameAudioFile,
   generateVideoSection,
@@ -34,6 +33,7 @@ import {
 } from "../../services/api";
 import { isAudioFile } from "../../utils/audioProbe";
 import { useAudioAnalysis } from "../../hooks/useAudioAnalysis";
+import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { AudioTrimModal } from "./components/AudioTrimModal";
 import { DS } from "../../styles/designSystem";
 import { useNavigate } from "react-router-dom";
@@ -211,9 +211,18 @@ export function AudioAnalysisPage() {
   const [fileError, setFileError] = useState<string | null>(null);
   const [separating, setSeparating] = useState(false);
   const [stemsNote, setStemsNote] = useState<string[] | null>(null);
-  const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
-  const [libraryLoading, setLibraryLoading] = useState(true);
-  const [libraryError, setLibraryError] = useState<string | null>(null);
+  // Shared media-library source. Kept as a derived list rather than component
+  // state so every selector in the app reads the same deduplicated entries.
+  const {
+    entries: sharedAudioEntries,
+    isLoading: libraryLoading,
+    error: libraryError,
+    refresh: loadAudioFiles,
+  } = useAudioLibrary();
+  const audioFiles = useMemo<AudioFile[]>(
+    () => sharedAudioEntries.map((f) => ({ ...f })),
+    [sharedAudioEntries],
+  );
   const [dragOver, setDragOver] = useState(false);
   // Transient: row currently being analyzed (spinner). Persisted: last library
   // file successfully analyzed — keeps the inline player + row highlight alive
@@ -463,18 +472,6 @@ export function AudioAnalysisPage() {
       cancelled = true;
     };
   }, [audioFiles.length]);
-
-  const loadAudioFiles = async () => {
-    setLibraryLoading(true);
-    setLibraryError(null);
-    try {
-      setAudioFiles(await listAudioFiles());
-    } catch (err) {
-      setLibraryError(err instanceof Error ? err.message : "Could not load library");
-    } finally {
-      setLibraryLoading(false);
-    }
-  };
 
   const handleAnalyze = async () => {
     if (!file) return;

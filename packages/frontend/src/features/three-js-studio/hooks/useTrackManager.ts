@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useBeatTimeline } from "../../../hooks/useBeatTimeline";
-import { getAnalysis, listAudioFiles } from "../../../services/api";
+import { getAnalysis } from "../../../services/api";
+import { useAudioLibrary } from "../../../hooks/useAudioLibrary";
 import type { UseTrackManagerOptions, UseTrackManagerResult } from "./types";
 
 export function useTrackManager({
@@ -34,24 +35,20 @@ export function useTrackManager({
     getCurrentBeatRef.current = getCurrentBeat;
   }, [getCurrentBeat]);
 
-  // Load library tracks
+  // Feed the shared media library into the page's existing prop-driven state.
+  // The store is the single source of truth; this only mirrors it so the rest of
+  // the 3D studio (which receives tracks as props) keeps working unchanged.
+  const {
+    entries: sharedLibrary,
+    isLoading: sharedLoading,
+    error: sharedError,
+  } = useAudioLibrary();
+
   useEffect(() => {
-    setTracksLoading(true);
-    setTracksError(null);
-    listAudioFiles()
-      .then((f: any) => {
-        if (Array.isArray(f) && f.length > 0) {
-          setLibraryTracks(f);
-        } else {
-          setLibraryTracks([]);
-        }
-      })
-      .catch((err: any) => {
-        setTracksError(err.message || "Failed to load tracks");
-        setLibraryTracks([]);
-      })
-      .finally(() => setTracksLoading(false));
-  }, [setLibraryTracks, setTracksLoading, setTracksError]);
+    setTracksLoading(sharedLoading);
+    setTracksError(sharedError);
+    setLibraryTracks(sharedLibrary.map((f) => ({ filename: f.filename, optionLabel: f.optionLabel })));
+  }, [sharedLibrary, sharedLoading, sharedError, setLibraryTracks, setTracksLoading, setTracksError]);
 
   // Fetch metadata (BPM/duration) for selected track only
   useEffect(() => {

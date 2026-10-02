@@ -53,6 +53,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   simulating a 92% RAM host, which reproduced the failure, then stubbed the
   method the way `test_audio_vram_handover.py` already does.
 
+### Changed - One shared audio-library store feeds every selector (D16)
+
+- Six pages each fetched `/api/audio/files` from their own `useEffect` and kept
+  their own copy — ArtDirection, Audio Analysis, Kinetic Typography, Storyboards,
+  the 3D studio and the Visualizer. They now share one Zustand store
+  (`state/audioLibraryStore.ts`) with the naming and dedup rules in
+  `state/audioNaming.ts` and a `useAudioLibrary()` hook. Verified live: **1
+  network request per page instead of six.**
+- **Duplicate and inconsistent entries fixed at the source.** Each site stripped
+  the `<sha256[:8]>_` prefix with its own regex, and two incompatible forms were
+  in use. `/^[0-9a-f]{8}_[0-9a-f]{8}_/` requires *two* prefixes, so it stripped
+  nothing from single-prefix names — **12 of the 58 library rows showed a raw
+  hash in some selectors and a clean name in others.** One rule now strips any
+  number of stacked prefixes; verified in a browser that no dropdown renders a
+  hash or a duplicate name.
+- **Files with no track name are labelled, not shown as hex.** Four library
+  files are named with a bare uuid and are byte-identical to each other; they
+  previously rendered as 32 characters of hex. They now read
+  `Unnamed track ec2c16`. Collapsing the four into one requires content hashing,
+  which is a data decision rather than a rendering one.
+
 ### Added - Tooling guards for the audio path
 
 - `tools/check-subprocess-encoding.py` rejects locale-decoded subprocess output

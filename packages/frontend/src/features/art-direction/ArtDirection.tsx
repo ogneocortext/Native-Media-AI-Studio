@@ -25,7 +25,8 @@ import {
 } from "lucide-react";
 import { defaultModules, paletteVariants, typographyVariants } from "./art-direction-data";
 import type { ModuleId, ModuleState } from "./art-direction-data";
-import { listAudioFiles, getAnalysis } from "../../services/api";
+import { getAnalysis } from "../../services/api";
+import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 
 const DOC_FILES = [
   "VISUAL_STORYTELLING_2026.md",
@@ -89,21 +90,17 @@ export function ArtDirection() {
   const [docContent, setDocContent] = useState<string>("Loading...");
   const [expandedModule, setExpandedModule] = useState<ModuleId | null>(null);
   const [showDocs, setShowDocs] = useState(false);
-  const [libraryTracks, setLibraryTracks] = useState<Array<{ filename: string }>>([]);
+  const { entries: libraryTracks, isLoading: tracksLoading } = useAudioLibrary();
   const [selectedTrack, setSelectedTrack] = useState<string>("");
   const [trackBadge, setTrackBadge] = useState<string>("");
 
-  // Load media library tracks on mount
+  // Default to the newest track once the shared library first loads. Keyed on
+  // the entry count so it fires once rather than on every refresh.
   useEffect(() => {
-    listAudioFiles()
-      .then((files) => {
-        if (Array.isArray(files) && files.length > 0) {
-          setLibraryTracks(files);
-          setSelectedTrack(files[0].filename);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (libraryTracks.length > 0 && !selectedTrack) {
+      setSelectedTrack(libraryTracks[0].filename);
+    }
+  }, [libraryTracks, selectedTrack]);
 
   // Fetch analysis and compute badge when track changes
   useEffect(() => {
@@ -164,17 +161,14 @@ export function ArtDirection() {
           onChange={(e) => setSelectedTrack(e.target.value)}
           className="select text-sm"
         >
-          {libraryTracks.length === 0 && <option value="">No tracks in library</option>}
-          {libraryTracks.map((t) => {
-            const displayName = t.filename
-              .replace(/^[0-9a-f]{8}_[0-9a-f]{8}_/i, "")
-              .replace(/\.(mp3|wav|flac|ogg)$/i, "");
-            return (
-              <option key={t.filename} value={t.filename}>
-                {displayName}
-              </option>
-            );
-          })}
+          {!tracksLoading && libraryTracks.length === 0 && (
+            <option value="">No tracks in library</option>
+          )}
+          {libraryTracks.map((t) => (
+            <option key={t.filename} value={t.filename}>
+              {t.optionLabel}
+            </option>
+          ))}
         </select>
         {trackBadge && (
           <span className="text-xs px-3 py-1.5 rounded-full bg-primary/15 border border-primary/20">

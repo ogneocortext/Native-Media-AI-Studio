@@ -43,7 +43,11 @@ export function ThreeJSStudio() {
   const [bpm, setBpm] = useState(150);
   const [beatSync, setBeatSync] = useState(false);
   const [fps, setFps] = useState(24);
-  const [libraryTracks, setLibraryTracks] = useState<Array<{ filename: string }>>([]);
+  // Mirrored from the shared audio library store by useTrackManager; each entry
+  // carries a pre-computed `optionLabel` so the header needs no local naming logic.
+  const [libraryTracks, setLibraryTracks] = useState<
+    Array<{ filename: string; optionLabel: string }>
+  >([]);
   const [tracksLoading, setTracksLoading] = useState(true);
   const [tracksError, setTracksError] = useState<string | null>(null);
   const [trackMetadata, setTrackMetadata] = useState<

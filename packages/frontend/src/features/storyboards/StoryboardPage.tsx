@@ -24,12 +24,12 @@ import {
 import { useNavigate } from "react-router-dom";
 import { fetchUniqueTracksFromAPI, type TrackLyricsData } from "../../services/trackLyrics";
 import {
-  listAudioFiles,
   getAnalysis,
   compileStoryboard,
   getHyperFramesAudioPayload,
   type CompileStoryboardResponse,
 } from "../../services/api";
+import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 
 interface StoryboardFile {
   name: string;
@@ -85,7 +85,7 @@ export function StoryboardPage() {
   const [selectedTrack, setSelectedTrack] = useState<TrackLyricsData | null>(null);
   const [trackLyricsData, setTrackLyricsData] = useState<TrackLyricsData[]>([]);
   const [tracksLoading, setTracksLoading] = useState(true);
-  const [libraryTracks, setLibraryTracks] = useState<Array<{ filename: string }>>([]);
+  const { entries: libraryTracks } = useAudioLibrary();
   const [trackMetadata, setTrackMetadata] = useState<Record<string, TrackMetadata>>({});
   const [compileResult, setCompileResult] = useState<CompileStoryboardResponse | null>(null);
   const [compiling, setCompiling] = useState(false);
@@ -98,25 +98,15 @@ export function StoryboardPage() {
       .finally(() => setTracksLoading(false));
   }, []);
 
-  // Load media library tracks on mount
-  useEffect(() => {
-    listAudioFiles()
-      .then((files) => {
-        if (Array.isArray(files) && files.length > 0) {
-          setLibraryTracks(files);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
   // Match storyboards to library tracks and fetch their metadata
   useEffect(() => {
     if (libraryTracks.length === 0) return;
     const metadata: Record<string, TrackMetadata> = {};
     libraryTracks.forEach((t) => {
-      const cleanName = t.filename
-        .replace(/^[0-9a-f]{8}_[0-9a-f]{8}_/i, "")
-        .replace(/\.(mp3|wav|flac|ogg)$/i, "");
+      // displayName comes from the shared naming rules, so matching here agrees
+      // with every other selector. The old local regex required exactly two
+      // prefixes, so 1- and 3-prefix names were compared with a hash attached.
+      const cleanName = t.displayName;
       // Match if the filename contains the track name (handles variations like "Still I Rise (variation)")
       const match = STORYBOARDS.find((s) => {
         const nameLower = s.trackName.toLowerCase();

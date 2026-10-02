@@ -22,7 +22,8 @@ import {
   MoreHorizontal,
   Keyboard,
 } from "lucide-react";
-import { listAudioFiles, ensureAnalysis, getStemsAnalysis } from "../../services/api";
+import { ensureAnalysis, getStemsAnalysis } from "../../services/api";
+import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import type {
   AudioAnalysisData,
   AudioData,
@@ -78,8 +79,8 @@ import {
   VIZ_MODE_ORDER,
   BEAT_LATCH_MS,
   audioRefForFile,
-  baseNameOfRef,
-  displayNameForFile,
+  optionLabelForFile,
+  cleanTrackName,
   encodeAudioRef,
   clampNum,
   visualizationStyleToPresetId,
@@ -100,7 +101,13 @@ export function Visualizer() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [libraryFiles, setLibraryFiles] = useState<LibraryFile[]>([]);
+  // Shared media-library source. `LibraryFile` consumers still work because the
+  // store entries are a superset (they add `displayName`, `optionLabel`, `ref`).
+  const { entries: sharedLibraryEntries } = useAudioLibrary();
+  const libraryFiles = useMemo<LibraryFile[]>(
+    () => sharedLibraryEntries.map((f) => ({ ...f })),
+    [sharedLibraryEntries],
+  );
   const [liveAudioData, setLiveAudioData] = useState<AudioData>({
     bass: 0,
     mid: 0,
@@ -246,9 +253,7 @@ export function Visualizer() {
   const storyboard = useMemo(
     () =>
       buildStoryboard(
-        baseNameOfRef(currentFilename ?? "")
-          .replace(/^([0-9a-f]{8}_)+/i, "")
-          .replace(/\.(mp3|wav|flac|ogg|m4a|lrc)$/i, "") || "untitled",
+        cleanTrackName(currentFilename ?? "") || "untitled",
         lyrics,
         currentAnalysisData,
       ),
@@ -372,13 +377,6 @@ export function Visualizer() {
     fetch("/track-prompts-lyrics.csv")
       .then((r) => r.text())
       .then(setCsvContent)
-      .catch(() => {});
-  }, []);
-  useEffect(() => {
-    listAudioFiles()
-      .then((files) => {
-        if (Array.isArray(files) && files.length > 0) setLibraryFiles(files);
-      })
       .catch(() => {});
   }, []);
 
@@ -782,9 +780,7 @@ export function Visualizer() {
       // New track: clear manual preset lock so auto-apply is allowed to run.
       setActiveVisualPresetId(null);
       const trackFolder = fileRef.includes("/") ? fileRef.slice(0, fileRef.lastIndexOf("/")) : "";
-      const cleanName = baseNameOfRef(fileRef)
-        .replace(/^([0-9a-f]{8}_)+/i, "")
-        .replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "");
+      const cleanName = cleanTrackName(fileRef);
       let analysis: AudioAnalysisData | null = analysisData[fileRef] ?? null;
       let realBpm = trackMetadata[fileRef]?.bpm;
       if (!analysis) {
@@ -962,10 +958,7 @@ export function Visualizer() {
     setAiEnhancing(true);
     setError(null);
     try {
-      const cleanName =
-        baseNameOfRef(currentFilename ?? "")
-          .replace(/^([0-9a-f]{8}_)+/i, "")
-          .replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "") || "track";
+      const cleanName = cleanTrackName(currentFilename ?? "") || "track";
       const concept = csvContent ? getVisualizationForTrack(cleanName, csvContent) : null;
       const desc = (concept as any)?.prompt || (concept as any)?.visualConcept || cleanName;
       const genre = (concept as any)?.genre?.join(", ") || "";
@@ -1194,7 +1187,7 @@ export function Visualizer() {
                   const ref = audioRefForFile(f);
                   return (
                     <option key={ref} value={ref}>
-                      {displayNameForFile(f)}
+                      {optionLabelForFile(f)}
                       {trackMetadata[ref]?.bpm ? ` (${trackMetadata[ref]?.bpm} BPM)` : ""}
                       {analysisData[ref] ? " ✓" : ""}
                     </option>
@@ -1271,7 +1264,7 @@ export function Visualizer() {
             </option>
             {libraryFiles.map((f) => {
               const ref = audioRefForFile(f);
-              const name = displayNameForFile(f);
+              const name = optionLabelForFile(f);
               const meta = trackMetadata[ref];
               const badge = analysisData[ref] ? " ✓" : "";
               const metaStr = meta?.bpm ? ` (${meta.bpm} BPM)` : "";
@@ -1694,11 +1687,7 @@ export function Visualizer() {
               {vizMode === "shader" && (
                 <ShaderVisualizer
                   audioData={liveAudioDataRef}
-                  trackName={
-                    baseNameOfRef(currentFilename ?? "")
-                      .replace(/^([0-9a-f]{8}_)+/i, "")
-                      .replace(/\.(mp3|wav|flac|ogg|m4a)$/i, "") ?? ""
-                  }
+                  trackName={cleanTrackName(currentFilename ?? "")}
                   isPlaying={isPlaying}
                   lrcSync={lrcSync}
                   lrcSyncLive={lrcSyncLiveRef}

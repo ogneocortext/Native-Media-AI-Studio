@@ -47,6 +47,15 @@ Native-Media-AI-Studio/
 - Agent screenshots → `packages/frontend/tests/browser/out/` (gitignored; it was
   not always, so some older scratch output may still be tracked — see
   `tools/check-repo-layout.py`).
+- **Every audio selector reads one store** (D16): `useAudioLibrary()` from
+  `hooks/useAudioLibrary`, backed by `state/audioLibraryStore.ts`. Do **not** call
+  `listAudioFiles()` from a component — it now has exactly one caller (the
+  store), and grep for it to catch regressions. Naming and dedup rules live in
+  `state/audioNaming.ts`; render `optionLabel` and never re-derive a track name
+  with a local regex. Two incompatible regexes previously leaked 12 of 58 rows
+  into some selectors with a visible hash. `cleanTrackName()` in the visualizer's
+  `visualizerHelpers.ts` covers names used outside selectors (storyboards, CSV
+  lookups, shader labels).
 - **`/api/audio` is four modules, not one** (D15): `audio.py` (upload, analysis
   endpoints, cache, JSON index), `audio_stems.py` (separation), `audio_edit.py`
   (extract/rename/trim/file serving), `audio_analysis.py` (result builder,
