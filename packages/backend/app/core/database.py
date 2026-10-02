@@ -1572,18 +1572,32 @@ def update_audio_analysis(filename: str, analysis_result: dict) -> bool:
             ),
         )
         if cursor.rowcount == 0:
-            # File doesn't exist yet, insert it
+            # File doesn't exist yet, insert it.
+            #
+            # file_size is derived from the file on disk rather than left to the
+            # column default (0). Every row created this way used to record 0,
+            # which made size-based duplicate/content comparison impossible and
+            # hid genuinely broken rows from any audit. If the path is
+            # unavailable the row still inserts, just without a size.
+            stored = analysis_result.get("stored_path", "") or ""
+            size = 0
+            if stored and Path(stored).is_file():
+                try:
+                    size = Path(stored).stat().st_size
+                except OSError:
+                    size = 0
             conn.execute(
                 """
                 INSERT INTO audio_files
-                (id, filename, original_name, stored_path, analysis_result, bpm, duration, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (id, filename, original_name, stored_path, file_size, analysis_result, bpm, duration, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(uuid.uuid4()),
                     filename,
                     filename,
-                    analysis_result.get("stored_path", ""),
+                    stored,
+                    size,
                     json.dumps(analysis_result),
                     analysis_result.get("tempo_bpm"),
                     analysis_result.get("duration_seconds"),

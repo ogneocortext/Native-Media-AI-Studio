@@ -295,6 +295,32 @@ The individual checkers are still runnable alone and are documented below.
   cannot be matched by size; matching is by path/basename only, and the report
   says so rather than implying it verified file identity.
 
+- `repair-audio-db.py` fixes `audio_files` rows whose stored file cannot be
+  found, and `audit-audio-db.py` reports the same picture read-only:
+
+  ```bash
+  python tools/audit-audio-db.py                     # read-only health check
+  python tools/repair-audio-db.py                    # dry run (default)
+  python tools/repair-audio-db.py --apply
+  python tools/repair-audio-db.py --apply --retire-missing
+  ```
+
+  `repair-audio-db.py` only relinks when it has exactly one defensible target: an
+  exact path match, a path that resolves after stripping stale `<8hex>_`
+  prefixes, or a basename that is **unique** on disk. Anything ambiguous is
+  reported and left alone. `--retire-missing` deletes a row only when a surviving
+  file matches it after prefix-stripping, so no audio is ever lost to a guess —
+  and it prints how many rows it declined to touch for that reason. It backs up
+  before writing.
+
+  This exists because rows outlived the files they named. Under the old
+  `uuid4()[:8]_` naming, re-uploading produced a new row and a new copy each
+  time, so filenames accumulated stale prefixes, rows were retired, and some
+  were left pointing at files that were since renamed or deleted. The result was
+  entries every selector advertised and no endpoint could serve. `file_size` was
+  `0` on all 58 rows because `update_audio_analysis` never listed the column when
+  inserting, which made size-based duplicate detection impossible.
+
 ## Git Hooks
 
 This repo has **no CI** (D10 in `docs/architecture/decision-log.md`), so local

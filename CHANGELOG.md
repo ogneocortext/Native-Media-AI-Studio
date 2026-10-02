@@ -74,6 +74,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Unnamed track ec2c16`. Collapsing the four into one requires content hashing,
   which is a data decision rather than a rendering one.
 
+### Fixed - Audio library database: broken rows and empty metadata
+
+- **5 rows pointed at files that had moved.** Three recorded root-level names for
+  files that live in `Suno-V6-Mini/`, and two carried stale hash prefixes from the
+  old `uuid4()[:8]_` naming (`90c24323_Context Window (Final Polish).wav` →
+  `Context Window (Final Polish).wav`). Both `filename` and `stored_path` now
+  resolve.
+- **8 rows pointed at files that no longer exist at all** and were listed in every
+  selector despite being unservable. All 8 were the *same tracks* surviving on
+  disk under another name, so retiring them lost no audio — 58 rows → 50. The
+  guard is deliberate: a row is only deleted when a surviving file matches it
+  after prefix-stripping. The audit reported `retire-UNSAFE: 0`, meaning no row
+  was deleted on the assumption that its content was redundant.
+- **`file_size` was `0` on all 58 rows** — the uploader never populated the
+  column. Now backfilled from disk for all 50 remaining rows and verified
+  byte-for-byte, so content can be compared in future (previously impossible).
+
+New `tools/repair-audio-db.py` (dry-run by default, backs up before writing) and
+`tools/audit-audio-db.py` (read-only health check). Verified after: `integrity_check
+ok`, `foreign_key_check` clean, 0 unresolvable rows, 0 zero-size rows, and the
+Visualizer dropdown shows 0 duplicates and 0 raw-hash entries.
+
 ### Added - Tooling guards for the audio path
 
 - `tools/check-subprocess-encoding.py` rejects locale-decoded subprocess output
