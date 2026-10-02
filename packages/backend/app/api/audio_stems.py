@@ -240,8 +240,11 @@ async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResp
 
     # Guard: if stems already exist, return them immediately instead of
     # re-running Demucs (a 2–10 minute operation on CPU).
+    # Compare against STEM_NAMES rather than a literal 4 so adding a stem does not
+    # silently disable this guard.
     existing = await get_stems(body.filename)
-    if existing.get("found") and len(existing.get("stems", {})) >= 4:
+    required = len(source_separation.STEM_NAMES)
+    if existing.get("found") and len(existing.get("stems", {})) >= required:
         return StemSeparationResponse(
             success=True,
             audio_file=body.filename,

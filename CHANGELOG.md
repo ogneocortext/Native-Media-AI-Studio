@@ -74,6 +74,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Unnamed track ec2c16`. Collapsing the four into one requires content hashing,
   which is a data decision rather than a rendering one.
 
+### Added - Stem pipeline test coverage (19 tests)
+
+`docs/knowledge-library/stem-system-evaluation-2026.md` finding 3.5 found the whole
+stem pipeline covered by two tests, both on the analysis endpoint's empty case. New
+`packages/backend/tests/test_stem_pipeline.py` closes the gaps that document named:
+the skip-existing separation guard, stem-file serving (WAV bytes, invalid stem name,
+bad format, 404s), `get_stems` / `stems-status`, and `find_stem_dir` path resolution
+including hash-prefix rename tolerance. Backend suite: **247 passed**, up from 228.
+
+Two traps worth recording:
+
+- A global exception handler rewrites `HTTPException` into
+  `{"error": {"code", "message"}}`, not FastAPI's default `detail`. Three tests failed
+  against correct endpoints before `_detail()` was added to handle both shapes.
+- `..%2Fsecrets` cannot be tested through HTTP — the ASGI router normalises the path
+  and 404s before the handler runs. The invalid-stem-name guard is therefore also
+  asserted by calling the handler coroutine directly, the only way to reach it.
+
+The skip-existing guard test is mutation-checked: disabling the guard makes it attempt
+a real Demucs run and hang, which is precisely the 2–10 minute cost the guard avoids.
+
+### Fixed - STEM_NAMES as a single source of truth, and a hardcoded stem count
+
+Finding 3.2 said the four stem names were spelled out in three places. On the backend
+that was true. Replaced the two remaining inline literals:
+
+- `source_separation.py` — `["vocals", "drums", "bass", "other"]` → `STEM_NAMES`
+- `stem_analysis.py` — same list → `source_separation.STEM_NAMES`
+
+Also fixed a residue the audit had missed: the skip-existing guard compared against a
+literal `>= 4`, the last place assuming exactly four stems. It now computes
+`required = len(source_separation.STEM_NAMES)`, so adding a stem cannot silently
+disable the guard. Guarded by `test_stem_names_is_single_source_of_truth`.
+
+### Docs - Re-verified the stem audit against source and marked it accurate
+
+The audit is dated 2026-09-30 and had drifted. Every finding was checked against
+current code rather than trusted:
+
+- **5 resolved** (2.1, 2.2, 3.1, 3.3, 3.4) — including both criticals; the code was
+  ahead of the document.
+- **3.5 resolved** by the tests above.
+- **4.4 recorded as invalid.** It claimed analysis-path playback always fetches WAV
+  because `StemsAnalysisResponse` lacks `mp3_url`. But `Visualizer.tsx` only consumes
+  those URLs for `energy_curve` data — it constructs no `Audio` element and sets no
+  `.src`. Playback goes through `StemMixer` → `getAudioStems()`, which already prefers
+  `stems_mp3` with a WAV fallback. No change made, because the finding describes no
+  real cost.
+- **5.2's recommendation withdrawn.** Tightening sync from 500 ms to 250 ms would
+  contradict the measured result recorded in the code: "checking every frame caused
+  audible skipping."
+- **4.5 corrected** — the two sampling implementations are now equivalent, so this is
+  future-drift insurance rather than a live bug. Also recorded that `getStemEnergy`
+  has 12 viz-style consumers, which the original finding did not note.
+
+Remaining work is now ranked by value-per-effort in the document, replacing a table
+that assumed all 16 findings were open. Recommended next: 4.1 (`get_stems_status`
+blocks the event loop on a large library) then 4.3 (`ensureStems` starts an unattended
+2–10 minute separation on a track click).
+
 ### Changed - Consolidated duplicated plumbing across tools/
 
 An audit of `tools/` (38 files, ~10,600 lines) found the same four patterns

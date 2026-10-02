@@ -48,7 +48,7 @@ async def analyze_stems_for_visualization(filename: str) -> dict[str, Any]:
     if stem_dir is None or not stem_dir.exists():
         return {"stems": {}, "separated": False}
 
-    stem_names = ["vocals", "drums", "bass", "other"]
+    stem_names = source_separation.STEM_NAMES
     stems_data: dict[str, Any] = {}
     for name in stem_names:
         wav_path = stem_dir / f"{name}.wav"

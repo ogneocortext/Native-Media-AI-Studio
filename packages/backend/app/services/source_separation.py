@@ -555,7 +555,7 @@ class SourceSeparator:
 
             stem_dir = output_dir / model / Path(source).stem
             stems = {}
-            for stem_name in ["vocals", "drums", "bass", "other"]:
+            for stem_name in STEM_NAMES:
                 stem_path = stem_dir / f"{stem_name}.wav"
                 if stem_path.exists():
                     stems[stem_name] = str(stem_path)
