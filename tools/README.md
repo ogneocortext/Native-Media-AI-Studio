@@ -345,6 +345,22 @@ The individual checkers are still runnable alone and are documented below.
   retention guard fired on ~1.7% of cycles and its `VACUUM` was inside a
   transaction, where SQLite refuses to run (see D17).
 
+- `report-nesting.py` measures control-flow nesting depth per function by AST, so
+  "too nested" is a number rather than an opinion. It also flags the
+  anti-patterns nesting hides: broad excepts that neither log nor re-raise,
+  deeply nested returns, and `try` inside a loop. Two of the worst offenders were
+  flattened (see D19); the tool is how the next ones are found:
+
+  ```bash
+  python tools/report-nesting.py packages/backend/app --min-depth 4
+  python tools/report-nesting.py packages/frontend/src --min-depth 5
+  ```
+
+  It is read-only, and it is the reason D19 could target functions by measured
+  depth instead of by taste. Note that it reports, it does not enforce: a depth
+  limit in CI would need a baseline file, since 118 functions currently sit at
+  depth ≥ 4 and a hard cap would fail the whole suite today.
+
 ## Git Hooks
 
 This repo has **no CI** (D10 in `docs/architecture/decision-log.md`), so local

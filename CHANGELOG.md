@@ -74,6 +74,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Unnamed track ec2c16`. Collapsing the four into one requires content hashing,
   which is a data decision rather than a rendering one.
 
+### Changed - Flatten the two most deeply nested backend functions
+
+- Added `tools/report-nesting.py`, which measures real control-flow nesting depth
+  per function (via AST, not indentation heuristics) and flags the anti-patterns
+  nesting hides: broad `except Exception` that neither logs nor re-raises,
+  deeply nested `return`s, and `try` inside a loop. **118 functions** sit at
+  depth ≥ 4; the worst was 9.
+- **`get_result` (depth 8, 10 deeply-nested returns) → depth 3.** It contained
+  two near-identical ~30-line blocks for images and video, each five levels deep,
+  differing only in subdirectory, result `kind`, and timeout. Extracted into
+  `_save_comfyui_asset` (download + validate + save one asset) and
+  `_collect_comfyui_outputs` (scan nodes for one output type); the endpoint is
+  now a 3-line table over `images`/`gifs`/`video`.
+- **`get_video_models` (depth 8) → depth 3.** The Wan-variant `if/elif` chain
+  sat four levels deep inside two nested loops. Extracted `_wan_variant_fields`
+  and `_scan_model_dir`, and replaced the inline tuples with named constants, so
+  the variant labels have one definition instead of being interleaved with
+  filesystem scanning.
+- `get_result` had **no test coverage**, so 12 tests now pin the behaviour it had
+  to preserve. One of them failed on first run and the test was wrong, not the
+  code: `sanitize_filename("")` raises, so a blank filename is an error rather
+  than a fall-through. The test now documents that.
+
+Verified: all 7 gates pass with 218 pytest (was 206). The route surface is
+unchanged — 245 paths before and after, confirmed against a stashed HEAD build —
+and `/api/integrations/comfyui/video-models` still returns its 5 models.
+
 ### Changed - Pooled database connections (removes per-query open/close)
 
 - `get_db()` now takes a **per-thread pooled connection** instead of opening and

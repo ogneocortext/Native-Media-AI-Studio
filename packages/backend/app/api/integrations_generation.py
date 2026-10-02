@@ -80,6 +80,78 @@ async def list_comfyui_checkpoints() -> dict:
     return {"checkpoints": [], "directory": ""}
 
 
+ANIMATEDIFF_DIRS = ("animatediff", "animatediff_models", "animatediff_motion_lora")
+VIDEO_MODEL_SUFFIXES = (".safetensors", ".ckpt")
+VIDEO_DIFFUSION_SUFFIXES = (".safetensors", ".ckpt", ".gguf")
+VIDEO_DIFFUSION_KEYWORDS = ("wan", "video", "animate", "motion", "ti2v")
+# Wan variants that fit in 8 GB, and those that need CPU offload.
+WAN_SMALL_VARIANTS = (
+    "wan2_1_t2v_1_3b",
+    "wan2_1_fun_inp_1_3b",
+    "wan_ti2v_5b_gguf_q4",
+    "wan_ti2v_5b_gguf_q5",
+)
+WAN_OFFLOAD_VARIANTS = (
+    "wan_ti2v_5b_gguf_q4",
+    "wan_ti2v_5b_gguf_q5",
+    "wan2_1_fun_inp_1_3b",
+)
+WAN_VARIANT_LABELS = {
+    "wan_ti2v_5b_gguf_q4": "gguf_q4",
+    "wan_ti2v_5b_gguf_q5": "gguf_q5",
+    "wan2_1_t2v_1_3b": "1.3B",
+    "wan2_1_fun_inp_1_3b": "1.3B",
+}
+
+
+def _wan_variant_fields(name: str) -> dict[str, Any]:
+    """VRAM badges for a Wan model, via the shared tier classifier.
+
+    Extracted from `get_video_models`, where the if/elif chain sat four levels
+    deep inside two nested loops. The classifier (core/model_tiers.py) is the
+    single source of truth, so the frontend 8 GB badges and the adapter workflow
+    routing cannot disagree.
+    """
+    tier = classify_model_variant(name)
+    vram = VRAM_REQUIREMENTS.get(tier, {})
+    return {
+        "variant": WAN_VARIANT_LABELS.get(tier, "fp16"),
+        "supports_8gb": tier in WAN_SMALL_VARIANTS,
+        "requires_cpu_offload": tier in WAN_OFFLOAD_VARIANTS,
+        "vram_mb": vram.get("recommended_mb", 20000),
+    }
+
+
+def _scan_model_dir(
+    directory,
+    root,
+    suffixes: tuple[str, ...],
+    min_size: int,
+    entry_type: str,
+    keyword_filter: bool = False,
+) -> list[dict[str, Any]]:
+    """Collect model files under `directory`, one level of logic instead of five."""
+    found: list[dict[str, Any]] = []
+    if not directory.exists():
+        return found
+    for f in sorted(directory.rglob("*")):
+        if f.suffix not in suffixes or f.stat().st_size <= min_size:
+            continue
+        name_lower = f.name.lower()
+        if keyword_filter and not any(kw in name_lower for kw in VIDEO_DIFFUSION_KEYWORDS):
+            continue
+        entry: dict[str, Any] = {
+            "name": f.name,
+            "path": str(f.relative_to(root)),
+            "type": entry_type,
+            "size_mb": round(f.stat().st_size / (1024 * 1024), 1),
+        }
+        if keyword_filter and "wan" in name_lower:
+            entry.update(_wan_variant_fields(f.name))
+        found.append(entry)
+    return found
+
+
 @router.get("/comfyui/video-models")
 async def get_video_models() -> dict:
     """Get video generation models including motion modules and checkpoints."""
@@ -88,59 +160,31 @@ async def get_video_models() -> dict:
     if not comfyui_models_dir:
         return {"video_models": []}
 
-    video_models = []
+    video_models: list[dict[str, Any]] = []
 
-    # Scan animatediff directories
-    animatediff_dirs = [
-        "animatediff",
-        "animatediff_models",
-        "animatediff_motion_lora",
-    ]
+    # AnimateDiff motion modules and LoRAs.
+    for subdir in ANIMATEDIFF_DIRS:
+        video_models.extend(
+            _scan_model_dir(
+                comfyui_models_dir / subdir,
+                comfyui_models_dir,
+                VIDEO_MODEL_SUFFIXES,
+                1024,
+                "motion_lora" if "lora" in subdir else "motion_module",
+            )
+        )
 
-    for subdir in animatediff_dirs:
-        dir_path = comfyui_models_dir / subdir
-        if dir_path.exists():
-            for f in dir_path.rglob("*"):
-                if f.suffix in (".safetensors", ".ckpt") and f.stat().st_size > 1024:
-                    video_models.append({
-                        "name": f.name,
-                        "path": str(f.relative_to(comfyui_models_dir)),
-                        "type": "motion_lora" if "lora" in subdir else "motion_module",
-                        "size_mb": round(f.stat().st_size / (1024 * 1024), 1),
-                    })
-
-    # Also include diffusion_models that might be video-related
-    diffusion_dir = comfyui_models_dir / "diffusion_models"
-    if diffusion_dir.exists():
-        for f in diffusion_dir.rglob("*"):
-            if f.suffix in (".safetensors", ".ckpt", ".gguf") and f.stat().st_size > 1024 * 1024:
-                name_lower = f.name.lower()
-                if any(kw in name_lower for kw in ["wan", "video", "animate", "motion", "ti2v"]):
-                    # Tag Wan variants via the shared tier classifier
-                    # (core/model_tiers.py) so the frontend 8GB badges and
-                    # the adapter workflow routing can't disagree.
-                    extra: dict[str, Any] = {}
-                    if "wan" in name_lower:
-                        tier = classify_model_variant(f.name)
-                        vram = VRAM_REQUIREMENTS.get(tier, {})
-                        if tier == "wan_ti2v_5b_gguf_q4":
-                            extra["variant"] = "gguf_q4"
-                        elif tier == "wan_ti2v_5b_gguf_q5":
-                            extra["variant"] = "gguf_q5"
-                        elif tier in ("wan2_1_t2v_1_3b", "wan2_1_fun_inp_1_3b"):
-                            extra["variant"] = "1.3B"
-                        else:
-                            extra["variant"] = "fp16"
-                        extra["supports_8gb"] = tier in ("wan2_1_t2v_1_3b", "wan2_1_fun_inp_1_3b", "wan_ti2v_5b_gguf_q4", "wan_ti2v_5b_gguf_q5")
-                        extra["requires_cpu_offload"] = tier in ("wan_ti2v_5b_gguf_q4", "wan_ti2v_5b_gguf_q5", "wan2_1_fun_inp_1_3b")
-                        extra["vram_mb"] = vram.get("recommended_mb", 20000)
-                    video_models.append({
-                        "name": f.name,
-                        "path": str(f.relative_to(comfyui_models_dir)),
-                        "type": "diffusion_model",
-                        "size_mb": round(f.stat().st_size / (1024 * 1024), 1),
-                        **extra,
-                    })
+    # Diffusion models that look video-related.
+    video_models.extend(
+        _scan_model_dir(
+            comfyui_models_dir / "diffusion_models",
+            comfyui_models_dir,
+            VIDEO_DIFFUSION_SUFFIXES,
+            1024 * 1024,
+            "diffusion_model",
+            keyword_filter=True,
+        )
+    )
 
     return {"video_models": video_models}
 
@@ -226,6 +270,82 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
 
 
 @router.get("/{service_name}/result/{prompt_id}")
+async def _save_comfyui_asset(
+    item: dict,
+    output_subdir: str,
+    base_url: str,
+    prompt_id: str,
+    kind: str,
+    timeout: int,
+) -> dict | None:
+    """Download one ComfyUI output asset and save it under `output/<subdir>`.
+
+    Returns a completed-result dict, an error dict, or None when `item` carries
+    no usable filename (so the caller can keep looking).
+
+    Extracted from `get_result`, which had two near-identical 30-line blocks for
+    images and video, each nested five levels deep. The two differed only in
+    subdirectory, result `kind`, and fetch timeout.
+    """
+    try:
+        filename = _cu.sanitize_filename(item.get("filename", ""))
+    except ValueError as e:
+        return {"status": "error", "error": str(e), "prompt_id": prompt_id}
+    if not filename:
+        return None
+
+    subfolder = _cu.sanitize_subfolder(item.get("subfolder", ""))
+    try:
+        data = await _cu.fetch_view_bytes(base_url, filename, subfolder, timeout=timeout)
+    except RuntimeError as e:
+        return {"status": "error", "error": str(e), "prompt_id": prompt_id}
+
+    output_dir = PROJECT_ROOT / "output" / output_subdir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        filepath = _cu.safe_join(output_dir, filename)
+    except ValueError:
+        return {"status": "error", "error": "Invalid output path", "prompt_id": prompt_id}
+    with open(filepath, "wb") as f:
+        f.write(data)
+
+    return {
+        "status": "completed",
+        "success": True,
+        "output_path": str(filepath),
+        "prompt_id": prompt_id,
+        "kind": kind,
+    }
+
+
+async def _collect_comfyui_outputs(
+    outputs: dict,
+    output_key: str,
+    subdir: str,
+    kind: str,
+    base_url: str,
+    prompt_id: str,
+    timeout: int,
+) -> dict | None:
+    """Scan every node's `output_key` list and save the first usable asset.
+
+    Returns the first completed/error result, or None if this output type has
+    nothing usable - which is what lets the caller fall through from images to
+    video. This is the loop that was three levels deep inside `get_result` and
+    duplicated for each output type.
+    """
+    for output in outputs.values():
+        if not isinstance(output, dict) or output_key not in output:
+            continue
+        for item in output[output_key]:
+            if not isinstance(item, dict):
+                continue
+            result = await _save_comfyui_asset(item, subdir, base_url, prompt_id, kind, timeout)
+            if result is not None:
+                return result
+    return None
+
+
 async def get_result(service_name: str, prompt_id: str) -> dict:
     """Get the final result of a generation."""
     if service_name != "comfyui":
@@ -235,87 +355,25 @@ async def get_result(service_name: str, prompt_id: str) -> dict:
 
     try:
         history = await _cu.fetch_history(base_url, prompt_id)
-        if not history:
+        if not history or prompt_id not in history:
             return {"status": "pending", "prompt_id": prompt_id}
 
-        if prompt_id in history:
-            entry = history[prompt_id]
-            outputs = entry.get("outputs", {})
+        outputs = history[prompt_id].get("outputs", {})
 
-            # Find the image output first
-            for _node_id, output in outputs.items():
-                if "images" in output:
-                    for img in output["images"]:
-                        try:
-                            filename = _cu.sanitize_filename(img.get("filename", ""))
-                        except ValueError as e:
-                            return {"status": "error", "error": str(e), "prompt_id": prompt_id}
-                        subfolder = _cu.sanitize_subfolder(img.get("subfolder", ""))
-                        if filename:
-                            try:
-                                img_data = await _cu.fetch_view_bytes(
-                                    base_url, filename, subfolder, timeout=30
-                                )
-                            except RuntimeError as e:
-                                return {"status": "error", "error": str(e), "prompt_id": prompt_id}
+        # Images first, then video/gif (AnimateDiff/Wan workflows). "video" is a
+        # separate key from "gifs" but is handled identically.
+        for output_key, subdir, kind, timeout in (
+            ("images", "images", "image", 30),
+            ("gifs", "video", "video", 60),
+            ("video", "video", "video", 60),
+        ):
+            result = await _collect_comfyui_outputs(
+                outputs, output_key, subdir, kind, base_url, prompt_id, timeout
+            )
+            if result is not None:
+                return result
 
-                            # Save to output directory
-                            output_dir = PROJECT_ROOT / "output" / "images"
-                            output_dir.mkdir(parents=True, exist_ok=True)
-
-                            try:
-                                filepath = _cu.safe_join(output_dir, filename)
-                            except ValueError:
-                                return {"status": "error", "error": "Invalid output path", "prompt_id": prompt_id}
-                            with open(filepath, "wb") as f:
-                                f.write(img_data)
-
-                            return {
-                                "status": "completed",
-                                "success": True,
-                                "output_path": str(filepath),
-                                "prompt_id": prompt_id,
-                                "kind": "image",
-                            }
-
-            # Fallback: look for video/gif outputs (AnimateDiff/Wan workflows)
-            for _node_id, output in outputs.items():
-                for video_key in ("gifs", "video"):
-                    if video_key in output:
-                        for vid in output[video_key]:
-                            try:
-                                filename = _cu.sanitize_filename(vid.get("filename", ""))
-                            except ValueError as e:
-                                return {"status": "error", "error": str(e), "prompt_id": prompt_id}
-                            subfolder = _cu.sanitize_subfolder(vid.get("subfolder", ""))
-                            if filename:
-                                try:
-                                    vid_data = await _cu.fetch_view_bytes(
-                                        base_url, filename, subfolder, timeout=60
-                                    )
-                                except RuntimeError as e:
-                                    return {"status": "error", "error": str(e), "prompt_id": prompt_id}
-
-                                video_dir = PROJECT_ROOT / "output" / "video"
-                                video_dir.mkdir(parents=True, exist_ok=True)
-                                try:
-                                    filepath = _cu.safe_join(video_dir, filename)
-                                except ValueError:
-                                    return {"status": "error", "error": "Invalid output path", "prompt_id": prompt_id}
-                                with open(filepath, "wb") as f:
-                                    f.write(vid_data)
-
-                                return {
-                                    "status": "completed",
-                                    "success": True,
-                                    "output_path": str(filepath),
-                                    "prompt_id": prompt_id,
-                                    "kind": "video",
-                                }
-
-            return {"status": "error", "error": "No outputs found in result", "prompt_id": prompt_id}
-
-        return {"status": "pending", "prompt_id": prompt_id}
+        return {"status": "error", "error": "No outputs found in result", "prompt_id": prompt_id}
 
     except Exception as e:
         return {"status": "error", "error": str(e), "prompt_id": prompt_id}

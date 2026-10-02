@@ -377,6 +377,36 @@
 
 ---
 
+### D19 — Nesting depth is measured, and the worst offenders are flattened by duplication
+- **Status:** Decided
+- **Context:** `tools/report-nesting.py` measures real control-flow nesting depth
+  per function by AST: **118 functions** in `packages/backend/app` sit at depth ≥ 4,
+  the worst at 9. Deep nesting is a proxy for "hard to navigate", and it is
+  measurable, so the candidates can be chosen by number rather than taste.
+- **Decision:** Flatten where nesting is caused by *duplication* or by
+  interleaving unrelated concerns — not merely because a number is high.
+  `get_result` (depth 8, 10 deeply-nested returns) held two near-identical
+  30-line blocks differing only in subdirectory, `kind` and timeout; it is now
+  depth 3 over `_save_comfyui_asset` + `_collect_comfyui_outputs`. `get_video_models`
+  (depth 8) interleaved a Wan-variant `if/elif` chain with filesystem scanning; it
+  is now depth 3 over `_wan_variant_fields` + `_scan_model_dir`, with the variant
+  labels as named constants.
+- **Consequences:** Flattening is a behaviour-preserving refactor, so the evidence
+  that matters is the route surface and the endpoints, not the diff. Refactoring
+  `get_result` initially **broke the module**: an edit consumed the `def` line and
+  orphaned the `@router.get("/comfyui/video-models")` decorator onto a constant,
+  which is a `SyntaxError` at import. A second edit invented a `@router.get`
+  that had never existed. Neither showed up in the unit tests. The route surface
+  was therefore verified by building HEAD, stashing the change, and comparing
+  OpenAPI: **245 paths before and after**. Any future flattening of a router file
+  needs the same check — a decorator is not a line you can move freely.
+  A test that assumes behaviour is a test that can be wrong: the first version
+  asserted a blank filename falls through to the next candidate, but
+  `sanitize_filename("")` raises, so it is an error. That was the test being
+  wrong, not the code.
+
+---
+
 ## Open questions
 
 ### Q1 — 3D path convergence: Unity vs Blender vs Three.js
