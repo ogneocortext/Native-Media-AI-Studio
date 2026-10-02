@@ -74,6 +74,50 @@ extending this: **record outcomes here, re-derive listings.**
   Still $0 on all routes as of Sep 29 checks. Treat as temporary; do not build
   dependencies on its continued availability.
 
+## NVIDIA Nemotron (family-level) — do not re-test blind
+
+- **Model / route:** `nvidia/nemotron-3-ultra-550b-a55b:free`,
+  `nvidia/nemotron-3.5-lightning:free`,
+  `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`,
+  `nvidia/nemotron-3-super-120b-a12b:free` — on both OpenRouter and the Kilo
+  gateway.
+- **First used:** the owner has been trying these periodically for several
+  months (2026).
+- **Strong at:** nothing established. Four variants carry the largest advertised
+  context windows in the free catalogue (256k–1000k), which is exactly what makes
+  them tempting.
+- **Weak at:** consistently unusable on free tiers, across both routes. Two
+  recurring failure modes: **server-overloaded responses**, and **output cutting
+  out mid-stream** with nothing usable returned. Recurring across months, not a
+  one-off outage.
+- **Quirks (needs explicit instruction for):** none observed, because no variant
+  has survived long enough to expose model-level behaviour. Recorded as four
+  `worked: false` rows per route in `observed.jsonl`, which is what drops them to
+  `0 / AVOID` in `score.py`.
+- **Cost / access notes:** free on paper. The listing has been stable for months,
+  which is **not** evidence of a working service — see the lesson below.
+
+### Lesson: a long-lived free listing is not evidence of availability
+
+Nemotron has been advertised free for many months and has failed every attempt.
+Duration on a listing measures how long a provider has advertised, not how often
+the backend has served a request. Providers list what is *offered*; only a
+completed session proves anything.
+
+Two consequences for anyone picking a model here:
+
+1. Prefer a model with recorded `worked: true` sessions over one with a large
+   advertised context window. `score.py` already encodes this — advertised
+   listings are worth +20, a recent success +30, a recent failure −50 — so an
+   untested Nemotron scored *the same* as an untested Poolside until this
+   observation existed.
+2. The cheapest way to avoid re-testing a bad model is to record the failure.
+   One row costs seconds; re-discovering an overloaded route costs a session.
+
+Note `nvidia/nemotron-3.5-content-safety:free` is a content-safety classifier,
+not a coding model, and is deliberately **not** marked failing — it is simply
+not a candidate.
+
 ## Kilo Code gateway (free account tier)
 
 - **Model / route:** Kilo Code's model gateway on a free account; this month
