@@ -111,6 +111,42 @@ def _get_analysis_path(job_id: str) -> Path:
     """Get the path to an analysis JSON file."""
     return ANALYSIS_DIR / f"{job_id}_analysis.json"
 
+
+# Bump when the analysis payload changes shape, so cached results computed by an
+# older analyzer are treated as stale instead of being served forever.
+#
+# Content-addressed uploads (sha256[:8] names) mean a re-upload of the same audio
+# now hits the same cache entry every time, which is exactly what makes this
+# necessary: without a version stamp, an entry written before a field existed
+# would be served indefinitely and the field would never appear. That is the
+# state the library was in - key detection was missing from every stored result.
+#
+# v2: added key detection (estimated_key, key_confidence, key_confidence_r,
+#     key_runner_up, key_runner_up_r). Results stamped v1 or lower are stale.
+ANALYSIS_SCHEMA_VERSION = 2
+
+
+def _analysis_is_stale(data: dict | None) -> bool:
+    """Return True when a cached analysis predates the current schema.
+
+    A missing stamp counts as stale: those entries predate versioning entirely,
+    so there is no version to compare and assuming they are current is what let
+    incomplete results persist.
+    """
+    if not isinstance(data, dict):
+        return True
+    try:
+        return int(data.get("schema_version", 0)) < ANALYSIS_SCHEMA_VERSION
+    except (TypeError, ValueError):
+        return True
+
+
+def _stamp_analysis(data: dict) -> dict:
+    """Record the current schema version on an analysis before it is stored."""
+    if isinstance(data, dict):
+        data["schema_version"] = ANALYSIS_SCHEMA_VERSION
+    return data
+
 # In-memory cache for analysis data (avoids DB hits on every frontend poll).
 # Keys are ``filename:backend`` so different analysis backends do not clobber
 # each other's results.
@@ -129,6 +165,15 @@ def _cache_set(filename: str, value: dict, backend: str = "") -> None:
 def _cache_get(filename: str, backend: str = "") -> dict | None:
     """Get cached value by filename (+ optional backend)."""
     return _analysis_cache.get(f"{filename}:{backend}")
+
+
+def _cache_delete(filename: str, backend: str = "") -> None:
+    """Remove a cached value.
+
+    Used to evict an entry that is stale by schema version, so it stops being
+    served and does not get re-checked on every request.
+    """
+    _analysis_cache.pop(f"{filename}:{backend}", None)
 
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".opus", ".m4a", ".wma", ".aac"}
@@ -186,6 +231,9 @@ class AudioAnalysisResult(BaseModel):
     suggested_kinetic_preset_confidence: float | None = None
     suggested_theme_seed: str | None = None
     suggested_theme_seed_confidence: float | None = None
+    # Schema version of this payload. Absent on results stored before stamping
+    # existed, which is what makes them detectable as stale.
+    schema_version: int = 0
 
     model_config = {"extra": "ignore"}
 
@@ -609,6 +657,11 @@ def _build_analysis_result(
         "suggested_kinetic_preset_confidence": round(kinetic_suggestion.get("confidence", 0.0), 3),
         "suggested_theme_seed": theme_suggestion.get("value"),
         "suggested_theme_seed_confidence": round(theme_suggestion.get("confidence", 0.0), 3),
+        # Stamped here rather than at each call site so every producer of an
+        # analysis (analyze, analyze-cuda, and anything added later) is covered
+        # by one change. A cached result is only reusable while this matches
+        # ANALYSIS_SCHEMA_VERSION - see _analysis_is_stale.
+        "schema_version": ANALYSIS_SCHEMA_VERSION,
     }
 
 
@@ -1130,22 +1183,35 @@ async def get_analysis_by_filename(filename: str):
     # Check in-memory cache first (fastest)
     cached = _cache_get(normalized, "")
     if cached is not None:
-        return cached
+        if not _analysis_is_stale(cached):
+            return cached
+        # Drop the stale entry rather than serving it; the caller is expected to
+        # re-analyze, and leaving it in place would make every poll re-check.
+        logger.info(
+            f"Cached analysis for '{normalized}' is stale "
+            f"(schema < {ANALYSIS_SCHEMA_VERSION}); treating as missing."
+        )
+        _cache_delete(normalized, "")
 
     # Check database second
     from ..core import database
     db_analysis = database.get_audio_analysis(normalized)
-    if db_analysis:
+    if db_analysis and not _analysis_is_stale(db_analysis):
         # Populate cache
         _cache_set(normalized, db_analysis, "")
         return db_analysis
+    if db_analysis:
+        logger.info(
+            f"Stored analysis for '{normalized}' is stale "
+            f"(schema < {ANALYSIS_SCHEMA_VERSION}); treating as missing."
+        )
 
     # Fallback: try basename for backward compatibility with old entries
     if "/" in normalized:
         basename = Path(normalized).name
         if basename != normalized:
             db_analysis = database.get_audio_analysis(basename)
-            if db_analysis:
+            if db_analysis and not _analysis_is_stale(db_analysis):
                 _cache_set(normalized, db_analysis, "")
                 return db_analysis
 
@@ -1189,6 +1255,19 @@ async def get_analysis_by_filename(filename: str):
 
     with open(analysis_path, encoding="utf-8") as f:
         data = json.load(f)
+
+    # The JSON index is the last-resort fallback, and its files predate the
+    # version stamp just as the database rows do. It needs the same staleness
+    # check as the DB path above, otherwise an unstamped result loaded from here
+    # is still served - and then cached, making it sticky.
+    if _analysis_is_stale(data):
+        logger.info(
+            f"Indexed analysis for '{normalized}' (job {job_id}) is stale "
+            f"(schema < {ANALYSIS_SCHEMA_VERSION}); treating as missing."
+        )
+        raise HTTPException(
+            status_code=404, detail="No cached analysis found for this file"
+        )
 
     # Cache the JSON-index result too — previously only the DB path populated
     # the cache, so every request re-read (and re-parsed) the analysis file.
