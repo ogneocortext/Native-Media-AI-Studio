@@ -62,3 +62,28 @@
   the known-good fallback when the current promo model is unavailable.
 - **Cost / access notes:** free tier; individual model reliability degrades
   over time as providers tighten abuse controls.
+
+## OpenRouter (direct API, and the backing route for Cline)
+
+- **Model / route:** OpenRouter API (`https://openrouter.ai/api/v1`), used
+  directly and as the backing route for Cline and other clients. Free models
+  carry the `:free` suffix (e.g. `stealth/space-bunny-alpha`).
+- **First used:** Oct 2026 (Space Bunny Alpha era).
+- **Strong at:** largest advertised-free catalog of any route (21 models on
+  the 2026-10-02 pull); the public models API makes the free list scrapable
+  (see `tools/model-reliability/`).
+- **Weak at:** the free tier is a trial, not a working tier — 20 req/min,
+  **50 req/day** until $10 lifetime credits purchased (then 1,000/day, daily
+  counter resets UTC). 50 requests is roughly three agentic tasks; past the
+  cap, requests 429 until reset, which surfaces in clients as hangs and
+  timeouts. An hour of real work burns the day's quota.
+- **Quirks (needs explicit instruction for):** the `:free` suffix is
+  load-bearing — the bare model ID is the paid twin and bills real money.
+  Silent fallbacks to paid models also bill: pin exact `:free` IDs, disable
+  paid fallbacks, and check the OpenRouter activity page for the exact billed
+  model ID whenever pennies appear.
+- **Cost / access notes:** no card needed for the free tier, but multi-account
+  farming is explicitly defeated (limits governed globally per account). A
+  one-time $10 credit purchase permanently lifts `:free` models to 1,000/day
+  and the credits remain spendable — but that is still spend, so for a
+  zero-spend strategy the cap is the wall and route rotation is the answer.
