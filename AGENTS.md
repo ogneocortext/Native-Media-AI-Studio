@@ -12,6 +12,14 @@
 > Frontend visualizer work also requires `docs/architecture/visualizer.md` — it
 > maps the module split from D14 and states where new logic belongs.
 >
+> **If you are a rotated-in agent (D21):** the models used here rotate, so the
+> previous agent's model is not yours and its failure modes are not yours.
+> `docs/architecture/provider-notes.md` holds per-model field notes, and
+> `python tools/model-reliability/score.py` ranks models by what actually
+> worked. Before you finish, append one line per session to
+> `tools/model-reliability/observed.jsonl` -- that observed layer is tracked and
+> is the only handoff state a new agent cannot rebuild for itself.
+>
 > **Finding documentation:** the tree is 146 files across 14 directories, so
 > searching blind returns the wrong document. `docs/README.md` is the index;
 > `docs/knowledge-library/index.md` is the entry point for the 76-article

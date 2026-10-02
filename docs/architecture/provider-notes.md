@@ -12,6 +12,36 @@
 - Record what you observe in the first session: what the model is strong and
   weak at, what it needs told explicitly, what it invents or skips.
 
+## Recording the outcome (do this before you finish)
+
+**Whichever model you are running, append one line per session to
+`tools/model-reliability/observed.jsonl` before you wrap up.** This is the one
+part of the handoff that only you can write, and the handoff is a chain: every
+agent adds its own link or the next one starts blind.
+
+```json
+{"date": "2026-10-02", "model": "<id>", "route": "kilo|cline|opencode", "worked": true, "note": "what actually happened"}
+```
+
+- `worked` is a boolean — did *this session* complete work, not "was the
+  response coherent". A session that hit a provider limit or died mid-stream is
+  `false`, and that is the most valuable row to record.
+- `note` should say something the next agent can act on ("needs explicit
+  instruction to not skip tests", "429 after ~20 calls", "silently ignores
+  TypeScript strictness"). Avoid "worked fine" — that is what `true` already says.
+- Use `"model": "*"` with `route` for a route-level finding that applies to
+  every model on that route, e.g. "most free-tier models listed here do not
+  work on free accounts". Those print as route-level notes.
+
+Read the ranking back with `python tools/model-reliability/score.py`.
+
+Why this is tracked when the snapshots next to it are not: `observed.jsonl` is
+hand-written ground truth that cannot be re-fetched, so it is the only layer
+that carries a real session's outcome into the next one. The advertised
+snapshots beside it are a regenerable listing of who is free *this week*, which
+goes stale on its own and is rebuilt by one command. Keep the distinction when
+extending this: **record outcomes here, re-derive listings.**
+
 ## Template
 
 - **Model / route:**
