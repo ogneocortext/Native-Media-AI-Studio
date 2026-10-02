@@ -402,8 +402,18 @@
   needs the same check — a decorator is not a line you can move freely.
   A test that assumes behaviour is a test that can be wrong: the first version
   asserted a blank filename falls through to the next candidate, but
-  `sanitize_filename("")` raises, so it is an error. That was the test being
-  wrong, not the code.
+  `sanitize_filename("")` raises, so it is an error.
+
+  `report-nesting.py --baseline` is wired into `check-all.py`, so a function that
+  gets *deeper* fails the `docs` gate and the pre-commit hook. Flattening is never
+  required; only regression is. Three silent-failure modes had to be closed
+  first, each found by testing the gate rather than trusting it: it passed
+  vacuously when the baseline matched no functions; it passed when a file failed
+  to parse, because skipping an unparseable file *lowered* the score; and its
+  keys were path-dependent, so a relative and an absolute root disagreed about
+  the same tree. `tools/verify-nesting-gate.py` exists so the gate is proven able
+  to fail. This is the same lesson as the VACUUM and missing-import bugs:
+  **a check must be shown to fail before its passing means anything.**
 
 ---
 

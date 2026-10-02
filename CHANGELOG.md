@@ -74,6 +74,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Unnamed track ec2c16`. Collapsing the four into one requires content hashing,
   which is a data decision rather than a rendering one.
 
+### Added - A nesting gate, so deep functions cannot come back
+
+- `tools/report-nesting.py` gained a `--baseline` mode and now **fails** the
+  repo check when any function's control-flow nesting gets deeper than the
+  committed `tools/nesting-baseline.json` (493 functions tracked). It runs in the
+  `docs` gate, so `python tools/run-gates.py` and the pre-commit hook both catch a
+  regression. Improvements are reported but never fail; re-baselining is a
+  deliberate act.
+- `tools/verify-nesting-gate.py` is the mutation check: it deepens a real
+  function in `api/docs.py`, confirms the gate rejects it, and restores the file.
+  Without it, "the gate passes" is only evidence that it has never been seen to
+  fail — which is exactly the mistake I made twice in this work.
+
+Building the gate surfaced three failure modes, each found by testing it rather
+than assuming:
+
+- **It passed vacuously.** A baseline written for a different root matched no
+  functions and reported success. The worst possible outcome for a gate, so the
+  gate now requires the baseline to match at least one function and fails
+  otherwise.
+- **A syntax error made it pass.** Unparseable files were skipped silently, so
+  broken source *reduced* the score and looked like an improvement. They are now
+  reported and fail the check.
+- **Baseline keys were path-dependent.** Running the same tree with a relative
+  versus an absolute root produced different keys, so the gate rejected a tree it
+  had just accepted. Keys are now relative to the root, and duplicate function
+  names get an occurrence index so a deep copy cannot be masked by a shallow one.
+
+Verified: all 7 gates pass; the gate rejects a deliberate `7 -> 8` regression and
+accepts both relative and absolute roots.
+
 ### Changed - Flatten the two most deeply nested backend functions
 
 - Added `tools/report-nesting.py`, which measures real control-flow nesting depth

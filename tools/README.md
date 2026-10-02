@@ -356,10 +356,25 @@ The individual checkers are still runnable alone and are documented below.
   python tools/report-nesting.py packages/frontend/src --min-depth 5
   ```
 
-  It is read-only, and it is the reason D19 could target functions by measured
-  depth instead of by taste. Note that it reports, it does not enforce: a depth
-  limit in CI would need a baseline file, since 118 functions currently sit at
-  depth ≥ 4 and a hard cap would fail the whole suite today.
+  It is read-only in report mode, and a gate in `--baseline` mode. Three
+  silent-failure modes had to be closed before it could be trusted, each found by
+  testing it rather than assuming: a baseline for a different root matched
+  nothing and passed, unparseable files were skipped so a syntax error *lowered*
+  the score, and keys were path-dependent so a relative versus absolute root
+  disagreed. All three now fail loudly.
+
+  ```bash
+  python tools/report-nesting.py packages/backend/app --min-depth 4
+  python tools/report-nesting.py --write-baseline tools/nesting-baseline.json \
+      packages/backend/app
+  python tools/report-nesting.py --baseline tools/nesting-baseline.json \
+      packages/backend/app
+  ```
+
+  It is wired into `check-all.py` (and so into the `docs` gate and the pre-commit
+  hook), so a function that gets *deeper* fails the build. Flattening is never
+  required to make it pass; only a regression is. `tools/verify-nesting-gate.py`
+  is the mutation check that proves the gate can fail at all.
 
 ## Git Hooks
 

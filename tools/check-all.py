@@ -30,6 +30,13 @@ CHECKS = [
     ("subprocess encoding", "check-subprocess-encoding.py", []),
     ("knowledge tags", "validate-knowledge-tags.py", []),
     ("repo layout", "check-repo-layout.py", []),
+    # Fails if a function's control-flow nesting got deeper than the committed
+    # baseline. Deep nesting is a proxy for "hard to navigate", and this is the
+    # only check that stops it coming back. Re-baseline deliberately:
+    #   python tools/report-nesting.py --write-baseline \
+    #       tools/nesting-baseline.json packages/backend/app
+    ("nesting", "report-nesting.py",
+     ["--baseline", "tools/nesting-baseline.json", "packages/backend/app"]),
     # Report-only: exits 0 by design, so it cannot fail the run. Kept here so
     # one command gives the whole picture, including the outside-library view.
     ("docs triage (report)", "docs-triage.py", []),
