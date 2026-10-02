@@ -97,6 +97,15 @@ API reference: `docs/api/`. The route surface is guarded by
 - `git log` — commit messages carry the reasoning behind decisions
 - `docs/architecture/decision-log.md` — the decision record (Changelog section)
 
+## Responsibility
+
+Native Media AI Studio is a general-purpose post-production tool. You are
+responsible for the audio, video, and images you create with it — including
+complying with the terms of service of any platform you source media from.
+Suno, Udio, and any other named services appear here only as examples of
+input sources; this project is not affiliated with, endorsed by, or sponsored
+by any of them.
+
 ## License
 
 Public repository, no `LICENSE` file yet.
