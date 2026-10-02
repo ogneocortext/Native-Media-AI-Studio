@@ -300,7 +300,16 @@
   sat on the freelist and the file never shrank. This is the second time in this
   project a "works" path was never executed (`VACUUM INTO` and a prune-triggered
   compaction are the same shape). **Any code that must reclaim space must be
-  proven by asserting the file shrank**, not by asserting a delete count.
+  proven by asserting the file shrank**, not by asserting a delete count. A
+  follow-up audit of the whole sqlite layer found the *identical* defect in
+  `cleanup_old_log_events` — its `finally` only closed the connection, so the
+  exception still propagated and that path raised on every call deleting ≥1000
+  rows. Reclaiming space is therefore only possible through `safe_vacuum()`,
+  which commits first and logs rather than raises. Separately,
+  `journal_mode=WAL` is set once in `init_db` rather than on each of ~113
+  `get_db()` call sites, since it is a persistent database-wide property that can
+  itself fail with "database is locked" while readers are active;
+  `synchronous=NORMAL` and `wal_autocheckpoint` are applied per connection.
   `tools/report-db-size.py` attributes the size (it works without the `dbstat`
   vtab, which the bundled sqlite3 lacks) and `tools/compact-studio-db.py`
   applies the policy. The latter uses `VACUUM INTO` + verify + swap rather than

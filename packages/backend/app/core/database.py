@@ -237,13 +237,27 @@ def _safe_json_loads(val: str | None, default: Any = None) -> Any:
 
 
 def get_connection() -> sqlite3.Connection:
-    """Get a database connection with row factory."""
+    """Get a database connection with row factory.
+
+    `journal_mode=WAL` is a persistent, database-wide property, so it is NOT
+    re-issued here. Doing so on every one of the ~113 `get_db()` call sites was
+    redundant work and can itself fail with "database is locked" while readers
+    are active. `init_db` establishes it once, before any other connection.
+
+    `synchronous=NORMAL` is the standard companion to WAL: still crash-safe for
+    the process, without an fsync on every commit. This process commits a
+    telemetry row every 30 seconds, so FULL's fsync cost is paid for no benefit.
+
+    `wal_autocheckpoint` bounds the `-wal` file, which otherwise grows without
+    bound on a long-running writer and lengthens every reader's index scan.
+    """
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, check_same_thread=False, detect_types=sqlite3.PARSE_DECLTYPES)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA wal_autocheckpoint=1000")
     return conn
 
 
@@ -290,6 +304,30 @@ def set_schema_version(conn: sqlite3.Connection, version: int) -> None:
         """,
         (version,),
     )
+
+
+def safe_vacuum(conn: sqlite3.Connection) -> bool:
+    """Reclaim freed pages, committing first so SQLite will allow it.
+
+    `VACUUM` cannot run inside a transaction ("cannot VACUUM from within a
+    transaction"), and python's sqlite3 implicitly opens one on the first
+    INSERT/UPDATE/DELETE. Calling VACUUM straight after a delete therefore
+    raises, and in a `try/finally` that still propagated - aborting the caller
+    and leaving the freed pages on the freelist where nothing reclaims them
+    (auto_vacuum is NONE). This is the defect behind gpu_telemetry reaching
+    417 MB with a 1.2 MB freelist, and the identical bug in
+    `cleanup_old_log_events`. Use this instead of a bare `conn.execute("VACUUM")`.
+
+    Returns True if the vacuum ran. Failures are logged, never raised: the rows
+    are already deleted, and later inserts reuse freelist pages regardless.
+    """
+    try:
+        conn.commit()
+        conn.execute("VACUUM")
+        return True
+    except sqlite3.Error as exc:
+        logger.warning("VACUUM skipped (%s); freed pages remain on the freelist", exc)
+        return False
 
 
 def _migrate_v11(conn: sqlite3.Connection):
@@ -1050,7 +1088,11 @@ def cleanup_old_log_events(keep_days: int = 30, conn: sqlite3.Connection | None 
         if deleted:
             logger.info("Cleaned up %d log analytics events older than %d days", deleted, keep_days)
             if deleted >= 1000:
-                conn.execute("VACUUM")
+                # safe_vacuum, not a bare conn.execute("VACUUM"): the DELETE
+                # above opened a transaction, and SQLite refuses to VACUUM
+                # inside one. The old code raised here on every call that
+                # crossed the threshold.
+                safe_vacuum(conn)
         else:
             logger.debug("Log analytics cleanup ran at %s; no events older than %d days", ts_iso, keep_days)
         return deleted
@@ -1060,7 +1102,25 @@ def cleanup_old_log_events(keep_days: int = 30, conn: sqlite3.Connection | None 
 
 
 def init_db():
-    """Initialize database tables and run migrations."""
+    """Initialize database tables and run migrations.
+
+    WAL is enabled here, once, before any other connection exists:
+    `journal_mode` is persistent and database-wide, so `get_connection` no longer
+    re-issues it on every connection (which is redundant work and can fail with
+    "database is locked" while readers are active). It is set defensively before
+    the `with get_db()` block because `get_schema_version` reads the file, and
+    `busy_timeout` covers the case where a running backend holds a write lock.
+    """
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with sqlite3.connect(DB_PATH, timeout=10.0) as setup:
+            mode = setup.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+            if str(mode).lower() != "wal":
+                # A reader can hold the file in its current mode momentarily.
+                logger.warning("journal_mode is %s, expected WAL", mode)
+    except sqlite3.Error as exc:
+        logger.warning("Could not set WAL mode: %s", exc)
+
     with get_db() as conn:
         current_version = get_schema_version(conn)
 
@@ -2374,29 +2434,25 @@ def get_gpu_stats(since_ms: int | None = None) -> dict:
 def cleanup_old_gpu_telemetry(keep_days: int = 14, vacuum: bool = True) -> int:
     """Purge points older than keep_days. Returns deleted count.
 
-    `VACUUM` must run *outside* the write transaction: SQLite raises
-    "cannot VACUUM from within a transaction", so doing it inside `get_db()`
-    raised on every call, aborted the surrounding context manager, and left the
-    freed pages on the freelist where nothing would ever reuse them
-    (auto_vacuum is NONE). That is why the database grew to ~549 MB with only
-    1.3 MB actually reclaimable. The delete is committed first, then the
-    vacuum runs on its own connection.
+    The vacuum runs through `safe_vacuum` on the *same* connection, after the
+    delete has been committed. A bare `conn.execute("VACUUM")` after a DELETE
+    raises "cannot VACUUM from within a transaction" (python opens a transaction
+    on the first write), which aborted this function on every call that crossed
+    the threshold and left the freed pages on the freelist. auto_vacuum is NONE,
+    so nothing else would reclaim them - that is why the database reached
+    ~549 MB with only 1.3 MB actually reclaimable.
     """
     cutoff_ms = int((_time.time() - keep_days * 86400) * 1000)
     with get_db() as conn:
         cur = conn.execute("DELETE FROM gpu_telemetry WHERE ts_ms < ?", (cutoff_ms,))
         deleted = cur.rowcount
+        if deleted and vacuum and deleted >= 500:
+            # safe_vacuum commits first, so the VACUUM is legal. The enclosing
+            # get_db() commit afterwards is then a no-op.
+            safe_vacuum(conn)
 
     if deleted:
         logger.info("Cleaned up %d GPU telemetry rows older than %d days", deleted, keep_days)
-        if vacuum and deleted >= 500:
-            # Best-effort: a VACUUM that fails must not fail the cleanup, since
-            # the rows are already gone and will be reused by later inserts.
-            try:
-                with get_db() as vconn:
-                    vconn.execute("VACUUM")
-            except sqlite3.Error as exc:
-                logger.warning("VACUUM after telemetry cleanup failed: %s", exc)
     return deleted
 
 

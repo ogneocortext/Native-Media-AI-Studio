@@ -74,6 +74,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Unnamed track ec2c16`. Collapsing the four into one requires content hashing,
   which is a data decision rather than a rendering one.
 
+### Fixed - SQLite layer: the same VACUUM bug in a second place, plus connection pragmas
+
+- **`cleanup_old_log_events` had the identical `VACUUM`-in-a-transaction
+  defect** that was fixed in `cleanup_old_gpu_telemetry`. It called
+  `conn.execute("VACUUM")` immediately after a `DELETE`, and Python's sqlite3
+  opens a transaction on the first write, so SQLite refused. Because the
+  function's `finally` only closed the connection, the exception still propagated
+  — this path **raised on every call that deleted ≥1000 rows**, and freed pages
+  were never reclaimed.
+- **`safe_vacuum(conn)` is now the single way to reclaim space.** It commits
+  first, then vacuums, and logs rather than raises on failure — the rows are
+  already deleted and later inserts reuse freelist pages regardless. Both
+  cleanup paths use it.
+- **`cleanup_old_gpu_telemetry` no longer references a closed connection.** The
+  previous fix put `safe_vacuum(conn)` *after* the `with get_db()` block, where
+  `conn` is out of scope. It now runs inside the block, after the delete.
+- **`journal_mode=WAL` is set once in `init_db`, not on every connection.** It is
+  a persistent, database-wide property, so re-issuing it across ~113 `get_db()`
+  call sites was redundant and could itself fail with "database is locked" while
+  readers were active.
+- **`synchronous=NORMAL` and `wal_autocheckpoint=1000`** are now set per
+  connection. The former avoids an fsync on every commit for a process that
+  writes a telemetry row every 30 s; the latter bounds the `-wal` file, which
+  otherwise grows without bound on a long-running writer.
+
+New `tests/test_database_connections.py` covers all of it. The tests are
+verified to catch the originals by mutation: removing the `commit()` from
+`safe_vacuum` reproduces `VACUUM skipped (cannot VACUUM from within a
+transaction)` and fails two tests.
+
 ### Fixed - The database grew to 549 MB because telemetry was never pruned
 
 - **`gpu_telemetry` held 125,889 rows / 392.8 MB**, each storing a full JSON
