@@ -15,12 +15,23 @@ behind an account tier. So this tracker keeps two separate layers:
    `python tools/model-reliability/fetch_advertised.py`
    Sources: OpenRouter public models API (`$0` prompt + `$0` completion),
    Kilo gateway public models endpoint (`isFree` flag).
+
+   This layer is **gitignored**. `fetch_advertised.py` writes one timestamped
+   file per source per run, so tracking them grows the repo without bound — the
+   weekly-refresh advice below is ~104 files/year — and a date+time run id in a
+   filename means nothing to a reader. It is also regenerable from a single
+   command, so versioning it buys nothing. A fresh clone therefore has no
+   snapshots until you fetch once; `score.py` degrades to the observed layer
+   alone rather than refusing to run.
 2. **Observed** (`observed.jsonl`): what *actually worked* in real sessions.
    One JSON line per session outcome, appended by the agent:
    `{"date": "2026-10-02", "model": "<id>", "route": "kilo|cline|opencode",
    "worked": true, "note": "..."}`
    Use `"model": "*"` for route-level notes (e.g. "most free models here
    don't work").
+
+   This layer **is** tracked: it is hand-curated evidence, it cannot be
+   re-fetched, and it is the half that actually decides which model to use.
 
 ## Scoring
 
@@ -41,7 +52,10 @@ Check the table *before* committing a session to an untested model.
   already does this: trip one model's limit, lose all models). The observed
   layer records real sessions only — honest data with zero account risk.
 - Advertised snapshots are cheap and safe; refresh weekly or when picking a
-  model for a long session. A model vanishing from a snapshot is itself a
-  signal (promo ended, listing rotated).
+  model for a long session. Note that because snapshots are no longer versioned,
+  "a model vanishing from a snapshot" is now only visible locally between two
+  fetches — compare the before/after yourself if that signal matters to you. It
+  was history-dependent before, and the history was the only reason to track
+  regenerable data.
 - This is a D21 implementation detail: provider-agnostic handoff state that
   survives model switches *and* involuntary session kills.

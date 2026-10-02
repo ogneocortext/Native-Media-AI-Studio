@@ -27,6 +27,8 @@ def days_ago(d):
 
 def latest_snapshots():
     latest = {}
+    if not os.path.isdir(SNAP_DIR):
+        return latest
     for path in glob.glob(os.path.join(SNAP_DIR, "*.json")):
         with open(path, encoding="utf-8") as f:
             snap = json.load(f)
@@ -40,7 +42,12 @@ def load_observed():
     rows, notes = [], []
     if not os.path.exists(OBSERVED):
         return rows, notes
-    with open(OBSERVED, encoding="utf-8") as f:
+    # utf-8-sig, not utf-8: this file is hand-edited, and PowerShell's
+    # `Set-Content -Encoding UTF8` writes a BOM. Plain utf-8 passes the BOM to
+    # json.loads, which then raises "Unexpected UTF-8 BOM" on the first line and
+    # takes the whole tracker down - the one file whose loss you cannot re-fetch.
+    # utf-8-sig strips the BOM when present and is identical when it is not.
+    with open(OBSERVED, encoding="utf-8-sig") as f:
         for line in f:
             line = line.strip()
             if line:
@@ -85,15 +92,27 @@ def score_model(sources, lw, lf):
 
 def main():
     snaps = latest_snapshots()
-    if not snaps:
-        print("No snapshots. Run fetch_advertised.py first.")
-        return
+    rows, notes = load_observed()
+
+    # The advertised layer is a gitignored cache: a fresh clone has no snapshots
+    # until fetch_advertised.py runs. That must not hide the observed layer,
+    # which is tracked and is the half that actually decides which model to use.
     advertised = {}
     for src, snap in snaps.items():
         for m in snap["models"]:
             advertised.setdefault(m["id"], set()).add(src)
 
-    rows, notes = load_observed()
+    # A model can be observed-working while no snapshot currently lists it (the
+    # provider dropped the listing, or the listing was never captured). It still
+    # worked, so it belongs in the table rather than vanishing.
+    for r in rows:
+        if r["model"] not in advertised:
+            advertised[r["model"]] = set()
+
+    if not advertised:
+        print("No observed sessions and no snapshots.")
+        print("Run fetch_advertised.py to fetch advertised-free lists.")
+        return
     table = []
     for model, sources in advertised.items():
         lw, lf, model_notes = model_observed(model, rows)
@@ -105,7 +124,11 @@ def main():
     print(f"{'score':>5}  {'tier':<16} model")
     print("-" * 76)
     for score, tier, model, sources, lw, lf, model_notes in table:
-        print(f"{score:>5}  {tier:<16} {model}  ({', '.join(sources)})")
+        # An empty source list means no snapshot listed it (a fresh clone has no
+        # snapshots yet, or the provider dropped the listing). Say that rather
+        # than printing a bare "()".
+        prov = f" ({', '.join(sources)})" if sources else " (no snapshot)"
+        print(f"{score:>5}  {tier:<16} {model}{prov}")
         if lw:
             print(f"        last worked: {lw}")
         if lf:

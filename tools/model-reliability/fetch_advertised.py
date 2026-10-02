@@ -60,7 +60,7 @@ SOURCES = {"openrouter": fetch_openrouter, "kilo": fetch_kilo}
 
 def main():
     os.makedirs(SNAP_DIR, exist_ok=True)
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     stamp = now.strftime("%Y%m%d-%H%M%S")
     for name, fn in SOURCES.items():
         try:
