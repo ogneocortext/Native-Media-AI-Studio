@@ -2,257 +2,101 @@
 
 ![Native Media AI Studio banner](packages/frontend/public/brand/readme-banner.webp)
 
-A full-stack AI-powered creative production environment for music-driven media generation, image workflows, video creation, and narrative scene rendering.
+A local music-video production studio: **Suno v6-mini drafts go in, social-ready
+videos come out.** The studio owns everything in between — audio post-production
+(mix polish, consistency and arrangement repair, mastering) and the visual edit
+(audio-reactive render, final composite). No DAW, no video editor, no timeline
+scrubbing for the owner. (Decided: D23 in `docs/architecture/decision-log.md` —
+the pipeline is the MVP.)
 
-## Features
+## For AI agents (read this first)
 
-- **Guided Music Video Wizard** — 5-step flow (Upload → Analyze → Style → Generate per-section → Export 16:9 + 9:16) with energy-aware sections, beat-synced cuts, and vertical-first safe zones
-- **Real Audio Analysis** — `librosa` beat/tempo/onset + RMS energy curve → 8 sections with `energy 0.2-1.0`, beat_times, confidence, and `stored_path` (no mocks)
-- **Video Generation (Real)** — `POST /api/video/generate-section` queues `MUSIC_VIDEO` jobs via `queue_manager` → `MusicVideoHandler` (FFmpeg 8.1 `testsrc` + `geq` filter) polling via `GET /api/jobs/{id}`
- - **Media Library — File Management** — Grid/list views with **embedded cover art** (FFmpeg extracts `attached pic` from MP3/FLAC/OGG/OPUS/AAC/WMA → `audio/*.jpg`), **play inline** (`<video controls>` / `<audio controls>` + cover), **rename** (`POST /api/outputs/{path}/rename`), **delete** (removes `.json` + cover sidecar), **bulk delete**, **duplicate detection** (`GET /api/outputs/duplicates/groups` by hash), **extract audio from video** (`POST /api/audio/extract` with codec-aware original/MP3 output), **detailed waveform preview** (`wavesurfer.js` v7 with pre-computed peaks via `GET /api/media/waveform`), and typed media inspection modal (`MediaDetailModal.tsx` with `MediaProbe`/`LoudnessResult`/`WaveformResult`).
-- **3D Scene Generation** — Blender MCP integration for building 3D stages, characters, and beat-synced animation (now LRC `isPhraseStart`/`sectionProgress` reactive via `LrcVizController` + `PostFX` bloom)
-- **Unity MCP** — Direct Unity Editor control for scene creation, GameObjects, animation, and rendering
-- **3D Model Creation** — Text/image-to-3D via Hunyuan3D-2mini (optimized for 8GB VRAM) + Wan 2.2 5B 480p fits 8GB
-- **GPU Audio Analysis** — CUDA-accelerated FFT via `app.services.cuda` with CPU librosa fallback
-- **2D Canvas Visualizer (2026)** — `Canvas2DVisualizer` 3 modes `bars/waveform/radial` (PixiJS 8/p5.js-inspired, Canvas2D + Web Audio, LRC phrase flash, 2026 visual-flux/Waviz methods) toggled `3D/FX/2D`
-- **Responsive Sidebar** — Collapsible + mobile drawer (`<900px` or portrait) with backdrop, `min-h-0` scroll, health `max-h-[22vh]`
-- **Track Manager** — Table view for pairing prompts and lyrics to tracks with persistent storage
-- **Storyboards** — Visual scene planning per track with prompts, lyrics, and 3D Studio integration (`/storyboards`)
-- **AI Visual Generation** — ComfyUI integration with style previews, prompt transformation, and audio-reactive visualization
-- **Image Generation** — Text-to-image via ComfyUI with model selector (SD 1.5, Hunyuan3D)
-- **Video Generation** — Text/image-to-video via ComfyUI with model selector (Wan 2.2, Kandinsky 5, AnimateDiff)
-- **Video Editor** — Remotion-powered studio for audio-reactive music videos
-- **Log Viewer** — Centralized logs with analytics dashboard (pie charts, timelines, sparklines), system diagnostics (RAM gauge, per-process memory breakdown), and Ollama model VRAM monitor
-- **Queue System** — Job management with real-time SSE status, bulk clear for failed/completed jobs, auto-cleanup of old completed jobs (keeps most recent 100)
-- **GPU Monitoring** — Real-time VRAM, utilization, temperature, per-process breakdown, DB-backed trending (5m–24h window, 14-day retention), sparkline donuts, stacked attribution, `Export CSV` via `/api/health/gpu/history` + `/stats`
-- **Database Persistence** — SQLite storage for prompts, audio metadata, AI visuals, generation sessions, and `gpu_telemetry` trending history
-- **Obsidian Vault** — `docs/knowledge-library/.obsidian/snippets/nstudio-*.css` (pro, immersive, callouts, tables, headers)
+This repo is built for agent handoff portability — the coding model rotates, so
+nothing here assumes a specific provider (D21). Bootstrap order:
 
-## Recent Changes
+1. **`AGENTS.md`** — how to operate in this repo (services, shells, gates, traps)
+2. **`docs/README.md`** — documentation index; the fastest way to find the right document
+3. **`docs/architecture/decision-log.md`** — decisions D1–D23, **do not re-litigate**; update it when you make or reverse one
+4. **`docs/architecture/provider-notes.md`** — per-model behavior notes, append-only
 
-- **Demucs + Whisper Activated, MP3 Stems (2026-09-21)** — Installed `demucs 4.1.0` and `faster-whisper 1.2.1` (+ CTranslate2 CUDA libs) into `nma-studio-cuda`, activating `POST /api/audio/separate` and `POST /api/audio/transcribe`. Backend separation now runs via `sys.executable -m demucs` (never the PATH binary), auto-encodes MP3 stem copies (~13% of WAV size), and serves them via `GET /api/audio/stem-file/{track}/{stem}?format=mp3` with lazy encode-on-first-request for legacy stems. `get_stems` exposes a `stems_mp3` URL map; StemMixer prefers MP3 URLs for ~87% smaller transfers. Whisper default model is now `large-v3-turbo` with capability-aware CTranslate2 compute types (Pascal/sm_61 → float32, Turing+ → float16) and automatic cuBLAS/cuDNN DLL registration on Windows.
-- **Media Library Extraction + Typed Inspection + Stem Mixer Resilience (2026-09-10)** — `POST /api/audio/extract` now probes source audio codec and supports lossless stream copy (`format="original"`) or MP3 re-encode. New `ExtractAudioPanel` in video detail view. Expanded audio format support (OPUS, AAC, WMA) across backend and frontend. Media detail view extracted to `MediaDetailModal.tsx` with typed `MediaProbe`/`LoudnessResult`/`WaveformResult` payloads and LRU cache (50 entries). `WaveformDisplay` gains `onError` prop. `StemMixer` now auto-triggers Demucs separation when stems are missing, with elapsed timer and retry. Backend `get_stems` hardened with `_find_stem_dir` for renamed outputs; new `POST /api/audio/separate-file` endpoint. FFmpeg renderer pins `-b:a 192k`.
-- **Waveform Visualization + Port Centralization (2026-09-10)** — Media Library detail view now renders detailed waveforms via `wavesurfer.js` v7 (`WaveformDisplay.tsx`) using pre-computed peaks from `GET /api/media/waveform`. Backend waveform extraction upgraded from RMS to per-bucket max amplitude for richer envelope detail. All port management centralized into `config/ports.json` — backend, frontend, PowerShell scripts, Node MCP tools, and video editor all read from the single source of truth. `config/settings.json` stripped of duplicate port fields.
-- **Go Sidecars + CORS/SSE Hardening (2026-09-10)** — Integrated `go-gateway` (Unity MCP proxy) and `go-worker` (async sidecar I/O) into backend service layer. Fixed go-dashboard SSE stream creation (`/events` now stays open). Centralized CORS allowlist to `127.0.0.1` only. Added `sidecars` health block to `/api/health/diagnostics/services`. Standardized all local URLs to `127.0.0.1`. 28 Playwright smoke tests pass.
-- **Backend Service Relocation & Dead Code Removal (2026-09-07)** — Moved 7 service files from `packages/backend/app/services/` to `tools/` and `tools/scripts/` (`audio_analysis_agent`, `audio_fingerprinting`, `structure_analysis`, `blender/builder`, `blender/lyrics_sync`, `coding_benchmark`, `ollama_benchmark`). Removed dead benchmark API endpoints from `integrations_generation.py`. Trimmed unused dependencies. All 34 backend tests pass.
-- **Media Library 3D Count + Layout Fix (2026-09-06)** — Backend `list_outputs` now returns `models_3d_count`; frontend Library stats grid shows **3D Models** count. File size/date in `MediaCard` footers use `whitespace-nowrap` to prevent wrapping.
-- **Backend Auto-Reload for Dev (2026-09-06)** — `scripts/manage-servers.ps1` and `scripts/start-services.ps1` now start uvicorn with `--reload` so backend code changes reload automatically.
-- **Backend Startup & Frontend Connectivity (2026-09-05)** — Fixed WebSocket origin validation crash in `main.py`, added pre-flight port check, frontend health/SSE calls now fall back to direct backend URL when Vite proxy is down, start script retries backend launch on port conflicts
-- **Async Refactoring & VRAM Management (2026-09-05)** — Fixed asyncio refactoring in GPU monitoring and VRAM management using `asyncio.to_thread()`, corrected VRAM offload/reload function calls, enhanced ComfyUI error handling with queue status checks and timeout detection, updated documentation
-- **2026 2D + LRC-Driven Visuals (2026-09-02)** — Added `Canvas2DVisualizer.tsx` 3 modes `bars/waveform/radial` (Canvas2D + Web Audio, LRC `isPhraseStart/sectionProgress` reactive, 2026 visual-flux/Waviz methods), fixed LRC `offset`/multi-stamp/`60.00` drift (`lyricsParser.py`/`lyricsParser.ts`/`useLrcSync`), wired 3D `VisualizerScene`/`ShaderVisualizer`/`PostFX` to `lrcSync`, added `AIPresetGallery` browse + `storage/visualizer_presets` persistence, hardened Ollama (`keep_alive 5m`, startup unload, manual `Enhance with AI`)
-- **Final Sweep & Hardening** — Fixed missing `import asyncio`, unreachable OOM prevention, refactored to single `asyncio.run()`, enhanced AI code sanitization (strips eval/fetch/setInterval/event listeners), made checkpoint names configurable across backend and MCP
-- **Security & Reliability Sweep** — Added fetch timeouts/`res.ok` checks to all MCP servers, fixed WebSocket origin validation, fixed TOCTOU race in queue manager, added threading lock to output cache, fixed PowerShell script errors (undefined functions, broken paths), fixed pnpm workspace config
-- **Bug Sweep & Code Quality** — Fixed 18 issues across backend, frontend, and config: removed duplicate imports, fixed deprecated asyncio API, removed debug prints/memory leaks, corrected TypeScript package names, standardized config paths, added ESLint rules
-- **Memory Leak Fixes** — Queue manager auto-cleans completed/failed jobs (keeps most recent 100), resource monitor cleans stale warning entries
-- **Adapter Connection Reuse** — ComfyUI and Ollama adapters now reuse a single `aiohttp.ClientSession` per instance, eliminating a thread leak that caused health checks to time out
-- **Health Check Timeouts** — Added per-adapter (8s) and global (10s) timeouts to prevent health checks from hanging
+Commits carry the reasoning ("why"), so `git log` is a guidance channel.
+Checker scripts under `tools/` are the enforcement layer — run
+`python tools/run-gates.py` before pushing.
 
-## Hardware Targets
+## What it does
 
-| Resource  | Specification                                 |
-| --------- | --------------------------------------------- |
-| CPU       | Ryzen 5 5500-class (6 cores)                  |
-| GPU       | GTX 1070 Ti (8GB VRAM)                        |
-| RAM       | 32GB                                          |
-| Execution | Serial/queue-based (no excessive parallelism) |
+- **Music video wizard** — guided 5-step flow: upload → analyze → style → generate per-section → export 16:9 + 9:16, with beat-synced cuts
+- **Real audio analysis** — beat/tempo/onset + energy curves, section labelling, key detection; Demucs stem separation and Whisper transcription
+- **Audio-reactive visuals** — 2D canvas visualizer, Three.js/WebGL scenes, Unity and Blender MCP integrations, shader visualizer with key-derived palettes
+- **AI generation** — ComfyUI text-to-image / image-to-video, 3D via Hunyuan3D, all tuned for the 8 GB VRAM target below
+- **Remotion video editor** — final composite and export
+- **Media library** — uploads, cover art, waveforms, duplicate detection, rename/delete/bulk ops
+- **Ops** — job queue with SSE status, GPU/VRAM monitoring with trending history, centralized logs and diagnostics
+- **`suno-templates/`** — static snapshot of the owner's Suno v6-mini prompting workbench (the owner-side half of the D23 pipeline); see its README
 
-## Project Structure
+## Hardware targets
+
+| Resource  | Specification                      |
+| --------- | ---------------------------------- |
+| CPU       | Ryzen 5 5500-class (6 cores)       |
+| GPU       | GTX 1070 Ti (8 GB VRAM)            |
+| RAM       | 32 GB                              |
+| Execution | Serial/queue-based, no heavy parallelism |
+
+## Project structure
 
 ```
 Native-Media-AI-Studio/
-├── config/                 # Shared configuration (ports, settings, tracks)
-├── docs/                   # All documentation
-├── packages/               # Monorepo packages
-│   ├── frontend/           # React + Vite UI (dev server on 5173, binds 127.0.0.1)
-│   │   └── src/features/   # Feature-based modules
-│   │       ├── ai-tools/         # AI chat + tool registry
-│   │       ├── image-generation/ # ComfyUI image gen
-│   │       ├── music-video/      # Music video wizard (types + steps)
-│   │       ├── settings/         # App settings
-│   │       ├── video-generation/ # ComfyUI video gen
-│   │       └── visualizer/       # 3D audio visualizer (types + hooks + scene)
-│   ├── backend/            # FastAPI backend (serves on 8000, sticky-port)
-│   │   └── app/api/        # Modular API routes
-│   │       ├── integrations_config.py    # Config/settings endpoints
-│   │       ├── integrations_generation.py # ComfyUI/Ollama/VRAM/Audio
-│   │       ├── integrations_music_video.py # Music video endpoints
-│   │       ├── integrations_misc.py      # CUDA/system/misc endpoints
-│   │       └── services/                 # Job handlers + Go sidecar clients
-│   └── video-editor/       # Remotion video editor (port 8080)
-├── scripts/                # Server management scripts
-├── shared/                 # Shared TypeScript types
-├── tools/                  # Go sidecars + MCP bridges + demos
-│   ├── go-dashboard/       # SSE server + health (:3847)
-│   ├── go-gateway/         # MCP bridge proxy (:3850)
-│   ├── go-media/           # FFmpeg pipeline worker (:3848)
-│   ├── go-ports/           # Port availability checker (:3851)
-│   ├── go-worker/          # Sidecar I/O + job worker (:3849)
-│   └── mcp/                # MCP server bridges (unity-mcp-bridge.mjs, vision.mjs, ollama-tools-mcp.mjs)
-├── .vscode/                # VS Code settings
-├── package.json            # Root package.json (pnpm workspace)
-├── pnpm-workspace.yaml     # PNPM workspace config
-├── README.md
-├── CHANGELOG.md
-└── pyproject.toml          # Root Python config
+├── packages/frontend/     # React + Vite + TypeScript UI
+├── packages/backend/      # FastAPI backend (api, services, queue, diagnostics)
+├── tools/                 # MCP bridges, Go sidecars, checkers, demos
+├── scripts/               # Service management (PowerShell 7.6+)
+├── docs/                  # Guides, API reference, knowledge library, setup — start at docs/README.md
+├── config/                # ports.json, settings.json, tracks.json
+├── shared/                # Shared TypeScript types
+├── unity-project-mcp/     # Unity project for music video generation
+├── unity-visualizer/      # Standalone Unity audio visualization project
+├── suno-templates/        # Suno v6-mini prompting workbench (static snapshot)
+└── output/                # Generative outputs + logs (gitignored)
 ```
 
-## Quick Start
+## Quick start
 
-### Prerequisites
-
-- **Python 3.11+** (via venv `nma-studio-cuda` for backend/GPU — see `.python-env`)
-- **Python 3.14+** (via venv `studio-tools` for standalone tooling — see `tools/requirements-standalone.txt`)
-- **Node.js 22+** (via `fnm`; `engines` requires `>=22.13.0`)
-- **pnpm 11+** (`npm install -g pnpm@11`; `packageManager` is `pnpm@11.24.0`)
-- **ComfyUI** installed at your location here
-- **venv** `nma-studio-cuda` with PyTorch CUDA support
-- **venv** `studio-tools` with pure-Python tooling dependencies
-
-### Start All Services
+Prerequisites: Node.js 22+, pnpm 11+, Python via the project's conda envs —
+see **AGENTS.md → Python Environments** (it also documents the machine-specific
+PATH traps; read it before running anything). Full setup: `docs/setup/`.
 
 ```powershell
-# Start everything (backend, frontend, ComfyUI, video editor)
-pnpm start
-
-# Or with PowerShell directly
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-studio.ps1
+# PowerShell 7.6+ required (pwsh, not powershell 5.1)
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action status   # check what's already up
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services all
 ```
 
-### Manage Individual Services
+Do not restart services that are already running — both dev servers hot-reload.
+`scripts\start-services.ps1` is currently broken; call `manage-servers.ps1`
+directly as above.
 
-```powershell
-# Check status of all services
-pnpm servers status
+| Service      | Port | Description                        |
+| ------------ | ---- | ---------------------------------- |
+| Backend      | 8000 | FastAPI + SSE + SQLite             |
+| Frontend     | 5173 | React + Vite UI                    |
+| ComfyUI      | 8188 | AI image/video generation          |
+| Video Editor | 8080 | Remotion studio                    |
+| go-dashboard | 3847 | SSE stream hub + health            |
+| go-gateway   | 3850 | MCP bridge proxy                   |
+| go-worker    | 3849 | Async sidecar I/O                   |
+| go-media     | 3848 | FFmpeg post-processing worker      |
+| go-ports     | 3851 | Port availability checker          |
 
-# Start/stop specific services
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services comfyui
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action stop -Services frontend
+API reference: `docs/api/`. The route surface is guarded by
+`tools/snapshot-audio-routes.py`.
 
-# Restart a service
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action restart -Services backend
-```
+## Changes
 
-### GPU Pipeline (CUDA 12.4 / GTX 1070 Ti)
-
-```powershell
-# GPU audio analysis (torch.stft on CUDA)
-python -c "from app.services.cuda import cuda_audio; import numpy as np; print(cuda_audio.analyze(np.random.randn(22050)))"
-
-# 3D model generation (Hunyuan3D-2mini)
-# POST /api/3d/generate {"prompt": "a robot", "steps": 15}
-
-# GPU monitoring
-curl http://127.0.0.1:8000/api/health/gpu
-```
-
-See [GPU Pipeline Guide](docs/guides/GPU_PIPELINE.md) for full documentation.
-
-```bash
-# Development
-pnpm dev                 # Start frontend
-pnpm dev:backend         # Backend (Python)
-pnpm dev:comfyui         # ComfyUI
-pnpm dev:video           # Video editor
-
-# Build
-pnpm build               # Build all pnpm workspace packages
-
-# Database
-pnpm db:migrate          # Initialize SQLite database
-```
-
-## Services
-
-| Service      | Port | Description                                      |
-| ------------ | ---- | ------------------------------------------------ |
-| Backend      | 8000 | FastAPI + SSE (`/api/events`) + SQLite — sticky-port: reuses a healthy instance instead of spawning duplicates |
-| Frontend     | 5173 | React + Vite UI (binds `127.0.0.1`)              |
-| ComfyUI      | 8188 | AI image/video generation                        |
-| Video Editor | 8080 | Remotion studio (`config/ports.json` dynamic)    |
-| go-dashboard | 3847 | SSE stream hub + health aggregation              |
-| go-gateway   | 3850 | MCP bridge proxy (Unity/Blender/ComfyUI/Ollama)  |
-| go-worker    | 3849 | Async sidecar I/O + JSON metadata writes         |
-| go-media     | 3848 | FFmpeg post-processing worker                    |
-| go-ports     | 3851 | Port availability checker                        |
-
-## API Endpoints
-
-| Endpoint                                  | Method   | Description                                                                                                               |
-| ----------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `/api/health`                             | GET      | Service health status                                                                                                     |
-| `/api/health/gpu`                         | GET      | Real VRAM/util/temps (GTX 1070 Ti) + auto-log to `gpu_telemetry`                                                         |
-| `/api/health/gpu/history`               | GET      | DB trending history `?range=1h&limit=2000` (5m–24h)                                                                        |
-| `/api/health/gpu/stats`                 | GET      | Aggregated avg/min/max + trend slope                                                                                       |
-| `/api/health/gpu/history`               | DELETE   | Purge history `?keep_days=0` (14-day auto-retention)                                                                       |
-| `/api/health/diagnostics/memory`          | GET      | System memory breakdown + top RAM processes                                                                               |
-| `/api/health/ollama/models`               | GET      | Currently loaded Ollama models with VRAM usage                                                                            |
-| `/api/integrations/comfyui/checkpoints`   | GET      | List available checkpoint models                                                                                          |
-| `/api/integrations/music-video/styles`    | GET      | Music video visual styles                                                                                                 |
-| `/api/integrations/music-video/templates` | GET      | Video generation workflow templates                                                                                       |
-| `/api/integrations/vram/offload-ollama`   | POST     | Unload Ollama models to free VRAM                                                                                         |
-| `/api/integrations/ollama/benchmark/results` | GET   | Cached Three.js scene benchmark results                                                                                   |
-| `/api/integrations/ollama/benchmark/run`  | POST     | Run scene benchmark (`{models?, max_models?}`)                                                                            |
-| `/api/integrations/ollama/benchmark/best` | GET      | Best model for Three.js scene generation (`{best, result, results}`)                                                      |
-| `/api/integrations/ollama/coding-benchmark/results` | GET | Cached coding benchmark results                                                                                      |
-| `/api/integrations/ollama/coding-benchmark/run` | POST | Run coding benchmark (`{models?, max_models?, quick?, num_ctx?}`)                                                     |
-| `/api/integrations/ollama/coding-benchmark/best` | GET | Best coding model                                                                                                    |
-| `/api/audio/upload`                       | POST     | Upload audio (500 MB, MP3/WAV/FLAC/OGG/OPUS/AAC/WMA) → `stored_path`                                                       |
-| `/api/audio/analyze`                      | POST     | Real `librosa` analyze → `tempo_bpm`, `beat_times[800]`, `energy_curve[100]`, `sections[8]`                               |
-| `/api/audio/extract`                      | POST     | Extract audio from video (`{source_path, format, bitrate?}`) → `output/audio/<name>.<ext>` with codec-aware stream copy |
-| `/api/audio/separate-file`                | POST     | Separate library audio into stems via Demucs (`{filename, model}`)                                                        |
-| `/api/audio/stems/{filename}`             | GET      | Get previously separated stems for a library file                                                                         |
-| `/api/audio/files`                        | GET      | List uploaded audio                                                                                                       |
-| `/api/video/generate-section`             | POST     | Queue `MUSIC_VIDEO` section (`prompt`, `audio_path`, `duration`, `vertical_first`) → `job_id` (poll `GET /api/jobs/{id}`) |
-| `/api/outputs`                            | GET      | List outputs (`?file_type`/`search`/`limit`) with `cover_image` for audio (`audio/*.jpg` extracted)                       |
-| `/api/outputs/recent`                     | GET      | Recent outputs                                                                                                            |
-| `/api/outputs/duplicates/groups`          | GET      | Duplicate groups by hash (`?quick=true` 1MB) → `hash`, `wasted_bytes`                                                     |
-| `/api/outputs/{file_type}`                | GET      | `images`/`video`/`audio` filtered                                                                                         |
-| `/api/outputs/{path}`                     | DELETE   | Delete file + sidecars (`.json`, cover `.jpg`)                                                                            |
-| `/api/outputs/{path}/rename`              | POST     | Rename file + sidecars (`{new_name}`)                                                                                     |
-| `/api/outputs/bulk-delete`                | POST     | Bulk delete `{paths: string[]}`                                                                                           |
-| `/api/jobs`                               | GET/POST | Job queue management                                                                                                      |
-| `/api/jobs/{id}`                          | GET      | Poll job (`status`, `progress`, `output_path`)                                                                            |
-| `/api/data/tracks/`                       | GET/POST | Track library CRUD                                                                                                        |
-| `/api/data/prompts/`                      | GET/POST | Prompt storage                                                                                                            |
-| `/api/data/visuals/`                      | GET      | AI-generated visuals                                                                                                      |
-| `/api/data/sessions/`                     | GET      | Generation sessions                                                                                                       |
-| `/api/data/preferences/`                  | GET/PUT  | User preferences                                                                                                          |
-| `/api/events`                             | SSE      | Server-Sent Events (`job.progress`, `job.completed`); legacy `ws://…/ws` returns `426`                                   |
-
-## Database
-
-SQLite database at `storage/studio.db` with tables:
-
-- **tracks** — Music library with prompts, lyrics, visual styles
-
-Track data is imported from `docs/track-prompts-lyrics.csv` via `POST /api/data/tracks/import-csv`. The frontend fetches tracks from the backend API at runtime, falling back to embedded CSV data if the backend is unavailable.
-
-- **prompts** — Reusable generation prompts with tags and categories
-- **audio_files** — Audio metadata (duration, BPM, key, genre)
-- **ai_visuals** — Generated image records with parameters
-- **generation_sessions** — Full workflow tracking
-- **user_preferences** — UI defaults and settings
-- **gpu_telemetry** — GPU trending history (temp/VRAM/util + processes, 14-day retention, `GET /api/health/gpu/history`)
-
-## Configuration
-
-All ports and service URLs are centralized in `config/ports.json`. Environment variables can override defaults:
-
-| Variable        | Default  | Description              |
-| --------------- | -------- | ------------------------ |
-| `BACKEND_PORT`  | 8000     | Backend server port      |
-| `FRONTEND_PORT` | 5173     | Frontend dev server port |
-| `COMFYUI_PORT`  | 8188     | ComfyUI port             |
-| `VIDEO_PORT`    | 8080     | Video editor port        |
-| `OUTPUT_DIR`    | ./output | Output directory         |
-
-See `config/ports.json` for the full URL map (backend, frontend, Go sidecars, SSE, WebSocket).
-
-## Documentation
-
-- [CHANGELOG.md](./CHANGELOG.md) - Version history
-- [config/tracks.json](./config/tracks.json) - Track library data
+- `CHANGELOG.md` — version history
+- `git log` — commit messages carry the reasoning behind decisions
+- `docs/architecture/decision-log.md` — the decision record (Changelog section)
 
 ## License
 
-Private project.
+Public repository, no `LICENSE` file yet.
