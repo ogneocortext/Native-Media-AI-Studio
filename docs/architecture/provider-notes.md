@@ -43,3 +43,21 @@
   `stealth/space-bunny-alpha` route, so the OpenRouter preview window governs.
   Still $0 on all routes as of Sep 29 checks. Treat as temporary; do not build
   dependencies on its continued availability.
+
+## Kilo Code gateway (free account tier)
+
+- **Model / route:** Kilo Code's model gateway on a free account; this month
+  also Kilo and Cline pointed at OpenRouter `stealth/space-bunny-alpha`.
+- **First used:** ~2024 — two years of use as of Oct 2026.
+- **Strong at:** the longest-running reliable free inference the owner has
+  found (best over the last 2 years). This month, Kilo and Cline both running
+  Space Bunny Alpha are the most reliable combo.
+- **Weak at:** most free-tier models listed in the Kilo gateway do not
+  actually work on free accounts — a listing is not a reliable signal of
+  availability. Blind-testing models burns session time; check the
+  reliability log first once it exists (D21 follow-up).
+- **Quirks (needs explicit instruction for):** Step 3.7 Flash (via Kilo
+  gateway) worked for months at a time and is competent for most work — it is
+  the known-good fallback when the current promo model is unavailable.
+- **Cost / access notes:** free tier; individual model reliability degrades
+  over time as providers tighten abuse controls.
