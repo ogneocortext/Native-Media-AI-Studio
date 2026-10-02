@@ -376,6 +376,20 @@ The individual checkers are still runnable alone and are documented below.
   required to make it pass; only a regression is. `tools/verify-nesting-gate.py`
   is the mutation check that proves the gate can fail at all.
 
+- `probe-ollama.py` records what a live Ollama actually does, so a change in
+  server behaviour can be told apart from a change in our code:
+
+  ```bash
+  python tools/probe-ollama.py
+  python tools/probe-ollama.py --model qwen3.5:4b --fast
+  ```
+
+  It is the tool to reach for first when "Ollama is acting up", and it is where
+  `tests/test_ollama_live.py` gets its expectations from. It prefers the
+  smallest **local** model, and skips `:cloud` entries deliberately: they report
+  `size: 0` and return HTTP 402 without a paid key, so probing them would measure
+  the network rather than the adapter.
+
 ## Git Hooks
 
 This repo has **no CI** (D10 in `docs/architecture/decision-log.md`), so local

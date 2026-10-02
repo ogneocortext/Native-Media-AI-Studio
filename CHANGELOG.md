@@ -74,6 +74,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Unnamed track ec2c16`. Collapsing the four into one requires content hashing,
   which is a data decision rather than a rendering one.
 
+### Added - Live characterisation tests for the Ollama adapter
+
+The adapter (`adapters/ollama.py`, 1,470 lines) and its shared client
+(`core/ollama_client.py`) had **no test coverage at all**, which is why the
+`ollama_chat` refactor was deferred: there was nothing to refactor against.
+
+`tests/test_ollama_live.py` runs against a real Ollama and **skips automatically**
+when none is reachable (`NMA_OLLAMA_TESTS=1` requires one, `NMA_OLLAMA_URL`
+repoints it). Eight tests pin the server behaviours the code depends on, all
+established by observation via the new `tools/probe-ollama.py`:
+
+- **`think=False` omits the `thinking` key entirely** rather than returning `""`.
+  A caller writing `msg["thinking"]` would raise; the adapter and frontend both
+  use `.get(...)`, which is why this was worth pinning.
+- **`tool_calls[].function.arguments` is a dict, not a JSON string.** This is
+  what `execute_tool_call`'s `**arguments` depends on; a string would make every
+  tool call raise `TypeError`.
+- **An unknown model raises `RuntimeError`**, rather than returning an empty
+  result that would read as success.
+- **An empty `messages` list is HTTP 200, not an error** — it looks like success
+  and yields nothing, so `done` alone is not proof of a usable answer.
+- **An unknown tool returns `"Unknown tool: <name>"` and does not raise**, so a
+  caller that never inspects the result feeds that sentence back to the model as
+  a successful tool result.
+
+`tools/probe-ollama.py` records all of this from a live server and is the tool to
+run first when Ollama behaves oddly. Two things it revealed that are not obvious
+from the code: **cloud models (`:cloud`) return HTTP 402** without a paid key and
+report `size: 0`, so they are excluded from both the probe and the tests (which
+would otherwise measure the network, not the adapter); and **the first inference
+costs 52 s of model load versus 0.7 s warm**, which is why the fixture is
+module-scoped and reuses one model.
+
+Verified: 8 passed in 4.3 s against Ollama 0.35.0; 8 skipped in 2.1 s with the
+server absent. All 7 gates pass with 226 pytest.
+
 ### Added - A nesting gate, so deep functions cannot come back
 
 - `tools/report-nesting.py` gained a `--baseline` mode and now **fails** the

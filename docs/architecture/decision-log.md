@@ -1,4 +1,4 @@
-# Architecture Decision Log
+﻿# Architecture Decision Log
 
 > **Purpose:** the persistent memory for stack and architecture decisions. Coding
 > agents (Kilo, Cline, OpenCode, Codex, Antigravity, Devin) compress context and
@@ -451,6 +451,34 @@
   graduates into a rule moves to AGENTS.md or this log. The checkers are the
   stable contract across providers — if a new model cannot satisfy them, that
   is signal about the model, not a reason to weaken the check.
+
+---
+
+### D22 — Ollama behaviour is characterised against a live server before it is refactored
+- **Status:** Decided
+- **Context:** `adapters/ollama.py` is 1,470 lines and `ollama_chat` is the
+  deepest function in the backend (nesting depth 9). It was left unflattened in
+  D19 because it had **no tests at all**, and D19's own lesson was that
+  behaviour-preserving claims need evidence rather than a clean diff.
+- **Decision:** Characterise first, against a real server, then refactor.
+  `tools/probe-ollama.py` observes behaviour; `tests/test_ollama_live.py` pins it
+  and skips when no server is reachable.
+- **Consequences:** The contract the adapter actually relies on is now written
+  down rather than assumed. `think=False` **omits** the `thinking` key rather
+  than returning an empty string. `tool_calls[].function.arguments` is a **dict**,
+  which is what `execute_tool_call`'s `**arguments` needs — a JSON string would
+  make every tool call raise `TypeError`. An unknown model raises
+  `RuntimeError`; an unknown tool does **not** raise, it returns
+  `"Unknown tool: <name>"`, which a caller that never inspects the result feeds
+  back to the model as a successful tool result. An empty `messages` list is
+  HTTP 200, so `done` alone is not evidence of a usable answer.
+  Two operational facts are worth keeping: `:cloud` models return **HTTP 402**
+  without a paid key and report `size: 0`, so they are excluded from probing and
+  testing; and the first inference pays a **52 s model load** against 0.7 s warm,
+  which is why the test fixture is module-scoped and reuses one model.
+  Live tests are skipped rather than failed when Ollama is absent, because a
+  missing optional service is not a defect — but `NMA_OLLAMA_TESTS=1` makes them
+  required, so a verification run can insist on them.
 
 ---
 
