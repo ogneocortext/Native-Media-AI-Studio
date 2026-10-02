@@ -135,6 +135,11 @@ class SeparationJob:
     status: str = "queued"
     result: SeparationResult | None = None
     error: str | None = None
+    # "single" (one-shot 4-stem) or "hierarchical" (vocal MDX-Net first, then
+    # Demucs on the residual). Set by separate() before enqueueing; the worker
+    # reads it to choose a backend. Hierarchical needs more GPU than single-pass,
+    # which is why it must also go through the serialising worker.
+    mode: str = "single"
 
 
 class SourceSeparator:
@@ -213,12 +218,14 @@ class SourceSeparator:
     async def _run_separation(self, job: SeparationJob) -> SeparationResult:
         """Dispatch to the appropriate backend (hierarchical vs single-pass)."""
         opts = job.options
+        if job.mode == "hierarchical":
+            return await self._separate_hierarchical(job.audio_path, opts)
         if opts.model in ("UVR-MDX-NET-Voc_FT", "Kim_Vocal_2"):
             # MDX-Net vocal-only models: single stem (vocals / instrumental)
             return await self._separate_mdx_net(
                 job.audio_path, opts.model, opts,
             )
-        # Default: hierarchical if requested, else standard Demucs
+        # Default: standard Demucs
         return await self._separate_demucs(
             job.audio_path, opts.model, self._detect_device(), SEPARATION_DIR,
             self._find_demucs() or ["demucs"],
@@ -352,17 +359,37 @@ class SourceSeparator:
         model = options.model
 
         if mode == "hierarchical":
-            return await self._separate_hierarchical(audio_path, options)
+            # Hierarchical runs two models (MDX-Net vocals, then Demucs on the
+            # residual), so it needs MORE of the GPU than single-pass - and it was
+            # previously called directly, outside the queue that exists to serialise
+            # GPU work. Two concurrent hierarchical separations would hold two Demucs
+            # models on an 8 GB card, which is the CUDA OOM the queue prevents.
+            # Enqueue it like any other job rather than adding a second guard.
+            return await self._run_through_queue(audio_path, options, mode="hierarchical")
 
-        # Single-pass via job queue (caps GPU memory)
+        return await self._run_through_queue(audio_path, options, mode="single")
+
+    async def _run_through_queue(
+        self,
+        audio_path: str,
+        options: SeparationOptions,
+        mode: str = "single",
+    ) -> SeparationResult:
+        """Run one separation as a queued job and wait for it to finish.
+
+        All GPU work goes through here so the single worker in `_queue_worker`
+        serialises it. Callers poll the job rather than streaming progress; the
+        frontend polls `get_stems_status` / `get_job` for that.
+        """
         job = self.enqueue(audio_path, options)
+        job.mode = mode
         # Wait for completion — frontend polls get_job for progress
         while job.status not in ("done", "error") and not job.result:
             await asyncio.sleep(0.5)
         if job.error:
-            return SeparationResult(audio_file=audio_path, model=model, stems={},
+            return SeparationResult(audio_file=audio_path, model=options.model, stems={},
                                     duration=0.0, computed_at="", error=job.error)
-        return job.result or SeparationResult(audio_file=audio_path, model=model, stems={},
+        return job.result or SeparationResult(audio_file=audio_path, model=options.model, stems={},
                                               duration=0.0, computed_at="", error="job returned no result")
 
     async def _separate_hierarchical(

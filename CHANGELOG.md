@@ -74,6 +74,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Unnamed track ec2c16`. Collapsing the four into one requires content hashing,
   which is a data decision rather than a rendering one.
 
+### Fixed - Hierarchical separation bypassed the GPU serialising queue
+
+Found by implementing `docs/knowledge/gemini-stem-mixer-ux-2026-10-02/README.md`
+and reading the code rather than the brief.
+
+`SourceSeparator` has a single-worker `asyncio.Queue` explicitly documented as
+*"Process separation jobs serially to cap GPU memory"*. Single-pass separation
+correctly went through it — but `separate(mode="hierarchical")` returned
+`_separate_hierarchical(...)` **before** reaching `enqueue()`, and that method
+calls `_separate_mdx_net` directly. Two concurrent hierarchical separations would
+therefore hold two Demucs models on an 8 GB card: exactly the CUDA OOM the queue
+exists to prevent. Reachable from the UI, since `StemMixer` exposes a
+separation-mode selector.
+
+Hierarchical needs *more* GPU than single-pass (vocal model, then Demucs on the
+residual), so this was the worst case for the unguarded path. Both modes now route
+through one `_run_through_queue` helper, and `SeparationJob` carries the `mode` so
+the worker can pick a backend — previously the worker had no way to know.
+
+Guarded by `tests/test_separation_queue.py`, which fires two hierarchical and one
+single-pass job concurrently and asserts max concurrency is 1. Mutation-checked:
+reverting the routing produces *"backends ran 3 at once; GPU work is not
+serialised"*.
+
+Worth recording about that check: two earlier mutation attempts produced **false
+negatives** — the first replaced `db / 20` in a comment rather than the code, the
+second used a tolerance loose enough that the wrong value still passed. A
+surviving mutant is not evidence the code is correct.
+
+### Added - dB fader scale and macro presets for the stem mixer
+
+Per the same brief: the mixer used a linear 0–1 slider, so a user could not tell
+unity from 0.94, and the brief's corrections are ±1.5 dB — the regime where a
+number is required. Now:
+
+- `-24…+6 dB` faders with a live readout and double-click-to-reset per stem
+- Balanced / Vocal Boost / Karaoke preset pill, plus a ghost Reset
+- Defaults to Balanced (vocals +1.5 / drums 0 / bass −0.5 / other −1.5), so the
+  mixer is better than raw separated stems with zero input
+- Magnetic snap near 0 dB, strict `<` so exactly ±0.5 dB stays reachable
+
+`dbToGain` lives in a new pure module, `stemMixPresets.ts`, converting to linear
+gain only at the `GainNode` boundary — the amplitude-vs-power trap (`/20` vs `/10`)
+now has one home, mutation-checked. 28 unit tests, frontend suite 179 passing.
+
+Two deliberate non-changes, recorded in the brief itself: **EQ stays** (removing a
+working feature is a product decision, not a mechanical one) and no `mp3_url` was
+added, because analysis URLs are never played — only read for `energy_curve`.
+
 ### Added - Stem pipeline test coverage (19 tests)
 
 `docs/knowledge-library/stem-system-evaluation-2026.md` finding 3.5 found the whole

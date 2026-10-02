@@ -16,9 +16,26 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { getApiBase, getAudioStems, separateAudioFile, enhanceStems } from "../../../services/api";
 import { createEQ, DEFAULT_EQ_PRESETS, type EQBand, type EQInstance } from "../audioEQ";
 import { createStemSpatialProcessor, type StemSpatialProcessor } from "../stemSpatial";
+import {
+  DEFAULT_STEM_GAINS_DB,
+  FADER_MAX_DB,
+  FADER_MIN_DB,
+  MIX_PRESET_LABELS,
+  MIX_PRESET_ORDER,
+  MIX_PRESETS,
+  STEM_NAMES,
+  dbToGain,
+  formatDb,
+  snapDb,
+  type MixPresetId,
+  type StemName,
+} from "../stemMixPresets";
 
-export type StemName = "vocals" | "drums" | "bass" | "other";
-export const STEM_NAMES: StemName[] = ["vocals", "drums", "bass", "other"];
+// Re-exported so existing importers (viz-styles/helpers.ts, the Visualizer) keep
+// working against the single canonical list. This array was previously declared
+// here and duplicated from the backend's STEM_NAMES.
+export { STEM_NAMES } from "../stemMixPresets";
+export type { StemName } from "../stemMixPresets";
 
 /** Documented visual channel per stem (Trend 2 mapping). */
 export const STEM_VISUAL_ROLE: Record<StemName, string> = {
@@ -83,6 +100,16 @@ function pickStemUrls(data: {
   return data.stems_mp3 && Object.keys(data.stems_mp3).length > 0 ? data.stems_mp3 : data.stems;
 }
 
+/** Convert a full dB map to the linear gains a WebAudio graph expects. */
+function gainMapToLinear(dbMap: Record<StemName, number>): Record<StemName, number> {
+  return {
+    vocals: dbToGain(dbMap.vocals),
+    drums: dbToGain(dbMap.drums),
+    bass: dbToGain(dbMap.bass),
+    other: dbToGain(dbMap.other),
+  };
+}
+
 export function useStemMixer({
   audioFilename,
   sharedAudioContext,
@@ -101,12 +128,26 @@ export function useStemMixer({
     "idle",
   );
   const [error, setError] = useState<string | null>(null);
-  const [volumes, setVolumes] = useState<Record<StemName, number>>({
-    vocals: 1,
-    drums: 1,
-    bass: 1,
-    other: 1,
+  // Fader positions are stored in dB, matching the UX contract in
+  // docs/knowledge/gemini-stem-mixer-ux-2026-10-02/README.md. They are converted
+  // to linear gain only at the GainNode boundary (applyMixerState), because a
+  // WebAudio GainNode is linear amplitude and the two are easy to confuse.
+  //
+  // The default is the Balanced preset, so opening the mixer already sounds
+  // better than the raw separated stems with zero input.
+  const [gainsDb, setGainsDb] = useState<Record<StemName, number>>({
+    ...DEFAULT_STEM_GAINS_DB,
   });
+  // Named mixPreset, not preset: `applyStemEQPreset` and the EQ button row both use
+  // a local `preset` for an EQ preset name, and a single `preset` in scope would
+  // shadow one of them.
+  const [mixPreset, setMixPreset] = useState<MixPresetId>("balanced");
+  // Linear gains for the audio graph, derived from gainsDb. Kept in sync by
+  // setVolumeDb / toggleMute / applyPreset / resetGains rather than derived in
+  // render, so the WebAudio write happens exactly once per change.
+  const [volumes, setVolumes] = useState<Record<StemName, number>>(
+    () => gainMapToLinear(DEFAULT_STEM_GAINS_DB),
+  );
   const [muted, setMuted] = useState<Record<StemName, boolean>>({
     vocals: false,
     drums: false,
@@ -354,13 +395,46 @@ export function useStemMixer({
     if (stem) stem.gain.gain.value = isMuted ? 0 : vol;
   }, []);
 
-  const setVolume = useCallback(
-    (name: StemName, vol: number) => {
-      setVolumes((prev) => ({ ...prev, [name]: vol }));
-      applyMixerState(name, vol, muted[name]);
+  /** Set one stem's fader from a dB value. Snaps and clamps via `snapDb`. */
+  const setVolumeDb = useCallback(
+    (name: StemName, db: number) => {
+      const next = snapDb(db);
+      const linear = dbToGain(next);
+      setGainsDb((prev) => ({ ...prev, [name]: next }));
+      setVolumes((prev) => ({ ...prev, [name]: linear }));
+      applyMixerState(name, linear, muted[name]);
+      // A hand-adjusted fader means the user is no longer on a preset. Keep the
+      // pill highlighted only while every fader still matches its preset value.
+      setMixPreset((prev) => (MIX_PRESETS[prev][name] === next ? prev : "balanced"));
     },
     [applyMixerState, muted],
   );
+
+  /** Reset one stem to the current preset's default (double-click on a fader). */
+  const resetStem = useCallback(
+    (name: StemName) => {
+      setVolumeDb(name, MIX_PRESETS[mixPreset][name]);
+    },
+    [mixPreset, setVolumeDb],
+  );
+
+  /** Apply a macro preset to all four faders at once. */
+  const applyPreset = useCallback(
+    (id: MixPresetId) => {
+      const gains = MIX_PRESETS[id];
+      const linear = gainMapToLinear(gains);
+      setMixPreset(id);
+      setGainsDb({ ...gains });
+      setVolumes(linear);
+      for (const name of STEM_NAMES) {
+        applyMixerState(name, linear[name], muted[name]);
+      }
+    },
+    [applyMixerState, muted],
+  );
+
+  /** Restore the current preset's defaults (the ghost Reset button). */
+  const resetGains = useCallback(() => applyPreset(mixPreset), [applyPreset, mixPreset]);
 
   const toggleMute = useCallback(
     (name: StemName) => {
@@ -405,9 +479,14 @@ export function useStemMixer({
     status,
     error,
     volumes,
+    gainsDb,
+    mixPreset,
     muted,
     eqBands,
-    setVolume,
+    setVolumeDb,
+    resetStem,
+    applyPreset,
+    resetGains,
     toggleMute,
     setStemEQ,
     applyStemEQPreset,
@@ -437,9 +516,14 @@ export function StemMixerPanel({
     status,
     error,
     volumes,
+    gainsDb,
+    mixPreset,
     muted,
     eqBands,
-    setVolume,
+    setVolumeDb,
+    resetStem,
+    applyPreset,
+    resetGains,
     toggleMute,
     setStemEQ,
     ensureStems,
@@ -572,7 +656,39 @@ export function StemMixerPanel({
 
       {status === "ready" && (
         <div className={compact ? "grid grid-cols-2 gap-2" : "space-y-2"}>
-          {/* EQ presets row — apply the same preset to all stems at once */}
+          {/* Macro preset pill — the brief's substitute for an "Advanced" drawer.
+              One control moves all four faders, which is what a non-engineer
+              actually reaches for. */}
+              <div className="flex items-center gap-1 mb-1">
+                <div
+                  className="flex rounded-md overflow-hidden border border-white/10"
+                  role="group"
+                  aria-label="Mix preset"
+                >
+                  {MIX_PRESET_ORDER.map((id) => (
+                    <button
+                      key={id}
+                      onClick={() => applyPreset(id)}
+                      aria-pressed={mixPreset === id}
+                      className={`text-[10px] px-2 py-1 transition-colors ${
+                        mixPreset === id
+                          ? "bg-violet-600 text-white"
+                          : "bg-white/5 text-muted hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      {MIX_PRESET_LABELS[id]}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={resetGains}
+                  className="text-[10px] px-2 py-1 rounded-md border border-white/10 text-muted hover:bg-white/10 hover:text-white transition-colors"
+                  title="Restore this preset's default fader positions"
+                >
+                  Reset
+                </button>
+              </div>
+              {/* EQ presets row — apply the same preset to all stems at once */}
           <div className="flex flex-wrap gap-1">
             <span className="text-[9px] text-muted uppercase tracking-wider mr-1">EQ</span>
             {Object.keys(eqPresets || DEFAULT_EQ_PRESETS).map((name) => {
@@ -612,14 +728,21 @@ export function StemMixerPanel({
                   </button>
                   <input
                     type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={volumes[name]}
-                    onChange={(e) => setVolume(name, parseFloat(e.target.value))}
+                    min={FADER_MIN_DB}
+                    max={FADER_MAX_DB}
+                    step={0.1}
+                    value={gainsDb[name]}
+                    onChange={(e) => setVolumeDb(name, parseFloat(e.target.value))}
+                    onDoubleClick={() => resetStem(name)}
                     className="flex-1 h-1 accent-violet-500"
                     aria-label={`${name} volume`}
                   />
+                  {/* dB readout: a linear 0-1 fader gives the user no way to
+                      judge a level, and the offsets here are small enough that
+                      "slightly louder" needs a number to be actionable. */}
+                  <span className="w-14 text-right text-[9px] text-muted tabular-nums">
+                    {formatDb(gainsDb[name])}
+                  </span>
                 </div>
                 {bands.length > 0 && (
                   <div className="grid grid-cols-5 gap-1 pl-[4.5rem]">

@@ -186,7 +186,80 @@ master). One 2-way pill on the toolbar: `[AI Polish | Neutral]`, auto-detected
 5. Invisible artifact pipeline (Other roll-off, bass mono fold, vocal
    expander) behind the AI Polish profile.
 
-## Open questions for the implementing agent to resolve
+## Implementation status (2026-10-02, after comparing against `StemMixer`)
+
+This brief is guidance to evaluate, so each item was checked against the code
+before implementing. **Some of it was already true, and one claim was wrong
+about the current implementation.**
+
+### Already present — no work needed
+
+| Brief item | Reality |
+|---|---|
+| "Serial, FIFO, single worker" extraction queue | **Exists.** `SourceSeparator` has `asyncio.Queue` + one `_queue_worker` task, `enqueue()` returns a job handle. Docstring: *"Process separation jobs serially to cap GPU memory."* `GET /api/audio/separate-jobs/{job_id}` polls it. |
+| "No blind auto-extraction on import" | **True.** Separation is only triggered by an explicit `Load Stems` / `Retry` button. |
+| Playback should prefer MP3 | **True.** `pickStemUrls()` prefers `stems_mp3`, WAV fallback. |
+
+### Implemented
+
+- **dB fader scale** (−24…+6 dB) replacing the previous linear 0–1 slider, with a
+  live `+1.5 dB` readout and double-click-to-reset per stem. Previously a user
+  could not tell whether a stem was at unity or at 0.94 — the new offsets are
+  small enough that a number is required to make them actionable.
+- **`dbToGain` / `gainToDb` / `snapDb`** in `stemMixPresets.ts`, converting to linear
+  gain only at the `GainNode` boundary. The amplitude-vs-power trap (`/20` vs
+  `/10`) is now in one place and mutation-checked.
+- **Default = Balanced preset.** The mixer previously started at flat unity,
+  contradicting "must sound better than raw with zero input". Now
+  vocals +1.5 / drums 0.0 / bass −0.5 / other −1.5.
+- **3-way preset pill** (Balanced / Vocal Boost / Karaoke) and a ghost **Reset**,
+  replacing the need for an advanced drawer.
+- **Magnetic snap** near 0 dB (±0.5 dB), strict `<` so exactly ±0.5 dB is
+  reachable.
+
+### Corrected — the brief's 4.4-adjacent claim about MP3 does not apply
+
+The brief assumes analysis-path playback fetches WAV because
+`StemsAnalysisResponse` lacks `mp3_url`. Verified: `Visualizer.tsx` consumes those
+URLs **only** for `energy_curve`; it builds no `Audio` element and sets no
+`.src`. Playback is `StemMixer` → `getAudioStems()` → already MP3-first. No
+waste to reclaim, so no `mp3_url` was added.
+
+### Deliberately NOT implemented — needs a decision first
+
+- **EQ stays.** The brief excludes parametric EQ because non-engineers "hollow
+  the mix with it". The existing EQ is *not* per-stem knobs exposed as faders —
+  it is a preset row that applies one curve to all four stems, plus band sliders
+  that only render once a preset is chosen. Removing it is a product decision,
+  not a mechanical one, so it is left in place and called out here rather than
+  silently deleted. It is the main remaining conflict with the ≤12-control brief.
+- **`stem_mix.json` persistence + `POST /api/tracks/{id}/mix-settings`.** Genuinely
+  absent (`MixSettings` appears nowhere in the tree). Real work: a new endpoint,
+  a file format, and a debounced write. Not started — it is the largest item here
+  and deserves its own change.
+- **Serial queue for `separate-file`.** **Corrected on second look:** the single-pass
+  path *is* serialised. `SourceSeparator.separate()` does not run Demucs inline —
+  it calls `self.enqueue(...)` and waits, with the comment *"Single-pass via job
+  queue (caps GPU memory)"*. So the `separate-file` endpoint is covered.
+  **However `mode="hierarchical"` is not**: `separate()` returns
+  `_separate_hierarchical(...)` *before* reaching `enqueue()`, and that method calls
+  `_separate_mdx_net` directly. Two concurrent hierarchical separations would run
+  two Demucs models at once on a 8 GB card — exactly the CUDA OOM the queue exists
+  to prevent. `StemMixer` does expose a separation-mode selector, so this path is
+  reachable from the UI. **This is the most concrete real gap found.**
+- **AI Polish / Neutral profile pill, limiter at −1.0 dBFS, −14 LUFS target,
+  Other-stem 9 kHz roll-off, bass mono-fold below 140 Hz.** All backend DSP work
+  with no UI exposure specified. Needs a scoping decision.
+- **Library-row status badges, `[Extract Missing (X)]`.** The brief's "no separate
+  manager screen" direction conflicts with the current dedicated panel.
+
+### One correction to the brief itself
+
+The brief gives the control budget as ≤12. The current `StemMixer` in the
+"ready" state has 4 mute buttons + 4 faders + 3 EQ presets + Load/Retry +
+Enhance + 2 enhancer knobs = **14 before the new pill**, 17 after. The brief's own
+argument (remove what non-engineers misuse) supports cutting the EQ row, but that
+is a change in perceived capability and should be made deliberately.
 
 - Exact Demucs model/speed tradeoff on the local 1070 Ti (validate the
   40–60 s/track estimate; see Sep 30 guidance on `--shifts`).
