@@ -459,8 +459,9 @@ For `packages/frontend` / `three-js-studio` in this repo:
 - [ ] Wire `KTX2Loader.detectSupport` after `renderer.init()`
 - [ ] Keep audio updates outside React state (`useFrame` + refs, reuse `Float32Array`)
 - [ ] Add predictive beat hook (adaptive oscillator) alongside bass-spike detector
-- [ ] Implement per-drum shockwave mode (kick/slow thick, snare/fast shear, hat/flash)
-- [ ] Add genre-aware presets (EDM neon, Lo-Fi warm, R&B reflective)
+- [x] Implement per-drum shockwave mode (kick/slow thick, snare/fast shear, hat/flash) — **COMPLETED 2026-10-01**
+- [x] Add genre-aware presets (EDM neon, Lo-Fi warm, R&B reflective) — **ALREADY IMPLEMENTED**
+- [x] Add perceptual frequency scales (Bark/Mel/ERB) for better human pitch perception — **COMPLETED 2026-10-01**
 - [ ] Profile: `renderer.info` draw calls <100, 60fps, dispose traversal
 
 ---
@@ -493,4 +494,4 @@ For `packages/frontend` / `three-js-studio` in this repo:
 
 ---
 
-_Last updated: 2026-08-29 — WebGPU Baseline, TSL compute, Blender 5.2 LTS, 8 open-source engines_
+_Last updated: 2026-10-01 — Per-drum shockwaves implemented, perceptual frequency scales added (Bark/Mel/ERB)_

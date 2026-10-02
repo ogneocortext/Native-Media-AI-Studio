@@ -131,3 +131,66 @@ export function fbm(x: number, y: number, t: number, octaves = 4): number {
 export function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
 }
+
+// ============================================================================
+// Perceptual frequency scales (2026 research additions)
+// ============================================================================
+
+/** Convert Hz to Bark scale (critical bands for masking/loudness). */
+export function hzToBark(hz: number): number {
+  return 13 * Math.atan(0.00076 * hz) + 3.5 * Math.atan(Math.pow(hz / 7500, 2));
+}
+
+/** Convert Hz to ERB scale (equivalent rectangular bandwidth). */
+export function hzToERB(hz: number): number {
+  return 21.4 * Math.log10(1 + 0.00437 * hz);
+}
+
+/** Convert Hz to Mel scale (pitch perception for speech recognition). */
+export function hzToMel(hz: number): number {
+  return 2595 * Math.log10(1 + hz / 700);
+}
+
+/** Map a bar index to an FFT bin using Bark scale (critical bands).
+ *  Better for masking-aware visualization than linear or simple log. */
+export function barkFreqMap(
+  barIndex: number,
+  barCount: number,
+  freqLength: number,
+  sampleRate = 44100,
+): number {
+  const len = Math.max(1, freqLength);
+  const nyquist = sampleRate / 2;
+  const t = barCount > 1 ? barIndex / (barCount - 1) : 0;
+
+  // Map to Bark range: ~1 Bark (20 Hz) to ~24 Bark (Nyquist)
+  const minBark = hzToBark(20);
+  const maxBark = hzToBark(nyquist);
+  const bark = minBark + t * (maxBark - minBark);
+
+  // Convert back to Hz, then to FFT bin index
+  const hz = (Math.pow(10, bark / 21.4) - 1) / 0.00437;
+  return Math.min(len, Math.max(0, (hz / nyquist) * len));
+}
+
+/** Map a bar index to an FFT bin using Mel scale (pitch perception).
+ *  Best for vocal-heavy content and speech recognition applications. */
+export function melFreqMap(
+  barIndex: number,
+  barCount: number,
+  freqLength: number,
+  sampleRate = 44100,
+): number {
+  const len = Math.max(1, freqLength);
+  const nyquist = sampleRate / 2;
+  const t = barCount > 1 ? barIndex / (barCount - 1) : 0;
+
+  // Map to Mel range: ~0 Mel (20 Hz) to ~4000 Mel (Nyquist)
+  const minMel = hzToMel(20);
+  const maxMel = hzToMel(nyquist);
+  const mel = minMel + t * (maxMel - minMel);
+
+  // Convert back to Hz, then to FFT bin index
+  const hz = 700 * (Math.pow(10, mel / 2595) - 1);
+  return Math.min(len, Math.max(0, (hz / nyquist) * len));
+}

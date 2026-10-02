@@ -18,7 +18,7 @@ src/features/visualizer/
 ├── Visualizer.tsx              ~1,950 — top-level stage orchestration + JSX
 ├── Canvas2DVisualizer.tsx      ~1,450 — 2D draw loop + JSX
 ├── visualizerHelpers.ts          179 — pure: file refs, payload narrowing
-├── canvas2dHelpers.ts            124 — pure: colour lerp, easing, noise/FBM
+├── canvas2dHelpers.ts            187 — pure: colour lerp, easing, noise/FBM, Bark/Mel/ERB scales
 ├── useAudioGraph.ts              178 — shared AudioContext graph
 ├── useVisualizerRecording.ts     156 — MP4/WebCodecs capture, WebM fallback
 ├── useSpectralTimeline.ts        — per-frame spectral timeline lookup

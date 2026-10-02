@@ -10,6 +10,11 @@ import {
   clamp,
   valueNoise,
   fbm,
+  hzToBark,
+  hzToERB,
+  hzToMel,
+  barkFreqMap,
+  melFreqMap,
 } from "./canvas2dHelpers";
 
 /**
@@ -241,6 +246,48 @@ describe("noise", () => {
 
   it("fbm tolerates a zero-octave request", () => {
     expect(fbm(1, 2, 3, 0)).toBe(0);
+  });
+});
+
+describe("perceptual scales", () => {
+  it("converts Hz to Bark, ERB, and Mel monotonically", () => {
+    const freqs = [100, 500, 1000, 4000, 10000];
+    for (let i = 1; i < freqs.length; i++) {
+      expect(hzToBark(freqs[i])).toBeGreaterThan(hzToBark(freqs[i - 1]));
+      expect(hzToERB(freqs[i])).toBeGreaterThan(hzToERB(freqs[i - 1]));
+      expect(hzToMel(freqs[i])).toBeGreaterThan(hzToMel(freqs[i - 1]));
+    }
+  });
+
+  it("barkFreqMap produces valid bin indices in range", () => {
+    const barCount = 32;
+    const freqLen = 1024;
+    for (let i = 0; i < barCount; i++) {
+      const bin = barkFreqMap(i, barCount, freqLen);
+      expect(Number.isFinite(bin)).toBe(true);
+      expect(bin).toBeGreaterThanOrEqual(0);
+      expect(bin).toBeLessThanOrEqual(freqLen);
+    }
+  });
+
+  it("melFreqMap produces valid bin indices in range", () => {
+    const barCount = 32;
+    const freqLen = 1024;
+    for (let i = 0; i < barCount; i++) {
+      const bin = melFreqMap(i, barCount, freqLen);
+      expect(Number.isFinite(bin)).toBe(true);
+      expect(bin).toBeGreaterThanOrEqual(0);
+      expect(bin).toBeLessThanOrEqual(freqLen);
+    }
+  });
+
+  it("barkFreqMap and melFreqMap increase monotonically with bar index", () => {
+    const barCount = 16;
+    const freqLen = 512;
+    for (let i = 1; i < barCount; i++) {
+      expect(barkFreqMap(i, barCount, freqLen)).toBeGreaterThan(barkFreqMap(i - 1, barCount, freqLen));
+      expect(melFreqMap(i, barCount, freqLen)).toBeGreaterThan(melFreqMap(i - 1, barCount, freqLen));
+    }
   });
 });
 });

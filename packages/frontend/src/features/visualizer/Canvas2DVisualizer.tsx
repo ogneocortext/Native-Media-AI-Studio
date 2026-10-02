@@ -1,16 +1,18 @@
-import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState } from "react";
-import type { AudioData } from "./types";
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import {
-  normalizeHex,
-  hexToRgb,
-  lerpColor,
-  hslToRgb,
+  barkFreqMap,
+  clamp,
   easeOutBack,
   easeOutQuad,
-  logFreqMap,
   fbm,
-  clamp,
+  hexToRgb,
+  hslToRgb,
+  lerpColor,
+  logFreqMap,
+  melFreqMap,
+  normalizeHex,
 } from "./canvas2dHelpers";
+import type { AudioData } from "./types";
 
 export interface Canvas2DVisualizerRef {
   captureScreenshot: () => string | null;
@@ -51,6 +53,8 @@ interface Props {
   onAnalysis?: (result: { text: string; model: string; mode: string }) => void;
   /** Honor OS reduced-motion preference — scales down phraseFlash, beat vignette, and trail persistence. */
   prefersReducedMotion?: boolean;
+  /** Perceptual frequency scale for bar mapping (2026 research: bark/erb/mel for better human pitch perception). */
+  perceptualScale?: "linear" | "log" | "bark" | "mel";
 }
 
 /**
@@ -86,6 +90,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       bgColor = "#050505",
       onAnalysis,
       prefersReducedMotion = false,
+      perceptualScale = "log",
     }: Props,
     ref,
   ) {
@@ -181,27 +186,70 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         alpha: number;
         hue: number;
         lineWidth: number;
+        speed: number;
+        shear: number;
       }[] = [];
       const MAX_SHOCKWAVES = 8;
       function spawnShockwave(w: number, h: number, drumType?: string) {
         if (shockwaves.length >= MAX_SHOCKWAVES) return;
         const cx = w / 2 + (Math.random() - 0.5) * w * 0.4;
         const cy = h / 2 + (Math.random() - 0.5) * h * 0.3;
-        const isKick = drumType === "kick" || !drumType;
+
+        // Per-drum differentiation per 2026 research:
+        // kick = slower/thicker, snare = fast/sheared, hat = flash
+        let radius, maxRadius, alpha, hue, lineWidth, speed, shear;
+
+        if (drumType === "kick") {
+          radius = 4;
+          maxRadius = Math.min(w, h) * 0.5;
+          alpha = 0.6;
+          hue = 0;
+          lineWidth = 2.5;
+          speed = 0.08;
+          shear = 0;
+        } else if (drumType === "snare") {
+          radius = 2;
+          maxRadius = Math.min(w, h) * 0.35;
+          alpha = 0.45;
+          hue = 200;
+          lineWidth = 1.8;
+          speed = 0.12;
+          shear = 0.15;
+        } else if (drumType === "hat") {
+          radius = 1;
+          maxRadius = Math.min(w, h) * 0.2;
+          alpha = 0.7;
+          hue = 240;
+          lineWidth = 1.0;
+          speed = 0.2;
+          shear = 0;
+        } else {
+          // Fallback for unknown drum type
+          radius = 2;
+          maxRadius = Math.min(w, h) * 0.25;
+          alpha = 0.35;
+          hue = 180;
+          lineWidth = 1.5;
+          speed = 0.08;
+          shear = 0;
+        }
+
         shockwaves.push({
           x: cx,
           y: cy,
-          radius: isKick ? 4 : 2,
-          maxRadius: isKick ? Math.min(w, h) * 0.5 : Math.min(w, h) * 0.25,
-          alpha: isKick ? 0.6 : 0.35,
-          hue: isKick ? 0 : 180,
-          lineWidth: isKick ? 2.5 : 1.5,
+          radius,
+          maxRadius,
+          alpha,
+          hue,
+          lineWidth,
+          speed,
+          shear,
         });
       }
       function updateShockwaves(motionScale: number) {
         for (let i = shockwaves.length - 1; i >= 0; i--) {
           const s = shockwaves[i];
-          s.radius += (s.maxRadius - s.radius) * 0.08 * motionScale;
+          s.radius += (s.maxRadius - s.radius) * s.speed * motionScale;
           s.alpha -= 0.015 * motionScale;
           if (s.alpha <= 0 || s.radius >= s.maxRadius) {
             shockwaves.splice(i, 1);
@@ -214,8 +262,20 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           ctx.strokeStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${clamp(s.alpha, 0, 1)})`;
           ctx.lineWidth = s.lineWidth * dpr;
           ctx.beginPath();
-          ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
-          ctx.stroke();
+
+          if (s.shear > 0) {
+            // Apply shear transformation for snare (tangential shear effect)
+            ctx.save();
+            ctx.translate(s.x, s.y);
+            ctx.transform(1, s.shear, 0, 1, 0, 0);
+            ctx.translate(-s.x, -s.y);
+            ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          } else {
+            ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+            ctx.stroke();
+          }
         }
       }
 
@@ -535,10 +595,17 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           }
           const barGradients = getGradients(mode, colors);
           const baseY = Math.round(h * 0.88);
+          // Perceptual frequency scale selection (2026 research)
+          const freqLen = freq?.length || 1024;
+          const freqMap = (idx: number) => {
+            const scale = perceptualScale || "log";
+            if (scale === "bark") return barkFreqMap(idx, barCount, freqLen);
+            if (scale === "mel") return melFreqMap(idx, barCount, freqLen);
+            if (scale === "linear") return (idx / barCount) * freqLen;
+            return logFreqMap(idx, barCount, freqLen); // default log
+          };
           for (let i = 0; i < barCount; i++) {
-            const rawV =
-              freq[Math.min(freq.length - 1, Math.floor(logFreqMap(i, barCount, freq.length)))] /
-              255;
+            const rawV = (freq?.[Math.min(freqLen - 1, Math.floor(freqMap(i)))] || 0) / 255;
             const boosted =
               rawV +
               phraseFlash * 0.35 +
@@ -644,10 +711,16 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           const barGradients = getGradients(mode, colors);
           const centerY = Math.round(h * 0.5);
           const maxBarH = h * 0.38;
+          const freqLen = freq?.length || 1024;
+          const freqMap = (idx: number) => {
+            const scale = perceptualScale || "log";
+            if (scale === "bark") return barkFreqMap(idx, barCount, freqLen);
+            if (scale === "mel") return melFreqMap(idx, barCount, freqLen);
+            if (scale === "linear") return (idx / barCount) * freqLen;
+            return logFreqMap(idx, barCount, freqLen);
+          };
           for (let i = 0; i < barCount; i++) {
-            const v =
-              freq[Math.min(freq.length - 1, Math.floor(logFreqMap(i, barCount, freq.length)))] /
-              255;
+            const v = (freq?.[Math.min(freqLen - 1, Math.floor(freqMap(i)))] || 0) / 255;
             const boosted =
               v +
               phraseFlash * 0.35 +
@@ -727,10 +800,16 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           if (!barVelocities || barVelocities.length !== barCount) {
             barVelocities = new Array(barCount).fill(0);
           }
+          const freqLen = freq?.length || 1024;
+          const freqMap = (idx: number) => {
+            const scale = perceptualScale || "log";
+            if (scale === "bark") return barkFreqMap(idx, barCount, freqLen);
+            if (scale === "mel") return melFreqMap(idx, barCount, freqLen);
+            if (scale === "linear") return (idx / barCount) * freqLen;
+            return logFreqMap(idx, barCount, freqLen);
+          };
           for (let i = 0; i < barCount; i++) {
-            const v =
-              freq[Math.min(freq.length - 1, Math.floor(logFreqMap(i, barCount, freq.length)))] /
-              255;
+            const v = (freq?.[Math.min(freqLen - 1, Math.floor(freqMap(i)))] || 0) / 255;
             const boosted =
               v +
               phraseFlash * 0.35 +
@@ -790,13 +869,19 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           if (!barVelocities || barVelocities.length !== barCount) {
             barVelocities = new Array(barCount).fill(0);
           }
+          const freqLen = freq?.length || 1024;
+          const freqMap = (idx: number) => {
+            const scale = perceptualScale || "log";
+            if (scale === "bark") return barkFreqMap(idx, barCount, freqLen);
+            if (scale === "mel") return melFreqMap(idx, barCount, freqLen);
+            if (scale === "linear") return (idx / barCount) * freqLen;
+            return logFreqMap(idx, barCount, freqLen);
+          };
           for (const band of bands) {
             ctx.fillStyle = band.color + "18";
             ctx.fillRect(0, baseY - 2 * dpr, w, 2 * dpr);
             for (let i = band.start; i < band.end; i++) {
-              const v =
-                freq[Math.min(freq.length - 1, Math.floor(logFreqMap(i, barCount, freq.length)))] /
-                255;
+              const v = (freq?.[Math.min(freqLen - 1, Math.floor(freqMap(i)))] || 0) / 255;
               const boosted =
                 v +
                 phraseFlash * 0.35 +
@@ -861,6 +946,14 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           if (!barVelocities || barVelocities.length !== barCount) {
             barVelocities = new Array(barCount).fill(0);
           }
+          const freqLen = freq?.length || 1024;
+          const freqMap = (idx: number) => {
+            const scale = perceptualScale || "log";
+            if (scale === "bark") return barkFreqMap(idx, barCount, freqLen);
+            if (scale === "mel") return melFreqMap(idx, barCount, freqLen);
+            if (scale === "linear") return (idx / barCount) * freqLen;
+            return logFreqMap(idx, barCount, freqLen);
+          };
           for (let i = 0; i < barCount; i++) {
             const x = Math.round(i * barW);
             const bw = Math.round(barW) - 2;
@@ -869,12 +962,9 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             let topY = baseY;
             let stackH = 0;
             for (const layer of layers) {
-              const idx = Math.min(layer.start + i, freq.length - 1);
-              const logIdx = Math.min(
-                freq.length - 1,
-                Math.floor(logFreqMap(idx, freq.length, freq.length)),
-              );
-              const v = freq[logIdx] / 255;
+              const idx = Math.min(layer.start + i, freqLen - 1);
+              const logIdx = Math.min(freqLen - 1, Math.floor(freqMap(idx)));
+              const v = (freq?.[logIdx] || 0) / 255;
               const boosted =
                 v +
                 phraseFlash * 0.35 +
@@ -907,8 +997,8 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             // Beat glow on top layer
             if (d.beat) {
               const topLayer = layers[layers.length - 1];
-              const idx = Math.min(topLayer.start + i, freq.length - 1);
-              const v = freq[idx] / 255;
+              const idx = Math.min(topLayer.start + i, freqLen - 1);
+              const v = (freq?.[idx] || 0) / 255;
               if (v > 0.35) {
                 ctx.shadowColor = topLayer.color;
                 ctx.shadowBlur = 6 * dpr;
@@ -929,10 +1019,16 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           if (!barVelocities || barVelocities.length !== barCount) {
             barVelocities = new Array(barCount).fill(0);
           }
+          const freqLen = freq?.length || 1024;
+          const freqMap = (idx: number) => {
+            const scale = perceptualScale || "log";
+            if (scale === "bark") return barkFreqMap(idx, barCount, freqLen);
+            if (scale === "mel") return melFreqMap(idx, barCount, freqLen);
+            if (scale === "linear") return (idx / barCount) * freqLen;
+            return logFreqMap(idx, barCount, freqLen);
+          };
           for (let i = 0; i < cols; i++) {
-            const v =
-              freq[Math.min(freq.length - 1, Math.floor(logFreqMap(i, barCount, freq.length)))] /
-              255;
+            const v = (freq?.[Math.min(freqLen - 1, Math.floor(freqMap(i)))] || 0) / 255;
             const boosted =
               v +
               phraseFlash * 0.35 +
@@ -1147,18 +1243,16 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           ctx.fillStyle = bg;
           ctx.fillRect(specW - sliceW, 0, sliceW, specH);
           // Draw new slice on the right — perceptual (log) frequency mapping
+          const freqLen = freq?.length || 1024;
           for (let py = 0; py < specH; py++) {
             const t = py / specH; // 1 at top (high freq), 0 at bottom (low freq)
             // Inverse log map: invert the logFreqMap curve to get linear Y → log bin
             const minLog = Math.log(1);
-            const maxLog = Math.log(freq.length);
+            const maxLog = Math.log(freqLen);
             const logT = minLog + t * (maxLog - minLog);
-            const linearT = (Math.exp(logT) - 1) / (freq.length - 1);
-            const binIdx = Math.min(
-              freq.length - 1,
-              Math.max(0, Math.floor(linearT * freq.length)),
-            );
-            const v = freq[binIdx] / 255;
+            const linearT = (Math.exp(logT) - 1) / (freqLen - 1);
+            const binIdx = Math.min(freqLen - 1, Math.max(0, Math.floor(linearT * freqLen)));
+            const v = (freq?.[binIdx] || 0) / 255;
             if (v < 0.02) continue;
             // Palette-aware coloring: blend between palette colors by amplitude
             const colorIdx = clamp(v * (colors.length - 1), 0, colors.length - 1);

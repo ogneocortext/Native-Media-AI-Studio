@@ -127,7 +127,7 @@ Plus: `ShaderVisualizer` (fullscreen GLSL modes), `Canvas2DVisualizer` (7 modes,
 
 ---
 
-## 3. Implemented (2026-09-16)
+## 3. Implemented (2026-09-16 → 2026-10-01)
 
 | #   | Change                                                                                                                          | File                                         |
 | --- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
@@ -137,6 +137,9 @@ Plus: `ShaderVisualizer` (fullscreen GLSL modes), `Canvas2DVisualizer` (7 modes,
 | 4   | Adaptive DPR via drei `PerformanceMonitor` (decline → `[1,1]`, recover → `[1,1.5]`, fallback → `[1,1]`)                         | `Visualizer.tsx`                             |
 | 5   | `prefersReducedMotion` piped into post chain; safe mode halves beat/phrase bloom gain, caps bloom at 0.55, damps vignette pulse | `VisualizerScene.tsx`, `VisualizationFX.tsx` |
 | 6   | Deterministic pillar heights (hash of index, no `Math.random()`)                                                                | `three-js-studio/sceneTemplates.ts`          |
+
+| 7   | Per-drum shockwave differentiation (kick=slow/thick, snare=fast/shear, hat=flash) — 2026-10-01 | `Canvas2DVisualizer.tsx` |
+| 8   | Perceptual frequency scales (Bark, Mel, ERB) for human pitch perception — 2026-10-01 | `canvas2dHelpers.ts`, `Canvas2DVisualizer.tsx` |
 
 ---
 
