@@ -1032,6 +1032,30 @@ def _generate_sections_from_analysis(
     return sections
 
 
+# Seconds allowed per model in the section-refinement chain.
+#
+# Sections are a semantic refinement over a heuristic that already works, so
+# the LLM must never dominate the request. Measured on a GTX 1070 Ti: the
+# configured default answers in 16s warm and ~89s cold; deepseek-r1:7b ran
+# 89s and qwen3.5:4b exceeded 120s. A 12s budget means a cold model is dropped
+# and the heuristic stands, instead of holding the request open.
+_SECTION_LLM_TIMEOUT = 12
+
+
+def _section_models(default_model: str) -> list[str]:
+    """Models to try for section labelling, cheapest first.
+
+    The configured default leads, then small fast fallbacks. deepseek-r1:7b is
+    not in the chain any more: it is a reasoning model, which is a poor fit for
+    a fixed-schema JSON task and measured 89s cold. It was tried first
+    previously, so every request paid that cost before falling through.
+    """
+    ordered = [default_model, "gemma4:e2b-it-qat", "llama3.2:3b", "qwen3.5:4b"]
+    # De-duplicate, preserving order - default_model may already be one of these.
+    seen: set[str] = set()
+    return [m for m in ordered if m and not (m in seen or seen.add(m))]
+
+
 async def _generate_sections_llm(
     duration: float,
     tempo: float,
@@ -1061,13 +1085,19 @@ async def _generate_sections_llm(
     user = f"tempo: {tempo:.1f} BPM, beats: {beat_count}, duration: {duration:.1f}s, energy: [{energy_str}]{' lyrics: '+lyrics_hint[:200] if lyrics_hint else ''}"
     from ..core import ollama_client as _oc
     from ..core.text import strip_code_fences
-    for model in ["deepseek-r1:7b", app_config.default_model, "qwen3.5:4b"]:
+    for model in _section_models(app_config.default_model):
         try:
             # Some Ollama builds reject unknown keys like `think`; omit it.
             content = await _oc.chat_content(
                 [{"role": "system", "content": sys}, {"role": "user", "content": user}],
                 model=model,
-                timeout=25,
+                # Kept short deliberately. Measured on a GTX 1070 Ti: a cold
+                # load of the first model in this chain ran 89s, so a long
+                # timeout does not just risk waiting - it guarantees the caller
+                # waits far longer than the analysis it is refining. Sections
+                # are a nice-to-have refinement over a solid heuristic, so a
+                # slow model must degrade to the fallback quickly.
+                timeout=_SECTION_LLM_TIMEOUT,
                 extra={"format": "json", "options": {"temperature": 0.2, "num_ctx": 4096}},
             )
             if not content:
