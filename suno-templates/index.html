@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="icon" href="data:," />
+  <title>Suno v6-mini Templates</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      color-scheme:light dark;
+      --bg:#f2f5f6;--surface:#ffffff;--surface-2:#e8eef0;--ink:#102229;--muted:#51656d;
+      --line:#c6d2d6;--cyan:#007f88;--cyan-soft:#d5f1f1;--amber:#b85f00;--amber-soft:#fff0d8;
+      --good:#19733d;--good-soft:#dff3e7;--danger:#a82b32;--danger-soft:#ffe5e6;--shadow:0 16px 45px rgba(24,50,58,.10);
+    }
+    @media(prefers-color-scheme:dark){:root{
+      --bg:#0d1417;--surface:#141f23;--surface-2:#1c2a2f;--ink:#edf5f6;--muted:#a8b9be;
+      --line:#34464c;--cyan:#51c8cf;--cyan-soft:#11383c;--amber:#ffb45d;--amber-soft:#3d2b18;
+      --good:#71d894;--good-soft:#173823;--danger:#ff969b;--danger-soft:#402125;--shadow:0 18px 55px rgba(0,0,0,.28);
+    }}
+    *{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",sans-serif;line-height:1.5}
+    button,input,textarea,select{font:inherit;color:inherit} button{cursor:pointer}
+    .shell{width:min(1180px,100%);margin:0 auto;padding:clamp(20px,4vw,52px) clamp(16px,4vw,38px) 72px}
+    .hero{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(270px,.75fr);gap:24px;align-items:end;padding:18px 0 30px;border-bottom:1px solid var(--line)}
+    .hero h1{font-size:clamp(2rem,5.5vw,4.25rem);line-height:.98;letter-spacing:-.055em;margin:0;max-width:780px}
+    .hero h1 em{font-style:normal;color:var(--cyan)}
+    .hero p{margin:18px 0 0;max-width:700px;font-size:clamp(1rem,2vw,1.18rem);color:var(--muted)}
+    .credit-note{background:var(--amber-soft);border:1px solid color-mix(in srgb,var(--amber) 30%,var(--line));padding:18px 19px;border-radius:18px 18px 5px 18px}
+    .credit-note strong{display:block;color:var(--amber);font:600 .78rem "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
+    .credit-note p{margin:0;color:var(--ink);font-size:.95rem}
+    .credit-note small{display:block;color:var(--muted);margin-top:8px}
+    .guardrail{margin:22px 0 30px;display:grid;grid-template-columns:1.3fr repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px 20px 20px 20px;overflow:hidden}
+    .rule{padding:18px;background:var(--surface)} .rule b{display:block;margin-bottom:5px}.rule span{color:var(--muted);font-size:.92rem}
+    .rule.stop{background:var(--danger-soft)}.rule.stop b{color:var(--danger)}
+    .section-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:32px 0 13px}.section-head h2{margin:0;font-size:1.35rem;letter-spacing:-.025em}.section-head p{margin:0;color:var(--muted);font-size:.9rem}
+    .templates{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+    .template{border:1px solid var(--line);background:var(--surface);padding:16px;text-align:left;border-radius:8px 18px 8px 8px;min-height:142px;transition:border-color .15s,background .15s}
+    .template:hover{border-color:var(--cyan)}.template[aria-pressed="true"]{border:2px solid var(--cyan);background:var(--cyan-soft);padding:15px}
+    .template .num{font:600 .72rem "IBM Plex Mono",monospace;color:var(--cyan)}.template b{display:block;font-size:1rem;margin:8px 0 5px}.template span{display:block;color:var(--muted);font-size:.87rem;line-height:1.35}
+    .workspace{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(320px,.95fr);gap:18px;align-items:start;margin-top:18px}
+    .panel{background:var(--surface);border:1px solid var(--line);border-radius:8px 24px 8px 8px;box-shadow:var(--shadow)}
+    .panel-head{padding:20px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;align-items:center}.panel-head h2{font-size:1.15rem;margin:0}.panel-head span{color:var(--muted);font:500 .75rem "IBM Plex Mono",monospace}
+    .panel-body{padding:20px 22px}.fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field.full{grid-column:1/-1}
+    .flow-authoring[hidden],.suno-authoring[hidden]{display:none}.flow-authoring textarea{min-height:210px}.flow-authoring.lyrics textarea{min-height:360px}.flow-help{margin:0 0 12px;color:var(--muted);font-size:.88rem}
+    label{display:block;font-weight:600;font-size:.84rem;margin-bottom:6px}.hint{font-weight:400;color:var(--muted);margin-left:5px}
+    input,textarea,select{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:7px;padding:11px 12px;outline:none}.fields input{min-height:44px}input:focus,textarea:focus,select:focus{border-color:var(--cyan);box-shadow:0 0 0 3px color-mix(in srgb,var(--cyan) 16%,transparent)}
+    textarea{resize:vertical;min-height:94px;line-height:1.45}.lyric-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.lyric-grid .wide{grid-column:1/-1}
+    .output-panel{position:sticky;top:12px;overflow:hidden}.output-tabs{display:flex;gap:0;border-bottom:1px solid var(--line);background:var(--surface-2)}
+    .tab{flex:1;border:0;border-right:1px solid var(--line);background:transparent;padding:12px 8px;font-weight:600}.tab:last-child{border-right:0}.tab[aria-selected="true"]{background:var(--surface);color:var(--cyan)}
+    .output-view{display:none;padding:18px}.output-view.active{display:block}.output-box{white-space:pre-wrap;word-break:break-word;background:#0b171a;color:#d9eff1;border:1px solid #2d474e;border-radius:7px;padding:15px;min-height:218px;max-height:420px;overflow:auto;font:400 .82rem/1.55 "IBM Plex Mono",monospace}
+    @media(prefers-color-scheme:light){.output-box{background:#10252a;color:#e7f5f6}}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.btn{border:1px solid var(--line);background:var(--surface);padding:9px 13px;border-radius:7px;font-weight:600;font-size:.86rem}.btn.primary{background:var(--cyan);border-color:var(--cyan);color:#061719}.btn:hover{filter:brightness(.96)}
+    .count{display:flex;justify-content:space-between;gap:10px;color:var(--muted);font:500 .72rem "IBM Plex Mono",monospace;margin-top:7px}.count .over{color:var(--danger)}
+    .preflight-controls{padding:18px;border-bottom:1px solid var(--line);background:var(--surface-2)}.preflight-controls label{margin-bottom:6px}.flow-settings{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.flow-settings[hidden]{display:none}.checks{padding:0 18px 18px}.check{display:flex;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:.87rem}.check:first-child{border-top:0}.dot{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:none;background:var(--good)}.check.warn .dot{background:var(--amber)}.check.bad .dot{background:var(--danger)}.check span{color:var(--muted)}.manual-checks{border-top:1px solid var(--line);padding:16px 18px 18px}.manual-checks[hidden]{display:none}.manual-checks h3{font-size:.92rem;margin:0 0 9px}.manual-item{display:flex;align-items:flex-start;gap:9px;color:var(--muted);font-size:.84rem;padding:6px 0}.manual-item input{width:17px;height:17px;flex:none;margin:2px 0 0;accent-color:var(--cyan)}
+    .field-note{background:var(--danger-soft);color:var(--danger);padding:11px 12px;border-radius:7px;font-size:.86rem;margin-bottom:14px}.field-note code{font-family:"IBM Plex Mono",monospace;font-weight:600}
+    .reference{margin-top:30px;padding:26px 0;border-top:1px solid var(--line)}.reference-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:24px}.reference h2{margin:0 0 12px;font-size:1.25rem}.reference ul{margin:0;padding-left:20px;color:var(--muted)}.reference li{margin:8px 0}.sources{background:var(--surface-2);padding:18px;border-radius:18px 6px 18px 6px}.sources a{color:var(--cyan);text-decoration-thickness:1px;text-underline-offset:3px}.sources p{font-size:.82rem;color:var(--muted);margin:10px 0 0}
+    .output-box.mini{min-height:44px;max-height:110px}.exclude-wrap{margin-top:14px}
+    .lib-form{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:14px}.lib-form .lib-wide{grid-column:1/-1}.lib-form textarea{min-height:74px}
+    #libList{margin-top:6px}.lib-entry{border-top:1px solid var(--line);padding:14px 0}.lib-meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.lib-note{color:var(--muted);font-size:.85rem}
+    .badge{display:inline-block;padding:2px 9px;border-radius:999px;font:600 .7rem "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.05em}.badge.hit{background:var(--good-soft);color:var(--good)}.badge.miss{background:var(--danger-soft);color:var(--danger)}
+    .lib-combo{font:400 .8rem/1.5 "IBM Plex Mono",monospace;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px 12px;white-space:pre-wrap;word-break:break-word;margin:9px 0 0}
+    .lib-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}.lib-empty{color:var(--muted);font-size:.9rem;border-top:1px solid var(--line);padding:14px 0 0}
+    .handoff{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px 20px 20px 20px;overflow:hidden}
+    .hcell{padding:17px;background:var(--surface)}.hcell b{display:block;margin-bottom:5px}.hcell span{color:var(--muted);font-size:.9rem}
+    .handoff-note{color:var(--muted);font-size:.82rem;margin:12px 0 0}.handoff-foot{color:var(--muted);margin:14px 2px 0}
+    @media(max-width:880px){.handoff{grid-template-columns:1fr 1fr}}
+    @media(max-width:560px){.handoff{grid-template-columns:1fr}}
+    @media(max-width:560px){.lib-form{grid-template-columns:1fr}.lib-form .lib-wide{grid-column:auto}}
+    .toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,15px);opacity:0;pointer-events:none;background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:7px;font-weight:600;font-size:.86rem;transition:.18s}.toast.show{opacity:1;transform:translate(-50%,0)}
+    @media(max-width:880px){.hero,.workspace,.reference-grid{grid-template-columns:1fr}.credit-note{max-width:620px}.templates{grid-template-columns:1fr 1fr}.output-panel{position:static}.guardrail{grid-template-columns:1fr}.rule{border-top:1px solid var(--line)}.rule:first-child{border-top:0}}
+    @media(max-width:560px){.shell{padding-inline:14px}.templates,.fields,.lyric-grid,.flow-settings{grid-template-columns:1fr}.field.full,.lyric-grid .wide{grid-column:auto}.template{min-height:0}.section-head{display:block}.section-head p{margin-top:4px}.panel-head,.panel-body{padding:17px}.guardrail{border-radius:5px 14px 14px 14px}.output-tabs{flex-wrap:wrap}.tab{min-width:33.33%}}
+    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+  </style>
+</head>
+<body>
+<main class="shell">
+  <section class="hero">
+    <div>
+      <h1>Build the prompt <em>before</em> you spend the credits.</h1>
+      <p>Built for v6-mini on the free tier: lean prompts with the big decisions front-loaded, one variable changed at a time, then copy the style, exclude, and lyrics fields Suno needs.</p>
+    </div>
+    <aside class="credit-note">
+      <strong>Free-plan reality</strong>
+      <p>One generation is reported to cost 10 credits and return two songs. The free allowance is reported as 50 credits per day.</p>
+      <small>Free-tier v6-mini only — nothing on this page assumes a Pro or Premier feature. Plan controls remain partly unverified.</small>
+    </aside>
+  </section>
+
+  <section class="guardrail" aria-label="Critical generation rules">
+    <div class="rule stop"><b>Never paste prose into Lyrics</b><span>The line “Do not change any words…” was sung aloud and spoiled both takes. This builder never inserts it.</span></div>
+    <div class="rule"><b>Positive phrasing only</b><span>v6-mini has ignored inline “no X” instructions. Describe the groove you want instead — negatives go in the Exclude field.</span></div>
+    <div class="rule"><b>Freeze what works</b><span>Change one variable per round. Do not reroll a keeper just to fix one section.</span></div>
+  </section>
+
+  <div class="section-head"><h2>1 · Choose a starting structure</h2><p>Switching templates changes structure and steering, not your lyrics.</p></div>
+  <section class="templates" id="templates" aria-label="Prompt templates">
+    <button class="template" data-template="balanced" aria-pressed="true"><span class="num">01</span><b>Balanced draft</b><span>Two verses, repeated chorus, short bridge, controlled ending.</span></button>
+    <button class="template" data-template="hook" aria-pressed="false"><span class="num">02</span><b>Hook before 45s</b><span>Four-bar intro and short sections to reach the chorus quickly.</span></button>
+    <button class="template" data-template="groove" aria-pressed="false"><span class="num">03</span><b>Locked-groove trial</b><span>Positive tempo language and BPM restated in section cues.</span></button>
+    <button class="template" data-template="short" aria-pressed="false"><span class="num">04</span><b>Short drift check</b><span>Lean second half for testing whether late-song drift improves.</span></button>
+  </section>
+
+  <section class="workspace">
+    <div>
+      <article class="panel">
+        <div class="panel-head"><h2>2 · Shape the style</h2><span id="styleModeHint">lean for mini · front-loaded · intro directed</span></div>
+        <div class="panel-body">
+          <div class="fields suno-authoring" id="sunoStyleFields">
+            <div class="field"><label for="genre">Genre <span class="hint">hyper-specific, e.g. 1980s synth-pop</span></label><input id="genre" value="indie-electronic"></div>
+            <div class="field"><label for="vocal">Vocal cluster <span class="hint">keep lean</span></label><input id="vocal" value="intimate close-mic male vocal"></div>
+            <div class="field"><label for="mood">Mood</label><input id="mood" value="tension-release"></div>
+            <div class="field"><label for="tempo">Tempo</label><input id="tempo" value="driving 140 BPM, four-on-the-floor"></div>
+            <div class="field"><label for="key">Key <span class="hint">optional steering</span></label><input id="key" placeholder="e.g. A minor"></div>
+            <div class="field"><label for="instruments">Three instruments</label><input id="instruments" value="sub-bass, electronic drums, bright synth"></div>
+            <div class="field full"><label for="arrangement">Arrangement</label><input id="arrangement" value="restrained verse, full chorus"></div>
+            <div class="field full"><label for="production">Production & mix</label><input id="production" value="dry lead vocal, punchy drums"></div>
+            <div class="field full"><label for="house">House-sound suffix <span class="hint">reuse across the project</span></label><input id="house" value="mono sub, wide stereo"></div>
+            <div class="field full"><label for="introDirection">Intro direction <span class="hint">the first seconds, stated as an instruction — it lands in the style prompt and on the intro tag</span></label><input id="introDirection" placeholder="e.g. cold open on drums and bass from bar one, vocal enters at 0:08"></div>
+            <div class="field full"><label for="excludeStyles">Exclude styles <span class="hint">negatives live here, not in the style box — comma categories, under 10</span></label><input id="excludeStyles" placeholder="e.g. swelling synth intro, waltz, humming"></div>
+          </div>
+          <div class="flow-authoring" id="flowStyleField" hidden>
+            <p class="flow-help">Paste the complete sound description exactly as it will go into Flow. The checker reads this text instead of the Suno field builder.</p>
+            <label for="flowSound">Flow sound description <span class="hint">free text</span></label>
+            <textarea id="flowSound" placeholder="Describe genre/style, mood, instrumentation, tempo/rhythm, vocal gender and timbre, delivery, language, key, BPM, arrangement, and mix."></textarea>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel" style="margin-top:18px">
+        <div class="panel-head"><h2>3 · Add only singable words</h2><span id="lyricsModeHint">chorus repeats automatically</span></div>
+        <div class="panel-body">
+          <div class="field-note"><strong>Leave instructions here, not in the lyric text.</strong> Do not type <code>sing exactly as written</code> or any other prose command into a section.</div>
+          <div class="lyric-grid suno-authoring" id="sunoLyricsFields">
+            <div><label for="verse1">Verse 1</label><textarea id="verse1" placeholder="One singable line per row"></textarea></div>
+            <div><label for="pre">Pre-chorus</label><textarea id="pre" placeholder="Build toward the hook"></textarea></div>
+            <div class="wide"><label for="chorus">Chorus <span class="hint">title at least twice</span></label><textarea id="chorus" placeholder="Paste the exact chorus once; the builder repeats it verbatim"></textarea></div>
+            <div><label for="verse2">Verse 2</label><textarea id="verse2" placeholder="Advance the scene, don’t restate it"></textarea></div>
+            <div><label for="bridge">Bridge</label><textarea id="bridge" placeholder="A short contrast or turn"></textarea></div>
+            <div class="wide"><label for="outro">Outro <span class="hint">optional lyric</span></label><textarea id="outro" placeholder="One brief closing line"></textarea></div>
+          </div>
+          <div class="flow-authoring lyrics" id="flowLyricsField" hidden>
+            <p class="flow-help">Paste the complete Flow lyrics block without rebuilding its sections. Keep the <strong>Lyrics:</strong> prefix and any custom bracket tags you intend to use.</p>
+            <label for="flowLyrics">Flow lyrics <span class="hint">free text</span></label>
+            <textarea id="flowLyrics" placeholder="Lyrics:&#10;[Verse 1]&#10;Paste the exact singable lines and structure tags here…"></textarea>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <aside class="panel output-panel">
+      <div class="panel-head"><h2>Copy-ready output</h2><span id="activeName">Balanced draft</span></div>
+      <div class="output-tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-tab="style">Style</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="lyrics">Lyrics</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="check">Preflight</button>
+      </div>
+      <div class="output-view active" id="view-style"><div class="output-box" id="styleOut"></div><div class="count"><span id="styleBoxLabel">Style box</span><span id="styleCount"></span></div><div class="actions"><button class="btn primary" id="copyStyleBtn" data-copy="styleOut">Copy style</button><button class="btn" id="downloadBtn">Download sheet</button></div><div class="exclude-wrap"><div class="count"><span>Exclude styles — paste into Suno's Exclude field</span><span id="excludeCount"></span></div><div class="output-box mini" id="excludeOut"></div><div class="actions"><button class="btn" data-copy="excludeOut">Copy exclude</button></div></div><p class="handoff-note">Draft-grade by design — consistency, mix polish, and voice identity are studio passes, not more prompt. See “5 · Where mini stops.”</p></div>
+      <div class="output-view" id="view-lyrics"><div class="output-box" id="lyricsOut"></div><div class="count"><span id="wordCount">0 words</span><span id="lyricCount"></span></div><div class="actions"><button class="btn primary" id="copyLyricsBtn" data-copy="lyricsOut">Copy lyrics</button></div></div>
+      <div class="output-view" id="view-check">
+        <div class="preflight-controls">
+          <label for="target">Target</label>
+          <select id="target" aria-label="Preflight target">
+            <option value="suno">Suno v6-mini</option>
+            <option value="flow">Flow Music</option>
+          </select>
+          <div class="flow-settings" id="flowSettings" hidden>
+            <div><label for="flowLength">Intended length <span class="hint">m:ss</span></label><input id="flowLength" inputmode="numeric" placeholder="4:06"></div>
+            <div><label for="flowInstrumental">Instrumental toggle</label><select id="flowInstrumental"><option value="off">Off — sing lyrics</option><option value="on">On — instrumental</option></select></div>
+          </div>
+        </div>
+        <div class="checks" id="checks"></div>
+        <div class="manual-checks" id="flowManual" hidden>
+          <h3>Before generating in Flow</h3>
+          <label class="manual-item"><input type="checkbox">Length in Flow matches the validated m:ss value above.</label>
+          <label class="manual-item"><input type="checkbox">Instrumental toggle matches whether the lyrics field contains singable words.</label>
+          <label class="manual-item"><input type="checkbox">Lyrics and sound description have been read for context-sensitive explicit, hateful, or offensive material.</label>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <div class="section-head"><h2>4 · Pattern library</h2><p>Lean combos only: which short descriptor sets actually produce keepers on mini, logged hit vs miss so a working prompt gets reused instead of rewritten. Entries live in this page for the session — download the JSON to keep them, import it to restore.</p></div>
+  <section class="panel">
+    <div class="panel-head"><h2>Log what the model actually did</h2><span id="libCount">0 entries</span></div>
+    <div class="panel-body">
+      <div class="lib-form">
+        <div><label for="libTrack">Track or set <span class="hint">optional</span></label><input id="libTrack" placeholder="e.g. Out for Delivery"></div>
+        <div><label for="libOutcome">Outcome</label><select id="libOutcome"><option value="hit">Hit — keep this combo</option><option value="miss">Miss — avoid or fix</option></select></div>
+        <div class="lib-wide"><label for="libCombo">Descriptor combo <span class="hint">the exact lean style text that ran on mini</span></label><textarea id="libCombo" placeholder="Paste the style prompt that ran, or grab the current one from the builder"></textarea></div>
+        <div class="lib-wide"><label for="libNote">What happened <span class="hint">first seconds, vocal, groove — where it landed or died</span></label><input id="libNote" placeholder="e.g. cheesy swelling-synth intro; groove never locked"></div>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="libAdd">Log entry</button>
+        <button class="btn" id="libGrab">Grab current style</button>
+        <button class="btn" id="libExport">Download library (JSON)</button>
+        <label class="btn" for="libImportFile">Import JSON</label>
+        <input type="file" id="libImportFile" accept="application/json,.json" hidden>
+      </div>
+      <div id="libList"></div>
+    </div>
+  </section>
+
+  <div class="section-head"><h2>5 · Where mini stops</h2><p>The templates get the best draft mini can give. Everything past this line belongs to Native Media AI Studio — not to a longer prompt, and not to a Pro upgrade.</p></div>
+  <section class="handoff" aria-label="What v6-mini cannot do, handed to the studio">
+    <div class="hcell"><b>Consistency pass</b><span>Mini has no Max Mode, and its arrangement control drifts over a long song. Locking a keeper's structure down is a studio pass, not another reroll.</span></div>
+    <div class="hcell"><b>Mix polish</b><span>Mini output is draft-grade. Loudness, stereo width, and the final master finish happen in the studio.</span></div>
+    <div class="hcell"><b>Voice identity</b><span>There are no Persona or Voice tools on the free tier, so a recurring vocal character across tracks is built in the studio, not prompted into mini.</span></div>
+    <div class="hcell"><b>Arrangement repair</b><span>Fewer decisions per prompt reduces drift; what still wanders gets repaired downstream instead of chased with a longer prompt.</span></div>
+  </section>
+  <p class="handoff-foot">A keeper goes two places: straight into the bike-ride rotation as-is, or into the studio for the consistency and mix pass.</p>
+
+  <section class="reference">
+    <div class="reference-grid">
+      <div>
+        <h2>Keep the experiment legible</h2>
+        <ul>
+          <li>Batching is recommended, but each round should test one changed variable.</li>
+          <li>Target 200–350 lyric words for a full song; dense sheets can be rushed or skipped.</li>
+          <li>Use line breaks as breaths. Parentheses may become backing vocals, so use them sparingly.</li>
+          <li>End with <code>[Outro]</code> plus <code>[Fade Out]</code> or <code>[End]</code>.</li>
+          <li>Set Variety to 0 so mini does not rewrite an engineered prompt. Its free-tier availability is not confirmed.</li>
+          <li>Mini follows fewer decisions than flagship v6: if a take drifts, shorten the prompt before adding more direction. Complexity is a liability on mini.</li>
+          <li>Direct the intro explicitly — adjectives describe the intro, instructions describe the song; the first seconds are where cheesy takes happen.</li>
+          <li>Performance verbs beat emotion words: belted, deadpan, snarled steer mini; heartfelt and passionate barely do.</li>
+        </ul>
+      </div>
+      <div class="sources">
+        <h2>Research basis</h2>
+        <a href="https://github.com/bitwize-music-studio/claude-ai-music-skills/blob/58f32c25b9fb2dfe569478459b9a591e0dff22e8/reference/suno/best-practices.md" target="_blank" rel="noopener">Suno prompting best practices</a><br>
+        <a href="https://github.com/bitwize-music-studio/claude-ai-music-skills/blob/58f32c25b9fb2dfe569478459b9a591e0dff22e8/reference/suno/structure-tags.md" target="_blank" rel="noopener">Structure-tag reliability guide</a><br>
+        <a href="https://github.com/bitwize-music-studio/claude-ai-music-skills/blob/HEAD/reference/suno/100-expert-tips.md" target="_blank" rel="noopener">Community v6 tips and addendum</a><br>
+        <a href="https://www.reddit.com/r/SunoAI/comments/1wehqi9/suno_v6_prompting_guide_compiled_from_your_reddit/" target="_blank" rel="noopener">r/SunoAI v6 prompting guide (compiled)</a><br>
+        <a href="https://popularaitools.ai/blog/suno-v6-vocal-prompts-expression-phrasing-2026" target="_blank" rel="noopener">v6 vocal prompts &amp; expression guide</a><br>
+        <a href="https://goldmidi.com/community/threads/suno-v6-vs-v6-wild-vs-v6-mini-for-real-workflows.77044/" target="_blank" rel="noopener">v6-mini in real workflows (Goldmidi)</a><br>
+        <a href="https://github.com/skopy9581/suno-mistral/blob/HEAD/skills/suno-god/SKILL.md" target="_blank" rel="noopener">suno-god skill — mini prompt strategy</a><br>
+        <a href="https://github.com/mjorgin/suno-v6-cookbook/blob/HEAD/docs/model-router.md" target="_blank" rel="noopener">Model router — shorter prompt when mini drifts</a><br>
+        <a href="https://github.com/zarlor/suno-band-manager/blob/HEAD/src/skills/suno-band-profile-manager/references/tier-features.md" target="_blank" rel="noopener">Reported free-tier features</a><br>
+        <a href="https://docs.cloud.google.com/vertex-ai/generative-ai/docs/music/music-gen-prompt-guide" target="_blank" rel="noopener">Google Lyria music prompt guide</a>
+        <p>Suno sources were read through a web index on September 21, 2026 and remain provisional. Flow checks follow Google’s official Lyria prompt guide; the free-text Length control was verified in Flow on the same date. The mini calibration — lean prompts, front-loaded decisions, mandatory intro direction, and the studio handoff in section 5 — follows the October 2, 2026 v6-mini focus roundup, which supersedes the general-v6 guidance; this page is free-tier only and never routes around mini's limits with Pro or Premier features.</p>
+      </div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const templates={
+ balanced:{name:'Balanced draft',tempo:'driving 140 BPM, four-on-the-floor',arrangement:'restrained verse, full chorus',sections:{intro:'[Short Instrumental Intro - 4 bars]',v1:'[Verse 1 - intimate]',pre:'[Pre-Chorus - building]',chorus:'[Chorus - full voice]',v2:'[Verse 2 - intimate]',bridge:'[Bridge - raw exposed]',outro:'[Outro - stripped]'},secondChorus:true,finalChorus:true,fade:'[Fade Out]\n[End]'},
+ hook:{name:'Hook before 45s',tempo:'driving 140 BPM, four-on-the-floor',arrangement:'short verse, fast build, full chorus',sections:{intro:'[Short Instrumental Intro - 4 bars]',v1:'[Verse 1 - intimate, 8 bars]',pre:'[Pre-Chorus - building, 4 bars]',chorus:'[Chorus - full voice, 8 bars]',v2:'[Verse 2 - intimate, 8 bars]',bridge:'[Bridge - raw exposed, 4 bars]',outro:'[Outro - stripped, 4 bars]'},secondChorus:true,finalChorus:true,fade:'[Fade Out]\n[End]'},
+ groove:{name:'Locked-groove trial',tempo:'locked-in 150 BPM, four-on-the-floor, metronomic drums',arrangement:'steady verse, full chorus',sections:{intro:'[Short Instrumental Intro - 150 BPM, 4 bars]',v1:'[Verse 1 - intimate, 150 BPM]',pre:'[Pre-Chorus - building, 150 BPM]',chorus:'[Chorus - full voice, 150 BPM]',v2:'[Verse 2 - intimate, 150 BPM]',bridge:'[Bridge - raw exposed, 150 BPM]',outro:'[Outro - stripped, 150 BPM]'},secondChorus:true,finalChorus:true,fade:'[Fade Out]\n[End]'},
+ short:{name:'Short drift check',tempo:'driving 140 BPM, constant four-on-the-floor',arrangement:'compact verse, repeated chorus, direct ending',sections:{intro:'[Short Instrumental Intro - 4 bars]',v1:'[Verse 1 - intimate]',pre:'[Pre-Chorus - building]',chorus:'[Chorus - full voice]',v2:'[Verse 2 - intimate]',bridge:'[Bridge - stripped]',outro:'[Outro - stripped]'},secondChorus:true,finalChorus:false,fade:'[End]'}
+};
+let active='balanced';
+const inputs=['genre','vocal','mood','tempo','key','instruments','arrangement','production','house','introDirection','excludeStyles','verse1','pre','chorus','verse2','bridge','outro','flowSound','flowLyrics'];
+function clean(v){return v.trim().replace(/\s+/g,' ')}
+function isFlow(){return $('#target').value==='flow'}
+function styleText(){
+ if(isFlow())return $('#flowSound').value.trim();
+ const a=[clean($('#genre').value),clean($('#tempo').value),clean($('#vocal').value),clean($('#mood').value),clean($('#instruments').value),clean($('#key').value)].filter(Boolean).join(', ');
+ const intro=clean($('#introDirection').value);
+ const b=[clean($('#arrangement').value),clean($('#production').value),clean($('#house').value)].filter(Boolean).join('. ');
+ let out=a;
+ if(intro)out+=(out?'. ':'')+'Intro: '+intro;
+ if(b)out+=(out?'. ':'')+b;
+ return out?out+'.':'';
+}
+function section(tag,id){const v=$('#'+id).value.trim();return v?tag+'\n'+v:''}
+function lyricText(){
+ if(isFlow())return $('#flowLyrics').value.trim();
+ const t=templates[active], parts=[];
+ const introDir=clean($('#introDirection').value);
+ parts.push(introDir?t.sections.intro.replace(/\]$/,': '+introDir+']'):t.sections.intro);
+ const v1=section(t.sections.v1,'verse1'), pre=section(t.sections.pre,'pre'), ch=section(t.sections.chorus,'chorus'), v2=section(t.sections.v2,'verse2'), bridge=section(t.sections.bridge,'bridge'), outro=section(t.sections.outro,'outro');
+ if(v1)parts.push(v1);if(pre)parts.push(pre);if(ch)parts.push(ch);if(v2)parts.push(v2);if(pre&&v2)parts.push(pre);if(ch&&t.secondChorus)parts.push(ch);if(bridge)parts.push(bridge);if(ch&&t.finalChorus)parts.push(ch.replace(t.sections.chorus,'[Final Chorus - biggest]'));if(outro)parts.push(outro);parts.push(t.fade);return parts.filter(Boolean).join('\n\n');}
+const contaminationPatterns=[
+ /\bcowbells?\s+(?:bangs?|hits?|rings?|rolls?|patterns?)\b/gi,
+ /\b(?:beat|bass|808s?)\s+(?:drops?|hits?|kicks?|enters?|comes in)\b/gi,
+ /\b(?:drums?|snares?|hi-?hats?|kicks?)\s+(?:fills?|rolls?|patterns?|hits?|enters?|comes in)\b/gi,
+ /\b(?:pitched[- ]down|pitched[- ]up|vocal chops?|backing vocals?|male vocals?|female vocals?|whispered vocals?|spoken word)\b/gi,
+ /\b(?:wobble|growl bass|reese bass)\b/gi,
+ /\b(?:instrumental break|guitar solo|drum solo|fade out|fade to silence|hard stop|tempo change|key change)\b/gi,
+ /\b(?:repeat (?:the )?(?:chorus|hook|verse)|sing exactly as written|do not change any words|start with|end with)\b/gi,
+ /\b\d+\s*(?:bars?|bpm)\b/gi
+];
+function contaminationMatches(lyrics){
+ const sungText=lyrics.replace(/\[[^\]]*\]/g,' '), found=[];
+ contaminationPatterns.forEach(pattern=>{for(const match of sungText.matchAll(pattern)){const phrase=match[0].trim();if(!found.some(v=>v.toLowerCase()===phrase.toLowerCase()))found.push(phrase)}});
+ return found;
+}
+function escapeHtml(text){return text.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function renderCheckItems(items){
+ $('#checks').innerHTML=items.map(([s,text])=>`<div class="check ${s==='ok'?'':s}"><i class="dot"></i><span>${text}</span></div>`).join('');
+}
+const cheeseEmotionWords=['heartfelt','passionate','emotional','soulful','uplifting','inspirational','epic','anthemic','soaring','feel-good','powerful','moving'];
+const cheeseProductionCues=['swelling synth','orchestral swell','string swell','dramatic strings','dramatic piano','music box','ukulele','glockenspiel','whistling','whistled melody','choir swell'];
+function cheeseMatches(style){
+ const hits=[];
+ const scan=(list,group)=>{list.forEach(term=>{const re=new RegExp('\\b'+term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/[\s-]+/g,'[\\s-]')+'\\b','gi');for(const m of style.matchAll(re)){const before=style.slice(Math.max(0,m.index-14),m.index);if(/\bno\s*$/i.test(before))continue;if(!hits.some(h=>h.term.toLowerCase()===m[0].toLowerCase()))hits.push({term:m[0],group})}})};
+ scan(cheeseEmotionWords,'emotion');scan(cheeseProductionCues,'production');
+ return hits;
+}
+function makeSunoChecks(style,lyrics){
+ const words=lyrics.replace(/\[[^\]]*\]/g,'').trim().split(/\s+/).filter(Boolean).length;
+ const contamination=contaminationMatches(lyrics);
+ const cheese=cheeseMatches(style);
+ const cheeseEmotion=cheese.filter(h=>h.group==='emotion'), cheeseProd=cheese.filter(h=>h.group==='production');
+ const negative=/(^|[,.]\s+)(no|without|avoid)\b/i.test(style);
+ const bpm=/\b\d{2,3}\s*BPM\b/i.test(style);
+ const artistCue=/\b(featuring|in the style of|sounds like)\b/i.test(style);
+ const introDir=clean($('#introDirection').value);
+ const descCount=style.split(',').map(v=>v.trim()).filter(Boolean).length;
+ const allTags=[...lyrics.matchAll(/\[([^\]]+)\]/g)].map(m=>m[1]);
+ const sectionTags=allTags.filter(t=>/^(Short |Long )?(Instrumental )?(Intro|Verse|Pre-Chorus|Chorus|Bridge|Outro|Final Chorus)/i.test(t));
+ const bareCues=sectionTags.filter(t=>!t.includes(' - ')&&!t.includes(':')&&!t.includes('('));
+ const stopWords=['intro','verse','chorus','bridge','outro','final','short','instrumental','style','music','vocal','vocals','sound','track'];
+ const styleWords=[...new Set((style.toLowerCase().match(/[a-z][a-z-]{4,}/g)||[]))].filter(w=>!stopWords.includes(w));
+ const echoTags=sectionTags.filter(t=>styleWords.some(w=>t.toLowerCase().includes(w)));
+ const excl=clean($('#excludeStyles').value);
+ const exclCount=excl?excl.split(',').map(v=>v.trim()).filter(Boolean).length:0;
+ const contaminationText=contamination.length
+  ?`Possible sung direction${contamination.length>1?'s':''}: ${contamination.slice(0,5).map(v=>`“${escapeHtml(v)}”`).join(', ')}. Put production cues in [brackets] or remove them.`
+  :'No high-risk contamination terms found. Scan covers cowbell, beat/bass/drum directions, riddim/brostep production terms, vocal and arrangement cues, repeats, bars, and BPM.';
+ renderCheckItems([
+  [style.length<=1000?'ok':'bad',`Style is ${style.length}/1,000 characters.`],
+  [lyrics.length<=5000?'ok':'bad',`Lyrics are ${lyrics.length}/5,000 characters.`],
+  [words===0?'warn':words>=200&&words<=350?'ok':'warn',words===0?'Add lyrics before generating.':`${words} lyric words; 200–350 is the reported full-song target.`],
+  [descCount===0?'warn':descCount>=5&&descCount<=8?'ok':'warn',descCount===0?'Style is empty.':descCount>10?`${descCount} descriptors across the whole prompt — past the point where community reports conflicting signals, and mini has less headroom than flagship v6. Cut variables from the tail (production, house suffix) before regenerating; do not add direction.`:`${descCount} descriptors across the whole prompt; 5–8 is the reported sweet spot and mini steers best at the lean end. Keep the most important decisions first — if a take drifts, shorten the prompt rather than adding direction.`],
+  [introDir?'ok':'bad',introDir?'Intro direction is stated in the style prompt and repeated on the intro tag.':'No intro direction set — mandatory on mini. The first seconds are where cheesy takes happen; add a first-seconds instruction in section 2.'],
+  [cheeseProd.length?'bad':'ok',cheeseProd.length?`Cheese check: production cue${cheeseProd.length>1?'s':''} ${cheeseProd.map(h=>`“${escapeHtml(h.term)}”`).join(', ')} correlate with cheesy openings. Direct the intro plainly instead, or park the cue in Exclude styles.`:'Cheese check: no cheese-prone production cues (swelling synths, music box, ukulele…) in the style text.'],
+  [cheeseEmotion.length?'warn':'ok',cheeseEmotion.length?`Cheese check: emotion word${cheeseEmotion.length>1?'s':''} ${cheeseEmotion.map(h=>`“${escapeHtml(h.term)}”`).join(', ')} barely steer mini. Swap for performance verbs — belted, deadpan, snarled, whispered, restrained.`:'Cheese check: no bare emotion words (heartfelt, epic, soaring…); performance verbs steer better.'],
+  [contamination.length?'bad':'ok',contaminationText],
+  [negative?'warn':'ok',negative?'Inline negative phrasing detected in Style; mini reads it as a cue to include it. Move it to the Exclude styles field.':'Style uses positive steering language; negatives live in Exclude.'],
+  [exclCount===0||exclCount>9?'warn':'ok',exclCount===0?'Exclude styles is empty — park cheese triggers and wrong turns there (comma categories, under 10).':exclCount>9?`Exclude lists ${exclCount} categories; keep it under 10.`:`${exclCount} Exclude categor${exclCount===1?'y':'ies'} ready to paste into Suno's Exclude field.`],
+  [bareCues.length||!echoTags.length?'warn':'ok',bareCues.length?`${bareCues.length} section tag${bareCues.length>1?'s':''} carry no performance cue (${bareCues.slice(0,3).map(t=>`[${escapeHtml(t)}]`).join(', ')}). Say everything twice: once in Style, once on the tag.`:!echoTags.length?'Section tags carry cues, but none echo a word from the style prompt. Repeat the key style words on the tags — mini takes direction best when it is said twice.':'Section tags echo the style prompt and carry performance cues — said twice.'],
+  [bpm?'ok':'warn',bpm?'Numeric BPM is present.':'Add a numeric BPM plus a feel descriptor.'],
+  [artistCue?'warn':'ok',artistCue?'Possible artist-reference phrasing detected; describe the sound instead.':'No obvious artist-reference phrasing detected.'],
+  ['warn','Manual check: set Variety to 0 in Suno so it does not rewrite this prompt (free-tier availability unconfirmed), and audition both takes before downloading.']
+ ]);
+}
+function makeFlowChecks(style,lyrics){
+ const contamination=contaminationMatches(lyrics);
+ const contaminationText=contamination.length
+  ?`Possible sung direction${contamination.length>1?'s':''}: ${contamination.slice(0,5).map(v=>`“${escapeHtml(v)}”`).join(', ')}. Move production cues to the sound description or a timestamped prose segment.`
+  :'No high-risk contamination terms found in sung text.';
+ const hasPrefix=/^\s*Lyrics\s*:/i.test(lyrics);
+ const stageDirections=lyrics.split('\n').map(v=>v.trim()).filter(v=>/^\([^\n)]{1,100}\)/.test(v));
+ const tags=[...lyrics.matchAll(/\[([^\]\n]+)\]/g)].map(m=>m[1].trim());
+ const safeTag=/^(?:Intro|Verse|Pre-Chorus|Chorus|Hook|Bridge|Interlude|Breakdown|Build-up|Drop|Instrumental|Outro)(?:\s+\d+)?(?:\s*-\s*.*)?$/i;
+ const unknownTags=[...new Set(tags.filter(tag=>!safeTag.test(tag)))];
+ const pillarPatterns={
+  'genre/style':/\b(?:genre|style|rock|pop|electronic|phonk|hip[- ]?hop|rap|metal|punk|folk|country|jazz|blues|soul|r&b|funk|house|techno|trance|ambient|cinematic|orchestral|classical|indie|alternative|experimental|drum and bass|dnb|dubstep|garage|reggae|dancehall|latin|afrobeat)\b/i,
+  mood:/\b(?:mood|atmosphere|emotional|dark|bright|tense|tension|uplifting|melancholic|euphoric|aggressive|intimate|dreamy|haunting|playful|somber|urgent|restrained|brooding|hopeful|nostalgic|energetic)\b/i,
+  instrumentation:/\b(?:instrument|synth|bass|drum|guitar|piano|keys|strings|violin|cello|brass|horn|trumpet|sax|flute|percussion|808|cowbell|pad|organ|acoustic|electronic)\b/i,
+  'tempo/rhythm':/\b(?:\d{2,3}\s*BPM|tempo|rhythm|groove|beat|syncopat|half[- ]?time|double[- ]?time|four[- ]on[- ]the[- ]floor|meter)\b/i,
+  'vocal style/language':/\b(?:vocal|voice|singer|sung|male|female|man|woman|tenor|baritone|soprano|mezzo|alto|contralto|English|German|Spanish|French|Hindi|Japanese|Korean|Portuguese)\b/i
+ };
+ const missingPillars=Object.entries(pillarPatterns).filter(([,pattern])=>!pattern.test(style)).map(([name])=>name);
+ const supportedLanguages=['English','German','Spanish','French','Hindi','Japanese','Korean','Portuguese'];
+ const supportedLanguage=supportedLanguages.find(language=>new RegExp(`\\b${language}\\b`,'i').test(style));
+ const languageCue=style.match(/\b(?:language|sung in|lyrics in)\s*[:\-]?\s*([a-z]+)/i);
+ const unsupportedLanguage=languageCue&&!supportedLanguage?languageCue[1]:'';
+ const hasGender=/\b(?:male|female|man|woman|masculine|feminine|tenor|baritone|bass singer|soprano|mezzo|alto|contralto)\b/i.test(style);
+ const hasTimbre=/\b(?:range|timbre|tenor|baritone|bass singer|soprano|mezzo|alto|contralto|raspy|smoky|airy|breathy|warm|bright|dark|gritty|smooth|soulful|nasal|husky|clear)\b/i.test(style);
+ const hasDelivery=/\b(?:delivery|intimate|close-mic|conversational|spoken|whispered|belted|chant|rap|croon|staccato|legato|urgent|restrained|aggressive|soft|powerful)\b/i.test(style);
+ const vocalMissing=[!hasGender?'singer gender':'',!hasTimbre?'range/timbre':'',!hasDelivery?'delivery style':'',!supportedLanguage?'supported language':''].filter(Boolean);
+ const hasKey=/\b[A-G](?:#|b)?\s+(?:major|minor)\b/i.test(style);
+ const hasBpm=/\b\d{2,3}\s*BPM\b/i.test(style);
+ const knownArtist=/\b(?:\$uicideboy\$|suicideboys|Billie Eilish|The Weeknd|Taylor Swift|Kanye West|Skrillex|Deftones|Nine Inch Nails|Kendrick Lamar|Travis Scott|Lana Del Rey|Charli XCX|Fred Again|Daft Punk|Aphex Twin|Drake)\b/i;
+ const artistCue=/\b(?:featuring|in the style of|sounds? like|inspired by|similar to|artist\s*:)\b/i;
+ const hasArtist=artistCue.test(style)||knownArtist.test(style);
+ const lengthValue=$('#flowLength').value.trim();
+ const lengthValid=/^\d+:[0-5]\d$/.test(lengthValue)&&lengthValue!=='0:00';
+ const sungText=lyrics.replace(/\[[^\]]*\]/g,' ').replace(/^\s*Lyrics\s*:/i,'').trim();
+ const hasLyrics=/[\p{L}\p{N}]/u.test(sungText);
+ const instrumentalOn=$('#flowInstrumental').value==='on';
+ const toggleMismatch=(instrumentalOn&&hasLyrics)||(!instrumentalOn&&!hasLyrics);
+ const combined=`${style}\n${sungText}`;
+ const safetyPattern=/\b(?:fuck|shit|bitch|cunt|motherfucker|explicit sex|sexual assault|rape|murder|suicide|kill|shoot|stab|torture|gore|exterminate|racial superiority|ethnic cleansing)\b/i;
+ const safetyHit=safetyPattern.test(combined);
+ renderCheckItems([
+  [contamination.length?'bad':'ok',contaminationText],
+  [hasPrefix?'ok':'warn',hasPrefix?'Lyrics block begins with “Lyrics:”.':'Add “Lyrics:” before the lines Lyria should sing.'],
+  [stageDirections.length?'warn':'ok',stageDirections.length?`Parenthetical direction${stageDirections.length>1?'s':''} may be sung literally: ${stageDirections.slice(0,3).map(v=>`“${escapeHtml(v)}”`).join(', ')}. Move delivery cues into the sound description’s vocal wording.`:'No parenthetical stage directions found.'],
+  [unknownTags.length?'warn':'ok',unknownTags.length?`Review nonstandard bracket tag${unknownTags.length>1?'s':''}: ${unknownTags.slice(0,6).map(v=>`[${escapeHtml(v)}]`).join(', ')}. Flow’s documented structure uses timestamped prose segments.`:'All bracketed section tags are on the known-safe review list.'],
+  [missingPillars.length?'warn':'ok',missingPillars.length?`Sound-description framework is missing: ${missingPillars.join(', ')}.`:'Genre/style, mood, instrumentation, tempo/rhythm, and vocal style/language fields are present.'],
+  [vocalMissing.length||unsupportedLanguage?'warn':'ok',unsupportedLanguage?`Unsupported or unrecognized language: ${escapeHtml(unsupportedLanguage)}. Use English, German, Spanish, French, Hindi, Japanese, Korean, or Portuguese.`:vocalMissing.length?`Vocal detail is missing: ${vocalMissing.join(', ')}. Supported languages: English, German, Spanish, French, Hindi, Japanese, Korean, Portuguese.`:`Vocal description includes gender, range/timbre, delivery, and ${supportedLanguage}.`],
+  [hasKey&&hasBpm?'ok':'warn',hasKey&&hasBpm?'Numeric key and BPM are present.':`Add ${[!hasKey?'a key such as “C minor”':'',!hasBpm?'a numeric BPM such as “145 BPM”':''].filter(Boolean).join(' and ')}.`],
+  [hasArtist?'warn':'ok',hasArtist?'Possible artist name or artist-intent phrasing detected; describe musical characteristics instead.':'No obvious artist-intent phrasing detected. Manually remove any artist or band names the screen may miss.'],
+  [lengthValid?'ok':'warn',lengthValue?(lengthValid?`Length “${escapeHtml(lengthValue)}” matches m:ss format.`:`Length “${escapeHtml(lengthValue)}” must use m:ss with seconds from 00–59.`):'Enter the intended Flow length in m:ss format.'],
+  [toggleMismatch?'warn':'ok',toggleMismatch?(instrumentalOn?'Instrumental is on while singable lyrics are present.':'Instrumental is off, but no singable lyrics are present.'):'Instrumental setting and lyric content agree.'],
+  [safetyHit?'warn':'ok',safetyHit?'Potential safety-filter language detected. Review the full context for explicit, hateful, violent, or otherwise offensive content.':'No obvious high-risk safety terms detected. Complete the manual context review below.']
+ ]);
+}
+function makeChecks(style,lyrics){
+ const flow=isFlow();
+ $('#flowSettings').hidden=!flow;
+ $('#flowManual').hidden=!flow;
+ flow?makeFlowChecks(style,lyrics):makeSunoChecks(style,lyrics);
+}
+function syncModeUI(){
+ const flow=isFlow();
+ $('#sunoStyleFields').hidden=flow;$('#sunoLyricsFields').hidden=flow;
+ $('#flowStyleField').hidden=!flow;$('#flowLyricsField').hidden=!flow;
+ $('#activeName').textContent=flow?'Flow free text':templates[active].name;
+ $('#styleModeHint').textContent=flow?'complete sound description':'lean for mini · front-loaded · intro directed';
+ $('#lyricsModeHint').textContent=flow?'paste the exact Flow block':'chorus repeats automatically';
+ $('#styleBoxLabel').textContent=flow?'Sound description':'Style box';
+ $('#copyStyleBtn').textContent=flow?'Copy sound description':'Copy style';
+ $('#copyLyricsBtn').textContent=flow?'Copy Flow lyrics':'Copy lyrics';
+}
+function render(){syncModeUI();const s=styleText(),l=lyricText();$('#styleOut').textContent=s;$('#lyricsOut').textContent=l;$('#styleCount').innerHTML=`<span class="${s.length>1000?'over':''}">${s.length} / 1,000</span>`;$('#lyricCount').innerHTML=`<span class="${l.length>5000?'over':''}">${l.length} / 5,000</span>`;const words=l.replace(/\[[^\]]*\]/g,'').replace(/^\s*Lyrics\s*:/i,'').trim().split(/\s+/).filter(Boolean).length;$('#wordCount').textContent=words+' words';const ex=clean($('#excludeStyles').value);$('#excludeOut').textContent=ex;$('#excludeCount').textContent=ex?ex.split(',').filter(v=>v.trim()).length+' categories':'nothing excluded yet';makeChecks(s,l)}
+inputs.forEach(id=>$('#'+id).addEventListener('input',render));
+$('#target').addEventListener('change',render);
+$('#flowLength').addEventListener('input',render);
+$('#flowInstrumental').addEventListener('change',render);
+$$('.template').forEach(btn=>btn.addEventListener('click',()=>{active=btn.dataset.template;$$('.template').forEach(b=>b.setAttribute('aria-pressed',String(b===btn)));const t=templates[active];$('#tempo').value=t.tempo;$('#arrangement').value=t.arrangement;if(!isFlow())$('#activeName').textContent=t.name;render()}));
+$$('.tab').forEach(tab=>tab.addEventListener('click',()=>{$$('.tab').forEach(t=>t.setAttribute('aria-selected','false'));tab.setAttribute('aria-selected','true');$$('.output-view').forEach(v=>v.classList.remove('active'));$('#view-'+tab.dataset.tab).classList.add('active')}));
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1600)}
+async function copyText(text){try{await navigator.clipboard.writeText(text);toast('Copied cleanly')}catch(e){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('Copied cleanly')}}
+$$('[data-copy]').forEach(b=>b.addEventListener('click',()=>copyText($('#'+b.dataset.copy).textContent)));
+$('#downloadBtn').addEventListener('click',()=>{const flow=isFlow();const text=flow?`TARGET: Flow Music\nLENGTH: ${$('#flowLength').value.trim()||'not set'}\nINSTRUMENTAL: ${$('#flowInstrumental').value==='on'?'On':'Off'}\n\nSOUND DESCRIPTION\n${styleText()}\n\nLYRICS\n${lyricText()}\n`:`TEMPLATE: ${templates[active].name}\n\nSTYLE\n${styleText()}\n\nEXCLUDE STYLES\n${clean($('#excludeStyles').value)||'not set'}\n\nLYRICS\n${lyricText()}\n`;const blob=new Blob([text],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=flow?'flow-music-prompt-sheet.txt':'suno-v6-mini-prompt-sheet.txt';a.click();URL.revokeObjectURL(a.href);toast('Prompt sheet downloaded')});
+let library=[
+ {track:'Out for Delivery',outcome:'miss',combo:'Satirical synth-pop, male vocal, playful and exasperated, locked-in 130 BPM with driving four-on-the-floor drums, bouncy synth bass, bright plucky synth leads, crisp percussion, wide stereo backing vocals on the chorus',note:'V1 and the first V2 take — extremely cheesy within the first few seconds; both deleted (logged Oct 2, 2026).'},
+ {track:'Out for Delivery',outcome:'hit',combo:'Satirical synth-pop, male vocal, playful and exasperated, locked-in 130 BPM with driving four-on-the-floor drums, bouncy synth bass, bright plucky synth leads, crisp percussion, wide stereo backing vocals on the chorus',note:'V2.1 — best of the batch. Same combo as the misses: v6-mini variance, not a prompt difference (logged Oct 2, 2026).'},
+ {track:'Out for Delivery',outcome:'miss',combo:'Satirical synth-pop, male vocal, playful and exasperated, locked-in 130 BPM with driving four-on-the-floor drums, bouncy synth bass, bright plucky synth leads, crisp percussion, wide stereo backing vocals on the chorus',note:'V2.2 — fine while playing, forgettable the moment it ended (logged Oct 2, 2026).'}
+];
+function renderLibrary(){
+ const list=$('#libList');
+ $('#libCount').textContent=library.length+(library.length===1?' entry':' entries');
+ if(!library.length){list.innerHTML='<p class="lib-empty">No entries yet. Log a hit or a miss after each generation round.</p>';return}
+ list.innerHTML=library.map((e,i)=>`<div class="lib-entry"><div class="lib-meta"><span class="badge ${e.outcome}">${e.outcome==='hit'?'Hit':'Miss'}</span><b>${escapeHtml(e.track||'Untitled')}</b>${e.note?`<span class="lib-note">${escapeHtml(e.note)}</span>`:''}</div><div class="lib-combo">${escapeHtml(e.combo)}</div><div class="lib-actions"><button class="btn" data-libcopy="${i}">Copy combo</button><button class="btn" data-libremove="${i}">Remove</button></div></div>`).join('');
+}
+$('#libAdd').addEventListener('click',()=>{const combo=$('#libCombo').value.trim();if(!combo){toast('Add a descriptor combo first');return}library.unshift({track:$('#libTrack').value.trim(),outcome:$('#libOutcome').value,combo,note:$('#libNote').value.trim()});renderLibrary();toast('Logged for this session')});
+$('#libGrab').addEventListener('click',()=>{$('#libCombo').value=styleText();toast('Current style grabbed')});
+$('#libExport').addEventListener('click',()=>{const blob=new Blob([JSON.stringify(library,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='suno-pattern-library.json';a.click();URL.revokeObjectURL(a.href);toast('Library downloaded')});
+$('#libImportFile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const data=JSON.parse(r.result);if(!Array.isArray(data))throw new Error('not an array');const valid=data.filter(x=>x&&typeof x.combo==='string'&&(x.outcome==='hit'||x.outcome==='miss')).map(x=>({track:String(x.track||''),outcome:x.outcome,combo:x.combo,note:String(x.note||'')}));const seen=new Set(library.map(x=>JSON.stringify(x)));const fresh=valid.filter(x=>!seen.has(JSON.stringify(x)));library=[...fresh,...library];renderLibrary();toast(fresh.length?`Imported ${fresh.length} new ${fresh.length===1?'entry':'entries'}`:'No new entries in that file')}catch(_){toast('Could not read that file as a library')}};r.readAsText(f);e.target.value=''});
+$('#libList').addEventListener('click',e=>{const copyBtn=e.target.closest('[data-libcopy]'),removeBtn=e.target.closest('[data-libremove]');if(copyBtn){copyText(library[Number(copyBtn.dataset.libcopy)].combo)}if(removeBtn){library.splice(Number(removeBtn.dataset.libremove),1);renderLibrary();toast('Entry removed')}});
+renderLibrary();
+render();
+</script>
+</body>
+</html>
