@@ -93,6 +93,17 @@ def test_cleanup_does_not_raise_and_actually_vacuums(tmp_path, monkeypatch):
     deleted = database.cleanup_old_gpu_telemetry(7, vacuum=True)
     assert deleted == 700
 
+    conn = database.get_connection()
+    try:
+        # In WAL mode the written pages live in -wal until a checkpoint, so the
+        # main file's size is meaningless until then: without this, `before` can
+        # read as *smaller* than after, even though VACUUM reclaimed everything.
+        # Verified directly - 2.9 MB of -wal checkpointed into the main file,
+        # then 8 KB left after the delete + vacuum.
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    finally:
+        database.release_connection(conn)
+
     conn = sqlite3.connect(db_file)
     try:
         assert conn.execute("SELECT COUNT(*) FROM gpu_telemetry").fetchone()[0] == 0
@@ -104,7 +115,9 @@ def test_cleanup_does_not_raise_and_actually_vacuums(tmp_path, monkeypatch):
 
     assert freelist == 0, "vacuum should have reclaimed the freed pages"
     assert page_count < 700, "file should have shrunk substantially"
-    assert db_file.stat().st_size < before
+    assert db_file.stat().st_size < before, (
+        f"file did not shrink: {before} -> {db_file.stat().st_size}"
+    )
 
 
 def test_cleanup_is_a_noop_when_nothing_is_old(tmp_path, monkeypatch):

@@ -74,6 +74,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Unnamed track ec2c16`. Collapsing the four into one requires content hashing,
   which is a data decision rather than a rendering one.
 
+### Changed - Pooled database connections (removes per-query open/close)
+
+- `get_db()` now takes a **per-thread pooled connection** instead of opening and
+  closing one per call. Measured against the real database: **0.015 ms vs
+  0.970 ms per call — 65x, 98% less overhead**, across ~113 call sites. The
+  savings compound on any request touching several of them.
+- **Per-thread, not global**, because `asyncio.to_thread` is used at 61 sites, so
+  concurrent DB work genuinely runs on several threads. A single shared
+  connection would serialise every query behind sqlite3's internal lock;
+  `check_same_thread=False` permits cross-thread use but does not make
+  *concurrent* use safe.
+- **A pooled connection is only reused while `DB_PATH` is unchanged.** This was a
+  real defect, caught by the existing suite: with unconditional reuse, a
+  connection opened against the old file kept serving it, producing "no such
+  table" errors in 10 tests. Tests and tooling reassign `DB_PATH`, and the same
+  hazard applies to any future multi-database mode. `init_db` also drops the pool,
+  so the first query after a migration cannot see a pre-migration schema.
+- **`release_connection` never returns a mid-transaction connection**, so a caller
+  that uses `get_connection()` directly and forgets to commit cannot leak an
+  uncommitted write into the next caller. `get_db()`'s own `except` already
+  handles the common case, so this guard is only reachable via the lower-level
+  API — there is a dedicated test for it.
+- **`close_pooled_connections()` runs on shutdown** (`lifespan`). On Windows an
+  open handle blocks the database file from being replaced, which would break a
+  later compaction or restore. The pool is also bounded at 16 per thread.
+- Two functions that open and close their own connection
+  (`set_log_analytics_last_cleanup`, `cleanup_old_log_events`) now use
+  `get_connection_unpooled()`; closing a *pooled* connection would leave the pool
+  holding a reference to a dead connection.
+- `wal_autocheckpoint` now visibly works: the `-wal` file sits at 88 KB where it
+  previously grew unbounded on a writer that commits every 30 seconds.
+
+Verified: all 7 gates pass with 206 pytest (was 198); backend restarted and
+`/api/health`, `/api/audio/files`, `/api/jobs` and `/api/outputs` all respond.
+New `tests/test_db_pool.py` covers reuse, isolation, bounding, shutdown and
+per-thread behaviour, and the rollback guard is verified by mutation.
+
 ### Fixed - SQLite layer: the same VACUUM bug in a second place, plus connection pragmas
 
 - **`cleanup_old_log_events` had the identical `VACUUM`-in-a-transaction

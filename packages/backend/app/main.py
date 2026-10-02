@@ -326,6 +326,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to stop music generation services: {e}")
 
+    # Release pooled SQLite connections so the process does not exit holding file
+    # handles. On Windows an open handle blocks the database file from being
+    # replaced, which would break a later compaction or restore.
+    try:
+        from .core.database import close_pooled_connections
+        closed = close_pooled_connections()
+        if closed:
+            logger.info("Closed %d pooled database connection(s)", closed)
+    except Exception as e:
+        logger.warning(f"Failed to close pooled database connections: {e}")
+
     logger.info("Shutdown complete")
 
 

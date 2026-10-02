@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import sqlite3
+import threading
 import time as _time
 import uuid
 from collections.abc import Generator
@@ -236,17 +237,21 @@ def _safe_json_loads(val: str | None, default: Any = None) -> Any:
         return default if default is not None else {}
 
 
-def get_connection() -> sqlite3.Connection:
-    """Get a database connection with row factory.
+def _open_connection() -> sqlite3.Connection:
+    """Open a fresh connection and apply every connection-level PRAGMA.
 
-    `journal_mode=WAL` is a persistent, database-wide property, so it is NOT
-    re-issued here. Doing so on every one of the ~113 `get_db()` call sites was
-    redundant work and can itself fail with "database is locked" while readers
-    are active. `init_db` establishes it once, before any other connection.
+    This is the single place a connection is created, so the PRAGMAs are applied
+    exactly once per connection rather than repeated (and possibly forgotten) at
+    each of the ~113 `get_db()` call sites.
+
+    `journal_mode=WAL` is *not* set here. It is persistent and database-wide, so
+    re-issuing it per connection is redundant work and can itself fail with
+    "database is locked" while readers are active. `init_db` establishes it once,
+    before any other connection exists.
 
     `synchronous=NORMAL` is the standard companion to WAL: still crash-safe for
     the process, without an fsync on every commit. This process commits a
-    telemetry row every 30 seconds, so FULL's fsync cost is paid for no benefit.
+    telemetry row every 30 seconds, so FULL's fsync cost buys nothing.
 
     `wal_autocheckpoint` bounds the `-wal` file, which otherwise grows without
     bound on a long-running writer and lengthens every reader's index scan.
@@ -261,9 +266,143 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+# Connections are pooled per thread. Two reasons this cannot be one shared
+# connection:
+#   * `asyncio.to_thread` appears at 61 call sites, so concurrent DB work really
+#     does run on several threads at once. sqlite3 serialises a connection with
+#     an internal lock, so sharing one would turn every query into a contention
+#     point.
+#   * `check_same_thread=False` permits cross-thread use but does not make
+#     *concurrent* use safe.
+# A per-thread pool keeps each connection single-threaded in practice while
+# still removing the per-query open/close cost, measured at ~1.37 ms versus
+# ~0.006 ms for reuse.
+_local = threading.local()
+
+# Safety valve. asyncio's default thread pool is bounded, but a runaway nested
+# to_thread pattern should not be able to grow the pool without limit.
+MAX_POOLED_CONNECTIONS = 16
+
+
+def get_connection() -> sqlite3.Connection:
+    """Get a pooled connection. Prefer `get_db()`.
+
+    The connection is *not* owned by the caller: it may carry state from previous
+    use and is returned to the pool rather than closed. Callers that must own and
+    close a connection should use `get_connection_unpooled()`.
+
+    A pooled connection is only reused while `DB_PATH` is unchanged. `DB_PATH` is
+    reassigned in tests (and by tooling that points at a different database), and
+    a connection opened against the old file would otherwise keep serving it -
+    producing "no such table" errors against a database that was never created.
+    """
+    pool: list[sqlite3.Connection] | None = getattr(_local, "pool", None)
+    path_key: object = getattr(_local, "path_key", None)
+    current = str(DB_PATH)
+
+    if pool is not None and path_key is not None and path_key != current:
+        # The target database changed underneath us: drop the old connections
+        # rather than hand them to a caller expecting the new file.
+        while pool:
+            try:
+                pool.pop().close()
+            except sqlite3.Error:
+                pass
+        pool = None
+        path_key = None
+
+    if pool is None:
+        pool = []
+        _local.pool = pool
+        _local.path_key = current
+
+    while pool:
+        conn = pool.pop()
+        # A pooled connection can also be invalidated by the file being replaced
+        # under it. Verify before handing it out.
+        try:
+            conn.execute("SELECT 1").fetchone()
+        except sqlite3.Error:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
+            continue
+        return conn
+
+    return _open_connection()
+
+
+def get_connection_unpooled() -> sqlite3.Connection:
+    """Open a dedicated connection the caller must close.
+
+    Needed when a connection must outlive the `get_db()` block, or must be closed
+    at a specific point (startup migrations, compaction).
+    """
+    return _open_connection()
+
+
+def release_connection(conn: sqlite3.Connection) -> None:
+    """Return a connection to this thread's pool, or close it if the pool is full."""
+    pool: list[sqlite3.Connection] | None = getattr(_local, "pool", None)
+    if pool is None:
+        pool = []
+        _local.pool = pool
+        _local.path_key = str(DB_PATH)
+
+    # Never hand back a connection mid-transaction: the next caller would inherit
+    # an uncommitted write.
+    try:
+        if conn.in_transaction:
+            conn.rollback()
+    except sqlite3.Error:
+        try:
+            conn.close()
+        except sqlite3.Error:
+            pass
+        return
+
+    if len(pool) < MAX_POOLED_CONNECTIONS:
+        pool.append(conn)
+        return
+    try:
+        conn.close()
+    except sqlite3.Error:
+        pass
+
+
+def close_pooled_connections() -> int:
+    """Close every connection pooled by the current thread. Returns the count.
+
+    Called on shutdown so the process does not exit holding file handles, which
+    on Windows would block the file being replaced.
+    """
+    pool: list[sqlite3.Connection] | None = getattr(_local, "pool", None)
+    if not pool:
+        return 0
+    closed = 0
+    while pool:
+        try:
+            pool.pop().close()
+            closed += 1
+        except sqlite3.Error:
+            pass
+    # Reset the key too, so a stale path cannot suppress reuse of a fresh pool.
+    _local.path_key = str(DB_PATH)
+    return closed
+
+
 @contextmanager
 def get_db() -> Generator[sqlite3.Connection, None, None]:
-    """Context manager for database connections."""
+    """Context manager yielding a pooled connection.
+
+    Commit on success, roll back on error, then return the connection to the
+    pool. Semantics match the previous open/close-per-call version; only the
+    connection lifecycle changed. Because connections are reused, the rollback in
+    `release_connection` is what keeps one caller's uncommitted work from leaking
+    into the next. `VACUUM` still cannot run inside a transaction - use
+    `safe_vacuum()`.
+    """
     conn = get_connection()
     try:
         yield conn
@@ -272,7 +411,7 @@ def get_db() -> Generator[sqlite3.Connection, None, None]:
         conn.rollback()
         raise
     finally:
-        conn.close()
+        release_connection(conn)
 
 
 def get_schema_version(conn: sqlite3.Connection) -> int:
@@ -1044,10 +1183,15 @@ def get_log_analytics_last_cleanup() -> str | None:
 
 
 def set_log_analytics_last_cleanup(ts_iso: str, conn: sqlite3.Connection | None = None) -> None:
-    """Persist last cleanup timestamp. Reuses `conn` when provided."""
+    """Persist last cleanup timestamp. Reuses `conn` when provided.
+
+    `get_connection_unpooled`, not `get_connection`: this function closes what it
+    opens, and closing a *pooled* connection would remove it from the pool while
+    the pool still held a reference to it.
+    """
     close_after = False
     if conn is None:
-        conn = get_connection()
+        conn = get_connection_unpooled()
         close_after = True
     try:
         conn.execute(
@@ -1072,10 +1216,12 @@ def cleanup_old_log_events(keep_days: int = 30, conn: sqlite3.Connection | None 
     """Delete log events older than `keep_days`. Returns deleted count.
 
     Pass `conn` to avoid nested SQLite writer locks during startup migrations.
+    Note this commits on its own connection when `conn` is not supplied, so it
+    is called outside any `get_db()` block.
     """
     close_after = False
     if conn is None:
-        conn = get_connection()
+        conn = get_connection_unpooled()
         close_after = True
     try:
         cursor = conn.execute(
@@ -1111,6 +1257,14 @@ def init_db():
     the `with get_db()` block because `get_schema_version` reads the file, and
     `busy_timeout` covers the case where a running backend holds a write lock.
     """
+    # A pooled connection may already be open against this path with the
+    # pre-migration schema. Drop it so the first query after init_db sees the
+    # new schema rather than whatever the pooled connection cached.
+    try:
+        close_pooled_connections()
+    except Exception:  # pragma: no cover - defensive
+        pass
+
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     try:
         with sqlite3.connect(DB_PATH, timeout=10.0) as setup:

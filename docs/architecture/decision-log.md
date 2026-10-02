@@ -347,6 +347,36 @@
 
 ---
 
+### D18 — Database connections are pooled per thread
+- **Status:** Decided
+- **Context:** `get_db()` opened and closed a connection on every call, at ~113
+  call sites. Measured: 0.970 ms per call against 0.006 ms for reuse — about 98%
+  of the cost was opening the file and re-issuing the PRAGMAs.
+- **Decision:** Connections are pooled per thread. `get_db()` borrows from the
+  thread's pool and returns the connection instead of closing it;
+  `_open_connection()` is the single place a connection is created, so the
+  PRAGMAs are applied once rather than repeated per call site. The pool is bounded
+  at 16 per thread and closed on shutdown via `close_pooled_connections()`.
+- **Consequences:** Per-thread rather than a single shared connection, because
+  `asyncio.to_thread` appears at 61 sites and concurrent DB work really does run
+  on several threads; `check_same_thread=False` permits cross-thread use but does
+  not make *concurrent* use safe. Two rules follow from reuse, and both are
+  enforced by tests rather than convention. First, **a pooled connection is only
+  reused while `DB_PATH` is unchanged** — the first unconditional version passed
+  review and then failed 10 existing tests with "no such table", because a
+  connection opened against the old file kept serving it. That is a latent
+  multi-database hazard, not merely a test artefact. Second,
+  `release_connection` rolls back rather than returning a mid-transaction
+  connection, so a caller using `get_connection()` directly and forgetting to
+  commit cannot leak a write into the next caller. Functions that close their own
+  connection must use `get_connection_unpooled()`: closing a pooled one would
+  leave the pool holding a dead reference. Note also that **file size is not a
+  valid assertion target in WAL mode** — written pages sit in `-wal` until a
+  checkpoint, so a test comparing sizes across a commit can see the file "grow"
+  after a successful VACUUM. Two such tests were corrected to checkpoint first.
+
+---
+
 ## Open questions
 
 ### Q1 — 3D path convergence: Unity vs Blender vs Three.js
