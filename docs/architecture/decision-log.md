@@ -458,7 +458,7 @@
 - **Status:** Decided
 - **Context:** `adapters/ollama.py` is 1,470 lines and `ollama_chat` is the
   deepest function in the backend (nesting depth 9). It was left unflattened in
-  D19 because it had **no tests at all**, and D19's own lesson was that
+  D20 because it had **no tests at all**, and D20's own lesson was that
   behaviour-preserving claims need evidence rather than a clean diff.
 - **Decision:** Characterise first, against a real server, then refactor.
   `tools/probe-ollama.py` observes behaviour; `tests/test_ollama_live.py` pins it
