@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from . import source_separation
 from .source_separation import source_separator
 
 logger = logging.getLogger(__name__)
@@ -77,16 +78,12 @@ async def analyze_stems_for_visualization(filename: str) -> dict[str, Any]:
 
 
 def _find_stem_dir(filename: str) -> Path | None:
-    """Locate the Demucs output dir for a library file.
+    """Backwards-compatible alias for :func:`source_separation.find_stem_dir`.
 
-    Imports from ``api.audio_stems``, where the stem routes now live. It used to
-    be ``api.audio``; that import broke when the stem block was split out, and
-    surfaced as ``ImportError`` -> HTTP 500 on /api/audio/stems-analysis.
-
-    Note the layering this inherits: a service reaching into the API module is
-    backwards. It works because ``_find_stem_dir`` is a pure path helper, but
-    the durable fix is to move it into source_separation (which owns
-    SEPARATION_DIR) and have both sides import it from there.
+    This service used to define the lookup itself and then import the API
+    module's copy - backwards layering, and an ImportError -> HTTP 500 when the
+    stem routes moved to their own module. The implementation now lives with
+    SEPARATION_DIR in source_separation; this alias keeps the local name so
+    existing call sites in this file stay readable.
     """
-    from ..api.audio_stems import _find_stem_dir as _api_find_stem_dir
-    return _api_find_stem_dir(filename)
+    return source_separation.find_stem_dir(filename)

@@ -9,6 +9,7 @@ Or for lighter weight: pip install spleeter
 
 import asyncio
 import logging
+import re
 import shutil
 import subprocess
 import sys
@@ -25,6 +26,56 @@ SEPARATION_DIR = PROJECT_ROOT / "output" / "stems"
 SEPARATION_DIR.mkdir(parents=True, exist_ok=True)
 
 STEM_NAMES = ("vocals", "drums", "bass", "other")
+
+
+def find_stem_dir(filename: str) -> Path | None:
+    """Locate the Demucs output dir for a library file, tolerating renames.
+
+    Separation output dirs are created from the *source* filename at separation
+    time (``output/stems/<model>/<track>/``), so hash prefixes (``85a406ef_...``),
+    renames, and case/spacing differences all break an exact lookup. Resolve:
+    exact -> normalized equality -> normalized containment (deterministic order).
+
+    Checks all known model directories (mdx_extra_q first, then htdemucs) so
+    existing stems remain discoverable after the default model change.
+
+    Lives here rather than in the API layer because it is a pure path query over
+    SEPARATION_DIR, which this module owns. It used to be
+    ``api/audio_stems.py::_find_stem_dir``; ``services/stem_analysis.py`` had a
+    thin wrapper that imported it back out of the API module, which is backwards
+    layering and broke outright when the stem routes were split into their own
+    module (ImportError -> HTTP 500 on /api/audio/stems-analysis).
+    """
+    base_dirs = [SEPARATION_DIR / m for m in SourceSeparator.SUPPORTED_MODELS]
+    # Prefer newer models so a track separated with both returns the best one.
+    base_dirs.sort(key=lambda p: p.name != "mdx_extra_q")
+
+    stem = Path(filename).stem
+
+    def norm(s: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", s.lower())
+
+    stripped = re.sub(r"^([0-9a-f]{8}_)+", "", stem, flags=re.IGNORECASE)
+    targets = {norm(stripped), norm(stem)} - {""}
+
+    for base in base_dirs:
+        exact = base / stem
+        if exact.exists():
+            return exact
+        if not base.exists():
+            continue
+        try:
+            dirs = sorted([d for d in base.iterdir() if d.is_dir()], key=lambda d: d.name)
+        except OSError:
+            continue
+        for d in dirs:
+            if norm(d.name) in targets:
+                return d
+        for d in dirs:
+            dn = norm(d.name)
+            if dn and any(t in dn or dn in t for t in targets):
+                return d
+    return None
 
 
 def encode_wav_to_mp3(wav_path: Path, mp3_path: Path | None = None) -> Path | None:

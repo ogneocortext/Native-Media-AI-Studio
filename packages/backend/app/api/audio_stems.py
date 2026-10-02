@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import urllib.parse
 import uuid
 from pathlib import Path
@@ -36,7 +35,7 @@ from pydantic import BaseModel
 
 from ..core.config import PROJECT_ROOT
 from ..services import source_separation
-from ..services.source_separation import SEPARATION_DIR, source_separator
+from ..services.source_separation import SEPARATION_DIR, find_stem_dir, source_separator
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +139,7 @@ async def get_stems(filename: str) -> dict:
     """Get previously separated stems for an audio file, if available."""
     import urllib.parse
     filename = urllib.parse.unquote(filename)
-    stem_dir = _find_stem_dir(filename)
+    stem_dir = find_stem_dir(filename)
     stems = {}
     if stem_dir is not None and stem_dir.exists():
         for stem_name in source_separation.STEM_NAMES:
@@ -196,7 +195,7 @@ async def get_stems_status() -> dict:
         for f in sorted(AUDIO_DIR.rglob("*"), key=lambda x: x.stat().st_mtime, reverse=True):
             if f.is_file() and f.suffix.lower() in ALLOWED_EXTENSIONS and not f.name.startswith("."):
                 relative = f.relative_to(AUDIO_DIR).as_posix()
-                stem_dir = _find_stem_dir(relative)
+                stem_dir = find_stem_dir(relative)
                 stems: list[str] = []
                 if stem_dir is not None and stem_dir.exists():
                     for stem_name in source_separation.STEM_NAMES:
@@ -206,51 +205,6 @@ async def get_stems_status() -> dict:
     except OSError:
         pass
     return {"tracks": tracks}
-
-
-def _find_stem_dir(filename: str) -> Path | None:
-    """Locate the Demucs output dir for a library file, tolerating renames.
-
-    Separation output dirs are created from the *source* filename at separation
-    time (`output/stems/<model>/<track>/`), so hash prefixes (`85a406ef_…`),
-    renames, and case/spacing differences all break an exact lookup. Resolve:
-    exact → normalized equality → normalized containment (deterministic order).
-
-    Checks all known model directories (mdx_extra_q first, then htdemucs)
-    so existing stems remain discoverable after the default model change.
-    """
-    from ..services.source_separation import SourceSeparator
-
-    base_dirs = [SEPARATION_DIR / m for m in SourceSeparator.SUPPORTED_MODELS]
-    # Prefer newer models so a track separated with both returns the best one.
-    base_dirs.sort(key=lambda p: p.name != "mdx_extra_q")
-
-    stem = Path(filename).stem
-
-    def norm(s: str) -> str:
-        return re.sub(r"[^a-z0-9]", "", s.lower())
-
-    stripped = re.sub(r"^([0-9a-f]{8}_)+", "", stem, flags=re.IGNORECASE)
-    targets = {norm(stripped), norm(stem)} - {""}
-
-    for base in base_dirs:
-        exact = base / stem
-        if exact.exists():
-            return exact
-        if not base.exists():
-            continue
-        try:
-            dirs = sorted([d for d in base.iterdir() if d.is_dir()], key=lambda d: d.name)
-        except OSError:
-            continue
-        for d in dirs:
-            if norm(d.name) in targets:
-                return d
-        for d in dirs:
-            dn = norm(d.name)
-            if dn and any(t in dn or dn in t for t in targets):
-                return d
-    return None
 
 
 class SeparateFileRequest(BaseModel):
