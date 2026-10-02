@@ -403,6 +403,7 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
 
         # Try CUDA first, fall back to CPU
         cuda_result = None
+        cuda_error = None
         try:
             from ..services.audio_analyzer import analyze_with_cuda
             if y is not None:
@@ -412,8 +413,24 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
             else:
                 cuda_result = analyze_with_cuda(str(file_path))
         except Exception as e:
-            logger.debug("CUDA analysis unavailable: %s", e)
+            cuda_error = e
             cuda_result = None
+
+        # A GPU->CPU drop costs roughly 300x on this track (0.3s vs ~92s
+        # measured on a GTX 1070 Ti), so it must not be silent. This used to
+        # log at DEBUG, which is invisible at default level - the endpoint
+        # simply reported no computed_on and ran CPU-bound with no explanation.
+        if cuda_error is not None:
+            logger.warning(
+                "CUDA analysis failed, falling back to CPU (~300x slower on "
+                "this hardware): %s: %s",
+                type(cuda_error).__name__, cuda_error,
+            )
+        elif cuda_result is None:
+            logger.warning(
+                "CUDA analysis returned no result, falling back to CPU "
+                "(~300x slower on this hardware)"
+            )
 
         if y is not None:
             result = analyzer.analyze_from_audio(
