@@ -16,13 +16,17 @@ sys.path.insert(0, os.path.abspath(
 def _audio():
     """Import lazily, inside the test.
 
-    Module-scope import of app.api.audio pulls in its database dependency during
-    collection and leaves studio.db locked on Windows, which makes unrelated
-    tmpdir cleanup fail with WinError 32.
-    """
-    import app.api.audio as audio_mod
+    The helpers under test moved to app/api/audio_analysis.py when the analysis
+    block was split out of app/api/audio.py, so import them from there rather
+    than reaching into the API module.
 
-    return audio_mod
+    Module-scope import also pulls in the database dependency during collection
+    and leaves studio.db locked on Windows, which makes unrelated tmpdir cleanup
+    fail with WinError 32.
+    """
+    import app.api.audio_analysis as audio_analysis
+
+    return audio_analysis
 
 
 def test_configured_default_is_tried_first():
