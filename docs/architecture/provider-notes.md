@@ -38,6 +38,8 @@
 - **Cost / access notes:** free during the preview. OpenCode announced it as
   free for one week from Sep 23, 2026 (≈ Sep 30); OpenRouter lists $0 with no
   firm end date, but the established pattern is the free price ends when the
-  maker is named (Ox Alpha's window was ~6 days, closed on reveal). Still $0
-  on all routes as of Sep 29 checks. Treat as temporary; do not build
+  maker is named (Ox Alpha's window was ~6 days, closed on reveal). Cline
+  publishes no separate end date — it reaches the model through OpenRouter's
+  `stealth/space-bunny-alpha` route, so the OpenRouter preview window governs.
+  Still $0 on all routes as of Sep 29 checks. Treat as temporary; do not build
   dependencies on its continued availability.
