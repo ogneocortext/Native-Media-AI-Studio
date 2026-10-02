@@ -47,6 +47,16 @@ Native-Media-AI-Studio/
 - Agent screenshots → `packages/frontend/tests/browser/out/` (gitignored; it was
   not always, so some older scratch output may still be tracked — see
   `tools/check-repo-layout.py`).
+- **`/api/audio` is four modules, not one** (D15): `audio.py` (upload, analysis
+  endpoints, cache, JSON index), `audio_stems.py` (separation), `audio_edit.py`
+  (extract/rename/trim/file serving), `audio_analysis.py` (result builder,
+  suggestions, section labelling — **no routes**). Put a new endpoint in the
+  module matching its responsibility, not in `audio.py` by default. All three
+  routers are registered in `main.py`; register a new one there or its routes
+  vanish silently. `tools/snapshot-audio-routes.py --check` guards the surface —
+  but it **cannot** catch a missing import, because OpenAPI is generated from
+  decorators and never runs a handler body. After moving code under `app/api/`,
+  call the endpoints.
 
 ## MCP Servers
 

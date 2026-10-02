@@ -165,6 +165,13 @@ _(None — all components now source media data from the library API)_
 - `save_audio_file` — Prevents duplicate entries by checking existing filenames
 - `cleanup_old_system_resources` — Purges system snapshots older than 7 days
 
+The `/api/audio` prefix is served by four modules registered in `main.py`:
+`audio.py` (upload, analysis endpoints, cache, JSON index), `audio_stems.py`
+(separation), `audio_edit.py` (extract/rename/trim/file serving) and
+`audio_analysis.py` (result builder, suggestions, section labelling — no routes).
+See D15 in the decision log; `tools/snapshot-audio-routes.py --check` guards the
+route surface.
+
 ### Backend Services
 - `AudioAnalyzer` — Librosa-based feature extraction
 - `MusicVideoHandler` — FFmpeg video rendering with visualization filters

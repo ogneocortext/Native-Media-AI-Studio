@@ -19,7 +19,10 @@
       "description": "FastAPI backend — ComfyUI management, audio analysis, 3D generation, GPU operations",
       "structure": {
         "app/main.py": "FastAPI app factory, router registration, lifespan",
-        "app/api/audio.py": "Audio upload/analyze endpoints (librosa GPU)",
+        "app/api/audio.py": "Audio upload/analyze endpoints; owns the in-memory analysis cache and the JSON index. The other audio_* modules are split from it - see the note in docs/architecture/decision-log.md (D15).",
+        "app/api/audio_analysis.py": "Analysis-result builder, curve maths, visualization suggestions, section labelling (heuristic + Ollama). No routes.",
+        "app/api/audio_stems.py": "Stem separation: /separate, /stems*, /stem-*, /enhance-stems",
+        "app/api/audio_edit.py": "File editing: /extract, /rename, /trim, /file/{filename}",
         "app/api/video.py": "Video generation queue (JobType.MUSIC_VIDEO)",
         "app/api/outputs.py": "Output file listing, rename, delete, duplicates",
         "app/api/jobs.py": "Job queue CRUD, stats, retry",

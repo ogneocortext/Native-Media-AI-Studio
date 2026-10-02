@@ -219,6 +219,39 @@
 
 ---
 
+### D15 — Audio API split into four peer modules
+- **Status:** Decided
+- **Context:** `app/api/audio.py` had reached 2,746 lines with 32 routes
+  spanning upload, analysis, CUDA analysis, stem separation, FFmpeg editing,
+  agent profiles and file serving. Analysis helpers (the result builder, curve
+  maths, visualization suggestions, section labelling) sat in the same module as
+  the endpoints that call them, and `services/stem_analysis.py` imported a
+  private helper back out of the API layer.
+- **Decision:** Split by responsibility into four peer modules under the same
+  `/api/audio` prefix: `audio.py` keeps upload, analysis endpoints, the
+  in-memory cache and the JSON index; `audio_stems.py` takes separation;
+  `audio_edit.py` takes extract/rename/trim/file-serving; `audio_analysis.py`
+  takes the pure helpers and holds no routes. All routers are registered in
+  `main.py`, so no public path, method or operation id changed (verified: 32
+  routes before and after). Shared constants (`AUDIO_DIR`, `PROJECT_ROOT`,
+  `ALLOWED_EXTENSIONS`, `ANALYSIS_SCHEMA_VERSION`) are mirrored per module rather
+  than centralised, because importing between API modules risks a cycle and the
+  duplication is three path constants.
+- **Consequences:** New audio routes belong in the module matching their
+  responsibility, not appended to `audio.py`; `main.py` must register all three
+  routers or routes silently vanish. `find_stem_dir` now lives in
+  `services/source_separation.py` — `services/` must not import from `app/api`
+  (D-adjacent layering rule, verified repo-wide as zero such imports).
+  `tools/snapshot-audio-routes.py --check` guards the route surface, but it
+  **cannot** detect a missing import: OpenAPI is built from decorators and never
+  runs a handler body, and neither `py_compile` nor a plain import resolves free
+  variables. After any move under `app/api/`, call the endpoints. Extract
+  dependencies with an AST free-variable pass, not grep — grep reports docstring
+  mentions as usage and missed that `audio_stems.py` called none of the shared
+  helpers it appeared to.
+
+---
+
 ## Open questions
 
 ### Q1 — 3D path convergence: Unity vs Blender vs Three.js
@@ -305,6 +338,7 @@
 - 2026-10-01: Q5 resolved — the shader visualizer derives its palette from the detected musical key (Tier 1 of `docs/architecture/chroma-hue-mapping.md`). Pitch class maps to hue along the circle of fifths so harmonically adjacent keys grade-shift smoothly, mode maps to saturation, and key confidence decides between a direct hue, a blend toward the runner-up, or a neutral fallback below r=0.4 that never produces a black frame. Classical DSP only, so it doubles as the deterministic fallback layer (Q2). Implementing it exposed that the repo has **two** Krumhansl key analyzers with divergent output schemas — `audio_agent_profile.py` emitted a clamped `key_confidence` and no runner-up — so the spec's assumed fields were absent from every committed analysis file; both analyzers and the analysis endpoint now emit the same key fields. Two wiring details the spec's sketch missed: the rAF loop replaces `uniformsRef.current` wholesale each frame (so static key values need a separate ref), and only the `spectralReactor` preset consumes the uniforms, with confidence as the blend weight. Tier 2 (per-frame chroma) is deferred; it needs `chroma_frames` in the analyzer output.
 - 2026-10-01: D14 recorded — the visualizer frontend is decomposed into focused modules rather than held in two monolithic components. `Visualizer.tsx` (2,318 lines) and `Canvas2DVisualizer.tsx` (1,560) are now orchestration over `visualizerHelpers.ts`, `canvas2dHelpers.ts`, `components/RenderStats.tsx`, `useVisualizerRecording.ts`, and `useAudioGraph.ts`. The split was mechanical (verbatim line ranges, verified by a normalized code-line diff against `HEAD`); the one behavioural change was consolidating the Web Audio graph, which had been copy-pasted three times and had already drifted. Recording and AudioContext teardown are now owned by their hooks rather than a shared unmount effect. Within the visualizer, `useAudioGraph.ensureAudioContext()` is the only `AudioContext` creation site (D4); app-wide, `BeatTimeline.tsx` and the `StemMixer` fallback still construct their own, and consolidating those is open.
 ---
+- 2026-10-01: D15 recorded — `app/api/audio.py` split from 2,746 lines into four peer modules under the same `/api/audio` prefix: `audio.py` (1,106; upload, analysis endpoints, in-memory cache, JSON index), `audio_stems.py` (540; separation), `audio_edit.py` (504; extract/rename/trim/file serving), `audio_analysis.py` (707; result builder, curve maths, visualization suggestions, section labelling — no routes). All three routers are registered in `main.py`; the route surface is unchanged at 32 paths (verified before and after by `tools/snapshot-audio-routes.py`). Shared constants are mirrored per module rather than centralised, because cross-imports between API modules risk a cycle and the overlap is three path constants. `find_stem_dir` moved from the API layer into `services/source_separation.py`, which owns `SEPARATION_DIR`, ending a `services/` → `app/api` import (verified repo-wide as zero remaining). Two lessons are recorded in D15 because both cost a live 500 during the work: the route snapshot cannot detect a missing import (OpenAPI is decorator-generated and never runs a handler body; `py_compile` and plain imports resolve no free variables), and grep is unreliable for extracting dependencies — it reported docstring mentions as call sites and hid that `audio_stems.py` used none of the shared helpers it appeared to. Dependencies were enumerated with an AST free-variable pass instead.
 - 2026-09-22: Log created from repo archaeology (README, AGENTS.md,
   `services/video/__init__.py`, recent CHANGELOG entries). Q1–Q4 opened.
 

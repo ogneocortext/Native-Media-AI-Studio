@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed - Audio API split into four modules (D15)
+
+- `app/api/audio.py` reduced from 2,746 to 1,106 lines, split into four peer
+  modules under the unchanged `/api/audio` prefix: `audio.py` (upload, analysis
+  endpoints, in-memory cache, JSON index), `audio_stems.py` (separation),
+  `audio_edit.py` (extract/rename/trim/file serving), and `audio_analysis.py`
+  (result builder, curve maths, visualization suggestions, section labelling —
+  no routes). All 32 routes are registered in `main.py`; the route surface is
+  unchanged, verified by `tools/snapshot-audio-routes.py`.
+- `find_stem_dir` moved from the API layer to `services/source_separation.py`,
+  which owns `SEPARATION_DIR`. This removes the last `services/` → `app/api`
+  import (verified repo-wide as zero).
+
+### Fixed - Duplicate uploads, stale analysis caches, and silent CPU fallback
+
+- **Content-addressed uploads** — files are named from `sha256(bytes)[:8]`, so
+  re-uploading the same track resolves to the same path instead of creating a new
+  row and a new copy. Writes are atomic. `tools/dedupe-audio-uploads.py` reported
+  68 rows for 58 unique files; the 10 duplicates were collapsed and three
+  byte-identical orphan files deleted (13.8 MB freed). `storage/studio.db.dedupe.bak`
+  is kept as a rollback until the database is confirmed good.
+- **Analysis schema v2** — results are stamped with a schema version and
+  pre-v2 cache, database and JSON-index entries are rejected as stale rather than
+  served. Existing analyses re-analyze lazily on request; they are not bulk
+  regenerated.
+- **Silent CPU fallback** — `AudioAnalysisResult(extra="ignore")` was dropping the
+  `computed_on` field, so successful GPU analyses reported no device and read as
+  a CPU fallback. CUDA is verified working on the GTX 1070 Ti (`sm_61`), and
+  `analyze-cuda` now reports `computed_on=GPU`.
+- **Ollama section labelling latency** — requests now send `think:false` and try
+  a cheap-first model chain with a 12-second per-model budget. Hidden thinking
+  dominated the cost (one request: 39.5 s → 0.6 s); the endpoint went from ~81 s
+  to ~7.9 s. Recorded in `docs/knowledge-library/ollama-thinking-structured-outputs.md`.
+- **Audio VRAM handover is Ollama-aware** — Ollama's models are offloaded before
+  CUDA work and restored afterwards, instead of contending for VRAM.
+
+### Added - Tooling guards for the audio path
+
+- `tools/check-subprocess-encoding.py` rejects locale-decoded subprocess output
+  (the cause of a confidently wrong "commit is missing" verdict), with
+  `tools/fix-subprocess-encoding.py` to apply the fix.
+- `tools/prune-checkpoint-refs.py` previews Cline checkpoint refs; it is
+  age-based (14 days) by default so recent restore points stay rewindable.
+- `tools/snapshot-audio-routes.py` fails on route-surface drift, and duplicate
+  audio rows/files are now detected. Note the limit recorded in D15: it cannot
+  catch a missing import, since OpenAPI is decorator-generated and never runs a
+  handler body.
+- System diagnostics reports the serving `sys.prefix`, which is the reliable way
+  to confirm the active conda environment — the Windows launcher may display the
+  base Python executable.
+
 ## [2.0.0] - 2026-10-01
 
 > **Major release.** The audio path is no longer an analysis side-channel — stem
