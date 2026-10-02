@@ -54,8 +54,9 @@
   Space Bunny Alpha are the most reliable combo.
 - **Weak at:** most free-tier models listed in the Kilo gateway do not
   actually work on free accounts — a listing is not a reliable signal of
-  availability. Blind-testing models burns session time; check the
-  reliability log first once it exists (D21 follow-up).
+  availability. Blind-testing models burns session time; run
+  `python tools/model-reliability/score.py` first and pick from the top of
+  the table.
 - **Quirks (needs explicit instruction for):** Step 3.7 Flash (via Kilo
   gateway) worked for months at a time and is competent for most work — it is
   the known-good fallback when the current promo model is unavailable.
