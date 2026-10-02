@@ -347,7 +347,7 @@
 
 ---
 
-### D18 — Database connections are pooled per thread
+### D19 — Database connections are pooled per thread
 - **Status:** Decided
 - **Context:** `get_db()` opened and closed a connection on every call, at ~113
   call sites. Measured: 0.970 ms per call against 0.006 ms for reuse — about 98%
@@ -377,7 +377,7 @@
 
 ---
 
-### D19 — Nesting depth is measured, and the worst offenders are flattened by duplication
+### D20 — Nesting depth is measured, and the worst offenders are flattened by duplication
 - **Status:** Decided
 - **Context:** `tools/report-nesting.py` measures real control-flow nesting depth
   per function by AST: **118 functions** in `packages/backend/app` sit at depth ≥ 4,
@@ -414,6 +414,43 @@
   the same tree. `tools/verify-nesting-gate.py` exists so the gate is proven able
   to fail. This is the same lesson as the VACUUM and missing-import bugs:
   **a check must be shown to fail before its passing means anything.**
+
+---
+
+### D21 — Agent handoff portability across model providers (2026-10-02)
+- **Status:** Decided
+- **Context:** The coding models used on this repo rotate. The owner works
+  through free promotional windows on third-party providers — current: Space
+  Bunny Alpha via Cline Desktop (OpenRouter `stealth/space-bunny-alpha`,
+  anonymous preview, owner unclaimed, widely fingerprinted as MiniMax M3.1);
+  previous sessions used other models. Each model has different strengths,
+  weaknesses, and failure modes, and a switch can happen mid-stream. Work must
+  survive the switch without rediscovery, and a new model must be productive
+  in its first session.
+- **Decision:** The repo is provider-agnostic by design. Five rules:
+  1. Instructions are behavioral, not model-specific — describe outcomes and
+     constraints, never prompt hacks tuned to one model.
+  2. File-based state for handoffs: this decision log, ADRs, and structured
+     state files. Any agent landing fresh starts at `docs/README.md` → this
+     log (already required by the AGENTS.md bootstrap).
+  3. Commits carry the reasoning (the "why"), so `git log` is a guidance
+     channel for the next agent, whatever model it runs.
+  4. Checker/guard scripts are the model-agnostic enforcement layer — they
+     verify work regardless of which model produced it. Precedents: the
+     encoding guard, the route-surface snapshot, `tools/check-docs-map.py`,
+     the nesting gate (`report-nesting.py --baseline` in `check-all.py`). A
+     new model is onboarded by running the checkers, not by re-learning the
+     repo.
+  5. Per-provider behavior notes live in
+     `docs/architecture/provider-notes.md`: observed strengths, weaknesses,
+     and quirks per model+provider (e.g. "strong at X, weak at Y, needs
+     explicit Z"). On a provider switch, append a section — do not rewrite
+     the instructions.
+- **Consequences:** New agent-facing docs must not assume a specific model.
+  Provider notes are append-only observations, not instructions; anything that
+  graduates into a rule moves to AGENTS.md or this log. The checkers are the
+  stable contract across providers — if a new model cannot satisfy them, that
+  is signal about the model, not a reason to weaken the check.
 
 ---
 
@@ -500,6 +537,8 @@
 ---
 
 ## Changelog
+- 2026-10-02: D21 recorded — agent handoff portability across model providers. The repo is provider-agnostic by design (behavioral instructions, file-based handoff state, commits-as-guidance, checker scripts as the enforcement contract), and `docs/architecture/provider-notes.md` now collects per-provider behavior notes so a model switch doesn't require rediscovery. AGENTS.md bootstrap updated to D1–D21 / Q1–Q5.
+- 2026-10-02: fixed a duplicate D18 numbering — the database-pooling entry had been labeled D18 after the visualization audit already took it. Database pooling is now D19, nesting depth D20, handoff portability D21. No content changed, only numbers.
 - 2026-10-01: Q5 resolved — the shader visualizer derives its palette from the detected musical key (Tier 1 of `docs/architecture/chroma-hue-mapping.md`). Pitch class maps to hue along the circle of fifths so harmonically adjacent keys grade-shift smoothly, mode maps to saturation, and key confidence decides between a direct hue, a blend toward the runner-up, or a neutral fallback below r=0.4 that never produces a black frame. Classical DSP only, so it doubles as the deterministic fallback layer (Q2). Implementing it exposed that the repo has **two** Krumhansl key analyzers with divergent output schemas — `audio_agent_profile.py` emitted a clamped `key_confidence` and no runner-up — so the spec's assumed fields were absent from every committed analysis file; both analyzers and the analysis endpoint now emit the same key fields. Two wiring details the spec's sketch missed: the rAF loop replaces `uniformsRef.current` wholesale each frame (so static key values need a separate ref), and only the `spectralReactor` preset consumes the uniforms, with confidence as the blend weight. Tier 2 (per-frame chroma) is deferred; it needs `chroma_frames` in the analyzer output.
 - 2026-10-01: D14 recorded — the visualizer frontend is decomposed into focused modules rather than held in two monolithic components. `Visualizer.tsx` (2,318 lines) and `Canvas2DVisualizer.tsx` (1,560) are now orchestration over `visualizerHelpers.ts`, `canvas2dHelpers.ts`, `components/RenderStats.tsx`, `useVisualizerRecording.ts`, and `useAudioGraph.ts`. The split was mechanical (verbatim line ranges, verified by a normalized code-line diff against `HEAD`); the one behavioural change was consolidating the Web Audio graph, which had been copy-pasted three times and had already drifted. Recording and AudioContext teardown are now owned by their hooks rather than a shared unmount effect. Within the visualizer, `useAudioGraph.ensureAudioContext()` is the only `AudioContext` creation site (D4); app-wide, `BeatTimeline.tsx` and the `StemMixer` fallback still construct their own, and consolidating those is open.
 ---
