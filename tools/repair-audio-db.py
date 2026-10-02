@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Repair `audio_files` rows whose stored file cannot be found.
 
 Background: uploads were originally named `<uuid4[:8]>_<name>`, so re-uploading
@@ -9,21 +9,21 @@ library lists but can never serve.
 
 What this repairs, and what it refuses to guess at:
 
-  * **exact** — the path already matches; nothing to do.
-  * **prefix** — stripping one or more stale `<8hex>_` prefixes finds a real
+  * **exact** â€” the path already matches; nothing to do.
+  * **prefix** â€” stripping one or more stale `<8hex>_` prefixes finds a real
     file. Applied.
-  * **unique-basename** — the file exists under the same basename in a different
+  * **unique-basename** â€” the file exists under the same basename in a different
     folder (typically `Suno-V6-Mini/x.m4a` recorded as root `x.m4a`). Applied
     *only* when exactly one file has that basename, so an ambiguous name is
     never guessed at.
-  * **ambiguous** / **missing** — no single defensible target. Reported, never
+  * **ambiguous** / **missing** â€” no single defensible target. Reported, never
     applied. Resolving these is a human decision.
 
 It also backfills `file_size`, which the uploader never populated (0 on every
 row), so content can be compared later.
 
 Dry-run by default; pass --apply to write. Always takes a timestamped backup
-first unless --no-backup is given. Rows are never deleted here — retiring a row
+first unless --no-backup is given. Rows are never deleted here â€” retiring a row
 that points at content you may still want is a separate, explicit act.
 
 Usage::
@@ -41,9 +41,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-DEFAULT_DB = REPO / "storage" / "studio.db"
-DEFAULT_AUDIO = REPO / "output" / "audio"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _toolutil import AUDIO_DIR as DEFAULT_AUDIO  # noqa: E402
+from _toolutil import DEFAULT_DB
 
 HASH_PREFIX = re.compile(r"^([0-9a-f]{8}_)+", re.IGNORECASE)
 AUDIO_SUFFIXES = {".mp3", ".wav", ".flac", ".ogg", ".m4a", ".wma", ".aac"}

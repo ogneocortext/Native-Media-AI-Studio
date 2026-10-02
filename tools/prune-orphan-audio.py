@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Delete audio files on disk that no audio_files row still references.
 
 ``dedupe-audio-uploads.py`` retires duplicate rows; this removes the files those
@@ -22,9 +22,9 @@ import sqlite3
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-DEFAULT_DB = REPO / "storage" / "studio.db"
-DEFAULT_AUDIO = REPO / "output" / "audio"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _toolutil import AUDIO_DIR as DEFAULT_AUDIO  # noqa: E402
+from _toolutil import DEFAULT_DB
 
 
 def content_id(path: Path) -> str:

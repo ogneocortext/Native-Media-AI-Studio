@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Read-only health audit for storage/studio.db.
 
 Answers the questions that decide whether the library is trustworthy: is the
@@ -11,9 +11,9 @@ import sqlite3
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-DB = REPO / "storage" / "studio.db"
-AUDIO = REPO / "output" / "audio"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _toolutil import AUDIO_DIR as AUDIO  # noqa: E402
+from _toolutil import DEFAULT_DB as DB
 
 
 def main() -> int:

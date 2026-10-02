@@ -30,9 +30,11 @@ from __future__ import annotations
 
 import argparse
 import ast
-import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _toolutil import tracked_python_files  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -49,16 +51,9 @@ def read_source(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
 
 
-def tracked_python_files() -> list[Path]:
-    """Tracked .py files only.
-
-    Ignored build output must never fail a hook, so this cannot use a glob over
-    the working tree.
-    """
-    out = subprocess.run(
-        ["git", "ls-files", "*.py"], cwd=ROOT, capture_output=True,
-    ).stdout.decode("utf-8", "replace")
-    return [ROOT / rel for rel in out.splitlines() if rel.strip()]
+# Shared with fix-subprocess-encoding.py via _toolutil.tracked_python_files.
+# The two copies drifted apart (the fix copy lost the docstring), which is how
+# two scanners describing the same rule stopped agreeing on it.
 
 
 def text_mode_true(call: ast.Call) -> bool:

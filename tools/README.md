@@ -392,6 +392,45 @@ The individual checkers are still runnable alone and are documented below.
   `:cloud` is only a fallback, and every model is listed as `[local]`/`[remote]`.
   Pass `--model` to override; the probe warns if the named model is remote.
 
+## Shared helpers
+
+Two private modules hold the patterns that were otherwise re-implemented per
+script. Both are underscore-prefixed: implementation details of sibling scripts,
+not public API.
+
+- `_gitutil.py` — git subprocesses. Exists because `subprocess.run(..., text=True)`
+  with no `encoding` decodes with the **locale** codec (cp1252 here), so a UTF-8
+  BOM arrives as `"\u00ef\u00bb\u00bf"` instead of U+FEFF and any BOM-stripping
+  silently did nothing — which produced a confidently wrong "commit is missing"
+  verdict. It also never returns `None` for stdout, and warns against piping large
+  streams (which deadlocks on Windows).
+
+- `_toolutil.py` — repo paths, tracked-file enumeration, read-only SQLite access,
+  timestamped backups, and the `VACUUM INTO`-verify-swap compaction. Added after
+  auditing this directory found the same four patterns written 14+ times:
+  repo-root resolution in seven different spellings; audit tools re-deciding how
+  to open the database (read-write, so an audit could create the file it was only
+  meant to inspect); backup-then-mutate with differing safety; and
+  `tracked_python_files` duplicated across the `check-`/`fix-` encoding pair, with
+  the docstrings drifted apart so the two copies no longer agreed on what they
+  did.
+
+  It imports nothing from the application and touches no network, because a tool
+  that must run standalone cannot depend on the backend being up.
+
+  ```python
+  import sys
+  from pathlib import Path
+
+  sys.path.insert(0, str(Path(__file__).resolve().parent))
+  from _toolutil import DEFAULT_DB, tracked_python_files  # noqa: E402
+  ```
+
+  Keep new tools on these helpers rather than re-deriving paths. Two independent
+  git-backed tools each grew a private `git()` wrapper while this work was done;
+  that indirection is worth keeping only when it adds something (stripping), and
+  the stderr/encoding handling that actually matters belongs in `_gitutil`.
+
 ## Git Hooks
 
 This repo has **no CI** (D10 in `docs/architecture/decision-log.md`), so local

@@ -27,9 +27,10 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _toolutil import ensure_repo_on_path
+
+ensure_repo_on_path()
 from _gitutil import delete_ref, run_git  # noqa: E402
 
 CHECKPOINT_REF = "refs/cline/checkpoints"
@@ -37,7 +38,14 @@ PROTECTED = ("refs/heads/", "refs/remotes/", "refs/tags/")
 
 
 def git(*args: str) -> str:
-    """Run git, discarding stderr. See tools/_gitutil.py for why."""
+    """Run git, discarding stderr. See tools/_gitutil.py for why.
+
+    A thin ``run_git(...).strip()`` wrapper. Kept because every call site here
+    wants the stripped form and `for-each-ref` splits on it; the alternative -
+    repeating `.strip()` at six call sites - is worse. The stderr-discarding and
+    encoding handling, which are the parts that actually matter, live in
+    `_gitutil.run_git`.
+    """
     return run_git(*args).strip()
 
 

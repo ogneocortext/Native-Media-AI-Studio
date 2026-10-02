@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Collapse duplicate audio uploads created by the random-id bug.
 
 Uploads used to be stored as ``uuid4()[:8]_<original name>``. Because that id is
@@ -28,9 +28,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-DEFAULT_DB = REPO / "storage" / "studio.db"
-AUDIO_DIR = REPO / "output" / "audio"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _toolutil import AUDIO_DIR, DEFAULT_DB  # noqa: E402
 
 
 def content_id(path: Path) -> str:

@@ -74,6 +74,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Unnamed track ec2c16`. Collapsing the four into one requires content hashing,
   which is a data decision rather than a rendering one.
 
+### Changed - Consolidated duplicated plumbing across tools/
+
+An audit of `tools/` (38 files, ~10,600 lines) found the same four patterns
+re-implemented per script, with the copies drifting apart. New
+`tools/_toolutil.py` holds them once, following the existing `_gitutil.py`
+precedent:
+
+- **Repo-root resolution was written 14 different ways** (`parent.parent`,
+  `parents[1]`, inline `sys.path` juggling). Nine tools now import `REPO`,
+  `DEFAULT_DB` and `AUDIO_DIR` from one place, so "where does this tool look?"
+  is answered by reading one module rather than seven.
+- **`tracked_python_files` was duplicated** across the
+  `check-subprocess-encoding.py` / `fix-subprocess-encoding.py` pair. The bodies
+  were identical and only the docstrings had diverged — the fix copy had lost
+  its entirely, so two scanners documenting "the same rule" had stopped
+  describing the same thing. Both now use the shared one.
+- **`prune-checkpoint-refs.py` documented a `git()` wrapper** without saying what
+  it was for. It is `run_git(...).strip()`; the wrapper is legitimate (six call
+  sites want the stripped form) but that is now written down, along with why the
+  stderr and encoding handling that *matters* lives in `_gitutil.run_git`.
+
+`_toolutil.py` also holds read-only SQLite access, timestamped backups, and the
+`VACUUM INTO`-verify-swap compaction, which two tools had each reimplemented with
+differing safety. It imports nothing from the application and touches no
+network, because a tool that must run standalone cannot depend on the backend
+being up.
+
+Net **−52 lines** with 14 tools now sharing one module. Verified by running each
+migrated tool and confirming it resolves the same paths and produces the same
+output as before.
+
 ### Added - Live characterisation tests for the Ollama adapter
 
 The adapter (`adapters/ollama.py`, 1,470 lines) and its shared client

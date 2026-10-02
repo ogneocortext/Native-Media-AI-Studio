@@ -20,8 +20,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-DEFAULT_DB = REPO / "storage" / "studio.db"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _toolutil import DEFAULT_DB  # noqa: E402
 
 # Tables that accumulate over time and are therefore expected to dominate.
 UNBOUNDED = {
