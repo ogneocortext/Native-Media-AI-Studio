@@ -401,7 +401,21 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
         except Exception:
             y, sr = None, None
 
-        # Try CUDA first, fall back to CPU
+        # Try CUDA first, fall back to CPU.
+        #
+        # Ollama holds ~1.5 GB on this 8 GB card, which is enough to push the
+        # spectral pass into a failure that silently drops to CPU at ~300x the
+        # cost. Free VRAM first, then restore it in the finally block below so
+        # a failed analysis still hands the GPU back.
+        from ..services.vram_manager import vram_manager
+
+        try:
+            await vram_manager.begin_audio_analysis()
+        except Exception as vram_exc:
+            # Never fail the request over VRAM bookkeeping: CPU analysis still
+            # produces a correct result, just slowly.
+            logger.warning("VRAM preflight for audio analysis failed: %s", vram_exc)
+
         cuda_result = None
         cuda_error = None
         try:
@@ -489,6 +503,17 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}") from e
+    finally:
+        # Hand VRAM back. In the finally so a failed analysis still restores
+        # Ollama - otherwise one bad request leaves it offloaded until the next
+        # process restart. Guarded because this runs on the error path too, and
+        # a bookkeeping failure must not mask the real error above.
+        try:
+            vram_end = await vram_manager.end_audio_analysis()
+            if vram_end.get("actions"):
+                logger.info("Audio analysis VRAM handover: %s", vram_end["actions"])
+        except Exception as vram_exc:
+            logger.warning("VRAM restore after audio analysis failed: %s", vram_exc)
 
 
 def _check_backend_available(backend: str) -> None:

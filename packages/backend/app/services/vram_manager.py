@@ -34,6 +34,7 @@ class GPUWorkload(str, Enum):
     RENDER_3D = "render_3d"
     IMAGE_GENERATION = "image_generation"
     MUSIC_GENERATION = "music_generation"
+    AUDIO_ANALYSIS = "audio_analysis"
 
 
 class GPUState(str, Enum):
@@ -57,6 +58,7 @@ class VRAMManager:
         self._ollama_loaded: bool = True
         self._comfyui_busy: bool = False
         self._music_gen_running: bool = False
+        self._audio_analysis_running: bool = False
         self._lock = asyncio.Lock()
         self._nvml_available = False
         self._gpustat_available = False
@@ -73,6 +75,13 @@ class VRAMManager:
         # Minimum free VRAM needed for music generation (in MB)
         # ACE-Step 1.5 Tier 3 on GTX 1070 Ti: 2B turbo DiT + 0.6B LM, INT8, CPU offload
         self.MIN_VRAM_FOR_MUSIC = 6144
+        # Minimum free VRAM for the CUDA audio spectral pass.
+        # Measured 0.3s on the GPU against ~92s CPU-bound on this card, so the
+        # offload is worth far more here per second spent than for other
+        # workloads. 1200 MB is the measured peak of one STFT plus its feature
+        # stack on a full track, with headroom; Ollama holds ~1573 MB, which is
+        # what pushes an 8 GB card over without this.
+        self.MIN_VRAM_FOR_AUDIO = 1200
 
         # Safety margins for system stability
         # Don't offload to CPU if system RAM is below this threshold
@@ -564,6 +573,127 @@ class VRAMManager:
             return {
                 "success": True,
                 "vram_after": vram,
+                "actions": actions,
+                "ollama_loaded": self._ollama_loaded,
+            }
+
+    async def begin_audio_analysis(self,
+                                    vram_budget_mb: int | None = None
+                                    ) -> dict[str, Any]:
+        """
+        Signal that GPU audio analysis is starting.
+
+        Offloads Ollama if VRAM is short, so the CUDA spectral pass can run.
+        On a GTX 1070 Ti this pass measures 0.3s against ~92s CPU-bound, so
+        freeing VRAM is worth far more here than the cost of a later reload.
+
+        Never fails: audio analysis can always run on the CPU, so a failed
+        offload downgrades speed rather than blocking the request.
+
+        Args:
+            vram_budget_mb: Required VRAM. Defaults to MIN_VRAM_FOR_AUDIO.
+
+        Returns:
+            Dict with status and actions taken.
+        """
+        budget = vram_budget_mb or self.MIN_VRAM_FOR_AUDIO
+        async with self._lock:
+            logger.info("VRAM Manager: Audio analysis starting (need=%dMB)", budget)
+            self._current_workload = GPUWorkload.AUDIO_ANALYSIS
+            self._audio_analysis_running = True
+
+            vram = await self.get_vram_status()
+            actions: list[dict[str, Any]] = []
+            free_mb = vram.get("free_mb", 0)
+
+            if free_mb >= budget:
+                return {
+                    "success": True,
+                    "offloaded": False,
+                    "free_mb": free_mb,
+                    "actions": actions,
+                    "ollama_loaded": self._ollama_loaded,
+                }
+
+            # Offload Ollama as a courtesy. Failure is non-fatal: the caller
+            # still gets a result, just on the CPU.
+            if self._ollama_loaded:
+                if not self._can_safely_offload():
+                    logger.warning(
+                        "VRAM Manager: %dMB free is below the %dMB audio "
+                        "budget but system RAM is too low to offload Ollama "
+                        "safely; proceeding (analysis may fall back to CPU)",
+                        free_mb, budget,
+                    )
+                else:
+                    logger.info("VRAM Manager: Offloading Ollama for audio analysis")
+                    unloaded = await _unload_ollama_models()
+                    self._ollama_loaded = False
+                    actions.append({
+                        "action": "offload_ollama", "success": True,
+                        "models": unloaded,
+                    })
+                    vram = await self.get_vram_status()
+                    free_mb = vram.get("free_mb", 0)
+
+            return {
+                "success": True,
+                "offloaded": bool(actions),
+                "free_mb": free_mb,
+                "meets_budget": free_mb >= budget,
+                "actions": actions,
+                "ollama_loaded": self._ollama_loaded,
+            }
+
+    async def end_audio_analysis(self) -> dict[str, Any]:
+        """
+        Signal that GPU audio analysis is complete.
+
+        Reloads Ollama if it was offloaded and there is room for it.
+
+        Returns:
+            Dict with status and actions taken.
+        """
+        async with self._lock:
+            logger.info("VRAM Manager: Audio analysis complete")
+            self._current_workload = GPUWorkload.IDLE
+            self._audio_analysis_running = False
+
+            vram = await self.get_vram_status()
+            free_mb = vram.get("free_mb", 0)
+            actions: list[dict[str, Any]] = []
+
+            if not self._ollama_loaded:
+                # Reload only when there is room. The audio pass is done by
+                # now, so the budget is the music one: Ollama needs room to be
+                # useful afterwards.
+                if free_mb > self.MIN_VRAM_FOR_MUSIC:
+                    logger.info(
+                        "VRAM Manager: Reloading Ollama after audio analysis "
+                        "(free=%dMB)", free_mb)
+                    from ..adapters.ollama import ollama_adapter
+                    from ..core.config import config as _cfg3
+
+                    last_model = getattr(ollama_adapter, "_last_model",
+                                         _cfg3.default_model)
+                    if "llama" in last_model.lower() and last_model != _cfg3.default_model:
+                        last_model = _cfg3.default_model
+                    reload_ok = await _reload_ollama_models(last_model)
+                    self._ollama_loaded = reload_ok
+                    actions.append({
+                        "action": "reload_ollama", "success": reload_ok,
+                        "model": last_model,
+                    })
+                else:
+                    # Leave it offloaded; the next workload to need VRAM will
+                    # find it already unloaded rather than thrashing.
+                    logger.info(
+                        "VRAM Manager: Leaving Ollama offloaded (free=%dMB, "
+                        "need >%dMB to reload)", free_mb, self.MIN_VRAM_FOR_MUSIC)
+
+            return {
+                "success": True,
+                "free_mb": free_mb,
                 "actions": actions,
                 "ollama_loaded": self._ollama_loaded,
             }
