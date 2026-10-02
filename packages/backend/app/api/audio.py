@@ -1091,14 +1091,29 @@ async def _generate_sections_llm(
             content = await _oc.chat_content(
                 [{"role": "system", "content": sys}, {"role": "user", "content": user}],
                 model=model,
-                # Kept short deliberately. Measured on a GTX 1070 Ti: a cold
-                # load of the first model in this chain ran 89s, so a long
-                # timeout does not just risk waiting - it guarantees the caller
-                # waits far longer than the analysis it is refining. Sections
-                # are a nice-to-have refinement over a solid heuristic, so a
-                # slow model must degrade to the fallback quickly.
+                # Kept short deliberately: a cold model load measured ~89s, and
+                # sections are a nice-to-have refinement over a solid heuristic,
+                # so a slow model must degrade to the fallback quickly rather
+                # than hold the request open.
                 timeout=_SECTION_LLM_TIMEOUT,
-                extra={"format": "json", "options": {"temperature": 0.2, "num_ctx": 4096}},
+                # think=false is the single biggest win in this call. Measured on
+                # Ollama 0.35.0 with gemma4:e2b-it-qat on a GTX 1070 Ti: the
+                # identical request took 39.5s and returned content_len=0 with
+                # thinking=1738 chars, and 0.6s with think=false and content
+                # length 67. The model spends the whole budget reasoning about a
+                # task that needs no reasoning, then answers.
+                #
+                # This is the documented fix in
+                # docs/knowledge-library/ollama-thinking-structured-outputs.md
+                # (/api/chat + think=false; /api/generate does not honor it
+                # reliably). The comment that used to sit here said "some builds
+                # reject unknown keys like think; omit it" - which is why it was
+                # never sent, and why this was slow.
+                extra={
+                    "format": "json",
+                    "think": False,
+                    "options": {"temperature": 0.2, "num_ctx": 4096},
+                },
             )
             if not content:
                 continue
