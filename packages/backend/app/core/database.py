@@ -2371,20 +2371,33 @@ def get_gpu_stats(since_ms: int | None = None) -> dict:
         }
 
 
-def cleanup_old_gpu_telemetry(keep_days: int = 14) -> int:
-    """Purge points older than keep_days. Returns deleted count."""
+def cleanup_old_gpu_telemetry(keep_days: int = 14, vacuum: bool = True) -> int:
+    """Purge points older than keep_days. Returns deleted count.
+
+    `VACUUM` must run *outside* the write transaction: SQLite raises
+    "cannot VACUUM from within a transaction", so doing it inside `get_db()`
+    raised on every call, aborted the surrounding context manager, and left the
+    freed pages on the freelist where nothing would ever reuse them
+    (auto_vacuum is NONE). That is why the database grew to ~549 MB with only
+    1.3 MB actually reclaimable. The delete is committed first, then the
+    vacuum runs on its own connection.
+    """
+    cutoff_ms = int((_time.time() - keep_days * 86400) * 1000)
     with get_db() as conn:
-        cur = conn.execute(
-            "DELETE FROM gpu_telemetry WHERE ts_ms < ?",
-            (int((_time.time() - keep_days * 86400) * 1000),),
-        )
+        cur = conn.execute("DELETE FROM gpu_telemetry WHERE ts_ms < ?", (cutoff_ms,))
         deleted = cur.rowcount
-        if deleted:
-            logger.info("Cleaned up %d GPU telemetry rows older than %d days", deleted, keep_days)
-            # Opportunistic VACUUM when a meaningful chunk was removed
-            if deleted >= 500:
-                conn.execute("VACUUM")
-        return deleted
+
+    if deleted:
+        logger.info("Cleaned up %d GPU telemetry rows older than %d days", deleted, keep_days)
+        if vacuum and deleted >= 500:
+            # Best-effort: a VACUUM that fails must not fail the cleanup, since
+            # the rows are already gone and will be reused by later inserts.
+            try:
+                with get_db() as vconn:
+                    vconn.execute("VACUUM")
+            except sqlite3.Error as exc:
+                logger.warning("VACUUM after telemetry cleanup failed: %s", exc)
+    return deleted
 
 
 def _migrate_v9(conn: sqlite3.Connection):

@@ -282,6 +282,33 @@
 
 ---
 
+### D17 — GPU telemetry retention is bounded by elapsed time, and pruning actually frees space
+- **Status:** Decided
+- **Context:** `storage/studio.db` reached 549 MB for a studio whose real content
+  is ~50 audio files. The cause was `gpu_telemetry`: 125,889 rows holding a full
+  JSON process list per snapshot (~3.5 KB each, 392.8 MB of JSON) sampled every
+  30 s. Two independent defects let it run unbounded, and both were silent.
+- **Decision:** Retention is driven by elapsed monotonic time, expressed as two
+  pure helpers (`next_prune_time`, `prunes_due`) plus named constants in
+  `diagnostics/resources.py`, so the policy is testable without an event loop.
+  Pruning commits first and `VACUUM` runs afterwards on its own connection. The
+  window is 7 days, matching every range the history endpoints accept.
+- **Consequences:** The old guard was `int(event_loop.time()) % 1000 < 10` — a
+  test unrelated to age, which fired on ~1.7% of cycles. Worse, `VACUUM` was
+  called *inside* the `get_db()` transaction, where SQLite raises "cannot VACUUM
+  from within a transaction"; the exception aborted the cleanup, so freed pages
+  sat on the freelist and the file never shrank. This is the second time in this
+  project a "works" path was never executed (`VACUUM INTO` and a prune-triggered
+  compaction are the same shape). **Any code that must reclaim space must be
+  proven by asserting the file shrank**, not by asserting a delete count.
+  `tools/report-db-size.py` attributes the size (it works without the `dbstat`
+  vtab, which the bundled sqlite3 lacks) and `tools/compact-studio-db.py`
+  applies the policy. The latter uses `VACUUM INTO` + verify + swap rather than
+  an in-place `VACUUM`, so an interrupted run cannot leave a truncated database.
+  Result: 549.3 MB → 50.8 MB.
+
+---
+
 ## Open questions
 
 ### Q1 — 3D path convergence: Unity vs Blender vs Three.js
@@ -370,6 +397,7 @@
 ---
 - 2026-10-01: D15 recorded — `app/api/audio.py` split from 2,746 lines into four peer modules under the same `/api/audio` prefix: `audio.py` (1,106; upload, analysis endpoints, in-memory cache, JSON index), `audio_stems.py` (540; separation), `audio_edit.py` (504; extract/rename/trim/file serving), `audio_analysis.py` (707; result builder, curve maths, visualization suggestions, section labelling — no routes). All three routers are registered in `main.py`; the route surface is unchanged at 32 paths (verified before and after by `tools/snapshot-audio-routes.py`). Shared constants are mirrored per module rather than centralised, because cross-imports between API modules risk a cycle and the overlap is three path constants. `find_stem_dir` moved from the API layer into `services/source_separation.py`, which owns `SEPARATION_DIR`, ending a `services/` → `app/api` import (verified repo-wide as zero remaining). Two lessons are recorded in D15 because both cost a live 500 during the work: the route snapshot cannot detect a missing import (OpenAPI is decorator-generated and never runs a handler body; `py_compile` and plain imports resolve no free variables), and grep is unreliable for extracting dependencies — it reported docstring mentions as call sites and hid that `audio_stems.py` used none of the shared helpers it appeared to. Dependencies were enumerated with an AST free-variable pass instead.
 - 2026-10-02: D16 recorded — every audio selector now reads one shared store. `state/audioNaming.ts` holds the naming and dedup rules as pure functions and `state/audioLibraryStore.ts` (Zustand) holds the list, with a module-scope in-flight promise so concurrent mounters share one request; `useAudioLibrary()` wraps it with a mount-time load. Motivated by measurement, not taste: six pages each fetched `/api/audio/files` independently, and two different hash-stripping regexes were in circulation — `/^([0-9a-f]{8}_)+/` versus `/^[0-9a-f]{8}_[0-9a-f]{8}_/`. The latter requires *two* prefixes and therefore stripped nothing from single-prefix names, so 12 of 58 library rows showed a raw hash in one selector and a clean name in another. Verified live in a browser after the change: 1 network request per page instead of six, and zero dropdowns showing a raw hash or a duplicate name. A second bug surfaced during that check — four library files are byte-identical and named with a bare uuid (`ec2c1675….wav`), so they now render as `Unnamed track ec2c16`; collapsing them requires content hashing, which is a data decision, not a rendering one.
+- 2026-10-02: D17 recorded — `storage/studio.db` was 549 MB for a studio whose content is ~50 audio files. `gpu_telemetry` held 125,889 rows, each storing a full JSON process list (~3.5 KB; 392.8 MB of JSON total), sampled every 30 s. Two silent defects let it grow unbounded. First, the prune guard was `int(event_loop.time()) % 1000 < 10` — unrelated to age, firing on ~1.7% of cycles (measured). Second, and worse, `cleanup_old_gpu_telemetry` called `VACUUM` inside the `get_db()` transaction, where SQLite raises "cannot VACUUM from within a transaction"; the exception aborted the cleanup, so freed pages stayed on the freelist and the file never shrank — which is why `PRAGMA freelist_count` showed only 1.2 MB reclaimable against 548 MB of "live" rows that were mostly deletable. Retention is now two pure helpers (`next_prune_time`, `prunes_due`) over monotonic time, so it is testable without an event loop; the delete commits first and `VACUUM` runs on its own connection. Result: 549.3 MB → 50.8 MB, with `integrity_check ok` and the GPU history endpoint still serving its 24 h window. The transferable lesson is recorded in D17: code that must reclaim space has to be proven by asserting the file shrank, not by asserting a delete count — the same shape as the audio.py missing-import bug in D15.
 - 2026-09-22: Log created from repo archaeology (README, AGENTS.md,
   `services/video/__init__.py`, recent CHANGELOG entries). Q1–Q4 opened.
 

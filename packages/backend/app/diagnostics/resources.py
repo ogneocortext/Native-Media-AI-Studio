@@ -5,6 +5,7 @@ Monitors VRAM, system memory, and disk usage, broadcasting warnings via SSE.
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -804,6 +805,30 @@ class ResourceMonitor:
 # Global resource monitor instance
 resource_monitor = ResourceMonitor()
 
+# GPU telemetry retention policy.
+#
+# gpu_telemetry stores a full JSON process list per snapshot (~3.5 KB), sampled
+# every 30 s. Unbounded, that table reached 125,856 rows / ~417 MB of a 549 MB
+# database within a month, while the studio's actual content is ~50 audio files.
+# Retention therefore has to be driven by elapsed wall-clock time.
+#
+# It previously was not: the guard was `int(event_loop.time()) % 1000 < 10`,
+# a test unrelated to age that fired only when the monotonic clock landed in a
+# narrow band - measured at ~1.7% of cycles. These two helpers make the policy
+# explicit and directly testable, so the loop-counter bug cannot return.
+GPU_TELEMETRY_KEEP_DAYS = 7
+GPU_PRUNE_INTERVAL_SECONDS = 15 * 60
+
+
+def next_prune_time() -> float:
+    """The monotonic time at which the next telemetry prune is due."""
+    return time.monotonic() + GPU_PRUNE_INTERVAL_SECONDS
+
+
+def prunes_due(due_at: float, now: float | None = None) -> bool:
+    """True once `due_at` has passed on the monotonic clock."""
+    return (time.monotonic() if now is None else now) >= due_at
+
 
 async def resource_monitoring_loop(interval_seconds: float = 30.0):
     """
@@ -812,6 +837,14 @@ async def resource_monitoring_loop(interval_seconds: float = 30.0):
         interval_seconds: How often to check resources (default: 30 seconds)
     """
     logger.info(f"Resource monitoring started (interval: {interval_seconds}s)")
+
+    # Telemetry retention. Pruning is driven by elapsed wall-clock time rather
+    # than a loop counter: the previous guard was
+    # `int(event_loop.time()) % 1000 < 10`, which relates to nothing and so fired
+    # only when the monotonic clock happened to be in a narrow band. gpu_telemetry
+    # grew to 125k rows / ~417 MB because of it. Elapsed time is what the
+    # retention window actually means, so measure that.
+    next_gpu_prune = next_prune_time()
 
     while True:
         try:
@@ -824,9 +857,11 @@ async def resource_monitoring_loop(interval_seconds: float = 30.0):
                 if snap.get("available"):
                     from ..core.database import cleanup_old_gpu_telemetry, log_gpu_telemetry
                     await asyncio.to_thread(log_gpu_telemetry, snap)
-                    # opportunistic retention: keep 7 days, prune every ~100 cycles (~50 min at 30s)
-                    if int(asyncio.get_event_loop().time()) % 1000 < 10:
-                        await asyncio.to_thread(cleanup_old_gpu_telemetry, 7)
+                    if prunes_due(next_gpu_prune):
+                        await asyncio.to_thread(
+                            cleanup_old_gpu_telemetry, GPU_TELEMETRY_KEEP_DAYS
+                        )
+                        next_gpu_prune = next_prune_time()
             except Exception as _e:
                 logger.debug(f"GPU telemetry log skipped: {_e}")
         except Exception as e:

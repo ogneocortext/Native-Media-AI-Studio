@@ -321,6 +321,30 @@ The individual checkers are still runnable alone and are documented below.
   `0` on all 58 rows because `update_audio_analysis` never listed the column when
   inserting, which made size-based duplicate detection impossible.
 
+- `report-db-size.py` answers "why is the database this big?" and
+  `compact-studio-db.py` applies the retention policy:
+
+  ```bash
+  python tools/report-db-size.py          # attribute the size
+  python tools/compact-studio-db.py       # dry run (default)
+  python tools/compact-studio-db.py --apply
+  ```
+
+  `report-db-size.py` uses the `dbstat` vtab when the sqlite3 build has it and
+  otherwise estimates from stored column lengths, so it works on the bundled
+  interpreter (which lacks `dbstat`).
+
+  `compact-studio-db.py` compacts with `VACUUM INTO`, verifies the new file
+  passes `integrity_check` and holds the expected row count, and only then swaps
+  it in. An in-place `VACUUM` cannot make that promise on a half-gigabyte file —
+  an interrupted run leaves a truncated database. Stop the backend first: it
+  writes a telemetry row every 30 seconds.
+
+  These exist because `gpu_telemetry` reached 125,889 rows / 392.8 MB while the
+  freelist showed only 1.2 MB, so the file looked irreclaimable. It was not — the
+  retention guard fired on ~1.7% of cycles and its `VACUUM` was inside a
+  transaction, where SQLite refuses to run (see D17).
+
 ## Git Hooks
 
 This repo has **no CI** (D10 in `docs/architecture/decision-log.md`), so local

@@ -74,6 +74,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Unnamed track ec2c16`. Collapsing the four into one requires content hashing,
   which is a data decision rather than a rendering one.
 
+### Fixed - The database grew to 549 MB because telemetry was never pruned
+
+- **`gpu_telemetry` held 125,889 rows / 392.8 MB**, each storing a full JSON
+  process list (~3.5 KB) every 30 seconds, in a studio whose actual content is
+  ~50 audio files. **549.3 MB → 50.8 MB.**
+- **The retention guard was unrelated to age.** It read
+  `int(event_loop.time()) % 1000 < 10`, which fires only when the monotonic
+  clock lands in a narrow band — measured at ~1.7% of cycles. It is now elapsed
+  time, expressed as two pure helpers so it is testable without an event loop.
+- **`VACUUM` was running inside a transaction**, where SQLite raises "cannot
+  VACUUM from within a transaction". The exception aborted the cleanup, so freed
+  pages were never reclaimed — which is why the freelist showed only 1.2 MB
+  against 548 MB of rows that were almost entirely deletable. The delete now
+  commits first and `VACUUM` runs on its own connection.
+
+New `tools/report-db-size.py` attributes the size (works without the `dbstat`
+vtab, which the bundled sqlite3 lacks) and `tools/compact-studio-db.py` applies
+the policy. The latter compacts via `VACUUM INTO` + verify + swap, so an
+interrupted run cannot leave a truncated database. Both are dry-run by default.
+
+Verified: `integrity_check ok`, 50 audio rows intact, and
+`/api/health/gpu/history?range=24h` still serves its window.
+
 ### Fixed - Audio library database: broken rows and empty metadata
 
 - **5 rows pointed at files that had moved.** Three recorded root-level names for
