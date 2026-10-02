@@ -234,6 +234,11 @@ class AudioAnalysisResult(BaseModel):
     # Schema version of this payload. Absent on results stored before stamping
     # existed, which is what makes them detectable as stale.
     schema_version: int = 0
+    # "GPU" when the spectral pass ran on CUDA, "CPU" otherwise. Declared here
+    # because the model sets extra="ignore": with it undeclared the field was
+    # silently dropped on the way out, so a successful GPU run reported no
+    # computed_on at all and looked exactly like a CPU fallback.
+    computed_on: str | None = None
 
     model_config = {"extra": "ignore"}
 
