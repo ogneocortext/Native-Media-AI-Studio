@@ -309,7 +309,31 @@ async def check_services() -> dict:
 @router.get("/diagnostics/system")
 async def system_diagnostics() -> dict:
     """Get system diagnostics"""
-    return await health_monitor.get_system_health()
+    data = await health_monitor.get_system_health()
+    # Which environment is actually serving requests?
+    #
+    # This is not visible anywhere else and has been the source of real
+    # confusion: on Windows the venv launcher (D:\conda-envs\nma-studio-cuda)
+    # launches a process whose ExecutablePath is the *base* interpreter
+    # (Python311), so task-manager and CIM both show C:\...\Python311 and the
+    # server looks like it is running in the wrong environment. It is not -
+    # sys.prefix is what identifies the environment, and a wrong one has
+    # different packages (Python311 base has no madmom_infer and a broken
+    # torch/numpy bridge).
+    #
+    # Reporting sys.executable and sys.prefix makes that checkable in one call
+    # instead of inferring it from process listings.
+    import sys
+
+    return {
+        **data,
+        "python": {
+            "executable": sys.executable,
+            "prefix": sys.prefix,
+            "base_prefix": sys.base_prefix,
+            "version": sys.version.split()[0],
+        },
+    }
 
 
 @router.get("/queue")
