@@ -12,9 +12,63 @@ date: 2026-09-29
 
 # Ollama Thinking Mode & Structured Outputs
 
-> **Last Updated:** 2026-09-29
-> **Ollama Version:** 0.34.2+
+> **Last Updated:** 2026-10-01
+> **Ollama Version:** 0.35.0 (server, verified via `GET /api/version`)
 > **Relevant Models:** Qwen3.5, Qwen3, Gemma4, DeepSeek R1
+
+## 2026-10-01: measured on Ollama 0.35.0
+
+Confirmed on the running server and applied to the audio section-labelling call
+(`app/api/audio.py::_generate_sections_llm`). This is the concrete cost of the
+problem described below, measured rather than assumed.
+
+Same request against `gemma4:e2b-it-qat` (the configured `default_model`),
+GTX 1070 Ti / sm_61:
+
+| Payload | Time | `message.content` | `message.thinking` |
+|---------|------|-------------------|--------------------|
+| as previously sent (no `think`) | **39.5s** | **0 chars** | **1738 chars** |
+| `think: false` | **0.6s** | 67 chars | 0 |
+
+`think: false` is worth **~65x** on this path. The entire cost was reasoning
+tokens emitted before a one-line JSON answer, for a task that needs no
+reasoning. `num_predict` 256 vs 512 made no measurable difference once
+`think: false` was set, confirming the time was thinking, not generation.
+
+**Why the key was missing.** The call site carried the comment *"Some Ollama
+builds reject unknown keys like `think`; omit it."* That is the opposite of the
+documented fix, and it meant `think` was never sent. If this symptom returns,
+check whether a well-meant compatibility comment has reintroduced the omission.
+
+### Per-model cost, same prompt
+
+| Model | Time | Notes |
+|-------|------|-------|
+| `gemma4:e2b-it-qat` | 16.2s warm / 88.6s cold | configured `default_model` |
+| `llama3.2:3b` | 59.4s | |
+| `deepseek-r1:7b` | 89.1s | reasoning model; already ❌ in [[ollama-benchmarks]] |
+| `qwen3.5:4b` | >120s (timeout) | |
+
+Cold-load cost dominates, so **model ordering matters as much as `think`**. A
+chain that leads with a cold model pays that cost on every request.
+
+### Python client vs raw HTTP
+
+Two different things, and only one of them is in play:
+
+- **Server** — `ollama.exe serve`, listening on `127.0.0.1:11434`, reports
+  **0.35.0**.
+- **Python `ollama` package** — installed at **0.6.1**, but in
+  `C:\Users\Aomega Imaging\AppData\Local\Programs\Python\Python311`
+  (`base_prefix` only). It is **not** importable from
+  `D:\conda-envs\nma-studio-cuda`, which is where the backend actually runs.
+
+So the backend reaches Ollama through `core/ollama_client.py::chat_content`,
+which POSTs to `/api/chat` directly with `aiohttp`. The 0.6.1 client is not in
+that path. Anyone adding a dependency on `import ollama` in backend code will
+hit `ModuleNotFoundError` — the package is not in `sys.path` for the env that
+runs the server, and the venv's `base_prefix` does not put its site-packages on
+the path.
 
 ## Problem
 
