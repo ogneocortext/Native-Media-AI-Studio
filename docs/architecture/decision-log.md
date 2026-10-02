@@ -472,10 +472,15 @@
   `"Unknown tool: <name>"`, which a caller that never inspects the result feeds
   back to the model as a successful tool result. An empty `messages` list is
   HTTP 200, so `done` alone is not evidence of a usable answer.
-  Two operational facts are worth keeping: `:cloud` models return **HTTP 402**
-  without a paid key and report `size: 0`, so they are excluded from probing and
-  testing; and the first inference pays a **52 s model load** against 0.7 s warm,
-  which is why the test fixture is module-scoped and reuses one model.
+  Two operational facts are worth keeping. **Remote models are excluded**, and
+  the exclusion is authoritative rather than a name guess: Ollama marks them with
+  `remote_host`/`remote_model`, and a remote entry reports `size: 326`, which
+  would otherwise win a "smallest model" sort and then fail with HTTP 402 —
+  measuring the network instead of the server under test. `:cloud` is kept only as
+  a fallback. Two tests pin this, one of which fails if selection ever returns a
+  remote entry. And the first inference pays a **52 s model load** against 0.7 s
+  warm, which is why the test fixture is module-scoped and reuses one model
+  (10 passed in 2.1 s warm).
   Live tests are skipped rather than failed when Ollama is absent, because a
   missing optional service is not a defect — but `NMA_OLLAMA_TESTS=1` makes them
   required, so a verification run can insist on them.

@@ -100,15 +100,15 @@ established by observation via the new `tools/probe-ollama.py`:
   a successful tool result.
 
 `tools/probe-ollama.py` records all of this from a live server and is the tool to
-run first when Ollama behaves oddly. Two things it revealed that are not obvious
-from the code: **cloud models (`:cloud`) return HTTP 402** without a paid key and
-report `size: 0`, so they are excluded from both the probe and the tests (which
-would otherwise measure the network, not the adapter); and **the first inference
-costs 52 s of model load versus 0.7 s warm**, which is why the fixture is
-module-scoped and reuses one model.
+run first when Ollama behaves oddly. It **probes local models only**, and the
+exclusion is authoritative rather than a name guess: Ollama marks remote entries
+with `remote_host`/`remote_model`, and a remote entry reports `size: 326`, which
+would win the "smallest model" sort and then fail with HTTP 402 — measuring the
+network rather than this server. `:cloud` is kept only as a fallback. Each model
+is listed as `[local]`/`[remote]` so the split is visible at a glance.
 
-Verified: 8 passed in 4.3 s against Ollama 0.35.0; 8 skipped in 2.1 s with the
-server absent. All 7 gates pass with 226 pytest.
+Verified: 10 passed in 2.1 s warm against Ollama 0.35.0; 10 skipped when the
+server is absent. All 7 gates pass with 228 pytest.
 
 ### Added - A nesting gate, so deep functions cannot come back
 

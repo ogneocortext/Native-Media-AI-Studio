@@ -71,11 +71,26 @@ def _post(payload: dict, timeout: float = 120.0) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
+def _is_remote(model: dict) -> bool:
+    """True when a `/api/tags` entry proxies to ollama.com rather than being local.
+
+    Ollama marks these with `remote_host`/`remote_model`. The `:cloud` name suffix
+    is a convention, not a guarantee, so it is only a fallback. It matters here
+    because a remote entry reports `size: 326`, which would win the
+    "smallest local model" sort and then fail with HTTP 402 — measuring the
+    network rather than the adapter under test.
+    """
+    if model.get("remote_host") or model.get("remote_model"):
+        return True
+    return str(model.get("name", "")).endswith(":cloud")
+
+
 def _smallest_local_model() -> str | None:
     """Cheapest local text model, so the suite stays quick.
 
-    Cloud models are excluded: they report size 0 and return HTTP 402 without a
-    paid key, which would measure the network rather than the adapter.
+    Local only: remote models are excluded by `remote_host`/`remote_model`, not
+    by name, so a cloud entry cannot be selected and turn the suite into a paid
+    network call.
     """
     try:
         with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=10) as r:
@@ -84,9 +99,7 @@ def _smallest_local_model() -> str | None:
         return None
     local = [
         m for m in models
-        if "embed" not in m.get("name", "")
-        and ":cloud" not in m.get("name", "")
-        and int(m.get("size", 0)) > 0
+        if not _is_remote(m) and "embed" not in m.get("name", "")
     ]
     if not local:
         return None
@@ -119,6 +132,35 @@ def _close_adapters():
 
 def test_health_check_true_against_live_server():
     assert asyncio.run(_adapter().health_check()) is True
+
+
+def test_is_remote_detects_both_signals():
+    """`remote_host`/`remote_model` win even without the `:cloud` suffix."""
+    assert _is_remote({"name": "x:cloud"}) is True
+    assert _is_remote({"name": "x", "remote_host": "https://ollama.com"}) is True
+    assert _is_remote({"name": "x", "remote_model": "y"}) is True
+    assert _is_remote({"name": "llama3.2:3b", "size": 2019393189}) is False
+
+
+def test_model_selection_never_returns_a_remote_model():
+    """Local-only is a requirement, not a convenience.
+
+    A remote entry reports `size: 326`, so without an explicit filter it wins
+    the "smallest model" sort and the suite becomes a paid network call that
+    fails with HTTP 402.
+    """
+    with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=10) as r:
+        models = json.loads(r.read().decode("utf-8")).get("models", [])
+
+    chosen = _smallest_local_model()
+    if chosen is None:
+        pytest.skip("no local model to select")
+    entry = next(m for m in models if m.get("name") == chosen)
+    assert not _is_remote(entry), f"selected a remote model: {chosen}"
+    assert int(entry.get("size", 0)) > 1000, (
+        "a remote entry reports size 326; picking one means the sort chose a "
+        "remote model despite the filter"
+    )
 
 
 def test_chat_without_think_omits_the_thinking_key(model):

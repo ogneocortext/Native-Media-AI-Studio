@@ -385,10 +385,12 @@ The individual checkers are still runnable alone and are documented below.
   ```
 
   It is the tool to reach for first when "Ollama is acting up", and it is where
-  `tests/test_ollama_live.py` gets its expectations from. It prefers the
-  smallest **local** model, and skips `:cloud` entries deliberately: they report
-  `size: 0` and return HTTP 402 without a paid key, so probing them would measure
-  the network rather than the adapter.
+  `tests/test_ollama_live.py` gets its expectations from. It **probes local models
+  only**: Ollama marks remote entries with `remote_host`/`remote_model`, and a
+  remote entry reports `size: 326`, which would win the "smallest model" sort and
+  then fail with HTTP 402 — measuring the network rather than this server.
+  `:cloud` is only a fallback, and every model is listed as `[local]`/`[remote]`.
+  Pass `--model` to override; the probe warns if the named model is remote.
 
 ## Git Hooks
 

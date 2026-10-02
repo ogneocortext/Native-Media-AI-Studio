@@ -39,6 +39,34 @@ def get(url: str, timeout: float) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
+def is_remote(model: dict) -> bool:
+    """True when a `/api/tags` entry proxies to ollama.com rather than being local.
+
+    Ollama marks these with `remote_host`/`remote_model`. The `:cloud` name suffix
+    is a convention, not a guarantee, so it is only a fallback. This matters
+    because a remote entry reports `size: 326`, which wins any "smallest model"
+    sort and then fails with HTTP 402 — measuring the network rather than the
+    server under test.
+    """
+    if model.get("remote_host") or model.get("remote_model"):
+        return True
+    return str(model.get("name", "")).endswith(":cloud")
+
+
+def is_remote(model: dict) -> bool:
+    """True when a `/api/tags` entry proxies to ollama.com rather than being local.
+
+    Ollama marks these with `remote_host`/`remote_model`. The `:cloud` name suffix
+    is a convention, not a guarantee, so it is only a fallback. This matters
+    because a remote entry reports `size: 326`, which wins any "smallest model"
+    sort and then fails with HTTP 402 — measuring the network rather than the
+    server under test.
+    """
+    if model.get("remote_host") or model.get("remote_model"):
+        return True
+    return str(model.get("name", "")).endswith(":cloud")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--url", default="http://127.0.0.1:11434")
@@ -58,12 +86,13 @@ def main() -> int:
     print(f"models: {len(models)}")
     for m in models:
         det = m.get("details", {})
+        kind = "remote" if is_remote(m) else "local"
         print(
-            f"  {m.get('name',''):34} {round(m.get('size',0)/1048576):>6} MB "
+            f"  [{kind:6}] {m.get('name',''):32} "
+            f"{round(m.get('size',0)/1048576):>6} MB "
             f"{det.get('parameter_size','?'):>6} {det.get('quantization_level','?')}"
         )
 
-    # Smallest loaded model is the cheapest thing to get a real answer from.
     def size_of(name: str) -> int:
         for m in models:
             if m.get("name") == name:
@@ -72,18 +101,31 @@ def main() -> int:
 
     if args.model:
         model = args.model
+        named = next((m for m in models if m.get("name") == model), None)
+        if named is not None and is_remote(named):
+            # Explicit is explicit, but say so: a remote probe measures the
+            # network and returns HTTP 402 without a paid key.
+            print(
+                f"warning: {model} is a remote model; a probe measures the "
+                f"network, not this server"
+            )
     else:
+        # Local only. `remote_host`/`remote_model` are the authoritative
+        # signals; the `:cloud` suffix is a naming convention that could change
+        # or be absent, and a cloud entry reports size 326 bytes, which would
+        # otherwise win a "smallest model" sort and then fail with HTTP 402.
         candidates = [
             m.get("name", "") for m in models
-            if "embed" not in m.get("name", "")
-            and ":cloud" not in m.get("name", "")
-            and int(m.get("size", 0)) > 0
+            if not is_remote(m) and "embed" not in m.get("name", "")
         ]
-        cloud = [m for m in models if ":cloud" in m.get("name", "")]
-        if cloud:
-            print(f"\nnote: skipping {len(cloud)} cloud model(s) - they need a paid key (HTTP 402)")
+        remote = [m for m in models if is_remote(m)]
+        if remote:
+            print(
+                f"\nnote: skipping {len(remote)} remote model(s) - they proxy to "
+                f"ollama.com and return HTTP 402 without a paid key"
+            )
         if not candidates:
-            print("no local model available; pass --model explicitly")
+            print("no local text model available; pass --model explicitly")
             return 1
         model = min(candidates, key=size_of)
     print(f"probing with: {model}")
