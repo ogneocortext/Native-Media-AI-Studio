@@ -4,6 +4,9 @@ This project combines original code with third-party software and assets.
 Each item below keeps its own license; nothing here relicenses anyone else's
 work. If a license below conflicts with your use, the license wins.
 
+This repository's own code is MIT licensed — see [LICENSE](./LICENSE)
+(© 2026 Intenext Ventures LLC).
+
 ## 3D models (Sketchfab, CC-BY-4.0)
 
 The following models ship in `packages/frontend/public/models/sketchfab/`.

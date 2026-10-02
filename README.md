@@ -108,6 +108,6 @@ by any of them.
 
 ## License
 
-Public repository, no `LICENSE` file yet. Third-party licenses, model
-credits, and the Remotion/madmom conditions are inventoried in
+MIT — see [LICENSE](./LICENSE) (© 2026 Intenext Ventures LLC). Third-party
+licenses, model credits, and the Remotion/madmom conditions are inventoried in
 [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
