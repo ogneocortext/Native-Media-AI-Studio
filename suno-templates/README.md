@@ -31,6 +31,8 @@ v6-mini** (free tier). Open `index.html` in a browser — no build step.
 ## Maintenance
 
 This is a static snapshot of the owner's "Suno v6-mini Templates" web
-artifact. To update it, rebuild the artifact and re-copy `index.html`
-(and `icon.jpg` if changed). Do not hand-edit the HTML for content changes —
+artifact. To update it, rebuild the artifact and re-copy `index.html`.
+Do not hand-edit the HTML for content changes —
 make them in the artifact so the owner's live copy stays the source of truth.
+(The artifact's `icon.jpg` thumbnail is intentionally not tracked — the page
+never references it, and this repo ignores `*.jpg`.)
