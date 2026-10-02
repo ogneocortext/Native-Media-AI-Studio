@@ -110,14 +110,14 @@
         <div class="panel-body">
           <div class="fields suno-authoring" id="sunoStyleFields">
             <div class="field"><label for="genre">Genre <span class="hint">hyper-specific, e.g. 1980s synth-pop</span></label><input id="genre" value="indie-electronic"></div>
-            <div class="field"><label for="vocal">Vocal cluster <span class="hint">keep lean</span></label><input id="vocal" value="intimate close-mic male vocal"></div>
+            <div class="field"><label for="vocal">Vocal cluster <span class="hint">keep lean</span></label><input id="vocal" value="intimate close-mic male voice"></div>
             <div class="field"><label for="mood">Mood</label><input id="mood" value="tension-release"></div>
-            <div class="field"><label for="tempo">Tempo</label><input id="tempo" value="driving 140 BPM, four-on-the-floor"></div>
+            <div class="field"><label for="tempo">Tempo</label><input id="tempo" value="driving 140 BPM four-on-the-floor"></div>
             <div class="field"><label for="key">Key <span class="hint">optional steering</span></label><input id="key" placeholder="e.g. A minor"></div>
-            <div class="field"><label for="instruments">Three instruments</label><input id="instruments" value="sub-bass, electronic drums, bright synth"></div>
-            <div class="field full"><label for="arrangement">Arrangement</label><input id="arrangement" value="restrained verse, full chorus"></div>
-            <div class="field full"><label for="production">Production & mix</label><input id="production" value="dry lead vocal, punchy drums"></div>
-            <div class="field full"><label for="house">House-sound suffix <span class="hint">reuse across the project</span></label><input id="house" value="mono sub, wide stereo"></div>
+            <div class="field"><label for="instruments">Instruments</label><input id="instruments" value="electronic drums and sub-bass"></div>
+            <div class="field full"><label for="arrangement">Arrangement</label><input id="arrangement" value="restrained verse building into full chorus. raw exposed bridge into stripped outro"></div>
+            <div class="field full"><label for="production">Production & mix</label><input id="production" placeholder="e.g. dry lead vocal, punchy drums"></div>
+            <div class="field full"><label for="house">House-sound suffix <span class="hint">reuse across the project</span></label><input id="house" placeholder="e.g. mono sub, wide stereo"></div>
             <div class="field full"><label for="introDirection">Intro direction <span class="hint">the first seconds, stated as an instruction — it lands in the style prompt and on the intro tag</span></label><input id="introDirection" placeholder="e.g. cold open on drums and bass from bar one, vocal enters at 0:08"></div>
             <div class="field full"><label for="excludeStyles">Exclude styles <span class="hint">negatives live here, not in the style box — comma categories, under 10</span></label><input id="excludeStyles" placeholder="e.g. swelling synth intro, waltz, humming"></div>
           </div>
@@ -248,10 +248,10 @@
 <script>
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const templates={
- balanced:{name:'Balanced draft',tempo:'driving 140 BPM, four-on-the-floor',arrangement:'restrained verse, full chorus',sections:{intro:'[Short Instrumental Intro - 4 bars]',v1:'[Verse 1 - intimate]',pre:'[Pre-Chorus - building]',chorus:'[Chorus - full voice]',v2:'[Verse 2 - intimate]',bridge:'[Bridge - raw exposed]',outro:'[Outro - stripped]'},secondChorus:true,finalChorus:true,fade:'[Fade Out]\n[End]'},
- hook:{name:'Hook before 45s',tempo:'driving 140 BPM, four-on-the-floor',arrangement:'short verse, fast build, full chorus',sections:{intro:'[Short Instrumental Intro - 4 bars]',v1:'[Verse 1 - intimate, 8 bars]',pre:'[Pre-Chorus - building, 4 bars]',chorus:'[Chorus - full voice, 8 bars]',v2:'[Verse 2 - intimate, 8 bars]',bridge:'[Bridge - raw exposed, 4 bars]',outro:'[Outro - stripped, 4 bars]'},secondChorus:true,finalChorus:true,fade:'[Fade Out]\n[End]'},
- groove:{name:'Locked-groove trial',tempo:'locked-in 150 BPM, four-on-the-floor, metronomic drums',arrangement:'steady verse, full chorus',sections:{intro:'[Short Instrumental Intro - 150 BPM, 4 bars]',v1:'[Verse 1 - intimate, 150 BPM]',pre:'[Pre-Chorus - building, 150 BPM]',chorus:'[Chorus - full voice, 150 BPM]',v2:'[Verse 2 - intimate, 150 BPM]',bridge:'[Bridge - raw exposed, 150 BPM]',outro:'[Outro - stripped, 150 BPM]'},secondChorus:true,finalChorus:true,fade:'[Fade Out]\n[End]'},
- short:{name:'Short drift check',tempo:'driving 140 BPM, constant four-on-the-floor',arrangement:'compact verse, repeated chorus, direct ending',sections:{intro:'[Short Instrumental Intro - 4 bars]',v1:'[Verse 1 - intimate]',pre:'[Pre-Chorus - building]',chorus:'[Chorus - full voice]',v2:'[Verse 2 - intimate]',bridge:'[Bridge - stripped]',outro:'[Outro - stripped]'},secondChorus:true,finalChorus:false,fade:'[End]'}
+ balanced:{name:'Balanced draft',tempo:'driving 140 BPM four-on-the-floor',arrangement:'restrained verse building into full chorus. raw exposed bridge into stripped outro',sections:{intro:'[Short Instrumental Intro - 4 bars]',v1:'[Verse 1 - intimate]',pre:'[Pre-Chorus - building]',chorus:'[Chorus - full voice]',v2:'[Verse 2 - intimate]',bridge:'[Bridge - raw exposed]',outro:'[Outro - stripped]'},secondChorus:true,finalChorus:true,fade:'[Fade Out]\n[End]'},
+ hook:{name:'Hook before 45s',tempo:'driving 140 BPM four-on-the-floor',arrangement:'short verse building fast into full chorus. raw exposed bridge into stripped outro',sections:{intro:'[Short Instrumental Intro - 4 bars]',v1:'[Verse 1 - intimate, 8 bars]',pre:'[Pre-Chorus - building, 4 bars]',chorus:'[Chorus - full voice, 8 bars]',v2:'[Verse 2 - intimate, 8 bars]',bridge:'[Bridge - raw exposed, 4 bars]',outro:'[Outro - stripped, 4 bars]'},secondChorus:true,finalChorus:true,fade:'[Fade Out]\n[End]'},
+ groove:{name:'Locked-groove trial',tempo:'metronomic 150 BPM four-on-the-floor',arrangement:'steady verse building into full chorus. raw exposed bridge into stripped outro',sections:{intro:'[Short Instrumental Intro - 150 BPM, 4 bars]',v1:'[Verse 1 - intimate, 150 BPM]',pre:'[Pre-Chorus - building, 150 BPM]',chorus:'[Chorus - full voice, 150 BPM]',v2:'[Verse 2 - intimate, 150 BPM]',bridge:'[Bridge - raw exposed, 150 BPM]',outro:'[Outro - stripped, 150 BPM]'},secondChorus:true,finalChorus:true,fade:'[Fade Out]\n[End]'},
+ short:{name:'Short drift check',tempo:'driving 140 BPM four-on-the-floor',arrangement:'compact verse building into full chorus. stripped bridge and outro',sections:{intro:'[Short Instrumental Intro - 4 bars]',v1:'[Verse 1 - intimate]',pre:'[Pre-Chorus - building]',chorus:'[Chorus - full voice]',v2:'[Verse 2 - intimate]',bridge:'[Bridge - stripped]',outro:'[Outro - stripped]'},secondChorus:true,finalChorus:false,fade:'[End]'}
 };
 let active='balanced';
 const inputs=['genre','vocal','mood','tempo','key','instruments','arrangement','production','house','introDirection','excludeStyles','verse1','pre','chorus','verse2','bridge','outro','flowSound','flowLyrics'];
@@ -274,7 +274,7 @@ function lyricText(){
  const introDir=clean($('#introDirection').value);
  parts.push(introDir?t.sections.intro.replace(/\]$/,': '+introDir+']'):t.sections.intro);
  const v1=section(t.sections.v1,'verse1'), pre=section(t.sections.pre,'pre'), ch=section(t.sections.chorus,'chorus'), v2=section(t.sections.v2,'verse2'), bridge=section(t.sections.bridge,'bridge'), outro=section(t.sections.outro,'outro');
- if(v1)parts.push(v1);if(pre)parts.push(pre);if(ch)parts.push(ch);if(v2)parts.push(v2);if(pre&&v2)parts.push(pre);if(ch&&t.secondChorus)parts.push(ch);if(bridge)parts.push(bridge);if(ch&&t.finalChorus)parts.push(ch.replace(t.sections.chorus,'[Final Chorus - biggest]'));if(outro)parts.push(outro);parts.push(t.fade);return parts.filter(Boolean).join('\n\n');}
+ if(v1)parts.push(v1);if(pre)parts.push(pre);if(ch)parts.push(ch);if(v2)parts.push(v2);if(pre&&v2)parts.push(pre);if(ch&&t.secondChorus)parts.push(ch);if(bridge)parts.push(bridge);if(ch&&t.finalChorus)parts.push(ch.replace(t.sections.chorus,'[Final Chorus - full voice]'));if(outro)parts.push(outro);parts.push(t.fade);return parts.filter(Boolean).join('\n\n');}
 const contaminationPatterns=[
  /\bcowbells?\s+(?:bangs?|hits?|rings?|rolls?|patterns?)\b/gi,
  /\b(?:beat|bass|808s?)\s+(?:drops?|hits?|kicks?|enters?|comes in)\b/gi,
@@ -311,13 +311,15 @@ function makeSunoChecks(style,lyrics){
  const bpm=/\b\d{2,3}\s*BPM\b/i.test(style);
  const artistCue=/\b(featuring|in the style of|sounds like)\b/i.test(style);
  const introDir=clean($('#introDirection').value);
- const descCount=style.split(',').map(v=>v.trim()).filter(Boolean).length;
+ const descCount=style.split(/[,.;]/).map(v=>v.trim()).filter(Boolean).length;
  const allTags=[...lyrics.matchAll(/\[([^\]]+)\]/g)].map(m=>m[1]);
  const sectionTags=allTags.filter(t=>/^(Short |Long )?(Instrumental )?(Intro|Verse|Pre-Chorus|Chorus|Bridge|Outro|Final Chorus)/i.test(t));
  const bareCues=sectionTags.filter(t=>!t.includes(' - ')&&!t.includes(':')&&!t.includes('('));
- const stopWords=['intro','verse','chorus','bridge','outro','final','short','instrumental','style','music','vocal','vocals','sound','track'];
- const styleWords=[...new Set((style.toLowerCase().match(/[a-z][a-z-]{4,}/g)||[]))].filter(w=>!stopWords.includes(w));
- const echoTags=sectionTags.filter(t=>styleWords.some(w=>t.toLowerCase().includes(w)));
+ const cueStopWords=['intro','verse','pre','chorus','bridge','outro','final','short','long','instrumental','hook','interlude','breakdown','bars','bar','bpm','the','and','with'];
+ const styleWordSet=new Set(style.toLowerCase().match(/[a-z]+/g)||[]);
+ const tokenInStyle=w=>styleWordSet.has(w)||(w.length>=5&&[...styleWordSet].some(sw=>sw.length>=5&&(sw.startsWith(w.slice(0,5))||w.startsWith(sw.slice(0,5)))));
+ const cueTokensOf=tag=>{const m=tag.match(/(?: - |: )(.*)$/);if(!m)return[];return (m[1].toLowerCase().match(/[a-z]+/g)||[]).filter(w=>w.length>=3&&!cueStopWords.includes(w))};
+ const unmatchedTags=[...new Set(sectionTags.filter(t=>{const toks=cueTokensOf(t);return toks.length>0&&!toks.every(tokenInStyle)}))];
  const excl=clean($('#excludeStyles').value);
  const exclCount=excl?excl.split(',').map(v=>v.trim()).filter(Boolean).length:0;
  const contaminationText=contamination.length
@@ -334,7 +336,7 @@ function makeSunoChecks(style,lyrics){
   [contamination.length?'bad':'ok',contaminationText],
   [negative?'warn':'ok',negative?'Inline negative phrasing detected in Style; mini reads it as a cue to include it. Move it to the Exclude styles field.':'Style uses positive steering language; negatives live in Exclude.'],
   [exclCount===0||exclCount>9?'warn':'ok',exclCount===0?'Exclude styles is empty — park cheese triggers and wrong turns there (comma categories, under 10).':exclCount>9?`Exclude lists ${exclCount} categories; keep it under 10.`:`${exclCount} Exclude categor${exclCount===1?'y':'ies'} ready to paste into Suno's Exclude field.`],
-  [bareCues.length||!echoTags.length?'warn':'ok',bareCues.length?`${bareCues.length} section tag${bareCues.length>1?'s':''} carry no performance cue (${bareCues.slice(0,3).map(t=>`[${escapeHtml(t)}]`).join(', ')}). Say everything twice: once in Style, once on the tag.`:!echoTags.length?'Section tags carry cues, but none echo a word from the style prompt. Repeat the key style words on the tags — mini takes direction best when it is said twice.':'Section tags echo the style prompt and carry performance cues — said twice.'],
+  [bareCues.length||unmatchedTags.length?'warn':'ok',bareCues.length?`${bareCues.length} section tag${bareCues.length>1?'s':''} carry no performance cue (${bareCues.slice(0,3).map(t=>`[${escapeHtml(t)}]`).join(', ')}). Say everything twice: once in Style, once on the tag.`:unmatchedTags.length?`Direction on ${unmatchedTags.length} section tag${unmatchedTags.length>1?'s is':' is'} not repeated in the style prompt: ${unmatchedTags.slice(0,4).map(t=>`[${escapeHtml(t)}]`).join(', ')}. Say everything twice — each tag's direction needs a matching instruction in Style.`:'Every section tag carries a direction, and each one is repeated in the style prompt — said twice.'],
   [bpm?'ok':'warn',bpm?'Numeric BPM is present.':'Add a numeric BPM plus a feel descriptor.'],
   [artistCue?'warn':'ok',artistCue?'Possible artist-reference phrasing detected; describe the sound instead.':'No obvious artist-reference phrasing detected.'],
   ['warn','Manual check: set Variety to 0 in Suno so it does not rewrite this prompt (free-tier availability unconfirmed), and audition both takes before downloading.']
