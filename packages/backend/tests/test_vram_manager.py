@@ -224,6 +224,13 @@ async def test_music_generation_cycle_returns_vram_to_baseline(monkeypatch):
 
     monkeypatch.setattr(manager, "get_vram_status", fake_vram_status)
     monkeypatch.setattr(manager, "_ollama_loaded", True)
+    # begin_music_generation calls _can_safely_offload() when VRAM is short (the
+    # "during" reading below). The real method reads psutil.virtual_memory(), so
+    # without this the outcome depends on the host's live RAM: on a machine
+    # above MAX_SYSTEM_RAM_PERCENT it returns False, the offload is skipped, and
+    # begin_music_generation reports success=False. Stub it so the test asserts
+    # the VRAM bookkeeping it is actually about.
+    monkeypatch.setattr(manager, "_can_safely_offload", lambda: True)
     async def fake_unload() -> list[str]:
         return []
     monkeypatch.setattr(vram_module, "_unload_ollama_models", fake_unload)

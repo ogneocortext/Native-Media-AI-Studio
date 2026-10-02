@@ -274,6 +274,27 @@ The individual checkers are still runnable alone and are documented below.
   cannot be found by tag search in the app - a user-visible cost, not just
   untidy metadata. Report-only: it changes no files and no exit code.
 
+- `report-missing-audio.py` is the read-only counterpart to the two audio
+  cleanup tools. `dedupe-audio-uploads.py` retires duplicate *rows* and
+  `prune-orphan-audio.py` deletes unreferenced *files*; neither reports rows that
+  still exist but point at a file which is gone:
+
+  ```bash
+  python tools/report-missing-audio.py          # table
+  python tools/report-missing-audio.py --json   # machine-readable
+  ```
+
+  It sorts every such row into two categories: **relinkable** (the file exists
+  under another name, usually because it moved into a subdirectory, so no bytes
+  are lost) and **no trace on this machine** (nothing matches, so the row needs
+  a restore from backup or a deliberate retire). It never writes.
+
+  This exists because those rows are not inert — they appear in the media library
+  and every request for them fails. It also surfaced that `audio_files.file_size`
+  is `0` for all 58 rows, because the uploader never populated it, so content
+  cannot be matched by size; matching is by path/basename only, and the report
+  says so rather than implying it verified file identity.
+
 ## Git Hooks
 
 This repo has **no CI** (D10 in `docs/architecture/decision-log.md`), so local

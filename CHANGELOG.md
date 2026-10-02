@@ -43,6 +43,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Audio VRAM handover is Ollama-aware** — Ollama's models are offloaded before
   CUDA work and restored afterwards, instead of contending for VRAM.
 
+### Fixed - A VRAM test that depended on the host's live RAM
+
+- `test_music_generation_cycle_returns_vram_to_baseline` stubbed `get_vram_status`
+  but not `_can_safely_offload`, which `begin_music_generation` calls when VRAM is
+  short. The real method reads `psutil.virtual_memory()`, so on a host above
+  `MAX_SYSTEM_RAM_PERCENT` (75%) the offload is skipped and the test fails with
+  `success=False`. This host sits at 61%, so it was passing by luck. Confirmed by
+  simulating a 92% RAM host, which reproduced the failure, then stubbed the
+  method the way `test_audio_vram_handover.py` already does.
+
 ### Added - Tooling guards for the audio path
 
 - `tools/check-subprocess-encoding.py` rejects locale-decoded subprocess output
@@ -57,6 +67,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - System diagnostics reports the serving `sys.prefix`, which is the reliable way
   to confirm the active conda environment — the Windows launcher may display the
   base Python executable.
+- `tools/report-missing-audio.py` inventories `audio_files` rows whose file is
+  gone, split into relinkable (the file moved, e.g. into a subdirectory) and
+  no-trace-on-this-machine. Read-only. It also surfaced that `file_size` is `0`
+  for all 58 rows, so content cannot be matched by size.
 
 ## [2.0.0] - 2026-10-01
 
