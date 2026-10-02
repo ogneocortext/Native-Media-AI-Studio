@@ -79,8 +79,14 @@ async def analyze_stems_for_visualization(filename: str) -> dict[str, Any]:
 def _find_stem_dir(filename: str) -> Path | None:
     """Locate the Demucs output dir for a library file.
 
-    Mirrors the logic in ``api/audio.py::_find_stem_dir`` so the visualizer
-    service can resolve stems without importing the API module.
+    Imports from ``api.audio_stems``, where the stem routes now live. It used to
+    be ``api.audio``; that import broke when the stem block was split out, and
+    surfaced as ``ImportError`` -> HTTP 500 on /api/audio/stems-analysis.
+
+    Note the layering this inherits: a service reaching into the API module is
+    backwards. It works because ``_find_stem_dir`` is a pure path helper, but
+    the durable fix is to move it into source_separation (which owns
+    SEPARATION_DIR) and have both sides import it from there.
     """
-    from ..api.audio import _find_stem_dir as _api_find_stem_dir
+    from ..api.audio_stems import _find_stem_dir as _api_find_stem_dir
     return _api_find_stem_dir(filename)

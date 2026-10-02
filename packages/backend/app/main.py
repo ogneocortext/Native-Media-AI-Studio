@@ -493,6 +493,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 from .api import (  # noqa: E402
     audio,
+    audio_stems,
     comfyui,
     data,
     docs,
@@ -524,6 +525,10 @@ app.include_router(gen3d.router)
 app.include_router(integrations.router)
 app.include_router(outputs.router)
 app.include_router(audio.router)
+# Stem routes live in their own module but share the /api/audio prefix, so the
+# public paths are unchanged. Keep this next to the audio include - splitting
+# audio.py only works while both routers are registered here.
+app.include_router(audio_stems.router)
 app.include_router(transcription.router)
 app.include_router(lyrics.router)
 app.include_router(comfyui.router)
