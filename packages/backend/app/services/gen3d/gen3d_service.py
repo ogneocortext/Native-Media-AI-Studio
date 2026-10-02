@@ -959,6 +959,7 @@ class Gen3DService:
                     blender_exe, "--background", "--python", str(script_path),
                     "--", str(glb_path), str(temp_output), str(target_faces)
                 ],
+                encoding="utf-8", errors="replace",
                 capture_output=True,
                 text=True,
                 timeout=180  # 3 minutes max for large meshes
@@ -1011,7 +1012,7 @@ class Gen3DService:
             if not script_path.exists():
                 return {"success": False, "reason": "script_not_found"}
             tmp = glb_path.with_suffix(".chrome.glb")
-            result = subprocess.run([blender_exe, "--background", "--python", str(script_path), "--", str(glb_path), str(tmp)], capture_output=True, text=True, timeout=60)
+            result = subprocess.run([blender_exe, "--background", "--python", str(script_path), "--", str(glb_path), str(tmp)], encoding="utf-8", errors="replace", capture_output=True, text=True, timeout=60)
             if result.returncode == 0 and tmp.exists():
                 # replace original with chromed version
                 tmp.replace(glb_path)

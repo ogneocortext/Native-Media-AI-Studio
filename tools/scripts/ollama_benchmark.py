@@ -111,6 +111,7 @@ def _validate_code(code: str) -> dict[str, Any]:
             tmp = f.name
         result = subprocess.run(
             ["node", "--check", tmp],
+            encoding="utf-8", errors="replace",
             capture_output=True, text=True, timeout=5
         )
         node_valid = (result.returncode == 0)

@@ -17,6 +17,7 @@ for name in ["vocals", "drums", "bass", "other"]:
         sys.exit(1)
     r = subprocess.run(
         ["ffmpeg", "-y", "-i", str(wav), "-codec:a", "libmp3lame", "-q:a", "2", str(mp3)],
+        encoding="utf-8", errors="replace",
         capture_output=True, text=True, timeout=300,
     )
     if r.returncode != 0 or not mp3.exists():

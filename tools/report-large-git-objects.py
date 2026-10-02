@@ -1,19 +1,27 @@
 """List the largest objects in git history, to diagnose repository size."""
 import argparse
+import os
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import run_git  # noqa: E402
 
 
-def git(*args, stdin=None):
-    """Run git with stderr discarded.
+def git(*args: str) -> str:
+    """Run git, discarding stderr.
 
-    This repo has stray .git/objects/*/tmp_* files (from interrupted LFS
-    operations), so git prints "warning: garbage found" on stderr. The command
-    still succeeds, but the noise obscures real errors, so drop stderr.
+    The repo has stray .git/objects/*/tmp_* files from interrupted LFS
+    operations, so git prints "warning: garbage found" on stderr. The command
+    still succeeds, but the noise obscures real errors.
+
+    Returns an empty string rather than None so callers can call .splitlines()
+    unconditionally; a failed git call must not raise AttributeError somewhere
+    unrelated.
     """
-    return subprocess.run(
-        ["git", *args], capture_output=True, text=True, input=stdin,
-    ).stdout
+    return run_git(*args)
 
 
 def report(rev: str, limit: int) -> None:
@@ -27,10 +35,24 @@ def report(rev: str, limit: int) -> None:
             names[sha] = path
 
     sizes = {}
-    batch = git(
-        "cat-file", "--batch-check=%(objectname) %(objecttype) %(objectsize)",
-        stdin="\n".join(shas) + "\n",
-    )
+    # Pass the sha list on stdin via a file, not a pipe. `git cat-file
+    # --batch-check` wants one sha per line, and handing it a large stream
+    # through a subprocess pipe deadlocks the reader thread on Windows
+    # (observed as a _readerthread traceback and empty output). A temp file
+    # avoids that; it is unlinked in a finally so a failure cannot leave it.
+    with tempfile.NamedTemporaryFile("w", suffix=".shas", delete=False,
+                                     encoding="utf-8") as tmp:
+        tmp.write("\n".join(shas) + "\n")
+        sha_file = tmp.name
+    try:
+        with open(sha_file, encoding="utf-8") as stream:
+            batch = subprocess.run(
+                ["git", "cat-file",
+                 "--batch-check=%(objectname) %(objecttype) %(objectsize)"],
+                stdin=stream, capture_output=True,
+            ).stdout.decode("utf-8", "replace")
+    finally:
+        os.unlink(sha_file)
     for line in batch.splitlines():
         parts = line.split()
         if len(parts) == 3 and parts[1] == "blob" and parts[2].isdigit():

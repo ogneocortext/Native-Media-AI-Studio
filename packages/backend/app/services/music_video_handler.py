@@ -405,7 +405,7 @@ class MusicVideoHandler:
                 # Fallback for SelectorEventLoop on Windows (uvicorn --reload) -> run in thread
                 import subprocess as _sp
                 def _run_ffmpeg():
-                    result = _sp.run(cmd, capture_output=True, text=True)
+                    result = _sp.run(cmd, encoding="utf-8", errors="replace", capture_output=True, text=True)
                     return result.returncode, result.stdout, result.stderr
                 returncode, stdout_text, stderr_text = await asyncio.to_thread(_run_ffmpeg)
                 # Mimic streaming progress: single update

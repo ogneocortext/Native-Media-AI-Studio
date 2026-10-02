@@ -158,6 +158,7 @@ def run_pytest_on_file(test_path: Path) -> bool:
     import subprocess
     result = subprocess.run(
         [sys.executable, "-m", "pytest", str(test_path), "-v", "--tb=short", "-x"],
+        encoding="utf-8", errors="replace",
         cwd=str(BACKEND_ROOT),
         capture_output=True,
         text=True,
@@ -372,6 +373,7 @@ def main() -> int:
         import subprocess
         result = subprocess.run(
             [sys.executable, "-m", "pytest", "tests/", "-v", "--tb=short"],
+            encoding="utf-8", errors="replace",
             cwd=str(BACKEND_ROOT),
             capture_output=True,
             text=True,

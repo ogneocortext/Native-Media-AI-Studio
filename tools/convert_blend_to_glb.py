@@ -118,6 +118,7 @@ def convert(blend: Path, out: Path | None, to_public: bool, do_apply: bool, do_a
     print(f"Blend: {blend} -> GLB: {out} (apply={do_apply}, animations={do_anim})")
     result = subprocess.run(
         [blender, "--background", "--python", temp_script],
+        encoding="utf-8", errors="replace", 
         capture_output=True, text=True, timeout=120
     )
     print(result.stdout)

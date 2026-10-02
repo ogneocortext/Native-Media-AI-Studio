@@ -186,6 +186,7 @@ class ComfyUIManager:
             # Get current commit
             commit = subprocess.run(
                 [git_exe, "log", "--oneline", "-1"],
+                encoding="utf-8", errors="replace",
                 capture_output=True, text=True, cwd=str(COMFYUI_DIR)
             )
             if commit.returncode == 0:
@@ -194,6 +195,7 @@ class ComfyUIManager:
             # Get tag/describe
             describe = subprocess.run(
                 [git_exe, "describe", "--tags", "--always"],
+                encoding="utf-8", errors="replace",
                 capture_output=True, text=True, cwd=str(COMFYUI_DIR)
             )
             if describe.returncode == 0:
@@ -202,6 +204,7 @@ class ComfyUIManager:
             # Get branch
             branch = subprocess.run(
                 [git_exe, "branch", "--show-current"],
+                encoding="utf-8", errors="replace",
                 capture_output=True, text=True, cwd=str(COMFYUI_DIR)
             )
             if branch.returncode == 0:
@@ -214,12 +217,14 @@ class ComfyUIManager:
             )
             ahead_behind = subprocess.run(
                 [git_exe, "rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
+                encoding="utf-8", errors="replace",
                 capture_output=True, text=True, cwd=str(COMFYUI_DIR)
             )
             if ahead_behind.returncode != 0:
                 # Fall back for repos without an upstream branch configured
                 ahead_behind = subprocess.run(
                     [git_exe, "rev-list", "--left-right", "--count", "HEAD...origin/master"],
+                    encoding="utf-8", errors="replace",
                     capture_output=True, text=True, cwd=str(COMFYUI_DIR)
                 )
             if ahead_behind.returncode == 0:
@@ -341,6 +346,7 @@ class ComfyUIManager:
             # stdout is still discarded to avoid log spam from normal ComfyUI output.
             self._process = subprocess.Popen(
                 cmd,
+                encoding="utf-8", errors="replace",
                 cwd=str(COMFYUI_DIR),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,

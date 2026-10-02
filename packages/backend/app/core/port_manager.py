@@ -163,6 +163,7 @@ class PortManager:
             # Use netstat to find processes on the port
             result = subprocess.run(
                 ['netstat', '-ano'],
+                encoding="utf-8", errors="replace",
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -198,6 +199,7 @@ class PortManager:
             # Get process name on Windows
             result = subprocess.run(
                 ['tasklist', '/FI', f'PID eq {pid}', '/FO', 'CSV', '/NH'],
+                encoding="utf-8", errors="replace",
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -212,6 +214,7 @@ class PortManager:
             # Fallback: try wmic
             result = subprocess.run(
                 ['wmic', 'process', 'where', f'ProcessId={pid}', 'get', 'name'],
+                encoding="utf-8", errors="replace",
                 capture_output=True,
                 text=True,
                 timeout=5,

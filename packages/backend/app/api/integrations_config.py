@@ -73,6 +73,7 @@ async def get_system_resources() -> dict:
     try:
         result = subprocess.run(
             ["nvidia-smi", "--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu", "--format=csv,noheader,nounits"],
+            encoding="utf-8", errors="replace",
             capture_output=True, text=True, timeout=10
         )
         if result.returncode == 0 and result.stdout.strip():

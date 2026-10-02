@@ -40,6 +40,7 @@ def _run_hyperframes(args: list[str], cwd: Path | None = None) -> dict[str, Any]
     try:
         proc = subprocess.run(
             cmd,
+            encoding="utf-8", errors="replace",
             cwd=str(cwd or HYPERFRAMES_PROJECT),
             capture_output=True,
             text=True,
@@ -104,6 +105,7 @@ async def hyperframes_status() -> dict[str, Any]:
     try:
         proc = subprocess.run(
             [NPX_CMD, "hyperframes", "--version"],
+            encoding="utf-8", errors="replace",
             capture_output=True,
             text=True,
             timeout=30,
@@ -149,6 +151,7 @@ async def hyperframes_preview() -> dict[str, Any]:
     try:
         proc = subprocess.run(
             [NPX_CMD, "hyperframes", "preview"],
+            encoding="utf-8", errors="replace",
             cwd=str(HYPERFRAMES_PROJECT),
             capture_output=True,
             text=True,

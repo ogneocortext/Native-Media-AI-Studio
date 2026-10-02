@@ -11,6 +11,7 @@ probe = subprocess.run(
     ["ffprobe", "-v", "error", "-select_streams", "a:0",
      "-show_entries", "stream=codec_name,sample_rate,channels,bit_rate,duration",
      "-of", "default=noprint_wrappers=1", str(SRC)],
+    encoding="utf-8", errors="replace",
     capture_output=True, text=True, timeout=60,
 )
 print("probe:", probe.stdout.strip(), probe.stderr.strip())
@@ -27,7 +28,7 @@ else:
     cmd = ["ffmpeg", "-y", "-i", str(SRC), "-vn", "-c:a", "aac", "-b:a", "320k", str(DST)]
     print(f"mode: re-encode to AAC 320k (source codec: {codec or 'unknown'})")
 
-r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+r = subprocess.run(cmd, encoding="utf-8", errors="replace", capture_output=True, text=True, timeout=300)
 print("ffmpeg rc:", r.returncode)
 print(r.stderr[-800:])
 if r.returncode == 0 and DST.exists():

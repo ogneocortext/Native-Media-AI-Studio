@@ -123,6 +123,18 @@ standing protocol, not a preference. The reasons are measured, not aesthetic:
   diagnostics.
 - PowerShell 5.1 is the agent shell; the repo's own scripts need 7.6+. That gap
   is a recurring source of "the script is broken" conclusions that are wrong.
+- **The same locale trap exists inside Python.** `subprocess.run(...,
+  text=True)` with no `encoding=` decodes with the locale codec (cp1252 here),
+  so UTF-8 output is mis-decoded — and a leading BOM becomes `"ï»¿"` rather
+  than `U+FEFF`, so BOM-stripping silently does nothing. This produced a
+  confidently wrong "commit is missing" verdict during the checkpoint work.
+  `tools/check-subprocess-encoding.py` rejects the pattern and runs in the
+  `docs` gate; `tools/fix-subprocess-encoding.py` applies the fix. For git, use
+  `tools/_gitutil.py` (`run_git`, `git_lines`, `delete_ref`) rather than a
+  private wrapper.
+- Also: piping a **large** stream into a subprocess (`git patch-id`,
+  `git cat-file --batch-check`) deadlocks the reader thread on Windows and
+  returns empty output. Write it to a temp file and pass the file as stdin.
 
 Concretely: run gates through `python tools/run-gates.py` (it resolves its own
 tools, decodes as UTF-8 and returns a trustworthy exit code). Write new helper
@@ -288,6 +300,26 @@ Individual gates, for iterating on one area:
   the flag to delete. Deliberately **not** `git clean -xdf`, which would also
   remove `output/` and the generated waveform cache. It only ever deletes
   regenerable test/build caches and refuses to touch anything git tracks.
+- **Checkpoint refs / local repo size:** Cline writes restore points to
+  `refs/cline/checkpoints/*`, which keeps their history alive in the object
+  store even though nothing published depends on it. That made this checkout
+  report **3.59 GiB** locally against **131 MB** on GitHub — the difference was
+  a 2.9 GB `archive.tar.gz.tmp` plus the torch CUDA DLLs, all committed before
+  those paths were ignored. `python tools/prune-checkpoint-refs.py` previews;
+  `--apply` deletes. It is **age-based by default (14 days)** so recent
+  sessions stay restorable — pass `--all` to delete every checkpoint. Then run
+  `git gc --prune=now` to actually reclaim the disk.
+  - **These refs are Cline's restore points.** Deleting one discards the
+    ability to rewind that session from git. That is the deliberate trade, not
+    an oversight: the objects they pin are unreachable from any branch.
+  - **Do not** reach for `git filter-repo` or any history rewrite here. The
+    published history is small; the bloat is local-only, so a rewrite would
+    change every SHA on the remote for no benefit.
+  - `python tools/report-large-git-objects.py --rev main` shows what is
+    actually published; the default `--all` includes the checkpoint refs and
+    will mislead you into thinking the remote is huge.
+  - `python tools/check-dangling-commits.py` reports commits left unreachable
+    by a prune and whether main already contains them.
 - Knowledge library: `python tools/validate-knowledge-tags.py` — run this before
   committing any change under `docs/knowledge-library/`. A pre-commit hook does
   it automatically (see D10 in the decision log): run

@@ -901,7 +901,7 @@ class SunoEnhancer:
             "-codec:a", "libmp3lame", "-q:a", "2",
             str(mp3_path),
         ]
-        subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=300)
+        subprocess.run(cmd, encoding="utf-8", errors="replace", check=True, capture_output=True, text=True, timeout=300)
 
 
 # ─── Async entry point ────────────────────────────────────────────────────────

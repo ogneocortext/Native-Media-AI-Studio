@@ -36,6 +36,7 @@ def run_pytest_capture(args: list[str]) -> tuple[int, str, str]:
     """Run pytest and capture stdout/stderr."""
     result = subprocess.run(
         [sys.executable, "-m", "pytest"] + args,
+        encoding="utf-8", errors="replace",
         cwd=str(BACKEND_ROOT),
         capture_output=True,
         text=True,

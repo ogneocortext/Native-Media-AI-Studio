@@ -6,6 +6,7 @@ STUDIO_PY = r"D:\conda-envs\nma-studio-cuda\Scripts\python.exe"
 
 proc = subprocess.run(
     [STUDIO_PY, "-m", "pip", *sys.argv[1:]],
+    encoding="utf-8", errors="replace",
     capture_output=True,
     text=True,
     timeout=1800,

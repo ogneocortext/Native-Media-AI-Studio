@@ -1145,6 +1145,7 @@ Generate 3-8 scenes based on the input theme or concept."""
                 import subprocess
                 result = subprocess.run(
                     ["nvidia-smi", "--query-gpu=utilization.memory,memory.used,memory.total", "--format=csv,noheader,nounits"],
+                    encoding="utf-8", errors="replace",
                     capture_output=True, text=True, timeout=5
                 )
                 if result.returncode == 0:

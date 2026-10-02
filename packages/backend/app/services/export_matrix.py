@@ -65,7 +65,7 @@ def _run_ffmpeg(args: list[str], timeout: int = 600) -> tuple[bool, str]:
         return False, "ffmpeg not found on PATH"
     cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", *args]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        proc = subprocess.run(cmd, encoding="utf-8", errors="replace", capture_output=True, text=True, timeout=timeout)
         ok = proc.returncode == 0
         return ok, "" if ok else (proc.stderr or "").strip()[-800:]
     except subprocess.TimeoutExpired:
@@ -89,6 +89,7 @@ async def probe_duration(video_path: Path) -> float | None:
                     "-of", "default=noprint_wrappers=1:nokey=1",
                     str(video_path),
                 ],
+                encoding="utf-8", errors="replace",
                 capture_output=True, text=True, timeout=30,
             )
             return float(proc.stdout.strip())

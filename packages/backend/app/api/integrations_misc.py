@@ -34,6 +34,7 @@ async def get_cuda_status() -> dict:
         # Check nvidia-smi for GPU info
         result = subprocess.run(
             ["nvidia-smi", "--query-gpu=name,driver_version,memory.total", "--format=csv,noheader"],
+            encoding="utf-8", errors="replace",
             capture_output=True, text=True, timeout=10
         )
         if result.returncode == 0 and result.stdout.strip():
@@ -44,6 +45,7 @@ async def get_cuda_status() -> dict:
         # Check CUDA toolkit version
         result = subprocess.run(
             ["nvcc", "--version"],
+            encoding="utf-8", errors="replace",
             capture_output=True, text=True, timeout=10
         )
         if result.returncode == 0:

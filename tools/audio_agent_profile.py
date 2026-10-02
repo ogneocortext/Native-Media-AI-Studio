@@ -70,7 +70,7 @@ def _load_mono(path: str | Path, sr: int | None = 22050) -> tuple[np.ndarray, in
             if sr is not None:
                 cmd += ["-ar", str(sr)]
             cmd += ["-ac", "1", str(tmp)]
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            subprocess.run(cmd, encoding="utf-8", errors="replace", check=True, capture_output=True, text=True)
             return librosa.load(str(tmp), sr=sr, mono=True)
         finally:
             try:

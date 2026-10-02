@@ -312,6 +312,7 @@ class ResourceMonitor:
             result = subprocess.run(
                 ["nvidia-smi", "--query-compute-apps=pid,used_memory,process_name",
                  "--format=csv,noheader"],
+                encoding="utf-8", errors="replace",
                 capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0 and result.stdout.strip():
@@ -387,6 +388,7 @@ class ResourceMonitor:
                 import subprocess
                 result = subprocess.run(
                     ["nvidia-smi", "--query-compute-apps=pid,used_memory", "--format=csv,noheader"],
+                    encoding="utf-8", errors="replace",
                     capture_output=True, text=True, timeout=5
                 )
                 if result.returncode == 0 and result.stdout.strip():
@@ -413,6 +415,7 @@ class ResourceMonitor:
             import subprocess
             result = subprocess.run(
                 ["nvidia-smi", "--query-compute-apps=pid,process_name", "--format=csv,noheader"],
+                encoding="utf-8", errors="replace",
                 capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0:

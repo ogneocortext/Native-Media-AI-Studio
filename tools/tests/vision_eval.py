@@ -92,7 +92,7 @@ def run_case(case: dict) -> dict:
         return {"id": case["id"], "status": "SKIP", "reason": f"missing images: {missing}"}
     t0 = time.time()
     try:
-        p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=560)
+        p = subprocess.run(cmd, encoding="utf-8", errors="replace", cwd=ROOT, capture_output=True, text=True, timeout=560)
         dt = time.time() - t0
     except subprocess.TimeoutExpired:
         return {"id": case["id"], "status": "FAIL", "reason": "timeout>560s"}

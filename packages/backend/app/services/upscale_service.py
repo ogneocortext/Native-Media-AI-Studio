@@ -210,7 +210,7 @@ def _upscale_via_ffmpeg_sync(src: Path, dst: Path, scale: int) -> None:
         "-vf", f"scale=iw*{scale}:ih*{scale}:flags=lanczos",
         str(dst),
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    proc = subprocess.run(cmd, encoding="utf-8", errors="replace", capture_output=True, text=True, timeout=300)
     if proc.returncode != 0 or not dst.exists():
         raise RuntimeError(f"FFmpeg upscale failed: {(proc.stderr or '')[-300:]}")
 

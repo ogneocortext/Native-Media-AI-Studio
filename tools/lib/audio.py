@@ -97,7 +97,7 @@ def load_audio(audio_path: str | Path, sr: int | None = 22050):
             cmd += ["-ar", str(sr)]
         cmd += ["-ac", "1", str(tmp)]
         try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            subprocess.run(cmd, encoding="utf-8", errors="replace", check=True, capture_output=True, text=True)
             return librosa.load(str(tmp), sr=sr, mono=True)
         finally:
             tmp.unlink(missing_ok=True)
