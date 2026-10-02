@@ -411,6 +411,145 @@ date: 2026-09-29
 
 ---
 
+## 16. Motion Design for Audio-Reactive Visuals
+
+### Current State
+
+- 17 creative/visual docs cover shaders, particles, WebGL/WebGPU, Three.js —
+  all **technical** (how to render), none on motion **craft** (how to move)
+- Existing mappings are energy→transform (bass→scale, mids→rotation,
+  highs→glitch per 2026-09-30 Gemini guidance) with exponential smoothing
+- No vocabulary for easing choreography, anticipation, or structural arcs
+
+### Research Gaps
+
+| Gap | Why It Matters | Recommendation |
+|---|---|---|
+| **Animation principles for reactive viz** | Disney's 12 principles (anticipation, follow-through, staging…) were built for exactly this: making motion feel alive. None are documented for audio-reactive use. | 🔴 Research Now |
+| **Easing choreography per section** | Everything pulsing on the kick is the #1 amateur tell. No guidance on easing selection across verse/chorus/bridge. | 🔴 Research Now |
+| **Tension/release arcs** | Reactive visuals with no rests exhaust the viewer. No research on when NOT to react. | 🟡 Defer |
+| **Motion vocabulary spec** | No named, parameterized "moves" a coding agent can implement directly. | 🔴 Research Now |
+
+### Suggested Research
+
+1. **Gemini pass (in progress 2026-10-02)**: which animation principles transfer to audio-reactive visuals, easing choreography, structural arcs, amateur tells to avoid — ending in an implementable motion vocabulary (named moves + parameters + defaults) for the existing stack (React/Three.js, precomputed frame JSON, exponential smoothing).
+2. **Validate against visualizer**: pick 2 existing viz styles, apply one motion principle each (e.g., beat-anticipation swell), A/B via screenshot.
+
+## 17. Onboarding & First-Run UX for Creative Tools
+
+### Current State
+
+- `design-philosophy-2026.md` (P1–P6), UX audit report exist — principles and findings, not onboarding flows
+- No research on empty states, guided first project, or progressive disclosure across the app
+- The 2026-10-02 stem-mixer brief proved the "30-second workflow" lens works; it has never been applied app-wide
+
+### Research Gaps
+
+| Gap | Why It Matters | Recommendation |
+|---|---|---|
+| **Creative-tool onboarding patterns** | How CapCut/DaVinci/Resolve onboard without tutorials-from-hell. Nothing in the library. | 🔴 Research Now |
+| **Empty states & first project** | A new user with one uploaded track currently faces the full dashboard. No designed first-run path. | 🔴 Research Now |
+| **Progressive disclosure system** | P6 established bounded consistency for visuals; no equivalent system for feature disclosure. | 🟡 Defer |
+
+### Suggested Research
+
+1. **Teardown 3 creative tools' first-run**: record the first 5 minutes of CapCut, DaVinci Resolve, and one AI video tool. Extract: time-to-first-output, number of decisions forced, disclosure patterns.
+2. **Draft the studio's 5-minute path**: upload track → auto-analysis → one suggested visual → preview → render. One page, no new code.
+
+## 18. Information Architecture & Navigation
+
+### Current State
+
+- `feature-utilization-audit-2026.md` found false-confidence dead code and orphaned capabilities — IA sprawl symptoms
+- 146 files / 14 doc dirs (AGENTS.md); app surface grown over a year with no IA review on record
+
+### Research Gaps
+
+| Gap | Why It Matters | Recommendation |
+|---|---|---|
+| **Job mapping (JTBD)** | "Convoluted" usually means the app serves 6 jobs through one navigation. No job map exists. | 🟡 Defer |
+| **IA audit method** | No card-sort/tree-test baseline for the current nav. | 🟡 Defer |
+
+### Suggested Research
+
+1. **List every top-level screen + its job** in one table; flag screens serving 2+ jobs as merge/split candidates.
+2. **Dead-code tie-in**: cross-reference the feature-utilization audit's orphaned capabilities — orphans are IA candidates for removal, not just code deletion.
+
+## 19. Perceived Performance & Progress Communication
+
+### Current State
+
+- `notification-system-improvements-2026.md`, P2 honest async/queue states — infrastructure for feedback exists
+- No research on the **psychology** of waiting: what makes a 40 s Demucs run feel fine vs. broken
+
+### Research Gaps
+
+| Gap | Why It Matters | Recommendation |
+|---|---|---|
+| **Progress communication patterns** | Determinate vs. indeterminate, staged progress, time-remaining honesty for GPU jobs. | 🟡 Defer |
+| **Optimistic UI / skeletons** | Long renders with blank screens read as "crashed". No skeleton/placeholder system researched. | 🟡 Defer |
+
+### Suggested Research
+
+1. **Audit the 3 longest waits** (Demucs extraction, 3D render, Remotion composite): what does the user see at 0%, 50%, stall? Spec the fix per wait.
+2. **Staged progress contract**: every job reports named stages (not just %), so "Separating… 42%" becomes "Separating vocals… 42%".
+
+## 20. VJ Performance Culture
+
+### Current State
+
+- Sep 30 Gemini guidance included TouchDesigner tutorials — tooling, not discipline
+- No docs on VJ practice as a craft
+
+### Research Gaps
+
+| Gap | Why It Matters | Recommendation |
+|---|---|---|
+| **VJ set craft** | VJs have 20+ years of practice in live audio-reactive visuals: clip mixing, effects chains, reading energy, builds/drops. Directly applicable to making visuals feel "immersive". | 🟡 Defer |
+| **Resolume/VDMX techniques** | Layer compositing, BPM-synced effects, performance workflows adaptable to precomputed timelines. | 🟢 Monitor |
+
+### Suggested Research
+
+1. **Survey VJ technique literature**: extract 10 transferable techniques (e.g., layer crossfade on section change, strobe discipline, blackout-as-punctuation).
+2. **Map to existing viz**: which 3 techniques could be expressed as preset "moves" in the current visualizer?
+
+## 21. Music-Video Directing & Cinematography Craft
+
+### Current State
+
+- `music-video-production` guide covers workflow; A1 backlog item wants a JSON shot plan
+- `audio_analysis.py` detects sections — but nothing maps sections to **visual direction**
+
+### Research Gaps
+
+| Gap | Why It Matters | Recommendation |
+|---|---|---|
+| **Shot language** | Cuts on beats, camera moves, visual narrative arcs across verse/chorus/bridge. The missing layer between "sections detected" and "video directed". | 🟡 Defer |
+| **Generative directing** | How AI video tools maintain visual continuity across shots (character/object persistence). | 🟡 Defer |
+
+### Suggested Research
+
+1. **Shot-plan schema**: extend the A1 JSON shot plan with directing fields (shot size, camera move, cut trigger: beat/section/lyric).
+2. **Continuity survey**: how current AI video tools keep a character/scene consistent across cuts; what's feasible on 8 GB local.
+
+## 22. Color Scripting & Emotional Arcs
+
+### Current State
+
+- `color-strategy-2026.md`, `shader-color-science-2026.md`, `dark-ui-color-system-2026.md`, chroma→hue mapping (Q5) — all **technical** color
+- Nothing on color as art direction
+
+### Research Gaps
+
+| Gap | Why It Matters | Recommendation |
+|---|---|---|
+| **Emotional color arcs** | Pixar-style color scripts map story beats to palettes. Music has the same beats (verse/chorus/bridge); no mapping research exists. | 🟢 Monitor |
+| **Palette←→music mood** | Genre/mood → palette systems for generative visuals. | 🟢 Monitor |
+
+### Suggested Research
+
+1. **When motion-design lands**: pair each song-section type with a palette-shift rule (e.g., chorus = +saturation/+warmth) as part of the motion vocabulary.
+
 ## Prioritized Research Backlog
 
 | Priority | Item                                | Owner     | Effort | Impact                                                                         |
@@ -426,6 +565,13 @@ date: 2026-09-29
 | P3       | Vite 8 / Rolldown benchmark         | Frontend  | 2-4h   | Build speed                                                                    |
 | P3       | WebGPU smoke test                   | Frontend  | 2-4h   | Future-proofing                                                                |
 | P3       | Docker feasibility                  | DevOps    | 4-8h   | Deployment                                                                     |
+| P1       | Motion design vocabulary (Gemini pass) | Research | 2-4h  | Directly addresses "unengaging visuals"; implementable moves for the local agent |
+| P1       | Creative-tool onboarding teardown   | Research/UX | 4-6h | Directly addresses "clunky"; 5-minute first-run path spec                      |
+| P2       | IA job-mapping audit                | UX        | 2-4h   | Deconvolute navigation; pairs with feature-utilization audit                   |
+| P2       | Perceived-performance audit (3 longest waits) | Frontend | 2-4h | Makes GPU waits feel intentional                                        |
+| P2       | VJ technique survey (10 transferable) | Research  | 3-5h   | Immersive-visual craft                                                         |
+| P2       | Shot-plan schema v2 (directing fields) | Backend  | 3-5h   | Feeds A1 JSON shot plan                                                        |
+| P3       | Color-scripting rules per section   | Research  | 2-3h   | Pair with motion vocabulary when it lands                                      |
 
 ---
 
