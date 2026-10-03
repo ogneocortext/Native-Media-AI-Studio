@@ -4,6 +4,7 @@ Image generation job handler.
 import base64
 import json
 import logging
+import struct
 from datetime import datetime
 from typing import Any
 
@@ -17,6 +18,23 @@ logger = logging.getLogger(__name__)
 # Output directory for generated images
 OUTPUT_DIR = PROJECT_ROOT / "output" / "images"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+#: Minimum edge length, in pixels, for an image to count as a real render. The
+#: adapters' ``_mock_generate`` emits a 1x1 PNG, so reading the IHDR dimensions is
+#: an exact test rather than a size heuristic. A byte-size threshold was tried
+#: first and rejected: a legitimately small render (a 64x64 flat image compresses
+#: to ~98 bytes) is indistinguishable from a placeholder by size alone, whereas
+#: dimensions are unambiguous.
+_MIN_IMAGE_EDGE_PX = 8
+
+
+def _png_dimensions(data: bytes) -> tuple[int, int] | None:
+    """(width, height) from a PNG's IHDR chunk, or None if not a readable PNG."""
+    if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    if data[12:16] != b"IHDR":
+        return None
+    return struct.unpack(">II", data[16:24])
 
 
 class ImageGenerationHandler:
@@ -95,10 +113,29 @@ class ImageGenerationHandler:
 
         if image_b64:
             image_data = base64.b64decode(image_b64)
+            # A 1x1 PNG is what the adapters' mock generators emit. Writing it and
+            # reporting success makes the UI show a "completed" job whose output is
+            # a single pixel, which reads as a real render. Refuse it instead.
+            dims = _png_dimensions(image_data)
+            if dims is None or min(dims) < _MIN_IMAGE_EDGE_PX:
+                shown = "unreadable" if dims is None else f"{dims[0]}x{dims[1]}"
+                raise ValueError(
+                    f"Generation for job {job.id} returned a {shown} image, "
+                    "which is a placeholder rather than a real render (mock "
+                    "generation is disabled). Not reporting this as a successful job."
+                )
             with open(image_path, "wb") as f:
                 f.write(image_data)
         else:
+            # Previously this only logged a warning and returned an output path
+            # anyway, so the job was recorded `completed` with output_path=None and
+            # a plausible-looking seed. Raise instead: a job with no image is not a
+            # success, and the queue exists to report the truth about work done.
             logger.warning("Generation result for job %s contained no image data", job.id)
+            raise ValueError(
+                f"Generation for job {job.id} returned no image data; "
+                "refusing to record the job as completed"
+            )
 
         # Create JSON sidecar per Guidelines 3.3
         sidecar_data = {
