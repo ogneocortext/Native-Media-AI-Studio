@@ -874,7 +874,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                                     if not final_content and not fallback_executed and len(explicit_names) == 1 and tool_call_count < max_tool_calls:
                                         name = explicit_names[0]
                                         args: dict[str, object] = {}
-                                        depth_match = re.search(r"depth\s*[=:]\s*(\d+)", message, re.I)
+                                        depth_match = re.search(r"depth\s*[=:]\s*(\d+)", message, re.IGNORECASE)
                                         if depth_match:
                                             args["depth"] = min(6, int(depth_match.group(1)))
                                         tool_call_count += 1

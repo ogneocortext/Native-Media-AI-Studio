@@ -474,7 +474,7 @@ class JobProcessor:
             if await self._check_cancelled(job):
                 # Cancellation is already persisted by _check_cancelled; raise to
                 # interrupt the active handler path.
-                raise asyncio.CancelledError()
+                raise asyncio.CancelledError
 
     async def get_current_job(self) -> Job | None:
         """Get the currently running job"""

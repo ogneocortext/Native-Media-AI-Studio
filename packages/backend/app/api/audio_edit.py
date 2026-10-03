@@ -228,8 +228,7 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
             seg_duration = max(0.0, src_dur - seg_start)
 
     rel = dst.resolve().relative_to(root).as_posix()
-    if rel.startswith("output/"):
-        rel = rel[len("output/"):]  # output-relative, e.g. "audio/x.m4a" (getOutputUrl convention)
+    rel = rel.removeprefix("output/")  # output-relative, e.g. "audio/x.m4a" (getOutputUrl convention)
     return {
         "success": True,
         "filename": dst.name,

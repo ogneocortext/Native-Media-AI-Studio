@@ -173,7 +173,7 @@ async def test_3d_generation_cycle_returns_vram_to_baseline(monkeypatch):
 
     monkeypatch.setattr(manager, "get_vram_status", fake_vram_status)
     monkeypatch.setattr(manager, "_ollama_loaded", True)
-    monkeypatch.setattr(vram_module, "_unload_ollama_models", lambda: [])
+    monkeypatch.setattr(vram_module, "_unload_ollama_models", list)
     monkeypatch.setattr(vram_module, "_reload_ollama_models", lambda model: True)
 
     before = await manager.get_vram_status()

@@ -89,7 +89,6 @@ class ImportTracksRequest(BaseModel):
 
 class ImportTracksFromCsvRequest(BaseModel):
     """Request body for importing tracks from CSV (no fields required)."""
-    pass
 
 
 class SaveGeneratedSceneRequest(BaseModel):

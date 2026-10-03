@@ -13,6 +13,7 @@ actual mess rather than an idealised one. Found there:
 
 import os
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 from app.services.analysis_resolver import (
@@ -361,7 +362,7 @@ class TestCachedScan:
 class TestResolveByJobId:
     """`glob(f"{job_id}*")[0]` was order-dependent and had no schema check."""
 
-    JOBS = [
+    JOBS: ClassVar[list] = [
         cand("32129cfa_analysis.json", CURRENT),
         cand("32129cfa-longer-suffix_analysis.json", CURRENT),
         cand("85a406ef_analysis.json", None),

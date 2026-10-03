@@ -80,7 +80,6 @@ class BaseAdapter(ABC):
         Returns:
             True if the service is reachable and healthy
         """
-        pass
 
     @abstractmethod
     async def generate(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -96,7 +95,6 @@ class BaseAdapter(ABC):
             - seed: generation seed used
             - info: additional info about the generation
         """
-        pass
 
     @abstractmethod
     async def _mock_generate(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -112,7 +110,6 @@ class BaseAdapter(ABC):
         Returns:
             Mock response matching the real generate() method output format
         """
-        pass
 
     async def generate_with_fallback(self, params: dict[str, Any]) -> dict[str, Any]:
         """

@@ -715,8 +715,7 @@ Generate 3-8 scenes based on the input theme or concept."""
                 if not line.strip():
                     continue
                 text = line.decode("utf-8", errors="ignore") if isinstance(line, (bytes, bytearray)) else line
-                if text.startswith("data: "):
-                    text = text[6:]
+                text = text.removeprefix("data: ")
                 if text == "[DONE]":
                     yield {"done": True}
                     continue

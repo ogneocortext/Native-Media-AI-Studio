@@ -340,10 +340,7 @@ def cleanup_old_logs(log_dir: Path, retention_days: int = 7) -> int:
             continue
         # Match active logs (app.log) and rotated logs (app.log.1, app.log.2, ...)
         name = f.name
-        if not (name.startswith("app.log") or name.startswith("error.log") or
-                name.startswith("queue.log") or name.startswith("comfyui.log") or
-                name.startswith("ollama.log") or
-                f.suffix in (".log", ".err")):
+        if not (name.startswith(("app.log", "error.log", "queue.log", "comfyui.log", "ollama.log")) or f.suffix in (".log", ".err")):
             continue
         try:
             if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:

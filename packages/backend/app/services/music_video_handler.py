@@ -218,8 +218,7 @@ class MusicVideoHandler:
                                 target = pp.parent / target
                             if target.exists():
                                 cleaned = str(target)
-                                if cleaned.startswith('\\\\?\\'):
-                                    cleaned = cleaned[4:]
+                                cleaned = cleaned.removeprefix('\\\\?\\')
                                 return cleaned
                         except Exception:
                             pass
@@ -228,8 +227,7 @@ class MusicVideoHandler:
                             if resolved.exists() and resolved.stat().st_size > 10000:
                                 # Strip \\?\ long-path prefix for asyncio compatibility
                                 cleaned = str(resolved)
-                                if cleaned.startswith('\\\\?\\'):
-                                    cleaned = cleaned[4:]
+                                cleaned = cleaned.removeprefix('\\\\?\\')
                                 return cleaned
                         except Exception:
                             pass
@@ -251,8 +249,7 @@ class MusicVideoHandler:
             gyan = list((Path.home() / "AppData" / "Local" / "Microsoft" / "WinGet" / "Packages").glob("Gyan.FFmpeg.Essentials*/ffmpeg-*/bin/ffmpeg.exe"))
             if gyan and gyan[0].exists():
                 cleaned = str(gyan[0])
-                if cleaned.startswith('\\\\?\\'):
-                    cleaned = cleaned[4:]
+                cleaned = cleaned.removeprefix('\\\\?\\')
                 return cleaned
         except Exception:
             pass

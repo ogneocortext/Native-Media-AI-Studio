@@ -219,7 +219,6 @@ def downbeat_times_from_beats(beat_times: list[float], beats_per_bar: int = 0) -
 
 class AudioAnalyzerError(Exception):
     """Exception raised for errors in the AudioAnalyzer."""
-    pass
 
 
 @dataclass

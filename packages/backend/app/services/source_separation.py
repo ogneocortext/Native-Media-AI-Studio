@@ -16,7 +16,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from ..core.config import PROJECT_ROOT
 
@@ -158,7 +158,10 @@ class SourceSeparator:
       This kills the vocal bleed that plagues one-shot 4-stem runs on AI tracks.
     """
 
-    SUPPORTED_MODELS = [
+    # ClassVar: a read-only constant table. Left as a plain list, every access via
+    # `self.SUPPORTED_MODELS.append(...)` would mutate it for the whole process,
+    # since class attributes are shared rather than per-instance.
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
         "htdemucs", "htdemucs_ft", "htdemucs_6s",
         "mdx_extra", "mdx_extra_q",
         # MDX-Net vocal models (UVR5-style) — lightweight on 8 GB VRAM

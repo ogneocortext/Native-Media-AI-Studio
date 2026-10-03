@@ -741,7 +741,7 @@ def validate_output(platform: str, data: dict[str, Any], brief: dict[str, Any] |
         if unhandled:
             warnings.append(f"Previously stumbled words still verbatim ({', '.join(unhandled)}) — respell them (e.g. stretched vowels) or swap them out.")
         if platform == "lyria_35":
-            long_words = sorted({w for w in re.findall(r"[A-Za-z]{11,}", lyrics) if w.lower() not in ("instrumental",)})
+            long_words = sorted({w for w in re.findall(r"[A-Za-z]{11,}", lyrics) if w.lower() != "instrumental"})
             if len(long_words) > 3:
                 warnings.append(f"Lyria pronounces worse than Suno v6-mini — simplify long words ({', '.join(long_words[:5])}) or test on v6-mini first.")
         # Contamination + pronunciation-hardening scan (flag-for-review).

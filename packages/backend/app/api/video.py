@@ -446,7 +446,7 @@ async def route_scene(request: RouteSceneRequest) -> RouteSceneResponse:
             matched = rule
             break
 
-        choice = matched if matched else fallback
+        choice = matched or fallback
         model = choice.get("model", fallback["model"])
         tier = choice.get("tier", fallback["tier"])
         reason = choice.get("reason", fallback["reason"])

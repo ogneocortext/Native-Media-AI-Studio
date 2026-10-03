@@ -81,7 +81,7 @@ class EnhanceConfig:
     stereo_widen_amount: float = 0.3
     master_ceiling_dbfs: float = -1.0  # True-peak ceiling per KARRA preset
     output_format: str = "wav"  # "wav" | "mp3" | "both"
-    # Suno-specific (heuristic)
+    # Suno-specific (heuristic)  # noqa: ERA001 - section label, not disabled code
     pre_highpass_hz: float = 120.0  # Gemini: 110–130 Hz, default 120
     vocal_spectral_gate_threshold_db: float = -40.0
     vocal_dynamic_eq_max_reduction_db: float = 4.0

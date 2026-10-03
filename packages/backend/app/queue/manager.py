@@ -356,11 +356,11 @@ class QueueManager:
         old_status = job.status
 
         # Compute new values before mutating in-memory state
-        new_status = status if status else job.status
+        new_status = status or job.status
         new_progress = min(max(progress, 0.0), 1.0) if progress is not None else job.progress
-        new_message = message if message else job.message
+        new_message = message or job.message
         new_error = error if error is not None else job.error
-        new_result = result if result else job.result
+        new_result = result or job.result
         new_retry_count = retry_count if retry_count is not None else job.retry_count
         new_output_path = output_path if output_path is not None else job.output_path
         new_started_at = started_at if started_at is not None else job.started_at

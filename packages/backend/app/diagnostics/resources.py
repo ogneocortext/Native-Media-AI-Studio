@@ -560,7 +560,7 @@ class ResourceMonitor:
         temperature, and per-process breakdown."""
         snapshot: dict[str, Any] = {"available": False}
 
-        # Primary: NVML (pynvml/gpustat)
+        # Primary: NVML (pynvml/gpustat)  # noqa: ERA001 - section label, not disabled code
         if self._nvml_available:
             try:
                 def _nvml_snapshot():
