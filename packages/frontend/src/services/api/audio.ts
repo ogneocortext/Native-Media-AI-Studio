@@ -7,6 +7,14 @@ export interface AudioUploadResponse {
   stored_path: string;
   size_bytes: number;
   message: string;
+  /** True when the upload arrived as video and was converted to .m4a. */
+  converted?: boolean;
+  /** The video filename the user dropped, when `converted` is true. */
+  source_filename?: string | null;
+  /** True when the audio was remuxed with `-c:a copy` (bit-identical). */
+  lossless?: boolean;
+  /** True when an existing library file with the same content was reused. */
+  deduplicated?: boolean;
 }
 
 export async function uploadAudioFile(file: File): Promise<AudioUploadResponse> {

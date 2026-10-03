@@ -22,6 +22,12 @@ from ..services.analysis_resolver import (
     resolve_by_job_id,
     scan_analysis_dir_cached,
 )
+from ..services.video_import import (
+    VIDEO_EXTENSIONS,
+    ExtractionResult,
+    extract_audio,
+    target_stem,
+)
 
 # Analysis helpers (result builder, curve maths, visualization suggestions,
 # section labelling) moved to app/api/audio_analysis.py. No routes moved - those
@@ -222,6 +228,17 @@ class AudioUploadResponse(BaseModel):
     stored_path: str
     size_bytes: int
     message: str
+    # Set when the upload arrived as video and was converted to .m4a. The
+    # frontend uses this to tell the user a conversion happened rather than
+    # reporting a plain upload.
+    converted: bool = False
+    #: The video filename the user actually dropped, for the message.
+    source_filename: str | None = None
+    #: True when the audio was remuxed with `-c:a copy` (bit-identical).
+    lossless: bool = False
+    #: True when an existing library file with the same content was reused
+    #: instead of writing a new copy.
+    deduplicated: bool = False
 
 
 class AudioAnalysisResponse(BaseModel):
@@ -341,27 +358,136 @@ async def get_analysis_summary(filename: str):
 
 @router.post("/upload", response_model=AudioUploadResponse)
 async def upload_audio(file: UploadFile = File(...)) -> AudioUploadResponse:
-    """Upload an audio file for music video creation."""
+    """Upload a track — audio is stored as-is; video is converted to .m4a.
+
+    A dropped `.mp4` used to be rejected outright, which made Suno drafts
+    invisible: the library listing and `analyze-all` both filter on
+    ALLOWED_EXTENSIONS, so a video in `output/audio/` was never listed, never
+    analyzed and never playable. Video is now converted to .m4a here so dropping
+    a file into the app is all it takes to add a track.
+    """
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
 
-    ext = Path(file.filename).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid file type. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
-        )
-
-    safe_name = await _store_upload(file)
+    safe_name, was_converted, extraction, deduped = await _store_track(file)
     file_path = AUDIO_DIR / safe_name
     size = file_path.stat().st_size
 
+    if not was_converted:
+        return AudioUploadResponse(
+            success=True,
+            filename=file.filename,
+            stored_path=str(file_path),
+            size_bytes=size,
+            message=f"Audio file uploaded successfully ({size // 1024} KB)",
+            deduplicated=deduped,
+        )
+
+    how = "stream copy" if extraction and extraction.lossless else "re-encoded to AAC"
+    verb = "Added (already in library)" if deduped else "Converted"
     return AudioUploadResponse(
         success=True,
-        filename=file.filename,
+        filename=file_path.name,
         stored_path=str(file_path),
         size_bytes=size,
-        message=f"Audio file uploaded successfully ({size // 1024} KB)",
+        message=(
+            f"{verb}: {file.filename} -> {file_path.name} ({how}, {size // 1024} KB)"
+        ),
+        converted=True,
+        source_filename=file.filename,
+        lossless=bool(extraction and extraction.lossless),
+        deduplicated=deduped,
+    )
+
+
+async def _store_video_as_audio(file: UploadFile) -> tuple[str, ExtractionResult, bool]:
+    """Convert an uploaded video to .m4a and store it in the library.
+
+    Returns `(stored_filename, extraction_result, deduplicated)`.
+
+    The video is streamed to a temp file outside the library so a failed
+    conversion can never leave a `.mp4` (which the library ignores) or a
+    truncated `.m4a` behind. The result is then content-addressed like any other
+    upload, so re-dropping the same video reuses the existing track.
+    """
+    tmp_dir = AUDIO_DIR.parent / "_import_tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    src = tmp_dir / f"{uuid.uuid4().hex}{Path(file.filename).suffix.lower()}"
+    # Declared before the try: the finally block references it, and an early
+    # raise (413/400) would otherwise leave the name unbound.
+    converted: Path | None = None
+
+    try:
+        digest = hashlib.sha256()
+        total = 0
+        with open(src, "wb") as out:
+            while chunk := await file.read(1 << 20):
+                total += len(chunk)
+                if total > MAX_FILE_SIZE:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024 * 1024)} MB",
+                    )
+                digest.update(chunk)
+                out.write(chunk)
+
+        if total == 0:
+            raise HTTPException(status_code=400, detail="File is empty")
+
+        stem = target_stem(file.filename or "track")
+        converted = tmp_dir / f"{digest.hexdigest()[:8]}_{stem}.m4a"
+        result = extract_audio(src, converted)
+
+        if not result.ok:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Could not extract audio from '{file.filename}': {result.detail}",
+            )
+
+        # Content-address the result, then reuse an identical existing track
+        # rather than writing a second copy of the same audio.
+        audio_id = hashlib.sha256(converted.read_bytes()).hexdigest()[:8]
+        existing = _find_by_content_id(AUDIO_DIR, audio_id)
+        if existing is not None:
+            deduped = True
+        else:
+            final_path = AUDIO_DIR / f"{audio_id}_{stem}.m4a"
+            converted.replace(final_path)
+            deduped = False
+
+        return existing.name if existing is not None else final_path.name, result, deduped
+    finally:
+        src.unlink(missing_ok=True)
+        if converted is not None:
+            converted.unlink(missing_ok=True)
+
+
+async def _store_track(file: UploadFile) -> tuple[str, bool, ExtractionResult | None, bool]:
+    """Store an audio *or* video upload in the library.
+
+    Returns `(stored_filename, converted, extraction_result, deduplicated)`.
+    Shared by /upload, /analyze and /analyze-cuda so a dropped .mp4 works on
+    every path — previously only /upload learned about video, so the analysis
+    routes still answered 400 for the same file.
+    """
+    ext = Path(file.filename or "").suffix.lower()
+    _validate_upload_extension(ext)
+    if ext in VIDEO_EXTENSIONS:
+        name, result, deduped = await _store_video_as_audio(file)
+        return name, True, result, deduped
+    return await _store_upload(file), False, None, False
+
+
+def _validate_upload_extension(ext: str) -> None:
+    if ext in VIDEO_EXTENSIONS or ext in ALLOWED_EXTENSIONS:
+        return
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            f"Invalid file type. Allowed audio: "
+            f"{', '.join(sorted(ALLOWED_EXTENSIONS))}; "
+            f"video (converted to M4A): {', '.join(sorted(VIDEO_EXTENSIONS))}"
+        ),
     )
 
 
@@ -377,11 +503,9 @@ async def analyze_audio(
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
 
-    ext = Path(file.filename).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Invalid file type")
-
-    safe_name = await _store_upload(file)
+    # Accepts audio and video alike: a dropped .mp4 is converted to .m4a
+    # here, so the analysis routes work on video without a separate step.
+    safe_name, _converted, _extraction, _deduped = await _store_track(file)
     file_path = AUDIO_DIR / safe_name
     # The stored name always begins with the content hash, so the job id is
     # read back from it. These endpoints used to bind `unique_id` from the
@@ -419,11 +543,9 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
 
-    ext = Path(file.filename).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Invalid file type")
-
-    safe_name = await _store_upload(file)
+    # Accepts audio and video alike: a dropped .mp4 is converted to .m4a
+    # here, so the analysis routes work on video without a separate step.
+    safe_name, _converted, _extraction, _deduped = await _store_track(file)
     file_path = AUDIO_DIR / safe_name
     # The stored name always begins with the content hash, so the job id is
     # read back from it. These endpoints used to bind `unique_id` from the

@@ -384,10 +384,12 @@ export function AudioAnalysisPage() {
 
   const validateFile = (f: File): string | null => {
     // Shared probe util (MIME may be empty/unreliable on Windows) + explicit
-    // extension check covering everything the backend accepts.
-    const extOk = /\.(mp3|wav|flac|ogg|oga|opus|m4a|aac|wma|mp4)$/i.test(f.name);
-    if (!isAudioFile(f) && !extOk)
-      return `Unsupported format: ${f.name.split(".").pop()}. Use MP3, WAV, FLAC, OGG, OPUS, M4A, AAC, WMA.`;
+    // extension check. Video is accepted too: the backend converts it to .m4a on
+    // upload, so dropping an .mp4 adds a real track instead of failing.
+    const audioOk = /\.(mp3|wav|flac|ogg|oga|opus|m4a|aac|wma)$/i.test(f.name);
+    const videoOk = /\.(mp4|m4v|mov|webm|mkv|avi|mpeg|mpg|wmv|flv)$/i.test(f.name);
+    if (!audioOk && !videoOk && !isAudioFile(f))
+      return `Unsupported format: ${f.name.split(".").pop()}. Use audio (MP3, WAV, FLAC, OGG, OPUS, M4A, AAC, WMA) or video (MP4, MOV, WebM), which converts to M4A.`;
     if (f.size > 500 * 1024 * 1024)
       return `File too large (${(f.size / 1048576).toFixed(1)} MB). Max 500 MB.`;
     if (f.size === 0) return `File is empty.`;
@@ -849,7 +851,7 @@ export function AudioAnalysisPage() {
             }
             className={`${DS.card} text-center transition-all duration-200 ${file ? "border-violet-500/30 bg-violet-500/5" : dragOver ? "border-violet-500 bg-violet-500/10 scale-[1.01]" : "border-dashed border-2 hover:border-gray-500 cursor-pointer hover:bg-gray-800/50"}`}
             role="button"
-            aria-label="Upload audio file"
+            aria-label="Upload track file"
             tabIndex={0}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !file)
@@ -885,17 +887,18 @@ export function AudioAnalysisPage() {
             ) : (
               <div>
                 <p className="text-sm text-gray-300 font-medium">
-                  Drop audio file here or click to browse
+                  Drop a track here — video converts to M4A
                 </p>
                 <p className={DS.textXs + " mt-1"}>
-                  Supports MP3, WAV, FLAC, OGG, OPUS, M4A, AAC, WMA · Max 500 MB
+                  Audio: MP3, WAV, FLAC, OGG, OPUS, M4A, AAC, WMA · Video: MP4, MOV,
+                  WebM, MKV → M4A · Max 500 MB
                 </p>
               </div>
             )}
             <input
               id="audio-analysis-file-input"
               type="file"
-              accept="audio/*,.mp3,.wav,.flac,.ogg,.opus,.m4a,.aac,.wma"
+              accept="audio/*,video/*,.mp3,.wav,.flac,.ogg,.opus,.m4a,.aac,.wma,.mp4,.m4v,.mov,.webm,.mkv,.avi"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) handleFileSelect(f);
