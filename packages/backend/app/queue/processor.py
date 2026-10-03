@@ -16,6 +16,7 @@ from typing import Any
 import aiohttp
 
 from ..core.comfyui_client import WorkflowRejectedError
+from ..core.logging_config import job_context
 from ..models.job import Job, JobStatus, JobType
 from ..queue.manager import queue_manager
 from ..services.audio_analysis_handler import AudioAnalysisHandler
@@ -373,6 +374,24 @@ class JobProcessor:
         """Process a single job"""
         self._current_job = job
 
+        # Bind the job id for everything this execution logs. Without it, a
+        # failure inside a handler produced log lines with no job id, so
+        # `rg <job-id>` found the enqueue and nothing after it. The context is
+        # reset on exit because this task handles many jobs in sequence.
+        with job_context(job.id):
+            await self._process_job_inner(job)
+
+    async def _process_job_inner(self, job: Job):
+        """Body of :meth:`_process_job`, run inside ``job_context``."""
+        # Timestamped once here so the completion log can report a real duration.
+        _job_started = time.monotonic()
+        logger.info(
+            "Job started type=%s attempt=%d/%d params_keys=%s",
+            job.job_type,
+            job.retry_count + 1,
+            job.max_retries,
+            sorted(job.params.keys()) or "[]",
+        )
         try:
             # Update status to running
             await queue_manager.update_job(
@@ -429,6 +448,12 @@ class JobProcessor:
                 progress=1.0,
                 message="Job completed",
                 result=result if isinstance(result, dict) else {"result": str(result)},
+            )
+            logger.info(
+                "Job completed type=%s duration=%.1fs result_keys=%s",
+                job.job_type,
+                time.monotonic() - _job_started,
+                sorted(result.keys()) if isinstance(result, dict) else type(result).__name__,
             )
 
         except Exception as e:

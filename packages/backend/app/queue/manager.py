@@ -350,6 +350,33 @@ class QueueManager:
             await self._notify_subscribers(job)
             # Signal processor that a new job is available
             self._signal_new_job()
+        # Log creation with the origin and a params fingerprint. Enqueue was
+        # previously silent, so a job could exist in the database with nothing in
+        # any log explaining who created it or with what - which is why the
+        # origin of the 233 empty-params `image_generation` rows could not be
+        # traced at all. The keys (not the values) are what matter here: enough to
+        # identify the caller and see that input was dropped, without dumping
+        # prompts or file paths into the log.
+        logger.info(
+            "Job queued id=%s type=%s keys=%s n_params=%d priority=%d max_retries=%d",
+            job.id,
+            job.job_type,
+            sorted(request.params.keys()) or "[]",
+            len(request.params),
+            request.priority,
+            request.max_retries,
+        )
+        if not request.params:
+            # Empty params means no handler can run it (D31). Log it loudly here,
+            # at the point of origin, where the responsible caller is identifiable
+            # by the request id - rather than letting it sit in the queue until
+            # the reaper quarantines it with no trace of where it came from.
+            logger.warning(
+                "Job queued with NO params id=%s type=%s - it cannot be run and "
+                "will be dead-lettered; find the caller via request_id above",
+                job.id,
+                job.job_type,
+            )
         # Broadcast after release lock to avoid blocking
         await self._broadcast_job_event("job.queued", job)
         return job

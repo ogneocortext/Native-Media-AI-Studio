@@ -10,6 +10,7 @@ Provides:
 """
 
 import collections
+import contextlib
 import contextvars
 import logging
 import logging.handlers
@@ -50,6 +51,53 @@ class _RequestIdFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         if not hasattr(record, "request_id"):
             record.request_id = get_request_id()  # type: ignore[attr-defined]
+        return True
+
+# Job-scoped correlation id, set by the processor for the lifetime of one job's
+# execution. Separate from ``request_id`` because a job outlives the request that
+# created it: the enqueue happens under a request id, but every later step -
+# claiming, the handler, retries, dead-lettering - runs in the processor's own
+# context with no request to inherit from.
+#
+# Without this, `rg <job-id>` finds the enqueue line and nothing after it, which
+# is why an untraceable failure could not be followed: there was no second line
+# to find. Set it with ``job_context`` so the handler's own loggers pick it up
+# without threading a parameter through every call.
+job_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "nma_job_id", default="-"
+)
+
+
+def set_job_id(job_id: str) -> None:
+    """Set the job correlation id for the current execution context."""
+    job_id_var.set(job_id or "-")
+
+
+def get_job_id() -> str:
+    """Return the job correlation id for the current execution context."""
+    return job_id_var.get()
+
+
+@contextlib.contextmanager
+def job_context(job_id: str):
+    """Bind ``job_id`` for the duration of a job's execution.
+
+    Restores the previous value on exit so one job's id cannot leak into the
+    next - the processor reuses one task for every job it runs.
+    """
+    token = job_id_var.set(job_id or "-")
+    try:
+        yield
+    finally:
+        job_id_var.reset(token)
+
+
+class _JobIdFilter(logging.Filter):
+    """Inject ``job_id`` into every record, so job logs are greppable by id."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not hasattr(record, "job_id"):
+            record.job_id = get_job_id()  # type: ignore[attr-defined]
         return True
 
 # Log directory - use output/logs/ for consistency with service logs
@@ -217,6 +265,7 @@ def setup_logging(level: str = "INFO") -> None:
         child.propagate = True
 
     _request_filter = _RequestIdFilter()
+    _job_filter = _JobIdFilter()
 
     # === Console Handler (Windows-compatible, no Unicode box chars) ===
     # Bind to the original stdout captured at import time. If we bound to the
@@ -228,8 +277,10 @@ def setup_logging(level: str = "INFO") -> None:
     console_handler.setLevel(numeric_level)
     console_handler._nma_console = True  # type: ignore[attr-defined]
     console_handler.addFilter(_request_filter)
+
+    console_handler.addFilter(_job_filter)
     console_fmt = logging.Formatter(
-        "%(asctime)s | %(levelname)-7s | %(name)-30s | [%(request_id)s] %(message)s",
+        "%(asctime)s | %(levelname)-7s | %(name)-30s | [%(request_id)s] [%(job_id)s] %(message)s",
         datefmt="%H:%M:%S",
     )
     console_handler.setFormatter(console_fmt)
@@ -241,8 +292,10 @@ def setup_logging(level: str = "INFO") -> None:
     )
     app_handler.setLevel(logging.DEBUG)
     app_handler.addFilter(_request_filter)
+
+    app_handler.addFilter(_job_filter)
     app_fmt = logging.Formatter(
-        "%(asctime)s | %(levelname)-7s | %(name)-35s | %(funcName)-25s | [%(request_id)s] %(message)s",
+        "%(asctime)s | %(levelname)-7s | %(name)-35s | %(funcName)-25s | [%(request_id)s] [%(job_id)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     app_handler.setFormatter(app_fmt)
@@ -254,8 +307,10 @@ def setup_logging(level: str = "INFO") -> None:
     )
     error_handler.setLevel(logging.ERROR)
     error_handler.addFilter(_request_filter)
+
+    error_handler.addFilter(_job_filter)
     error_fmt = logging.Formatter(
-        "%(asctime)s | %(levelname)-7s | %(name)-35s | %(funcName)-25s | [%(request_id)s] %(message)s\n"
+        "%(asctime)s | %(levelname)-7s | %(name)-35s | %(funcName)-25s | [%(request_id)s] [%(job_id)s] %(message)s\n"
         "  %(pathname)s:%(lineno)d",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
@@ -271,6 +326,8 @@ def setup_logging(level: str = "INFO") -> None:
     queue_handler.setLevel(logging.DEBUG)
     queue_handler.setFormatter(app_fmt)
     queue_handler.addFilter(_request_filter)
+
+    queue_handler.addFilter(_job_filter)
     queue_logger.addHandler(queue_handler)
 
     # === ComfyUI-specific Logger ===
@@ -282,6 +339,8 @@ def setup_logging(level: str = "INFO") -> None:
     comfyui_handler.setLevel(logging.DEBUG)
     comfyui_handler.setFormatter(app_fmt)
     comfyui_handler.addFilter(_request_filter)
+
+    comfyui_handler.addFilter(_job_filter)
     comfyui_logger.addHandler(comfyui_handler)
 
     # === Ollama-specific Logger ===
@@ -293,6 +352,8 @@ def setup_logging(level: str = "INFO") -> None:
     ollama_handler.setLevel(logging.DEBUG)
     ollama_handler.setFormatter(app_fmt)
     ollama_handler.addFilter(_request_filter)
+
+    ollama_handler.addFilter(_job_filter)
     ollama_logger.addHandler(ollama_handler)
 
     # === Quiet down noisy third-party loggers ===

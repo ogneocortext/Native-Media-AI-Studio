@@ -311,6 +311,41 @@ Always reuse `aiohttp.ClientSession` instances. Creating new sessions per reques
 - `logger.error()` → written to `output/logs/error.log`
 - ComfyUI-specific logs → `output/logs/comfyui.log`
 
+Every line carries two correlation ids, so a failure can be followed without
+reconstructing it from timestamps:
+
+```
+[request_id] [job_id] message
+```
+
+- **`request_id`** — the HTTP request, set by `RequestIDMiddleware`.
+- **`job_id`** — the job being executed, set by `JobProcessor` for one job's
+  lifetime via `job_context(job.id)`.
+
+They are separate because **a job outlives the request that created it.**
+Enqueue happens under a request id; claiming, the handler, retries and
+dead-lettering all run in the processor's own context with no request to inherit
+from. Before this, `rg <job-id>` matched the enqueue line and *nothing after it* —
+which is why 233 empty-params `image_generation` rows could not be traced to any
+caller.
+
+Follow a whole job with:
+
+```bash
+rg "<job-id>" output/logs/          # everything that job did
+rg "NO params" output/logs/         # every job enqueued unrunnable
+```
+
+`enqueue()` logs a params fingerprint (`keys=...`, `n_params=N`) rather than
+values, so dropped input is visible at origin without dumping prompts or file
+paths into the log. An empty `params` is a `WARNING` there, at the point of
+creation, rather than something the reaper notices minutes later (D31).
+
+Inside a handler you do not need to pass the id around: `job_context` is a
+ContextVar, so any logger picks it up. It restores the previous value on exit —
+including when the handler raises — because the processor reuses one task for
+every job it runs.
+
 ### 5. ComfyUI API Format
 
 The workflow JSON must be in API format (node IDs as keys), not UI format (includes positional data).
