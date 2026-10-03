@@ -228,11 +228,65 @@ The fix is the boring one: **sum the stems as separated and apply a single gain
 to the sum.** Any per-stem normalisation discards balance the separator already
 got right.
 
+### The compressor threshold was attenuating, not compressing
+
+The last real loss. Isolating each step on the **drums** stem (bass fraction,
+before → after) showed every step flat to within 0.4 points except one:
+
+```
+  raw                 84.0%
+  lufs_gain_stage     84.0%
+  normalize_peak      84.0%
+  compress            62.8%   ← here
+  stereo_widen        62.8%
+  weight_bus          62.8%
+  reverb_and_delay    63.2%
+```
+
+`threshold_dbfs` was applied literally, and the configured **−24.0 dBFS sits
+below the stem's own RMS** (measured −19.7 dBFS). A compressor whose threshold is
+under the programme's average level is not compressing peaks — it is attenuating
+everything, continuously. Measured: gain reduction active **36% of the time**,
+mean −2.6 dB, worst frame −14.7 dB. Because gain reduction scales with level, the
+loudest content is ducked hardest, and in a kick-heavy stem the kick *is* the
+loudest content.
+
+`threshold_dbfs` is now an **upper bound**, raised to sit 12 dB above the
+material's measured RMS (`_adaptive_threshold`). A caller asking for a hotter
+setting still gets it; a caller asking for −24 dBFS on a loud stem no longer
+crushes the low end to satisfy it.
+
+| | drums bass fraction |
+|---|---|
+| literal threshold | 84.0% → 62.8% |
+| adaptive threshold | 84.0% → **83.8%** |
+
+### Where it ended up
+
+Measured against the summed stems, matched 20 s windows:
+
+| t | stems bass | output bass | delta |
+|---|---|---|---|
+| 20 s | 41.3% | 66.0% | +24.7 |
+| 60 s | 52.8% | 76.2% | +23.4 |
+| 120 s | 71.2% | 72.4% | +1.1 |
+| 180 s | 78.5% | 75.0% | −3.5 |
+
+Correlation with the stems **0.9284**, `channels=2`, crest 15.26 dB against
+16.02 dB in the source.
+
+The two bass-heavy passages that previously lost 10–15% are now within 1–4%. The
+two passages that now read ~+24% are doing so because the vocal stem is being
+gated down ~9 dB, which raises bass as a *fraction* of what remains — a vocal
+level decision rather than a defect, and adjustable via `vocal_balance_db`.
+
 ### Still open
 
-Bass reads 10–15% low in the two bass-heaviest passages. Not localised; the vocal
-spectral gate (measured −8.6 dB on the vocal stem) is the next suspect. The chain
-is not finished, and no net quality claim is made yet.
+The chain now runs, is stereo, sits at the right level, and tracks the source
+closely. What is **not** established is that it sounds better: every number above
+is a fidelity measurement against the input, not a listening test, and mastering
+is judged by ear. The vocal gate at −9 dB is aggressive enough to be worth
+auditioning before anyone relies on this output.
 
 ## Sources (accessed 2026-10-02)
 

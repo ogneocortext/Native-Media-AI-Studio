@@ -166,8 +166,14 @@ def _compress_audio(
     The loop stays a scalar Python loop on purpose. A "vectorised" version using
     `np.where` per sample was tried and is several times *slower*: it makes one
     numpy call per sample (~4.6M per channel here) instead of one arithmetic
-    step, and numpy call overhead dominates. The channel axis is what needed
+    step, and numpy call overhead dominates. The channel axis was what needed
     fixing, not the loop.
+
+    ## The threshold is a ceiling, not a setting
+
+    `threshold_dbfs` is applied as an upper bound and raised to sit above the
+    material's own RMS - see `_adaptive_threshold` for why a fixed dBFS
+    threshold made this attenuate the low end rather than compress peaks.
     """
     if y.size == 0:
         return y
@@ -178,7 +184,7 @@ def _compress_audio(
     # per-channel body is its own function so this one stays at one loop level
     # (report-nesting.py guards that).
     coeffs = (
-        _db_to_linear(threshold_db),
+        _adaptive_threshold(src, threshold_db),
         math.exp(-1.0 / (attack_ms * 1e-3 * sr)),
         math.exp(-1.0 / (release_ms * 1e-3 * sr)),
         ratio,
@@ -186,6 +192,36 @@ def _compress_audio(
     for c in range(src.shape[0]):
         out[c] = _compress_channel(src[c], coeffs)
     return out[0] if y.ndim == 1 else out
+
+
+
+# How far above the material's RMS the threshold must sit for the compressor to
+# act on peaks rather than on the programme as a whole. 12 dB is the usual
+# starting point for a gentle bus compressor.
+COMPRESSOR_THRESHOLD_ABOVE_RMS_DB = 12.0
+
+
+def _adaptive_threshold(y: np.ndarray, threshold_db: float) -> float:
+    """Linear threshold: the requested dBFS, raised to sit above the RMS.
+
+    `_compress_channel` works in linear amplitude, so that is what this returns.
+
+    A fixed dBFS threshold is only meaningful relative to the material it is
+    applied to. The configured -24 dBFS sits *below* the RMS of real stems
+    (measured: drums at -19.7 dBFS RMS), which turns a peak compressor into a
+    continuous attenuator - 36% of the time, mean -2.6 dB, worst frame -14.7 dB.
+    Gain reduction scales with level, so the loudest content is ducked hardest,
+    and in a kick-heavy stem the kick is the loudest content.
+
+    Measured effect on the drums stem: its bass fraction fell from 84.0% to
+    62.8% at this step alone, with every other step flat to within 0.4 points.
+    """
+    requested = _db_to_linear(threshold_db)
+    rms = float(np.sqrt(np.mean(np.asarray(y, dtype=np.float64) ** 2)))
+    if rms < 1e-9:
+        return requested
+    floor = rms * _db_to_linear(COMPRESSOR_THRESHOLD_ABOVE_RMS_DB)
+    return max(requested, floor)
 
 
 def _compress_channel(chan: np.ndarray, coeffs: tuple[float, float, float, float]) -> np.ndarray:
