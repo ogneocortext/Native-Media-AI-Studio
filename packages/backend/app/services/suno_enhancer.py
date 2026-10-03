@@ -797,7 +797,7 @@ class EnhanceResult:
 
 
 class SunoEnhancer:
-    """10-step auto-mix chain for separated stems."""
+    """Auto-mix chain for separated stems (18 reported stages - see module docstring)."""
 
     def __init__(self, config: EnhanceConfig | None = None):
         self.config = config or EnhanceConfig()
@@ -1191,6 +1191,6 @@ async def enhance_stems(
     output_dir: str | Path | None = None,
     config: EnhanceConfig | None = None,
 ) -> EnhanceResult:
-    """Enhance separated stems using the 10-step auto-mix chain."""
+    """Enhance separated stems using the 18-stage auto-mix chain."""
     enhancer = SunoEnhancer(config=config)
     return await enhancer.enhance_stems(stems_dir, output_dir)

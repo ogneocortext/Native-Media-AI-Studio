@@ -48,6 +48,41 @@ Measured: two-slot four-stem render in 6.9-22.7 s; crossfade overlap engaged at
 `xf_ns=[0, 69632]`; rendered peaks match their sources (drums 0.622 vs 0.6221,
 bass 0.055 vs 0.0535).
 
+#### Remix listing and mastering, added in review
+
+`GET /api/audio/remix/list` reads rendered remixes back from the manifests
+written at render time, so the listing cannot drift from what was built.
+
+`POST /api/audio/remix/{name}/enhance` runs the Suno master chain over a
+rendered remix. This closes a real gap rather than adding a nicety:
+`/api/audio/enhance-stems` resolves a *library* filename under `output/audio/`
+and then finds that file's stems, so pointing it at a remix 404s on both a bare
+name and an absolute path (verified, both). The enhancer *service* takes a stem
+directory and works unchanged, so the new route is a thin bridge.
+
+#### Defects found reviewing the remix code
+
+- **`probe_track` required a `vocals` stem**, while `list_stem_sources`
+  advertises partial stem sets. A drums-only track was listed as a usable
+  source and then failed to probe, so the two disagreed. Tempo is now taken
+  from the first available stem, preferring drums. (Confirmed on a synthetic
+  drums-only track; `take-the-crown` now probes its drums and returns the same
+  151.999 BPM.)
+- **`remix_enhance` awaited a coroutine through `asyncio.to_thread`** —
+  `suno_enhancer.enhance_stems` is already async, so this returned the
+  coroutine object and raised on `.wav_path`.
+- **`EnhanceResult` has no `duration` field** (`success/output_dir/wav_path/
+  mp3_path/steps/error`), so the duration now comes from the remix manifest.
+- **Probe cache was written beside the stems**, inside a directory owned by
+  `source_separation` that otherwise holds only stem WAVs. Moved to
+  `output/remixes/.probes/`.
+- **`crossfade_bars` accepted `inf`/`nan`** (they pass a bare `>= 0`) and then
+  died inside `int(round(...))` far from the bad value.
+- Two more stale `10-step` docstrings in `suno_enhancer.py` (`SunoEnhancer`,
+  `enhance_stems`) missed by the earlier pass over that file.
+
+29 tests now; audio route baseline 38.
+
 ### Fixed - the Suno mastering chain had never produced a file (P0)
 
 `suno_enhancer.py` (14 steps, `/api/audio/enhance-stems`) aborted at step 5 on

@@ -183,3 +183,88 @@ def test_db_to_linear_matches_known_values():
     assert _db_to_linear(0.0) == pytest.approx(1.0)
     assert _db_to_linear(-6.0) == pytest.approx(0.501187, rel=1e-5)
     assert _db_to_linear(3.0) == pytest.approx(1.412538, rel=1e-5)
+
+
+# ─── analysis-stem selection ─────────────────────────────────────────────────
+# `list_stem_sources` advertises partial stem sets, so the probe must not
+# require a vocals stem. A drums-only track used to be listed as a usable source
+# and then 404 on probe.
+
+
+def test_analysis_stem_falls_back_when_no_vocals(tmp_path, monkeypatch):
+    import app.services.stem_remixer as sr
+
+    stems = tmp_path / "stems" / "htdemucs" / "drums_only"
+    stems.mkdir(parents=True)
+    for name in ("vocals", "bass", "other"):
+        (stems / f"{name}.wav").write_bytes(b"")
+    (stems / "drums.wav").write_bytes(b"")
+
+    monkeypatch.setattr(sr, "SEPARATION_DIR", tmp_path / "stems")
+    assert sr._pick_analysis_stem("drums_only")[0] == "drums"
+
+    # Remove drums AND vocals: STEM_NAMES order is vocals, drums, bass, other,
+    # so with an (empty) vocals.wav still present the fallback returns vocals,
+    # which is the documented behaviour and not a bug.
+    (stems / "drums.wav").unlink()
+    (stems / "vocals.wav").unlink()
+    assert sr._pick_analysis_stem("drums_only")[0] == "bass"
+
+
+def test_analysis_stem_raises_when_nothing_present(tmp_path, monkeypatch):
+    import app.services.stem_remixer as sr
+
+    (tmp_path / "stems" / "htdemucs" / "empty").mkdir(parents=True)
+    monkeypatch.setattr(sr, "SEPARATION_DIR", tmp_path / "stems")
+    with pytest.raises(FileNotFoundError):
+        sr._pick_analysis_stem("empty")
+
+
+def test_crossfade_must_be_finite():
+    """inf passes a bare `>= 0` and then dies inside int(round(...))."""
+    import math
+
+    for bad in (math.inf, -math.inf, math.nan):
+        with pytest.raises(ValueError):
+            RemixSlot(
+                layers=[RemixLayer(track="a", stem="drums")], crossfade_bars=bad
+            ).validate()
+
+
+# ─── rendered-remix listing ──────────────────────────────────────────────────
+
+
+def test_remix_dir_refuses_traversal(tmp_path, monkeypatch):
+    import app.services.stem_remixer as sr
+
+    monkeypatch.setattr(sr, "REMIX_DIR", tmp_path / "remixes")
+    (tmp_path / "remixes").mkdir()
+    for bad in ("../etc", "..", ""):
+        with pytest.raises(ValueError):
+            sr.remix_dir(bad)
+
+
+def test_list_remixes_reads_manifests_and_skips_cache(tmp_path, monkeypatch):
+    import json
+
+    import app.services.stem_remixer as sr
+
+    root = tmp_path / "remixes"
+    (root / ".probes").mkdir(parents=True)
+    (root / ".probes" / "cache.json").write_text("{}", encoding="utf-8")
+    made = root / "my_mash"
+    made.mkdir()
+    (made / "remix.json").write_text(
+        json.dumps({"duration_sec": 12.5, "target_bpm": 120.0, "source_tracks": ["a"]}),
+        encoding="utf-8",
+    )
+    (made / "drums.wav").write_bytes(b"")
+    # a dir with no manifest is not a remix
+    (root / "stray").mkdir()
+    monkeypatch.setattr(sr, "REMIX_DIR", root)
+
+    found = sr.list_remixes()
+    assert [r["name"] for r in found] == ["my_mash"]
+    assert found[0]["duration_sec"] == 12.5
+    assert found[0]["stems"] == ["drums"]
+    assert found[0]["has_enhanced"] is False

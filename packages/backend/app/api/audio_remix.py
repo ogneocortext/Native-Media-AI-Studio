@@ -19,6 +19,7 @@ translates HTTP to dataclasses and back.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 
 from fastapi import APIRouter, HTTPException
@@ -149,12 +150,116 @@ async def remix_preview(body: RemixRecipeRequest) -> RemixPreviewResponse:
     return RemixPreviewResponse(**data)
 
 
+@router.get("/list")
+async def remix_list() -> dict:
+    """Rendered remixes, read back from the manifests written at render time."""
+    return {"remixes": await asyncio.to_thread(stem_remixer.list_remixes)}
+
+
+class RemixEnhanceRequest(BaseModel):
+    """Optional overrides; anything omitted uses the enhancer's own defaults."""
+    target_peak_dbfs: float = -1.0
+    master_ceiling_dbfs: float = -1.0
+    pre_highpass_hz: float | None = None
+    vocal_balance_db: float = 0.0
+    output_format: str = "wav"
+
+
+class RemixEnhanceResponse(BaseModel):
+    name: str
+    output_dir: str
+    wav_path: str | None = None
+    mp3_path: str | None = None
+    duration_sec: float = 0.0
+    steps: list[dict] = []
+    error: str | None = None
+
+
+@router.post("/{name}/enhance", response_model=RemixEnhanceResponse)
+async def remix_enhance(
+    name: str, body: RemixEnhanceRequest | None = None
+) -> RemixEnhanceResponse:
+    """Run the Suno master chain over an already-rendered remix.
+
+    This exists because `/api/audio/enhance-stems` cannot be used for a remix:
+    that route takes a *library* filename, resolves it under `output/audio/`, and
+    then finds that file's stems. A remix lives at `output/remixes/<name>/`, so
+    both attempts return 404 - verified, not assumed. The enhancer *service*
+    takes a stem directory and works unchanged, so this route is a thin bridge.
+
+    Slow by nature (measured ~60 s for a full-length track): the chain is CPU
+    bound and deliberately not backgrounded.
+    """
+    opts = body or RemixEnhanceRequest()
+    try:
+        directory = stem_remixer.remix_dir(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not directory.is_dir():
+        raise HTTPException(status_code=404, detail=f"Remix not found: {name}")
+
+    missing = [s for s in ("vocals", "drums", "bass", "other")
+               if not (directory / f"{s}.wav").exists()]
+    if missing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Remix {name} is missing stems: {', '.join(missing)}",
+        )
+
+    from ..services.suno_enhancer import EnhanceConfig
+    from ..services.suno_enhancer import enhance_stems as run_chain
+
+    kwargs: dict[str, object] = {
+        "target_peak_dbfs": opts.target_peak_dbfs,
+        "master_ceiling_dbfs": opts.master_ceiling_dbfs,
+        "vocal_balance_db": opts.vocal_balance_db,
+        "output_format": opts.output_format,
+    }
+    if opts.pre_highpass_hz is not None:
+        # None means "use the chain's default". Passing the 120 Hz the frontend
+        # used to hard-code is the mistake worth avoiding - see suno_enhancer.
+        kwargs["pre_highpass_hz"] = opts.pre_highpass_hz
+    config = EnhanceConfig(**kwargs)
+
+    output_dir = directory / "enhanced"
+    try:
+        # Awaited, not to_thread'd: `suno_enhancer.enhance_stems` is already a
+        # coroutine, so handing it to a thread returned the coroutine object
+        # itself and blew up on `.wav_path`. It offloads its own per-stem DSP
+        # with asyncio.to_thread internally, so awaiting does not block.
+        result = await run_chain(directory, output_dir, config)
+    except Exception as exc:  # noqa: BLE001 - surfaced as a 500 with detail
+        logger.exception("remix enhance failed for %s", name)
+        raise HTTPException(status_code=500, detail=f"Enhance failed: {exc}") from exc
+
+    # EnhanceResult carries no duration (success/output_dir/wav_path/mp3_path/
+    # steps/error), so take it from the remix manifest written at render time.
+    duration = 0.0
+    try:
+        manifest = json.loads((directory / "remix.json").read_text(encoding="utf-8"))
+        duration = float(manifest.get("duration_sec", 0.0))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        logger.debug("could not read remix manifest for %s", name)
+
+    return RemixEnhanceResponse(
+        name=name,
+        output_dir=str(output_dir),
+        wav_path=result.wav_path,
+        mp3_path=result.mp3_path,
+        duration_sec=duration,
+        steps=result.steps,
+        error=result.error,
+    )
+
+
 @router.post("/build", response_model=RemixBuildResponse)
 async def remix_build(body: RemixRecipeRequest) -> RemixBuildResponse:
     """Render a recipe to a four-stem directory under `output/remixes/`.
 
-    The result is a normal stem set, so `/api/audio/enhance-stems` and the
-    enhancer chain accept it with no special handling.
+    The result is a plain stem set, so the enhancer *service* accepts it
+    unchanged - but `/api/audio/enhance-stems` does not, because that route
+    resolves a library filename under `output/audio/`. Use
+    `POST /api/audio/remix/{name}/enhance` to master a rendered remix.
     """
     try:
         recipe = _to_recipe(body)

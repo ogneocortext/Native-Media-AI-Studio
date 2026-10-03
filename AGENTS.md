@@ -92,6 +92,13 @@ Native-Media-AI-Studio/
   - Tracks here open instrumentally — Ad-Nauseam's vocals are silent for the
     first 7.06 s, so a layer at `source_start_bar=0` renders digital silence
     that looks like a broken mixer. `preview_recipe` warns below −50 dBFS.
+  - To master a remix use `POST /api/audio/remix/{name}/enhance`, **not**
+    `/api/audio/enhance-stems`: that route resolves a library filename under
+    `output/audio/`, so a remix 404s on both a bare name and an absolute path.
+  - Tempo is probed from **drums** when present (`_pick_analysis_stem`), because
+    `list_stem_sources` advertises partial stem sets and requiring vocals made
+    the listing and the probe disagree. Probe caches live in
+    `output/remixes/.probes/`, never beside the stems.
 
 ## MCP Servers
 

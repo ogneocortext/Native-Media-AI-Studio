@@ -64,19 +64,26 @@ REMIX_SR = 22050
 REMIX_DIR = PROJECT_ROOT / "output" / "remixes"
 REMIX_DIR.mkdir(parents=True, exist_ok=True)
 
+# Probe measurements live here, not beside the stems: `output/stems/<model>/
+# <track>/` is written by `source_separation` and holds nothing but stem WAVs.
+PROBE_CACHE_DIR = REMIX_DIR / ".probes"
+PROBE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
 # Below this chroma correlation a detected key is reported as unreliable and is
 # never used to derive a shift. See the module docstring for the measurements.
 KEY_CONFIDENCE_FLOOR = 0.60
 
-# Bump when the probe result gains or changes a field, so stale sidecars written
+# Bump when the probe result gains or changes a field, so stale caches written
 # by an earlier version are recomputed instead of silently missing keys.
-PROBE_CACHE_VERSION = 2
+PROBE_CACHE_VERSION = 3
 
 _PITCH_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 # Krumhansl-Schmuckler major-key profile.
 _MAJOR_PROFILE = np.array(
     [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
 )
+
+
 # ─── source discovery ────────────────────────────────────────────────────────
 
 
@@ -149,34 +156,61 @@ def list_stem_sources() -> list[dict[str, Any]]:
                 s: entry["stems"].get(s, False) or present[s] for s in STEM_NAMES
             }
     return sorted(found.values(), key=lambda d: d["track"].lower())
+
+
 # ─── analysis ────────────────────────────────────────────────────────────────
+
+
+def _pick_analysis_stem(track: str) -> tuple[str, Path]:
+    """Choose which stem to analyse, preferring the clearest beat.
+
+    `list_stem_sources` advertises partial stem sets, so requiring a `vocals`
+    stem here made the two disagree: a drums-only track was listed as a usable
+    source and then failed to probe, and therefore could not be built. The
+    fallback chain is drums (most reliable transients) then the Demucs order.
+
+    Returns (stem_name, path) so the caller can record which one it measured.
+    """
+    for stem in ("drums", *STEM_NAMES):
+        try:
+            return stem, resolve_stem_path(track, stem)
+        except FileNotFoundError:
+            continue
+    raise FileNotFoundError(
+        f"Track {track!r} has no stems under {SEPARATION_DIR} "
+        f"(looked for {', '.join(STEM_NAMES)})"
+    )
 
 
 def probe_track(track: str) -> dict[str, Any]:
     """Detect tempo, and *report* key as an advisory with its confidence.
 
-    Cached in a sidecar next to the stems: beat tracking is slow enough that a
-    UI calling this per slot would otherwise stall the request.
+    Cached under `output/remixes/.probes/`. It deliberately does *not* live
+    beside the stems: that directory is owned by `source_separation` and contains
+    nothing but stem WAVs, and a stray JSON there is a file nobody expects.
     """
     if not LIBROSA_AVAILABLE:
         raise RuntimeError("librosa is required for remix analysis")
-    vocals = resolve_stem_path(track, "vocals")
-    cache_path = vocals.parent / "remix-probe.json"
+    analysed_stem, analysis_path = _pick_analysis_stem(track)
+    cache_path = PROBE_CACHE_DIR / f"{_safe_track_name(track)}.json"
     if cache_path.exists():
         try:
             cached = json.loads(cache_path.read_text(encoding="utf-8"))
-            # Version guards the *schema*, not just the stem. Without it, adding
-            # a field left every existing cache serving a dict that lacks it, and
-            # the caller failed on KeyError rather than on anything visible.
+            # Version guards the *schema*, not just the source. Without it,
+            # adding a field left every existing cache serving a dict that lacks
+            # it, and the caller failed on KeyError rather than on anything
+            # visible. The stem is matched too, so switching the analysed stem
+            # cannot return a measurement taken from a different one.
             if (
-                cached.get("source") == vocals.name
-                and cached.get("cache_version") == PROBE_CACHE_VERSION
+                cached.get("cache_version") == PROBE_CACHE_VERSION
+                and cached.get("analysed_stem") == analysed_stem
+                and cached.get("source") == analysis_path.name
             ):
                 return cached
         except (json.JSONDecodeError, OSError):
             logger.debug("unreadable probe cache for %s, recomputing", track)
 
-    y, sr = librosa.load(str(vocals), sr=REMIX_SR, mono=True)
+    y, sr = librosa.load(str(analysis_path), sr=REMIX_SR, mono=True)
     if y.size < sr * 5:
         raise ValueError(f"Track {track!r} is too short to analyse ({y.size / sr:.1f}s)")
 
@@ -223,13 +257,16 @@ def probe_track(track: str) -> dict[str, Any]:
             correlation >= KEY_CONFIDENCE_FLOOR and flatness < 0.5
         ),
         "beat_count": int(len(beats)),
-        "source": vocals.name,
+        "analysed_stem": analysed_stem,
+        "source": analysis_path.name,
     }
     try:
         cache_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
     except OSError:
         logger.debug("could not write probe cache for %s", track)
     return result
+
+
 # ─── recipe ──────────────────────────────────────────────────────────────────
 
 
@@ -279,8 +316,10 @@ class RemixSlot:
             raise ValueError("a slot needs at least one layer")
         if self.bars < 1:
             raise ValueError(f"bars must be >= 1, got {self.bars}")
-        if self.crossfade_bars < 0:
-            raise ValueError("crossfade_bars must be >= 0")
+        if not math.isfinite(self.crossfade_bars) or self.crossfade_bars < 0:
+            # inf/nan pass a bare `>= 0` test and then blow up inside
+            # plan_timeline's int(round(...)), far from the bad value.
+            raise ValueError(f"crossfade_bars must be finite and >= 0, got {self.crossfade_bars}")
         for layer in self.layers:
             layer.validate()
 
@@ -317,6 +356,8 @@ class RemixResult:
     manifest: dict[str, Any] = field(default_factory=dict)
     duration_sec: float = 0.0
     warnings: list[str] = field(default_factory=list)
+
+
 # ─── DSP ─────────────────────────────────────────────────────────────────────
 
 
@@ -369,6 +410,8 @@ def _equal_power_ramp(n: int) -> tuple[np.ndarray, np.ndarray]:
         return empty, empty.copy()
     t = np.linspace(0.0, 1.0, n, dtype=np.float32)
     return np.cos(t * math.pi / 2.0), np.sin(t * math.pi / 2.0)
+
+
 # ─── source cache ────────────────────────────────────────────────────────────
 
 
@@ -443,6 +486,8 @@ class _SourceCache:
         y = self.get(layer)
         rms = float(np.sqrt(np.mean(y.astype(np.float64) ** 2)))
         return 20.0 * math.log10(rms + 1e-12)
+
+
 # ─── rendering ───────────────────────────────────────────────────────────────
 
 
@@ -592,6 +637,7 @@ def render_remix(recipe: RemixRecipe, overwrite: bool = True) -> RemixResult:
         warnings=warnings,
     )
 
+
 # ─── preview ─────────────────────────────────────────────────────────────────
 
 
@@ -641,3 +687,52 @@ def preview_recipe(recipe: RemixRecipe) -> dict[str, Any]:
         "layers": layers,
         "warnings": warnings,
     }
+
+
+# ─── existing remixes ────────────────────────────────────────────────────────
+
+
+def remix_dir(name: str) -> Path:
+    """Resolve a rendered remix directory, refusing anything outside REMIX_DIR."""
+    safe = _safe_remix_name(name)
+    candidate = (REMIX_DIR / safe).resolve()
+    base = REMIX_DIR.resolve()
+    if not str(candidate).startswith(str(base)):
+        raise ValueError(f"Invalid remix name: {name!r}")
+    return candidate
+
+
+def list_remixes() -> list[dict[str, Any]]:
+    """Rendered remixes with their manifest summary.
+
+    Reads the `remix.json` written at render time, so this stays cheap and
+    cannot drift from what was actually rendered.
+    """
+    out: list[dict[str, Any]] = []
+    if not REMIX_DIR.is_dir():
+        return out
+    for entry in sorted(REMIX_DIR.iterdir()):
+        # `.probes` is the cache, not a remix.
+        if not entry.is_dir() or entry.name.startswith("."):
+            continue
+        manifest_path = entry / "remix.json"
+        if not manifest_path.exists():
+            continue
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            logger.debug("unreadable manifest for remix %s", entry.name)
+            continue
+        out.append(
+            {
+                "name": entry.name,
+                "duration_sec": manifest.get("duration_sec"),
+                "target_bpm": manifest.get("target_bpm"),
+                "source_tracks": manifest.get("source_tracks", []),
+                "stems": sorted(
+                    p.stem for p in entry.glob("*.wav")
+                ),
+                "has_enhanced": (entry / "enhanced").is_dir(),
+            }
+        )
+    return sorted(out, key=lambda d: d["name"].lower())
