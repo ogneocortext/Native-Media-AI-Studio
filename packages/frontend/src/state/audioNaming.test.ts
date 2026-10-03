@@ -6,11 +6,16 @@ import {
   audioRefFor,
   dedupeAudioFiles,
   isUnnamedFile,
+  isVariantFile,
+  parseVariantName,
   shortHashOf,
   stripAudioExtension,
   stripHashPrefixes,
   stripHashPrefixesFromPath,
   unnamedFileLabel,
+  variantFileName,
+  variantLabel,
+  variantOptionLabel,
   type AudioLibraryFile,
 } from "./audioNaming";
 
@@ -244,4 +249,87 @@ describe("shortHashOf", () => {
   it("returns empty when there is no hash", () => {
     expect(shortHashOf("Song.mp3")).toBe("");
   });
+
+describe("preset variants", () => {
+  it("builds a filename that leaves the source name intact and readable", () => {
+    expect(variantFileName("Still I Rise.wav", "warm")).toBe("Still I Rise [warm].wav");
+    expect(variantFileName("Still I Rise.wav", "vocal focus")).toBe(
+      "Still I Rise [vocal focus].wav",
+    );
+  });
+
+  it("keeps the source's extension unless overridden", () => {
+    expect(variantFileName("Track.m4a", "warm")).toBe("Track [warm].m4a");
+    // A 48 kHz WAV rendered from an .m4a must not silently become .m4a.
+    expect(variantFileName("Track.m4a", "warm", "wav")).toBe("Track [warm].wav");
+  });
+
+  it("strips upload hash prefixes and folder segments like the rest of the module", () => {
+    expect(variantFileName("Suno-V6-Mini/2f9a5ced_Track.mp3", "bassBoost")).toBe(
+      "Track [bassBoost].mp3",
+    );
+  });
+
+  it("round-trips: build then parse returns the original source and preset", () => {
+    const name = variantFileName("Still I Rise.wav", "warm");
+    expect(parseVariantName(name)).toEqual({ source: "Still I Rise", preset: "warm" });
+  });
+
+  it("parses a source that itself contains brackets, taking the last group", () => {
+    // A greedy pattern would read the source as "Track" and preset as "Live] [warm".
+    expect(parseVariantName("Track [Live] [warm].wav")).toEqual({
+      source: "Track [Live]",
+      preset: "warm",
+    });
+  });
+
+  it("rejects a name that is only a marker, with no source", () => {
+    expect(parseVariantName("[warm].wav")).toBeNull();
+    expect(parseVariantName("[].wav")).toBeNull();
+  });
+
+  it("does not treat an ordinary track as a variant", () => {
+    for (const name of [
+      "Still I Rise.wav",
+      "2f9a5ced_Still I Rise.mp3",
+      "Suno-V6-Mini/Track.m4a",
+      "ec2c167538d44391af7d14d57fede26d.wav",
+    ]) {
+      expect(isVariantFile(name)).toBe(false);
+      expect(parseVariantName(name)).toBeNull();
+    }
+  });
+
+  it("strips brackets from a preset id rather than emitting an ambiguous name", () => {
+    const name = variantFileName("Track.wav", "we[ird]id");
+    expect(name).toBe("Track [weirdid].wav");
+    expect(parseVariantName(name)).toEqual({ source: "Track", preset: "weirdid" });
+  });
+
+  it("refuses an empty preset id instead of writing a name that parses wrong", () => {
+    expect(() => variantFileName("Track.wav", "   ")).toThrow(/empty preset id/);
+    expect(() => variantFileName("Track.wav", "[]")).toThrow(/empty preset id/);
+  });
+
+  it("labels a variant with both preset and source so options never collide", () => {
+    expect(variantLabel({ source: "Still I Rise", preset: "warm" })).toBe(
+      "warm — Still I Rise",
+    );
+    // Two variants of different tracks must not render identically.
+    expect(variantOptionLabel("Still I Rise [warm].wav")).not.toBe(
+      variantOptionLabel("Take the Crown [warm].wav"),
+    );
+  });
+
+  it("falls back to the normal entry label for a non-variant file", () => {
+    expect(variantOptionLabel("Still I Rise.wav")).toBe("Still I Rise");
+  });
+
+  it("does not disturb existing display names for library files", () => {
+    // The variant rules must not change what any current selector renders.
+    const f = file("2f9a5ced_Still I Rise.mp3");
+    expect(audioDisplayName(f)).toBe("Still I Rise");
+    expect(audioOptionLabel(f, [f])).toBe("Still I Rise");
+  });
+});
 });

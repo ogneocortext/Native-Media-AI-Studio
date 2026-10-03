@@ -155,6 +155,118 @@ export function unnamedFileLabel(file: NameableAudioFile): string {
   return `Unnamed track ${base.slice(0, 6)}`;
 }
 
+// ─── Preset variants ─────────────────────────────────────────────────────────
+//
+// A *variant* is a processed rendering of an existing track: the same audio put
+// through one mixing/mastering preset, written as its own file so two presets
+// can be compared by measurement and auditioned back to back.
+//
+// The convention is `<source stem> [<preset>].<ext>`, for example:
+//
+//     Still I Rise.wav              <- the original, never renamed
+//     Still I Rise [warm].wav        <- variant
+//     Still I Rise [vocal focus].wav <- variant
+//
+// Three properties this buys, which is why the bracket form was chosen over a
+// separator or a suffix:
+//
+//   - **The original name is untouched.** A variant is always a new file.
+//   - **Provenance is readable without a lookup.** The source name is the whole
+//     prefix, so a folder listing alone answers "what is this a version of?".
+//   - **Sorting groups them.** `[` sorts after alphanumerics, so variants sit
+//     immediately after their source in any alphabetical listing rather than
+//     scattering to the end of the folder.
+//
+// Variants are stored under `output/audio-variants/<source stem>/`, which is
+// deliberately *outside* `output/audio/`. `/api/audio/files` walks that tree
+// with `rglob`, so anything written inside it would appear in every selector in
+// the app — the main library would fill up with render artefacts.
+
+/** Marker that opens and closes a variant's preset id in a filename. */
+export const VARIANT_OPEN = "[";
+export const VARIANT_CLOSE = "]";
+
+/**
+ * Build the filename for a preset variant of `sourceName`.
+ *
+ * `sourceName` may itself carry an extension and hash prefixes; both are handled
+ * so callers can pass whatever the library gave them. The extension is
+ * preserved from the source unless `extension` overrides it, which matters
+ * because a 48 kHz WAV rendered from an .m4a should not silently become one.
+ */
+export function variantFileName(
+  sourceName: string,
+  presetId: string,
+  extension?: string,
+): string {
+  const base = sourceName.split("/").pop() ?? sourceName;
+  const stem = stripAudioExtension(stripHashPrefixes(base));
+  const ext =
+    extension ??
+    base.match(new RegExp(EXTENSION_GROUP, "i"))?.[1] ??
+    "wav";
+  // Brackets inside a preset id would make the marker ambiguous, so they are
+  // collapsed rather than silently producing a name that parses back wrong.
+  const safePreset = presetId.replace(/[[\]]/g, "").trim();
+  if (!safePreset) {
+    throw new Error(`variantFileName: empty preset id for "${sourceName}"`);
+  }
+  return `${stem} ${VARIANT_OPEN}${safePreset}${VARIANT_CLOSE}.${ext}`;
+}
+
+/** The parsed pieces of a variant filename, or null when it is not one. */
+export interface AudioVariant {
+  /** Source track stem, with any hash prefixes and extension removed. */
+  source: string;
+  /** Preset id, e.g. `warm`. */
+  preset: string;
+}
+
+/**
+ * Recognise a variant filename.
+ *
+ * Matches the **last** bracket group, so a source that legitimately contains
+ * brackets round-trips: `Track [Live] [warm].wav` parses as source
+ * `Track [Live]`, preset `warm`. Requiring a non-empty source before the marker
+ * means a file called `[warm].wav` is not treated as a variant of nothing.
+ */
+export function parseVariantName(name: string): AudioVariant | null {
+  const base = name.split("/").pop() ?? name;
+  const stem = stripAudioExtension(stripHashPrefixes(base));
+  const match = /^(.+?)\s*\[([^[\]]+)\]$/.exec(stem);
+  if (!match) return null;
+  const [, source, preset] = match;
+  const trimmedSource = source.trim();
+  const trimmedPreset = preset.trim();
+  if (!trimmedSource || !trimmedPreset) return null;
+  return { source: trimmedSource, preset: trimmedPreset };
+}
+
+/** True when this filename is a preset variant of another track. */
+export function isVariantFile(name: NameableAudioFile): boolean {
+  const raw = typeof name === "string" ? name : name.filename;
+  return parseVariantName(raw) !== null;
+}
+
+/**
+ * The label for a variant in a selector: the preset id, qualified by its source
+ * so two variants of different tracks never read as the same option.
+ */
+export function variantLabel(variant: AudioVariant): string {
+  return `${variant.preset} — ${variant.source}`;
+}
+
+/**
+ * How a variant should be shown next to its source in a picker that lists both.
+ * The source is repeated even though the filename already contains it because
+ * selectors truncate long names, and the part that gets cut is the suffix.
+ */
+export function variantOptionLabel(file: NameableAudioFile): string {
+  const raw = typeof file === "string" ? file : file.filename;
+  const variant = parseVariantName(raw);
+  return variant ? variantLabel(variant) : audioEntryLabel(file);
+}
+
 /**
  * The label a selector should render, covering the unnamed-file case.
  *
