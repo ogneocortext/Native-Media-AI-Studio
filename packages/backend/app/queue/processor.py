@@ -279,6 +279,34 @@ class JobProcessor:
             except asyncio.CancelledError:
                 pass
 
+    async def _reap_stranded_jobs(self) -> None:
+        """One maintenance pass: reclaim stranded work, drop unrunnable work.
+
+        Split out of `_process_loop` so the loop stays flat (report-nesting
+        regression). Each step is isolated so neither can kill the loop: a queue
+        that cannot self-heal is the failure mode this exists to prevent, so the
+        reaper must never be what breaks.
+        """
+        try:
+            reaped = await queue_manager.recover_stale_running_jobs(
+                max_age_seconds=STALE_JOB_MAX_AGE_SECONDS
+            )
+            if reaped["requeued"] or reaped["dead"]:
+                logger.warning(
+                    "Reaped %d stranded job(s): %d requeued, %d dead-lettered",
+                    len(reaped["requeued"]) + len(reaped["dead"]),
+                    len(reaped["requeued"]),
+                    len(reaped["dead"]),
+                )
+        except Exception as e:
+            # Never let the reaper kill the loop.
+            logger.error("Stale-job reaper failed: %s", e)
+
+        try:
+            await queue_manager.quarantine_unrunnable_jobs()
+        except Exception as e:
+            logger.error("Unrunnable-job quarantine failed: %s", e)
+
     async def _process_loop(self):
         """Main processing loop - runs jobs serially, event-driven.
 
@@ -293,25 +321,7 @@ class JobProcessor:
                 now = time.monotonic()
                 if now - last_reap >= STALE_JOB_REAP_INTERVAL_SECONDS:
                     last_reap = now
-                    try:
-                        reaped = await queue_manager.recover_stale_running_jobs(
-                            max_age_seconds=STALE_JOB_MAX_AGE_SECONDS
-                        )
-                        if reaped["requeued"] or reaped["dead"]:
-                            logger.warning(
-                                "Reaped %d stranded job(s): %d requeued, %d dead-lettered",
-                                len(reaped["requeued"]) + len(reaped["dead"]),
-                                len(reaped["requeued"]),
-                                len(reaped["dead"]),
-                            )
-                    except Exception as e:
-                        # Never let the reaper kill the loop.
-                        logger.error("Stale-job reaper failed: %s", e)
-
-                    try:
-                        await queue_manager.quarantine_unrunnable_jobs()
-                    except Exception as e:
-                        logger.error("Unrunnable-job quarantine failed: %s", e)
+                    await self._reap_stranded_jobs()
 
                 # Find next queued job (priority DESC, created_at ASC)
                 queued_jobs = await queue_manager.get_jobs_by_status(JobStatus.QUEUED)

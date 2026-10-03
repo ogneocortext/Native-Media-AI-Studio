@@ -648,61 +648,8 @@ class ComfyUIAdapter(BaseAdapter):
         waited 300s and then left the work behind.
         """
         start = asyncio.get_event_loop().time()
-        # The deadline our own prompt must meet. It is extended once, if the
-        # prompt turns out to be sitting in the queue rather than executing,
-        # because then the elapsed time is waiting on other people's work and
-        # timing out would cancel a job that was never given a chance to run.
-        deadline = start + timeout
-        extended = False
         try:
-            while True:
-                if asyncio.get_event_loop().time() > deadline:
-                    raise TimeoutError(
-                        f"ComfyUI image generation timed out after "
-                        f"{int(deadline - start)}s"
-                    )
-                history = await self._get_history(prompt_id)
-                if prompt_id in history:
-                    entry = history[prompt_id]
-                    status = entry.get("status", {})
-                    status_str = entry.get("status_str", "") or (
-                        status.get("status_str", "") if isinstance(status, dict) else ""
-                    )
-                    if status_str == "error" or entry.get("status") == "error":
-                        error_msg = entry.get("error") or status_str or "ComfyUI execution error"
-                        if isinstance(status, dict) and status.get("messages"):
-                            error_msg = f"{error_msg}: {status['messages']}"
-                        logger.error("ComfyUI prompt %s failed: %s", prompt_id, error_msg)
-                        raise RuntimeError(f"ComfyUI generation failed: {error_msg}")
-                    for _node_id, output in entry.get("outputs", {}).items():
-                        if "images" in output:
-                            for img in output["images"]:
-                                filename = img.get("filename")
-                                if not filename:
-                                    continue
-                                # Skip video containers that occasionally surface
-                                # under "images" — the video waiter handles those.
-                                if str(filename).lower().endswith((".mp4", ".webm", ".gif")):
-                                    continue
-                                return await self._fetch_image(
-                                    filename, img.get("subfolder", "")
-                                )
-                # Not finished yet. If the prompt is still sitting in the queue
-                # behind other work, the budget is being spent waiting on someone
-                # else's job, so extend once rather than time out and cancel.
-                if not extended:
-                    entry_now = await self._get_queue_status(prompt_id)
-                    if entry_now is not None:
-                        extended = True
-                        if timeout < _QUEUE_BACKLOG_TIMEOUT:
-                            deadline = start + _QUEUE_BACKLOG_TIMEOUT
-                            logger.warning(
-                                "ComfyUI prompt %s is queued behind other work; "
-                                "extending the wait to %ds so a queued job is not "
-                                "cancelled before it ever runs",
-                                prompt_id, _QUEUE_BACKLOG_TIMEOUT,
-                            )
-                await asyncio.sleep(2)
+            return await self._poll_image_result(prompt_id, timeout, start)
         except BaseException:
             # Covers timeout, error, and cancellation of our own task. Leaving
             # the prompt behind is what wedged the queue, so always clean up.
@@ -722,6 +669,69 @@ class ComfyUIAdapter(BaseAdapter):
                         "occupying the queue", prompt_id,
                     )
             raise
+
+    async def _poll_image_result(
+        self, prompt_id: str, timeout: int, start: float
+    ) -> str:
+        """Polling body for :meth:`_wait_for_result` (see it for the why).
+
+        Split out so the waiter's cleanup wrapper does not deepen this loop
+        (report-nesting regression).
+        """
+        # The deadline our own prompt must meet. It is extended once, if the
+        # prompt turns out to be sitting in the queue rather than executing,
+        # because then the elapsed time is waiting on other people's work and
+        # timing out would cancel a job that was never given a chance to run.
+        deadline = start + timeout
+        extended = False
+        while True:
+            if asyncio.get_event_loop().time() > deadline:
+                raise TimeoutError(
+                    f"ComfyUI image generation timed out after "
+                    f"{int(deadline - start)}s"
+                )
+            history = await self._get_history(prompt_id)
+            if prompt_id in history:
+                entry = history[prompt_id]
+                status = entry.get("status", {})
+                status_str = entry.get("status_str", "") or (
+                    status.get("status_str", "") if isinstance(status, dict) else ""
+                )
+                if status_str == "error" or entry.get("status") == "error":
+                    error_msg = entry.get("error") or status_str or "ComfyUI execution error"
+                    if isinstance(status, dict) and status.get("messages"):
+                        error_msg = f"{error_msg}: {status['messages']}"
+                    logger.error("ComfyUI prompt %s failed: %s", prompt_id, error_msg)
+                    raise RuntimeError(f"ComfyUI generation failed: {error_msg}")
+                for _node_id, output in entry.get("outputs", {}).items():
+                    if "images" in output:
+                        for img in output["images"]:
+                            filename = img.get("filename")
+                            if not filename:
+                                continue
+                            # Skip video containers that occasionally surface
+                            # under "images" — the video waiter handles those.
+                            if str(filename).lower().endswith((".mp4", ".webm", ".gif")):
+                                continue
+                            return await self._fetch_image(
+                                filename, img.get("subfolder", "")
+                            )
+            # Not finished yet. If the prompt is still sitting in the queue
+            # behind other work, the budget is being spent waiting on someone
+            # else's job, so extend once rather than time out and cancel.
+            if not extended:
+                entry_now = await self._get_queue_status(prompt_id)
+                if entry_now is not None:
+                    extended = True
+                    if timeout < _QUEUE_BACKLOG_TIMEOUT:
+                        deadline = start + _QUEUE_BACKLOG_TIMEOUT
+                        logger.warning(
+                            "ComfyUI prompt %s is queued behind other work; "
+                            "extending the wait to %ds so a queued job is not "
+                            "cancelled before it ever runs",
+                            prompt_id, _QUEUE_BACKLOG_TIMEOUT,
+                        )
+            await asyncio.sleep(2)
 
     async def _fetch_image(self, filename: str, subfolder: str = "") -> str:
         """Fetch an image from ComfyUI and return as base64 (shared client helper)."""
