@@ -5,6 +5,7 @@ import { WaveformDisplay } from "./WaveformDisplay";
 import { ExportMatrixPanel } from "./ExportMatrixPanel";
 import { ExtractAudioPanel } from "./ExtractAudioPanel";
 import { UpscalePanel } from "./UpscalePanel";
+import { LineagePanel } from "./LineagePanel";
 import { ModelPreview } from "../generate3d/ModelPreview";
 import {
   Tag,
@@ -513,6 +514,12 @@ export function MediaDetailModal({
           )}
           {output.file_type === "image" && (
             <UpscalePanel imagePath={output.relative_path} onComplete={onFetchOutputs} />
+          )}
+          {/* Lineage for audio: what was built from this track, and the recipe to
+              reopen it. `filename` is the library name (what the audio library and
+              the stem directories key on), not relative_path. */}
+          {output.file_type === "audio" && (
+            <LineagePanel filename={output.filename} />
           )}
         </div>
       </div>

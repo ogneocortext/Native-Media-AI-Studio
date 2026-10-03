@@ -27,7 +27,6 @@ import {
   previewRemix,
   probeRemixTrack,
   remixFileUrl,
-  type RemixLayerSpec,
   type RemixPreview,
   type RemixRecipeSpec,
   type RemixSlotSpec,
@@ -36,6 +35,7 @@ import {
   type StemName,
 } from "../../../services/api";
 import { usePanelCollapsed } from "../usePanelCollapsed";
+import { consumePendingRemixRecipe } from "../../../utils/pendingTrack";
 
 export interface RemixPanelProps {
   /** Track the visualizer is already showing; preselected as source A. */
@@ -64,20 +64,24 @@ function matchSource(currentTrack: string | null | undefined, tracks: string[]):
   const target = norm(base);
   return tracks.find((t) => norm(t) === target) ?? tracks.find((t) => norm(t).includes(target) || target.includes(norm(t)));
 }
-type UILayer = RemixLayerSpec & { __id: string };
+// UILayer / UISlot are the panel's own aliases for the shared editable types, so
+// the component's existing annotations keep working while the definitions (and
+// their `__id` allocation) live in a module the unit suite can import on its own.
+type UILayer = EditableLayer;
 /** A slot whose layers carry their keys. */
-type UISlot = Omit<RemixSlotSpec, "layers"> & { layers: UILayer[] };
+type UISlot = EditableSlot;
 
-let layerSeq = 0;
-function newLayer(track: string, stem: StemName): UILayer {
-  return {
-    __id: `L${layerSeq++}`,
-    track,
-    stem,
-    gain_db: 0,
-    key_shift_semitones: 0,
-    source_start_bar: 0,
-  };
+// The pure recipe <-> panel-state conversions live in ./remixRecipe so the unit
+// suite can exercise them without importing React.
+import {
+  newEditableLayer,
+  recipeToEditableSlots,
+  type EditableLayer,
+  type EditableSlot,
+} from "./remixRecipe";
+
+function newLayer(track: string, stem: StemName): EditableLayer {
+  return newEditableLayer(track, stem);
 }
 
 export function RemixPanel({ currentTrack }: RemixPanelProps) {
@@ -173,6 +177,32 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
   useEffect(() => {
     listRemixes().then(setRemixes).catch(() => {});
   }, []);
+
+  // Consume a reopened arrangement. Runs once per arrival, guarded by a ref so a
+  // later `remixes` load cannot re-apply it. Deliberately AFTER seeding, so a
+  // pending recipe always wins over the default arrangement: the whole point is to
+  // reopen exactly what was rendered, not to re-derive it from presets.
+  const reopenHandledRef = useRef(false);
+  useEffect(() => {
+    if (reopenHandledRef.current) return;
+    const pending = consumePendingRemixRecipe();
+    if (!pending.recipe) {
+      // No arrival: allow a future one to be handled.
+      reopenHandledRef.current = remixes.length > 0;
+      return;
+    }
+    reopenHandledRef.current = true;
+    setName(pending.recipe.name || "mashup");
+    setBpm(Math.round(pending.recipe.target_bpm));
+    setSlots(recipeToEditableSlots(pending.recipe));
+    // Point the selectors at the recipe's own source track rather than whatever
+    // the panel defaulted to, so the arrangement and the source agree.
+    const firstLayerTrack = pending.recipe.slots[0]?.layers[0]?.track;
+    if (firstLayerTrack && tracks.includes(firstLayerTrack)) setPrimaryTrack(firstLayerTrack);
+    // Select the existing remix so its stems are immediately playable.
+    const known = remixes.find((r) => r.name === pending.recipe?.name);
+    if (known) setBuilt(known);
+  }, [remixes, tracks]);
 
   const recipe = useCallback((): RemixRecipeSpec => {
     // __id is a UI concern only; the API model has no such field.

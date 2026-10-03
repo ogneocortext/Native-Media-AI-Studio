@@ -102,6 +102,28 @@ export interface RemixEnhanceResult {
   error: string | null;
 }
 
+/** A remix reconstructed from its manifest: enough to reopen and rearrange. */
+export type RemixRecipeRoundTrip = RemixRecipeSpec;
+
+/**
+ * One mashup that consumed a given track.
+ *
+ * `role` is `primary` when the track was `source_tracks[0]`, `contributor`
+ * otherwise. A mashup built from two tracks is genuinely lineage for both, so it
+ * is listed under each - hiding the contributor case would make a shared mashup
+ * look like it belonged to whichever track happened to be listed first.
+ */
+export interface RemixLineageEntry extends RemixSummary {
+  role: "primary" | "contributor";
+  /** null when the manifest cannot round-trip; see the backend note. */
+  recipe: RemixRecipeRoundTrip | null;
+}
+
+export interface RemixTrackLineage {
+  track: string;
+  remixes: RemixLineageEntry[];
+}
+
 async function unwrap<T>(res: Response, fallback: string): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: fallback }));
@@ -154,6 +176,21 @@ export async function listRemixes(): Promise<RemixSummary[]> {
   });
   const body = await unwrap<{ remixes: RemixSummary[] }>(res, "Failed to list remixes");
   return body.remixes;
+}
+
+/**
+ * Every rendered mashup that consumed `track`, each with its recipe.
+ *
+ * `track` is the library filename as the audio library reports it, which is what
+ * the stem directories are named from - so this joins on the same key the stems
+ * already use rather than re-deriving a match.
+ */
+export async function getTrackLineage(track: string): Promise<RemixTrackLineage> {
+  const res = await fetchWithTimeout(
+    `${getApiBase()}/api/audio/remix/by-track/${encodeURIComponent(track)}`,
+    { timeout: 15000 },
+  );
+  return unwrap<RemixTrackLineage>(res, `Failed to load lineage for ${track}`);
 }
 
 export async function enhanceRemix(

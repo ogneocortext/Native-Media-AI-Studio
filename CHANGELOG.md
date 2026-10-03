@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - mashup lineage in the Media Library, and reopening an arrangement
+
+Selecting an audio file in the Media Library now shows what has been built from
+it. `LineagePanel` lists each mashup that consumed the track, marked `primary` or
+`contributor` (a mashup built from two tracks is lineage for both), with its BPM,
+duration, contributing tracks, and slot/layer count.
+
+"Reopen & rearrange" hands the manifest's recipe to the Visualizer's Remix Panel
+via a new `setPendingRemixRecipe` handoff, which loads the exact arrangement —
+every gain, key shift and source offset — into the panel's editors for editing and
+rebuilding. Stems are playable per mashup through the existing remix file route.
+
+The panel deliberately offers **no similarity ranking**, and says so in the UI.
+Measured on this library, librosa's tempo is grid-quantised and octave-aliased and
+chroma fails a white-noise control, so any ordering would present noise as a
+recommendation (`docs/knowledge-library/track-similarity-measurement-2026.md`).
+
+Also adds `getTrackLineage` to the remix API client, and `remixRecipe.ts` holding
+the pure recipe-to-panel-state conversion so it is unit-testable without importing
+React.
+
+### Fixed - a JSDoc comment that terminated itself
+
+The `remixRecipe.ts` header documented the test glob `src/**/*.test.ts`. The `*/`
+inside it closed the comment early, so the file parsed as broken code from line 5
+onward — a `PARSE_ERROR` that no lint rule reported, since `eslint` and `tsc` both
+treat it as a transform failure rather than a diagnostic.
+
+### Added - 15 unit tests for the recipe handoff and conversion
+
+`pendingTrack.test.ts` (8) covers the handoff, including that it survives a module
+reload — a `window`-only implementation would lose the recipe on every route
+change — and that consuming twice yields nothing, so a remount cannot re-apply an
+arrangement the user edited away. `remixRecipe.test.ts` (7) covers the conversion.
+
+Mutation-verified rather than assumed: duplicating every layer id, freezing the id
+counter, or dropping `gain_db` / `source_start_bar` each turn the suite red, as
+does removing the `sessionStorage` write or the consume-time cleanup.
+
 ### Changed - backend import graph is now acyclic (D32)
 
 Measured before changing anything, and the backend turned out **not** to be the
