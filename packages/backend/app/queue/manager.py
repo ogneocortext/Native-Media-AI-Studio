@@ -2,7 +2,8 @@
 import asyncio
 import logging
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Any
 
 from ..core.config import PROJECT_ROOT
 from ..models.job import Job, JobCreateRequest, JobStatus, QueueStats
@@ -61,6 +62,125 @@ class QueueManager:
             logger.info("Loaded %d jobs from database", len(self._jobs))
         except Exception as e:
             logger.error("Error reloading jobs from database: %s", e)
+            return
+        # Jobs left RUNNING by a process that died (restart, crash, force-kill)
+        # are stranded forever: nothing in the queue ever transitions them, and
+        # the processor's handler timeout only fires while this process is alive
+        # and awaiting that specific job. Recover them on load so a restart
+        # cannot silently wedge the queue.
+        try:
+            await self.recover_stale_running_jobs()
+        except Exception as e:
+            logger.error("Stale running-job recovery failed: %s", e)
+
+    async def recover_stale_running_jobs(
+        self, max_age_seconds: int = 900
+    ) -> dict[str, Any]:
+        """Requeue or dead-letter jobs stranded in RUNNING by a dead process.
+
+        A job only reaches RUNNING once a processor has claimed it, so on
+        startup any RUNNING job is by definition orphaned: this process has not
+        claimed it. Jobs are only recovered once they are older than
+        `max_age_seconds`, because ``reload_from_db`` can race with a processor
+        that is legitimately mid-flight in another worker.
+
+        Recovery respects the existing retry budget rather than inventing a
+        policy: a job with retries left is requeued, one that has exhausted them
+        goes to the dead-letter queue. That keeps a broken adapter (ComfyUI down)
+        from being retried forever while still rescuing a job that merely
+        outlived a restart.
+        """
+        now = datetime.now()
+        cutoff = now - timedelta(seconds=max_age_seconds)
+        requeued: list[str] = []
+        dead: list[str] = []
+        skipped_fresh: list[str] = []
+
+        candidates = [
+            j for j in self._jobs.values() if j.status == JobStatus.RUNNING
+        ]
+        for job in candidates:
+            started = job.started_at or job.created_at
+            if started is not None and started > cutoff:
+                skipped_fresh.append(job.id)
+                continue
+
+            age_s = (now - started).total_seconds() if started else float("inf")
+            try:
+                if job.retry_count < job.max_retries:
+                    async with self._lock:
+                        job.retry_count += 1
+                        job.status = JobStatus.QUEUED
+                        job.progress = 0.0
+                        job.message = "requeued after worker restart"
+                        job.started_at = None
+                        job.error = None
+                        await JobDatabaseManager.update_job_async(
+                            job.id,
+                            status=job.status,
+                            progress=job.progress,
+                            message=job.message,
+                            error=job.error,
+                            retry_count=job.retry_count,
+                            started_at=None,
+                        )
+                        await self._notify_subscribers(job)
+                    self._signal_new_job()
+                    requeued.append(job.id)
+                    logger.warning(
+                        "Recovered stranded job %s (%s) after %.0fs without an owner; "
+                        "requeued (attempt %d/%d)",
+                        job.id, job.job_type, age_s,
+                        job.retry_count, job.max_retries,
+                    )
+                else:
+                    # Not called while holding self._lock: _move_to_dead_letter
+                    # acquires it itself, and an asyncio.Lock is not reentrant.
+                    ok = await self._move_to_dead_letter(
+                        job.id,
+                        "worker restarted while this job was running "
+                        f"(no owner for {age_s:.0f}s); retries exhausted",
+                    )
+                    if ok:
+                        dead.append(job.id)
+                        logger.warning(
+                            "Dead-lettered stranded job %s (%s) after %.0fs: retries exhausted",
+                            job.id, job.job_type, age_s,
+                        )
+            except Exception as e:
+                logger.error("Failed to recover stranded job %s: %s", job.id, e)
+
+        if requeued or dead:
+            logger.warning(
+                "Startup recovery: %d stranded job(s) -> %d requeued, %d dead-lettered",
+                len(requeued) + len(dead), len(requeued), len(dead),
+            )
+
+        return {
+            "requeued": requeued,
+            "dead": dead,
+            "skipped_fresh": skipped_fresh,
+            "examined": len(candidates),
+        }
+
+    async def count_stale_running_jobs(
+        self, max_age_seconds: int = 900
+    ) -> int:
+        """How many RUNNING jobs have no live owner. Used by the health check.
+
+        A RUNNING job is only owned by the process that claimed it, so one that
+        is still RUNNING long after `max_age_seconds` has no owner: it was
+        stranded by a crash or restart and is inflating the queue's "running"
+        count while nothing is actually running.
+        """
+        cutoff = datetime.now() - timedelta(seconds=max_age_seconds)
+        return sum(
+            1
+            for j in self._jobs.values()
+            if j.status == JobStatus.RUNNING
+            and (j.started_at or j.created_at) is not None
+            and (j.started_at or j.created_at) <= cutoff
+        )
 
     def _load_jobs_json(self):
         """Fallback: Load jobs from JSON file."""

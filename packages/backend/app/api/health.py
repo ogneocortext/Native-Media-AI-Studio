@@ -342,10 +342,16 @@ async def queue_health() -> dict:
     from ..queue.manager import queue_manager
     stats = await queue_manager.get_stats()
     metrics = await queue_manager.get_metrics()
+    # Jobs stranded in RUNNING by a crashed/restarted worker. They count as
+    # "active" forever while nothing is actually running, so a queue can look
+    # busy and healthy while being completely wedged. Surface them explicitly
+    # rather than letting `active_jobs < 50` mask it.
+    stranded = await queue_manager.count_stale_running_jobs()
     return {
         "stats": stats.model_dump(mode="json"),
         "metrics": metrics,
-        "is_healthy": stats.is_healthy and stats.active_jobs < 50,
+        "stranded_running_jobs": stranded,
+        "is_healthy": stats.is_healthy and stats.active_jobs < 50 and stranded == 0,
     }
 
 

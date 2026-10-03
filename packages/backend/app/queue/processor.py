@@ -7,6 +7,7 @@ import inspect
 import logging
 import random
 import re
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -29,6 +30,14 @@ logger = logging.getLogger(__name__)
 # Maximum wall-clock seconds a single handler may run before the processor
 # aborts it. Keeps the serial queue from stalling on a hung adapter.
 HANDLER_TIMEOUT_SECONDS = 3600
+
+# How long a RUNNING job may sit before it is presumed ownerless, and how often
+# the loop checks. A job is RUNNING only while the process that claimed it lives;
+# past this age with no progress the claim is presumed gone. Kept well under
+# HANDLER_TIMEOUT_SECONDS so a genuinely long render is not reaped underneath a
+# live worker.
+STALE_JOB_MAX_AGE_SECONDS = 900
+STALE_JOB_REAP_INTERVAL_SECONDS = 60
 
 # How often (in seconds) to poll for cancellation while a handler runs.
 CANCELLATION_HEARTBEAT_INTERVAL = 5.0
@@ -271,9 +280,34 @@ class JobProcessor:
                 pass
 
     async def _process_loop(self):
-        """Main processing loop - runs jobs serially, event-driven."""
+        """Main processing loop - runs jobs serially, event-driven.
+
+        Also reaps jobs stranded in RUNNING. Startup recovery only runs when the
+        process boots, so a job orphaned by any later crash - or by a dev-server
+        reload - would sit in RUNNING and block the queue until the next
+        restart. Without this the queue only self-heals on a clean deploy.
+        """
+        last_reap = 0.0
         while self._running:
             try:
+                now = time.monotonic()
+                if now - last_reap >= STALE_JOB_REAP_INTERVAL_SECONDS:
+                    last_reap = now
+                    try:
+                        reaped = await queue_manager.recover_stale_running_jobs(
+                            max_age_seconds=STALE_JOB_MAX_AGE_SECONDS
+                        )
+                        if reaped["requeued"] or reaped["dead"]:
+                            logger.warning(
+                                "Reaped %d stranded job(s): %d requeued, %d dead-lettered",
+                                len(reaped["requeued"]) + len(reaped["dead"]),
+                                len(reaped["requeued"]),
+                                len(reaped["dead"]),
+                            )
+                    except Exception as e:
+                        # Never let the reaper kill the loop.
+                        logger.error("Stale-job reaper failed: %s", e)
+
                 # Find next queued job (priority DESC, created_at ASC)
                 queued_jobs = await queue_manager.get_jobs_by_status(JobStatus.QUEUED)
                 if queued_jobs:
