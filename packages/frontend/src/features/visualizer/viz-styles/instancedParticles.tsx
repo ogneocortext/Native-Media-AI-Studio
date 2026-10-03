@@ -45,6 +45,7 @@ export function InstancedParticles({
   audioElapsedRef,
   count = 2000,
   spread = 5,
+  baseSize = 0.4,
   hueBase = 0.6,
   hueRange = 0.25,
   stretch = 2.5,
@@ -69,7 +70,7 @@ export function InstancedParticles({
       pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       pos[i * 3 + 2] = r * Math.cos(phi);
-      sizes[i] = 0.4 + Math.random() * 1.0;
+      sizes[i] = baseSize * (1 + Math.random() * 2.5);
       phases[i] = Math.random() * Math.PI * 2;
       vels[i * 3] = (Math.random() - 0.5) * 0.02;
       vels[i * 3 + 1] = (Math.random() - 0.5) * 0.02;
@@ -84,7 +85,7 @@ export function InstancedParticles({
       cols[i * 3 + 2] = c.b;
     }
     return { positions: pos, baseSizes: sizes, phases, velocities: vels, colors: cols };
-  }, [count, spread, hueBase, hueRange]);
+  }, [count, spread, baseSize, hueBase, hueRange]);
 
   const geometry = useMemo(() => {
     const geo = new THREE.InstancedBufferGeometry();

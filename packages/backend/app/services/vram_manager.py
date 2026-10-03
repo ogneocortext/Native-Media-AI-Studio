@@ -96,7 +96,6 @@ class VRAMManager:
         self.VRAM_WAIT_TIMEOUT = 120  # 2 minutes
         # Poll interval when waiting
         self.VRAM_POLL_INTERVAL = 5  # 5 seconds
-
         self._init_gpu_monitoring()
 
     def _init_gpu_monitoring(self):
@@ -355,9 +354,20 @@ class VRAMManager:
                     "ollama_loaded": self._ollama_loaded,
                 }
 
-            # Not enough VRAM - try waiting for natural cleanup
-            logger.info("VRAM Manager: Low VRAM (%dMB free), waiting for cleanup...", free_mb)
-            waited = await self._wait_for_vram()
+        # Not enough VRAM - wait for natural cleanup.
+        #
+        # Deliberately OUTSIDE self._lock. This wait can run for up to
+        # VRAM_WAIT_TIMEOUT (120s), and the same lock guards the begin/end of
+        # every other workload (audio analysis, music generation, and each of
+        # their completion handlers). Waiting while holding it blocked all of
+        # them for the full timeout on nothing but a GPU-memory condition - a
+        # bookkeeping call like begin_audio_analysis() sat blocked behind a
+        # 3D request's patience. The lock protects the bookkeeping fields above;
+        # a poll loop that only reads VRAM does not need it.
+        logger.info("VRAM Manager: Low VRAM (%dMB free), waiting for cleanup...", free_mb)
+        waited = await self._wait_for_vram()
+
+        async with self._lock:
             if waited:
                 vram = await self.get_vram_status()
                 actions.append({"action": "wait_for_vram", "success": True})
@@ -401,13 +411,22 @@ class VRAMManager:
         """
         import asyncio
         start = time.monotonic()
-        while (time.monotonic() - start) < self.VRAM_WAIT_TIMEOUT:
-            await asyncio.sleep(self.VRAM_POLL_INTERVAL)
+        while True:
+            # Check before sleeping, not after. Sleeping first charged the full
+            # poll interval to every outcome - including the common one where
+            # VRAM is already free and the loop should return immediately, and
+            # including the timeout, which overshot its own budget by up to
+            # VRAM_POLL_INTERVAL.
             vram = await self.get_vram_status()
             if vram.get("free_mb", 0) >= self.MIN_VRAM_FOR_3D:
                 logger.info("VRAM Manager: VRAM freed up naturally (%dMB free)",
                             vram.get("free_mb", 0))
                 return True
+            remaining = self.VRAM_WAIT_TIMEOUT - (time.monotonic() - start)
+            if remaining <= 0:
+                break
+            # Do not sleep past the deadline.
+            await asyncio.sleep(min(self.VRAM_POLL_INTERVAL, remaining))
         logger.info("VRAM Manager: Timeout waiting for VRAM cleanup")
         return False
 

@@ -157,19 +157,37 @@ async def _upscale_via_comfyui(src: Path, model: str, scale: int) -> UpscaleResu
 
         deadline = time.monotonic() + 600
         outputs: dict = {}
-        while time.monotonic() < deadline:
-            await asyncio.sleep(POLL_INTERVAL_S)
-            hist = await _cu.fetch_history(config.comfyui_url, prompt_id, session=session, timeout=5)
-            entry = hist.get(prompt_id)
-            if not entry:
-                continue
-            if entry.get("status", {}).get("status_str") == "error":
-                raise RuntimeError("ComfyUI reported workflow error during upscale")
-            outputs = entry.get("outputs", {}) or {}
-            if outputs:
-                break
-        if not outputs:
-            raise RuntimeError("Timed out waiting for ComfyUI upscale (600s)")
+        try:
+            while True:
+                # Check before sleeping: sleeping first charged a full poll
+                # interval to the common case where the upscale was already done.
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                hist = await _cu.fetch_history(
+                    config.comfyui_url, prompt_id, session=session, timeout=5
+                )
+                entry = hist.get(prompt_id)
+                if entry:
+                    if entry.get("status", {}).get("status_str") == "error":
+                        raise RuntimeError("ComfyUI reported workflow error during upscale")
+                    outputs = entry.get("outputs", {}) or {}
+                    if outputs:
+                        break
+                await asyncio.sleep(min(POLL_INTERVAL_S, remaining))
+            if not outputs:
+                raise RuntimeError("Timed out waiting for ComfyUI upscale (600s)")
+        except BaseException:
+            # Do not abandon the prompt. This is the same leak fixed in the
+            # ComfyUI adapter: an upscale that times out would keep occupying
+            # ComfyUI's queue for up to 10 minutes, delaying every later job.
+            try:
+                await _cu.cancel_prompt(config.comfyui_url, prompt_id, session=session)
+            except Exception as e:  # never mask the real failure
+                logger.warning(
+                    "Could not cancel abandoned upscale prompt %s: %s", prompt_id, e
+                )
+            raise
 
         for _node, out in outputs.items():
             for img in out.get("images", []):
