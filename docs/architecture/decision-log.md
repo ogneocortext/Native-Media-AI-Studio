@@ -634,6 +634,30 @@
 
 ---
 
+### D23 — The studio is the post-production for Suno v6-mini drafts (2026-10-02)
+- **Status:** Decided
+- **Context:** The owner's music pipeline is Suno v6-mini (free tier) →
+  Native Media AI Studio → social post. v6-mini is fast and free but
+  draft-grade: arrangement drift on complex prompts, no consistency pass (no
+  Max Mode), no persona voices, draft-grade mix, cheesy intros on
+  under-directed prompts (observed ~1/4 keeper rate on 2026-10-02). The owner
+  uses only v6-mini and will not pay for Pro/Premier — the paid tier is not
+  the answer to mini's limits.
+- **Decision:** The studio owns everything between the raw mini draft and a
+  postable social video: the audio post chain (mix polish,
+  consistency/arrangement repair, mastering) **and** the visual edit
+  (audio-reactive render, final composite). The owner does no video editing
+  and opens no DAW. Mini is the raw-material instrument; the studio is the
+  band, the mixer, and the editor.
+- **Consequences:** Audio features are built as a post-production chain, not a
+  nice-to-have mixer page — mini's weaknesses are the studio's requirements
+  list. Prompting guidance for mini stays lean (mini drifts on overstuffed
+  prompts; prioritize the most important musical decisions). The Suno v6-mini
+  Templates artifact (owner-side) handles getting the best draft out of mini;
+  the studio handles everything after.
+
+---
+
 ## Open questions
 
 ### Q1 — 3D path convergence: Unity vs Blender vs Three.js
@@ -717,6 +741,7 @@
 ---
 
 ## Changelog
+- 2026-10-02: D23 recorded — the studio is the post-production for Suno v6-mini drafts. Pipeline is mini drafts in, social-ready video out; the studio owns the audio post chain (mix polish, consistency/arrangement repair, mastering) and the visual edit, with no DAW or video editor in between. AGENTS.md bootstrap updated to D1–D23.
 - 2026-10-02: model reliability tracker scaffolded under `tools/model-reliability/` — advertised-free snapshots from the OpenRouter public API and the Kilo gateway public endpoint (21 and 18 models respectively on first pull; no keys, no probing), a manual `observed.jsonl` session log seeded from owner experience, and `score.py` ranking models by recency-weighted observed reliability over advertised listings. Rationale: provider sites advertise listings, not working models — the score keeps the discovery layer (websites) separate from ground truth (real sessions). Never add synthetic probes; providers answer with account-level lockouts.
 - 2026-10-02: D21 recorded — agent handoff portability across model providers. The repo is provider-agnostic by design (behavioral instructions, file-based handoff state, commits-as-guidance, checker scripts as the enforcement contract), and `docs/architecture/provider-notes.md` now collects per-provider behavior notes so a model switch doesn't require rediscovery. AGENTS.md bootstrap updated to D1–D21 / Q1–Q5.
 - 2026-10-02: fixed a duplicate D18 numbering — the database-pooling entry had been labeled D18 after the visualization audit already took it. Database pooling is now D19, nesting depth D20, handoff portability D21. No content changed, only numbers.
