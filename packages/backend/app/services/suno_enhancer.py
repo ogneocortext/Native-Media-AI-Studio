@@ -1,16 +1,30 @@
-"""Suno Track Enhancer — 10-step auto-mix chain for separated stems.
+"""Suno Track Enhancer — auto-mix chain for separated stems.
 
-Pipeline:
-  1. Load stems (WAV)
-  2. Normalize each stem to peak -1 dBFS
-  3. Dynamic EQ carving (remove competing frequencies between stems)
-  4. Per-stem compression (glue)
-  5. De-ess vocals
-  6. Stereo widen non-vocals
-  7. Reverb/delay sends
-  8. Mix stems with auto-leveling
-  9. Master bus processing (limiter)
-  10. Export final mix (WAV + optional MP3)
+18 reported stages; the numbers below are the `step` values in
+`EnhanceResult.steps`, which is what the UI timeline renders.
+
+  1.  Load stems
+  2.  Pre high-pass, 30 Hz (spectral-centroid adaptive)
+  3.  LUFS gain staging to -14 LUFS
+  4.  Normalize each stem to peak -1 dBFS
+  5.  Per-stem compression (glue), threshold adaptive to stem RMS
+  6.  De-ess vocals (band-RMS)
+  7.  KARRA vocal chain (air boost + gentle acompressor)
+  8.  Vocal balance ±3 dB macro + stereo widen non-vocals
+  9.  Relative per-frame spectral gate on vocals
+  10. Dynamic EQ taming 2.5-4 kHz on vocals
+  11. Parallel weight bus (-12 to -18 dB)
+  12. Sidechain "pocket EQ" on Other while vocals sing
+  13. Reverb/delay sends (vocals excluded)
+  14. Mix stems at unity with one bus gain
+  15. Progressive high-end drift correction (V6 darkening)
+  16. Master bus limiter
+  17. Export WAV
+  18. Export MP3 (only if output_format asks for it)
+
+Note there is no spectral-subtraction "EQ carve" stage: the implementation
+existed as `_eq_carve` but was never called, so it was removed rather than left
+as a second, misleading description of what the chain does.
 
 Usage:
     from app.services.suno_enhancer import enhance_stems
@@ -54,10 +68,12 @@ class EnhanceConfig:
     """Tuning knobs for the 10-step auto-mix chain (KARRA / Gemini Suno guidance).
 
     Heuristic (always on):
-      - High-pass at 110–130 Hz (spectral-centroid adaptive) to strip Demucs
-        low-end bleed + Suno sub-bass rumble.
-      - Anti-AI-grit: spectral gate on vocals, dynamic EQ taming 2.5–4 kHz.
+      - High-pass at 30 Hz (spectral-centroid adaptive) to strip DC,
+        infrasonic rumble and MP3 artefacts.
+      - Anti-AI-grit: per-frame-relative spectral gate on vocals, dynamic EQ
+        taming 2.5–4 kHz.
       - No reverb on vocals (pseudo-reverb already baked into Suno exports).
+      - Progressive high-end drift correction on the mixed bus (V6 darkening).
 
     Needs-fallback / opt-in:
       - Vocal expander/transient recovery instead of compression (Suno vocals
@@ -134,12 +150,6 @@ def _db_to_linear(db: float | np.ndarray) -> float | np.ndarray:
     if isinstance(db, np.ndarray):
         return np.power(10.0, np.asarray(db, dtype=np.float64) / 20.0)
     return math.pow(10.0, db / 20.0)
-
-
-def _linear_to_db(lin: float) -> float:
-    if lin <= 0:
-        return -100.0
-    return 20.0 * math.log10(lin)
 
 
 # Per-stem peak target used by the mix bus: -6 dBFS leaves headroom so four
@@ -247,28 +257,6 @@ def _compress_channel(chan: np.ndarray, coeffs: tuple[float, float, float, float
             gain = threshold / (env * (1.0 - 1.0 / ratio) + threshold / ratio)
         out[i] = chan[i] * gain
     return out
-
-
-def _de_ess(y: np.ndarray, sr: int, freq_hz: float = 7500.0, q: float = 1.5, amount: float = 0.5) -> np.ndarray:
-    """Broadband de-esser: reduce energy around freq_hz when sibilance is detected."""
-    if not LIBROSA_AVAILABLE or y.size == 0:
-        return y
-    n_fft = 2048
-    hop = 512
-    stft = librosa.stft(y, n_fft=n_fft, hop_length=hop)
-    mag = np.abs(stft)
-    freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
-    band_mask = (freqs >= freq_hz - 1500.0) & (freqs <= freq_hz + 1500.0)
-    if not np.any(band_mask):
-        return y
-    band_energy = np.mean(mag[band_mask, :], axis=0)
-    rms = np.sqrt(np.mean(mag ** 2, axis=0)) + 1e-8
-    ratio = band_energy / rms
-    threshold = np.percentile(ratio, 85) if ratio.size else 1.0
-    reduction = np.where(ratio > threshold, 1.0 - amount * (ratio - threshold) / (threshold + 1e-8), 0.0)
-    reduction = np.clip(reduction, 0.0, amount)
-    stft[band_mask, :] *= (1.0 - reduction[np.newaxis, :])
-    return librosa.istft(stft, hop_length=hop)
 
 
 def _stereo_widen(y: np.ndarray, amount: float = 0.3) -> np.ndarray:
@@ -555,7 +543,16 @@ def _dynamic_eq_tame_harshness(
     bandwidth_hz: float = 1500.0,
     max_reduction_db: float = 4.0,
 ) -> np.ndarray:
-    """Dynamic EQ: tame 2.5–4 kHz harshness when energy exceeds local mean."""
+    """Dynamic EQ: tame 2.5–4 kHz harshness when energy exceeds the track mean.
+
+    The reference is `local_mean`, which despite the name is the mean over the
+    *whole track*, not a moving average: `np.mean(band_energy)` with no axis
+    argument. So this is a static-EQ-in-disguise - it ducks the band wherever it
+    exceeds the track's own average, and ducks it harder in louder passages. A
+    genuinely per-frame reference would smooth over time; that would also react
+    to arrangement changes rather than only to sibilance, so the static form is
+    kept deliberately.
+    """
     if y.size == 0 or not LIBROSA_AVAILABLE:
         return y
     n_fft = 2048
@@ -582,10 +579,13 @@ def _dynamic_eq_tame_harshness(
 
 
 # ─── KARRA / Gemini Suno Vocal Enhancer helpers ────────────────────────────────
-# Reference preset (FFmpeg blueprint):
-#   highpass=f=110 → dynamic tamer 2600/3800Hz → de-ess 6.5kHz →
-#   air boost 10kHz +2.5dB → gentle acompressor 2.5:1 → alimiter -1.0dB
-# We translate the same stages into numpy/librosa DSP.
+# Reference preset (FFmpeg blueprint, Karra "warm" chain):
+#   highpass f=30 (DC + infrasonic rumble only) → dynamic tamer 2600/3800Hz →
+#   de-ess 6.5kHz → air boost 10kHz +2.5dB → gentle acompressor 2.5:1 →
+#   alimiter -1.0dB
+# We translate the same stages into numpy/librosa DSP. The blueprint's 110 Hz
+# high-pass is deliberately NOT reproduced: measured on the 48 kHz source it
+# deleted 89% of the 10-250 Hz bass band (see `pre_highpass_hz`).
 
 def _vocal_expander(
     y: np.ndarray,
@@ -614,10 +614,14 @@ def _vocal_expander(
     release_coeff = math.exp(-1.0 / (release_ms * 1e-3 * sr))
     smooth = np.zeros_like(env)
     for i in range(len(env)):
-        if env[i] > smooth[i - 1] if i > 0 else 0:
-            smooth[i] = attack_coeff * (smooth[i - 1] if i > 0 else 0) + (1.0 - attack_coeff) * env[i]
-        else:
-            smooth[i] = release_coeff * (smooth[i - 1] if i > 0 else 0) + (1.0 - release_coeff) * env[i]
+        # Parenthesised deliberately. Written bare this parsed as the conditional
+        # expression `(env[i] > smooth[i-1]) if i > 0 else 0`, which happens to
+        # behave the same but silently evaluates the *condition* to the literal
+        # 0 on frame 0 - a landmine for anyone editing the branch.
+        prev = smooth[i - 1] if i > 0 else 0.0
+        rising = env[i] > prev
+        coeff = attack_coeff if rising else release_coeff
+        smooth[i] = coeff * prev + (1.0 - coeff) * env[i]
     # Expand: boost below threshold by (1 - ratio) * (thresh - level)
     expand_gain = np.where(
         smooth < thresh,
@@ -843,7 +847,7 @@ class SunoEnhancer:
             if y.ndim == 1:
                 loaded[name] = y[np.newaxis, :]
 
-        # ── Step 2a: Pre high-pass (heuristic: spectral-centroid adaptive) ────
+# ── Step 2: Pre high-pass (heuristic: spectral-centroid adaptive) ────
         # Gemini KARRA: push HPF to 110–130 Hz for Suno + Demucs low-end bleed.
         # Default 120 Hz; adapt down to 80 Hz only when spectral centroid is very low.
         try:
@@ -872,7 +876,7 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"pre_highpass failed: {exc}")
 
-        # ── Step 2b: LUFS gain staging (heuristic) ───────────────────────────
+# ── Step 3: LUFS gain staging (heuristic) ───────────────────────────
         try:
             for name, y in loaded.items():
                 loaded[name] = _lufs_gain_stage(y, target_lufs=-14.0)
@@ -880,15 +884,15 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"lufs_gain_stage failed: {exc}")
 
-        # ── Step 3: Normalize ─────────────────────────────────────────────
+# ── Step 4: Normalize ─────────────────────────────────────────────
         try:
             for name, y in loaded.items():
                 loaded[name] = _normalize_peak(y, self.config.target_peak_dbfs)
-            steps.append({"step": 3, "name": "normalize", "peak_dbfs": self.config.target_peak_dbfs})
+            steps.append({"step": 4, "name": "normalize", "peak_dbfs": self.config.target_peak_dbfs})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"normalize failed: {exc}")
 
-        # ── Step 4: Per-stem processing (KARRA split) ───────────────────────
+# ── Step 5: Per-stem processing (KARRA split) ───────────────────────
         # Heuristic (always): non-vocals get gentle glue compression.
         # Needs-fallback (opt-in): vocals get expander + KARRA preset instead.
         try:
@@ -911,11 +915,11 @@ class SunoEnhancer:
                             release_ms=self.config.release_ms,
                         ))
                 loaded[name] = np.stack(chans, axis=0)
-            steps.append({"step": 4, "name": "stem_processing", "vocal_expander": self.config.vocal_expander})
+            steps.append({"step": 5, "name": "stem_processing", "vocal_expander": self.config.vocal_expander})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"stem_processing failed: {exc}")
 
-        # ── Step 5: De-ess vocals (band-RMS heuristic) ──────────────────────
+# ── Step 6: De-ess vocals (band-RMS heuristic) ──────────────────────
         try:
             if "vocals" in loaded:
                 vocals = loaded["vocals"]
@@ -926,13 +930,13 @@ class SunoEnhancer:
                     max_reduction_db=6.0,
                 ) for c in range(vocals.shape[0])], axis=0)
                 loaded["vocals"] = deessed
-                steps.append({"step": 5, "name": "deess", "target": "vocals", "freq_hz": self.config.deess_freq_hz})
+                steps.append({"step": 6, "name": "deess", "target": "vocals", "freq_hz": self.config.deess_freq_hz})
             else:
-                steps.append({"step": 5, "name": "deess", "skipped": True})
+                steps.append({"step": 6, "name": "deess", "skipped": True})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"deess failed: {exc}")
 
-        # ── Step 6: KARRA vocal chain (air boost + gentle acompressor) ──────
+# ── Step 7: KARRA vocal chain (air boost + gentle acompressor) ──────
         try:
             if "vocals" in loaded:
                 vocals = loaded["vocals"]
@@ -952,62 +956,62 @@ class SunoEnhancer:
                     release_ms=40.0,
                 ) for c in range(vocals.shape[0])], axis=0)
                 loaded["vocals"] = comped
-                steps.append({"step": 6, "name": "karrra_vocal_chain", "air_boost_db": self.config.air_boost_gain_db})
+                steps.append({"step": 7, "name": "karrra_vocal_chain", "air_boost_db": self.config.air_boost_gain_db})
             else:
-                steps.append({"step": 6, "name": "karrra_vocal_chain", "skipped": True})
+                steps.append({"step": 7, "name": "karrra_vocal_chain", "skipped": True})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"karrra_vocal_chain failed: {exc}")
 
-        # ── Step 7: Vocal balance ±3 dB macro + stereo widen non-vocals ─────
+# ── Step 8: Vocal balance ±3 dB macro + stereo widen non-vocals ─────
         try:
             if "vocals" in loaded and self.config.vocal_balance_db != 0.0:
                 bal = _db_to_linear(self.config.vocal_balance_db)
                 loaded["vocals"] = loaded["vocals"] * bal
-                steps.append({"step": 7, "name": "vocal_balance", "db": self.config.vocal_balance_db})
+                steps.append({"step": 8, "name": "vocal_balance", "db": self.config.vocal_balance_db})
             for name in ("drums", "bass", "other"):
                 if name not in loaded:
                     continue
                 y = loaded[name]
                 if y.ndim >= 2 and y.shape[0] >= 2:
                     loaded[name] = _stereo_widen(y, self.config.stereo_widen_amount)
-            steps.append({"step": 7, "name": "stereo_widen", "amount": self.config.stereo_widen_amount})
+            steps.append({"step": 8, "name": "stereo_widen", "amount": self.config.stereo_widen_amount})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"stereo_widen failed: {exc}")
 
-        # ── Step 8: Post spectral gating on vocals (ghost bleed killer) ─────
+# ── Step 9: Post spectral gating on vocals (ghost bleed killer) ─────
         try:
             if "vocals" in loaded:
                 vocals = loaded["vocals"]
                 gated = np.stack([_spectral_gate(vocals[c], sr, threshold_db=self.config.vocal_spectral_gate_threshold_db) for c in range(vocals.shape[0])], axis=0)
                 loaded["vocals"] = gated
-                steps.append({"step": 8, "name": "vocal_spectral_gate", "threshold_db": self.config.vocal_spectral_gate_threshold_db})
+                steps.append({"step": 9, "name": "vocal_spectral_gate", "threshold_db": self.config.vocal_spectral_gate_threshold_db})
             else:
-                steps.append({"step": 8, "name": "vocal_spectral_gate", "skipped": True})
+                steps.append({"step": 9, "name": "vocal_spectral_gate", "skipped": True})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"vocal_spectral_gate failed: {exc}")
 
-        # ── Step 9: Dynamic EQ tame 2.5–4 kHz harshness on vocals ──────────
+# ── Step 10: Dynamic EQ tame 2.5–4 kHz harshness on vocals ──────────
         try:
             if "vocals" in loaded:
                 vocals = loaded["vocals"]
                 tamed = np.stack([_dynamic_eq_tame_harshness(vocals[c], sr, max_reduction_db=self.config.vocal_dynamic_eq_max_reduction_db) for c in range(vocals.shape[0])], axis=0)
                 loaded["vocals"] = tamed
-                steps.append({"step": 9, "name": "vocal_dynamic_eq", "freq_hz": 3200.0, "max_reduction_db": self.config.vocal_dynamic_eq_max_reduction_db})
+                steps.append({"step": 10, "name": "vocal_dynamic_eq", "freq_hz": 3200.0, "max_reduction_db": self.config.vocal_dynamic_eq_max_reduction_db})
             else:
-                steps.append({"step": 9, "name": "vocal_dynamic_eq", "skipped": True})
+                steps.append({"step": 10, "name": "vocal_dynamic_eq", "skipped": True})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"vocal_dynamic_eq failed: {exc}")
 
-        # ── Step 10: Parallel weight bus (-12 to -18 dB) ─────────────────────
+# ── Step 11: Parallel weight bus (-12 to -18 dB) ─────────────────────
         try:
             if self.config.parallel_weight_bus_db != 0.0:
                 for name, y in loaded.items():
                     loaded[name] = _parallel_weight_bus(y, self.config.parallel_weight_bus_db)
-                steps.append({"step": 10, "name": "parallel_weight_bus", "attenuation_db": self.config.parallel_weight_bus_db})
+                steps.append({"step": 11, "name": "parallel_weight_bus", "attenuation_db": self.config.parallel_weight_bus_db})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"parallel_weight_bus failed: {exc}")
 
-        # ── Step 11: Sidechain pocket EQ on Other while vocals sing ───────────
+# ── Step 12: Sidechain pocket EQ on Other while vocals sing ───────────
         try:
             if self.config.sidechain_pocket_eq_enabled and "vocals" in loaded and "other" in loaded:
                 vocals_y = loaded["vocals"]
@@ -1030,11 +1034,11 @@ class SunoEnhancer:
                     else:
                         other_y[:min_len] = pocket[0, :min_len]
                     loaded["other"] = other_y
-                steps.append({"step": 11, "name": "sidechain_pocket_eq", "freq_hz": 3000.0})
+                steps.append({"step": 12, "name": "sidechain_pocket_eq", "freq_hz": 3000.0})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"sidechain_pocket_eq failed: {exc}")
 
-        # ── Step 12: Reverb/delay sends (vocals EXCLUDED — pseudo-reverb baked in) ──
+# ── Step 13: Reverb/delay sends (vocals EXCLUDED — pseudo-reverb baked in) ──
         try:
             for name, y in loaded.items():
                 send_target = y
@@ -1046,18 +1050,18 @@ class SunoEnhancer:
                         delay_mix=self.config.delay_mix,
                     )
                 loaded[name] = send_target
-            steps.append({"step": 12, "name": "fx_sends", "reverb_mix": self.config.reverb_mix, "delay_mix": self.config.delay_mix, "vocals_excluded": True})
+            steps.append({"step": 13, "name": "fx_sends", "reverb_mix": self.config.reverb_mix, "delay_mix": self.config.delay_mix, "vocals_excluded": True})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"fx_sends failed: {exc}")
 
-        # ── Step 13: Mix stems with auto-leveling ───────────────────────────
+# ── Step 14: Mix stems with auto-leveling ───────────────────────────
         try:
             mixed = await asyncio.to_thread(self._mix_stems, loaded, sr)
-            steps.append({"step": 13, "name": "mix", "method": "auto_level"})
+            steps.append({"step": 14, "name": "mix", "method": "auto_level"})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"mix failed: {exc}")
 
-        # ── Step 14: Progressive high-end drift correction (V6) ───────────────
+# ── Step 15: Progressive high-end drift correction (V6) ───────────────
         try:
             if self.config.restore_high_end_drift:
                 mixed = _restore_high_end_drift(
@@ -1066,21 +1070,21 @@ class SunoEnhancer:
                     max_boost_db=self.config.max_drift_boost_db,
                 )
                 steps.append({
-                    "step": 14,
+                    "step": 15,
                     "name": "high_end_drift_correction",
                     "max_boost_db": self.config.max_drift_boost_db,
                 })
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"drift_correction failed: {exc}")
 
-        # ── Step 15: Master bus true-peak limiter (-1.0 dB) ─────────────────
+# ── Step 16: Master bus true-peak limiter (-1.0 dB) ─────────────────
         try:
             mixed = _simple_limiter(mixed, self.config.master_ceiling_dbfs)
-            steps.append({"step": 14, "name": "limiter", "ceiling_dbfs": self.config.master_ceiling_dbfs})
+            steps.append({"step": 16, "name": "limiter", "ceiling_dbfs": self.config.master_ceiling_dbfs})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"limiter failed: {exc}")
 
-        # ── Step 13: Export ────────────────────────────────────────────────
+        # ── Step 17: Export ────────────────────────────────────────────────
         wav_path = None
         mp3_path = None
         try:
@@ -1088,52 +1092,15 @@ class SunoEnhancer:
             if self.config.output_format in ("wav", "both"):
                 wav_path = output_dir / f"{base_name}_enhanced.wav"
                 await asyncio.to_thread(self._write_wav, wav_path, mixed, sr)
-                steps.append({"step": 10, "name": "export_wav", "path": str(wav_path)})
+                steps.append({"step": 17, "name": "export_wav", "path": str(wav_path)})
             if self.config.output_format in ("mp3", "both"):
                 mp3_path = output_dir / f"{base_name}_enhanced.mp3"
                 await asyncio.to_thread(self._encode_mp3, wav_path or output_dir / f"{base_name}_enhanced.wav", mp3_path, mixed, sr)
-                steps.append({"step": 10, "name": "export_mp3", "path": str(mp3_path)})
+                steps.append({"step": 18, "name": "export_mp3", "path": str(mp3_path)})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), wav_path, mp3_path, steps=steps, error=f"export failed: {exc}")
 
         return EnhanceResult(True, str(output_dir), str(wav_path) if wav_path else None, str(mp3_path) if mp3_path else None, steps=steps)
-
-    def _eq_carve(self, loaded: dict[str, np.ndarray], sr: int) -> dict[str, np.ndarray]:
-        """Step 3: subtract overlapping energy between stems."""
-        out = dict(loaded)
-        names = list(out.keys())
-        for i, a in enumerate(names):
-            for b in names[i + 1:]:
-                ya, yb = out[a], out[b]
-                min_len = min(ya.shape[-1], yb.shape[-1])
-                if min_len < 1:
-                    continue
-                ya_cut = ya[..., :min_len]
-                yb_cut = yb[..., :min_len]
-                # Spectral subtraction via magnitude subtraction in STFT
-                if not LIBROSA_AVAILABLE:
-                    continue
-                n_fft = 2048
-                hop = 512
-                sta = librosa.stft(ya_cut, n_fft=n_fft, hop_length=hop)
-                stb = librosa.stft(yb_cut, n_fft=n_fft, hop_length=hop)
-                mag_a = np.abs(sta)
-                mag_b = np.abs(stb)
-                # Carve: subtract 30% of b's energy from a where b dominates
-                diff = np.maximum(mag_a - 0.3 * mag_b, 0.0)
-                phase_a = np.angle(sta)
-                carved = librosa.istft(diff * np.exp(1j * phase_a), hop_length=hop)
-                target_len = ya_cut.shape[-1]
-                if carved.shape[0] < target_len:
-                    pad = np.zeros(target_len - carved.shape[0], dtype=np.float32)
-                    carved = np.concatenate([carved, pad])
-                elif carved.shape[0] > target_len:
-                    carved = carved[:target_len]
-                out[a] = ya.copy()
-                if carved.ndim == 1:
-                    carved = carved[np.newaxis, :]
-                out[a][..., :min_len] = carved.astype(np.float32)[..., :min_len]
-        return out
 
     def _mix_stems(self, loaded: dict[str, np.ndarray], sr: int) -> np.ndarray:
         """Sum the stems at unity, then normalise the *sum*.
