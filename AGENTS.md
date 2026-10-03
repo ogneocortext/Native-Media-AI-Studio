@@ -158,28 +158,25 @@ are in `docs/knowledge-library/backend-debugging-guide.md`.
 
 ### Shell / Process Management
 
-**Prefer Python over PowerShell for anything an agent runs.** This is now
-standing protocol, not a preference. The reasons are measured, not aesthetic:
+**Prefer Python over PowerShell for anything an agent runs.** Measured, not
+aesthetic:
 
 - A `.ps1` wrapper (`pnpm.ps1`) can **report exit code 1 while the command
-  actually passed**. A gate that "fails" when it succeeded is worse than no gate.
-- PowerShell decodes a pipe using the **ANSI code page**, so UTF-8 output
-  arrives as mojibake — and the repo's own docs contain em dashes and `→`.
-- Native commands writing to stderr surface as `NativeCommandError` even on
-  success, which makes `2>&1 | Select-Object -Last N` unreliable for
-  diagnostics.
-- PowerShell 5.1 is the agent shell; the repo's own scripts need 7.6+. That gap
-  is a recurring source of "the script is broken" conclusions that are wrong.
-- **The same locale trap exists inside Python.** `subprocess.run(...,
-  text=True)` with no `encoding=` decodes with the locale codec (cp1252 here),
-  so UTF-8 output is mis-decoded — and a leading BOM becomes `"ï»¿"` rather
-  than `U+FEFF`, so BOM-stripping silently does nothing. This produced a
-  confidently wrong "commit is missing" verdict during the checkpoint work.
-  `tools/check-subprocess-encoding.py` rejects the pattern and runs in the
-  `docs` gate; `tools/fix-subprocess-encoding.py` applies the fix. For git, use
-  `tools/_gitutil.py` (`run_git`, `git_lines`, `delete_ref`) rather than a
-  private wrapper.
-- Also: piping a **large** stream into a subprocess (`git patch-id`,
+  passed**. A gate that fails when it succeeded is worse than no gate.
+- Pipes decode with the **ANSI code page**, so UTF-8 arrives as mojibake - and
+  this repo's own docs contain em dashes and arrows.
+- Native commands writing to stderr raise `NativeCommandError` even on success,
+  so `2>&1 | Select-Object -Last N` is unreliable for diagnostics.
+- The agent shell is PowerShell 5.1; the repo's scripts need 7.6+. That gap is a
+  recurring source of "the script is broken" conclusions that are wrong.
+- **The same trap exists inside Python.** `subprocess.run(..., text=True)` with no
+  `encoding=` decodes with the locale codec (cp1252), and a leading BOM becomes
+  `"..."` rather than `U+FEFF`, so BOM-stripping silently does nothing. This
+  produced a confidently wrong "commit is missing" verdict during the checkpoint
+  work. `tools/check-subprocess-encoding.py` rejects the pattern (it runs in the
+  `docs` gate); `tools/fix-subprocess-encoding.py` applies the fix. For git use
+  `tools/_gitutil.py` rather than a private wrapper.
+- Piping a **large** stream into a subprocess (`git patch-id`,
   `git cat-file --batch-check`) deadlocks the reader thread on Windows and
   returns empty output. Write it to a temp file and pass the file as stdin.
 
@@ -209,51 +206,28 @@ right tool and nothing has gone wrong.
 
 ### Machine-specific PATH traps (this workstation)
 
-These are properties of the machine, not the repo. Each has already caused a
-wrong action, so verify before trusting a bare command name.
+Properties of the machine, not the repo. Each has already caused a wrong action.
 
-| Bare name | Resolves to | Why it's a trap |
+| Bare name | Resolves to | Trap |
 |---|---|---|
-| `bash` | `C:\Windows\System32\bash.exe` | The **WSL launcher**, not Git Bash. It fails on Windows PATH entries it cannot translate (e.g. Android SDK), and errors mention unrelated tools. For repo shell scripts use `C:\Program Files\Git\bin\bash.exe` explicitly. |
-| `python` | `C:\Python314\python.exe` (3.14.7) | Not the project interpreter, but see the correction below — the failure mode is subtler than "no packages". |
-| `node` | `...\fnm\aliases\default\node.exe` | fnm's **alias**, pinned to whatever was default when it was created. This machine has v24.20.0, v26.0.0 and v26.7.0 installed, but the alias resolves to v24.20.0 — not the newest. Prefer `pnpm.cmd` from Python with an explicit `cwd`. |
+| `bash` | `C:\Windows\System32\bash.exe` | The **WSL launcher**, not Git Bash. Errors mention unrelated tools. For repo scripts use `C:\Program Files\Git\bin\bash.exe`. |
+| `python` | `C:\Python314\python.exe` (3.14.7) | Imports every backend package and passes `ruff`, but **fails pytest** (rc=1): 3.14's temp cleanup cannot remove `pytest-current`, giving `PermissionError [WinError 5]`. `nma-studio-cuda` gives rc=0. |
+| `node` | fnm `aliases\default\node.exe` | An alias pinned when it was created, not the newest installed. Prefer `pnpm.cmd` from Python with an explicit `cwd`. |
 
-**Correction (measured 2026-10-01): do not use bare `python` for repo work —
-but the reason is *not* missing packages.** An earlier version of this file
-claimed `C:\Python314` has no backend dependencies and that `import fastapi`
-fails there. That is no longer true: `C:\Python314` (3.14) now imports
-`fastapi`, `pytest`, `ruff`, `numpy`, `pydantic` and `sqlalchemy` cleanly, and
-`ruff check` passes under it.
+**An interpreter having the packages installed is not the same as it working.**
+Verify by running the gate, never by inspecting imports - `tools/run-gates.py`
+probes candidates with a real `ruff` run and caches the winner. `where python`
+also returns `D:\conda-envs\comfyui-cuda\Scripts\python.exe`, which is never
+valid for backend work.
 
-It still must not be used, because it **fails the backend suite**:
-
-```
-C:\Python314\python.exe                     pytest -> rc=1
-  PermissionError: [WinError 5] ... pytest-of-NeoCortext\pytest-current
-D:\conda-envs\nma-studio-cuda\...\python.exe   pytest -> rc=0, 250 passed in 34.4s
-```
-
-3.14's stricter temp-dir cleanup cannot remove pytest's `pytest-current`
-pointer. The lesson is the general one: **an interpreter having the packages
-installed is not the same as it working.** Verify by running the gate, never by
-inspecting imports. `tools/run-gates.py` does exactly that — it probes
-candidates with a real `ruff` run and caches the winner.
-
-`where python` on this machine returns three interpreters, and one of them is
-`D:\conda-envs\comfyui-cuda\Scripts\python.exe`, which is **never** valid for
-backend work.
-
-There **is** a PowerShell 7 profile at
+A PowerShell 7 profile exists at
 `C:\Users\Aomega Imaging\Documents\PowerShell\Microsoft.PowerShell_profile.ps1`
-(pwsh uses `Documents\PowerShell\`; Windows PowerShell 5.1 would use
-`Documents\WindowsPowerShell\`, which is empty). It prepends Ollama, VS Code,
-npm, Git and Zed to `PATH`, runs `fnm env --use-on-cd`, runs `conda init`, and
-sources a ~170 KB OpenClaw completion script. It was fixed on 2026-10-01 so it
-no longer writes to stderr on startup and no longer emits startup diagnostics in
-non-interactive sessions. If a tool still sees spurious `NativeCommandError`
-from a command that succeeded, check whether that noise is back.
-
-Note the profile does **not** fix the `python` trap above: `python` resolves to
+(5.1 uses `Documents\WindowsPowerShell\`, which is empty). It prepends Ollama,
+VS Code, npm, Git and Zed to `PATH`, runs `fnm env --use-on-cd` and `conda init`.
+It was fixed on 2026-10-01 to stop writing to stderr in non-interactive sessions;
+if spurious `NativeCommandError` appears from a command that succeeded, check
+whether that is back. It does **not** fix the `python` trap - `python` resolves
+to `C:\Python314` in both shells.
 `C:\Python314` in both pwsh 7 and the 5.1 agent shell.
 
 Unrelated tools on PATH (Android SDK, WSL) are noise from the OS environment —
@@ -303,24 +277,17 @@ hand — the runner owns the Windows exit-code and UTF-8 decoding problems that
 otherwise produce both false passes and false failures.
 
 **It resolves its own tools, so nothing is hardcoded to one machine's layout.**
-`pnpm` is found on PATH; the interpreter is chosen by probing candidates
-(`$NMA_PYTHON` → `nma-studio-cuda` → any working `D:\conda-envs\*` → PATH) with a
-real `ruff` run. This matters because a hardcoded path is not merely
-machine-specific — it goes stale silently and pins every future agent to
-whatever was current when it was written.
+`pnpm` from PATH; the interpreter is chosen by probing candidates
+(`$NMA_PYTHON` -> `nma-studio-cuda` -> any working `D:\conda-envs\*` -> PATH) with
+a real `ruff` run. A hardcoded path would not merely be machine-specific, it would
+go stale silently and pin every future agent to whatever was current when it was
+written. The winner is cached in `%TEMP%\nma-studio-python-choice.json` purely
+as a **hint to try first** and is re-verified every run, so repairing a broken env
+needs no cache clearing. Set `NMA_PYTHON` to override; `--which-python` explains a
+wrong-interpreter failure and `--list` prints the resolved interpreter and gates.
 
-The winner is remembered in `%TEMP%\nma-studio-python-choice.json` purely as a
-**hint to try first**, and it is re-verified on every run like any other
-candidate — so repairing a broken env is picked up with no cache clearing. Set
-`NMA_PYTHON` to override. Two flags diagnose a wrong-interpreter failure:
-
-- `--which-python` — every candidate, its version, and why it was chosen or rejected
-- `--list` — the resolved interpreter plus the gate list
-
-Every gate has a timeout (pytest 300 s, build 600 s, e2e 900 s) and the whole
-child tree is killed on expiry, so a wedged gate (pytest blocked on a locked
-`%TEMP%` pointer, a browser that never exits) reports a failure instead of
-silently hanging the caller.
+Every gate has a timeout (pytest 300 s, build 600 s, e2e 900 s) and the child tree
+is killed on expiry, so a wedged gate reports a failure instead of hanging.
 
 Individual gates, for iterating on one area:
 
@@ -333,24 +300,9 @@ Individual gates, for iterating on one area:
   the page returns 403.
   Test files are **colocated** under `src/`, not in `tests/`,
   because `tests/` holds Playwright specs and its own `tsconfig.tests.json`.
-  Covered so far: `keyPalette.ts` (chroma→hue, Q5), `audioTiming.ts`
-  (latency/beat clock), `lyricsSync.ts` (LRC parsing and lookup),
-  `canvas2dHelpers.ts` (colour/easing/noise), `canvas2dModeBudget.ts` (per-mode
-effect budget and its runtime cap), and `motion/` (the motion
-  vocabulary — 151 assertions over easing, springs, all ten moves, the impulse
-  trigger and the frame driver). All six suites were mutation-checked;
-  `motion/` against 6 seeded faults (isotropic flare, `γ = c/(2√k)` instead of
-  `c/2`, the pre-drop freeze boundary flipped, ratchet off-by-one, impulse
-  priming removed, driver ignoring the vacuum), each caught by 1–8 assertions;
-  `canvas2dModeBudget.ts`/`canvas2dHelpers.ts` against 5 (cap removed, firing
-  condition ignored, unknown mode falling back to a real budget, vignette not
-  halved, smoothing made symmetric), each caught by 1–5.
-  `visualizerHelpers.ts` is now covered too — the mode-list consistency
-  assertions live in `canvas2dModeBudget.test.ts` because they compare the
-  budget against `CANVAS_2D_MODES`. That drift was real: `aurora` was
-  implemented, budgeted and unit-tested but absent from the picker, so no user
-  could reach it. Still untested and pure: `perceptualScales.ts`,
-  `sectionStateMachine.ts`, `lyricsParser.ts`.
+  For which suites exist and which remain pure-but-untested, read the coverage
+  inventory in `docs/TESTING_WORKFLOWS.md`. It changes every time tests are
+  added, so it does not belong in a file every agent loads at start-up.
 - Frontend E2E: `pnpm test` in `packages/frontend/` (Playwright)
 - Backend: `pytest` in `packages/backend/`
 - E2E: Playwright under `packages/frontend/tests/browser/`

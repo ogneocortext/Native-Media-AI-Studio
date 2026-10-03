@@ -247,3 +247,32 @@ python ../../scripts/ai-test-analyzer.py --last-failure
   - `qwen2.5:7b` (legacy test generation — replace with `gemma4` if available)
 - **Playwright:** `pip install playwright && playwright install chromium`
 - **Backend:** Running or testable via ASGI transport (no external services needed for most tests)
+
+---
+
+## Frontend unit-test coverage inventory
+
+Moved out of `AGENTS.md` on 2026-10-02: an agent loading that file at start-up
+was paying ~340 tokens for a changelog it could obtain by running the tests, and
+the inventory goes stale every time a suite is added. The *conventions* stay in
+`AGENTS.md` (colocated `src/**/*.test.ts`, why vitest rather than Playwright for
+pure logic); only the inventory lives here.
+
+  Covered so far: `keyPalette.ts` (chroma→hue, Q5), `audioTiming.ts`
+  (latency/beat clock), `lyricsSync.ts` (LRC parsing and lookup),
+  `canvas2dHelpers.ts` (colour/easing/noise), `canvas2dModeBudget.ts` (per-mode
+effect budget and its runtime cap), and `motion/` (the motion
+  vocabulary — 151 assertions over easing, springs, all ten moves, the impulse
+  trigger and the frame driver). All six suites were mutation-checked;
+  `motion/` against 6 seeded faults (isotropic flare, `γ = c/(2√k)` instead of
+  `c/2`, the pre-drop freeze boundary flipped, ratchet off-by-one, impulse
+  priming removed, driver ignoring the vacuum), each caught by 1–8 assertions;
+  `canvas2dModeBudget.ts`/`canvas2dHelpers.ts` against 5 (cap removed, firing
+  condition ignored, unknown mode falling back to a real budget, vignette not
+  halved, smoothing made symmetric), each caught by 1–5.
+  `visualizerHelpers.ts` is now covered too — the mode-list consistency
+  assertions live in `canvas2dModeBudget.test.ts` because they compare the
+  budget against `CANVAS_2D_MODES`. That drift was real: `aurora` was
+  implemented, budgeted and unit-tested but absent from the picker, so no user
+  could reach it. Still untested and pure: `perceptualScales.ts`,
+  `sectionStateMachine.ts`, `lyricsParser.ts`.
