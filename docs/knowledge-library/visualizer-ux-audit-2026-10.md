@@ -153,6 +153,24 @@ independent defects: no auto-exposure/tonemap ceiling on 3D output, and a lyric
 card whose scrim assumes a dark background. A luminance-aware scrim (or
 `backdrop-filter: blur` + darker alpha) fixes the text regardless of the scene.
 
+> **Resolved 2026-10-02.** The scrim + exposure clamp + soft-knee tonemap
+> landed first and made the text readable, but the white field itself traced to
+> two shader bugs in `instancedParticles.tsx`, not to grading: the vertex
+> shader built billboard offsets from world-space camera axes and then ran them
+> through `modelViewMatrix`, so the LrcViz wrapper's continuous `rotation.y`
+> sheared the quads — face-on and frame-filling once per turn (frame mean 0.71+),
+> edge-on slivers the rest of the time (0.03), which is why earlier triage kept
+> finding "wash bands" at different musical positions in different runs; and
+> `baseSize` was never destructured, so every style's dust rendered at the
+> hardcoded 0.4–1.4 world units instead of the 0.08–0.1 its callers pass —
+> roughly 10× the intended area. The fix is a view-space billboard
+> (`mvPosition.xy += offset` after the modelView transform), honoring
+> `baseSize`, plus an `uAlpha` uniform for tuning. Post-fix: scene mean
+> 0.14–0.19 relative luminance across the sampled track, `frac(L>0.92)` = 0,
+> lyric contrast 10.4–17.3:1, and brightness is rotation-invariant
+> (baseline/rot0/rot+π within 0.006). Evidence: `plan14-fix-*` and
+> `plan14-causal-run.json` in `tests/browser/out/`.
+
 ### 2.5 Analysis state is silent
 
 Beyond the 404s (§1.2), nothing on screen says "this track has no analysis yet"

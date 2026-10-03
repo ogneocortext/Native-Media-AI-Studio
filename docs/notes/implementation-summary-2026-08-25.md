@@ -1,6 +1,14 @@
-# Implementation Summary
+# Implementation Summary (2026-08-25)
 
-**Date:** 2026-08-25  
+> **Not authoritative — a point-in-time snapshot, not current state.**
+> Moved here from `docs/implementation-summary.md` on 2026-10-02. It records
+> what was true on 2026-08-25 and is unreferenced by anything else in the repo.
+> For current decisions see `docs/architecture/decision-log.md`; for what is
+> actually implemented, read the code.
+
+---
+
+**Date:** 2026-08-25
 **Status:** Codebase restructured with placeholder content replaced by real implementations
 
 ---

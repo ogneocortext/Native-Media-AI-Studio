@@ -1,6 +1,6 @@
 # Studio Quality Plan — Oct 2026 (visualizer UX, reactive depth, mastering + stems)
 
-**Status:** Approved 2026-10-02 (Phase 0 executed)
+**Status:** Approved 2026-10-02 — Phase 0 executed, Phase 1 complete (2026-10-02)
 **Decides:** none formally — touches Q4 (mode consolidation stays out of scope)
 and executes D23/D24's open follow-ups without reversing them
 **Owner:** repo owner
@@ -22,11 +22,31 @@ and executes D23/D24's open follow-ups without reversing them
 | 0.1 stem separation `opts.source_path` (P0) | **Done** — fix + 6 tests, both mutations caught, verified live (HTTP 200, 4 stems) |
 | 0.2 shader visualizer API filename (P1) | **Done** — `trackFile` prop added; `spectral-timeline` now 200 for hash-prefixed tracks |
 | 0.3 "no analysis" visible state (P1) | **Partly** — 404 is now a first-class `unavailable` state, not an error; the toolbar Analyze CTA already existed. The browser's own "Failed to load resource" line for a 4xx **cannot be suppressed from app code** — it is emitted by the network stack — so that part of the acceptance criterion is not achievable as written and is left as a known limit. |
-| 0.1 UI error copy | Not done — the separation panel's raw-message disclosure is Phase 1 work; no bare exception is shown today because the failure never reached the UI |
+| 0.1 UI error copy | **Done** — `friendlyPipelineError` in `src/utils/errorCopy.ts` classifies raw backend messages; the separation panel shows the friendly headline "Separation failed — see backend log" with the raw exception behind a Show-details disclosure (StemMixer error block + Audio Analysis banner). 5 unit tests, mutation-checked |
 
-Phases 1–3 are not started. They are blocked on nothing, but Phase 0's tests were
-established first per the suggested order, because the "test executes the real
-path" pattern is what the rest inherits.
+Phase 1 is complete (table below); Phase 0's tests were established first per
+the suggested order, because the "test executes the real path" pattern is what
+the rest inherits. Phases 2–3 are not started and are blocked on nothing.
+
+---
+
+## Phase 1 progress (2026-10-02)
+
+| Item | State |
+|---|---|
+| 1.1 One custom transport | **Done** — custom transport component; no browser-stock `<audio controls>` remains; verified by screenshot |
+| 1.2 Panels yield to the canvas | **Done** — STEM MIXER/MASTER EQ start collapsed and persist; canvas min-height enforced; verified by DOM rect at 780×410 |
+| 1.3 Overlay discipline + contrast | **Done** — mutually exclusive panels with scrim/Esc; More-controls restyled to dark-UI tokens; contrast audit passes |
+| 1.4 Visual robustness | **Done** — lyric scrim + exposure 0.8 + soft-knee tonemap landed first; the remaining Cosmic-Dust frame wash was root-caused to two shader bugs in `instancedParticles.tsx` (billboard offsets built in world space then sheared by the LrcViz group's continuous `rotation.y`, and `baseSize` never destructured so every style's dust rendered 4–10× oversized). Fixed with a view-space billboard, honored `baseSize`, and an `uAlpha` knob. Verified: scene mean 0.14–0.19 (rel-lum) / 0.20–0.34 (video luma) across the sampled track vs the ≤0.70 target, `frac(L>0.92)` = 0, lyric contrast 10.4–17.3 ≥ 4.5, rotation-invariant means (baseline/rot0/rot+π = 0.202/0.196/0.200), and geometric/inferno/cosmic all re-captured clean (`plan14-fix-*` in `tests/browser/out/`) |
+| 1.5 Honest lists and labels | **Done** — `optionLabel` rows with rename, Analyze action + status, aria-labels/tooltips, `161.3 s`, cycle-order text fixed; snapshot shows accessible names |
+| 0.1 UI error copy (Phase-0 leftover) | **Done** — friendly headline + Show-details disclosure in both separation surfaces (`errorCopy.ts` helper, 5 unit tests, mutation-checked); see Phase 0 §0.1 UI |
+
+Known follow-ups surfaced by 1.4 (not blocking): `meshRef` is declared but never
+attached to the JSX mesh in `instancedParticles.tsx`, so the component's
+`useFrame` (audio-reactive `uBass` sizing, position respawn) stays dormant —
+restoring it changes particle motion and needs its own verification pass.
+Style-picker selections can also be reverted by a late preferences/analysis
+auto-apply (observed once during probing).
 
 ---
 
