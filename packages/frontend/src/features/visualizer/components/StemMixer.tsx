@@ -840,7 +840,10 @@ function EnhanceButton({
         filename,
         model: "mdx_extra_q",
         output_format: "wav",
-        pre_highpass_hz: 120,
+        // High-pass left at the backend default (30 Hz). It was pinned to 120
+        // here, which silently overrode the backend fix: 62% of a Suno export's
+        // energy sits below 120 Hz, so that setting removed 89% of the bass
+        // band on every run the UI started. See suno_enhancer.EnhanceConfig.
         vocal_spectral_gate_threshold_db: -40,
         vocal_dynamic_eq_max_reduction_db: 4,
         vocal_expander: vocalExpander,

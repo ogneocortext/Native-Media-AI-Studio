@@ -280,13 +280,83 @@ two passages that now read ~+24% are doing so because the vocal stem is being
 gated down ~9 dB, which raises bass as a *fraction* of what remains — a vocal
 level decision rather than a defect, and adjustable via `vocal_balance_db`.
 
-### Still open
+## 7. Community-reported V6 problems, checked against our audio (2026-10-02)
 
-The chain now runs, is stereo, sits at the right level, and tracks the source
-closely. What is **not** established is that it sounds better: every number above
-is a fidelity measurement against the input, not a listening test, and mastering
-is judged by ear. The vocal gate at −9 dB is aggressive enough to be worth
-auditioning before anyone relies on this output.
+The claims below are from third-party sources, most of them vendors selling an
+AI mastering product — so they are hypotheses, not evidence. Each was measured on
+`SunoV6Mini-Ad-Nauseam` before anything was implemented. **Two held, one did
+not**, and the one that failed is recorded because implementing it would have
+added a useless stage.
+
+| Community claim | Source | Measured here | Verdict |
+|---|---|---|---|
+| Vocals are buried | undetectr, from r/SunoAI threads over 3 weeks + 24-track spectrum measurement | vocal RMS **7.0 dB below** the rest of the mix | ✅ confirmed |
+| V6 darkens over the track | masterforge, 26 tracks split to stems, 10 s windows | mean spectral centroid **3467 → 1279 Hz**, a 63% loss | ✅ confirmed |
+| V6 narrows over the track | same | stereo width **0.32 → 0.41** — it *widens* | ❌ **does not reproduce** |
+| 250–500 Hz low-mid pileup | freshlybakedstudios, from a 320k-song corpus | 250–500 Hz is 5.7% of the mix; 15.0% of the `other` stem | ⚠️ present but no baseline to judge severity |
+| Exports land quiet, −16 to −19 LUFS | suno-down | our sources measure **−14.7 and −14.4 LUFS** via ffmpeg `ebur128` | ❌ **already on target** |
+| High-pass at 30–40 Hz | suno-down, freshlybaked | matches the fix already made in §6 | ✅ corroborated |
+| Master to −14 LUFS, −1 dBTP | every source | chain targets exactly this | ✅ corroborated |
+
+### What the confirmed findings changed
+
+**Buried vocals — the chain was making it worse.** The single loudest V6
+complaint is buried vocals, and the vocal was *already* 7.0 dB down before the
+chain ran. The chain then took another **−9 dB** out of it.
+
+The cause was `_spectral_gate`, and it was not doing what its name said. Its
+threshold was **absolute** (`_db_to_linear(-40)` ≈ 0.01 in STFT magnitude
+terms), but librosa STFT bin magnitudes for normal programme audio run 1e-4 to
+1e-2 — so most bins, including most of the vocal's actual content, sat *below*
+the line and were gated down. Two further mistakes compounded it: the threshold
+was compared against the whole signal rather than each frame's own peak, and
+`gate = env / mag` was applied even to bins the envelope had declared *open*
+(`env` is an EMA, so it lags below instantaneous magnitude and the ratio lands
+under 1 regardless). Net effect: a noise gate that functioned as a broadband
+compressor on the vocal.
+
+Gating is now relative to each frame's peak, and open bins pass at unity.
+Measured on the vocal stem: **−8.99/−9.59 dB → −0.04/−0.06 dB**.
+
+**Progressive darkening — a static chain cannot fix it.** The centroid fall is
+the source doing it, not the mix, and it needs a *different* gain at 60 s than
+at 200 s. `_restore_high_end_drift` measures high-band-to-low-band energy per
+window, takes the opening quarter as the reference, and applies a smoothed,
+capped gain to the high band. Capped at 4 dB on purpose: a curve that tracks the
+drift exactly also tracks the arrangement, and pumping the top end up 10 dB into
+an outro is a worse artifact than the drift it fixes.
+
+Measured end-to-end, spectral centroid by position:
+
+```
+stems    5%:3467  25%:3415  50%:3078  75%:1824  95%:1279
+output   5%:3382  25%:3391  50%:3102  75%:1998  95%:1402
+```
+
+### What was deliberately not implemented
+
+- **Stereo-width restoration.** The research says V6 narrows; it does not, on the
+  track we have. A width stage would be a no-op that still costs CPU and adds a
+  knob nobody can hear.
+- **250–500 Hz corrective EQ.** The band is measurable but there is no reference
+  master here to say how much is too much, and the one concrete prescription
+  found (a 2–3 dB vocal cut at 200–400 Hz) would be applied blind.
+- **Loudness work.** Our sources already measure −14.7/−14.4 LUFS, which is the
+  target. Nothing to fix.
+
+### Where it ended up
+
+Correlation with the summed stems **0.9746** (was 0.19 before this session),
+`channels=2`, crest 15.07 dB against 16.02 dB in the source.
+
+The vocal still sits 7.6 dB below the rest — **that is now the separation's
+balance, not the chain's doing**, and it is a mixing decision rather than a
+defect. `vocal_balance_db` exists for exactly this; no default is imposed,
+because lifting a vocal by the right amount is a taste call and the sources
+disagree about it.
+
+Still not established: that any of this *sounds* better. Every number here is a
+fidelity measurement, not a listening test.
 
 ## Sources (accessed 2026-10-02)
 

@@ -107,6 +107,15 @@ class EnhanceConfig:
     # In The Mix upgrades
     parallel_weight_bus_db: float = -15.0  # -12 to -18 dB parallel weight
     sidechain_pocket_eq_enabled: bool = False  # duck 2.5–3.5 kHz on Other when vocals present
+    # V6 progressive darkening (2026-10-02). Measured on a real export: mean
+    # spectral centroid falls 3467 Hz -> 1279 Hz from the opening to the last
+    # chorus, a 63% loss of brightness that a static chain cannot correct
+    # because the required gain differs at 60 s and at 200 s. Applied on the
+    # mixed bus, not per stem - the individual stems do not drift the way the
+    # sum does. Capped at 4 dB: this is meant to stop the trend, not to flatten
+    # the arrangement.
+    restore_high_end_drift: bool = True
+    max_drift_boost_db: float = 4.0
 
 
 # ─── DSP helpers ─────────────────────────────────────────────────────────────
@@ -378,8 +387,27 @@ def _spectral_gate(
     threshold_db: float = -40.0,
     attack_ms: float = 10.0,
     release_ms: float = 100.0,
+    absolute_floor_db: float = -80.0,
 ) -> np.ndarray:
-    """Spectral gate: suppress bins below threshold (ghost bleed killer)."""
+    """Spectral gate: suppress bins that sit far below the frame's own peak.
+
+    The threshold used to be **absolute** (`_db_to_linear(-40)` ~ 0.01 in STFT
+    magnitude terms). But librosa STFT bin magnitudes for normal programme audio
+    run around 1e-4 to 1e-2, so most bins - including most of the vocal's
+    actual content - sat *below* that line and were gated down. It was not a
+    noise gate; it was a broadband compressor. Measured: -8.99 / -9.59 dB on the
+    vocal stem of a real track.
+
+    That matters more than a level error. The loudest complaint about Suno V6
+    output is buried vocals, and the vocal was already 7.0 dB below the rest of
+    the mix before this ran; -9 dB of spectral suppression buried it further.
+    The chain was making the most-reported defect worse.
+
+    Gating is now relative to each frame's peak, which is what a "ghost bleed
+    killer" is supposed to mean: bins more than `threshold_db` below the loudest
+    bin *in that frame* are suppressed, everything else passes. `absolute_floor_db`
+    keeps an absolute backstop for digital silence.
+    """
     if y.size == 0 or not LIBROSA_AVAILABLE:
         return y
     n_fft = 2048
@@ -387,20 +415,34 @@ def _spectral_gate(
     stft = librosa.stft(y.astype(np.float32), n_fft=n_fft, hop_length=hop)
     mag = np.abs(stft)
     phase = np.angle(stft)
-    thresh = _db_to_linear(threshold_db)
+    rel = _db_to_linear(threshold_db)
+    floor = _db_to_linear(absolute_floor_db)
     # Smooth gate envelope per bin
     env = np.zeros_like(mag)
+    thresh = np.zeros(mag.shape[1])
     attack_coeff = math.exp(-1.0 / (attack_ms * 1e-3 * sr))
     release_coeff = math.exp(-1.0 / (release_ms * 1e-3 * sr))
     for i in range(mag.shape[1]):
         frame = mag[:, i]
-        above = frame > thresh
+        # Per-frame reference: the frame's own peak, floored absolutely.
+        thresh[i] = max(float(frame.max()) * rel, floor)
+        above = frame > thresh[i]
         env[:, i] = np.where(
             above,
             attack_coeff * env[:, i - 1] + (1.0 - attack_coeff) * frame if i > 0 else frame,
             release_coeff * env[:, i - 1] if i > 0 else frame,
         )
-    gate = np.clip(env / (mag + 1e-8), 0.0, 1.0)
+    # Bins the envelope says are open pass at unity; only bins it has given up
+    # on are attenuated.
+    #
+    # `env` is an exponential moving average, so even a bin that clears the
+    # threshold has an envelope lagging below its instantaneous magnitude, and
+    # `env / mag` then comes out below 1. Using that ratio unconditionally made
+    # the gate behave like a broadband compressor - measured -6 dB peak /
+    # -8.7 dB RMS even with the relative threshold above - which buried an
+    # already-buried vocal further.
+    ratio = np.clip(env / (mag + 1e-12), 0.0, 1.0)
+    gate = np.where(env >= thresh[None, :], 1.0, ratio)
     gated = (mag * gate) * np.exp(1j * phase)
     out = librosa.istft(gated, hop_length=hop)
     target_len = y.shape[-1]
@@ -410,6 +452,101 @@ def _spectral_gate(
         out = out[:target_len]
     return out.astype(np.float32)
 
+def _restore_high_end_drift(
+    y: np.ndarray,
+    sr: int,
+    split_hz: float = 2000.0,
+    reference_fraction: float = 0.25,
+    max_boost_db: float = 4.0,
+    smoothing_s: float = 4.0,
+) -> np.ndarray:
+    """Counteract progressive loss of high end over the length of a track.
+
+    Suno V6 output is widely reported to "run out of steam": it darkens as the
+    track goes on. Measured on `SunoV6Mini-Ad-Nauseam` (209 s), mean spectral
+    centroid per fifth of the track:
+
+        5%  3467 Hz   25%  3415 Hz   50%  3078 Hz   75%  1824 Hz   95%  1279 Hz
+
+    That is a 63% loss of brightness from the opening to the last chorus, and it
+    is not a mastering fault - the source itself does it. A static chain cannot
+    address it, because the fix is *different* at 60 s than at 200 s.
+
+    This measures the energy above `split_hz` relative to below it, in windows,
+    takes the opening `reference_fraction` of the track as the reference, and
+    applies a smoothed, capped gain to the high band that closes the gap.
+
+    Capped at `max_boost_db` and smoothed over `smoothing_s` deliberately: a
+    gain curve that tracks the drift exactly would also track the music's own
+    arrangement, and pumping the top end up 10 dB into an outro is a worse
+    artifact than the drift it fixes. The aim is to stop the *trend*, not to
+    flatten the track.
+
+    Returns the input unchanged when there is no measurable drift to correct.
+    """
+    if y.size == 0 or not LIBROSA_AVAILABLE:
+        return y
+    n_fft = 2048
+    hop = 512
+    was_mono = y.ndim == 1
+    src = y[np.newaxis, :] if was_mono else y
+    n_frames = src.shape[-1] // hop
+    if n_frames < 8:
+        return y
+
+    win = max(1, int(smoothing_s * sr / hop))
+    curves = []
+    for ch in src:
+        stft = librosa.stft(ch.astype(np.float32), n_fft=n_fft, hop_length=hop)
+        mag = np.abs(stft)
+        freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
+        split = freqs >= split_hz
+        if not split.any() or (~split).sum() == 0:
+            return y
+        high = mag[split, :].sum(axis=0)
+        low = mag[~split, :].sum(axis=0)
+        ratio = high / (low + 1e-12)
+        # Smooth the trend itself so the correction follows the drift, not the
+        # bar-by-bar envelope.
+        k = np.ones(win) / win
+        ratio_s = np.convolve(ratio, k, mode="same")
+        ref_idx = max(1, int(n_frames * reference_fraction))
+        ref = float(np.mean(ratio_s[:ref_idx])) or 1.0
+        want = np.clip(ref / (ratio_s + 1e-12), 1.0, _db_to_linear(max_boost_db))
+        # Ramp from 1.0 at the reference point so the start is untouched.
+        # Lengths come from the STFT, not from a frame count computed here -
+        # they differ by one frame and the multiply below will not broadcast.
+        ramp = np.linspace(0.0, 1.0, ratio_s.shape[0])
+        curves.append(1.0 + (want - 1.0) * ramp)
+
+    gain_curve = np.mean(curves, axis=0)
+    gain_curve = gain_curve[:n_frames]
+
+    # Apply per-frame in the STFT domain so the correction follows the drift.
+    out_chans = []
+    for ch in src:
+        stft = librosa.stft(ch.astype(np.float32), n_fft=n_fft, hop_length=hop)
+        mag = np.abs(stft)
+        phase = np.angle(stft)
+        g = gain_curve[: mag.shape[1]]
+        if g.shape[0] < mag.shape[1]:
+            g = np.pad(g, (0, mag.shape[1] - g.shape[0]), mode="edge")
+        elif g.shape[0] > mag.shape[1]:
+            g = g[: mag.shape[1]]
+        mag[split, :] *= g[None, :]
+        out = librosa.istft(mag * np.exp(1j * phase), hop_length=hop)
+        target = ch.shape[-1]
+        if out.shape[0] < target:
+            out = np.pad(out, (0, target - out.shape[0]))
+        elif out.shape[0] > target:
+            out = out[:target]
+        out_chans.append(out.astype(np.float32))
+
+    stacked = np.stack(out_chans, axis=0)
+    peak = float(np.max(np.abs(stacked))) if stacked.size else 0.0
+    if peak > 1.0:
+        stacked /= peak
+    return stacked[0] if was_mono else stacked
 
 def _dynamic_eq_tame_harshness(
     y: np.ndarray,
@@ -920,7 +1057,23 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"mix failed: {exc}")
 
-        # ── Step 14: Master bus true-peak limiter (-1.0 dB) ─────────────────
+        # ── Step 14: Progressive high-end drift correction (V6) ───────────────
+        try:
+            if self.config.restore_high_end_drift:
+                mixed = _restore_high_end_drift(
+                    mixed,
+                    sr,
+                    max_boost_db=self.config.max_drift_boost_db,
+                )
+                steps.append({
+                    "step": 14,
+                    "name": "high_end_drift_correction",
+                    "max_boost_db": self.config.max_drift_boost_db,
+                })
+        except Exception as exc:
+            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"drift_correction failed: {exc}")
+
+        # ── Step 15: Master bus true-peak limiter (-1.0 dB) ─────────────────
         try:
             mixed = _simple_limiter(mixed, self.config.master_ceiling_dbfs)
             steps.append({"step": 14, "name": "limiter", "ceiling_dbfs": self.config.master_ceiling_dbfs})
