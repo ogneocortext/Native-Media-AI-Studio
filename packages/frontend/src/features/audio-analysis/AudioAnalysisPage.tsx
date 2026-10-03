@@ -33,6 +33,10 @@ import {
   getStemsStatus,
 } from "../../services/api";
 import { isAudioFile } from "../../utils/audioProbe";
+import {
+  SEPARATION_FAILED_HEADLINE,
+  friendlyPipelineError,
+} from "../../utils/errorCopy";
 import { useAudioAnalysis } from "../../hooks/useAudioAnalysis";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { AudioTrimModal } from "./components/AudioTrimModal";
@@ -213,6 +217,9 @@ export function AudioAnalysisPage() {
   const [fileError, setFileError] = useState<string | null>(null);
   const [separating, setSeparating] = useState(false);
   const [stemsNote, setStemsNote] = useState<string[] | null>(null);
+  // Plan 0.1 UI: raw exception text for the current separation error, shown
+  // behind a disclosure under SEPARATION_FAILED_HEADLINE — never as state.
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
   // Shared media-library source. Kept as a derived list rather than component
   // state so every selector in the app reads the same deduplicated entries.
   const {
@@ -506,12 +513,15 @@ export function AudioAnalysisPage() {
     }
     setSeparating(true);
     setError(null);
+    setErrorDetail(null);
     setStemsNote(null);
     setAnalysisStep("Separating stems with Demucs...");
     try {
       const result = await separateAudioStems(file, "mdx_extra_q");
       if (result.error) {
-        setError(result.error);
+        const friendly = friendlyPipelineError(result.error, SEPARATION_FAILED_HEADLINE);
+        setError(friendly.headline);
+        setErrorDetail(friendly.detail ?? null);
       } else {
         const names = Object.keys(result.stems);
         setStemsNote(names);
@@ -520,7 +530,12 @@ export function AudioAnalysisPage() {
         loadAudioFiles();
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Separation failed");
+      const friendly = friendlyPipelineError(
+        err instanceof Error ? err.message : String(err),
+        SEPARATION_FAILED_HEADLINE,
+      );
+      setError(friendly.headline);
+      setErrorDetail(friendly.detail ?? null);
       setAnalysisStep("");
     } finally {
       setSeparating(false);
@@ -1016,7 +1031,23 @@ export function AudioAnalysisPage() {
               <AlertCircle size={20} />
               <div className="flex-1">
                 <p className="text-sm font-medium">{error}</p>
-                <button onClick={() => setError(null)} className="text-xs underline mt-1">
+                {errorDetail && error === SEPARATION_FAILED_HEADLINE && (
+                  <details className="mt-1">
+                    <summary className="text-xs text-gray-400 cursor-pointer hover:text-white select-none">
+                      Show details
+                    </summary>
+                    <p className="mt-1 text-xs text-red-300/70 break-all whitespace-pre-wrap">
+                      {errorDetail}
+                    </p>
+                  </details>
+                )}
+                <button
+                  onClick={() => {
+                    setError(null);
+                    setErrorDetail(null);
+                  }}
+                  className="text-xs underline mt-1"
+                >
                   Dismiss
                 </button>
               </div>

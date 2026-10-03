@@ -20,7 +20,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
-import { encodeImage, residentVisionModels, resolveVisionModel, VISION_MAX_DIM, VISION_QUALITY, VISION_KEEP_ALIVE, VISION_NUM_CTX, DEFAULT_VISION_MODEL, VISION_FALLBACK_MODEL } from './vision-common.mjs';
+import { baseName, encodeImage, residentVisionModels, resolveVisionModel, VISION_MAX_DIM, VISION_QUALITY, VISION_KEEP_ALIVE, VISION_NUM_CTX, DEFAULT_VISION_MODEL, VISION_FALLBACK_MODEL } from './vision-common.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');

@@ -18,6 +18,7 @@ import { getApiBase, getAudioStems, separateAudioFile, enhanceStems } from "../.
 import { createEQ, DEFAULT_EQ_PRESETS, type EQBand, type EQInstance } from "../audioEQ";
 import { createStemSpatialProcessor, type StemSpatialProcessor } from "../stemSpatial";
 import { usePanelCollapsed } from "../usePanelCollapsed";
+import { friendlyPipelineError, SEPARATION_FAILED_HEADLINE } from "../../../utils/errorCopy";
 import {
   DEFAULT_STEM_GAINS_DB,
   FADER_MAX_DB,
@@ -562,6 +563,10 @@ export function StemMixerPanel({
   // body below is what yields the viewport back to the canvas.
   const { open: bodyOpen, toggle: toggleBody } = usePanelCollapsed("stem-mixer");
 
+  // Plan 0.1 UI: a bare Python exception must never be the panel state —
+  // friendly headline, raw message behind a disclosure.
+  const friendlyError = friendlyPipelineError(error, SEPARATION_FAILED_HEADLINE);
+
   if (!audioFilename) return null;
 
   return (
@@ -661,9 +666,17 @@ export function StemMixerPanel({
 
       {status === "error" && (
         <div className="py-2 space-y-2">
-          <p className="text-[11px] text-red-300/80 leading-relaxed">
-            {error || "Stems unavailable"}
-          </p>
+          <p className="text-[11px] text-red-300/80 leading-relaxed">{friendlyError.headline}</p>
+          {friendlyError.detail && (
+            <details className="group">
+              <summary className="text-[10px] text-muted cursor-pointer hover:text-white select-none">
+                Show details
+              </summary>
+              <p className="mt-1 text-[10px] text-red-400/70 break-all whitespace-pre-wrap">
+                {friendlyError.detail}
+              </p>
+            </details>
+          )}
           <button
             onClick={ensureStems}
             className="w-full py-1.5 text-[11px] rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors"
