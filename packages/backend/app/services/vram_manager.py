@@ -21,7 +21,7 @@ import time
 from enum import Enum
 from typing import Any
 
-from ..core.urls import ollama_url
+from ..core.urls import comfyui_url, ollama_url
 from ..models.job import JobStatus
 
 logger = logging.getLogger(__name__)
@@ -57,6 +57,10 @@ class VRAMManager:
         self._current_workload: GPUWorkload = GPUWorkload.IDLE
         self._ollama_loaded: bool = True
         self._comfyui_busy: bool = False
+        # Whether ComfyUI is believed to hold loaded models on the GPU. Tracked
+        # separately from `_comfyui_busy`, which means "a prompt is running" —
+        # ComfyUI is idle-but-resident most of the time and still holds ~5 GB.
+        self._comfyui_models_loaded: bool = True
         self._music_gen_running: bool = False
         self._audio_analysis_running: bool = False
         self._lock = asyncio.Lock()
@@ -583,9 +587,15 @@ class VRAMManager:
         """
         Signal that GPU audio analysis is starting.
 
-        Offloads Ollama if VRAM is short, so the CUDA spectral pass can run.
+        Offloads Ollama if VRAM is short, then ComfyUI if it is still short.
         On a GTX 1070 Ti this pass measures 0.3s against ~92s CPU-bound, so
         freeing VRAM is worth far more here than the cost of a later reload.
+
+        ComfyUI is the bigger win and was previously unmanaged: on this machine
+        POST /free returns ~5.3 GB against ~1.7 GB from offloading Ollama. It is
+        only touched when ComfyUI's queue is empty - unloading its models
+        mid-render would strand a running prompt, so a busy ComfyUI is left
+        alone even when that leaves the budget unmet.
 
         Never fails: audio analysis can always run on the CPU, so a failed
         offload downgrades speed rather than blocking the request.
@@ -611,8 +621,13 @@ class VRAMManager:
                     "success": True,
                     "offloaded": False,
                     "free_mb": free_mb,
+                    # Present on both exit paths: a caller reading
+                    # result["meets_budget"] must not KeyError just because the
+                    # budget happened to be met on the first check.
+                    "meets_budget": True,
                     "actions": actions,
                     "ollama_loaded": self._ollama_loaded,
+                    "comfyui_models_loaded": self._comfyui_models_loaded,
                 }
 
             # Offload Ollama as a courtesy. Failure is non-fatal: the caller
@@ -636,6 +651,28 @@ class VRAMManager:
                     vram = await self.get_vram_status()
                     free_mb = vram.get("free_mb", 0)
 
+            # Still short after Ollama. ComfyUI holds far more than Ollama does
+            # (~5.3 GB vs ~1.7 GB measured), so this is usually the tier that
+            # actually unblocks the GPU. Never touch it while it is running a
+            # prompt: unloading mid-render would fail the user's job.
+            if free_mb < budget and self._comfyui_models_loaded:
+                if self._comfyui_busy or not await _comfyui_is_idle():
+                    logger.warning(
+                        "VRAM Manager: %dMB free is below the %dMB audio budget "
+                        "and ComfyUI is busy; leaving its models loaded (the "
+                        "CUDA pass may fall back to CPU)",
+                        free_mb, budget,
+                    )
+                else:
+                    logger.info("VRAM Manager: Offloading ComfyUI models for audio analysis")
+                    comfy = await _unload_comfyui_models()
+                    self._comfyui_models_loaded = False
+                    actions.append({
+                        "action": "offload_comfyui", **comfy,
+                    })
+                    vram = await self.get_vram_status()
+                    free_mb = vram.get("free_mb", 0)
+
             return {
                 "success": True,
                 "offloaded": bool(actions),
@@ -643,6 +680,7 @@ class VRAMManager:
                 "meets_budget": free_mb >= budget,
                 "actions": actions,
                 "ollama_loaded": self._ollama_loaded,
+                "comfyui_models_loaded": self._comfyui_models_loaded,
             }
 
     async def end_audio_analysis(self) -> dict[str, Any]:
@@ -662,6 +700,11 @@ class VRAMManager:
             vram = await self.get_vram_status()
             free_mb = vram.get("free_mb", 0)
             actions: list[dict[str, Any]] = []
+
+            # ComfyUI reloads its models lazily on the next prompt, so there is
+            # nothing to call here - but flip the flag back so a later workload
+            # knows it is free to offload ComfyUI again.
+            self._comfyui_models_loaded = True
 
             if not self._ollama_loaded:
                 # Reload only when there is room. The audio pass is done by
@@ -822,6 +865,7 @@ class VRAMManager:
             "current_workload": self._current_workload.value,
             "ollama_loaded": self._ollama_loaded,
             "comfyui_busy": self._comfyui_busy,
+            "comfyui_models_loaded": self._comfyui_models_loaded,
             "music_gen_running": self._music_gen_running,
             "nvml_available": self._nvml_available,
             "gpustat_available": self._gpustat_available,
@@ -832,6 +876,84 @@ class VRAMManager:
                 "min_system_ram_for_offload_mb": self.MIN_SYSTEM_RAM_FOR_OFFLOAD,
             },
         }
+
+
+def _comfyui_queue_depth_sync() -> tuple[int, int]:
+    """Return (running, pending) prompt counts. Zeros if ComfyUI is unreachable.
+
+    Used as the safety gate before freeing its models: unloading mid-render
+    would strand the running prompt and lose the job, which is not a trade this
+    manager is allowed to make on the user's behalf.
+    """
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(comfyui_url("/queue"))
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        return (
+            len(data.get("queue_running") or []),
+            len(data.get("queue_pending") or []),
+        )
+    except Exception:
+        # Unreachable ComfyUI holds no models we can evict, and guessing "0"
+        # here would let us POST /free at an unknown server.
+        return (0, 0)
+
+
+def _unload_comfyui_models_sync() -> dict[str, Any]:
+    """Ask ComfyUI to drop its loaded models and free cached allocator memory.
+
+    Measured on this machine: 1796 MB free -> 7145 MB free, i.e. ~5.3 GB
+    reclaimed. That is roughly triple what offloading Ollama returns (~1.7 GB),
+    so ComfyUI is the dominant VRAM consumer by a wide margin and has to be part
+    of the audio-analysis budget, not just Ollama.
+
+    ComfyUI reloads models lazily on the next prompt, so there is no matching
+    "reload" call to make — unlike Ollama, which keeps a resident model.
+    """
+    import urllib.request
+
+    running, pending = _comfyui_queue_depth_sync()
+    if running or pending:
+        return {
+            "success": False,
+            "skipped": "busy",
+            "running": running,
+            "pending": pending,
+        }
+
+    try:
+        payload = json.dumps(
+            {"unload_models": True, "free_memory": True}
+        ).encode()
+        req = urllib.request.Request(
+            comfyui_url("/free"),
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+        logger.info("VRAM Manager: Unloaded ComfyUI models and freed VRAM")
+        return {"success": True, "skipped": None, "running": 0, "pending": 0}
+    except Exception as exc:
+        logger.warning("VRAM Manager: ComfyUI /free failed: %s", exc)
+        return {"success": False, "skipped": "error", "error": str(exc)}
+
+
+async def _unload_comfyui_models() -> dict[str, Any]:
+    return await asyncio.to_thread(_unload_comfyui_models_sync)
+
+
+def _comfyui_is_idle_sync() -> bool:
+    """True only when ComfyUI has nothing running or queued."""
+    running, pending = _comfyui_queue_depth_sync()
+    return running == 0 and pending == 0
+
+
+async def _comfyui_is_idle() -> bool:
+    return await asyncio.to_thread(_comfyui_is_idle_sync)
 
 
 def _unload_ollama_models_sync() -> list[str]:

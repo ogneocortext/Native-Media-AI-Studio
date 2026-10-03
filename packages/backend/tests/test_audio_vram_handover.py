@@ -28,6 +28,12 @@ def _manager(free_mb, ollama_loaded=True, can_offload=True):
     m._current_workload = None
     m.MIN_VRAM_FOR_AUDIO = 1200
     m.MIN_VRAM_FOR_MUSIC = 6144
+    # Audio analysis now escalates to ComfyUI when offloading Ollama was not
+    # enough. This file covers the Ollama tier; `test_vram_comfyui.py` covers
+    # the ComfyUI one. Set it False so these tests stop at the tier they name
+    # instead of reaching the ComfyUI branch with an undefined attribute.
+    m._comfyui_models_loaded = False
+    m._comfyui_busy = False
     m._can_safely_offload = lambda: can_offload
 
     free = {"value": free_mb}
