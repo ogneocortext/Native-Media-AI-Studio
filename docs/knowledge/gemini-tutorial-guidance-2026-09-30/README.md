@@ -25,9 +25,15 @@ Five YouTube tutorials run through Gemini 3.5 Flash Lite in Google AI Studio, pr
 
 - Each file preserves Gemini's full response verbatim (reconstructed from page extraction; code blocks kept content-identical).
 - Gemini chat links are in each file header (account: ogneocortext@gmail.com).
-- **Implementation status (updated 2026-10-01, v2.0.0):** all five guides are now
+- **Implementation status (updated 2026-10-02, v2.1.0):** all five guides are now
   implemented. Do not read the guidance below as a to-do list — it is the
   original brief, retained as the rationale for what the code does.
+  - **Caveat added 2026-10-02.** "Implemented" meant *written*, not *working*.
+    `suno_enhancer.py` had never produced a single output file: it aborted at
+    step 5 on every run, with five defects stacked behind that first one. See
+    `docs/knowledge-library/ai-music-mastering-stems-2026.md` §6 for what was
+    actually wrong and what it measured once fixed. Treat any guide in this
+    folder as "written, unverified" until it has been run end to end.
   - **01 — UVR5 hierarchical separation** → `source_separation.py`
     (`UVR-MDX-NET-Voc_FT` / `Kim_Vocal_2` in `SUPPORTED_MODELS`, plus
     `segment_size` / `overlap` / `denoise` on `SeparationOptions`, exposed

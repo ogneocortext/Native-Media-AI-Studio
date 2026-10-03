@@ -7,7 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed - stem separation was broken on every run (P0, Phase 0.1)
+### Fixed - the Suno mastering chain had never produced a file (P0)
+
+`suno_enhancer.py` (14 steps, `/api/audio/enhance-stems`) aborted at step 5 on
+every run. Five defects were stacked behind the first, each hiding the next:
+
+- `_db_to_linear` called `math.pow` on an ndarray
+  (`_band_rms_deesser` passes one gain per STFT frame).
+- `_reverb_and_delay` called `np.convolve`, which is 1-D only, on a
+  `(channels, samples)` array.
+- `_compress_audio` and `_simple_limiter` looped `range(len(y))`, which on a
+  `(2, N)` array walks the **channel** axis — the right channel was never
+  compressed, and the limiter never engaged on the audio at all.
+- Step 2a called `_high_pass(y[0], …)` and re-wrapped the result as `(1, N)`, so
+  every stem became mono at the first processing step and the export was written
+  `channels=1`.
+
+Two further defects made the output measurably *worse* than its input:
+
+- **The reverb drowned the track.** Peak-normalising a white-noise IR makes
+  convolution ~6x louder than dry before `mix` is applied. Measured: 87.8% of
+  output energy was reverb tail; the noise floor in a quiet passage rose from
+  -32.2 to -22.4 dBFS — a 9.8 dB hiss over the whole track, which is the
+  "sounds unpolished / synthetic" symptom. L2-normalising the IR makes `mix`
+  mean what it says: contribution 87.8% -> 4.8%, noise floor -22.4 -> -32.0 dBFS.
+- **The high-pass deleted the bass.** `pre_highpass_hz` was 120.0 against the
+  module's own stated intent (~30 Hz). 62% of all energy in the source sits below
+  120 Hz, so 89% of the bass band was removed. Now 30.0.
+
+`_mix_stems` was also reworked: it divided the bus by the stem count (-12 dB, so
+the ceiling never engaged) and folded stereo to mono. Both attempts to "fix" its
+weighting — 1/RMS per channel, then peak-normalise per stem — made the tonal
+balance worse in opposite directions; it now sums the stems as separated and
+applies a single gain to the sum.
+
+Measured on `SunoV6Mini-Ad-Nauseam` (209 s): correlation with the summed stems
+**0.19 -> 0.86**, crest factor 18.16 dB against 16.02 dB in the source (slightly
+more dynamic range than the input, rather than less), `channels=2`, limiter
+engaging at -1.00 dBFS. Chain runs all 14 steps in ~175 s.
+
+Still open: bass reads 10-15% low in the two bass-heaviest passages, not yet
+localised. See `docs/knowledge-library/ai-music-mastering-stems-2026.md` §6.
+
+### Added - naming and grouping for preset variants
+
+A preset variant is one preset's rendering of a track, written as its own file so
+two presets can be compared by measurement and auditioned side by side.
+Convention: `<source stem> [<preset>].<ext>`, e.g. `Still I Rise [warm].wav`. The
+original is never renamed, provenance reads off a folder listing, and `[` sorts
+after alphanumerics so variants group beside their source.
+
+`state/audioNaming.ts` gains `variantFileName`, `parseVariantName`,
+`isVariantFile`, `variantLabel`, `variantOptionLabel` and `groupAudioEntries`,
+with 18 tests. Grouping is derived rather than stored, so the six pages that read
+`useAudioLibrary()` (D16) are unaffected until a selector opts in;
+`KineticTypographyPage`'s library `<select>` is the first, using `<optgroup>`.
+
+Variants belong under `output/audio-variants/`, deliberately outside
+`output/audio/` — `/api/audio/files` walks that tree with `rglob`, so anything
+written inside it would appear in every selector in the app.
 
 `_separate_demucs` read `opts.source_path`, which `SeparationOptions` never
 defines, so **every** Demucs run raised `AttributeError` — swallowed by a broad

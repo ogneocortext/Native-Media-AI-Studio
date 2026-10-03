@@ -159,6 +159,81 @@ research-backed path is: **fix separation → add a measure/normalize/limit
 pass → add the AI-defect chain (de-mud, dynamic de-harsh, M/S side, mono bass)
 → QC report.**
 
+## 6. The chain was written, not working (2026-10-02)
+
+`suno_enhancer.py` — the 14-step chain this document's §2 describes — had never
+produced a single output file. It aborted at step 5 on every run, and five
+defects were stacked behind that first one, each hiding the next. Every number
+below is measured on `output/stems/htdemucs/SunoV6Mini-Ad-Nauseam` (209 s, four
+stems), comparing the rendered file against the summed stems in matched 20 s
+windows.
+
+| # | Defect | Symptom |
+|---|---|---|
+| 1 | `_db_to_linear` used `math.pow` on an ndarray | aborts: `only 0-dimensional arrays can be converted to Python scalars` |
+| 2 | `np.convolve` on a (channels, samples) array | `ValueError: object too deep for desired array` |
+| 3 | compressor looped the channel axis | right channel never compressed |
+| 4 | limiter looped the channel axis | ceiling never engaged; peak −14.4 dBFS |
+| 5 | step 2a called `_high_pass(y[0], …)` | every stem became mono; exported `channels=1` |
+
+Defects 3 and 4 are the same mistake in two places: `for i in range(len(y))` on
+a `(2, N)` array iterates *channels*, not samples. Any DSP helper that loops over
+its input needs the channel axis handled explicitly.
+
+### The two that made the output actively worse than its input
+
+Both were found by measuring the render, not by reading the code, and both are
+worth carrying to any future chain:
+
+**The reverb was drowning the track.** `_reverb_and_delay` peak-normalised its
+white-noise impulse response. Peak is the wrong normaliser for convolution:
+noise of length N scales RMS by `ir_rms · √N`, which for a 1.8 s IR is ≈6× *before*
+`mix` is applied. Measured: **87.8% of output energy was the reverb tail**, and the
+noise floor in a quiet passage sat at −22.4 dBFS against −32.2 dry — a 9.8 dB hiss
+across the whole track. L2-normalising the IR makes `mix` mean what it says:
+reverb contribution **87.8% → 4.8%**, noise floor **−22.4 → −32.0 dBFS**.
+
+**The high-pass was deleting the bass.** `pre_highpass_hz` was `120.0`, against
+this module's own stated intent (strip rumble, ~30 Hz) and its `_high_pass`
+default of `30.0`. On the 48 kHz source, **62.0% of all energy is below 120 Hz**,
+so 89% of the 10–250 Hz bass band was being removed. That is not a rumble
+filter; it is the opposite of one.
+
+Combined, measured the same way at each step:
+
+| | correlation with stems | bass delta (t=20/60/120/180 s) |
+|---|---|---|
+| peak-normalised IR | 0.19 | −6.7 −11.4 −37.0 −41.8 |
+| + L2-normalised IR | 0.53 | −10.4 −8.7 −31.4 −32.9 |
+| + 30 Hz high-pass | **0.86** | +5.6 +10.3 −9.8 −15.5 |
+
+Crest factor ended at 18.16 dB against 16.02 dB in the stems — slightly *more*
+dynamic range than the source, which is the opposite of the flat, lifeless
+character these renders exist to correct.
+
+### Two mixer designs that were both wrong
+
+Worth recording because they look equally reasonable and each made the result
+worse in a different direction:
+
+- **Normalising weights to sum to 1.0 across four stems** divided the bus by
+  ~4 (−12 dB) before the limiter, so the ceiling never engaged.
+- **1/RMS per channel** rebalanced stems against each other: stem RMS spans
+  −21.1 (bass) to −27.1 dBFS (other). Crest fell 16.0 → 5.7 dB.
+- **Peak-normalising each stem** was also wrong, because crest factor differs
+  by stem type — vocals peaked at −12.5 dBFS and bass at −3.1 dBFS, so it pushed
+  vocals up 6.5 dB relative to drums.
+
+The fix is the boring one: **sum the stems as separated and apply a single gain
+to the sum.** Any per-stem normalisation discards balance the separator already
+got right.
+
+### Still open
+
+Bass reads 10–15% low in the two bass-heaviest passages. Not localised; the vocal
+spectral gate (measured −8.6 dB on the vocal stem) is the next suspect. The chain
+is not finished, and no net quality claim is made yet.
+
 ## Sources (accessed 2026-10-02)
 
 - Erasy — *How to Master AI Music (2026)* (2026-07)
