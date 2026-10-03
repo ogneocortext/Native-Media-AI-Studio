@@ -267,6 +267,104 @@ export function variantOptionLabel(file: NameableAudioFile): string {
   return variant ? variantLabel(variant) : audioEntryLabel(file);
 }
 
+// ─── Grouping ────────────────────────────────────────────────────────────────
+
+/**
+ * One source track and the variants rendered from it.
+ *
+ * `source` is null when the library holds variants of a track whose original is
+ * absent — deleted, or filtered out by the search box. The group is still shown,
+ * because hiding it would silently make those variants unselectable.
+ */
+export interface AudioVariantGroup<T> {
+  /** Display name of the source track. */
+  name: string;
+  /** The original entry, when the library contains one. */
+  source: T | null;
+  /** Variants belonging to this source, in library order. */
+  variants: T[];
+  /** Best label for the group heading: the source's own label if present. */
+  label: string;
+}
+
+/** Anything with a filename can be grouped; the store's entry type satisfies it. */
+export interface GroupableAudioFile {
+  filename: string;
+  optionLabel?: string;
+}
+
+/**
+ * Group entries so a track and its preset variants render as one block.
+ *
+ * Without this, a library with variants becomes an undifferentiated list where
+ * `Still I Rise`, `Still I Rise [warm]` and `Still I Rise [bright]` are three
+ * unrelated rows, and the reader has to diff the suffixes to see that two of
+ * them are renderings of the third.
+ *
+ * Grouping is derived, not stored: the backend and the store keep one flat,
+ * deduplicated list, and every selector opts in by rendering groups. That keeps
+ * existing consumers working untouched — this function has no effect until a
+ * selector chooses to use it.
+ *
+ * Ordering: groups keep the order of their first appearance, so the library's
+ * "most recently modified first" ordering is preserved. Within a group the
+ * original comes first and variants follow in library order.
+ */
+export function groupAudioEntries<T extends GroupableAudioFile>(
+  entries: readonly T[],
+): AudioVariantGroup<T>[] {
+  const groups = new Map<string, AudioVariantGroup<T>>();
+  // Display name -> group, used to attach variants to their source.
+  const byName = new Map<string, AudioVariantGroup<T>>();
+  // First pass: sources, so a variant never creates a group that then has to be
+  // merged with an earlier one and lose its position.
+  for (const entry of entries) {
+    if (parseVariantName(entry.filename)) continue;
+    const name = audioEntryLabel(entry);
+    // The store dedupes by display name, so in practice this runs once per name.
+    // Keying the group on the *filename* rather than the name keeps two
+    // same-named sources from silently merging, which would hide one of them
+    // from the picker entirely.
+    const key = `src:${entry.filename}`;
+    if (groups.has(key)) continue;
+    const group: AudioVariantGroup<T> = {
+      name,
+      source: entry,
+      variants: [],
+      label: entry.optionLabel || name,
+    };
+    groups.set(key, group);
+    if (!byName.has(name)) byName.set(name, group);
+  }
+  // Second pass: variants, attaching to their source's group when it exists.
+  for (const entry of entries) {
+    const variant = parseVariantName(entry.filename);
+    if (!variant) continue;
+    let group = byName.get(variant.source);
+    if (!group) {
+      // The original is missing from the library; still surface its variants.
+      group = {
+        name: variant.source,
+        source: null,
+        variants: [],
+        label: variant.source,
+      };
+      const key = `orphan:${variant.source}:${entry.filename}`;
+      groups.set(key, group);
+      byName.set(variant.source, group);
+    }
+    group.variants.push(entry);
+  }
+  return [...groups.values()];
+}
+
+/** Total number of entries across groups — for "N tracks" style summaries. */
+export function countGroupedEntries<T extends GroupableAudioFile>(
+  groups: readonly AudioVariantGroup<T>[],
+): number {
+  return groups.reduce((n, g) => n + (g.source ? 1 : 0) + g.variants.length, 0);
+}
+
 /**
  * The label a selector should render, covering the unnamed-file case.
  *

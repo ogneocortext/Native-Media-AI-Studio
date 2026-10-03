@@ -26,6 +26,11 @@ import {
   getLyricsByFilename,
 } from "../../services/api";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
+import {
+  groupAudioEntries,
+  parseVariantName,
+  variantLabel,
+} from "../../state/audioNaming";
 import { parseLyricsFromCsv, parseLrc } from "../visualizer/lyricsParser";
 import {
   createDefaultLyricsData,
@@ -187,6 +192,15 @@ export function KineticTypographyPage() {
   const { entries: audioLibrary, isLoading: audioLibraryLoading } = useAudioLibrary();
   const libraryFiles = useMemo<TrackInfo[]>(
     () => audioLibrary.map((f) => ({ filename: f.filename, name: f.optionLabel })),
+    [audioLibrary],
+  );
+  // Grouped for rendering: a track and its preset variants become one
+  // <optgroup> instead of interleaved rows. Built from `audioLibrary` rather than
+  // `libraryFiles` because the grouping needs the filename plus the computed
+  // label, and deriving it here keeps the flat `libraryFiles` list intact for
+  // every other consumer on this page.
+  const libraryGroups = useMemo(
+    () => groupAudioEntries(audioLibrary),
     [audioLibrary],
   );
   // Track-lyrics library: the user's own tracks with lyrics but no LRC.
@@ -980,10 +994,23 @@ export function KineticTypographyPage() {
                   }
                 >
                   <option value="">Demo Mode (Sample Lyrics)</option>
-                  {libraryFiles.map((f) => (
-                    <option key={f.filename} value={f.filename}>
-                      {f.name}
-                    </option>
+                  {/* Grouped: a track heads its own block and its preset
+                      variants nest under it, so the list stays navigable once
+                      variants exist. A group with no original (the source was
+                      deleted) still renders its variants. */}
+                  {libraryGroups.map((g) => (
+                    <optgroup key={g.name} label={g.label}>
+                      {g.source && (
+                        <option key={g.source.filename} value={g.source.filename}>
+                          {g.source.optionLabel}
+                        </option>
+                      )}
+                      {g.variants.map((v) => (
+                        <option key={v.filename} value={v.filename}>
+                          {variantLabel(parseVariantName(v.filename) ?? { source: g.name, preset: v.filename })}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
                 {!audioLibraryLoading && libraryFiles.length === 0 && (

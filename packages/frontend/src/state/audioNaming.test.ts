@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  countGroupedEntries,
+  groupAudioEntries,
   audioDisplayName,
   audioEntryLabel,
   audioOptionLabel,
@@ -332,4 +334,71 @@ describe("preset variants", () => {
     expect(audioOptionLabel(f, [f])).toBe("Still I Rise");
   });
 });
+});
+
+describe("grouping", () => {
+  const e = (filename: string) => ({ filename });
+
+  it("puts a track and its variants in one group", () => {
+    const groups = groupAudioEntries([
+      e("Still I Rise.wav"),
+      e("Still I Rise [warm].wav"),
+      e("Still I Rise [bright].wav"),
+      e("Take the Crown.wav"),
+    ]);
+    expect(groups.map((g) => g.name)).toEqual(["Still I Rise", "Take the Crown"]);
+    expect(groups[0].source?.filename).toBe("Still I Rise.wav");
+    expect(groups[0].variants.map((v) => v.filename)).toEqual([
+      "Still I Rise [warm].wav",
+      "Still I Rise [bright].wav",
+    ]);
+    expect(groups[1].variants).toHaveLength(0);
+  });
+
+  it("keeps groups in first-appearance order even when a variant sorts first", () => {
+    // A variant appearing before its source must not hoist the group to the top.
+    const groups = groupAudioEntries([
+      e("Zebra Track [warm].wav"),
+      e("Zebra Track.wav"),
+      e("Alpha Track.wav"),
+    ]);
+    expect(groups.map((g) => g.name)).toEqual(["Zebra Track", "Alpha Track"]);
+    expect(groups[0].source?.filename).toBe("Zebra Track.wav");
+  });
+
+  it("still surfaces a variant whose source is not in the library", () => {
+    // Hiding the group would make the variant unselectable.
+    const groups = groupAudioEntries([e("Ghost Track [warm].wav")]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].source).toBeNull();
+    expect(groups[0].name).toBe("Ghost Track");
+    expect(groups[0].variants).toHaveLength(1);
+  });
+
+  it("does not regroup a plain library at all", () => {
+    const entries = [e("a.wav"), e("b.mp3"), e("folder/c.m4a")];
+    const groups = groupAudioEntries(entries);
+    expect(groups).toHaveLength(3);
+    expect(groups.every((g) => g.variants.length === 0)).toBe(true);
+  });
+
+  it("counts every entry exactly once", () => {
+    const entries = [
+      e("a.wav"),
+      e("a [warm].wav"),
+      e("b.wav"),
+      e("orphan [x].wav"),
+    ];
+    expect(countGroupedEntries(groupAudioEntries(entries))).toBe(entries.length);
+  });
+
+  it("prefers the source's optionLabel for the heading when one was computed", () => {
+    // Two tracks share a display name, so the store appends a [hash] suffix.
+    // The group heading must carry it or the two groups become indistinguishable.
+    const groups = groupAudioEntries([
+      { filename: "Track.wav", optionLabel: "Track [1a2b3c4d]" },
+      { filename: "other/Track.wav", optionLabel: "Track [9f8e7d6c]" },
+    ]);
+    expect(groups.map((g) => g.label)).toEqual(["Track [1a2b3c4d]", "Track [9f8e7d6c]"]);
+  });
 });
