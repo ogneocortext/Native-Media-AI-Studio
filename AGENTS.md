@@ -73,7 +73,25 @@ Native-Media-AI-Studio/
   vanish silently. `tools/snapshot-audio-routes.py --check` guards the surface —
   but it **cannot** catch a missing import, because OpenAPI is generated from
   decorators and never runs a handler body. After moving code under `app/api/`,
-  call the endpoints.
+  call the endpoints. There is now a fifth: `audio_remix.py`
+  (`/api/audio/remix/*`).
+  - To check whether a route is registered, read `app.openapi()["paths"]`.
+    `app.routes` holds *router groupings*, so it reports 37 entries with zero
+    `/api/audio` paths while all 249 operations are live.
+- **Remixes are ordinary stem sets.** `services/stem_remixer.py` builds mashups
+  from stems of *different* songs and writes a plain
+  `output/remixes/<name>/{vocals,drums,bass,other}.wav` + `remix.json`. That is
+  the point: the enhancer chain, `/api/audio/stem-file` and the visualizer then
+  work on a remix with no special-casing, so don't add a remix-only path
+  downstream.
+  - Source **tempo** is detected and time-stretched automatically (measured
+    143.555 / 135.999 / 151.999 BPM, stable). Source **key** is not, and must not
+    be: chroma flatness on these stems is 0.978-0.998 (1.0 = pure noise) and
+    Ad-Nauseam's argmax changed between runs (A# → F). `key_shift_semitones` is
+    explicit per layer. Don't "improve" this by trusting the detected key.
+  - Tracks here open instrumentally — Ad-Nauseam's vocals are silent for the
+    first 7.06 s, so a layer at `source_start_bar=0` renders digital silence
+    that looks like a broken mixer. `preview_recipe` warns below −50 dBFS.
 
 ## MCP Servers
 

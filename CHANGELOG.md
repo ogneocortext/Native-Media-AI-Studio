@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - stem remixing and mashups across different songs
+
+`packages/backend/app/services/stem_remixer.py` + `/api/audio/remix/*`
+(`sources`, `probe/{track}`, `preview`, `build`). Builds a new composition from
+stems belonging to *different* tracks.
+
+The organising decision: a remix renders as a **plain four-stem directory**
+(`vocals/drums/bass/other.wav` + `remix.json`), so the Suno enhancer chain,
+`/api/audio/stem-file` playback and the visualizer's per-stem mapping all work
+on a remix unchanged. Only the arrangement logic is new.
+
+An arrangement is a list of slots over a bar grid; each slot names the stems
+playing during its span. Source tempo is detected and time-stretched onto a
+common grid automatically (measured 143.555 / 135.999 / 151.999 BPM, stable),
+with equal-power crossfades between slots and bar-aligned looping when an
+arrangement outlasts its source.
+
+**Key matching is deliberately not automatic.** Chroma flatness on these stems
+measures 0.978-0.998 (1.0 = pure noise, ~0.1 = a single pitch), and Ad-Nauseam
+returned a *different* argmax between two runs (A# → F). Auto-applying that
+would pitch-shift by an arbitrary amount, so `key_shift_semitones` is an
+explicit per-layer parameter and `probe_track` reports `key_confident: false`
+rather than pretending.
+
+`preview_recipe` resolves a recipe without writing: exact timeline, each
+source's stretch ratio and measured level, plus a warning for near-silent
+layers. That warning exists because tracks here open instrumentally — Ad-Nauseam
+vocals are silent for the first 7.06 s, and a layer at `source_start_bar=0`
+renders digital silence that reads as a broken mixer.
+
+Routes registered in `main.py` (an unregistered router loses every route
+silently, since OpenAPI is built from decorators and never runs a handler body);
+`audio_routes_baseline.json` refreshed to 36 routes. 24 new tests, including a
+synthetic equal-power crossfade check — asserting the fade against real material
+would encode the arrangement (the drums stem fades −18.9 → −26.8 dBFS over its
+own first 6.3 s) rather than the algorithm.
+
+Measured: two-slot four-stem render in 6.9-22.7 s; crossfade overlap engaged at
+`xf_ns=[0, 69632]`; rendered peaks match their sources (drums 0.622 vs 0.6221,
+bass 0.055 vs 0.0535).
+
 ### Fixed - the Suno mastering chain had never produced a file (P0)
 
 `suno_enhancer.py` (14 steps, `/api/audio/enhance-stems`) aborted at step 5 on

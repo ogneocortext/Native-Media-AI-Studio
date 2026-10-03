@@ -358,6 +358,78 @@ disagree about it.
 Still not established: that any of this *sounds* better. Every number here is a
 fidelity measurement, not a listening test.
 
+## 8. Remixing across stems — what is automatable, and what is not (2026-10-02)
+
+Added `services/stem_remixer.py` + `/api/audio/remix/*`. The design constraint
+that shaped everything: a remix is rendered as a **plain four-stem directory**
+(`vocals/drums/bass/other.wav` + `remix.json`), so the enhancer chain,
+`/api/audio/stem-file` and the visualizer consume it with no special-casing.
+Only the arrangement is new.
+
+An arrangement is a list of **slots over a bar grid**; each slot names the stems
+playing in its span. "A's drums under B's vocals, then swap" and "everything at
+once" are the same mechanism with different slot contents.
+
+### Tempo matching works automatically
+
+Measured on this library, stable across runs:
+
+| Track | BPM |
+|---|---|
+| take-the-crown | 151.999 |
+| SunoV6Mini-Ad-Nauseam | 143.555 |
+| SunoV6Mini-Human-in-the-Loop-V2 | 135.999 |
+
+Sources are time-stretched by `target_bpm / source_bpm` with
+`librosa.effects.time_stretch`, which changes duration without moving pitch.
+
+### Key matching does not, and the service refuses to fake it
+
+Chroma flatness (geometric/arithmetic mean) measured on the separated stems:
+
+| Track | Flatness | Krumhansl r | argmax run 1 → run 2 |
+|---|---|---|---|
+| ec2c1675… | 0.9803 | 0.16 | E → E |
+| fc37eecb… | 0.9784 | 0.15 | E → E |
+| SunoV6Mini-Ad-Nauseam | 0.9841 | 0.10 | A# → F |
+| SunoV6Mini-Human-in-the-Loop-V2 | 0.9800 | 0.48 | C → C |
+| take-the-crown | 0.9936 | 0.21 | E → E |
+| f259df2d… | 0.9975 | 0.03 | C# → C# |
+
+1.0 is pure noise, ~0.1 is a single pitch. These profiles are flat, so the
+profiles carry essentially no pitch information. Ad-Nauseam even changed its
+argmax between two runs (A# → F). **Auto-applying that would pitch-shift a stem
+by an arbitrary amount** — worse than leaving keys unmatched. So
+`key_shift_semitones` is an explicit per-layer parameter, `probe_track` reports
+`key_confident: false` on this material, and `KEY_CONFIDENCE_FLOOR = 0.60` is
+never crossed.
+
+### The trap that is not obvious
+
+Several tracks open instrumentally. Ad-Nauseam's vocals are silent for the
+first **7.06 s** (peak −57 dBFS). A layer placed at `source_start_bar=0` renders
+a digitally silent stem that looks like a broken mixer, not like an intro.
+`probe_track` therefore reports `first_audible_sec`, and `preview_recipe`
+warns when a layer measures below −50 dBFS.
+
+Confirming this was worth the detour: the first render showed vocals at
+−83.8 dBFS, which looked like a renderer bug. Measuring the *source* showed
+peak 0.7608 — the renderer was fine and the material was quiet. Chasing the
+number also exposed that `bass` rendering at −25 dBFS was likewise the song's
+own intro, not attenuation (source peak 0.0535 vs rendered 0.055).
+
+### Crossfade: equal-power, and tested synthetically
+
+`cos`/`sin` ramps, so summed power stays flat; a linear fade dips to ~0.5 of
+unity at the midpoint. The test is deliberately synthetic: measured against
+real material the overlap read ~3 dB low, but that is the song getting quieter
+(drums drop from −18.9 dBFS overall to −26.8 dBFS over their first 6.3 s), not
+a fade error. Two full-scale sines with known correlation answer the question
+the fade actually poses.
+
+### Sources (accessed 2026-10-02)
+- librosa 0.11.0 docs — `beat.beat_track`, `effects.time_stretch`, `effects.pitch_shift`, `feature.chroma_cqt`
+
 ## Sources (accessed 2026-10-02)
 
 - Erasy — *How to Master AI Music (2026)* (2026-07)

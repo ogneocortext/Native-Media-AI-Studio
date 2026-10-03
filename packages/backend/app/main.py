@@ -505,6 +505,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 from .api import (  # noqa: E402
     audio,
     audio_edit,
+    audio_remix,
     audio_stems,
     comfyui,
     data,
@@ -545,6 +546,11 @@ app.include_router(audio_stems.router)
 # shares the /api/audio prefix, so the public paths are unchanged. All three
 # audio routers must stay registered here or the split silently drops routes.
 app.include_router(audio_edit.router)
+# Remixing (/api/audio/remix/*) is its own module for the same reason: a new
+# audio responsibility goes in the module that matches it, not in audio.py.
+# Same trap - an unregistered router loses every route silently, because
+# OpenAPI is built from decorators and never runs a handler body.
+app.include_router(audio_remix.router)
 app.include_router(transcription.router)
 app.include_router(lyrics.router)
 app.include_router(comfyui.router)
