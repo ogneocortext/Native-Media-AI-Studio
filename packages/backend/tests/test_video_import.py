@@ -72,7 +72,7 @@ class TestExtractAudio:
         probe = subprocess.run(
             ["ffprobe", "-v", "error", "-select_streams", "v", "-show_entries",
              "stream=codec_type", "-of", "csv=p=0", str(dest)],
-            capture_output=True, text=True,
+            capture_output=True, encoding="utf-8", errors="replace",
         )
         assert probe.stdout.strip() == "", "video stream leaked into the m4a"
 

@@ -554,7 +554,11 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
     unique_id = hash_prefix(safe_name) or str(uuid.uuid4())[:8]
 
     try:
-        from ..services.audio_analyzer import LIBROSA_AVAILABLE, AudioAnalyzer
+        from ..services.audio_analyzer import (
+            LIBROSA_AVAILABLE,
+            SONARA_AVAILABLE,
+            AudioAnalyzer,
+        )
         if not LIBROSA_AVAILABLE:
             raise HTTPException(status_code=503, detail="librosa not installed")
 
@@ -614,12 +618,20 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
             )
 
         if y is not None:
+            # Beat tracking is the dominant cost, not the spectral pass: on a
+            # 157 s track the CUDA spectral pass costs ~2.6 s but librosa's beat
+            # tracker costs ~80 s. `analyze_from_audio` ignored the backend
+            # argument entirely (it only recorded it as metadata), so this route
+            # silently ran the slow tracker while reporting a GPU analysis.
+            # sonara is a Rust extension and does the same job in well under a
+            # second on the buffer already decoded here.
             result = analyzer.analyze_from_audio(
                 y, sr, job_id=unique_id, audio_file=str(file_path),
                 backend="cuda" if cuda_result and cuda_result.get("computed_on") == "GPU" else "librosa",
+                beat_backend="sonara" if SONARA_AVAILABLE else None,
             )
         else:
-            result = analyzer.analyze_file(str(file_path), job_id=unique_id)
+            result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend="sonara")
 
         analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
 

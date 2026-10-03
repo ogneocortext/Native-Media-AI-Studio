@@ -9,6 +9,9 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+#: sonara's analysis pipeline is fixed at 22050 Hz mono.
+_SONARA_SR = 22050
+
 try:
     import librosa
     import numpy as np
@@ -379,6 +382,91 @@ class AudioAnalyzer:
             downbeat_times=downbeat_times,
         )
 
+    def _beat_features_from_sonara(self, result: dict, sr: int) -> BeatFeatures:
+        """Build BeatFeatures from a sonara `compact` result.
+
+        Shared by `_analyze_sonara` (which decodes then calls sonara) and
+        `analyze_from_audio(beat_backend="sonara")`, so both produce the same
+        beat grid from the same conversion rules.
+        """
+        beat_frames = list(result.get("beats", []))
+        onset_frames = list(result.get("onset_frames", []))
+
+        # sonara pins its own pipeline to sr=22050 / hop=512 regardless of
+        # how we decoded the file — it reports them in `provenance`, so
+        # convert frame indices with sonara's grid, not ours.
+        provenance = result.get("provenance") or {}
+        prov_sr = float(provenance.get("sample_rate") or 22050)
+        prov_hop = int(provenance.get("hop_length") or 512)
+        on_sonara_grid = prov_sr == 22050 and prov_hop == 512
+
+        # Prefer explicitly-provided times; otherwise convert indices with
+        # sonara's grid (falling back to ours for older sonara versions).
+        if result.get("beat_times"):
+            beat_times = [round(float(t), 3) for t in result["beat_times"]]
+            beat_frames = (
+                librosa.time_to_frames(beat_times, sr=sr, hop_length=self.hop_length).tolist()
+                if beat_times
+                else []
+            )
+        elif on_sonara_grid:
+            beat_times = _sonara_frames_to_time(beat_frames) if beat_frames else []
+        else:
+            beat_times = (
+                librosa.frames_to_time(beat_frames, sr=sr, hop_length=self.hop_length).tolist()
+                if beat_frames
+                else []
+            )
+
+        if on_sonara_grid:
+            onset_times = _sonara_frames_to_time(onset_frames) if onset_frames else []
+        else:
+            onset_times = (
+                librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length).tolist()
+                if onset_frames
+                else []
+            )
+
+        tempo_val = float(result.get("bpm") or 0.0)
+        # Meter-agnostic downbeat detection (replaces hardcoded 4/4).
+        downbeats = downbeat_times_from_beats(beat_times)
+        return BeatFeatures(
+            tempo_bpm=tempo_val,
+            beat_frames=beat_frames,
+            beat_times=beat_times,
+            onset_frames=onset_frames,
+            onset_times=onset_times,
+            downbeat_frames=[
+                int(f)
+                for f in librosa.time_to_frames(
+                    downbeats, sr=sr, hop_length=self.hop_length
+                )
+                if f < len(beat_frames)
+            ],
+            downbeat_times=downbeats,
+            # sonara's own confidence when reported, else measured stability
+            confidence=float(result.get("bpm_confidence") or beat_confidence(beat_times, tempo_val)),
+        )
+
+    def _sonara_beats_from_signal(self, y, sr: int) -> BeatFeatures:
+        """Beat/tempo via sonara on an already-decoded buffer.
+
+        This is the fast path for callers that hold the audio (the CUDA route).
+        librosa's `_extract_beat_features` costs ~80 s on a 157 s track on this
+        machine; sonara is a Rust extension and does it in well under a second.
+        sonara pins its analysis pipeline to 22050 Hz mono. Every other caller
+        here loads at sr=22050 for that reason; feeding it a native-rate
+        stereo buffer silently returns a wrong tempo and an over-counted beat
+        grid, so the resample is part of the contract, not an optimisation.
+        """
+        if sr != _SONARA_SR:
+            y = librosa.resample(y, orig_sr=sr, target_sr=_SONARA_SR)
+        if getattr(y, "ndim", 1) > 1:
+            y = y.mean(axis=0)
+        y32 = np.ascontiguousarray(y, dtype=np.float32)
+        result = dict(_sonara.analyze_signal(y32, mode="compact"))
+        return self._beat_features_from_sonara(result, _SONARA_SR)
+
     def analyze_from_audio(
         self,
         y,
@@ -386,23 +474,45 @@ class AudioAnalyzer:
         job_id: str | None = None,
         audio_file: str = "",
         backend: str = "librosa",
+        beat_backend: str | None = None,
     ) -> AudioAnalysisResult:
         """Run full feature extraction on already-loaded audio.
 
         Lets callers (e.g. ``/api/audio/analyze-cuda``) decode/beat-track once
         instead of re-loading the file for every backend pass.
+
+        ``backend`` is descriptive metadata. ``beat_backend`` is the one that
+        changes behaviour: ``"sonara"`` swaps the slow librosa beat tracker for
+        the Rust one on the buffer already in hand.
         """
         if y is None or len(y) == 0:
             raise ValueError("Audio file is empty or could not be loaded")
+
+        beats = None
+        if beat_backend and beat_backend.lower() == "sonara" and SONARA_AVAILABLE:
+            try:
+                beats = self._sonara_beats_from_signal(y, sr)
+            except Exception as exc:
+                # A correct-but-slow beat grid beats a failed request.
+                logger.warning(
+                    "sonara beat tracking failed on the decoded buffer, falling "
+                    "back to librosa: %s: %s",
+                    type(exc).__name__,
+                    exc,
+                )
+                beats = None
+        if beats is None:
+            beats = self._extract_beat_features(y, sr)
 
         return AudioAnalysisResult(
             job_id=job_id or str(uuid.uuid4()),
             audio_file=audio_file,
             analysis_timestamp=datetime.now().isoformat(),
             waveform=self._extract_waveform_features(y, sr),
-            beats=self._extract_beat_features(y, sr),
+            beats=beats,
             metadata={
                 "backend": backend,
+                "beat_backend": "sonara" if beat_backend else "librosa",
                 "duration_samples": len(y),
                 "hop_length": self.hop_length,
                 "frame_length": self.frame_length,
@@ -534,65 +644,14 @@ class AudioAnalyzer:
             y, sr = load_audio(audio_path, sr=None)
             waveform = self._extract_waveform_features(y, sr)
 
-            beat_frames = list(result.get("beats", []))
-            onset_frames = list(result.get("onset_frames", []))
-
-            # sonara pins its own pipeline to sr=22050 / hop=512 regardless of
-            # how we decoded the file — it reports them in `provenance`, so
-            # convert frame indices with sonara's grid, not ours.
-            provenance = result.get("provenance") or {}
-            prov_sr = float(provenance.get("sample_rate") or 22050)
-            prov_hop = int(provenance.get("hop_length") or 512)
-
-            # Prefer explicitly-provided times; otherwise convert indices with
-            # sonara's grid (falling back to ours for older sonara versions).
-            if result.get("beat_times"):
-                beat_times = [round(float(t), 3) for t in result["beat_times"]]
-                beat_frames = (
-                    librosa.time_to_frames(beat_times, sr=sr, hop_length=self.hop_length).tolist()
-                    if beat_times
-                    else []
-                )
-            else:
-                converter = _sonara_frames_to_time if prov_sr == 22050 and prov_hop == 512 else None
-                beat_times = (
-                    converter(beat_frames)
-                    if converter
-                    else librosa.frames_to_time(beat_frames, sr=sr, hop_length=self.hop_length).tolist()
-                    if beat_frames
-                    else []
-                )
-            onset_times = (
-                _sonara_frames_to_time(onset_frames)
-                if (prov_sr == 22050 and prov_hop == 512)
-                else librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length).tolist()
-                if onset_frames
-                else []
-            )
-            tempo_val = float(result.get("bpm") or 0.0)
+            beat_features = self._beat_features_from_sonara(result, sr)
 
             return AudioAnalysisResult(
                 job_id=job_id,
                 audio_file=str(audio_path),
                 analysis_timestamp=datetime.now().isoformat(),
                 waveform=waveform,
-                beats=BeatFeatures(
-                    tempo_bpm=tempo_val,
-                    beat_frames=beat_frames,
-                    beat_times=beat_times,
-                    onset_frames=onset_frames,
-                    onset_times=onset_times,
-                    # Meter-agnostic downbeat detection (replaces hardcoded 4/4).
-                    downbeat_frames=[
-                        int(f) for f in librosa.time_to_frames(
-                            downbeat_times_from_beats(beat_times), sr=sr, hop_length=self.hop_length
-                        )
-                        if f < len(beat_frames)
-                    ],
-                    downbeat_times=downbeat_times_from_beats(beat_times),
-                    # sonara's own confidence when reported, else measured stability
-                    confidence=float(result.get("bpm_confidence") or beat_confidence(beat_times, tempo_val)),
-                ),
+                beats=beat_features,
                 metadata={
                     "backend": "sonara",
                     # Compact-mode timbre/loudness stats, so agents can use them
