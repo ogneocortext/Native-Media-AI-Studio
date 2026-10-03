@@ -99,6 +99,11 @@ Native-Media-AI-Studio/
     `list_stem_sources` advertises partial stem sets and requiring vocals made
     the listing and the probe disagree. Probe caches live in
     `output/remixes/.probes/`, never beside the stems.
+  - To hear a remix: `GET /api/audio/remix/{name}/file/{which}` where `which` is
+    a stem name or `master`. Nothing else serves `output/remixes/`, and
+    `/api/audio/file/...` resolves under `output/audio/`, so without this route
+    a rendered remix is silent. `RemixPanel.tsx` (Visualizer, under Stem Mixer)
+    is the UI.
 
 ## MCP Servers
 

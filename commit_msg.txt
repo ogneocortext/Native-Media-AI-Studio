@@ -1,48 +1,44 @@
-Review the remix code: fix a contract violation, close an API gap
+Frontend controls for remixing, so a mashup can actually be heard
 
-Findings from reading stem_remixer.py and audio_remix.py whole. Where a claim
-could be checked, it was checked rather than asserted.
+RemixPanel.tsx (Visualizer, under Stem Mixer) plus services/api/remix.ts as a
+typed client, and GET /api/audio/remix/{name}/file/{which} on the backend.
 
-CONTRACT VIOLATION
-probe_track required a vocals stem, but list_stem_sources advertises partial
-stem sets. A drums-only track was listed as a usable source and then failed to
-probe - so the listing promised something the builder could not deliver. Added
-_pick_analysis_stem, which prefers drums (most reliable transients) and falls
-back through the Demucs order. Verified on a synthetic drums-only track, and
-take-the-crown now probes its drums and returns the same 151.999 BPM.
+The serve route is the load-bearing part. Without it the feature is silent: a
+remix lands in output/remixes/<name>/, which no other route serves, and
+/api/audio/file/... resolves under output/audio/. Verified streaming 882,044
+bytes of audio/wav per stem.
 
-MISSING ENDPOINT
-remix_build's docstring claimed /api/audio/enhance-stems accepts a rendered
-remix. It does not: that route resolves a library filename under output/audio/
-and then finds that file's stems. Tested both a bare name and an absolute path
-- 404 both times. Added GET /remix/list (reads the manifests written at render
-time, so it cannot drift from what was built) and POST /remix/{name}/enhance
-to bridge to the enhancer service, which does take a stem directory. The
-docstring now states the actual boundary.
+The panel offers three one-click presets (Drums A + Vocals B, Intro -> swap,
+Blend A + B), editable slots with per-layer track/stem/gain/key-shift/start-bar,
+Preview, Build, per-stem playback and a 'Master it' button that runs the Suno
+chain over the result. Earlier remixes stay listed and replayable.
 
-TWO MORE RUNTIME BUGS, both caught by calling the endpoint
-- remix_enhance passed an async function to asyncio.to_thread, which returned
-  the coroutine object itself; it raised AttributeError on .wav_path.
-  suno_enhancer.enhance_stems is already a coroutine and offloads its own DSP.
-- EnhanceResult has no `duration` field (success/output_dir/wav_path/mp3_path/
-  steps/error). Reading it was the second AttributeError. Duration now comes
-  from the remix manifest.
+THREE DEFECTS THE BROWSER CAUGHT THAT TYPECHECKING COULD NOT
 
-HYGIENE
-- Probe cache moved out of output/stems/<model>/<track>/ - a directory owned by
-  source_separation that holds only stem WAVs - to output/remixes/.probes/.
-  Removed the two stray sidecars my earlier testing had left there.
-- crossfade_bars accepted inf/nan: they pass a bare >= 0 and then die inside
-  int(round(...)), far from the bad value. Now checked for finiteness.
-- Normalised 7 section banners that were missing their two blank lines.
-- Dropped a dead `errors` list in _pick_analysis_stem.
-- Two more stale "10-step" docstrings in suno_enhancer.py (SunoEnhancer,
-  enhance_stems) that the earlier pass over that file missed.
+1. The panel picked the wrong songs. It compared the visualizer's library path
+   ('Suno-V6-Mini/SunoV6Mini-Ad-Nauseam.m4a') against stem directories
+   ('SunoV6Mini-Ad-Nauseam'), so the match always failed and it fell back to
+   tracks[0] - alphabetically demucs_test_input, a 10-second demucs fixture.
+   The first build laid real drums under a tenth of a second of scratch vocal,
+   which reads as the feature being broken rather than as a data problem. Now
+   matched on basename, and source B must be >= 30s (durations probed once;
+   the backend caches probes on disk so later loads are free).
 
-One test failure during this work was my test's fault, not the code's: it left
-an empty vocals.wav in place, and STEM_NAMES orders vocals above bass, so the
-fallback correctly returned vocals. Fixed the test and said so in a comment.
+2. A play button on digital silence. The built-stem list was all four stems, so
+   'other' got a button and returned -240 dBFS when no slot referenced it.
+   Measured, not assumed. Now only the stems the recipe uses.
 
-Verified: 29 tests, all 7 gates pass, audio route baseline 38, and all six
-remix endpoints exercised end-to-end including the new enhance route
-(missing remix 404, traversal 404, successful master run writing a WAV).
+3. An eslint-disable for a rule this project does not configure, which errors
+   rather than warns. Restructured the seeding effect around an explicit ref
+   guard so no suppression is needed.
+
+Also fixed a bug of my own in the panel: preview rendering referenced a
+non-existent field.
+
+Verified in a real browser end to end, not just compiled: select track -> panel
+seeds SunoV6Mini-Ad-Nauseam at 144 BPM (probed from drums) -> preset -> Build
+-> a 10.0s two-song mashup at 144 BPM, Ad-Nauseam drums/bass under
+Human-in-the-Loop vocals, streamed and measured audible (drums -5.4 dBFS peak /
+40% of frames above -80 dBFS, vocals -11.4 dBFS / 66%).
+
+All 7 gates pass; audio route baseline now 39.

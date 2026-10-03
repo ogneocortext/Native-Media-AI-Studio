@@ -83,6 +83,43 @@ directory and works unchanged, so the new route is a thin bridge.
 
 29 tests now; audio route baseline 38.
 
+### Added - frontend controls for remixing
+
+`features/visualizer/components/RemixPanel.tsx`, mounted in the Visualizer
+under Stem Mixer, plus `services/api/remix.ts` as a typed client.
+
+The panel builds a mashup and **plays it back**: three one-click presets (Drums
+A + Vocals B, Intro → swap, Blend A + B), editable slots (bars, crossfade, and
+per-layer track/stem/gain/key-shift/start-bar), Preview, Build, per-stem play
+buttons and a "Master it" button that runs the Suno chain over the result.
+Earlier remixes are listed and re-playable.
+
+`GET /api/audio/remix/{name}/file/{which}` was added because without it the
+feature is **silent**: a remix lands in `output/remixes/<name>/`, which no other
+route serves, and `/api/audio/file/...` resolves under `output/audio/`. It
+streams the four stems or the enhanced master.
+
+Three defects the browser found that no type check would have:
+
+- **The panel picked the wrong songs.** It compared the visualizer's library
+  *path* (`Suno-V6-Mini/SunoV6Mini-Ad-Nauseam.m4a`) against stem *directories*
+  (`SunoV6Mini-Ad-Nauseam`), so the match always failed and it fell back to
+  `tracks[0]` — alphabetically `demucs_test_input`, a 10-second demucs test
+  fixture. The first build laid real drums under a tenth of a second of scratch
+  vocal, which reads as the feature being broken. Now matched on basename, and
+  source B must be at least 30 s (durations are probed once and cached on disk).
+- **A play button on digital silence.** The built-stem list was all four stems,
+  so `other` got a button and returned −240 dBFS when no slot used it. Now only
+  the stems the recipe actually references.
+- **`eslint-disable` for a rule this project does not configure**, which errors
+  rather than warns. The seeding effect was restructured around an explicit ref
+  guard instead.
+
+Verified in a real browser end to end: select track → panel seeds
+`SunoV6Mini-Ad-Nauseam` at 144 BPM → preset → Build → 10.0 s two-song mashup
+rendered and streamed (drums −5.4 dBFS peak / 40% audible, vocals −11.4 dBFS /
+66% audible). All 7 gates pass.
+
 ### Fixed - the Suno mastering chain had never produced a file (P0)
 
 `suno_enhancer.py` (14 steps, `/api/audio/enhance-stems`) aborted at step 5 on

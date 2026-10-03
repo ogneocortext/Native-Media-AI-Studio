@@ -10,6 +10,7 @@
   "GET    /api/audio/remix/list  ->  remix_list_api_audio_remix_list_get",
   "GET    /api/audio/remix/probe/{track}  ->  remix_probe_api_audio_remix_probe__track__get",
   "GET    /api/audio/remix/sources  ->  remix_sources_api_audio_remix_sources_get",
+  "GET    /api/audio/remix/{name}/file/{which}  ->  remix_file_api_audio_remix__name__file__which__get",
   "GET    /api/audio/separate-jobs/{job_id}  ->  get_separation_job_api_audio_separate_jobs__job_id__get",
   "GET    /api/audio/spectral-timeline/{filename}  ->  get_spectral_timeline_api_audio_spectral_timeline__filename__get",
   "GET    /api/audio/stem-file/{track_name}/{stem_name}  ->  serve_stem_file_api_audio_stem_file__track_name___stem_name__get",

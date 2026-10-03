@@ -104,6 +104,30 @@ export type {
   EnhanceStemsResponse,
 } from "./audio";
 
+// Remix / mashup
+export {
+  getRemixSources,
+  probeRemixTrack,
+  previewRemix,
+  buildRemix,
+  listRemixes,
+  enhanceRemix,
+  remixFileUrl,
+  STEM_NAMES,
+} from "./remix";
+export type {
+  RemixSource,
+  RemixProbe,
+  RemixLayerSpec,
+  RemixSlotSpec,
+  RemixRecipeSpec,
+  RemixPreview,
+  RemixBuildResult,
+  RemixSummary,
+  RemixEnhanceResult,
+  StemName,
+} from "./remix";
+
 // Logs
 export {
   getLogInfo,

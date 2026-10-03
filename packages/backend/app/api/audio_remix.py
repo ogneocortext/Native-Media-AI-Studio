@@ -23,6 +23,7 @@ import json
 import logging
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from ..services import stem_remixer
@@ -286,3 +287,52 @@ async def remix_build(body: RemixRecipeRequest) -> RemixBuildResponse:
         manifest=result.manifest,
         warnings=result.warnings,
     )
+
+
+@router.get("/{name}/file/{which}")
+async def remix_file(name: str, which: str):
+    """Stream a rendered remix so it can actually be listened to.
+
+    Without this the whole feature is silent: a remix lands in
+    `output/remixes/<name>/`, which no other route serves, and
+    `/api/audio/file/...` resolves under `output/audio/`. `which` is one of the
+    four stem names or `master`, which returns the enhanced mix when one has
+    been rendered and explains how to make it otherwise.
+
+    Range requests are left to Starlette's FileResponse, so the browser can
+    seek instead of buffering the whole file.
+    """
+    if which not in {"vocals", "drums", "bass", "other", "master"}:
+        raise HTTPException(
+            status_code=400,
+            detail="which must be vocals|drums|bass|other|master",
+        )
+    try:
+        directory = stem_remixer.remix_dir(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not directory.is_dir():
+        raise HTTPException(status_code=404, detail=f"Remix not found: {name}")
+
+    if which == "master":
+        enhanced = directory / "enhanced"
+        candidates = (
+            sorted(enhanced.glob("*_enhanced.wav")) if enhanced.is_dir() else []
+        )
+        if not candidates:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "No enhanced master for this remix yet - run "
+                    f"POST /api/audio/remix/{name}/enhance first, or fetch a stem"
+                ),
+            )
+        return FileResponse(str(candidates[0]), media_type="audio/wav")
+
+    path = directory / f"{which}.wav"
+    if not path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Stem {which!r} not present in remix {name!r}",
+        )
+    return FileResponse(str(path), media_type="audio/wav")

@@ -50,6 +50,7 @@ import {
 } from "./webgpu/WebGPURendererDetector";
 import { SpectrumBar } from "./components/SpectrumBar";
 import { StemMixerPanel, type StemName } from "./components/StemMixer";
+import { RemixPanel } from "./components/RemixPanel";
 import { EqualizerPanel } from "./components/EqualizerPanel";
 import { ProfessionalMixer } from "./professionalMixer/ProfessionalMixer";
 import type { ChannelMeters } from "./professionalMixer/types";
@@ -1946,6 +1947,7 @@ export function Visualizer() {
               }
             />
           )}
+          <RemixPanel currentTrack={currentFilename} />
         </div>
       )}
 
