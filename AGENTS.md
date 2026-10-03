@@ -7,7 +7,7 @@
 > **Agent bootstrap:** read `docs/README.md` first — it maps every documentation
 > directory and says which are authoritative. Then read
 > `docs/architecture/decision-log.md` before writing code. It records
-> stack/architecture decisions (D1–D23 — do not re-litigate) and open questions
+> stack/architecture decisions (D1–D28 — do not re-litigate) and open questions
 > (Q1–Q5). Update the log when you make or reverse an architecture decision.
 > Frontend visualizer work also requires `docs/architecture/visualizer.md` — it
 > maps the module split from D14 and states where new logic belongs.
