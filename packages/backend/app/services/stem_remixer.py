@@ -736,3 +736,90 @@ def list_remixes() -> list[dict[str, Any]]:
             }
         )
     return sorted(out, key=lambda d: d["name"].lower())
+
+
+# ─── provenance: which mashups used a track, and how ──────────────────────────
+#
+# A remix manifest already stores everything a RemixRecipe needs (target_bpm,
+# beats_per_bar, and each slot's bars/crossfade/layers with gain, key shift and
+# source_start_bar). That means "reopen this mashup and rearrange it" is a
+# round-trip of the manifest, not a guess at how it was built -- so these helpers
+# reconstruct the recipe rather than asking the caller to rebuild it.
+
+
+def _manifest_recipe(manifest: dict[str, Any]) -> dict[str, Any] | None:
+    """Reconstruct a RemixRecipeRequest-shaped payload from a rendered manifest.
+
+    Returns None when the manifest cannot round-trip (missing slots, or layers
+    that no longer name a usable track/stem). A partial recipe would let the UI
+    rebuild something subtly different from what was rendered, which is worse than
+    saying "not reconstructable".
+    """
+    slots = manifest.get("slots")
+    if not isinstance(slots, list) or not slots:
+        return None
+    clean_slots: list[dict[str, Any]] = []
+    for slot in slots:
+        layers = slot.get("layers")
+        if not isinstance(layers, list) or not layers:
+            return None
+        clean_layers: list[dict[str, Any]] = []
+        for layer in layers:
+            track = layer.get("track")
+            stem = layer.get("stem")
+            if not track or stem not in STEM_NAMES:
+                return None
+            clean_layers.append(
+                {
+                    "track": track,
+                    "stem": stem,
+                    "gain_db": float(layer.get("gain_db", 0.0)),
+                    "key_shift_semitones": float(layer.get("key_shift_semitones", 0.0)),
+                    "source_start_bar": int(layer.get("source_start_bar", 0)),
+                }
+            )
+        clean_slots.append(
+            {
+                "bars": int(slot.get("bars", 8)),
+                "crossfade_bars": float(slot.get("crossfade_bars", 0.0)),
+                "layers": clean_layers,
+            }
+        )
+    return {
+        "name": manifest.get("name"),
+        "target_bpm": manifest.get("target_bpm"),
+        "beats_per_bar": manifest.get("beats_per_bar", 4),
+        "slots": clean_slots,
+    }
+
+
+def list_remixes_for_track(track: str) -> list[dict[str, Any]]:
+    """Rendered remixes that consumed `track`, with their recipe attached.
+
+    Joins on `source_tracks` in the manifest, which is the record of what was
+    actually rendered rather than a separate bookkeeping file that could drift.
+    Every mashup that used this track is returned, including ones where it was a
+    secondary source: hiding those would make a shared mashup look like it
+    belonged to whichever track happened to be listed first, and lineage is exactly
+    what this endpoint exists to answer.
+    """
+    matched: list[dict[str, Any]] = []
+    for entry in list_remixes():
+        if track not in entry.get("source_tracks", []):
+            continue
+        directory = REMIX_DIR / entry["name"]
+        recipe = None
+        manifest_path = directory / "remix.json"
+        if manifest_path.exists():
+            try:
+                recipe = _manifest_recipe(json.loads(manifest_path.read_text(encoding="utf-8")))
+            except (json.JSONDecodeError, OSError):
+                recipe = None
+        matched.append(
+            {
+                **entry,
+                "recipe": recipe,
+                "role": "primary" if entry.get("source_tracks", [None])[0] == track else "contributor",
+            }
+        )
+    return matched

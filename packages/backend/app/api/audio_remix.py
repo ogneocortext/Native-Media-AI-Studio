@@ -131,6 +131,36 @@ async def remix_probe(track: str) -> dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.get("/by-track/{track}")
+async def remix_by_track(track: str) -> dict:
+    """What exists for one track: the mashups that consumed it, and how.
+
+    This is the provenance view. A mashup may draw on several tracks, so it is
+    returned for each of them with `role` recording whether the track was the
+    primary source or a contributor -- a shared mashup is real for both tracks and
+    hiding it would make it look like it belonged to whichever was listed first.
+
+    Each entry carries a `recipe` reconstructed from its manifest, which is what
+    makes "reopen and rearrange" possible: the manifest already records every
+    slot, layer, gain, key shift and source offset, so the arrangement can be
+    reloaded and rebuilt rather than re-derived by hand.
+
+    Deliberately offers no "similar tracks" ranking. Measured on this library,
+    librosa's tempo estimate is grid-quantised and octave-aliased and chroma
+    fails a white-noise control, so any similarity ordering would be presenting
+    noise as a recommendation. See
+    docs/knowledge-library/track-similarity-measurement-2026.md.
+    """
+    try:
+        stem_remixer._safe_track_name(track)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "track": track,
+        "remixes": await asyncio.to_thread(stem_remixer.list_remixes_for_track, track),
+    }
+
+
 @router.post("/preview", response_model=RemixPreviewResponse)
 async def remix_preview(body: RemixRecipeRequest) -> RemixPreviewResponse:
     """Resolve a recipe without rendering.

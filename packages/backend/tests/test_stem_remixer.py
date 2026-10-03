@@ -11,8 +11,11 @@ does the summed power stay flat through the transition?
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
+from app.services import stem_remixer
 from app.services.stem_remixer import (
     REMIX_SR,
     RemixLayer,
@@ -268,3 +271,131 @@ def test_list_remixes_reads_manifests_and_skips_cache(tmp_path, monkeypatch):
     assert found[0]["duration_sec"] == 12.5
     assert found[0]["stems"] == ["drums"]
     assert found[0]["has_enhanced"] is False
+
+
+# ─── provenance ───────────────────────────────────────────────────────────────
+
+
+def _write_manifest(directory, manifest):
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "remix.json").write_text(json.dumps(manifest), encoding="utf-8")
+    for stem in ("vocals", "drums", "bass", "other"):
+        (directory / f"{stem}.wav").write_bytes(b"\0" * 2048)
+
+
+def _minimal_manifest(name, sources, **overrides):
+    manifest = {
+        "name": name,
+        "target_bpm": 144.0,
+        "beats_per_bar": 4,
+        "duration_sec": 10.0,
+        "source_tracks": list(sources),
+        "slots": [
+            {
+                "bars": 4,
+                "crossfade_bars": 2.0,
+                "layers": [
+                    {
+                        "track": sources[0],
+                        "stem": "drums",
+                        "gain_db": 0.0,
+                        "key_shift_semitones": 0.0,
+                        "source_start_bar": 0,
+                    }
+                ],
+            }
+        ],
+    }
+    manifest.update(overrides)
+    return manifest
+
+
+@pytest.fixture
+def remix_dir(tmp_path, monkeypatch):
+    """Redirect REMIX_DIR at a tmp path so tests never touch the real library."""
+    fake = tmp_path / "remixes"
+    fake.mkdir()
+    monkeypatch.setattr(stem_remixer, "REMIX_DIR", fake)
+    return fake
+
+
+def test_manifest_recipe_round_trips_into_a_buildable_request():
+    """The whole point of provenance: a rendered mashup must be reopenable.
+
+    Reconstructed output is validated against the real request model, not just
+    shape-checked, so a field that drifts out of sync fails here.
+    """
+    manifest = _minimal_manifest("m", ["Track A", "Track B"])
+    manifest["slots"][0]["layers"].append(
+        {
+            "track": "Track B",
+            "stem": "vocals",
+            "gain_db": -3.5,
+            "key_shift_semitones": 2.0,
+            "source_start_bar": 4,
+        }
+    )
+    recipe = stem_remixer._manifest_recipe(manifest)
+
+    assert recipe is not None
+    from app.api.audio_remix import RemixRecipeRequest
+
+    body = RemixRecipeRequest(**recipe, key=None, overwrite=True)
+    assert body.name == "m"
+    assert body.target_bpm == 144.0
+    assert body.slots[0].layers[1].gain_db == -3.5
+    assert body.slots[0].layers[1].key_shift_semitones == 2.0
+    assert body.slots[0].layers[1].source_start_bar == 4
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    [
+        pytest.param({}, id="no-slots"),
+        pytest.param({"slots": []}, id="empty-slots"),
+        pytest.param({"slots": [{"bars": 4, "layers": []}]}, id="slot-without-layers"),
+        pytest.param(
+            {"slots": [{"bars": 4, "layers": [{"track": "t", "stem": "guitar"}]}]},
+            id="invalid-stem",
+        ),
+        pytest.param(
+            {"slots": [{"bars": 4, "layers": [{"stem": "drums"}]}]},
+            id="layer-without-track",
+        ),
+    ],
+)
+def test_manifest_that_cannot_round_trip_returns_none(manifest):
+    """Partial recipes are worse than none: they would rebuild something subtly
+    different from what was rendered."""
+    assert stem_remixer._manifest_recipe(manifest) is None
+
+
+def test_list_remixes_for_track_groups_by_lineage(remix_dir):
+    _write_manifest(remix_dir / "shared", _minimal_manifest("shared", ["A", "B"]))
+    _write_manifest(remix_dir / "only-a", _minimal_manifest("only-a", ["A"]))
+    _write_manifest(remix_dir / "only-b", _minimal_manifest("only-b", ["B"]))
+
+    for_a = {r["name"]: r["role"] for r in stem_remixer.list_remixes_for_track("A")}
+    for_b = {r["name"]: r["role"] for r in stem_remixer.list_remixes_for_track("B")}
+
+    assert set(for_a) == {"shared", "only-a"}
+    assert for_a["only-a"] == "primary"
+    # A mashup built from both tracks is a contributor from B's point of view.
+    # Hiding it would make it look like it belonged to whichever track was listed
+    # first, which is exactly the confusion lineage exists to prevent.
+    assert for_b["shared"] == "contributor"
+    assert for_b["only-b"] == "primary"
+
+
+def test_unknown_track_returns_no_lineage(remix_dir):
+    _write_manifest(remix_dir / "m", _minimal_manifest("m", ["A"]))
+    assert stem_remixer.list_remixes_for_track("never-used") == []
+
+
+def test_lineage_entry_carries_the_recipe(remix_dir):
+    _write_manifest(remix_dir / "m", _minimal_manifest("m", ["A"]))
+    rows = stem_remixer.list_remixes_for_track("A")
+    assert len(rows) == 1
+    assert rows[0]["recipe"] is not None
+    assert rows[0]["recipe"]["target_bpm"] == 144.0
+    assert sorted(rows[0]["stems"]) == ["bass", "drums", "other", "vocals"]
