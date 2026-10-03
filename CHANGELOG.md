@@ -83,6 +83,41 @@ directory and works unchanged, so the new route is a thin bridge.
 
 29 tests now; audio route baseline 38.
 
+### Fixed - image sidecars were unreachable, so generated images had no metadata
+
+Reported as "a lot of bizarre looking imagery in the media library". The images
+are promptless renders — a bathtub containing a second staircase, a disembodied
+arm fused to a cushion — and the reason they could not be explained is that their
+sidecars were unreachable. Three links in one chain, each independently broken:
+
+1. **The lookup filename matched nothing.** `outputs.load_sidecar_metadata`
+   looked for `<stem>.png.json`; every writer produces `<stem>.json`. Measured:
+   **0** files matching `*.png.json` against **38** real sidecars.
+2. **The worker wrote to the wrong directory.** `go-worker`'s `outputDir` is
+   `output/`, not `output/images/`, so sidecars landed away from the image.
+   Since the lookup resolves relative to the image, a sidecar in the wrong
+   directory is as unreachable as one with the wrong name.
+3. **The returned path was dangling.** `image_generator.save_output` returned
+   `output/images/<name>.json` regardless of where the worker wrote, so every
+   job result carried a `sidecar_path` that did not exist.
+
+Fixed all three: the lookup accepts `<stem>.json` (keeping the old name as a
+fallback), and the generator verifies the worker's report and **relocates** the
+sidecar beside its image per Guidelines 3.3, falling back to a direct write if
+the worker lies about success. 56 orphaned sidecars moved next to the images
+they describe; 47 with no matching image were left alone.
+
+Discovery went **0 → 56 of 63** images. Six regression tests added, including
+one that fails if sidecars stop being reachable.
+
+This made the images explicable but did not make them good: 158 of 160
+`image_generation` jobs carry **empty params**, so the sidecars read
+`prompt: ""`, `model: "default"`. Generating a coherent picture from an empty
+prompt is not possible, which is what the gallery is actually showing. That
+class of job is already known and instrumented — `queue/manager.py:353-380`
+documents 233 such rows, logs the origin, and dead-letters them. What is missing
+is *cleanup*: the residue is still in the gallery. See below.
+
 ### Added - frontend controls for remixing
 
 `features/visualizer/components/RemixPanel.tsx`, mounted in the Visualizer

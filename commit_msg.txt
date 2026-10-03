@@ -1,44 +1,49 @@
-Frontend controls for remixing, so a mashup can actually be heard
+Fix image sidecars: three broken links made all metadata unreachable
 
-RemixPanel.tsx (Visualizer, under Stem Mixer) plus services/api/remix.ts as a
-typed client, and GET /api/audio/remix/{name}/file/{which} on the backend.
+Reported as 'a lot of bizarre looking imagery in the media library'. The images
+are promptless renders (a bathtub containing a second staircase, a disembodied
+arm fused to a cushion) - and the reason they could not be explained is that
+their sidecars could not be found.
 
-The serve route is the load-bearing part. Without it the feature is silent: a
-remix lands in output/remixes/<name>/, which no other route serves, and
-/api/audio/file/... resolves under output/audio/. Verified streaming 882,044
-bytes of audio/wav per stem.
+THREE INDEPENDENT BREAKS IN ONE CHAIN
 
-The panel offers three one-click presets (Drums A + Vocals B, Intro -> swap,
-Blend A + B), editable slots with per-layer track/stem/gain/key-shift/start-bar,
-Preview, Build, per-stem playback and a 'Master it' button that runs the Suno
-chain over the result. Earlier remixes stay listed and replayable.
+1. The lookup filename matched nothing. outputs.load_sidecar_metadata looked
+   for <stem>.png.json; every writer produces <stem>.json (go-worker's
+   sidecarPath does filepath.Join(outputDir, filename+".json") where filename
+   is the stem). Measured: 0 files matching *.png.json against 38 real sidecars.
 
-THREE DEFECTS THE BROWSER CAUGHT THAT TYPECHECKING COULD NOT
+2. The worker wrote to the wrong directory. go-worker's outputDir is output/,
+   not output/images/, so sidecars landed away from the image they describe.
+   Since the lookup resolves the sidecar relative to the image, a sidecar in the
+   wrong directory is as unreachable as one with the wrong name.
 
-1. The panel picked the wrong songs. It compared the visualizer's library path
-   ('Suno-V6-Mini/SunoV6Mini-Ad-Nauseam.m4a') against stem directories
-   ('SunoV6Mini-Ad-Nauseam'), so the match always failed and it fell back to
-   tracks[0] - alphabetically demucs_test_input, a 10-second demucs fixture.
-   The first build laid real drums under a tenth of a second of scratch vocal,
-   which reads as the feature being broken rather than as a data problem. Now
-   matched on basename, and source B must be >= 30s (durations probed once;
-   the backend caches probes on disk so later loads are free).
+3. The returned path was dangling. image_generator returned
+   output/images/<name>.json regardless of where the worker actually wrote, so
+   every job result carried a sidecar_path that did not exist on disk.
 
-2. A play button on digital silence. The built-stem list was all four stems, so
-   'other' got a button and returned -240 dBFS when no slot referenced it.
-   Measured, not assumed. Now only the stems the recipe uses.
+FIXES
+- load_sidecar_metadata accepts <stem>.json, keeping the old name as a fallback.
+- Sidecar persistence extracted into _persist_sidecar, which verifies the
+  worker's report and RELOCATES the sidecar beside its image per Guidelines
+  3.3, falling back to a direct write if the worker claims success falsely.
+  It returns where the file really is.
+- 56 orphaned sidecars moved next to their images; 47 with no matching image
+  were left alone rather than guessed at.
 
-3. An eslint-disable for a rule this project does not configure, which errors
-   rather than warns. Restructured the seeding effect around an explicit ref
-   guard so no suppression is needed.
+Verified live: /api/outputs went from 0 images carrying metadata to 56 of 84,
+returning the full record (prompt, model, seed, steps, cfg, sampler).
 
-Also fixed a bug of my own in the panel: preview rendering referenced a
-non-existent field.
+Kept out of scope on purpose: this makes the images explicable, not good. 158
+of 160 image_generation jobs carry empty params, so every sidecar reads
+prompt:'' and model:'default'. Generating a coherent picture from an empty
+prompt is not possible - that is what the gallery is showing. That class of job
+is already known and instrumented (queue/manager.py:353-380 documents 233 such
+rows, logs the origin, and dead-letters them), so I did not re-report it as a
+new finding. What is missing is cleanup of the residue.
 
-Verified in a real browser end to end, not just compiled: select track -> panel
-seeds SunoV6Mini-Ad-Nauseam at 144 BPM (probed from drums) -> preset -> Build
--> a 10.0s two-song mashup at 144 BPM, Ad-Nauseam drums/bass under
-Human-in-the-Loop vocals, streamed and measured audible (drums -5.4 dBFS peak /
-40% of frames above -80 dBFS, vocals -11.4 dBFS / 66%).
+The nesting gate caught my own regression: the verification logic pushed
+save_output from control-flow depth 2 to 4. Refactored instead of re-baselining
+- the baseline exists to stop nesting growing, and rewriting it to hide my
+change would defeat it. Now reports '3 improved'.
 
-All 7 gates pass; audio route baseline now 39.
+6 regression tests added; all 7 gates pass.

@@ -365,14 +365,33 @@ def get_file_type(filename: str) -> str:
 
 
 def load_sidecar_metadata(file_path: Path) -> dict | None:
-    """Load JSON sidecar metadata if it exists"""
-    sidecar_path = file_path.with_suffix(file_path.suffix + ".json")
-    if sidecar_path.exists():
+    """Load JSON sidecar metadata if it exists.
+
+    The convention is `<stem>.json` - the same directory, the filename without
+    its media extension. `go-worker`'s `sidecarPath` does exactly that
+    (`filepath.Join(outputDir, filename + ".json")`, where filename is the
+    stem), and the Python fallback in `image_generator.save_output` does too.
+
+    This previously looked for `<stem>.png.json`, which *nobody writes*.
+    Measured against the real library: 0 files matching `*.png.json` against 38
+    real sidecars, so no image ever showed its prompt, seed or model in the
+    media library. The odd-looking images were unverifiable partly because the
+    metadata beside them was unreachable.
+    """
+    candidates = [
+        file_path.with_suffix(".json"),
+        # Kept as a fallback in case an older writer used it.
+        file_path.with_suffix(file_path.suffix + ".json"),
+    ]
+    for sidecar_path in candidates:
+        if not sidecar_path.exists():
+            continue
         try:
             with open(sidecar_path, encoding="utf-8") as f:
                 return json.load(f)
         except (OSError, json.JSONDecodeError):
-            return None
+            # A malformed sidecar should not hide the next candidate.
+            logger.debug("unreadable sidecar %s", sidecar_path)
     return None
 
 

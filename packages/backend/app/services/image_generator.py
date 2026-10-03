@@ -6,6 +6,7 @@ import json
 import logging
 import struct
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 # SD WebUI removed - using ComfyUI only
@@ -153,17 +154,60 @@ class ImageGenerationHandler:
             "info": result.get("info", ""),
         }
 
-        sidecar_path = OUTPUT_DIR / f"{filename}.json"
-        # Persist sidecar through go-worker when available; fall back to direct write.
-        worker_result = await go_write_sidecar(job.id, sidecar_data, filename=filename)
-        if worker_result is None or not worker_result.get("written"):
-            with open(sidecar_path, "w") as f:
-                json.dump(sidecar_data, f, indent=2)
+        sidecar_path = await self._persist_sidecar(job, sidecar_data, filename)
 
         return {
             "image": str(image_path),
             "sidecar": str(sidecar_path)
         }
+
+    @staticmethod
+    async def _persist_sidecar(
+        job: Job, sidecar_data: dict[str, Any], filename: str
+    ) -> Path:
+        """Write the sidecar next to its image and return where it actually is.
+
+        Split out of `save_output` because keeping it inline pushed that
+        function's control-flow nesting from 2 to 4, which
+        `tools/report-nesting.py` fails on (it compares against a committed
+        baseline; re-baselining to hide it would defeat the check).
+
+        Two things it exists to get right:
+
+        - **Location.** Guidelines 3.3 puts the sidecar beside the image, and
+          `outputs.load_sidecar_metadata` resolves it relative to the image, so
+          a sidecar elsewhere is as unreachable as one with the wrong name.
+          go-worker's `outputDir` is `output/`, not `output/images/`, so the
+          worker path puts it in the wrong place - we relocate it.
+        - **Honesty.** We return the path the file is really at. The previous
+          code returned `OUTPUT_DIR/<name>.json` regardless, so every job
+          result carried a `sidecar_path` that did not exist (measured: 0
+          sidecars in output/images/ against 38 written to output/).
+        """
+        sidecar_path = OUTPUT_DIR / f"{filename}.json"
+        worker_result = await go_write_sidecar(job.id, sidecar_data, filename=filename)
+        if worker_result is None or not worker_result.get("written"):
+            _write_sidecar(sidecar_path, sidecar_data)
+            return sidecar_path
+
+        written = worker_result.get("written") or worker_result.get("path")
+        source = Path(written) if isinstance(written, str) else None
+        if source is not None and source.exists():
+            source.replace(sidecar_path)
+            return sidecar_path
+
+        logger.warning(
+            "go-worker reported writing sidecar for job %s but %s is absent; "
+            "writing it directly at %s",
+            job.id, written, sidecar_path,
+        )
+        _write_sidecar(sidecar_path, sidecar_data)
+        return sidecar_path
+
+
+def _write_sidecar(path: Path, data: dict[str, Any]) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
 
 
 # Default handler instance for easy import
