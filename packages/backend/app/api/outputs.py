@@ -3,11 +3,9 @@ Output files API routes.
 Returns list of generated media and their JSON sidecar metadata.
 """
 
-import asyncio
 import json
 import logging
 import shutil
-import subprocess
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -19,6 +17,8 @@ from pydantic import BaseModel
 
 from ..core.config import config
 from ..core.paths import comfyui_output_dir, is_within, resolve_within, sanitize_filename
+from ..services.media_covers import extract_audio_cover
+from ..services.subprocess_runner import run_subprocess_thread as _run_subprocess_thread
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +76,7 @@ _output_cache_lock = threading.Lock()
 CACHE_TTL_SECONDS = 30  # Refresh cache every 30 seconds max
 
 
-async def _run_subprocess_thread(args: list[str], **kwargs) -> subprocess.CompletedProcess:
-    """Run a subprocess in a thread pool to avoid blocking the event loop."""
-    return await asyncio.to_thread(subprocess.run, args, **kwargs)
-
-
+# Extracted to services/ so a service layer can use it without importing an API
 def _get_dir_mtime() -> float:
     """Get the latest mtime across all output subdirectories (recursive)."""
     output_base = Path(config.output_dir)
@@ -497,72 +493,6 @@ async def extract_video_thumbnail(video_path: Path, relative_base: Path) -> str 
     return None
 
 
-async def extract_audio_cover(audio_path: Path, relative_base: Path) -> str | None:
-    """Extract embedded cover art from audio file (ID3, FLAC, etc.) using FFmpeg.
-
-    Checks for existing {stem}.jpg first (cached). If missing, tries FFmpeg:
-    `ffmpeg -y -i audio.mp3 -an -vcodec copy -frames:v 1 -update 1 cover.jpg`
-    Returns relative cover path if successful, else None. Never raises.
-    """
-    # 1) Check existing sidecar image
-    for ext in (".jpg", ".jpeg", ".png", ".webp"):
-        cand = audio_path.with_suffix(ext)
-        if cand.exists():
-            try:
-                return cand.relative_to(relative_base).as_posix()
-            except ValueError:
-                continue
-        cand2 = audio_path.with_name(audio_path.stem + ext)
-        if cand2.exists():
-            try:
-                return cand2.relative_to(relative_base).as_posix()
-            except ValueError:
-                continue
-
-    # 2) Try FFmpeg extract — skip if no attached picture stream
-
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        return None
-
-    # Quick probe: does file have a video stream (cover)?
-    try:
-        probe = await _run_subprocess_thread(
-            [ffmpeg, "-hide_banner", "-i", str(audio_path)],
-            capture_output=True, text=True, timeout=5,
-        )
-        # FFmpeg prints stream info to stderr; cover shows as `Video: png` or `Video: mjpeg (attached pic)`
-        stderr = (probe.stderr or "") + (probe.stdout or "")
-        if "attached pic" not in stderr.lower() and "video:" not in stderr.lower():
-            # Also need to check for Video stream specifically, not just video codec
-            if "Stream #0:0: Video" not in stderr and "Stream #0:1: Video" not in stderr:
-                return None
-    except Exception:
-        return None
-
-    cover_path = audio_path.with_suffix(".jpg")
-    # Avoid overwriting if we just checked and it didn't exist, now create
-    try:
-        # -frames:v 1 and -update 1 ensures single image, not sequence
-        result = await _run_subprocess_thread(
-            [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-             "-i", str(audio_path), "-an", "-vcodec", "copy", "-frames:v", "1", "-update", "1", str(cover_path)],
-            capture_output=True, text=True, timeout=10,
-        )
-        if result.returncode == 0 and cover_path.exists() and cover_path.stat().st_size > 1024:
-            try:
-                return cover_path.relative_to(relative_base).as_posix()
-            except ValueError:
-                return None
-        # Cleanup tiny failed file
-        if cover_path.exists() and cover_path.stat().st_size < 1024:
-            try:
-                cover_path.unlink()
-            except Exception:
-                pass
-    except Exception:
-        pass
-    return None
 
 
 async def scan_output_directory(subdir: str, relative_base: Path) -> list[OutputFile]:

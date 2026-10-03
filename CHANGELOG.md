@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed - backend import graph is now acyclic (D32)
+
+Measured before changing anything, and the backend turned out **not** to be the
+"convoluted mess" it appeared to be: 122 modules / 36,351 lines, top fan-out 20
+(`main.py`, correct for a router aggregator). What it *did* have was two real
+structural defects, both masked by deferred imports:
+
+- `queue.manager -> diagnostics.resources -> services.vram_manager -> queue.manager`
+- `services.vram_manager -> adapters.ollama -> queue.manager -> ... -> vram_manager`,
+  held open by four deferred imports that also read the adapter's *private*
+  `_last_model` and re-implemented the same sanitisation four times
+
+Fixed by **inverting** rather than reorganising: `VRAMManager.set_queue_provider()`
+and `set_last_model_provider()` receive that state as an argument, wired once in
+`main.py`. `services/vram_manager.py` now imports nothing from `queue` or
+`adapters`, and the four duplicated reads collapsed into one
+`_resolve_last_model()` that cannot raise.
+
+Also fixed the one layering inversion: `services.ffmpeg_tools` was importing
+`api.outputs` for `extract_audio_cover`. That function moved to
+`services/media_covers.py`, and its only dependency, `_run_subprocess_thread`, to
+a leaf `services/subprocess_runner.py`. `api/outputs.py` now imports downward,
+which is the correct direction.
+
+**New gate:** `tools/check-import-cycles.py`, registered as `arch` between `ruff`
+and `type` (0.1 s). Reports 0 cycles / 0 inversions over 267 edges. Confirmed by
+mutation — re-adding either original edge turns it red.
+
+Behaviour is unchanged: 252 OpenAPI paths, all 441 backend tests pass.
+
+### Fixed - every VRAM threshold silently dropped during the refactor
+
+`VRAMManager.__init__` returned early after the new provider field, so
+`MIN_VRAM_FOR_3D`, `MIN_VRAM_FOR_MUSIC`, `MIN_VRAM_FOR_AUDIO`,
+`MIN_SYSTEM_RAM_FOR_OFFLOAD` and `VRAM_WAIT_TIMEOUT` were never assigned. Four
+existing tests caught it (`AttributeError`). Ruff and an `app.main` import both
+passed — neither constructs a `VRAMManager`. Thresholds now live in
+`_init_thresholds()`.
+
 ### Added - stem remixing and mashups across different songs
 
 `packages/backend/app/services/stem_remixer.py` + `/api/audio/remix/*`

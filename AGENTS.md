@@ -126,6 +126,26 @@ Native-Media-AI-Studio/
 
 Never send generic prompts like "describe this image"; use mode-specific prompts for actionable output.
 
+## Backend Layering: `services`/`adapters` Must Never Import `api`
+
+The dependency direction is **api -> services -> adapters**, and only downward.
+`python tools/check-import-cycles.py` is the `arch` gate and fails on any import
+cycle anywhere under `packages/backend/app`, plus any upward edge into `app.api`.
+
+It was written because both defects it guards were invisible by reading: each was
+held open by a *deferred* (function-local) import, which looks like a working
+escape hatch but only postpones the problem. Baseline as of D32: 0 cycles,
+0 inversions, 122 modules, 267 edges.
+
+Two real cycles were removed that way. Both involved `services/vram_manager.py`
+reaching back into `queue.manager` and `adapters.ollama`; the fix was to pass that
+state in (`set_queue_provider`, `set_last_model_provider`) and wire it in `main.py`
+-- not to shuffle files. A service needing something it does not own means the
+dependency belongs inverted, not that a module needs to reach around the graph.
+
+Do **not** "fix" a cycle by adding another deferred import. It passes review, and
+it passes the gate, until it doesn't.
+
 ## Proving a Defect Before Claiming One
 
 Three "confirmed bug" claims in the 2026-10 quality pass were overturned by

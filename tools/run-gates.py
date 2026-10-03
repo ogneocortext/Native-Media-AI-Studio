@@ -13,6 +13,7 @@ Gates, cheapest-first so a fast failure surfaces early:
   docs      check-all.py (4 documentation/repo checkers)
   encoding  covered by the above
   ruff      backend lint                       packages/backend
+  arch      import cycles / layer inversions   repo
   type      tsc -b + test config               packages/frontend
   lint      eslint                            packages/frontend
   unit      vitest (pure logic)                packages/frontend
@@ -202,6 +203,7 @@ def gates():
     return [
         Gate("docs", [python, "tools/check-all.py"], ROOT),
         Gate("ruff", [python, "-m", "ruff", "check", ".", "--output-format=concise"], BACKEND),
+        Gate("arch", [python, "tools/check-import-cycles.py"], ROOT),
         Gate("type", [pnpm, "type-check"], FRONTEND),
         Gate("lint", [pnpm, "lint"], FRONTEND),
         Gate("unit", [pnpm, "test:unit"], FRONTEND),

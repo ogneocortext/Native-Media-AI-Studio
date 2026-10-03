@@ -18,11 +18,11 @@ import json
 import logging
 import os
 import time
+from collections.abc import Awaitable, Callable
 from enum import Enum
 from typing import Any
 
 from ..core.urls import comfyui_url, ollama_url
-from ..models.job import JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,39 @@ class GPUState(str, Enum):
     AVAILABLE = "available"
     BUSY = "busy"
     CRITICAL = "critical"
+
+
+#: Set by `set_last_model_provider`. Answers "which model did Ollama last
+#: load?" without this module importing `adapters.ollama` - that import closed
+#: the last cycle in the codebase:
+#:   services.vram_manager -> adapters.ollama -> queue.manager
+#:   -> diagnostics.resources -> services.vram_manager
+#: It was open 4 times as a deferred import, each also re-reading a *private*
+#: attribute (`_last_model`) across a module boundary and re-implementing the
+#: same "llama" sanitisation. Wired once in `main.py`.
+_LAST_MODEL_PROVIDER: Callable[[], str | None] | None = None
+
+
+def set_last_model_provider(provider: Callable[[], str | None] | None) -> None:
+    """Register the source of "last loaded Ollama model"."""
+    global _LAST_MODEL_PROVIDER
+    _LAST_MODEL_PROVIDER = provider
+
+
+def _resolve_last_model(default: str | None) -> str | None:
+    """Last loaded Ollama model, or `default` when unknown/unavailable.
+
+    Never raises: a missing or broken provider must not stop a VRAM reload, so
+    failures fall back to the default rather than propagating.
+    """
+    if _LAST_MODEL_PROVIDER is None:
+        return default
+    try:
+        value = _LAST_MODEL_PROVIDER()
+    except Exception as exc:
+        logger.debug("last-model provider unavailable: %s", exc)
+        return default
+    return value or default
 
 
 class VRAMManager:
@@ -66,7 +99,30 @@ class VRAMManager:
         self._lock = asyncio.Lock()
         self._nvml_available = False
         self._gpustat_available = False
+        # Optional async callable returning queued jobs, injected at startup so
+        # VRAM accounting does not import `queue` (which would re-create the
+        # cycle documented in `_queued_reservation_mb`). None means "no queue
+        # view available", which under-counts and warns early rather than
+        # over-committing.
+        self._queue_provider: Callable[[], Awaitable[list[Any]]] | None = None
+        self._init_thresholds()
 
+    def set_queue_provider(
+        self, provider: Callable[[], Awaitable[list[Any]]] | None
+    ) -> None:
+        """Register the source of queued jobs for VRAM reservation accounting.
+
+        Wired once in `main.py`, the composition root. Tests can inject a stub
+        without constructing a real queue.
+        """
+        self._queue_provider = provider
+
+    async def _queued_jobs(self) -> list[Any]:
+        if self._queue_provider is None:
+            return []
+        return await self._queue_provider()
+
+    def _init_thresholds(self) -> None:
         # Thresholds for GTX 1070 Ti (8GB VRAM)
         self.thresholds = {
             "vram_warning": 85.0,      # Start considering offload
@@ -482,9 +538,8 @@ class VRAMManager:
                 if free_mb > self.MIN_VRAM_FOR_3D:
                     logger.info("VRAM Manager: Reloading Ollama models (free=%dMB)", free_mb)
                     # Get the last used model from Ollama adapter; sanitize to default if contaminated
-                    from ..adapters.ollama import ollama_adapter
                     from ..core.config import config as _cfg2
-                    last_model = getattr(ollama_adapter, '_last_model', _cfg2.default_model)
+                    last_model = _resolve_last_model(_cfg2.default_model)
                     if "llama" in last_model.lower() and last_model != _cfg2.default_model:
                         logger.info("VRAM Manager: _last_model %s not default, using %s instead", last_model, _cfg2.default_model)
                         last_model = _cfg2.default_model
@@ -584,9 +639,8 @@ class VRAMManager:
                 free_mb = vram.get("free_mb", 0)
                 if free_mb > self.MIN_VRAM_FOR_MUSIC:
                     logger.info("VRAM Manager: Reloading Ollama after music gen (free=%dMB)", free_mb)
-                    from ..adapters.ollama import ollama_adapter
                     from ..core.config import config as _cfg2
-                    last_model = getattr(ollama_adapter, '_last_model', _cfg2.default_model)
+                    last_model = _resolve_last_model(_cfg2.default_model)
                     if "llama" in last_model.lower() and last_model != _cfg2.default_model:
                         last_model = _cfg2.default_model
                     reload_ok = await _reload_ollama_models(last_model)
@@ -733,11 +787,8 @@ class VRAMManager:
                     logger.info(
                         "VRAM Manager: Reloading Ollama after audio analysis "
                         "(free=%dMB)", free_mb)
-                    from ..adapters.ollama import ollama_adapter
                     from ..core.config import config as _cfg3
-
-                    last_model = getattr(ollama_adapter, "_last_model",
-                                         _cfg3.default_model)
+                    last_model = _resolve_last_model(_cfg3.default_model)
                     if "llama" in last_model.lower() and last_model != _cfg3.default_model:
                         last_model = _cfg3.default_model
                     reload_ok = await _reload_ollama_models(last_model)
@@ -820,10 +871,19 @@ class VRAMManager:
         total_mb = status.get("total_mb", status.get("memory_total_mb", 0))
 
         # Sum VRAM requirements of queued jobs (lightweight heuristic by job type).
+        #
+        # This used to `from ..queue.manager import queue_manager` inline, which
+        # closed a cycle: queue.manager -> diagnostics.resources ->
+        # services.vram_manager -> queue.manager. The deferred import hid it from
+        # the module graph but not from anyone reading the file, and it made the
+        # reservation silently zero whenever the import failed.
+        #
+        # The queue state now arrives through an explicitly registered provider,
+        # wired once at the composition root (see `set_queue_provider`), so this
+        # module depends on nothing in `queue`.
         queued_reservation = 0
         try:
-            from ..queue.manager import queue_manager as _qm
-            queued_jobs = await _qm.get_jobs_by_status(JobStatus.QUEUED)
+            queued_jobs = await self._queued_jobs()
             for job in queued_jobs:
                 jt = job.job_type.value if hasattr(job.job_type, "value") else str(job.job_type)
                 if jt == "comfyui_workflow":
@@ -836,8 +896,11 @@ class VRAMManager:
                     queued_reservation += 512  # CPU-bound mostly
                 else:
                     queued_reservation += 2048  # generic
-        except Exception:
-            pass
+        except Exception as exc:
+            # Under-counting VRAM here is the safe direction to fail: we would
+            # warn a little early rather than over-commit. Log it so a broken
+            # provider is visible instead of silent.
+            logger.debug("VRAM reservation from queue unavailable: %s", exc)
 
         total_required = required_mb + queued_reservation
         result: dict[str, Any] = {
@@ -991,13 +1054,9 @@ def _unload_ollama_models_sync() -> list[str]:
 
     if not loaded_models:
         # Fallback: try the last known model
-        try:
-            from ..adapters.ollama import ollama_adapter as _ollama_adapter
-            last_model = getattr(_ollama_adapter, '_last_model', None)
-            if last_model:
-                loaded_models = [last_model]
-        except Exception:
-            pass
+        last_model = _resolve_last_model(None)
+        if last_model:
+            loaded_models = [last_model]
 
     # Unload each loaded model
     for model_name in loaded_models:

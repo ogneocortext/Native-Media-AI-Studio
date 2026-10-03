@@ -351,7 +351,7 @@ async def regenerate_cover(file_path: str | Path) -> str | None:
 
     Returns the relative cover path, or None on failure.
     """
-    from ..api.outputs import extract_audio_cover
+    from .media_covers import extract_audio_cover
 
     path = Path(file_path)
     if not path.exists():

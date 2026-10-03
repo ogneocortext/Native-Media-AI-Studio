@@ -632,6 +632,57 @@
   TypeScript generics inside them (`querySelectorAll<HTMLElement>(...)`) are a
   runtime syntax error that `tsc` on the spec file does not catch.
 
+### D32 — Break the two import cycles by inverting, and check it with a gate (2026-10-02)
+- **Status:** Decided
+- **Context:** A request to "fix the convoluted backend" was measured before being
+  acted on. It is largely **not** convoluted: 122 modules / 36,351 lines, max fan-out
+  20 (`main.py`, expected for a router aggregator), only one file over 3,000 lines.
+  A broad rewrite would have been high-risk and low-reward, and this repo has a
+  documented history of large splits going wrong (`audio_stems.py`: "the first
+  attempt at this split got it wrong twice... the route snapshot still passed,
+  because OpenAPI is generated from decorators and never executes a handler body").
+  The measurement did find **two real structural defects**, both invisible to
+  casual reading because deferred imports hide them from the module graph:
+  1. `queue.manager -> diagnostics.resources -> services.vram_manager -> queue.manager`
+     — held open by an `import ... from ..diagnostics.resources` inside `enqueue`.
+  2. `services.vram_manager -> adapters.ollama -> queue.manager -> ... -> vram_manager`
+     — held open by **four** deferred imports, each also re-reading the adapter's
+     *private* `_last_model` across a module boundary and re-implementing the same
+     `"llama"` sanitisation.
+  Plus one layering inversion: `services.ffmpeg_tools -> api.outputs`, a service
+  reaching back into the API layer for `extract_audio_cover`.
+- **Decision:** invert the dependency rather than move code around.
+  - `VRAMManager.set_queue_provider()` and module-level `set_last_model_provider()`
+    take that state as an argument; `main.py` (the composition root) wires both.
+    `vram_manager` now imports nothing from `queue` or `adapters`.
+  - `extract_audio_cover` moved to `services/media_covers.py`, with its only
+    dependency, `_run_subprocess_thread`, lifted to a leaf
+    `services/subprocess_runner.py`. `api/outputs.py` imports from the service.
+  - **The repeated `_last_model` reads collapsed** into one `_resolve_last_model()`
+    that never raises, so a broken provider degrades to the default model instead of
+    failing a VRAM reload.
+- **Now enforced:** `tools/check-import-cycles.py`, registered as the `arch` gate
+  between `ruff` and `type`. It reports **0 cycles / 0 inversions** over 122
+  modules and 267 edges. Verified by mutation, not by inspection: re-adding the
+  `vram_manager -> queue.manager` edge makes it exit 1 with the exact cycle, and
+  re-adding `ffmpeg_tools -> api.outputs` makes it exit 1 with the inversion.
+  (A first mutation into `ffmpeg_tools -> queue.manager` correctly did **not** fail,
+  because `queue.manager` does not import `ffmpeg_tools` — that edge is genuinely
+  acyclic, so exit 0 was the right answer rather than a missed detection.)
+- **Recorded honestly:** while moving code I inserted a `return` above the rest of
+  `VRAMManager.__init__`, silently dropping **every** VRAM threshold
+  (`MIN_VRAM_FOR_3D`, `MIN_VRAM_FOR_MUSIC`, `MIN_VRAM_FOR_AUDIO`, ...). Four
+  existing tests caught it immediately (`AttributeError`). Ruff and an
+  `app.main` import both passed, because neither constructs a `VRAMManager` —
+  which is the concrete case for why pytest is excluded from the pre-push hook's
+  scope but required before pushing. Thresholds now live in `_init_thresholds()`,
+  called from `__init__`.
+- **Deliberately not done:** `core/database.py` (3,087 lines) is the one file big
+  enough to be worth splitting, but it was left alone. It is one cohesive concern,
+  splitting it would touch every route, and the measurement gave no evidence of a
+  defect there — the same standard that rejected the broad rewrite.
+
+---
 ---
 
 ## Open questions

@@ -208,6 +208,34 @@ async def lifespan(app: FastAPI):
     try:
         init_db()
         await queue_manager.reload_from_db()
+        # Composition-root wiring: VRAM accounting needs queued jobs to
+        # reserve memory, but `services.vram_manager` must not import
+        # `queue.manager` (that cycle is queue.manager ->
+        # diagnostics.resources -> services.vram_manager -> queue.manager).
+        # Injecting the provider here breaks it and keeps the wiring visible.
+        from .models.job import JobStatus
+        from .services.vram_manager import vram_manager
+
+        async def _queued_jobs_for_vram():
+            return await queue_manager.get_jobs_by_status(JobStatus.QUEUED)
+
+        vram_manager.set_queue_provider(_queued_jobs_for_vram)
+
+        # Same pattern, same reason: vram_manager used to import
+        # `adapters.ollama` (four times, deferred) to read that adapter's
+        # private `_last_model`. That closed the final import cycle:
+        #   services.vram_manager -> adapters.ollama -> queue.manager
+        #   -> diagnostics.resources -> services.vram_manager
+        # Wiring it here keeps the adapter import at the composition root.
+        from .services.vram_manager import set_last_model_provider
+
+        def _last_ollama_model() -> str | None:
+            from .adapters.ollama import ollama_adapter
+
+            return getattr(ollama_adapter, "_last_model", None)
+
+        set_last_model_provider(_last_ollama_model)
+
         logger.info("Database initialized")
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
