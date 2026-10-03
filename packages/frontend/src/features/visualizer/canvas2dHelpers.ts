@@ -212,6 +212,24 @@ export function asymmetricSmoothBands(
   }
 }
 
+/**
+ * Modes wired to asymmetric smoothing (plan 2.1).
+ *
+ * The wiring decision lives here as data, not buried in the render loop, so a
+ * unit test can pin it: these modes call `asymmetricSmoothStep` per frame;
+ * every other mode keeps its existing spring code as fallback. Adding a mode
+ * to this set is the entire wiring change for that mode.
+ */
+export const ASYMMETRIC_SMOOTHING_MODES: ReadonlySet<string> = new Set([
+  "bars",
+  "stacked-frequency-bands",
+]);
+
+/** Whether `mode` renders through the asymmetric smoother (plan 2.1). */
+export function usesAsymmetricSmoothing(mode: string): boolean {
+  return ASYMMETRIC_SMOOTHING_MODES.has(mode);
+}
+
 /** Simple value noise for aurora/fluid effects (no external deps). */
 export function valueNoise(x: number, y: number, t: number): number {
   const xi = Math.floor(x);
