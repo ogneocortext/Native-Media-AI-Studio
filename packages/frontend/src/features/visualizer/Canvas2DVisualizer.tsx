@@ -1,5 +1,6 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import {
+  asymmetricSmoothStep,
   clamp,
   easeOutBack,
   easeOutQuad,
@@ -10,6 +11,7 @@ import {
   makeFreqMapper,
   normalizeHex,
   sampleMappedBand,
+  usesAsymmetricSmoothing,
   type PerceptualScale,
 } from "./canvas2dHelpers";
 import {
@@ -167,6 +169,13 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
 
       // 2026 animation state: spring-physics bar smoothing, beat vignette, radial rotation
       let barVelocities: number[] | null = null;
+      // Plan 2.1: asymmetric (0.8 attack / 0.12 release) envelope state for the
+      // modes listed in ASYMMETRIC_SMOOTHING_MODES; null everywhere else.
+      let smoothedBars: number[] | null = null;
+      let smoothedStack: number[] | null = null;
+      // Consecutive all-silent frequency frames; used to detect a track switch
+      // (see the reset in the draw loop). Not per-mode state.
+      let silentFrames = 0;
       let beatVignette = 0;
       // Waveform spring envelope state
       let waveEnvelope: number[] | null = null;
@@ -598,6 +607,41 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         analyser.getByteFrequencyData(freq as Uint8Array<ArrayBuffer>);
         analyser.getByteTimeDomainData(wave as Uint8Array<ArrayBuffer>);
 
+        // Plan 2.1: per-mode smoothing decision as data (canvas2dHelpers).
+        const asymmetric = usesAsymmetricSmoothing(mode);
+
+        // Reset the envelope when the new track opens in silence.
+        //
+        // The draw loop is NOT torn down on a track switch: `audioData` is a
+        // useRef, so its identity never changes and it cannot retrigger this
+        // effect (the deps are isPlaying/mode/bgColor/analyserRef). Every
+        // `let` above therefore survives the switch, and with release=0.15 a
+        // loud track A leaves ~19 frames (~320 ms) of phantom bars decaying over
+        // the first moments of a silent track B.
+        //
+        // Silence is the reliable signal: a track that has just started, or is
+        // between selections, reads all-zero frequency data. Two consecutive
+        // silent frames avoids resetting on a single dropped buffer between beats.
+        if (asymmetric && smoothedBars) {
+          let isSilent = true;
+          for (let i = 0; i < freq.length; i += 16) {
+            if (freq[i] !== 0) {
+              isSilent = false;
+              break;
+            }
+          }
+          if (isSilent) {
+            if (++silentFrames >= 2) {
+              smoothedBars = null;
+              smoothedStack = null;
+              barPeaks = null;
+              barVelocities = null;
+            }
+          } else {
+            silentFrames = 0;
+          }
+        }
+
         if (mode === "bars") {
           const barCount = 64;
           const barW = w / barCount;
@@ -607,6 +651,9 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           }
           if (!barVelocities || barVelocities.length !== barCount) {
             barVelocities = new Array(barCount).fill(0);
+          }
+          if (!smoothedBars || smoothedBars.length !== barCount) {
+            smoothedBars = new Array(barCount).fill(0);
           }
           const barGradients = getGradients(mode, colors);
           const baseY = Math.round(h * 0.88);
@@ -621,18 +668,32 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
               (sync?.lineProgress ?? 0) * 0.1 +
               d.bass * 0.08 +
               (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
-            // Spring-physics smoothing: target → velocity → position with damping.
-            const targetH = boosted * h * 0.78 * energyMod;
-            const springK = 0.28;
-            const damping = 0.72;
-            const dt = 1;
-            const displacement = targetH - (barPeaks[i] || 0);
-            barVelocities[i] = (barVelocities[i] + springK * displacement * dt) * damping;
-            const smoothH = Math.max(0, (barPeaks[i] || 0) + barVelocities[i] * dt);
-            // Ease-out-back for punchy overshoot on rising transients.
+            const targetNorm = boosted * energyMod;
+            let smoothH: number;
+            let springRising = false;
+            if (asymmetric) {
+              // Plan 2.1: envelope in normalized space (the helper clamps to
+              // [0,1], so the loudest peaks cap at the nominal 78% bar range),
+              // then scale to pixels. Fast attack 0.8 is the snap — the
+              // spring path's ease-out-back is not applied on this path.
+              smoothedBars[i] = asymmetricSmoothStep(smoothedBars[i], targetNorm);
+              smoothH = smoothedBars[i] * h * 0.78;
+            } else {
+              // Spring-physics smoothing: target → velocity → position with damping.
+              const targetH = targetNorm * h * 0.78;
+              const springK = 0.28;
+              const damping = 0.72;
+              const dt = 1;
+              const displacement = targetH - (barPeaks[i] || 0);
+              barVelocities[i] = (barVelocities[i] + springK * displacement * dt) * damping;
+              smoothH = Math.max(0, (barPeaks[i] || 0) + barVelocities[i] * dt);
+              springRising = barVelocities[i] > 0;
+            }
+            // Ease-out-back for punchy overshoot on rising transients (spring path).
             const easeT = clamp(smoothH / Math.max(1, h * 0.78 * energyMod), 0, 1);
-            const easedH =
-              smoothH * (1 + 0.08 * easeOutBack(easeT) * (barVelocities[i] > 0 ? 1 : 0));
+            const easedH = asymmetric
+              ? smoothH
+              : smoothH * (1 + 0.08 * easeOutBack(easeT) * (springRising ? 1 : 0));
             barPeaks[i] = smoothH;
             const bh = easedH;
             const x = Math.round(i * barW);
@@ -937,6 +998,10 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           if (!barVelocities || barVelocities.length !== barCount) {
             barVelocities = new Array(barCount).fill(0);
           }
+          // Plan 2.1: one envelope value per layer per bar (low/mid/high).
+          if (!smoothedStack || smoothedStack.length !== barCount * layers.length) {
+            smoothedStack = new Array(barCount * layers.length).fill(0);
+          }
           const freqLen = freq?.length || 1024;
           const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen);
           for (let i = 0; i < barCount; i++) {
@@ -946,7 +1011,8 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             let layerY = baseY;
             let topY = baseY;
             let stackH = 0;
-            for (const layer of layers) {
+            for (let li = 0; li < layers.length; li++) {
+              const layer = layers[li];
               const idx = Math.min(layer.start + i, freqLen - 1);
               const logIdx = Math.min(freqLen - 1, Math.floor(freqMap(idx)));
               const v = (freq?.[logIdx] || 0) / 255;
@@ -956,24 +1022,43 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
                 (sync?.lineProgress ?? 0) * 0.1 +
                 d.bass * 0.08 +
                 (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
-              const rawLh = boosted * h * 0.22 * energyMod;
-              const ly = Math.round(layerY - rawLh);
+              let lh = boosted * h * 0.22 * energyMod;
+              if (asymmetric) {
+                // Plan 2.1: per-layer envelope in normalized space (helper
+                // clamps to [0,1] → ≤ 22% canvas per layer); the spring path
+                // draws the raw boosted height, unchanged.
+                const si = i * layers.length + li;
+                smoothedStack[si] = asymmetricSmoothStep(
+                  smoothedStack[si],
+                  boosted * energyMod,
+                );
+                lh = smoothedStack[si] * h * 0.22;
+              }
+              const ly = Math.round(layerY - lh);
               ctx.fillStyle = layer.color;
               ctx.beginPath();
-              ctx.roundRect(x + 1, ly, bw, rawLh + 2 * dpr, [radius, radius, 0, 0]);
+              ctx.roundRect(x + 1, ly, bw, lh + 2 * dpr, [radius, radius, 0, 0]);
               ctx.fill();
               ctx.fillStyle = "rgba(255,255,255,0.1)";
-              ctx.fillRect(x + 1, ly, bw, Math.max(1, rawLh * 0.25));
+              ctx.fillRect(x + 1, ly, bw, Math.max(1, lh * 0.25));
               topY = ly;
               layerY = ly;
-              stackH += rawLh;
+              stackH += lh;
             }
-            // Spring-smoothed total stack height for peak tracking only.
-            const springK = 0.24;
-            const damping = 0.74;
-            const displacement = stackH - barPeaks[i];
-            barVelocities[i] = (barVelocities[i] + springK * displacement) * damping;
-            const smoothStackH = Math.max(0, barPeaks[i] + barVelocities[i]);
+            // Envelope for the white peak-indicator dash.
+            let smoothStackH: number;
+            if (asymmetric) {
+              // Layers above are already asymmetric-smoothed; the peak hold
+              // below (PEAK_DECAY) supplies the falling tail.
+              smoothStackH = stackH;
+            } else {
+              // Spring-smoothed total stack height for peak tracking only.
+              const springK = 0.24;
+              const damping = 0.74;
+              const displacement = stackH - barPeaks[i];
+              barVelocities[i] = (barVelocities[i] + springK * displacement) * damping;
+              smoothStackH = Math.max(0, barPeaks[i] + barVelocities[i]);
+            }
             if (smoothStackH > barPeaks[i]) barPeaks[i] = smoothStackH;
             else barPeaks[i] = Math.max(smoothStackH, barPeaks[i] * PEAK_DECAY);
             const peakY = Math.round(baseY - barPeaks[i]);
