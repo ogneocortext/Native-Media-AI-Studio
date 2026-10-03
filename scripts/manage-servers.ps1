@@ -161,6 +161,45 @@ function Get-ServiceStatus {
     return @{ Running = $false; Port = $port }
 }
 
+function Get-OrphanReloaders {
+    # A `uvicorn --reload` (watchfiles) supervisor whose server child has died
+    # keeps running: watchfiles waits for the next file change and respawns, so
+    # killing the uvicorn child alone leaves a permanent no-op supervisor.
+    # It holds no port, so Get-ServiceStatus reports the service as STOPPED and
+    # `status` looks clean while the process tree leaks. Detect supervisors that
+    # own no port and have no live server descendant.
+    $procs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue
+    $supervisors = $procs | Where-Object {
+        $_.Name -eq 'python.exe' -and $_.CommandLine -match 'app\.main:app'
+    }
+    # The innermost process in the chain is the real server and owns the port.
+    # Without this, it looks like a supervisor with no child and is flagged.
+    $portHolders = @{}
+    foreach ($c in (Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue)) {
+        $portHolders[$c.OwningProcess] = $c.LocalPort
+    }
+    $orphans = @()
+    foreach ($s in $supervisors) {
+        if ($portHolders.ContainsKey($s.ProcessId)) { continue }
+        $descendants = @()
+        $frontier = @($s.ProcessId)
+        while ($frontier.Count -gt 0) {
+            $next = @()
+            foreach ($p in $frontier) {
+                $kids = @($procs | Where-Object { $_.ParentProcessId -eq $p })
+                foreach ($k in $kids) { $descendants += $k; $next += $k.ProcessId }
+            }
+            $frontier = $next
+        }
+        # A healthy supervisor has a child that is the actual server process.
+        $hasServer = @($descendants | Where-Object {
+            $_.CommandLine -match 'app\.main:app' -and $_.ProcessId -ne $s.ProcessId
+        }).Count -gt 0
+        if (-not $hasServer) { $orphans += $s }
+    }
+    return $orphans
+}
+
 function Stop-StudioService {
     param([string]$ServiceName)
     $config = $ServiceConfig[$ServiceName]
@@ -371,6 +410,14 @@ switch ($Action) {
             Write-Host " (port $($config.Port))"
         }
         Write-Host ""
+        $orphans = Get-OrphanReloaders
+        if ($orphans) {
+            Write-Host "Orphaned reloaders (no port held, safe to reap):" -ForegroundColor Yellow
+            foreach ($o in $orphans) {
+                $age = [int]((Get-Date) - $o.CreationDate).TotalMinutes
+                Write-Host "  pid $($o.ProcessId) (started ${age}m ago)" -ForegroundColor Yellow
+            }
+        }
     }
     'start' {
         Write-Host "`nStarting services..." -ForegroundColor Cyan
