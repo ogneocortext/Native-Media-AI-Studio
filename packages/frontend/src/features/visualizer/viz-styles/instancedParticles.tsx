@@ -102,11 +102,12 @@ export function InstancedParticles({
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
-        uniforms: {
+          uniforms: {
           uTexture: { value: getParticleTex() },
           uTime: { value: 0 },
           uBass: { value: 0 },
           uTreble: { value: 0 },
+          uAlpha: { value: 1.0 },
           uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
           uStretch: { value: stretch },
         },
@@ -137,30 +138,27 @@ export function InstancedParticles({
             vColor = instanceColor;
             vUv = position.xy + 0.5;
 
-            // Billboard orientation from view matrix
-            vec3 cameraRight = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
-            vec3 cameraUp    = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
-
             // Audio-reactive size
             float s = instanceSize * (1.0 + uBass * 1.2);
 
-            // Velocity stretch along motion direction
+            // Billboard in VIEW space: the quad offset must be added after the
+            // modelView transform. Building it from world-space camera axes let
+            // the LrcViz group's rotation.y shear the quads — they went
+            // edge-on/back-facing once per turn and brightness swung from 0.71
+            // (face-on, frame-filling wash) to 0.03 (invisible slivers).
             float speed = length(instanceVelocity);
             vec3 velDir = normalize(instanceVelocity + vec3(0.0001));
-            vec3 stretchDir = normalize(mix(cameraRight, velDir, 0.5));
+            vec3 velDirView = normalize((modelViewMatrix * vec4(velDir, 0.0)).xyz + vec3(0.0001));
+            vec3 stretchDir = normalize(mix(vec3(1.0, 0.0, 0.0), velDirView, 0.5) + vec3(0.0001));
             float stretchAmt = 1.0 + speed * uStretch;
 
-            // Quad corner offset with stretch
             vec2 corner = position.xy;
             float along = dot(corner, stretchDir.xy);
             vec2 perp = corner - along * stretchDir.xy;
             vec2 finalOffset = perp + along * stretchDir.xy * stretchAmt;
 
-            vec3 worldPos = instancePosition
-              + cameraRight * finalOffset.x * s
-              + cameraUp    * finalOffset.y * s;
-
-            vec4 mvPosition = modelViewMatrix * vec4(worldPos, 1.0);
+            vec4 mvPosition = modelViewMatrix * vec4(instancePosition, 1.0);
+            mvPosition.xy += finalOffset * s;
             gl_Position = projectionMatrix * mvPosition;
 
             // Distance attenuation: fade far particles out, and near ones too —
@@ -172,13 +170,14 @@ export function InstancedParticles({
         fragmentShader: /* glsl */ `
           uniform sampler2D uTexture;
           uniform float uTime;
+          uniform float uAlpha;
           varying vec3 vColor;
           varying vec2 vUv;
           varying float vAlpha;
 
           void main() {
             vec4 tex = texture2D(uTexture, vUv);
-            float a = tex.a * vAlpha;
+            float a = tex.a * vAlpha * uAlpha;
             if (a < 0.01) discard;
             gl_FragColor = vec4(vColor * tex.rgb, a);
           }

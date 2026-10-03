@@ -288,6 +288,103 @@ async def submit_prompt(
         return prompt_id
 
 
+async def cancel_prompt(
+    base_url: str,
+    prompt_id: str,
+    session: aiohttp.ClientSession | None = None,
+    timeout: float = 10,
+) -> bool:
+    """Delete a queued or running prompt from ComfyUI.
+
+    Without this, abandoning a prompt leaks it into ComfyUI's FIFO queue: it
+    keeps executing long after the caller has given up, and every abandoned
+    prompt makes the next one start later. A client that times out and walks
+    away therefore poisons the queue for everyone, including itself on retry.
+
+    Returns True when the prompt was found and deleted. A prompt that already
+    finished (or was never queued) is not an error - ComfyUI has no record of it
+    and there is nothing left to cancel.
+    """
+    sess = session or await get_shared_session()
+    url = f"{base_url.rstrip('/')}/queue"
+
+    # Look the prompt up with GET. Do NOT use DELETE /queue: on this ComfyUI
+    # build that method returns 405 Method Not Allowed, and treating it as fatal
+    # made cancellation a silent no-op - verified live, the prompt stayed queued.
+    try:
+        async with sess.get(
+            url, timeout=aiohttp.ClientTimeout(total=timeout)
+        ) as resp:
+            if resp.status != 200:
+                return False
+            body = await resp.json()
+    except Exception:
+        return False
+
+    found = False
+    for key in ("queue_running", "queue_pending"):
+        for entry in body.get(key, []) or []:
+            # Entries are [queue_number, prompt_id, prompt, extra, outputs].
+            if isinstance(entry, (list, tuple)) and len(entry) > 1 and entry[1] == prompt_id:
+                found = True
+                break
+        if found:
+            break
+    if not found:
+        return False
+
+    try:
+        async with sess.post(
+            url,
+            json={"delete": [prompt_id]},
+            timeout=aiohttp.ClientTimeout(total=timeout),
+        ) as del_resp:
+            return del_resp.status in (200, 204)
+    except Exception:
+        return False
+
+
+async def queue_depth(
+    base_url: str,
+    session: aiohttp.ClientSession | None = None,
+    timeout: float = 10,
+) -> tuple[int, int]:
+    """``(running, pending)`` prompt counts. Returns ``(-1, -1)`` if unreachable."""
+    sess = session or await get_shared_session()
+    try:
+        async with sess.get(
+            f"{base_url.rstrip('/')}/queue",
+            timeout=aiohttp.ClientTimeout(total=timeout),
+        ) as resp:
+            if resp.status != 200:
+                return (-1, -1)
+            body = await resp.json()
+    except Exception:
+        return (-1, -1)
+    return (
+        len(body.get("queue_running", []) or []),
+        len(body.get("queue_pending", []) or []),
+    )
+
+
+async def interrupt_current(base_url: str, session: aiohttp.ClientSession | None = None) -> bool:
+    """Ask ComfyUI to abort whatever it is executing right now.
+
+    This is heavier than :func:`cancel_prompt` - it stops the running prompt,
+    not just a queued one - so it is a last resort for a wedged worker, never a
+    response to a single slow job.
+    """
+    sess = session or await get_shared_session()
+    try:
+        async with sess.post(
+            f"{base_url.rstrip('/')}/interrupt",
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            return resp.status in (200, 204)
+    except Exception:
+        return False
+
+
 async def is_reachable(base_url: str, timeout: float = 3.0) -> bool:
     """Lightweight ``/system_stats`` probe."""
     try:
