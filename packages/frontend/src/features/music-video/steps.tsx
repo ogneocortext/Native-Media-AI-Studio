@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo } from "react";
+import { AudioTransport } from "../../components/audio";
 import { lintVideoPrompt } from "../../utils/promptLint";
 import {
   Upload,
@@ -125,7 +126,7 @@ export function UploadStep({
             </>
           )}
         </div>
-        {audioUrl && <audio controls src={audioUrl} className="w-full mt-4 rounded-lg" />}
+        {audioUrl && <AudioTransport src={audioUrl} className="w-full mt-4" ariaLabel="Track preview" />}
         {audioFile && (
           <button
             onClick={onNext}
@@ -284,7 +285,7 @@ export function AnalyzeStep({
           </div>
         </div>
       </div>
-      {audioUrl && <audio controls src={audioUrl} className="w-full rounded-lg" />}
+      {audioUrl && <AudioTransport src={audioUrl} className="w-full" ariaLabel="Track preview" />}
       <button
         onClick={onNext}
         className="mt-6 w-full md:w-auto px-8 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl flex items-center gap-2 font-semibold shadow-lg shadow-violet-600/20"
@@ -1082,7 +1083,7 @@ export function ReviewStep({
           </div>
         ))}
       </div>
-      {audioUrl && <audio controls src={audioUrl} className="w-full mt-4 rounded-lg" />}
+      {audioUrl && <AudioTransport src={audioUrl} className="w-full mt-4" ariaLabel="Track preview" />}
       <button
         onClick={() => setShowExport(true)}
         className="mt-3 w-full md:w-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl flex items-center gap-2 font-semibold mx-auto"

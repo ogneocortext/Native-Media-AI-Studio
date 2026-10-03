@@ -425,15 +425,38 @@ date: 2026-09-29
 
 | Gap | Why It Matters | Recommendation |
 |---|---|---|
-| **Animation principles for reactive viz** | Disney's 12 principles (anticipation, follow-through, staging…) were built for exactly this: making motion feel alive. None are documented for audio-reactive use. | 🔴 Research Now |
-| **Easing choreography per section** | Everything pulsing on the kick is the #1 amateur tell. No guidance on easing selection across verse/chorus/bridge. | 🔴 Research Now |
-| **Tension/release arcs** | Reactive visuals with no rests exhaust the viewer. No research on when NOT to react. | 🟡 Defer |
-| **Motion vocabulary spec** | No named, parameterized "moves" a coding agent can implement directly. | 🔴 Research Now |
+| **Animation principles for reactive viz** | Disney's 12 principles (anticipation, follow-through, staging…) were built for exactly this: making motion feel alive. None are documented for audio-reactive use. | ✅ Done — handoff 2026-10-02 |
+| **Easing choreography per section** | Everything pulsing on the kick is the #1 amateur tell. No guidance on easing selection across verse/chorus/bridge. | ✅ Done — `SECTION_EASING` |
+| **Tension/release arcs** | Reactive visuals with no rests exhaust the viewer. No research on when NOT to react. | ✅ Done — `preDropFreeze`, `shouldGateMotion` |
+| **Motion vocabulary spec** | No named, parameterized "moves" a coding agent can implement directly. | ✅ Done — 10 moves in `motion/` |
+
+### Implementation status (2026-10-02)
+
+The Gemini pass returned 10 implementable moves; all ten are implemented in
+`packages/frontend/src/features/visualizer/motion/` with 151 unit assertions, plus
+the sectional easing palette, the impulse-decay trigger (amateur tell #1) and the
+motion gates. See `docs/architecture/visualizer.md` for the module map and the
+rules for extending it.
+
+Two spec corrections were needed and are worth knowing before the doc is re-read:
+
+1. **`flareXZ` derivation.** The spec writes `1.154 (= 1/0.75, volume-preserving)`.
+   The number is right (`1/√0.75 = 1.1547`); the derivation is not — `1/0.75` is
+   1.333, which inflates volume by 33% on every kick. `volumePreservingFlare()`
+   derives it as `1/√compressionY` so the property holds for any compression.
+2. **`stepAngle` precision.** The spec's `0.196` rad (32 steps/rev) drifts: 32
+   steps land 0.011 rad short of a full turn, repeating a visible seam every 32
+   hats. The default is now exactly `2π/32`.
+
+Remaining (deliberately not done): per-viz-style tuning of the `MotionInput`
+mapping, and the A/B screenshot validation below — the moves are unit-tested but
+not yet confirmed on screen against the existing styles.
 
 ### Suggested Research
 
-1. **Gemini pass (in progress 2026-10-02)**: which animation principles transfer to audio-reactive visuals, easing choreography, structural arcs, amateur tells to avoid — ending in an implementable motion vocabulary (named moves + parameters + defaults) for the existing stack (React/Three.js, precomputed frame JSON, exponential smoothing).
-2. **Validate against visualizer**: pick 2 existing viz styles, apply one motion principle each (e.g., beat-anticipation swell), A/B via screenshot.
+1. ~~Gemini pass~~ — delivered 2026-10-02 (see `app-research-gaps-2026.md` §16).
+2. **Validate against visualizer**: pick 2 existing viz styles, apply one motion
+   principle each (e.g., beat-anticipation swell), A/B via screenshot.
 
 ## 17. Onboarding & First-Run UX for Creative Tools
 

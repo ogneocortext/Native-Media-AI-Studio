@@ -1,6 +1,5 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import {
-  barkFreqMap,
   clamp,
   easeOutBack,
   easeOutQuad,
@@ -8,10 +7,18 @@ import {
   hexToRgb,
   hslToRgb,
   lerpColor,
-  logFreqMap,
-  melFreqMap,
+  makeFreqMapper,
   normalizeHex,
+  sampleMappedBand,
+  type PerceptualScale,
 } from "./canvas2dHelpers";
+import {
+  allowsEffect,
+  getModeBudget,
+  resolveActiveEffects,
+  VIGNETTE_ALPHA_CEILING,
+  type Canvas2DMode,
+} from "./canvas2dModeBudget";
 import type { AudioData } from "./types";
 
 export interface Canvas2DVisualizerRef {
@@ -22,20 +29,7 @@ interface Props {
   audioData: React.MutableRefObject<AudioData>;
   analyserRef: React.MutableRefObject<AnalyserNode | null>;
   isPlaying: boolean;
-  mode?:
-    | "bars"
-    | "mirrored-bars"
-    | "segmented-led-bars"
-    | "stereo-split-bars"
-    | "stacked-frequency-bands"
-    | "dot-peak-matrix"
-    | "waveform"
-    | "radial"
-    | "spectrogram"
-    | "lissajous"
-    | "constellation"
-    | "particles"
-    | "aurora";
+  mode?: Canvas2DMode;
   lrcSync?: {
     currentSection: string;
     sectionProgress: number;
@@ -54,7 +48,7 @@ interface Props {
   /** Honor OS reduced-motion preference — scales down phraseFlash, beat vignette, and trail persistence. */
   prefersReducedMotion?: boolean;
   /** Perceptual frequency scale for bar mapping (2026 research: bark/erb/mel for better human pitch perception). */
-  perceptualScale?: "linear" | "log" | "bark" | "mel";
+  perceptualScale?: PerceptualScale;
 }
 
 /**
@@ -442,8 +436,13 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         const bg = normalizeHex(bgColor);
         const w = canvas.width;
         const h = canvas.height;
-        // Drum-type shockwaves — expanding rings color-coded by transient class
-        if (d.beat) spawnShockwave(w, h, d.drumType ?? undefined);
+        // Drum-type shockwaves — expanding rings color-coded by transient class.
+        // Gated on the mode budget: spawning rings a mode will not draw leaks
+        // them into the next beat's frame (and fills the 8-ring pool), so a
+        // mode-switch away from `bars`/`radial` would show phantom rings.
+        if (d.beat && allowsEffect(mode, "shockwaves")) {
+          spawnShockwave(w, h, d.drumType ?? undefined);
+        }
         updateShockwaves(motionScale);
 
         // Cached gradient helper: keyed by mode + palette + height so each
@@ -502,27 +501,39 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           raf = requestAnimationFrame(draw);
           return;
         }
-        // 2026 p5.js trail: background alpha 5-15 for ghostly persistence (visual-flux + p5js.ai 2026)
-        // Each mode gets tuned alpha: bars need crisp bars (higher clear), particles need long trails
+        // -----------------------------------------------------------------------
+        // Global effect stack — now budgeted per mode.
+        //
+        // Previously all four of these drew on every frame in every mode, before the
+        // mode's own rendering: trail/ghost fill, phrase flash, beat vignette and drum
+        // shockwaves. That 5-7 simultaneous large-area effects with no focal point is
+        // the "visual noise" failure in
+        // docs/knowledge/canvas2d-visualizer-diagnosis-2026-10-02/README.md.
+        // The budget (canvas2dModeBudget.ts) decides which of them may draw this
+        // frame, and caps it at two.
+        // -----------------------------------------------------------------------
+        const budget = getModeBudget(mode);
+        // An LRC track is loaded iff we have a live sync snapshot with a section.
+        // (`sync` already merges lrcSyncLive and lrcSync via the holder above.)
+        const hasLyrics = Boolean(sync?.currentSection);
+        const active = resolveActiveEffects(mode, {
+          hasLyrics,
+          beatActive: beatVignette > 0.01 || d.beat,
+          phraseActive: phraseFlash > 0.05,
+        });
+
+        // 2026 p5.js trail: background alpha 5-15 for ghostly persistence
+        // (visual-flux + p5js.ai 2026). Alpha now comes from the mode budget
+        // rather than a 4-level nested ternary with duplicated reduced-motion
+        // branches. A mode with no trails clears fully each frame, which is what
+        // `spectrogram` was already special-casing for itself.
         if (isPlaying) {
-          if (mode !== "spectrogram") {
-            const trailAlpha =
-              mode === "particles"
-                ? prefersReducedMotion
-                  ? "03"
-                  : "0A"
-                : mode === "bars"
-                  ? prefersReducedMotion
-                    ? "08"
-                    : "14"
-                  : mode === "waveform"
-                    ? prefersReducedMotion
-                      ? "08"
-                      : "12"
-                    : prefersReducedMotion
-                      ? "08"
-                      : "0F";
-            ctx.fillStyle = bg + trailAlpha;
+          const trailAlpha = prefersReducedMotion ? budget.trailAlphaReduced : budget.trailAlpha;
+          if (active.has("trails") && trailAlpha !== null) {
+            ctx.fillStyle = bg + trailAlpha.toString(16).padStart(2, "0").toUpperCase();
+            ctx.fillRect(0, 0, w, h);
+          } else {
+            ctx.fillStyle = bg;
             ctx.fillRect(0, 0, w, h);
           }
         } else {
@@ -530,12 +541,13 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           ctx.fillRect(0, 0, w, h);
         }
 
-        if (phraseFlash > 0.05) {
+        if (active.has("phraseFlash") && phraseFlash > 0.05) {
           ctx.fillStyle = `rgba(255,255,255,${phraseFlash * 0.08})`;
           ctx.fillRect(0, 0, w, h);
         }
-        // Beat vignette — radial gradient darkening edges on strong beats.
-        if (beatVignette > 0.01) {
+        // Beat vignette — radial edge darkening, alpha ceiling halved per the
+        // diagnosis doc ("halve the alpha ceiling globally, then re-evaluate").
+        if (active.has("beatVignette") && beatVignette > 0.01) {
           const vigGrd = ctx.createRadialGradient(
             w / 2,
             h / 2,
@@ -545,12 +557,15 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             Math.max(w, h) * 0.72,
           );
           vigGrd.addColorStop(0, "rgba(0,0,0,0)");
-          vigGrd.addColorStop(1, `rgba(0,0,0,${beatVignette * 0.45})`);
+          vigGrd.addColorStop(1, `rgba(0,0,0,${beatVignette * VIGNETTE_ALPHA_CEILING})`);
           ctx.fillStyle = vigGrd;
           ctx.fillRect(0, 0, w, h);
         }
-        // Drum shockwaves — expanding rings behind other modes
-        drawShockwaves(ctx, dpr);
+        // Drum shockwaves — expanding rings, only on modes whose budget allows
+        // them *this frame* (they are spawned further up, before this block).
+        if (active.has("shockwaves")) {
+          drawShockwaves(ctx, dpr);
+        }
 
         if (!analyser || !isPlaying) {
           // 2026 kinetic idle: variable-font-inspired — weight pulses with phraseFlash, not static
@@ -597,15 +612,9 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           const baseY = Math.round(h * 0.88);
           // Perceptual frequency scale selection (2026 research)
           const freqLen = freq?.length || 1024;
-          const freqMap = (idx: number) => {
-            const scale = perceptualScale || "log";
-            if (scale === "bark") return barkFreqMap(idx, barCount, freqLen);
-            if (scale === "mel") return melFreqMap(idx, barCount, freqLen);
-            if (scale === "linear") return (idx / barCount) * freqLen;
-            return logFreqMap(idx, barCount, freqLen); // default log
-          };
+          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen);
           for (let i = 0; i < barCount; i++) {
-            const rawV = (freq?.[Math.min(freqLen - 1, Math.floor(freqMap(i)))] || 0) / 255;
+            const rawV = sampleMappedBand(freq, freqMap, i) / 255;
             const boosted =
               rawV +
               phraseFlash * 0.35 +
@@ -712,15 +721,9 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           const centerY = Math.round(h * 0.5);
           const maxBarH = h * 0.38;
           const freqLen = freq?.length || 1024;
-          const freqMap = (idx: number) => {
-            const scale = perceptualScale || "log";
-            if (scale === "bark") return barkFreqMap(idx, barCount, freqLen);
-            if (scale === "mel") return melFreqMap(idx, barCount, freqLen);
-            if (scale === "linear") return (idx / barCount) * freqLen;
-            return logFreqMap(idx, barCount, freqLen);
-          };
+          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen);
           for (let i = 0; i < barCount; i++) {
-            const v = (freq?.[Math.min(freqLen - 1, Math.floor(freqMap(i)))] || 0) / 255;
+            const v = sampleMappedBand(freq, freqMap, i) / 255;
             const boosted =
               v +
               phraseFlash * 0.35 +
@@ -801,15 +804,9 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             barVelocities = new Array(barCount).fill(0);
           }
           const freqLen = freq?.length || 1024;
-          const freqMap = (idx: number) => {
-            const scale = perceptualScale || "log";
-            if (scale === "bark") return barkFreqMap(idx, barCount, freqLen);
-            if (scale === "mel") return melFreqMap(idx, barCount, freqLen);
-            if (scale === "linear") return (idx / barCount) * freqLen;
-            return logFreqMap(idx, barCount, freqLen);
-          };
+          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen);
           for (let i = 0; i < barCount; i++) {
-            const v = (freq?.[Math.min(freqLen - 1, Math.floor(freqMap(i)))] || 0) / 255;
+            const v = sampleMappedBand(freq, freqMap, i) / 255;
             const boosted =
               v +
               phraseFlash * 0.35 +
@@ -870,18 +867,12 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             barVelocities = new Array(barCount).fill(0);
           }
           const freqLen = freq?.length || 1024;
-          const freqMap = (idx: number) => {
-            const scale = perceptualScale || "log";
-            if (scale === "bark") return barkFreqMap(idx, barCount, freqLen);
-            if (scale === "mel") return melFreqMap(idx, barCount, freqLen);
-            if (scale === "linear") return (idx / barCount) * freqLen;
-            return logFreqMap(idx, barCount, freqLen);
-          };
+          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen);
           for (const band of bands) {
             ctx.fillStyle = band.color + "18";
             ctx.fillRect(0, baseY - 2 * dpr, w, 2 * dpr);
             for (let i = band.start; i < band.end; i++) {
-              const v = (freq?.[Math.min(freqLen - 1, Math.floor(freqMap(i)))] || 0) / 255;
+              const v = sampleMappedBand(freq, freqMap, i) / 255;
               const boosted =
                 v +
                 phraseFlash * 0.35 +
@@ -947,13 +938,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             barVelocities = new Array(barCount).fill(0);
           }
           const freqLen = freq?.length || 1024;
-          const freqMap = (idx: number) => {
-            const scale = perceptualScale || "log";
-            if (scale === "bark") return barkFreqMap(idx, barCount, freqLen);
-            if (scale === "mel") return melFreqMap(idx, barCount, freqLen);
-            if (scale === "linear") return (idx / barCount) * freqLen;
-            return logFreqMap(idx, barCount, freqLen);
-          };
+          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen);
           for (let i = 0; i < barCount; i++) {
             const x = Math.round(i * barW);
             const bw = Math.round(barW) - 2;
@@ -1020,15 +1005,9 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             barVelocities = new Array(barCount).fill(0);
           }
           const freqLen = freq?.length || 1024;
-          const freqMap = (idx: number) => {
-            const scale = perceptualScale || "log";
-            if (scale === "bark") return barkFreqMap(idx, barCount, freqLen);
-            if (scale === "mel") return melFreqMap(idx, barCount, freqLen);
-            if (scale === "linear") return (idx / barCount) * freqLen;
-            return logFreqMap(idx, barCount, freqLen);
-          };
+          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen);
           for (let i = 0; i < cols; i++) {
-            const v = (freq?.[Math.min(freqLen - 1, Math.floor(freqMap(i)))] || 0) / 255;
+            const v = sampleMappedBand(freq, freqMap, i) / 255;
             const boosted =
               v +
               phraseFlash * 0.35 +

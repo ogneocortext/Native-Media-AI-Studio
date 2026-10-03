@@ -8,7 +8,9 @@
  */
 
 import React, { useCallback, useState, useMemo } from "react";
+import { ChevronDown } from "lucide-react";
 import { DEFAULT_EQ_PRESETS, type EQBand, EQ_MIN_DB, EQ_MAX_DB } from "../audioEQ";
+import { usePanelCollapsed } from "../usePanelCollapsed";
 
 export interface EqualizerPanelProps {
   /** Main track EQ instance, if any. */
@@ -65,6 +67,9 @@ export function EqualizerPanel({
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
   const bands = isControlled ? controlledBands : internalBands;
+  // Plan 1.2: starts collapsed and remembers open/closed, so MASTER EQ stops
+  // owning ~20% of the viewport under the transport on every load.
+  const { open: bodyOpen, toggle: toggleBody } = usePanelCollapsed("master-eq");
 
   const setBands = useCallback(
     (next: EQBand[]) => {
@@ -160,25 +165,41 @@ export function EqualizerPanel({
 
   return (
     <div className="rounded-xl border border-white/10 bg-black/30 p-3" data-testid="equalizer-panel">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted">{title}</span>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={handleReset}
-            className="text-[10px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-white"
-          >
-            Reset
-          </button>
-          <button
-            onClick={handleAddBand}
-            className="text-[10px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-white"
-          >
-            + Band
-          </button>
-        </div>
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={toggleBody}
+          aria-expanded={bodyOpen}
+          aria-controls="equalizer-panel-body"
+          className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted hover:text-white transition-colors"
+        >
+          <ChevronDown
+            size={12}
+            aria-hidden="true"
+            className={`transition-transform ${bodyOpen ? "" : "-rotate-90"}`}
+          />
+          {title}
+        </button>
+        {bodyOpen && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleReset}
+              className="text-[10px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-white"
+            >
+              Reset
+            </button>
+            <button
+              onClick={handleAddBand}
+              className="text-[10px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-white"
+            >
+              + Band
+            </button>
+          </div>
+        )}
       </div>
 
-      {presetNames.length > 0 && (
+      <div id="equalizer-panel-body" hidden={!bodyOpen} className="mt-2">
+        {presetNames.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
           {presetNames.map((name) => {
             const isActive = currentPreset === name;
@@ -233,7 +254,8 @@ export function EqualizerPanel({
             </div>
           ))}
         </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

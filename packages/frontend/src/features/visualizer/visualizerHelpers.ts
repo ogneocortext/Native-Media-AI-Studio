@@ -106,6 +106,7 @@ export const CANVAS_2D_MODES = [
   "lissajous",
   "constellation",
   "particles",
+  "aurora",
 ] as const;
 export type Canvas2DMode = (typeof CANVAS_2D_MODES)[number];
 
@@ -123,7 +124,41 @@ export const CANVAS_2D_MODE_LABELS: Record<Canvas2DMode, string> = {
   lissajous: "Lissajous",
   constellation: "Constellation",
   particles: "Particles",
+  aurora: "Aurora",
 };
+
+/**
+ * Short labels for the compact "More" menu picker.
+ *
+ * The compact menu has room for ~12 characters, so it cannot reuse
+ * `CANVAS_2D_MODE_LABELS` ("Segmented LED Bars", "Stacked Frequency Bands").
+ * These were previously inline in the <select> itself, which is how the two
+ * pickers drifted apart — and why `aurora` and the invalid
+ * `stereo-split-bands` value existed only in the hidden test-panel copy.
+ *
+ * `Record<Canvas2DMode, string>` makes a missing entry a type error rather than
+ * a blank <option>, and `shortModeLabel()` gives a safe fallback.
+ */
+export const CANVAS_2D_MODE_SHORT_LABELS: Record<Canvas2DMode, string> = {
+  bars: "Bars",
+  "mirrored-bars": "Mirrored",
+  "segmented-led-bars": "LED Bars",
+  "stereo-split-bars": "Stereo Split",
+  "stacked-frequency-bands": "Stacked Bands",
+  "dot-peak-matrix": "Dot Matrix",
+  waveform: "Wave",
+  radial: "Radial",
+  spectrogram: "Spectrogram",
+  lissajous: "Lissajous",
+  constellation: "Constellation",
+  particles: "Particles",
+  aurora: "Aurora",
+};
+
+/** Short label for a mode, falling back to the full label. */
+export function shortModeLabel(mode: Canvas2DMode): string {
+  return CANVAS_2D_MODE_SHORT_LABELS[mode] ?? CANVAS_2D_MODE_LABELS[mode] ?? mode;
+}
 
 /** Stage mode cycle order for the ←/→ keyboard shortcuts. */
 export const VIZ_MODE_ORDER = ["3d", "shader", "2d"] as const;

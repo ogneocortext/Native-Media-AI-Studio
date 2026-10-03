@@ -95,7 +95,25 @@ function writeFxToApi(values: FxValues): Promise<void> {
 
 interface ShaderVisualizerProps {
   audioData: React.MutableRefObject<AudioData>;
+  /**
+   * Human-readable track name — used for the on-canvas label and for preset
+   * selection. Deliberately *not* an API key: see `trackFile`.
+   */
   trackName: string;
+  /**
+   * The raw library reference (`currentFilename`), used as the API/cache key for
+   * `useKeyPalette` and `useSpectralTimeline`.
+   *
+   * This is a separate prop because a display string and a cache key are
+   * different things. `Visualizer.tsx` passed `cleanTrackName(currentFilename)`
+   * here, so a library file stored as `a6792f53_SunoV6Mini-Ad-Nauseam.wav` was
+   * requested as `SunoV6Mini-Ad-Nauseam` and 404'd — every hash-prefixed file
+   * (which is every uploaded file, see the content-addressed naming in the
+   * CHANGELOG) lost its spectral timeline and key palette. Cleaning *less* is not
+   * the fix: D16 keeps display rules in `cleanTrackName`; the mistake was using
+   * its output as a lookup key.
+   */
+  trackFile: string;
   isPlaying: boolean;
   className?: string;
   lrcSync?: {
@@ -121,6 +139,14 @@ interface ShaderVisualizerProps {
   stemsVolumes?: Record<StemName, number>;
   /** Live per-stem meters from the professional mixer (overrides stemsVolumes when present). */
   stemsProMeters?: Record<StemName, { rms: number; peak: number; dBFS: number }>;
+  /**
+   * Plan 1.3 — the FX panel is one of three mutually exclusive floating
+   * overlays (shortcuts / More / FX), so its open state is owned by
+   * `Visualizer` (`openOverlay`), not by local state here. Opening FX closes
+   * the other two, and vice versa.
+   */
+  fxOpen: boolean;
+  onFxOpenChange: (open: boolean) => void;
 }
 
 /**
@@ -130,6 +156,7 @@ interface ShaderVisualizerProps {
 export function ShaderVisualizer({
   audioData,
   trackName,
+  trackFile,
   isPlaying,
   className,
   lrcSync,
@@ -139,10 +166,12 @@ export function ShaderVisualizer({
   stemsMuted,
   stemsVolumes,
   stemsProMeters,
+  fxOpen,
+  onFxOpenChange,
 }: ShaderVisualizerProps) {
   const [preset, setPreset] = useState<ShaderPresetName>(() => getShaderPresetForTrack(trackName));
   const [showSelector, setShowSelector] = useState(false);
-  const [showFx, setShowFx] = useState(true);
+  const showFx = fxOpen;
   const [fxSpeed, setFxSpeed] = useState(() => readFxNumber("fxSpeed", DEFAULT_FX.speed));
   const [fxBrightness, setFxBrightness] = useState(() =>
     readFxNumber("fxBrightness", DEFAULT_FX.brightness),
@@ -178,7 +207,7 @@ export function ShaderVisualizer({
   // per track, so it lives in its own ref rather than in uniformsRef: the rAF
   // loop reassigns uniformsRef.current wholesale every frame and would discard
   // these values if they were part of that object.
-  const { palette: keyPaletteState } = useKeyPalette(trackName ?? null);
+  const { palette: keyPaletteState } = useKeyPalette(trackFile || null);
   const keyPaletteRef = useRef(keyPaletteState);
   keyPaletteRef.current = keyPaletteState;
   const userSelectedPreset = useRef(false);
@@ -201,7 +230,11 @@ export function ShaderVisualizer({
     highSensitivity: 1.0,
   });
 
-  const { sampleAtTime: sampleSpectral } = useSpectralTimeline(trackName, 24);
+  // Keyed on the raw library reference, NOT the display name: the timeline
+  // endpoint addresses files by their stored name, and every uploaded file is
+  // hash-prefixed (see the CHANGELOG's content-addressed naming). Passing
+  // `trackName` here 404'd for all of them.
+  const { sampleAtTime: sampleSpectral } = useSpectralTimeline(trackFile, 24);
   const sectionPresetRef = useRef(getSectionPreset("verse"));
   const lastSectionRef = useRef<string>("");
   const [feedbackEnabled, setFeedbackEnabled] = useState(false);
@@ -404,22 +437,11 @@ export function ShaderVisualizer({
     }
   }, [fxSpeed, fxBrightness, fxContrast, fxHue, fxSaturation, loadedFromApi]);
 
-  // Keyboard shortcut: F to toggle FX panel visibility
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      )
-        return;
-      if (e.key === "f" || e.key === "F") {
-        setShowFx((prev) => !prev);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  // Plan 1.3/1.5 — this component used to listen for "f" and toggle the FX
+  // panel, but Visualizer's stage keyboard map also binds "f" to focus mode
+  // (the shortcut list documents F = Focus mode), so one keypress fired both.
+  // The FX panel now opens from its own button in the HUD and is owned by
+  // Visualizer's overlay state.
 
   return (
     <div className={`w-full h-full ${className ?? ""}`} style={{ position: "absolute", inset: 0 }}>
@@ -443,15 +465,32 @@ export function ShaderVisualizer({
         />
       </div>
 
-      {/* Preset selector overlay */}
-      <div className="absolute top-2 right-2 z-10 flex flex-col gap-2">
-        <button
-          onClick={() => setShowSelector(!showSelector)}
-          className="px-2 py-1 text-xs bg-black/50 hover:bg-black/70 text-white/80 rounded backdrop-blur-sm transition-colors"
-          title="Change shader preset"
-        >
-          {SHADER_PRESET_INFO[preset].name}
-        </button>
+      {/* Preset selector overlay + FX controls (plan 1.3 — `viz-shader-hud` is
+          the allowlist token the parent's outside-click listener passes; its
+          z-index comes only from visualizer.css, because that file lives in
+          layer(components) and a Tailwind `z-10` utility would beat it). */}
+      <div className="absolute top-2 right-2 flex flex-col gap-2 viz-shader-hud">
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={() => setShowSelector(!showSelector)}
+            className="px-2 py-1 text-xs bg-black/50 hover:bg-black/70 text-white/80 rounded backdrop-blur-sm transition-colors"
+            title="Change shader preset"
+          >
+            {SHADER_PRESET_INFO[preset].name}
+          </button>
+          {!showFx && (
+            <button
+              onClick={() => onFxOpenChange(true)}
+              data-viz-overlay-toggle="fx"
+              aria-label="Open FX controls"
+              aria-expanded={showFx}
+              className="px-2 py-1 text-xs bg-black/50 hover:bg-black/70 text-white/80 rounded backdrop-blur-sm transition-colors"
+              title="FX controls"
+            >
+              FX
+            </button>
+          )}
+        </div>
 
         {showSelector && (
           <div className="absolute top-8 right-0 w-64 bg-gray-900/95 backdrop-blur-sm rounded-lg border border-white/10 shadow-xl overflow-hidden">
@@ -475,18 +514,21 @@ export function ShaderVisualizer({
           </div>
         )}
 
-        {/* FX Controls */}
-        <div className="bg-gray-900/95 backdrop-blur-sm rounded-lg border border-white/10 shadow-xl overflow-hidden">
+        {/* FX Controls — hidden (not unmounted) while another overlay owns
+            the stage; the FX button above reopens it. */}
+        <div
+          className={`bg-gray-900/95 backdrop-blur-sm rounded-lg border border-white/10 shadow-xl overflow-hidden${showFx ? "" : " hidden"}`}
+        >
           <div className="flex items-center justify-between p-2">
             <span className="text-xs text-white/60 font-medium">FX</span>
             <button
               onClick={() => {
-                setShowFx(!showFx);
+                onFxOpenChange(false);
               }}
               className="text-xs text-white/60 hover:text-white/90 transition-colors"
-              title={showFx ? "Hide FX controls" : "Show FX controls"}
+              title="Hide FX controls"
             >
-              {showFx ? "Hide" : "Show"}
+              Hide
             </button>
           </div>
           {showFx && (

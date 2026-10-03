@@ -65,6 +65,11 @@ export async function navigateWithWait(page: Page, path: string, timeout = 15_00
     await page.goto(path, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#root')).toHaveCount(1, { timeout });
     await expect(page.locator('main.layout-main, main')).toBeVisible({ timeout });
+    // After navigation, not just in beforeEach: the Vite dev server injects its
+    // overlay on every page load, so cleaning only in `beforeEach` leaves it in
+    // place for the entire test — which is what made the sidebar footer toggle
+    // unclickable.
+    await removeDevToolOverlays(page);
   } catch (error) {
     const url = page.url();
     const details = browserErrors.length ? ` Browser errors: ${browserErrors.join(' | ')}` : '';
@@ -143,6 +148,55 @@ export async function cleanupRoutes(page: Page): Promise<void> {
       await page.unroute('**', handler).catch(() => {});
     }
   }
+  await removeDevToolOverlays(page);
+}
+
+/**
+ * Remove dev-only overlay elements that intercept pointer events.
+ *
+ * The Vite dev server injects `<devframes-dock-embedded>` (and the HMR error
+ * overlay) into `<body>`. They sit above the app and swallow clicks aimed at
+ * whatever is beneath them. `sidebar.spec.ts` failed on exactly this: the System
+ * footer toggle reported "visible, enabled and stable" and still timed out,
+ * because `document.elementFromPoint` at its centre returned the overlay rather
+ * than the button.
+ *
+ * It is a test-environment artifact, not an app defect — the same click works
+ * in a production build — so the fix belongs here rather than in a spec, and
+ * every suite that calls `cleanupRoutes` in `beforeEach` inherits it.
+ *
+ * These tags only exist in dev, so this is a no-op against a preview build.
+ */
+export async function removeDevToolOverlays(page: Page): Promise<void> {
+  // Block the overlay's script at the network level first.
+  //
+  // Removing the DOM node is not enough on its own: `/__devtools/embedded.js`
+  // fetches its icons from `https://api.iconify.design` at runtime, and those
+  // cross-origin requests log CORS errors that `expectNoConsoleErrors` then
+  // fails on. That is what made two `unity.spec.ts` tests fail — not the app.
+  // Blocking the request keeps the CDN out of the test entirely.
+  await page
+    .route('**/__devtools/**', (route) => route.abort())
+    .catch(() => {
+      // Already routed by this page; ignore.
+    });
+  await page
+    .evaluate(() => {
+      const DEV_TAGS = ['devframes-dock-embedded', 'vite-error-overlay', 'react-refresh'];
+      for (const tag of DEV_TAGS) {
+        // Removing is correct: none of these carry app content, and the HMR
+        // overlay is re-injected after a rebuild, so `cleanupRoutes` runs again
+        // on the next test.
+        document.querySelectorAll(tag).forEach((node) => node.remove());
+      }
+      // `vite-plugin-inspect` and similar can leave a full-screen wrapper.
+      document
+        .querySelectorAll('body > [data-vite-dev-overlay], body > vite-error-overlay')
+        .forEach((node) => node.remove());
+    })
+    .catch(() => {
+      // The page may not be navigated yet; this is best-effort cleanup.
+    });
 }
 
 // ---------------------------------------------------------------------------

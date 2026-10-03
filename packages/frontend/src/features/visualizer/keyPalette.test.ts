@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { classifyAnalysisResponse } from "./useKeyPalette";
 import {
   keyPalette,
   pitchClassToHue,
@@ -17,6 +18,44 @@ import {
  * spec that is not mirrored here shows up as a failing test rather than as
  * silent drift between the doc and the code.
  */
+
+describe("classifyAnalysisResponse (Phase 0.3)", () => {
+  // A track nobody has analyzed must be a first-class state with an "Analyze"
+  // affordance, not an error. Getting this wrong is what made loading a normal
+  // unanalyzed track look like something had broken.
+  it("treats 404 as 'not analyzed', not as an error", () => {
+    expect(classifyAnalysisResponse(404)).toEqual({ kind: "not-analyzed" });
+  });
+
+  it("treats 2xx as found", () => {
+    for (const status of [200, 201, 204]) {
+      expect(classifyAnalysisResponse(status)).toEqual({ kind: "found" });
+    }
+  });
+
+  it("treats genuine failures as errors, carrying the status", () => {
+    for (const status of [400, 401, 403, 500, 502, 503]) {
+      expect(classifyAnalysisResponse(status)).toEqual({ kind: "error", status });
+    }
+  });
+
+  it("does not treat other 4xx as 'not analyzed'", () => {
+    // Only 404 means "no such analysis". A 403 is an auth problem and must
+    // still surface, or a misconfigured proxy would look like an unanalyzed
+    // track and quietly disable the palette.
+    expect(classifyAnalysisResponse(403).kind).toBe("error");
+    expect(classifyAnalysisResponse(500).kind).toBe("error");
+  });
+
+  it("always returns a usable neutral palette for the not-analyzed case", () => {
+    // The Q2/Q5 deterministic-fallback contract: an unanalyzed track still has
+    // to render, it just renders neutral.
+    const p = keyPalette(null, null);
+    expect(p.fallback).toBe(true);
+    expect(Number.isFinite(p.hue)).toBe(true);
+    expect(Number.isFinite(p.saturation)).toBe(true);
+  });
+});
 
 describe("pitch class -> hue", () => {
   // The full circle-of-fifths table from the spec. Fifths order, not chromatic,

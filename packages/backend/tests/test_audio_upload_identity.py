@@ -63,7 +63,7 @@ def test_same_bytes_yield_same_id(tmp_path, monkeypatch):
 
     assert a == b, "identical content produced different ids"
     # And it really is the content hash, not a lucky coincidence.
-    assert a == hashlib.sha256(payload).hexdigest()[:8]
+    assert a.startswith(hashlib.sha256(payload).hexdigest()[:8] + "_")
 
 
 def test_different_bytes_yield_different_ids(tmp_path, monkeypatch):
@@ -72,8 +72,12 @@ def test_different_bytes_yield_different_ids(tmp_path, monkeypatch):
     assert a != b
 
 
-def test_reupload_overwrites_in_place_and_leaves_no_temp_files(tmp_path, monkeypatch):
-    """A repeat upload must not accumulate copies or .upload strays."""
+def test_reupload_reuses_the_existing_file_and_leaves_no_temp_files(tmp_path, monkeypatch):
+    """A repeat upload must not accumulate copies or .upload strays.
+
+    It now reuses the stored file rather than rewriting it — the previous
+    behaviour re-created the file on every upload of the same bytes.
+    """
     payload = b"repeat me" * 50
 
     first = _store(tmp_path, monkeypatch, payload, "song.mp3")
@@ -81,7 +85,76 @@ def test_reupload_overwrites_in_place_and_leaves_no_temp_files(tmp_path, monkeyp
 
     assert first == second
     files = sorted(p.name for p in tmp_path.iterdir())
-    assert files == [f"{first}_song.mp3"], files
+    assert files == [first], files
+    assert first == f"{hashlib.sha256(payload).hexdigest()[:8]}_song.mp3"
+
+
+def test_reuploading_an_already_prefixed_file_does_not_stack_prefixes(
+    tmp_path, monkeypatch
+):
+    """The real-world bug: prefixes accumulated, giving one track many names.
+
+    Re-uploading `32129cfa_03c5fbfd_Song.mp3` computes the same content id as
+    `03c5fbfd_Song.mp3` (identical bytes), so it must resolve to the existing
+    file instead of writing `03c5fbfd_32129cfa_03c5fbfd_Song.mp3`.
+    """
+    payload = b"stacked prefix" * 40
+    content_id = hashlib.sha256(payload).hexdigest()[:8]
+
+    original = _store(tmp_path, monkeypatch, payload, "Song.mp3")
+    assert original == f"{content_id}_Song.mp3"
+
+    # Same bytes arriving under an already-prefixed name.
+    reupload = _store(tmp_path, monkeypatch, payload, original)
+
+    assert reupload == original
+    assert sorted(p.name for p in tmp_path.iterdir()) == [original]
+
+
+def test_reuploading_under_a_different_name_reuses_the_original(
+    tmp_path, monkeypatch
+):
+    """Same audio, different filename: the first stored name must win.
+
+    Otherwise the caller is handed a name whose file was never written, since
+    `_store_upload` returns the name rather than the id.
+    """
+    payload = b"same bytes" * 30
+
+    first = _store(tmp_path, monkeypatch, payload, "Original.mp3")
+    again = _store(tmp_path, monkeypatch, payload, "Renamed.mp3")
+
+    assert again == first
+    assert sorted(p.name for p in tmp_path.iterdir()) == [first]
+
+
+def test_no_temp_file_survives_deduplication(tmp_path, monkeypatch):
+    """The discarded upload must not leave its .upload scratch file behind."""
+    payload = b"scratch" * 60
+    _store(tmp_path, monkeypatch, payload, "a.mp3")
+    _store(tmp_path, monkeypatch, payload, "b.mp3")
+
+    assert not [p for p in tmp_path.iterdir() if p.name.endswith(".upload")]
+
+
+def test_stored_name_always_yields_the_job_id(tmp_path, monkeypatch):
+    """The analyze endpoints read `job_id` back out of the stored filename.
+
+    `hash_prefix` was briefly undefined in those handlers, which ruff caught as
+    F821 but no test did — the endpoints were never exercised. This pins the
+    contract the handlers rely on: the returned name starts with the content
+    hash, both for a fresh store and for a deduplicated re-upload.
+    """
+    audio_mod = _audio()
+    payload = b"job id round trip" * 20
+    expected = hashlib.sha256(payload).hexdigest()[:8]
+
+    fresh = _store(tmp_path, monkeypatch, payload, "fresh.mp3")
+    assert audio_mod.hash_prefix(fresh) == expected
+
+    reused = _store(tmp_path, monkeypatch, payload, fresh)
+    assert reused == fresh
+    assert audio_mod.hash_prefix(reused) == expected
 
 
 def test_oversized_upload_raises_and_leaves_nothing_behind(tmp_path, monkeypatch):

@@ -537,8 +537,25 @@ class SourceSeparator:
         output_dir: Path,
         demucs_cmd: list[str],
         opts: SeparationOptions | None = None,
+        source_path: str | None = None,
     ) -> SeparationResult:
-        """Separate using Demucs (single-pass 4-stem or hierarchical residual)."""
+        """Separate using Demucs (single-pass 4-stem or hierarchical residual).
+
+        `source_path` is the file Demucs is actually pointed at. It differs from
+        `audio_path` only in hierarchical mode, where step 2 separates the
+        MDX-Net *instrumental residual* rather than the original track.
+
+        It is a plain parameter rather than a `SeparationOptions` field on
+        purpose: `SeparationOptions` is the user-facing quality-knob bag
+        (model, segment_size, overlap, denoise) and this is an internal
+        control-flow detail of the two-step algorithm. It previously lived on
+        `opts`, where it was read as `opts.source_path` — an attribute the
+        dataclass never defined, so *every* Demucs run raised `AttributeError`
+        and was swallowed into `error="'SeparationOptions' object has no
+        attribute 'source_path'"`. The hierarchical caller meanwhile passed
+        `source_path=` as a keyword the signature rejected, so that path raised
+        `TypeError` before it could even reach the read.
+        """
         opts = opts or SeparationOptions(model=model)
         try:
             self._validate_windows_soundfile()
@@ -549,8 +566,10 @@ class SourceSeparator:
                     Path(audio_path).name, model, self._shifts,
                 )
 
-            # Source for hierarchical mode: instrumental residual from MDX-Net
-            source = opts.source_path or audio_path
+            # Source for hierarchical mode: the instrumental residual from
+            # MDX-Net, else the original track. This is the line that raised
+            # AttributeError on every single-pass run — see the docstring.
+            source = source_path or audio_path
             cmd = [
                 *demucs_cmd,
                 "-n", model,

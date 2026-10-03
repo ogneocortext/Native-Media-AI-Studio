@@ -107,6 +107,9 @@ export function AISceneGenerator({
     return `${Math.round(bytes / (1024 * 1024))}MB`;
   };
 
+  const formatLatency = (ms: number | null | undefined) =>
+    typeof ms === "number" && Number.isFinite(ms) ? `${(ms / 1000).toFixed(1)} s` : "—";
+
   const loadModels = useCallback(async () => {
     try {
       const m = await getOllamaModels();
@@ -475,7 +478,7 @@ Return ONLY the function, no fences.`;
                       if (score !== null && score >= 0) {
                         const s = Math.round(score);
                         const ok = success === false ? "✗" : s >= 70 ? "✓" : s >= 40 ? "~" : "✗";
-                        badge = ` [${ok} ${s}/100${latency ? ` ${Math.round((latency / 1000) * 10) / 10}s` : ""}]`;
+                        badge = ` [${ok} ${s}/100${latency ? ` ${formatLatency(latency)}` : ""}]`;
                       } else if (score === null) {
                         badge = " [—]";
                       }
@@ -515,7 +518,7 @@ Return ONLY the function, no fences.`;
                           <span className={`font-mono font-bold ${colS}`}>
                             {Math.round(scShallow)}/100 {b.success ? "✓" : "✗"}
                           </span>
-                          <span className="text-gray-400 ml-2">{b.latency_ms}ms</span>
+                          <span className="text-gray-400 ml-2">{formatLatency(b.latency_ms)}</span>
                           <div className="text-gray-500 mt-1">
                             Details from models list only — run{" "}
                             <span className="text-amber-400">Benchmark</span> for full report.
@@ -551,7 +554,7 @@ Return ONLY the function, no fences.`;
                           {Math.round(sc)}/100 {b.success ? "✓ valid" : "✗ failed"}
                         </span>
                         <span className="text-gray-400">
-                          {b.latency_ms}ms • {b.lines} lines • {b.chars} chars
+                          {formatLatency(b.latency_ms)} • {b.lines} lines • {b.chars} chars
                         </span>
                       </div>
                       <div className="flex gap-1 text-[9px]">

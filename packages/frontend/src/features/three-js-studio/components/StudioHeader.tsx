@@ -73,6 +73,7 @@ export function StudioHeader({
           onClick={() => onAddObject("crown")}
           className="p-2 bg-white/5 hover:bg-violet-600 hover:text-white rounded-lg text-xs transition-all hover:scale-105 active:scale-95"
           title="Add Crown"
+          aria-label="Add Crown"
         >
           <span className="text-sm">👑</span>
         </button>
@@ -80,6 +81,7 @@ export function StudioHeader({
           onClick={() => onAddObject("sphere")}
           className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 active:scale-95 hidden sm:flex"
           title="Add Sphere"
+          aria-label="Add Sphere"
         >
           <Box size={14} />
         </button>
@@ -87,6 +89,7 @@ export function StudioHeader({
           onClick={() => onAddObject("box")}
           className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 active:scale-95 hidden sm:flex"
           title="Add Box"
+          aria-label="Add Box"
         >
           <Box size={14} />
         </button>
@@ -94,6 +97,7 @@ export function StudioHeader({
           onClick={() => onAddObject("character")}
           className="p-2 bg-amber-500/20 hover:bg-amber-500/30 rounded-lg border border-amber-500/20 transition-all hover:scale-105 active:scale-95"
           title="Add character — placeholder mesh, quality is WIP"
+          aria-label="Add character — placeholder mesh, quality is WIP"
         >
           <User size={14} className="text-amber-300" />
         </button>
@@ -102,6 +106,7 @@ export function StudioHeader({
         onClick={onViewportReset}
         className="p-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition-all hover:scale-105 active:scale-95 shrink-0"
         title="Reset Camera"
+        aria-label="Reset Camera"
       >
         <Maximize2 size={14} />
       </button>
@@ -156,6 +161,7 @@ export function StudioHeader({
           onClick={onExportFrame}
           className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg transition-all hover:scale-105 active:scale-95"
           title="Export frame as PNG"
+          aria-label="Export frame as PNG"
         >
           <Download size={14} />
         </button>
@@ -163,6 +169,7 @@ export function StudioHeader({
           onClick={onToggleCodePanel}
           className={`p-2.5 rounded-lg transition-all hover:scale-105 active:scale-95 ${codePanelOpen ? "bg-emerald-600 text-white shadow-lg" : "bg-white/5 hover:bg-white/10"}`}
           title="Paste generated code"
+          aria-label="Paste generated code"
         >
           <FileCode size={14} />
         </button>
@@ -170,6 +177,7 @@ export function StudioHeader({
           onClick={onTogglePerformanceMode}
           className={`p-2.5 rounded-lg transition-all hover:scale-105 active:scale-95 ${performanceMode ? "bg-amber-600 text-white shadow-lg shadow-amber-500/20" : "bg-white/5 hover:bg-white/10"}`}
           title={performanceMode ? "Performance mode ON (reduced effects)" : "Performance mode OFF"}
+          aria-label={performanceMode ? "Performance mode ON (reduced effects)" : "Performance mode OFF"}
         >
           <Zap size={14} />
         </button>
@@ -177,6 +185,7 @@ export function StudioHeader({
           onClick={onToggleFocusMode}
           className={`p-2.5 rounded-lg transition-all hover:scale-105 active:scale-95 ${focusMode ? "bg-violet-600 text-white" : "bg-white/5 hover:bg-white/10"}`}
           title={focusMode ? "Exit focus mode" : "Focus mode"}
+          aria-label={focusMode ? "Exit focus mode" : "Focus mode"}
         >
           {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
         </button>
@@ -184,6 +193,7 @@ export function StudioHeader({
           onClick={onToggleDrawer}
           className={`p-2.5 rounded-lg transition-all hover:scale-105 active:scale-95 ${drawerOpen ? "bg-violet-600 text-white" : "bg-white/5 hover:bg-white/10"}`}
           title="Toggle controls panel"
+          aria-label="Toggle controls panel"
         >
           {drawerOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
         </button>

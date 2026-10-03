@@ -24,11 +24,94 @@ src/features/visualizer/
 ├── useSpectralTimeline.ts        — per-frame spectral timeline lookup
 ├── audioEQ.ts / audioReactivityProcessor.ts — EQ + reactivity maths
 ├── sectionStateMachine.ts        — section → shader preset mapping
+├── canvas2dModeBudget.ts         — per-mode effect budget + cap (see below)
+├── motion/                        — motion vocabulary (see below)
 ├── stemSpatial.ts                — per-stem spatial assignment
 ├── components/RenderStats.tsx     54 — renderer telemetry overlay
 ├── professionalMixer/           — full console mixer (own graph, own hook)
 └── viz-styles/                  — per-style renderer definitions
 ```
+
+## The Canvas2D effect budget (2026-10-02)
+
+`canvas2dModeBudget.ts` implements recommended fix #1 of
+`docs/knowledge/canvas2d-visualizer-diagnosis-2026-10-02/README.md`.
+
+`Canvas2DVisualizer.tsx` drew **all four** global effects — trail/ghost fill,
+phrase flash, beat vignette, drum shockwaves — on every frame of every mode,
+*before* the mode's own rendering. Add a mode's own glows and you get 5-7
+simultaneous large-area effects with no focal point. That is the "visual noise"
+failure: everything reacts to everything, so nothing reads.
+
+The budget makes the choice **data**, which is the diagnosis doc's own
+recommendation ("Recommend data — it makes the budget reviewable in one place").
+
+- `MAX_EFFECTS = 2`, applied by `resolveActiveEffects` at runtime.
+- A mode may *declare* more than two (bars declares three), because which ones
+  fire is frame-dependent; what must never happen is three firing at once.
+  `EFFECT_PRIORITY` decides which survive.
+- **Unknown modes get nothing.** A new mode is inert until it declares a budget,
+  rather than inheriting the old stack.
+- `assertEffectBudget()` validates the table and is called from a test. It also
+  rejects a misspelled effect name, which would otherwise be a silent no-op.
+
+Wiring notes:
+
+- The 4-level nested ternary for trail alpha (with duplicated
+  `prefersReducedMotion` branches) is gone; alpha lives in the budget.
+- The `beatVignette * 0.45` alpha became `VIGNETTE_ALPHA_CEILING = 0.225` — the
+  doc's "halve the alpha ceiling globally, then re-evaluate", pending a look at
+  three tracks.
+- Shockwave **spawning** is gated as well as drawing. Spawning rings a mode will
+  not draw leaks them into the next beat's frame and fills the 8-ring pool.
+- The perceptual-scale selector was copy-pasted **six times**; it is now
+  `makeFreqMapper()` in `canvas2dHelpers.ts`, alongside `sampleMappedBand()`.
+- `asymmetricSmoothStep` / `asymmetricSmoothBands` (0.8 attack / 0.12 release) are
+  in `canvas2dHelpers.ts` per the AE doc's P0. **Not yet wired into a mode** — the
+  existing per-mode spring code still applies; see below.
+
+## The motion vocabulary (2026-10-02)
+
+`motion/` implements the handoff in
+`docs/knowledge/gemini-motion-design-2026-10-02/README.md` — the ten named
+moves, the sectional easing palette, the impulse-decay trigger and the motion
+gates. That handoff was written by Gemini **without access to this repo**, so
+its parameter names are proposals, not matches for existing fields; what is
+authoritative here is the unit tests, which pin the spec's stated defaults and
+invariants.
+
+```
+motion/
+├── motionEasing.ts          — easing curves, damped spring, damped harmonic,
+│                              sectional palette (spec §2)
+├── motionMoves.ts           — the 10 moves (spec §5), ImpulseTrigger, gates (§3)
+├── useMotionDriver.ts       — resolveMotion(): composes them per frame
+└── *.test.ts                — 151 assertions, no browser
+```
+
+Rules for extending it:
+
+1. **Pure functions first.** Every move in `motionMoves.ts` is a pure function of
+   its arguments so a re-render reproduces the frame exactly. The three pieces of
+   genuine frame state are classes (`DampedSpring`, `ImpulseTrigger`,
+   `PhaseLagChain`) and are owned by the caller.
+2. **Never feed `performance.now()`.** Per D14 rule 2, motion derives from the
+   latency-compensated audio clock (`audioTiming.ts`). `MotionInput.nowSec` is
+   that clock, and `resolveMotion` resets its history when it jumps backwards.
+3. **Impacts are envelope-driven, not time-driven.** `squashImpact(t)` is
+   time-since-impact and is at *maximum* compression at t=0; the frame loop uses
+   `squashFromImpulse(impulse)` instead, where 0 means at rest. Using the former
+   in the driver makes silence deform the mesh most.
+4. **Camera moves go on the offset node, never the rig.** `cameraOffset` is
+   additive and is meant for a child of the camera rig whose rest pose is
+   `(0,0,0)` — that separation is the fix for the "unanchored drunk camera" tell.
+   Do not add translation, rotation and FOV shake to one camera.
+5. **Clamp defensively.** A single NaN frame otherwise sticks a channel
+   permanently, because NaN fails every subsequent comparison and no settle logic
+   recovers. `clamp01` returns 0 for NaN and saturates infinities.
+
+The mapping from this repo's audio onto `MotionInput` is our own choice and is
+the part to re-tune per viz style; the moves themselves follow the spec.
 
 ## Rules for new work
 

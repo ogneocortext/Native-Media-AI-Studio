@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { AudioTransport } from "../../components/audio";
 import {
   Upload,
   Music,
@@ -54,6 +55,7 @@ import {
 
 interface AudioFile {
   filename: string;
+  optionLabel?: string;
   path?: string;
   relative_path: string;
   folder: string;
@@ -862,12 +864,11 @@ export function AudioAnalysisPage() {
                   {(file.size / 1048576).toFixed(2)} MB · {file.type || "audio/*"}
                 </p>
                 {previewUrl && (
-                  <audio
-                    ref={uploadAudioRef}
-                    controls
+                  <AudioTransport
+                    audioRef={uploadAudioRef}
                     src={previewUrl}
-                    className="w-full mt-3 rounded"
-                    aria-label={`Preview ${file.name}`}
+                    className="mt-3"
+                    ariaLabel={`Preview ${file.name}`}
                   />
                 )}
                 <button
@@ -1193,13 +1194,12 @@ export function AudioAnalysisPage() {
                   </div>
                 </div>
                 {libraryStreamUrl && (
-                  <audio
-                    ref={libraryAudioRef}
-                    controls
-                    src={libraryStreamUrl}
-                    className="w-full mt-2 rounded"
-                    aria-label={`Play ${analyzedFilename}`}
-                  />
+                <AudioTransport
+                  audioRef={libraryAudioRef}
+                  src={libraryStreamUrl}
+                  className="mt-2"
+                  ariaLabel={`Play ${analyzedFilename}`}
+                />
                 )}
                 <div
                   ref={waveformRef}
@@ -1613,9 +1613,14 @@ export function AudioAnalysisPage() {
                 </select>
               </div>
               {(() => {
-                const filtered = audioFiles.filter(
-                  (f) => !filterText || f.filename.toLowerCase().includes(filterText.toLowerCase()),
-                );
+                const filtered = audioFiles.filter((f) => {
+                  if (!filterText) return true;
+                  const q = filterText.toLowerCase();
+                  return (
+                    f.filename.toLowerCase().includes(q) ||
+                    (f.optionLabel ?? "").toLowerCase().includes(q)
+                  );
+                });
                 const sorted = [...filtered].sort((a, b) => {
                   if (sortBy === "name") return a.filename.localeCompare(b.filename);
                   if (sortBy === "size") return b.size_bytes - a.size_bytes;
@@ -1668,16 +1673,17 @@ export function AudioAnalysisPage() {
                           (selectedLibraryFile === f.relative_path ||
                             analyzedLibraryPath === f.relative_path) &&
                           !editingFile;
+                        const display = f.optionLabel || f.filename;
                         return (
                           <div
                             key={f.relative_path}
                             role="listitem"
                             tabIndex={0}
-                            aria-label={`Analyze ${f.filename}`}
+                            aria-label={`Analyze ${display}`}
                             title={
                               isAnalyzed
-                                ? `${f.filename} — currently analyzed`
-                                : `Analyze ${f.filename} (cached when available)`
+                                ? `${display} — currently analyzed`
+                                : `Analyze ${display} (cached when available)`
                             }
                             className={`p-2.5 rounded-lg cursor-pointer transition-all ${isActive ? "bg-violet-500/15 border border-violet-500/30 shadow-sm" : isAnalyzed ? "border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10" : "border border-transparent hover:bg-gray-700/50"}`}
                             onClick={() => handleAnalyzeLibraryFile(f.relative_path)}
@@ -1734,13 +1740,21 @@ export function AudioAnalysisPage() {
                                       {f.folder ? (
                                         <span className="text-gray-500 mr-1">{f.folder}/</span>
                                       ) : null}
-                                      {f.filename}
+                                      {display}
                                     </span>
-                                    {isAnalyzed && editingFile !== f.relative_path && (
-                                      <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-medium shrink-0">
-                                        Analyzed
-                                      </span>
-                                    )}
+                                    {editingFile !== f.relative_path &&
+                                      (isAnalyzed ? (
+                                        <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-medium shrink-0">
+                                          ✓ analyzed
+                                        </span>
+                                      ) : (
+                                        <span
+                                          className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-gray-700/40 text-gray-400 shrink-0"
+                                          title="No analysis loaded — click Analyze (cached results load instantly)"
+                                        >
+                                          —
+                                        </span>
+                                      ))}
                                   </>
                                 )}
                               </div>
@@ -1748,6 +1762,18 @@ export function AudioAnalysisPage() {
                                 <span className={DS.textXs + " tabular-nums text-gray-500"}>
                                   {formatFileSize(f.size_bytes)}
                                 </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAnalyzeLibraryFile(f.relative_path);
+                                  }}
+                                  disabled={analyzing && isActive}
+                                  className="text-[10px] px-1.5 py-1 rounded text-violet-300 hover:text-white bg-violet-500/10 hover:bg-violet-500/25 border border-violet-500/30 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title={`Analyze ${display} (cached when available)`}
+                                  aria-label={`Analyze ${display}`}
+                                >
+                                  {analyzing && isActive ? "…" : "Analyze"}
+                                </button>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1884,7 +1910,7 @@ export function AudioAnalysisPage() {
                             {f.folder ? (
                               <span className="text-gray-500 mr-1">{f.folder}/</span>
                             ) : null}
-                            {f.filename}
+                            {f.optionLabel || f.filename}
                           </span>
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300 font-medium shrink-0">
                             {status.stems.length} stem{status.stems.length !== 1 ? "s" : ""}
@@ -1920,7 +1946,7 @@ export function AudioAnalysisPage() {
                               {f.folder ? (
                                 <span className="text-gray-600 mr-1">{f.folder}/</span>
                               ) : null}
-                              {f.filename}
+                              {f.optionLabel || f.filename}
                             </span>
                             <span className="text-[10px] text-gray-600 shrink-0">no stems</span>
                           </div>

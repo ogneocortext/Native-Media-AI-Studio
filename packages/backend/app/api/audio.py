@@ -8,7 +8,6 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import re
 import uuid
 from pathlib import Path
 
@@ -17,6 +16,12 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..core.config import PROJECT_ROOT
+from ..services.analysis_resolver import (
+    hash_prefix,
+    resolve_analysis,
+    resolve_by_job_id,
+    scan_analysis_dir_cached,
+)
 
 # Analysis helpers (result builder, curve maths, visualization suggestions,
 # section labelling) moved to app/api/audio_analysis.py. No routes moved - those
@@ -48,8 +53,23 @@ ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
 ANALYSIS_INDEX = ANALYSIS_DIR / "index.json"
 
 
+def _find_by_content_id(audio_dir: Path, content_id: str) -> Path | None:
+    """Return an already-stored file whose name carries `content_id`, if any.
+
+    Sorted so the answer does not depend on directory iteration order when a
+    duplicate pair somehow exists.
+    """
+    if not audio_dir.exists():
+        return None
+    prefix = f"{content_id}_"
+    matches = sorted(
+        p for p in audio_dir.iterdir() if p.is_file() and p.name.startswith(prefix)
+    )
+    return matches[0] if matches else None
+
+
 async def _store_upload(file: UploadFile) -> str:
-    """Stream an upload to AUDIO_DIR and return its content-derived id.
+    """Stream an upload to AUDIO_DIR and return the filename it is stored under.
 
     The id is sha256(content)[:8], not a random uuid. A random id meant every
     upload of the same track produced a different filename, a different
@@ -60,7 +80,14 @@ async def _store_upload(file: UploadFile) -> str:
 
     Writes to a temporary name first and renames on success, so a failed or
     oversized upload never leaves a half-written file under a real name.
+
+    Returns the stored *filename*, not the bare id, because re-uploading a file
+    that is already prefixed (`32129cfa_03c5fbfd_Song.mp3`) computes the same
+    content id as `03c5fbfd_Song.mp3` and must reuse that existing name. Callers
+    used to rebuild the name from `id + original filename`, which would have
+    pointed at a file this function decided not to write.
     """
+
     digest = hashlib.sha256()
     size = 0
     tmp_path = AUDIO_DIR / (uuid.uuid4().hex + ".upload")
@@ -83,13 +110,25 @@ async def _store_upload(file: UploadFile) -> str:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}") from e
 
     unique_id = digest.hexdigest()[:8]
+
+    # The audio is already on disk under some name. Writing `{unique_id}_` +
+    # the incoming filename again would append a second content-hash prefix to
+    # an already-prefixed name (`32129cfa_03c5fbfd_Song.mp3`), which is how one
+    # track ended up with eleven filenames and a matching pile of analyses.
+    # Reuse the existing file and drop the temp copy.
+    existing = _find_by_content_id(AUDIO_DIR, unique_id)
+    if existing is not None:
+        tmp_path.unlink(missing_ok=True)
+        logger.info(f"Upload of '{existing.name}' deduplicated by content id {unique_id}")
+        return existing.name
+
     final_path = AUDIO_DIR / f"{unique_id}_{file.filename}"
     try:
         tmp_path.replace(final_path)   # atomic within the same volume
     except Exception as e:
         tmp_path.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}") from e
-    return unique_id
+    return final_path.name
 
 
 def _is_downbeat(index: int, beats_per_bar: int = 4) -> bool:
@@ -101,26 +140,25 @@ def _is_downbeat(index: int, beats_per_bar: int = 4) -> bool:
     return index % beats_per_bar == 0
 
 
-def _load_analysis_index() -> dict:
-    """Load the analysis index mapping filenames to job IDs."""
-    if ANALYSIS_INDEX.exists():
-        try:
-            with open(ANALYSIS_INDEX, encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
+def _schema_of(path: Path) -> int | None:
+    """Read just the `schema_version` out of an analysis file.
+
+    Shared by every lookup in this module so the staleness rule is applied the
+    same way everywhere. A file that cannot be read is treated as unstamped,
+    which is the safe direction: it is rejected and re-analyzed rather than
+    served.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            parsed = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    return parsed.get("schema_version") if isinstance(parsed, dict) else None
 
 
-def _save_analysis_index(index: dict) -> None:
-    """Save the analysis index."""
-    with open(ANALYSIS_INDEX, "w", encoding="utf-8") as f:
-        json.dump(index, f, indent=2, ensure_ascii=False)
-
-
-def _get_analysis_path(job_id: str) -> Path:
-    """Get the path to an analysis JSON file."""
-    return ANALYSIS_DIR / f"{job_id}_analysis.json"
+def _analysis_candidates() -> list:
+    """Snapshot the analysis directory, with schema versions memoized."""
+    return scan_analysis_dir_cached(ANALYSIS_DIR, _schema_of)
 
 
 def _analysis_is_stale(data: dict | None) -> bool:
@@ -314,8 +352,7 @@ async def upload_audio(file: UploadFile = File(...)) -> AudioUploadResponse:
             detail=f"Invalid file type. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
         )
 
-    unique_id = await _store_upload(file)
-    safe_name = f"{unique_id}_{file.filename}"
+    safe_name = await _store_upload(file)
     file_path = AUDIO_DIR / safe_name
     size = file_path.stat().st_size
 
@@ -344,9 +381,13 @@ async def analyze_audio(
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Invalid file type")
 
-    unique_id = await _store_upload(file)
-    safe_name = f"{unique_id}_{file.filename}"
+    safe_name = await _store_upload(file)
     file_path = AUDIO_DIR / safe_name
+    # The stored name always begins with the content hash, so the job id is
+    # read back from it. These endpoints used to bind `unique_id` from the
+    # upload call itself; now that the call returns the chosen filename, the
+    # id has to come from there or it is undefined at analysis time.
+    unique_id = hash_prefix(safe_name) or str(uuid.uuid4())[:8]
 
     try:
         _check_backend_available(backend)
@@ -357,12 +398,10 @@ async def analyze_audio(
         result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
         analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
 
-        # Cache the analysis index
-        index = _load_analysis_index()
-        index[safe_name] = unique_id
-        _save_analysis_index(index)
-
-        # Save full analysis
+        # Save full analysis. `index.json` is deliberately not updated: it had
+        # grown to 62 keys pointing at 17 files (49 dangling), every lookup now
+        # resolves against the directory directly, and writing to it only kept
+        # manufacturing entries nobody reads.
         analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
         with open(analysis_file, "w", encoding="utf-8") as f:
             json.dump(analysis_result, f, indent=2, ensure_ascii=False)
@@ -384,9 +423,13 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Invalid file type")
 
-    unique_id = await _store_upload(file)
-    safe_name = f"{unique_id}_{file.filename}"
+    safe_name = await _store_upload(file)
     file_path = AUDIO_DIR / safe_name
+    # The stored name always begins with the content hash, so the job id is
+    # read back from it. These endpoints used to bind `unique_id` from the
+    # upload call itself; now that the call returns the chosen filename, the
+    # id has to come from there or it is undefined at analysis time.
+    unique_id = hash_prefix(safe_name) or str(uuid.uuid4())[:8]
 
     try:
         from ..services.audio_analyzer import LIBROSA_AVAILABLE, AudioAnalyzer
@@ -490,12 +533,7 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
             or (result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []),
         )
 
-        # Cache the analysis index
-        index = _load_analysis_index()
-        index[safe_name] = unique_id
-        _save_analysis_index(index)
-
-        # Save full analysis
+        # Save full analysis (see the note in analyze_audio: index.json is not written)
         analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
         with open(analysis_file, "w", encoding="utf-8") as f:
             json.dump(analysis_result, f, indent=2, ensure_ascii=False)
@@ -657,62 +695,24 @@ async def get_analysis_by_filename(filename: str):
                 _cache_set(normalized, db_analysis, "")
                 return db_analysis
 
-    # Fallback to JSON file index
-    index = _load_analysis_index()
-
-    # Try exact match first
-    job_id = index.get(normalized)
-
-    # Fallback: try matching by display name (strip hash prefixes)
-    if not job_id:
-        display_name = re.sub(r'^([0-9a-f]{8}_)+', '', normalized, flags=re.IGNORECASE)
-        for key, val in index.items():
-            key_display = re.sub(r'^([0-9a-f]{8}_)+', '', key, flags=re.IGNORECASE)
-            if key_display == display_name:
-                job_id = val
-                logger.info(f"Analysis fallback match: '{normalized}' -> '{key}'")
-                break
-
-    # Fallback 2: try partial match (filename without extension)
-    if not job_id:
-        stem = Path(normalized).stem
-        for key, val in index.items():
-            if stem in key or key.startswith(stem[:20]):
-                job_id = val
-                logger.info(f"Analysis partial match: '{normalized}' -> '{key}'")
-                break
-
-    if not job_id:
-        logger.warning(f"No cached analysis for '{normalized}'. Index keys: {list(index.keys())[:5]}...")
-        raise HTTPException(status_code=404, detail="No cached analysis found for this file")
-
-    analysis_path = _get_analysis_path(job_id)
-    if not analysis_path.exists():
-        # Try finding by glob pattern
-        matches = list(ANALYSIS_DIR.glob(f"{job_id[:8]}*_analysis.json"))
-        if matches:
-            analysis_path = matches[0]
-        else:
-            raise HTTPException(status_code=404, detail="Analysis file missing")
-
-    with open(analysis_path, encoding="utf-8") as f:
-        data = json.load(f)
-
-    # The JSON index is the last-resort fallback, and its files predate the
-    # version stamp just as the database rows do. It needs the same staleness
-    # check as the DB path above, otherwise an unstamped result loaded from here
-    # is still served - and then cached, making it sticky.
-    if _analysis_is_stale(data):
-        logger.info(
-            f"Indexed analysis for '{normalized}' (job {job_id}) is stale "
-            f"(schema < {ANALYSIS_SCHEMA_VERSION}); treating as missing."
-        )
+    # Fallback: resolve directly against the files on disk. The JSON index is
+    # deliberately NOT consulted. It grew to ~62 keys pointing at only 17 files,
+    # so most of its entries were dangling, and every lookup still needed three
+    # regex passes plus a glob to work around it. Scanning the directory and
+    # applying the explicit policy in `analysis_resolver` is deterministic, has
+    # a single defined order, and can explain a miss instead of guessing.
+    resolution = resolve_analysis(
+        normalized, _analysis_candidates(), ANALYSIS_SCHEMA_VERSION
+    )
+    if resolution.match is None:
+        logger.warning(f"No cached analysis for '{normalized}': {resolution.reason}")
         raise HTTPException(
             status_code=404, detail="No cached analysis found for this file"
         )
 
-    # Cache the JSON-index result too — previously only the DB path populated
-    # the cache, so every request re-read (and re-parsed) the analysis file.
+    with open(resolution.match.path, encoding="utf-8") as f:
+        data = json.load(f)
+
     _cache_set(normalized, data, "")
     return data
 
@@ -723,14 +723,17 @@ async def get_analysis_result(request: Request, job_id: str):
     if not ANALYSIS_DIR.exists():
         raise HTTPException(status_code=404, detail="No analysis results found")
 
-    # Prefix match (job ids are the 8-char file prefix) — a substring match
-    # could return an unrelated file whose hash happens to contain the id.
-    for json_file in ANALYSIS_DIR.glob(f"{job_id[:8]}*_analysis.json"):
-        # CORS is handled by the app-wide allowlist middleware; echoing the
-        # request Origin here would bypass that policy.
-        return FileResponse(str(json_file), media_type="application/json")
+    # Resolve by job id instead of globbing. `glob(...)[0]` depended on
+    # directory iteration order and returned a pre-v2 file when one matched,
+    # which is exactly the stale result the by-filename route refuses to serve.
+    resolution = resolve_by_job_id(job_id, _analysis_candidates(), ANALYSIS_SCHEMA_VERSION)
+    if resolution.match is None:
+        logger.info(f"No analysis for job '{job_id}': {resolution.reason}")
+        raise HTTPException(status_code=404, detail="Analysis result not found")
 
-    raise HTTPException(status_code=404, detail="Analysis result not found")
+    # CORS is handled by the app-wide allowlist middleware; echoing the
+    # request Origin here would bypass that policy.
+    return FileResponse(str(resolution.match.path), media_type="application/json")
 
 
 @router.get("/files")
@@ -807,24 +810,24 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
                     _cache_set(normalized, db_analysis, backend)
                     return {"status": "cached", "analysis": db_analysis}
 
-    # Check if already cached in JSON index
-    index = _load_analysis_index()
-    job_id = index.get(normalized)
-
-    # Backward compatibility: try basename in index
-    if not job_id and "/" in normalized:
-        basename = Path(normalized).name
-        if basename != normalized:
-            job_id = index.get(basename)
-
-    if job_id:
-        analysis_path = _get_analysis_path(job_id)
-        if analysis_path.exists():
-            with open(analysis_path, encoding="utf-8") as f:
-                data = json.load(f)
-                # Also save to database for future requests
-                database.update_audio_analysis(normalized, data)
-                return {"status": "cached", "analysis": data}
+    # Check if already cached on disk. This used to read `index.json` and serve
+    # whatever it pointed at with no schema check, then `update_audio_analysis`
+    # wrote that result into the database — so a pre-v2 file was not merely
+    # served, it was persisted and became the sticky answer for every later
+    # request, including the by-filename route. The resolver refuses unstamped
+    # files, so a stale entry now falls through to a real analysis.
+    resolution = resolve_analysis(
+        normalized, _analysis_candidates(), ANALYSIS_SCHEMA_VERSION
+    )
+    if resolution.match is not None:
+        with open(resolution.match.path, encoding="utf-8") as f:
+            data = json.load(f)
+            # Also save to database for future requests
+            database.update_audio_analysis(normalized, data)
+            return {"status": "cached", "analysis": data}
+    logger.info(
+        f"Re-analyzing '{normalized}': {resolution.reason}"
+    )
 
     # Find the audio file
     file_path = AUDIO_DIR / normalized
@@ -849,10 +852,7 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
         except Exception as e:
             logger.debug("LLM section refinement failed for ensure-analysis: %s", e, exc_info=True)
 
-        # Save to index and file
-        index[normalized] = unique_id
-        _save_analysis_index(index)
-
+        # Save the analysis file (index.json is not written; see analyze_audio).
         analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
         with open(analysis_file, "w", encoding="utf-8") as f:
             json.dump(analysis_result, f, indent=2, ensure_ascii=False)
@@ -890,9 +890,6 @@ async def analyze_all_pending(backend: str = "sonara"):
     analyzed_files = []
     errors = []
 
-    # Load the index once — it used to be re-read + rewritten for every file.
-    index = _load_analysis_index()
-
     # Get all audio files recursively (matches list_uploaded_audio behavior)
     audio_files = [
         f for f in AUDIO_DIR.rglob("*")
@@ -927,7 +924,6 @@ async def analyze_all_pending(backend: str = "sonara"):
             database.update_audio_analysis(filename, analysis_result)
 
             # Also save to JSON file for backward compatibility
-            index[filename] = unique_id
             analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
             with open(analysis_file, "w", encoding="utf-8") as f:
                 json.dump(analysis_result, f, indent=2, ensure_ascii=False)
@@ -941,9 +937,6 @@ async def analyze_all_pending(backend: str = "sonara"):
         except Exception as e:
             errors.append({"filename": filename, "error": str(e)})
             logger.warning(f"Failed to analyze '{filename}': {e}")
-
-    # Persist the index once (progress is durable per file via the DB writes).
-    _save_analysis_index(index)
 
     return {
         "status": "completed",

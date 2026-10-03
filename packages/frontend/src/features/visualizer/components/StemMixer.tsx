@@ -13,9 +13,11 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { getApiBase, getAudioStems, separateAudioFile, enhanceStems } from "../../../services/api";
 import { createEQ, DEFAULT_EQ_PRESETS, type EQBand, type EQInstance } from "../audioEQ";
 import { createStemSpatialProcessor, type StemSpatialProcessor } from "../stemSpatial";
+import { usePanelCollapsed } from "../usePanelCollapsed";
 import {
   DEFAULT_STEM_GAINS_DB,
   FADER_MAX_DB,
@@ -552,17 +554,33 @@ export function StemMixerPanel({
         document.querySelector<HTMLAudioElement>("audio[data-main-player]");
       syncTransport(main);
     }, 500);
-    return () => clearInterval(id);
-  }, [syncTransport, mainAudioRef]);
+      return () => clearInterval(id);
+    }, [syncTransport, mainAudioRef]);
+
+  // Plan 1.2: starts collapsed and remembers open/closed. The header stays
+  // visible while collapsed so "separating…" progress is never hidden — the
+  // body below is what yields the viewport back to the canvas.
+  const { open: bodyOpen, toggle: toggleBody } = usePanelCollapsed("stem-mixer");
 
   if (!audioFilename) return null;
 
   return (
     <div className="rounded-xl border border-white/10 bg-black/30 p-3" data-testid="stem-mixer">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={toggleBody}
+          aria-expanded={bodyOpen}
+          aria-controls="stem-mixer-body"
+          className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted hover:text-white transition-colors"
+        >
+          <ChevronDown
+            size={12}
+            aria-hidden="true"
+            className={`transition-transform ${bodyOpen ? "" : "-rotate-90"}`}
+          />
           Stem Mixer
-        </span>
+        </button>
         {status === "ready" ? (
           <span className="text-[10px] text-emerald-400">4 stems ready</span>
         ) : status === "checking" ? (
@@ -582,6 +600,7 @@ export function StemMixerPanel({
         ) : null}
       </div>
 
+      <div id="stem-mixer-body" hidden={!bodyOpen} className="mt-2">
       {status === "idle" && (
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
@@ -779,6 +798,7 @@ export function StemMixerPanel({
           </p>
         </div>
       )}
+      </div>
     </div>
   );
 }

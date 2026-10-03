@@ -383,6 +383,7 @@ export function ThreeJSStudio() {
           onClick={toggleFocusMode}
           className="absolute top-2 left-2 z-20 p-2 bg-amber-600/80 hover:bg-amber-600 rounded-lg text-white shadow-lg backdrop-blur transition-colors"
           title="Exit focus mode (Esc)"
+          aria-label="Exit focus mode (Esc)"
         >
           <Minimize2 size={16} />
         </button>

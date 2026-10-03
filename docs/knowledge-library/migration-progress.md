@@ -21,8 +21,8 @@ date: 2026-09-30
 
 ## Migration Summary
 
-**Documents in library:** 78 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
-**Migrated:** 78 (100%)
+**Documents in library:** 81 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
+**Migrated:** 81 (100%)
 **Remaining:** 0
 
 This tracker also lists `../ux-audit/audit-report.md`, which is tagged but lives
@@ -36,7 +36,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 
 ## ✅ Completed Migrations
 
-### 🎬 Production Pipeline (11/11 completed) ✅
+### 🎬 Production Pipeline (12/12 completed) ✅
 
 - ✅ `music-video-production.md`  → `#production`, `#platform-youtube`, `#audio`
 - ✅ `youtube-optimization.md`  → `#production`, `#platform-youtube`
@@ -49,6 +49,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `music-video-vision-prompts.md`  → `#production`, `#ai`
 - ✅ `a1-a6-media-pipeline-tooling-2026.md`  → `#production`, `#audio`, `#tooling`, `#platform-comfyui`
 - ✅ `stem-system-evaluation-2026.md`  → `#production`, `#audio`, `#visualization`, `#technical`
+- ✅ `ai-music-mastering-stems-2026.md`  → `#production`, `#audio`
 
 ### 🛠️ Technical Implementation (12/12 completed) ✅
 
@@ -79,7 +80,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `kilo-code-subagent-optimization.md`  → `#platform`
 - ✅ `ai-agent-navigation.md`  → `#platform`
 
-### 🎨 Creative & Visual (17/17 completed)
+### 🎨 Creative & Visual (19/19 completed)
 
 - ✅ `visualization-effects.md`  → `#creative`, `#visualization`, `#webgpu`, `#3d`, `#audio`
 - ✅ `3d-visualization-best-practices-2026.md`  → `#creative`, `#visualization`, `#webgpu`, `#3d`
@@ -98,6 +99,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `shader-color-science-2026.md`  → `#creative`, `#visualization`, `#design`
 - ✅ `unity-audio-reactive-shader-research-2026.md`  → `#creative`, `#platform-unity`, `#3d`, `#audio`
 - ✅ `visualization-vision-prompts.md`  → `#creative`, `#visualization`, `#ai`
+- ✅ `visualizer-ux-audit-2026-10.md`  → `#creative`, `#design`, `#visualization`, `#audio`
+- ✅ `audio-reactive-best-practices-2026.md`  → `#creative`, `#visualization`, `#audio`
 
 ### ⚙️ Performance & Hardware (7/7 completed)
 

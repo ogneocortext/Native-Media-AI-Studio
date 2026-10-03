@@ -103,6 +103,8 @@ const FinalGradeShader = {
     uGrain: { value: 0.05 },
     uAberration: { value: 0.0014 },
     uTime: { value: 0 },
+    uKnee: { value: 1.0 },
+    uCeilSlope: { value: 0.48 },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -110,7 +112,7 @@ const FinalGradeShader = {
   `,
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
-    uniform float uVignette, uGrain, uAberration, uTime;
+    uniform float uVignette, uGrain, uAberration, uTime, uKnee, uCeilSlope;
     varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     void main(){
@@ -121,6 +123,11 @@ const FinalGradeShader = {
       col.r = texture2D(tDiffuse, vUv + off).r;
       col.g = texture2D(tDiffuse, vUv).g;
       col.b = texture2D(tDiffuse, vUv - off).b;
+      float m = max(col.r, max(col.g, col.b));
+      if (m > uKnee) {
+        float mc = uKnee + (m - uKnee) / (1.0 + (m - uKnee) * uCeilSlope);
+        col *= mc / m;
+      }
       col *= 1.0 - uVignette * smoothstep(0.35, 0.95, d);
       col += (hash(vUv * vec2(1917.0, 1031.0)) - 0.5) * uGrain;
       gl_FragColor = vec4(col, 1.0);

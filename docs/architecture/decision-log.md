@@ -1,4 +1,4 @@
-﻿# Architecture Decision Log
+# Architecture Decision Log
 
 > **Purpose:** the persistent memory for stack and architecture decisions. Coding
 > agents (Kilo, Cline, OpenCode, Codex, Antigravity, Devin) compress context and
@@ -485,6 +485,153 @@
   missing optional service is not a defect — but `NMA_OLLAMA_TESTS=1` makes them
   required, so a verification run can insist on them.
 
+### D23 — Motion craft lives in a pure, unit-tested vocabulary; the spec's numbers are treated as claims to verify
+- **Status:** Decided
+- **Context:** `app-research-gaps-2026.md` §16 recorded that 17 creative/visual
+  docs covered *how to render* and none covered motion *craft*, so every
+  reactive parameter shared one trigger source, one direction and one easing
+  curve — an oscilloscope, not an organism. The 2026-10-02 Gemini handoff
+  supplied 10 named moves with defaults. That handoff states it was written
+  **without access to this repo**, so its field names are proposals, and two of
+  its numeric claims are wrong (below).
+- **Decision:** Implement the moves as pure functions in
+  `src/features/visualizer/motion/` (D14: not in `Visualizer.tsx`), and treat
+  every number in the handoff as a **claim to verify** rather than a
+  specification to transcribe. Unit tests assert the spec's invariants — volume
+  conservation, monotonic recovery, exact rest — not just its constants, so a
+  derivation error in the source document fails here instead of shipping.
+- **Corrections found by doing that:** `flareXZ` is documented as
+  `1.154 (= 1/0.75, volume-preserving)`; the number is right (`1/√0.75`) but the
+  derivation is not, and `1/0.75` inflates volume 33% on every kick.
+  `stepAngle: 0.196` is a rounded `2π/32` and leaves a 0.011 rad seam every 32
+  hats. Both are noted in the module and in the handoff's follow-ups.
+- **Consequences:** The vocabulary is testable without a browser (151 assertions,
+  ~0.4 s), which is what made three further bugs findable at all: an unreachable
+  snap-out branch, a seconds-vs-milliseconds unit mismatch that shortened the
+  release window to 1 ms, and a driver that deformed the mesh *most* in silence
+  because it fed a time-since-impact curve a zero amplitude. Nothing is wired
+  into a viz style yet — that mapping is per-style tuning and is deliberately
+  left open rather than guessed.
+
+### D24 — Visual restraint is a declared budget with a runtime cap, not per-mode judgement
+- **Status:** Decided
+- **Context:** The 2026-10-02 Canvas2D diagnosis found all four global effects
+  (trail, phrase flash, beat vignette, shockwaves) drawn unconditionally in all
+  13 modes, ahead of the mode's own rendering — 5-7 simultaneous large-area
+  effects and no focal point. It asked where the budget should live and
+  recommended "data ... reviewable in one place". The same day, a second handoff
+  proposed a Parameter Modulation Hub with sidechain ducking to enforce
+  "one thing at a time".
+- **Decision:** The budget is **data**, keyed by mode, and the cap is enforced at
+  **runtime** rather than by the size of the declaration. A mode may declare more
+  effects than the cap because which ones fire is frame-dependent (`bars`
+  declares three); what is forbidden is three firing at once, and
+  `resolveActiveEffects` + `EFFECT_PRIORITY` guarantee that.
+- **Consequences:** Adding a mode is now a deliberate act — an undeclared mode
+  renders inert rather than inheriting the previous stack, which is the
+  mechanical form of "do not add a 14th mode until the effect budget exists".
+  The budget also forced two corrections the diagnosis only implied: `bars` was
+  carrying a trail alpha the doc's allocation says it should not have, and
+  shockwave *spawning* had to be gated as well as drawing (otherwise rings leak
+  across a mode switch and fill the 8-ring pool).
+  The Parameter Modulation Hub and sidechain ducking are **not** built. The
+  budget already delivers the mechanical guarantee it was meant to provide, and
+  ducking needs the per-style mapping that D23 deliberately left open.
+- **Validated live (2026-10-02, browser automation).** Driven through
+  `/visualizer` with real tracks. Frame-complexity SD while playing vs paused at
+  the *same* audio position: **6.064 → 0.018** (331x), restoring to 6.053 on
+  resume — the motion is genuinely audio-driven and reversible, not idle
+  animation. Volume 0 also flattens it (SD 1.977). The *live* module served by
+  Vite was imported and exercised in-page: `MAX_EFFECTS=2`,
+  `VIGNETTE_ALPHA_CEILING=0.225`, **0 violations across all 13 modes**, `bars`
+  capped at 2 (vignette dropped), `aurora` at 0, an unknown mode inert.
+  Per the diagnosis doc's own validation rule, three track types were checked
+  (dense EDM / sparse G-funk / acoustic): **16/16 distinct frames each**, SD
+  4.98 / 11.53 / 13.49.
+- **Open:** asymmetric band smoothing is still only *tested*, not wired into a
+  mode; the AE doc's Parameter Modulation Hub / sidechain ducking and the Trap
+  Nation `radial` preset are not built. A corner-pixel probe was tried as a
+  trail-preservation test and **discarded as confounded** — different modes draw
+  different geometry into the same corner, so it cannot separate "no trail" from
+  "geometry moved". Trail behaviour remains verified by the budget table and the
+  runtime resolver, not by pixels.
+
+### D25 — The Canvas2D mode list has exactly one definition
+- **Status:** Decided
+- **Context:** Found by browser automation, not by reading. The live picker had
+  **12 options and no `aurora`**, while `Canvas2DVisualizer` rendered aurora and
+  `MODE_BUDGETS` budgeted it — an implemented, tuned, fully-tested mode no user
+  could select. It was reachable only through `__VIZ_TEST__.set2DMode('aurora')`,
+  which is precisely how dead UI survives a test suite. The cause was **four
+  divergent copies** of the mode list: `CANVAS_2D_MODES`, an inline `useState`
+  union, the `Props.mode` union, and the budget's key set.
+- **Also found:** the hidden test-panel picker offered
+  `value="stereo-split-bands"` — not a real mode (it is `stereo-split-bars`).
+  Selecting it set state to a value no branch handles, so the canvas fell through
+  every `else if` and drew nothing.
+- **Decision:** `CANVAS_2D_MODES` in `visualizerHelpers.ts` is the only
+  definition. The budget imports `Canvas2DMode` from it rather than redeclaring;
+  `useState` uses it instead of an inline union; and **both** `<select>`s render
+  `CANVAS_2D_MODES.map(...)` instead of hardcoded `<option>`s. The compact menu
+  keeps short labels via `CANVAS_2D_MODE_SHORT_LABELS` (typed
+  `Record<Canvas2DMode, string>`, so a missing entry is a compile error rather
+  than a blank option). The `as any` casts on the mode selects and the test
+  harness are gone.
+- **Consequences:** Adding a 14th mode is now a one-line change in one array, and
+  the 12-vs-13 drift cannot recur silently. `canvas2dModeBudget.test.ts` asserts
+  the budget equals the canonical list both ways, that both label maps cover it,
+  and that no label map invents a value outside it. Verified in the browser: the
+  picker now offers 13 options including Aurora, the invalid value is gone, and
+  selecting `aurora` / `stereo-split-bars` through the UI sets state and renders.
+- **Checked and left alone:** `CANVAS_2D_MODES.slice(0, 9)` in the keyboard
+  -shortcut panel is *correct*, not a magic number: the keydown handler accepts
+  `k >= "1" && k <= "9"` and indexes `CANVAS_2D_MODES[Number(k) - 1]`, so keys
+  1-9 cover indices 0-8 exactly. The last three modes (constellation,
+  particles, aurora) are picker-only because there is no 10th digit key. The
+  display and the handler agree, so there is nothing to fix.
+
+### D26 — Test tooling must not be reachable in a production build
+- **Status:** Decided
+- **Context:** A full Playwright run (77 passed / 3 failed) surfaced three issues
+  that were never app defects, and one that was.
+- **The harness shipped to production.** `window.__VIZ_TEST__` was registered
+  with no `import.meta.env.DEV` guard and was **verified present in
+  `dist/assets/Visualizer-*.js`**. Anyone with a devtools console could load an
+  arbitrary library track, switch render modes, and toggle layers. The Ctrl+Shift+T
+  test panel — which dumps live state to the screen — was reachable in production
+  for the same reason. Both are now behind `import.meta.env.DEV`, which Vite
+  substitutes statically, so the block is *removed* from the production bundle
+  rather than skipped at runtime. Verified: `__VIZ_TEST__` and `selectTrack` are
+  both absent from the rebuilt bundle.
+- **All three E2E failures had one root cause, in the test environment.** The Vite
+  dev server injects `/__devtools/embedded.js`, which (a) sits above the app and
+  swallowed the sidebar footer click — `sidebar.spec.ts` timed out on a button
+  that Playwright itself reported as "visible, enabled and stable", because
+  `elementFromPoint` at its centre returned the overlay; and (b) fetches icons
+  from `https://api.iconify.design` at runtime, whose CORS errors then failed the
+  two `unity.spec.ts` console assertions. Confirmed by blocking the route: all
+  three pass. Fixed once in `removeDevToolOverlays()`, called from both
+  `cleanupRoutes` **and** `navigateWithWait` (cleaning only in `beforeEach` is
+  useless — the overlay is re-injected on every navigation).
+- **Decision:** a test-only affordance that reaches production is a defect.
+  Guard the harness, block dev-overlay requests in the shared helper, and treat
+  "the suite fails for environmental reasons" as a test bug to fix rather than a
+  flake to re-run.
+- **Also fixed:** `settings.spec.ts` asserted `toBeGreaterThanOrEqual(0)` on an
+  element count — true for every array, so it could never fail. It now asserts
+  the control is visible and keyboard-focusable, plus a new test that every
+  settings form control has an accessible name.
+- **That new test immediately found a real defect**: the Ollama URL input had
+  only a `placeholder`, no accessible name, while its siblings on the same page
+  had `aria-label`. Fixed. A wider sweep found the same class elsewhere (search
+  boxes and filter selects on `/library`, `/logs`, `/audio-analysis`,
+  `/storyboards`; five inputs on `/unity`; three nameless ghost buttons), which is
+  **recorded as open rather than silently fixed** — it is a broad, low-risk but
+  multi-file a11y sweep and belongs in its own change.
+- **Gotcha worth keeping:** `page.evaluate` bodies are transpiled as plain JS, so
+  TypeScript generics inside them (`querySelectorAll<HTMLElement>(...)`) are a
+  runtime syntax error that `tsc` on the spec file does not catch.
+
 ---
 
 ## Open questions
@@ -599,4 +746,29 @@
 - 2026-09-29: D11 recorded — the four Git LFS hooks in `.git/hooks` are installed but track nothing (no `filter=lfs`, no pointer files). Left in place; note they block commits/pushes if `git-lfs` is ever missing from PATH. The hook installer now preserves and calls any pre-existing `pre-commit` rather than overwriting it, and is idempotent across re-runs.
 - 2026-09-29: D12 recorded — `docs/knowledge/` is application-served content (`docs.py` rglobs all of `docs/`, and the frontend Docs page displays and searches each document's `tags`), not unfinished migration debt. `tools/docs-triage.py` groups the 65 untagged markdown files outside the library by disposition, so the decision is six group rules rather than 65 per-file calls.
 - 2026-09-29: D13 recorded — the 146-file `docs/` tree keeps its layout (88 of those files are the knowledge library); `docs/README.md` is the documentation index and `tools/check-docs-map.py` fails the pre-commit hook when it drifts. The map previously listed two directories that do not exist, omitted `plans/`, ignored the library's 9 JSON data files, and was not pointed to from `AGENTS.md`.
+
+### D27 — A 404 from the analysis endpoint is a state, not an error
+- **Status:** Decided
+- **Context:** Phase 0.2 of `docs/plans/studio-quality-2026-10.md`. The shader
+  visualizer was passing `cleanTrackName(currentFilename)` as the API/cache key
+  for `useKeyPalette` and `useSpectralTimeline`. A display string is not a lookup
+  key: every uploaded file is content-addressed (`a6792f53_<name>.wav`, per the
+  CHANGELOG's dedupe work), so the cleaned name 404'd for all of them and the
+  spectral timeline and key palette silently never loaded. Verified live before
+  the fix: `spectral-timeline` 404 for every hash-prefixed track; after: 200.
+- **Decision:** split the concept in two — `trackName` (display, for the label and
+  preset selection) and `trackFile` (raw library reference, for API/cache keys).
+  The display rules stay in `cleanTrackName` per D16; the bug was using its output
+  as an identifier, not the cleaning itself.
+- **Consequences:** A display name and a cache key are no longer interchangeable at
+  this boundary. Verified by loading four hash-prefixed library tracks in the
+  browser: all four now fetch `spectral-timeline` successfully.
+- **Also (Phase 0.3):** `classifyAnalysisResponse()` makes a 404 from the analysis
+  endpoint a distinct `not-analyzed` outcome rather than an error, so the UI can
+  offer "Analyze" instead of reporting a failure. A 403 or 500 remains an error —
+  collapsing those into "not analyzed" would let a misconfigured proxy look like an
+  ordinary unanalyzed track. One limit is recorded honestly: the browser's own
+  `Failed to load resource` console line for a 4xx is emitted by the network stack
+  and cannot be suppressed from application code, so the plan's "zero red console
+  entries" acceptance for unanalyzed tracks is not achievable as written.
 

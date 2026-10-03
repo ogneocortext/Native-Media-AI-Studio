@@ -34,6 +34,7 @@ date: 2026-09-30
 - [[audio-reactive-production|🎧 Audio-Reactive Production]] — Audio → visual mapping, beat sync
 - [[a1-a6-media-pipeline-tooling-2026|🧰 A1–A6 Media-Pipeline Tooling Map]] — Concrete tooling for the six adopted backlog items: music brain, cost meter, beat-quantized assembler, lyric/Canvas products, stem-reactive viz, model routing (NEW 2026-09-29)
 - [[stem-system-evaluation-2026|🎛️ Stem System Evaluation 2026]] — Full audit of the per-stem pipeline: separation, API, frontend mixer, viz integration, bugs, and recommended fix sequence (NEW 2026-09-30)
+- [[ai-music-mastering-stems-2026|🎚️ Mastering & Stem Splitting for AI Music 2026]] — LUFS/true-peak targets, the AI-defect chain (mud/fizz/side fog), Demucs quality knobs, and where stems do and don't help (NEW 2026-10-02)
 - [[prompt-engineering|✍️ Prompt Engineering]] — Effective prompts + repair/versioning workflow
 - [[character-animation-2026-summer-synthesis|🎭 Character Animation 2026 — Summer Synthesis]] — Story-first puppet, beatPhase sync, performance-driven
 - [[silhouette-character-animation|🎭 Silhouette Character Animation]] — Character rigging & motion
@@ -86,6 +87,8 @@ date: 2026-09-30
 - [[shader-color-science-2026|🎨 Shader Color Science 2026]] — GLSL color science: OKLCH, tonemapping, dithering for audio-reactive shaders
 - [[unity-audio-reactive-shader-research-2026|🎮 Unity Audio-Reactive Shader Research 2026]] — AudioLink patterns, FFT-band textures, GPU-driven beat-reactive HLSL for URP
 - [[visualization-vision-prompts|👁️ Visualization Vision Prompts]] — Vision-model prompts for visualization analysis and VFX review
+- [[visualizer-ux-audit-2026-10|🔍 Visualizer UX Audit 2026-10]] — Screenshot-driven friction audit of /visualizer, /audio-analysis, /three-js-studio; two live bugs (stem separation down, shader analysis 404s) (NEW 2026-10-02)
+- [[audio-reactive-best-practices-2026|🎵 Audio-Reactive Best Practices 2026]] — 2026 research: signal stack, mel/gamma perception, <30 ms latency, per-band envelopes, genre routing — with verified gap analysis (NEW 2026-10-02)
 
 ### ⚙️ Performance & Hardware (Optimization)
 
@@ -133,10 +136,10 @@ date: 2026-09-30
 
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
-|| `#production/*` | Production workflow & creative guides | 11 documents |
+|| `#production/*` | Production workflow & creative guides | 12 documents |
 || `#technical/*` | System implementation & code | 13 documents |
 || `#platform/*` | Platform-specific integrations | 11 documents |
-|| `#creative/*` | Design, effects & visualization | 17 documents |
+|| `#creative/*` | Design, effects & visualization | 19 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
 || `#ai/*` | AI models, training & ML | 11 documents |
 || `#research/*` | Industry trends & analysis | 8 documents |
@@ -154,9 +157,9 @@ date: 2026-09-30
 || `#hardware-pascal` | Pascal architecture specifics | 8 documents |
 || `#mcp` | Model Context Protocol | 1 document |
 || `#testing` | Testing & QA | 3 documents |
-|| `#design` | Design systems & UX | 5 documents |
-|| `#audio` | Audio analysis & processing | 12 documents |
-|| `#visualization` | Visualization techniques | 12 documents |
+|| `#design` | Design systems & UX | 6 documents |
+|| `#audio` | Audio analysis & processing | 15 documents |
+|| `#visualization` | Visualization techniques | 14 documents |
 || `#3d` | 3D generation & rendering | 12 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
 
@@ -225,12 +228,12 @@ graph LR
 
 || Metric | Count |
 || --------------- | ----------------------------------------------------------------------------- |
-|| Total Documents | 78 |
+|| Total Documents | 81 |
 || Total Tags | 70 |
 || Total Links | 115+ |
-|| Last Updated | 2026-09-30 (Stem System Evaluation added) |
-|| Latest Add | 2026-09-30 (Stem System Evaluation 2026) |
+|| Last Updated | 2026-10-02 (visualizer UX audit + 2026 research articles added) |
+|| Latest Add | 2026-10-02 (Visualizer UX Audit 2026-10, Audio-Reactive Best Practices 2026, Mastering & Stem Splitting 2026) |
 
 ---
 
-_Last updated: 2026-09-30 (Stem System Evaluation added)_
+_Last updated: 2026-10-02 (visualizer UX audit + audio-reactive/mastering research added)_

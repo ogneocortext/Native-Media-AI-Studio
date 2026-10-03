@@ -216,6 +216,7 @@ export function Settings() {
                 <input
                   type="text"
                   className="input flex-1"
+                  aria-label="Ollama URL"
                   value={settings.ollama_url}
                   onChange={(e) => setSettings((prev) => ({ ...prev, ollama_url: e.target.value }))}
                   placeholder="http://127.0.0.1:11434"

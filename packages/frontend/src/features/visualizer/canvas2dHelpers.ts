@@ -92,6 +92,126 @@ export function logFreqMap(barIndex: number, barCount: number, freqLength: numbe
   return Math.exp(logIdx);
 }
 
+/** Perceptual scale selector used by the bar-style modes. */
+export type PerceptualScale = "linear" | "log" | "bark" | "mel";
+
+/**
+ * Build a bar-index -> FFT-bin mapper for the chosen perceptual scale.
+ *
+ * This selector was **copy-pasted six times** inside `Canvas2DVisualizer.tsx`
+ * (the diagnosis doc counted them at L600, 715, 804, 873, 950, 1023), each a
+ * fresh closure over `perceptualScale`/`barCount`/`freqLen`. Six copies means a
+ * fix to the mapping — or a new scale — has to be found and applied six times,
+ * and any copy that is missed silently renders that mode on a different scale.
+ * One factory, called once per frame per mode.
+ *
+ * Returned values are float bin indices; callers floor and clamp them.
+ */
+export function makeFreqMapper(
+  scale: PerceptualScale | undefined,
+  barCount: number,
+  freqLength: number,
+): (barIndex: number) => number {
+  const chosen = scale ?? "log";
+  switch (chosen) {
+    case "bark":
+      return (idx: number) => barkFreqMap(idx, barCount, freqLength);
+    case "mel":
+      return (idx: number) => melFreqMap(idx, barCount, freqLength);
+    case "linear":
+      return (idx: number) => (idx / barCount) * freqLength;
+    case "log":
+    default:
+      return (idx: number) => logFreqMap(idx, barCount, freqLength);
+  }
+}
+
+/**
+ * Sample a frequency array through a mapper, clamped to the array bounds.
+ *
+ * Every one of the six call sites repeated the same
+ * `freq?.[Math.min(freqLen - 1, Math.floor(freqMap(i)))] || 0` expression, which
+ * is where a negative or NaN index silently blanks a bar.
+ */
+export function sampleMappedBand(
+  freq: ArrayLike<number> | null | undefined,
+  mapper: (barIndex: number) => number,
+  barIndex: number,
+): number {
+  if (!freq || freq.length === 0) return 0;
+  const raw = mapper(barIndex);
+  if (!Number.isFinite(raw)) return 0;
+  const bin = Math.floor(raw);
+  if (bin < 0) return 0;
+  const index = Math.min(freq.length - 1, bin);
+  const value = freq[index];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+/** Asymmetric band smoothing coefficients (AE doc §1, "the #1 fatigue fix"). */
+export interface AsymmetricSmoothing {
+  /** Weight given to the incoming sample when rising. */
+  attack: number;
+  /** Weight given to the incoming sample when falling. */
+  release: number;
+}
+
+/**
+ * Defaults from `docs/knowledge/gemini-ae-to-canvas2d-2026-10-02/README.md` §1:
+ * rise 0.8 / fall 0.12. The 6.7x ratio is what damps high-frequency flicker
+ * without adding lag to a kick.
+ */
+export const DEFAULT_ASYMMETRIC_SMOOTHING: AsymmetricSmoothing = {
+  attack: 0.8,
+  release: 0.12,
+};
+
+/**
+ * One step of asymmetric (fast-attack, slow-release) smoothing.
+ *
+ * Equal-weight smoothing is the "triangular hit curve" the motion-design doc
+ * calls amateur tell #3: everything ramps and falls at the same rate, so a hit
+ * never snaps and a tail never clears. Rising fast and falling slowly is what
+ * makes a transient read as a transient.
+ *
+ * Mutates and returns `state` so a caller can run a whole band array without
+ * allocating per frame.
+ */
+export function asymmetricSmoothStep(
+  state: number,
+  target: number,
+  smoothing: AsymmetricSmoothing = DEFAULT_ASYMMETRIC_SMOOTHING,
+): number {
+  const t = Number.isFinite(target) ? target : 0;
+  const rising = t > state;
+  const weight = rising ? smoothing.attack : smoothing.release;
+  // A weight of exactly 1 is legitimate (pass-through) but must not be able to
+  // produce a value outside [0,1] when the caller passes an unnormalised target.
+  const next = state + weight * (t - state);
+  return clamp(next, 0, 1);
+}
+
+/**
+ * Smooth a whole band array in place.
+ *
+ * `values` is read at each index; `smoothed` holds the previous frame's state and
+ * is updated in place. Both arrays are mutated rather than copied — this runs
+ * 64+ times per frame.
+ */
+export function asymmetricSmoothBands(
+  values: ArrayLike<number>,
+  smoothed: number[],
+  smoothing: AsymmetricSmoothing = DEFAULT_ASYMMETRIC_SMOOTHING,
+): void {
+  if (smoothed.length !== values.length) {
+    smoothed.length = values.length;
+    for (let i = 0; i < smoothed.length; i++) smoothed[i] = 0;
+  }
+  for (let i = 0; i < values.length; i++) {
+    smoothed[i] = asymmetricSmoothStep(smoothed[i], values[i], smoothing);
+  }
+}
+
 /** Simple value noise for aurora/fluid effects (no external deps). */
 export function valueNoise(x: number, y: number, t: number): number {
   const xi = Math.floor(x);

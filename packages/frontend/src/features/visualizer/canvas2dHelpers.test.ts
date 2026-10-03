@@ -1,21 +1,230 @@
 import { describe, it, expect } from "vitest";
 import {
-  normalizeHex,
-  hexToRgb,
-  lerpColor,
-  hslToRgb,
-  easeOutQuad,
-  easeOutBack,
-  logFreqMap,
+  asymmetricSmoothBands,
+  asymmetricSmoothStep,
+  barkFreqMap,
   clamp,
-  valueNoise,
+  DEFAULT_ASYMMETRIC_SMOOTHING,
+  easeOutBack,
+  easeOutQuad,
   fbm,
+  hexToRgb,
+  hslToRgb,
   hzToBark,
   hzToERB,
   hzToMel,
-  barkFreqMap,
+  lerpColor,
+  logFreqMap,
+  makeFreqMapper,
   melFreqMap,
+  normalizeHex,
+  sampleMappedBand,
+  valueNoise,
+  type PerceptualScale,
 } from "./canvas2dHelpers";
+
+/**
+ * Covers the three helpers added for
+ * docs/knowledge/canvas2d-visualizer-diagnosis-2026-10-02/README.md (the
+ * six-times-copied perceptual-scale selector) and
+ * docs/knowledge/gemini-ae-to-canvas2d-2026-10-02/README.md §1 (asymmetric
+ * band smoothing, "the #1 visual-fatigue fix").
+ */
+
+describe("makeFreqMapper", () => {
+  const barCount = 64;
+  const freqLen = 1024;
+
+  it.each(["linear", "log", "bark", "mel"] as PerceptualScale[])(
+    "returns finite in-range indices for %s",
+    (scale) => {
+      const map = makeFreqMapper(scale, barCount, freqLen);
+      for (let i = 0; i < barCount; i++) {
+        const v = map(i);
+        expect(Number.isFinite(v)).toBe(true);
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(freqLen);
+      }
+    },
+  );
+
+  it("matches the individual scale functions exactly", () => {
+    // The whole point of the dedup: the six copies were behaviourally identical,
+    // so the shared factory must be too — or a mode would change appearance.
+    const idx = 17;
+    expect(makeFreqMapper("bark", barCount, freqLen)(idx)).toBeCloseTo(
+      barkFreqMap(idx, barCount, freqLen),
+      12,
+    );
+    expect(makeFreqMapper("mel", barCount, freqLen)(idx)).toBeCloseTo(
+      melFreqMap(idx, barCount, freqLen),
+      12,
+    );
+    expect(makeFreqMapper("log", barCount, freqLen)(idx)).toBeCloseTo(
+      logFreqMap(idx, barCount, freqLen),
+      12,
+    );
+    expect(makeFreqMapper("linear", barCount, freqLen)(idx)).toBeCloseTo(
+      (idx / barCount) * freqLen,
+      12,
+    );
+  });
+
+  it("defaults to log when the scale is missing", () => {
+    const idx = 5;
+    expect(makeFreqMapper(undefined, barCount, freqLen)(idx)).toBeCloseTo(
+      logFreqMap(idx, barCount, freqLen),
+      12,
+    );
+  });
+
+  it("falls back to log for an unrecognised scale", () => {
+    const idx = 5;
+    const bogus = makeFreqMapper("erb" as PerceptualScale, barCount, freqLen);
+    expect(bogus(idx)).toBeCloseTo(logFreqMap(idx, barCount, freqLen), 12);
+  });
+
+  it("increases monotonically with bar index", () => {
+    for (const scale of ["linear", "log", "bark", "mel"] as PerceptualScale[]) {
+      const map = makeFreqMapper(scale, barCount, freqLen);
+      let previous = -Infinity;
+      for (let i = 0; i < barCount; i++) {
+        const v = map(i);
+        expect(v).toBeGreaterThanOrEqual(previous - 1e-9);
+        previous = v;
+      }
+    }
+  });
+
+  it("survives a degenerate configuration", () => {
+    const map = makeFreqMapper("log", 0, 0);
+    expect(Number.isFinite(map(0))).toBe(true);
+  });
+});
+
+describe("sampleMappedBand", () => {
+  const freq = [10, 20, 30, 40, 50];
+  const identity = (i: number) => i;
+
+  it("reads the mapped bin", () => {
+    expect(sampleMappedBand(freq, identity, 2)).toBe(30);
+  });
+
+  it("clamps past the end rather than returning undefined", () => {
+    // This is what `freq?.[Math.min(freqLen - 1, ...)] || 0` was doing, badly:
+    // an out-of-range bin silently blanked the bar instead of clamping.
+    expect(sampleMappedBand(freq, identity, 99)).toBe(50);
+  });
+
+  it("returns 0 for a negative index", () => {
+    expect(sampleMappedBand(freq, identity, -5)).toBe(0);
+  });
+
+  it("returns 0 for a missing or empty array", () => {
+    expect(sampleMappedBand(null, identity, 1)).toBe(0);
+    expect(sampleMappedBand(undefined, identity, 1)).toBe(0);
+    expect(sampleMappedBand([], identity, 1)).toBe(0);
+  });
+
+  it("returns 0 when the mapper produces NaN", () => {
+    // log(0) on an empty FFT buffer used to produce exactly this.
+    expect(sampleMappedBand(freq, () => Number.NaN, 1)).toBe(0);
+  });
+
+  it("floors a fractional bin index", () => {
+    expect(sampleMappedBand(freq, () => 1.9, 0)).toBe(20);
+  });
+});
+
+describe("asymmetricSmoothStep", () => {
+  it("uses the AE doc's coefficients", () => {
+    // docs/knowledge/gemini-ae-to-canvas2d-2026-10-02/README.md §1.
+    expect(DEFAULT_ASYMMETRIC_SMOOTHING.attack).toBe(0.8);
+    expect(DEFAULT_ASYMMETRIC_SMOOTHING.release).toBe(0.12);
+  });
+
+  it("rises much faster than it falls", () => {
+    // The asymmetry IS the point: a 6.7x ratio is what damps flicker without
+    // adding lag to a kick.
+    expect(DEFAULT_ASYMMETRIC_SMOOTHING.attack).toBeGreaterThan(
+      DEFAULT_ASYMMETRIC_SMOOTHING.release * 4,
+    );
+  });
+
+  it("attacks faster than it releases from the same starting state", () => {
+    const up = asymmetricSmoothStep(0.5, 1);
+    const down = asymmetricSmoothStep(0.5, 0);
+    expect(up).toBeCloseTo(0.9, 6);
+    expect(down).toBeCloseTo(0.44, 6);
+    // Stated separately so collapsing the two weights into one cannot pass: a
+    // symmetric smoother would leave the rise and fall the same distance apart.
+    expect(up - 0.5).toBeGreaterThan(2 * (0.5 - down));
+  });
+
+  it("converges to a steady target", () => {
+    let v = 0;
+    for (let i = 0; i < 200; i++) v = asymmetricSmoothStep(v, 0.8);
+    expect(v).toBeCloseTo(0.8, 4);
+  });
+
+  it("is a no-op when the state already matches", () => {
+    expect(asymmetricSmoothStep(0.5, 0.5)).toBe(0.5);
+  });
+
+  it("stays within [0,1] for an out-of-range target", () => {
+    // An unnormalised FFT sample must not be able to push a bar off-canvas.
+    expect(asymmetricSmoothStep(0.5, 5)).toBe(1);
+    expect(asymmetricSmoothStep(0.5, -5)).toBe(0);
+  });
+
+  it("treats a NaN target as silence rather than poisoning the band", () => {
+    const out = asymmetricSmoothStep(0.7, Number.NaN);
+    expect(Number.isNaN(out)).toBe(false);
+    expect(out).toBeLessThan(0.7);
+  });
+
+  it("honours custom coefficients", () => {
+    expect(asymmetricSmoothStep(0, 1, { attack: 0.5, release: 0.5 })).toBeCloseTo(0.5, 6);
+  });
+});
+
+describe("asymmetricSmoothBands", () => {
+  it("smooths every band", () => {
+    const values = [1, 1, 1, 1];
+    const smoothed = [0, 0, 0, 0];
+    asymmetricSmoothBands(values, smoothed);
+    for (const v of smoothed) expect(v).toBeCloseTo(0.8, 6);
+  });
+
+  it("mutates in place rather than returning a copy", () => {
+    // Runs 64+ times per frame; allocating here is the point of the signature.
+    const smoothed = [0, 0];
+    expect(asymmetricSmoothBands([1, 1], smoothed)).toBeUndefined();
+    expect(smoothed[0]).toBeGreaterThan(0);
+  });
+
+  it("resizes a mismatched buffer instead of writing past its end", () => {
+    const smoothed = [0, 0, 0];
+    asymmetricSmoothBands([1, 1, 1, 1, 1], smoothed);
+    expect(smoothed).toHaveLength(5);
+    for (const v of smoothed) expect(v).toBeCloseTo(0.8, 6);
+  });
+
+  it("preserves state across frames when the buffer matches", () => {
+    const smoothed = [0, 0];
+    asymmetricSmoothBands([1, 1], smoothed);
+    const afterFirst = smoothed[0];
+    asymmetricSmoothBands([1, 1], smoothed);
+    // A same-size buffer must NOT reset, or every frame would look like the first.
+    expect(smoothed[0]).toBeGreaterThan(afterFirst);
+  });
+
+  it("reaches the target over repeated frames", () => {
+    const smoothed = [0];
+    for (let i = 0; i < 100; i++) asymmetricSmoothBands([0.5], smoothed);
+    expect(smoothed[0]).toBeCloseTo(0.5, 4);
+  });
+});
 
 /**
  * Colour and easing maths for the 2D visualizer. These run every frame, so what

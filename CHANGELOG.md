@@ -7,6 +7,186 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - stem separation was broken on every run (P0, Phase 0.1)
+
+`_separate_demucs` read `opts.source_path`, which `SeparationOptions` never
+defines, so **every** Demucs run raised `AttributeError` — swallowed by a broad
+`except Exception` into `SeparationResult.error`. The hierarchical path was worse:
+it passed `source_path=` as a keyword the signature rejected, so it raised
+`TypeError` before reaching the read. Both defects were proven by executing the
+real functions before fixing (`docs/plans/studio-quality-2026-10.md` §0.1).
+
+`source_path` is now an explicit parameter. Verified live: `POST
+/api/audio/separate-file` on a 1-second WAV returns HTTP 200 with all four stems
+written to disk (WAV + MP3).
+
+### Fixed - shader visualizer 404'd on every uploaded track (P1, Phase 0.2)
+
+`Visualizer.tsx` passed `cleanTrackName(currentFilename)` to `ShaderVisualizer`,
+which fed it to `useKeyPalette` and `useSpectralTimeline` as an **API key**. Every
+uploaded file is content-addressed (`a6792f53_<name>.wav`), so the cleaned name
+404'd for all of them and the spectral timeline and key palette silently never
+loaded. Split into `trackName` (display) and `trackFile` (cache key). Verified in
+the browser: four hash-prefixed tracks now fetch `spectral-timeline` with 200
+(was 404 for every one).
+
+### Changed - "no analysis" is a state, not an error (P1, Phase 0.3)
+
+`classifyAnalysisResponse()` makes a 404 from the analysis endpoint a distinct
+`not-analyzed` outcome instead of an error, so the UI can offer "Analyze". 403/500
+still surface as errors — collapsing those would let a misconfigured proxy look
+like an ordinary unanalyzed track.
+
+**Known limit, stated rather than papered over:** the browser's own
+`Failed to load resource` console line for a 4xx is emitted by the network stack
+and cannot be suppressed from application code, so the plan's "zero red console
+entries" acceptance is not achievable as written.
+
+### Verified - full test-suite audit (2026-10-02)
+
+**Frontend unit:** 420 passed (10 files). **Playwright E2E:** 81 passed, 0 failed.
+**Backend:** 250 passed. All 7 gates green.
+
+Audited every test file for the defect classes that make a suite lie about the
+product. Findings and fixes are below; the three real defects (production test
+harness, dev-overlay E2E failures, a tautological assertion hiding an a11y bug)
+were fixed. Everything scoped as follow-up is recorded in **D26** rather than
+silently patched.
+
+### Security - the visualizer test harness was shipping in production builds
+
+`window.__VIZ_TEST__` was registered with no environment guard and was verified
+present in the built bundle (`dist/assets/Visualizer-*.js`). Anyone with a devtools
+console could load an arbitrary library track, switch render modes, and toggle
+layers. The Ctrl+Shift+T test panel — which dumps live state on screen — was
+reachable in production for the same reason.
+
+Both are now behind `import.meta.env.DEV`. Vite substitutes that statically, so
+the code is *removed* from the production bundle rather than skipped at runtime;
+verified by rebuilding and confirming `__VIZ_TEST__` is absent. Playwright runs
+against the Vite dev server, so the suite is unaffected.
+
+### Fixed - three E2E failures that were never app defects
+
+A full Playwright run failed 3 of 80. All three shared one root cause: the Vite
+dev server injects `/__devtools/embedded.js`, which
+
+- **intercepted pointer events.** `sidebar.spec.ts` timed out on a button that
+  Playwright itself reported as "visible, enabled and stable" — because
+  `document.elementFromPoint` at its centre returned the overlay, not the button.
+- **fetched icons from `https://api.iconify.design` at runtime**, and the CORS
+  errors then failed two `unity.spec.ts` console assertions.
+
+`removeDevToolOverlays()` in `tests/helpers.ts` now blocks the route and strips
+the overlay, and runs from both `cleanupRoutes` and `navigateWithWait` — cleaning
+only in `beforeEach` is useless because the overlay is re-injected on every
+navigation. All three pass.
+
+### Fixed - a test that could not fail, and an accessibility defect it was hiding
+
+- `settings.spec.ts` asserted `toBeGreaterThanOrEqual(0)` on an element count.
+  That is true for every array, so the test passed whether or not the feature
+  existed. It now asserts the control is visible and keyboard-focusable.
+- Added a test that every settings form control has an accessible name. It failed
+  immediately and found a real defect: the **Ollama URL input had only a
+  `placeholder` and no accessible name**, while its siblings on the same page had
+  `aria-label`. Fixed.
+- A wider sweep found the same class on `/library`, `/logs`, `/audio-analysis`,
+  `/storyboards` and `/unity`. **Recorded as open, not silently fixed** — it is a
+  broad multi-file a11y sweep and belongs in its own change.
+
+### Fixed - `aurora` was implemented but unreachable, and one picker option was a dead value
+
+Found by browser automation, not by reading the code. `Canvas2DVisualizer`
+rendered `aurora` and the effect budget had an entry for it, but the mode picker's
+`<option>` list was hardcoded and never included it — so **no user could select
+it**. It was reachable only via `__VIZ_TEST__.set2DMode('aurora')`, which is
+exactly how dead UI survives a test suite. The cause was four divergent copies of
+the mode list.
+
+- `CANVAS_2D_MODES` in `visualizerHelpers.ts` is now the **only** definition. The
+  budget imports `Canvas2DMode` from it rather than redeclaring it; `useState`
+  uses it instead of an inline 12-member union.
+- **Both** mode `<select>`s render `CANVAS_2D_MODES.map(...)` instead of
+  hardcoded options. The compact menu keeps short labels via a typed
+  `CANVAS_2D_MODE_SHORT_LABELS`, so a missing entry is a compile error rather
+  than a blank option.
+- The hidden test-panel picker also offered `value="stereo-split-bands"`, which
+  is **not a real mode** (it is `stereo-split-bars`). Selecting it set state to a
+  value no branch handled, so the canvas fell through every `else if` and drew
+  nothing.
+- `as any` removed from the mode selects and the test harness setter.
+
+Guards added so this cannot recur: 8 cross-module assertions in
+`canvas2dModeBudget.test.ts` (budget equals the canonical list both ways, both
+label maps cover it, no label map invents a value outside it) and a Playwright
+spec that asserts the **UI** — not the harness — offers exactly the modes the
+runtime supports. Removing `aurora` from the list fails 6 of them.
+
+### Fixed - Canvas2D: no more effect hierarchy (closes the 2026-10-02 diagnosis)
+
+`Canvas2DVisualizer.tsx` drew **all four** global effects on every frame of
+every mode, before the mode's own rendering: trail/ghost fill, phrase flash,
+beat vignette and drum shockwaves. With a mode's own glows on top that is 5-7
+simultaneous large-area effects with no focal point — the "visual noise" failure
+in `docs/knowledge/canvas2d-visualizer-diagnosis-2026-10-02/README.md`, where
+everything reacts to everything so nothing reads.
+
+- **Per-mode effect budget** (`canvas2dModeBudget.ts`), as data, per the
+  diagnosis doc's own recommendation. `MAX_EFFECTS = 2`, applied at runtime by
+  `resolveActiveEffects`; a mode may declare more than two because which effects
+  fire is frame-dependent, but three can never fire at once.
+- **Unknown modes get nothing.** A new mode is inert until it declares a budget,
+  which is the strongest reading of "do not add a 14th mode until the effect
+  budget exists".
+- Trail alpha moved out of a 4-level nested ternary with duplicated
+  `prefersReducedMotion` branches and into the budget.
+- Beat-vignette alpha ceiling halved, 0.45 → 0.225, per "halve the alpha ceiling
+  globally, then re-evaluate".
+- Shockwave **spawning** is gated too, not just drawing — spawning rings a mode
+  will not draw leaked them into the next beat and filled the 8-ring pool.
+- The perceptual-scale selector was copy-pasted **six times**; it is now
+  `makeFreqMapper()` / `sampleMappedBand()` in `canvas2dHelpers.ts`.
+
+### Added - Asymmetric band smoothing for the Canvas2D modes
+
+`asymmetricSmoothStep` / `asymmetricSmoothBands` (0.8 attack / 0.12 release) in
+`canvas2dHelpers.ts`, per §1 of
+`docs/knowledge/gemini-ae-to-canvas2d-2026-10-02/README.md` — "damping
+high-frequency flicker is the #1 visual-fatigue fix". Tested but **not yet wired
+into a mode**; the existing per-mode springs still apply.
+
+### Added - Motion vocabulary for audio-reactive visuals (closes gap #16)
+
+Implements the ten moves from
+`docs/knowledge/gemini-motion-design-2026-10-02/README.md` — previously the
+single largest unaddressed item in `app-research-gaps-2026.md` §16, where every
+reactive parameter shared one trigger source, one direction and one easing
+curve. New module `packages/frontend/src/features/visualizer/motion/`:
+
+- `motionEasing.ts` — easing curves, a sub-stepped damped spring, the decaying
+  harmonic, and `SECTION_EASING` (the spec's per-section palette, keyed by the
+  section names `sectionStateMachine.ts` already uses).
+- `motionMoves.ts` — all ten moves, plus `assignStaging` (driver dominance: one
+  onset owns global motion, so two stems never drive the same spatial vector),
+  `ImpulseTrigger` (first-derivative triggering with a noise gate, replacing
+  level-mapping that made meshes twitch every frame) and the motion gates.
+- `useMotionDriver.ts` — `resolveMotion()` composes them per frame from the
+  latency-compensated audio clock, and resets its state on a seek.
+- 151 unit assertions, no browser required (`pnpm test:unit`).
+
+Two corrections to the spec, both verified by tests:
+
+- **`flareXZ`**: the spec gives `1.154 (= 1/0.75, volume-preserving)`. The number
+  is right — `1/√0.75` — but the derivation is not; `1/0.75` is 1.333 and inflates
+  volume 33% on every kick. Now derived as `1/√compressionY`.
+- **`stepAngle`**: the spec's `0.196` rad lands 0.011 rad short of a full turn
+  every 32 hats. Now exactly `2π/32`.
+
+Deliberately not done: the per-viz-style mapping from audio onto `MotionInput`,
+and the A/B screenshot validation the spec recommends. The moves are correct and
+tested; they are not yet driven by any existing style.
+
 ### Changed - Audio API split into four modules (D15)
 
 - `app/api/audio.py` reduced from 2,746 to 1,106 lines, split into four peer

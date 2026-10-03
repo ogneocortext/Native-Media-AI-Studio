@@ -33,12 +33,17 @@ export function PlaybackControls({
     >
       {/* Main transport row */}
       <div className="flex items-center gap-2 px-4 py-2.5">
-        {/* Render Transport */}
-        <div className="flex items-center gap-2">
+        {/* Render Transport — labelled as a group (plan 1.1) */}
+        <div className="flex items-center gap-2" role="group" aria-label="Preview transport">
           <button
             onClick={onRenderPlayPause}
             className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${renderPlaying ? "bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-900/40" : "bg-gray-700 hover:bg-gray-600"}`}
             title={
+              renderPlaying
+                ? "Pause preview"
+                : "Preview play — plays the live canvas, no file is rendered"
+            }
+            aria-label={
               renderPlaying
                 ? "Pause preview"
                 : "Preview play — plays the live canvas, no file is rendered"
@@ -50,6 +55,7 @@ export function PlaybackControls({
             onClick={onRenderRewind}
             className="w-9 h-9 rounded-lg bg-gray-700 hover:bg-gray-600 flex items-center justify-center transition-colors"
             title="Rewind to start"
+            aria-label="Rewind to start"
           >
             <Square size={14} />
           </button>
@@ -67,12 +73,13 @@ export function PlaybackControls({
         {/* Divider */}
         <div className="w-px h-8 bg-gray-700/60" />
 
-        {/* Audio Transport */}
-        <div className="flex items-center gap-2">
+        {/* Audio Transport — labelled as a group (plan 1.1) */}
+        <div className="flex items-center gap-2" role="group" aria-label="Audio transport">
           <button
             onClick={onAudioPlayPause}
             className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${isAudioPlaying ? "bg-purple-600 hover:bg-purple-500 shadow-lg shadow-purple-900/40" : "bg-gray-700 hover:bg-gray-600"}`}
             title={isAudioPlaying ? "Pause audio" : "Play audio"}
+            aria-label={isAudioPlaying ? "Pause audio" : "Play audio"}
           >
             {isAudioPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
           </button>
@@ -80,6 +87,7 @@ export function PlaybackControls({
             onClick={onAudioStop}
             className="w-9 h-9 rounded-lg bg-gray-700 hover:bg-gray-600 flex items-center justify-center transition-colors"
             title="Stop all"
+            aria-label="Stop all"
           >
             <Square size={14} />
           </button>
@@ -107,6 +115,7 @@ export function PlaybackControls({
               step={0.1}
               value={animationTime}
               onChange={(e) => onTimelineChange(Number(e.target.value))}
+              aria-label="Preview timeline"
               className="w-full h-2 bg-gray-700 rounded-full appearance-none cursor-pointer accent-purple-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-400 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-purple-900/50"
             />
           </div>

@@ -1,4 +1,5 @@
 import React from "react";
+import { AudioTransport } from "../../components/audio";
 import { OutputFile } from "../../state/outputStore";
 import { WaveformDisplay } from "./WaveformDisplay";
 import { ExportMatrixPanel } from "./ExportMatrixPanel";
@@ -199,12 +200,12 @@ export function MediaDetailModal({
                     className="w-full max-h-[50vh] object-contain bg-black"
                   />
                 )}
-                <audio
-                  ref={audioRef}
+                <AudioTransport
+                  audioRef={audioRef}
                   src={getOutputUrl(output.relative_path)}
-                  controls
                   autoPlay
                   className="w-full"
+                  ariaLabel={`Play ${output.filename}`}
                 />
                 {!output.cover_image && (
                   <div className="py-3 flex items-center justify-center gap-2 text-muted text-sm">

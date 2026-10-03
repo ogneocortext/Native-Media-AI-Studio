@@ -199,6 +199,42 @@
     position: relative;
   }
 
+  /* Plan 1.3 — scrim dims the stage while a floating overlay (shortcuts /
+     More / FX) is open. z 150 sits above the canvas and the shader HUD
+     (z 10) but below the menus, because .viz-topbar--overlay raises the
+     header's whole stacking context above it. Clicks land on the scrim,
+     where Visualizer's single outside-click listener dismisses the overlay. */
+  .viz-overlay-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 0.45);
+    backdrop-filter: blur(1px);
+    z-index: 150;
+  }
+
+  .viz-topbar.viz-topbar--overlay {
+    z-index: 250;
+  }
+
+  /* Plan 1.3 — z ladder for the shader HUD (preset + FX controls).
+     The HUD sits inside the canvas wrap, so the scrim (z 150) would
+     otherwise swallow every FX click — the panel would open and be
+     untouchable. While FX is open (or no overlay is), the HUD must beat
+     the scrim and the empty-state drop layer (z 30); while a header menu
+     is open it drops back under the scrim, so the preset dropdown cannot
+     pop over an open menu. This file is imported into layer(components),
+     so the HUD must NOT also carry Tailwind's `z-10` utility — utilities
+     beat components regardless of specificity, which silently won the
+     cascade and left the panel under the scrim. */
+  .viz-shader-hud {
+    z-index: 160;
+  }
+
+  :scope[data-viz-overlay="more"] .viz-shader-hud,
+  :scope[data-viz-overlay="shortcuts"] .viz-shader-hud {
+    z-index: 10;
+  }
+
   .viz-more-menu {
     position: absolute;
     top: calc(100% + 6px);
@@ -303,6 +339,21 @@
   .viz-rec.viz-more-item {
     padding: 6px 10px;
     font-size: 0.75rem;
+  }
+
+  /* Plan 1.3 — More-menu rows carry a visible text label (not a bare icon)
+     and use text-primary so they read on the near-black menu surface. */
+  .viz-more-menu .viz-more-item.viz-icon-btn {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 8px;
+    inline-size: 100%;
+    color: var(--text-primary);
+  }
+
+  .viz-more-menu .viz-more-label {
+    font-size: 0.75rem;
+    font-weight: 500;
   }
 
   .viz-icon-btn {
@@ -889,13 +940,30 @@
     position: relative;
   }
 
-  /* Canvas wrapper */
+  /* Canvas wrapper — min-height per studio-quality plan 1.2: the canvas is
+     the product, and expanded mixer panels used to squeeze it to a ~60px
+     sliver at short viewports (780x410 measured). 45vh is the floor on
+     desktop heights; panels now start collapsed (usePanelCollapsed), so the
+     floor is met without clipping the transport. */
   .viz-canvas-wrap {
     flex: 1;
+    min-height: 45vh;
     position: relative;
     background: #0a0a0a;
     border-radius: 0;
     overflow: hidden;
+  }
+  /* Short viewports (<=800px): floor eases to the plan's acceptance number
+     (canvas >= ~40% of the viewport) and the player region gets its own
+     scroll instead of pushing the canvas past its floor. */
+  @media (max-height: 800px) {
+    .viz-canvas-wrap {
+      min-height: 40vh;
+    }
+    .viz-audio-player {
+      max-height: 45vh;
+      overflow-y: auto;
+    }
   }
   .viz-canvas-wrap canvas {
     display: block;
@@ -1232,13 +1300,8 @@
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     flex-shrink: 0;
   }
-  .viz-audio-player audio {
-    width: 100%;
-    height: 32px;
-    opacity: 0.9;
-    filter: invert(1) hue-rotate(180deg) saturate(0.8);
-    border-radius: 6px;
-  }
+  /* The stock <audio controls> rule (invert/hue-rotate hack to tint Chrome's
+     grey player) is gone with plan 1.1 — AudioTransport styles itself. */
 
   /* Upload prompt */
   .viz-upload {

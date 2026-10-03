@@ -19,11 +19,13 @@ import {
   EyeOff,
   User,
   Layers,
+  ListVideo,
   MoreHorizontal,
   Keyboard,
 } from "lucide-react";
 import { ensureAnalysis, getStemsAnalysis } from "../../services/api";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
+import { AudioTransport } from "../../components/audio";
 import type {
   AudioAnalysisData,
   AudioData,
@@ -76,6 +78,7 @@ import { RenderStatsProbe, RenderStatsBadge } from "./components/RenderStats";
 import {
   CANVAS_2D_MODES,
   CANVAS_2D_MODE_LABELS,
+  shortModeLabel,
   VIZ_MODE_ORDER,
   BEAT_LATCH_MS,
   audioRefForFile,
@@ -86,6 +89,7 @@ import {
   visualizationStyleToPresetId,
   toAnalysisData,
   toVisualPreset,
+  type Canvas2DMode,
   type LibraryFile,
 } from "./visualizerHelpers";
 
@@ -156,20 +160,11 @@ export function Visualizer() {
   const [vizMode, setVizMode] = useState<"3d" | "shader" | "2d">("shader"); // 2d = Canvas2D (2026 visual-flux/Waviz)
   const [modeFade, setModeFade] = useState(0);
   const prevModeRef = useRef(vizMode);
-  const [canvas2DMode, setCanvas2DMode] = useState<
-    | "bars"
-    | "mirrored-bars"
-    | "segmented-led-bars"
-    | "stereo-split-bars"
-    | "stacked-frequency-bands"
-    | "dot-peak-matrix"
-    | "waveform"
-    | "radial"
-    | "spectrogram"
-    | "lissajous"
-    | "constellation"
-    | "particles"
-  >("bars");
+  // One definition of the mode list, in visualizerHelpers.ts. This used to be an
+  // inline 12-member union that had already drifted from the picker's list (it
+  // was missing `aurora`), which is how an implemented, budgeted mode ended up
+  // unreachable from the UI.
+  const [canvas2DMode, setCanvas2DMode] = useState<Canvas2DMode>("bars");
   const [perceptualScale, setPerceptualScale] = useState<PerceptualScale>("mel");
   // Adaptive pixel ratio (2026 perf best practice): PerformanceMonitor steps
   // down to 1x when fps regresses and restores the [1, 1.5] band on recovery.
@@ -180,9 +175,18 @@ export function Visualizer() {
     triangles: number;
   } | null>(null);
   const [aiEnhancing, setAiEnhancing] = useState(false);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
-  // Keyboard-shortcuts popover (H / ? toggles; Esc or outside click closes).
-  const [showShortcuts, setShowShortcuts] = useState(false);
+  // Plan 1.3 — one floating overlay at a time. The shortcuts popover, the
+  // More-controls menu and the FX panel are mutually exclusive: opening one
+  // closes the others, a scrim dims the canvas, and Esc dismisses. The 3D
+  // preset column hides while an overlay is open (Visualizer.tsx render).
+  const [openOverlay, setOpenOverlay] = useState<"shortcuts" | "more" | "fx" | null>(
+    null,
+  );
+  const showShortcuts = openOverlay === "shortcuts";
+  const showMoreMenu = openOverlay === "more";
+  const toggleOverlay = useCallback((id: "shortcuts" | "more" | "fx") => {
+    setOpenOverlay((o) => (o === id ? null : id));
+  }, []);
   // Single source of truth for which visual preset is currently active (fixes
   // "multiple presets appear selected" when they share visualizationStyle).
   const [activeVisualPresetId, setActiveVisualPresetId] = useState<string | null>(null);
@@ -284,11 +288,11 @@ export function Visualizer() {
   });
   // Handle Canvas onCreated
   const handleCanvasCreated = useCallback(({ gl }: { gl: any }) => {
+    gl.toneMappingExposure = 0.8;
     if ((gl as any)?.isWebGPURenderer) {
       setRendererBackend("WebGPU");
     } else {
       gl.toneMapping = ACESFilmicToneMapping;
-      gl.toneMappingExposure = 1.05;
       setRendererBackend("WebGL2");
     }
     setRendererReady(true);
@@ -1002,6 +1006,10 @@ export function Visualizer() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // DEV-ONLY: the test panel dumps live state to the screen and exposes the
+      // harness. It is a development affordance, so it is not reachable in a
+      // production build — see the DEV guard on the harness registration below.
+      if (!import.meta.env.DEV) return;
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "t") {
         e.preventDefault();
         setShowTestPanel((v) => !v);
@@ -1072,39 +1080,35 @@ export function Visualizer() {
       } else if (k === "f" || k === "F") {
         toggleFocusMode();
       } else if (k === "h" || k === "H" || k === "?") {
-        setShowShortcuts((v) => !v);
+        toggleOverlay("shortcuts");
       } else if (k === "Escape") {
-        setShowShortcuts(false);
+        setOpenOverlay(null);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [togglePlayPause, cycleVizMode, toggleFocusMode]);
+  }, [togglePlayPause, cycleVizMode, toggleFocusMode, toggleOverlay]);
 
-  // Dismiss the shortcuts popover on outside click (button / H / ? / Esc also close it).
+  // Plan 1.3 — a single outside-click dismisser replaces the two per-menu
+  // listeners (shortcuts / more). Clicks on the toggles themselves, on the
+  // open menu, or inside the shader HUD (FX panel + preset dropdown) are
+  // allowed through; anything else — including the scrim — closes the overlay.
   useEffect(() => {
-    if (!showShortcuts) return;
+    if (openOverlay === null) return;
     const onClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest(".viz-shortcuts-menu") && !target.closest(".viz-shortcuts-toggle")) {
-        setShowShortcuts(false);
+      if (
+        target.closest(
+          ".viz-shortcuts-menu, .viz-more-menu, .viz-shader-hud, [data-viz-overlay-toggle]",
+        )
+      ) {
+        return;
       }
+      setOpenOverlay(null);
     };
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);
-  }, [showShortcuts]);
-
-  useEffect(() => {
-    if (!showMoreMenu) return;
-    const onClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest(".viz-more-menu") && !target.closest(".viz-more-menu-toggle")) {
-        setShowMoreMenu(false);
-      }
-    };
-    document.addEventListener("click", onClick);
-    return () => document.removeEventListener("click", onClick);
-  }, [showMoreMenu]);
+  }, [openOverlay]);
 
   // Mode crossfade: brief black fade when switching visualization modes
   useEffect(() => {
@@ -1130,10 +1134,19 @@ export function Visualizer() {
   useEffect(() => {
     // Registered once: getState reads from a ref so per-frame audio updates don't
     // re-register the harness 10–60×/sec (was in deps via liveAudioData).
+    //
+    // DEV-ONLY. This harness was unguarded and shipped in the production
+    // bundle, where `window.__VIZ_TEST__` let anyone with a devtools console
+    // load an arbitrary library track and drive every render mode and layer.
+    // Playwright runs against the Vite dev server, so `import.meta.env.DEV` is
+    // true there and every spec keeps working. `import.meta.env` is statically
+    // replaced at build time, so the whole block is dropped from the production
+    // bundle rather than merely skipped at runtime.
+    if (!import.meta.env.DEV) return;
     (window as any).__VIZ_TEST__ = {
       selectTrack: (filename: string) => handleSelectLibraryTrack(filename),
       setMode: (mode: "3d" | "shader" | "2d") => setVizMode(mode),
-      set2DMode: (mode: any) => setCanvas2DMode(mode),
+      set2DMode: (mode: Canvas2DMode) => setCanvas2DMode(mode),
       getState: () => ({ ...testStateRef.current }),
       toggleTestPanel: () => setShowTestPanel((v) => !v),
       setLayerVisible: (layer: "visuals" | "lyrics" | "character", v: boolean) => {
@@ -1170,7 +1183,13 @@ export function Visualizer() {
   }, [pendingTrack, libraryFiles, handleSelectLibraryTrack]);
 
   return (
-    <div className={`viz-page ${focusMode ? "viz-focus-mode" : ""}`}>
+    <div
+      className={`viz-page ${focusMode ? "viz-focus-mode" : ""}`}
+      data-viz-overlay={openOverlay ?? ""}
+    >
+      {/* Plan 1.3 — dims the stage while a floating overlay is open; the
+          document outside-click listener above closes the overlay on tap. */}
+      {openOverlay !== null && <div className="viz-overlay-scrim" aria-hidden="true" />}
       {showTestPanel && (
         <div className="viz-test-panel">
           <div className="viz-test-panel-row">
@@ -1208,20 +1227,13 @@ export function Visualizer() {
                 2D Mode
                 <select
                   value={canvas2DMode}
-                  onChange={(e) => setCanvas2DMode(e.target.value as any)}
+                  onChange={(e) => setCanvas2DMode(e.target.value as Canvas2DMode)}
                 >
-                  <option value="bars">Bars</option>
-                  <option value="mirrored-bars">Mirrored Bars</option>
-                  <option value="segmented-led-bars">Segmented LED Bars</option>
-                  <option value="stereo-split-bands">Stereo Split Bands</option>
-                  <option value="stacked-frequency-bands">Stacked Frequency Bands</option>
-                  <option value="dot-peak-matrix">Dot Peak Matrix</option>
-                  <option value="waveform">Wave</option>
-                  <option value="radial">Radial</option>
-                  <option value="spectrogram">Spectrogram</option>
-                  <option value="lissajous">Lissajous</option>
-                  <option value="constellation">Constellation</option>
-                  <option value="particles">Particles</option>
+                  {CANVAS_2D_MODES.map((m) => (
+                    <option key={m} value={m}>
+                      {CANVAS_2D_MODE_LABELS[m]}
+                    </option>
+                  ))}
                 </select>
               </label>
             )}
@@ -1245,7 +1257,9 @@ export function Visualizer() {
           </pre>
         </div>
       )}
-      <header className="viz-topbar">
+      <header
+        className={`viz-topbar${openOverlay !== null ? " viz-topbar--overlay" : ""}`}
+      >
         <div className="viz-brand">
           <Music size={20} />
           <span>Visualizer</span>
@@ -1288,7 +1302,9 @@ export function Visualizer() {
                 : "Auto-play OFF — pick a track then press Play"
             }
           >
-            <Play size={14} />
+            {/* ListVideo, not Play: this toggles auto-play of the NEXT track;
+                the Play glyph made it read as a duplicate transport (plan 1.1). */}
+            <ListVideo size={14} />
           </button>
           {currentFilename && !currentAnalysisData && (
             <button
@@ -1378,8 +1394,9 @@ export function Visualizer() {
           </div>
           <div className="viz-btn-group">
             <button
-              onClick={() => setShowShortcuts((v) => !v)}
+              onClick={() => toggleOverlay("shortcuts")}
               className={`viz-icon-btn viz-shortcuts-toggle ${showShortcuts ? "active" : ""}`}
+              data-viz-overlay-toggle="shortcuts"
               aria-label="Keyboard shortcuts"
               aria-expanded={showShortcuts}
               aria-pressed={showShortcuts}
@@ -1395,7 +1412,7 @@ export function Visualizer() {
                   <kbd>Space</kbd>
                 </div>
                 <div className="viz-shortcut-row">
-                  <span>Cycle mode 3D → FX → 2D</span>
+                  <span>Cycle mode FX → 2D → 3D</span>
                   <span className="viz-shortcut-keys">
                     <kbd>←</kbd>
                     <kbd>→</kbd>
@@ -1427,8 +1444,9 @@ export function Visualizer() {
           </div>
           <div className="viz-btn-group">
             <button
-              onClick={() => setShowMoreMenu((v) => !v)}
+              onClick={() => toggleOverlay("more")}
               className={`viz-icon-btn viz-more-menu-toggle ${showMoreMenu ? "active" : ""}`}
+              data-viz-overlay-toggle="more"
               aria-label="More controls"
               aria-expanded={showMoreMenu}
               aria-pressed={showMoreMenu}
@@ -1441,22 +1459,15 @@ export function Visualizer() {
                 {vizMode === "2d" && (
                   <select
                     value={canvas2DMode}
-                    onChange={(e) => setCanvas2DMode(e.target.value as any)}
+                    onChange={(e) => setCanvas2DMode(e.target.value as Canvas2DMode)}
                     className="viz-2d-mode-select viz-more-item"
                     title="2D mode"
                   >
-                    <option value="bars">Bars</option>
-                    <option value="mirrored-bars">Mirrored Bars</option>
-                    <option value="segmented-led-bars">LED Bars</option>
-                    <option value="stereo-split-bars">Stereo Split</option>
-                    <option value="stacked-frequency-bands">Stacked Bands</option>
-                    <option value="dot-peak-matrix">Dot Matrix</option>
-                    <option value="waveform">Wave</option>
-                    <option value="radial">Radial</option>
-                    <option value="spectrogram">Spectrogram</option>
-                    <option value="lissajous">Lissajous</option>
-                    <option value="constellation">Constellation</option>
-                    <option value="particles">Particles</option>
+                    {CANVAS_2D_MODES.map((m) => (
+                      <option key={m} value={m}>
+                        {shortModeLabel(m)}
+                      </option>
+                    ))}
                   </select>
                 )}
                 {isRecording && (
@@ -1473,6 +1484,9 @@ export function Visualizer() {
                   title={isRecording ? "Stop recording" : "Start recording"}
                 >
                   {isRecording ? <Square size={14} /> : <Video size={14} />}
+                  <span className="viz-more-label">
+                    {isRecording ? "Stop recording" : "Record"}
+                  </span>
                 </button>
                 {recordedBlob && !isRecording && (
                   <button
@@ -1482,6 +1496,7 @@ export function Visualizer() {
                     title="Download recording"
                   >
                     <Download size={14} />
+                    <span className="viz-more-label">Download</span>
                   </button>
                 )}
                 <button
@@ -1492,6 +1507,7 @@ export function Visualizer() {
                   title={sceneFrozen ? "Unfreeze scene" : "Freeze scene"}
                 >
                   <Snowflake size={14} />
+                  <span className="viz-more-label">{sceneFrozen ? "Unfreeze" : "Freeze"}</span>
                 </button>
                 <button
                   onClick={toggleFocusMode}
@@ -1501,15 +1517,23 @@ export function Visualizer() {
                   title={focusMode ? "Exit focus mode" : "Enter focus mode"}
                 >
                   {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  <span className="viz-more-label">{focusMode ? "Exit focus" : "Focus mode"}</span>
                 </button>
                 <button
-                  onClick={() => setShowSettings(!showSettings)}
+                  onClick={() => {
+                    setShowSettings(!showSettings);
+                    // Menu and settings must not coexist (plan 1.3).
+                    setOpenOverlay(null);
+                  }}
                   className={`viz-icon-btn viz-more-item ${showSettings ? "active" : ""}`}
                   aria-label={showSettings ? "Close settings" : "Open settings"}
                   aria-pressed={showSettings}
                   title={showSettings ? "Close settings" : "Open settings"}
                 >
                   <Settings size={14} />
+                  <span className="viz-more-label">
+                    {showSettings ? "Close settings" : "Settings"}
+                  </span>
                 </button>
                 <button
                   onClick={() => setShowAnimDemo(!showAnimDemo)}
@@ -1519,6 +1543,7 @@ export function Visualizer() {
                   title="Animation demo"
                 >
                   <Play size={14} />
+                  <span className="viz-more-label">Animation demo</span>
                 </button>
                 <button
                   onClick={() => setShowTheatreStudio(!showTheatreStudio)}
@@ -1528,6 +1553,7 @@ export function Visualizer() {
                   title="Theatre.js Studio — Visual animation editor"
                 >
                   <Wand2 size={14} />
+                  <span className="viz-more-label">Theatre.js Studio</span>
                 </button>
                 <button
                   onClick={() => setShowAIPanel(!showAIPanel)}
@@ -1537,6 +1563,7 @@ export function Visualizer() {
                   title="AI generate preset"
                 >
                   <Sparkles size={14} />
+                  <span className="viz-more-label">AI preset</span>
                 </button>
                 <button
                   onClick={() => setPrefersReducedMotion((p) => !p)}
@@ -1550,6 +1577,9 @@ export function Visualizer() {
                   }
                 >
                   <Accessibility size={14} />
+                  <span className="viz-more-label">
+                    {prefersReducedMotion ? "Motion: on" : "Motion: off"}
+                  </span>
                 </button>
               </div>
             )}
@@ -1688,6 +1718,7 @@ export function Visualizer() {
                 <ShaderVisualizer
                   audioData={liveAudioDataRef}
                   trackName={cleanTrackName(currentFilename ?? "")}
+                  trackFile={currentFilename ?? ""}
                   isPlaying={isPlaying}
                   lrcSync={lrcSync}
                   lrcSyncLive={lrcSyncLiveRef}
@@ -1697,6 +1728,8 @@ export function Visualizer() {
                   stemsVolumes={stemsMixerState?.volumes}
                   stemsProMeters={proMixerMeters || undefined}
                   sampleAudio={sampleAudio}
+                  fxOpen={openOverlay === "fx"}
+                  onFxOpenChange={(open) => setOpenOverlay(open ? "fx" : null)}
                   className="absolute inset-0"
                 />
               )}
@@ -1726,7 +1759,7 @@ export function Visualizer() {
               {vizMode === "3d" && rendererReady && (
                 <div className="viz-backend-badge">{rendererBackend}</div>
               )}
-              {vizMode === "3d" && rendererReady && (
+              {vizMode === "3d" && rendererReady && openOverlay === null && (
                 <StylePicker active={visualizationStyle} onChange={setVisualizationStyle} />
               )}
             </>
@@ -1832,10 +1865,13 @@ export function Visualizer() {
 
       {audioUrl && (
         <div className="viz-audio-player">
+          {/* Plan 1.1 — one custom transport replaces the browser's stock
+              <audio controls>; the element itself stays (refs, analyser and
+              keyboard map all drive it) but renders nothing. */}
+          <AudioTransport audioRef={audioElRef} ariaLabel="Playback transport" className="mb-2" />
           <audio
             key={audioUrl}
             ref={audioElRef}
-            controls
             src={audioUrl}
             data-main-player
             className="viz-audio"

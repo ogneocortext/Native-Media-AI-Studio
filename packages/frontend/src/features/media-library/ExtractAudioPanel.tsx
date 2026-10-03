@@ -9,6 +9,7 @@
  */
 
 import { useState } from "react";
+import { AudioTransport } from "../../components/audio";
 import { Music, Loader2, Check, AlertTriangle, Download } from "lucide-react";
 import { extractVideoAudio, type ExtractAudioResponse } from "../../services/api";
 import { getOutputUrl } from "../../utils/url";
@@ -133,11 +134,10 @@ export function ExtractAudioPanel({ sourcePath, onComplete }: Props) {
               {result.lossless ? " · copied" : " · re-encoded"}
             </p>
           )}
-          <audio
-            controls
+          <AudioTransport
             src={getOutputUrl(result.relative_path)}
-            className="w-full rounded"
-            aria-label={`Play ${result.filename}`}
+            className="w-full"
+            ariaLabel={`Play ${result.filename}`}
           />
           <div className="flex items-center justify-between gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5">
             <p className="text-xs text-white font-mono truncate" title={result.relative_path}>

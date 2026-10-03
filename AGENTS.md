@@ -7,7 +7,7 @@
 > **Agent bootstrap:** read `docs/README.md` first — it maps every documentation
 > directory and says which are authoritative. Then read
 > `docs/architecture/decision-log.md` before writing code. It records
-> stack/architecture decisions (D1–D21 — do not re-litigate) and open questions
+> stack/architecture decisions (D1–D23 — do not re-litigate) and open questions
 > (Q1–Q5). Update the log when you make or reverse an architecture decision.
 > Frontend visualizer work also requires `docs/architecture/visualizer.md` — it
 > maps the module split from D14 and states where new logic belongs.
@@ -210,7 +210,7 @@ It still must not be used, because it **fails the backend suite**:
 ```
 C:\Python314\python.exe                     pytest -> rc=1
   PermissionError: [WinError 5] ... pytest-of-NeoCortext\pytest-current
-D:\conda-envs\nma-studio-cuda\...\python.exe   pytest -> rc=0, 156 passed in 42.55s
+D:\conda-envs\nma-studio-cuda\...\python.exe   pytest -> rc=0, 250 passed in 34.4s
 ```
 
 3.14's stricter temp-dir cleanup cannot remove pytest's `pytest-current`
@@ -314,10 +314,23 @@ Individual gates, for iterating on one area:
   Test files are **colocated** under `src/`, not in `tests/`,
   because `tests/` holds Playwright specs and its own `tsconfig.tests.json`.
   Covered so far: `keyPalette.ts` (chroma→hue, Q5), `audioTiming.ts`
-  (latency/beat clock), `lyricsSync.ts` (LRC parsing and lookup), and
-  `canvas2dHelpers.ts` (colour/easing/noise). All four suites were
-  mutation-checked. Still untested and pure: `perceptualScales.ts`,
-  `sectionStateMachine.ts`, `visualizerHelpers.ts`, `lyricsParser.ts`.
+  (latency/beat clock), `lyricsSync.ts` (LRC parsing and lookup),
+  `canvas2dHelpers.ts` (colour/easing/noise), `canvas2dModeBudget.ts` (per-mode
+effect budget and its runtime cap), and `motion/` (the motion
+  vocabulary — 151 assertions over easing, springs, all ten moves, the impulse
+  trigger and the frame driver). All six suites were mutation-checked;
+  `motion/` against 6 seeded faults (isotropic flare, `γ = c/(2√k)` instead of
+  `c/2`, the pre-drop freeze boundary flipped, ratchet off-by-one, impulse
+  priming removed, driver ignoring the vacuum), each caught by 1–8 assertions;
+  `canvas2dModeBudget.ts`/`canvas2dHelpers.ts` against 5 (cap removed, firing
+  condition ignored, unknown mode falling back to a real budget, vignette not
+  halved, smoothing made symmetric), each caught by 1–5.
+  `visualizerHelpers.ts` is now covered too — the mode-list consistency
+  assertions live in `canvas2dModeBudget.test.ts` because they compare the
+  budget against `CANVAS_2D_MODES`. That drift was real: `aurora` was
+  implemented, budgeted and unit-tested but absent from the picker, so no user
+  could reach it. Still untested and pure: `perceptualScales.ts`,
+  `sectionStateMachine.ts`, `lyricsParser.ts`.
 - Frontend E2E: `pnpm test` in `packages/frontend/` (Playwright)
 - Backend: `pytest` in `packages/backend/`
 - E2E: Playwright under `packages/frontend/tests/browser/`
