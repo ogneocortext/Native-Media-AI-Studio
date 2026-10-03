@@ -38,6 +38,7 @@ def _running_job(
     retry_count: int = 0,
     max_retries: int = 3,
     status: JobStatus = JobStatus.RUNNING,
+    params: dict | None = None,
 ) -> Job:
     started = datetime.now() - timedelta(seconds=age_seconds)
     return Job(
@@ -49,6 +50,9 @@ def _running_job(
         progress=0.0,
         retry_count=retry_count,
         max_retries=max_retries,
+        # A real job carries a prompt. Default to one so these tests exercise the
+        # normal recovery path; pass params={} to test the unrunnable case.
+        params={"prompt": "a test prompt"} if params is None else params,
     )
 
 
@@ -120,7 +124,13 @@ class TestRecovery:
     def test_is_a_noop_on_an_empty_queue(self):
         m = _manager([])
         out = asyncio.run(m.recover_stale_running_jobs())
-        assert out == {"requeued": [], "dead": [], "skipped_fresh": [], "examined": 0}
+        assert out == {
+            "requeued": [],
+            "dead": [],
+            "unrecoverable": [],
+            "skipped_fresh": [],
+            "examined": 0,
+        }
 
     def test_age_threshold_is_configurable(self):
         m = _manager([_running_job(age_seconds=60)])
@@ -160,3 +170,74 @@ def test_recovery_does_not_deadlock_on_the_manager_lock():
     except asyncio.TimeoutError:
         pytest.fail("recover_stale_running_jobs deadlocked on _move_to_dead_letter")
     assert out["dead"] == ["j1"]
+
+
+class TestUnrunnableJobs:
+    """A job with no params cannot succeed, so it must not be retried.
+
+    Every registered handler reads its input from `job.params` and hands it
+    straight to an adapter, so `params == {}` means no prompt, no model and no
+    input file. The live symptom was 21 queued `image_generation` jobs with
+    empty params, several days old, cycling through the queue and spending their
+    retry budget on failures that no retry could fix.
+    """
+
+    def test_is_runnable_rejects_empty_params(self):
+        assert QueueManager.is_runnable(_running_job(params={})) is False
+
+    def test_is_runnable_accepts_populated_params(self):
+        assert QueueManager.is_runnable(_running_job()) is True
+
+    def test_reaper_dead_letters_unrunnable_instead_of_requeueing(self):
+        """Requeueing an unrunnable job just guarantees another failure.
+
+        It has retries left, so the retry budget alone would requeue it forever.
+        """
+        m = _manager([_running_job(params={}, retry_count=0, max_retries=3)])
+        out = asyncio.run(m.recover_stale_running_jobs())
+
+        assert out["requeued"] == []
+        assert out["dead"] == ["j1"]
+        assert out["unrecoverable"] == ["j1"]
+        # The retry counter must NOT advance on a job we know cannot run.
+        assert m._jobs["j1"].retry_count == 0
+
+    def test_quarantine_sweeps_queued_unrunnable_jobs(self):
+        """The reaper only inspects RUNNING, so QUEUED needs its own sweep."""
+        m = _manager(
+            [
+                _running_job("q1", status=JobStatus.QUEUED, params={}),
+                _running_job("q2", status=JobStatus.QUEUED),  # runnable
+            ]
+        )
+        out = asyncio.run(m.quarantine_unrunnable_jobs())
+
+        assert out["quarantined"] == ["q1"]
+        assert m._jobs["q1"].status == JobStatus.DEAD
+        assert m._jobs["q2"].status == JobStatus.QUEUED
+
+    def test_quarantine_leaves_runnable_jobs_untouched(self):
+        m = _manager([_running_job("q2", status=JobStatus.QUEUED)])
+        out = asyncio.run(m.quarantine_unrunnable_jobs())
+
+        assert out["quarantined"] == []
+        assert m._jobs["q2"].status == JobStatus.QUEUED
+
+    def test_quarantine_does_not_deadlock(self):
+        """Same re-entrancy hazard as the reaper's dead-letter path."""
+        async def run():
+            m = _manager([_running_job(status=JobStatus.QUEUED, params={})])
+            return await m.quarantine_unrunnable_jobs()
+
+        try:
+            out = asyncio.run(asyncio.wait_for(run(), timeout=5))
+        except asyncio.TimeoutError:
+            pytest.fail("quarantine_unrunnable_jobs deadlocked on _move_to_dead_letter")
+        assert out["quarantined"] == ["j1"]
+
+    def test_unrunnable_job_dead_letters_with_a_reason(self):
+        """The reason must say why, so this is not mistaken for a crash."""
+        m = _manager([_running_job(params={})])
+        asyncio.run(m.quarantine_unrunnable_jobs())
+        err = m._jobs["j1"].error or ""
+        assert "no params" in err

@@ -18,6 +18,13 @@ logger = logging.getLogger(__name__)
 #: failures no matter how many jobs died.
 _UNSUCCESSFUL_STATUSES = (JobStatus.FAILED, JobStatus.DEAD)
 
+#: Job types that can do useful work with an empty ``params`` dict. Every handler
+#: registered in ``JobProcessor._register_default_handlers`` reads its input from
+#: ``job.params`` and passes it straight to an adapter, so an empty dict is not a
+#: degraded run - it is a run with no prompt, no model and no input file. Only
+#: list a type here if its handler genuinely needs no arguments.
+_PARAM_OPTIONAL_JOB_TYPES: frozenset = frozenset()
+
 
 class QueueManager:
     """
@@ -72,6 +79,66 @@ class QueueManager:
             await self.recover_stale_running_jobs()
         except Exception as e:
             logger.error("Stale running-job recovery failed: %s", e)
+        # Also drop queued/running jobs that carry no params. The reaper only
+        # looks at RUNNING, so without this a job requeued with empty params
+        # would keep cycling through the processor and burn its retries on a
+        # failure that cannot be fixed by retrying.
+        try:
+            await self.quarantine_unrunnable_jobs()
+        except Exception as e:
+            logger.error("Unrunnable-job quarantine failed: %s", e)
+
+    @staticmethod
+    def is_runnable(job: Job) -> bool:
+        """Whether this job could possibly succeed if handed to a handler.
+
+        A job with no params is unrecoverable rather than merely unlucky: every
+        handler reads its input from ``job.params``, so an empty dict means no
+        prompt, no model and no input file. Retrying it burns the retry budget
+        on a guaranteed failure and, because the reaper requeues on every pass,
+        it can be revived indefinitely.
+        """
+        if job.job_type in _PARAM_OPTIONAL_JOB_TYPES:
+            return True
+        return bool(job.params)
+
+    async def quarantine_unrunnable_jobs(self) -> dict[str, Any]:
+        """Dead-letter queued jobs that no handler could ever run.
+
+        ``recover_stale_running_jobs`` only inspects RUNNING jobs, so a job that
+        was requeued with empty params would sit in QUEUED and be picked up by the
+        processor, fail, and consume a retry for nothing. Sweeping them here keeps
+        the queue from spending its budget on guaranteed failures.
+
+        Returns the ids dead-lettered, split by whether they were RUNNING or
+        already QUEUED so callers can report the two cases separately.
+        """
+        quarantined: list[str] = []
+        candidates = [
+            j for j in self._jobs.values()
+            if j.status in (JobStatus.QUEUED, JobStatus.RUNNING)
+            and not self.is_runnable(j)
+        ]
+        for job in candidates:
+            try:
+                ok = await self._move_to_dead_letter(
+                    job.id,
+                    "job has no params and cannot be run (unrecoverable input; "
+                    "not retried because a retry cannot succeed)",
+                )
+                if ok:
+                    quarantined.append(job.id)
+            except Exception as e:
+                logger.error(
+                    "Failed to quarantine unrunnable job %s: %s", job.id, e
+                )
+        if quarantined:
+            logger.warning(
+                "Quarantined %d job(s) with no params: they cannot be run, so "
+                "they were dead-lettered instead of retried",
+                len(quarantined),
+            )
+        return {"quarantined": quarantined, "examined": len(candidates)}
 
     async def recover_stale_running_jobs(
         self, max_age_seconds: int = 900
@@ -95,6 +162,7 @@ class QueueManager:
         requeued: list[str] = []
         dead: list[str] = []
         skipped_fresh: list[str] = []
+        unrecoverable: list[str] = []
 
         candidates = [
             j for j in self._jobs.values() if j.status == JobStatus.RUNNING
@@ -106,6 +174,24 @@ class QueueManager:
                 continue
 
             age_s = (now - started).total_seconds() if started else float("inf")
+            # An empty-params job can never succeed, so retrying it just burns
+            # the budget. Dead-letter it outright with the reason recorded, rather
+            # than requeuing a job that is guaranteed to fail again.
+            if not self.is_runnable(job):
+                ok = await self._move_to_dead_letter(
+                    job.id,
+                    "job has no params and cannot be run (unrecoverable input; "
+                    "not retried because a retry cannot succeed)",
+                )
+                if ok:
+                    dead.append(job.id)
+                    unrecoverable.append(job.id)
+                    logger.warning(
+                        "Dead-lettered stranded job %s (%s): no params, "
+                        "so it cannot be run",
+                        job.id, job.job_type,
+                    )
+                continue
             try:
                 if job.retry_count < job.max_retries:
                     async with self._lock:
@@ -159,6 +245,7 @@ class QueueManager:
         return {
             "requeued": requeued,
             "dead": dead,
+            "unrecoverable": unrecoverable,
             "skipped_fresh": skipped_fresh,
             "examined": len(candidates),
         }

@@ -308,6 +308,11 @@ class JobProcessor:
                         # Never let the reaper kill the loop.
                         logger.error("Stale-job reaper failed: %s", e)
 
+                    try:
+                        await queue_manager.quarantine_unrunnable_jobs()
+                    except Exception as e:
+                        logger.error("Unrunnable-job quarantine failed: %s", e)
+
                 # Find next queued job (priority DESC, created_at ASC)
                 queued_jobs = await queue_manager.get_jobs_by_status(JobStatus.QUEUED)
                 if queued_jobs:

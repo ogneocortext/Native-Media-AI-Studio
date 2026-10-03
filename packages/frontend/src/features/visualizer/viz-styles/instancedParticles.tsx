@@ -163,9 +163,10 @@ export function InstancedParticles({
             vec4 mvPosition = modelViewMatrix * vec4(worldPos, 1.0);
             gl_Position = projectionMatrix * mvPosition;
 
-            // Distance attenuation
+            // Distance attenuation: fade far particles out, and near ones too —
+            // a close quad at full alpha fills the frame (additive white-out).
             float dist = length(mvPosition.xyz);
-            vAlpha = 1.0 - smoothstep(2.0, 14.0, dist);
+            vAlpha = (1.0 - smoothstep(2.0, 14.0, dist)) * smoothstep(1.0, 3.0, dist);
           }
         `,
         fragmentShader: /* glsl */ `
