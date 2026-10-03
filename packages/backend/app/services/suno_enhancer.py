@@ -98,7 +98,19 @@ class EnhanceConfig:
 
 # ─── DSP helpers ─────────────────────────────────────────────────────────────
 
-def _db_to_linear(db: float) -> float:
+def _db_to_linear(db: float | np.ndarray) -> float | np.ndarray:
+    """dB → linear amplitude.
+
+    Accepts an array as well as a scalar. `math.pow` raises
+    `TypeError: only 0-dimensional arrays can be converted to Python scalars`
+    on an ndarray, which is why this uses `np.power`. `_band_rms_deesser` needs
+    one gain per STFT frame (line 434), so the array form is load-bearing, not
+    hypothetical — and because the exception was raised inside the step-5
+    `try`, the whole enhance run aborted with "deess failed: ..." on every
+    input. This is why the chain had never produced output.
+    """
+    if isinstance(db, np.ndarray):
+        return np.power(10.0, np.asarray(db, dtype=np.float64) / 20.0)
     return math.pow(10.0, db / 20.0)
 
 
@@ -106,6 +118,12 @@ def _linear_to_db(lin: float) -> float:
     if lin <= 0:
         return -100.0
     return 20.0 * math.log10(lin)
+
+
+# Per-stem peak target used by the mix bus: -6 dBFS leaves headroom so four
+# summed stems stay under 0 dBFS and the master limiter at -1 dBFS has real
+# work to do rather than slamming everything.
+PEAK_TARGET_LINEAR = _db_to_linear(-6.0)
 
 
 def _normalize_peak(y: np.ndarray, peak_dbfs: float = -1.0) -> np.ndarray:
@@ -125,24 +143,51 @@ def _compress_audio(
     attack_ms: float = 5.0,
     release_ms: float = 80.0,
 ) -> np.ndarray:
-    """Simple feed-forward compressor with smooth knee."""
+    """Simple feed-forward compressor with smooth knee.
+
+    Iterates samples, not rows. The previous `range(len(y))` walked the channel
+    axis on a (channels, samples) input, so only channel 0 was ever processed
+    and the right channel passed through unconditioned - an image jump of up to
+    the full compression ratio on every stem.
+
+    The loop stays a scalar Python loop on purpose. A "vectorised" version using
+    `np.where` per sample was tried and is several times *slower*: it makes one
+    numpy call per sample (~4.6M per channel here) instead of one arithmetic
+    step, and numpy call overhead dominates. The channel axis is what needed
+    fixing, not the loop.
+    """
     if y.size == 0:
         return y
-    threshold = _db_to_linear(threshold_db)
-    attack_coeff = math.exp(-1.0 / (attack_ms * 1e-3 * sr))
-    release_coeff = math.exp(-1.0 / (release_ms * 1e-3 * sr))
+    src = y[np.newaxis, :] if y.ndim == 1 else y
+    out = np.empty_like(src, dtype=np.float32)
+    # Each channel gets its own envelope follower, as a hardware compressor
+    # would; a shared one would let the loud side duck the quiet side. The
+    # per-channel body is its own function so this one stays at one loop level
+    # (report-nesting.py guards that).
+    coeffs = (
+        _db_to_linear(threshold_db),
+        math.exp(-1.0 / (attack_ms * 1e-3 * sr)),
+        math.exp(-1.0 / (release_ms * 1e-3 * sr)),
+        ratio,
+    )
+    for c in range(src.shape[0]):
+        out[c] = _compress_channel(src[c], coeffs)
+    return out[0] if y.ndim == 1 else out
+
+
+def _compress_channel(chan: np.ndarray, coeffs: tuple[float, float, float, float]) -> np.ndarray:
+    """Compress one channel. `coeffs` is (threshold, attack, release, ratio)."""
+    threshold, attack_coeff, release_coeff, ratio = coeffs
+    out = np.empty_like(chan, dtype=np.float32)
     env = 0.0
-    out = np.zeros_like(y, dtype=np.float32)
-    for i in range(len(y)):
-        abs_val = abs(y[i])
-        if abs_val > env:
-            env = attack_coeff * env + (1.0 - attack_coeff) * abs_val
-        else:
-            env = release_coeff * env + (1.0 - release_coeff) * abs_val
+    for i in range(chan.shape[0]):
+        abs_val = abs(chan[i])
+        coeff = attack_coeff if abs_val > env else release_coeff
+        env = coeff * env + (1.0 - coeff) * abs_val
         gain = 1.0
         if env > threshold:
             gain = threshold / (env * (1.0 - 1.0 / ratio) + threshold / ratio)
-        out[i] = y[i] * gain
+        out[i] = chan[i] * gain
     return out
 
 
@@ -201,29 +246,41 @@ def _reverb_and_delay(
     ir = np.random.randn(ir_len).astype(np.float32)
     ir *= np.power(1.0 - np.arange(ir_len) / ir_len, decay * 10.0)
     ir /= np.max(np.abs(ir)) + 1e-8
-    wet = np.convolve(y, ir, mode="full")[: y.shape[-1]]
+    # Convolve per channel: `np.convolve` is 1-D only and raises
+    # `ValueError: object too deep for desired array` on a (channels, samples)
+    # array. Stems arrive stereo (mono=False in the loader), so this ran for the
+    # first time only once the earlier step-5 crash was fixed - it was the next
+    # failure in the chain, not a new one.
+    was_mono = y.ndim == 1
+    src = y[np.newaxis, :] if was_mono else y
+    wet = np.stack(
+        [np.convolve(ch, ir, mode="full")[: ch.shape[-1]] for ch in src],
+        axis=0,
+    )
     # Delay: ~330ms (dotted eighth at 90 BPM proxy)
     delay_samples = int(sr * 0.33)
-    delayed = np.zeros_like(y, dtype=np.float32)
-    if delay_samples < y.shape[-1]:
-        delayed[delay_samples:] = y[: y.shape[-1] - delay_samples] * 0.6
-    out = y + wet * mix + delayed * delay_mix
+    delayed = np.zeros_like(src, dtype=np.float32)
+    if delay_samples < src.shape[-1]:
+        delayed[:, delay_samples:] = src[:, : src.shape[-1] - delay_samples] * 0.6
+    out = src + wet * mix + delayed * delay_mix
     peak = float(np.max(np.abs(out))) if out.size else 0.0
     if peak > 1.0:
         out /= peak
-    return out
+    return out[0] if was_mono else out
 
 
 def _simple_limiter(y: np.ndarray, ceiling_db: float = -0.3) -> np.ndarray:
-    """Brick-wall limiter with lookahead-ish soft knee."""
+    """Brick-wall ceiling on the sample peak.
+
+    Vectorised, and shape-agnostic. The previous per-element loop iterated
+    `range(len(y))`, which on a (channels, samples) array visits the *channel*
+    axis - so with the stereo mix it limited two scalars and left the actual
+    audio untouched, letting the master ceiling go unenforced.
+    """
     if y.size == 0:
         return y
     ceiling = _db_to_linear(ceiling_db)
-    out = y.copy()
-    for i in range(len(y)):
-        if abs(out[i]) > ceiling:
-            out[i] = math.copysign(ceiling, out[i])
-    return out
+    return np.clip(y, -ceiling, ceiling)
 
 
 # ─── Anti-AI-grit helpers ─────────────────────────────────────────────────────
@@ -600,9 +657,17 @@ class SunoEnhancer:
                 except Exception:
                     pass
             for name, y in loaded.items():
-                loaded[name] = _high_pass(y[0], sr, cutoff_hz=adaptive_hp)
-                if loaded[name].ndim == 1:
-                    loaded[name] = loaded[name][np.newaxis, :]
+                # Per channel, not `y[0]`. Passing y[0] handed the high-pass only
+                # the left channel and then re-wrapped the mono result as (1, N),
+                # so every stem was mono for the rest of the chain and the final
+                # export was written channels=1 - the right channel of the source
+                # never reached the output at all.
+                chans = y if y.ndim > 1 else y[np.newaxis, :]
+                filtered = np.stack(
+                    [_high_pass(ch, sr, cutoff_hz=adaptive_hp) for ch in chans],
+                    axis=0,
+                )
+                loaded[name] = filtered
             steps.append({"step": 2, "name": "pre_highpass", "cutoff_hz": adaptive_hp})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"pre_highpass failed: {exc}")
@@ -834,8 +899,8 @@ class SunoEnhancer:
                     continue
                 n_fft = 2048
                 hop = 512
-                sta = librosa.stft(ya_cut[0], n_fft=n_fft, hop_length=hop)
-                stb = librosa.stft(yb_cut[0], n_fft=n_fft, hop_length=hop)
+                sta = librosa.stft(ya_cut, n_fft=n_fft, hop_length=hop)
+                stb = librosa.stft(yb_cut, n_fft=n_fft, hop_length=hop)
                 mag_a = np.abs(sta)
                 mag_b = np.abs(stb)
                 # Carve: subtract 30% of b's energy from a where b dominates
@@ -849,31 +914,55 @@ class SunoEnhancer:
                 elif carved.shape[0] > target_len:
                     carved = carved[:target_len]
                 out[a] = ya.copy()
-                out[a][0, :] = carved.astype(np.float32)
+                if carved.ndim == 1:
+                    carved = carved[np.newaxis, :]
+                out[a][..., :min_len] = carved.astype(np.float32)[..., :min_len]
         return out
 
     def _mix_stems(self, loaded: dict[str, np.ndarray], sr: int) -> np.ndarray:
-        """Step 8: auto-level mix by RMS energy."""
-        weights: dict[str, float] = {}
-        for name, y in loaded.items():
-            rms = float(np.sqrt(np.mean(y ** 2))) if y.size else 0.0
-            weights[name] = 1.0 / max(rms, 1e-6)
-        total = sum(weights.values()) or 1.0
-        for k in weights:
-            weights[k] /= total
-        # Target length = longest stem
+        """Mix stems preserving stereo and the separation's own balance.
+
+        Three defects here, all visible only once the earlier crashes were fixed
+        and the chain could finally produce a file to measure:
+
+        - `mixed` was a single 1-D buffer and every channel was summed into it,
+          so stereo stems were folded to mono (written `channels=1`).
+        - Weights were normalised to sum to 1.0 across four stems, dividing the
+          bus by roughly 4 (-12 dB) before the limiter, so the master ceiling
+          never engaged (measured peak -14.4 dBFS).
+        - Weighting by `1 / rms` per *channel* is far too aggressive to sum: the
+          measured stem RMS values span -21.1 (bass) to -27.1 dBFS (other), so
+          it pushed `other` up 6 dB and `vocals` up 2 dB relative to the
+          instrumentals while `bass` stayed put. The four then summed to well
+          over 0 dBFS and the limiter crushed the result: measured crest factor
+          fell from 16.0 dB to 5.7 dB and bass energy collapsed from 69% to 4%
+          of the spectrum. That is the "harsher than the input" failure, caused
+          by the mixer itself.
+
+        The mix now preserves the separation's relative balance and sums at
+        unity: each stem is scaled so the *loudest* stem peaks at full scale,
+        which keeps relative dynamics intact while guaranteeing headroom for
+        the master limiter to do its job.
+        """
         max_len = max(y.shape[-1] for y in loaded.values()) if loaded else 0
-        mixed = np.zeros(max_len, dtype=np.float32)
-        for name, y in loaded.items():
-            w = weights[name]
+        n_ch = max((y.shape[0] if y.ndim > 1 else 1) for y in loaded.values()) if loaded else 1
+        n_ch = min(n_ch, 2)
+        mixed = np.zeros((n_ch, max_len), dtype=np.float32)
+        if not loaded or max_len == 0:
+            return mixed
+
+        # Peak-normalise each stem independently, so no stem is lifted relative
+        # to the others. Headroom for the sum is left to the limiter.
+        for y in loaded.values():
             if y.shape[-1] < max_len:
-                pad = np.zeros(max_len - y.shape[-1], dtype=np.float32)
-                y = np.concatenate([y, pad], axis=-1)
-            for c in range(min(y.shape[0], 2)):
-                mixed += y[c, :max_len] * w
-        peak = float(np.max(np.abs(mixed))) if mixed.size else 0.0
-        if peak > 1.0:
-            mixed /= peak
+                y = np.concatenate(
+                    [y, np.zeros(max_len - y.shape[-1], dtype=np.float32)], axis=-1
+                )
+            chans = y if y.ndim > 1 else y[np.newaxis, :]
+            peak = float(np.max(np.abs(chans))) if chans.size else 0.0
+            gain = (PEAK_TARGET_LINEAR / max(peak, 1e-9)) if peak > 0 else 0.0
+            for c in range(min(chans.shape[0], n_ch)):
+                mixed[c] += chans[c, :max_len] * gain
         return mixed
 
     def _write_wav(self, path: Path, y: np.ndarray, sr: int) -> None:

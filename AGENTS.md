@@ -96,6 +96,47 @@ Native-Media-AI-Studio/
 
 Never send generic prompts like "describe this image"; use mode-specific prompts for actionable output.
 
+## Proving a Defect Before Claiming One
+
+Three "confirmed bug" claims in the 2026-10 quality pass were overturned by
+measurement. All three came from the same move: asserting a property of the code
+by *reading* it. The corrections cost more time than the investigations would
+have.
+
+| Claimed from reading | Measured |
+|---|---|
+| EQ rewiring leaked a parallel path, stacking filters | 0 differing cases across all band-count sequences |
+| `sr = 22050` discards the top octaves | 0.25% of power; inaudible |
+| per-sample DSP loops make the chain unusable | ~1 min for 231 s x 4 stems |
+
+**Measure before you name a defect.** Read the code to form a hypothesis, then
+run something that could disprove it. If nothing could disprove the claim, it
+is not a finding yet. A measurement that comes back clean is worth as much as
+one that confirms, and it saves writing a fix and a test for a bug that is not
+there.
+
+Two specific traps:
+
+- **A mutation test that stops failing is a signal about the *test*.** When
+  reintroducing a suspected bug stops producing failures, the test cannot see the
+  bug — the assertion is wrong. Do not relax the assertion to make it pass.
+- **A mock proves the mock.** A test that mocks a platform API only shows the
+  mock matches your assumption. A Web Audio mock here treated a duplicate
+  `connect()` as a second edge; the real API treats it as a no-op, and that
+  difference invented a bug. Check a mock's edge semantics against the spec
+  before trusting a defect it reports.
+
+Prefer the repo's own measurement path over a hand-rolled one. A first attempt
+at LUFS here reported **+157 LUFS** — impossible — because the K-weighting filter
+was wrong; `ffmpeg -af ebur128` (already used by `ffmpeg_tools.py:145`) gave
+-14.7. Same for lint: `tools/run-gates.py` owns the Windows exit-code and UTF-8
+problems, so an answer assembled from raw `subprocess` calls is both slower and
+less trustworthy.
+
+Also: state the evidence when you report. Name the command, the measured value,
+or the `file:line`. "Verified" with nothing to re-run is the same as unverified,
+and in this repo it has been wrong.
+
 ## Development Guidelines
 
 ### Services: start once, then leave them alone
