@@ -629,22 +629,34 @@ class AudioAnalyzer:
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         try:
-            # Decode through our loader first: sonara's bundled decoder mangles
-            # some containers (e.g. it reads this 246.5 s stereo M4A as 493 s of
-            # ghost frames and hallucinates phantom beats). analyze_signal() is
-            # identical but tracks the correct timeline.
+            # Decode ONCE, at native rate. This used to decode twice: once at
+            # 22050 for sonara and again at the native rate for the waveform
+            # features — ~5.5 s each on a 157 s track, so half the decode cost
+            # was pure duplication. Resampling the buffer we already hold is
+            # ~0.2 s, so the second decode is now pure waste.
+            #
+            # We still decode through our loader rather than letting sonara do
+            # it: its bundled decoder mangles some containers (it reads a
+            # 246.5 s stereo M4A as 493 s of ghost frames and hallucinates
+            # phantom beats). analyze_signal() is identical but tracks the
+            # correct timeline.
             load_audio, _, _ = _import_shared_audio()
-            y, sr = load_audio(audio_path, sr=22050)
-            if len(y) == 0:
+            y_native, sr_native = load_audio(audio_path, sr=None)
+            if len(y_native) == 0:
                 raise ValueError("Audio file is empty or could not be loaded")
+
+            if sr_native != _SONARA_SR:
+                y = librosa.resample(y_native, orig_sr=sr_native, target_sr=_SONARA_SR)
+            else:
+                y = y_native
+            if getattr(y, "ndim", 1) > 1:
+                y = y.mean(axis=0)
             y32 = np.ascontiguousarray(y, dtype=np.float32)
             result = dict(_sonara.analyze_signal(y32, mode="compact"))
 
-            load_audio, _, _ = _import_shared_audio()
-            y, sr = load_audio(audio_path, sr=None)
-            waveform = self._extract_waveform_features(y, sr)
+            waveform = self._extract_waveform_features(y_native, sr_native)
 
-            beat_features = self._beat_features_from_sonara(result, sr)
+            beat_features = self._beat_features_from_sonara(result, sr_native)
 
             return AudioAnalysisResult(
                 job_id=job_id,

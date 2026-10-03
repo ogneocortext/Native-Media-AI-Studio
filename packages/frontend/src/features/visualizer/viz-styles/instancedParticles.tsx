@@ -233,7 +233,7 @@ export function InstancedParticles({
 
       const dist = Math.sqrt(posArr[idx] ** 2 + posArr[idx + 1] ** 2 + posArr[idx + 2] ** 2);
       if (dist > spread * 1.2) {
-        const r = 0.5 + Math.random() * spread * 0.5;
+        const r = 0.5 + Math.random() * spread;
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
         posArr[idx] = r * Math.sin(phi) * Math.cos(theta);

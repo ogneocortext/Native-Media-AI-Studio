@@ -484,6 +484,16 @@ def _generate_sections_from_analysis(
     if merged[-1] < duration:
         merged.append(duration)
 
+    # A track shorter than min_sec_dur collapses every candidate boundary into
+    # one (the first boundary absorbs the second at line 483), so `merged` ends
+    # up with a single entry. `all_energies` is then empty and the min/max below
+    # raised `ValueError: min() arg is an empty sequence`, turning the whole
+    # analysis request into a 500. min_sec_dur has an 8 s floor, so every clip
+    # under it — SFX, stingers, short intros — failed. Always keep two
+    # boundaries so a whole-track section is still produced.
+    if len(merged) < 2:
+        merged = [0.0, float(duration)] if duration > 0 else [0.0, 0.0]
+
     # Energy per section (computed once, reused for capping + classification).
     all_energies = [_rms_mean(s, e) for s, e in zip(merged, merged[1:], strict=False)]
 
@@ -508,7 +518,9 @@ def _generate_sections_from_analysis(
 
     # Step 3: classify each section.
     sections = []
-    emin, emax = min(all_energies), max(all_energies)
+    # Defensive: the guard above should make this non-empty, but a section list
+    # that dies on min() turns a cosmetic gap into a failed request.
+    emin, emax = (min(all_energies), max(all_energies)) if all_energies else (0.0, 0.0)
     erange = (emax - emin) or 1.0
     sorted_e = sorted(all_energies)
     p33 = sorted_e[len(sorted_e) // 3] if sorted_e else 0
