@@ -166,8 +166,10 @@ card whose scrim assumes a dark background. A luminance-aware scrim (or
 > roughly 10× the intended area. The fix is a view-space billboard
 > (`mvPosition.xy += offset` after the modelView transform), honoring
 > `baseSize`, plus an `uAlpha` uniform for tuning. Post-fix: scene mean
-> 0.14–0.19 relative luminance across the sampled track, `frac(L>0.92)` = 0,
-> lyric contrast 10.4–17.3:1, and brightness is rotation-invariant
+> 0.08–0.28 relative luminance across the sampled track, `frac(L>0.92)`
+> ≈ 0.009–0.011 (about 1% of pixels, the specular particle cores rather than
+> frame-filling wash), lyric contrast 10.4–17.3:1, and brightness is
+> rotation-invariant
 > (baseline/rot0/rot+π within 0.006). Evidence: `plan14-fix-*` and
 > `plan14-causal-run.json` in `tests/browser/out/`.
 

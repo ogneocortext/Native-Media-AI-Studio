@@ -56,8 +56,9 @@ Key distinctions the research repeats:
 - **Per-band envelope followers with independent attack/release.** Fast attack
   for percussion, long release for pads. This is the asymmetric smoothing this
   repo already has in `canvas2dHelpers.ts` (`asymmetricSmoothBands`, 0.8/0.12)
-  per the AE doc's P0 — **tested but not yet wired into any mode**
-  (`docs/architecture/visualizer.md`).
+  per the AE doc's P0 — **now wired into `bars` and `stacked-frequency-bands`**
+  via `ASYMMETRIC_SMOOTHING_MODES`. It was tested-but-unwired for a while; see
+  §5.1 for how that half-wired state survived a green test suite.
 
 ## 2. Perceive on the way in, perceive on the way out
 
@@ -122,10 +123,10 @@ Key distinctions the research repeats:
 | Practice | Repo status | Verdict |
 |---|---|---|
 | FFT + per-stem energy + beat detection | implemented (D18 audit) | ✅ |
-| Mel/Bark/ERB perceptual scales | `canvas2dHelpers.ts`, `perceptualScale` prop (D18) | ✅ |
+| Mel/Bark/ERB perceptual scales | `canvas2dHelpers.ts`, `perceptualScale` prop (D18) | ✅ — Bark inverse was wrong, now fixed (§5.1) |
 | Latency-compensated audio clock | `audioTiming.ts`, `estimateOutputLatency` on context creation | ✅ foundation |
 | Effect restraint (not everything reacts) | `canvas2dModeBudget.ts`, `MAX_EFFECTS=2`, validated live (D24) | ✅ unusual strength |
-| Asymmetric attack/release smoothing | `asymmetricSmoothBands` **tested, not wired into a mode** | ⚠️ P1 gap — cheapest win |
+| Asymmetric attack/release smoothing | `asymmetricSmoothBands` wired to `bars` + `stacked-frequency-bands` | ✅ — was a P1 gap, now closed |
 | Motion vocabulary (named moves, impulse trigger) | `motion/` — 151 assertions, **no style consumes it yet** (D23) | ⚠️ P1 gap — deliberately open per-style tuning |
 | Reactivity controls (sensitivity, attack/release, beat response) | absent from UI | ❌ P2 gap |
 | Onset vs tempo separation | `beatPhase` + drum classification exist; no user control | ⚠️ partial |
@@ -133,6 +134,54 @@ Key distinctions the research repeats:
 | Measured A/V latency budget (< 30 ms, 20–40 ms lead) | not measured anywhere | ❌ P2 gap — add to debug overlay (RenderStats) |
 | Per-genre reactivity presets | EQ presets exist (warm/bright/…) but no *reactivity* presets | ❌ P2 gap |
 | Spectral timeline data bridge for shaders | built (`useSpectralTimeline`) but **404s for hash-prefixed files** | ❌ P0 — see [[visualizer-ux-audit-2026-10]] §1.2 |
+
+## 5.1 Two defects found by re-deriving from the sources (2026-10-02)
+
+Checking §2's "mel/bark is implemented" row against the actual code turned up
+two defects, both instructive for the same reason: **each passed a test suite
+that looked adequate.**
+
+### `barkFreqMap` inverted Bark with the ERB formula
+
+`canvas2dHelpers.ts` mapped bar → Bark → back to Hz using
+`(10^(x/21.4) - 1) / 0.00437`, which is the inverse of the **ERB** scale, not
+Bark. Bark grows more slowly than ERB, so every band landed **~3.4× too low**:
+with 32 bars the top bar sampled **~1.2 kHz instead of ~22 kHz**. The "Bark
+(critical bands)" option in `SettingsPanel.tsx` therefore never displayed the
+top two octaves of the spectrum — the one region where critical-band spacing
+is most visibly different from the alternatives.
+
+The two existing tests asserted **range** and **monotonicity**. A uniformly
+squashed mapping satisfies both, so a broken scale looked correct. The property
+that actually distinguishes the right inverse from the wrong one is *round-trip
+fidelity*: invert a known frequency and land back on it. Added
+`barkFreqMap round-trips known frequencies through its own scale`, plus a
+Nyquist-span check and a bass-vs-treble bins-per-octave check. Mutation-checked:
+restoring the ERB inverse fails the two new tests while the old two still pass,
+which is precisely the proof that the old ones could not see the bug.
+
+Note the correct Bark inverse (`Traunmüller`, `barkToHz`) already existed in
+`perceptualScales.ts` — the scale had an inverse in one file and a wrong
+stand-in in the other. `canvas2dHelpers.ts` now defines its own `barkToHz`
+beside `hzToBark` so the pair cannot drift again. **The two modules still
+duplicate `hzToBark`/`hzToMel`;** consolidating them is unfiled cleanup.
+
+**Known limitation, now measured and asserted:** `barkToHz` is Traunmüller's
+*approximation*, and it degrades above ~8 kHz — round-trip error is 0.3% at
+1 kHz, 3.4% at 4 kHz, 6.7% at 8 kHz, then 26% at 12 kHz and 38% at 16 kHz.
+This is a property of the formula (identical in `perceptualScales.ts`), not of
+our call site. A consequence is that `barkFreqMap`'s top bars overshoot
+Nyquist (~32 kHz for the last of 64 bars at `freqLength=1024`); they are clamped
+to the last bin, so this is harmless for display, but it means **the topmost
+few bars carry less perceptual information than the scale implies.** Fixing it
+properly needs a lookup table or the Zwicker inverse, not a tighter tolerance.
+
+### The asymmetric smoother was half-wired
+
+`ASYMMETRIC_SMOOTHING_MODES` listed `stacked-frequency-bands` but not `bars`,
+while the test asserted `bars` *was* wired. Here the test was right and the
+implementation was wrong — the opposite verdict from the Bark case, and the
+reminder that "the failing test is stale" is not a safe default assumption.
 
 ## 6. Takeaways to build from
 
@@ -153,9 +202,9 @@ All five are sequenced in `docs/plans/studio-quality-2026-10.md` (Phases 0–2).
 
 ## Sources (accessed 2026-10-02)
 
-- AUTOVJCLUB — *How Audio-Reactive Visuals Work | FFT, BPM, onset detection* (2026-04)
-- Novus — *Turning sound into motion: reading audio with the Web Audio API* (2026-05)
-- RenderWave — *Audio-Reactive VJ Software for Mac 2026 | Per-Band FFT Modulation* (2026-05)
-- Sonic Weaver — *How Music Visualizers Work* / *How FFT Turns Audio Into Visualizer Bands* (2026-07/08)
-- LavX / Sudonull — *Audio visualization on LEDs: perceptual models and mathematics* (2026-04)
-- Apatero — *Audio Reactive Video Generation Complete Guide* (2025-11)
+- AUTOVJCLUB — *How Audio-Reactive Visuals Work | FFT, BPM, onset detection* (2026-04) — https://autovj.club/en/guide/audio-reactive-visuals/
+- Novus — *Turning sound into motion: reading audio with the Web Audio API* (2026-05) — https://novusstreamsolutions.com/product-blog/turning-sound-into-motion-web-audio
+- RenderWave — *Audio-Reactive VJ Software for Mac 2026 | Per-Band FFT Modulation* (2026-05) — https://renderwave.io/audio-reactive-vj-software
+- Sonic Weaver — *How Music Visualizers Work* / *How FFT Turns Audio Into Visualizer Bands* (2026-07/08) — https://sonicweaver.com/blog/how-music-visualizers-work
+- LavX / Sudonull — *Audio visualization on LEDs: perceptual models and mathematics* (2026-04) — https://sudonull.com/audio-visualization-on-leds-perceptual-models-and-mathematics
+- Apatero — *Audio Reactive Video Generation Complete Guide* (2025-11) — https://apatero.com/blog/audio-reactive-video-generation-complete-guide-2025
