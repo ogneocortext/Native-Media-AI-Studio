@@ -797,3 +797,122 @@
   prompts; prioritize the most important musical decisions). The Suno v6-mini
   Templates artifact (owner-side) handles getting the best draft out of mini;
   the studio handles everything after.
+
+---
+
+### D29 — Abandoning a ComfyUI prompt must cancel it, and a queued prompt is not a slow prompt (2026-10-02)
+- **Status:** Decided
+- **Context:** ComfyUI has been unreliable for as long as this project has
+  existed. It turned out not to be ComfyUI. Measured from its own `/history` on
+  2026-10-02: 93 prompts, min 8.7 s, median 10.8 s, p90 20.2 s, max 163.0 s —
+  and **zero** exceeded the client's 300 s timeout, while the backend logged
+  `timed out after 300s` repeatedly. At the same moment `/queue` held 1 running
+  (a Wan video job) and 23 pending, numbered 94–116 directly after the 93
+  completed in history, with the backend holding 0 active jobs and none of those
+  prompt ids appearing in any backend log.
+- **Decision:** Two rules, both now enforced in the adapter and the upscale
+  service.
+  1. **Any exit that is not success cancels the prompt.** A waiter that raises on
+     timeout and walks away leaves the prompt executing inside ComfyUI, so each
+     timeout permanently lengthens the FIFO queue for later jobs — including the
+     retry of the job that had just timed out. One failure makes the next slower,
+     which makes the next one fail. That is the compounding behaviour that made
+     ComfyUI look unreliable for a year.
+  2. **A prompt that is still *queued* is not a *slow* prompt.** The image waiter
+     extends its deadline once (to 1800 s) if the prompt has not started, because
+     the elapsed time is then spent behind someone else's multi-minute video job.
+     Timing out there would cancel a job that never got a chance to run.
+  Cancellation is best-effort: a failure to cancel is logged and never replaces
+  the error that explains why the job failed.
+- **Wire contract (do not regress):** cancel via `GET /queue` to locate, then
+  `POST /queue {"delete": [id]}`. **`DELETE /queue` returns 405 Method Not Allowed**
+  on this build; an implementation that used it appeared to work, passed every
+  unit test against a mocked session, and was a silent no-op against the real
+  service. Only a live call caught it.
+- **Consequences:** ComfyUI's queue can no longer be poisoned by our own failures.
+  `comfyui_client.cancel_prompt` / `queue_depth` / `interrupt_current` are the
+  supported primitives; `interrupt_current` stops whatever is *running* and is a
+  last resort for a wedged worker, never a response to one slow job.
+- **Open follow-up:** the 23 queued prompts found during diagnosis were not ours
+  and were left running. Anything already orphaned before this change stays
+  orphaned; clearing it is a separate, deliberate act.
+
+### D30 — A resource wait must not hold the lock that guards unrelated work (2026-10-02)
+- **Status:** Decided
+- **Context:** `VRAMManager.begin_3d_generation` awaited `_wait_for_vram()` while
+  holding `self._lock`. That wait runs up to `VRAM_WAIT_TIMEOUT` (120 s), and the
+  same lock guards the begin/end of every other workload — audio analysis, music
+  generation, and each of their completion handlers. So a 3D request running low on
+  VRAM blocked all of them for up to two minutes, over a GPU-memory condition
+  none of them had any part in. Demonstrated before fixing: with the timeout
+  scaled to 2 s, `begin_audio_analysis` — pure bookkeeping — sat blocked for
+  1.9 s.
+- **Decision:** Resource *waits* happen outside the lock; the lock protects only
+  the short bookkeeping critical sections. A poll loop that merely reads VRAM does
+  not need it. Generalised to two further rules:
+  - **Check before sleeping, never after.** Both the VRAM wait and the upscale
+    poll charged a full poll interval to every outcome, including "already
+    finished", and let the timeout overshoot its own budget by up to one interval.
+    They now test first and sleep `min(interval, remaining)`, so a poll can never
+    sleep past its deadline.
+  - **A test must exercise the real method.** The first version of the lock test
+    used a local stand-in class with the same shape; it passed against a fix that
+    had been reverted, because it never called the code under test. Tests here
+    drive the actual `VRAMManager.begin_3d_generation`, and a companion test
+    asserts the old shape genuinely blocks, so it cannot pass for the wrong
+    reason. A test that cannot fail is worse than no test.
+- **Consequences:** A slow or failing VRAM wait degrades only the workload that
+  asked for it.
+
+### D31 — The queue reclaims stranded work, but never retries what cannot succeed (2026-10-02)
+- **Status:** Decided
+- **Context:** `/api/jobs/stats` reported `running: 25` while
+  `/api/health/queue` reported `current_job_id: null` and
+  `processing_rate_per_min: 0.0` — 25 jobs in `running` with nothing running, all
+  `image_generation` at progress 0.0, oldest hours old, and `is_healthy: true`.
+  There was no reclamation anywhere in the queue. A job only enters `RUNNING` once
+  a processor claims it, so any restart, crash or dev-server reload orphaned
+  whatever was in flight, permanently; `HANDLER_TIMEOUT_SECONDS` cannot help
+  because it only fires while the process is alive and awaiting that job.
+- **Decision:** Reclaim stranded work on both axes, and report honestly.
+  - `recover_stale_running_jobs()` requeues ownerless `RUNNING` jobs with retry
+    budget left and dead-letters those that exhausted it, reusing the existing
+    retry semantics rather than inventing a policy. Called from `reload_from_db`
+    and from a 60 s reaper tick, so the queue self-heals after a mid-life crash
+    and not only on a clean deploy.
+  - **A job with empty `params` is dead-lettered, not requeued.** Every registered
+    handler reads its input from `job.params`, so `{}` is not a degraded run, it is
+    a run with no prompt, no model and no input file. Retrying cannot succeed, and
+    because the reaper runs every 60 s a requeued empty job is revived
+    indefinitely. `retry_count` is deliberately *not* advanced for these: there is
+    no attempt to record when the job was never attempted.
+  - `quarantine_unrunnable_jobs()` sweeps `QUEUED` as well, because the reaper only
+    inspects `RUNNING`.
+  - `/api/health/queue` exposes `stranded_running_jobs` and folds it into
+    `is_healthy`, so a wedged queue can no longer report itself healthy.
+- **Consequences:** Verified live — 25 stranded jobs went to 0, with 23 requeued
+  and 2 dead-lettered once retries ran out; the targeted sweep then cleared the
+  rest, leaving 0 active. Both dead-letter paths avoid holding `_lock` (asyncio
+  locks are not reentrant; `_move_to_dead_letter` acquires it itself) and each has
+  a `wait_for` test that fails on a deadlock rather than hanging.
+- **Recorded honestly:** the queue still cannot distinguish a *legitimate* long
+  job from a *wedged* one — see Q6.
+
+### Q6 — Worker lease/heartbeat, so the reaper cannot reclaim valid long work (2026-10-02)
+- **Status:** Open
+- **Context:** D31's reaper is age-based: a `RUNNING` job older than 15 minutes
+  with no owner is reclaimed. There is no lease, heartbeat, or progress-ownership
+  check, so a legitimately long job (a Wan video render) can be reclaimed while it
+  is still working. This was visible during the D29 work — two `RUNNING` jobs at
+  16–17 minutes triggered `stranded_running_jobs: 2` and turned health red while
+  they may have been in flight.
+- **Options:** (a) progress-timestamp lease — the handler refreshes a timestamp so
+  only a *silent* job is reclaimed; (b) explicit lease/renew token with expiry;
+  (c) raise the threshold per job type (video already gets 900 s+).
+- **Recommendation:** (a) then (c). (a) closes the common case cheaply and
+  distinguishes "no progress" from "slow progress", which a longer timeout cannot.
+- **Related, also open:** 233 of the `image_generation` rows in the jobs table have
+  empty `params`, spanning 2026-09-03 onward. `api/integrations_generation.py:574`
+  builds `params={"service": ..., **request.to_adapter_params()}` and looks
+  correct, so something else is enqueueing without params. Untraced; until it is,
+  empty-param jobs will keep appearing and be quarantined by D31.

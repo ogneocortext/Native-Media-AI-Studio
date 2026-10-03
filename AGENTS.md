@@ -7,8 +7,8 @@
 > **Agent bootstrap:** read `docs/README.md` first — it maps every documentation
 > directory and says which are authoritative. Then read
 > `docs/architecture/decision-log.md` before writing code. It records
-> stack/architecture decisions (D1–D28 — do not re-litigate) and open questions
-> (Q1–Q5). Update the log when you make or reverse an architecture decision.
+> stack/architecture decisions (D1–D31 — do not re-litigate) and open questions
+> (Q1–Q6). Update the log when you make or reverse an architecture decision.
 > Frontend visualizer work also requires `docs/architecture/visualizer.md` — it
 > maps the module split from D14 and states where new logic belongs.
 >
@@ -135,6 +135,26 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action
 
 Note `pwsh`, not `powershell` — the agent shell is 5.1 and these scripts require
 7.6+. ComfyUI and the video editor are optional; the studio runs without them.
+
+**Before blaming ComfyUI, measure it.** A deep ComfyUI queue plus
+`timed out after 300s` in the logs looks exactly like "ComfyUI is broken", and
+was for about a year — it was not. Measure what ComfyUI's own `/history` says the
+durations were, and whether the backlog is even ours:
+
+```bash
+python tools/comfyui-queue-report.py
+```
+
+That reports duration min/median/max from `/history`, the live queue depth, and
+whether the pending ids appear in our logs (they should not — an id that is
+queued but in none of our logs is an orphan, not in-flight work).
+
+The real cause (fixed in D29) was that waiters raised on timeout and **left the
+prompt running inside ComfyUI**, so every failure lengthened the queue for the
+next job — including its own retry. Do not reintroduce that: any exit that is not
+success must call `_cu.cancel_prompt`. Note `DELETE /queue` returns 405 on this
+build; cancel is `GET /queue` then `POST /queue {"delete":[id]}`. Full playbooks
+are in `docs/knowledge-library/backend-debugging-guide.md`.
 
 ### Shell / Process Management
 

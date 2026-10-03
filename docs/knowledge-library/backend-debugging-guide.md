@@ -315,6 +315,115 @@ Always reuse `aiohttp.ClientSession` instances. Creating new sessions per reques
 
 The workflow JSON must be in API format (node IDs as keys), not UI format (includes positional data).
 
+### 6. Never abandon a ComfyUI prompt
+
+A waiter that raises on timeout and walks away leaves the prompt running inside
+ComfyUI. Each abandonment permanently lengthens the FIFO queue for later jobs —
+including the retry of the job that just timed out — so failures compound instead
+of clearing. Any exit that is not success must cancel the prompt
+(`_cu.cancel_prompt`). See D29.
+
+### 7. `DELETE /queue` is not supported
+
+Cancelling a prompt is `GET /queue` to locate it, then
+`POST /queue {"delete": [prompt_id]}`. On this ComfyUI build `DELETE /queue`
+returns **405 Method Not Allowed**. An implementation using it looks correct,
+passes unit tests against a mocked session, and silently does nothing against the
+real service — verify wire-level behaviour against a live call, not a mock.
+
+### 8. A queued prompt is not a slow prompt
+
+If a prompt is still in the queue, elapsed time is being spent behind other
+people's work, not on this job. Timing out there cancels a job that never ran.
+The image waiter extends its deadline once for this reason.
+
+### 9. Never hold a lock across a resource wait
+
+`asyncio.Lock` is not reentrant, and holding one across a slow wait blocks every
+other user of it. The VRAM manager waited up to 120 s for GPU memory while holding
+the lock that guards the begin/end of *every* workload, so a 3D request running
+low on VRAM stalled audio analysis for two minutes. Waits belong outside the lock;
+the lock protects only short bookkeeping. See D30.
+
+### 10. Check before sleeping
+
+A poll loop that sleeps *then* tests charges the interval to every outcome,
+including "already finished", and lets the timeout overshoot its own budget.
+Sleep `min(interval, time_remaining)` and test first.
+
+### 11. A test that cannot fail is worse than no test
+
+A lock-contention test written against a local stand-in class passed even with
+the fix reverted, because it never called the code under test. Assert against the
+real method, and add a companion test proving the old shape really did misbehave
+so the main test cannot pass for the wrong reason.
+
+---
+
+## Playbook: "ComfyUI is slow / unreliable" (2026-10-02)
+
+Measure before believing it. On 2026-10-02 ComfyUI looked unreliable for a year;
+it was actually completing images in a median of 10.8 s while the client waited
+300 s and then left the work behind.
+
+```python
+# 1. How long does ComfyUI ACTUALLY take? (its own history, not our logs)
+import json, urllib.request
+h = json.load(urllib.request.urlopen("http://127.0.0.1:8188/history", timeout=25))
+durs = []
+for pid, e in h.items():
+    start = end = None
+    for kind, payload in e.get("status", {}).get("messages", []):
+        if kind == "execution_start":   start = payload.get("timestamp")
+        elif kind in ("execution_success", "execution_error"): end = payload.get("timestamp")
+    if start and end: durs.append(((end - start) / 1000.0, pid))
+vals = sorted(d for d, _ in durs)
+print("n=%d min=%.1fs median=%.1fs max=%.1fs" % (
+    len(vals), vals[0], vals[len(vals)//2], vals[-1]))
+
+# 2. Is the queue backed up, and is it OURS?
+q = json.load(urllib.request.urlopen("http://127.0.0.1:8188/queue", timeout=15))
+print("running=%d pending=%d" % (len(q["queue_running"]), len(q["queue_pending"])))
+```
+
+Then correlate: if `/api/jobs` shows 0 active backend jobs while ComfyUI has a
+deep queue, the backlog is orphaned — not in flight. Compare queue numbers against
+`len(history)`: entries numbered just past the history length were submitted and
+never collected.
+
+Interpretation:
+
+| Symptom | Likely cause |
+|---|---|
+| Queue deep, backend idle, ids absent from backend logs | Orphaned prompts (pre-D29, or another client) |
+| Median fast but client times out | Client timeout too short for the queue position, or no cancellation (D29) |
+| One prompt running, CPU rising, never finishes | Genuinely slow job — check model and VRAM pressure |
+| `vram_free` under ~1.3 GB | VRAM contention; see the VRAM manager notes |
+
+Clearing someone else's backlog is a deliberate act, not an automatic one — those
+prompts may be real work from another tool. Cancel by id only when you know whose
+they are.
+
+---
+
+## Playbook: "the queue says healthy but nothing is happening" (2026-10-02)
+
+`/api/health/queue` now reports `stranded_running_jobs` and folds it into
+`is_healthy`. Before that, a fully wedged queue reported healthy: 25 jobs sat in
+`running` with `current_job_id: null` and `processing_rate_per_min: 0.0`.
+
+If `stranded_running_jobs > 0`, jobs were left `RUNNING` by a process that died.
+They are reclaimed automatically on the next reaper tick (60 s) or restart —
+requeued if they have retry budget and are runnable, dead-lettered otherwise.
+
+Two cases the age-based reaper still cannot distinguish, both tracked as Q6:
+
+- A legitimately long job (a Wan video render) can be reclaimed after 15 minutes,
+  because there is no heartbeat or lease — only age.
+- A job with empty `params` can never succeed, so it is dead-lettered rather than
+  retried. If these keep appearing, the enqueue path is dropping parameters; 233
+  such rows predate the fix.
+
 ---
 
 ## Server Management
@@ -334,6 +443,43 @@ The workflow JSON must be in API format (node IDs as keys), not UI format (inclu
 ### Health Checks
 
 The backend checks adapter health on startup and broadcasts via SSE (`GET /api/events`, `sseService.ts`). Health status is shown in the sidebar. Legacy `ws://127.0.0.1:8000/ws` is a compat shim that returns `426` for HTTP `GET` and `101` only for WebSocket upgrade — new code must use SSE.
+
+### Orphaned reloaders (2026-10-02)
+
+`manage-servers.ps1 -Action status` reports **orphaned reloaders** — `uvicorn --reload`
+(watchfiles) supervisors whose server child has died. The supervisor survives, waiting
+for the next file change, because killing the child directly does not stop it.
+
+They were invisible until this was added: `Get-ServiceStatus` only inspects the port,
+and an orphan holds none, so the service read as `STOPPED` and `status` printed a clean
+board while the process tree leaked.
+
+Prefer `manage-servers.ps1 -Action stop` over killing PIDs by hand — the managed stop
+matches on `app.main:app`, which catches the supervisor, whereas an ad-hoc
+`Stop-Process` against the child leaves it running. This matters during debugging,
+where killing the uvicorn child is the natural thing to do.
+
+---
+
+## Image Output Integrity (2026-10-02)
+
+`ImageGenerationHandler.save_output` refuses to let a job report success without a
+real image. Two cases raise instead of completing:
+
+- **No image data at all.** Previously this only logged a warning and returned an
+  output path anyway, so the job was stored as `completed` with `output_path: null`
+  alongside a plausible-looking seed and step count. The UI renders completed jobs as
+  finished work, which made that a false claim about work that never ran.
+- **An image smaller than 8×8 px.** The adapters' `_mock_generate` emits a 1×1 PNG;
+  storing it made a single pixel look like a render.
+
+The threshold reads the PNG `IHDR` dimensions, not file size. A size threshold was
+tried first and rejected: a legitimate 64×64 flat render compresses to ~98 bytes and
+is indistinguishable from a placeholder by size, whereas its dimensions are
+unambiguous. `MOCK_GENERATION` is unset in this project, so the mock path should
+never produce real output — a 1×1 file on disk is a historical artefact from when
+mock output was still written on service failure (42 such files remain under
+`output/images`, all dated 2026-09-21 to 2026-09-26).
 
 ---
 
