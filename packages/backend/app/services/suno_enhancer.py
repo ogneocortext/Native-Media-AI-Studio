@@ -82,7 +82,20 @@ class EnhanceConfig:
     master_ceiling_dbfs: float = -1.0  # True-peak ceiling per KARRA preset
     output_format: str = "wav"  # "wav" | "mp3" | "both"
     # Suno-specific (heuristic)  # noqa: ERA001 - section label, not disabled code
-    pre_highpass_hz: float = 120.0  # Gemini: 110–130 Hz, default 120
+    # Was 120.0, which contradicted this module's own stated intent a couple of
+    # hundred lines below - strip sub-bass rumble and MP3 artefacts, i.e. cut
+    # around 30 Hz - and its `_high_pass` default of 30.0.
+    #
+    # 120 Hz is not a rumble filter, it is a bass-destroying one. Measured on the
+    # 48 kHz source, of the 69.5% of total energy that lives in the 10-250 Hz
+    # band, 62.0% sits *below* 120 Hz - so a 120 Hz high-pass deletes 89% of the
+    # bass band. In whole-file comparison that read as bass falling from 41-78%
+    # to 31-46% depending on where you measured it.
+    #
+    # 30 Hz removes DC and infrasonic rumble while leaving kick and bass
+    # fundamentals intact, which is what the guidance actually asked for. The
+    # spectral-centroid adaptation below can still raise or lower this.
+    pre_highpass_hz: float = 30.0  # rumble floor; musical bass starts well above
     vocal_spectral_gate_threshold_db: float = -40.0
     vocal_dynamic_eq_max_reduction_db: float = 4.0
     # Needs-fallback / KARRA preset toggles
@@ -245,7 +258,21 @@ def _reverb_and_delay(
     ir_len = int(sr * 1.8)
     ir = np.random.randn(ir_len).astype(np.float32)
     ir *= np.power(1.0 - np.arange(ir_len) / ir_len, decay * 10.0)
-    ir /= np.max(np.abs(ir)) + 1e-8
+    # Normalise by ENERGY, not peak.
+    #
+    # This was the single loudest thing wrong with the chain, and it is what made
+    # the output sound synthetic. Peak-normalising a white-noise IR and then
+    # convolving a full-scale stem makes the wet signal *louder* than the dry:
+    # convolving with noise of length N multiplies RMS by ir_rms * sqrt(N), and
+    # here that is ~6x before `mix` is applied at all. Measured on a real stem:
+    # 87.8% of the output energy was the reverb tail, and the noise floor in a
+    # quiet passage rose from -32.2 to -22.4 dBFS - a 9.8 dB hiss over the whole
+    # track, which is exactly the "unpolished / synthetic" complaint.
+    #
+    # L2-normalising the IR makes `mix` mean what it says: wet RMS ~= mix * dry
+    # RMS, so 0.12 is a genuine 12% reverb send.
+    ir_energy = float(np.sqrt(np.sum(ir ** 2))) + 1e-12
+    ir /= ir_energy
     # Convolve per channel: `np.convolve` is 1-D only and raises
     # `ValueError: object too deep for desired array` on a (channels, samples)
     # array. Stems arrive stereo (mono=False in the loader), so this ran for the
@@ -920,7 +947,7 @@ class SunoEnhancer:
         return out
 
     def _mix_stems(self, loaded: dict[str, np.ndarray], sr: int) -> np.ndarray:
-        """Mix stems preserving stereo and the separation's own balance.
+        """Sum the stems at unity, then normalise the *sum*.
 
         Three defects here, all visible only once the earlier crashes were fixed
         and the chain could finally produce a file to measure:
@@ -930,19 +957,24 @@ class SunoEnhancer:
         - Weights were normalised to sum to 1.0 across four stems, dividing the
           bus by roughly 4 (-12 dB) before the limiter, so the master ceiling
           never engaged (measured peak -14.4 dBFS).
-        - Weighting by `1 / rms` per *channel* is far too aggressive to sum: the
-          measured stem RMS values span -21.1 (bass) to -27.1 dBFS (other), so
-          it pushed `other` up 6 dB and `vocals` up 2 dB relative to the
-          instrumentals while `bass` stayed put. The four then summed to well
-          over 0 dBFS and the limiter crushed the result: measured crest factor
-          fell from 16.0 dB to 5.7 dB and bass energy collapsed from 69% to 4%
-          of the spectrum. That is the "harsher than the input" failure, caused
-          by the mixer itself.
+        - Both attempts to "fix" the weighting made the tonal balance worse, in
+          opposite directions, and both were found by measuring the output
+          rather than by reading the code:
+            * 1/RMS per channel — stem RMS spans -21.1 (bass) to -27.1 dBFS
+              (other), so it rebalanced stems against each other. Crest factor
+              fell 16.0 -> 5.7 dB; bass fell 69% -> 4% of the spectrum.
+            * peak-normalise each stem to -6 dBFS — also wrong, because crest
+              factor differs by stem type. Measured after all processing: vocals
+              peaked at -12.5 dBFS and bass at -3.1 dBFS, so peak-normalising
+              pushed vocals up +6.5 dB relative to drums and pushed bass down
+              -2.9 dB. The bass stem still held 91.7% of its energy below
+              250 Hz at that point, so the low end was not being filtered — the
+              mixer was simply unbalancing it.
 
-        The mix now preserves the separation's relative balance and sums at
-        unity: each stem is scaled so the *loudest* stem peaks at full scale,
-        which keeps relative dynamics intact while guaranteeing headroom for
-        the master limiter to do its job.
+        Per-stem normalisation is the mistake in both cases: it discards the
+        balance the separator already got right. This now sums the stems exactly
+        as separated and applies a single gain to the sum, so relative dynamics
+        survive and the limiter still gets a legal signal.
         """
         max_len = max(y.shape[-1] for y in loaded.values()) if loaded else 0
         n_ch = max((y.shape[0] if y.ndim > 1 else 1) for y in loaded.values()) if loaded else 1
@@ -951,18 +983,21 @@ class SunoEnhancer:
         if not loaded or max_len == 0:
             return mixed
 
-        # Peak-normalise each stem independently, so no stem is lifted relative
-        # to the others. Headroom for the sum is left to the limiter.
         for y in loaded.values():
             if y.shape[-1] < max_len:
                 y = np.concatenate(
                     [y, np.zeros(max_len - y.shape[-1], dtype=np.float32)], axis=-1
                 )
             chans = y if y.ndim > 1 else y[np.newaxis, :]
-            peak = float(np.max(np.abs(chans))) if chans.size else 0.0
-            gain = (PEAK_TARGET_LINEAR / max(peak, 1e-9)) if peak > 0 else 0.0
             for c in range(min(chans.shape[0], n_ch)):
-                mixed[c] += chans[c, :max_len] * gain
+                mixed[c] += chans[c, :max_len]
+
+        # One gain for the whole bus, not per stem. Peak-normalising the sum is
+        # what guarantees headroom for the -1 dBFS limiter without touching the
+        # mix balance; the limiter then catches whatever transients remain.
+        peak = float(np.max(np.abs(mixed))) if mixed.size else 0.0
+        if peak > 1e-9:
+            mixed *= (PEAK_TARGET_LINEAR / peak)
         return mixed
 
     def _write_wav(self, path: Path, y: np.ndarray, sr: int) -> None:
