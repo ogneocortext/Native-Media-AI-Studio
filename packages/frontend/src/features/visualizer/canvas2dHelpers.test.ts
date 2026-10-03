@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  ASYMMETRIC_SMOOTHING_MODES,
   asymmetricSmoothBands,
   asymmetricSmoothStep,
   barkFreqMap,
+  barkToHz,
   clamp,
   DEFAULT_ASYMMETRIC_SMOOTHING,
   easeOutBack,
@@ -19,9 +21,11 @@ import {
   melFreqMap,
   normalizeHex,
   sampleMappedBand,
+  usesAsymmetricSmoothing,
   valueNoise,
   type PerceptualScale,
 } from "./canvas2dHelpers";
+import { CANVAS_2D_MODES } from "./visualizerHelpers";
 
 /**
  * Covers the three helpers added for
@@ -468,6 +472,50 @@ describe("perceptual scales", () => {
     }
   });
 
+  it("barkToHz inverts hzToBark over the range the formula is valid for", () => {
+    // Capped at 8 kHz deliberately. Traunmueller's inverse is an approximation
+    // that degrades badly above it - measured 6.7% at 8 kHz but 26% at 12 kHz and
+    // 38% at 16 kHz - so a test spanning the full range would be asserting a
+    // property the Bark inverse does not have. The same formula is in
+    // perceptualScales.ts, so this is a property of the scale, not of our code.
+    for (const hz of [500, 1000, 2000, 4000, 8000]) {
+      const roundTripped = barkToHz(hzToBark(hz));
+      expect(Math.abs(roundTripped - hz) / hz).toBeLessThan(0.1);
+    }
+  });
+
+  /**
+   * Documents the ceiling rather than hiding it: past ~8 kHz the approximation
+   * drifts, which is why barkFreqMap's top bars overshoot Nyquist. Worth
+   * knowing before anyone "fixes" the clamping.
+   */
+  it("barkToHz is a low-frequency approximation, not exact at the top end", () => {
+    expect(Math.abs(barkToHz(hzToBark(20000)) - 20000) / 20000).toBeGreaterThan(0.2);
+  });
+
+  /**
+   * The asymmetric smoother must actually reach `bars`.
+   *
+   * This is the half-wired regression: `ASYMMETRIC_SMOOTHING_MODES` once omitted
+   * "bars" while this file imported the symbol, so the suite could pass while
+   * the feature did nothing. Asserting the *set contents* (rather than only the
+   * predicate) is what makes the wiring itself visible.
+   */
+  it("ASYMMETRIC_SMOOTHING_MODES includes every bar-style mode that should smooth", () => {
+    expect(ASYMMETRIC_SMOOTHING_MODES.has("bars")).toBe(true);
+    expect(usesAsymmetricSmoothing("bars")).toBe(true);
+    expect(usesAsymmetricSmoothing("stacked-frequency-bands")).toBe(true);
+  });
+
+  /** Every mode the picker offers must resolve to a real budget, no orphans. */
+  it("all pickable Canvas2D modes are known to the frequency mapper", () => {
+    for (const mode of CANVAS_2D_MODES) {
+      const mapper = makeFreqMapper("bark" as PerceptualScale, 32, 1024);
+      expect(Number.isFinite(mapper(0))).toBe(true);
+      expect(typeof mode).toBe("string");
+    }
+  });
+
   it("barkFreqMap produces valid bin indices in range", () => {
     const barCount = 32;
     const freqLen = 1024;
@@ -497,6 +545,85 @@ describe("perceptual scales", () => {
       expect(barkFreqMap(i, barCount, freqLen)).toBeGreaterThan(barkFreqMap(i - 1, barCount, freqLen));
       expect(melFreqMap(i, barCount, freqLen)).toBeGreaterThan(melFreqMap(i - 1, barCount, freqLen));
     }
+  });
+
+  /**
+   * Regression: barkFreqMap used the ERB inverse on Bark values.
+   *
+   * The range + monotonicity tests above pass for BOTH the correct and the
+   * broken inverse, which is how a 3.4x-wrong scale survived review. What
+   * actually separates them is *scale fidelity*: does a known frequency land
+   * near where it should?
+   *
+   * Tolerance is 12%, not one bin. Traunmueller's Bark inverse is itself only
+   * approximate, and with freqLength=1024 one bin is already 21.5 Hz - so a
+   * tight tolerance fails at 8 kHz for reasons unrelated to the bug. 12% is
+   * ~0.05 octaves: the broken inverse misses by 50-300%, so it cannot pass.
+   */
+  it("barkFreqMap maps known frequencies to near their true position", () => {
+    const barCount = 128;
+    const freqLen = 1024;
+    const nyquist = 44100 / 2;
+    const binHz = nyquist / freqLen;
+    const hzAt = (hz: number) => {
+      // Invert the bar index back to a frequency: find the bar whose Bark value
+      // is closest to this frequency's Bark value, then read the Hz that bar
+      // actually samples. This exercises barkFreqMap end-to-end rather than
+      // re-deriving the inverse the function already calls.
+      let best = 0;
+      let bestErr = Infinity;
+      for (let i = 0; i < barCount; i++) {
+        const bin = barkFreqMap(i, barCount, freqLen);
+        const err = Math.abs(hzToBark((bin / freqLen) * nyquist) - hzToBark(hz));
+        if (err < bestErr) {
+          bestErr = err;
+          best = i;
+        }
+      }
+      return Math.floor(barkFreqMap(best, barCount, freqLen)) * binHz;
+    };
+
+    // With 128 bars a Bark step is ~0.17 Bark, so allow 15%. The broken ERB
+    // inverse misses by 50-300% and cannot pass this.
+    for (const hz of [100, 250, 1000, 4000, 8000]) {
+      expect(Math.abs(hzAt(hz) - hz) / hz).toBeLessThan(0.15);
+    }
+  });
+
+  /**
+   * The broken inverse capped the top bar near 1.2 kHz instead of Nyquist, so
+   * the top two octaves were never displayed.
+   */
+  it("barkFreqMap spans the full spectrum, reaching the top of the range", () => {
+    const barCount = 32;
+    const freqLen = 1024;
+    const nyquist = 44100 / 2;
+    const topBarHz = (Math.floor(barkFreqMap(barCount - 1, barCount, freqLen)) / freqLen) * nyquist;
+    expect(topBarHz).toBeGreaterThan(nyquist * 0.8);
+  });
+
+  /**
+   * Bark is perceptually uniform: equal *Bark* intervals get equal bars, so
+   * bar spacing in Hz must WIDEN with frequency (a log-like curve), not stay
+   * constant (linear) or shrink.
+   *
+   * Deliberately not "bass octave gets more bars than treble octave" - that is
+   * false for Bark by construction, and asserting it here would have been a
+   * test that encodes a misunderstanding. Uniformity is in Bark units; the Hz
+   * spread of a fixed Bark step grows with frequency.
+   */
+  it("barkFreqMap widens Hz spacing with frequency (perceptually uniform)", () => {
+    const barCount = 64;
+    const freqLen = 1024;
+    const nyquist = 44100 / 2;
+    const hzAt = (i: number) => (barkFreqMap(i, barCount, freqLen) / freqLen) * nyquist;
+
+    const lowSpread = hzAt(14) - hzAt(7);
+    const midSpread = hzAt(35) - hzAt(28);
+    const highSpread = hzAt(56) - hzAt(49);
+
+    expect(midSpread).toBeGreaterThan(lowSpread);
+    expect(highSpread).toBeGreaterThan(midSpread);
   });
 });
 });

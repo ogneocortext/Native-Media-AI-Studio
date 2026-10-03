@@ -279,6 +279,17 @@ export function hzToBark(hz: number): number {
   return 13 * Math.atan(0.00076 * hz) + 3.5 * Math.atan(Math.pow(hz / 7500, 2));
 }
 
+/** Convert Bark back to Hz (Traunmüller's inverse of {@link hzToBark}).
+ *
+ *  Lives here, next to the forward conversion, because the only reason it was
+ *  ever needed is `barkFreqMap` — and a scale with no inverse is a scale that
+ *  gets inverted with the wrong formula (which is exactly what happened). */
+export function barkToHz(bark: number): number {
+  return bark < 2
+    ? 1960 * (bark / (26.28 - bark))
+    : 1960 * ((bark + 0.53) / (26.28 - bark));
+}
+
 /** Convert Hz to ERB scale (equivalent rectangular bandwidth). */
 export function hzToERB(hz: number): number {
   return 21.4 * Math.log10(1 + 0.00437 * hz);
@@ -306,8 +317,17 @@ export function barkFreqMap(
   const maxBark = hzToBark(nyquist);
   const bark = minBark + t * (maxBark - minBark);
 
-  // Convert back to Hz, then to FFT bin index
-  const hz = (Math.pow(10, bark / 21.4) - 1) / 0.00437;
+  // Convert back to Hz with the **Bark** inverse, then to an FFT bin index.
+  //
+  // This previously used the ERB inverse, `(10^(x/21.4) - 1) / 0.00437`, which is
+  // the inverse of a different scale entirely. Because Bark grows more slowly
+  // than ERB, every band landed ~3.4x too low: the top bar sampled ~1.2 kHz
+  // instead of Nyquist, so the "Bark" mode never displayed the top two octaves.
+  //
+  // The existing tests missed it because they only asserted range and
+  // monotonicity, and a uniformly squashed mapping satisfies both. See the
+  // round-trip test, which is what actually pins this.
+  const hz = barkToHz(bark);
   return Math.min(len, Math.max(0, (hz / nyquist) * len));
 }
 
