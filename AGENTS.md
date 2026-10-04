@@ -109,13 +109,40 @@ Native-Media-AI-Studio/
 
 | Server       | Command                                                      | Port       | Status        |
 | ------------ | ------------------------------------------------------------- | ---------- | ------------- |
-| Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`                         | stdio      | Configured    |
-| Vision       | `node tools/mcp/vision-mcp.mjs`                               | stdio      | Configured    |
-| Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                         | 7800 (REST)| Running       |
+| Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`                         | stdio      | 10 tools, executes |
+| Vision       | `node tools/mcp/vision-mcp.mjs`                               | stdio      | 13 tools, executes |
+| Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                         | 7800 (REST)| 17 tools; needs Unity |
 | Blender MCP  | `uvx blender-mcp`                                             | 9876       | Running       |
 | ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://127.0.0.1:8188`        | 8188       | Running       |
 | Remotion MCP | `npx -y @remotion/mcp@latest`                                 | stdio      | Configured    |
-| HyperFrames  | `node tools/mcp/hyperframes-mcp.mjs`                          | stdio      | Configured    |
+| HyperFrames  | `node tools/mcp/hyperframes-mcp.mjs`                          | stdio      | 9 tools, executes |
+
+## MCP clients: which config holds the servers
+
+The bridges above are only reachable once a client is told about them. Verified
+2026-10-02 by launching each server from the command exactly as written in each
+config and calling a tool - not by reading the config.
+
+| client | config | note |
+|---|---|---|
+| OpenCode | `opencode.json` (repo root) | already had all servers |
+| Kilo Code | `.kilo/kilo.jsonc` | gitignored; machine-specific paths |
+| Cline | `~/.cline/mcp.json` | outside the repo, so not shared |
+| Claude Code | `~/.claude.json` | none of these; only `pencil` |
+| openclaw | `~/.openclaw/openclaw.json` | only an unrelated `space-analyzer` |
+
+Two Windows details every config should keep: resolve `node` to an **absolute**
+path (it is an fnm alias), and give **absolute** script paths (clients do not all
+honour `cwd`, and this repo's path contains spaces).
+
+`unity-mcp-bridge` ships **disabled** in the Kilo and Cline configs. That is not
+because it is broken - it needs Unity Editor running, and the port file it reads
+outlives a crash. Start Unity with the project open, or
+`scripts\start-unity-headless.ps1`, and it becomes usable.
+
+`context-store.mjs` is deliberately absent from every config: it exports four
+functions and has no transport, so it is a library rather than an MCP server and
+could not be called by any client.
 
 ## Vision Workflow
 

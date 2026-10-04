@@ -29,6 +29,48 @@ let cachedCommandNames = null;
 let commandCacheAge = 0;
 const COMMAND_CACHE_TTL_MS = 30000;
 
+/** The last port file read that turned out to describe a dead Unity. */
+let stalePortFile = null;
+
+/** A heartbeat older than this means Unity is gone, whatever the pid says. */
+const HEARTBEAT_MAX_AGE_MS = 120000;
+
+/**
+ * Is the port file describing a Unity that is actually up?
+ *
+ * The file is written at startup and refreshed on heartbeat, so it outlives a
+ * crash or a force-quit. Two cheap checks turn a confusing "fetch failed" into
+ * an actionable message: heartbeat age first (no syscall), then the pid.
+ */
+function isPortInfoLive(info) {
+  if (!info || typeof info.port !== "number") return false;
+  const hb = Date.parse(info.lastHeartbeat || "");
+  if (Number.isFinite(hb) && Date.now() - hb > HEARTBEAT_MAX_AGE_MS) return false;
+  if (info.pid) {
+    try {
+      process.kill(info.pid, 0); // signal 0 tests existence, delivers nothing
+    } catch (e) {
+      if (e && e.code === "ESRCH") return false;
+    }
+  }
+  return true;
+}
+
+/** Why Unity is unreachable, stated specifically enough to act on. */
+function unityUnavailableReason() {
+  if (stalePortFile) {
+    const hb = Date.parse(stalePortFile.lastHeartbeat || "");
+    const when = Number.isFinite(hb) ? new Date(hb).toISOString() : "unknown";
+    return (
+      "Unity MCP server is not running: the port file is stale " +
+      `(last heartbeat ${when}, pid ${stalePortFile.pid ?? "?"}). ` +
+      "Open the project in Unity, or start it headless with " +
+      "scripts/start-unity-headless.ps1"
+    );
+  }
+  return "Unity MCP server not running (no port file)";
+}
+
 function getPortInfo() {
   const now = Date.now();
   if (cachedPortInfo && now - cacheAge < PORT_CACHE_TTL_MS) {
@@ -39,7 +81,9 @@ function getPortInfo() {
       join(PROJECT_PATH, "Library", "Pipeline", ".unity-pipeline-port"),
       "utf-8",
     );
-    cachedPortInfo = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    cachedPortInfo = isPortInfoLive(parsed) ? parsed : null;
+    if (!cachedPortInfo) stalePortFile = parsed;
     cacheAge = now;
     return cachedPortInfo;
   } catch {
@@ -50,7 +94,7 @@ function getPortInfo() {
 
 async function unityFetch(path, opts = {}, timeoutMs = 30000) {
   const info = getPortInfo();
-  if (!info) return { error: "Unity MCP server not running (no port file)" };
+  if (!info) return { error: unityUnavailableReason() };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -66,7 +110,16 @@ async function unityFetch(path, opts = {}, timeoutMs = 30000) {
     return await res.json();
   } catch (e) {
     if (e.name === "AbortError") return { error: `Unity API request timed out (${timeoutMs}ms)` };
-    throw e;
+    // Node's "fetch failed" hides whether the port is closed, the token is
+    // wrong, or Unity died mid-request. Report what we actually know.
+    const cause = e && e.cause && (e.cause.code || e.cause.message);
+    return {
+      error:
+        `Unity MCP server unreachable on port ${info.port}` +
+        (cause ? ` (${cause})` : "") +
+        ". " +
+        unityUnavailableReason(),
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -116,7 +169,10 @@ async function execUnity(command, parameters = {}) {
 
 async function listCommands() {
   const data = await unityFetch(`/api/commands?detail=compact`);
-  if (data.error) return [];
+  // This used to `return []` on error, discarding the message unityFetch
+  // built, so "Unity is not running" looked identical to "this Unity has no
+  // commands". Propagate it and let the caller decide.
+  if (data.error) return data;
   return data.commands || [];
 }
 
@@ -134,9 +190,17 @@ server.registerTool(
   },
   async () => {
     const commands = await listCommands();
-    return {
-      content: [{ type: "text", text: JSON.stringify(commands, null, 2) }],
-      isError: commands.length === 0,
+      // A JSON blob that merely contains an `error` key is what made this
+      // opaque; report the failure as readable text instead.
+      if (!Array.isArray(commands)) {
+        return {
+          content: [{ type: "text", text: commands.error || "Unity unavailable" }],
+          isError: true,
+        };
+      }
+      return {
+        content: [{ type: "text", text: JSON.stringify(commands, null, 2) }],
+        isError: commands.length === 0,
     };
   },
 );
@@ -148,7 +212,10 @@ async function isKnownCommand(command) {
     return cachedCommandNames.has(command);
   }
   const commands = await listCommands();
-  if (commands.length === 0) return true; // Preserve offline/legacy-server compatibility.
+  // listCommands returns the error object on failure, so test the shape rather
+    // than the length.
+    if (!Array.isArray(commands)) return true; // offline / legacy server
+    if (commands.length === 0) return true; // Preserve offline/legacy-server compatibility.
   cachedCommandNames = new Set(commands.map((entry) => typeof entry === "string" ? entry : entry?.name).filter(Boolean));
   commandCacheAge = now;
   return cachedCommandNames.has(command);

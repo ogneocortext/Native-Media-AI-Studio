@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed - unity-mcp-bridge reported an opaque error when Unity is not running
+
+`list_pipeline_commands` returned `isError=TRUE` with the message `[]`, then
+`fetch failed`. Three separate causes stacked up:
+
+1. `listCommands()` did `if (data.error) return []`, **discarding the transport
+   error entirely**. This was the real reason the message was empty - not the
+   fetch error text.
+2. `unityFetch` rethrew non-timeout failures, so Node's generic `fetch failed`
+   escaped instead of saying which port was unreachable and why.
+3. The port file was trusted blindly. It is written at startup and refreshed on
+   heartbeat, so it outlives a crash: the one on this machine was dated
+   2026-09-24, pointed at dead pid 13016, on a port with nothing listening.
+
+The port file is now validated before use - heartbeat age first (no syscall),
+then `process.kill(pid, 0)` - and a dead one is reported as stale rather than
+fetched. `unityFetch` returns a specific message, and the tool surfaces it as
+readable text with `isError: true`.
+
+It now says:
+
+```
+Unity MCP server is not running: the port file is stale (last heartbeat
+2026-09-24T15:00:39.180Z, pid 13016). Open the project in Unity, or start it
+headless with scripts/start-unity-headless.ps1
+```
+
+### Fixed - AGENTS.md MCP table claimed the wrong status
+
+The `Status` column said "Configured" for three bridges and "Running" for Unity.
+None of them were registered with any client until this session, and "Running" was
+wrong - Unity is not running. The column now reports **measured** tool counts and
+whether the tools actually execute, plus a new section mapping each client to the
+config that holds the servers (OpenCode, Kilo, Cline, and the two that have none).
+
+
 ### Fixed - two remaining hyperframes MCP defects
 
 `HYPERFRAMES_PROJECT` is now honoured. It is set in every MCP client config but
