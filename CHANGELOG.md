@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added - batched WSL bridge for essentia tempo estimation
+
+essentia has no Windows Python bindings, so `services/essentia_bridge.py` runs its
+`RhythmExtractor2013` inside WSL and returns the readings to the backend.
+
+**Batching is the whole design.** A `wsl.exe` round trip measured 5.65s, so a
+per-track API would take ~40s for a seven-track library. `probe_batch` analyses
+every requested track in one invocation; measured 31.3s for all seven.
+
+The contract is degradation, never failure. WSL stopped, venv missing, non-zero
+exit, non-JSON output, or timeout all return an empty mapping so callers fall back
+to the other estimators - verified against all four, none of which raise. A track
+that fails *inside* WSL comes back with an explicit `error` rather than being
+silently dropped, because a silent omission looks like a track nobody asked about,
+which is how a broken bridge hides.
+
+`stem_remixer.essentia_bpm_batch()` wraps it for the remix probe. End to end on the
+real library, all seven tracks return a usable tempo: Ad-Nauseam 143.63 (high,
+corroborated), Human-in-the-Loop 142.39 (medium, contradicting librosa's 71.78),
+take-the-crown 150.22 (high).
+
+18 tests, mutation-verified: removing path validation, letting a timeout raise,
+dropping per-track errors, or ignoring the distro/venv overrides each turn the
+suite red.
+
+### Fixed - path validation that accepted everything
+
+`to_wsl_path` checked the drive letter on the *resolved* path. On Windows
+`Path("relative/path").resolve()` attaches the CWD's drive, so a relative path
+became a plausible-looking but wrong `/mnt/d/...` path instead of being rejected —
+contradicting its own docstring. It now validates the original path.
+
+
 ### Added - tempo agreement rule, with the majority-vote failure it replaces
 
 `services/tempo_agreement.py` decides what tempo to believe from several

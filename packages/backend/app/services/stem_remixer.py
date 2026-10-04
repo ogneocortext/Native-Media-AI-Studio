@@ -45,6 +45,7 @@ from typing import Any
 import numpy as np
 
 from ..core.config import PROJECT_ROOT
+from . import essentia_bridge
 from .source_separation import SEPARATION_DIR, STEM_NAMES
 
 logger = logging.getLogger(__name__)
@@ -791,6 +792,30 @@ def _manifest_recipe(manifest: dict[str, Any]) -> dict[str, Any] | None:
         "beats_per_bar": manifest.get("beats_per_bar", 4),
         "slots": clean_slots,
     }
+
+
+def essentia_bpm_batch(tracks: list[str]) -> dict[str, float | None]:
+    """Tempo from essentia (via WSL) for many tracks, in ONE subprocess call.
+
+    Batching is not an optimisation detail: a wsl.exe round trip measured 5.65s,
+    so a per-track API would take ~40s for a seven-track library. Tracks whose stem
+    file is missing are omitted; a track that fails inside WSL comes back with a
+    None value, so callers can tell "no answer" from "never asked".
+
+    Returns an empty dict when the bridge is unavailable - the normal state when
+    WSL is stopped - and callers then fall back to the other estimators.
+    """
+    payload: dict[str, Path] = {}
+    for track in tracks:
+        try:
+            _stem, path = _pick_analysis_stem(track)
+        except (FileNotFoundError, ValueError):
+            continue
+        payload[track] = path
+    if not payload:
+        return {}
+    raw = essentia_bridge.probe_batch(payload)
+    return {t: (r["bpm"] if r.get("bpm") is not None else None) for t, r in raw.items()}
 
 
 def list_remixes_for_track(track: str) -> list[dict[str, Any]]:
