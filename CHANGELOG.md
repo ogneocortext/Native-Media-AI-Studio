@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added - MCP servers registered for Kilo Code and Cline
+
+`opencode.json` already registered all seven servers, so OpenCode needed nothing.
+The other two did not have any:
+
+- **Kilo** - `.kilo/kilo.jsonc`, key `mcp`, `command` as an array
+- **Cline** - `~/.cline/mcp.json`, key `mcpServers`, `command` as a string plus `args`
+
+Both encode two Windows realities the original opencode.json leaves to chance:
+`node` resolves to its **absolute fnm path** (AGENTS.md warns the fnm alias is not
+the newest node), and script paths are **absolute**, because clients do not all
+honour `cwd` and this repo's path contains spaces.
+
+Verified by launching each server **from the command exactly as written in each
+config**, not a reconstruction, and calling a tool: both schemas spawn correctly.
+
+`ollama-tools` (10 tools) and `vision` (13) execute. `unity` ships **disabled** -
+it is not broken, it needs Unity Editor running, and its port file is stale. Enabled
+but broken would be worse than visibly off.
+
+### Fixed - hyperframes could not pass a path on Windows
+
+Every path-taking tool in `hyperframes-mcp.mjs` failed with:
+
+```
+Unexpected extra arguments for hyperframes init: of, Important, Data, for, ...
+```
+
+It spawned with `shell: true`, which re-splits argv on spaces, and this repo lives
+at `D:\Backup of Important Data for Windows 11 Upgrade\...`.
+
+Fixing it needed two corrections, not one. Dropping the shell gave `spawn EINVAL`,
+because Node refuses to spawn `.cmd`/`.bat` without one since CVE-2024-27980. The
+working answer resolves npm's `npx-cli.js` and runs it through `node`, so argv is
+passed verbatim and no command shim is involved.
+
+Verified: `hyperframes_init` now reports the **full correct path** instead of split
+tokens. Two issues remain and are *not* fixed: `hyperframes_list_examples` passes a
+`--list-examples` flag the installed hyperframes 0.8.125 does not accept, and
+`HYPERFRAMES_PROJECT` is ignored in favour of a module constant.
+
+
 ### Fixed - unity-mcp-bridge refused to start, taking every Unity tool with it
 
 `tools/mcp/unity-mcp-bridge.mjs` registered `list_pipeline_commands` **twice** (near

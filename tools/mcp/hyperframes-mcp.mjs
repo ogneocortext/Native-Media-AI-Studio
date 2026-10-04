@@ -16,8 +16,39 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 const TEST_PROJECT = path.resolve(PROJECT_ROOT, "tools", "hyperframes-test");
-const HYPERFRAMES_BIN = "npx";
-const HYPERFRAMES_ARGS = ["hyperframes"];
+// How to launch hyperframes, chosen to survive Windows.
+//
+//  * `shell: true` re-splits argv on spaces, so this repo's path
+//    ("D:\\Backup of Important Data...") arrived as separate tokens and every
+//    path-taking tool failed with "Unexpected extra arguments ... of, Important".
+//  * `shell: false` with "npx.cmd" fails with `spawn EINVAL`: Node refuses to
+//    spawn .cmd/.bat without a shell since CVE-2024-27980.
+//
+// So resolve npm's npx entry script and run it with node. argv is then passed
+// verbatim and no command shim is involved.
+function resolveNpxInvocation() {
+  if (process.platform !== "win32") {
+    return { command: "npx", prefix: [] };
+  }
+  const candidates = [
+    process.env.NPX_CLI_JS,
+    path.join(
+      process.env.APPDATA || "",
+      "npm", "node_modules", "npm", "bin", "npx-cli.js",
+    ),
+  ].filter(Boolean);
+  for (const js of candidates) {
+    if (existsSync(js)) {
+      return { command: process.execPath, prefix: [js] };
+    }
+  }
+  // Last resort: the .cmd shim, which does need a shell.
+  return { command: "npx", prefix: [], shell: true };
+}
+
+const NPX = resolveNpxInvocation();
+const HYPERFRAMES_BIN = NPX.command;
+const HYPERFRAMES_ARGS = [...NPX.prefix, "hyperframes"];
 
 function generateRequestId() {
   return `hf_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -43,7 +74,7 @@ async function runHyperframes(args, timeoutMs = 600000) {
       cwd: TEST_PROJECT,
       env: { ...process.env },
       stdio: ["pipe", "pipe", "pipe"],
-      shell: true,
+      shell: NPX.shell === true,
     });
     let out = "",
       err = "";
@@ -289,7 +320,7 @@ async function executeHyperframesTool(name, args) {
         env: { ...process.env },
         stdio: ["ignore", "pipe", "pipe"],
         detached: true,
-        shell: true,
+        shell: NPX.shell === true,
       });
       child.unref();
       const url = `http://127.0.0.1:${port || 3000}`;
