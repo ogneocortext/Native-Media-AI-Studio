@@ -483,19 +483,13 @@ server.registerTool(
   },
 );
 
-server.registerTool(
-  "list_pipeline_commands",
-  {
-    description: "List all available Unity Pipeline commands (100+ commands).",
-    inputSchema: z.object({}),
-  },
-  async () => {
-    const commands = await listCommands();
-    return {
-      content: [{ type: "text", text: JSON.stringify(commands, null, 2) }],
-    };
-  },
-);
+// NOTE: `list_pipeline_commands` is registered once, above (near the top of the
+// file). It used to be registered here a second time, which made this bridge
+// throw `Error: Tool list_pipeline_commands is already registered` on startup,
+// so the whole server - and therefore every Unity tool here - was unreachable.
+// The duplicate is removed rather than renamed: both copies returned the same
+// listCommands() payload, and the surviving registration is the earlier one,
+// which also flags an empty command list via `isError`.
 
 server.registerTool(
   "plan_unity_scene",

@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed - unity-mcp-bridge refused to start, taking every Unity tool with it
+
+`tools/mcp/unity-mcp-bridge.mjs` registered `list_pipeline_commands` **twice** (near
+the top, and again mid-file). `McpServer.registerTool` throws on a duplicate name,
+so the server died on startup with:
+
+```
+Error: Tool list_pipeline_commands is already registered
+    at unity-mcp-bridge.mjs:486
+```
+
+That made all 12 of its tool registrations unreachable, not just the duplicated
+one - the bridge answered no MCP request at all.
+
+Found while sizing the openclaw integration: an `initialize` handshake against each
+bridge showed `ollama-tools-mcp`, `vision-mcp` and `hyperframes-mcp` responding
+correctly while `unity-mcp-bridge` returned nothing. Pre-existing, from commit
+`4611c36`; not introduced by any recent change.
+
+Verified after the fix: handshake succeeds (`unity-mcp-bridge` 1.1.0) and `tools/list`
+advertises **17 tools**, with `list_pipeline_commands` present exactly once. A scan
+of every `registerTool` call confirms no remaining duplicates.
+
+### Fixed - reclaimed 2.84 GB
+
+Deleted a stale `.openclaw-backup-publish-*/archive.tar.gz.tmp` (2026-09-15) left in
+the repo root - gitignored, zero tracked files. Note it was on **D:**, not C:; the
+repo root is `D:\Backup of...`. D: went 362.28 -> 365.12 GB.
+
+
 ### Added - batched WSL bridge for essentia tempo estimation
 
 essentia has no Windows Python bindings, so `services/essentia_bridge.py` runs its
