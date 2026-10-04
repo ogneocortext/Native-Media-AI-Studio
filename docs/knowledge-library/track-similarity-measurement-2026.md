@@ -132,7 +132,45 @@ distribution centres on `129.20`, with only 2.2% of frames agreeing. Sharpness
 separates good from bad, but it is a *confidence* measure, not a better estimator -
 it tells you when to refuse an answer, not what the right answer is.
 
-**Currently 2 of 5 library tracks produce a usable tempo.**
+**At this point 2 of 5 library tracks produced a usable tempo.** Section 6a
+supersedes that: a third estimator later settled both open cases.
+
+## 6a. Resolution: essentia in WSL settles what librosa and madmom could not (2026-10-02)
+
+The open question above — *is* Human-in-the-Loop at 71.8 or 142? — was answered
+by a third, independent algorithm. See section 11 for how it was run.
+
+| track | librosa | madmom | **essentia (multifeature)** | resolution |
+|---|---|---|---|---|
+| take-the-crown | 152.00 | 150.00 | **150.22** | madmom + essentia agree |
+| Ad-Nauseam | 143.55 | 72.29 | **143.63** | librosa + essentia agree |
+| Human-in-the-Loop | 71.78 | 71.43 | **142.39** | **essentia doubles both** |
+| ec2c16... (10s fixture) | 99.38 | 120.00 | 122.28 | madmom + essentia agree |
+| demucs_test_input (10s fixture) | 152.00 | 152.00 | 120.03 | all three disagree |
+
+**This corrects two earlier claims in this document.**
+
+1. **Human-in-the-Loop is at ~142 BPM, not ~72.** librosa *and* madmom both
+   returned the half-tempo reading and agreed with each other, so agreement between
+   two estimators proved nothing here. essentia returns 142.39 — within 0.1% of
+   Ad-Nauseam's 143.63. The "suspect" label in the table above was right and the
+   consensus reading was wrong.
+2. **On Ad-Nauseam, madmom is the outlier**, not librosa. madmom's 0.504 ratio was
+   previously reported as a shared failure of the octave problem; with essentia
+   corroborating librosa, it is madmom that folded.
+
+The two 10-second fixtures disagree across all three methods. That is consistent
+with them being test fixtures, and they should be excluded from ranking anyway
+(`MIN_SOURCE_SECONDS` in `RemixPanel` already does this).
+
+### The rule this supports
+
+> Accept a tempo only when **two of three independent estimators agree within ~5%
+> after octave folding**, taking the majority's octave.
+
+Single-estimator agreement is not evidence. The sharpest lesson: two independent
+methods agreeing on a *wrong* octave is exactly what the majority vote exists to
+catch.
 
 ## 7. Finding 6: chroma similarity fails too, and the control test is what shows it
 
@@ -198,19 +236,29 @@ estimator.** The honest options:
    (`madmom.features.beats.RNNBeatProcessor` with
    `madmom.features.tempo.TempoEstimationProcessor`) is the standard accurate
    offline approach and specifically targets the octave problem madmom's comb
-   histogram addresses. **Not installed in this environment** - librosa is the
-   only MIR library present, so this is an install decision, not a code change.
+   histogram addresses. **Now superseded** - see section 11. The comb-filter
+   `tempo` module is *not* in `madmom-infer` (it ships only `beats_hmm` and
+   `downbeats`), and on this material the installed port folded Ad-Nauseam to
+   72.29 where essentia and librosa both said ~143.5.
+
+4. **Use essentia's RhythmExtractor2013 (WSL) - now the recommended path.** It is
+   the third independent estimator section 6a relies on, and it is the only
+   candidate that actually resolved a disputed octave. See section 11.
 
 ### Tools surveyed
 
-- **madmom** (not installed) - RNN beat activation + comb-filter tempo histogram.
-  Offline-focused, the reference answer for accurate tempo. Böck et al., ISMIR
-  2015. Beats/tempo/key/chords modules.
+- **madmom-infer 0.2.0** (installed, Windows) - RNN beat/downbeat tracking. Ships
+  `beats_hmm` and `downbeats` only; the comb-filter `tempo` module the 2015 paper
+  describes is **absent from this port**. It has the same octave ambiguity and
+  folded Ad-Nauseam, so it is a useful second opinion but not a resolver.
+- **essentia 2.1b6.dev1438** (installed, **WSL only**) - RhythmExtractor2013 with
+  `multifeature` and `degara` methods. The third estimator; see section 11.
 - **BeatNet** (not installed) - CRNN + particle filtering, streaming and offline,
   sub-50ms latency, also does downbeat and meter.
-- **librosa** (installed, 0.11.0) - `beat_track`, `feature.tempo`,
+- **librosa 0.11.0** (installed) - `beat_track`, `feature.tempo`,
   `feature.chroma_cens`. Lightest option, and the weakest of the three on octave
   handling.
+- **aubio 0.4.9** (builds, but not recommended) - see section 12.
 - **Chromaprint / AcoustID** - acoustic fingerprints for *identification*, not
   similarity ranking. Requires raw PCM and an external fingerprint database. Wrong
   tool here.
@@ -232,3 +280,81 @@ Lessons that generalise:
 - Always include a control row (section 7).
 - A surprising agreement between two unrelated items is usually a shared default,
   not a shared property (sections 2, 4).
+
+- **Two independent methods agreeing is still not proof** — they can fold to the
+  same wrong octave. That is what the third opinion in section 6a is for.
+- Read the failing line, not just the error class. `Failed building wheel for
+  essentia` reads like a missing compiler; the actual `IndexError` was
+  `glob.glob('tmp/lib/python*/*-packages/essentia')[0]` returning empty because the
+  build assumes a POSIX layout. No compiler fixes that.
+
+## 11. How essentia runs here: WSL only, and why
+
+**essentia cannot be installed on Windows, at all.** Verified, not assumed:
+
+- Its own docs: *"Essentia C++ library and extractors based on it can be compiled
+  and run correctly on Windows, but **Python bindings are not supported yet**."*
+- No Windows wheel on PyPI. Latest is a 2019 sdist; `2.1_beta5` ships cp27-cp37
+  `manylinux` only.
+- Upstream issue #1495, "Python bindings for Windows", opened Dec 2025 - still
+  open, unassigned.
+- **The build failure is structural.** `pip install essentia` on Windows dies at
+  `setup.py` line 46:
+  `library = glob.glob('tmp/lib/python*/*-packages/essentia')[0]` -> `IndexError`.
+  The build runs `waf configure` first and expects Unix output paths. MSVC 14.44
+  and 14.51 are both installed on this machine and neither helps: the problem is a
+  filesystem assumption, not a missing toolchain.
+
+### The working route
+
+WSL2 Ubuntu 26.04 (already installed, used for Node tooling - nvm/Node 24 and
+`openclaw`). essentia installs there from a **prebuilt manylinux wheel**, no
+compile:
+
+```
+apt-get install -y python3-venv python3-pip
+python3 -m venv <venv>
+<venv>/bin/pip install essentia      # -> 2.1b6.dev1438, cp314 manylinux2014_x86_64
+```
+
+Usage: `RhythmExtractor2013(method="multifeature")(audio)` returns a 5-tuple;
+index 0 is BPM and index 2 is confidence. `MonoLoader(filename=..., sampleRate=44100)`
+reads the file.
+
+### Operational notes
+
+- **Throughput:** ~34x realtime (124 s of audio analysed in 3.6 s). A 10 s clip
+  takes ~0.3 s. Fast enough to run inside a probe, not just offline.
+- **Deterministic:** three repeats on Human-in-the-Loop all returned 142.39.
+- **`/tmp` is wiped between WSL sessions.** A probe venv placed there vanished
+  mid-investigation. Anything persistent must live outside `/tmp`.
+- **Disk:** the WSL virtual disk is a 24.69 GB `ext4.vhdx` on C:, of which
+  `/var/snap` is 18 GB (pre-existing snap data, not ours). The essentia venv is
+  ~128 MB. On a machine where C: is nearly full, place the venv on D: via
+  `/mnt/d` rather than growing the C: vhdx.
+
+## 12. aubio: builds, then fights you (not recommended)
+
+`pip install aubio==0.4.9` **does** build on Windows given MSVC - it produced
+`aubio-0.4.9-cp311-cp311-win_amd64.whl`. But every documented calling convention
+fails on this build:
+
+| call | result |
+|---|---|
+| `aubio.tempo(path)` | `failed creating tempo` |
+| `aubio.tempo(aubio.source(...))` | `argument 1 must be str` |
+| `aubio.tempo(src, samplerate=...)` (the documented form) | `invalid keyword argument` |
+| `aubio.onset(path)` / `aubio.pitch(path)` | `failed creating onset/pitch` |
+
+Reproduced on a synthetic 120 BPM click train and on a space-free temp path, so it
+is neither the audio nor the spaces in `D:\Backup of Important Data...`. The only
+form that works is undocumented: construct with no args and hand-feed 512-frame
+buffers.
+
+Measured with that workaround: 152.37 and 152.17 on the two tracks where all
+methods agree, but **133.03 at confidence -13.14** and **192.45 at confidence
+-0.00** on the two disputed ones. It corroborates nothing that is in dispute.
+
+Rejected: it would mean a hand-rolled buffer-feeding loop around a 2019 sdist
+(last release 2019-02-08) whose documented API does not work, in exchange for
+agreement only on cases already agreed.

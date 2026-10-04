@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed - the octave question is settled: essentia in WSL as a third opinion
+
+`docs/knowledge-library/track-similarity-measurement-2026.md` gains sections 6a,
+11 and 12, and **corrects two earlier claims**. A third independent estimator
+(essentia `RhythmExtractor2013`) answers what librosa and madmom could not:
+
+| track | librosa | madmom | essentia |
+|---|---|---|---|
+| take-the-crown | 152.00 | 150.00 | **150.22** |
+| Ad-Nauseam | 143.55 | 72.29 | **143.63** |
+| Human-in-the-Loop | 71.78 | 71.43 | **142.39** |
+
+1. **Human-in-the-Loop is ~142 BPM, not ~72.** librosa *and* madmom both returned
+   the half-tempo reading and agreed with each other, so agreement between two
+   estimators proved nothing. essentia says 142.39, within 0.1% of Ad-Nauseam.
+2. **On Ad-Nauseam, madmom is the outlier**, not librosa.
+
+The supporting rule: accept a tempo only when two of three estimators agree within
+~5% after octave folding, taking the majority's octave.
+
+Also records why this is WSL-only — essentia's Python bindings are unsupported on
+Windows structurally (its `setup.py` dies on
+`glob.glob('tmp/lib/python*/*-packages/essentia')[0]`, a POSIX layout assumption, not
+a missing compiler) — and why aubio is rejected despite building.
+
+
 
 ### Added - mashup lineage in the Media Library, and reopening an arrangement
 
