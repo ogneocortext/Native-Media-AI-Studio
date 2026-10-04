@@ -15,7 +15,9 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
-const TEST_PROJECT = path.resolve(PROJECT_ROOT, "tools", "hyperframes-test");
+const TEST_PROJECT = process.env.HYPERFRAMES_PROJECT
+  ? path.resolve(PROJECT_ROOT, process.env.HYPERFRAMES_PROJECT)
+  : path.resolve(PROJECT_ROOT, "tools", "hyperframes-test");
 // How to launch hyperframes, chosen to survive Windows.
 //
 //  * `shell: true` re-splits argv on spaces, so this repo's path
@@ -379,10 +381,13 @@ async function executeHyperframesTool(name, args) {
   if (name === "hyperframes_list_examples") {
     logRequest(reqId, "hyperframes_list_examples", "");
     try {
-      const result = await runHyperframes(["init", "--list-examples"], 30000);
+      // `init --list-examples` does not exist in hyperframes 0.8.125 - the CLI
+      // rejects it with "Unknown flag", so this tool could never succeed.
+      // `catalog` is the supported registry listing and runs headlessly.
+      const result = await runHyperframes(["catalog"], 60000);
       logRequest(reqId, "hyperframes_list_examples", "ok");
       return textResponse(
-        `Available templates:\n\n${result.stdout}\n\n${result.stderr}`,
+        `Available components (hyperframes catalog):\n\n${result.stdout}\n\n${result.stderr}`,
       );
     } catch (e) {
       logRequest(reqId, "hyperframes_list_examples", `error=${e.message}`);

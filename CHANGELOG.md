@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed - two remaining hyperframes MCP defects
+
+`HYPERFRAMES_PROJECT` is now honoured. It is set in every MCP client config but
+was never read - `TEST_PROJECT` was a hardcoded constant, so the variable was a
+silent no-op and every client operated on the same directory regardless of its own
+settings. Verified: with the variable set to a fresh path, `hyperframes_init`
+succeeds and scaffolds at that path.
+
+`hyperframes_list_examples` no longer calls a flag that does not exist. It ran
+`hyperframes init --list-examples`, which hyperframes 0.8.125 rejects with
+`Unknown flag: --list-examples`, so the tool could never succeed. It now calls
+`hyperframes catalog`, the supported registry listing, verified to run headlessly
+(exit 0).
+
+With both fixed, the bounded tools all execute: `hyperframes_status`,
+`hyperframes_list_examples`, `hyperframes_lint`, `hyperframes_read_composition` and
+`hyperframes_read_assets` all return `isError=false`. `hyperframes_init` succeeds
+against an empty directory. `hyperframes_preview` (2 min) and `hyperframes_render`
+(10 min) are long-running by design and were not exercised here.
+
+
 ### Added - MCP servers registered for Kilo Code and Cline
 
 `opencode.json` already registered all seven servers, so OpenCode needed nothing.
