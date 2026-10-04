@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added - tempo agreement rule, with the majority-vote failure it replaces
+
+`services/tempo_agreement.py` decides what tempo to believe from several
+independent estimators. It is deliberately **not** a majority vote, because the
+obvious 2-of-3 rule was implemented, measured failing, and deleted:
+
+With librosa=71.78, madmom=71.43, essentia=142.39, "two of three agree" picks
+**71.61** and discards essentia. 71.78 and 142.39 differ by a factor of 1.98 —
+they are *octave partners*, so their disagreement is not observable from the
+numbers, and the pair that agrees is merely the pair sharing a reading.
+
+What actually resolved the case was that essentia's `RhythmExtractor2013` is a
+better algorithm on this material, not that it was in a majority. So essentia is
+the **primary**; librosa and madmom corroborate or contradict but cannot overrule
+it. Result on the five measured tracks: Human-in-the-Loop 142.39 (not 71.78),
+Ad-Nauseam 143.63 (madmom outvoted), take-the-crown 150.22 (all agree).
+
+Confidence is explicit: `high` (primary + corroboration), `medium` (primary
+alone), `low` (fallback, primary unavailable), `none`. With essentia missing the
+rule still answers but flags `low`, because losing the primary is exactly how the
+wrong tempo gets accepted.
+
+27 tests, mutation-verified: making the primary lose to whoever agrees first,
+naming librosa as the authority, accepting the 0.0 sentinel, disabling octave
+folding, and inflating the fallback confidence each turn the suite red.
+
+
 ### Changed - the octave question is settled: essentia in WSL as a third opinion
 
 `docs/knowledge-library/track-similarity-measurement-2026.md` gains sections 6a,
