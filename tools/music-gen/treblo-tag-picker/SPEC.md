@@ -31,9 +31,11 @@ standalone page. Mirror how `music_prompts.py` + `music_prompt_generator.py` +
    (4,160 tags in page order + `related_index`). The backend service loads it once at
    startup via `PROJECT_ROOT`; the JSON is the single source of truth, never hand-edit.
 2. **Backend service:** new `packages/backend/app/services/treblo_tag_picker.py` —
-   `search_tags(query)` (fuzzy/substring, ranked), `related_tags(tag)` (resolve
-   `related_index` entries through `tags[i]`), `build_tag_string(selection)`
-   (comma-joined, deduped, order-preserved).
+   `search_tags(query)` — case-insensitive; rank exact match > prefix match >
+   substring match > fuzzy (simple typo-tolerant subsequence). 4,160 tags fit in
+   memory; no index precomputation needed.
+   `related_tags(tag)` (resolve `related_index` entries through `tags[i]`),
+   `build_tag_string(selection)` (comma-joined, deduped, order-preserved).
 3. **API:** extend `packages/backend/app/api/music_prompts.py` (or add a sibling
    router and register it in `main.py` exactly like the existing one) —
    `GET /treblo-tags/search?q=`, `GET /treblo-tags/related?tag=`,
@@ -41,6 +43,15 @@ standalone page. Mirror how `music_prompts.py` + `music_prompt_generator.py` +
 4. **Frontend:** new panel in `packages/frontend/src/features/music-prompts/`
    (e.g. `TrebloTagPicker.tsx`) reusing the `MusicPromptGenerator.tsx` UI patterns:
    search box, ranked results, selection tray, related-tag suggestions, copy button.
+
+### UX composition — the workbench vision
+The picker is the second tool in the music-prompts workbench section, alongside the
+existing prompt generator — not a replacement. Present them as sibling panels (tabs or
+side-by-side) in the same section: the generator engineers prose/structure, the picker
+supplies exact verified tags. The picker's tag string must be paste-compatible with the
+generator's Suno v6 style field (both are comma-separated tag-style fields), so a user
+can engineer the prompt in one panel and refine its tags in the other. No deeper
+coupling in v1 — no auto-merging of LLM output with picked tags.
 
 ## Data file: `treblo-tags.json`
 ```json
