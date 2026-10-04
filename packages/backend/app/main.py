@@ -554,6 +554,7 @@ from .api import (  # noqa: E402
     notifications,
     outputs,
     transcription,
+    treblo_tags,
     unity_control,
     video,
     vision,
@@ -565,6 +566,7 @@ app.include_router(hardware.router)
 app.include_router(gen3d.router)
 app.include_router(integrations.router)
 app.include_router(outputs.router)
+app.include_router(treblo_tags.router)
 app.include_router(audio.router)
 # Stem routes live in their own module but share the /api/audio prefix, so the
 # public paths are unchanged. Keep this next to the audio include - splitting

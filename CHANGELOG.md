@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added - Treblo Tag Picker (backend)
+
+Implements `tools/music-gen/treblo-tag-picker/SPEC.md`. A local search tool over
+Treblo's 4,160 published v3 style tags, producing a paste-ready tag string. **No
+third-party calls** - the hard boundary in the spec: every route reads the JSON
+that ships in the repo.
+
+`services/treblo_tag_picker.py` loads it once via `PROJECT_ROOT`, mirroring
+`music_prompt_generator`. Search is tiered - exact, prefix, word-prefix,
+substring, then a typo-tolerant subsequence - with the site's page order as the
+tie-break, because that order is curated and beats alphabetical.
+
+`api/treblo_tags.py` adds `/search`, `/related`, `/build` and `/count`, registered
+in `main.py`. All four spec acceptance criteria verified against the live app:
+`search? q=phonk` returns `phonk` first with drift/rare/house phonk present;
+`related? tag=drift phonk` includes `memphis rap` and `trap`; `build` returns
+`drift phonk, phonk, dark, aggressive`.
+
+24 tests, mutation-verified: dropping the tiering, demoting exact matches, making
+dedupe case-sensitive, sorting the output, or ignoring the limit each turns the
+suite red.
+
+### The spec's non-Latin script claim is wrong
+
+SPEC.md says the tag set contains "non-Latin scripts (Arabic, Korean, Chinese,
+Cyrillic, Greek)". Measured against the shipped data: 145 tags carry non-ASCII
+characters and they are **accented Latin** (`corée`, `forró`, `laïkó`,
+`norteño`). Hangul count is **zero** and CJK is **one**. The test asserts against
+what is actually in the file rather than what the spec says, so it keeps its
+meaning if the data is re-extracted.
+
 ### Fixed - unity-mcp-bridge reported an opaque error when Unity is not running
 
 `list_pipeline_commands` returned `isError=TRUE` with the message `[]`, then
