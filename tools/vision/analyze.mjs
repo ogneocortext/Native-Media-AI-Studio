@@ -390,7 +390,32 @@ async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOp
   }
 
   const result = await response.json();
-  return { text: result.message?.content || result.response || '', done_reason: result.done_reason || '' };
+
+  // Reasoning-capable vision models (qwen3-vl, minicpm-v) can spend the entire
+  // output budget on chain-of-thought and return `done_reason: "length"` with an
+  // EMPTY `content`, putting everything in a separate `thinking` field.
+  // Measured on this machine (8 GB card, desktop holding ~5 GB):
+  //   qwen3-vl:2b  content  39 chars, 277 tok, done_reason "stop"   -> fine
+  //   qwen3-vl:4b  content   0 chars, 768 tok, thinking 2331 chars -> "empty analysis"
+  //   gemma4-vision-optimized  content 80 chars but 768 tok, "length" (verbose)
+  // Reading only `content` turned the second row into "all backends returned empty
+  // analysis" and, because DEFAULT and FALLBACK were both qwen3-vl:2b, the retry
+  // re-ran the same path. Note `think: false` does NOT help - qwen3-vl:4b still
+  // emitted 2114 chars of thinking with a zero-length content at the same budget.
+  //
+  // Thinking is a worse answer than content, but a far better answer than nothing,
+  // so fall back to it and tell the caller which one it is reading.
+  const content = result.message?.content || result.response || "";
+  const thinking = result.message?.thinking || "";
+  const usedThinking = !content.trim() && !!thinking.trim();
+  const text = usedThinking ? thinking : content;
+  if (usedThinking) {
+    console.error(
+      `[vision] ${model}: content empty (done_reason=${result.done_reason || "?"}); ` +
+        `using ${thinking.length} chars of thinking output as the analysis.`
+    );
+  }
+  return { text, done_reason: result.done_reason || '', fromThinking: usedThinking };
 }
 
 async function analyzeWithAtomicChat(images, prompt, model, maxTokens = 4096, encOpts = {}) {

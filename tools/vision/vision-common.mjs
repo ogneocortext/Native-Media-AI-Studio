@@ -10,7 +10,13 @@ export const VISION_QUALITY = parseInt(process.env.VISION_QUALITY || '80');
 export const VISION_KEEP_ALIVE = process.env.VISION_KEEP_ALIVE || '10m';
 export const VISION_NUM_CTX = parseInt(process.env.VISION_NUM_CTX || '8192');
 export const DEFAULT_VISION_MODEL = process.env.VISION_MODEL || 'qwen3-vl:2b';
-export const VISION_FALLBACK_MODEL = process.env.VISION_FALLBACK_MODEL || 'qwen3-vl:2b';
+// Must NOT equal DEFAULT_VISION_MODEL. It used to, which made the fallback a no-op
+// retry of the model that had just failed and reported itself as a second backend.
+// Measured on an 8 GB card with the desktop holding ~5 GB, gemma4:e2b-it-qat was
+// the fastest model that terminated cleanly (41 s, done_reason "stop"); qwen3-vl:4b
+// returned empty content at 121 s and minicpm-v:8b did not finish inside 150 s.
+// Override with VISION_FALLBACK_MODEL if your machine has more VRAM.
+export const VISION_FALLBACK_MODEL = process.env.VISION_FALLBACK_MODEL || 'gemma4:e2b-it-qat';
 
 function baseName(name) {
   return String(name || '').split(':')[0].toLowerCase();
@@ -126,5 +132,11 @@ export async function analyzeWithOllama(images, prompt, model, numPredict = 4096
     throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
   }
   const data = await res.json();
-  return data.response || '';
+  // /api/chat returns the answer at `message.content`, NOT at `response` (that is
+  // the /api/generate shape). Reading `data.response` here always yielded ''.
+  const content = data.message?.content || data.response || '';
+  // Reasoning models can burn the whole budget on chain-of-thought and return an
+  // empty content plus a populated `thinking` field. Better than returning nothing.
+  const thinking = data.message?.thinking || '';
+  return !String(content).trim() && thinking.trim() ? thinking : content;
 }

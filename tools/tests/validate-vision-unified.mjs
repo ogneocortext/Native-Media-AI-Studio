@@ -44,6 +44,14 @@ async function main() {
   assert(VISION_NUM_CTX >= 1024, `VISION_NUM_CTX sane: ${VISION_NUM_CTX}`);
   assert(DEFAULT_VISION_MODEL.length > 0, `DEFAULT_VISION_MODEL set: ${DEFAULT_VISION_MODEL}`);
   assert(VISION_FALLBACK_MODEL.length > 0, `VISION_FALLBACK_MODEL set: ${VISION_FALLBACK_MODEL}`);
+  // Regression guard. Both were 'qwen3-vl:2b', which made the fallback a no-op
+  // retry of the model that had just failed while the retry log claimed a second
+  // backend had been tried. A fallback that is not a different model is not a
+  // fallback at all, so this must hold unless an operator sets both deliberately.
+  assert(
+    DEFAULT_VISION_MODEL !== VISION_FALLBACK_MODEL,
+    `fallback differs from default: ${DEFAULT_VISION_MODEL} -> ${VISION_FALLBACK_MODEL}`,
+  );
 
   assert(baseName('qwen3-vl:2b') === 'qwen3-vl', 'baseName strips tag');
   assert(baseName('gemma4:e2b-it-qat') === 'gemma4', 'baseName strips colon tag');
