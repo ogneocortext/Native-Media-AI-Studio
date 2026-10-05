@@ -40,12 +40,40 @@ export async function getOllamaModels(): Promise<OllamaModel[]> {
   if (!res.ok) throw new Error("Failed to get Ollama models");
   const payload = await res.json();
   const entries = Array.isArray(payload) ? payload : payload.models || [];
+  // The two handlers that have served this path disagreed on field names: the one
+  // actually reachable returned snake_case (`model_name`, `supports_tools`,
+  // `vram_required`), while this type declared camelCase. `name` and `size` were
+  // already reconciled here, but `supportsTools` / `supportsVision` /
+  // `vram_estimate_mb` were not, so every consumer of them read `undefined` -
+  // measured consumers: the AI Tools model list, its sidebar badges, and the VRAM
+  // figure in Ollama Chat. Normalise all of them at this one boundary so the rest
+  // of the frontend can trust the type.
   return entries
-    .map((model: OllamaModel & { id?: string; model_name?: string; model_size?: number }) => ({
-      ...model,
-      name: model.name || model.id || model.model_name || "",
-      size: model.size ?? model.model_size ?? 0,
-    }))
+    .map((model: OllamaModel & Record<string, unknown>) => {
+      const caps = (model.capabilities as string[] | undefined) ?? [];
+      const pick = (...keys: string[]): unknown => {
+        for (const k of keys) {
+          if (model[k] !== undefined && model[k] !== null) return model[k];
+        }
+        return undefined;
+      };
+      return {
+        ...model,
+        name: (model.name as string) || (pick("model_name", "id") as string) || "",
+        size: (model.size as number) ?? (pick("model_size") as number) ?? 0,
+        capabilities: caps,
+        // Prefer the server's explicit flags; fall back to the capability list,
+        // which Ollama populates authoritatively on 0.35.x.
+        supportsTools:
+          (pick("supportsTools", "supports_tools") as boolean | undefined) ??
+          caps.includes("tools"),
+        supportsVision:
+          (pick("supportsVision", "supports_vision") as boolean | undefined) ??
+          caps.includes("vision"),
+        vram_estimate_mb:
+          (pick("vram_estimate_mb", "vram_required") as number | undefined) ?? 0,
+      };
+    })
     .filter((m: OllamaModel) => {
       const name = m.name.toLowerCase();
       return (

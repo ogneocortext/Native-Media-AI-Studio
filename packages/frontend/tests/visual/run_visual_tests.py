@@ -18,6 +18,13 @@ import json
 import os
 import sys
 import time
+
+# `urllib.request` and `urllib.error` are used by the Ollama vision call below.
+# They were never imported, so that function raised NameError the first time it ran
+# rather than at import time - which is why nothing caught it. Import both: importing
+# urllib.request alone does not bind urllib.error.
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
