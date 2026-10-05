@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from .stem_curves import downsample_curve
+
 logger = logging.getLogger(__name__)
 
 # Target number of energy-curve samples for visualization uniforms.
@@ -26,19 +28,6 @@ STEM_UNIFORM_MAP = {
 }
 
 
-def _downsample_curve(curve: list[float], target: int) -> list[float]:
-    if not curve:
-        return []
-    if len(curve) <= target:
-        return [float(v) for v in curve]
-    segment = len(curve) / target
-    out: list[float] = []
-    for i in range(target):
-        start = int(i * segment)
-        end = int((i + 1) * segment)
-        chunk = curve[start:end]
-        out.append(max(chunk) if chunk else 0.0)
-    return out
 
 
 def _normalize_curve(curve: list[float]) -> list[float]:
@@ -89,3 +78,8 @@ async def get_stem_visualization_uniforms(filename: str) -> dict[str, Any]:
         "uniforms": uniforms,
         "curve_points": _UNIFORM_CURVE_POINTS,
     }
+
+
+# Re-exported: this used to be defined here, duplicated from stem_analysis.
+# One implementation now lives in stem_curves, so a fix reaches both callers.
+_downsample_curve = downsample_curve

@@ -14,6 +14,7 @@ from typing import Any
 
 from . import source_separation
 from .source_separation import source_separator
+from .stem_curves import downsample_curve
 
 logger = logging.getLogger(__name__)
 
@@ -22,20 +23,6 @@ logger = logging.getLogger(__name__)
 _STEM_CURVE_POINTS = 80
 
 
-def _downsample_curve(curve: list[float], target: int) -> list[float]:
-    if not curve:
-        return []
-    if len(curve) <= target:
-        return [float(v) for v in curve]
-    # Simple max-pooling per segment preserves peaks better than mean.
-    segment = len(curve) / target
-    out: list[float] = []
-    for i in range(target):
-        start = int(i * segment)
-        end = int((i + 1) * segment)
-        chunk = curve[start:end]
-        out.append(max(chunk) if chunk else 0.0)
-    return out
 
 
 async def analyze_stems_for_visualization(filename: str) -> dict[str, Any]:
@@ -87,3 +74,8 @@ def _find_stem_dir(filename: str) -> Path | None:
     existing call sites in this file stay readable.
     """
     return source_separation.find_stem_dir(filename)
+
+
+# Re-exported: this used to be defined here, duplicated from stem_analysis.
+# One implementation now lives in stem_curves, so a fix reaches both callers.
+_downsample_curve = downsample_curve

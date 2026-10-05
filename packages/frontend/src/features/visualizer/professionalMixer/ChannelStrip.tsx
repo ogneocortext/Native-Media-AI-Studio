@@ -19,6 +19,11 @@ import { COMPRESSOR_PRESETS } from "./types";
 import { BUS_LABELS, type BusName, type StemRouting } from "./stemBus";
 import type { StemName } from "../components/StemMixer";
 import type { ChannelStripState } from "./types";
+// Was redefined here, byte-identical to the exported copy in useProfessionalMixer.
+// useProfessionalMixer does not import ChannelStrip, so importing back is not a
+// cycle - and a divergent copy here would mean the strip and the mixer disagreed
+// about what 0.5 gain reads as on screen.
+import { linearToDb } from "./useProfessionalMixer";
 
 interface ChannelStripProps {
   name: StemName;
@@ -266,7 +271,3 @@ export function ChannelStrip({
   );
 }
 
-function linearToDb(v: number): number {
-  if (v <= 0) return -Infinity;
-  return 20 * Math.log10(v);
-}
