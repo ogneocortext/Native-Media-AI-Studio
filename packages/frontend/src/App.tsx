@@ -85,9 +85,9 @@ const HyperFramesPage = lazyNamed(
   () => import("./features/hyperframes/HyperFramesPage"),
   "HyperFramesPage",
 );
-const MusicPromptGenerator = lazyNamed(
-  () => import("./features/music-prompts/MusicPromptGenerator"),
-  "MusicPromptGenerator",
+const MusicPromptsWorkbench = lazyNamed(
+  () => import("./features/music-prompts/MusicPromptsWorkbench"),
+  "MusicPromptsWorkbench",
 );
 const UnityControlPage = lazyNamed(
   () => import("./features/unity-control/UnityControlPage"),
@@ -173,7 +173,7 @@ function App() {
               <Route path="/image-generation" element={withErrorBoundary(<ImageGeneration />)} />
               <Route path="/visualizer" element={withErrorBoundary(<Visualizer />)} />
               <Route path="/hyperframes" element={withErrorBoundary(<HyperFramesPage />)} />
-              <Route path="/music-prompts" element={withErrorBoundary(<MusicPromptGenerator />)} />
+              <Route path="/music-prompts" element={withErrorBoundary(<MusicPromptsWorkbench />)} />
               <Route path="/library" element={withErrorBoundary(<MediaLibrary />)} />
               <Route path="/media-library" element={<Navigate to="/library" replace />} />
               <Route path="/settings" element={withErrorBoundary(<Settings />)} />

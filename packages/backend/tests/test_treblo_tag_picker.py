@@ -9,9 +9,7 @@ shipped data had drifted.
 from __future__ import annotations
 
 import pytest
-
 from app.services import treblo_tag_picker as svc
-
 
 # ─── loading ──────────────────────────────────────────────────────────────────
 
@@ -132,9 +130,8 @@ def test_build_of_nothing_is_empty_string():
 
 @pytest.fixture
 def client():
-    from fastapi.testclient import TestClient
-
     from app.main import app
+    from fastapi.testclient import TestClient
 
     return TestClient(app)
 
