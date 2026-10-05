@@ -653,7 +653,13 @@ async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
 
 
 def _infer_capabilities(model_name: str) -> list[str]:
-    """Infer model capabilities from name when /api/tags omits them."""
+    """FALLBACK capability guess, used only when /api/show cannot be reached.
+
+    Ollama reports capabilities authoritatively via /api/show, and guessing from
+    the name was measured to be wrong for 4 of the 17 models on this workstation -
+    every error a false negative that hid a working vision model from the user.
+    So this is no longer the primary source; see `get_model_capabilities`.
+    """
     name = model_name.lower()
     caps = ["chat"]
     if any(k in name for k in ["vl", "vision", "gemma4", "minicpm", "llava"]):
@@ -663,13 +669,17 @@ def _infer_capabilities(model_name: str) -> list[str]:
     return caps
 
 
-def _model_supports_vision(model_name: str) -> bool:
-    """True when the model name or capabilities indicate vision support."""
+def _supports_vision_from_name(model_name: str) -> bool:
+    """FALLBACK vision guess. Same caveat as `_infer_capabilities`."""
     name = model_name.lower()
-    if any(k in name for k in ["vl", "vision", "gemma4", "minicpm", "llava"]):
-        return True
-    # Fallback to tool-capable heuristic for multimodal models
-    return any(k in name for k in ["gemma2", "gemma3", "gemma4", "llava"])
+    return any(k in name for k in ["vl", "vision", "gemma4", "minicpm", "llava"])
+
+
+def _capabilities_or_fallback(name: str, real: list[str] | None) -> list[str]:
+    """Authoritative capabilities when available, name guess otherwise."""
+    if real:
+        return real
+    return _infer_capabilities(name)
 
 
 @router.get("/ollama/models", operation_id="get_generation_ollama_models")
@@ -680,21 +690,36 @@ async def get_ollama_models() -> list:
         raise HTTPException(status_code=404, detail="Ollama not available")
 
     try:
-        from ..core.ollama_client import estimate_model_vram_mb, is_tool_capable_model
+        from ..core.ollama_client import (
+            estimate_model_vram_mb,
+            get_capabilities_bulk,
+            is_tool_capable_model,
+        )
         raw_models = await adapter.list_models()
         if not raw_models:
             return []
+        names = [m.get("name", "") for m in raw_models if m.get("name")]
+        real = await get_capabilities_bulk(names)
         enriched = []
         for m in raw_models:
             name = m.get("name", "")
             size_bytes = m.get("size") or 0
+            caps = real.get(name)
             enriched.append({
                 "name": name,
                 "size": size_bytes,
                 "modified_at": m.get("modified_at"),
-                "capabilities": m.get("capabilities") or _infer_capabilities(name),
-                "supportsTools": is_tool_capable_model(name),
-                "supportsVision": _model_supports_vision(name),
+                "capabilities": _capabilities_or_fallback(name, real.get(name)),
+                # From /api/show when available. The name heuristic remains only as
+                # a fallback, so it must not be allowed to claim a capability the
+                # server has already denied.
+                "supportsTools": ("tools" in caps) if caps is not None
+                                 else is_tool_capable_model(name),
+                "supportsVision": ("vision" in caps) if caps is not None
+                                  else _supports_vision_from_name(name),
+                "supportsThinking": ("thinking" in caps) if caps is not None else False,
+                # Ollama 0.35 decision models answer /v1/systemone, not chat.
+                "isDecisionModel": "decision" in caps if caps is not None else False,
                 "vram_estimate_mb": estimate_model_vram_mb(name, size_bytes if size_bytes > 0 else None),
             })
         return enriched

@@ -56,11 +56,15 @@ export function AIToolsPage() {
   const loadModels = async () => {
     try {
       const modelList = await getOllamaModels();
+      // Trust the backend. It now asks Ollama /api/show for authoritative
+      // capabilities; the name checks that used to live here were wrong in both
+      // directions and only ever added false positives - a model named "qwen..." was
+      // offered tools whether or not it had them. Left in, they would override the
+      // server's answer for exactly the models that need it least.
       const enhanced = modelList.map((m) => ({
         ...m,
-        supportsTools:
-          m.capabilities?.includes("tools") || m.name.includes("qwen") || m.name.includes("gemma"),
-        supportsVision: m.capabilities?.includes("vision") || m.name.includes("vl"),
+        supportsTools: m.capabilities?.includes("tools") ?? false,
+        supportsVision: m.capabilities?.includes("vision") ?? false,
       }));
       setModels(enhanced);
       setOllamaConnected(true);

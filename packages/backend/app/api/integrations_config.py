@@ -118,6 +118,35 @@ async def get_visualization_presets() -> dict:
     return {"presets": presets, "count": len(presets)}
 
 
+def _describe_model(m: dict, resolved: dict[str, list[str] | None], oc) -> dict:
+    """One model row for /ollama/models.
+
+    Reports what the model can actually do. This used to collapse to
+    ["chat","tools"] or ["chat"], which threw away vision, thinking and audio - so a
+    vision model was indistinguishable from a text one and callers could not filter
+    a picker correctly. On Ollama 0.35.x both /api/tags and /api/show carry
+    authoritative capabilities, with /api/show as the fallback for servers that omit
+    the field.
+    """
+    name = m.get("name", "")
+    caps = resolved.get(name) or oc.normalize_capabilities(m.get("capabilities")) or ["chat"]
+    capability_set = set(caps)
+    tool_capable = "tools" in capability_set
+    return {
+        "id": name,
+        "model_name": name,
+        "model_size": m.get("size", 0),
+        "model_digest": m.get("digest", ""),
+        "is_tool_capable": tool_capable,
+        "vram_required": oc.estimate_model_vram_mb(name, m.get("size", 0)),
+        "is_available": True,
+        "capabilities": caps,
+        "supports_tools": tool_capable,
+        "supports_vision": "vision" in capability_set,
+        "supports_thinking": "thinking" in capability_set,
+    }
+
+
 @router.get("/ollama/models", operation_id="get_ollama_models_alias")
 @router.get("/ollama-models", operation_id="get_config_ollama_models")
 async def get_ollama_models() -> dict:
@@ -127,27 +156,11 @@ async def get_ollama_models() -> dict:
         entries = await _oc.list_models(timeout=10)
         if entries is None:
             return {"models": [], "count": 0}
-        models = []
-        for m in entries:
-            model_name = m.get("name", "")
-            capabilities = set(m.get("capabilities") or [])
-            # Ollama's advertised capabilities are authoritative; the name
-            # heuristic is only for older servers that omit this metadata.
-            tool_capable = "tools" in capabilities or (
-                not capabilities and _oc.is_tool_capable_model(model_name)
-            )
-            models.append({
-                "id": model_name,
-                "model_name": model_name,
-                "model_size": m.get("size", 0),
-                "model_digest": m.get("digest", ""),
-                "is_tool_capable": tool_capable,
-                "vram_required": _oc.estimate_model_vram_mb(model_name, m.get("size", 0)),
-                "is_available": True,
-                "capabilities": ["chat", "tools"] if tool_capable else ["chat"],
-            })
-
-        return {"models": models, "count": len(models)}
+        resolved = await _oc.resolve_capabilities_for_entries(entries, timeout=10)
+        return {
+            "models": [_describe_model(m, resolved, _oc) for m in entries],
+            "count": len(entries),
+        }
     except Exception as e:
         return {"models": [], "count": 0, "error": str(e)}
 
