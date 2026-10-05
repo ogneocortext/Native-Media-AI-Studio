@@ -45,7 +45,7 @@ from typing import Any
 import numpy as np
 
 from ..core.config import PROJECT_ROOT
-from . import essentia_bridge
+from . import essentia_bridge, essentia_tempo_store, tempo_agreement
 from .source_separation import SEPARATION_DIR, STEM_NAMES
 
 logger = logging.getLogger(__name__)
@@ -74,9 +74,15 @@ PROBE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 # never used to derive a shift. See the module docstring for the measurements.
 KEY_CONFIDENCE_FLOOR = 0.60
 
+# 3 -> 4: the probe result gained `essentia_bpm` and `tempo_agreement`. Measured
+# reason for the bump rather than a guess: with the version left at 3, every
+# existing cache kept short-circuiting `probe_track` and the new fields never
+# appeared - the endpoint reported `essentia_bpm: null` while four tracks sat
+# cached in the Essentia store. A schema addition is invisible until the version
+# moves; that is the whole reason this constant exists.
 # Bump when the probe result gains or changes a field, so stale caches written
 # by an earlier version are recomputed instead of silently missing keys.
-PROBE_CACHE_VERSION = 3
+PROBE_CACHE_VERSION = 4
 
 _PITCH_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 # Krumhansl-Schmuckler major-key profile.
@@ -183,6 +189,21 @@ def _pick_analysis_stem(track: str) -> tuple[str, Path]:
     )
 
 
+def _tempo_agreement_for(track: str, librosa_bpm: float) -> dict[str, Any] | None:
+    """Cross-check librosa against the cached Essentia reading, if there is one.
+
+    Returns None when Essentia has not been measured for this track, so the probe
+    response carries no agreement block it cannot support. Essentia is the primary
+    authority in `tempo_agreement`, so a disagreement here means librosa is the
+    value that should be distrusted - and, per the library measurement, that is
+    the common case, not a rare edge.
+    """
+    essentia = essentia_tempo_store.cached_bpm(track)
+    if essentia is None:
+        return None
+    return tempo_agreement.corroborate({"librosa": librosa_bpm, "essentia": essentia})
+
+
 def probe_track(track: str) -> dict[str, Any]:
     """Detect tempo, and *report* key as an advisory with its confidence.
 
@@ -260,6 +281,12 @@ def probe_track(track: str) -> dict[str, Any]:
         "beat_count": int(len(beats)),
         "analysed_stem": analysed_stem,
         "source": analysis_path.name,
+        # Essentia, if it has been measured. Read straight from the cache: this
+        # function is on the request path, and asking WSL for a tempo here would
+        # add ~31 s to a dropdown. `essentia_tempo_store.cached_bpm` never touches
+        # WSL, so an un-refreshed track simply reports None.
+        "essentia_bpm": essentia_tempo_store.cached_bpm(track),
+        "tempo_agreement": _tempo_agreement_for(track, bpm),
     }
     try:
         cache_path.write_text(json.dumps(result, indent=2), encoding="utf-8")

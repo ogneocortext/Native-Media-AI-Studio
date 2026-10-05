@@ -26,7 +26,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from ..services import stem_remixer
+from ..services import essentia_tempo_store, stem_remixer
 from ..services.stem_remixer import RemixLayer, RemixRecipe, RemixSlot
 
 logger = logging.getLogger(__name__)
@@ -80,6 +80,12 @@ class RemixBuildResponse(BaseModel):
     warnings: list[str] = []
 
 
+class TempoRefreshRequest(BaseModel):
+    """Which tracks to measure. Omit to refresh every track with stems on disk."""
+
+    tracks: list[str] | None = None
+
+
 def _to_recipe(body: RemixRecipeRequest) -> RemixRecipe:
     return RemixRecipe(
         name=body.name,
@@ -129,6 +135,30 @@ async def remix_probe(track: str) -> dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/tempo/status")
+async def remix_tempo_status() -> dict:
+    """Which tracks have a cached Essentia tempo, and the latest refresh job.
+
+    Cheap: reads a JSON file and in-memory job state, never WSL. This is what the
+    UI polls while a refresh runs.
+    """
+    return essentia_tempo_store.store_status()
+
+
+@router.post("/tempo/refresh")
+async def remix_tempo_refresh(body: TempoRefreshRequest) -> dict:
+    """Start a background Essentia refresh. Returns immediately with a job id.
+
+    Deliberately asynchronous. The measured batch over the library is ~31 s, so
+    calling this synchronously would hold the request open for half a minute; the
+    client polls `/tempo/status` instead. A refresh already in flight is reported
+    back rather than queued, because concurrent batches contend for the same WSL
+    venv and both get slower.
+    """
+    tracks = body.tracks or [s["track"] for s in stem_remixer.list_stem_sources()]
+    return essentia_tempo_store.start_refresh(tracks)
 
 
 @router.get("/by-track/{track}")
