@@ -101,6 +101,31 @@ coupling in v1 — no auto-merging of LLM output with picked tags.
   `drift phonk, phonk, dark, aggressive` — paste-ready for Treblo/Suno.
 - No network calls leave the machine except the user's own browser pasting.
 
+## Suno cross-reference data (added 2026-10-04)
+
+`suno-crossref.json` cross-references the 4,160 Treblo tags against a Suno
+community corpus (1,000+ prompts from `naqashmunir21/awesome-suno-prompts` +
+controlled vocabularies from `sevenskytech1/suno-ai-prompts-guide`, both MIT/CC
+community repos, extracted locally — no API calls, no hotlinking).
+
+- `tier1_exact_match` (116): tag matches a Suno community descriptor verbatim.
+  Highest confidence for Suno.
+- `tier2_word_attested` (960): tag's words appear in Suno community descriptors.
+  Concepts the Suno community demonstrably uses.
+- `tier3_untested_in_corpus` (3,084): not attested in THESE corpora. This is NOT
+  "won't work" — the corpus covers 13 genres and misses obvious Suno-safe terms
+  (e.g. `classical`, `male vocalist`). Treat as "unverified", not "invalid".
+- `suno_production_vocab` (314): Suno-community production/effect phrases absent
+  from Treblo's list (`808 bass slides`, `sidechain`-style descriptors, `vinyl
+  crackle`, `half-time` variants...). This is the real addition: Treblo's list
+  covers the *what* (genres/moods); this covers the *how* Suno users steer sound.
+
+Suggested UI: badge tags in the picker as "verified on Suno" (tier 1),
+"community-used" (tier 2), or unbadged (tier 3); offer the production vocab as a
+separate Suno-specific suggestion row. The user's open experiment stands: do
+hand-picked exact tags beat natural-language prompts on Suno? This data is how
+we run it, not the answer to it.
+
 ## Attribution
 Every commit carries `Co-authored-by: Space Bunny Alpha <noreply@anthropic.com>`
 (the implementing agent's trailer, per repo convention).
