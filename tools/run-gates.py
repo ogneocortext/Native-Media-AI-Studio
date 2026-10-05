@@ -204,6 +204,7 @@ def gates():
         Gate("docs", [python, "tools/check-all.py"], ROOT),
         Gate("ruff", [python, "-m", "ruff", "check", ".", "--output-format=concise"], BACKEND),
         Gate("arch", [python, "tools/check-import-cycles.py"], ROOT),
+        Gate("routes", [python, "tools/check-duplicate-routes.py"], ROOT),
         Gate("type", [pnpm, "type-check"], FRONTEND),
         Gate("lint", [pnpm, "lint"], FRONTEND),
         Gate("unit", [pnpm, "test:unit"], FRONTEND),
