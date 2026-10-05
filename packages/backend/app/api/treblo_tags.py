@@ -15,7 +15,7 @@ from typing import Any
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
-from ..services import treblo_tag_picker
+from ..services import suno_crossref, treblo_tag_picker
 
 router = APIRouter(prefix="/api/treblo-tags", tags=["MusicPrompts"])
 
@@ -29,8 +29,18 @@ async def search_tags(
     q: str = Query("", description="Free-text query"),
     limit: int = Query(treblo_tag_picker.DEFAULT_LIMIT, ge=1, le=200),
 ) -> dict[str, Any]:
-    """Rank tags against a query. Empty query returns an empty list."""
-    return {"query": q, "results": treblo_tag_picker.search_tags(q, limit=limit)}
+    """Rank tags against a query. Empty query returns an empty list.
+
+    `results` stays a plain string list so existing callers keep working; the
+    parallel `attestation` map adds how well each tag is attested in Suno community
+    use, so the picker can badge it without a second round trip.
+    """
+    results = treblo_tag_picker.search_tags(q, limit=limit)
+    return {
+        "query": q,
+        "results": results,
+        "attestation": suno_crossref.attestation_for(results),
+    }
 
 
 @router.get("/related")
@@ -60,3 +70,33 @@ async def build_tag_string(body: BuildRequest) -> dict[str, Any]:
 async def tag_count() -> dict[str, int]:
     """How many tags are indexed - lets the UI show the scope honestly."""
     return {"count": treblo_tag_picker.tag_count()}
+
+
+@router.get("/suno/production-vocab")
+async def suno_production_vocab(
+    q: str = Query("", description="Free-text filter"),
+    limit: int = Query(24, ge=1, le=314),
+) -> dict[str, Any]:
+    """Suno community production/effect phrases.
+
+    The additive part of the cross-reference: this is the *how* users steer sound
+    (808 bass slides, vinyl crackle, half-time), which Treblo's genre/mood list does
+    not cover. Measured disjoint from every Treblo tag, so these can be offered as a
+    Suno-only suggestion row without contaminating the tag list.
+    """
+    return {
+        "query": q,
+        "results": suno_crossref.production_vocab(q, limit=limit),
+        "total": suno_crossref.production_count(),
+    }
+
+
+@router.get("/suno/meta")
+async def suno_meta() -> dict[str, Any]:
+    """Provenance and tier counts, so the UI can describe its own scope honestly."""
+    return {
+        "tier_counts": suno_crossref.tier_counts(),
+        "tier_labels": {str(k): v for k, v in suno_crossref.TIER_LABELS.items()},
+        "production_count": suno_crossref.production_count(),
+        "meta": suno_crossref.meta(),
+    }

@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { getApiBase } from "../../services/api/core";
-import { tagStringFor, toggleTag, unfilledRelated } from "./tagSelection";
+import {
+  badgeFor,
+  productionSuggestions,
+  tagStringFor,
+  toggleTag,
+  unfilledRelated,
+} from "./tagSelection";
+import type { Attestation } from "./tagSelection";
 
 /**
  * Treblo Tag Picker — searchable picker over Treblo's 4,160 published v3 style tags.
@@ -18,6 +25,8 @@ import { tagStringFor, toggleTag, unfilledRelated } from "./tagSelection";
 interface SearchResponse {
   query: string;
   results: string[];
+  /** Parallel to `results`; absent for tags with no Suno record. */
+  attestation?: Record<string, Attestation>;
 }
 
 interface RelatedResponse {
@@ -59,9 +68,37 @@ export function TrebloTagPicker() {
   const [status, setStatus] = useState("");
   const [copied, setCopied] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [attestation, setAttestation] = useState<Record<string, Attestation>>({});
+  const [production, setProduction] = useState<string[]>([]);
+  const [productionQuery, setProductionQuery] = useState("");
 
   // Guards against a slow response for "pho" overwriting a newer one for "phonk".
   const reqId = useRef(0);
+
+  // Suno production vocabulary, loaded once. This is the Suno-specific addition
+  // Treblo's list does not cover: the *how* users steer sound rather than the genre.
+  useEffect(() => {
+    let cancelled = false;
+    const q = productionQuery.trim();
+    // Without a filter the server returns the head of the corpus, which is
+    // alphabetical and unrepresentative: 8 of 314 would all start with "Bedroom"
+    // and the phrases people actually reach for ("808 bass", "vinyl crackle",
+    // "half-time") would be unreachable. So the row is filterable rather than a
+    // fixed sample.
+    const url = q
+      ? `${getApiBase()}/api/treblo-tags/suno/production-vocab?q=${encodeURIComponent(q)}&limit=24`
+      : `${getApiBase()}/api/treblo-tags/suno/production-vocab?limit=12`;
+    const timer = window.setTimeout(() => {
+      fetch(url)
+        .then((r) => readJson<{ results: string[] }>(r))
+        .then((d) => !cancelled && setProduction(d.results ?? []))
+        .catch(() => !cancelled && setProduction([]));
+    }, q ? 180 : 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [productionQuery]);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,6 +127,7 @@ export function TrebloTagPicker() {
         .then((d) => {
           if (id !== reqId.current) return;
           setResults(d.results);
+          setAttestation(d.attestation ?? {});
           setSearching(false);
         })
         .catch(() => {
@@ -234,7 +272,25 @@ export function TrebloTagPicker() {
                       isOn ? "text-emerald-400" : "text-gray-200"
                     }`}
                   >
-                    <span>{tag}</span>
+                    <span className="flex items-center gap-2">
+                      <span>{tag}</span>
+                      {badgeFor(attestation[tag]?.tier) && (
+                        <span
+                          title={
+                            attestation[tag].tier === 1
+                              ? "Matches a Suno community descriptor verbatim"
+                              : "The words appear in Suno community prompts"
+                          }
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                            attestation[tag].tier === 1
+                              ? "bg-emerald-900/50 text-emerald-300"
+                              : "bg-gray-800 text-gray-400"
+                          }`}
+                        >
+                          {badgeFor(attestation[tag]?.tier)}
+                        </span>
+                      )}
+                    </span>
                     <span className="text-xs text-gray-500">{isOn ? "added" : "+"}</span>
                   </button>
                 </li>
@@ -302,6 +358,40 @@ export function TrebloTagPicker() {
                   className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-300 hover:border-gray-500"
                 >
                   + {tag}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {productionSuggestions(selected, production).length > 0 && (
+        <div className="space-y-1 border-t border-gray-800 pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-xs text-gray-500">
+              Suno production vocabulary
+              <span className="ml-1 text-gray-600">
+                &mdash; the &ldquo;how&rdquo;, not in Treblo&rsquo;s list
+              </span>
+            </h3>
+            <input
+              type="search"
+              value={productionQuery}
+              onChange={(e) => setProductionQuery(e.target.value)}
+              placeholder="Filter 314 phrases… e.g. 808"
+              aria-label="Filter Suno production vocabulary"
+              className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs"
+            />
+          </div>
+          <ul className="flex flex-wrap gap-1.5">
+            {productionSuggestions(selected, production).map((phrase) => (
+              <li key={phrase}>
+                <button
+                  type="button"
+                  onClick={() => toggle(phrase)}
+                  className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-300 hover:border-blue-500 hover:text-blue-300"
+                >
+                  {phrase}
                 </button>
               </li>
             ))}

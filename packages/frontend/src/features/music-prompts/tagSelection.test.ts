@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  badgeFor,
   MAX_SELECTED_TAGS,
+  productionSuggestions,
   tagStringFor,
   toggleTag,
   unfilledRelated,
@@ -84,5 +86,53 @@ describe("unfilledRelated", () => {
 
   it("is empty when everything related is already chosen", () => {
     expect(unfilledRelated(["trap"], ["trap"])).toEqual([]);
+  });
+});
+
+
+describe("badgeFor", () => {
+  it("badges tier 1 as verified on Suno", () => {
+    expect(badgeFor(1)).toBe("verified on Suno");
+  });
+
+  it("badges tier 2 as community-used", () => {
+    expect(badgeFor(2)).toBe("community-used");
+  });
+
+  // Tier 3 means "not in a 13-genre corpus", which is NOT "will not work".
+  // Badging it as a warning would state something the data does not say.
+  it("does NOT badge tier 3", () => {
+    expect(badgeFor(3)).toBeNull();
+  });
+
+  it("does not badge an unknown tier", () => {
+    expect(badgeFor(undefined)).toBeNull();
+  });
+});
+
+describe("productionSuggestions", () => {
+  it("offers phrases that are not already selected", () => {
+    expect(productionSuggestions(["808 bass"], ["808 bass", "vinyl crackle", "half-time"])).toEqual([
+      "vinyl crackle",
+      "half-time",
+    ]);
+  });
+
+  it("compares case-insensitively so a phrase is not offered twice", () => {
+    expect(productionSuggestions(["Vinyl Crackle"], ["vinyl crackle", "half-time"])).toEqual([
+      "half-time",
+    ]);
+  });
+
+  it("respects the limit", () => {
+    expect(productionSuggestions([], ["a", "b", "c", "d"], 2)).toEqual(["a", "b"]);
+  });
+
+  it("preserves the source order", () => {
+    expect(productionSuggestions([], ["z", "a", "m"])).toEqual(["z", "a", "m"]);
+  });
+
+  it("is empty when everything is selected", () => {
+    expect(productionSuggestions(["a", "b"], ["a", "b"])).toEqual([]);
   });
 });

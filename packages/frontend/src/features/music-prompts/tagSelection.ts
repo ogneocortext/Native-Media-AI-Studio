@@ -51,3 +51,49 @@ export function unfilledRelated(
 ): string[] {
   return related.filter((t) => !selection.some((s) => matches(s, t)));
 }
+
+
+/**
+ * How a tag is attested in Suno community use, as decided by the backend.
+ *
+ * Tier 3 is deliberately NOT badged. It means "not attested in a corpus covering 13
+ * genres", which is not the same as "will not work" - measured, `classical` is
+ * tier 1 while `male vocalist` is tier 3, and both are ordinary Suno-safe terms.
+ * Badging tier 3 as a warning would tell the user something the data does not say.
+ */
+export type AttestationTier = 1 | 2 | 3;
+
+export interface Attestation {
+  tier: AttestationTier;
+  key: string;
+  label: string;
+}
+
+/** Badge text for a tier, or null when the tag should carry no badge at all. */
+export function badgeFor(tier: AttestationTier | undefined): string | null {
+  switch (tier) {
+    case 1:
+      return "verified on Suno";
+    case 2:
+      return "community-used";
+    default:
+      // Tier 3 and anything unknown: no badge. Absence of evidence is not evidence.
+      return null;
+  }
+}
+
+/**
+ * Production phrases worth surfacing next to a selected tag.
+ *
+ * Never duplicates what is already in the tray, and never suggests a phrase that is
+ * also a Treblo tag (the data is disjoint by construction, but the tray may already
+ * hold one typed by hand).
+ */
+export function productionSuggestions(
+  selected: readonly string[],
+  phrases: readonly string[],
+  limit = 8,
+): string[] {
+  const has = new Set(selected.map((t) => t.trim().toLowerCase()));
+  return phrases.filter((p) => !has.has(p.trim().toLowerCase())).slice(0, limit);
+}
