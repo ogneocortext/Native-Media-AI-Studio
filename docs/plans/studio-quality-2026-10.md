@@ -229,6 +229,67 @@ Q5 Tier 2 (per-frame chroma) stays deferred — needs analyzer work.
 **Phase 2 exit:** each item has a before/after capture on a dense track, a
 sparse track and an acoustic track (D24's three-track validation rule).
 
+## Phase 2 status refresh + follow-ups (added 2026-10-06)
+
+Status verified against the repo 2026-10-06:
+
+| Item | State |
+|---|---|
+| 2.1 asymmetric smoother | **Done** — `dece4e9` wired it + envelope reset on track change |
+| 2.2 reactivity triad UI | **Open** — sensitivity exists internally (`audioReactivityProcessor.ts`, `ShaderVisualizer.tsx:227-230` defaults) but there is no user-facing reactivity panel |
+| 2.3 genre reactivity presets | **Open** — genre matching exists for kinetic lyric presets only, not reactivity |
+| 2.4 motion vocabulary | **Half-built** — `motion/motionEasing.ts`, `motionMoves.ts`, `useMotionDriver.ts` + tests exist, but **zero consumers** outside `motion/` itself (no `.tsx` imports it). Remaining work is integration, not invention |
+| 2.5 latency visible | **Open** — `audioTiming.ts` compensates internally; `RenderStats` (`components/RenderStats.tsx:11-15`) reports only fps/calls/triangles |
+| 2.6 color polish | **Open** |
+
+### 2.7 Wire the motion vocabulary (completes 2.4)
+
+Integrate the existing `motion/` module into **one** visualizer style first
+(the plan's original scope): `useMotionDriver` + `motionMoves` impacts from
+`beatPhase` onsets, camera-offset node only, `clamp01` everywhere. Document
+the mapping table in `motion/` module docs — the "re-tune per style" log.
+
+- **Accept:** one style visibly uses eased motion moves on beats; existing
+  tests untouched + one driver-composition test; before/after capture per the
+  Phase 2 exit rule.
+- **Do not** expand to all styles in this item — one style proves the wiring.
+
+### 2.8 Beat anticipation (predictive, not reactive)
+
+Everything on the page is beat-*reactive*. `beatPhase` is already real data
+(`AudioData.beatPhase` — consumed in `BuilderFigure.tsx:470`,
+`InstancedBlobField.tsx:174`). Use BPM + beat phase to predict the next
+downbeat: in the ~120 ms before it, drive an anticipation pullback through
+the motion easing module (2.7); on the beat, trigger the accent, then
+**hold** — no post-beat drift. Toggleable per style.
+
+- **Accept:** on a 120 BPM click track the pullback visibly precedes each
+  downbeat and the landing holds still; toggle works; no effect on
+  non-downbeat beats.
+- **Files:** `motion/` (easing), `audioReactivityProcessor.ts`,
+  `useAudioGraph.ts` (beat phase source).
+
+### 2.9 Deterministic frame-accurate export (visualizer page)
+
+`mp4Recording.ts` (WebCodecs + Mediabunny, via `useVisualizerRecording.ts`)
+is **realtime capture only** — it drops frames whenever the machine hitches.
+Add a frame-accurate mode per the
+[r3f-video-recorder](https://github.com/malerba118/r3f-video-recorder)
+pattern: drive the visualizer clock from the frame index (`1/fps` steps),
+capture each frame before advancing. Scope to **one mode first** (shader —
+the flagship); the page has four render paths (shader/2D/3D/LrcViz) and each
+needs its own clock-hijack.
+
+- **Accept:** a 10 s export at 30 fps contains exactly 300 frames; two exports
+  of the same scene are identical modulo container metadata; backgrounding
+  the tab mid-export drops nothing.
+- **Files:** `mp4Recording.ts`, `useVisualizerRecording.ts`, new
+  `services/frameAccurateExport.ts`.
+
+**Suggested order for the follow-ups:** 2.7 (wire motion) → 2.8 (anticipation,
+rides on 2.7's easing) → 2.9 (export records the improved motion, so motion
+first) → 2.2/2.3 (reactivity UI + presets) → 2.5/2.6 (latency display, color).
+
 ---
 
 ## Phase 3 — Mastering + stem quality (audio side) — ~4–6 days
