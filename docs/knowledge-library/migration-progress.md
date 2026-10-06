@@ -51,7 +51,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `stem-system-evaluation-2026.md`  → `#production`, `#audio`, `#visualization`, `#technical`
 - ✅ `ai-music-mastering-stems-2026.md`  → `#production`, `#audio`
 
-### 🛠️ Technical Implementation (13/13 completed) ✅
+### 🛠️ Technical Implementation (14/14 completed) ✅
 
 - ✅ `technical-reference.md`  → `#technical`, `#platform-comfyui`, `#platform-blender`, `#hardware-8gb`
 - ✅ `comfyui-workflows.md`  → `#technical`, `#platform-comfyui`
@@ -66,6 +66,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `stack-extensions-2026.md`  → `#technical`, `#python`
 - ✅ `tagging-guide.md`  → `#technical`, `#documentation`, `#tagging`
 - ✅ `hyperframes-results-improvement-2026.md`  → `#technical`, `#creative`, `#performance`
+- ✅ `wangp-local-video-generation-2026.md`  → `#technical`, `#ai`, `#performance`
 
 ### 🎮 MCP & Platform Integrations (11/11 completed) ✅
 
@@ -127,7 +128,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `3d-generation-2026-updates.md`  → `#ai`, `#hardware-8gb`
 - ✅ `video-generation-vram-2026.md`  → `#ai`, `#hardware-8gb`
 
-### 📊 Research & Reference (10/10 completed)
+### 📊 Research & Reference (11/11 completed)
 
 - ✅ `track-similarity-measurement-2026.md` → `#research`, `#audio`
 - ✅ `ai-video-trends-2026.md`  → `#research`, `#ai`
@@ -139,6 +140,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `ollama-benchmarks.md`  → `#research`, `#benchmark`, `#ai`
 - ✅ `coding-benchmarks.md`  → `#research`, `#ai`
 - ✅ `../ux-audit/audit-report.md`  → `#research`, `#design`, `#testing`
+- ✅ `social-platform-video-research-2026.md`  → `#research`, `#creative`
 
 ## 📝 Migration Template
 

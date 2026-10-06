@@ -55,6 +55,7 @@ date: 2026-09-30
 - [[modern-css-2026|🎨 Modern CSS 2026]] — Tailwind v4 @theme/layers, OKLCH theming, gradient spaces, a11y media queries, verification checklist
 - [[javascript-upgrade-research-2026|🔧 JavaScript Upgrade Research 2026]] — TypeScript 7 adoption, deprecated mp4-muxer replacement, React 19 features, Vite 8/Rolldown optimization, Tailwind v4 container queries, CI gaps, Prettier adoption
 - [[hyperframes-results-improvement-2026|🎬 HyperFrames Results Improvement 2026]] — Audit findings & fix specs: real spectral bands, per-frame tween smear, render defaults, composition variety, vendored GSAP
+- [[wangp-local-video-generation-2026|🎬 WanGP Local Video Generation 2026]] — Local text-to-video on 8GB VRAM: GTX 10xx support, headless CLI/API integration paths, LTX alpha mattes, eval order
 
 ### 🎮 MCP & Platform Integrations
 
@@ -129,6 +130,7 @@ date: 2026-09-30
 - [[video-model-test-protocol-2026|🧪 Video Model Test Protocol 2026]] — LTX/Mochi sweep protocol for 8GB VRAM video generation
 - [[visualizer-state-analysis-2026|🔍 Visualizer State Analysis 2026]] — Gemma 4 vision feedback on visualizer state, improvement report
 - [[../ux-audit/audit-report|🔍 UX Audit Report]] — User experience findings and recommendations
+- [[social-platform-video-research-2026|🔍 Social-Platform Video Research 2026]] — LinkedIn/Substack/Medium findings: reference-video breakdown, transparent overlays, music-first directing methodology
 
 ---
 
@@ -139,12 +141,12 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 12 documents |
-|| `#technical/*` | System implementation & code | 14 documents |
+|| `#technical/*` | System implementation & code | 15 documents |
 || `#platform/*` | Platform-specific integrations | 11 documents |
 || `#creative/*` | Design, effects & visualization | 19 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
 || `#ai/*` | AI models, training & ML | 11 documents |
-|| `#research/*` | Industry trends & analysis | 9 documents |
+|| `#research/*` | Industry trends & analysis | 10 documents |
 
 ### Cross-Cutting Tags
 
@@ -230,11 +232,11 @@ graph LR
 
 || Metric | Count |
 || --------------- | ----------------------------------------------------------------------------- |
-|| Total Documents | 85 (markdown) + 9 (JSON data files) = 94 total |
+|| Total Documents | 87 (markdown) + 9 (JSON data files) = 96 total |
 || Total Tags | 70 |
 || Total Links | 115+ |
-|| Last Updated | 2026-10-06 (docs audit and corrections; HyperFrames results-improvement audit added) |
-|| Latest Add | 2026-10-06 (HyperFrames Results Improvement 2026) |
+|| Last Updated | 2026-10-06 (WanGP eval + social-platform video research added) |
+|| Latest Add | 2026-10-06 (WanGP Local Video Generation 2026, Social-Platform Video Research 2026) |
 
 ---
 
