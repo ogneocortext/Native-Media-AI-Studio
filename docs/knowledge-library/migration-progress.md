@@ -82,7 +82,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `kilo-code-subagent-optimization.md`  → `#platform`
 - ✅ `ai-agent-navigation.md`  → `#platform`
 
-### 🎨 Creative & Visual (19/19 completed)
+### 🎨 Creative & Visual (20/20 completed)
 
 - ✅ `visualization-effects.md`  → `#creative`, `#visualization`, `#webgpu`, `#3d`, `#audio`
 - ✅ `3d-visualization-best-practices-2026.md`  → `#creative`, `#visualization`, `#webgpu`, `#3d`
@@ -103,6 +103,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `visualization-vision-prompts.md`  → `#creative`, `#visualization`, `#ai`
 - ✅ `visualizer-ux-audit-2026-10.md`  → `#creative`, `#design`, `#visualization`, `#audio`
 - ✅ `audio-reactive-best-practices-2026.md`  → `#creative`, `#visualization`, `#audio`
+- ✅ `three-js-render-motion-2026.md`  → `#creative`, `#3d`
 
 ### ⚙️ Performance & Hardware (7/7 completed)
 

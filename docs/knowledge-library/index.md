@@ -91,6 +91,7 @@ date: 2026-09-30
 - [[visualization-vision-prompts|👁️ Visualization Vision Prompts]] — Vision-model prompts for visualization analysis and VFX review
 - [[visualizer-ux-audit-2026-10|🔍 Visualizer UX Audit 2026-10]] — Screenshot-driven friction audit of /visualizer, /audio-analysis, /three-js-studio; two live bugs (stem separation down, shader analysis 404s) (NEW 2026-10-02)
 - [[audio-reactive-best-practices-2026|🎵 Audio-Reactive Best Practices 2026]] — 2026 research: signal stack, mel/gamma perception, <30 ms latency, per-band envelopes, genre routing — with verified gap analysis (NEW 2026-10-02)
+- [[three-js-render-motion-2026|🎥 Three.js Render + Motion 2026]] — Deterministic frame-accurate export (mediabunny, clock-hijack), headless Playwright 4K pipeline, motion-craft easing/choreography anchors, transparent-video codecs (NEW 2026-10-06)
 
 ### ⚙️ Performance & Hardware (Optimization)
 
@@ -144,7 +145,7 @@ date: 2026-09-30
 || `#production/*` | Production workflow & creative guides | 12 documents |
 || `#technical/*` | System implementation & code | 15 documents |
 || `#platform/*` | Platform-specific integrations | 11 documents |
-|| `#creative/*` | Design, effects & visualization | 19 documents |
+|| `#creative/*` | Design, effects & visualization | 20 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
 || `#ai/*` | AI models, training & ML | 11 documents |
 || `#research/*` | Industry trends & analysis | 11 documents |
@@ -165,7 +166,7 @@ date: 2026-09-30
 || `#design` | Design systems & UX | 6 documents |
 || `#audio` | Audio analysis & processing | 16 documents |
 || `#visualization` | Visualization techniques | 14 documents |
-|| `#3d` | 3D generation & rendering | 12 documents |
+|| `#3d` | 3D generation & rendering | 13 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
 
 ---
