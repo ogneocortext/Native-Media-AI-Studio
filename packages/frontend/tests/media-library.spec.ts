@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 import {
   navigateWithWait,
   mockApiHealth,
@@ -74,7 +74,7 @@ const MOCK_OUTPUTS = {
 const MOCK_RECENT = MOCK_OUTPUTS.outputs.slice(0, 2);
 
 function mockOutputsApi(page: Parameters<typeof registerRouteHandler>[0]) {
-  registerRouteHandler(page, async (route) => {
+  registerRouteHandler(page, async (route: Route) => {
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/api/outputs' || pathname.startsWith('/api/outputs?')) {
       await route.fulfill({

@@ -121,7 +121,7 @@ const pageRouteHandlers = new WeakMap<Page, Set<RouteHandler>>();
  * Register a route handler for a specific page.
  * Returns an unregister function.
  */
-function registerRouteHandler(page: Page, handler: RouteHandler): () => void {
+export function registerRouteHandler(page: Page, handler: RouteHandler): () => void {
   if (!pageRouteHandlers.has(page)) {
     pageRouteHandlers.set(page, new Set());
   }
