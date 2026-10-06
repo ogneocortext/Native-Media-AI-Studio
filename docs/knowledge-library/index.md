@@ -131,6 +131,7 @@ date: 2026-09-30
 - [[visualizer-state-analysis-2026|🔍 Visualizer State Analysis 2026]] — Gemma 4 vision feedback on visualizer state, improvement report
 - [[../ux-audit/audit-report|🔍 UX Audit Report]] — User experience findings and recommendations
 - [[social-platform-video-research-2026|🔍 Social-Platform Video Research 2026]] — LinkedIn/Substack/Medium findings: reference-video breakdown, transparent overlays, music-first directing methodology
+- [[x-platform-video-research-2026|🔍 X-Platform Video Research 2026]] — HyperFrames Studio eval (Oct 5 launch), style-learning loop, scripted pipeline template, QC-as-code
 
 ---
 
@@ -146,7 +147,7 @@ date: 2026-09-30
 || `#creative/*` | Design, effects & visualization | 19 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
 || `#ai/*` | AI models, training & ML | 11 documents |
-|| `#research/*` | Industry trends & analysis | 10 documents |
+|| `#research/*` | Industry trends & analysis | 11 documents |
 
 ### Cross-Cutting Tags
 
@@ -232,11 +233,11 @@ graph LR
 
 || Metric | Count |
 || --------------- | ----------------------------------------------------------------------------- |
-|| Total Documents | 87 (markdown) + 9 (JSON data files) = 96 total |
+|| Total Documents | 88 (markdown) + 9 (JSON data files) = 97 total |
 || Total Tags | 70 |
 || Total Links | 115+ |
-|| Last Updated | 2026-10-06 (WanGP eval + social-platform video research added) |
-|| Latest Add | 2026-10-06 (WanGP Local Video Generation 2026, Social-Platform Video Research 2026) |
+|| Last Updated | 2026-10-06 (X-platform video research + HyperFrames Studio eval added) |
+|| Latest Add | 2026-10-06 (X-Platform Video Research 2026) |
 
 ---
 

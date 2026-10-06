@@ -128,7 +128,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `3d-generation-2026-updates.md`  → `#ai`, `#hardware-8gb`
 - ✅ `video-generation-vram-2026.md`  → `#ai`, `#hardware-8gb`
 
-### 📊 Research & Reference (11/11 completed)
+### 📊 Research & Reference (12/12 completed)
 
 - ✅ `track-similarity-measurement-2026.md` → `#research`, `#audio`
 - ✅ `ai-video-trends-2026.md`  → `#research`, `#ai`
@@ -141,6 +141,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `coding-benchmarks.md`  → `#research`, `#ai`
 - ✅ `../ux-audit/audit-report.md`  → `#research`, `#design`, `#testing`
 - ✅ `social-platform-video-research-2026.md`  → `#research`, `#creative`
+- ✅ `x-platform-video-research-2026.md`  → `#research`, `#creative`
 
 ## 📝 Migration Template
 
