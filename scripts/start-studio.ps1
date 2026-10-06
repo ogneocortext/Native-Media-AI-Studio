@@ -22,10 +22,6 @@
 .PARAMETER AutoQuitSeconds
     Test hook: auto-stop all services after N seconds instead of waiting
     for 'q'.
-.PARAMETER StudioPython
-    Path to the studio CUDA Python. Defaults to the project's standard env.
-.PARAMETER ComfyPython
-    Path to the ComfyUI CUDA Python.
 .PARAMETER ComfyUIPath
     Path to the ComfyUI checkout directory.
 .EXAMPLE
@@ -44,8 +40,6 @@ param(
     [switch]$NoComfyUI,
     [switch]$Clean,
     [int]$AutoQuitSeconds = 0,
-    [string]$StudioPython = 'D:\conda-envs\nma-studio-cuda\Scripts\python.exe',
-    [string]$ComfyPython = 'D:\conda-envs\comfyui-cuda\Scripts\python.exe',
     [string]$ComfyUIPath = 'D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI'
 )
 
@@ -67,9 +61,14 @@ $VideoDir      = Join-Path $ProjectRoot 'packages\video-editor'
 $LogDir        = Join-Path $ProjectRoot 'output\logs'
 
 $envs = Get-PythonEnvs
-$StudioPython = $envs.StudioPython
-$ComfyPython  = $envs.ComfyPython
-$ProjectVenv  = $envs.VenvPython
+
+# ComfyUI interpreter: verified (torch import — what main.py
+# hard-imports) rather than path existence, so a broken
+# comfyui env is skipped with a warning instead of failing
+# seconds into launch. Falls back to the declared env so the
+# "not found" warning below names the real path.
+$ComfyPython = Resolve-ComfyUIPython
+if (-not $ComfyPython) { $ComfyPython = $envs.ComfyPython }
 
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
@@ -85,20 +84,19 @@ $maxRestarts    = 3
 # Preflight: Python environment
 # ---------------------------------------------------------------------------
 
-$python = if (Test-Path $StudioPython) {
-    Write-Ok "Using studio environment: $StudioPython"
-    $StudioPython
-} elseif (Test-Path $ComfyPython) {
-    Write-Ok "Using ComfyUI environment: $ComfyPython"
-    $ComfyPython
-} elseif (Test-Path $ProjectVenv) {
-    Write-Ok "Using project venv: $ProjectVenv"
-    $ProjectVenv
-} else {
+# Verified chain: the first env that can actually import the backend
+# runtime (fastapi/uvicorn/watchfiles), not merely the first that
+# exists - a broken env would fail at launch with a traceback far
+# from the cause. Resolve-BackendPython warns about each broken env
+# and falls back to the first existing one so the failure is the
+# backend's own, not a misleading "no Python found".
+$python = Resolve-BackendPython
+if (-not $python) {
     Write-Err 'No Python environment found.'
     Write-Err 'Create one: py -V:3.11 -m venv D:\conda-envs\nma-studio-cuda'
     exit 1
 }
+Write-Ok "Using backend environment: $python"
 
 $backendTarget = Get-BackendTarget -Python $python -Port $BackendPort
 

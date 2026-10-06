@@ -40,10 +40,38 @@ $studioPython = $envs.StudioPython
 $condaPython  = $envs.ComfyPython
 $venvPython   = $envs.VenvPython
 
-# Prefer studio env > ComfyUI env > CPU fallback
-$backendPython = if (Test-Path $studioPython) { $studioPython }
-                 elseif (Test-Path $condaPython) { $condaPython }
-                 else { $venvPython }
+# Backend interpreter: the verified chain (studio > ComfyUI > project
+# venv, each probed for the backend's runtime imports). A broken env
+# would otherwise be launched and fail far from the cause. The probe
+# costs ~1 s and only matters when the backend may be launched, so
+# read-only actions (status/health/stop) keep the cheap path-existence
+# chain - $backendPython is never executed by them.
+$backendPython = if ($Action -in @('start', 'restart')) {
+    Resolve-BackendPython
+} else {
+    if (Test-Path $studioPython) { $studioPython }
+    elseif (Test-Path $condaPython) { $condaPython }
+    else { $venvPython }
+}
+if (-not $backendPython) {
+    Write-Err 'No Python environment found for the backend.'
+    Write-Err 'Create one: py -V:3.11 -m venv D:\conda-envs\nma-studio-cuda'
+    exit 1
+}
+
+# ComfyUI interpreter: same idea, probed for what ComfyUI's main.py
+# actually imports (torch). Verified when it may be launched; the
+# read-only actions keep the cheap existence chain. A null resolution
+# keeps the declared default so the service reports its own
+# "Python not found" instead of a misleading downstream error.
+$comfyPython = if ($Action -in @('start', 'restart')) {
+    Resolve-ComfyUIPython
+} else {
+    if (Test-Path $condaPython) { $condaPython }
+    elseif (Test-Path $studioPython) { $studioPython }
+    else { $venvPython }
+}
+if (-not $comfyPython) { $comfyPython = $condaPython }
 
 # Backend dev auto-reload: outer watchfiles watcher restarts uvicorn on .py
 # changes. uvicorn's own --reload is deliberately not used - its Windows
@@ -79,7 +107,7 @@ $ServiceConfig = @{
         Name = 'ComfyUI'
         Port = $Ports.comfyui_port
         HealthPath = '/'
-        Python = 'D:\conda-envs\comfyui-cuda\Scripts\python.exe'
+        Python = $comfyPython
         WorkingDir = 'D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI'
         Args = @('main.py', '--port', "$($Ports.comfyui_port)", '--disable-pinned-memory')
         LogFile = 'comfyui.log'

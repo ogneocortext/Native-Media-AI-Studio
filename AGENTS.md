@@ -4,10 +4,19 @@
 > **Status:** Active Development (Phase 1+2)
 > **Platform:** Windows 11 local development machine
 
+> **Shell rule: always use PowerShell 7 (`pwsh`).** The project's own
+> scripts require PowerShell 7.6+; the agent shell may itself be
+> PowerShell **5.1**, so invoke scripts as
+> `pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\<name>.ps1`
+> and never as `powershell ...`. Check
+> `$PSVersionTable.PSVersion.Major` before concluding a script is
+> broken. On any PowerShell failure, fall back to Python immediately
+> (see Shell / Process Management below).
+>
 > **Agent bootstrap:** read `docs/README.md` first — it maps every documentation
 > directory and says which are authoritative. Then read
 > `docs/architecture/decision-log.md` before writing code. It records
-> stack/architecture decisions (D1–D32 — do not re-litigate) and open questions
+> stack/architecture decisions (D1–D33 — do not re-litigate) and open questions
 > (Q1–Q6). Update the log when you make or reverse an architecture decision.
 > Frontend visualizer work also requires `docs/architecture/visualizer.md` — it
 > maps the module split from D14 and states where new logic belongs.
@@ -426,8 +435,15 @@ Rules:
 
 - Default to `nma-studio-cuda` for backend + GPU work.
 - Never use `comfyui-cuda` for backend work.
+- Selection is verified, not path-based (D33): `tools/run-gates.py`
+  probes every candidate with a real ruff run **and** a real pytest
+  run (a Python 3.14 interpreter passes `ruff` and `pytest --version`
+  but fails the suite with `PermissionError` in temp-dir cleanup), and
+  `scripts\shared-utils.ps1`'s `Resolve-BackendPython` probes
+  `import fastapi, uvicorn, watchfiles` before the service launchers
+  pick an env. A broken env is skipped with a warning, never launched.
 
-Music-gen prefers `tools/music-gen/.venv/Scripts/python.exe`, then `MUSIC_GEN_PYTHON`, then backend `sys.executable` (with warning).
+Music-gen prefers `tools/music-gen/.venv/Scripts/python.exe`, then `MUSIC_GEN_PYTHON`, then backend `sys.executable` (with warning); each candidate is probed with `import acestep` before it is chosen.
 
 ## Testing
 

@@ -28,8 +28,13 @@ Usage:
   python tools/run-gates.py --list
   python tools/run-gates.py --which-python   # explain the interpreter choice
 
-Tools are resolved at runtime, never hardcoded - see resolve_python(). Set
-NMA_PYTHON to force a specific interpreter.
+Tools are resolved at runtime, never hardcoded - see resolve_python().
+A candidate counts as "usable" only if it passes every probe in
+_probes(): a real ruff run AND a real pytest run. Set NMA_PYTHON
+to force a specific interpreter. The project env is read from
+.python-env (PYTHON_ENV), and the documented CPU-only fallback
+venv (FALLBACK_VENV) is a candidate too - it can run the gates
+even when it cannot run the server.
 
 Exit 0 = all selected gates passed, 1 = at least one failed.
 The e2e gate is opt-in because it starts a Vite dev server and needs a browser.
@@ -76,7 +81,12 @@ def resolve_pnpm():
 #
 # Crucially, "having the packages installed" is NOT the same as "working": an
 # interpreter can import fastapi and still fail the suite (see resolve_python),
-# so every candidate is verified by running a gate, not by inspection.
+# so every candidate is verified by running the gates' own tooling, not by
+# inspection. Measured on this machine: C:\Python314 passes `ruff check`
+# and `pytest --version` yet fails a real pytest run (PermissionError while
+# expiring pytest's numbered temp dirs under Python 3.14), and the foreign
+# space-analyzer-cuda env passes ruff but has neither fastapi nor
+# pytest_asyncio. Both must be rejected, which only the probes below do.
 ENV_GLOBS = [
     r"D:\conda-envs\*\Scripts\python.exe",
     r"D:\conda-envs\*\python.exe",
@@ -86,13 +96,83 @@ ENV_GLOBS = [
 PROJECT_ENV = r"D:\conda-envs\nma-studio-cuda\Scripts\python.exe"
 
 
-def _probe_ok(python, argv, cwd):
-    """True if argv runs clean under this interpreter."""
+def _read_python_env():
+    """Parse the repo-root .python-env declaration (KEY=VALUE).
+
+    .python-env is the declared source of truth for which
+    interpreter each tier uses (PYTHON_ENV, COMFYUI_ENV,
+    TOOLS_ENV, FALLBACK_VENV). The PowerShell launchers read it
+    via shared-utils.ps1; this runner reads it directly so both
+    selection layers agree on the project env instead of each
+    hardcoding a path that can drift from the declaration.
+    """
+    cfg = {}
+    try:
+        for line in (ROOT / ".python-env").read_text(
+                "utf-8", errors="replace").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            key, _, value = line.partition("=")
+            key, value = key.strip(), value.strip().strip('"').strip("'")
+            if key:
+                cfg[key] = value
+    except OSError:
+        pass
+    return cfg
+
+
+def _candidate_list():
+    """Every interpreter that could run the backend gates, in
+    preference order.
+
+    $NMA_PYTHON is handled by the caller (it always wins and is
+    reported separately). Then: the declared project env
+    (.python-env PYTHON_ENV), the conda/system globs, the
+    documented CPU-only fallback venv (.python-env
+    FALLBACK_VENV), and finally python on PATH. The venv tier
+    was invisible to this resolver before - a machine with a
+    working venv but broken conda envs fell through to a broken
+    PATH python instead of trying the tier the docs promise.
+    """
+    cfg = _read_python_env()
+    candidates = []
+
+    def add(path):
+        # Dedupe case-insensitively: on Windows glob can return
+        # both python.exe and python.EXE, and listing each twice
+        # is noise.
+        if path and path.lower() not in {c.lower() for c in candidates}:
+            candidates.append(path)
+
+    declared = cfg.get("PYTHON_ENV") or PROJECT_ENV
+    if Path(declared).exists():
+        add(declared)
+    for pattern in ENV_GLOBS:
+        for hit in sorted(glob.glob(pattern)):
+            add(hit)
+    venv_rel = cfg.get("FALLBACK_VENV") or "venv/Scripts/python.exe"
+    venv_path = Path(venv_rel)
+    if not venv_path.is_absolute():
+        venv_path = ROOT / venv_path
+    if venv_path.exists():
+        add(str(venv_path))
+    add(shutil.which("python"))
+    return candidates
+
+
+def _probe_ok(python, argv, cwd, timeout=30):
+    """True if argv runs clean under this interpreter.
+
+    Bounded: a candidate that hangs (a wedged interpreter, a prompt
+    waiting on stdin) must not hang resolution with it.
+    """
     try:
         p = subprocess.run([python] + argv, cwd=str(cwd),
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           timeout=timeout)
         return p.returncode == 0
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         return False
 
 
@@ -103,6 +183,39 @@ def _probe_argv():
     if the interpreter starts and can import its own tooling.
     """
     return ["-m", "ruff", "check", ".", "--output-format=concise"]
+
+
+def _pytest_probe_argv():
+    """A real pytest run, used as an interpreter probe.
+
+    Cheaper probes lie on this machine: Python 3.14 passes `ruff
+    check` and `pytest --version` yet fails the suite with
+    PermissionError while expiring pytest's numbered temp dirs -
+    after every test has passed, so the run looks green right up
+    until the exit code. Only an actual run exercises that path,
+    so the probe runs the smallest test file that uses tmp_path:
+    hermetic, fast, and it drives the same temp machinery the
+    real gate does. Returns None when no such file exists.
+    """
+    best = None
+    for path in glob.glob(str(BACKEND / "tests" / "test_*.py")):
+        try:
+            text = Path(path).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if "tmp_path" not in text:
+            continue
+        if best is None or os.path.getsize(path) < os.path.getsize(best):
+            best = path
+    if best is None:
+        return None
+    return ["-m", "pytest", "-q", "-p", "no:cacheprovider",
+            "--tb=no", best]
+
+
+def _probes():
+    """Every probe a candidate must pass to run the backend gates."""
+    return [argv for argv in (_probe_argv(), _pytest_probe_argv()) if argv]
 
 
 def _describe(python):
@@ -136,19 +249,15 @@ def resolve_python(cwd=BACKEND, quiet=False):
         if not Path(override).exists():
             say("NMA_PYTHON=%s does not exist; ignoring" % override)
         else:
+            # An explicit override always wins, but a broken one
+            # used to be returned silently and then fail confusingly
+            # at the gate. Surface it while still honoring the
+            # operator's intent.
+            if not all(_probe_ok(override, argv, cwd) for argv in _probes()):
+                say("WARNING: NMA_PYTHON=%s failed the verification probes" % override)
             return override
 
-    candidates = []
-    for pattern in ENV_GLOBS:
-        for hit in sorted(glob.glob(pattern)):
-            if hit not in candidates:
-                candidates.append(hit)
-    if PROJECT_ENV not in candidates and Path(PROJECT_ENV).exists():
-        candidates.insert(0, PROJECT_ENV)
-
-    on_path = shutil.which("python")
-    if on_path and on_path not in candidates:
-        candidates.append(on_path)
+    candidates = _candidate_list()
 
     cache_path = Path(tempfile.gettempdir()) / "nma-studio-python-choice.json"
     try:
@@ -162,9 +271,10 @@ def resolve_python(cwd=BACKEND, quiet=False):
     if cached and Path(cached).exists() and cached not in order:
         order.insert(0, cached)
 
+    probes = _probes()
     rejected, winner = [], None
     for cand in order:
-        if _probe_ok(cand, _probe_argv(), cwd):
+        if all(_probe_ok(cand, argv, cwd) for argv in probes):
             winner = cand
             break
         rejected.append(cand)
@@ -185,6 +295,7 @@ def resolve_python(cwd=BACKEND, quiet=False):
     say("WARNING: no interpreter passed the ruff probe; falling back.")
     if rejected:
         say("  tried: %s" % ", ".join(rejected))
+    on_path = shutil.which("python")
     return PROJECT_ENV if Path(PROJECT_ENV).exists() else (on_path or "python")
 
 
@@ -274,20 +385,9 @@ def main():
         print("override ($NMA_PYTHON): %s" % (os.environ.get("NMA_PYTHON") or "(unset)"))
         print()
         print("candidates, in preference order:")
-        cands = []
-        for pattern in ENV_GLOBS:
-            for hit in sorted(glob.glob(pattern)):
-                # Dedupe case-insensitively: on Windows glob can return both
-                # python.exe and python.EXE, and listing each twice is noise.
-                if hit.lower() not in {c.lower() for c in cands}:
-                    cands.append(hit)
-        if PROJECT_ENV not in cands and Path(PROJECT_ENV).exists():
-            cands.insert(0, PROJECT_ENV)
-        on_path = shutil.which("python")
-        if on_path and on_path not in cands:
-            cands.append(on_path)
-        for i, cand in enumerate(cands):
-            ok = _probe_ok(cand, _probe_argv(), BACKEND)
+        probes = _probes()
+        for cand in _candidate_list():
+            ok = all(_probe_ok(cand, argv, BACKEND) for argv in probes)
             mark = "SELECTED" if cand == chosen else ("ok" if ok else "rejected")
             print("  %-8s %s" % (mark, _describe(cand)))
         return 0

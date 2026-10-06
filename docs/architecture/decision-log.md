@@ -9,7 +9,7 @@
 > **Context**, **Decision**, and **Consequences**. Open questions carry a
 > **Recommendation** where one exists.
 >
-> Current scope: D1–D32 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D33 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 
 ---
 
@@ -831,6 +831,7 @@
 
 ## Changelog
 
+- 2026-10-06: D33 recorded — verified interpreter selection at every Python entry point. Selection was by path existence only; measured on this machine, `C:\Python314` passes `ruff check` and `pytest --version` yet fails a real pytest run (PermissionError expiring pytest's numbered temp dirs under Python 3.14), and the foreign `space-analyzer-cuda` env passes ruff but has neither fastapi nor pytest_asyncio — both were reported as usable fallbacks. `run-gates.py` now requires a real pytest run of the smallest tmp_path-using test in addition to ruff (probes are timeout-bounded); `shared-utils.ps1` gains `Test-PythonEnv` (import fastapi/uvicorn/watchfiles) and `Resolve-BackendPython` (verified walk of the studio > ComfyUI > venv chain), consumed by `manage-servers.ps1` and `start-studio.ps1`; `check-env-health.ps1` gains a functional import probe; the music-gen launcher probes `import acestep` and its discovery order now matches its README.
 - 2026-10-06: Q6 resolved — progress-lease + per-type windows in the queue manager (in-memory `_last_progress_at`, reaper and health require age AND silence, video-family 1800 s vs default 900 s); 12 new lease tests, D31 suite updated to the two-stage contract. Remaining: Q1 and Q4 still open, Q2 in evaluation pending its ComfyUI verification.
 - 2026-10-06: LTX-2B-distilled 8GB verdict — viable. `ltxv-2b-0.9.8-distilled-fp8` (already staged on disk with the 2.3 text-projection/AV VAEs) + stock `t5-xxl-fp8` + `LTX23_video_vae` rendered 25f 768×512 in 210 s on the GTX 1070 Ti, no OOM, coherent by the Q3 frame stats (interframe 7.44, edge 0.182) — ~4× faster than Wan 2.2 Q4. Submitted raw via the ComfyUI API (UNETLoader→CLIPLoader(ltxv)→LTXVConditioning→KSampler→VAEDecode); no backend render path exists, so wiring one (`model_tiers.py` + builder) is the follow-up, not done here. Mochi/H3/CogVideoX/DreamX/MAGI-2: no weights on disk, untested. ComfyUI 0.37.0 carries 33 native LTX nodes and meets the H3 0.30+ floor, so H3 is blocked only on a quantized checkpoint.
 - 2026-10-06: Q3 resolved — Wan red-pattern rerun through the production adapter path (Q4 GGUF + fp16 UMT5 + wan2.2 VAE, 12 steps/seed 7) produced a coherent 25-frame render; measured against the 9/20 artifact (interframe diff 26.06 → 3.90, blue channel uncrushed). Exact old trigger unrecoverable, both prime suspects closed by construction.
@@ -1061,3 +1062,50 @@
   builds `params={"service": ..., **request.to_adapter_params()}` and looks
   correct, so something else is enqueueing without params. Untraced; until it is,
   empty-param jobs will keep appearing and be quarantined by D31.
+
+### D33 — Verified interpreter selection at every Python entry point (2026-10-06)
+
+- **Status:** Decided
+- **Context:** Every Python selection site chose an interpreter
+  by path existence (`Test-Path` / glob). An env can exist and
+  still be broken, and this machine proves it twice: `C:\Python314`
+  passes `ruff check` and `pytest --version` yet fails a real
+  pytest run — Python 3.14 raises `PermissionError` while expiring
+  pytest's numbered temp dirs *after* every test has passed, so a
+  green-looking run exits 1 — and the foreign `space-analyzer-cuda`
+  env passes ruff but has neither fastapi nor pytest_asyncio.
+  `run-gates.py --which-python` therefore reported both as usable
+  fallbacks, and the PowerShell launchers would have started the
+  backend on a broken env and failed far from the cause.
+- **Decision:** Selection is verified, never path-based. A
+  candidate must pass probes that exercise the tooling it will
+  actually run:
+  - `tools/run-gates.py`: a real ruff run **and** a real pytest
+    run of the smallest `tmp_path`-using test file (hermetic,
+    ~0.3 s of test time; the tmp_path machinery is exactly what
+    the 3.14 trap breaks). Subprocess probes are timeout-bounded
+    (30 s) so a wedged candidate cannot hang resolution.
+  - `scripts\shared-utils.ps1`: `Test-PythonEnv` probes
+    `import fastapi, uvicorn, watchfiles` (the backend's runtime
+    needs — the server plus the `watchfiles` reload wrapper the
+    launchers use), and `Resolve-BackendPython` walks the
+    studio > ComfyUI > venv chain returning the first interpreter
+    that passes, warning per broken env. If none pass, the first
+    *existing* candidate is returned so the service reports its
+    own failure rather than a misleading "no Python found".
+  - `tools\music-gen\start-service.ps1`: each candidate is
+    probed with `import acestep` (what `server.py` imports at
+    startup); discovery order now matches the README (ACE-Step
+    venv → service venv → `MUSIC_GEN_PYTHON` → conda → system).
+- **Consequences:** `manage-servers.ps1` and `start-studio.ps1`
+  use `Resolve-BackendPython` (the former only for
+  start/restart, so read-only actions skip the ~1 s probe);
+  `check-env-health.ps1` gained functional import probes for the
+  studio env and the project venv. `start-studio.ps1`'s dead
+  `-StudioPython`/`-ComfyPython` params (immediately overwritten
+  by `Get-PythonEnvs`) were removed. Cost: interpreter resolution
+  in `run-gates.py` is ~5 s in the common case (one cached
+  candidate, two probes) — negligible against the ~40 s pytest
+  gate it selects for. A broken env is now skipped with a warning
+  at every entry point instead of being launched.
+

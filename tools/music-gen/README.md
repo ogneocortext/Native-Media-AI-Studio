@@ -110,6 +110,10 @@ Python interpreter discovery order:
 3. `MUSIC_GEN_PYTHON`
 4. Backend `sys.executable` (logged as a warning)
 
+Each candidate is probed (`import acestep`) before it is chosen, so an
+env that exists but cannot run the server is skipped with a warning
+instead of failing seconds into the launch.
+
 ## VRAM Coordination
 
 The service integrates with the backend's VRAM manager:

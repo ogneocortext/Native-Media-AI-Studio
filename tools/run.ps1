@@ -1,5 +1,5 @@
 # tools/run.ps1
-# Launcher for standalone tools using the studio-tools Python 3.14 venv.
+# Launcher for standalone tools.
 #
 # Usage:
 #   pwsh -NoProfile -ExecutionPolicy Bypass -File tools\run.ps1 tools\lib\paths.py
@@ -24,9 +24,18 @@ if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
     exit 1
 }
 
-$python = Join-Path $repoRoot '..\..\conda-envs\studio-tools\Scripts\python.exe'
-if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
-    Write-Error "studio-tools Python not found at: $python"
+# Interpreter: the standalone-tooling chain, not a hardcoded path.
+# TOOLS_ENV comes from .python-env (the Python 3.14 studio-tools
+# venv); Resolve-ToolsPython verifies each candidate actually starts
+# and falls back to the studio env, the project venv, then PATH
+# python - warning loudly when it drops below the declared tools
+# env, since that changes the interpreter version a tool runs under.
+# Shared utilities live one directory up, in scripts\.
+. (Join-Path $PSScriptRoot '..\scripts\shared-utils.ps1')
+$Global:ProjectRoot = $repoRoot
+$python = Resolve-ToolsPython
+if (-not $python) {
+    Write-Error "No Python environment found for standalone tools (TOOLS_ENV from .python-env: $((Get-PythonEnvs).ToolsPython))"
     exit 1
 }
 

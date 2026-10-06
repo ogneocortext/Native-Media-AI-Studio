@@ -45,43 +45,54 @@ if ($VramBudget -eq 0) {
     $VramBudget = 6
 }
 
-# Find Python
-$Python = $null
-
-# Check for ACE-Step dedicated venv first (contains the `acestep` package)
-if (-not $Python) {
-    $aceVenv = Join-Path $ScriptDir "ACE-Step-1.5\.venv\Scripts\python.exe"
-    if (Test-Path $aceVenv) { $Python = $aceVenv }
+# Find Python: walk the candidate chain and take the first
+# interpreter that can actually run the server. server.py
+# imports `acestep` at startup, so an env without it fails
+# seconds into the launch - the probe rejects those before
+# anything is started. Order follows the README: ACE-Step
+# venv, then the service-local venv, then MUSIC_GEN_PYTHON,
+# then a conda env named music-gen, then system Python.
+function Test-MusicGenEnv {
+    param([string]$Python)
+    if (-not $Python) { return $false }
+    # A bare name (e.g. 'python') resolves through PATH; a path must exist.
+    if ($Python -match '[\\/]' -and -not (Test-Path -LiteralPath $Python)) {
+        return $false
+    }
+    $null = & $Python -c "import acestep" 2>$null
+    return $LASTEXITCODE -eq 0
 }
 
-# Check MUSIC_GEN_PYTHON env var
-if (-not $Python) {
-    if ($env:MUSIC_GEN_PYTHON -and (Test-Path $env:MUSIC_GEN_PYTHON)) {
-        $Python = $env:MUSIC_GEN_PYTHON
+$candidates = @(
+    (Join-Path $ScriptDir "ACE-Step-1.5\.venv\Scripts\python.exe"),
+    (Join-Path $ScriptDir ".venv\Scripts\python.exe")
+)
+if ($env:MUSIC_GEN_PYTHON) { $candidates += $env:MUSIC_GEN_PYTHON }
+try {
+    $condaInfo = & conda info --envs 2>$null | Select-String "music-gen"
+    if ($condaInfo) {
+        $condaBase = & conda info --base 2>$null
+        $candidates += (Join-Path $condaBase "envs\music-gen\python.exe")
+    }
+} catch { }
+$candidates += "python"
+
+$Python = $null
+foreach ($candidate in ($candidates | Select-Object -Unique)) {
+    if (Test-MusicGenEnv -Python $candidate) {
+        $Python = $candidate
+        break
+    }
+    if ($candidate -match '[\\/]' -and (Test-Path -LiteralPath $candidate)) {
+        Write-Warn "$candidate exists but cannot import acestep - skipping"
     }
 }
 
-# Check for conda env
 if (-not $Python) {
-    $condaEnv = "music-gen"
-    try {
-        $condaInfo = & conda info --envs 2>$null | Select-String $condaEnv
-        if ($condaInfo) {
-            $condaBase = & conda info --base 2>$null
-            $Python = Join-Path $condaBase "envs\$condaEnv\python.exe"
-            if (-not (Test-Path $Python)) { $Python = $null }
-        }
-    } catch { }
+    Write-Err "No Python environment with the acestep package found."
+    Write-Err "acestep is vendored in tools\music-gen\ACE-Step-1.5\acestep - restore that checkout's .venv, or set MUSIC_GEN_PYTHON to an interpreter that has it (see tools\music-gen\README.md)"
+    exit 1
 }
-
-# Check for venv in service directory
-if (-not $Python) {
-    $venvPython = Join-Path $ScriptDir ".venv\Scripts\python.exe"
-    if (Test-Path $venvPython) { $Python = $venvPython }
-}
-
-# Fallback to system Python
-if (-not $Python) { $Python = "python" }
 
 Write-Host "Music Gen Service: engine=$Engine port=$Port vram=${VramBudget}GB" -ForegroundColor Cyan
 Write-Host "Python: $Python" -ForegroundColor DarkGray
