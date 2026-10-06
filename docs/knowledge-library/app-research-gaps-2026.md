@@ -41,15 +41,15 @@ date: 2026-09-29
 
 | Gap                                 | Why It Matters                                                                                                                                                       | Recommendation  |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| **LTX Video 2.3 on 8GB**            | Current `model_tiers.py` lists LTX at 8-16GB; no validated 8GB config exists. If quantized variants or CPU-offload paths exist, this could be a quality leap.        | 🔴 Research Now |
-| **Mochi-1 / Mochi-2 8GB viability** | Not in `VRAM_REQUIREMENTS` at all. 2026's other notable open-weight video model may have smaller variants or GGUF paths.                                             | 🔴 Research Now |
+| **LTX Video 2.3 on 8GB**            | ✅ Viable 2026-10-06 — `ltxv-2b-0.9.8-distilled-fp8` (4.46 GB) + stock `t5-xxl-fp8` + `LTX23_video_vae` rendered 25f 768×512 in 210 s on the GTX 1070 Ti with no OOM: balanced channels, interframe diff 7.44 (coherent; cf. Wan 3.90, red-pattern 26.06), edge density 0.182. ~4× faster than Wan 2.2 Q4 (853.7 s). No backend render path exists yet — wiring one is the follow-up. | ✅ Done |
+| **Mochi-1 / Mochi-2 8GB viability** | Blocked 2026-10-06 — no weights on disk (only 2 Mochi nodes in ComfyUI 0.37.0) and no smaller-variant survey done. Needs a download before any 8GB verdict. | 🟡 Defer |
 | **Wan 2.2 red-pattern issue (Q3)**  | ✅ Resolved 2026-10-06 — reran the smoke test through the production adapter path (Q4 GGUF + fp16 UMT5 + wan2.2 VAE, 12 steps/seed 7, 25f 832×480): coherent render, interframe diff 26.06 → 3.90 vs the 9/20 artifact, blue channel uncrushed. Old trigger unrecoverable (predates the T5/VAE patches) but both prime suspects are closed by construction. | ✅ Done |
 | **CogVideoX-5B quantization**       | No entry in `NON_IMAGE_CHECKPOINT_KEYWORDS` or VRAM table. 5B class model; if GGUF/Q4 works on 8GB, it's a viable alternative.                                       | 🟡 Defer        |
 | **Video quality metrics**           | No objective metric (FVD, F1-score, SSIM) in the job result. Can't tell if a "successful" generation is actually good without manual review.                         | 🟡 Defer        |
 
 ### Suggested Research
 
-1. **LTX 2.3 8GB sweep**: Test with `--disable-pinned-memory`, `--force-fp16`, CPU T5 offload, and Q4 quantization paths. Document exact VRAM, sample count, and output quality.
+1. ~~LTX 2.3 8GB sweep~~ — done 2026-10-06 (2B distilled fp8 viable, see §1 table). Follow-up: backend LTX render path (`model_tiers.py` entry + workflow builder mirroring `_build_wan_gguf_workflow`).
 2. **Mochi variant survey**: Check if Mooch/ModelScope have smaller distilled variants. If not, skip.
 3. **Wan 2.2 debug protocol**: Capture `workflow.json`, T5/VAE filenames, and `comfyui.log` on every Wan attempt. Add structured logging to `comfyui_workflow_handler.py`.
 4. **Add FVD/SSIM to job result**: Use `torchmetrics` or a lightweight FVD implementation; store in `output/video/{job_id}_metrics.json`.
@@ -581,7 +581,7 @@ not yet confirmed on screen against the existing styles.
 | P0       | Agent MCP tool contracts            | Fullstack | 4-8h   | ✅ Published mcp-contracts-2026.md; input side now enforced in code (`mcp_validator.py` + `POST /api/mcp/validate-tool`, all four bridges dispatch effective args) |
 | P1       | Full-pipeline E2E test              | Fullstack | 4-8h   | ✅ P1a Playwright smoke unblocked (MIME fix); 13/13 health+pipeline tests pass |
 | P1       | VRAM leak test                      | Backend   | 2-4h   | ✅ 3 baseline/leak tests added; 9/9 pass                                       |
-| P1       | Video model sweep (LTX, Mochi)      | Backend   | 4-8h   | Requires GPU test runs                                                         |
+| P1       | Video model sweep (LTX, Mochi)      | Backend   | 4-8h   | ✅ LTX half done 2026-10-06 (2B distilled viable, 210 s/25f); Mochi blocked on weights; backend LTX path not yet wired |
 | P2       | Go sidecar consolidation analysis   | Backend   | 4-6h   | Reduces ops burden                                                             |
 | P2       | Benchmark dashboard                 | Frontend  | 4-8h   | Improves UX                                                                    |
 | P2       | WhisperX alignment test             | Backend   | 2-4h   | Better karaoke                                                                 |
@@ -609,4 +609,4 @@ not yet confirmed on screen against the existing styles.
 
 ---
 
-_Last updated: 2026-10-06_ (§13/§15 flipped to done: MCP input contracts + Q2 implementation landed; Q2 plan verification and output-side contracts remain open. Q3 resolved same day: Wan red pattern does not reproduce on the patched path.)
+_Last updated: 2026-10-06_ (§13/§15 flipped to done: MCP input contracts + Q2 implementation landed; Q2 plan verification and output-side contracts remain open. Q3 resolved same day: Wan red pattern does not reproduce on the patched path. LTX sweep same day: 2B distilled fp8 viable on 8GB, 210 s/25f.)
