@@ -73,6 +73,7 @@ extending this: **record outcomes here, re-derive listings.**
   `stealth/space-bunny-alpha` route, so the OpenRouter preview window governs.
   Still $0 on all routes as of Sep 29 checks. Treat as temporary; do not build
   dependencies on its continued availability.
+- **2026-10-06 addendum:** free preview ended — no longer free on the user's routes. Replaced as local coding agent by Ling 3.1 Flash (see below).
 
 ## NVIDIA Nemotron (family-level) — do not re-test blind
 
@@ -126,6 +127,7 @@ not a candidate.
 - **Strong at:** the longest-running reliable free inference the owner has
   found (best over the last 2 years). This month, Kilo and Cline both running
   Space Bunny Alpha are the most reliable combo.
+  **2026-10-06:** Space Bunny Alpha's free preview ended; the current combo is Kilo Desktop running Ling 3.1 Flash (see below).
 - **Weak at:** most free-tier models listed in the Kilo gateway do not
   actually work on free accounts — a listing is not a reliable signal of
   availability. Blind-testing models burns session time; run
@@ -161,3 +163,12 @@ not a candidate.
   one-time $10 credit purchase permanently lifts `:free` models to 1,000/day
   and the credits remain spendable — but that is still spend, so for a
   zero-spend strategy the cap is the wall and route rotation is the answer.
+
+## Ling 3.1 Flash — InclusionAI via Kilo Desktop
+
+- **Model / route:** Ling 3.1 Flash, by InclusionAI, via Kilo Desktop (Kilo Code).
+- **First used:** 2026-10-06 — replaced Space Bunny Alpha as the local coding agent when its free preview ended.
+- **Strong at:** docs maintenance at scale (knowledge-library refresh 77→84 articles, decision-log D1–D32/Q1–Q6 scope header, all in one session); honest commit messages documenting what changed; backend queue/polling fixes (ComfyUI deadline extension with fail-fast on lost prompts); test-structure repairs. First-day evidence only — 5 commits, all with `### <Type> - <description>` subjects.
+- **Weak at:** TBD — record after more sessions.
+- **Quirks (needs explicit instruction for):** commit-trailer discipline — the first 5 commits shipped without the `Co-authored-by` trailer. The convention was reinstated in repo `AGENTS.md` ("Commit attribution", 2026-10-06) with trailer `Co-authored-by: Ling 3.1 Flash` (no email — InclusionAI, not Anthropic). Remind per session until it sticks.
+- **Cost / access notes:** not yet recorded — note free/paid status and any rate limits after the first billing check.
