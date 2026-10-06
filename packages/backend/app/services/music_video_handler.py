@@ -1,6 +1,7 @@
 """Music video generation handler - processes music video jobs with audio analysis and video composition."""
 
 import asyncio
+import logging
 import shutil
 from pathlib import Path
 from typing import Any
@@ -8,12 +9,31 @@ from typing import Any
 from ..core.config import PROJECT_ROOT
 from ..models.job import Job, JobType
 from ..services.audio_analyzer import AudioAnalyzer, extract_amplitude_envelope_simple
+from .visual_fallback import select_fallback_preset
 
 OUTPUT_DIR = PROJECT_ROOT / "output" / "video"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 PREVIEW_DIR = PROJECT_ROOT / "output" / "previews"
 PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
+
+# Fallback preset → FFmpeg visualization style. Kept at module scope so the
+# mapping is declared once rather than rebuilt on every degraded render.
+_FALLBACK_STYLE_MAP: dict[str, str] = {
+    "phonk": "waveform",
+    "synthwave": "spectrum",
+    "ambient": "spectrum",
+    "gfunk": "waveform",
+    "grime": "waveform",
+    "dubstep": "waveform",
+    "lofi": "waveform",
+    "cinematic": "spectrum",
+    "rb": "waveform",
+    "pop": "waveform",
+    "indie": "spectrum",
+    "trapMetal": "waveform",
+    "balanced": "waveform",
+}
 
 # Section-aware prompt suffixes — keeps one visual theme per song section
 # and makes the drop more energetic than intro (user advice: Wan 2.1 1.3B guide).
@@ -177,7 +197,7 @@ class MusicVideoHandler:
             )
 
         try:
-            await self._render_with_ffmpeg(
+            fallback_info = await self._render_with_ffmpeg(
                 job, ffmpeg_cmd, audio_path, output_path, width, height, fps, duration_seconds, analysis, viz_config, method
             )
         except Exception as e:
@@ -186,7 +206,7 @@ class MusicVideoHandler:
 
         await self._update_progress(job, 1.0, "Music video complete")
 
-        return {
+        result: dict[str, Any] = {
             "output_path": str(output_path),
             "output_filename": output_filename,
             "duration_seconds": duration_seconds,
@@ -196,6 +216,15 @@ class MusicVideoHandler:
             "num_beats": analysis.get("num_beats", 0),
             "style": viz_config.get("style", "abstract"),
         }
+        if fallback_info.get("degraded"):
+            result["degraded"] = True
+            result["visual_source_used"] = fallback_info.get("visual_source_used", "ffmpeg")
+            result["fallback_reason"] = fallback_info.get("fallback_reason")
+        else:
+            result["degraded"] = False
+            result["visual_source_used"] = fallback_info.get("visual_source_used", method)
+            result["fallback_reason"] = None
+        return result
 
     async def _update_progress(self, job: Job, progress: float, message: str):
         """Update job progress via the queue manager."""
@@ -269,13 +298,60 @@ class MusicVideoHandler:
         viz_config: dict,
         method: str = "visualization",
     ):
-        """Render video using FFmpeg with visualization filters."""
-        style = viz_config.get("style", "waveform")
+        """Render video using FFmpeg with visualization filters.
 
-        if method == "comfyui":
-            return await self._render_with_comfyui(job, audio_path, output_path, width, height, duration, analysis)
-        if method == "comfyui_wan_gguf":
-            return await self._render_with_comfyui_wan_gguf(job, audio_path, output_path, width, height, duration, analysis)
+        Returns a dict with optional fallback metadata when the AI render
+        degraded to the deterministic FFmpeg path.
+        """
+        fallback_info: dict[str, str | bool | None] = {
+            "degraded": False,
+            "visual_source_used": method,
+            "fallback_reason": None,
+        }
+        logger = logging.getLogger(__name__)
+
+        if method in ("comfyui", "comfyui_wan_gguf"):
+            try:
+                if method == "comfyui":
+                    await self._render_with_comfyui(job, audio_path, output_path, width, height, duration, analysis)
+                else:
+                    await self._render_with_comfyui_wan_gguf(job, audio_path, output_path, width, height, duration, analysis)
+                fallback_info["visual_source_used"] = method
+                return fallback_info
+            except Exception as ai_exc:
+                # AI render failed — degrade to deterministic FFmpeg visualization
+                # so the job completes instead of erroring out.
+                genre = str(job.params.get("genre", "")).strip() or None
+                track_name = str(job.params.get("track_name", "")).strip() or None
+                energy = analysis.get("energy_mean")
+                if energy is None:
+                    envelope = analysis.get("amplitude_envelope") or []
+                    try:
+                        energy = sum(envelope) / len(envelope) if envelope else None
+                    except TypeError:
+                        energy = None
+                bpm = analysis.get("tempo_bpm")
+                preset = select_fallback_preset(
+                    genre=genre, energy=energy, bpm=bpm, track_name=track_name
+                )
+                logger.warning(
+                    "AI render failed for job %s (%s) — falling back to preset '%s' via FFmpeg: %s",
+                    job.id, method, preset, repr(ai_exc),
+                )
+                await self._update_progress(
+                    job, 0.5,
+                    f"ComfyUI unavailable — using {preset} fallback",
+                )
+                # Override viz_config so the FFmpeg path picks a style that matches
+                # the selected preset (waveform / spectrum / abstract).
+                viz_config = dict(viz_config)
+                viz_config["style"] = _FALLBACK_STYLE_MAP.get(preset, "waveform")
+                method = "visualization"
+                fallback_info = {
+                    "degraded": True,
+                    "visual_source_used": f"ffmpeg:{preset}",
+                    "fallback_reason": str(ai_exc)[:500],
+                }
 
         # Encoding: use CRF for size/quality (was ultrafast → 772MB for 4:24)
         # Add -t to respect requested duration (was rendering full 4:24 for every 5s request → timeout)
@@ -283,6 +359,8 @@ class MusicVideoHandler:
         acodec_args = ["-c:a", "aac", "-b:a", "192k"]
         # Use -t to limit to requested duration (avoid 4:24 full render for 5s preview)
         duration_args = ["-t", str(duration)] if duration and duration < 60 else []
+
+        style = viz_config.get("style", "abstract")
 
         # For preview jobs without audio, generate a test pattern video
         if not audio_path:
@@ -417,16 +495,7 @@ class MusicVideoHandler:
                     raise RuntimeError(f"FFmpeg failed: output not created at {output_path}") from _ne
                 # Skip the rest of streaming logic - jump to completion
                 await self._update_progress(job, 1.0, "Music video complete (thread fallback)")
-                return {
-                    "output_path": str(output_path),
-                    "output_filename": output_path.name,
-                    "duration_seconds": duration,
-                    "resolution": f"{width}x{height}",
-                    "fps": fps,
-                    "tempo_bpm": analysis.get("tempo_bpm", 0),
-                    "num_beats": analysis.get("num_beats", 0),
-                    "style": viz_config.get("style", "abstract"),
-                }
+                return fallback_info
 
             # Read stderr streaming (FFmpeg uses \r for progress, not \n) while process runs, update progress 0.5→1.0
             stderr_chunks = []
@@ -518,6 +587,8 @@ class MusicVideoHandler:
             if "FFmpeg failed" in str(e) or "timed out" in str(e):
                 raise
             raise RuntimeError(f"FFmpeg failed: {e}") from e
+
+        return fallback_info
 
     async def _render_with_comfyui(self, job: Job, audio_path: str, output_path: Path, width: int, height: int, duration: float, analysis: dict) -> None:
         """Render video using ComfyUI AnimateDiff for AI-generated content."""

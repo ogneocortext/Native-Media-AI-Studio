@@ -56,13 +56,29 @@ def load_observed():
     return rows, notes
 
 
+def _row_outcome(r):
+    """Normalize old ({worked, date}) and new ({outcome, ts}) row shapes."""
+    if "worked" in r:
+        worked = bool(r["worked"])
+    elif "outcome" in r:
+        worked = str(r["outcome"]).lower() == "success"
+    else:
+        worked = True  # a logged session with no verdict is still evidence
+    date = r.get("date")
+    if not date and r.get("ts"):
+        date = str(r["ts"])[:10]
+    return worked, date
+
+
 def model_observed(model, rows):
     """Return (last_worked, last_failed, notes) for one model across routes."""
     worked, failed, notes = [], [], []
     for r in rows:
         if r["model"] != model:
             continue
-        (worked if r["worked"] else failed).append(r["date"])
+        ok, date = _row_outcome(r)
+        if date:
+            (worked if ok else failed).append(date)
         if r.get("note"):
             notes.append(f"[{r.get('route', '?')}] {r['note']}")
     return (max(worked) if worked else None,

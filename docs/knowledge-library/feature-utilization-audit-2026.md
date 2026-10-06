@@ -30,57 +30,39 @@ date: 2026-09-24
 
 ---
 
-## 1. False-Confidence Features
+## 1. Implemented Fallback & Validation
 
-These are modules that exist, are documented, and appear in the knowledge library,
-but are **never imported or executed** anywhere in the runtime codebase.
+These modules were previously listed as dead code but are now wired into the
+runtime codebase.
 
-### 1.1 `visual_fallback.py` — Dead Code with Full Documentation
+### 1.1 `visual_fallback.py` — Implemented
 
-**Anomaly:** A 180-line Python module that implements deterministic shader preset
-selection (genre/energy/BPM → preset id). It is referenced in `app-research-gaps-2026.md`,
-`decision-log.md` (Q2), and `feature-utilization-audit-2026.md` (previous version)
-as an active fallback mechanism. It is **not imported by any other module**.
+**Status:** ✅ Wired into `music_video_handler.py` with AI→FFmpeg fallback path.
 
 **Evidence:**
-- `packages/backend/app/services/visual_fallback.py` — 179 lines, full implementation
-- Zero import references across the entire `packages/` tree
-- Not called from `music_video_handler.py`, `comfyui_workflow_handler.py`, or any adapter
-- Frontend `selectVisualPreset()` exists in `visualPresets.ts` but is also not called
-  from the wizard or video pipeline
+- `packages/backend/app/services/visual_fallback.py` — 179 lines, deterministic preset selector
+- Imported and called from `packages/backend/app/services/music_video_handler.py`
+- When ComfyUI/adapter fails, jobs degrade to FFmpeg shader presets with `degraded`, `visual_source_used`, `fallback_reason` fields on SSE
+- Frontend `selectVisualPreset()` exists in `visualPresets.ts` as the UI mirror
 
-**Impact:** Medium. The fallback design goal from decision Q2 is documented but
-unimplemented. When ComfyUI fails, jobs error out instead of degrading to shader
-presets. Users perceive the app as "fragile" because the resilience mechanism
-doesn't actually run.
-
-**Root cause:** The module was written as a "pure logic" proof-of-concept but
-never wired into the job handler's exception path.
-
-**Fix:** One import + one `except` branch in `music_video_handler.py`.
+**Flow:** `integrations_music_video.py` catches adapter unavailability → queues degraded job → `music_video_handler.py` calls `select_fallback_preset()` → renders via FFmpeg → broadcasts SSE with fallback metadata.
 
 ---
 
-### 1.2 `mcp_validator.py` — Dead Code with Schema Registry
+### 1.2 `mcp_validator.py` — Implemented
 
-**Anomaly:** A 435-line JSON Schema validator for 38 in-repo MCP tools. Created
-2026-09-24, documented in `mcp-contracts-2026.md`, but **never imported** by
-any MCP bridge or agent runtime.
+**Status:** ✅ Wired into 4 MCP bridges + FastAPI endpoint.
 
 **Evidence:**
-- `packages/backend/app/services/mcp_validator.py` — full implementation
-- Not imported from `tools/mcp/unity-mcp-bridge.mjs`
-- Not imported from `tools/mcp/ollama-tools-mcp.mjs`
-- Not imported from `tools/mcp/blender-mcp` or any other bridge
-- No test file imports it (except the module itself)
+- `packages/backend/app/services/mcp_validator.py` — full JSON Schema validator for 38 in-repo MCP tools
+- Imported and called from `tools/mcp/ollama-tools-mcp.mjs`
+- Imported and called from `tools/mcp/hyperframes-mcp.mjs`
+- Imported and called from `tools/mcp/vision-mcp.mjs`
+- Imported and called from `tools/mcp/unity-mcp-bridge.mjs`
+- Exposed via FastAPI endpoint `POST /api/mcp/validate-tool` (`packages/backend/app/api/mcp_validate.py`)
+- Registered in `packages/backend/app/main.py`
 
-**Impact:** Medium. Agents occasionally invent invalid commands because there
-is no validation layer. The validator exists but is inert.
-
-**Root cause:** Created as infrastructure before the bridges were ready to
-consume it. No bridge has been updated to call it.
-
-**Fix:** Import + call in each bridge's `tools/call` handler.
+**Flow:** Each bridge's `tools/call` (or equivalent) handler calls `validateMcpToolCall()` before dispatching → rejects invalid payloads with structured errors → prevents agents from inventing commands outside the schema.
 
 ---
 
@@ -217,10 +199,12 @@ frontend panels, wired together.
 - **UI:** Rendered in `MediaDetailModal.tsx` for `file_type === "image"`
 - **Status:** ✅ Active — ComfyUI 4x-ClearRealityV1 or FFmpeg lanczos fallback
 
-### 4.3 MCP Validator (Infrastructure Only)
+### 4.3 MCP Validator
 
-- **Backend:** `mcp_validator.py` — 38 schemas, valid but **not called**
-- **Status:** ⚠️ Infrastructure exists but no runtime enforcement
+- **Backend:** `mcp_validator.py` — 38 schemas, called from 4 MCP bridges
+- **Endpoint:** `POST /api/mcp/validate-tool` (`mcp_validate.py`)
+- **Bridges:** `ollama-tools-mcp.mjs`, `hyperframes-mcp.mjs`, `vision-mcp.mjs`, `unity-mcp-bridge.mjs`
+- **Status:** ✅ Active — validates tool calls before dispatch
 
 ---
 
@@ -243,16 +227,15 @@ objectively.
 
 ### 5.2 Automatic Fallback Chain
 
-**Missing:** Decision Q2 specifies AI → shader → 2D fallback priority list.
-Only the frontend `selectVisualPreset()` exists; the backend `visual_fallback.py`
-is dead code. No fallback chain runs at job execution time.
+**Status:** ✅ Implemented. Decision Q2 AI → shader fallback is wired.
 
 **Evidence:**
-- `visual_fallback.py` — not imported anywhere
-- `MusicVideoHandler._process_job_inner` — no fallback branch
-- `comfyui_workflow_handler.py` — raises on failure, no degrade path
+- `visual_fallback.py` — imported by `music_video_handler.py`
+- `MusicVideoHandler` calls `select_fallback_preset()` when ComfyUI/adapter unavailable
+- `integrations_music_video.py` queues degraded jobs instead of raising 503
+- SSE includes `degraded`, `visual_source_used`, `fallback_reason` fields
 
-**Impact:** High. ComfyUI downtime = failed jobs instead of degraded shader renders.
+**Flow:** ComfyUI failure → `integrations_music_video.py` catches exception → queues job with `visual_fallback` param → `music_video_handler.py` selects deterministic preset → renders via FFmpeg → broadcasts SSE with fallback metadata.
 
 ---
 
@@ -324,14 +307,37 @@ data that dies at the pipeline boundary.
 
 ---
 
-## 8. Recommended Actions
+## 8. Implemented Knowledge-Library Features
+
+These features were specified in the Gemini tutorial guidance docs and are now
+implemented in the codebase.
+
+### 7.1 In The Mix DSP (`suno_enhancer.py`)
+
+- **Source:** `docs/knowledge/gemini-tutorial-guidance-2026-09-30/03-in-the-mix-mix-upgrades.md`
+- **Service:** `packages/backend/app/services/suno_enhancer.py`
+- **Status:** ✅ Implemented — two-stage EQ, parallel weight bus, sidechain pocket EQ
+
+### 7.2 Bileam AudioReactivityProcessor
+
+- **Source:** `docs/knowledge/gemini-tutorial-guidance-2026-09-30/04-bileam-audio-reactivity-module.md`
+- **Module:** `packages/frontend/src/features/visualizer/audioReactivityProcessor.ts`
+- **Status:** ✅ Implemented — abstract signal principle, multi-channel split, lag/smoothing buffer
+
+### 7.3 PPPANIK InstancedBlobField
+
+- **Source:** `docs/knowledge/gemini-tutorial-guidance-2026-09-30/05-pppanik-instanced-blob-field.md`
+- **Component:** `packages/frontend/src/features/visualizer/components/InstancedBlobField.tsx`
+- **Status:** ✅ Implemented — Three.js instanced mesh, audio-reactive simplex noise, 30k–60k instance budget
+
+---
+
+## 9. Recommended Actions
 
 ### Immediate (P0)
 
 | Action | Why | Effort |
 |--------|-----|--------|
-| Delete or wire `visual_fallback.py` | Dead code creates false confidence in Q2 fallback | 2h |
-| Wire `mcp_validator.py` into bridges | Schema validation is documented but inert | 4h |
 | Add prompt-generation step to wizard | Music prompt generator is an island | 2h |
 
 ### Short-term (P1)
@@ -347,14 +353,13 @@ data that dies at the pipeline boundary.
 
 | Action | Why | Effort |
 |--------|-----|--------|
-| Implement fallback chain (Q2) | ComfyUI downtime should degrade, not fail | 4-8h |
 | Add video quality metrics | Needed to compare model variants objectively | 4-8h |
 | Build benchmark dashboard | Benchmark data stored but never aggregated | 4-8h |
 | Evaluate 3D convergence (Q1) | Unity + Blender + Three.js = 3 maintenance tracks | 2-4h |
 
 ---
 
-## 9. What This Audit Does NOT Cover
+## 11. What This Audit Does NOT Cover
 
 This document intentionally does not duplicate:
 - **Research gaps** — see `app-research-gaps-2026.md` for video model validation,
@@ -371,19 +376,19 @@ code?**
 
 ---
 
-## See Also
+## 12. See Also
 
 - [[app-research-gaps-2026]] — 15 research areas
 - [[e2e-test-plan-2026]] — Test coverage plan
 - [[decision-log]] — Q1 (3D convergence), Q2 (auto fallback), Q4 (visualizer modes)
-- [[mcp-contracts-2026]] — 38-tool schema registry (not yet enforced)
+- [[mcp-contracts-2026]] — 38-tool schema registry (now enforced)
 - [[video-model-test-protocol-2026]] — GPU test matrix for LTX/Mochi
-- `packages/backend/app/services/visual_fallback.py` — Dead-code fallback logic
-- `packages/backend/app/services/mcp_validator.py` — Dead-code schema validator
+- `packages/backend/app/services/visual_fallback.py` — ✅ Wired into music_video_handler
+- `packages/backend/app/services/mcp_validator.py` — ✅ Wired into 4 MCP bridges
 - `packages/backend/app/services/music_prompt_generator.py` — Orphaned wizard step
 - `packages/backend/app/services/export_matrix.py` — ✅ Wired (verified)
 - `packages/backend/app/services/upscale_service.py` — ✅ Wired (verified)
 
 ---
 
-*Last updated: 2026-09-24*
+*Last updated: 2026-10-05*

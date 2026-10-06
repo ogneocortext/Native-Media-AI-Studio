@@ -5,8 +5,9 @@ Notification and event history API routes.
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
+from ..services.push_notifier import add_subscription, remove_subscription
 from ..sse.handler import sse_manager
 
 logger = logging.getLogger(__name__)
@@ -71,3 +72,37 @@ async def events_since(
             }
         )
     return result
+
+
+@router.post("/api/notifications/push/subscribe")
+async def subscribe_push(
+    subscription: dict[str, Any],
+) -> dict[str, str]:
+    """Register a browser PushSubscription for server-originated notifications.
+
+    The payload is the raw PushSubscription JSON from
+    ``subscription.toJSON()``. The server stores it in memory; a production
+    deployment should persist this to a database and integrate a Web Push
+    provider (e.g. pywebpush / Firebase Cloud Messaging).
+    """
+    endpoint = subscription.get("endpoint")
+    if not endpoint:
+        raise HTTPException(status_code=422, detail="missing endpoint")
+
+    add_subscription(subscription)
+    logger.info("push_subscribe: %s", endpoint)
+    return {"status": "subscribed"}
+
+
+@router.post("/api/notifications/push/unsubscribe")
+async def unsubscribe_push(
+    subscription: dict[str, Any],
+) -> dict[str, str]:
+    """Remove a previously registered PushSubscription."""
+    endpoint = subscription.get("endpoint")
+    if not endpoint:
+        raise HTTPException(status_code=422, detail="missing endpoint")
+
+    remove_subscription(endpoint)
+    logger.info("push_unsubscribe: %s", endpoint)
+    return {"status": "unsubscribed"}

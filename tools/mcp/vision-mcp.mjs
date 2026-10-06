@@ -35,6 +35,7 @@ const ANALYZE_PY = path.join(
 const ALLOWED_EXTENSIONS = /\.(png|jpe?g|webp|bmp|gif)$/i;
 const DEFAULT_MODEL = process.env.VISION_MODEL || "qwen3-vl:2b";
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
+const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 
 function generateRequestId() {
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -42,6 +43,25 @@ function generateRequestId() {
 
 function logRequest(reqId, tool, detail) {
   console.error(`[${reqId}] ${tool} | ${detail}`);
+}
+
+async function validateMcpToolCall(toolName, args) {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/mcp/validate-tool`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tool_name: toolName, arguments: args }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.valid) {
+      throw new Error(`Invalid tool args for ${toolName}: ${data.error}`);
+    }
+    return data.arguments;
+  } catch (err) {
+    console.error(`[mcp-validate] ${toolName}: ${err.message}`);
+    return null;
+  }
 }
 
 function textResponse(text, isError = false) {
@@ -996,22 +1016,27 @@ server.setRequestHandler("tools/call", async (request) => {
   const { name, arguments: args } = request.params;
   const reqId = generateRequestId();
 
+  // Validated args are the ones that run: validateMcpToolCall is
+  // non-fatal (null when the backend is down), so fall back to raw args.
+  const validatedArgs = await validateMcpToolCall(name, args || {});
+  const effectiveArgs = validatedArgs !== null ? validatedArgs : args || {};
+
   try {
     if (name === "vision_describe") {
       const text = await describeImage(
-        args?.image_path,
-        args?.prompt || null,
-        args?.mode || "ui",
+        effectiveArgs?.image_path,
+        effectiveArgs?.prompt || null,
+        effectiveArgs?.mode || "ui",
       );
       return textResponse(text);
     }
     if (name === "vision_compare") {
       const prompt =
-        args?.prompt ||
+        effectiveArgs?.prompt ||
         "Compare these two images. Identify differences, improvements, or regressions. Summarize key changes.";
       const combined = await compareImages(
-        args?.image_a,
-        args?.image_b,
+        effectiveArgs?.image_a,
+        effectiveArgs?.image_b,
         prompt,
       );
       return textResponse(combined);
@@ -1023,24 +1048,24 @@ server.setRequestHandler("tools/call", async (request) => {
 3. LAYOUT: responsive/layout issues
 4. ERRORS: visible errors, warnings, broken images, missing states
 5. NEXT_ACTION: what should a coding agent fix first?
-Viewport: ${args?.viewport || "unknown"} Label: ${args?.label || "screen"}`;
-      const text = await describeImage(args?.image_path, auditPrompt, "ui");
+Viewport: ${effectiveArgs?.viewport || "unknown"} Label: ${effectiveArgs?.label || "screen"}`;
+      const text = await describeImage(effectiveArgs?.image_path, auditPrompt, "ui");
       return textResponse(text);
     }
 
     if (name === "vision_ocr") {
-      const result = await executeTool("vision_ocr", args || {});
+      const result = await executeTool("vision_ocr", effectiveArgs);
       return textResponse(JSON.stringify(result, null, 2));
     }
 
     if (name === "vision_batch_analyze") {
-      const result = await executeTool("vision_batch_analyze", args || {});
+      const result = await executeTool("vision_batch_analyze", effectiveArgs);
       return textResponse(JSON.stringify(result, null, 2));
     }
 
     // Tool-callable tools: execute directly
     if (TOOL_DEFS.some((t) => t.function?.name === name)) {
-      const result = await executeTool(name, args || {});
+      const result = await executeTool(name, effectiveArgs);
       return textResponse(JSON.stringify(result, null, 2));
     }
 

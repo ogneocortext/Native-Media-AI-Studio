@@ -18,7 +18,7 @@ date: 2026-09-29
 > Research-based improvement ideas for the Native Media AI Studio notification system, with prioritized implementation roadmap.
 > Built for [[technical-reference]] and [[backend-debugging-guide]].
 >
-> **Status:** Notification center implemented — browser verification pending
+> **Status:** Notification center implemented — priority, Last-Event-ID, BroadcastChannel, push, quiet hours, and preferences all implemented
 
 ---
 
@@ -63,13 +63,13 @@ date: 2026-09-29
 
 ### Current Gaps
 
-❌ **No priority levels** — All events treated equally; progress spam during long renders
-❌ **No Last-Event-ID replay** — Missed events during reconnection are lost
-❌ **No cross-tab sync** — Multiple tabs have inconsistent notification state
-❌ **No notification center** — Toasts disappear; no persistent history
-❌ **No unread badge** — Users can't see pending notifications at a glance
-❌ **No browser push** — No notifications when tab is hidden
-❌ **No quiet hours / preferences** — No per-category notification control
+✅ **Priority levels** — Implemented in `sse/handler.py` + `sseService.ts`
+✅ **Last-Event-ID replay** — Implemented in `sse/handler.py` + `events/since` endpoint
+✅ **Cross-tab sync** — Implemented via `BroadcastChannel` in `sseService.ts`
+✅ **Notification center** — Implemented in `NotificationBell` + `NotificationPanel`
+✅ **Unread badge** — Implemented in `NotificationBell`
+✅ **Browser push** — Implemented in `notifications.py` + `push_notifier.py`
+✅ **Quiet hours / preferences** — Implemented in `Settings.tsx` + `notificationStore.ts`
 ❌ **No offline queue** — Events lost during network interruption
 ❌ **Connection status not visible** — Users don't know if real-time updates are active
 ❌ **No event grouping** — Rapid status changes create notification storms

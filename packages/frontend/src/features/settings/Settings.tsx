@@ -6,7 +6,12 @@ import { useTheme } from "../../utils/theme";
 import { getSettings, getIntegrationStatus, type IntegrationStatus } from "../../services/api";
 import { getPortConfigFromEnv } from "../../services/portConfig";
 import { useNotificationStore } from "../../state/notificationStore";
-import { saveNotificationPreferences } from "../../services/api/notifications";
+import {
+  saveNotificationPreferences,
+  subscribePush,
+  unsubscribePush,
+  type PushSubscriptionJSON,
+} from "../../services/api/notifications";
 import type { NotificationPreferences } from "../../state/notificationStore";
 
 interface AppSettings {
@@ -534,6 +539,10 @@ function NotificationPreferencesCard() {
             />
           </div>
         )}
+        <PushNotificationRow
+          preferences={preferences}
+          setPreferences={setPreferences}
+        />
         <button
           className={`btn w-full ${saved ? "btn-primary" : "btn-secondary"}`}
           onClick={handleSave}
@@ -567,6 +576,150 @@ function ToggleRow({
         />
         <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
       </label>
+    </div>
+  );
+}
+
+function base64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
+  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+  const base64url = base64.replace(/-/g, "+").replace(/_/g, "/") + padding;
+  const raw = atob(base64url);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) {
+    bytes[i] = raw.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function PushNotificationRow({
+  preferences,
+  setPreferences,
+}: {
+  preferences: NotificationPreferences;
+  setPreferences: (prefs: NotificationPreferences) => void;
+}) {
+  const [status, setStatus] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  // VAPID public key for push subscription. Set VITE_VAPID_PUBLIC_KEY in
+  // packages/frontend/.env when a Web Push provider is configured; without
+  // it the browser cannot create a subscription and the button reports why.
+  const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+
+  const requestPermission = async () => {
+    setLoading(true);
+    setStatus(null);
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        setStatus("Push not supported in this browser");
+        setLoading(false);
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setStatus("Permission denied");
+        setLoading(false);
+        return;
+      }
+      if (!vapidKey) {
+        setStatus("Push not configured (missing VAPID key)");
+        setLoading(false);
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: base64ToUint8Array(vapidKey),
+        });
+      }
+      // toJSON() already yields the standard PushSubscriptionJSON wire format
+      // (base64url keys) — pass it through rather than decode/re-encode
+      // round-trips, which also risk a stack overflow spreading large key arrays.
+      const subscriptionJson = subscription.toJSON();
+      const pushSubscription: PushSubscriptionJSON = {
+        endpoint: subscriptionJson.endpoint ?? subscription.endpoint,
+        keys: {
+          p256dh: subscriptionJson.keys?.p256dh ?? "",
+          auth: subscriptionJson.keys?.auth ?? "",
+        },
+      };
+
+      await subscribePush(pushSubscription);
+      setPreferences({
+        ...preferences,
+        push: { enabled: true, subscribed: true },
+      });
+      setStatus("Subscribed");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Failed to enable push");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const unsubscribe = async () => {
+    setLoading(true);
+    setStatus(null);
+    try {
+      if ("serviceWorker" in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          // The server only keys on endpoint for removal; no need to serialize keys.
+          const payload = { endpoint: subscription.endpoint };
+          // Server unsubscribe is best-effort: the local subscription is
+          // already gone after unsubscribe(), so a backend failure must not
+          // leave the UI claiming push is still on.
+          try {
+            await unsubscribePush(payload);
+          } catch (serverError) {
+            console.warn("[push] server unsubscribe failed", serverError);
+          }
+          await subscription.unsubscribe();
+        }
+      }
+      setPreferences({
+        ...preferences,
+        push: { enabled: false, subscribed: false },
+      });
+      setStatus("Unsubscribed");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Failed to disable push");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="font-medium text-sm">Push notifications</p>
+        <p className="text-xs text-muted">
+          {preferences.push.subscribed ? "Browser push enabled" : "Receive alerts when closed"}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        {status && <span className="text-xs text-muted">{status}</span>}
+        {preferences.push.subscribed ? (
+          <button
+            className="btn btn-secondary text-xs"
+            onClick={unsubscribe}
+            disabled={loading}
+          >
+            {loading ? "..." : "Disable"}
+          </button>
+        ) : (
+          <button
+            className="btn btn-secondary text-xs"
+            onClick={requestPermission}
+            disabled={loading}
+          >
+            {loading ? "..." : "Enable"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

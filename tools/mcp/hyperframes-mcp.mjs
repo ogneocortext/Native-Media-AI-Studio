@@ -18,6 +18,7 @@ const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 const TEST_PROJECT = process.env.HYPERFRAMES_PROJECT
   ? path.resolve(PROJECT_ROOT, process.env.HYPERFRAMES_PROJECT)
   : path.resolve(PROJECT_ROOT, "tools", "hyperframes-test");
+const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 // How to launch hyperframes, chosen to survive Windows.
 //
 //  * `shell: true` re-splits argv on spaces, so this repo's path
@@ -58,6 +59,25 @@ function generateRequestId() {
 
 function logRequest(reqId, tool, detail) {
   console.error(`[${reqId}] ${tool} | ${detail}`);
+}
+
+async function validateMcpToolCall(toolName, args) {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/mcp/validate-tool`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tool_name: toolName, arguments: args }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.valid) {
+      throw new Error(`Invalid tool args for ${toolName}: ${data.error}`);
+    }
+    return data.arguments;
+  } catch (err) {
+    console.error(`[mcp-validate] ${toolName}: ${err.message}`);
+    return null;
+  }
 }
 
 function textResponse(text, isError = false) {
@@ -528,8 +548,10 @@ server.setRequestHandler("tools/list", async () => ({
 
 server.setRequestHandler("tools/call", async (request) => {
   const { name, arguments: args } = request.params;
+  const validatedArgs = await validateMcpToolCall(name, args || {});
+  const effectiveArgs = validatedArgs !== null ? validatedArgs : args || {};
   try {
-    const result = await executeHyperframesTool(name, args || {});
+    const result = await executeHyperframesTool(name, effectiveArgs);
     return result;
   } catch (e) {
     console.error(`[hyperframes-mcp] tool error: ${e.message}`);

@@ -16,6 +16,7 @@ export interface NotificationPreferences {
   cancelled: boolean;
   system: boolean;
   quietHours: { enabled: boolean; start: string; end: string };
+  push: { enabled: boolean; subscribed: boolean };
 }
 
 const STORAGE_KEY = "nma-notification-preferences";
@@ -46,6 +47,7 @@ function defaultPreferences(): NotificationPreferences {
     cancelled: true,
     system: true,
     quietHours: { enabled: false, start: "22:00", end: "07:00" },
+    push: { enabled: false, subscribed: false },
   };
 }
 
@@ -69,4 +71,40 @@ export async function fetchEventsSince(
   );
   if (!res.ok) throw new Error("Failed to fetch events");
   return res.json();
+}
+
+export async function subscribePush(
+  subscription: PushSubscriptionJSON,
+): Promise<{ status: string }> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/notifications/push/subscribe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(subscription),
+    timeout: 15000,
+  });
+  if (!res.ok) throw new Error("Failed to subscribe push");
+  return res.json();
+}
+
+export async function unsubscribePush(
+  subscription: { endpoint: string },
+): Promise<{ status: string }> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/notifications/push/unsubscribe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(subscription),
+    timeout: 15000,
+  });
+  if (!res.ok) throw new Error("Failed to unsubscribe push");
+  return res.json();
+}
+
+export interface PushSubscriptionJSON {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
 }

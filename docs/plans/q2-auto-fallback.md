@@ -113,3 +113,47 @@ but are only reachable manually.
 ## Build notes
 
 _(append when implemented: what was built, what diverged from this plan and why)_
+
+### 2026-10-06 review fixes (uncommitted work)
+
+- `visual_fallback._token_in` had its operands swapped (`haystack in token`),
+  so no genre ever matched and every fallback returned `balanced`. Measured:
+  `select_fallback_preset(genre="trap metal song")` → `balanced` before,
+  `trapMetal` after. Also added the missing `track_name` param so the backend
+  haystack (`genre + track_name`) mirrors the frontend
+  `selectVisualPreset(trackName, genre, …)`.
+- `MusicVideoRequest` gained `genre`, `track_name`, `on_source_failure`
+  (`auto`|`fail`); VRAM shortfall now degrades like a missing adapter instead
+  of 503, and `fail` preserves the old hard-fail. The worker reads the new
+  params and falls back to the envelope mean when `energy_mean` is absent.
+- `mcp_validate` route was `/mcp/validate-tool` while all four bridges call
+  `/api/mcp/validate-tool` — every validation silently 404'd and passed
+  through. Moved to `/api/mcp/validate-tool`.
+- Bridges updated `request.params` but dispatched the stale `args` (dead
+  validation); hyperframes/vision/unity now dispatch `effectiveArgs`, ollama
+  all ten handlers. Note the ollama handler destructures `const args`, so a
+  new binding is required — reassigning throws `TypeError`.
+- Push subscribe/unsubscribe returned 200 with an `error` body on missing
+  endpoint; now 422 via `HTTPException`. Frontend `Enable` previously only
+  read an existing subscription (always "No subscription"); it now guards
+  serviceWorker/PushManager/VAPID, creates via `pushManager.subscribe`, and
+  unsubscribe notifies the server best-effort before dropping local state.
+- Regression tests: `packages/backend/tests/test_visual_fallback_push.py`
+  (10 tests). Audio route baseline refreshed for the three committed remix
+  routes (`by-track`, `tempo/status`, `tempo/refresh`) that 28d2f25/e21af68
+  added without updating it.
+
+### 2026-10-06 follow-up review (same tree, pre-commit)
+
+- `select_fallback_preset` took a `section` param it never read — and the
+  frontend function it mirrors has no `section` either, while
+  `MusicVideoRequest` never sets one, so it was always `None`. Removed from
+  the signature, the docstring, and the handler call site rather than
+  inventing section-based tuning to justify it.
+- `music_video_handler._render_with_ffmpeg` carried a function-local
+  `import logging` and rebuilt the 13-entry preset→style map on every
+  degraded render; both hoisted to module scope (`_FALLBACK_STYLE_MAP`).
+  No behaviour change — verified by the full backend suite (594 passed,
+  1 skipped) plus the now 11-test regression file.
+- Out of scope but fixed in the same tree because the `type` gate was red:
+  `Settings.tsx` push code (see commit message).

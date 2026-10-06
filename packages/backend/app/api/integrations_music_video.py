@@ -51,6 +51,9 @@ class MusicVideoRequest(BaseModel):
     quality: str = "standard"  # draft, standard, high
     num_frames: int = 16
     motion_module: str = "mm_sd_v15_v2.safetensors"
+    genre: str | None = None
+    track_name: str | None = None
+    on_source_failure: str = "auto"  # auto | fail (Q2 plan §2)
 
 
 class PreviewGenerationRequest(BaseModel):
@@ -136,9 +139,17 @@ async def generate_music_video(request: MusicVideoRequest):
     logger.info("Video generation requested: style=%s, duration=%s, quality=%s", request.style.template_id, request.duration, request.quality)
 
     adapter = adapter_registry.get("comfyui")
+    fail_fast = request.on_source_failure == "fail"
     if not adapter:
-        logger.error("Video generation failed: ComfyUI adapter not available")
-        raise HTTPException(status_code=503, detail="ComfyUI adapter not available")
+        if fail_fast:
+            logger.error("Video generation failed: ComfyUI adapter not available")
+            raise HTTPException(status_code=503, detail="ComfyUI adapter not available")
+        logger.warning("ComfyUI adapter not available — queuing degraded visualization job")
+        degraded = True
+        degraded_reason = "ComfyUI adapter not available"
+    else:
+        degraded = False
+        degraded_reason = None
 
     # Build prompt with beat reactivity hints
     style = request.style
@@ -166,11 +177,22 @@ async def generate_music_video(request: MusicVideoRequest):
     time_estimate = estimate_generation_time(steps, width, height, num_frames, request.fps, request.motion_module)
     logger.info("Estimated generation time: %s seconds (%s min)", time_estimate["estimated_seconds"], time_estimate["estimated_minutes"])
 
-    # Check VRAM availability
+    # Check VRAM availability. A shortfall degrades to the deterministic
+    # FFmpeg path the same way a missing adapter does (Q2 plan §4) — the
+    # 503 survives only for on_source_failure="fail".
     vram_result = await ensure_vram_available(required_mb=4096)
     if not vram_result["available"]:
-        logger.error("Video generation failed: insufficient VRAM - %s", vram_result["message"])
-        raise HTTPException(status_code=503, detail=f"Insufficient VRAM: {vram_result['message']}")
+        if fail_fast:
+            logger.error("Video generation failed: insufficient VRAM - %s", vram_result["message"])
+            raise HTTPException(status_code=503, detail=f"Insufficient VRAM: {vram_result['message']}")
+        if not degraded:
+            logger.warning("Insufficient VRAM (%s) — queuing degraded visualization job", vram_result["message"])
+            degraded = True
+            degraded_reason = f"Insufficient VRAM: {vram_result['message']}"
+        else:
+            degraded_reason = "; ".join(
+                r for r in (degraded_reason, f"Insufficient VRAM: {vram_result['message']}") if r
+            )
 
     if vram_result.get("offloaded"):
         logger.info("Offloaded models to free VRAM before video generation")
@@ -195,14 +217,23 @@ async def generate_music_video(request: MusicVideoRequest):
                 "num_frames": num_frames,
                 "motion_module": request.motion_module,
                 "estimated_seconds": time_estimate["estimated_seconds"],
+                "degraded": degraded,
+                "degraded_reason": degraded_reason,
+                "method": "visualization" if degraded else "comfyui",
+                "genre": request.genre,
+                "track_name": request.track_name,
+                "on_source_failure": request.on_source_failure,
             },
             max_retries=3,
         )
     )
 
-    logger.info("Video generation job queued: job_id=%s, estimated=%ss", job.id, time_estimate["estimated_seconds"])
+    logger.info(
+        "Video generation job queued: job_id=%s, estimated=%ss, degraded=%s",
+        job.id, time_estimate["estimated_seconds"], degraded,
+    )
 
-    return {
+    response = {
         "job_id": job.id,
         "status": job.status.value,
         "message": f"Music video job queued with {len(request.beat_markers)} beat markers",
@@ -210,7 +241,10 @@ async def generate_music_video(request: MusicVideoRequest):
         "estimated_seconds": time_estimate["estimated_seconds"],
         "estimated_end_time": time_estimate["estimated_end_time"],
         "vram_status": vram_result,
+        "degraded": degraded,
+        "degraded_reason": degraded_reason,
     }
+    return response
 
 
 @router.post("/music-video/style-preview")

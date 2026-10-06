@@ -52,6 +52,29 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = 30000) {
   }
 }
 
+async function validateMcpToolCall(toolName, args) {
+  try {
+    const res = await fetchWithTimeout(
+      `${BACKEND_URL}/api/mcp/validate-tool`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tool_name: toolName, arguments: args }),
+      },
+      5000,
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.valid) {
+      throw new Error(`Invalid tool args for ${toolName}: ${data.error}`);
+    }
+    return data.arguments;
+  } catch (err) {
+    logRequest("", toolName, `validation-skip: ${err.message}`);
+    return null;
+  }
+}
+
 async function readImageBase64(imagePath) {
   // Keep the MCP size guard, delegate resizing to the shared encoder.
   const fs = await import("fs");
@@ -240,28 +263,43 @@ server.setRequestHandler('tools/call', async (request) => {
   const reqId = generateRequestId();
   logRequest(reqId, name, "start");
 
+  // Validate arguments against the in-repo schema registry (non-fatal:
+  // unknown tools and validation failures are logged and passed through).
+  // NOTE: `args` is const, so the validated dict goes in a new binding —
+  // reassigning it would throw TypeError at runtime.
+  let effectiveArgs = args || {};
+  try {
+    const validated = await validateMcpToolCall(name, args || {});
+    if (validated !== null) {
+      request.params = { ...request.params, arguments: validated };
+      effectiveArgs = validated;
+    }
+  } catch (err) {
+    logRequest(reqId, name, `validation-error: ${err.message}`);
+  }
+
   try {
     switch (name) {
       case "analyze_image":
-        return await analyzeImage(reqId, args);
+        return await analyzeImage(reqId, effectiveArgs);
       case "analyze_audio":
-        return await analyzeAudio(reqId, args);
+        return await analyzeAudio(reqId, effectiveArgs);
       case "generate_image":
-        return await generateImage(reqId, args);
+        return await generateImage(reqId, effectiveArgs);
       case "generate_video":
-        return await generateVideo(reqId, args);
+        return await generateVideo(reqId, effectiveArgs);
       case "list_audio_library":
         return await listAudioLibrary(reqId);
       case "create_music_video_plan":
-        return await createMusicVideoPlan(reqId, args);
+        return await createMusicVideoPlan(reqId, effectiveArgs);
       case "suggest_3d_prompt":
-        return await suggest3DPrompt(reqId, args);
+        return await suggest3DPrompt(reqId, effectiveArgs);
       case "generate_3d_concept":
-        return await generate3DConcept(reqId, args);
+        return await generate3DConcept(reqId, effectiveArgs);
       case "plan_blender_script":
-        return await planBlenderScript(reqId, args);
+        return await planBlenderScript(reqId, effectiveArgs);
       case "update_mcp_context":
-        return await updateMCPContext(reqId, args);
+        return await updateMCPContext(reqId, effectiveArgs);
       default:
         logRequest(reqId, name, "unknown-tool");
         return textResponse(`Unknown tool: ${name}`, true);

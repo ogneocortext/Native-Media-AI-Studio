@@ -547,6 +547,7 @@ from .api import (  # noqa: E402
     log_analytics,
     logs,
     lyrics,
+    mcp_validate,
     media,
     music_gen,
     music_prompts,
@@ -597,6 +598,7 @@ app.include_router(media.router)
 app.include_router(music_gen.router)
 app.include_router(music_prompts.router)
 app.include_router(notifications.router)
+app.include_router(mcp_validate.router)
 
 # Additional root-level routes
 @app.get("/api/services/status", response_model=dict)
