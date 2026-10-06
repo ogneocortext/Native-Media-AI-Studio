@@ -14,7 +14,7 @@ date: 2026-08-27
 
 > [!info] Purpose
 > Deep-dive into Kilo Code's subagent orchestration architecture, root causes of "provider is unavailable" errors, and actionable optimization strategies.
-> Built for diagnosing and mitigating subagent failures when working on [[Native Media AI Studio]].
+> Built for diagnosing and mitigating subagent failures when working on the Native Media AI Studio.
 
 > [!tip] For AI Agents
 > This document maps the internal architecture of Kilo Code's task tool, background job system, provider router, and retry mechanism.

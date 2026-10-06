@@ -40,6 +40,7 @@ runtime codebase.
 **Status:** ✅ Wired into `music_video_handler.py` with AI→FFmpeg fallback path.
 
 **Evidence:**
+
 - `packages/backend/app/services/visual_fallback.py` — 179 lines, deterministic preset selector
 - Imported and called from `packages/backend/app/services/music_video_handler.py`
 - When ComfyUI/adapter fails, jobs degrade to FFmpeg shader presets with `degraded`, `visual_source_used`, `fallback_reason` fields on SSE
@@ -54,6 +55,7 @@ runtime codebase.
 **Status:** ✅ Wired into 4 MCP bridges + FastAPI endpoint.
 
 **Evidence:**
+
 - `packages/backend/app/services/mcp_validator.py` — full JSON Schema validator for 38 in-repo MCP tools
 - Imported and called from `tools/mcp/ollama-tools-mcp.mjs`
 - Imported and called from `tools/mcp/hyperframes-mcp.mjs`
@@ -79,6 +81,7 @@ with its own API, knowledge base JSON files, and frontend component. The
 music video wizard (`/music-video-wizard`) does **not** invoke it at any step.
 
 **Evidence:**
+
 - `packages/backend/app/services/music_prompt_generator.py` — 833 lines, 4 platforms
 - `packages/backend/app/api/music_prompts.py` — templates + generate endpoints
 - `packages/frontend/src/features/music-prompts/MusicPromptGenerator.tsx` — full page
@@ -104,6 +107,7 @@ composition plus JSON manifest. Use `POST /api/hyperframes/compile-storyboard`,
 then render through `POST /api/hyperframes/render`.
 
 **Evidence:**
+
 - `packages/backend/app/services/storyboard_hyperframes.py` — compiler and manifest writer
 - `packages/backend/app/api/hyperframes.py` — `POST /api/hyperframes/compile-storyboard`
 - `packages/backend/tests/test_storyboard_hyperframes.py` — valid, missing, and overlapping scene tests
@@ -127,6 +131,7 @@ and mixer state (`stemsMuted`, `stemsVolumes`) to modulate shader uniforms in
 real time.
 
 **Evidence:**
+
 - `packages/backend/app/services/source_separation.py` — `STEM_NAMES = ("vocals", "drums", "bass", "other")`
 - `get_stems` returns `stems_mp3` URL map
 - `packages/frontend/src/features/visualizer/StemMixer.tsx` — per-stem volume/mute UI, propagates state upward
@@ -134,6 +139,7 @@ real time.
 - `packages/frontend/src/features/visualizer/ShaderVisualizer.tsx` — samples stem energy curves per frame and applies mute/volume scaling before blending into shader uniforms
 
 **Evaluation findings (2026-09-30):**
+
 1. **Resilience gap fixed:** `StemMixer.tsx` previously failed all stems if one
    `createMediaElementSource` or network fetch threw. Wired per-stem try/catch
    so partial loads succeed and missing stems are skipped with a visible warning.
@@ -166,6 +172,7 @@ the wizard's `GenerateStep` does not iterate sections — it generates a single
 clip for the whole track.
 
 **Evidence:**
+
 - `packages/backend/app/services/audio_analyzer.py` — section detection output
 - `packages/backend/app/services/music_video_handler.py` — `_SECTION_PROMPT_SUFFIX` exists
 - `MusicVideoWizard.tsx` — `GenerateStep` calls `generateVideoSection` once
@@ -230,6 +237,7 @@ objectively.
 **Status:** ✅ Implemented. Decision Q2 AI → shader fallback is wired.
 
 **Evidence:**
+
 - `visual_fallback.py` — imported by `music_video_handler.py`
 - `MusicVideoHandler` calls `select_fallback_preset()` when ComfyUI/adapter unavailable
 - `integrations_music_video.py` queues degraded jobs instead of raising 503
@@ -254,20 +262,21 @@ and duration.
 The E2E test plan and pipeline smoke tests cover 6 pages but miss the
 high-traffic user flows:
 
-| Flow | Covered | Notes |
-|------|---------|-------|
-| Health page | ✅ | 6/6 health tests pass |
-| Queue page | ✅ | Pipeline smoke covers navigation |
-| Audio analysis | ✅ | Pipeline smoke covers load |
-| 3D generation | ✅ | Pipeline smoke covers load |
-| Video generation | ✅ | Pipeline smoke covers load |
-| Music video wizard | ✅ | Pipeline smoke covers load |
-| **Media Library actions** | ✅ | `media-library.spec.ts` covers header, category tabs, search, and send-to-wizard |
-| **Settings changes** | ❌ | No test for saving/loading settings |
-| **Cross-page handoffs** | ❌ | No test for dashboard→queue→wizard flow |
-| **Video generation end-to-end** | ❌ | No test for submit → poll → result → download |
+| Flow                            | Covered | Notes                                                                            |
+| ------------------------------- | ------- | -------------------------------------------------------------------------------- |
+| Health page                     | ✅      | 6/6 health tests pass                                                            |
+| Queue page                      | ✅      | Pipeline smoke covers navigation                                                 |
+| Audio analysis                  | ✅      | Pipeline smoke covers load                                                       |
+| 3D generation                   | ✅      | Pipeline smoke covers load                                                       |
+| Video generation                | ✅      | Pipeline smoke covers load                                                       |
+| Music video wizard              | ✅      | Pipeline smoke covers load                                                       |
+| **Media Library actions**       | ✅      | `media-library.spec.ts` covers header, category tabs, search, and send-to-wizard |
+| **Settings changes**            | ❌      | No test for saving/loading settings                                              |
+| **Cross-page handoffs**         | ❌      | No test for dashboard→queue→wizard flow                                          |
+| **Video generation end-to-end** | ❌      | No test for submit → poll → result → download                                    |
 
 **Evidence:**
+
 - `packages/frontend/tests/pipeline-smoke.spec.ts` — 6 pages, no interactions
 - `packages/frontend/tests/` — no spec for media library actions
 - Pre-existing failures in `api-network.spec.ts`, `go-services.spec.ts`, `queue.spec.ts`
@@ -336,31 +345,32 @@ implemented in the codebase.
 
 ### Immediate (P0)
 
-| Action | Why | Effort |
-|--------|-----|--------|
-| Add prompt-generation step to wizard | Music prompt generator is an island | 2h |
+| Action                               | Why                                 | Effort |
+| ------------------------------------ | ----------------------------------- | ------ |
+| Add prompt-generation step to wizard | Music prompt generator is an island | 2h     |
 
 ### Short-term (P1)
 
-| Action | Why | Effort |
-|--------|-----|--------|
-| Wire stems into visualizer | Demucs output is generated but ignored | 4-8h |
-| Build storyboard → HyperFrames compiler | Storyboards are dead-end documents | 4-8h |
-| Add per-section generation to wizard | Section-aware prompts exist but aren't iterated | 4-6h |
+| Action                                  | Why                                             | Effort |
+| --------------------------------------- | ----------------------------------------------- | ------ |
+| Wire stems into visualizer              | Demucs output is generated but ignored          | 4-8h   |
+| Build storyboard → HyperFrames compiler | Storyboards are dead-end documents              | 4-8h   |
+| Add per-section generation to wizard    | Section-aware prompts exist but aren't iterated | 4-6h   |
 
 ### Medium-term (P2)
 
-| Action | Why | Effort |
-|--------|-----|--------|
-| Add video quality metrics | Needed to compare model variants objectively | 4-8h |
-| Build benchmark dashboard | Benchmark data stored but never aggregated | 4-8h |
-| Evaluate 3D convergence (Q1) | Unity + Blender + Three.js = 3 maintenance tracks | 2-4h |
+| Action                       | Why                                               | Effort |
+| ---------------------------- | ------------------------------------------------- | ------ |
+| Add video quality metrics    | Needed to compare model variants objectively      | 4-8h   |
+| Build benchmark dashboard    | Benchmark data stored but never aggregated        | 4-8h   |
+| Evaluate 3D convergence (Q1) | Unity + Blender + Three.js = 3 maintenance tracks | 2-4h   |
 
 ---
 
 ## 11. What This Audit Does NOT Cover
 
 This document intentionally does not duplicate:
+
 - **Research gaps** — see `app-research-gaps-2026.md` for video model validation,
   audio backend comparisons, deployment targets
 - **Upgrade paths** — see `javascript-upgrade-research-2026.md` for frontend
@@ -379,7 +389,7 @@ code?**
 
 - [[app-research-gaps-2026]] — 15 research areas
 - [[e2e-test-plan-2026]] — Test coverage plan
-- [[decision-log]] — Q1 (3D convergence), Q2 (auto fallback), Q4 (visualizer modes)
+- [[../architecture/decision-log.md|Architecture Decision Log]] — Q1 (3D convergence), Q2 (auto fallback), Q4 (visualizer modes)
 - [[mcp-contracts-2026]] — 38-tool schema registry (now enforced)
 - [[video-model-test-protocol-2026]] — GPU test matrix for LTX/Mochi
 - `packages/backend/app/services/visual_fallback.py` — ✅ Wired into music_video_handler
@@ -390,4 +400,4 @@ code?**
 
 ---
 
-*Last updated: 2026-10-05*
+_Last updated: 2026-10-05_

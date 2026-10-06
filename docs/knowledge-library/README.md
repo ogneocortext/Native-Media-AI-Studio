@@ -9,14 +9,14 @@
 
 1. Download [Obsidian](https://obsidian.md)
 2. Open this folder as a vault: `docs/knowledge-library/`
-3. Start with [[index]] for navigation
+3. Start with index.md for navigation
 4. Use Graph View to visualize connections
 
 ### For AI Agents
 
 1. Read `index.md` for the full structure
 2. All documents are plain markdown with YAML frontmatter
-3. Use `[[wiki-links]]` for cross-references
+3. Use wiki-links for cross-references
 4. Return to update knowledge as new techniques are discovered
 
 When adding a document, follow `tagging-guide.md`: give it a primary category as
@@ -30,7 +30,7 @@ in the decision log; there is no CI for this repo).
 ```
 knowledge-library/
 ├── .obsidian/              ← Obsidian configuration (gitignored)
-├── index.md                ← Start here (77 docs indexed, reorganized 2026-09-29)
+├── index.md                ← Start here (84 docs indexed, reorganized 2026-09-29)
 ├── tagging-guide.md        ← Hierarchical tagging system (2026-09-29)
 ├── migration-progress.md   ← Tag migration record (2026-09-29)
 ├── README.md               ← This file
@@ -63,15 +63,15 @@ knowledge-library/
 
 The library is now organized into 7 logical categories (see `index.md`):
 
-1. **🎬 Production Pipeline** — Workflow & creative guides (10 docs)
+1. **🎬 Production Pipeline** — Workflow & creative guides (12 docs)
 2. **🛠️ Technical Implementation** — Code & systems (13 docs)
 3. **🎮 MCP & Platform Integrations** — Platform-specific tools (11 docs)
-4. **🎨 Creative & Visual** — Design & effects (17 docs)
+4. **🎨 Creative & Visual** — Design & effects (19 docs)
 5. **⚙️ Performance & Hardware** — Optimization (7 docs)
 6. **🤖 AI & ML** — Models & training (11 docs)
-7. **📊 Research & Reference** — Industry analysis (8 docs)
+7. **📊 Research & Reference** — Industry analysis (9 docs)
 
-See [[tagging-guide]] for the new hierarchical tagging system.
+See tagging-guide.md for the new hierarchical tagging system.
 
 ## Key Features
 
@@ -92,7 +92,7 @@ This library is a living document. Update when:
 
 ### Tagging System (2026-09-29)
 
-The library now uses a hierarchical tagging system. See [[tagging-guide]] for:
+The library now uses a hierarchical tagging system. See tagging-guide.md for:
 
 - Primary category tags (`#production/*`, `#technical/*`, etc.)
 - Cross-cutting tags (`#platform-youtube`, `#hardware-8gb`, etc.)
@@ -101,4 +101,4 @@ The library now uses a hierarchical tagging system. See [[tagging-guide]] for:
 
 ---
 
-_Part of [[Native Media AI Studio]]_
+_Part of the Native Media AI Studio_

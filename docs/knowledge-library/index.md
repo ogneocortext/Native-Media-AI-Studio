@@ -17,11 +17,11 @@ date: 2026-09-30
 
 > [!info] Purpose
 > Centralized knowledge hub for AI agents and creators to produce compelling music videos for YouTube.
-> Built for [[Native Media AI Studio]] — a full-stack AI music video creation suite.
+> Built for the Native Media AI Studio — a full-stack AI music video creation suite.
 
 > [!tip] For AI Agents
 > This vault is machine-readable. All documents use plain markdown with YAML frontmatter.
-> Link between documents using `[[wiki-links]]` for cross-referencing.
+> Link between documents using wiki-links for cross-referencing.
 
 ---
 
@@ -229,12 +229,12 @@ graph LR
 
 || Metric | Count |
 || --------------- | ----------------------------------------------------------------------------- |
-|| Total Documents | 81 |
+|| Total Documents | 84 (markdown) + 9 (JSON data files) = 93 total |
 || Total Tags | 70 |
 || Total Links | 115+ |
-|| Last Updated | 2026-10-02 (visualizer UX audit + 2026 research articles added) |
+|| Last Updated | 2026-10-06 (docs audit and corrections) |
 || Latest Add | 2026-10-02 (Visualizer UX Audit 2026-10, Audio-Reactive Best Practices 2026, Mastering & Stem Splitting 2026) |
 
 ---
 
-_Last updated: 2026-10-02 (visualizer UX audit + audio-reactive/mastering research added)_
+_Last updated: 2026-10-06 (docs audit and corrections)_

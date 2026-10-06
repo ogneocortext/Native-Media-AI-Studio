@@ -15,7 +15,7 @@ date: 2026-09-29
 
 > [!info] Scope
 > Web-search synthesis Aug 2026 — what changed since vault baseline (2026-08-24).
-> Implications specifically for [[Native Media AI Studio]] pipeline (GTX 1070 Ti 8GB, Blender 5.2, ComfyUI, Remotion).
+> Implications specifically for the Native Media AI Studio pipeline (GTX 1070 Ti 8GB, Blender 5.2, ComfyUI, Remotion).
 
 ---
 

@@ -106,4 +106,4 @@ done
 
 - [[audio-reactive-production]] — frequency band mapping, beat detection patterns
 - [[music-video-production]] — pipeline architecture, section treatment
-- [[character-driven-visualization]] — making visuals less generic
+- [[character-driven-visualization-research]] — making visuals less generic

@@ -21,8 +21,8 @@ date: 2026-09-29
 
 - [[music-video-production]] — Full pipeline workflow
 - [[youtube-optimization]] — YouTube platform optimization
-- [[visual-storytelling-2026]] — Visual narrative craft
-- [[mindful-layering-2026]] — Mindful design principles
+- See [[../visual-storytelling/VISUAL_STORYTELLING_2026.md|Visual Storytelling 2026]] — Visual narrative craft (external link to docs/visual-storytelling/)
+- See [[../visual-storytelling/MINDFUL_LAYERING_2026.md|Mindful Layering 2026]] — Mindful design principles (external link to docs/visual-storytelling/)
 
 ### 🔧 Technical Reference
 

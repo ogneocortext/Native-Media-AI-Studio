@@ -18,7 +18,7 @@ date: 2026-09-29
 > [!info] Scope
 > Controlling Unity 6 via MCP bridge for deterministic frame capture, audio-reactive
 > visualization, and programmatic scene building.
-> Part of [[Native Media AI Studio]] music video pipeline.
+> Part of the Native Media AI Studio music video pipeline.
 
 > [!tip] Protected Directory
 > `unity-visualizer/` is **never deleted** during cleanup (per AGENTS.md).
@@ -126,7 +126,7 @@ Unity's SRP + URP keeps the GPU light compared to Cycles/Blender GPU rendering.
 
 ## Unity vs Blender vs Three.js Decision Matrix
 
-> See Q1 in [[decision-log|Architecture Decision Log]] for the full convergence question.
+> See Q1 in [[../architecture/decision-log.md#Q1|Architecture Decision Log]] for the full convergence question.
 
 | Criterion                       | Unity                               | Blender                       | Three.js Studio                   |
 | ------------------------------- | ----------------------------------- | ----------------------------- | --------------------------------- |
@@ -373,7 +373,7 @@ node -e "const bridge = require('./tools/mcp/unity-mcp-bridge.mjs'); bridge.list
 - [[comfyui-workflows]] — ComfyUI for image/video generation
 - [[three-js-studio]] — Browser studio implementation
 - [[technical-reference]] — System architecture
-- [[decision-log]] — Q1: Unity vs Blender vs Three.js convergence
+- [[../architecture/decision-log.md#Q1|Architecture Decision Log]] — Q1: Unity vs Blender vs Three.js convergence
 - [[prompt-engineering]] — 3D asset prompts
 
 ---

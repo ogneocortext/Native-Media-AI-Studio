@@ -39,13 +39,13 @@ date: 2026-09-29
 
 ### Research Gaps
 
-| Gap                                 | Why It Matters                                                                                                                                                       | Recommendation  |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| **LTX Video 2.3 on 8GB**            | ✅ Viable 2026-10-06 — `ltxv-2b-0.9.8-distilled-fp8` (4.46 GB) + stock `t5-xxl-fp8` + `LTX23_video_vae` rendered 25f 768×512 in 210 s on the GTX 1070 Ti with no OOM: balanced channels, interframe diff 7.44 (coherent; cf. Wan 3.90, red-pattern 26.06), edge density 0.182. ~4× faster than Wan 2.2 Q4 (853.7 s). No backend render path exists yet — wiring one is the follow-up. | ✅ Done |
-| **Mochi-1 / Mochi-2 8GB viability** | Blocked 2026-10-06 — no weights on disk (only 2 Mochi nodes in ComfyUI 0.37.0) and no smaller-variant survey done. Needs a download before any 8GB verdict. | 🟡 Defer |
-| **Wan 2.2 red-pattern issue (Q3)**  | ✅ Resolved 2026-10-06 — reran the smoke test through the production adapter path (Q4 GGUF + fp16 UMT5 + wan2.2 VAE, 12 steps/seed 7, 25f 832×480): coherent render, interframe diff 26.06 → 3.90 vs the 9/20 artifact, blue channel uncrushed. Old trigger unrecoverable (predates the T5/VAE patches) but both prime suspects are closed by construction. | ✅ Done |
-| **CogVideoX-5B quantization**       | No entry in `NON_IMAGE_CHECKPOINT_KEYWORDS` or VRAM table. 5B class model; if GGUF/Q4 works on 8GB, it's a viable alternative.                                       | 🟡 Defer        |
-| **Video quality metrics**           | No objective metric (FVD, F1-score, SSIM) in the job result. Can't tell if a "successful" generation is actually good without manual review.                         | 🟡 Defer        |
+| Gap                                 | Why It Matters                                                                                                                                                                                                                                                                                                                                                                        | Recommendation |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **LTX Video 2.3 on 8GB**            | ✅ Viable 2026-10-06 — `ltxv-2b-0.9.8-distilled-fp8` (4.46 GB) + stock `t5-xxl-fp8` + `LTX23_video_vae` rendered 25f 768×512 in 210 s on the GTX 1070 Ti with no OOM: balanced channels, interframe diff 7.44 (coherent; cf. Wan 3.90, red-pattern 26.06), edge density 0.182. ~4× faster than Wan 2.2 Q4 (853.7 s). No backend render path exists yet — wiring one is the follow-up. | ✅ Done        |
+| **Mochi-1 / Mochi-2 8GB viability** | Blocked 2026-10-06 — no weights on disk (only 2 Mochi nodes in ComfyUI 0.37.0) and no smaller-variant survey done. Needs a download before any 8GB verdict.                                                                                                                                                                                                                           | 🟡 Defer       |
+| **Wan 2.2 red-pattern issue (Q3)**  | ✅ Resolved 2026-10-06 — reran the smoke test through the production adapter path (Q4 GGUF + fp16 UMT5 + wan2.2 VAE, 12 steps/seed 7, 25f 832×480): coherent render, interframe diff 26.06 → 3.90 vs the 9/20 artifact, blue channel uncrushed. Old trigger unrecoverable (predates the T5/VAE patches) but both prime suspects are closed by construction.                           | ✅ Done        |
+| **CogVideoX-5B quantization**       | No entry in `NON_IMAGE_CHECKPOINT_KEYWORDS` or VRAM table. 5B class model; if GGUF/Q4 works on 8GB, it's a viable alternative.                                                                                                                                                                                                                                                        | 🟡 Defer       |
+| **Video quality metrics**           | No objective metric (FVD, F1-score, SSIM) in the job result. Can't tell if a "successful" generation is actually good without manual review.                                                                                                                                                                                                                                          | 🟡 Defer       |
 
 ### Suggested Research
 
@@ -348,11 +348,11 @@ date: 2026-09-29
 
 ### Research Gaps
 
-| Gap                        | Why It Matters                                                                                                                                          | Recommendation  |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| **Agent prompt contracts** | ✅ Done 2026-10-06 — input-side contracts now enforced in code: `packages/backend/app/services/mcp_validator.py` holds a JSON-Schema-subset registry per in-repo tool, `POST /api/mcp/validate-tool` exposes it over HTTP, and all four bridges (`ollama`, `vision`, `unity`, `hyperframes`) validate then dispatch the effective args; unknown (upstream) tools pass through. Remaining: *output*-side contracts are still undescribed — no schema for what a tool returns. | ✅ Done |
-| **Multi-agent pipeline**   | Current flow is single-agent sequential: analyze → generate → render. Could parallelize (analyze + 3D gen + prompt gen simultaneously).                 | 🟡 Defer        |
-| **Vision feedback loop**   | `vision-feedback` skill captures screenshots → Ollama → fixes. No structured schema for "what to look for" vs "what to fix".                            | 🟡 Defer        |
+| Gap                        | Why It Matters                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Recommendation |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **Agent prompt contracts** | ✅ Done 2026-10-06 — input-side contracts now enforced in code: `packages/backend/app/services/mcp_validator.py` holds a JSON-Schema-subset registry per in-repo tool, `POST /api/mcp/validate-tool` exposes it over HTTP, and all four bridges (`ollama`, `vision`, `unity`, `hyperframes`) validate then dispatch the effective args; unknown (upstream) tools pass through. Remaining: _output_-side contracts are still undescribed — no schema for what a tool returns. | ✅ Done        |
+| **Multi-agent pipeline**   | Current flow is single-agent sequential: analyze → generate → render. Could parallelize (analyze + 3D gen + prompt gen simultaneously).                                                                                                                                                                                                                                                                                                                                      | 🟡 Defer       |
+| **Vision feedback loop**   | `vision-feedback` skill captures screenshots → Ollama → fixes. No structured schema for "what to look for" vs "what to fix".                                                                                                                                                                                                                                                                                                                                                 | 🟡 Defer       |
 
 ### Suggested Research
 
@@ -398,11 +398,11 @@ date: 2026-09-29
 
 ### Research Gaps
 
-| Gap                               | Why It Matters                                                                                                       | Recommendation  |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------- |
-| **Stale doc detection**           | `docs/knowledge/three-js-studio.md` was compiled 2026-09-15 but the code has evolved. No process to flag stale docs. | 🟡 Defer        |
-| **Cross-reference rot**           | Wiki-links like `[[video-generation-vram-2026]]` may break if files are renamed. No link checker exists.             | 🟢 Monitor      |
-| **Research → implementation gap** | ✅ Q2 half done 2026-10-06 — `docs/plans/q2-auto-fallback.md` option (a) is implemented and committed; its plan-level `Verification` (degraded + healthy path against real ComfyUI) is still unrun. The other half stands: other approved plans may exist unimplemented — `docs/plans/STATUS.md` still does not exist. | 🟡 Defer |
+| Gap                               | Why It Matters                                                                                                                                                                                                                                                                                                         | Recommendation |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **Stale doc detection**           | `docs/knowledge/three-js-studio.md` was compiled 2026-09-15 but the code has evolved. No process to flag stale docs.                                                                                                                                                                                                   | 🟡 Defer       |
+| **Cross-reference rot**           | Wiki-links like `[[video-generation-vram-2026]]` may break if files are renamed. No link checker exists.                                                                                                                                                                                                               | 🟢 Monitor     |
+| **Research → implementation gap** | ✅ Q2 half done 2026-10-06 — `docs/plans/q2-auto-fallback.md` option (a) is implemented and committed; its plan-level `Verification` (degraded + healthy path against real ComfyUI) is still unrun. The other half stands: other approved plans may exist unimplemented — `docs/plans/STATUS.md` still does not exist. | 🟡 Defer       |
 
 ### Suggested Research
 
@@ -423,12 +423,12 @@ date: 2026-09-29
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|---|---|---|
-| **Animation principles for reactive viz** | Disney's 12 principles (anticipation, follow-through, staging…) were built for exactly this: making motion feel alive. None are documented for audio-reactive use. | ✅ Done — handoff 2026-10-02 |
-| **Easing choreography per section** | Everything pulsing on the kick is the #1 amateur tell. No guidance on easing selection across verse/chorus/bridge. | ✅ Done — `SECTION_EASING` |
-| **Tension/release arcs** | Reactive visuals with no rests exhaust the viewer. No research on when NOT to react. | ✅ Done — `preDropFreeze`, `shouldGateMotion` |
-| **Motion vocabulary spec** | No named, parameterized "moves" a coding agent can implement directly. | ✅ Done — 10 moves in `motion/` |
+| Gap                                       | Why It Matters                                                                                                                                                     | Recommendation                                |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| **Animation principles for reactive viz** | Disney's 12 principles (anticipation, follow-through, staging…) were built for exactly this: making motion feel alive. None are documented for audio-reactive use. | ✅ Done — handoff 2026-10-02                  |
+| **Easing choreography per section**       | Everything pulsing on the kick is the #1 amateur tell. No guidance on easing selection across verse/chorus/bridge.                                                 | ✅ Done — `SECTION_EASING`                    |
+| **Tension/release arcs**                  | Reactive visuals with no rests exhaust the viewer. No research on when NOT to react.                                                                               | ✅ Done — `preDropFreeze`, `shouldGateMotion` |
+| **Motion vocabulary spec**                | No named, parameterized "moves" a coding agent can implement directly.                                                                                             | ✅ Done — 10 moves in `motion/`               |
 
 ### Implementation status (2026-10-02)
 
@@ -468,11 +468,11 @@ not yet confirmed on screen against the existing styles.
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|---|---|---|
-| **Creative-tool onboarding patterns** | How CapCut/DaVinci/Resolve onboard without tutorials-from-hell. Nothing in the library. | 🔴 Research Now |
-| **Empty states & first project** | A new user with one uploaded track currently faces the full dashboard. No designed first-run path. | 🔴 Research Now |
-| **Progressive disclosure system** | P6 established bounded consistency for visuals; no equivalent system for feature disclosure. | 🟡 Defer |
+| Gap                                   | Why It Matters                                                                                     | Recommendation  |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------- |
+| **Creative-tool onboarding patterns** | How CapCut/DaVinci/Resolve onboard without tutorials-from-hell. Nothing in the library.            | 🔴 Research Now |
+| **Empty states & first project**      | A new user with one uploaded track currently faces the full dashboard. No designed first-run path. | 🔴 Research Now |
+| **Progressive disclosure system**     | P6 established bounded consistency for visuals; no equivalent system for feature disclosure.       | 🟡 Defer        |
 
 ### Suggested Research
 
@@ -488,10 +488,10 @@ not yet confirmed on screen against the existing styles.
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|---|---|---|
-| **Job mapping (JTBD)** | "Convoluted" usually means the app serves 6 jobs through one navigation. No job map exists. | 🟡 Defer |
-| **IA audit method** | No card-sort/tree-test baseline for the current nav. | 🟡 Defer |
+| Gap                    | Why It Matters                                                                              | Recommendation |
+| ---------------------- | ------------------------------------------------------------------------------------------- | -------------- |
+| **Job mapping (JTBD)** | "Convoluted" usually means the app serves 6 jobs through one navigation. No job map exists. | 🟡 Defer       |
+| **IA audit method**    | No card-sort/tree-test baseline for the current nav.                                        | 🟡 Defer       |
 
 ### Suggested Research
 
@@ -507,10 +507,10 @@ not yet confirmed on screen against the existing styles.
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|---|---|---|
-| **Progress communication patterns** | Determinate vs. indeterminate, staged progress, time-remaining honesty for GPU jobs. | 🟡 Defer |
-| **Optimistic UI / skeletons** | Long renders with blank screens read as "crashed". No skeleton/placeholder system researched. | 🟡 Defer |
+| Gap                                 | Why It Matters                                                                                | Recommendation |
+| ----------------------------------- | --------------------------------------------------------------------------------------------- | -------------- |
+| **Progress communication patterns** | Determinate vs. indeterminate, staged progress, time-remaining honesty for GPU jobs.          | 🟡 Defer       |
+| **Optimistic UI / skeletons**       | Long renders with blank screens read as "crashed". No skeleton/placeholder system researched. | 🟡 Defer       |
 
 ### Suggested Research
 
@@ -526,10 +526,10 @@ not yet confirmed on screen against the existing styles.
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|---|---|---|
-| **VJ set craft** | VJs have 20+ years of practice in live audio-reactive visuals: clip mixing, effects chains, reading energy, builds/drops. Directly applicable to making visuals feel "immersive". | 🟡 Defer |
-| **Resolume/VDMX techniques** | Layer compositing, BPM-synced effects, performance workflows adaptable to precomputed timelines. | 🟢 Monitor |
+| Gap                          | Why It Matters                                                                                                                                                                    | Recommendation |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **VJ set craft**             | VJs have 20+ years of practice in live audio-reactive visuals: clip mixing, effects chains, reading energy, builds/drops. Directly applicable to making visuals feel "immersive". | 🟡 Defer       |
+| **Resolume/VDMX techniques** | Layer compositing, BPM-synced effects, performance workflows adaptable to precomputed timelines.                                                                                  | 🟢 Monitor     |
 
 ### Suggested Research
 
@@ -545,10 +545,10 @@ not yet confirmed on screen against the existing styles.
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|---|---|---|
-| **Shot language** | Cuts on beats, camera moves, visual narrative arcs across verse/chorus/bridge. The missing layer between "sections detected" and "video directed". | 🟡 Defer |
-| **Generative directing** | How AI video tools maintain visual continuity across shots (character/object persistence). | 🟡 Defer |
+| Gap                      | Why It Matters                                                                                                                                     | Recommendation |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **Shot language**        | Cuts on beats, camera moves, visual narrative arcs across verse/chorus/bridge. The missing layer between "sections detected" and "video directed". | 🟡 Defer       |
+| **Generative directing** | How AI video tools maintain visual continuity across shots (character/object persistence).                                                         | 🟡 Defer       |
 
 ### Suggested Research
 
@@ -564,10 +564,10 @@ not yet confirmed on screen against the existing styles.
 
 ### Research Gaps
 
-| Gap | Why It Matters | Recommendation |
-|---|---|---|
-| **Emotional color arcs** | Pixar-style color scripts map story beats to palettes. Music has the same beats (verse/chorus/bridge); no mapping research exists. | 🟢 Monitor |
-| **Palette←→music mood** | Genre/mood → palette systems for generative visuals. | 🟢 Monitor |
+| Gap                      | Why It Matters                                                                                                                     | Recommendation |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **Emotional color arcs** | Pixar-style color scripts map story beats to palettes. Music has the same beats (verse/chorus/bridge); no mapping research exists. | 🟢 Monitor     |
+| **Palette←→music mood**  | Genre/mood → palette systems for generative visuals.                                                                               | 🟢 Monitor     |
 
 ### Suggested Research
 
@@ -575,32 +575,32 @@ not yet confirmed on screen against the existing styles.
 
 ## Prioritized Research Backlog
 
-| Priority | Item                                | Owner     | Effort | Impact                                                                         |
-| -------- | ----------------------------------- | --------- | ------ | ------------------------------------------------------------------------------ |
-| P0       | Wan 2.2 red-pattern root cause (Q3) | Backend   | 2-4h   | ✅ Resolved 2026-10-06: coherent render on rerun, does not reproduce |
-| P0       | Agent MCP tool contracts            | Fullstack | 4-8h   | ✅ Published mcp-contracts-2026.md; input side now enforced in code (`mcp_validator.py` + `POST /api/mcp/validate-tool`, all four bridges dispatch effective args) |
-| P1       | Full-pipeline E2E test              | Fullstack | 4-8h   | ✅ P1a Playwright smoke unblocked (MIME fix); 13/13 health+pipeline tests pass |
-| P1       | VRAM leak test                      | Backend   | 2-4h   | ✅ 3 baseline/leak tests added; 9/9 pass                                       |
-| P1       | Video model sweep (LTX, Mochi)      | Backend   | 4-8h   | ✅ LTX half done 2026-10-06 (2B distilled viable, 210 s/25f); Mochi blocked on weights; backend LTX path not yet wired |
-| P2       | Go sidecar consolidation analysis   | Backend   | 4-6h   | Reduces ops burden                                                             |
-| P2       | Benchmark dashboard                 | Frontend  | 4-8h   | Improves UX                                                                    |
-| P2       | WhisperX alignment test             | Backend   | 2-4h   | Better karaoke                                                                 |
-| P3       | Vite 8 / Rolldown benchmark         | Frontend  | 2-4h   | Build speed                                                                    |
-| P3       | WebGPU smoke test                   | Frontend  | 2-4h   | Future-proofing                                                                |
-| P3       | Docker feasibility                  | DevOps    | 4-8h   | Deployment                                                                     |
-| P1       | Motion design vocabulary (Gemini pass) | Research | 2-4h  | Directly addresses "unengaging visuals"; implementable moves for the local agent |
-| P1       | Creative-tool onboarding teardown   | Research/UX | 4-6h | Directly addresses "clunky"; 5-minute first-run path spec                      |
-| P2       | IA job-mapping audit                | UX        | 2-4h   | Deconvolute navigation; pairs with feature-utilization audit                   |
-| P2       | Perceived-performance audit (3 longest waits) | Frontend | 2-4h | Makes GPU waits feel intentional                                        |
-| P2       | VJ technique survey (10 transferable) | Research  | 3-5h   | Immersive-visual craft                                                         |
-| P2       | Shot-plan schema v2 (directing fields) | Backend  | 3-5h   | Feeds A1 JSON shot plan                                                        |
-| P3       | Color-scripting rules per section   | Research  | 2-3h   | Pair with motion vocabulary when it lands                                      |
+| Priority | Item                                          | Owner       | Effort | Impact                                                                                                                                                             |
+| -------- | --------------------------------------------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P0       | Wan 2.2 red-pattern root cause (Q3)           | Backend     | 2-4h   | ✅ Resolved 2026-10-06: coherent render on rerun, does not reproduce                                                                                               |
+| P0       | Agent MCP tool contracts                      | Fullstack   | 4-8h   | ✅ Published mcp-contracts-2026.md; input side now enforced in code (`mcp_validator.py` + `POST /api/mcp/validate-tool`, all four bridges dispatch effective args) |
+| P1       | Full-pipeline E2E test                        | Fullstack   | 4-8h   | ✅ P1a Playwright smoke unblocked (MIME fix); 13/13 health+pipeline tests pass                                                                                     |
+| P1       | VRAM leak test                                | Backend     | 2-4h   | ✅ 3 baseline/leak tests added; 9/9 pass                                                                                                                           |
+| P1       | Video model sweep (LTX, Mochi)                | Backend     | 4-8h   | ✅ LTX half done 2026-10-06 (2B distilled viable, 210 s/25f); Mochi blocked on weights; backend LTX path not yet wired                                             |
+| P2       | Go sidecar consolidation analysis             | Backend     | 4-6h   | Reduces ops burden                                                                                                                                                 |
+| P2       | Benchmark dashboard                           | Frontend    | 4-8h   | Improves UX                                                                                                                                                        |
+| P2       | WhisperX alignment test                       | Backend     | 2-4h   | Better karaoke                                                                                                                                                     |
+| P3       | Vite 8 / Rolldown benchmark                   | Frontend    | 2-4h   | Build speed                                                                                                                                                        |
+| P3       | WebGPU smoke test                             | Frontend    | 2-4h   | Future-proofing                                                                                                                                                    |
+| P3       | Docker feasibility                            | DevOps      | 4-8h   | Deployment                                                                                                                                                         |
+| P1       | Motion design vocabulary (Gemini pass)        | Research    | 2-4h   | Directly addresses "unengaging visuals"; implementable moves for the local agent                                                                                   |
+| P1       | Creative-tool onboarding teardown             | Research/UX | 4-6h   | Directly addresses "clunky"; 5-minute first-run path spec                                                                                                          |
+| P2       | IA job-mapping audit                          | UX          | 2-4h   | Deconvolute navigation; pairs with feature-utilization audit                                                                                                       |
+| P2       | Perceived-performance audit (3 longest waits) | Frontend    | 2-4h   | Makes GPU waits feel intentional                                                                                                                                   |
+| P2       | VJ technique survey (10 transferable)         | Research    | 3-5h   | Immersive-visual craft                                                                                                                                             |
+| P2       | Shot-plan schema v2 (directing fields)        | Backend     | 3-5h   | Feeds A1 JSON shot plan                                                                                                                                            |
+| P3       | Color-scripting rules per section             | Research    | 2-3h   | Pair with motion vocabulary when it lands                                                                                                                          |
 
 ---
 
 ## See Also
 
-- [[decision-log]] — Q1 (3D convergence), Q2 (auto fallback), Q3 (Wan red pattern), Q4 (visualizer modes)
+- [[../architecture/decision-log.md|Architecture Decision Log]] — Q1 (3D convergence), Q2 (auto fallback), Q3 (Wan red pattern), Q4 (visualizer modes)
 - [[stack-extensions-2026]] — Optional languages + high-value tools
 - [[cuda-pytorch-directx-upgrades-2026]] — Upgrade recommendations for current stack
 - [[pascal-gpu-optimization-2026]] — GTX 1070 Ti constraints

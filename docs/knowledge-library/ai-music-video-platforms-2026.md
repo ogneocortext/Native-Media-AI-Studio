@@ -20,7 +20,7 @@ date: 2026-09-29
 > reviewers, and GitHub repos. **No live in-browser verification was performed.** Per-minute costs marked
 > "estimate" are derived, not published.
 >
-> Implications specifically for [[Native Media AI Studio]] pipeline (GTX 1070 Ti 8GB, ComfyUI, FFmpeg, Blender, Remotion, Go sidecars).
+> Implications specifically for the Native Media AI Studio pipeline (GTX 1070 Ti 8GB, ComfyUI, FFmpeg, Blender, Remotion, Go sidecars).
 
 > [!warning] Sponsorship caveat
 > Many 2026 "best AI music video generator" roundups (marketersmedia, pinionnewswire, aijourn, financialcontent,

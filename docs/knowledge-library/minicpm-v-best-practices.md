@@ -16,7 +16,7 @@ date: 2026-09-29
 > **Your latest local model:** `minicpm-v:8b` — `7.6B Q4_0` (~5.5 GB), `SigLip-400M + Qwen2-7B`, Ollama `c92bfad01205`, modified `2026-09-05`. 32K context, 1.8M-pixel any-aspect input, vision-only (no tools/thinking).
 
 > [!tip] Why this model matters
-> On your `GTX 1070 Ti 8GB`, this is the **most efficient vision model you own**: 640 tokens per 1.8 MP image (75% fewer than LLaVA/Qwen), ~6 GB peak, 10.3% hallucination on Object HalBench (vs GPT-4V 13.6%), and **SOTA on OCRBench** (beats GPT-4o/Gemini 1.5 Pro). It is the right default for [[GPU Monitoring|gpu]] chart reading, cover OCR, and multi-image UI diffs — not `qwen3-vl` (which is multilingual-first) or `gemma4` (text-thinking).
+> On your `GTX 1070 Ti 8GB`, this is the **most efficient vision model you own**: 640 tokens per 1.8 MP image (75% fewer than LLaVA/Qwen), ~6 GB peak, 10.3% hallucination on Object HalBench (vs GPT-4V 13.6%), and **SOTA on OCRBench** (beats GPT-4o/Gemini 1.5 Pro). It is the right default for GPU monitoring chart reading, cover OCR, and multi-image UI diffs — not `qwen3-vl` (which is multilingual-first) or `gemma4` (text-thinking).
 
 > Sources: [Ollama minicpm-v:8b](https://ollama.com/library/minicpm-v:8b) · [GitHub OpenBMB/MiniCPM-V](https://github.com/OpenBMB/MiniCPM-V) · [Paper arXiv:2408.01800](https://arxiv.org/html/2408.01800v1) · [Best-practice summary](https://github.com/OpenBMB/MiniCPM-V/blob/main/docs/best_practice_summary.md)
 

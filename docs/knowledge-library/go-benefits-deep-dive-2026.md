@@ -304,8 +304,8 @@ could be evaluated for Go replacement:
 - [[technical-reference]] — system architecture, service map
 - [[backend-debugging-guide]] — FastAPI debugging patterns
 - [[python-environment-management]] — venv decoupling rules
-- [[decision-log D6]] — centralized port management (Go sidecar: ports)
-- [[decision-log D8]] — job queue + observability (Go sidecars: dashboard/media/worker/gateway)
+- [[../architecture/decision-log.md#D6|Decision Log D6]] — centralized port management (Go sidecar: ports)
+- [[../architecture/decision-log.md#D8|Decision Log D8]] — job queue + observability (Go sidecars: dashboard/media/worker/gateway)
 
 ---
 

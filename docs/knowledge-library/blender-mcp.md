@@ -16,7 +16,7 @@ date: 2026-09-29
 
 > [!info] Scope
 > Controlling Blender 5.2 via MCP protocol for automated scene building.
-> Part of [[Native Media AI Studio]] music video pipeline.
+> Part of the Native Media AI Studio music video pipeline.
 
 ---
 
