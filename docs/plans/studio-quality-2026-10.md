@@ -288,7 +288,54 @@ needs its own clock-hijack.
 
 **Suggested order for the follow-ups:** 2.7 (wire motion) → 2.8 (anticipation,
 rides on 2.7's easing) → 2.9 (export records the improved motion, so motion
-first) → 2.2/2.3 (reactivity UI + presets) → 2.5/2.6 (latency display, color).
+first) → 2.2/2.3 (reactivity UI + presets) → 2.5/2.6 (latency display, color)
+→ 2.10/2.11 (real-time data correctness).
+
+## Real-time render gaps (added 2026-10-06)
+
+Verified against the shader render loop 2026-10-06. The pipeline itself is
+sound — shared AudioContext (`useAudioGraph.ts`), latency-compensated clock
+(`audioTiming.ts`), live onset/drum/next-beat prediction
+(`audioAnalysis.worker.ts`), per-stem energy with pro-mixer meter override
+(`ShaderVisualizer.tsx:300-318`), section→preset switching
+(`sectionStateMachine.ts`). What remains is data correctness, not architecture.
+
+### 2.10 Plumb real BPM + beat grid into the reactivity processor
+
+`ShaderVisualizer.tsx:347-349` hardcodes `const bpm = 120` ("AudioData doesn't
+carry tempo_bpm directly") and passes an **empty** `beatTimes` array to
+`processor.update()`. `BeatPhaseWave` (`audioReactivityProcessor.ts:73-116`)
+therefore always takes the BPM-fallback branch — `beatPhase` and `downbeat`
+are computed on a phantom 120 BPM grid for every track that isn't 120 BPM.
+The backend *has* real tempo + beat grids: three-js-studio already consumes
+`tempo_bpm` (`useTrackManager.ts:77-78`).
+
+- **Fix:** pass the analyzed BPM and beat-time array into `processor.update()`;
+  keep 120 + live onset detection as the fallback when analysis is absent.
+- **Accept:** on a known 100 BPM track, `beatPhase` completes exactly one
+  cycle per beat and `downbeat` fires on bar lines (verify with a click
+  track); no regression on tracks without analysis.
+- **Files:** `ShaderVisualizer.tsx` (L347-349), `audioReactivityProcessor.ts`.
+
+### 2.11 Live FFT fallback when the spectral timeline is absent
+
+`useSpectralTimeline.ts:76-83` returns `null` when the track has no analysis;
+`ShaderVisualizer.tsx:350` then skips `processor.update()` entirely, so the
+gamma-mapped reactivity uniforms (bass/mid/high/transient/energy/centroid/
+beatPhase/downbeat) **freeze at stale values** while the base uniforms (from
+live `AudioData`) keep moving — half the uniform set frozen, half live. This
+is the still-open "streaming FFT + onset detection on audio buffer chunks"
+item from the gaps register.
+
+- **Fix:** when the timeline is null, synthesize a `SpectralFrame` per frame
+  from the live `AnalyserNode` FFT (the shared graph already exposes it via
+  `useAudioGraph().analyserRef`) + the worker's onset/transient output, and
+  feed that to the processor instead of skipping.
+- **Accept:** with analysis deleted, every uniform keeps moving; switching a
+  track from analyzed → unanalyzed mid-session shows no frozen state;
+  before/after capture on the three-track rule.
+- **Files:** `useSpectralTimeline.ts`, `ShaderVisualizer.tsx`,
+  `useAudioGraph.ts`, `audioAnalysis.worker.ts`.
 
 ---
 
