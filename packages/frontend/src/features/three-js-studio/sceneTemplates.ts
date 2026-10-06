@@ -35,6 +35,12 @@ export interface SceneTemplate {
    *  loop reads live audio FFT (bass/treble) and modulates this field
    *  per object per frame. */
   audioDriven?: "bars" | "pillars" | "pulse";
+  /** Optional: beat-phrased animation (F4). When true, object scale
+   *  performs an anticipation → pop → hold cycle on the beat grid
+   *  (pullback in the ~120 ms before each beat, expressive-pop landing,
+   *  then a held value with no drift) instead of the decaying punch
+   *  spike. Requires a beat timeline (track analysis) to be active. */
+  beatPhrase?: boolean;
 }
 
 // ----------------------------------------------------------------------------
@@ -495,6 +501,7 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
       bloomStrength: 1.3,
       beatPunch: 0.35,
     },
+    beatPhrase: true,
   },
   {
     id: "character-stage",
@@ -633,5 +640,6 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
       vignetteStrength: 0.55,
       beatPunch: 0.2,
     },
+    beatPhrase: true,
   },
 ];

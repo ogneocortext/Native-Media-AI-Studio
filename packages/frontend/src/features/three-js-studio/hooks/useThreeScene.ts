@@ -10,6 +10,13 @@ import { FilmShader } from "three/examples/jsm/shaders/FilmShader.js";
 import { RGBShiftShader } from "three/examples/jsm/shaders/RGBShiftShader.js";
 import { SCENE_TEMPLATES } from "../sceneTemplates";
 import { BLOOM_LAYER } from "../threeStudioConfig";
+import {
+  beginCameraTransition,
+  computeModePose,
+  sampleCameraTransition,
+  type CameraTransitionState,
+} from "../services/cameraTransitions";
+import { beatPhraseScale } from "../services/beatPhrasing";
 import type { UseThreeSceneOptions, UseThreeSceneResult } from "./types";
 
 // Vignette that darkens towards black. three's stock VignetteShader mixes
@@ -91,6 +98,15 @@ export function useThreeScene({
   const characterMixersRef = useRef<Map<string, any>>(new Map());
   const animationRef = useRef(0);
   const controlsRef = useRef<any>(null);
+  // F1: an in-flight eased camera blend (mode switch). Null
+  // when the camera is driven directly by its mode pose.
+  const cameraTransitionRef = useRef<CameraTransitionState | null>(null);
+  // The mode the render loop last applied; a change against
+  // this is what begins a blend.
+  const lastCameraModeRef = useRef(cameraMode);
+  // F4: whether the active template opts into beat-phrased
+  // animation (anticipation → pop → hold).
+  const beatPhraseRef = useRef(false);
   const onSelectObjectRef = useRef(onSelectObject);
   const pointerHandlersRef = useRef<{
     down: (event: PointerEvent) => void;
@@ -152,6 +168,13 @@ export function useThreeScene({
     activeAudioDrivenRef.current = SCENE_TEMPLATES.find(
       (t: any) => t.id === activeTemplateId,
     )?.audioDriven;
+  }, [activeTemplateId]);
+  // F4: the beat-phrasing flag rides the active template the
+  // same way `audioDriven` does — per-template, not global.
+  useEffect(() => {
+    beatPhraseRef.current = Boolean(
+      SCENE_TEMPLATES.find((t: any) => t.id === activeTemplateId)?.beatPhrase,
+    );
   }, [activeTemplateId]);
   useEffect(() => {
     animationTimeRef.current = animationTime;
@@ -267,6 +290,12 @@ export function useThreeScene({
       controls.maxDistance = 20;
       controls.enablePan = false;
       controlsRef.current = controls;
+      // F1: user drag/orbit input cancels an in-flight
+      // camera blend immediately — the blend is a
+      // convenience, never a fight with the user.
+      controls.addEventListener("start", () => {
+        cameraTransitionRef.current = null;
+      });
 
       // Click-to-select: raycast against scene objects on a stationary click
       // (a drag is an orbit, so anything past the movement threshold is ignored).
@@ -471,7 +500,17 @@ export function useThreeScene({
               mesh.position.y = obj.position[1] + Math.sin(elapsed * obj.bobSpeed) * obj.bobAmount;
             }
             let pulse = 1;
-            if (isPlay && beatState.ready && beatSpike > 0) pulse = 1 + beatSpike;
+            if (isPlay && beatState.ready && beatPhraseRef.current) {
+              // F4: anticipation → pop → hold on the beat
+              // grid, replacing the decaying punch spike
+              // when the active template opts in.
+              pulse = beatPhraseScale({
+                timeSinceLastBeat: beatState.timeSinceLastBeat,
+                beatWindowSec: beatState.beatWindowSec,
+                amplitude: beatPunchAmp,
+              }).scale;
+            } else if (isPlay && beatState.ready && beatSpike > 0)
+              pulse = 1 + beatSpike;
             else if (isPlay && beatSyncRef.current) {
               const bi = 60 / bpmRef.current;
               pulse =
@@ -524,21 +563,73 @@ export function useThreeScene({
         const ir = renderPlayingRef.current;
         const sx = (Math.random() - 0.5) * shakeRef.current;
         const sy = (Math.random() - 0.5) * shakeRef.current;
-        if (cm === "orbit" && ir) {
-          const a = elapsed * 0.25;
-          camera.position.x = Math.sin(a) * 8 + sx;
-          camera.position.z = Math.cos(a) * 8;
-          camera.position.y = 3 + Math.sin(a * 0.5) * 0.6 + sy;
-          camera.lookAt(0, 0.5, 0);
-        } else if (cm === "dolly" && ir) {
-          const t = (elapsed % 8) / 8;
-          camera.position.z = 10 - t * 6;
-          camera.position.y = 3 - t * 0.8 + sy;
-          camera.lookAt(0, 0.5, 0);
-        } else if (cm === "handheld" && ir) {
-          camera.position.x += (Math.random() - 0.5) * 0.02;
-          camera.position.y += (Math.random() - 0.5) * 0.02;
-          camera.lookAt(0, 0.5, 0);
+        if (ir && cm !== "static") {
+          // F1: a mode switch begins an eased blend from
+          // the live pose onto the new mode's trajectory
+          // (~600 ms, travel-balanced) instead of a hard
+          // cut. The from-pose is captured before this
+          // frame's walk/shake so the blend starts where
+          // the camera actually is.
+          if (cm !== lastCameraModeRef.current) {
+            cameraTransitionRef.current = beginCameraTransition(
+              {
+                position: [
+                  camera.position.x,
+                  camera.position.y,
+                  camera.position.z,
+                ],
+                target: [0, 0.5, 0],
+              },
+              elapsed,
+            );
+            lastCameraModeRef.current = cm;
+          }
+          // Handheld is a free walk: it accumulates on
+          // the live position before the pose is sampled,
+          // so the walk persists across blends.
+          if (cm === "handheld") {
+            camera.position.x += (Math.random() - 0.5) * 0.02;
+            camera.position.y += (Math.random() - 0.5) * 0.02;
+          }
+          const targetPose = computeModePose({
+            mode: cm,
+            elapsedSec: elapsed,
+            currentPosition: [
+              camera.position.x,
+              camera.position.y,
+              camera.position.z,
+            ],
+            shakeX: sx,
+            shakeY: sy,
+          });
+          const pending = cameraTransitionRef.current;
+          const blended = pending
+            ? sampleCameraTransition(pending, elapsed, targetPose)
+            : null;
+          if (blended) {
+            camera.position.set(
+              blended.position[0],
+              blended.position[1],
+              blended.position[2],
+            );
+            camera.lookAt(
+              blended.target[0],
+              blended.target[1],
+              blended.target[2],
+            );
+          } else {
+            if (pending) cameraTransitionRef.current = null;
+            camera.position.set(
+              targetPose.position[0],
+              targetPose.position[1],
+              targetPose.position[2],
+            );
+            camera.lookAt(
+              targetPose.target[0],
+              targetPose.target[1],
+              targetPose.target[2],
+            );
+          }
         }
         if (finalComposerRef.current) {
           finalComposerRef.current.render();
