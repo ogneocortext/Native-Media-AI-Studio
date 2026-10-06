@@ -21,11 +21,29 @@ class SSEService {
   private maxReconnectDelay = 30000;
   private lastEventId: string | null = null;
   private syncChannel: BroadcastChannel | null = null;
+  private offlineQueue: Array<Record<string, unknown>> = [];
 
   // Track connection state for UI indicators
   private _connectionState: "connected" | "reconnecting" | "disconnected" = "disconnected";
   get connectionState(): "connected" | "reconnecting" | "disconnected" {
     return this._connectionState;
+  }
+
+  /** Current length of the offline event queue. */
+  get offlineQueueLength(): number {
+    return this.offlineQueue.length;
+  }
+
+  /** Enqueue a message for later delivery when the connection restores. */
+  enqueueOffline(message: Record<string, unknown>): void {
+    this.offlineQueue.push(message);
+  }
+
+  /** Drain and return the queued offline messages, clearing the queue. */
+  drainOfflineQueue(): Array<Record<string, unknown>> {
+    const queued = this.offlineQueue;
+    this.offlineQueue = [];
+    return queued;
   }
 
   /** Subscribe to SSE messages. Returns an unsubscribe fn. */
@@ -178,6 +196,11 @@ class SSEService {
         }
         this.emitState(true);
         this._broadcastStateToSyncChannel("connected");
+        const queued = this.drainOfflineQueue();
+        for (const message of queued) {
+          this._dispatchToListeners(message);
+          this._broadcastToSyncChannel(message);
+        }
       };
 
       this.eventSource.onmessage = (event) => {
@@ -224,6 +247,14 @@ class SSEService {
             attempt(fallbackUrl);
           } else {
             this.scheduleReconnect();
+          }
+        }
+        // Queue listeners for redispatch when the connection restores.
+        for (const listener of this.listeners) {
+          try {
+            listener({ __offline: true });
+          } catch {
+            // ignore listener errors during shutdown
           }
         }
       };

@@ -262,7 +262,7 @@ high-traffic user flows:
 | 3D generation | ✅ | Pipeline smoke covers load |
 | Video generation | ✅ | Pipeline smoke covers load |
 | Music video wizard | ✅ | Pipeline smoke covers load |
-| **Media Library actions** | ❌ | No test for detail modal, extract audio, upscale, export matrix |
+| **Media Library actions** | ✅ | `media-library.spec.ts` covers header, category tabs, search, and send-to-wizard |
 | **Settings changes** | ❌ | No test for saving/loading settings |
 | **Cross-page handoffs** | ❌ | No test for dashboard→queue→wizard flow |
 | **Video generation end-to-end** | ❌ | No test for submit → poll → result → download |
@@ -347,7 +347,6 @@ implemented in the codebase.
 | Wire stems into visualizer | Demucs output is generated but ignored | 4-8h |
 | Build storyboard → HyperFrames compiler | Storyboards are dead-end documents | 4-8h |
 | Add per-section generation to wizard | Section-aware prompts exist but aren't iterated | 4-6h |
-| Add media library E2E tests | High-traffic flow has zero automated coverage | 4-6h |
 
 ### Medium-term (P2)
 

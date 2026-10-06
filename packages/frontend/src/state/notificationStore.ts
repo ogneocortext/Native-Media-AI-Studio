@@ -20,6 +20,29 @@ export type { NotificationItem, NotificationPreferences };
 
 const MAX_HISTORY = 100;
 
+// Group rules: events matching the same base key are collapsed into one
+// notification. The first matching rule wins; later updates replace the
+// earlier item rather than appending a new one.
+const GROUP_RULES: Array<{ match: RegExp; key: (name: string) => string }> = [
+  {
+    match: /^job\.progress\.\d+$/,
+    key: (name) => name.replace(/\.\d+$/, ""),
+  },
+  {
+    match: /^job\.(queued|started|completed|failed|dead|cancelled)/,
+    key: (name) => name.replace(/\.\d+$/, ""),
+  },
+];
+
+function groupKeyFor(name: string): string | null {
+  for (const rule of GROUP_RULES) {
+    if (rule.match.test(name)) {
+      return rule.key(name);
+    }
+  }
+  return null;
+}
+
 interface NotificationState {
   items: NotificationItem[];
   unreadCount: number;
@@ -35,6 +58,7 @@ interface NotificationState {
   setPanelOpen: (open: boolean) => void;
   loadHistory: () => Promise<void>;
   syncSinceLastId: () => Promise<void>;
+  flushOfflineQueue: () => void;
 }
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
@@ -45,22 +69,33 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
   addItem: (item) => {
     set((state) => {
-      const exists = state.items.some((existing) => existing.id === item.id);
-      if (exists) return state;
-      const items = [item, ...state.items].slice(0, MAX_HISTORY);
-      const unreadCount = state.unreadCount + (item.id ? 1 : 0);
-      return { items, unreadCount };
+      const gkey = groupKeyFor(item.type || "");
+      let items = state.items;
+      if (gkey) {
+        const replaced = items.map((existing) =>
+          existing.type === gkey ? { ...existing, ...item, id: existing.id } : existing,
+        );
+        const deduped = replaced.filter((existing) => existing.id !== item.id);
+        items = [item, ...deduped];
+      } else {
+        items = [item, ...state.items];
+      }
+      const sliced = items.slice(0, MAX_HISTORY);
+      const unreadCount = sliced.reduce((count, current) => count + (current.id ? 1 : 0), 0);
+      return { items: sliced, unreadCount };
     });
   },
 
   addItems: (items) => {
     set((state) => {
-      const existingIds = new Set(state.items.map((i) => i.id));
-      const merged = [
-        ...items.filter((i) => !existingIds.has(i.id)),
-        ...state.items,
-      ].slice(0, MAX_HISTORY);
-      return { items: merged };
+      const merged = [...items, ...state.items];
+      const deduped = merged.filter((item, index, array) => {
+        const gkey = groupKeyFor(item.type || "");
+        if (!gkey) return true;
+        const first = array.findIndex((candidate) => groupKeyFor(candidate.type || "") === gkey);
+        return index === first;
+      });
+      return { items: deduped.slice(0, MAX_HISTORY) };
     });
   },
 
@@ -112,6 +147,13 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       console.warn("[notifications] syncSinceLastId failed", error);
     }
   },
+
+  flushOfflineQueue: () => {
+    const queued = sseService.drainOfflineQueue();
+    for (const message of queued) {
+      handleIncomingSSE(message, useNotificationStore.getState);
+    }
+  },
 }));
 
 let subscriptions: { unsubMessage: () => void; unsubState: () => void } | null = null;
@@ -121,9 +163,10 @@ export function connectNotificationSSE(): void {
   const unsubMessage = sseService.subscribe((message) => {
     handleIncomingSSE(message, useNotificationStore.getState);
   });
-  const unsubState = sseService.onStateChange(() => {
-    // Connection state changes don't mutate notification state directly,
-    // but listeners can subscribe via the store.
+  const unsubState = sseService.onStateChange((connected) => {
+    if (connected) {
+      useNotificationStore.getState().flushOfflineQueue();
+    }
   });
   subscriptions = { unsubMessage, unsubState };
   sseService.connect();

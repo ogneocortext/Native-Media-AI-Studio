@@ -70,9 +70,9 @@ date: 2026-09-29
 ✅ **Unread badge** — Implemented in `NotificationBell`
 ✅ **Browser push** — Implemented in `notifications.py` + `push_notifier.py`
 ✅ **Quiet hours / preferences** — Implemented in `Settings.tsx` + `notificationStore.ts`
-❌ **No offline queue** — Events lost during network interruption
-❌ **Connection status not visible** — Users don't know if real-time updates are active
-❌ **No event grouping** — Rapid status changes create notification storms
+✅ **Offline queue** — Implemented in `sseService.ts` + `notificationStore.ts`
+✅ **Connection status not visible** — Users don't know if real-time updates are active
+✅ **Event grouping** — Implemented in `notificationStore.ts`
 
 ---
 
@@ -252,9 +252,9 @@ date: 2026-09-29
 
 ### Frontend Changes
 
-- [ ] **sseService.ts** — Pass `lastEventId` on reconnect; parse replay events
-- [ ] **sseService.ts** — Emit priority from SSE event; route to toast vs. silent update
-- [ ] **sseService.ts** — Add `BroadcastChannel` for cross-tab sync
+- [x] **sseService.ts** — Offline queue + drain on reconnect
+- [x] **sseService.ts** — Cross-tab sync via `BroadcastChannel`
+- [x] **notificationStore.ts** — Event grouping rules + `flushOfflineQueue()`
 - [x] **notificationStore.ts** — Zustand store for notification center (history, unread count, preferences)
 - [ ] **toast.ts** — Add priority-based durations; urgent uses `requireInteraction: true`
 - [ ] **toast.ts** — Collapse repeated events within time window
