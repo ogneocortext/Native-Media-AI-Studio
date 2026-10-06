@@ -475,7 +475,7 @@ async def fetch_comfyui_log_tail(base_url: str, max_lines: int = 200) -> str | N
             text = log_path.read_text(encoding="utf-8", errors="replace")
             lines = text.splitlines()
             return "\n".join(lines[-max_lines:])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Could not read ComfyUI log %s: %s", log_path, e)
     # Fallback: ComfyUI does not expose a /log endpoint in stock builds.
     return None

@@ -328,13 +328,25 @@ export async function generateText2Image(options: {
  */
 export async function getImage(filename: string, subfolder = "", type = "output"): Promise<string> {
   const COMFYUI_URL = getComfyuiUrl();
-  const params = new URLSearchParams({ filename, subfolder, type });
-  const response = await checkResponse(
-    await fetchWithTimeout(`${COMFYUI_URL}/view?${params}`, { timeout: 30000 }),
-    "fetch image",
-  );
-  const blob = await response.blob();
-  return URL.createObjectURL(blob);
+  // Sanitize filename/subfolder to prevent path-traversal when calling
+  // ComfyUI /view directly (bypasses the backend's own sanitization).
+  const safeName = filename.replace(/\\/g, "/").split("/").pop() || "";
+  if (!safeName || safeName === "." || safeName === "..") {
+    throw new ComfyUIError(`Invalid ComfyUI filename: ${filename}`, 400);
+  }
+  const safeSub = subfolder.replace(/\\/g, "/").split("/").filter(p => p && p !== "." && p !== "..").join("/");
+  const params = new URLSearchParams({ filename: safeName, subfolder: safeSub, type });
+  try {
+    const response = await checkResponse(
+      await fetchWithTimeout(`${COMFYUI_URL}/view?${params}`, { timeout: 30000 }),
+      "fetch image",
+    );
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  } catch (e) {
+    if (e instanceof ComfyUIError) throw e;
+    throw new ComfyUIError(`ComfyUI fetch image failed: ${(e as Error).message}`, 502);
+  }
 }
 
 /**

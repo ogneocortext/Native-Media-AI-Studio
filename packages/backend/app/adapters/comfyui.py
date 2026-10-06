@@ -719,8 +719,14 @@ class ComfyUIAdapter(BaseAdapter):
             # Not finished yet. If the prompt is still sitting in the queue
             # behind other work, the budget is being spent waiting on someone
             # else's job, so extend once rather than time out and cancel.
+            # A transient queue-fetch failure must not decide the matter —
+            # treat it as "still here" so a dead /queue endpoint cannot
+            # cancel a healthy job.
             if not extended:
-                entry_now = await self._get_queue_status(prompt_id)
+                try:
+                    entry_now = await self._get_queue_status(prompt_id)
+                except Exception:
+                    entry_now = {"prompt_id": prompt_id}  # don't abort on probe error
                 if entry_now is not None:
                     extended = True
                     if timeout < _QUEUE_BACKLOG_TIMEOUT:
@@ -1091,9 +1097,13 @@ class ComfyUIAdapter(BaseAdapter):
         Video prompts are the most expensive kind here (minutes of GPU on an 8 GB
         card), so leaking one on timeout is what turns a single failure into a
         queue nobody can get through.
+
+        The timeout is measured against *our own* prompt only, and the prompt is
+        cancelled on any exit that is not success. If the prompt is merely queued
+        behind other work, the deadline is extended once so a queued job is not
+        cancelled before it ever runs.
         """
         start = asyncio.get_event_loop().time()
-
         try:
             return await self._poll_video_result(prompt_id, timeout, start)
         except BaseException:
@@ -1119,10 +1129,19 @@ class ComfyUIAdapter(BaseAdapter):
     ) -> str | None:
         """Polling body for :meth:`_wait_for_video_result` (see it for the why)."""
 
+        # The deadline our own prompt must meet. It is extended once, if the
+        # prompt turns out to be sitting in the queue rather than executing,
+        # because then the elapsed time is waiting on other people's work and
+        # timing out would cancel a job that was never given a chance to run.
+        deadline = start + timeout
+        extended = False
         while True:
             elapsed = asyncio.get_event_loop().time() - start
-            if elapsed > timeout:
-                raise TimeoutError(f"ComfyUI video generation timed out after {timeout}s")
+            if asyncio.get_event_loop().time() > deadline:
+                raise TimeoutError(
+                    f"ComfyUI video generation timed out after "
+                    f"{int(deadline - start)}s"
+                )
 
             # Check history
             history = await self._get_history(prompt_id)
@@ -1159,19 +1178,42 @@ class ComfyUIAdapter(BaseAdapter):
                                     subfolder = img.get("subfolder", "")
                                     return await self._fetch_video(filename, subfolder)
 
-            # Also check the /queue endpoint — if the prompt isn't in the queue
-            # and isn't in history, it may have been cancelled or never started.
-            # Only declare it lost after 60s (ComfyUI can take a while to pick
-            # up a prompt), and tolerate transient queue-fetch failures.
-            if elapsed > 60:
-                try:
-                    queue_status = await self._get_queue_status(prompt_id)
-                except Exception:
-                    queue_status = {"prompt_id": prompt_id}  # don't abort on probe error
-                if not queue_status:
-                    logger.warning("Prompt %s not in queue or history after %ds — may have been cancelled", prompt_id, int(elapsed))
-                    raise RuntimeError(f"ComfyUI prompt {prompt_id} not found in queue or history — it may have been cancelled or rejected")
-
+            # Not finished yet. Probe the queue on every pass (not just
+            # until the deadline is extended): only the queue can tell a
+            # slow job apart from a lost one. Two outcomes:
+            # - still queued: the budget is being spent waiting on someone
+            #   else's work, so extend the deadline once rather than time
+            #   out and cancel a job that never ran;
+            # - gone from BOTH queue and history past the 60s pickup
+            #   grace period: cancelled or rejected — fail fast instead
+            #   of polling to the full timeout.
+            # Transient queue-fetch failures are tolerated (treated as
+            # "still here") — a dead /queue endpoint must not cancel a
+            # healthy job.
+            try:
+                entry_now = await self._get_queue_status(prompt_id)
+            except Exception:
+                entry_now = {"prompt_id": prompt_id}  # don't abort on probe error
+            if entry_now is not None:
+                if not extended:
+                    extended = True
+                    if timeout < _QUEUE_BACKLOG_TIMEOUT:
+                        deadline = start + _QUEUE_BACKLOG_TIMEOUT
+                        logger.warning(
+                            "ComfyUI video prompt %s is queued behind other work; "
+                            "extending the wait to %ds so a queued job is not "
+                            "cancelled before it ever runs",
+                            prompt_id, _QUEUE_BACKLOG_TIMEOUT,
+                        )
+            elif elapsed > 60:
+                logger.warning(
+                    "Prompt %s not in queue or history after %ds — may have "
+                    "been cancelled", prompt_id, int(elapsed),
+                )
+                raise RuntimeError(
+                    f"ComfyUI prompt {prompt_id} not found in queue or "
+                    "history — it may have been cancelled or rejected"
+                )
             await asyncio.sleep(2)
 
     async def _fetch_video(self, filename: str, subfolder: str = "") -> str:

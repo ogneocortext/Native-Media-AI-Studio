@@ -33,28 +33,33 @@ DEFAULT_PORT = getattr(config, 'comfyui_port', 8188)
 # sys.executable risks inheriting a parent bootstrapped from another project
 # (e.g. space-analyzer-cuda) — that breaks adapter isolation and can leak
 # incompatible packages into ComfyUI.
+# NOTE: These checks are validated lazily (at start/update time), NOT at import
+# time, so the backend can boot even when ComfyUI is not installed.
 _COMFYUI_PYTHON = Path(r"D:\conda-envs\comfyui-cuda\Scripts\python.exe")
-if not _COMFYUI_PYTHON.exists():
-    # Hard fail at import time so misconfiguration is caught immediately,
-    # not lazily when the first generation request arrives.
-    raise RuntimeError(
-        f"ComfyUI Python not found at {_COMFYUI_PYTHON}. "
-        "ComfyUI requires its own environment (comfyui-cuda). "
-        "See AGENTS.md 'Python Environments' section."
-    )
 
-# Sanity-check: refuse to run if this env was bootstrapped from space-analyzer.
-# This is the exact leakage vector the user reported.
-_cfg = _COMFYUI_PYTHON.parent / "pyvenv.cfg"
-if _cfg.exists():
-    _home = _cfg.read_text(errors="ignore")
-    if "space-analyzer" in _home:
+
+def _get_venv_python() -> Path:
+    """Return the ComfyUI venv Python, validating it exists and is not leaked.
+
+    Raises RuntimeError with a clear message when the venv is missing or
+    parented to space-analyzer-cuda.
+    """
+    if not _COMFYUI_PYTHON.exists():
         raise RuntimeError(
-            "ComfyUI environment is parented to space-analyzer-cuda. "
-            "Recreate comfyui-cuda as a standalone venv to prevent cross-project leakage."
+            f"ComfyUI Python not found at {_COMFYUI_PYTHON}. "
+            "ComfyUI requires its own environment (comfyui-cuda). "
+            "See AGENTS.md 'Python Environments' section."
         )
+    _cfg = _COMFYUI_PYTHON.parent / "pyvenv.cfg"
+    if _cfg.exists():
+        _home = _cfg.read_text(errors="ignore")
+        if "space-analyzer" in _home:
+            raise RuntimeError(
+                "ComfyUI environment is parented to space-analyzer-cuda. "
+                "Recreate comfyui-cuda as a standalone venv to prevent cross-project leakage."
+            )
+    return _COMFYUI_PYTHON
 
-VENV_PYTHON = _COMFYUI_PYTHON
 
 # Extra args for compatibility with GTX 10-series GPUs
 # --disable-pinned-memory: required on 8GB Pascal (see comfyui-workflows.md).
@@ -249,7 +254,13 @@ class ComfyUIManager:
             Dict with 'available' boolean and 'error' message if not available
         """
         try:
-            python_exe = str(VENV_PYTHON) if VENV_PYTHON.exists() else sys.executable
+            try:
+                python_exe = str(_get_venv_python())
+            except RuntimeError as e:
+                return {
+                    "available": False,
+                    "error": str(e),
+                }
             result = await asyncio.create_subprocess_exec(
                 python_exe,
                 "-c",
@@ -320,7 +331,13 @@ class ComfyUIManager:
         self._port = port
 
         # Build command
-        python_exe = str(VENV_PYTHON) if VENV_PYTHON.exists() else sys.executable
+        try:
+            python_exe = str(_get_venv_python())
+        except RuntimeError as e:
+            return {
+                "success": False,
+                "message": str(e),
+            }
         cmd = [
             python_exe, str(COMFYUI_MAIN),
             "--port", str(port),
@@ -467,9 +484,11 @@ class ComfyUIManager:
 
         # ComfyUI updates must use the comfyui-cuda venv. Never fall back to the
         # project venv or sys.executable — those can be parented to space-analyzer-cuda.
-        venv_python = Path(r"D:\conda-envs\comfyui-cuda\Scripts\python.exe")
-        if not venv_python.exists():
-            venv_python = VENV_PYTHON
+        try:
+            venv_python = _get_venv_python()
+        except RuntimeError as e:
+            result["message"] = str(e)
+            return result
 
         try:
             proc = await _run_subprocess(
@@ -501,9 +520,11 @@ class ComfyUIManager:
             return result
 
         # Prefer the comfyui-cuda venv for pip operations
-        venv_python = Path(r"D:\conda-envs\comfyui-cuda\Scripts\python.exe")
-        if not venv_python.exists():
-            venv_python = VENV_PYTHON if VENV_PYTHON.exists() else Path(sys.executable)
+        try:
+            venv_python = _get_venv_python()
+        except RuntimeError as e:
+            result["message"] = str(e)
+            return result
 
         updated = []
         skipped = []

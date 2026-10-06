@@ -186,25 +186,99 @@ def test_prompt_not_yet_started_does_not_extend_forever(rec, monkeypatch):
     assert elapsed <= 150, "deadline was extended for a prompt that was not queued"
 
 
-def test_video_timeout_cancels_the_prompt(rec):
+def test_video_timeout_cancels_the_prompt(rec, monkeypatch):
+    """A video prompt that exceeds its deadline must be cancelled.
+
+    The queue probe answers "present" so the 60s vanished-prompt
+    check does not fire first; we are testing the timeout path
+    specifically. A present probe extends the deadline to the backlog
+    budget, so the clock is faked (as in the image-waiter tests) —
+    otherwise the extended 1800s deadline would be a real wait.
+    """
+    from app.adapters import comfyui as mod
+
     async def run():
         a = _adapter()
 
-        async def no_history(_pid):
+        async def never(_pid):
             return {}
 
-        # Not queued, so the video waiter's own 60s "prompt vanished" check does
-        # not fire first; we are testing the timeout path specifically.
-        async def not_queued(_pid):
+        async def still_queued(_pid):
             return {"prompt_id": "v-1"}
 
-        a._get_history = no_history
-        a._get_queue_status = not_queued
-        await a._wait_for_video_result("v-1", timeout=0)
+        async def fake_sleep(_d):
+            # Advance a fake clock rather than really waiting.
+            state["t"] += 50.0
+
+        state = {"t": 0.0}
+        a._get_history = never
+        a._get_queue_status = still_queued
+
+        loop = asyncio.get_event_loop()
+        real_time, real_sleep = loop.time, mod.asyncio.sleep
+        loop.time = lambda: state["t"]
+        mod.asyncio.sleep = fake_sleep
+        try:
+            await a._wait_for_video_result("v-1", timeout=100)
+        finally:
+            mod.asyncio.sleep = real_sleep
+            loop.time = real_time
+        return state["t"]
 
     with pytest.raises(TimeoutError):
         asyncio.run(run())
     assert rec.cancelled == ["v-1"]
+
+
+def test_video_vanished_prompt_fails_fast(rec, monkeypatch):
+    """A prompt gone from both queue and history is lost — fail fast.
+
+    Regression: the backlog-extension refactor dropped the video
+    waiter's 60s vanished-prompt check, so a cancelled or rejected
+    video prompt was polled until the full (900s+) timeout instead of
+    failing in about a minute.
+    """
+    from app.adapters import comfyui as mod
+
+    # Hoisted so the fake clock survives the RuntimeError the
+    # waiter raises — reading it back is how the test proves the
+    # prompt failed fast rather than polling to the full timeout.
+    state = {"t": 0.0}
+
+    async def run():
+        a = _adapter()
+
+        async def never(_pid):
+            return {}
+
+        async def gone(_pid):
+            return None
+
+        async def fake_sleep(_d):
+            # Advance a fake clock rather than really waiting.
+            state["t"] += 50.0
+
+        a._get_history = never
+        a._get_queue_status = gone
+
+        loop = asyncio.get_event_loop()
+        real_time, real_sleep = loop.time, mod.asyncio.sleep
+        loop.time = lambda: state["t"]
+        mod.asyncio.sleep = fake_sleep
+        try:
+            await a._wait_for_video_result("v-gone", timeout=900)
+        finally:
+            mod.asyncio.sleep = real_sleep
+            loop.time = real_time
+
+    with pytest.raises(RuntimeError, match="not found in queue or history"):
+        asyncio.run(run())
+    # Detected at the 60s grace mark (fake steps of 50s land on 100s),
+    # not at the 900s timeout.
+    assert state["t"] < 120, (
+        f"vanished prompt was not detected fast (took {state['t']}s)"
+    )
+    assert rec.cancelled == ["v-gone"]
 
 
 def test_cancel_failure_does_not_mask_the_original_error(rec, monkeypatch):
