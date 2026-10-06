@@ -116,7 +116,20 @@ Port the pattern: `hyperframes check` + ffmpeg probes (resolution, duration,
 audio presence, black-frame detection) + sampled-frame review as a gate the
 render endpoint runs automatically.
 
-## 5. Related: AI music-channel starter (winston774/ai-music-channel-starter)
+## 5. Audio-reactive techniques from X (logged-in search, 2026-10-06)
+
+- **Local pipeline replacing $300/mo visual spend** ([@gippp69](https://x.com/gippp69/status/2060649639452241966),
+  455K views): TouchDesigner + Ollama on a laptop replacing paid AI-visual
+  pipelines. Methodology validation for the studio's local-first stance —
+  the cost argument for local render is a selling point, not just a constraint.
+- **Frequency-driven particle speed** ([@dynamicwangs](https://x.com/dynamicwangs/status/1991995111954399688)):
+  a Gemini-written real-time particle renderer where audio low/high
+  frequencies directly control particle speed (music visualization mode).
+  Directly maps to the studio's `uBass`/`uMid`/`uTreble` uniform pattern in
+  [[hyperframes-audio-reactive-2026]] §5 — a concrete reference for how
+  little mapping code a convincing audio-reactive particle system needs.
+
+## 6. Related: AI music-channel starter (winston774/ai-music-channel-starter)
 
 A HyperFrames-based AI music channel setup: project structure with
 `meta.json`, Whisper `transcript.json` (word-level), `compositions/`

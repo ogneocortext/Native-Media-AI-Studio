@@ -34,7 +34,15 @@ VRAM**, and GTX 10xx cards have a dedicated install path. ~10k GitHub stars,
 HunyuanVideo 1/1.5, LongCat, Kandinsky, LTXV.
 **Image models:** Krea 2, Qwen Image, Flux 1/2, HiDream, Ideogram 4.
 **Audio:** Ace-Step 1/2/XL (same family as the ACE-Step 1.5 music model),
-Stable Audio 3, MiniMax Music, several TTS engines.
+**YuE2** (song generation billed as SUNO 5-class, runs in **4.5 GB VRAM** —
+see below), Stable Audio 3, MiniMax Music, several TTS engines.
+
+**v17.00 VRAM numbers** (from [@deepbeepmeep](https://x.com/deepbeepmeep/status/2107211034494697900),
+2026-10-05): MiniMax H3 15s @1080p went from 25 GB to **11 GB VRAM**, up to
+25% faster, no quality loss. Per [@cocktailpeanut](https://x.com/cocktailpeanut/status/2084486741742809093):
+H3 needs **5-6 GB for 5s** (124 frames), **8-9 GB for 15s at 832x480**.
+An 8 GB card sits comfortably in the 5s-clip band — matches the "short
+plates" verdict below.
 
 ## Fit for the studio workstation (GTX 1070 Ti 8 GB, 32 GB RAM, Windows 11)
 
@@ -78,6 +86,11 @@ short loops and plates.
   extractors — the unglamorous tooling a plate pipeline needs.
 - **Ace-Step music models**: same family as the ACE-Step 1.5 music generator;
   if the studio ever wants local music beds, they're in the same app.
+- **YuE2 song generation**: billed as SUNO 5-class output at 4.5 GB VRAM
+  ([@cocktailpeanut](https://x.com/cocktailpeanut/status/2099906093946118624)).
+  A local song generator inside the same app as the video models collapses
+  the studio's music+video stack into one local install — worth A/B'ing
+  against Suno v6-mini once the music side needs local generation.
 - **Temporal upsamplers** (RIFE, FlashVSR): squeeze more perceived quality out
   of 480p generations.
 
