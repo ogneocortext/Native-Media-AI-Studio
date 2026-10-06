@@ -399,3 +399,191 @@ def test_lineage_entry_carries_the_recipe(remix_dir):
     assert rows[0]["recipe"] is not None
     assert rows[0]["recipe"]["target_bpm"] == 144.0
     assert sorted(rows[0]["stems"]) == ["bass", "drums", "other", "vocals"]
+
+
+# ─── source listing: cached probe join (B3) ───────────────────────
+
+
+def _stems_dir(tmp_path, track: str):
+    """A track directory holding every stem, under a fake SEPARATION_DIR."""
+    stems = tmp_path / "stems" / "htdemucs" / track
+    stems.mkdir(parents=True)
+    for stem_name in stem_remixer.STEM_NAMES:
+        (stems / f"{stem_name}.wav").write_bytes(b"")
+    return tmp_path / "stems"
+
+
+def test_list_stem_sources_joins_cached_probe(tmp_path, monkeypatch):
+    """The listing joins probe data that already exists on disk.
+
+    B3's contract: bpm/duration/first-audible are a *join* against
+    `output/remixes/.probes/`, not a re-analysis - so a probed
+    track lists them and an unprobed one simply omits them.
+    """
+    separation = _stems_dir(tmp_path, "probed_track")
+    probe_dir = tmp_path / "remixes" / ".probes"
+    probe_dir.mkdir(parents=True)
+    (probe_dir / "probed_track.json").write_text(
+        json.dumps(
+            {
+                "cache_version": stem_remixer.PROBE_CACHE_VERSION,
+                "track": "probed_track",
+                "bpm": 143.555,
+                "duration_sec": 182.4,
+                "first_audible_sec": 7.06,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(stem_remixer, "SEPARATION_DIR", separation)
+    monkeypatch.setattr(stem_remixer, "PROBE_CACHE_DIR", probe_dir)
+
+    sources = {s["track"]: s for s in stem_remixer.list_stem_sources()}
+    assert sources["probed_track"]["bpm"] == 143.555
+    assert sources["probed_track"]["duration_sec"] == 182.4
+    assert sources["probed_track"]["first_audible_sec"] == 7.06
+
+
+def test_list_stem_sources_without_probe_omits_the_fields(
+    tmp_path, monkeypatch
+):
+    separation = _stems_dir(tmp_path, "unprobed")
+    monkeypatch.setattr(stem_remixer, "SEPARATION_DIR", separation)
+    monkeypatch.setattr(
+        stem_remixer, "PROBE_CACHE_DIR", tmp_path / "no-probes-yet"
+    )
+
+    sources = {s["track"]: s for s in stem_remixer.list_stem_sources()}
+    assert "bpm" not in sources["unprobed"]
+    assert "duration_sec" not in sources["unprobed"]
+    assert "first_audible_sec" not in sources["unprobed"]
+
+
+def test_list_stem_sources_survives_a_corrupt_probe_cache(
+    tmp_path, monkeypatch
+):
+    separation = _stems_dir(tmp_path, "corrupt")
+    probe_dir = tmp_path / "probes"
+    probe_dir.mkdir(parents=True)
+    (probe_dir / "corrupt.json").write_text("{not json", encoding="utf-8")
+    monkeypatch.setattr(stem_remixer, "SEPARATION_DIR", separation)
+    monkeypatch.setattr(stem_remixer, "PROBE_CACHE_DIR", probe_dir)
+
+    sources = {s["track"]: s for s in stem_remixer.list_stem_sources()}
+    assert "bpm" not in sources["corrupt"]
+
+
+# ─── preview: structured warnings (B7) ────────────────────────────
+
+
+class _StubSourceCache:
+    """Stands in for `_SourceCache` so no audio is loaded.
+
+    `measured_rms_db` is the only input the warning logic reads,
+    and the point under test is what the warning *says*, not how
+    RMS is measured - so a fixed level per track is the honest
+    stub. `bpm_for` feeds the stretch-ratio report.
+    """
+
+    def __init__(self, target_bpm: float) -> None:
+        self.target_bpm = target_bpm
+        self.stretch_ratios: dict[str, float] = {}
+
+    def measured_rms_db(self, layer: RemixLayer) -> float:
+        return -60.0 if layer.track == "quiet" else -20.0
+
+    def bpm_for(self, track: str) -> float:
+        return 120.0
+
+
+def _one_slot_recipe(track: str) -> RemixRecipe:
+    return RemixRecipe(
+        name="t",
+        target_bpm=120.0,
+        slots=[
+            RemixSlot(bars=4, layers=[RemixLayer(track=track, stem="vocals")])
+        ],
+    )
+
+
+def test_preview_structures_near_silent_warnings(tmp_path, monkeypatch):
+    """The structured warning names the field and the fix.
+
+    `first_audible_sec` comes from the probe cache (7.06 s here,
+    the measured Ad-Nauseam intro), and at 120 BPM a bar is 2 s,
+    so the suggestion must point at bar 4 - the first bar that
+    can contain audible material.
+    """
+    probe_dir = tmp_path / "probes"
+    probe_dir.mkdir(parents=True)
+    (probe_dir / "quiet.json").write_text(
+        json.dumps({"track": "quiet", "bpm": 120.0, "first_audible_sec": 7.06}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(stem_remixer, "PROBE_CACHE_DIR", probe_dir)
+    monkeypatch.setattr(stem_remixer, "_SourceCache", _StubSourceCache)
+
+    data = stem_remixer.preview_recipe(_one_slot_recipe("quiet"))
+
+    assert len(data["warnings"]) == 1
+    assert len(data["warnings_detail"]) == 1
+    detail = data["warnings_detail"][0]
+    assert detail["code"] == "near_silent"
+    assert detail["layer_ref"] == "quiet/vocals"
+    assert detail["field"] == "source_start_bar"
+    assert detail["measured_rms_db"] == -60.0
+    assert detail["suggestion"] == (
+        "first_audible_sec is 7.06; try source_start_bar >= 4"
+    )
+
+
+def test_preview_warning_detail_matches_the_free_text_count(
+    tmp_path, monkeypatch
+):
+    """Both forms report the same facts: one warning, one detail."""
+    probe_dir = tmp_path / "probes"
+    probe_dir.mkdir(parents=True)
+    monkeypatch.setattr(stem_remixer, "PROBE_CACHE_DIR", probe_dir)
+    monkeypatch.setattr(stem_remixer, "_SourceCache", _StubSourceCache)
+
+    recipe = RemixRecipe(
+        name="t",
+        target_bpm=120.0,
+        slots=[
+            RemixSlot(
+                bars=4,
+                layers=[
+                    RemixLayer(track="quiet", stem="vocals"),
+                    RemixLayer(track="loud", stem="drums"),
+                ],
+            )
+        ],
+    )
+    data = stem_remixer.preview_recipe(recipe)
+    assert len(data["warnings"]) == 1
+    assert len(data["warnings_detail"]) == 1
+    assert data["warnings_detail"][0]["layer_ref"] == "quiet/vocals"
+
+
+def test_preview_near_silent_without_probe_gets_generic_suggestion(
+    tmp_path, monkeypatch
+):
+    """No probe data means no bar to point at - say so, don't guess."""
+    monkeypatch.setattr(
+        stem_remixer, "PROBE_CACHE_DIR", tmp_path / "no-probes"
+    )
+    monkeypatch.setattr(stem_remixer, "_SourceCache", _StubSourceCache)
+
+    data = stem_remixer.preview_recipe(_one_slot_recipe("quiet"))
+    assert data["warnings_detail"][0]["suggestion"] == "check source_start_bar"
+
+
+def test_preview_audible_layers_warn_about_nothing(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        stem_remixer, "PROBE_CACHE_DIR", tmp_path / "no-probes"
+    )
+    monkeypatch.setattr(stem_remixer, "_SourceCache", _StubSourceCache)
+
+    data = stem_remixer.preview_recipe(_one_slot_recipe("loud"))
+    assert data["warnings"] == []
+    assert data["warnings_detail"] == []

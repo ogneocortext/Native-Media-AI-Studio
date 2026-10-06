@@ -109,10 +109,14 @@ export {
   getRemixSources,
   probeRemixTrack,
   previewRemix,
+  startBuildRemix,
   buildRemix,
+  startEnhanceRemix,
+  enhanceRemix,
+  getRemixJob,
+  listRemixJobs,
   listRemixes,
   getTrackLineage,
-  enhanceRemix,
   remixFileUrl,
   STEM_NAMES,
 } from "./remix";
@@ -129,6 +133,8 @@ export type {
   RemixLineageEntry,
   RemixTrackLineage,
   RemixEnhanceResult,
+  RemixJobAccepted,
+  RemixJobStatus,
   StemName,
 } from "./remix";
 

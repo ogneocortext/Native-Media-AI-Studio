@@ -8,6 +8,8 @@
   "GET    /api/audio/files  ->  list_uploaded_audio_api_audio_files_get",
   "GET    /api/audio/hyperframes-payload/{filename}  ->  get_hyperframes_payload_api_audio_hyperframes_payload__filename__get",
   "GET    /api/audio/remix/by-track/{track}  ->  remix_by_track_api_audio_remix_by_track__track__get",
+  "GET    /api/audio/remix/jobs  ->  remix_jobs_list_api_audio_remix_jobs_get",
+  "GET    /api/audio/remix/jobs/{job_id}  ->  remix_job_api_audio_remix_jobs__job_id__get",
   "GET    /api/audio/remix/list  ->  remix_list_api_audio_remix_list_get",
   "GET    /api/audio/remix/probe/{track}  ->  remix_probe_api_audio_remix_probe__track__get",
   "GET    /api/audio/remix/sources  ->  remix_sources_api_audio_remix_sources_get",

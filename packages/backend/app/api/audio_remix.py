@@ -26,7 +26,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from ..services import essentia_tempo_store, stem_remixer
+from ..services import essentia_tempo_store, remix_jobs, stem_remixer
 from ..services.stem_remixer import RemixLayer, RemixRecipe, RemixSlot
 
 logger = logging.getLogger(__name__)
@@ -69,15 +69,37 @@ class RemixPreviewResponse(BaseModel):
     stretch_ratios: dict[str, float]
     layers: list[dict]
     warnings: list[str] = []
+    # Same facts as `warnings`, structured as
+    # {code, layer_ref, field, measured_rms_db, suggestion} so
+    # an agent can act on them without parsing prose.
+    warnings_detail: list[dict] = []
 
 
 class RemixBuildResponse(BaseModel):
+    """Shape of a finished build - the job's `result` on `done`."""
+
     name: str
     directory: str
     stems: dict[str, str]
     duration_sec: float
     manifest: dict
     warnings: list[str] = []
+
+
+class RemixJobAccepted(BaseModel):
+    """Acknowledgement for a long-running remix operation.
+
+    `/build` and `/enhance` return this immediately and run the
+    work in a background job (see `services/remix_jobs.py`); the
+    client polls `GET /api/audio/remix/jobs/{job_id}` for the
+    result. The full payload is the job's `result` field once
+    `state` is `done`.
+    """
+
+    job_id: str
+    kind: str
+    label: str
+    state: str
 
 
 class TempoRefreshRequest(BaseModel):
@@ -227,6 +249,8 @@ class RemixEnhanceRequest(BaseModel):
 
 
 class RemixEnhanceResponse(BaseModel):
+    """Shape of a finished enhance - the job's `result` on `done`."""
+
     name: str
     output_dir: str
     wav_path: str | None = None
@@ -236,10 +260,10 @@ class RemixEnhanceResponse(BaseModel):
     error: str | None = None
 
 
-@router.post("/{name}/enhance", response_model=RemixEnhanceResponse)
+@router.post("/{name}/enhance", response_model=RemixJobAccepted)
 async def remix_enhance(
     name: str, body: RemixEnhanceRequest | None = None
-) -> RemixEnhanceResponse:
+) -> RemixJobAccepted:
     """Run the Suno master chain over an already-rendered remix.
 
     This exists because `/api/audio/enhance-stems` cannot be used for a remix:
@@ -248,8 +272,15 @@ async def remix_enhance(
     both attempts return 404 - verified, not assumed. The enhancer *service*
     takes a stem directory and works unchanged, so this route is a thin bridge.
 
-    Slow by nature (measured ~60 s for a full-length track): the chain is CPU
-    bound and deliberately not backgrounded.
+    Returns a job id immediately and masters in the background: the chain is
+    CPU bound and measured at ~60 s, so running it inline held the request
+    open and put a 600 s timeout on the client. Poll
+    `GET /api/audio/remix/jobs/{job_id}`; the enhance response (output
+    paths, steps, duration) is the job's `result` once `state` is `done`.
+
+    Everything that can fail fast - the name, the missing directory (404),
+    the missing stems (409) - is checked synchronously, so a job that
+    starts is a job that has work to do.
     """
     opts = body or RemixEnhanceRequest()
     try:
@@ -283,69 +314,127 @@ async def remix_enhance(
     config = EnhanceConfig(**kwargs)
 
     output_dir = directory / "enhanced"
-    try:
-        # Awaited, not to_thread'd: `suno_enhancer.enhance_stems` is already a
-        # coroutine, so handing it to a thread returned the coroutine object
-        # itself and blew up on `.wav_path`. It offloads its own per-stem DSP
-        # with asyncio.to_thread internally, so awaiting does not block.
-        result = await run_chain(directory, output_dir, config)
-    except Exception as exc:  # noqa: BLE001 - surfaced as a 500 with detail
-        logger.exception("remix enhance failed for %s", name)
-        raise HTTPException(status_code=500, detail=f"Enhance failed: {exc}") from exc
 
-    # EnhanceResult carries no duration (success/output_dir/wav_path/mp3_path/
-    # steps/error), so take it from the remix manifest written at render time.
-    duration = 0.0
-    try:
-        manifest = json.loads((directory / "remix.json").read_text(encoding="utf-8"))
-        duration = float(manifest.get("duration_sec", 0.0))
-    except (OSError, json.JSONDecodeError, TypeError, ValueError):
-        logger.debug("could not read remix manifest for %s", name)
+    def work() -> dict[str, object]:
+        # `enhance_stems` is a coroutine that offloads its own per-stem
+        # DSP with asyncio.to_thread internally, so it needs an event
+        # loop; the job runs in a plain thread, hence asyncio.run here.
+        result = asyncio.run(run_chain(directory, output_dir, config))
+        # EnhanceResult carries no duration (success/output_dir/wav_path/
+        # mp3_path/steps/error), so take it from the remix manifest
+        # written at render time.
+        duration = 0.0
+        try:
+            manifest = json.loads(
+                (directory / "remix.json").read_text(encoding="utf-8")
+            )
+            duration = float(manifest.get("duration_sec", 0.0))
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            logger.debug("could not read remix manifest for %s", name)
+        return RemixEnhanceResponse(
+            name=name,
+            output_dir=str(output_dir),
+            wav_path=result.wav_path,
+            mp3_path=result.mp3_path,
+            duration_sec=duration,
+            steps=result.steps,
+            error=result.error,
+        ).model_dump()
 
-    return RemixEnhanceResponse(
-        name=name,
-        output_dir=str(output_dir),
-        wav_path=result.wav_path,
-        mp3_path=result.mp3_path,
-        duration_sec=duration,
-        steps=result.steps,
-        error=result.error,
+    job = remix_jobs.start_job("enhance", name, work)
+    return RemixJobAccepted(
+        job_id=job["job_id"],
+        kind=job["kind"],
+        label=job["label"],
+        state=job["state"],
     )
 
 
-@router.post("/build", response_model=RemixBuildResponse)
-async def remix_build(body: RemixRecipeRequest) -> RemixBuildResponse:
+@router.get("/jobs")
+async def remix_jobs_list() -> dict:
+    """Recent build/enhance jobs, newest first.
+
+    An overview for a jobs view; `GET /jobs/{job_id}` is the
+    per-job status a poller wants.
+    """
+    return {"jobs": remix_jobs.latest_jobs()}
+
+
+@router.get("/jobs/{job_id}")
+async def remix_job(job_id: str) -> dict:
+    """Status of one build/enhance job, including its result.
+
+    `state` is queued | running | done | failed. On `done`,
+    `result` holds the response the synchronous endpoint used
+    to return (the build payload or the enhance payload); on
+    `failed`, `error` carries the exception. A job past
+    `JOB_TIMEOUT_SEC` is reported as failed with `timed_out`
+    set even though its thread may still be running, so a
+    poller always gets a terminal answer.
+    """
+    job = remix_jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Unknown remix job: {job_id}")
+    return job
+
+
+@router.post("/build", response_model=RemixJobAccepted)
+async def remix_build(body: RemixRecipeRequest) -> RemixJobAccepted:
     """Render a recipe to a four-stem directory under `output/remixes/`.
 
+    Returns a job id immediately and renders in the background: the
+    measured render is 7-23 s, which is far too long to hold a request
+    open, and a synchronous call put a 300 s timeout on the client for
+    no benefit. Poll `GET /api/audio/remix/jobs/{job_id}`; the build
+    response (name, stems, manifest, warnings) is the job's `result`
+    once `state` is `done`.
+
     The result is a plain stem set, so the enhancer *service* accepts it
-    unchanged - but `/api/audio/enhance-stems` does not, because that route
-    resolves a library filename under `output/audio/`. Use
+    unchanged - but `/api/audio/enhance-stems` does not, because that
+    route resolves a library filename under `output/audio/`. Use
     `POST /api/audio/remix/{name}/enhance` to master a rendered remix.
+
+    Validation and the two conditions a render would only hit after
+    minutes of stretching - a missing source stem (404) and a name
+    collision with `overwrite` off (409) - are pure path checks, so
+    they run synchronously here and fail fast rather than inside the
+    job, where the caller could only see them as a generic failure.
     """
     try:
         recipe = _to_recipe(body)
         recipe.validate()
+        for slot in recipe.slots:
+            for layer in slot.layers:
+                stem_remixer.resolve_stem_path(layer.track, layer.stem)
+        if not body.overwrite and stem_remixer.remix_dir(recipe.name).exists():
+            raise FileExistsError(f"Remix already exists: {recipe.name}")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    try:
-        result = await asyncio.to_thread(
-            stem_remixer.render_remix, recipe, body.overwrite
-        )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except FileExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return RemixBuildResponse(
-        name=result.name,
-        directory=result.directory,
-        stems=result.stems,
-        duration_sec=result.duration_sec,
-        manifest=result.manifest,
-        warnings=result.warnings,
+    def work() -> dict[str, object]:
+        result = stem_remixer.render_remix(recipe, body.overwrite)
+        # Constructed through the response model so the payload a
+        # client reads from the job is the same shape the endpoint
+        # used to enforce, validated rather than assumed.
+        return RemixBuildResponse(
+            name=result.name,
+            directory=result.directory,
+            stems=result.stems,
+            duration_sec=result.duration_sec,
+            manifest=result.manifest,
+            warnings=result.warnings,
+        ).model_dump()
+
+    job = remix_jobs.start_job("build", body.name, work)
+    return RemixJobAccepted(
+        job_id=job["job_id"],
+        kind=job["kind"],
+        label=job["label"],
+        state=job["state"],
     )
 
 

@@ -1,6 +1,6 @@
 # Remix / Mashup Plan — Oct 2026
 
-**Status:** Proposed 2026-10-06 — not yet approved or started
+**Status:** Phase 1 in progress (2026-10-06) — B5, B3, B7 landed; B2, B1 next
 **Owner:** repo owner (implementation: local coding agent)
 **Evaluation:** read-only audit of `RemixPanel.tsx`, `remixRecipe.ts`,
 `services/api/remix.ts`, `app/api/audio_remix.py`, `services/stem_remixer.py`,
@@ -109,13 +109,19 @@ choices. Return `{recipe, explanation}` for agent review; the existing
 `/build` renders it. **Two-step (draft → confirm)** — never prompt → audio in
 one shot.
 
-### B3. Richer source discovery
+### B3. Richer source discovery — DONE 2026-10-06
 
 `GET /api/audio/remix/sources` returns track names + per-stem booleans only
 (`stem_remixer.py: list_stem_sources`) — no BPM, duration, energy. Extend it
 with the cached probe data (bpm, duration_sec, first_audible_sec); the probes
 already live on disk (`output/remixes/.probes/`), so this is a join, not new
 analysis.
+
+Landed: `list_stem_sources` joins `_probe_summary(track)` — a pure file read
+of the probe cache — so a probed source lists `bpm`/`duration_sec`/
+`first_audible_sec` and an unprobed one omits them (verified live: 7/7
+sources carry the join). Frontend `RemixSource` gained the three optional
+fields.
 
 ### B4. Mood adjectives need parameters to land on
 
@@ -125,7 +131,7 @@ analysis.
 adjective→parameter map for the NL endpoint's system prompt (`dark` → lowpass
 + reduced highs; `punchier` → drums +3 dB, …).
 
-### B5. Job tracking on build/enhance
+### B5. Job tracking on build/enhance — DONE 2026-10-06
 
 `/build` and `/enhance` are synchronous (`asyncio.to_thread` awaited inline —
 enhance is "deliberately not backgrounded", ~60 s). No job IDs, no progress,
@@ -134,6 +140,17 @@ pattern. Give `/build` and `/enhance` the same treatment: return `{job_id}`
 immediately, `GET /api/audio/remix/jobs/{id}` → queued/running/done/failed +
 progress + result manifest. This also fixes A8 (frontend long-op UX) — one
 fix serves both.
+
+Landed: new `services/remix_jobs.py` registry (mirrors
+`essentia_tempo_store`'s `_Job`: in-memory, lock-guarded, 900 s timeout
+reported as failed+timed_out, last 16 retained). Both endpoints validate
+synchronously (404 missing stem / 409 collision / 404+409 for enhance) then
+return `{job_id}` in ~10–15 ms; `GET /jobs/{id}` and `GET /jobs` serve
+status + result. The enhance coroutine runs under `asyncio.run` in the job
+thread. Frontend keeps `buildRemix`/`enhanceRemix` as start+poll wrappers
+(RemixPanel unchanged) and exports the raw job calls. Decision log D34.
+Verified live: build acknowledged 0.010 s → done 8.2 s with full payload;
+enhance acknowledged 0.015 s → done with 16 steps + wav path.
 
 ### B6. Accept either track key
 
@@ -144,13 +161,22 @@ demucs test fixture. Return the resolved library filename alongside the stem
 key in `/sources` wherever the join is unambiguous, and accept either key on
 all remix endpoints.
 
-### B7. Structured warnings
+### B7. Structured warnings — DONE 2026-10-06
 
 `preview_recipe` warnings are free-text strings an agent must parse. Return
 them as `{code, layer_ref, field, suggestion}` — e.g.
 `{code: "near_silent", layer: 2, field: "source_start_bar", suggestion:
 "first_audible_sec is 7.06; try source_start_bar ≥ 4"}`. The probe data to
 generate these already exists.
+
+Landed: `preview_recipe` now reports `warnings_detail` alongside the
+original `warnings` (backward compatible). Each detail is
+`{code: "near_silent", layer_ref: "track/stem", field: "source_start_bar",
+measured_rms_db, suggestion}` where the suggestion derives from the probe's
+cached `first_audible_sec` and the recipe's bar length (e.g.
+"first_audible_sec is 7.06; try source_start_bar >= 4"); without a probe
+it falls back to "check source_start_bar". Frontend `RemixPreview` gained
+the optional `warnings_detail` array.
 
 ## Suggested order
 

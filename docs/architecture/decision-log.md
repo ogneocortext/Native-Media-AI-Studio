@@ -1109,3 +1109,60 @@
   gate it selects for. A broken env is now skipped with a warning
   at every entry point instead of being launched.
 
+
+### D34 — Remix build/enhance are background jobs (2026-10-06)
+
+- **Status:** Decided
+- **Context:** `POST /api/audio/remix/build` and
+  `/{name}/enhance` ran the work inline and held the
+  request open for its full duration — measured 7–23 s for
+  a render and ~60 s for a master. That put a 300–600 s
+  fetch timeout on every caller, gave the client nothing
+  to poll, and made a wedged render indistinguishable from
+  a slow one. Only `/tempo/refresh` had the job pattern.
+- **Decision:** Both endpoints now validate synchronously
+  (recipe shape, source-stem existence → 404, name
+  collision with `overwrite` off → 409, remix/stem
+  presence for enhance → 404/409) and then return
+  `{job_id, kind, label, state}` immediately, running the
+  work in a daemon thread tracked by the new
+  `services/remix_jobs.py` registry (mirrors
+  `essentia_tempo_store`'s `_Job`: in-memory, lock-guarded,
+  `JOB_TIMEOUT_SEC = 900` cap past which a job is *reported*
+  failed with `timed_out` set, last 16 jobs retained).
+  `GET /api/audio/remix/jobs/{job_id}` returns
+  queued/running/done/failed plus the full payload as
+  `result` on `done`; `GET /jobs` lists recent jobs. The
+  enhance chain is a coroutine, so the job thread runs it
+  under `asyncio.run` — it offloads its own DSP with
+  `asyncio.to_thread` internally. The job payloads are
+  constructed through the existing `RemixBuildResponse` /
+  `RemixEnhanceResponse` models (now documenting the job
+  `result` shape), so the payload a client reads from a job
+  is validated, not assumed. The frontend client keeps
+  `buildRemix`/`enhanceRemix` signatures as start+poll
+  wrappers (1 s poll, 10–15 s per-request timeouts), so
+  `RemixPanel.tsx` is unchanged; raw `startBuildRemix` /
+  `startEnhanceRemix` / `getRemixJob` / `listRemixJobs`
+  are exported for progress UIs.
+- **Consequences:** A build is acknowledged in ~10 ms
+  (measured 0.010 s vs 8.2 s inline) and an enhance in
+  ~15 ms; both verified live end-to-end including the
+  failure paths (unknown job → 404, invalid recipe → 422
+  and missing stem → 404 both still synchronous). Jobs are
+  ephemeral — a server restart forgets them, which costs a
+  re-poll, not data, because results live on disk under
+  `output/remixes/`. The route baseline grew 42 → 44
+  (`/jobs`, `/jobs/{job_id}`); `tools/snapshot-audio-routes.py`
+  baseline regenerated. Same plan item also landed:
+  `list_stem_sources` joins cached probe fields
+  (bpm/duration_sec/first_audible_sec — a file read, no
+  analysis) and `preview_recipe` reports warnings twice,
+  the original `list[str]` plus `warnings_detail` as
+  `{code, layer_ref, field, measured_rms_db, suggestion}`
+  where the suggestion derives from the probe's
+  `first_audible_sec` (e.g. "first_audible_sec is 7.06;
+  try source_start_bar >= 4"). Covered by
+  `tests/test_remix_jobs.py` (7) and four new
+  `test_stem_remixer.py` cases; full backend suite
+  621 passed, frontend 573 passed.

@@ -139,11 +139,42 @@ def resolve_stem_path(track: str, stem: str) -> Path:
     raise FileNotFoundError(f"No {stem}.wav for track {track!r} under {SEPARATION_DIR}")
 
 
+def _probe_summary(track: str) -> dict[str, Any]:
+    """Cached probe fields for a track, or {} when it has none.
+
+    A pure file read: the probe already measured bpm, duration and
+    first-audible and cached them under `output/remixes/.probes/`,
+    so joining them into a listing costs no analysis. A track that
+    has never been probed simply lists without them - the fields
+    are optional everywhere they appear.
+    """
+    try:
+        cache_path = PROBE_CACHE_DIR / f"{_safe_track_name(track)}.json"
+    except ValueError:
+        return {}
+    if not cache_path.exists():
+        return {}
+    try:
+        cached = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    if not isinstance(cached, dict):
+        return {}
+    return {
+        "bpm": cached.get("bpm"),
+        "duration_sec": cached.get("duration_sec"),
+        "first_audible_sec": cached.get("first_audible_sec"),
+    }
+
+
 def list_stem_sources() -> list[dict[str, Any]]:
     """Every track directory holding at least one stem, with per-stem presence.
 
-    Pure path query — no audio is decoded, so this is safe to call on a dropdown
-    open without waiting on demucs output.
+    Pure path query — no audio is decoded, so this is safe to call on a
+    dropdown open without waiting on demucs. Cached probe measurements
+    (bpm, duration, first-audible) are joined from the probe cache when
+    they exist, so a picker can show tempo and length without a probe
+    round-trip per track.
     """
     found: dict[str, dict[str, Any]] = {}
     for model_dir in sorted(SEPARATION_DIR.iterdir()):
@@ -162,6 +193,8 @@ def list_stem_sources() -> list[dict[str, Any]]:
             entry["stems"] = {
                 s: entry["stems"].get(s, False) or present[s] for s in STEM_NAMES
             }
+    for entry in found.values():
+        entry.update(_probe_summary(entry["track"]))
     return sorted(found.values(), key=lambda d: d["track"].lower())
 
 
@@ -669,6 +702,38 @@ def render_remix(recipe: RemixRecipe, overwrite: bool = True) -> RemixResult:
 # ─── preview ─────────────────────────────────────────────────────────────────
 
 
+def _near_silent_detail(
+    layer: RemixLayer, rms: float, bar_seconds: float
+) -> dict[str, Any]:
+    """Structured form of the near-silence warning.
+
+    `first_audible_sec` is already measured by the probe, so the
+    suggestion can name the bar to jump to instead of the vague
+    "check source_start_bar" the free-text form is stuck with. An
+    agent (or a UI) can act on `code`/`field`/`suggestion` without
+    parsing prose.
+    """
+    first_audible = _probe_summary(layer.track).get("first_audible_sec")
+    suggestion = "check source_start_bar"
+    if (
+        isinstance(first_audible, (int, float))
+        and first_audible > 0.0
+        and bar_seconds > 0.0
+    ):
+        bar = math.ceil(float(first_audible) / bar_seconds - 1e-9)
+        suggestion = (
+            f"first_audible_sec is {float(first_audible):.2f}; "
+            f"try source_start_bar >= {bar}"
+        )
+    return {
+        "code": "near_silent",
+        "layer_ref": f"{layer.track}/{layer.stem}",
+        "field": "source_start_bar",
+        "measured_rms_db": round(rms, 2),
+        "suggestion": suggestion,
+    }
+
+
 def preview_recipe(recipe: RemixRecipe) -> dict[str, Any]:
     """Resolve a recipe without rendering any audio.
 
@@ -680,13 +745,18 @@ def preview_recipe(recipe: RemixRecipe) -> dict[str, Any]:
 
     The near-silence warning exists because of a real trap: several tracks here
     open with an instrumental intro, so a layer pointing at `source_start_bar=0`
-    can be digitally silent and read as a broken mixer.
+    can be digitally silent and read as a broken mixer. It is reported twice:
+    `warnings` stays a list of human-readable strings (existing callers), and
+    `warnings_detail` carries the same facts structured as
+    `{code, layer_ref, field, measured_rms_db, suggestion}` so an agent
+    does not have to parse prose.
     """
     recipe.validate()
     plan = plan_timeline(recipe)
     cache = _SourceCache(recipe.target_bpm)
     layers: list[dict[str, Any]] = []
     warnings: list[str] = []
+    warnings_detail: list[dict[str, Any]] = []
     for slot in recipe.slots:
         for layer in slot.layers:
             rms = cache.measured_rms_db(layer)
@@ -702,6 +772,9 @@ def preview_recipe(recipe: RemixRecipe) -> dict[str, Any]:
                 }
             )
             if rms < -50.0:
+                warnings_detail.append(
+                    _near_silent_detail(layer, rms, recipe.bar_seconds)
+                )
                 warnings.append(
                     f"{layer.track}/{layer.stem} is near-silent at this offset "
                     f"({rms:.0f} dBFS) - check source_start_bar"
@@ -714,6 +787,7 @@ def preview_recipe(recipe: RemixRecipe) -> dict[str, Any]:
         "stretch_ratios": {k: round(v, 4) for k, v in cache.stretch_ratios.items()},
         "layers": layers,
         "warnings": warnings,
+        "warnings_detail": warnings_detail,
     }
 
 

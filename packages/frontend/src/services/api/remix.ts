@@ -18,6 +18,10 @@ export interface RemixSource {
   track: string;
   model: string;
   stems: Record<StemName, boolean>;
+  /** Cached probe measurements, present once the track has been probed. */
+  bpm?: number | null;
+  duration_sec?: number | null;
+  first_audible_sec?: number | null;
 }
 
 export interface RemixProbe {
@@ -72,6 +76,15 @@ export interface RemixPreview {
     source_start_bar: number;
   }[];
   warnings: string[];
+  /** Same facts as `warnings`, structured for agents:
+   * {code, layer_ref, field, measured_rms_db, suggestion}. */
+  warnings_detail?: {
+    code: string;
+    layer_ref: string;
+    field: string;
+    measured_rms_db: number;
+    suggestion: string;
+  }[];
 }
 
 export interface RemixBuildResult {
@@ -102,7 +115,35 @@ export interface RemixEnhanceResult {
   error: string | null;
 }
 
-/** A remix reconstructed from its manifest: enough to reopen and rearrange. */
+/**
+ * Acknowledgement for a long-running remix operation.
+ *
+ * `/build` and `/enhance` return this immediately and run the
+ * work in a background job; the full payload arrives via
+ * `getRemixJob` once `state` is `done`.
+ */
+export interface RemixJobAccepted {
+  job_id: string;
+  kind: string;
+  label: string;
+  state: string;
+}
+
+export interface RemixJobStatus {
+  job_id: string;
+  kind: "build" | "enhance";
+  label: string;
+  state: "queued" | "running" | "done" | "failed";
+  /** Set when the backend capped a wedged job and reported it failed. */
+  timed_out?: boolean;
+  progress?: string | null;
+  /** The build/enhance payload, present once `state` is `done`. */
+  result?: RemixBuildResult | RemixEnhanceResult;
+  error?: string | null;
+  elapsed_sec: number;
+  started_at: number;
+  finished_at: number | null;
+}
 export type RemixRecipeRoundTrip = RemixRecipeSpec;
 
 /**
@@ -160,14 +201,110 @@ export async function previewRemix(recipe: RemixRecipeSpec): Promise<RemixPrevie
   return unwrap<RemixPreview>(res, "Remix preview failed");
 }
 
-export async function buildRemix(recipe: RemixRecipeSpec): Promise<RemixBuildResult> {
+/**
+ * Start a build without waiting for it.
+ *
+ * The backend validates the recipe and checks the source stems
+ * synchronously (so a bad recipe or a missing stem still throws
+ * here), then renders in a background job. Poll `getRemixJob`
+ * for the result, or use `buildRemix` to await it.
+ */
+export async function startBuildRemix(
+  recipe: RemixRecipeSpec,
+): Promise<RemixJobAccepted> {
   const res = await fetchWithTimeout(`${getApiBase()}/api/audio/remix/build`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(recipe),
-    timeout: 300000,
+    // Validation and path checks only - the render itself is a
+    // background job, so this returns as soon as the recipe is
+    // accepted.
+    timeout: 15000,
   });
-  return unwrap<RemixBuildResult>(res, "Remix render failed");
+  return unwrap<RemixJobAccepted>(res, "Remix render failed");
+}
+
+/**
+ * Start a master without waiting for it.
+ *
+ * The backend checks the remix and its stems synchronously, then
+ * runs the chain in a background job. Poll `getRemixJob` for the
+ * result, or use `enhanceRemix` to await it.
+ */
+export async function startEnhanceRemix(
+  name: string,
+  options: {
+    vocal_balance_db?: number;
+    pre_highpass_hz?: number;
+    target_peak_dbfs?: number;
+    master_ceiling_dbfs?: number;
+  } = {},
+): Promise<RemixJobAccepted> {
+  const res = await fetchWithTimeout(
+    `${getApiBase()}/api/audio/remix/${encodeURIComponent(name)}/enhance`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(options),
+      timeout: 15000,
+    },
+  );
+  return unwrap<RemixJobAccepted>(res, `Failed to master remix ${name}`);
+}
+
+/** Status of one build/enhance job, including its result. */
+export async function getRemixJob(jobId: string): Promise<RemixJobStatus> {
+  const res = await fetchWithTimeout(
+    `${getApiBase()}/api/audio/remix/jobs/${encodeURIComponent(jobId)}`,
+    { timeout: 10000 },
+  );
+  return unwrap<RemixJobStatus>(res, `Failed to load remix job ${jobId}`);
+}
+
+/** Recent jobs, newest first. */
+export async function listRemixJobs(): Promise<RemixJobStatus[]> {
+  const res = await fetchWithTimeout(
+    `${getApiBase()}/api/audio/remix/jobs`,
+    { timeout: 10000 },
+  );
+  const body = await unwrap<{ jobs: RemixJobStatus[] }>(
+    res,
+    "Failed to list remix jobs",
+  );
+  return body.jobs;
+}
+
+const JOB_POLL_INTERVAL_MS = 1000;
+
+async function awaitJob<T>(jobId: string, failure: string): Promise<T> {
+  // The backend caps a wedged job and reports it failed, and a
+  // server restart makes the job vanish (an error, not an
+  // infinite wait), so this loop always terminates.
+  for (;;) {
+    const status = await getRemixJob(jobId);
+    if (status.state === "done") {
+      if (!status.result) throw new Error(failure);
+      return status.result as T;
+    }
+    if (status.state === "failed") {
+      throw new Error(status.error || failure);
+    }
+    await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
+  }
+}
+
+/**
+ * Render a recipe, waiting for the background job to finish.
+ *
+ * Same contract as before the job split: resolves with the build
+ * result or rejects with the failure. The difference is on the
+ * wire - no single request is held open for the render, so the
+ * 300 s fetch timeout the synchronous call needed is gone, and
+ * the job can be polled for progress by anyone who wants it.
+ */
+export async function buildRemix(recipe: RemixRecipeSpec): Promise<RemixBuildResult> {
+  const { job_id } = await startBuildRemix(recipe);
+  return awaitJob<RemixBuildResult>(job_id, "Remix render failed");
 }
 
 export async function listRemixes(): Promise<RemixSummary[]> {
@@ -193,20 +330,20 @@ export async function getTrackLineage(track: string): Promise<RemixTrackLineage>
   return unwrap<RemixTrackLineage>(res, `Failed to load lineage for ${track}`);
 }
 
+/**
+ * Master a rendered remix, waiting for the background job to finish.
+ *
+ * Same contract as before the job split: resolves with the enhance
+ * result or rejects with the failure. The chain is CPU bound and
+ * measured at ~60 s, which no longer has to be held inside one
+ * request - the job is polled in one-second steps instead.
+ */
 export async function enhanceRemix(
   name: string,
   options: { vocal_balance_db?: number; pre_highpass_hz?: number } = {},
 ): Promise<RemixEnhanceResult> {
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/api/audio/remix/${encodeURIComponent(name)}/enhance`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(options),
-      timeout: 600000,
-    },
-  );
-  return unwrap<RemixEnhanceResult>(res, `Failed to master remix ${name}`);
+  const { job_id } = await startEnhanceRemix(name, options);
+  return awaitJob<RemixEnhanceResult>(job_id, `Failed to master remix ${name}`);
 }
 
 /** URL for an `<audio src>`; resolves same-origin, so no fetch wrapper. */
