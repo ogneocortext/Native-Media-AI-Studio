@@ -54,6 +54,7 @@ date: 2026-09-30
 - [[e2e-test-plan-2026|🧪 E2E Test Plan 2026]] — Full-pipeline Play smoke + backend integration + real-service E2E plan
 - [[modern-css-2026|🎨 Modern CSS 2026]] — Tailwind v4 @theme/layers, OKLCH theming, gradient spaces, a11y media queries, verification checklist
 - [[javascript-upgrade-research-2026|🔧 JavaScript Upgrade Research 2026]] — TypeScript 7 adoption, deprecated mp4-muxer replacement, React 19 features, Vite 8/Rolldown optimization, Tailwind v4 container queries, CI gaps, Prettier adoption
+- [[hyperframes-results-improvement-2026|🎬 HyperFrames Results Improvement 2026]] — Audit findings & fix specs: real spectral bands, per-frame tween smear, render defaults, composition variety, vendored GSAP
 
 ### 🎮 MCP & Platform Integrations
 
@@ -138,7 +139,7 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 12 documents |
-|| `#technical/*` | System implementation & code | 13 documents |
+|| `#technical/*` | System implementation & code | 14 documents |
 || `#platform/*` | Platform-specific integrations | 11 documents |
 || `#creative/*` | Design, effects & visualization | 19 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
@@ -229,11 +230,11 @@ graph LR
 
 || Metric | Count |
 || --------------- | ----------------------------------------------------------------------------- |
-|| Total Documents | 84 (markdown) + 9 (JSON data files) = 93 total |
+|| Total Documents | 85 (markdown) + 9 (JSON data files) = 94 total |
 || Total Tags | 70 |
 || Total Links | 115+ |
-|| Last Updated | 2026-10-06 (docs audit and corrections) |
-|| Latest Add | 2026-10-02 (Visualizer UX Audit 2026-10, Audio-Reactive Best Practices 2026, Mastering & Stem Splitting 2026) |
+|| Last Updated | 2026-10-06 (docs audit and corrections; HyperFrames results-improvement audit added) |
+|| Latest Add | 2026-10-06 (HyperFrames Results Improvement 2026) |
 
 ---
 

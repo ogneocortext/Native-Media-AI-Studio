@@ -51,7 +51,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `stem-system-evaluation-2026.md`  → `#production`, `#audio`, `#visualization`, `#technical`
 - ✅ `ai-music-mastering-stems-2026.md`  → `#production`, `#audio`
 
-### 🛠️ Technical Implementation (12/12 completed) ✅
+### 🛠️ Technical Implementation (13/13 completed) ✅
 
 - ✅ `technical-reference.md`  → `#technical`, `#platform-comfyui`, `#platform-blender`, `#hardware-8gb`
 - ✅ `comfyui-workflows.md`  → `#technical`, `#platform-comfyui`
@@ -65,6 +65,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `javascript-upgrade-research-2026.md`  → `#technical`
 - ✅ `stack-extensions-2026.md`  → `#technical`, `#python`
 - ✅ `tagging-guide.md`  → `#technical`, `#documentation`, `#tagging`
+- ✅ `hyperframes-results-improvement-2026.md`  → `#technical`, `#creative`, `#performance`
 
 ### 🎮 MCP & Platform Integrations (11/11 completed) ✅
 
