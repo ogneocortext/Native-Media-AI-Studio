@@ -76,11 +76,11 @@ date: 2026-09-30
 - [[visualization-effects|✨ Visualization Effects]] — WebGPU/TSL, particles, shaders, post-processing, volumetrics
 - [[3d-visualization-best-practices-2026|🎛️ 3D Visualization Best Practices 2026]] — Full audit of all 13 viz styles + 7 studio templates, R3F/WebGPU/perf/a11y rules
 - [[2d-visualization-2026|🎨 2D Visualization 2026]] — Canvas2D/PixiJS/p5.js/Waviz 2026 open source 2D stacks
-- [[webgl-webgpu-audio-viz-2026|🎵 WebGL/WebGPU Audio Viz 2026]] — Rust/WASM audio analysis, GPU compute shaders, music-reactive 3D, multi-threaded visualization
+- [[webgl-webgpu-audio-viz-2026|🎵 WebGL/WebGPU Audio Viz 2026]] — ⚠️ Consolidated 2026-10-06 → see [[visualization-effects]] §11
 - [[hyperframes-audio-reactive-2026|🎬 HyperFrames Audio-Reactive Visualizations 2026]] — Pre-extracted audio data, per-frame GSAP sampling, Three.js/WebGPU scenes, lyric/beat/section sync, genre-aware presets, integration with studio backend
 - [[3d-rendering|🧊 3D Rendering]] — GPU rendering, Blender 5.2 EEVEE Next, optimization
 - [[3d-object-design-2026|🧊 3D Object Design 2026]] — Procedural abstract 3D objects for visualizers: chrome blobs, materials, beat-synced morphing
-- [[advanced-visualization-techniques-2026|✨ Advanced Visualization Techniques 2026]] — WebGL shaders, WebGPU performance, kinetic typography, real-time audio analysis
+- [[advanced-visualization-techniques-2026|✨ Advanced Visualization Techniques 2026]] — ⚠️ Consolidated 2026-10-06 → see [[visualization-effects]] §11
 - [[canvas2d-bar-visualization-research|📊 Canvas2D Bar Visualization Research]] — Modern bar-mode improvements: smoothing, glow, reflections, HiDPI rendering
 - [[color-strategy-2026|🎨 Color Strategy 2026]] — APCA vs WCAG dark-mode contrast, measured token audit, tier rules
 - [[design-auditing-2026|🔍 Design Auditing 2026]] — Contrast+axe+VLM audit layers, runbook for `contrast_audit.py`

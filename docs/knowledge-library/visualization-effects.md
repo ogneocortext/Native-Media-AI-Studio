@@ -495,3 +495,88 @@ For `packages/frontend` / `three-js-studio` in this repo:
 ---
 
 _Last updated: 2026-10-01 — Per-drum shockwaves implemented, perceptual frequency scales added (Bark/Mel/ERB)_
+
+---
+
+## 11. Technique supplements (consolidated 2026-10-06)
+
+Consolidated from `advanced-visualization-techniques-2026.md` and
+`webgl-webgpu-audio-viz-2026.md` (now redirect stubs). Overlapping material —
+Dalia, phase-viz, Cortix perceptual scales, TSL compute audio, Rust/WASM
+pipelines, RippleOscilloscope — was already covered in §§1–10 above and is not
+repeated. Only net-new items are kept here.
+
+### 11.1 Kinetic typography for visualizers
+
+- **anime.js `splitText()`**: break lyrics into chars/words/lines; effects —
+  wavy text, raining letters, 3D word flip, exploding characters; stagger via
+  index-based delay functions.
+- **Codrops letter effects (fx1–fx17)**: in/out animation objects with
+  per-character delay — a ready-made preset library for lyric reveals.
+- **Timeline sync**: anime.js timelines for overlapping word reveals on dense
+  lyrical passages.
+- **pretext-animate (2026)**: 120 fps lyric reveals using only `transform` +
+  `opacity` (zero layout reflow) — use where Anime.js/Motion bundle weight is
+  too high.
+- Honor `prefers-reduced-motion`.
+
+### 11.2 Fluid simulation mode
+
+WebGL fluid sim driven by music (Visual Audio Booster pattern): 5-band fluid
+colors (sub, bass A/B, mid, treble A/B), per-band beat triggers, mouse/touch
+drawing interaction, 4K-capable. Candidate for a new viz mode alongside
+particles.
+
+### 11.3 Multi-layer sphere architecture (Codrops)
+
+Outer wireframe icosahedron with audio-distorted `ShaderMaterial` +
+slightly larger inner glow sphere (backside emissive halo). Cheap depth that
+reads as production value.
+
+### 11.4 GPU age calculation (AUDIO_PRIME)
+
+Move particle age from CPU to the vertex shader: `aFrameIndex` attribute +
+`uCurrentFrame`/`uHistoryFrames` uniforms, `framesOld = mod(uCurrentFrame -
+aFrameIndex + uHistoryFrames, uHistoryFrames)`. Saves ~3,840 ops/frame and
+enables partial buffer uploads (87% reduction: 9.6 KB vs 76 KB/frame).
+
+### 11.5 Multi-threaded audio analysis
+
+Spread work across 4 threads + GPU (main thread <5% of one core); Wasm SIMD
+for spectrograms; `AudioWorkletProcessor` at 44.1 kHz (~344 frames/sec).
+Key insight: **audio frames arrive faster than the render rate** — separate
+data consumption from rendering and buffer frames for smooth output.
+
+### 11.6 MediaPipe WebGPU offload (2026)
+
+Route pose/gesture landmark inference to the MediaPipe WebGPU runtime
+(`@mediapipe/tasks-vision`); feed landmarks into Three.js as GPU-computed
+uniforms via `VideoTexture`. Frees the JS thread for scene composition.
+
+### 11.7 Selective response strategy ("Run Rob Run")
+
+Do not react to everything. Weight kicks/claps/four-on-the-floor, dampen
+small hi-hat transients, reduce kick response when the track is crowded or
+the high end is too active. Per-frame: read values → ease → deformation
+function per layer. (Motion-craft companion: [[three-js-render-motion-2026]].)
+
+### 11.8 Audio shader uniform library (Audio Shader Studio)
+
+Standard uniform set for audio-reactive GLSL: `u_bass`, `u_mid`, `u_treble`,
+`u_spectralCentroid`, `u_beatPhase`, `u_energy`. Adopt as the naming
+convention for new shader modes.
+
+### 11.9 Performance targets
+
+| Metric | Target |
+|---|---|
+| Frame rate | 60 fps minimum |
+| Audio latency | <10 ms |
+| GPU utilization | <80% (headroom) |
+| Main thread load | <20% |
+| Memory | <500 MB |
+
+### 11.10 WebGPU browser support (2026)
+
+Chrome/Edge 121+, Firefox Nightly, Safari experimental. Fallback chain:
+WebGPU → WebGL2 → Canvas2D; detect via `navigator.gpu`.
