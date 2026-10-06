@@ -243,3 +243,49 @@ export function phaseLagChain(history: MotionHistory, chainLength = 4): number[]
   }
   return out;
 }
+
+/**
+ * Build the `MotionInput` for the shader visualizer's frame
+ * loop (plan 2.7's mapping, see `motion/README.md`).
+ *
+ * Extracted as a pure function so the wiring — *which* repo
+ * audio feeds *which* channel — is pinned by a unit test
+ * rather than only existing inside the rAF closure. The
+ * loop calls this, then hands the result to `resolveMotion`.
+ *
+ * `beatTimes` is the backend's analyzed grid (plan 2.10);
+ * the next beat after `nowSec` becomes the lookahead event
+ * the anticipation-contract and pre-drop-freeze moves read.
+ * An empty grid (unanalyzed track) yields `nextBeat: null`,
+ * which those moves treat as "no anticipation" rather than
+ * guessing.
+ */
+export function buildShaderMotionInput(args: {
+  nowSec: number;
+  dtSec: number;
+  bpm: number;
+  spectral: { sub: number; mid: number; high: number } | null;
+  section: string | null | undefined;
+  beatTimes: number[];
+}): MotionInput {
+  const { nowSec, dtSec, bpm, spectral, section, beatTimes } = args;
+  let nextBeat: { timeSec: number } | null = null;
+  if (beatTimes.length > 0) {
+    for (let i = 0; i < beatTimes.length; i++) {
+      if (beatTimes[i] > nowSec) {
+        nextBeat = { timeSec: beatTimes[i] };
+        break;
+      }
+    }
+  }
+  return {
+    nowSec,
+    dtSec,
+    bpm,
+    bass: spectral?.sub ?? 0,
+    mid: spectral?.mid ?? 0,
+    high: spectral?.high ?? 0,
+    section: section ?? null,
+    nextBeat,
+  };
+}

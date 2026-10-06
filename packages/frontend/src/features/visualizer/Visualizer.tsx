@@ -1729,6 +1729,8 @@ export function Visualizer() {
                   stemsVolumes={stemsMixerState?.volumes}
                   stemsProMeters={proMixerMeters || undefined}
                   sampleAudio={sampleAudio}
+                  analysisData={currentAnalysisData}
+                  analyserRef={analyserRef}
                   fxOpen={openOverlay === "fx"}
                   onFxOpenChange={(open) => setOpenOverlay(open ? "fx" : null)}
                   className="absolute inset-0"

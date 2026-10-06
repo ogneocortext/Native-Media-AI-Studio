@@ -137,15 +137,6 @@ async def _store_upload(file: UploadFile) -> str:
     return final_path.name
 
 
-def _is_downbeat(index: int, beats_per_bar: int = 4) -> bool:
-    """Return True when this beat index is a strong downbeat.
-
-    Uses meter-aware detection by default (``beats_per_bar`` from beat regularity
-    analysis), falling back to 4/4 when unavailable.
-    """
-    return index % beats_per_bar == 0
-
-
 def _schema_of(path: Path) -> int | None:
     """Read just the `schema_version` out of an analysis file.
 

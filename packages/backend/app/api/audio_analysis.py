@@ -52,9 +52,10 @@ def _is_downbeat(index: int, beats_per_bar: int = 4) -> bool:
     """Return True when this beat index is a strong downbeat.
 
     Meter-aware (beats_per_bar from beat regularity analysis), falling back to
-    4/4 when unavailable. Duplicated from audio.py rather than imported: both
-    modules are peers, and audio.py imports plenty from here already, so a
-    back-import would be circular.
+    4/4 when unavailable. The single definition: audio.py used to carry a
+    second, never-called copy (its only reader is the timing contract built
+    here), which the duplicate-logic audit could not see because the function
+    is below its token threshold.
     """
     return index % beats_per_bar == 0
 

@@ -10,6 +10,14 @@ import { getSectionPreset } from "./sectionStateMachine";
 import { useSpectralTimeline } from "./useSpectralTimeline";
 import { AudioReactivityProcessor, type ReactivityConfig } from "./audioReactivityProcessor";
 import { useKeyPalette } from "./useKeyPalette";
+import { synthesizeLiveFrame } from "./liveSpectralFrame";
+import {
+  buildShaderMotionInput,
+  createMotionHistory,
+  resolveMotion,
+  type MotionHistory,
+} from "./motion/useMotionDriver";
+import type { AudioAnalysisData } from "./types";
 
 const FX_STORAGE_PREFIX = "visualizerFx:";
 const FX_PREF_KEY = "visualizer_fx_defaults";
@@ -140,6 +148,21 @@ interface ShaderVisualizerProps {
   /** Live per-stem meters from the professional mixer (overrides stemsVolumes when present). */
   stemsProMeters?: Record<StemName, { rms: number; peak: number; dBFS: number }>;
   /**
+   * Backend analysis for the current track. Carries the real
+   * `tempo_bpm` + `beat_times` grid (plan 2.10): the reactivity
+   * processor's beat phase is computed against this grid instead
+   * of a phantom 120 BPM. Null for unanalyzed tracks — the
+   * processor then falls back to 120 BPM + live onsets.
+   */
+  analysisData?: AudioAnalysisData | null;
+  /**
+   * The shared graph's live `AnalyserNode` (plan 2.11). When the
+   * track has no spectral timeline, a `SpectralFrame` is
+   * synthesized from its FFT each frame so the reactivity uniforms
+   * keep moving instead of freezing.
+   */
+  analyserRef?: React.MutableRefObject<AnalyserNode | null>;
+  /**
    * Plan 1.3 — the FX panel is one of three mutually exclusive floating
    * overlays (shortcuts / More / FX), so its open state is owned by
    * `Visualizer` (`openOverlay`), not by local state here. Opening FX closes
@@ -166,6 +189,8 @@ export function ShaderVisualizer({
   stemsMuted,
   stemsVolumes,
   stemsProMeters,
+  analysisData,
+  analyserRef,
   fxOpen,
   onFxOpenChange,
 }: ShaderVisualizerProps) {
@@ -196,6 +221,11 @@ export function ShaderVisualizer({
     transient: 0,
     centroid: 0,
     trail: 0,
+    // Motion-vocabulary camera offset (plan 2.7), applied by
+    // ShaderCanvas as the `u_camera_offset` vec2. Two scalars
+    // because uniformsRef is a flat number map.
+    cameraOffsetX: 0,
+    cameraOffsetY: 0,
     // Key-derived palette, written by the rAF loop each frame from
     // keyPaletteRef (static per track). Declared here so the ref's inferred type
     // matches what the loop assigns.
@@ -219,6 +249,26 @@ export function ShaderVisualizer({
   stemsVolumesRef.current = stemsVolumes;
   const stemsProMetersRef = useRef(stemsProMeters);
   stemsProMetersRef.current = stemsProMeters;
+  // Plan 2.10/2.11: the analysis grid and the live analyser are
+  // read inside the rAF loop, so they live in refs like every
+  // other per-frame input (D14 rule 2 — refs, not props).
+  const analysisDataRef = useRef(analysisData);
+  analysisDataRef.current = analysisData;
+  // The analyser is created lazily by the shared graph (first user
+  // gesture), so the loop reads the prop ref directly rather than
+  // copying `.current` during render — a copy would stay null until
+  // the next re-render.
+  const analyserRefProp = useRef(analyserRef);
+  analyserRefProp.current = analyserRef;
+  // Motion-vocabulary state (plan 2.7): the history owns the
+  // impulse envelopes, so it persists across frames and resets on
+  // a backwards seek (resolveMotion does that itself).
+  const motionHistoryRef = useRef<MotionHistory | null>(null);
+  if (motionHistoryRef.current === null) {
+    motionHistoryRef.current = createMotionHistory();
+  }
+  const prevLiveRmsRef = useRef(0);
+  const lastFrameTimeRef = useRef<number | null>(null);
 
   const reactivityProcessorRef = useRef<AudioReactivityProcessor | null>(null);
   const reactivityConfigRef = useRef<ReactivityConfig>({
@@ -323,7 +373,19 @@ export function ShaderVisualizer({
         stemEnergy.bass * 0.28 +
         stemEnergy.other * 0.12;
 
-      const spectral = sampleSpectral(elapsed);
+      // Plan 2.11: keep a live FFT frame every frame. On analyzed
+      // tracks the spectral timeline wins; on unanalyzed tracks
+      // (`sampleSpectral` → null) the live frame takes over, so
+      // the reactivity uniforms keep moving instead of freezing at
+      // stale values while the base uniforms stay live.
+      const liveFrame = synthesizeLiveFrame(
+        analyserRefProp.current?.current ?? null,
+        prevLiveRmsRef.current,
+      );
+      if (liveFrame) prevLiveRmsRef.current = liveFrame.rms;
+      const spectral =
+        sampleSpectral(elapsed) ??
+        (liveFrame ? { ...liveFrame, time: elapsed } : null);
       const sectionType = sync?.currentSection ?? "verse";
 
       if (sectionType && sectionType !== lastSectionRef.current) {
@@ -342,13 +404,58 @@ export function ShaderVisualizer({
       const sectionMapping = getSectionPreset(sectionType);
       sectionPresetRef.current = sectionMapping;
 
-      // Update audio reactivity processor with spectral data
+      // Update audio reactivity processor with spectral data.
+      // Plan 2.10: the beat grid comes from the backend analysis
+      // (`tempo_bpm` + `beat_times`) when present, so the
+      // processor's beat phase completes one cycle per *real* beat
+      // and `downbeat` fires on bar lines. Unanalyzed tracks keep
+      // the 120 BPM + live-onset fallback.
       const processor = reactivityProcessorRef.current;
-      const bpm = 120; // Default BPM; AudioData doesn't carry tempo_bpm directly
+      const analysis = analysisDataRef.current;
+      const bpm =
+        analysis?.tempo_bpm && analysis.tempo_bpm > 0
+          ? analysis.tempo_bpm
+          : 120;
+      const beatTimes = analysis?.beat_times ?? [];
       if (processor && spectral) {
-        processor.update(spectral, [], bpm);
+        processor.update(spectral, beatTimes, bpm);
       }
       const reactivityUniforms = processor?.getUniforms() ?? null;
+
+      // Plan 2.7: resolve one frame of the motion vocabulary
+      // (`motion/` module) and apply its camera offset to the
+      // shader. The shader canvas is a fullscreen quad, so the
+      // "camera offset node" is the `u_camera_offset` UV shift —
+      // the same channel a 3D rig would drive a child camera
+      // node with. Impacts come from the band onsets; the grid
+      // lookahead (next beat) drives anticipation on analyzed
+      // tracks. `dtSec` comes from the audio clock, never the
+      // wall clock (D14 rule 2), and is capped so a seek or a
+      // backgrounded tab cannot inject a huge delta.
+      const prevElapsed = lastFrameTimeRef.current;
+      lastFrameTimeRef.current = elapsed;
+      const dtSec =
+        prevElapsed !== null && elapsed >= prevElapsed
+          ? Math.min(0.25, elapsed - prevElapsed)
+          : 1 / 60;
+      let motionCameraOffsetX = 0;
+      let motionCameraOffsetY = 0;
+      const motionHistory = motionHistoryRef.current;
+      if (motionHistory) {
+        const motionState = resolveMotion(
+          buildShaderMotionInput({
+            nowSec: elapsed,
+            dtSec,
+            bpm,
+            spectral,
+            section: sectionType,
+            beatTimes: analysis?.beat_times ?? [],
+          }),
+          motionHistory,
+        );
+        motionCameraOffsetX = motionState.cameraOffset[0];
+        motionCameraOffsetY = motionState.cameraOffset[1];
+      }
 
       // Base uniforms from audio + stems
       const baseBass = Math.min(1, d.bass * 0.7 + stemEnergy.bass * 0.3);
@@ -381,6 +488,10 @@ export function ShaderVisualizer({
           : (spectral?.transient ?? 0),
         centroid: spectral?.centroid ?? 0,
         trail: sectionMapping.trailIntensity,
+        // Motion-vocabulary camera offset (plan 2.7), consumed by
+        // ShaderCanvas as the `u_camera_offset` vec2.
+        cameraOffsetX: motionCameraOffsetX,
+        cameraOffsetY: motionCameraOffsetY,
         // Static per track; merged here because uniformsRef is rebuilt each frame.
         keyHue: keyPaletteRef.current.hue,
         keySat: keyPaletteRef.current.saturation,
