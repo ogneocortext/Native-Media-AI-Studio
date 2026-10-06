@@ -246,6 +246,20 @@ and in this repo it has been wrong.
 
 ## Development Guidelines
 
+### Commit attribution: every commit carries a Co-authored-by trailer
+
+Multiple agents commit to this repo, so every commit message ends with a
+trailer naming the authoring agent. This is how the user tracks who did what.
+
+| Agent | Trailer |
+|---|---|
+| Orion (research/handoff agent) | `Co-authored-by: Orion <orion@hatch.local>` |
+| Ling 3.1 Flash (local coding agent, Kilo Desktop) | `Co-authored-by: Ling 3.1 Flash <noreply@anthropic.com>` |
+
+The trailer is a commit-message convention only -- it says nothing about a
+model's provenance. Do not rewrite published history to backfill it; it
+applies to new commits from 2026-10-06 onward.
+
 ### Services: start once, then leave them alone
 
 **Do not restart a service that is already running.** This is the single most
