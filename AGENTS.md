@@ -254,7 +254,7 @@ trailer naming the authoring agent. This is how the user tracks who did what.
 | Agent | Trailer |
 |---|---|
 | Orion (research/handoff agent) | `Co-authored-by: Orion <orion@hatch.local>` |
-| Ling 3.1 Flash (local coding agent, Kilo Desktop) | `Co-authored-by: Ling 3.1 Flash <noreply@anthropic.com>` |
+| Ling 3.1 Flash (local coding agent, Kilo Desktop; by InclusionAI) | `Co-authored-by: Ling 3.1 Flash` |
 
 The trailer is a commit-message convention only -- it says nothing about a
 model's provenance. Do not rewrite published history to backfill it; it
