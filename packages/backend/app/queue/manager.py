@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from ..core.config import PROJECT_ROOT
-from ..models.job import Job, JobCreateRequest, JobStatus, QueueStats
+from ..models.job import Job, JobCreateRequest, JobStatus, JobType, QueueStats
 from ..sse.handler import sse_manager
 from .db_manager import JobDatabaseManager
 
@@ -24,6 +24,25 @@ _UNSUCCESSFUL_STATUSES = (JobStatus.FAILED, JobStatus.DEAD)
 #: degraded run - it is a run with no prompt, no model and no input file. Only
 #: list a type here if its handler genuinely needs no arguments.
 _PARAM_OPTIONAL_JOB_TYPES: frozenset = frozenset()
+
+#: Default silence window (seconds) before a RUNNING job with no recent progress
+#: is presumed ownerless. Matches the reaper's age default so a job that never
+#: reports anything keeps exactly the old age-based behaviour.
+_LEASE_WINDOW_DEFAULT_SECONDS = 900
+
+#: Longer silence windows for job types whose handlers legitimately go quiet
+#: between visible milestones — a Wan or ComfyUI render can run 15+ minutes of
+#: GPU work per progress tick. Distinguishes "slow progress" from "no progress",
+#: which a longer flat age threshold cannot. Keep every entry well under the
+#: processor's HANDLER_TIMEOUT_SECONDS (3600): a job silent past its own abort
+#: cannot be live, so a longer lease would only delay the inevitable.
+_LEASE_WINDOW_BY_TYPE: dict = {
+    JobType.MUSIC_VIDEO: 1800,
+    JobType.MUSIC_VIDEO_PREVIEW: 1800,
+    JobType.NARRATIVE_VIDEO: 1800,
+    JobType.SCENE_RENDER: 1800,
+    JobType.COMFYUI_WORKFLOW: 1800,
+}
 
 
 class QueueManager:
@@ -45,6 +64,13 @@ class QueueManager:
         self._completed_count: int = 0  # Track completed jobs for auto-cleanup
         self._max_completed_cache: int = 100  # Auto-cleanup after this many completed
         self._new_job_event = asyncio.Event()
+        # Progress-lease table: job_id -> last sign of life (claim or any
+        # update while RUNNING). In-memory on purpose: a persisted lease would
+        # survive the crash it is meant to detect, letting a dead job look
+        # "recently active" until the stale stamp ages out and delaying every
+        # restart recovery by up to a full window. The lease only protects live
+        # owners; restart recovery stays purely age-based via started_at.
+        self._last_progress_at: dict[str, datetime] = {}
         self._load_jobs()
 
     def _load_jobs(self):
@@ -62,6 +88,10 @@ class QueueManager:
     async def reload_from_db(self):
         """Reload all jobs from database (called after init_db)."""
         self._jobs.clear()
+        # Drop the lease table with the jobs: every entry in it names an owner
+        # that is definitionally gone (this is a fresh process), and keeping
+        # one would shelter a stranded job through the recovery below.
+        self._last_progress_at.clear()
         try:
             db_jobs = await JobDatabaseManager.get_all_jobs_async()
             for job in db_jobs:
@@ -87,6 +117,24 @@ class QueueManager:
             await self.quarantine_unrunnable_jobs()
         except Exception as e:
             logger.error("Unrunnable-job quarantine failed: %s", e)
+
+    @staticmethod
+    def _lease_window_seconds(job: Job) -> int:
+        """How long a RUNNING job of this type may go quiet before it looks dead."""
+        return _LEASE_WINDOW_BY_TYPE.get(job.job_type, _LEASE_WINDOW_DEFAULT_SECONDS)
+
+    def _silence_seconds(self, job: Job, now: datetime) -> float:
+        """Seconds since this job last showed a sign of life.
+
+        Falls back to ``started_at``/``created_at`` for jobs that never reported
+        anything, so those keep the old purely age-based behaviour. A job with no
+        timestamp at all reads as infinitely silent: there is nothing to anchor
+        a lease to, so reclaiming it is the safe direction.
+        """
+        last = self._last_progress_at.get(job.id) or job.started_at or job.created_at
+        if last is None:
+            return float("inf")
+        return (now - last).total_seconds()
 
     @staticmethod
     def is_runnable(job: Job) -> bool:
@@ -162,6 +210,7 @@ class QueueManager:
         requeued: list[str] = []
         dead: list[str] = []
         skipped_fresh: list[str] = []
+        skipped_active: list[str] = []
         unrecoverable: list[str] = []
 
         candidates = [
@@ -171,6 +220,18 @@ class QueueManager:
             started = job.started_at or job.created_at
             if started is not None and started > cutoff:
                 skipped_fresh.append(job.id)
+                continue
+
+            # Age alone cannot distinguish a legitimately long render from a
+            # dead owner (that was Q6): only reclaim a job that has ALSO gone
+            # quiet past its type's lease window. A Wan render 16 minutes in
+            # that reported progress a minute ago stays; one silent for 16
+            # minutes goes. Jobs that never reported anything fall back to
+            # started_at, i.e. the old age rule exactly.
+            silence_s = self._silence_seconds(job, now)
+            window_s = self._lease_window_seconds(job)
+            if silence_s <= window_s:
+                skipped_active.append(job.id)
                 continue
 
             age_s = (now - started).total_seconds() if started else float("inf")
@@ -201,6 +262,7 @@ class QueueManager:
                         job.message = "requeued after worker restart"
                         job.started_at = None
                         job.error = None
+                        self._last_progress_at.pop(job.id, None)
                         await JobDatabaseManager.update_job_async(
                             job.id,
                             status=job.status,
@@ -247,6 +309,7 @@ class QueueManager:
             "dead": dead,
             "unrecoverable": unrecoverable,
             "skipped_fresh": skipped_fresh,
+            "skipped_active": skipped_active,
             "examined": len(candidates),
         }
 
@@ -255,19 +318,23 @@ class QueueManager:
     ) -> int:
         """How many RUNNING jobs have no live owner. Used by the health check.
 
-        A RUNNING job is only owned by the process that claimed it, so one that
-        is still RUNNING long after `max_age_seconds` has no owner: it was
-        stranded by a crash or restart and is inflating the queue's "running"
-        count while nothing is actually running.
+        Uses the same silence rule as the reaper (age AND quiet past the
+        type's lease window), so a legitimately long render that keeps
+        reporting progress no longer flips the queue to unhealthy while it is
+        still working — the exact false-red from the Q6 report.
         """
-        cutoff = datetime.now() - timedelta(seconds=max_age_seconds)
-        return sum(
-            1
-            for j in self._jobs.values()
-            if j.status == JobStatus.RUNNING
-            and (j.started_at or j.created_at) is not None
-            and (j.started_at or j.created_at) <= cutoff
-        )
+        now = datetime.now()
+        cutoff = now - timedelta(seconds=max_age_seconds)
+        count = 0
+        for j in self._jobs.values():
+            if j.status != JobStatus.RUNNING:
+                continue
+            started = j.started_at or j.created_at
+            if started is None or started > cutoff:
+                continue
+            if self._silence_seconds(j, now) > self._lease_window_seconds(j):
+                count += 1
+        return count
 
     def _load_jobs_json(self):
         """Fallback: Load jobs from JSON file."""
@@ -515,6 +582,15 @@ class QueueManager:
             job.started_at = new_started_at
             job.completed_at = new_completed_at
 
+            # Any successful touch of a running job renews its progress lease —
+            # the claim itself, a progress tick, even a message-only heartbeat
+            # from a long poll loop. Leaving RUNNING drops the entry so the
+            # table cannot grow with finished jobs.
+            if new_status == JobStatus.RUNNING:
+                self._last_progress_at[job_id] = datetime.now()
+            else:
+                self._last_progress_at.pop(job_id, None)
+
             if status == JobStatus.COMPLETED:
                 self._completed_count += 1
             if self._completed_count >= self._max_completed_cache:
@@ -549,6 +625,7 @@ class QueueManager:
 
             job.status = JobStatus.CANCELLED
             job.completed_at = datetime.now()
+            self._last_progress_at.pop(job_id, None)
             # Persist to SQLite
             await JobDatabaseManager.update_job_async(
                 job_id,
@@ -569,6 +646,7 @@ class QueueManager:
             job.status = JobStatus.DEAD
             job.error = error
             job.completed_at = datetime.now()
+            self._last_progress_at.pop(job_id, None)
             try:
                 await JobDatabaseManager.update_job_async(
                     job_id,
@@ -604,6 +682,7 @@ class QueueManager:
             job.error = None
             job.progress = 0.0
             job.message = ""
+            self._last_progress_at.pop(job_id, None)
             # Persist to SQLite
             await JobDatabaseManager.update_job_async(
                 job_id,
@@ -624,6 +703,7 @@ class QueueManager:
         async with self._lock:
             if job_id in self._jobs:
                 del self._jobs[job_id]
+                self._last_progress_at.pop(job_id, None)
                 # Remove from SQLite
                 await JobDatabaseManager.delete_job_async(job_id)
                 return True
@@ -636,6 +716,7 @@ class QueueManager:
                            if j.status in (JobStatus.COMPLETED, JobStatus.CANCELLED)]
             for job_id in completed_ids:
                 del self._jobs[job_id]
+                self._last_progress_at.pop(job_id, None)
             # Remove from SQLite
             count = await JobDatabaseManager.clear_completed_async()
             return count
@@ -655,6 +736,7 @@ class QueueManager:
             ]
             for job_id in doomed:
                 del self._jobs[job_id]
+                self._last_progress_at.pop(job_id, None)
             count = 0
             for status in _UNSUCCESSFUL_STATUSES:
                 count += await JobDatabaseManager.clear_status_async(status)
@@ -667,6 +749,7 @@ class QueueManager:
                        if j.status == JobStatus.DEAD]
             for job_id in dead_ids:
                 del self._jobs[job_id]
+                self._last_progress_at.pop(job_id, None)
             count = await JobDatabaseManager.clear_status_async(JobStatus.DEAD)
             return count
 
@@ -692,6 +775,7 @@ class QueueManager:
         for job in to_remove:
             if job.id in self._jobs:
                 del self._jobs[job.id]
+                self._last_progress_at.pop(job.id, None)
                 removed += 1
 
         if ids_to_delete:

@@ -34,9 +34,10 @@ HANDLER_TIMEOUT_SECONDS = 3600
 
 # How long a RUNNING job may sit before it is presumed ownerless, and how often
 # the loop checks. A job is RUNNING only while the process that claimed it lives;
-# past this age with no progress the claim is presumed gone. Kept well under
-# HANDLER_TIMEOUT_SECONDS so a genuinely long render is not reaped underneath a
-# live worker.
+# past this age AND past its progress-lease silence window (see
+# QueueManager._last_progress_at; video-family types get a longer window) the
+# claim is presumed gone. Kept well under HANDLER_TIMEOUT_SECONDS so a genuinely
+# long render is not reaped underneath a live worker.
 STALE_JOB_MAX_AGE_SECONDS = 900
 STALE_JOB_REAP_INTERVAL_SECONDS = 60
 

@@ -29,6 +29,7 @@ def _manager(jobs):
     m._new_job_event = asyncio.Event()
     m._completed_count = 0
     m._max_completed_cache = 100
+    m._last_progress_at = {}
     return m
 
 
@@ -129,15 +130,21 @@ class TestRecovery:
             "dead": [],
             "unrecoverable": [],
             "skipped_fresh": [],
+            "skipped_active": [],
             "examined": 0,
         }
 
     def test_age_threshold_is_configurable(self):
         m = _manager([_running_job(age_seconds=60)])
         # 10-minute default: too fresh, untouched.
-        assert asyncio.run(m.recover_stale_running_jobs())["requeued"] == []
-        # A 30-second threshold catches it.
-        assert len(asyncio.run(m.recover_stale_running_jobs(30))["requeued"]) == 1
+        assert asyncio.run(m.recover_stale_running_jobs())["skipped_fresh"] == ["j1"]
+        # A 30-second threshold evaluates it (no longer fresh-skipped), but the
+        # progress lease still shelters it: 60 s of silence is inside the
+        # default 900 s window, so age alone cannot reap it anymore (Q6).
+        out = asyncio.run(m.recover_stale_running_jobs(30))
+        assert out["skipped_fresh"] == []
+        assert out["skipped_active"] == ["j1"]
+        assert out["requeued"] == []
 
 
 class TestStaleCount:

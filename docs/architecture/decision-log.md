@@ -795,6 +795,7 @@ debug artifact per Wan attempt so the evidence is captured at the time.
 ---
 
 ## Changelog
+- 2026-10-06: Q6 resolved — progress-lease + per-type windows in the queue manager (in-memory `_last_progress_at`, reaper and health require age AND silence, video-family 1800 s vs default 900 s); 12 new lease tests, D31 suite updated to the two-stage contract. Remaining: Q1 and Q4 still open, Q2 in evaluation pending its ComfyUI verification.
 - 2026-10-06: LTX-2B-distilled 8GB verdict — viable. `ltxv-2b-0.9.8-distilled-fp8` (already staged on disk with the 2.3 text-projection/AV VAEs) + stock `t5-xxl-fp8` + `LTX23_video_vae` rendered 25f 768×512 in 210 s on the GTX 1070 Ti, no OOM, coherent by the Q3 frame stats (interframe 7.44, edge 0.182) — ~4× faster than Wan 2.2 Q4. Submitted raw via the ComfyUI API (UNETLoader→CLIPLoader(ltxv)→LTXVConditioning→KSampler→VAEDecode); no backend render path exists, so wiring one (`model_tiers.py` + builder) is the follow-up, not done here. Mochi/H3/CogVideoX/DreamX/MAGI-2: no weights on disk, untested. ComfyUI 0.37.0 carries 33 native LTX nodes and meets the H3 0.30+ floor, so H3 is blocked only on a quantized checkpoint.
 - 2026-10-06: Q3 resolved — Wan red-pattern rerun through the production adapter path (Q4 GGUF + fp16 UMT5 + wan2.2 VAE, 12 steps/seed 7) produced a coherent 25-frame render; measured against the 9/20 artifact (interframe diff 26.06 → 3.90, blue channel uncrushed). Exact old trigger unrecoverable, both prime suspects closed by construction.
 - 2026-10-06: Q2 moved Open → In evaluation — option (a) implemented and committed (`7b29d72`: `visual_fallback.py`, degraded queueing, mid-flight AI→FFmpeg degradation, `on_source_failure`); the plan's ComfyUI verification is unrun so it is not Resolved. Same pass closed two stale research markers in `app-research-gaps-2026.md`: §13 agent tool contracts (input side now enforced by `mcp_validator.py` + `POST /api/mcp/validate-tool`, all four bridges dispatch effective args; output-side schemas remain open) and §15 (Q2 plan implemented). Still genuinely open and highest-value: Q3 red-pattern root cause, the 8GB video-model sweep (LTX/Mochi/H3-quantized/DreamX/MAGI-2), Q6 lease design, and the §17/§20–22 creative-direction cluster (onboarding, VJ craft, shot language, color scripting) that would give the D23 motion vocabulary something to be driven by.
@@ -980,20 +981,39 @@ debug artifact per Wan attempt so the evidence is captured at the time.
   job from a *wedged* one — see Q6.
 
 ### Q6 — Worker lease/heartbeat, so the reaper cannot reclaim valid long work (2026-10-02)
-- **Status:** Open
+- **Status:** Resolved 2026-10-06 — options (a) then (c) implemented
 - **Context:** D31's reaper is age-based: a `RUNNING` job older than 15 minutes
-  with no owner is reclaimed. There is no lease, heartbeat, or progress-ownership
-  check, so a legitimately long job (a Wan video render) can be reclaimed while it
-  is still working. This was visible during the D29 work — two `RUNNING` jobs at
-  16–17 minutes triggered `stranded_running_jobs: 2` and turned health red while
-  they may have been in flight.
+with no owner is reclaimed. There was no lease, heartbeat, or progress-ownership
+check, so a legitimately long job (a Wan video render) could be reclaimed while
+it was still working. This was visible during the D29 work — two `RUNNING` jobs at
+16–17 minutes triggered `stranded_running_jobs: 2` and turned health red while
+they may have been in flight.
 - **Options:** (a) progress-timestamp lease — the handler refreshes a timestamp so
-  only a *silent* job is reclaimed; (b) explicit lease/renew token with expiry;
-  (c) raise the threshold per job type (video already gets 900 s+).
+only a *silent* job is reclaimed; (b) explicit lease/renew token with expiry;
+(c) raise the threshold per job type (video already gets 900 s+).
 - **Recommendation:** (a) then (c). (a) closes the common case cheaply and
-  distinguishes "no progress" from "slow progress", which a longer timeout cannot.
-- **Related, also open:** 233 of the `image_generation` rows in the jobs table have
-  empty `params`, spanning 2026-09-03 onward. `api/integrations_generation.py:574`
-  builds `params={"service": ..., **request.to_adapter_params()}` and looks
-  correct, so something else is enqueueing without params. Untraced; until it is,
-  empty-param jobs will keep appearing and be quarantined by D31.
+distinguishes "no progress" from "slow progress", which a longer timeout cannot.
+- **Implementation (2026-10-06):** (a) as `QueueManager._last_progress_at`, an
+in-memory job_id → last-sign-of-life table refreshed by every successful touch
+of a RUNNING job (claim, progress tick, even a message-only heartbeat) and
+pruned on every exit from RUNNING (complete, cancel, dead-letter, requeue,
+retry, delete, clears). In-memory deliberately: a persisted lease would survive
+the crash it is meant to detect and shelter the dead job past restart recovery,
+so `reload_from_db` clears it and restarts stay purely age-based. The reaper
+and `count_stale_running_jobs` (health) now require BOTH age past
+`max_age_seconds` AND silence past the type's window; jobs that never reported
+fall back to `started_at`, i.e. exactly the old age rule. (c) as
+`_LEASE_WINDOW_BY_TYPE`: video-family types (music_video, preview, narrative,
+scene_render, comfyui_workflow) get 1800 s, default 900 s, all well under the
+3600 s handler abort. Notably the processor comment already said "past this age
+*with no progress* the claim is presumed gone" — the code just never checked
+progress until now. Verified by `tests/test_queue_lease.py` (12 tests: live
+16-minute render sheltered, silent one reaped, per-type split, health-count
+agreement, lease hygiene) plus the updated D31 suite, whose configurable-age
+test now asserts the two-stage behaviour (fresh → evaluated-but-sheltered)
+rather than age-alone reaping.
+- **Related, still open:** 233 of the `image_generation` rows in the jobs table have
+empty `params`, spanning 2026-09-03 onward. `api/integrations_generation.py:574`
+builds `params={"service": ..., **request.to_adapter_params()}` and looks
+correct, so something else is enqueueing without params. Untraced; until it is,
+empty-param jobs will keep appearing and be quarantined by D31.
