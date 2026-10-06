@@ -43,7 +43,7 @@ date: 2026-09-29
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
 | **LTX Video 2.3 on 8GB**            | Current `model_tiers.py` lists LTX at 8-16GB; no validated 8GB config exists. If quantized variants or CPU-offload paths exist, this could be a quality leap.        | 🔴 Research Now |
 | **Mochi-1 / Mochi-2 8GB viability** | Not in `VRAM_REQUIREMENTS` at all. 2026's other notable open-weight video model may have smaller variants or GGUF paths.                                             | 🔴 Research Now |
-| **Wan 2.2 red-pattern issue (Q3)**  | ComfyUI Wan smoke test produces red abstract output. Root cause unknown — could be VAE, T5 encoder mismatch, or workflow JSON corruption. Blocks all Wan validation. | 🔴 Research Now |
+| **Wan 2.2 red-pattern issue (Q3)**  | ✅ Resolved 2026-10-06 — reran the smoke test through the production adapter path (Q4 GGUF + fp16 UMT5 + wan2.2 VAE, 12 steps/seed 7, 25f 832×480): coherent render, interframe diff 26.06 → 3.90 vs the 9/20 artifact, blue channel uncrushed. Old trigger unrecoverable (predates the T5/VAE patches) but both prime suspects are closed by construction. | ✅ Done |
 | **CogVideoX-5B quantization**       | No entry in `NON_IMAGE_CHECKPOINT_KEYWORDS` or VRAM table. 5B class model; if GGUF/Q4 works on 8GB, it's a viable alternative.                                       | 🟡 Defer        |
 | **Video quality metrics**           | No objective metric (FVD, F1-score, SSIM) in the job result. Can't tell if a "successful" generation is actually good without manual review.                         | 🟡 Defer        |
 
@@ -577,7 +577,7 @@ not yet confirmed on screen against the existing styles.
 
 | Priority | Item                                | Owner     | Effort | Impact                                                                         |
 | -------- | ----------------------------------- | --------- | ------ | ------------------------------------------------------------------------------ |
-| P0       | Wan 2.2 red-pattern root cause (Q3) | Backend   | 2-4h   | Blocks all video gen                                                           |
+| P0       | Wan 2.2 red-pattern root cause (Q3) | Backend   | 2-4h   | ✅ Resolved 2026-10-06: coherent render on rerun, does not reproduce |
 | P0       | Agent MCP tool contracts            | Fullstack | 4-8h   | ✅ Published mcp-contracts-2026.md; input side now enforced in code (`mcp_validator.py` + `POST /api/mcp/validate-tool`, all four bridges dispatch effective args) |
 | P1       | Full-pipeline E2E test              | Fullstack | 4-8h   | ✅ P1a Playwright smoke unblocked (MIME fix); 13/13 health+pipeline tests pass |
 | P1       | VRAM leak test                      | Backend   | 2-4h   | ✅ 3 baseline/leak tests added; 9/9 pass                                       |
@@ -609,4 +609,4 @@ not yet confirmed on screen against the existing styles.
 
 ---
 
-_Last updated: 2026-10-06_ (§13/§15 flipped to done: MCP input contracts + Q2 implementation landed; Q2 plan verification and output-side contracts remain open)
+_Last updated: 2026-10-06_ (§13/§15 flipped to done: MCP input contracts + Q2 implementation landed; Q2 plan verification and output-side contracts remain open. Q3 resolved same day: Wan red pattern does not reproduce on the patched path.)

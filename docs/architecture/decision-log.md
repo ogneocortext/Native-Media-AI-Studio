@@ -723,15 +723,32 @@
   real ComfyUI) has not been run, so this stays In evaluation, not Resolved.
 
 ### Q3 — ComfyUI Wan smoke test (red-pattern output)
-- **Status:** In evaluation
+- **Status:** Resolved 2026-10-06 — does not reproduce on the patched path
 - **Context:** Wan 2.1/2.2 two-second smoke test through ComfyUI produced only a
-  red abstract pattern. `comfyui.py` was patched (model-dir resolution, T5/VAE
-  existence checks, logging) but is **unverified until a real rerun produces
-  valid output**. Wan requires a UMT5-family encoder — ordinary T5 is not
-  interchangeable; loader menus mix Hunyuan3D and Wan entries.
-- **Next step:** Rerun capturing workflow-selection line, T5/VAE warnings, and
-  exact encoder/VAE/checkpoint filenames. If red output persists with correct
-  UMT5, inspect the VAE/decode stage and exported workflow JSON.
+red abstract pattern. `comfyui.py` was patched (model-dir resolution, T5/VAE
+existence checks, logging) but was **unverified until a real rerun produces
+valid output**. Wan requires a UMT5-family encoder — ordinary T5 is not
+interchangeable; loader menus mix Hunyuan3D and Wan entries.
+- **Rerun (2026-10-06, ComfyUI started fresh on :8188, queue empty):** drove
+`ComfyUIAdapter._generate_video` directly (production code path, no queue):
+`ckpt=Wan2.2-TI2V-5B-Q4_K_M.gguf`, `t5=umt5_xxl_fp16.safetensors`
+(fp16 preferred path — no fp8-scaled rejection), `vae=wan2.2_vae.safetensors`,
+12 steps / cfg 6.0 / unipc / shift 5.0 / seed 7, 25 frames 832×480 @12fps.
+Zero missing-file warnings; wall 853.7 s → `output/video/NativeMediaAI_WanGGUF_00004.gif`.
+- **Measured against the 2026-09-20 red-pattern artifact (`..._00001.gif`, 81f):**
+channel means went from crushed blue (R~102–128/G~89–110/**B~11–35**) to
+balanced warm (R~190–202/G~167–193/B~157–182); mean interframe diff **26.06
+→ 3.90** (old minimum 9.48 = every frame flickered; new maximum 9.84);
+edge density 0.097 → 0.169. The old output was temporally incoherent
+structured noise; the new output is a coherent, smoothly evolving render.
+- **Root cause (best available):** the 9/20 artifact predates the T5/VAE
+resolution patches and its exact trigger is unrecoverable from surviving
+artifacts — but the two prime suspects (fp8-scaled T5 rejection, VAE
+mismatch) are both closed by construction now: pre-submit existence checks
+warn loudly, and `_resolve_wan_assets` prefers the fp16 encoder. If a red
+pattern ever returns, the triage order is conditioning (T5) → decode (VAE)
+→ convergence (steps), and `comfyui_workflow_handler.py` now writes a
+debug artifact per Wan attempt so the evidence is captured at the time.
 
 ### Q4 — Visualizer mode consolidation (3D / FX / 2D)
 - **Status:** Open
@@ -778,6 +795,7 @@
 ---
 
 ## Changelog
+- 2026-10-06: Q3 resolved — Wan red-pattern rerun through the production adapter path (Q4 GGUF + fp16 UMT5 + wan2.2 VAE, 12 steps/seed 7) produced a coherent 25-frame render; measured against the 9/20 artifact (interframe diff 26.06 → 3.90, blue channel uncrushed). Exact old trigger unrecoverable, both prime suspects closed by construction.
 - 2026-10-06: Q2 moved Open → In evaluation — option (a) implemented and committed (`7b29d72`: `visual_fallback.py`, degraded queueing, mid-flight AI→FFmpeg degradation, `on_source_failure`); the plan's ComfyUI verification is unrun so it is not Resolved. Same pass closed two stale research markers in `app-research-gaps-2026.md`: §13 agent tool contracts (input side now enforced by `mcp_validator.py` + `POST /api/mcp/validate-tool`, all four bridges dispatch effective args; output-side schemas remain open) and §15 (Q2 plan implemented). Still genuinely open and highest-value: Q3 red-pattern root cause, the 8GB video-model sweep (LTX/Mochi/H3-quantized/DreamX/MAGI-2), Q6 lease design, and the §17/§20–22 creative-direction cluster (onboarding, VJ craft, shot language, color scripting) that would give the D23 motion vocabulary something to be driven by.
 - 2026-10-02: D28 recorded — the studio is the post-production for Suno v6-mini drafts. Pipeline is mini drafts in, social-ready video out; the studio owns the audio post chain (mix polish, consistency/arrangement repair, mastering) and the visual edit, with no DAW or video editor in between. Renumbered to D28 on merge: local work had already claimed D23–D27.
   AGENTS.md bootstrap updated to D1–D28.
