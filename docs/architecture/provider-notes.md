@@ -171,4 +171,4 @@ not a candidate.
 - **Strong at:** docs maintenance at scale (knowledge-library refresh 77→84 articles, decision-log D1–D32/Q1–Q6 scope header, all in one session); honest commit messages documenting what changed; backend queue/polling fixes (ComfyUI deadline extension with fail-fast on lost prompts); test-structure repairs. First-day evidence only — 5 commits, all with `### <Type> - <description>` subjects.
 - **Weak at:** TBD — record after more sessions.
 - **Quirks (needs explicit instruction for):** commit-trailer discipline — the first 5 commits shipped without the `Co-authored-by` trailer. The convention was reinstated in repo `AGENTS.md` ("Commit attribution", 2026-10-06) with trailer `Co-authored-by: Ling 3.1 Flash` (no email — InclusionAI, not Anthropic). Remind per session until it sticks.
-- **Cost / access notes:** not yet recorded — note free/paid status and any rate limits after the first billing check.
+- **Cost / access notes:** free as of 2026-10-06 (per user). Treat as a promo window, not a guarantee — record the end date and any rate limits when they appear.
