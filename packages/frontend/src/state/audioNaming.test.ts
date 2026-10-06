@@ -131,6 +131,11 @@ describe("audioRefFor", () => {
     );
   });
 
+  it("falls back to filename when relative_path is empty", () => {
+    expect(audioRefFor(file("track.m4a", ""))).toBe("track.m4a");
+  });
+});
+
 describe("audioOptionLabel", () => {
   it("is the plain display name when nothing collides", () => {
     const a = file("11111111_Alpha.mp3");
@@ -235,11 +240,6 @@ describe("dedupeAudioFiles", () => {
 
   it("handles an empty list", () => {
     expect(dedupeAudioFiles([])).toEqual([]);
-  });
-});
-
-  it("falls back to filename when relative_path is empty", () => {
-    expect(audioRefFor(file("track.m4a", ""))).toBe("track.m4a");
   });
 });
 

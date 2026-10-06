@@ -25,7 +25,7 @@ export function panelStorageKey(panelId: string): string {
  * value falls back to `defaultOpen` (false = collapsed, the plan's default) so
  * a bad write can never pin a panel in the wrong state.
  */
-export function parsePanelOpen(raw: string | null, defaultOpen: boolean): boolean {
+export function parsePanelOpen(raw: string | null | undefined, defaultOpen: boolean): boolean {
   if (raw === "open") return true;
   if (raw === "closed") return false;
   return defaultOpen;

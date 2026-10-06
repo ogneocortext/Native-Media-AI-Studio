@@ -299,7 +299,7 @@ describe("lerpColor", () => {
     // toString(16) renders as "-4fb". Recorded as current behaviour so a future
     // clamp reads as a deliberate change rather than a silent fix.
     for (const t of [-5, 0, 0.5, 1, 5]) {
-      expect(lerpColor("#000000", "#ffffff", t)).toMatch(/^#[0-9a-f-]{3,}/);
+      expect(lerpColor("#000000", "#ffffff", t)).toMatch(/^#(-?[0-9a-f]+){3}$/i);
     }
   });
 });
@@ -364,6 +364,8 @@ describe("easing", () => {
     // nobody passes it an overshooting value and gets a wildly wrong result.
     expect(easeOutBack(2)).toBeGreaterThan(1);
   });
+});
+
 describe("clamp", () => {
   it("constrains to the range", () => {
     expect(clamp(5, 0, 10)).toBe(5);
@@ -625,5 +627,4 @@ describe("perceptual scales", () => {
     expect(midSpread).toBeGreaterThan(lowSpread);
     expect(highSpread).toBeGreaterThan(midSpread);
   });
-});
 });

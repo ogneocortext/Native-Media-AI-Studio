@@ -23,13 +23,17 @@ describe("parsePanelOpen", () => {
 
   it("defaults to collapsed when nothing is stored", () => {
     expect(parsePanelOpen(null, false)).toBe(false);
+    expect(parsePanelOpen(undefined, false)).toBe(false);
     expect(parsePanelOpen(null, true)).toBe(true);
+    expect(parsePanelOpen(undefined, true)).toBe(true);
   });
 
   it("falls back to the default for corrupted values instead of guessing", () => {
     expect(parsePanelOpen("garbage", false)).toBe(false);
     expect(parsePanelOpen("Open", false)).toBe(false); // tokens are case-sensitive
     expect(parsePanelOpen("", false)).toBe(false);
+    expect(parsePanelOpen(undefined, false)).toBe(false);
     expect(parsePanelOpen("garbage", true)).toBe(true);
+    expect(parsePanelOpen(undefined, true)).toBe(true);
   });
 });

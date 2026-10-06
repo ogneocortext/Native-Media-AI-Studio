@@ -10,6 +10,9 @@ describe("friendlyPipelineError", () => {
     expect(friendlyPipelineError(null, SEPARATION_FAILED_HEADLINE)).toEqual({
       headline: SEPARATION_FAILED_HEADLINE,
     });
+    expect(friendlyPipelineError(undefined, SEPARATION_FAILED_HEADLINE)).toEqual({
+      headline: SEPARATION_FAILED_HEADLINE,
+    });
     expect(friendlyPipelineError("", SEPARATION_FAILED_HEADLINE)).toEqual({
       headline: SEPARATION_FAILED_HEADLINE,
     });

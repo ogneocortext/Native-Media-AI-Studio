@@ -91,7 +91,6 @@ describe("pitch class -> hue", () => {
   });
 });
 
-describe("parseKey", () => {
 describe("keyPalette", () => {
   it("reproduces the spec's worked example", () => {
     // "A minor", r = 0.82 -> hue 0.25, sat 0.55, conf 0.82
@@ -206,6 +205,7 @@ describe("hueToRgb", () => {
     for (const channel of hueToRgb(0.3, -1)) expect(channel).toBeGreaterThanOrEqual(0);
   });
 });
+describe("parseKey", () => {
   it("splits pitch class and mode", () => {
     expect(parseKey("A minor")).toEqual({ pc: "A", mode: "minor" });
     expect(parseKey("C major")).toEqual({ pc: "C", mode: "major" });

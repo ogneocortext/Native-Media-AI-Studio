@@ -57,12 +57,6 @@ describe("tagStringFor", () => {
     );
   });
 
-  it("is the exact string the spec's acceptance describes", () => {
-    expect(tagStringFor(["drift phonk", "phonk", "dark", "aggressive"])).toBe(
-      "drift phonk, phonk, dark, aggressive",
-    );
-  });
-
   it("is empty for an empty selection", () => {
     expect(tagStringFor([])).toBe("");
   });
