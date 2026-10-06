@@ -54,6 +54,13 @@ not one-shot generation.
   output without human revision.
 - `npx hyperframes` project workflow opens the editor; community CLAUDE.md
   files show `npm run dev` → "preview in browser (studio editor)."
+- **Launch-thread tips (verified from the announcement post, 2026-10-06):**
+  `@`-reference past projects to reuse/remix them in a prompt; edit by hand
+  (click text/image in the preview to change font/color/swap media directly);
+  import any HyperFrames project folder; draw edits (circle in preview + note
+  → agent). A replier reports Claude Opus 5.5 agents built 33 video templates
+  (16:9 and 9:16) on HyperFrames in one night — evidence the agent loop works
+  at template scale.
 
 **Studio application — evaluate, don't build:**
 1. **Don't build a custom timeline editor yet.** Studio may already be the
