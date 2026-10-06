@@ -1,13 +1,13 @@
 # AGENTS.md — Native Media AI Studio
 
-> **Last Updated:** 2026-09-22
+> **Last Updated:** 2026-10-06
 > **Status:** Active Development (Phase 1+2)
 > **Platform:** Windows 11 local development machine
 
 > **Agent bootstrap:** read `docs/README.md` first — it maps every documentation
 > directory and says which are authoritative. Then read
 > `docs/architecture/decision-log.md` before writing code. It records
-> stack/architecture decisions (D1–D31 — do not re-litigate) and open questions
+> stack/architecture decisions (D1–D32 — do not re-litigate) and open questions
 > (Q1–Q6). Update the log when you make or reverse an architecture decision.
 > Frontend visualizer work also requires `docs/architecture/visualizer.md` — it
 > maps the module split from D14 and states where new logic belongs.
@@ -23,7 +23,7 @@
 > **Finding documentation:** the tree is 146 files across 14 directories, so
 > searching blind returns the wrong document. `docs/README.md` is the index;
 > `docs/knowledge-library/index.md` is the entry point for the 76-article
-> research library. Note that `docs/knowledge/` is a *separate* doc set from the
+> research library. Note that `docs/knowledge/` is a _separate_ doc set from the
 > library and `docs/notes/` and `docs/scratch/` are explicitly not authoritative
 > (D12).
 
@@ -76,10 +76,10 @@ Native-Media-AI-Studio/
   call the endpoints. There is now a fifth: `audio_remix.py`
   (`/api/audio/remix/*`).
   - To check whether a route is registered, read `app.openapi()["paths"]`.
-    `app.routes` holds *router groupings*, so it reports 37 entries with zero
+    `app.routes` holds _router groupings_, so it reports 37 entries with zero
     `/api/audio` paths while all 249 operations are live.
 - **Remixes are ordinary stem sets.** `services/stem_remixer.py` builds mashups
-  from stems of *different* songs and writes a plain
+  from stems of _different_ songs and writes a plain
   `output/remixes/<name>/{vocals,drums,bass,other}.wav` + `remix.json`. That is
   the point: the enhancer chain, `/api/audio/stem-file` and the visualizer then
   work on a remix with no special-casing, so don't add a remix-only path
@@ -107,15 +107,15 @@ Native-Media-AI-Studio/
 
 ## MCP Servers
 
-| Server       | Command                                                      | Port       | Status        |
-| ------------ | ------------------------------------------------------------- | ---------- | ------------- |
-| Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`                         | stdio      | 10 tools, executes |
-| Vision       | `node tools/mcp/vision-mcp.mjs`                               | stdio      | 13 tools, executes |
-| Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                         | 7800 (REST)| 17 tools; needs Unity |
-| Blender MCP  | `uvx blender-mcp`                                             | 9876       | Running       |
-| ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://127.0.0.1:8188`        | 8188       | Running       |
-| Remotion MCP | `npx -y @remotion/mcp@latest`                                 | stdio      | Configured    |
-| HyperFrames  | `node tools/mcp/hyperframes-mcp.mjs`                          | stdio      | 9 tools, executes |
+| Server       | Command                                               | Port        | Status                |
+| ------------ | ----------------------------------------------------- | ----------- | --------------------- |
+| Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`                 | stdio       | 10 tools, executes    |
+| Vision       | `node tools/mcp/vision-mcp.mjs`                       | stdio       | 13 tools, executes    |
+| Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                 | 7800 (REST) | 17 tools; needs Unity |
+| Blender MCP  | `uvx blender-mcp`                                     | 9876        | Running               |
+| ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://127.0.0.1:8188` | 8188        | Running               |
+| Remotion MCP | `npx -y @remotion/mcp@latest`                         | stdio       | Configured            |
+| HyperFrames  | `node tools/mcp/hyperframes-mcp.mjs`                  | stdio       | 9 tools, executes     |
 
 ## MCP clients: which config holds the servers
 
@@ -123,13 +123,13 @@ The bridges above are only reachable once a client is told about them. Verified
 2026-10-02 by launching each server from the command exactly as written in each
 config and calling a tool - not by reading the config.
 
-| client | config | note |
-|---|---|---|
-| OpenCode | `opencode.json` (repo root) | already had all servers |
-| Kilo Code | `.kilo/kilo.jsonc` | gitignored; machine-specific paths |
-| Cline | `~/.cline/mcp.json` | outside the repo, so not shared |
-| Claude Code | `~/.claude.json` | none of these; only `pencil` |
-| openclaw | `~/.openclaw/openclaw.json` | only an unrelated `space-analyzer` |
+| client      | config                      | note                               |
+| ----------- | --------------------------- | ---------------------------------- |
+| OpenCode    | `opencode.json` (repo root) | already had all servers            |
+| Kilo Code   | `.kilo/kilo.jsonc`          | gitignored; machine-specific paths |
+| Cline       | `~/.cline/mcp.json`         | outside the repo, so not shared    |
+| Claude Code | `~/.claude.json`            | none of these; only `pencil`       |
+| openclaw    | `~/.openclaw/openclaw.json` | only an unrelated `space-analyzer` |
 
 Two Windows details every config should keep: resolve `node` to an **absolute**
 path (it is an fnm alias), and give **absolute** script paths (clients do not all
@@ -143,6 +143,36 @@ outlives a crash. Start Unity with the project open, or
 `context-store.mjs` is deliberately absent from every config: it exports four
 functions and has no transport, so it is a library rather than an MCP server and
 could not be called by any client.
+
+## Filesystem MCP: `search_files` needs exclusions on this repo
+
+The filesystem MCP is the official `@modelcontextprotocol/server-filesystem`
+package (v2026.8.31), declared in the **global** config
+(`~/.config/kilo/kilo.jsonc`) with this repo as one of three allowed roots - it
+is not a project server and not a Kilo built-in. Its `search_files` walks the
+entire allowed root, so on this repo it times out (MCP error -32001) unless the
+call passes `excludePatterns`. Measured 2026-10-06: with the exclusions below a
+full `**/*.ts` search returns thousands of hits in seconds; without them it dies
+at the timeout. The global config's timeout for this server was raised 15 s ->
+60 s the same day as a margin; exclusions are the real fix.
+
+- A pattern must match the **directory itself** to prune the walk.
+  `**/node_modules` works; `node_modules` only matches the top-level one, and
+  `**/node_modules/**` still walks the whole tree before filtering results (the
+  exclusion check runs before recursion in `searchFilesWithValidation`).
+- Exclude at minimum: `**/node_modules`, `**/.git`, `**/huggingface_cache`,
+  `**/venv`, `**/.venv`, `**/.python-env`, `**/output`, `**/out`, `**/tmp`,
+  `**/logs`, `**/storage`, `**/runtime`, `**/unity-project-mcp`,
+  `**/unity-visualizer`, `**/diffusion_models`, `**/stable-diffusion`,
+  `**/hunyuan_vae`, `**/text_encoder`, `**/vae`, `**/third_party`,
+  `**/unsloth_compiled_cache`, `**/transcriptions`, `**/suno-templates`,
+  `**/browser-test`, plus the dot-caches (`**/.cache`, `**/.ruff_cache`,
+  `**/.turbo`, `**/.obsidian`, `**/.devin`, `**/.playwright-mcp`,
+  `**/.pytest_tmp`, `**/.zed`, `**/.comfyui-backups`).
+- `.kilo/worktrees/` holds full source checkouts - exclude it unless you
+  specifically want worktree results (it doubles or triples the result set).
+- For code search prefer the repo's own `grep`/`glob` tools; reach for
+  filesystem `search_files` only when you need the MCP's view of the tree.
 
 ## Vision Workflow
 
@@ -160,7 +190,7 @@ The dependency direction is **api -> services -> adapters**, and only downward.
 cycle anywhere under `packages/backend/app`, plus any upward edge into `app.api`.
 
 It was written because both defects it guards were invisible by reading: each was
-held open by a *deferred* (function-local) import, which looks like a working
+held open by a _deferred_ (function-local) import, which looks like a working
 escape hatch but only postpones the problem. Baseline as of D32: 0 cycles,
 0 inversions, 122 modules, 267 edges.
 
@@ -177,14 +207,14 @@ it passes the gate, until it doesn't.
 
 Three "confirmed bug" claims in the 2026-10 quality pass were overturned by
 measurement. All three came from the same move: asserting a property of the code
-by *reading* it. The corrections cost more time than the investigations would
+by _reading_ it. The corrections cost more time than the investigations would
 have.
 
-| Claimed from reading | Measured |
-|---|---|
+| Claimed from reading                                 | Measured                                          |
+| ---------------------------------------------------- | ------------------------------------------------- |
 | EQ rewiring leaked a parallel path, stacking filters | 0 differing cases across all band-count sequences |
-| `sr = 22050` discards the top octaves | 0.25% of power; inaudible |
-| per-sample DSP loops make the chain unusable | ~1 min for 231 s x 4 stems |
+| `sr = 22050` discards the top octaves                | 0.25% of power; inaudible                         |
+| per-sample DSP loops make the chain unusable         | ~1 min for 231 s x 4 stems                        |
 
 **Measure before you name a defect.** Read the code to form a hypothesis, then
 run something that could disprove it. If nothing could disprove the claim, it
@@ -194,7 +224,7 @@ there.
 
 Two specific traps:
 
-- **A mutation test that stops failing is a signal about the *test*.** When
+- **A mutation test that stops failing is a signal about the _test_.** When
   reintroducing a suspected bug stops producing failures, the test cannot see the
   bug — the assertion is wrong. Do not relax the assertion to make it pass.
 - **A mock proves the mock.** A test that mocks a platform API only shows the
@@ -239,7 +269,7 @@ Rules:
 - Start only what is actually down. `-Services` takes **one** name, not a list.
 - **Leave services running when you finish.** The next step usually needs them,
   and a stopped service is a slower "it doesn't work" than a running one.
-- Restart only when the process is *wrong* — wedged, listening on the wrong
+- Restart only when the process is _wrong_ — wedged, listening on the wrong
   port, or started before a dependency it needs.
 
 `scripts\start-services.ps1` is currently broken: it builds an array and passes
@@ -326,11 +356,11 @@ right tool and nothing has gone wrong.
 
 Properties of the machine, not the repo. Each has already caused a wrong action.
 
-| Bare name | Resolves to | Trap |
-|---|---|---|
-| `bash` | `C:\Windows\System32\bash.exe` | The **WSL launcher**, not Git Bash. Errors mention unrelated tools. For repo scripts use `C:\Program Files\Git\bin\bash.exe`. |
-| `python` | `C:\Python314\python.exe` (3.14.7) | Imports every backend package and passes `ruff`, but **fails pytest** (rc=1): 3.14's temp cleanup cannot remove `pytest-current`, giving `PermissionError [WinError 5]`. `nma-studio-cuda` gives rc=0. |
-| `node` | fnm `aliases\default\node.exe` | An alias pinned when it was created, not the newest installed. Prefer `pnpm.cmd` from Python with an explicit `cwd`. |
+| Bare name | Resolves to                        | Trap                                                                                                                                                                                                   |
+| --------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bash`    | `C:\Windows\System32\bash.exe`     | The **WSL launcher**, not Git Bash. Errors mention unrelated tools. For repo scripts use `C:\Program Files\Git\bin\bash.exe`.                                                                          |
+| `python`  | `C:\Python314\python.exe` (3.14.7) | Imports every backend package and passes `ruff`, but **fails pytest** (rc=1): 3.14's temp cleanup cannot remove `pytest-current`, giving `PermissionError [WinError 5]`. `nma-studio-cuda` gives rc=0. |
+| `node`    | fnm `aliases\default\node.exe`     | An alias pinned when it was created, not the newest installed. Prefer `pnpm.cmd` from Python with an explicit `cwd`.                                                                                   |
 
 **An interpreter having the packages installed is not the same as it working.**
 Verify by running the gate, never by inspecting imports - `tools/run-gates.py`
@@ -372,13 +402,14 @@ they are not part of this project and should never be invoked for repo tasks.
 
 ## Python Environments
 
-| Task | Interpreter |
-|------|-------------|
+| Task                        | Interpreter                                        |
+| --------------------------- | -------------------------------------------------- |
 | Backend / audio / ML / CUDA | `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` |
-| ComfyUI service only | `D:\conda-envs\comfyui-cuda\Scripts\python.exe` |
-| Fallback / CPU-only | `venv\Scripts\python.exe` |
+| ComfyUI service only        | `D:\conda-envs\comfyui-cuda\Scripts\python.exe`    |
+| Fallback / CPU-only         | `venv\Scripts\python.exe`                          |
 
 Rules:
+
 - Default to `nma-studio-cuda` for backend + GPU work.
 - Never use `comfyui-cuda` for backend work.
 
@@ -469,14 +500,14 @@ Individual gates, for iterating on one area:
 
 ## Quick Reference
 
-| What | Where |
-|------|-------|
+| What            | Where                    |
+| --------------- | ------------------------ |
 | Frontend source | `packages/frontend/src/` |
-| Backend source | `packages/backend/app/` |
-| Go sidecars | `tools/go-*` |
-| MCP bridges | `tools/mcp/` |
-| Unity project | `unity-project-mcp/` |
-| Visualizer | `unity-visualizer/` |
-| Port config | `config/ports.json` |
-| Logs | `output/logs/` |
-| Outputs | `output/` |
+| Backend source  | `packages/backend/app/`  |
+| Go sidecars     | `tools/go-*`             |
+| MCP bridges     | `tools/mcp/`             |
+| Unity project   | `unity-project-mcp/`     |
+| Visualizer      | `unity-visualizer/`      |
+| Port config     | `config/ports.json`      |
+| Logs            | `output/logs/`           |
+| Outputs         | `output/`                |

@@ -874,6 +874,18 @@ const server = new Server(
   { capabilities: { tools: {} } },
 );
 
+// Tools declared explicitly below carry richer MCP inputSchema descriptions.
+// TOOL_DEFS also contains vision_ocr / vision_batch_analyze (they back the
+// Ollama function-calling format and executeTool), so filter them out of the
+// spread to avoid listing the same tool twice in tools/list.
+const EXPLICIT_TOOLS = new Set([
+  "vision_describe",
+  "vision_compare",
+  "vision_ui_audit",
+  "vision_ocr",
+  "vision_batch_analyze",
+]);
+
 server.setRequestHandler("tools/list", async () => ({
   tools: [
     {
@@ -1004,7 +1016,7 @@ server.setRequestHandler("tools/list", async () => ({
         required: ["image_paths"],
       },
     },
-    ...TOOL_DEFS.map((t) => ({
+    ...TOOL_DEFS.filter((t) => !EXPLICIT_TOOLS.has(t.function.name)).map((t) => ({
       name: t.function.name,
       description: t.function.description,
       inputSchema: t.function.parameters,
