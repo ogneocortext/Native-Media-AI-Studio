@@ -350,13 +350,13 @@ date: 2026-09-29
 
 | Gap                        | Why It Matters                                                                                                                                          | Recommendation  |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| **Agent prompt contracts** | Each MCP tool has a description, but no formal input/output contract. Agents sometimes invent invalid commands (see `unity_command` unknown filtering). | 🔴 Research Now |
+| **Agent prompt contracts** | ✅ Done 2026-10-06 — input-side contracts now enforced in code: `packages/backend/app/services/mcp_validator.py` holds a JSON-Schema-subset registry per in-repo tool, `POST /api/mcp/validate-tool` exposes it over HTTP, and all four bridges (`ollama`, `vision`, `unity`, `hyperframes`) validate then dispatch the effective args; unknown (upstream) tools pass through. Remaining: *output*-side contracts are still undescribed — no schema for what a tool returns. | ✅ Done |
 | **Multi-agent pipeline**   | Current flow is single-agent sequential: analyze → generate → render. Could parallelize (analyze + 3D gen + prompt gen simultaneously).                 | 🟡 Defer        |
 | **Vision feedback loop**   | `vision-feedback` skill captures screenshots → Ollama → fixes. No structured schema for "what to look for" vs "what to fix".                            | 🟡 Defer        |
 
 ### Suggested Research
 
-1. **MCP tool contract standard**: Define a JSON Schema for every MCP tool's input/output. Store in `docs/knowledge-library/mcp-contracts.md`. Validate agent outputs against it.
+1. ~~MCP tool contract standard~~ — input side done 2026-10-06 (see §13 table; registry lives in `mcp_validator.py`, not in `mcp-contracts.md`). Open follow-up: output-side schemas per tool.
 2. **Parallel agent experiment**: Run 3 agents in parallel for a single track: (a) audio analysis, (b) 3D asset generation, (c) prompt engineering. Measure wall-clock time vs sequential.
 
 ---
@@ -402,7 +402,7 @@ date: 2026-09-29
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------- |
 | **Stale doc detection**           | `docs/knowledge/three-js-studio.md` was compiled 2026-09-15 but the code has evolved. No process to flag stale docs. | 🟡 Defer        |
 | **Cross-reference rot**           | Wiki-links like `[[video-generation-vram-2026]]` may break if files are renamed. No link checker exists.             | 🟢 Monitor      |
-| **Research → implementation gap** | `docs/plans/q2-auto-fallback.md` is approved but not implemented. Other approved plans may exist.                    | 🔴 Research Now |
+| **Research → implementation gap** | ✅ Q2 half done 2026-10-06 — `docs/plans/q2-auto-fallback.md` option (a) is implemented and committed; its plan-level `Verification` (degraded + healthy path against real ComfyUI) is still unrun. The other half stands: other approved plans may exist unimplemented — `docs/plans/STATUS.md` still does not exist. | 🟡 Defer |
 
 ### Suggested Research
 
@@ -578,7 +578,7 @@ not yet confirmed on screen against the existing styles.
 | Priority | Item                                | Owner     | Effort | Impact                                                                         |
 | -------- | ----------------------------------- | --------- | ------ | ------------------------------------------------------------------------------ |
 | P0       | Wan 2.2 red-pattern root cause (Q3) | Backend   | 2-4h   | Blocks all video gen                                                           |
-| P0       | Agent MCP tool contracts            | Fullstack | 4-8h   | ✅ Published mcp-contracts-2026.md                                             |
+| P0       | Agent MCP tool contracts            | Fullstack | 4-8h   | ✅ Published mcp-contracts-2026.md; input side now enforced in code (`mcp_validator.py` + `POST /api/mcp/validate-tool`, all four bridges dispatch effective args) |
 | P1       | Full-pipeline E2E test              | Fullstack | 4-8h   | ✅ P1a Playwright smoke unblocked (MIME fix); 13/13 health+pipeline tests pass |
 | P1       | VRAM leak test                      | Backend   | 2-4h   | ✅ 3 baseline/leak tests added; 9/9 pass                                       |
 | P1       | Video model sweep (LTX, Mochi)      | Backend   | 4-8h   | Requires GPU test runs                                                         |
@@ -609,4 +609,4 @@ not yet confirmed on screen against the existing styles.
 
 ---
 
-_Last updated: 2026-09-24_
+_Last updated: 2026-10-06_ (§13/§15 flipped to done: MCP input contracts + Q2 implementation landed; Q2 plan verification and output-side contracts remain open)

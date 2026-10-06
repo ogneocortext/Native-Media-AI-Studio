@@ -700,7 +700,7 @@
   `unity-visualizer/` in any cleanup** — protected directory per AGENTS.md.
 
 ### Q2 — Automatic AI → shader fallback in the music video wizard
-- **Status:** Open
+- **Status:** In evaluation (option (a) implemented 2026-10-06; plan-level verification outstanding)
 - **Context:** The wizard's per-section generation targets ComfyUI; if ComfyUI
   is down it returns 503 and the job dies. Shader presets (genre-mapped, e.g.
   `fireCrown` → Drift Phonk) and the Canvas2D visualizer exist as *manual*
@@ -711,6 +711,16 @@
 - **Recommendation:** (a). A failed AI section should degrade to a beat-synced
   shader render, not fail the job. This is the core "deterministic fallback for
   flaky AI assets" design goal.
+- **Implementation (2026-10-06, commit `7b29d72`):** option (a) built as a
+  job-level rather than per-section fallback — `services/visual_fallback.py`
+  (genre/track-name/energy/BPM → preset, mirroring the frontend
+  `selectVisualPreset`), `MusicVideoRequest` gains `genre`, `track_name`,
+  `on_source_failure` (`auto`|`fail`), missing-adapter and VRAM-shortfall
+  queue a degraded visualization job instead of 503, and the handler degrades
+  a failed AI render mid-flight with `degraded` / `visual_source_used` /
+  `fallback_reason` on the result. `fail` preserves the old hard-fail.
+  Unverified: the plan's own `Verification` (degraded + healthy path against
+  real ComfyUI) has not been run, so this stays In evaluation, not Resolved.
 
 ### Q3 — ComfyUI Wan smoke test (red-pattern output)
 - **Status:** In evaluation
@@ -768,6 +778,7 @@
 ---
 
 ## Changelog
+- 2026-10-06: Q2 moved Open → In evaluation — option (a) implemented and committed (`7b29d72`: `visual_fallback.py`, degraded queueing, mid-flight AI→FFmpeg degradation, `on_source_failure`); the plan's ComfyUI verification is unrun so it is not Resolved. Same pass closed two stale research markers in `app-research-gaps-2026.md`: §13 agent tool contracts (input side now enforced by `mcp_validator.py` + `POST /api/mcp/validate-tool`, all four bridges dispatch effective args; output-side schemas remain open) and §15 (Q2 plan implemented). Still genuinely open and highest-value: Q3 red-pattern root cause, the 8GB video-model sweep (LTX/Mochi/H3-quantized/DreamX/MAGI-2), Q6 lease design, and the §17/§20–22 creative-direction cluster (onboarding, VJ craft, shot language, color scripting) that would give the D23 motion vocabulary something to be driven by.
 - 2026-10-02: D28 recorded — the studio is the post-production for Suno v6-mini drafts. Pipeline is mini drafts in, social-ready video out; the studio owns the audio post chain (mix polish, consistency/arrangement repair, mastering) and the visual edit, with no DAW or video editor in between. Renumbered to D28 on merge: local work had already claimed D23–D27.
   AGENTS.md bootstrap updated to D1–D28.
 - 2026-10-02: model reliability tracker scaffolded under `tools/model-reliability/` — advertised-free snapshots from the OpenRouter public API and the Kilo gateway public endpoint (21 and 18 models respectively on first pull; no keys, no probing), a manual `observed.jsonl` session log seeded from owner experience, and `score.py` ranking models by recency-weighted observed reliability over advertised listings. Rationale: provider sites advertise listings, not working models — the score keeps the discovery layer (websites) separate from ground truth (real sessions). Never add synthetic probes; providers answer with account-level lockouts.
