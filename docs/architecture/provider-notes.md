@@ -172,3 +172,38 @@ not a candidate.
 - **Weak at:** TBD — record after more sessions.
 - **Quirks (needs explicit instruction for):** commit-trailer discipline — the first 5 commits shipped without the `Co-authored-by` trailer. The convention was reinstated in repo `AGENTS.md` ("Commit attribution", 2026-10-06) with trailer `Co-authored-by: Ling 3.1 Flash` (no email — InclusionAI, not Anthropic). Remind per session until it sticks.
 - **Cost / access notes:** free as of 2026-10-06 (per user). Treat as a promo window, not a guarantee — record the end date and any rate limits when they appear.
+
+## Ollama (local server) — 127.0.0.1:11434
+
+- **Model / route:** local Ollama server on Windows 11 /
+  GTX 1070 Ti (8 GB). Default and vision model
+  `gemma4:e2b-it-qat` (4.6B Q4_0); vision fallbacks
+  `qwen3-vl:2b`/`minicpm-v:8b`; text `qwen3.5:9b`;
+  embeddings `nomic-embed-text:v1.5`. Server upgraded
+  to **0.40.0** on 2026-10-06 (verified via
+  `GET /api/version`).
+- **First used:** 2026-09 (see
+  `docs/knowledge-library/ollama-thinking-structured-outputs.md`).
+- **Strong at:** vision analysis within the 8 GB VRAM
+  budget; `think: false` turns a 39.5 s reasoning
+  detour into a 0.6 s answer on the section-labelling
+  path (~65x, measured 2026-10-01 and still valid on
+  0.40.0).
+- **Weak at:** cold-load cost dominates (gemma4:
+  16.2 s warm / 88.6 s cold) — model ordering matters
+  as much as `think`. One model at a time on 8 GB.
+- **Quirks (needs explicit instruction for):**
+  `/api/generate` does not honor `think: false`
+  reliably for Qwen3.5/DeepSeek — use `/api/chat`.
+  On 0.40.0, `/api/show` reports the authoritative
+  per-model `thinking` controls and `capabilities`,
+  and `/api/tags` entries carry `capabilities` plus
+  `details.runner` (`ggml` on this build — the 0.40.0
+  MLX default is Apple-Silicon-only and does not apply
+  here). `typical_p` is deprecated; never send it.
+- **Cost / access notes:** local, free, no network
+  egress for local models. `:cloud` entries in
+  `/api/tags` proxy to ollama.com and return HTTP 402
+  without a paid key — `tools/probe-ollama.py` skips
+  them. VRAM managed by the backend's VRAM manager
+  (D7): `keep_alive 5m`, manual offload/reload.

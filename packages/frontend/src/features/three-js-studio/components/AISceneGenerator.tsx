@@ -11,6 +11,11 @@ import {
   Save,
   FileCode,
   Info,
+  Shield,
+  AlertCircle,
+  Cpu,
+  Eye,
+  Wrench,
 } from "lucide-react";
 import {
   useTrackMetadata,
@@ -112,7 +117,7 @@ export function AISceneGenerator({
 
   const loadModels = useCallback(async () => {
     try {
-      const m = await getOllamaModels();
+      const m = await getOllamaModels(true);
       // Fetch benchmarks in parallel and enrich sorting
       let benchMap: Record<string, OllamaBenchmarkResult> = {};
       try {
@@ -125,7 +130,10 @@ export function AISceneGenerator({
       }
 
       // Sort by benchmark score desc, then latency asc — best first
+      // Verified models first
       const sorted = [...m].sort((a, b) => {
+        // Verified models first
+        if (a.verified !== b.verified) return a.verified ? -1 : 1;
         const sa = a.benchmark?.score ?? benchMap[a.name]?.validation?.score ?? -1;
         const sb = b.benchmark?.score ?? benchMap[b.name]?.validation?.score ?? -1;
         if (sa !== sb) return sb - sa;
@@ -136,17 +144,18 @@ export function AISceneGenerator({
       setModels(sorted);
 
       if (sorted.length > 0 && !selectedModel) {
-        // Prefer highest benchmark score; fallback to qwen3.5:4b
-        const best = sorted[0];
+        // Prefer highest benchmark score among verified models; fallback to qwen3.5:4b
+        const verifiedModels = sorted.filter((x) => x.verified);
+        const bestVerified = verifiedModels[0];
         const benchBest =
-          best?.benchmark?.success !== false &&
-          (best?.benchmark?.score ?? benchMap[best.name]?.validation?.score ?? 0) >= 40
-            ? best
+          bestVerified?.benchmark?.success !== false &&
+          (bestVerified?.benchmark?.score ?? benchMap[bestVerified.name]?.validation?.score ?? 0) >= 40
+            ? bestVerified
             : null;
         const fallback =
           sorted.find((x) => x.name === "qwen3.5:4b (3389983735)") ||
           sorted.find((x) => x.name.includes("qwen3.5:4b"));
-        const preferred = benchBest || fallback || sorted[0];
+        const preferred = benchBest || fallback || bestVerified || sorted[0];
         setSelectedModel(preferred.name);
       }
     } catch {
@@ -460,37 +469,37 @@ Return ONLY the function, no fences.`;
                   <span className="text-[10px] text-white/40">Selected</span>
                 </div>
                 <div className="flex gap-1.5 min-w-0">
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    className="flex-1 min-w-0 w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white truncate"
-                    title={selectedModel || "No model selected"}
-                    onClick={loadModels}
-                  >
-                    {models.length === 0 && <option value="">Click to load models...</option>}
-                    {models.map((m) => {
-                      const full = benchmarks[m.name] as any;
-                      const bench = (full || m.benchmark) as any;
-                      const score = bench?.validation?.score ?? bench?.score ?? null;
-                      const latency = bench?.latency_ms ?? null;
-                      const success = bench?.success;
-                      let badge = "";
-                      if (score !== null && score >= 0) {
-                        const s = Math.round(score);
-                        const ok = success === false ? "✗" : s >= 70 ? "✓" : s >= 40 ? "~" : "✗";
-                        badge = ` [${ok} ${s}/100${latency ? ` ${formatLatency(latency)}` : ""}]`;
-                      } else if (score === null) {
-                        badge = " [—]";
-                      }
-                      const isBest = models[0]?.name === m.name && score !== null && score >= 60;
-                      return (
-                        <option key={m.name} value={m.name}>
-                          {m.name} ({formatModelSize(m.size)}){badge}
-                          {isBest ? " ★ Best" : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
+<select
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value)}
+                      className="flex-1 min-w-0 w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white truncate"
+                      title={selectedModel || "No model selected"}
+                      onClick={loadModels}
+                    >
+                      {models.length === 0 && <option value="">Click to load verified models...</option>}
+                      {models.map((m) => {
+                        const full = benchmarks[m.name] as any;
+                        const bench = (full || m.benchmark) as any;
+                        const score = bench?.validation?.score ?? bench?.score ?? null;
+                        const latency = bench?.latency_ms ?? null;
+                        const success = bench?.success;
+                        let badge = "";
+                        if (score !== null && score >= 0) {
+                          const s = Math.round(score);
+                          const ok = success === false ? "✗" : s >= 70 ? "✓" : s >= 40 ? "~" : "✗";
+                          badge = ` [${ok} ${s}/100${latency ? ` ${formatLatency(latency)}` : ""}]`;
+                        } else if (score === null) {
+                          badge = " [—]";
+                        }
+                        const isBest = models[0]?.name === m.name && score !== null && score >= 60;
+                        return (
+                          <option key={m.name} value={m.name}>
+                            {m.name} ({formatModelSize(m.size)}){m.verified ? " ✅" : " ⚠️"}{badge}
+                            {isBest ? " ★ Best" : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
                 </div>
                 <div
                   className="mt-1 text-[10px] text-white/45 truncate"
@@ -498,65 +507,119 @@ Return ONLY the function, no fences.`;
                 >
                   {selectedModel || "No model selected"}
                 </div>
-                {(() => {
-                  const active = models.find((x) => x.name === selectedModel);
-                  const bFull = active ? (benchmarks[active.name] as any) : null;
-                  const bShallow = active?.benchmark as any;
-                  const b = (bFull || bShallow) as any;
-                  // Need full validation for details view; if only shallow, show summary and prompt to benchmark
-                  if (!b || !b.validation) {
-                    if (b && b.score !== undefined) {
-                      const scShallow = b.score;
-                      const colS =
-                        scShallow >= 80
-                          ? "text-green-400"
-                          : scShallow >= 60
-                            ? "text-amber-300"
-                            : "text-orange-400";
-                      return (
-                        <div className="mt-1.5 bg-gray-900/70 border border-gray-800 rounded p-1.5 text-[10px]">
-                          <span className={`font-mono font-bold ${colS}`}>
-                            {Math.round(scShallow)}/100 {b.success ? "✓" : "✗"}
-                          </span>
-                          <span className="text-gray-400 ml-2">{formatLatency(b.latency_ms)}</span>
-                          <div className="text-gray-500 mt-1">
-                            Details from models list only — run{" "}
-                            <span className="text-amber-400">Benchmark</span> for full report.
+{(() => {
+                    const active = models.find((x) => x.name === selectedModel);
+                    const bFull = active ? (benchmarks[active.name] as any) : null;
+                    const bShallow = active?.benchmark as any;
+                    const b = (bFull || bShallow) as any;
+                    // Need full validation for details view; if only shallow, show summary and prompt to benchmark
+                    if (!b || !b.validation) {
+                      if (b && b.score !== undefined) {
+                        const scShallow = b.score;
+                        const colS =
+                          scShallow >= 80
+                            ? "text-green-400"
+                            : scShallow >= 60
+                              ? "text-amber-300"
+                              : "text-orange-400";
+                        return (
+                          <div className="mt-1.5 bg-gray-900/70 border border-gray-800 rounded p-1.5 text-[10px]">
+                            <div className="flex flex-wrap gap-1.5 mb-1">
+                              {active?.verified && (
+                                <span className="text-green-400 flex items-center gap-1">
+                                  <Shield size={10} /> Verified
+                                </span>
+                              )}
+                              {!active?.verified && active?.broken_reason && (
+                                <span className="text-red-400 flex items-center gap-1">
+                                  <AlertCircle size={10} /> {active.broken_reason}
+                                </span>
+                              )}
+                              {active?.supportsTools && (
+                                <span className="text-amber-400 flex items-center gap-1">
+                                  <Wrench size={10} /> Tools
+                                </span>
+                              )}
+                              {active?.supportsVision && (
+                                <span className="text-blue-400 flex items-center gap-1">
+                                  <Eye size={10} /> Vision
+                                </span>
+                              )}
+                              {active?.supportsThinking && (
+                                <span className="text-purple-400 flex items-center gap-1">
+                                  <Cpu size={10} /> Thinking
+                                </span>
+                              )}
+                            </div>
+                            <span className={`font-mono font-bold ${colS}`}>
+                              {Math.round(scShallow)}/100 {b.success ? "✓" : "✗"}
+                            </span>
+                            <span className="text-gray-400 ml-2">{formatLatency(b.latency_ms)}</span>
+                            <div className="text-gray-500 mt-1">
+                              Details from models list only — run{" "}
+                              <span className="text-amber-400">Benchmark</span> for full report.
+                            </div>
                           </div>
+                        );
+                      }
+                      return (
+                        <div className="mt-1 text-[10px] text-gray-500">
+                          No benchmark yet — click <span className="text-amber-400">Benchmark</span>{" "}
+                          to rank models. Best will be auto-selected.
+                          {benchUpdatedAt && (
+                            <span className="ml-1">
+                              Last: {new Date(benchUpdatedAt).toLocaleString()}
+                            </span>
+                          )}
                         </div>
                       );
                     }
+                    const sc = b.validation.score;
+                    const col =
+                      sc >= 80
+                        ? "text-green-400"
+                        : sc >= 60
+                          ? "text-amber-300"
+                          : sc >= 40
+                            ? "text-orange-400"
+                            : "text-red-400";
                     return (
-                      <div className="mt-1 text-[10px] text-gray-500">
-                        No benchmark yet — click <span className="text-amber-400">Benchmark</span>{" "}
-                        to rank models. Best will be auto-selected.
-                        {benchUpdatedAt && (
-                          <span className="ml-1">
-                            Last: {new Date(benchUpdatedAt).toLocaleString()}
+                      <div className="mt-1.5 bg-gray-900/70 border border-gray-800 rounded p-1.5 text-[10px] space-y-1">
+                        <div className="flex flex-wrap gap-1.5 mb-1">
+                          {active?.verified && (
+                            <span className="text-green-400 flex items-center gap-1">
+                              <Shield size={10} /> Verified Working
+                            </span>
+                          )}
+                          {!active?.verified && active?.broken_reason && (
+                            <span className="text-red-400 flex items-center gap-1">
+                              <AlertCircle size={10} /> {active.broken_reason}
+                            </span>
+                          )}
+                          {active?.supportsTools && (
+                            <span className="text-amber-400 flex items-center gap-1">
+                              <Wrench size={10} /> Tools
+                            </span>
+                          )}
+                          {active?.supportsVision && (
+                            <span className="text-blue-400 flex items-center gap-1">
+                              <Eye size={10} /> Vision
+                            </span>
+                          )}
+                          {active?.supportsThinking && (
+                            <span className="text-purple-400 flex items-center gap-1">
+                              <Cpu size={10} /> Thinking
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className={`font-mono font-bold ${col}`}>
+                            {Math.round(sc)}/100 {b.success ? "✓ valid" : "✗ failed"}
                           </span>
-                        )}
-                      </div>
-                    );
-                  }
-                  const sc = b.validation.score;
-                  const col =
-                    sc >= 80
-                      ? "text-green-400"
-                      : sc >= 60
-                        ? "text-amber-300"
-                        : sc >= 40
-                          ? "text-orange-400"
-                          : "text-red-400";
-                  return (
-                    <div className="mt-1.5 bg-gray-900/70 border border-gray-800 rounded p-1.5 text-[10px] space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className={`font-mono font-bold ${col}`}>
-                          {Math.round(sc)}/100 {b.success ? "✓ valid" : "✗ failed"}
-                        </span>
-                        <span className="text-gray-400">
-                          {formatLatency(b.latency_ms)} • {b.lines} lines • {b.chars} chars
-                        </span>
-                      </div>
+                          <span className="text-gray-400">
+                            {formatLatency(b.latency_ms)} • {b.lines} lines • {b.chars} chars
+                          </span>
+                        </div>
                       <div className="flex gap-1 text-[9px]">
                         <span
                           className={

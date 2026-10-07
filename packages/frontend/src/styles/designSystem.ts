@@ -108,6 +108,8 @@ export const DS = {
     "text-xs px-2 py-0.5 rounded-full bg-amber-900/30 border border-amber-700 text-amber-400 light:text-amber-700",
   badgeBlue:
     "text-xs px-2 py-0.5 rounded-full bg-blue-900/30 border border-blue-700 text-blue-400 light:text-blue-700",
+  badgePurple:
+    "text-xs px-2 py-0.5 rounded-full bg-purple-900/30 border border-purple-700 text-purple-400 light:text-purple-700",
 
   // Upload
   uploadZone: "relative border-2 border-dashed rounded-xl p-8 text-center transition-colors",

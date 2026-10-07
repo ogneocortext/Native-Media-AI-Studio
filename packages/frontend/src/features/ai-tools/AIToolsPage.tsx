@@ -11,13 +11,20 @@ import {
   Palette,
   X,
   Wrench,
+  Shield,
+  Eye,
+  Cpu,
+  Code2,
 } from "lucide-react";
 import {
   getOllamaModels,
   ollamaChatStream,
   parseOllamaStream,
+  getBenchmarkResults,
+  runBenchmark,
   type OllamaModel,
   type ToolDefinition,
+  type OllamaBenchmarkResult,
 } from "../../services/api";
 import { DS } from "../../styles/designSystem";
 import { VisualizationCanvas } from "./VisualizationCanvas";
@@ -47,6 +54,8 @@ export function AIToolsPage() {
   const [vizConfig, setVizConfig] = useState<
     import("./VisualizationCanvas").VisualizationConfig | null
   >(null);
+  const [benchmarks, setBenchmarks] = useState<Record<string, OllamaBenchmarkResult>>({});
+  const [benchLoading, setBenchLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -55,7 +64,8 @@ export function AIToolsPage() {
 
   const loadModels = async () => {
     try {
-      const modelList = await getOllamaModels();
+      // Load verified models by default
+      const modelList = await getOllamaModels(true);
       // Trust the backend. It now asks Ollama /api/show for authoritative
       // capabilities; the name checks that used to live here were wrong in both
       // directions and only ever added false positives - a model named "qwen..." was
@@ -66,10 +76,35 @@ export function AIToolsPage() {
         supportsTools: m.capabilities?.includes("tools") ?? false,
         supportsVision: m.capabilities?.includes("vision") ?? false,
       }));
-      setModels(enhanced);
+
+      // Fetch benchmarks in parallel and enrich sorting
+      let benchMap: Record<string, OllamaBenchmarkResult> = {};
+      try {
+        const data = await getBenchmarkResults();
+        benchMap = data.results || {};
+        setBenchmarks(benchMap);
+      } catch {
+        /* no benchmarks yet */
+      }
+
+      // Sort by benchmark score desc, then latency asc — best first
+      // Verified models first
+      const sorted = [...enhanced].sort((a, b) => {
+        // Verified models first
+        if (a.verified !== b.verified) return a.verified ? -1 : 1;
+        const sa = a.benchmark?.score ?? benchMap[a.name]?.validation?.score ?? -1;
+        const sb = b.benchmark?.score ?? benchMap[b.name]?.validation?.score ?? -1;
+        if (sa !== sb) return sb - sa;
+        const la = a.benchmark?.latency_ms ?? benchMap[a.name]?.latency_ms ?? 999999;
+        const lb = b.benchmark?.latency_ms ?? benchMap[b.name]?.latency_ms ?? 999999;
+        return la - lb;
+      });
+      setModels(sorted);
       setOllamaConnected(true);
-      if (enhanced.length > 0 && !selectedModel) {
-        setSelectedModel(enhanced[0].name);
+      if (sorted.length > 0 && !selectedModel) {
+        // Prefer the first verified model with tools support
+        const toolModel = sorted.find((m) => m.supportsTools);
+        setSelectedModel(toolModel?.name || sorted[0].name);
       }
     } catch {
       setOllamaConnected(false);
@@ -88,6 +123,31 @@ export function AIToolsPage() {
         },
       }));
   }, [tools, enabledTools]);
+
+  const handleRunBenchmark = useCallback(async () => {
+    setBenchLoading(true);
+    try {
+      const data = await runBenchmark(undefined, 8);
+      setBenchmarks(data.results || {});
+      // Re-sort models by new scores
+      setModels((prev) => {
+        const sorted = [...prev].sort((a, b) => {
+          const sa = data.results[a.name]?.validation?.score ?? -1;
+          const sb = data.results[b.name]?.validation?.score ?? -1;
+          if (sa !== sb) return sb - sa;
+          return (
+            (data.results[a.name]?.latency_ms ?? 999999) -
+            (data.results[b.name]?.latency_ms ?? 999999)
+          );
+        });
+        return sorted;
+      });
+    } catch {
+      // Benchmark failed - silently ignore, models stay as-is
+    } finally {
+      setBenchLoading(false);
+    }
+  }, []);
 
   const handleGenerate = async () => {
     if (!prompt.trim() || !selectedModel) return;
@@ -228,34 +288,108 @@ export function AIToolsPage() {
             <label className={DS.textSmMedium + " block mb-2"}>Model</label>
             {models.length > 0 ? (
               <div className="space-y-2">
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className={DS.select}
-                >
-                  {models.map((m) => (
-                    <option key={m.name} value={m.name}>
-                      {m.name} ({formatSize(m.size)}){m.supportsTools ? " 🔧" : ""}
-                      {m.supportsVision ? " 👁" : ""}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between">
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className={DS.select + " flex-1"}
+                    onClick={loadModels}
+                  >
+                    {models.map((m) => {
+                      const bench = benchmarks[m.name];
+                      const score = bench?.validation?.score ?? m.benchmark?.score ?? null;
+                      const latency = bench?.latency_ms ?? m.benchmark?.latency_ms ?? null;
+                      const success = bench?.success ?? m.benchmark?.success ?? null;
+                      let badge = "";
+                      if (score !== null && score >= 0) {
+                        const s = Math.round(score);
+                        const ok = success === false ? "✗" : s >= 70 ? "✓" : s >= 40 ? "~" : "✗";
+                        badge = ` [${ok} ${s}/100${latency ? ` ${(latency / 1000).toFixed(1)}s` : ""}]`;
+                      } else if (score === null) {
+                        badge = " [—]";
+                      }
+                      const isBest = models[0]?.name === m.name && score !== null && score >= 60;
+                      return (
+                        <option key={m.name} value={m.name}>
+                          {m.name} ({formatSize(m.size)}){m.verified ? " ✅" : " ⚠️"}{m.supportsTools ? " 🔧" : ""}
+                          {m.supportsVision ? " 👁" : ""}{badge}
+                          {isBest ? " ★ Best" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <button
+                    onClick={handleRunBenchmark}
+                    disabled={benchLoading}
+                    className="ml-2 px-2 py-1 text-xs rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/20 disabled:opacity-50 flex items-center gap-1"
+                    title="Benchmark all models"
+                  >
+                    {benchLoading ? (
+                      <span className="w-3 h-3 border border-amber-300 border-t-transparent rounded-full animate-spin inline-block" />
+                    ) : (
+                      "⚡"
+                    )}{" "}
+                    {benchLoading ? "…" : "Benchmark"}
+                  </button>
+                </div>
                 {selectedModelData && (
-                  <div className="flex gap-2 text-xs">
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {selectedModelData.verified && (
+                      <span className={DS.badgeGreen + " flex items-center gap-1"}>
+                        <Shield size={10} /> Verified Working
+                      </span>
+                    )}
+                    {!selectedModelData.verified && selectedModelData.broken_reason && (
+                      <span className={DS.badgeRed + " flex items-center gap-1"}>
+                        <AlertCircle size={10} /> {selectedModelData.broken_reason}
+                      </span>
+                    )}
                     {selectedModelData.supportsTools && (
                       <span className={DS.badgeGreen + " flex items-center gap-1"}>
                         <Wrench size={10} /> Tools
                       </span>
                     )}
                     {selectedModelData.supportsVision && (
-                      <span className={DS.badgeBlue}>👁 Vision</span>
+                      <span className={DS.badgeBlue + " flex items-center gap-1"}>
+                        <Eye size={10} /> Vision
+                      </span>
+                    )}
+                    {selectedModelData.supportsThinking && (
+                      <span className={DS.badgePurple + " flex items-center gap-1"}>
+                        <Cpu size={10} /> Thinking
+                      </span>
+                    )}
+                    {selectedModelData.verified_features?.includes("blender") && (
+                      <span className="bg-amber-900/50 text-amber-300 border border-amber-700/50 px-2 py-0.5 rounded text-xs flex items-center gap-1">
+                        <Code2 size={10} /> Blender Scripts
+                      </span>
+                    )}
+                    {selectedModelData.verified_features?.includes("visualizer") && (
+                      <span className="bg-purple-900/50 text-purple-300 border border-purple-700/50 px-2 py-0.5 rounded text-xs flex items-center gap-1">
+                        <Palette size={10} /> Visualizer
+                      </span>
+                    )}
+                    {selectedModelData.performance?.tokens_per_sec && (
+                      <span className="bg-gray-800 border border-gray-700 px-2 py-0.5 rounded text-xs">
+                        ⚡ {selectedModelData.performance.tokens_per_sec} tok/s
+                      </span>
+                    )}
+                    {selectedModelData.performance?.vision_latency_sec && (
+                      <span className="bg-gray-800 border border-gray-700 px-2 py-0.5 rounded text-xs">
+                        👁 ~{selectedModelData.performance.vision_latency_sec}s vision
+                      </span>
+                    )}
+                    {selectedModelData.verification_notes && (
+                      <span className="bg-gray-800 border border-gray-700 px-2 py-0.5 rounded text-xs" title={selectedModelData.verification_notes}>
+                        ℹ️
+                      </span>
                     )}
                   </div>
                 )}
               </div>
             ) : (
               <p className={DS.textXs}>
-                No Ollama models available. Start Ollama to use this feature.
+                No verified Ollama models available. Start Ollama to use this feature.
               </p>
             )}
           </div>

@@ -19,12 +19,17 @@
       "qwen3-vl:4b (vision fallback)",
       "minicpm-v:8b (OCR specialist)"
     ],
-    "api_version": "0.33+",
+    "api_version": "0.40.0",
     "features": [
       "/api/chat is the recommended endpoint for multimodal",
       "think parameter supports extended reasoning (0.21.3+)",
       "format=json_schema enables structured output (0.33+)",
-      "keep_alive caches model metadata for ~50% faster TTFT"
-    ]
+      "keep_alive caches model metadata for ~50% faster TTFT",
+      "/api/show advertises per-model thinking controls and capabilities (0.34.3+)",
+      "/api/tags entries carry capabilities and details.runner (0.34.1+/0.40.0)",
+      "structured outputs on thinking models apply in a single pass (0.34.4+)",
+      "typical_p is deprecated - do not send it (0.34.1+, warning since 0.35.0)"
+    ],
+    "platform_note": "The 0.40.0 headline (MLX default on Apple Silicon) does not apply to this Windows/llama.cpp build - local models report runner=ggml"
   }
 }

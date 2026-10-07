@@ -8,9 +8,16 @@ export interface OllamaModel {
   capabilities?: string[];
   supportsTools?: boolean;
   supportsVision?: boolean;
+  supportsThinking?: boolean;
   vram_estimate_mb?: number;
   benchmark?: { score: number; latency_ms: number; success: boolean; timestamp: string };
   codingBenchmark?: { score: number; latency_ms: number; success: boolean; timestamp: string };
+  // Verification fields
+  verified?: boolean;
+  verified_features?: string[];
+  performance?: { tokens_per_sec?: number; vision_latency_sec?: number };
+  verification_notes?: string;
+  broken_reason?: string;
 }
 
 export interface ChatMessage {
@@ -34,9 +41,9 @@ export interface ToolDefinition {
   };
 }
 
-export async function getOllamaModels(): Promise<OllamaModel[]> {
+export async function getOllamaModels(verifiedOnly = false): Promise<OllamaModel[]> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/models`, { timeout: 30000 });
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/models?verified_only=${verifiedOnly}`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get Ollama models");
   const payload = await res.json();
   const entries = Array.isArray(payload) ? payload : payload.models || [];
@@ -70,8 +77,17 @@ export async function getOllamaModels(): Promise<OllamaModel[]> {
         supportsVision:
           (pick("supportsVision", "supports_vision") as boolean | undefined) ??
           caps.includes("vision"),
+        supportsThinking:
+          (pick("supportsThinking", "supports_thinking") as boolean | undefined) ??
+          caps.includes("thinking"),
         vram_estimate_mb:
           (pick("vram_estimate_mb", "vram_required") as number | undefined) ?? 0,
+        // Verification fields
+        verified: pick("verified") as boolean | undefined,
+        verified_features: pick("verified_features") as string[] | undefined,
+        performance: pick("performance") as { tokens_per_sec?: number; vision_latency_sec?: number } | undefined,
+        verification_notes: pick("verification_notes") as string | undefined,
+        broken_reason: pick("broken_reason") as string | undefined,
       };
     })
     .filter((m: OllamaModel) => {

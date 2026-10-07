@@ -118,6 +118,67 @@ async def get_visualization_presets() -> dict:
     return {"presets": presets, "count": len(presets)}
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Model Verification — Known working models from empirical testing (2026-10-07)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Models verified to work correctly with all features (chat, tools, vision, blender)
+VERIFIED_WORKING_MODELS = {
+    # Text/Chat - fastest and most reliable
+    "gemma4:e2b-it-qat": {
+        "verified": True,
+        "verified_features": ["chat", "tools", "vision", "blender", "visualizer"],
+        "performance": {"tokens_per_sec": 104, "vision_latency_sec": 27},
+        "notes": "Fastest overall; works for all features",
+    },
+    # Vision - optimized variants
+    "qwen3-vl-optimized:latest": {
+        "verified": True,
+        "verified_features": ["chat", "vision"],
+        "performance": {"tokens_per_sec": 0, "vision_latency_sec": 8},
+        "notes": "Fastest vision model (~8s)",
+    },
+    "gemma4-vision-optimized:latest": {
+        "verified": True,
+        "verified_features": ["chat", "vision"],
+        "performance": {"tokens_per_sec": 0, "vision_latency_sec": 95},
+        "notes": "Good vision quality, slower",
+    },
+    "llamacpp:94c2d4e5": {  # partial match for llama.cpp vision models
+        "verified": True,
+        "verified_features": ["chat", "vision"],
+        "performance": {"tokens_per_sec": 0, "vision_latency_sec": 11},
+        "notes": "Good llama.cpp vision variant",
+    },
+}
+
+# Models with known issues - should be hidden or warned
+BROKEN_MODELS = {
+    "qwen3-vl:2b": {"reason": "timeout, thinking-only output"},
+    "qwen3-vl:4b": {"reason": "timeout >120s"},
+    "minicpm-v:8b": {"reason": "timeout >180s"},
+    "qwen3.5:9b": {"reason": "timeout 180s for blender script"},
+    "openbmb/minicpm-v4.6:q4_K_M": {"reason": "invalid Blender API output"},
+    "deepseek-v4-flash:cloud": {"reason": "cloud model, /api/show fails"},
+}
+
+
+def is_model_verified(name: str) -> tuple[bool, dict]:
+    """Check if a model is verified working and return verification info."""
+    # Exact match
+    if name in VERIFIED_WORKING_MODELS:
+        return True, VERIFIED_WORKING_MODELS[name]
+    # Partial match for llama.cpp models with hash suffixes
+    for key, info in VERIFIED_WORKING_MODELS.items():
+        if name.startswith(key.split(":")[0]) and ":" in key:
+            return True, info
+    # Check if known broken
+    if name in BROKEN_MODELS:
+        return False, {"verified": False, "broken_reason": BROKEN_MODELS[name]["reason"]}
+    # Unknown model - not verified
+    return False, {"verified": False, "broken_reason": "not_tested"}
+
+
 def _describe_model(m: dict, resolved: dict[str, list[str] | None], oc) -> dict:
     """One model row for /ollama/models.
 
@@ -132,6 +193,10 @@ def _describe_model(m: dict, resolved: dict[str, list[str] | None], oc) -> dict:
     caps = resolved.get(name) or oc.normalize_capabilities(m.get("capabilities")) or ["chat"]
     capability_set = set(caps)
     tool_capable = "tools" in capability_set
+
+    # Get verification status
+    verified, verify_info = is_model_verified(name)
+
     return {
         "id": name,
         "model_name": name,
@@ -144,22 +209,47 @@ def _describe_model(m: dict, resolved: dict[str, list[str] | None], oc) -> dict:
         "supports_tools": tool_capable,
         "supports_vision": "vision" in capability_set,
         "supports_thinking": "thinking" in capability_set,
+        # Verification fields
+        "verified": verified,
+        "verified_features": verify_info.get("verified_features", []),
+        "performance": verify_info.get("performance", {}),
+        "verification_notes": verify_info.get("notes", ""),
+        "broken_reason": verify_info.get("broken_reason", ""),
     }
 
 
 @router.get("/ollama/models", operation_id="get_ollama_models_alias")
 @router.get("/ollama-models", operation_id="get_config_ollama_models")
-async def get_ollama_models() -> dict:
-    """Get available Ollama models with capability info and VRAM requirements."""
+async def get_ollama_models(verified_only: bool = False) -> dict:
+    """Get available Ollama models with capability info and VRAM requirements.
+
+    Args:
+        verified_only: If true, only return models verified to work correctly
+    """
     try:
         from ..core import ollama_client as _oc
         entries = await _oc.list_models(timeout=10)
         if entries is None:
             return {"models": [], "count": 0}
-        resolved = await _oc.resolve_capabilities_for_entries(entries, timeout=10)
+
+        # Deduplicate by model name (Ollama sometimes returns duplicates)
+        seen = set()
+        unique_entries = []
+        for m in entries:
+            name = m.get("name", "")
+            if name and name not in seen:
+                seen.add(name)
+                unique_entries.append(m)
+
+        resolved = await _oc.resolve_capabilities_for_entries(unique_entries, timeout=10)
+        models = [_describe_model(m, resolved, _oc) for m in unique_entries]
+
+        if verified_only:
+            models = [m for m in models if m.get("verified", False)]
+
         return {
-            "models": [_describe_model(m, resolved, _oc) for m in entries],
-            "count": len(entries),
+            "models": models,
+            "count": len(models),
         }
     except Exception as e:
         return {"models": [], "count": 0, "error": str(e)}

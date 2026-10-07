@@ -9,7 +9,7 @@
 > **Context**, **Decision**, and **Consequences**. Open questions carry a
 > **Recommendation** where one exists.
 >
-> Current scope: D1–D33 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D35 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 
 ---
 
@@ -1166,3 +1166,64 @@
   `tests/test_remix_jobs.py` (7) and four new
   `test_stem_remixer.py` cases; full backend suite
   621 passed, frontend 573 passed.
+
+### D35 — Ollama 0.40.0: adopt the capability surface, not the MLX default (2026-10-06)
+
+- **Status:** Decided
+- **Context:** The local server was upgraded to Ollama
+  0.40.0 (verified live: `GET /api/version` →
+  `{"version": "0.40.0"}`). The headline change — MLX as
+  the default engine on Apple Silicon — does **not** apply
+  to this repo's platform (Windows 11, GTX 1070 Ti; every
+  local model reports `details.runner: "ggml"`). What does
+  apply is the new introspection surface: `/api/show`
+  advertises per-model `thinking` controls and
+  `capabilities` (0.34.3+), `/api/tags` entries carry
+  `capabilities` and `details.runner` (0.34.1+/0.40.0),
+  structured outputs on thinking models apply in a single
+  pass (0.34.4), and `typical_p` is deprecated (0.34.1,
+  warning-only since 0.35.0). Decision models arrived via
+  `/v1/systemone` in 0.35.0.
+- **Decision:** Adopt the introspection surface; ignore the
+  engine change.
+  - `tools/probe-ollama.py` (the repo's characterization
+    instrument) now records `capabilities` and
+    `details.runner` per model from `/api/tags` and probes
+    `/api/show` for the probed model's `thinking` controls
+    and capabilities — the authoritative answer to "does
+    this model support `think`", replacing response-shape
+    inference. Verified live against 0.40.0: e.g.
+    `gemma4:e2b-it-qat` → `thinking: {"values": [false,
+    true], "default": true}`, `llama3.2:3b` →
+    `{"values": [false], "default": false}` (no thinking
+    capability at all). Also removed a duplicated
+    `is_remote` definition that shadowed the first (identical
+    bodies, so no behavior change — dead code only).
+  - `config/settings.json` `_ollama_notes.api_version`
+    0.33+ → 0.40.0 with the new features;
+    `config/hardware-profile.json` `_ollama_0.33_notes` →
+    `_ollama_0.40_notes`. Both keys are documentation-only
+    (no code reads them — verified by grep).
+  - Docs updated: the thinking/structured-outputs
+    knowledge-library article (version header 0.35.0 →
+    0.40.0 plus a measured 2026-10-06 section), a new
+    Ollama section in `docs/architecture/provider-notes.md`,
+    and this entry.
+  - **No adapter change.** The backend already sends
+    `think: False` on every structured-output path
+    (`api/audio_analysis.py`, `api/integrations_generation.py`,
+    `services/music_prompt_generator.py`,
+    `services/hardware_benchmark.py`) and `think` is
+    optional elsewhere; sending `think` to a model without
+    the capability is tolerated, and the measured ~65x win
+    (gemma4, 39.5 s → 0.6 s) is on a model that has it.
+    `typical_p` is never sent (grep-verified). Surfacing
+    `capabilities` in `GET /api/integrations/ollama/models`
+    is a possible follow-up, deliberately not done here.
+- **Consequences:** The probe output is the record of what
+  0.40.0 actually serves; re-run it after any future Ollama
+  upgrade. The MLX default is irrelevant on this build, so
+  no model re-pulls are needed — existing GGUF quants keep
+  running on llama.cpp. A future agent tempted to "use MLX"
+  should check `details.runner` first: on this machine it is
+  always `ggml`.

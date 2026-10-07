@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from "react";
-import { Send, Loader2, Bot, User, ChevronDown, Wrench } from "lucide-react";
+import { Send, Loader2, Bot, User, ChevronDown, Wrench, Shield, Eye, Cpu, AlertCircle } from "lucide-react";
 import { Card } from "../../components/common";
 import {
   getApiBase,
   getOllamaModels,
   ollamaChatStream,
   parseOllamaStream,
+  getBenchmarkResults,
   type ChatMessage,
   type OllamaModel,
   type ToolDefinition,
+  type OllamaBenchmarkResult,
 } from "../../services/api";
 
 export function OllamaChat() {
@@ -20,6 +22,7 @@ export function OllamaChat() {
   const [modelsLoading, setModelsLoading] = useState(true);
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [toolsEnabled, setToolsEnabled] = useState(true);
+  const [benchmarks, setBenchmarks] = useState<Record<string, OllamaBenchmarkResult>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -27,19 +30,41 @@ export function OllamaChat() {
     async function loadModels() {
       try {
         const [data, toolsData] = await Promise.all([
-          getOllamaModels(),
+          getOllamaModels(true),
           fetch(`${getApiBase()}/api/integrations/ollama/tools`, {
             signal: AbortSignal.timeout(10000),
           })
             .then((r) => r.json())
             .catch(() => ({ tools: [] })),
         ]);
-        setModels(data);
+
+        // Fetch benchmarks in parallel
+        let benchMap: Record<string, OllamaBenchmarkResult> = {};
+        try {
+          const benchData = await getBenchmarkResults();
+          benchMap = benchData.results || {};
+          setBenchmarks(benchMap);
+        } catch {
+          /* no benchmarks yet */
+        }
+
+        // Sort by benchmark score desc, then latency asc — best first
+        // Verified models first
+        const sorted = [...data].sort((a, b) => {
+          if (a.verified !== b.verified) return a.verified ? -1 : 1;
+          const sa = a.benchmark?.score ?? benchMap[a.name]?.validation?.score ?? -1;
+          const sb = b.benchmark?.score ?? benchMap[b.name]?.validation?.score ?? -1;
+          if (sa !== sb) return sb - sa;
+          const la = a.benchmark?.latency_ms ?? benchMap[a.name]?.latency_ms ?? 999999;
+          const lb = b.benchmark?.latency_ms ?? benchMap[b.name]?.latency_ms ?? 999999;
+          return la - lb;
+        });
+        setModels(sorted);
         setTools(toolsData.tools || []);
         const preferred = ["gemma4:e2b-it-qat", "qwen3.5:4b", "qwen3-vl:2b"];
-        const preferredModel = preferred.find((name) => data.some((model) => model.name === name));
+        const preferredModel = preferred.find((name) => sorted.some((model) => model.name === name));
         if (preferredModel) setSelectedModel(preferredModel);
-        else if (data.length > 0) setSelectedModel(data[0].name);
+        else if (sorted.length > 0) setSelectedModel(sorted[0].name);
       } catch {
         // ignore
       } finally {
@@ -210,32 +235,56 @@ export function OllamaChat() {
               {modelsLoading ? (
                 <option>Loading models…</option>
               ) : models.length === 0 ? (
-                <option>No models found</option>
+                <option>No verified models found</option>
               ) : (
-                models.map((m) => (
-                  <option key={m.name} value={m.name}>
-                    {m.name}
-                  </option>
-                ))
+                models.map((m) => {
+                  const bench = benchmarks[m.name];
+                  const score = bench?.validation?.score ?? m.benchmark?.score ?? null;
+                  const latency = bench?.latency_ms ?? m.benchmark?.latency_ms ?? null;
+                  const success = bench?.success ?? m.benchmark?.success ?? null;
+                  let badge = "";
+                  if (score !== null && score >= 0) {
+                    const s = Math.round(score);
+                    const ok = success === false ? "✗" : s >= 70 ? "✓" : s >= 40 ? "~" : "✗";
+                    badge = ` [${ok} ${s}/100${latency ? ` ${(latency / 1000).toFixed(1)}s` : ""}]`;
+                  } else if (score === null) {
+                    badge = " [—]";
+                  }
+                  const isBest = models[0]?.name === m.name && score !== null && score >= 60;
+                  return (
+                    <option key={m.name} value={m.name}>
+                      {m.name}{m.verified ? " ✅" : " ⚠️"}{badge}
+                      {isBest ? " ★ Best" : ""}
+                    </option>
+                  );
+                })
               )}
             </select>
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
               {(() => {
                 const m = models.find((x) => x.name === selectedModel);
-                const vram = m?.vram_estimate_mb;
-                if (!vram) return <ChevronDown size={14} className="text-muted" />;
-                const gb = (vram / 1024).toFixed(1);
-                const isHigh = vram > 7000;
-                return (
-                  <>
+                if (!m) return <ChevronDown size={14} className="text-muted" />;
+                const badges: React.ReactNode[] = [];
+                if (m.verified) badges.push(<span key="v" className="text-green-400" title="Verified Working"><Shield size={10} /></span>);
+                if (!m.verified && m.broken_reason) badges.push(<span key="b" className="text-red-400" title={m.broken_reason}><AlertCircle size={10} /></span>);
+                if (m.supportsTools) badges.push(<span key="t" className="text-amber-400" title="Tools"><Wrench size={10} /></span>);
+                if (m.supportsVision) badges.push(<span key="vi" className="text-blue-400" title="Vision"><Eye size={10} /></span>);
+                if (m.supportsThinking) badges.push(<span key="th" className="text-purple-400" title="Thinking"><Cpu size={10} /></span>);
+                const vram = m.vram_estimate_mb;
+                if (vram) {
+                  const gb = (vram / 1024).toFixed(1);
+                  const isHigh = vram > 7000;
+                  badges.push(
                     <span
+                      key="vram"
                       className={`text-[10px] ${isHigh ? "text-amber-400" : "text-emerald-400"}`}
                     >
                       {gb}GB
                     </span>
-                    <ChevronDown size={14} className="text-muted" />
-                  </>
-                );
+                  );
+                }
+                badges.push(<ChevronDown key="d" size={14} className="text-muted" />);
+                return <>{badges}</>;
               })()}
             </div>
           </div>

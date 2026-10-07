@@ -12,9 +12,44 @@ date: 2026-09-29
 
 # Ollama Thinking Mode & Structured Outputs
 
-> **Last Updated:** 2026-10-01
-> **Ollama Version:** 0.35.0 (server, verified via `GET /api/version`)
+> **Last Updated:** 2026-10-06
+> **Ollama Version:** 0.40.0 (server, verified via `GET /api/version`)
 > **Relevant Models:** Qwen3.5, Qwen3, Gemma4, DeepSeek R1
+
+## 2026-10-06: measured on Ollama 0.40.0
+
+Server upgraded from 0.35.0 to 0.40.0 and re-measured with
+`tools/probe-ollama.py` (now records the new fields). What
+changed that matters to this repo:
+
+- **`/api/show` advertises thinking controls and capabilities**
+  (0.34.3+). For `gemma4:e2b-it-qat`:
+  `thinking: {"values": [false, true], "default": true}` and
+  `capabilities: ["completion", "vision", "audio", "tools",
+  "thinking"]`. This is the authoritative answer to "does this
+  model support `think`" — no more inferring from response
+  shapes. `llama3.2:3b` reports `thinking: {"values": [false],
+  "default": false}`: it has **no** thinking capability, so
+  sending `think` to it is a no-op.
+- **`/api/tags` entries carry `capabilities` and
+  `details.runner`** (0.34.1+/0.40.0). Every local model on this
+  Windows build reports `runner: "ggml"` (llama.cpp). The 0.40.0
+  headline — MLX as the default engine — is **Apple-Silicon
+  only** and does not apply here.
+- **Structured outputs on thinking models apply in a single
+  pass** (0.34.4), making `format` + `think: false` faster and
+  more reliable than the two-pass behaviour measured below.
+- **`typical_p` is deprecated** (0.34.1: cannot be set on new
+  models; 0.35.0: sending it logs a warning). The backend never
+  sends it (verified by grep), so nothing to change.
+- **Decision models** arrived in 0.35.0 via `/v1/systemone`
+  (Nimble, Tev1, Clef, Clef Flash) — a choice/probability API,
+  not chat. Not integrated here; noted for completeness.
+- Chat responses now include `prompt_eval_cached_count` (cached
+  prompt tokens, 0.33.3) — visible in the probe output.
+
+The `think: false` guidance below is unchanged and still the
+single biggest win on this path.
 
 ## 2026-10-01: measured on Ollama 0.35.0
 
@@ -154,7 +189,10 @@ Ollama supports constrained JSON generation via the `format` parameter.
 }
 ```
 
-**Note:** Structured outputs may not work with all thinking models. Test with your target model.
+**Note:** Structured outputs may not work with all thinking models.
+Since 0.34.3, `GET /api/show` reports each model's `thinking`
+controls and `capabilities` — check there before assuming a model
+accepts `think` or `format`. Test with your target model.
 
 ## Model Behavior Matrix (Tested 2026-09-18)
 

@@ -4,7 +4,10 @@ import { Server } from "@modelcontextprotocol/server";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { encodeImage, residentVisionModels, resolveVisionModel, analyzeWithOllama } from "../vision/vision-common.mjs";
+import { encodeImage, residentVisionModels, resolveVisionModel, analyzeWithOllama, VISION_FALLBACK_MODEL } from "../vision/vision-common.mjs";
+
+import { writeFileSync } from "node:fs";
+writeFileSync("D:/mcp-debug.log", "[MCP-START] loaded, VISION_FALLBACK_MODEL = " + VISION_FALLBACK_MODEL + "\n", { flag: "a" });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
@@ -314,6 +317,8 @@ async function analyzeImage(reqId, args) {
   const fs = await import("fs");
   const path = await import("path");
 
+  console.error(`[DEBUG] analyzeImage called with model: "${args.model}"`);
+  
   let imageData;
   if (args.image_path.startsWith("http")) {
     logRequest(reqId, "analyze_image", "fetching-remote-image");
@@ -329,7 +334,11 @@ async function analyzeImage(reqId, args) {
     imageData = await readImageBase64(abs);
   }
 
+  console.error(`[DEBUG] VISION_FALLBACK_MODEL = "${VISION_FALLBACK_MODEL}"`);
+  console.error(`[DEBUG] resolveVisionModel available: ${typeof resolveVisionModel}`);
+  
   const { model: activeModel, why: modelWhy } = await resolveVisionModel(args.model);
+  console.error(`[DEBUG] activeModel = "${activeModel}", why = "${modelWhy}"`);
   logRequest(reqId, "analyze_image", `calling-ollama model=${activeModel} (${modelWhy})`);
 
   const prompt = args.prompt || "Describe this image in detail.";
@@ -342,11 +351,13 @@ async function analyzeImage(reqId, args) {
   for (const attempt of attempts) {
     if (attempt.model === activeModel && attempt.label !== "primary") continue;
     try {
+      console.error(`[DEBUG] Calling analyzeWithOllama with model: "${attempt.model}"`);
       const text = await analyzeWithOllama(imageData, prompt, attempt.model, 4096, !!args.think);
       logRequest(reqId, "analyze_image", `ollama-ok model=${attempt.model} (${attempt.label})`);
       return textResponse(text);
     } catch (err) {
       lastError = err.message;
+      console.error(`[DEBUG] Error: ${err.message}`);
       logRequest(reqId, "analyze_image", `ollama-fail model=${attempt.model} err=${err.message}`);
     }
   }

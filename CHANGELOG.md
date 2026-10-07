@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed - Ollama 0.40.0 integration surface
+
+The local server was upgraded to Ollama 0.40.0
+(verified live via `GET /api/version`). The headline
+change — MLX as the default engine on Apple Silicon —
+does not apply to this Windows/llama.cpp build (every
+local model reports `details.runner: "ggml"`), but the
+new introspection surface does:
+
+- `tools/probe-ollama.py` now records per-model
+  `capabilities` and `details.runner` from `/api/tags`
+  and probes `/api/show` for the probed model's
+  `thinking` controls (values + default) and
+  capabilities — the authoritative answer to "does this
+  model support `think`". Also removed a duplicated
+  `is_remote` definition that shadowed the first
+  (identical bodies, no behavior change). Verified
+  against the live 0.40.0 server.
+- `config/settings.json` `_ollama_notes.api_version`
+  0.33+ → 0.40.0 with the new features;
+  `config/hardware-profile.json` `_ollama_0.33_notes`
+  → `_ollama_0.40_notes` (single-pass structured
+  outputs on thinking models, deprecated `typical_p`,
+  capability/runner reporting).
+- Docs: `docs/knowledge-library/ollama-thinking-structured-outputs.md`
+  version header 0.35.0 → 0.40.0 plus a measured
+  2026-10-06 section; new Ollama section in
+  `docs/architecture/provider-notes.md`; decision-log
+  D35; `docs/README.md` decision-log range corrected
+  (D1–D31 → D1–D35).
+
+No backend adapter change: `think: False` is already
+sent on every structured-output path, `typical_p` is
+never sent (grep-verified), and the new capability
+fields are advisory — the adapter's behavior is correct
+without them.
+
 ### Added - Treblo Tag Picker (backend)
 
 Implements `tools/music-gen/treblo-tag-picker/SPEC.md`. A local search tool over

@@ -28,11 +28,13 @@
     "benchmark_timeout_seconds": 300,
     "vram_safety_margin_mb": 1536
   },
-  "_ollama_0.33_notes": {
-    "api_endpoint": "/api/chat is now recommended for multimodal vision (replaces /api/generate for images)",
-    "think_parameter": "Extended reasoning supported on gemma4, qwen3.5, muse-glimmer (values: true/false/max/high/medium/low)",
+  "_ollama_0.40_notes": {
+    "api_endpoint": "/api/chat is the recommended endpoint for multimodal vision (replaces /api/generate for images)",
+    "think_parameter": "Extended reasoning supported on gemma4, qwen3.5, muse-glimmer (values: true/false/max/high/medium/low); /api/show reports the exact values and default per model (0.34.3+)",
     "keep_alive": "Model metadata is now cached server-side; keep_alive 10m still recommended for resident model stickiness",
-    "structured_output": "format=json_schema enforces JSON shape on chat completions (0.33+)",
-    "ttft_improvement": "0.33+ caches resolved model metadata, cutting TTFT roughly in half vs earlier versions"
+    "structured_output": "format=json_schema enforces JSON shape on chat completions (0.33+); on thinking models it applies in a single pass (0.34.4+)",
+    "ttft_improvement": "0.33+ caches resolved model metadata, cutting TTFT roughly in half vs earlier versions",
+    "capabilities": "/api/tags and /api/show report per-model capabilities (completion/vision/audio/tools/thinking/embedding) and the runner (ggml on this Windows build; mlx is the 0.40.0 default on Apple Silicon only)",
+    "deprecated": "typical_p can no longer be set when creating models (0.34.1+); sending it logs a warning instead of failing (0.35.0+)"
   }
 }

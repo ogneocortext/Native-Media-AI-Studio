@@ -3,8 +3,14 @@
 
 Characterisation needs observed behaviour, not documented behaviour. This
 queries the running server for the facts a test should pin: version, model
-inventory, the `think` field's presence and type across models, the tool-call
-shape, and whether a malformed body produces an error or empty output.
+inventory (with per-model capabilities and runner), the `think` field's
+presence and type across models, the tool-call shape, and whether a
+malformed body produces an error or empty output.
+
+On Ollama 0.34.3+ the probed model's `/api/show` record is also printed:
+its `thinking` controls (values + default) and `capabilities` are the
+authoritative answer to "does this model support think", replacing the
+response-shape inference this tool used to rely on.
 
 Read-only apart from short inference calls. Point it at any Ollama with
 `--url`; it never mutates anything.
@@ -53,20 +59,6 @@ def is_remote(model: dict) -> bool:
     return str(model.get("name", "")).endswith(":cloud")
 
 
-def is_remote(model: dict) -> bool:
-    """True when a `/api/tags` entry proxies to ollama.com rather than being local.
-
-    Ollama marks these with `remote_host`/`remote_model`. The `:cloud` name suffix
-    is a convention, not a guarantee, so it is only a fallback. This matters
-    because a remote entry reports `size: 326`, which wins any "smallest model"
-    sort and then fails with HTTP 402 — measuring the network rather than the
-    server under test.
-    """
-    if model.get("remote_host") or model.get("remote_model"):
-        return True
-    return str(model.get("name", "")).endswith(":cloud")
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--url", default="http://127.0.0.1:11434")
@@ -87,10 +79,16 @@ def main() -> int:
     for m in models:
         det = m.get("details", {})
         kind = "remote" if is_remote(m) else "local"
+        # 0.34.1+/0.40.0: entries carry capabilities and the runner
+        # (ggml/llamacpp/llama.cpp on CPU builds, mlx on Apple Silicon
+        # where 0.40.0 made MLX the default). Absent on older servers.
+        caps = ",".join(m.get("capabilities", [])) or "-"
+        runner = det.get("runner", "-")
         print(
             f"  [{kind:6}] {m.get('name',''):32} "
             f"{round(m.get('size',0)/1048576):>6} MB "
-            f"{det.get('parameter_size','?'):>6} {det.get('quantization_level','?')}"
+            f"{det.get('parameter_size','?'):>6} {det.get('quantization_level','?')} "
+            f"runner={runner} caps={caps}"
         )
 
     def size_of(name: str) -> int:
@@ -153,6 +151,21 @@ def main() -> int:
     print(f"  has tool_calls : {'tool_calls' in msg}")
     print(f"  done_reason    : {resp.get('done_reason', '<absent>')!r}")
     print(f"  eval_count     : {resp.get('eval_count', '<absent>')!r}")
+
+    # 0.34.3+: /api/show advertises the model's thinking controls and
+    # capabilities. This is the authoritative per-model answer to "does
+    # this model support think, and what values does it accept" - the
+    # probe used to infer it from response shapes.
+    print("\nmodel show:")
+    try:
+        show = post(f"{base}/api/show", {"model": model}, args.timeout)
+        print(f"  thinking    : {json.dumps(show.get('thinking'))}")
+        print(f"  capabilities: {show.get('capabilities')}")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace")[:100]
+        print(f"  /api/show -> HTTP {e.code} {body} (pre-0.34.3 server?)")
+    except Exception as e:  # pragma: no cover - reported
+        print(f"  /api/show -> {type(e).__name__}: {e}")
 
     if not args.fast:
         t0 = time.perf_counter()
