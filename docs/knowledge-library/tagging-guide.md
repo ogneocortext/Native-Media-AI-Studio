@@ -94,6 +94,7 @@ does not require a tag to appear in this table.
 | `#dark-mode` | Dark theme support |
 | `#contrast` | Color contrast and accessibility ratios |
 | `#accessibility` | A11y concerns beyond color |
+| `#motion-design` | Motion craft - timing, easing, camera/object movement |
 
 This table is kept honest by `tools/validate-knowledge-tags.py`, which warns when
 a document uses a tag that is not listed here. It is not the reverse: a tag can

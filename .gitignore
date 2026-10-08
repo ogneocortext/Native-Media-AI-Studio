@@ -322,3 +322,15 @@ tools/hyperframes-built-this-from-a-dream/.waveform-cache/
 tools/model-reliability/snapshots/
 
 !tools/tests/test_doc_checkers.py
+
+# Ad-hoc root-level JSON dumps: OpenAPI schema snapshots and per-model image
+# payloads dropped at the repo root by exploratory tooling. None is referenced
+# by any tracked file (verified with `git grep`), and the OpenAPI schema is
+# regenerable from the running backend (`app.openapi()`). check-repo-layout
+# rejects run-id-style names at the root on principle.
+/openapi.json
+/openapi2.json
+/flaticon_model.json
+/icon2_model.json
+/modernlogo_model.json
+/vector_model.json

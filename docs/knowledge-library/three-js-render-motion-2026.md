@@ -2,8 +2,7 @@
 tags:
   - creative
   - 3d
-  - threejs
-  - rendering
+  - three-js
   - motion-design
 aliases:
   - Three.js Render and Motion 2026
