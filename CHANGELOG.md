@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed - Ollama 0.40.1 (Windows serving fixes, no surface change)
+
+The local server and CLI moved 0.40.0 → 0.40.1 (shipped 2026-10-07;
+both verified live). The delta is serving fixes, not API: `llama:
+fix clef head reads past 2GiB on windows` and `manifest: avoid
+symlinks on Windows` are the two that matter on this Windows 11
+studio; `server: proxy cloud usage and balance APIs` is a
+cloud-billing surface this local-only repo does not use, and `cmd:
+remove account step from CLI onboarding` is onboarding-only. No new
+introspection fields, no deprecations, no behaviour change — the
+D35 characterization and the `think: False` guidance stand.
+
+Docs: decision-log D36 (scope header D1–D35 → D1–D36);
+`docs/knowledge-library/ollama-thinking-structured-outputs.md`
+version header 0.40.0 → 0.40.1 plus a 2026-10-08 section;
+`docs/architecture/provider-notes.md` Ollama version line. Probe
+re-run obligation from D35 satisfied by the live 0.40.1
+verification; no model re-pulls needed.
+
 ### Changed - Frontend dependency refresh (React 19.3, Vite 8.3, ESLint 10, wavesurfer 8)
 
 Workspace catalog and lockfile refreshed to current stable minors/patches, with

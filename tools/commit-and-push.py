@@ -18,6 +18,14 @@ from PowerShell on this machine, and each produced a wrong conclusion.
    working. This script streams hook output live with a generous
    timeout instead of capturing it silently.
 
+   NOTE on timeouts: run this script from a shell whose own timeout is
+   longer than the hooks it will trigger (``--timeout`` only bounds the
+   child git process). If the invoking tool call times out first, the
+   script dies with it - typically mid-push, since the commit's
+   pre-commit hook finishes first. A half-run is safe to recover: the
+   commit is verified by HEAD, so just push (or re-run; an empty stage
+   fails cleanly with "nothing staged").
+
 It never stages anything it was not told to: pass explicit ``--add``
 paths (repeatable). There is no ``-A`` mode on purpose - one session's
 commit picked up a concurrent agent's half-finished ``pnpm install``

@@ -12,9 +12,23 @@ date: 2026-09-29
 
 # Ollama Thinking Mode & Structured Outputs
 
-> **Last Updated:** 2026-10-06
-> **Ollama Version:** 0.40.0 (server, verified via `GET /api/version`)
+> **Last Updated:** 2026-10-08
+> **Ollama Version:** 0.40.1 (server, verified via `GET /api/version`)
 > **Relevant Models:** Qwen3.5, Qwen3, Gemma4, DeepSeek R1
+
+## 2026-10-08: 0.40.1 — Windows serving fixes, no surface change
+
+Server moved 0.40.0 → 0.40.1 (shipped 2026-10-07; CLI and server both
+verified live at `0.40.1`). The delta is serving fixes, not API, and
+the two that matter here are both Windows-specific: `llama: fix clef
+head reads past 2GiB on windows` (>2 GiB weight reads) and `manifest:
+avoid symlinks on Windows` (no more symlink reliance on NTFS). Also
+shipped: `server: proxy cloud usage and balance APIs` (cloud billing
+surface — this repo runs local-only, not applicable) and `cmd: remove
+account step from CLI onboarding` (onboarding only). No new
+introspection fields, no deprecations, no endpoint this repo calls
+changed — so every 0.40.0 measurement below stands, and the `think:
+false` guidance is unchanged. Decision-log D36 records the adoption.
 
 ## 2026-10-06: measured on Ollama 0.40.0
 

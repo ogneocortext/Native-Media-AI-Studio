@@ -9,7 +9,7 @@
 > **Context**, **Decision**, and **Consequences**. Open questions carry a
 > **Recommendation** where one exists.
 >
-> Current scope: D1–D35 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D36 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 
 ---
 
@@ -833,7 +833,7 @@
 
 - 2026-10-06: D33 recorded — verified interpreter selection at every Python entry point. Selection was by path existence only; measured on this machine, `C:\Python314` passes `ruff check` and `pytest --version` yet fails a real pytest run (PermissionError expiring pytest's numbered temp dirs under Python 3.14), and the foreign `space-analyzer-cuda` env passes ruff but has neither fastapi nor pytest_asyncio — both were reported as usable fallbacks. `run-gates.py` now requires a real pytest run of the smallest tmp_path-using test in addition to ruff (probes are timeout-bounded); `shared-utils.ps1` gains `Test-PythonEnv` (import fastapi/uvicorn/watchfiles) and `Resolve-BackendPython` (verified walk of the studio > ComfyUI > venv chain), consumed by `manage-servers.ps1` and `start-studio.ps1`; `check-env-health.ps1` gains a functional import probe; the music-gen launcher probes `import acestep` and its discovery order now matches its README.
 - 2026-10-06: Q6 resolved — progress-lease + per-type windows in the queue manager (in-memory `_last_progress_at`, reaper and health require age AND silence, video-family 1800 s vs default 900 s); 12 new lease tests, D31 suite updated to the two-stage contract. Remaining: Q1 and Q4 still open, Q2 in evaluation pending its ComfyUI verification.
-- 2026-10-06: LTX-2B-distilled 8GB verdict — viable. `ltxv-2b-0.9.8-distilled-fp8` (already staged on disk with the 2.3 text-projection/AV VAEs) + stock `t5-xxl-fp8` + `LTX23_video_vae` rendered 25f 768×512 in 210 s on the GTX 1070 Ti, no OOM, coherent by the Q3 frame stats (interframe 7.44, edge 0.182) — ~4× faster than Wan 2.2 Q4. Submitted raw via the ComfyUI API (UNETLoader→CLIPLoader(ltxv)→LTXVConditioning→KSampler→VAEDecode); no backend render path exists, so wiring one (`model_tiers.py` + builder) is the follow-up, not done here. Mochi/H3/CogVideoX/DreamX/MAGI-2: no weights on disk, untested. ComfyUI 0.37.0 carries 33 native LTX nodes and meets the H3 0.30+ floor, so H3 is blocked only on a quantized checkpoint.
+- 2026-10-06: LTX-2B-distilled 8GB verdict — viable. `ltxv-2b-0.9.8-distilled-fp8` (already staged on disk with the 2.3 text-projection/AV VAEs) + stock `t5-xxl-fp8` + `LTX23_video_vae` rendered 25f 768×512 in 210 s on the GTX 1070 Ti, no OOM, coherent by the Q3 frame stats (interframe 7.44, edge 0.182) — ~4× faster than Wan 2.2 Q4. Submitted raw via the ComfyUI API (UNETLoader→CLIPLoader(ltxv)→LTXVConditioning→KSampler→VAEDecode); no backend render path exists, so wiring one (`model_tiers.py` + builder) is the follow-up, not done here. Mochi/H3/CogVideoX/DreamX/MAGI-2: no weights on disk, untested. ComfyUI 0.37.0 carries 33 native LTX nodes and meets the H3 0.30+ floor, so H3 is blocked only on a quantized checkpoint. (2026-10-08 note: current ComfyUI is 0.39.1; the 0.37.0 anchor is the version measured that day, not a pin — the H3 floor claim still holds, and 0.39.0 adds lower-peak-VRAM H3 embedding handling plus a light H3 VAE, which only helps the blocked-on-checkpoint case.)
 - 2026-10-06: Q3 resolved — Wan red-pattern rerun through the production adapter path (Q4 GGUF + fp16 UMT5 + wan2.2 VAE, 12 steps/seed 7) produced a coherent 25-frame render; measured against the 9/20 artifact (interframe diff 26.06 → 3.90, blue channel uncrushed). Exact old trigger unrecoverable, both prime suspects closed by construction.
 - 2026-10-06: Q2 moved Open → In evaluation — option (a) implemented and committed (`7b29d72`: `visual_fallback.py`, degraded queueing, mid-flight AI→FFmpeg degradation, `on_source_failure`); the plan's ComfyUI verification is unrun so it is not Resolved. Same pass closed two stale research markers in `app-research-gaps-2026.md`: §13 agent tool contracts (input side now enforced by `mcp_validator.py` + `POST /api/mcp/validate-tool`, all four bridges dispatch effective args; output-side schemas remain open) and §15 (Q2 plan implemented). Still genuinely open and highest-value: Q3 red-pattern root cause, the 8GB video-model sweep (LTX/Mochi/H3-quantized/DreamX/MAGI-2), Q6 lease design, and the §17/§20–22 creative-direction cluster (onboarding, VJ craft, shot language, color scripting) that would give the D23 motion vocabulary something to be driven by.
 - 2026-10-02: D28 recorded — the studio is the post-production for Suno v6-mini drafts. Pipeline is mini drafts in, social-ready video out; the studio owns the audio post chain (mix polish, consistency/arrangement repair, mastering) and the visual edit, with no DAW or video editor in between. Renumbered to D28 on merge: local work had already claimed D23–D27.
@@ -1226,4 +1226,32 @@
   no model re-pulls are needed — existing GGUF quants keep
   running on llama.cpp. A future agent tempted to "use MLX"
   should check `details.runner` first: on this machine it is
+
+### D36 — Ollama 0.40.1: Windows-only serving fixes, no surface change (2026-10-08)
+
+- **Status:** Decided
+- **Context:** Ollama 0.40.1 shipped 2026-10-07, the day after D35
+  recorded 0.40.0. The local server and CLI are already on it
+  (verified live: `ollama --version` and `GET /api/version` both
+  report `0.40.1`). The changelog is serving fixes, not API:
+  `llama: fix clef head reads past 2GiB on windows`, `manifest:
+  avoid symlinks on Windows`, `server: proxy cloud usage and
+  balance APIs`, `cmd: remove account step from CLI onboarding`.
+  The two Windows fixes are the ones that matter to this repo
+  (Windows 11 studio): the clef fix touches >2 GiB weight reads
+  and the manifest fix removes symlink reliance on NTFS — both
+  are failure modes this platform can actually hit.
+- **Decision:** Adopt by upgrade only; no code or doc-surface change.
+  The 0.40.1 delta adds no new introspection fields, deprecates
+  nothing, and changes no endpoint this repo calls, so the D35
+  characterization (capabilities/runner surface, `think: False`
+  guidance, `typical_p` never sent) stands unmodified. Docs that
+  anchored on "0.40.0" are updated to "0.40.1" as a version fact,
+  not a behaviour change.
+- **Consequences:** Re-run `tools/probe-ollama.py` output remains
+  the record of what the server serves; the D35 instruction to
+  re-probe after any upgrade is satisfied by the 0.40.1 live
+  verification above. No model re-pulls needed (same GGUF quants
+  on llama.cpp, `details.runner` still `ggml`).
+
   always `ggml`.

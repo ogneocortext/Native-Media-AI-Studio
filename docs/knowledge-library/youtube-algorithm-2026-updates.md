@@ -133,6 +133,39 @@ YouTube now runs distinct algorithmic systems per surface:
 
 ---
 
+## 3b. Shorts Originality Ranking Change (October 2026)
+
+**Change:** Shorts recommendations now further prioritize original
+content and reduce the reach of channels that re-upload other
+creators' videos without adding anything of their own. Announced by
+TeamYouTube (week of 2026-10-01); press coverage 2026-10-05. No
+precise rollout date or originality threshold published — the
+enforcement line is qualitative, not a number.
+
+**What counts as original:** own voice via commentary, unique edits,
+or storytelling built around any borrowed footage. Minor technical
+edits or template-based alterations to someone else's video do not
+clear the bar. Channels that primarily aggregate or repost clips
+with little of their own ("clipping channels") lose Shorts-feed
+distribution.
+
+**Why this is favorable to this studio:** every output here is
+original by construction — beat-synced visualizers rendered from
+the artist's own audio, not re-uploads. The change suppresses the
+exact competitors (static re-uploads, clip farms) that §13 already
+identifies as the visualizer's beaten baseline.
+
+**Adjacent 2026 Shorts facts worth knowing** (not ranking changes,
+kept here so the Shorts picture is in one place):
+
+- **Custom thumbnails for Shorts** (July 2026) — the §9 thumbnail
+  strategy now applies to Shorts, not just long-form.
+- **YPP entry doubles 2027-02-01** (announced): 8,000 watch hours /
+  20M Shorts views. Plan monetization timelines against the new
+  bar, not the old one.
+
+---
+
 ## 4. Satisfaction-Specific Signals
 
 ### Composite Metrics for Music Videos
@@ -389,4 +422,4 @@ Shimga May 2026: Same audio with reactive moving visual gets **2-5× more recomm
 
 ---
 
-_Last updated: 2026-09-20 — Major update reflecting April 2026 satisfaction shift, August 2026 view count changes, and format-aware discovery_
+_Last updated: 2026-10-08 — added §3b (October 2026 Shorts originality ranking change, custom Shorts thumbnails, 2027 YPP threshold). Previously 2026-09-20: April 2026 satisfaction shift, August 2026 view count changes, format-aware discovery_
