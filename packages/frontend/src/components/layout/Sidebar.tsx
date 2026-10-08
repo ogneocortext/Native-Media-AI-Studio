@@ -25,6 +25,7 @@ import {
   Play,
   Mic,
   Gamepad2,
+  Film,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
@@ -115,6 +116,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Unity Control",
         icon: <Gamepad2 size={18} />,
         keywords: "unity editor control remote",
+      },
+      {
+        path: "/animation-studio",
+        label: "Animation Studio",
+        icon: <Film size={18} />,
+        keywords: "animation studio theatre keyframe",
       },
     ],
   },

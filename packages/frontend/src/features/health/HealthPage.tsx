@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, StatusBadge, LoadingSpinner } from "../../components/common";
 import {
   XCircle,
@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Loader2,
   Clock3,
+  Accessibility,
 } from "lucide-react";
 import { useHealth } from "../../hooks";
 import { useHealthStore } from "../../state/healthStore";
@@ -36,6 +37,7 @@ import {
   LogsViewer,
   GoServicesCard,
 } from "./components";
+import { showToast } from "../../utils/toast";
 
 export function HealthPage() {
   const { health, serviceStatus, loading, error } = useHealth();
@@ -513,8 +515,160 @@ export function HealthPage() {
       {/* Ollama Models */}
       <OllamaModelsCard />
 
+      {/* Accessibility Audit */}
+      <AccessibilityAuditCard />
+
       {/* Logs Viewer */}
       <LogsViewer />
     </div>
+  );
+}
+
+interface AxeViolation {
+  id: string;
+  impact: "minor" | "moderate" | "serious" | "critical";
+  description: string;
+  help: string;
+  helpUrl: string;
+  nodes: Array<{ target: string; html: string }>;
+}
+
+interface AxeResult {
+  violations: AxeViolation[];
+  passes: number;
+  incomplete: number;
+}
+
+function AccessibilityAuditCard() {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<AxeResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const runAudit = useCallback(async () => {
+    setRunning(true);
+    setError(null);
+    setResult(null);
+    try {
+      const axe = await import("axe-core");
+      const results = await axe.default.run(document, {
+        runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] },
+      });
+      setResult({
+        violations: results.violations.map((v) => ({
+          id: v.id,
+          impact: v.impact ?? "moderate",
+          description: v.description,
+          help: v.help,
+          helpUrl: v.helpUrl,
+          nodes: v.nodes.slice(0, 3).map((n) => ({
+            target: n.target.join(" "),
+            html: n.html.slice(0, 120),
+          })),
+        })),
+        passes: results.passes.length,
+        incomplete: results.incomplete.length,
+      });
+      showToast(
+        results.violations.length === 0
+          ? "No accessibility violations found"
+          : `Found ${results.violations.length} accessibility issue${results.violations.length === 1 ? "" : "s"}`,
+        results.violations.length === 0 ? "success" : "warning",
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Accessibility audit failed");
+      showToast("Accessibility audit failed", "error");
+    } finally {
+      setRunning(false);
+    }
+  }, []);
+
+  const impactColor = (impact: string) => {
+    switch (impact) {
+      case "critical":
+        return "text-red-400 bg-red-500/10 border-red-500/20";
+      case "serious":
+        return "text-orange-400 bg-orange-500/10 border-orange-500/20";
+      case "moderate":
+        return "text-amber-400 bg-amber-500/10 border-amber-500/20";
+      default:
+        return "text-yellow-400 bg-yellow-500/10 border-yellow-500/20";
+    }
+  };
+
+  return (
+    <Card title="Accessibility Audit" icon={<Accessibility size={18} />}>
+      <div className="space-y-4">
+        <p className="text-sm text-muted">
+          Run WCAG 2.1 AA checks against the current page using axe-core.
+        </p>
+        <button
+          onClick={runAudit}
+          disabled={running}
+          className="btn btn-primary"
+        >
+          {running ? (
+            <>
+              <Loader2 size={16} className="animate-spin" /> Running...
+            </>
+          ) : (
+            <>
+              <Accessibility size={16} /> Run Audit
+            </>
+          )}
+        </button>
+
+        {error && (
+          <div className="p-3 bg-red-900/20 border border-red-700/50 rounded-lg text-red-200 text-sm">
+            {error}
+          </div>
+        )}
+
+        {result && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-4 text-sm">
+              <span className="text-emerald-400">{result.passes} passed</span>
+              <span className="text-amber-400">{result.incomplete} incomplete</span>
+              <span className={result.violations.length > 0 ? "text-red-400" : "text-emerald-400"}>
+                {result.violations.length} violations
+              </span>
+            </div>
+
+            {result.violations.length > 0 && (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {result.violations.map((v) => (
+                  <div
+                    key={v.id}
+                    className={`p-3 rounded-lg border ${impactColor(v.impact)}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold uppercase">{v.impact}</span>
+                      <span className="text-sm font-medium">{v.id}</span>
+                    </div>
+                    <p className="text-xs mt-1 opacity-80">{v.help}</p>
+                    {v.nodes.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {v.nodes.map((n, i) => (
+                          <code key={i} className="text-[10px] block opacity-60 truncate">
+                            {n.target}
+                          </code>
+                        ))}
+                      </div>
+                    )}
+                    <a
+                      href={v.helpUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs underline opacity-60 hover:opacity-100 mt-1 inline-block"
+                    >
+                      Learn more
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }

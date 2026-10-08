@@ -97,6 +97,10 @@ const NotificationsPage = lazyNamed(
   () => import("./features/notifications/NotificationsPage"),
   "NotificationsPage",
 );
+const AnimationStudio = lazyNamed(
+  () => import("./features/animation-studio/AnimationStudio"),
+  "AnimationStudio",
+);
 
 const withErrorBoundary = (element: React.ReactNode) => <ErrorBoundary>{element}</ErrorBoundary>;
 
@@ -125,6 +129,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/unity": "Unity Control",
   "/preview": "Preview",
   "/notifications": "Notifications",
+  "/animation-studio": "Animation Studio",
 };
 
 function RouteTitle() {
@@ -189,6 +194,7 @@ function App() {
               <Route path="/preview" element={withErrorBoundary(<Preview />)} />
               <Route path="/preview/:clipId" element={withErrorBoundary(<Preview />)} />
               <Route path="/notifications" element={withErrorBoundary(<NotificationsPage />)} />
+              <Route path="/animation-studio" element={withErrorBoundary(<AnimationStudio />)} />
               {/* Redirects for removed/merged routes */}
               <Route path="/music-video" element={<Navigate to="/music-video-wizard" replace />} />
               <Route path="/studio-3d" element={<Navigate to="/generate-3d" replace />} />

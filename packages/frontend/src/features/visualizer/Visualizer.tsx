@@ -22,6 +22,7 @@ import {
   ListVideo,
   MoreHorizontal,
   Keyboard,
+  Film,
 } from "lucide-react";
 import { ensureAnalysis, getStemsAnalysis } from "../../services/api";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
@@ -146,6 +147,7 @@ export function Visualizer() {
   const [analyzing, setAnalyzing] = useState(false);
   const [sceneFrozen, setSceneFrozen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [rendererReady, setRendererReady] = useState(false);
   const [rendererBackend, setRendererBackend] = useState("");
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
@@ -1501,6 +1503,15 @@ export function Visualizer() {
                   </button>
                 )}
                 <button
+                  onClick={() => setShowExportModal(!showExportModal)}
+                  className="viz-icon-btn viz-more-item"
+                  aria-label="Export MP4"
+                  title="Export MP4 (WebCodecs)"
+                >
+                  <Film size={14} />
+                  <span className="viz-more-label">Export MP4</span>
+                </button>
+                <button
                   onClick={() => setSceneFrozen(!sceneFrozen)}
                   className={`viz-icon-btn viz-more-item ${sceneFrozen ? "active" : ""}`}
                   aria-label={sceneFrozen ? "Unfreeze scene" : "Freeze scene"}
@@ -1595,6 +1606,48 @@ export function Visualizer() {
         activePresetId={kineticPreset}
         onPresetChange={setKineticPreset}
       />
+
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <h3 className="text-lg font-bold text-white">Export MP4</h3>
+            <p className="text-sm text-gray-400 mt-2">
+              Record the visualizer canvas as an MP4 file using WebCodecs encoding.
+            </p>
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted">Format</span>
+                <span className="text-white">MP4 (H.264)</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted">Frame Rate</span>
+                <span className="text-white">60 fps</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted">Bitrate</span>
+                <span className="text-white">8 Mbps</span>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowExportModal(false);
+                  if (!isRecording) startRecording();
+                }}
+                className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors"
+              >
+                Start Recording
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="viz-content">
         {/* Mode crossfade overlay */}
