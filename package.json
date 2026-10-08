@@ -9,12 +9,12 @@
     "pnpm": ">=11.24.0"
   },
   "catalog": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "eslint": "^9.0.0",
-    "tailwindcss": "^4.1.0",
-    "typescript": "^5.7.0",
-    "vite": "^8.3.1"
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "eslint": "^10.9.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.4"
   },
   "workspaces": [
     "packages/frontend",
@@ -42,9 +42,9 @@
     "db:migrate": "cd packages/backend && D:\\conda-envs\\nma-studio-cuda\\Scripts\\python.exe -c \"from app.core.database import init_db; init_db()\""
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
-    "playwright": "^1.63.0",
-    "sharp": "^0.35.4",
-    "turbo": "^2.10.12"
+    "@playwright/test": "^1.64.0",
+    "playwright": "^1.64.0",
+    "sharp": "^0.35.5",
+    "turbo": "^2.11.7"
   }
 }

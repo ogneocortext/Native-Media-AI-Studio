@@ -12,7 +12,6 @@ regardless of where go-worker actually wrote the file, so job results carried a
 
 import json
 
-import pytest
 from app.api.outputs import load_sidecar_metadata
 
 
@@ -54,20 +53,37 @@ def test_corrupt_sidecar_does_not_raise(tmp_path):
     assert load_sidecar_metadata(img) is None
 
 
-def test_regression_zero_png_json_on_this_machine():
-    """Why this test exists: the old lookup silently found nothing.
+def test_no_image_is_silently_unreachable(tmp_path):
+    """No image in a library is silently unreachable by the sidecar lookup.
 
-    Asserts the real library contains sidecars the old code could not see, so a
-    regression to the wrong filename is visible rather than invisible.
+    This replaces an earlier version that scanned the real ``output/images/``
+    tree. That made the test machine-dependent and it failed on a machine whose
+    library holds only *derived* images: upscales and thumbnails that legitimately
+    have no ``<stem>.json`` beside them. Measured - 7 PNGs under ``output/images/``
+    and 0 discoverable sidecars, every one a derived render - so the assertion
+    fired even though the lookup was correct. A test that can only pass on one
+    machine's particular ``output/`` contents is not a regression guard.
+
+    Rebuilt deterministically over a synthetic library: when every generated
+    image *does* carry a sidecar, all of them must resolve, so a regression that
+    breaks ``<stem>.json`` discovery is caught here as well as in the single-file
+    case above - without depending on regenerable, gitignored dev output.
     """
-    from app.core.config import PROJECT_ROOT
+    images = tmp_path / "output" / "images"
+    images.mkdir(parents=True)
+    names = [
+        "2026-10-02_212057_7fba60f1",  # go-worker style timestamp+hash
+        "StillIRise_chorus_a",         # named ComfyUI render
+        "ComfyUI_00042_",              # trailing separator, empty suffix tail
+    ]
+    for name in names:
+        (images / f"{name}.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+        _write(images / f"{name}.json")
 
-    images = PROJECT_ROOT / "output" / "images"
-    if not images.is_dir():
-        pytest.skip("no image output on this machine")
-    stems = {p.with_suffix(".json") for p in images.glob("*.png")}
-    if not stems:
-        pytest.skip("no generated images on this machine")
-    root_sidecars = set((PROJECT_ROOT / "output").glob("*.json"))
-    reachable = [s for s in stems if s.exists() or s in root_sidecars]
-    assert reachable, "sidecars exist but none are discoverable by either name"
+    unresolved = [
+        name for name in names
+        if load_sidecar_metadata(images / f"{name}.png") is None
+    ]
+    assert not unresolved, (
+        f"sidecars exist beside these images but are unreachable: {unresolved}"
+    )

@@ -11,10 +11,10 @@ packages:
 
 # Catalogue for shared dependency versions across workspace packages
 catalog:
-  react: ^19.2.8
-  react-dom: ^19.2.8
+  react: ^19.3.0
+  react-dom: ^19.3.0
   typescript: ^5.9.3
-  vite: ^8.3.1
+  vite: ^8.3.4
   tailwindcss: ^4.3.3
   '@tailwindcss/vite': ^4.3.3
   eslint: ^10.9.1
@@ -29,51 +29,56 @@ onlyBuiltDependencies:
   - esbuild
 
 overrides:
-  typescript-eslint: 8.69.0
+  typescript-eslint: 8.71.1
 
 minimumReleaseAgeExclude:
-  - '@remotion/bundler@4.0.519'
-  - '@remotion/canvas@4.0.519'
-  - '@remotion/captions@4.0.519'
-  - '@remotion/cli@4.0.519'
-  - '@remotion/compositor-darwin-arm64@4.0.519'
-  - '@remotion/compositor-darwin-x64@4.0.519'
-  - '@remotion/compositor-linux-arm64-gnu@4.0.519'
-  - '@remotion/compositor-linux-arm64-musl@4.0.519'
-  - '@remotion/compositor-linux-x64-gnu@4.0.519'
-  - '@remotion/compositor-linux-x64-musl@4.0.519'
-  - '@remotion/compositor-win32-x64-msvc@4.0.519'
-  - '@remotion/eslint-config-flat@4.0.519'
-  - '@remotion/licensing@4.0.519'
-  - '@remotion/media-parser@4.0.519'
-  - '@remotion/media-utils@4.0.519'
-  - '@remotion/media@4.0.519'
-  - '@remotion/noise@4.0.519'
-  - '@remotion/paths@4.0.519'
-  - '@remotion/player@4.0.519'
-  - '@remotion/renderer@4.0.519'
-  - '@remotion/shapes@4.0.519'
-  - '@remotion/streaming@4.0.519'
-  - '@remotion/studio-codemods@4.0.519'
-  - '@remotion/studio-protocol@4.0.519'
-  - '@remotion/studio-server@4.0.519'
-  - '@remotion/studio-shared@4.0.519'
-  - '@remotion/studio@4.0.519'
-  - '@remotion/tailwind-v4@4.0.519'
-  - '@remotion/three@4.0.519'
-  - '@remotion/timeline-utils@4.0.519'
-  - '@remotion/web-renderer@4.0.519'
-  - '@remotion/zod-types@4.0.519'
-  - remotion@4.0.519
-  - '@remotion/effects@4.0.519'
-  - '@remotion/transitions@4.0.519'
-  - mediabunny@1.59.1 || 1.61.0
-  - vite@8.3.1
+  - '@remotion/bundler@4.0.534'
+  - '@remotion/canvas@4.0.534'
+  - '@remotion/captions@4.0.534'
+  - '@remotion/cli@4.0.534'
+  - '@remotion/compositor-darwin-arm64@4.0.534'
+  - '@remotion/compositor-darwin-x64@4.0.534'
+  - '@remotion/compositor-linux-arm64-gnu@4.0.534'
+  - '@remotion/compositor-linux-arm64-musl@4.0.534'
+  - '@remotion/compositor-linux-x64-gnu@4.0.534'
+  - '@remotion/compositor-linux-x64-musl@4.0.534'
+  - '@remotion/compositor-win32-x64-msvc@4.0.534'
+  - '@remotion/eslint-config-flat@4.0.534'
+  - '@remotion/licensing@4.0.534'
+  - '@remotion/media-parser@4.0.534'
+  - '@remotion/media-utils@4.0.534'
+  - '@remotion/media@4.0.534'
+  - '@remotion/noise@4.0.534'
+  - '@remotion/paths@4.0.534'
+  - '@remotion/player@4.0.534'
+  - '@remotion/renderer@4.0.534'
+  - '@remotion/shapes@4.0.534'
+  - '@remotion/streaming@4.0.534'
+  - '@remotion/studio-codemods@4.0.534'
+  - '@remotion/studio-protocol@4.0.534'
+  - '@remotion/studio-server@4.0.534'
+  - '@remotion/studio-shared@4.0.534'
+  - '@remotion/studio@4.0.534'
+  - '@remotion/tailwind-v4@4.0.534'
+  - '@remotion/three@4.0.534'
+  - '@remotion/timeline-utils@4.0.534'
+  - '@remotion/web-renderer@4.0.534'
+  - '@remotion/zod-types@4.0.534'
+  - remotion@4.0.534
+  - '@remotion/effects@4.0.534'
+  - '@remotion/transitions@4.0.534'
+  - mediabunny@1.59.1 || 1.61.0 || 1.61.3
+  - vite@8.3.4
+  - '@playwright/test@1.64.0'
+  - lucide-react@1.53.0
+  - playwright-core@1.64.0
+  - playwright@1.64.0
 
 allowBuilds:
   esbuild: true
 
-# Side-by-side TS 6 + TS 7 per https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0
-# - `typescript` (6.0.3 via @typescript/typescript6) is used by eslint/typescript-eslint (Go port has no JS API yet)
-# - `@typescript/native` (7.0.2) provides `tsc` 7 for fast builds; use `pnpm --filter frontend exec --package=@typescript/native tsc`
-#   or `pnpm -F frontend run build:ts7` for TS7 builds.
+# TypeScript stays on 5.x: typescript-eslint 8.x (the lint toolchain)
+# peer-caps typescript at >=4.8.4 <6.1.0, so neither TS 6 nor the TS 7
+# native port can be adopted until typescript-eslint ships support for
+# them. The `typescript` catalog entry above is the single source of
+# truth for the workspace.

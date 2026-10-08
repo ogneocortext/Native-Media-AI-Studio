@@ -6,7 +6,7 @@
  * and event resumption built-in.
  */
 
-import { getEventsUrl, isPublicTunnelActive } from "./portConfig";
+import { getEventsUrl } from "./portConfig";
 
 type MessageListener = (message: Record<string, unknown>) => void;
 
@@ -20,6 +20,8 @@ class SSEService {
   private reconnectDelay = 1000;
   private maxReconnectDelay = 30000;
   private lastEventId: string | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 10; // Give up after 10 failed attempts (covers optional Go dashboard)
   private syncChannel: BroadcastChannel | null = null;
   private offlineQueue: Array<Record<string, unknown>> = [];
 
@@ -85,6 +87,7 @@ class SSEService {
   connect(): void {
     this.subscriberCount += 1;
     this.wantsConnection = true;
+    this.reconnectAttempts = 0; // Reset on new connection attempt
     this._initSyncChannel();
     this.open();
   }
@@ -152,6 +155,16 @@ class SSEService {
 
   private scheduleReconnect(): void {
     if (!this.wantsConnection || this.reconnectTimer) return;
+    
+    this.reconnectAttempts += 1;
+    if (this.reconnectAttempts > this.maxReconnectAttempts) {
+      console.warn(`[SSE] Max reconnect attempts (${this.maxReconnectAttempts}) reached. Stopping reconnection. Server may be unavailable (optional Go dashboard).`);
+      this._connectionState = "disconnected";
+      this.emitState(false);
+      this._broadcastStateToSyncChannel("disconnected");
+      return;
+    }
+    
     this._connectionState = "reconnecting";
     this._broadcastStateToSyncChannel("reconnecting");
     const delay = this.reconnectDelay;
@@ -172,13 +185,21 @@ class SSEService {
     // 127.0.0.1 address, which inside a sandbox VM resolves to the *agent's
     // machine rather than this host. So in tunnel mode the proxy wins
     // immediately instead of failing once and falling back.
+    //
+    // The proxy is ALSO the right primary outside tunnel mode. getEventsUrl()
+    // reflects the backend's advertised events_url, which points at the
+    // optional Go dashboard (port 3847). That dashboard is frequently not
+    // running, and the browser's EventSource retries a refused connection on
+    // its own — firing onerror in a CONNECTING state that our reconnect cap
+    // never sees — so preferring it floods the console with ERR_CONNECTION_REFUSED
+    // and never falls back. The backend's own /api/events is the canonical
+    // realtime transport (see app/core/config.py) and is always available when
+    // the backend runs, so it is primary; the configured URL is a fallback.
     const proxyUrl = `${window.location.protocol}//${window.location.host}/api/events`;
     const configuredUrl = getEventsUrl();
-    const fallbackUrl = proxyUrl;
-    const primaryUrl =
-      isPublicTunnelActive() || !configuredUrl || configuredUrl === proxyUrl
-        ? proxyUrl
-        : configuredUrl;
+    const primaryUrl = proxyUrl;
+    const fallbackUrl =
+      configuredUrl && configuredUrl !== proxyUrl ? configuredUrl : null;
 
     const attempt = (url: string) => {
       // Build URL with Last-Event-ID for replay on reconnect
@@ -189,6 +210,7 @@ class SSEService {
 
       this.eventSource.onopen = () => {
         this.reconnectDelay = 1000;
+        this.reconnectAttempts = 0; // Reset on successful connection
         this._connectionState = "connected";
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer);
@@ -234,21 +256,35 @@ class SSEService {
       });
 
       this.eventSource.onerror = () => {
+        const es = this.eventSource;
+        // Ignore stale errors: the browser's EventSource fires onerror from
+        // its own internal retry loop, and once we have closed the source
+        // (or it is already CLOSED) further errors from it are duplicates
+        // that would otherwise spawn extra reconnect attempts.
+        if (!es || es.readyState === EventSource.CLOSED) {
+          return;
+        }
+
+        // Close immediately so the browser's built-in retry stops.
+        // Reconnection is owned by scheduleReconnect(), which honours
+        // maxReconnectAttempts — leaving the source open lets the browser
+        // retry the (often optional) endpoint forever, bypassing our cap.
+        es.close();
+        this.eventSource = null;
+
         this._connectionState = "reconnecting";
         this._broadcastStateToSyncChannel("reconnecting");
-        const es = this.eventSource;
-        const closed = es?.readyState === EventSource.CLOSED;
-        if (closed && es) {
-          const wasUsingPrimary = url === primaryUrl;
-          es.close();
-          this.eventSource = null;
-          if (wasUsingPrimary && primaryUrl !== fallbackUrl) {
-            console.warn(`[SSE] go-dashboard unreachable, falling back to ${fallbackUrl}`);
-            attempt(fallbackUrl);
-          } else {
-            this.scheduleReconnect();
-          }
+
+        const wasUsingPrimary = url === primaryUrl;
+        if (wasUsingPrimary && fallbackUrl && fallbackUrl !== primaryUrl) {
+          console.warn(
+            `[SSE] ${url} unreachable, falling back to ${fallbackUrl}`,
+          );
+          attempt(fallbackUrl);
+        } else {
+          this.scheduleReconnect();
         }
+
         // Queue listeners for redispatch when the connection restores.
         for (const listener of this.listeners) {
           try {

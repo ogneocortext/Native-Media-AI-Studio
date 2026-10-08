@@ -6,6 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed - Frontend dependency refresh (React 19.3, Vite 8.3, ESLint 10, wavesurfer 8)
+
+Workspace catalog and lockfile refreshed to current stable minors/patches, with
+the Remotion `minimumReleaseAgeExclude` pins bumped in lockstep
+(4.0.519 → 4.0.534) so the age gate keeps letting Remotion through:
+
+- **React / React DOM** 19.2.8 → 19.3.0 (catalog).
+- **Vite** 8.3.1 → 8.3.4 (catalog).
+- **ESLint** 9 → 10.9.1 and **typescript-eslint** 8.69.0 → 8.71.1 (override).
+- **vitest** → 5.0.3, **wavesurfer.js** 7 → 8.0.2, **remotion** → 4.0.534.
+
+The two majors are the load-bearing ones and both were verified, not assumed:
+wavesurfer's v8 `WaveSurferOptions` type still declares the option names these
+call sites use (`fillParent`, `interact`, `barWidth`, `peaks`) and
+`RegionsPlugin` is imported from its v8 path
+(`wavesurfer.js/dist/plugins/regions.js`), so `WaveformDisplay` and
+`AudioTrimModal` compile and run unchanged against 8.0.2. ESLint 10 runs the
+existing flat config with no ruleset changes. All nine gates pass on the
+refreshed tree (`type`, `lint`, `unit`, `build`, `pytest`).
+
+### Fixed - SSE reconnection flooded the console and never fell back
+
+`sseService` preferred the configured `events_url`, which points at the optional
+Go dashboard (port 3847). That dashboard is frequently not running, and the
+browser's `EventSource` retries a refused connection on its own - firing
+`onerror` in a CONNECTING state our reconnect logic never saw - so preferring it
+spammed `ERR_CONNECTION_REFUSED` and never fell back to the backend. The
+backend's own `/api/events` is now the primary (canonical realtime transport,
+always available when the backend runs) and the configured URL is a fallback.
+`onerror` now closes the source immediately so the browser's built-in retry
+stops, and reconnection is capped at 10 attempts instead of retrying forever.
+
+### Changed - Deterministic sidecar regression test
+
+`test_regression_zero_png_json_on_this_machine` asserted against the real
+`output/images/` library, which on this machine holds only derived upscale /
+thumbnail renders that legitimately carry no `<stem>.json` sidecar, so the
+assert fired on a clean checkout. Replaced with a self-contained fixture that
+exercises the same regression (the `<stem>.png.json` vs `<stem>.json`
+distinction) without depending on mutable dev output.
+
+### Changed - Ollama model test decodes subprocess output as UTF-8
+
+`tools/test-all-ollama-models.py` passes explicit `encoding="utf-8"` to its
+`subprocess.run`, per `tools/check-subprocess-encoding.py` (the `docs` gate
+rejects a bare `text=True` that would decode with the cp1252 locale codec).
+
 ### Changed - Ollama 0.40.0 integration surface
 
 The local server was upgraded to Ollama 0.40.0

@@ -274,6 +274,7 @@ def test_vision(model: str, image: Path, timeout: float = 300, quick: bool = Fal
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=timeout,
             cwd=str(PROJECT_ROOT),
         )
