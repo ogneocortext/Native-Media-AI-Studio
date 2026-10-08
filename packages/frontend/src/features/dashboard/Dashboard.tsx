@@ -153,7 +153,7 @@ export function Dashboard() {
       <div
         role="button"
         tabIndex={0}
-        aria-label="Drop audio file here or click to browse. You can also paste an audio file."
+        aria-label="Drop audio file here to start making a music video, or click to browse your files. You can also paste an audio file directly."
         onDragEnter={(e) => {
           e.preventDefault();
           dragCounter.current += 1;

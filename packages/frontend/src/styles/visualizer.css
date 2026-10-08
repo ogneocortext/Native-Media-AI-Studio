@@ -3239,3 +3239,282 @@
     box-shadow: 0 0 16px rgba(99, 102, 241, 0.6);
   }
 }
+
+/* ===== Audio file browser (library picker modal) =====
+   Backdrop/dialog pattern shared with the other viz overlays: the scrim sits
+   below the topbar menus, the dialog above it, both above the canvas. */
+.viz-file-browser-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: oklch(0% 0 0 / 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.viz-file-browser {
+  display: flex;
+  flex-direction: column;
+  inline-size: min(560px, 100%);
+  max-block-size: min(70vh, 640px);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px oklch(0% 0 0 / 0.45);
+  overflow: hidden;
+}
+
+.viz-file-browser-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+  border-block-end: 1px solid var(--border-color);
+}
+
+.viz-file-browser-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.viz-file-browser-title svg {
+  color: var(--color-primary);
+}
+
+.viz-file-browser-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 30px;
+  block-size: 30px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.viz-file-browser-close:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.viz-file-browser-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 1.1rem;
+  border-block-end: 1px solid var(--border-color);
+}
+
+.viz-file-browser-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.viz-file-browser-search > svg {
+  position: absolute;
+  inset-inline-start: 0.6rem;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.viz-file-browser-search input {
+  inline-size: 100%;
+  padding: 0.45rem 0.6rem 0.45rem 2rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.viz-file-browser-search input:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.viz-file-browser-count {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.viz-file-browser-list {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.5rem;
+  list-style: none;
+}
+
+.viz-file-browser-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  inline-size: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.viz-file-browser-card:hover,
+.viz-file-browser-card:focus-visible {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-color);
+}
+
+.viz-file-browser-card-name {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viz-file-browser-card-folder {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.viz-file-browser-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.viz-file-browser-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.viz-file-browser-retry {
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.viz-file-browser-retry:hover {
+  background: var(--bg-surface-hover);
+}
+
+.viz-file-browser-spinner {
+  animation: viz-spin 1s linear infinite;
+}
+
+@keyframes viz-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.viz-file-browser-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1.1rem;
+  border-block-start: 1px solid var(--border-color);
+  font-size: 0.75rem;
+}
+
+.viz-file-browser-foot-link {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.viz-file-browser-foot-link:hover {
+  text-decoration: underline;
+}
+
+.viz-file-browser-foot-note {
+  color: var(--text-secondary);
+}
+
+/* ===== Stage playhead (click-to-seek) =====
+   Sits over the canvas surface: the track is a thin full-width rule, the
+   marker and readout opt back into pointer events so a click reaches the
+   seek handler. */
+.viz-playhead {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  block-size: 100%;
+  pointer-events: none;
+  cursor: pointer;
+}
+
+.viz-playhead-track {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  block-size: 2px;
+  background: linear-gradient(
+    to right,
+    var(--color-primary),
+    var(--color-accent)
+  );
+  opacity: 0.5;
+}
+
+.viz-playhead-marker {
+  position: absolute;
+  inset-block-start: 0;
+  inline-size: 2px;
+  block-size: 100%;
+  background: var(--color-primary);
+  box-shadow: 0 0 8px var(--glow-primary);
+  transform: translateX(-1px);
+  pointer-events: auto;
+}
+
+.viz-playhead-readout {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-start: 8px;
+  padding: 0.15rem 0.45rem;
+  background: oklch(0% 0 0 / 0.6);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  pointer-events: auto;
+}

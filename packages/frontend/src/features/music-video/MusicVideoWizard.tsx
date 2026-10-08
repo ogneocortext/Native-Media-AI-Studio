@@ -291,6 +291,7 @@ export function MusicVideoWizard() {
             analysis={analysis}
             config={config}
             onStart={generateVideo}
+            onConfigChange={setConfig}
           />
         );
       case "review":

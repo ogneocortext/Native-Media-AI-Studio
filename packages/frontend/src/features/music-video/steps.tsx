@@ -34,6 +34,29 @@ import {
   getStemVisualization,
 } from "../../services/api/video-render";
 
+/* Section-type → colour class. Module scope: rebuilding this object inside the
+   per-section render allocated one map per section on every render. */
+const SECTION_COLORS: Record<string, string> = {
+  intro: "bg-sky-600",
+  verse: "bg-emerald-600",
+  chorus: "bg-violet-600",
+  bridge: "bg-amber-600",
+  outro: "bg-rose-600",
+  "pre-chorus": "bg-teal-600",
+};
+
+const SHOT_SIZES = ["Extreme Wide", "Wide", "Medium", "Close-up", "Extreme Close-up"];
+const CAMERA_ANGLES = ["Eye Level", "Low Angle", "High Angle", "Bird's Eye", "Dutch Angle"];
+
+/** Prompt-palette suggestions, keyed by mood category. */
+const PROMPT_SUGGESTIONS: Record<string, string[]> = {
+  happy: ["upbeat", "bright", "colorful", "energetic", "joyful", "vibrant"],
+  calm: ["peaceful", "serene", "soft", "gentle", "relaxing", "ambient"],
+  dark: ["moody", "atmospheric", "cinematic", "dramatic", "intense", "mysterious"],
+  electronic: ["neon", "futuristic", "cyberpunk", "glitch", "synth", "digital"],
+  natural: ["organic", "earthy", "warm", "sunset", "nature", "flowing"],
+};
+
 export function UploadStep({
   audioFile,
   audioUrl,
@@ -77,6 +100,7 @@ export function UploadStep({
         <div
           role="button"
           tabIndex={0}
+          aria-label="Drop your audio track here or click to browse files. You can also paste audio files."
           onDrop={onDrop}
           onDragOver={(e) => {
             e.preventDefault();
@@ -87,7 +111,7 @@ export function UploadStep({
             const f = Array.from(e.clipboardData?.files ?? [])[0];
             if (f) onFileSelect(f);
           }}
-          className={`mt-6 border-2 border-dashed rounded-xl p-8 md:p-10 transition-all cursor-pointer group ${dragOver ? "border-violet-500 bg-violet-500/5" : "border-gray-600 hover:border-violet-500 hover:bg-violet-500/5"}`}
+          className={`mt-6 border-2 border-dashed rounded-xl p-8 md:p-10 transition-all cursor-pointer group ${dragOver ? "border-violet-500 bg-violet-500/5 ring-2 ring-violet-500/30" : "border-gray-600 hover:border-violet-500 hover:bg-violet-500/5"}`}
           onClick={() => inputRef.current?.click()}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -154,7 +178,10 @@ export function AnalyzeStep({
   audioUrl: string | null;
   onNext: () => void;
 }) {
-  const maxEnergy = Math.max(...analysis.sections.map((s) => s.energy), 1);
+  // Reduce, not `Math.max(...energies, 1)`: the spread passes every section's
+  // energy as a separate argument, which overflows the call stack on a long
+  // track and allocates an intermediate array on every render.
+  const maxEnergy = analysis.sections.reduce((m, s) => Math.max(m, s.energy), 1);
   return (
     <div className="p-6 md:p-8">
       <div className="flex items-center gap-3 mb-5">
@@ -212,19 +239,11 @@ export function AnalyzeStep({
         <div className="flex gap-0.5 h-14 rounded-xl overflow-hidden border border-gray-700">
           {analysis.sections.map((section, i) => {
             const width = ((section.end - section.start) / analysis.duration_seconds) * 100;
-            const colors: Record<string, string> = {
-              intro: "bg-sky-600",
-              verse: "bg-emerald-600",
-              chorus: "bg-violet-600",
-              bridge: "bg-amber-600",
-              outro: "bg-rose-600",
-              "pre-chorus": "bg-teal-600",
-            };
             const treatment = VISUAL_TREATMENTS[section.type] || "Custom treatment";
             return (
               <div
                 key={i}
-                className={`${colors[section.type] || "bg-gray-600"} flex flex-col items-center justify-center relative group cursor-help`}
+                className={`${SECTION_COLORS[section.type] || "bg-gray-600"} flex flex-col items-center justify-center relative group cursor-help`}
                 style={{ width: `${width}%` }}
               >
                 <span className="text-xs text-white font-bold truncate px-1">{section.type}</span>
@@ -314,15 +333,6 @@ export function ConfigureStep({
   const [activeCategory, setActiveCategory] = useState("happy");
   const applyStructured = () => onConfigChange({ ...config, prompt: composedPrompt });
   const lint = useMemo(() => lintVideoPrompt(config.prompt), [config.prompt]);
-  const SHOT_SIZES = ["Extreme Wide", "Wide", "Medium", "Close-up", "Extreme Close-up"];
-  const CAMERA_ANGLES = ["Eye Level", "Low Angle", "High Angle", "Bird's Eye", "Dutch Angle"];
-  const PROMPT_SUGGESTIONS: Record<string, string[]> = {
-    happy: ["upbeat", "bright", "colorful", "energetic", "joyful", "vibrant"],
-    calm: ["peaceful", "serene", "soft", "gentle", "relaxing", "ambient"],
-    dark: ["moody", "atmospheric", "cinematic", "dramatic", "intense", "mysterious"],
-    electronic: ["neon", "futuristic", "cyberpunk", "glitch", "synth", "digital"],
-    natural: ["organic", "earthy", "warm", "sunset", "nature", "flowing"],
-  };
 
   return (
     <div className="p-6 md:p-8">
@@ -578,12 +588,14 @@ export function GenerateStep({
   analysis,
   config,
   onStart,
+  onConfigChange,
 }: {
   generating: boolean;
   progress: number;
   analysis: AudioAnalysis | null;
   config: GenerationConfig;
   onStart: () => void;
+  onConfigChange: (c: GenerationConfig) => void;
 }) {
   const [costEstimate, setCostEstimate] = useState<CostEstimate | null>(null);
   const [estimating, setEstimating] = useState(false);
@@ -611,7 +623,10 @@ export function GenerateStep({
     setRouting(true);
     try {
       const routes: Record<string, { model: string; tier: string; reason: string }> = {};
-      for (const s of sections) {
+      // Iterate with the index rather than `sections.indexOf(s)`: indexOf scans
+      // from the start for every section, and returns the FIRST match when two
+      // sections share a type, so a repeated verse would collapse onto one key.
+      for (const [i, s] of sections.entries()) {
         try {
           const res = await routeScene({
             section_type: s.type,
@@ -619,7 +634,7 @@ export function GenerateStep({
             duration: s.end - s.start,
             vram_available_mb: 7500,
           });
-          routes[`${s.type}-${sections.indexOf(s)}`] = {
+          routes[`${s.type}-${i}`] = {
             model: res.model,
             tier: res.tier,
             reason: res.reason,
@@ -992,8 +1007,15 @@ export function GenerateStep({
                       placeholder="Override prompt for this section (optional)"
                       value={config.sectionOverrides[`${s.type}-${i}`] || ""}
                       onChange={(e) => {
+                        // Replace the object rather than mutating `config`: a
+                        // direct write to the prop never re-renders and leaves
+                        // the parent holding a stale copy.
+                        const key = `${s.type}-${i}`;
                         const v = e.target.value;
-                        config.sectionOverrides[`${s.type}-${i}`] = v;
+                        onConfigChange({
+                          ...config,
+                          sectionOverrides: { ...config.sectionOverrides, [key]: v },
+                        });
                       }}
                       className="w-full mt-1.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded-lg text-xs text-white placeholder-gray-500"
                     />

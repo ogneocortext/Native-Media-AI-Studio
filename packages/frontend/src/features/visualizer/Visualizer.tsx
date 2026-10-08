@@ -24,9 +24,11 @@ import {
   Keyboard,
   Film,
 } from "lucide-react";
+import { formatTime } from "../../utils/format";
 import { ensureAnalysis, getStemsAnalysis } from "../../services/api";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { AudioTransport } from "../../components/audio";
+import { AudioFileBrowser } from "./components/AudioFileBrowser";
 import type {
   AudioAnalysisData,
   AudioData,
@@ -157,6 +159,7 @@ export function Visualizer() {
   const [kineticPreset, setKineticPreset] = useState("cinematic");
   const [showAnimDemo, setShowAnimDemo] = useState(false);
   const [showTheatreStudio, setShowTheatreStudio] = useState(false);
+  const [showAudioBrowser, setShowAudioBrowser] = useState(false);
   const [loadedPreset, setLoadedPreset] = useState<VisualPreset | null>(null);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -236,6 +239,10 @@ export function Visualizer() {
 
   const audioElapsedRef = useRef(0);
   const [elapsed, setElapsed] = useState(0);
+  // Element duration as state: the playhead below renders from `elapsed` +
+  // `audioDuration`, both reactive. Reading `audioElapsedRef.current` in render
+  // would freeze the marker at its value from the last unrelated re-render.
+  const [audioDuration, setAudioDuration] = useState(0);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
 
   // Shared Web Audio graph (context + EQ + analyser + gain). Owns setup/reset/teardown.
@@ -1168,6 +1175,21 @@ export function Visualizer() {
     };
   }, [handleSelectLibraryTrack]);
 
+  // Playhead click-to-seek: translate viewport x into a seek position on the
+  // current audio element (duration sampled from the element's metadata).
+  const handlePlayheadClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const el = audioElRef.current;
+      if (!el) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const duration = el.duration;
+      if (!Number.isFinite(duration) || duration <= 0) return;
+      el.currentTime = pct * duration;
+    },
+    [],
+  );
+
   // Media Library handoff: auto-select a pending track exactly once. The handoff
   // may carry a bare filename while the library entry lives in a subfolder, so
   // resolve against the loaded library (by ref or bare name) before selecting.
@@ -1694,7 +1716,7 @@ export function Visualizer() {
                   </button>
                   <button
                     className="viz-empty-secondary"
-                    onClick={() => document.getElementById("viz-file-input")?.click()}
+                    onClick={() => setShowAudioBrowser(true)}
                   >
                     Browse files…
                   </button>
@@ -1708,6 +1730,43 @@ export function Visualizer() {
               </div>
             </div>
           )}
+          {/* Playhead + click-to-seek over the stage. Position comes from the
+              reactive `elapsed` state (driven by the playback rAF loop), not the
+              refs, so the marker tracks playback. The canvas paints over this
+              div; only the marker and readout are pointer-events: auto so
+              seeking works through the playing surface. */}
+          {audioUrl && audioDuration > 0 && (
+            <div
+              className="viz-playhead"
+              onClick={handlePlayheadClick}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={Math.round(audioDuration)}
+              aria-valuenow={Math.min(elapsed, audioDuration)}
+              aria-valuetext={`${formatTime(elapsed)} of ${formatTime(audioDuration)}`}
+            >
+              <div className="viz-playhead-track" aria-hidden="true" />
+              <div
+                className="viz-playhead-marker"
+                aria-hidden="true"
+                style={{ left: `${Math.min(100, (elapsed / audioDuration) * 100)}%` }}
+              />
+              <div
+                className="viz-playhead-readout"
+                aria-hidden="true"
+              >
+                {formatTime(elapsed)} / {formatTime(audioDuration)}
+              </div>
+            </div>
+          )}
+
+          {showAudioBrowser && (
+            <AudioFileBrowser
+              onClose={() => setShowAudioBrowser(false)}
+              onSelect={handleSelectLibraryTrack}
+            />
+          )}
+
           <UploadPrompt
             hasAudio={!!audioUrl}
             quiet={!audioUrl && !currentFilename}
@@ -1940,6 +1999,10 @@ export function Visualizer() {
               setIsPlaying(true);
               setIsPaused(false);
               if (audioElRef.current) void setupAudio(audioElRef.current);
+            }}
+            onLoadedMetadata={(e) => {
+              const d = e.currentTarget.duration;
+              setAudioDuration(Number.isFinite(d) && d > 0 ? d : 0);
             }}
             onPause={() => {
               setIsPlaying(false);
