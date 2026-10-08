@@ -1,5 +1,5 @@
-import { Check, FolderOpen, Link2, Save, Server, Workflow, Moon, Sun, Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Check, FolderOpen, Link2, Save, Server, Workflow, Moon, Sun, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, StatusBadge } from "../../components/common";
 import { useHealth } from "../../hooks";
 import { useTheme } from "../../utils/theme";
@@ -35,6 +35,11 @@ function isAdapterUp(status: string | undefined): boolean {
   return status === "connected" || status === "online" || status === "healthy";
 }
 
+interface ConnectionTestResult {
+  status: "idle" | "testing" | "success" | "error";
+  message: string;
+}
+
 export function Settings() {
   const { serviceStatus } = useHealth();
   const { theme, toggleTheme } = useTheme();
@@ -55,6 +60,8 @@ export function Settings() {
       frontend_port: env.frontend_port || 5173,
     };
   });
+  const [connectionTests, setConnectionTests] = useState<Record<string, ConnectionTestResult>>({});
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Load current settings from backend on mount
   useEffect(() => {
@@ -69,6 +76,12 @@ export function Settings() {
       }
     };
     loadSettings();
+  }, []);
+
+  const updateSetting = useCallback(<K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
+    setSettings((prev) => ({ ...prev, [key]: value }));
+    setHasUnsavedChanges(true);
+    setSaved(false);
   }, []);
 
   const handleSave = async () => {
@@ -93,6 +106,7 @@ export function Settings() {
         throw new Error(detail.detail || "Failed to save settings");
       }
       setSaved(true);
+      setHasUnsavedChanges(false);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save settings");
@@ -102,12 +116,23 @@ export function Settings() {
   };
 
   const testConnection = async (url: string, type: "comfyui" | "ollama") => {
+    const key = `${type}-${url}`;
+    setConnectionTests((prev) => ({ ...prev, [key]: { status: "testing", message: "Testing..." } }));
     try {
       const data: IntegrationStatus = await getIntegrationStatus(type);
-      alert(`${type.toUpperCase()} status: ${data.status}`);
+      setConnectionTests((prev) => ({
+        ...prev,
+        [key]: { status: "success", message: `Connected — ${data.status}` },
+      }));
     } catch {
-      alert(`${type.toUpperCase()} not reachable at ${url}`);
+      setConnectionTests((prev) => ({
+        ...prev,
+        [key]: { status: "error", message: `Not reachable at ${url}` },
+      }));
     }
+    setTimeout(() => {
+      setConnectionTests((prev) => ({ ...prev, [key]: { status: "idle", message: "" } }));
+    }, 5000);
   };
 
   if (loading) {
@@ -121,9 +146,17 @@ export function Settings() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-muted mt-1">Configure the application</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Settings</h1>
+          <p className="text-muted mt-1">Configure the application</p>
+        </div>
+        {hasUnsavedChanges && (
+          <span className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            Unsaved changes
+          </span>
+        )}
       </div>
 
       <div className="grid grid-2 gap-6">
@@ -150,19 +183,32 @@ export function Settings() {
                   className="input flex-1"
                   aria-label="ComfyUI URL"
                   value={settings.comfyui_url}
-                  onChange={(e) =>
-                    setSettings((prev) => ({ ...prev, comfyui_url: e.target.value }))
-                  }
+                  onChange={(e) => updateSetting("comfyui_url", e.target.value)}
                   placeholder="http://127.0.0.1:8188"
                 />
                 <button
                   className="btn btn-secondary"
                   title="Test Connection"
                   onClick={() => testConnection(settings.comfyui_url, "comfyui")}
+                  disabled={connectionTests[`comfyui-${settings.comfyui_url}`]?.status === "testing"}
                 >
-                  <Link2 size={16} />
+                  {connectionTests[`comfyui-${settings.comfyui_url}`]?.status === "testing" ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Link2 size={16} />
+                  )}
                 </button>
               </div>
+              {connectionTests[`comfyui-${settings.comfyui_url}`]?.status === "success" && (
+                <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
+                  <CheckCircle2 size={12} /> {connectionTests[`comfyui-${settings.comfyui_url}`].message}
+                </p>
+              )}
+              {connectionTests[`comfyui-${settings.comfyui_url}`]?.status === "error" && (
+                <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
+                  <AlertCircle size={12} /> {connectionTests[`comfyui-${settings.comfyui_url}`].message}
+                </p>
+              )}
               <p className="text-xs text-muted mt-1">
                 ComfyUI server address for image and video generation
               </p>
@@ -223,17 +269,32 @@ export function Settings() {
                   className="input flex-1"
                   aria-label="Ollama URL"
                   value={settings.ollama_url}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, ollama_url: e.target.value }))}
+                  onChange={(e) => updateSetting("ollama_url", e.target.value)}
                   placeholder="http://127.0.0.1:11434"
                 />
                 <button
                   className="btn btn-secondary"
                   title="Test Connection"
                   onClick={() => testConnection(settings.ollama_url, "ollama")}
+                  disabled={connectionTests[`ollama-${settings.ollama_url}`]?.status === "testing"}
                 >
-                  <Link2 size={16} />
+                  {connectionTests[`ollama-${settings.ollama_url}`]?.status === "testing" ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Link2 size={16} />
+                  )}
                 </button>
               </div>
+              {connectionTests[`ollama-${settings.ollama_url}`]?.status === "success" && (
+                <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
+                  <CheckCircle2 size={12} /> {connectionTests[`ollama-${settings.ollama_url}`].message}
+                </p>
+              )}
+              {connectionTests[`ollama-${settings.ollama_url}`]?.status === "error" && (
+                <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
+                  <AlertCircle size={12} /> {connectionTests[`ollama-${settings.ollama_url}`].message}
+                </p>
+              )}
               <p className="text-xs text-muted mt-1">Base Ollama server for LLM text generation</p>
             </div>
 
@@ -266,9 +327,7 @@ export function Settings() {
                     className="sr-only peer"
                     aria-label="Enable Atomic Chat TurboQuant"
                     checked={settings.atomic_chat_enabled}
-                    onChange={(e) =>
-                      setSettings((prev) => ({ ...prev, atomic_chat_enabled: e.target.checked }))
-                    }
+                    onChange={(e) => updateSetting("atomic_chat_enabled", e.target.checked)}
                   />
                   <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                 </label>
@@ -281,9 +340,7 @@ export function Settings() {
                     className="input flex-1"
                     aria-label="Atomic Chat URL"
                     value={settings.atomic_chat_url}
-                    onChange={(e) =>
-                      setSettings((prev) => ({ ...prev, atomic_chat_url: e.target.value }))
-                    }
+                    onChange={(e) => updateSetting("atomic_chat_url", e.target.value)}
                     placeholder="http://127.0.0.1:1337"
                     disabled={!settings.atomic_chat_enabled}
                   />
@@ -308,9 +365,7 @@ export function Settings() {
                 className="select"
                 aria-label="Default model"
                 value={settings.default_model || "qwen3.5:4b"}
-                onChange={(e) =>
-                  setSettings((prev) => ({ ...prev, default_model: e.target.value }))
-                }
+                onChange={(e) => updateSetting("default_model", e.target.value)}
               >
                 <option value="qwen3.5:4b">qwen3.5:4b (fast, 4B)</option>
                 <option value="qwen3.5:9b">qwen3.5:9b (quality, 9B)</option>
@@ -355,12 +410,7 @@ export function Settings() {
                 className="select"
                 aria-label="Max queue workers"
                 value={settings.max_queue_workers}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    max_queue_workers: parseInt(e.target.value, 10),
-                  }))
-                }
+                onChange={(e) => updateSetting("max_queue_workers", parseInt(e.target.value, 10))}
               >
                 <option value={1}>1 (Serial)</option>
                 <option value={2}>2</option>
@@ -381,7 +431,7 @@ export function Settings() {
               className="select"
               aria-label="Log level"
               value={settings.log_level}
-              onChange={(e) => setSettings((prev) => ({ ...prev, log_level: e.target.value }))}
+                onChange={(e) => updateSetting("log_level", e.target.value)}
             >
               <option value="DEBUG">Debug</option>
               <option value="INFO">Info</option>

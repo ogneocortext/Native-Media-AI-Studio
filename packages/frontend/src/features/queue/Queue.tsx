@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -11,10 +11,12 @@ import {
   Trash2,
   ListOrdered,
   RotateCcw,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, StatusBadge, ProgressBar, EmptyState, PageLoader } from "../../components/common";
 import { useJobStore } from "../../state/jobStore";
 import { JobListSection } from "./QueueList";
+import { showToast } from "../../utils/toast";
 
 /**
  * Convert technical error messages to user-friendly messages.
@@ -45,6 +47,13 @@ function getFriendlyError(error: string): string {
   return error.length > 100 ? "An unexpected error occurred. Please try again." : error;
 }
 
+interface ConfirmDialogState {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+}
+
 export function Queue() {
   const navigate = useNavigate();
   const {
@@ -62,6 +71,7 @@ export function Queue() {
   } = useJobStore();
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
 
   // Fetch jobs on mount so the queue page reflects the latest state
   // (SSE is managed centrally by Layout.tsx).
@@ -71,58 +81,98 @@ export function Queue() {
 
   // SSE is managed centrally by Layout.tsx; no per-component connect/disconnect.
 
-  const handleCancel = async (id: string) => {
-    if (!confirm("Cancel this job?")) return;
-    setActionLoading(id);
-    try {
-      await cancelJob(id);
-    } catch (e) {
-      console.error("Failed to cancel job:", e);
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  const handleCancel = useCallback((id: string) => {
+    setConfirmDialog({
+      title: "Cancel Job",
+      message: "Are you sure you want to cancel this job? Progress will be lost.",
+      confirmLabel: "Cancel Job",
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        setActionLoading(id);
+        try {
+          await cancelJob(id);
+          showToast("Job cancelled", "info");
+        } catch (e) {
+          console.error("Failed to cancel job:", e);
+          showToast("Failed to cancel job", "error");
+        } finally {
+          setActionLoading(null);
+        }
+      },
+    });
+  }, [cancelJob]);
 
-  const handleRetry = async (id: string) => {
+  const handleRetry = useCallback(async (id: string) => {
     setActionLoading(id);
     try {
       await retryJob(id);
+      showToast("Job re-queued", "success");
     } catch (e) {
       console.error("Failed to retry job:", e);
+      showToast("Failed to retry job", "error");
     } finally {
       setActionLoading(null);
     }
-  };
+  }, [retryJob]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this job permanently?")) return;
-    setActionLoading(id);
-    try {
-      await deleteJob(id);
-    } catch (e) {
-      console.error("Failed to delete job:", e);
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  const handleDelete = useCallback((id: string) => {
+    setConfirmDialog({
+      title: "Delete Job",
+      message: "This will permanently delete this job and its output. This action cannot be undone.",
+      confirmLabel: "Delete",
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        setActionLoading(id);
+        try {
+          await deleteJob(id);
+          showToast("Job deleted", "success");
+        } catch (e) {
+          console.error("Failed to delete job:", e);
+          showToast("Failed to delete job", "error");
+        } finally {
+          setActionLoading(null);
+        }
+      },
+    });
+  }, [deleteJob]);
 
-  const handleClearCompleted = async () => {
-    if (!confirm(`Clear ${stats?.completed || 0} completed jobs?`)) return;
-    try {
-      await clearCompleted();
-    } catch (e) {
-      console.error("Failed to clear completed:", e);
-    }
-  };
+  const handleClearCompleted = useCallback(() => {
+    const count = stats?.completed || 0;
+    setConfirmDialog({
+      title: "Clear Completed",
+      message: `This will remove ${count} completed job${count === 1 ? "" : "s"} from the queue.`,
+      confirmLabel: "Clear All",
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        try {
+          await clearCompleted();
+          showToast(`Cleared ${count} completed jobs`, "success");
+        } catch (e) {
+          console.error("Failed to clear completed:", e);
+          showToast("Failed to clear completed jobs", "error");
+        }
+      },
+    });
+  }, [clearCompleted, stats]);
 
-  const handleClearFailed = async () => {
-    if (!confirm(`Clear ${stats?.failed || 0} failed jobs?`)) return;
-    try {
-      await clearFailed();
-    } catch (e) {
-      console.error("Failed to clear failed:", e);
-    }
-  };
+  const handleClearFailed = useCallback(() => {
+    const count = stats?.failed || 0;
+    setConfirmDialog({
+      title: "Clear Failed",
+      message: `This will remove ${count} failed job${count === 1 ? "" : "s"} from the queue.`,
+      confirmLabel: "Clear All",
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        try {
+          await clearFailed();
+          showToast(`Cleared ${count} failed jobs`, "success");
+        } catch (e) {
+          console.error("Failed to clear failed:", e);
+          showToast("Failed to clear failed jobs", "error");
+        }
+      },
+    });
+  }, [clearFailed, stats]);
 
   // Separate jobs by status for organized display
   const runningJob = jobs.find((j) => j.status === "running");
@@ -332,6 +382,36 @@ export function Queue() {
           />
         )}
       </Card>
+
+      {confirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-500/15 border border-amber-500/20 flex items-center justify-center shrink-0">
+                <AlertTriangle size={20} className="text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">{confirmDialog.title}</h3>
+                <p className="text-sm text-gray-400 mt-1">{confirmDialog.message}</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setConfirmDialog(null)}
+                className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDialog.onConfirm}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-medium transition-colors"
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

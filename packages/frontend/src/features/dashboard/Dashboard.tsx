@@ -30,7 +30,7 @@ const MAX_AUDIO_MB = 500;
 export function Dashboard() {
   const navigate = useNavigate();
   const { jobs } = useJobs();
-  const { recentOutputs, fetchRecent, deleteOutput } = useOutputStore();
+  const { recentOutputs, fetchRecent, deleteOutput, isLoading } = useOutputStore();
   const [dragOver, setDragOver] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
@@ -252,6 +252,21 @@ export function Dashboard() {
       </div>
 
       {/* Recent — only if you have something, otherwise hide */}
+      {isLoading && !hasOutputs && (
+        <Card title="Your recent videos" className="mt-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="rounded-xl overflow-hidden border border-white/5 bg-black/20">
+                <div className="aspect-video bg-white/5 animate-pulse" />
+                <div className="p-2 space-y-1.5">
+                  <div className="h-3 bg-white/5 rounded animate-pulse" />
+                  <div className="h-2 bg-white/5 rounded w-2/3 animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
       {hasOutputs && (
         <Card title="Your recent videos" className="mt-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -350,9 +365,9 @@ export function Dashboard() {
       )}
 
       <p className="text-center text-[11px] text-muted mt-6">
-        Need the old layout? Switch to{" "}
-        <button onClick={() => navigate("/music-video")} className="underline hover:text-white">
-          Classic Studio
+        Looking for something else?{" "}
+        <button onClick={() => navigate("/music-video-wizard")} className="underline hover:text-white">
+          Music Video Wizard
         </button>{" "}
         or{" "}
         <button onClick={() => navigate("/visualizer")} className="underline hover:text-white">

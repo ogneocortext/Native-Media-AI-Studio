@@ -161,6 +161,16 @@ Dashboard → "Create Music Video" → Upload Audio → [Auto Analyze: Beats, Se
 - **Build throttling** — `GoServicesCard` 5s→15s, `vite.config.ts` three dedupe alias (~100KB gz).
 - **Verification:** `tsc -b` 0, `vite build` 0 (33.64KB css / 50.77KB Visualizer gz).
 
+## Resolved (2026-10-08 UX improvements)
+
+- **Settings connection tests** — Replaced `alert()` popups with inline success/error feedback (icons + color-coded messages). Addresses "no help or guidance system."
+- **Settings unsaved changes** — Added amber "Unsaved changes" badge in header; all inputs track dirty state via centralized `updateSetting` callback.
+- **Queue confirmation dialogs** — Replaced native `confirm()` with styled modal dialog (AlertTriangle icon, clear messaging, Cancel/Delete actions).
+- **Queue toast feedback** — All destructive actions (cancel, retry, delete, clear) now show toast notifications for success/failure.
+- **Dashboard link fix** — "Classic Studio" link text corrected to "Music Video Wizard" (was misleading — `/music-video` redirects to `/music-video-wizard`).
+- **Dashboard loading skeleton** — Added pulse-animation skeleton cards while fetching recent outputs (replaces blank screen).
+- **Notification panel dismissal** — Added click-outside-to-close and Escape key support.
+
 ## Next Steps
 
 1. Implement unified Music Video Wizard
