@@ -194,14 +194,6 @@ export function getApiBaseUrl(): string {
 }
 
 /**
- * True when VITE_PUBLIC_BACKEND_URL or VITE_PUBLIC_FRONTEND_URL is set.
- * Use to toggle sandbox/tunnel-aware UI hints.
- */
-export function isPublicTunnelActive(): boolean {
-  return isTunnelMode();
-}
-
-/**
  * Get the Remotion Video Editor studio URL.
  * The studio runs on the port configured in config/ports.json (default: 8080).
  */

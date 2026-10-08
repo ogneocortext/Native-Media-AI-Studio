@@ -44,12 +44,13 @@ function ModelView({ url, onLoading }: { url: string; onLoading?: (v: boolean) =
     onLoading?.(true);
     const timer = setTimeout(() => {
       if (cancelled) return;
-      const c = processScene(scene);
-      if (!cancelled) {
-        setCloned(c);
-        setReady(true);
-        onLoading?.(false);
-      }
+      void processScene(scene).then((processed) => {
+        if (!cancelled) {
+          setCloned(processed);
+          setReady(true);
+          onLoading?.(false);
+        }
+      });
     }, 50);
     return () => {
       cancelled = true;
@@ -77,10 +78,17 @@ function ModelView({ url, onLoading }: { url: string; onLoading?: (v: boolean) =
  * Process a loaded GLB scene: merge coincident vertices, recompute normals,
  * decimate to a target vertex count, apply PBR materials, and recenter.
  * Extracted so ModelView can defer it via setTimeout without blocking paint.
+ *
+ * Async because three r186 made SimplifyModifier.modify() async (it yields
+ * to the event loop on large meshes); the decimation pass below awaits it.
  */
-function processScene(scene: THREE.Object3D) {
+async function processScene(scene: THREE.Object3D): Promise<THREE.Object3D> {
   const c = scene.clone(true);
   const modifier = new SimplifyModifier();
+
+  // Meshes queued for decimation. Collected during traversal because
+  // Object3D.traverse's callback is synchronous and cannot await modify().
+  const decimate: { mesh: THREE.Mesh; geom: THREE.BufferGeometry; removeCount: number }[] = [];
 
   c.traverse((obj: THREE.Object3D) => {
     const mesh = obj as THREE.Mesh;
@@ -111,16 +119,11 @@ function processScene(scene: THREE.Object3D) {
     // makes the preview (a) load faster, (b) render at 60fps, and
     // (c) actually look *smoother* because the SimplifyModifier's
     // quadric error metric merges the tiny octree faces into larger
-    // smooth patches.
+    // smooth patches. Queued here, run after traversal (see above).
     const srcCount = g.attributes.position.count;
     const targetVerts = 80_000;
     if (srcCount > targetVerts * 1.1) {
-      const removeCount = srcCount - targetVerts;
-      const simplified = modifier.modify(g, removeCount);
-      simplified.computeVertexNormals();
-      simplified.computeBoundingBox();
-      simplified.computeBoundingSphere();
-      mesh.geometry = simplified;
+      decimate.push({ mesh, geom: g, removeCount: srcCount - targetVerts });
     }
 
     // Apply a high-quality PBR material. The GLB has no material slot,
@@ -137,6 +140,14 @@ function processScene(scene: THREE.Object3D) {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
   });
+
+  for (const job of decimate) {
+    const simplified = await modifier.modify(job.geom, job.removeCount);
+    simplified.computeVertexNormals();
+    simplified.computeBoundingBox();
+    simplified.computeBoundingSphere();
+    job.mesh.geometry = simplified;
+  }
 
   // Center + scale the model so it fits a 2-unit target cube.
   const box = new THREE.Box3().setFromObject(c);

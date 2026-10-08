@@ -186,9 +186,8 @@ the same regex, so proxied media downloads through the tunnel receive
   stay blocked.
 - `vite.config.ts` reads `VITE_PUBLIC_BACKEND_URL` for the frontend's notion of
   the API origin; when set, `config/ports.json` no longer overrides it.
-- `portConfig.ts` detects tunnel mode via `isTunnelMode()` (exported as
-  `isPublicTunnelActive()`) and derives `events_url` / `sse_url` from the public
-  backend URL.
+- `portConfig.ts` detects tunnel mode via its internal `isTunnelMode()` helper
+  and derives `events_url` / `sse_url` from the public backend URL.
 - `sseService.ts` **prefers the same-origin `/api/events` proxy when a tunnel is
   active**, because `getEventsUrl()` returns an absolute `127.0.0.1` address that
   resolves to the *agent's* machine rather than this host. Un-tunneled local

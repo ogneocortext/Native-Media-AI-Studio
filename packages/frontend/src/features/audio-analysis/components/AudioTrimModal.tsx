@@ -74,7 +74,7 @@ export function AudioTrimModal({
 
   const waveContainerRef = useRef<HTMLDivElement | null>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
-  const regionsPluginRef = useRef<RegionsPlugin | null>(null);
+  const regionsPluginRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
   const disableDragSelectRef = useRef<(() => void) | null>(null);
   const regionsStateRef = useRef<RegionState[]>([]);
   regionsStateRef.current = regions;
