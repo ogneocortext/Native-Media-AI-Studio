@@ -19,6 +19,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "packages" / "backend"))
 
 from app.adapters.ollama import OllamaAdapter  # noqa: E402
+
 from tools.scripts.coding_benchmark import run_benchmark  # noqa: E402
 
 

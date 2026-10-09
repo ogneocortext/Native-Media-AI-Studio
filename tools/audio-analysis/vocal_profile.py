@@ -2,9 +2,11 @@
 """Vocal profile for a vocal stem: occupancy, voiced fraction, f0 range.
 Usage: vocal_profile.py vocals.mp3
 """
-import json, sys
-import numpy as np
+import json
+import sys
+
 import librosa
+import numpy as np
 
 SRC = sys.argv[1]
 y, sr = librosa.load(SRC, sr=22050, mono=True)

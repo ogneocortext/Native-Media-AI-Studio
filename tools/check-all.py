@@ -46,7 +46,7 @@ CHECKS = [
 def run(label, script, args):
     path = os.path.join(ROOT, "tools", script)
     if not os.path.exists(path):
-        print("MISSING: tools/%s" % script)
+        print(f"MISSING: tools/{script}")
         return 1, 0.0, ""
     start = time.time()
     try:
@@ -56,7 +56,7 @@ def run(label, script, args):
         out, _ = proc.communicate()
         code = proc.returncode
     except OSError as e:
-        out = ("could not run: %s" % e).encode("utf-8", "replace")
+        out = (f"could not run: {e}").encode("utf-8", "replace")
         code = 1
     return code, time.time() - start, out.decode("utf-8", "replace")
 
@@ -64,26 +64,26 @@ def run(label, script, args):
 def main():
     verbose = "-v" in sys.argv or "--verbose" in sys.argv
     failures = []
-    print("Running %d checks" % len(CHECKS))
+    print(f"Running {len(CHECKS):d} checks")
     print("=" * 68)
 
     for label, script, args in CHECKS:
         code, elapsed, out = run(label, script, args)
         status = "PASS" if code == 0 else "FAIL"
-        print("[%s] %-22s %5.0f ms  (%s)" % (status, label, elapsed * 1000, script))
+        print(f"[{status}] {label:<22} {elapsed * 1000:5.0f} ms  ({script})")
         if code != 0:
             failures.append(label)
             for line in out.split("\n"):
                 if line.strip():
-                    print("         %s" % line)
+                    print(f"         {line}")
         elif verbose:
             for line in out.strip().split("\n")[-1:]:
                 if line.strip():
-                    print("         %s" % line)
+                    print(f"         {line}")
 
     print("=" * 68)
     if failures:
-        print("FAILED: %s" % ", ".join(failures))
+        print("FAILED: {}".format(", ".join(failures)))
         return 1
     print("all checks passed")
     return 0

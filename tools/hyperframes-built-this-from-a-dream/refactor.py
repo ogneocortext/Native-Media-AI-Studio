@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Refactor HyperFrames monolithic compositions into sub-compositions."""
 
-import json
 import os
 
 BASE = r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\tools\hyperframes-built-this-from-a-dream"
@@ -9,7 +8,7 @@ V3_BASE = os.path.join(BASE, "v3")
 
 # Read inline DATA from original files
 def extract_data(path):
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         content = f.read()
     start = content.index("const DATA = ") + len("const DATA = ")
     end = content.index(";", start)

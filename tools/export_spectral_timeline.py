@@ -73,7 +73,7 @@ def resample_timeline_to_fps(
         a = frames[src_idx]
         b = frames[next_idx]
 
-        def lerp(key: str) -> float:
+        def lerp(key: str, a=a, alpha=alpha, b=b) -> float:
             return round(a[key] + alpha * (b[key] - a[key]), 6)
 
         timeline.append(
@@ -168,7 +168,7 @@ def main() -> None:
         logger.error("Analysis failed: %s", exc)
         sys.exit(1)
 
-    print(f"\n=== Spectral Timeline ===")
+    print("\n=== Spectral Timeline ===")
     print(f"Duration: {data['duration_seconds']:.2f}s")
     print(f"Frames: {data['frame_count']} @ {data['fps']} fps")
     print(f"Bands: sub={data['bands']['sub']}, mid={data['bands']['mid']}, high={data['bands']['high']}")

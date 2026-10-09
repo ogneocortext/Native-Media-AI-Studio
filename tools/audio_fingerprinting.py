@@ -125,7 +125,7 @@ class AudioFingerprinter:
                 hash=fp_hash,
                 computed_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return FingerprintResult(
                 audio_file=audio_path,
                 fingerprint="",
@@ -203,7 +203,7 @@ class AudioFingerprinter:
         all_fps = [(r.audio_file, r.fingerprint, r.duration) for r in results]
         for i, (file1, fp1, dur1) in enumerate(all_fps):
             group_files = [file1]
-            for j, (file2, fp2, dur2) in enumerate(all_fps):
+            for j, (file2, fp2, _dur2) in enumerate(all_fps):
                 if i == j:
                     continue
                 sim = self._fingerprint_similarity(fp1, fp2)

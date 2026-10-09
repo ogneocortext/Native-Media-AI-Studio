@@ -91,9 +91,8 @@ def main() -> int:
         return 0
 
     # Newest row wins: it has the most recent analysis.
-    for key, group in sorted(dupes.items(), key=lambda kv: -len(kv[1])):
+    for _key, group in sorted(dupes.items(), key=lambda kv: -len(kv[1])):
         keep = max(group, key=lambda r: r["id"] or 0)
-        names = [r["filename"] for r in group]
         print(f"\n  {len(group)}x  {original_name(keep['filename'] or '')}")
         print(f"       keep id={keep['id']}  {keep['filename']}")
         for row in group:

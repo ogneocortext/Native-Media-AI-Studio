@@ -14,9 +14,7 @@ Checks:
 Run:  python tools/check-docs-map.py [--fix]
 Exit 0 = accurate, 1 = drift.
 """
-from __future__ import print_function
 
-import io
 import os
 import re
 import sys
@@ -35,7 +33,7 @@ MAY_BE_ABSENT = ("screenshots", "archive", "output")
 
 
 def read(path):
-    with io.open(path, encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return f.read()
 
 
@@ -63,33 +61,32 @@ def main():
     for name in sorted(claimed):
         if name not in actual and name not in MAY_BE_ABSENT:
             if os.path.isdir(os.path.join(DOCS, name)):
-                notes.append("'%s/' is listed but holds no tracked files" % name)
+                notes.append(f"'{name}/' is listed but holds no tracked files")
             else:
-                errors.append("docs/README.md lists '%s/' but it does not exist" % name)
+                errors.append(f"docs/README.md lists '{name}/' but it does not exist")
 
     for name in sorted(actual):
         if name.split("/")[0] not in claimed:
-            errors.append("docs/README.md does not list '%s/'" % name)
+            errors.append(f"docs/README.md does not list '{name}/'")
 
     # The knowledge library carries JSON data files an agent should know about.
     data = [f for f in os.listdir(os.path.join(DOCS, "knowledge-library"))
             if f.endswith(".json")]
     if data and "json" not in read(MAP).lower():
-        errors.append("docs/README.md does not mention the %d JSON data files "
-                      "in knowledge-library/" % len(data))
+        errors.append(f"docs/README.md does not mention the {len(data):d} JSON data files in knowledge-library/")
 
     if "docs/README.md" not in read(AGENTS):
         errors.append("AGENTS.md does not point agents at docs/README.md, so "
                       "the map is never read")
 
     for n in notes:
-        print("  note: %s" % n)
+        print(f"  note: {n}")
     if errors:
-        print("PROBLEMS (%d):" % len(errors))
+        print(f"PROBLEMS ({len(errors):d}):")
         for e in errors:
-            print("  - %s" % e)
+            print(f"  - {e}")
         return 1
-    print("docs/README.md is an accurate map (%d directories)" % len(actual))
+    print(f"docs/README.md is an accurate map ({len(actual):d} directories)")
     return 0
 
 

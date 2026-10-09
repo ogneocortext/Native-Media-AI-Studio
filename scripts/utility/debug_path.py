@@ -4,9 +4,9 @@ from pathlib import Path
 
 # Simulate the _get_transcript_path function
 def _get_transcript_path(filename: str) -> Path:
-    TRANSCRIPT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "transcriptions"
+    transcript_dir = Path(__file__).resolve().parent.parent.parent.parent / "transcriptions"
     safe_name = re.sub(r'[^\w\-.]', '_', filename)
-    return TRANSCRIPT_DIR / f"{safe_name}.json"
+    return transcript_dir / f"{safe_name}.json"
 
 # Test
 filename = "edf93c07_85a406ef_NeoCortext - Take the Crown.mp3"

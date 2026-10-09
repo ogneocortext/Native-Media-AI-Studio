@@ -19,10 +19,8 @@ checks never see. It applies no checks and never changes the exit code.
 Run from anywhere:  python tools/validate-knowledge-tags.py [--scope=all]
 Exit code 0 = clean, 1 = problems found.
 """
-from __future__ import print_function
 
 import glob
-import io
 import os
 import re
 import sys
@@ -76,7 +74,7 @@ def read(path):
     Decoding by BOM keeps the tool working and lets the report name the file;
     whether those files should be UTF-8 is a separate cleanup.
     """
-    with io.open(path, "rb") as f:
+    with open(path, "rb") as f:
         data = f.read()
     if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
         return data.decode("utf-16", "replace")
@@ -106,21 +104,20 @@ def check_documents(docs):
     for name, path in sorted(docs.items()):
         block, tags = frontmatter(path)
         if block is None:
-            errors.append("%s: no frontmatter block" % name)
+            errors.append(f"{name}: no frontmatter block")
             continue
         if not tags:
-            errors.append("%s: no tags" % name)
+            errors.append(f"{name}: no tags")
             continue
         if tags[0] not in CATEGORIES:
-            errors.append("%s: first tag '%s' is not a primary category"
-                          % (name, tags[0]))
+            errors.append(f"{name}: first tag '{tags[0]}' is not a primary category")
         for required in ("aliases:", "cssclasses:", "date:"):
             if required not in block:
-                errors.append("%s: missing '%s'" % (name, required))
+                errors.append(f"{name}: missing '{required}'")
         check_unique_keys(name, block)
         for ch in read(path):
             if 0x80 <= ord(ch) <= 0x9F:
-                errors.append("%s: C1 control U+%04X (mojibake)" % (name, ord(ch)))
+                errors.append(f"{name}: C1 control U+{ord(ch):04X} (mojibake)")
                 break
 
 
@@ -133,19 +130,18 @@ def check_unique_keys(name, block):
     had this and nothing caught it, because most readers do not error.
     """
     keys = re.findall(r"^([A-Za-z_][\w-]*):", block, re.M)
-    dupes = sorted(set(k for k in keys if keys.count(k) > 1))
+    dupes = sorted({k for k in keys if keys.count(k) > 1})
     if dupes:
-        errors.append("%s: duplicate frontmatter key(s): %s"
-                      % (name, ", ".join(dupes)))
+        errors.append("{}: duplicate frontmatter key(s): {}".format(name, ", ".join(dupes)))
 
 
 def check_tracker(docs):
     lines = read(TRACKER).split("\n")
     bounds = []
-    for i, l in enumerate(lines):
-        if l.startswith("### "):
-            for idx, (sname, stag) in enumerate(SECTIONS):
-                if sname in l:
+    for i, line in enumerate(lines):
+        if line.startswith("### "):
+            for idx, (sname, _stag) in enumerate(SECTIONS):
+                if sname in line:
                     bounds.append((i, idx))
                     break
     if not bounds:
@@ -164,39 +160,36 @@ def check_tracker(docs):
         sname, stag = SECTIONS[sidx]
         count = 0
         m = re.search(r"\((\d+)/(\d+)", lines[start])
-        for l in lines[start + 1:end]:
-            if not l.startswith("- "):
+        for line in lines[start + 1:end]:
+            if not line.startswith("- "):
                 continue
             count += 1
-            f = re.search(r"`([^`]+\.md)`", l)
+            f = re.search(r"`([^`]+\.md)`", line)
             if not f:
                 continue
             fn = f.group(1).split("/")[-1]
             if fn in seen:
-                errors.append("%s listed twice in tracker" % fn)
+                errors.append(f"{fn} listed twice in tracker")
             seen[fn] = stag
             if fn in docs:
                 tags = frontmatter(docs[fn])[1]
                 if tags and tags[0] in CATEGORIES and tags[0] != stag:
-                    errors.append("%s: listed under %s but tagged '%s'"
-                                  % (fn, sname, tags[0]))
+                    errors.append(f"{fn}: listed under {sname} but tagged '{tags[0]}'")
         if m and int(m.group(1)) != count:
-            errors.append("%s: heading says %s but lists %d"
-                          % (sname, m.group(1), count))
+            errors.append(f"{sname}: heading says {m.group(1)} but lists {count:d}")
         if m and int(m.group(2)) != count:
-            errors.append("%s: heading denominator %s but lists %d"
-                          % (sname, m.group(2), count))
+            errors.append(f"{sname}: heading denominator {m.group(2)} but lists {count:d}")
 
     for name in docs:
         if name not in seen and name != "migration-progress.md":
-            errors.append("%s exists but is not listed in the tracker" % name)
+            errors.append(f"{name} exists but is not listed in the tracker")
 
 
 def check_index(docs):
     idx = read(INDEX)
     primaries = Counter()
     cross = Counter()
-    for name, path in docs.items():
+    for _name, path in docs.items():
         tags = frontmatter(path)[1] or []
         if tags:
             primaries[tags[0]] += 1
@@ -204,11 +197,9 @@ def check_index(docs):
                 cross[t] += 1
     for c in CATEGORIES + CROSS:
         want = primaries.get(c, 0) if c in CATEGORIES else cross.get(c, 0)
-        m = re.search(r"\| `#%s/?\*?` \|[^|]*\| (\d+) documents? \|"
-                      % re.escape(c), idx)
+        m = re.search(rf"\| `#{re.escape(c)}/?\*?` \|[^|]*\| (\d+) documents? \|", idx)
         if m and int(m.group(1)) != want:
-            errors.append("index.md: #%s says %s, actual %d"
-                          % (c, m.group(1), want))
+            errors.append(f"index.md: #{c} says {m.group(1)}, actual {want:d}")
 
 
 def check_vocabulary(docs):
@@ -220,14 +211,13 @@ def check_vocabulary(docs):
     """
     known = documented_tags()
     unknown = Counter()
-    for name, path in sorted(docs.items()):
+    for _name, path in sorted(docs.items()):
         tags = frontmatter(path)[1] or []
         for t in tags[1:]:
             if t not in known:
                 unknown[t] += 1
     for t, n in sorted(unknown.items(), key=lambda x: (-x[1], x[0])):
-        warnings.append("tag '#%s' used by %d document(s) but not in "
-                        "tagging-guide.md" % (t, n))
+        warnings.append(f"tag '#{t}' used by {n:d} document(s) but not in tagging-guide.md")
 
 
 def check_dead_vocabulary(docs):
@@ -247,8 +237,8 @@ def check_dead_vocabulary(docs):
     guide = read(os.path.join(BASE, "tagging-guide.md"))
     for tag in re.findall(r"\|\s*`#([\w-]+)`\s*\|", guide):
         if tag not in in_use:
-            warnings.append("tag '#%s' is documented in tagging-guide.md but "
-                            "no document uses it" % tag)
+            warnings.append(f"tag '#{tag}' is documented in tagging-guide.md but "
+                            "no document uses it")
 
 
 def check_duplicate_basenames():
@@ -293,8 +283,7 @@ def check_duplicate_basenames():
             identical = (read(os.path.join(ROOT, paths[0].replace("/", os.sep))) ==
                          read(os.path.join(ROOT, paths[1].replace("/", os.sep))))
         kind = "identical copies" if identical else "DIVERGENT copies"
-        warnings.append("duplicate basename '%s' in %d locations (%s): %s"
-                        % (name, len(paths), kind, ", ".join(paths)))
+        warnings.append(f"duplicate basename '{name}' in {len(paths):d} locations ({kind}): {', '.join(paths)}")
 
 
 def check_line_endings(docs):
@@ -305,11 +294,11 @@ def check_line_endings(docs):
     markdown with LF, so flag any library file that has picked up CRLF.
     """
     for name, path in sorted(docs.items()):
-        with io.open(path, "rb") as f:
+        with open(path, "rb") as f:
             data = f.read()
         if b"\r\n" in data:
-            errors.append("%s: CRLF line endings (repo uses LF); "
-                          "a rewrite likely converted them" % name)
+            errors.append(f"{name}: CRLF line endings (repo uses LF); "
+                          "a rewrite likely converted them")
 
 
 def report_all_docs():
@@ -332,7 +321,6 @@ def report_all_docs():
     except Exception:
         return []
 
-    lib_prefix = "docs" + os.sep + "knowledge-library" + os.sep
     outside, no_fm, mismatched = [], [], []
     for rel in tracked:
         full = os.path.join(ROOT, rel.replace("/", os.sep))
@@ -354,19 +342,19 @@ def report_all_docs():
     print("=" * 72)
     print("REPORT: markdown outside docs/knowledge-library/ (no checks applied)")
     print("=" * 72)
-    print("  tracked .md outside the library : %d" % len(outside))
-    print("  with no frontmatter at all      : %d" % len(no_fm))
-    print("  frontmatter but no library tag  : %d" % len(mismatched))
+    print(f"  tracked .md outside the library : {len(outside):d}")
+    print(f"  with no frontmatter at all      : {len(no_fm):d}")
+    print(f"  frontmatter but no library tag  : {len(mismatched):d}")
     by_dir = Counter()
     for rel in no_fm:
         by_dir[os.path.dirname(rel)] += 1
     print("\n  untagged files by directory:")
     for d, n in sorted(by_dir.items(), key=lambda x: (-x[1], x[0])):
-        print("      %3d  %s" % (n, d or "."))
+        print(f"      {n:3d}  {d or '.'}")
     if mismatched:
         print("\n  frontmatter present but not library-tagged:")
         for rel, tag in mismatched[:10]:
-            print("      %s (first tag: %s)" % (rel, tag))
+            print(f"      {rel} (first tag: {tag})")
     print("\n  These are not failures. Decide deliberately whether each is")
     print("  (a) library material that needs migrating, (b) a separate doc set")
     print("  with its own conventions, or (c) a historical artifact to archive.")
@@ -383,15 +371,15 @@ def main():
     check_dead_vocabulary(docs)
     check_duplicate_basenames()
     check_line_endings(docs)
-    print("documents checked : %d" % len(docs))
+    print(f"documents checked : {len(docs):d}")
     if warnings:
-        print("warnings (%d):" % len(warnings))
+        print(f"warnings ({len(warnings):d}):")
         for w in warnings:
-            print("  ! %s" % w)
+            print(f"  ! {w}")
     if errors:
-        print("PROBLEMS (%d):" % len(errors))
+        print(f"PROBLEMS ({len(errors):d}):")
         for e in errors:
-            print("  - %s" % e)
+            print(f"  - {e}")
         return 1
     if "--scope=all" in args or "-a" in args:
         report_all_docs()

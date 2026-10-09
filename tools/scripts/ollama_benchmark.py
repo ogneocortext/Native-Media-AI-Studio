@@ -17,7 +17,7 @@ import re
 import subprocess
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -244,7 +244,7 @@ async def run_single_benchmark(model: str, adapter) -> dict[str, Any]:
             "validation": validation,
             "preview": content[:600],
             "error": None,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
     except Exception as e:
         latency_ms = int((time.perf_counter() - start) * 1000)
@@ -258,7 +258,7 @@ async def run_single_benchmark(model: str, adapter) -> dict[str, Any]:
             "validation": {"score": 0, "raw_score": 0, "max_score": 100, "passed_rules": 0, "total_rules": len(VALIDATION_RULES), "details": [], "metrics": {}},
             "preview": "",
             "error": str(e)[:500],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
 async def run_benchmark(models: list[str] | None, adapter, max_models: int = 8) -> dict[str, Any]:
@@ -284,9 +284,9 @@ async def run_benchmark(models: list[str] | None, adapter, max_models: int = 8) 
         logger.info(f"Benchmarking {model}...")
         result = await run_single_benchmark(model, adapter)
         data["results"][model] = result
-        data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        data["updated_at"] = datetime.now(UTC).isoformat()
         _save_file(data)
 
-    data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    data["updated_at"] = datetime.now(UTC).isoformat()
     _save_file(data)
     return data

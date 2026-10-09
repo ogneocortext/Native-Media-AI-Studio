@@ -16,9 +16,7 @@ records (tempo and duration) rather than being given a fake track name.
 Backs the directory up first, and rolls the whole rename back if anything
 fails partway.
 """
-from __future__ import print_function
 
-import io
 import json
 import os
 import re
@@ -41,14 +39,14 @@ def slugify(text):
 
 
 def load(path):
-    with io.open(path, encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         return json.load(fh)
 
 
 def main():
     dry = "--dry-run" in sys.argv
     if not os.path.isdir(ADIR):
-        print("no analysis cache at %s" % ADIR)
+        print(f"no analysis cache at {ADIR}")
         return 0
 
     index = load(IDX)
@@ -80,7 +78,7 @@ def main():
             # file by what it does contain rather than inventing a track name.
             try:
                 data = load(src)
-                stem = "orphan-%sbpm-%ss" % (
+                stem = "orphan-{}bpm-{}s".format(
                     round(data.get("tempo_bpm") or 0),
                     round(data.get("duration_seconds") or 0))
             except Exception:
@@ -92,16 +90,15 @@ def main():
         print("nothing to rename")
         return 0
 
-    taken = {os.path.basename(d) for _, _, d, _ in plans}
-    print("%-10s %-8s %s" % ("old", "kind", "new"))
+    print(f"{'old':<10} {'kind':<8} {'new'}")
     print("-" * 78)
     for aid, src, dst, kind in plans:
         clash = "  (name already used - skipped)" if (
             os.path.exists(dst) and os.path.abspath(dst) != os.path.abspath(src)
         ) else ""
-        print("%-10s %-8s %s%s" % (aid, kind, os.path.basename(dst), clash))
+        print(f"{aid:<10} {kind:<8} {os.path.basename(dst)}{clash}")
     print("-" * 78)
-    print("%d file(s); index.json rewritten to match" % len(plans))
+    print(f"{len(plans):d} file(s); index.json rewritten to match")
 
     if dry:
         print("\nre-run without --dry-run to apply")
@@ -128,17 +125,17 @@ def main():
                     if val == aid:
                         index[key] = stem
                         break
-        with io.open(IDX, "w", encoding="utf-8") as fh:
+        with open(IDX, "w", encoding="utf-8") as fh:
             json.dump(index, fh, indent=2, ensure_ascii=False)
 
     except Exception as exc:
         # Undo: put every renamed file back and restore the index verbatim.
-        for aid, src, dst, _ in plans:
+        for _aid, src, dst, _ in plans:
             if os.path.exists(dst) and not os.path.exists(src):
                 os.rename(dst, src)
         shutil.copy2(os.path.join(BACKUP, "index.json"), IDX)
         shutil.rmtree(BACKUP)
-        print("FAILED and rolled back: %s" % exc)
+        print(f"FAILED and rolled back: {exc}")
         return 1
 
     shutil.rmtree(BACKUP)

@@ -4,15 +4,16 @@ Uses the authored concept.json narrative arc as the primary beat structure,
 then assigns lyric lines into acts by time overlap. This avoids the
 single-section-tag problem in the raw lyrics.
 """
-from pathlib import Path
 import json
+from collections import defaultdict
+from pathlib import Path
 
 ROOT = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\tools\hyperframes-built-this-from-a-dream")
 
-with open(ROOT / "lyrics.json", "r", encoding="utf-8") as f:
+with open(ROOT / "lyrics.json", encoding="utf-8") as f:
     lyrics = json.load(f)["lyrics"]
 
-with open(ROOT / "concept.json", "r", encoding="utf-8") as f:
+with open(ROOT / "concept.json", encoding="utf-8") as f:
     concept = json.load(f)
 
 arc = concept["narrative_arc"]
@@ -33,7 +34,6 @@ for line in lyrics:
     line["_act"] = best_act["title"] if best_act is not None else "UNKNOWN"
 
 # Group lyrics by act.
-from collections import defaultdict
 act_lines = defaultdict(list)
 for line in lyrics:
     if line["_act_index"] >= 0:
@@ -41,14 +41,14 @@ for line in lyrics:
 
 beats = []
 for i, act in enumerate(arc):
-    lines = sorted(act_lines.get(i, []), key=lambda l: float(l.get("start", 0.0)))
+    lines = sorted(act_lines.get(i, []), key=lambda line: float(line.get("start", 0.0)))
     start = float(act["time_range"][0])
     end = float(act["time_range"][1])
     # If no lyrics landed in this act, fall back to adjacent act lines or empty.
     hook = ""
     if lines:
         # Longest non-bracket line under 90 chars.
-        candidates = [l.get("text", "").strip() for l in lines if not l.get("text", "").strip().startswith("[") and len(l.get("text", "").strip()) < 90]
+        candidates = [line.get("text", "").strip() for line in lines if not line.get("text", "").strip().startswith("[") and len(line.get("text", "").strip()) < 90]
         hook = max(candidates, key=len) if candidates else (lines[0].get("text", "") or "")
     else:
         # Use the lyric hook from concept if no lines match.

@@ -164,7 +164,7 @@ def convert_csv(input_path, output_path):
 
     with open(input_path, encoding='utf-8') as f:
         reader = csv.reader(f)
-        header = next(reader)  # Skip header row (return value intentionally unused)
+        next(reader)  # Skip the header row
 
         for row in reader:
             if len(row) < 4:

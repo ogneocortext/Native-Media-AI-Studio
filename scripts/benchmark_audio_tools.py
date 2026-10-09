@@ -10,6 +10,7 @@ Outputs results to docs/knowledge-library/benchmarks/audio-bench-<timestamp>.md
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import time
 from dataclasses import asdict, dataclass
@@ -49,9 +50,7 @@ def benchmark_librosa(audio_path: str) -> BackendResult:
 
 
 def benchmark_madmom(audio_path: str) -> BackendResult:
-    try:
-        import madmom_infer  # type: ignore
-    except ImportError:
+    if importlib.util.find_spec("madmom_infer") is None:
         return BackendResult(name="madmom-infer", track=Path(audio_path).name, duration_s=0.0, tempo_bpm=None, beat_count=0, downbeat_count=None, notes="NOT INSTALLED")
 
     # madmom-infer exposes low-level processors; simple beats/downbeats helpers

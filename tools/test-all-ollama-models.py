@@ -428,11 +428,11 @@ def main() -> int:
         generate_timeout = MODEL_TIMEOUT_OVERRIDES.get(name, 180 if args.quick else 240)
         structured_timeout = MODEL_TIMEOUT_OVERRIDES.get(name, 240 if args.quick else 360)
         if "chat" in routes and not prior.get(f"{name}|chat-basic"):
-            work.append((f"chat-basic:{name}", lambda n=name: test_chat(n, chat_timeout, args.quick)))
+            work.append((f"chat-basic:{name}", lambda n=name, t=chat_timeout: test_chat(n, t, args.quick)))
         if "generate" in routes and not prior.get(f"{name}|generate"):
-            work.append((f"generate:{name}", lambda n=name: test_generate(n, generate_timeout, args.quick)))
+            work.append((f"generate:{name}", lambda n=name, t=generate_timeout: test_generate(n, t, args.quick)))
         if "structured" in routes and not prior.get(f"{name}|structured-output"):
-            work.append((f"structured:{name}", lambda n=name: test_structured(n, structured_timeout, args.quick)))
+            work.append((f"structured:{name}", lambda n=name, t=structured_timeout: test_structured(n, t, args.quick)))
 
     image = Path(args.vision_image)
     if "vision" in routes:
@@ -476,19 +476,19 @@ def main() -> int:
 
     # --- Summary ---
     failures = [r for r in results if not r["ok"]]
-    print(f"\n=== SUMMARY ===", file=sys.stderr)
+    print("\n=== SUMMARY ===", file=sys.stderr)
     print(f"Total tests: {len(results)}", file=sys.stderr)
     print(f"Passed: {sum(1 for r in results if r['ok'])}", file=sys.stderr)
     print(f"Failed: {len(failures)}", file=sys.stderr)
 
     if failures:
-        print(f"\n=== FAILURES ===", file=sys.stderr)
+        print("\n=== FAILURES ===", file=sys.stderr)
         for f in failures:
             print(f"  {f['model']} / {f['route']}: {f.get('error', 'unknown')}", file=sys.stderr)
 
     ok_results = [r for r in results if r["ok"] and r.get("tokens_per_sec")]
     if ok_results:
-        print(f"\n=== PERFORMANCE (tok/s, successful runs) ===", file=sys.stderr)
+        print("\n=== PERFORMANCE (tok/s, successful runs) ===", file=sys.stderr)
         by_model: dict[str, list[float]] = {}
         for r in ok_results:
             by_model.setdefault(r["model"], []).append(r["tokens_per_sec"])

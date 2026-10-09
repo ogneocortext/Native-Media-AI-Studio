@@ -64,7 +64,7 @@ def _walk(routes, prefix: str = ""):
 
 def _label(route) -> str:
     module = getattr(getattr(route, "endpoint", None), "__module__", "?")
-    return "%s::%s" % (module.rsplit(".", 1)[-1], getattr(route, "name", "?"))
+    return "{}::{}".format(module.rsplit(".", 1)[-1], getattr(route, "name", "?"))
 
 
 def main() -> int:

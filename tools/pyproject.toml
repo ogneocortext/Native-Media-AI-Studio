@@ -43,3 +43,17 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "C4"]
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# analyze.py stages its heavy imports on purpose: librosa loads only after
+# the ffmpeg decode (a missing ffmpeg then fails fast, before the slow
+# import), and matplotlib loads in the visuals section so
+# matplotlib.use("Agg") still precedes the pyplot import.
+"audio-analysis/analyze.py" = ["E402"]
+# A demo script whose sections each import, run, and print; the mid-file
+# imports are the demo's structure, not an accident.
+"demos/demo_all_features.py" = ["E402"]
+# Blender addons register operator/panel classes under unique BLENDERMCP_*
+# names; renaming them to CapWords would collide with other addons'
+# operators, so the prefix is Blender's convention, not a lint miss.
+"blender_mcp_addon.py" = ["N801"]

@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Analyze a track: tempo, key, dynamics, spectral balance, stereo, clipping."""
-import json, subprocess, sys, os
+import json
+import os
+import subprocess
+import sys
+
 import numpy as np
 
 SRC = sys.argv[1]
@@ -55,7 +59,8 @@ rms = librosa.feature.rms(y=y, frame_length=4096, hop_length=2048)[0]
 times = librosa.frames_to_time(np.arange(len(rms)), sr=sr, hop_length=2048)
 rms_db = librosa.amplitude_to_db(rms, ref=np.max)
 res["dynamic_range_db"] = round(float(rms_db.max() - np.percentile(rms_db, 5)), 1)
-q = int(np.argmin(rms)); p = int(np.argmax(rms))
+q = int(np.argmin(rms))
+p = int(np.argmax(rms))
 res["quietest_moment_s"] = round(float(times[q]), 1)
 res["loudest_moment_s"] = round(float(times[p]), 1)
 
@@ -102,9 +107,10 @@ print(json.dumps(res, indent=2))
 
 # --- visuals ---
 import matplotlib
+
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import librosa.display
+import matplotlib.pyplot as plt
 
 fig, ax = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
 D = librosa.amplitude_to_db(np.abs(librosa.stft(y, n_fft=4096, hop_length=1024)), ref=np.max)
@@ -112,7 +118,8 @@ img = librosa.display.specshow(D, sr=sr, hop_length=1024, x_axis="time", y_axis=
 ax[0].set_title("Spectrogram (log freq)")
 fig.colorbar(img, ax=ax[0], format="%+2.0f dB")
 ax[1].plot(times, rms_db, color="cyan", lw=0.8)
-ax[1].set_ylim(-60, 3); ax[1].set_title("Energy over time (dB)")
+ax[1].set_ylim(-60, 3)
+ax[1].set_title("Energy over time (dB)")
 ax[1].set_xlabel("seconds")
 beat_times = librosa.frames_to_time(beats, sr=sr)
 for bt in beat_times[::4]:

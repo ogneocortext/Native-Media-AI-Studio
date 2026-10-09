@@ -26,7 +26,6 @@ Usage:
 
 Exit 0 = done (including "nothing to do"), 1 = a removal failed.
 """
-from __future__ import print_function
 
 import os
 import shutil
@@ -46,7 +45,7 @@ def tracked_files():
 def dir_size(path):
     """Total bytes under a directory."""
     total = 0
-    for root, dirs, names in os.walk(path):
+    for root, _dirs, names in os.walk(path):
         for name in names:
             try:
                 total += os.path.getsize(os.path.join(root, name))
@@ -56,7 +55,6 @@ def dir_size(path):
 
 
 def main():
-    verbose = "-v" in sys.argv or "--verbose" in sys.argv
     # True means "report only, delete nothing".
     dry_run = "--dry-run" in sys.argv
 
@@ -68,7 +66,7 @@ def main():
     #   coverage/ .nyc_output/
     #   playwright-report/   HTML report from the last run
     #   */test-results/      per-workspace copies
-    TARGETS = (
+    targets = (
         ".pytest_cache",
         ".tsbuildinfo",
         ".tsbuildinfo.tests",
@@ -77,16 +75,16 @@ def main():
         "coverage",
         ".nyc_output",
     )
-    WORKSPACE_TARGETS = ("packages/frontend/test-results", "packages/video-editor/test-results")
+    workspace_targets = ("packages/frontend/test-results", "packages/video-editor/test-results")
 
     victims = []
-    for rel in TARGETS:
+    for rel in targets:
         p = os.path.join(ROOT, rel.replace("/", os.sep))
         if os.path.isdir(p):
             victims.append((rel, dir_size(p)))
         elif os.path.isfile(p):
             victims.append((rel, os.path.getsize(p)))
-    for rel in WORKSPACE_TARGETS:
+    for rel in workspace_targets:
         p = os.path.join(ROOT, rel.replace("/", os.sep))
         if os.path.isdir(p):
             victims.append((rel, dir_size(p)))
@@ -102,8 +100,8 @@ def main():
     total = sum(n for _, n in victims)
     print("ignored test/build caches found:")
     for rel, size in sorted(victims, key=lambda x: -x[1]):
-        print("  %-40s %8.1f MB" % (rel.replace(os.sep, "/"), size / 1048576.0))
-    print("  %-40s %8.1f MB" % ("TOTAL", total / 1048576.0))
+        print(f"  {rel.replace(os.sep, '/'):<40} {size / 1048576.0:8.1f} MB")
+    print(f"  {'TOTAL':<40} {total / 1048576.0:8.1f} MB")
     print("")
 
     if dry_run:
@@ -120,10 +118,9 @@ def main():
                 os.remove(p)
             removed.append(rel)
         except OSError as e:
-            print("  could not remove %s: %s" % (rel, e))
+            print(f"  could not remove {rel}: {e}")
 
-    print("removed %d item(s), freeing %.1f MB"
-          % (len(removed), sum(n for r, n in victims if r in removed) / 1048576.0))
+    print(f"removed {len(removed):d} item(s), freeing {sum(n for r, n in victims if r in removed) / 1048576.0:.1f} MB")
     print("note: caches regenerate on the next test run - this is disk hygiene, "
           "not a repair.")
     return 0

@@ -17,7 +17,6 @@ byte sequences fail.
 Run:  python tools/check-text-encoding.py [--verbose]
 Exit 0 = clean, 1 = at least one bad file.
 """
-from __future__ import print_function
 
 import os
 import subprocess
@@ -54,21 +53,21 @@ def check(path):
     try:
         with open(full, "rb") as fh:
             raw = fh.read()
-    except (IOError, OSError) as e:
-        return "unreadable (%s)" % e
+    except OSError as e:
+        return f"unreadable ({e})"
 
     if not raw:
         return None
     # UTF-16 BOMs: text stored as UTF-16 breaks every text tool and git shows
     # the file as binary.
     if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
-        return "UTF-16 encoded (BOM %s); convert to UTF-8" % raw[:2].hex()
+        return f"UTF-16 encoded (BOM {raw[:2].hex()}); convert to UTF-8"
     if b"\x00" in raw:
         return "contains NUL bytes (corrupt or non-text content)"
     try:
         raw.decode("utf-8")
     except UnicodeDecodeError as e:
-        return "invalid UTF-8 at byte %d (%s)" % (e.start, e.reason)
+        return f"invalid UTF-8 at byte {e.start:d} ({e.reason})"
     return None
 
 
@@ -87,15 +86,15 @@ def main():
             bad.append((path, reason))
 
     if verbose:
-        print("scanned %d tracked text files" % scanned)
+        print(f"scanned {scanned:d} tracked text files")
 
     if not bad:
-        print("all text files are valid UTF-8 (%d scanned)" % scanned)
+        print(f"all text files are valid UTF-8 ({scanned:d} scanned)")
         return 0
 
-    print("FAILED: %d file(s) are not valid UTF-8" % len(bad))
+    print(f"FAILED: {len(bad):d} file(s) are not valid UTF-8")
     for path, reason in bad:
-        print("  %s: %s" % (path, reason))
+        print(f"  {path}: {reason}")
     print("")
     print("Convert with Python (safe - rewrites content, not encoding damage):")
     print('  python -c "import pathlib,sys; p=pathlib.Path(sys.argv[1]); '

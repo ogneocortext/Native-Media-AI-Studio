@@ -12,7 +12,7 @@ Gates, cheapest-first so a fast failure surfaces early:
 
   docs      check-all.py (4 documentation/repo checkers)
   encoding  covered by the above
-  ruff      backend lint                       packages/backend
+  ruff      repo lint                          repo
   arch      import cycles / layer inversions   repo
   type      tsc -b + test config               packages/frontend
   lint      eslint                            packages/frontend
@@ -39,7 +39,6 @@ even when it cannot run the server.
 Exit 0 = all selected gates passed, 1 = at least one failed.
 The e2e gate is opt-in because it starts a Vite dev server and needs a browser.
 """
-from __future__ import print_function
 
 import glob
 import json
@@ -225,7 +224,7 @@ def _describe(python):
             [python, "-c", "import sys;print('.'.join(map(str,sys.version_info[:3])))"],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         ver = p.stdout.decode("utf-8", "replace").strip()
-        return "%s (%s)" % (python, ver) if ver else python
+        return f"{python} ({ver})" if ver else python
     except OSError:
         return python
 
@@ -247,14 +246,14 @@ def resolve_python(cwd=BACKEND, quiet=False):
     override = os.environ.get("NMA_PYTHON")
     if override:
         if not Path(override).exists():
-            say("NMA_PYTHON=%s does not exist; ignoring" % override)
+            say(f"NMA_PYTHON={override} does not exist; ignoring")
         else:
             # An explicit override always wins, but a broken one
             # used to be returned silently and then fail confusingly
             # at the gate. Surface it while still honoring the
             # operator's intent.
             if not all(_probe_ok(override, argv, cwd) for argv in _probes()):
-                say("WARNING: NMA_PYTHON=%s failed the verification probes" % override)
+                say(f"WARNING: NMA_PYTHON={override} failed the verification probes")
             return override
 
     candidates = _candidate_list()
@@ -285,21 +284,21 @@ def resolve_python(cwd=BACKEND, quiet=False):
         except OSError:
             pass
         if rejected or not candidates or winner != candidates[0]:
-            say("interpreter: %s" % _describe(winner))
+            say(f"interpreter: {_describe(winner)}")
             if rejected and len(rejected) < len(order):
-                say("  rejected: %s" % ", ".join(rejected))
+                say("  rejected: {}".format(", ".join(rejected)))
         return winner
 
     # Nothing verified. Fall back to the project env and let the gate report the
     # real error, rather than dying here with a confusing message.
     say("WARNING: no interpreter passed the ruff probe; falling back.")
     if rejected:
-        say("  tried: %s" % ", ".join(rejected))
+        say("  tried: {}".format(", ".join(rejected)))
     on_path = shutil.which("python")
     return PROJECT_ENV if Path(PROJECT_ENV).exists() else (on_path or "python")
 
 
-class Gate(object):
+class Gate:
     def __init__(self, name, argv, cwd, optional=False, timeout=300):
         self.name = name
         self.argv = argv
@@ -313,7 +312,7 @@ def gates():
     pnpm = resolve_pnpm()
     return [
         Gate("docs", [python, "tools/check-all.py"], ROOT),
-        Gate("ruff", [python, "-m", "ruff", "check", ".", "--output-format=concise"], BACKEND),
+        Gate("ruff", [python, "-m", "ruff", "check", ".", "--output-format=concise"], ROOT),
         Gate("arch", [python, "tools/check-import-cycles.py"], ROOT),
         Gate("routes", [python, "tools/check-duplicate-routes.py"], ROOT),
         Gate("type", [pnpm, "type-check"], FRONTEND),
@@ -342,7 +341,7 @@ def run_gate(gate, timeout):
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         )
     except OSError as e:
-        return 1, time.time() - start, "could not run: %s" % e
+        return 1, time.time() - start, f"could not run: {e}"
 
     try:
         out, _ = proc.communicate(timeout=timeout)
@@ -350,10 +349,9 @@ def run_gate(gate, timeout):
     except subprocess.TimeoutExpired:
         _kill_tree(proc)
         return 124, time.time() - start, (
-            "TIMED OUT after %ds. Gate: %s\n"
+            f"TIMED OUT after {timeout:d}s. Gate: {' '.join(gate.argv[1:3])}\n"
             "  If this is a first run, the next one may be warm and pass.\n"
-            "  If it repeats, a stale lock is likely: check %%TEMP%%\\pytest-of-*."
-            % (timeout, " ".join(gate.argv[1:3]))
+            "  If it repeats, a stale lock is likely: check %TEMP%\\pytest-of-*."
         )
     # Decode as UTF-8, not the ANSI code page: gate output contains em dashes.
     return code, time.time() - start, out.decode("utf-8", "replace")
@@ -380,25 +378,24 @@ def main():
         # Diagnostic: show every candidate and why it was or was not chosen.
         # This is the fastest way to answer "why is it using that Python?".
         chosen = resolve_python(quiet=True)
-        print("chosen: %s" % _describe(chosen))
-        print("pnpm:   %s" % resolve_pnpm())
-        print("override ($NMA_PYTHON): %s" % (os.environ.get("NMA_PYTHON") or "(unset)"))
+        print(f"chosen: {_describe(chosen)}")
+        print(f"pnpm:   {resolve_pnpm()}")
+        print(f"override ($NMA_PYTHON): {os.environ.get('NMA_PYTHON') or '(unset)'}")
         print()
         print("candidates, in preference order:")
         probes = _probes()
         for cand in _candidate_list():
             ok = all(_probe_ok(cand, argv, BACKEND) for argv in probes)
             mark = "SELECTED" if cand == chosen else ("ok" if ok else "rejected")
-            print("  %-8s %s" % (mark, _describe(cand)))
+            print(f"  {mark:<8} {_describe(cand)}")
         return 0
 
     if "--list" in args:
-        print("interpreter: %s" % resolve_python())
-        print("pnpm:        %s" % resolve_pnpm())
+        print(f"interpreter: {resolve_python()}")
+        print(f"pnpm:        {resolve_pnpm()}")
         print()
         for g in all_gates:
-            print("%-8s %s%s" % (g.name, " ".join(g.argv[1:]),
-                                  "  (opt-in)" if g.optional else ""))
+            print(f"{g.name:<8} {' '.join(g.argv[1:])}{'  (opt-in)' if g.optional else ''}")
         return 0
 
     verbose = "-v" in args or "--verbose" in args
@@ -418,36 +415,36 @@ def main():
         print("no gates selected")
         return 1
 
-    print("Running %d gate(s): %s" % (len(selected), ", ".join(g.name for g in selected)))
+    print(f"Running {len(selected):d} gate(s): {', '.join(g.name for g in selected)}")
     print("=" * 68)
     sys.stdout.flush()
 
     results, failed = [], []
     for g in selected:
-        print("[....] %-7s %s" % (g.name, " ".join(g.argv[1:3])), end="\r")
+        print(f"[....] {g.name:<7} {' '.join(g.argv[1:3])}", end="\r")
         sys.stdout.flush()
         code, elapsed, out = run_gate(g, g.timeout)
         status = "PASS" if code == 0 else ("TIME" if code == 124 else "FAIL")
-        print("[%s] %-7s %6.1f s  %s" % (status, g.name, elapsed, " ".join(g.argv[1:3])))
+        print(f"[{status}] {g.name:<7} {elapsed:6.1f} s  {' '.join(g.argv[1:3])}")
         sys.stdout.flush()
         results.append((g.name, status, elapsed))
         if code != 0:
             failed.append(g.name)
             for line in out.splitlines():
                 if line.strip():
-                    print("         %s" % line)
+                    print(f"         {line}")
         elif verbose:
             for line in out.strip().splitlines()[-2:]:
                 if line.strip():
-                    print("         %s" % line)
+                    print(f"         {line}")
 
     print("=" * 68)
-    summary = "  ".join("%s %s" % (n, s) for n, s, _ in results)
+    summary = "  ".join(f"{n} {s}" for n, s, _ in results)
     print(summary)
     total = sum(t for _, _, t in results)
-    print("%.1f s total" % total)
+    print(f"{total:.1f} s total")
     if failed:
-        print("FAILED: %s" % ", ".join(failed))
+        print("FAILED: {}".format(", ".join(failed)))
         return 1
     print("all gates passed")
     return 0

@@ -2,7 +2,10 @@
 """Compare stems side-by-side: runs analyze.py on each file, prints a table.
 Usage: compare_stems.py bass.mp3 drums.mp3 vocals.mp3 other.mp3
 """
-import json, os, subprocess, sys
+import json
+import os
+import subprocess
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "out-compare")

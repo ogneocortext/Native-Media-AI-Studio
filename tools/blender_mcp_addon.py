@@ -1025,8 +1025,8 @@ class BlenderMCPServer:
         world_bbox_corners = [obj.matrix_world @ corner for corner in local_bbox_corners]
 
         # Compute axis-aligned min/max coordinates
-        min_corner = mathutils.Vector(map(min, zip(*world_bbox_corners)))
-        max_corner = mathutils.Vector(map(max, zip(*world_bbox_corners)))
+        min_corner = mathutils.Vector(map(min, zip(*world_bbox_corners, strict=True)))
+        max_corner = mathutils.Vector(map(max, zip(*world_bbox_corners, strict=True)))
 
         return [
             [*min_corner], [*max_corner]
@@ -1177,7 +1177,7 @@ class BlenderMCPServer:
             captured_output = capture_buffer.getvalue()
             return {"executed": True, "result": captured_output}
         except Exception as e:
-            raise Exception(f"Code execution error: {str(e)}")
+            raise Exception(f"Code execution error: {str(e)}") from e
 
 
 
@@ -2501,7 +2501,7 @@ class BlenderMCPServer:
 
     def download_sketchfab_model(self, uid, normalize_size=False, target_size=1.0):
         """Download a model from Sketchfab by its UID
-        
+
         Parameters:
         - uid: The unique identifier of the Sketchfab model
         - normalize_size: If True, scale the model so its largest dimension equals target_size
@@ -2777,7 +2777,7 @@ class BlenderMCPServer:
     def get_tencent_cloud_sign_headers(
         method: str,
         path: str,
-        headParams: dict,
+        head_params: dict,
         data: dict,
         service: str,
         region: str,
@@ -2803,7 +2803,7 @@ class BlenderMCPServer:
         canonical_uri = path
         canonical_querystring = ""
         ct = "application/json; charset=utf-8"
-        canonical_headers = f"content-type:{ct}\nhost:{host}\nx-tc-action:{headParams.get('Action', '').lower()}\n"
+        canonical_headers = f"content-type:{ct}\nhost:{host}\nx-tc-action:{head_params.get('Action', '').lower()}\n"
         signed_headers = "content-type;host;x-tc-action"
         hashed_request_payload = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
 
@@ -2846,9 +2846,9 @@ class BlenderMCPServer:
             "Authorization": authorization,
             "Content-Type": "application/json; charset=utf-8",
             "Host": host,
-            "X-TC-Action": headParams.get("Action", ""),
+            "X-TC-Action": head_params.get("Action", ""),
             "X-TC-Timestamp": str(timestamp),
-            "X-TC-Version": headParams.get("Version", ""),
+            "X-TC-Version": head_params.get("Version", ""),
             "X-TC-Region": region
         }
 
@@ -2886,7 +2886,7 @@ class BlenderMCPServer:
             version = "2025-05-13"
             region = "ap-guangzhou"
 
-            headParams={
+            head_params={
                 "Action": action,
                 "Version": version,
                 "Region": region,
@@ -2915,7 +2915,7 @@ class BlenderMCPServer:
                         return {"error": f"Image encoding failed: {str(e)}"}
 
             # Get signed headers
-            headers, endpoint = self.get_tencent_cloud_sign_headers("POST", "/", headParams, data, service, region, secret_id, secret_key)
+            headers, endpoint = self.get_tencent_cloud_sign_headers("POST", "/", head_params, data, service, region, secret_id, secret_key)
 
             response = requests.post(
                 endpoint,
@@ -2964,9 +2964,9 @@ class BlenderMCPServer:
             if image:
                 if re.match(r'^https?://', image, re.IGNORECASE) is not None:
                     try:
-                        resImg = requests.get(image)
-                        resImg.raise_for_status()
-                        image_base64 = base64.b64encode(resImg.content).decode("ascii")
+                        res_img = requests.get(image)
+                        res_img.raise_for_status()
+                        image_base64 = base64.b64encode(res_img.content).decode("ascii")
                         data["image"] = image_base64
                     except Exception as e:
                         return {"error": f"Failed to download or encode image: {str(e)}"}
@@ -3032,7 +3032,7 @@ class BlenderMCPServer:
             version = "2025-05-13"
             region = "ap-guangzhou"
 
-            headParams={
+            head_params={
                 "Action": action,
                 "Version": version,
                 "Region": region,
@@ -3043,7 +3043,7 @@ class BlenderMCPServer:
                 "JobId": clean_job_id
             }
 
-            headers, endpoint = self.get_tencent_cloud_sign_headers("POST", "/", headParams, data, service, region, secret_id, secret_key)
+            headers, endpoint = self.get_tencent_cloud_sign_headers("POST", "/", head_params, data, service, region, secret_id, secret_key)
 
             response = requests.post(
                 endpoint,

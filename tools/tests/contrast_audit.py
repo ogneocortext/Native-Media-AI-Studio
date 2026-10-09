@@ -27,7 +27,7 @@ Exit codes: 0 = clean, 1 = blocking failures, 2 = frontend unreachable.
 import json
 import sys
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -371,11 +371,11 @@ def main(argv: list[str]) -> int:
             base_url = f"http://127.0.0.1:{a.split('=', 1)[1]}"
 
     # Tags every results row so runs stay diffable in the append-only log.
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
     def stamp(row: dict) -> dict:
         row["run"] = run_id
-        row["ts"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        row["ts"] = datetime.now(UTC).isoformat(timespec="seconds")
         return row
 
     axe_src = None

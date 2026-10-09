@@ -8,7 +8,7 @@ import logging
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, ClassVar
 
 import psutil
 
@@ -521,7 +521,10 @@ class ResourceMonitor:
             import ctypes
 
             class PROCESSENTRY32(ctypes.Structure):
-                _fields_ = [("dwSize", ctypes.c_ulong), ("cntUsage", ctypes.c_ulong),
+                # ClassVar: ctypes reads _fields_ off the class itself; the
+                # annotation keeps RUF012 (mutable class default) quiet
+                # without weakening the rule for the rest of the file.
+                _fields_: ClassVar = [("dwSize", ctypes.c_ulong), ("cntUsage", ctypes.c_ulong),
                             ("th32ProcessID", ctypes.c_ulong), ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
                             ("th32ModuleID", ctypes.c_ulong), ("cntThreads", ctypes.c_ulong),
                             ("th32ParentProcessID", ctypes.c_ulong), ("pcPriClassBase", ctypes.c_long),

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Generate a compact HyperFrames-ready data payload."""
-import json, math
+import json
+import math
 from pathlib import Path
 
 ROOT = Path("tools/hyperframes-built-this-from-a-dream")

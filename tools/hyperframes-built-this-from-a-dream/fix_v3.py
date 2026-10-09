@@ -9,7 +9,7 @@ V3_BASE = os.path.join(BASE, "v3")
 # ─── Root project ────────────────────────────────────────────────────────────
 
 # Fix host index.html to include camera shake timeline
-with open(os.path.join(BASE, "index.html"), "r", encoding="utf-8") as f:
+with open(os.path.join(BASE, "index.html"), encoding="utf-8") as f:
     host = f.read()
 
 host = host.replace(
@@ -94,7 +94,7 @@ with open(os.path.join(BASE, "index.html"), "w", encoding="utf-8") as f:
 print("Fixed root host index.html")
 
 # Remove camera shake from root overlays
-with open(os.path.join(BASE, "compositions", "overlays.html"), "r", encoding="utf-8") as f:
+with open(os.path.join(BASE, "compositions", "overlays.html"), encoding="utf-8") as f:
     overlays = f.read()
 
 # The root overlays shouldn't have camera shake - host owns it
@@ -160,7 +160,7 @@ print("Fixed root overlays.html")
 # ─── v3 project ──────────────────────────────────────────────────────────────
 
 # Fix v3 host index.html
-with open(os.path.join(V3_BASE, "index.html"), "r", encoding="utf-8") as f:
+with open(os.path.join(V3_BASE, "index.html"), encoding="utf-8") as f:
     v3_host = f.read()
 
 v3_host = v3_host.replace(
@@ -268,7 +268,7 @@ with open(os.path.join(V3_BASE, "index.html"), "w", encoding="utf-8") as f:
 print("Fixed v3 host index.html")
 
 # Fix v3 overlays to manage color state
-with open(os.path.join(V3_BASE, "compositions", "overlays.html"), "r", encoding="utf-8") as f:
+with open(os.path.join(V3_BASE, "compositions", "overlays.html"), encoding="utf-8") as f:
     v3_overlays = f.read()
 
 v3_overlays = v3_overlays.replace(
@@ -347,7 +347,7 @@ with open(os.path.join(V3_BASE, "compositions", "overlays.html"), "w", encoding=
 print("Fixed v3 overlays.html")
 
 # Fix v3 orb to use liveColors
-with open(os.path.join(V3_BASE, "compositions", "orb.html"), "r", encoding="utf-8") as f:
+with open(os.path.join(V3_BASE, "compositions", "orb.html"), encoding="utf-8") as f:
     v3_orb = f.read()
 
 v3_orb = v3_orb.replace(
@@ -420,7 +420,7 @@ with open(os.path.join(V3_BASE, "compositions", "orb.html"), "w", encoding="utf-
 print("Fixed v3 orb.html")
 
 # Fix v3 spectrum to use liveColors
-with open(os.path.join(V3_BASE, "compositions", "spectrum.html"), "r", encoding="utf-8") as f:
+with open(os.path.join(V3_BASE, "compositions", "spectrum.html"), encoding="utf-8") as f:
     v3_spectrum = f.read()
 
 v3_spectrum = v3_spectrum.replace(

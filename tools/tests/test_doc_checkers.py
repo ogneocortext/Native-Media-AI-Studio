@@ -12,12 +12,11 @@ in-flight work by another agent. Nothing here is ever committed.
 Run:  python tools/tests/test_doc_checkers.py
 Exit 0 = all cases detected, 1 = a checker missed something.
 """
-from __future__ import print_function
 
-import io
 import os
 import subprocess
 import sys
+import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SAMPLE = os.path.join("docs", "knowledge-library", "ollama-prompting-2026.md")
@@ -38,45 +37,45 @@ def run(script):
     return p.returncode, out.decode("utf-8", "replace")
 
 
-class mutated(object):
+class Mutated:
     """Edit a file, then restore its exact original bytes on exit."""
 
     def __init__(self, rel):
         self.rel = rel
         self.path = os.path.join(ROOT, rel.replace("/", os.sep))
-        with io.open(self.path, "rb") as f:
+        with open(self.path, "rb") as f:
             self.orig = f.read()
 
     def __enter__(self):
         return self
 
     def __exit__(self, *exc):
-        with io.open(self.path, "wb") as f:
+        with open(self.path, "wb") as f:
             f.write(self.orig)
         return False
 
     def sub(self, old, new, count=1):
-        with io.open(self.path, "rb") as f:
+        with open(self.path, "rb") as f:
             data = f.read()
         if old.encode("utf-8") not in data:
             return False
         data = data.replace(old.encode("utf-8"), new.encode("utf-8"), count)
-        with io.open(self.path, "wb") as f:
+        with open(self.path, "wb") as f:
             f.write(data)
         return True
 
     def write(self, data):
-        with io.open(self.path, "wb") as f:
+        with open(self.path, "wb") as f:
             f.write(data)
         return True
 
     def crlf(self):
-        with io.open(self.path, "rb") as f:
+        with open(self.path, "rb") as f:
             data = f.read()
         return self.write(data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
 
     def append(self, text):
-        with io.open(self.path, "rb") as f:
+        with open(self.path, "rb") as f:
             data = f.read()
         return self.write(data + text.encode("utf-8"))
 
@@ -94,12 +93,12 @@ CASES = [
     ("mojibake (C1 control)", "validate-knowledge-tags.py",
      SAMPLE, lambda m: m.append("\nStray control: \u009f here.\n"), "C1 control"),
     ("map names a directory that does not exist", "check-docs-map.py",
-     MAP, lambda m: m.sub("| `plans/` | Proposed and in-flight implementation plans |",
-                          "| `plans/` | Proposed and in-flight implementation plans |\n"
+     MAP, lambda m: m.sub("| `plans/`               | Proposed and in-flight implementation plans                                                                                                                                                                                                                                                                                                                                                                                                                                                         |",
+                          "| `plans/`               | Proposed and in-flight implementation plans                                                                                                                                                                                                                                                                                                                                                                                                                                                         |\n"
                           "| `no-such-dir/` | invented |"),
      "does not exist"),
     ("map omits a real directory", "check-docs-map.py",
-     MAP, lambda m: m.sub("| `plans/` | Proposed and in-flight implementation plans |", ""),
+     MAP, lambda m: m.sub("| `plans/`               | Proposed and in-flight implementation plans                                                                                                                                                                                                                                                                                                                                                                                                                                                         |", ""),
      "does not list"),
     ("AGENTS.md stops pointing at the map", "check-docs-map.py",
      AGENTS, lambda m: m.sub("docs/README.md", "somewhere/else.md", 99),
@@ -165,14 +164,14 @@ def _untrack_then(rel, unignore=False):
     UNTRACKED_PROBES.append(rel)
 
     if unignore and os.path.exists(GITIGNORE):
-        with io.open(GITIGNORE, "rb") as f:
+        with open(GITIGNORE, "rb") as f:
             original = f.read()
         GITIGNORE_PROBES.append(original)
         stripped = b"\n".join(
             line for line in original.split(b"\n")
             if line.strip() not in (b"!" + rel.replace("/", "\\").encode(),
                                     b"!" + rel.encode()))
-        with io.open(GITIGNORE, "wb") as f:
+        with open(GITIGNORE, "wb") as f:
             f.write(stripped)
     return True
 
@@ -180,15 +179,47 @@ def _untrack_then(rel, unignore=False):
 GITIGNORE_PROBES = []
 
 
+def _retrack(rel):
+    """Re-add one probe file to the index, retrying transient failures.
+
+    `git add` intermittently fails on this machine (a multi-gigabyte
+    .git plus Windows file indexing can hold index.lock briefly), and
+    the old code swallowed the exit code: one silent failure left
+    scripts/ untracked, which looks exactly like the bug this test
+    checks for and blocks the pre-commit hook. Retry, verify the
+    file is really tracked, and say why if it still is not.
+    """
+    err = ""
+    for attempt in range(3):
+        proc = subprocess.run(
+            ["git", "add", "-f", rel], cwd=ROOT, capture_output=True,
+            encoding="utf-8", errors="replace")
+        if subprocess.run(["git", "ls-files", rel], cwd=ROOT,
+                          capture_output=True).stdout.strip():
+            return True
+        err = (proc.stderr or proc.stdout).strip()
+        time.sleep(0.5 * (attempt + 1))
+    print(f"WARNING: could not re-track {rel} ({err or 'git add failed'}); "
+          f"restore it with `git add -f {rel}` before committing.")
+    return False
+
+
 def restore_untracked_probes():
-    """Put back everything _untrack_then removed, index and .gitignore."""
+    """Put back everything _untrack_then removed, index and .gitignore.
+
+    Returns the files that could not be re-tracked, so the caller can
+    report them: a dirty tree after the test is a side effect the test
+    must not leave behind.
+    """
     while GITIGNORE_PROBES:
-        with io.open(GITIGNORE, "wb") as f:
+        with open(GITIGNORE, "wb") as f:
             f.write(GITIGNORE_PROBES.pop())
+    failed = []
     while UNTRACKED_PROBES:
         rel = UNTRACKED_PROBES.pop()
-        subprocess.call(["git", "add", "-f", rel], cwd=ROOT,
-                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if not _retrack(rel):
+            failed.append(rel)
+    return failed
 
 
 def negative_cases():
@@ -200,15 +231,14 @@ def negative_cases():
     """
     failures = []
 
-    with mutated(PLAIN) as m:
+    with Mutated(PLAIN) as m:
         m.write(b"\xef\xbb\xbf" + m.orig)
         code, out = run("check-text-encoding.py")
     if code != 0:
         failures.append("UTF-8 BOM rejected")
         print("FALSE POSITIVE: UTF-8 BOM is explicitly allowed by the checker")
     else:
-        print("not flagged:    %-44s (%s)"
-              % ("UTF-8 BOM is allowed", "check-text-encoding.py"))
+        print(f"not flagged:    {'UTF-8 BOM is allowed':<44} ({'check-text-encoding.py'})")
 
     # Every mutation above must have been restored byte-for-byte.
     code, out = run("check-text-encoding.py")
@@ -217,9 +247,9 @@ def negative_cases():
         print("BASELINE FAILED: encoding checker after restore")
         for line in out.split("\n"):
             if line.strip():
-                print("    %s" % line)
+                print(f"    {line}")
     else:
-        print("baseline clean: %s" % PLAIN.replace(os.sep, "/"))
+        print("baseline clean: {}".format(PLAIN.replace(os.sep, "/")))
 
     return failures
 
@@ -233,49 +263,49 @@ def main():
                     "check-repo-layout.py", "check-text-encoding.py"):
         code, out = run(checker)
         if code != 0:
-            print("BASELINE FAILED: %s on the unmodified tree" % checker)
+            print(f"BASELINE FAILED: {checker} on the unmodified tree")
             for line in out.split("\n"):
                 if line.strip():
-                    print("    %s" % line)
+                    print(f"    {line}")
             failures.append(checker)
 
     try:
         for label, checker, target, mutate, expect in CASES:
-            with mutated(target) as m:
+            with Mutated(target) as m:
                 if not mutate(m):
-                    print("SETUP FAILED (mutation did not apply): %s" % label)
+                    print(f"SETUP FAILED (mutation did not apply): {label}")
                     failures.append(label)
                     continue
                 code, out = run(checker)
             if code == 0:
                 failures.append(label)
-                print("NOT DETECTED: %-44s (%s)" % (label, checker))
+                print(f"NOT DETECTED: {label:<44} ({checker})")
             elif expect not in out:
                 failures.append(label)
-                print("WRONG MESSAGE: %-40s expected %r" % (label, expect))
+                print(f"WRONG MESSAGE: {label:<40} expected {expect!r}")
                 if verbose:
-                    print("    got: %s" % out.strip().split("\n")[-1][:90])
+                    print("    got: {}".format(out.strip().split("\n")[-1][:90]))
             else:
-                print("detected:       %-44s (%s)" % (label, checker))
+                print(f"detected:       {label:<44} ({checker})")
                 if verbose:
                     for line in out.split("\n"):
                         if expect in line:
-                            print("    %s" % line.strip())
+                            print(f"    {line.strip()}")
     finally:
         # Whatever happened above, the index must be left as we found it:
         # an earlier version of this file could leave scripts/ untracked on a
         # failed run, which looks exactly like the bug the test is checking for.
-        restore_untracked_probes()
+        failures.extend(restore_untracked_probes())
 
     failures.extend(negative_cases())
 
     print("=" * 66)
     if failures:
-        print("FAILED (%d):" % len(failures))
+        print(f"FAILED ({len(failures):d}):")
         for f in failures:
-            print("  - %s" % f)
+            print(f"  - {f}")
         return 1
-    print("all %d cases detected as expected" % len(CASES))
+    print(f"all {len(CASES):d} cases detected as expected")
     return 0
 
 

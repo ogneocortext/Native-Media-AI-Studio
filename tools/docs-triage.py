@@ -19,9 +19,7 @@ and that is a deliberate decision rather than a lint fix.
 Run:  python tools/docs-triage.py
 """
 
-from __future__ import print_function
 
-import io
 import os
 import sys
 from pathlib import Path
@@ -75,7 +73,7 @@ def tracked_md():
 
 
 def has_frontmatter(rel):
-    with io.open(os.path.join(ROOT, rel.replace("/", os.sep)), "rb") as f:
+    with open(os.path.join(ROOT, rel.replace("/", os.sep)), "rb") as f:
         return f.read(3) == b"---"
 
 
@@ -96,13 +94,13 @@ def main():
 
     print("Markdown outside docs/knowledge-library/ with no frontmatter")
     print("=" * 74)
-    print("  %d of %d tracked .md files" % (len(untagged), len(all_md)))
+    print(f"  {len(untagged):d} of {len(all_md):d} tracked .md files")
     print("")
-    for (title, why, _), files in zip(GROUPS, buckets):
-        print("%s  (%d)" % (title, len(files)))
-        print("    %s" % why)
+    for (title, why, _), files in zip(GROUPS, buckets, strict=True):
+        print(f"{title}  ({len(files):d})")
+        print(f"    {why}")
         for f in files:
-            print("      %s" % f)
+            print(f"      {f}")
         print("")
 
     print("Suggested next step: decide a rule per group rather than per file.")

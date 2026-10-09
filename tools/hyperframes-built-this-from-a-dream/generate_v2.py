@@ -1,6 +1,6 @@
 """Generate HyperFrames v2 composition for Built This From A Dream (HyperFrames-compliant)."""
-from pathlib import Path
 import json
+from pathlib import Path
 
 ROOT = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\tools\hyperframes-built-this-from-a-dream")
 DATA_PATH = ROOT / "data.json"
@@ -8,7 +8,7 @@ V2_DIR = ROOT / "v2"
 V2_DIR.mkdir(exist_ok=True)
 OUT_PATH = V2_DIR / "index.html"
 
-with open(DATA_PATH, "r", encoding="utf-8") as f:
+with open(DATA_PATH, encoding="utf-8") as f:
     data = json.load(f)
 
 data_json = json.dumps(data, separators=(",", ":"))

@@ -41,6 +41,6 @@ for db_path in db_paths:
             cursor.execute(f'PRAGMA table_info({table_name})')
             columns = [col[1] for col in cursor.fetchall()]
             for row in rows:
-                print(f'    {dict(zip(columns, row))}')
+                print(f'    {dict(zip(columns, row, strict=True))}')
 
     conn.close()

@@ -1,13 +1,13 @@
 """Inject window.CONCEPT and window.STORYBOARD into both HyperFrames hosts."""
-from pathlib import Path
 import json
+from pathlib import Path
 
 ROOT = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\tools\hyperframes-built-this-from-a-dream")
 
-with open(ROOT / "concept.json", "r", encoding="utf-8") as f:
+with open(ROOT / "concept.json", encoding="utf-8") as f:
     concept = json.load(f)
 
-with open(ROOT / "storyboard.built-this.json", "r", encoding="utf-8") as f:
+with open(ROOT / "storyboard.built-this.json", encoding="utf-8") as f:
     storyboard = json.load(f)
 
 concept_json = json.dumps(concept, separators=(",", ":"))

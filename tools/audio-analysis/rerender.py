@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Re-render the spectrogram figure with consistent hop_length."""
-import os, sys
-import numpy as np
+import os
+import sys
+
 import matplotlib
+import numpy as np
+
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import librosa
 import librosa.display
+import matplotlib.pyplot as plt
 
 WAV = sys.argv[1]
 OUT = sys.argv[2]

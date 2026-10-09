@@ -21,7 +21,7 @@ import json
 import logging
 import re
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -393,7 +393,7 @@ def _validate_edge_cases(code: str) -> dict[str, Any]:
     ]
 
     passed_edges = 0
-    for name, cond, desc in edge_checks:
+    for name, cond, _desc in edge_checks:
         if cond:
             score += 10
             passed_edges += 1
@@ -565,7 +565,7 @@ async def run_single_benchmark(model: str, adapter, task_timeout: float = 60.0, 
         "max_score": total_max,
         "total_latency_ms": total_latency_ms,
         "tasks": task_results,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
@@ -592,9 +592,9 @@ async def run_benchmark(models: list[str] | None, adapter, max_models: int = 12,
         logger.info(f"Coding benchmark: {model}...")
         result = await run_single_benchmark(model, adapter, quick=quick, num_ctx=num_ctx)
         data["results"][model] = result
-        data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        data["updated_at"] = datetime.now(UTC).isoformat()
         _save_file(data)
 
-    data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    data["updated_at"] = datetime.now(UTC).isoformat()
     _save_file(data)
     return data

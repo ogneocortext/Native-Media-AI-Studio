@@ -81,11 +81,11 @@ class LyricsSyncMapper:
         """Format lyrics for the Blender scene builder's add_lyrics_text method."""
         return [
             {
-                "text": l.get("text", ""),
-                "start": l.get("start", 0),
-                "end": l.get("end", 0),
+                "text": lyric.get("text", ""),
+                "start": lyric.get("start", 0),
+                "end": lyric.get("end", 0),
             }
-            for l in lyrics
+            for lyric in lyrics
         ]
 
     def from_whisperx(self, whisperx_output: dict[str, Any]) -> list[dict[str, Any]]:
@@ -115,7 +115,7 @@ class LyricsSyncMapper:
             chunk = word_lyrics[i:i + words_per_line]
             if not chunk:
                 continue
-            text = " ".join(l.get("text", "") for l in chunk)
+            text = " ".join(lyric.get("text", "") for lyric in chunk)
             start = chunk[0].get("start", 0)
             end = chunk[-1].get("end", start)
             lines.append({

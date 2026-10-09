@@ -150,7 +150,7 @@ def _build_sections(
     elif merged[-1] < duration:
         merged.append(duration)
 
-    energies = [_rms_mean(s, e) for s, e in zip(merged, merged[1:])]
+    energies = [_rms_mean(s, e) for s, e in zip(merged, merged[1:], strict=True)]
     if not energies:
         return [{"type": "full", "start": 0.0, "end": round(duration, 2), "energy": 0.5, "confidence": 0.5}]
 
@@ -161,7 +161,7 @@ def _build_sections(
     p66 = sorted_e[(len(sorted_e) * 2) // 3]
     onset_dens = [
         sum(1 for ot in onset_times if s <= ot < e)
-        for s, e in zip(merged, merged[1:])
+        for s, e in zip(merged, merged[1:], strict=True)
     ]
     max_od = max(onset_dens) if onset_dens and max(onset_dens) > 0 else 1
     n = len(merged) - 1
@@ -235,7 +235,6 @@ def _interpret(
     sections: list[dict[str, Any]],
 ) -> dict[str, Any]:
     sub = band_energy.get("sub_20_120", 0.0)
-    lowmid = band_energy.get("lowmid_120_500", 0.0)
     mid = band_energy.get("mid_500_2k", 0.0)
     presence = band_energy.get("presence_2k_8k", 0.0)
     air = band_energy.get("air_8k_20k", 0.0)
@@ -309,8 +308,7 @@ def _interpret(
     best_loop = loop_candidates[0] if loop_candidates else beat_times[0] if beat_times else 0.0
 
     # Build plain-language description
-    mode_str = key.split()[-1] if " " in key else "unknown mode"
-    key_name = key.replace(mode_str, "").strip()
+    key.split()[-1] if " " in key else "unknown mode"
     desc_parts = [
         f"{tempo:.1f} BPM {key} ({key_conf:.0%} confidence)",
         f"{duration:.1f}s",
@@ -387,7 +385,7 @@ def profile_for_file(path: str | Path, sr: int | None = 22050) -> dict[str, Any]
     dynamic_range = round(float(rms_db.max() - np.percentile(rms_db, 5)), 1)
 
     # Spectral bands
-    S = np.abs(librosa.stft(y, n_fft=4096)) ** 2
+    spectra = np.abs(librosa.stft(y, n_fft=4096)) ** 2
     freqs = librosa.fft_frequencies(sr=sr, n_fft=4096)
     band_ranges = {
         "sub_20_120": (20, 120),
@@ -396,9 +394,9 @@ def profile_for_file(path: str | Path, sr: int | None = 22050) -> dict[str, Any]
         "presence_2k_8k": (2000, 8000),
         "air_8k_20k": (8000, 20000),
     }
-    total = float(S.sum())
+    total = float(spectra.sum())
     band_energy = {
-        k: round(float(S[(freqs >= lo) & (freqs < hi)].sum() / total * 100), 1)
+        k: round(float(spectra[(freqs >= lo) & (freqs < hi)].sum() / total * 100), 1)
         for k, (lo, hi) in band_ranges.items()
     }
 
@@ -412,9 +410,9 @@ def profile_for_file(path: str | Path, sr: int | None = 22050) -> dict[str, Any]
     try:
         y_stereo, _ = librosa.load(str(p), sr=sr, mono=False)
         if y_stereo.ndim == 2 and y_stereo.shape[0] >= 2:
-            L, R = y_stereo[0], y_stereo[1]
-            if np.std(L) > 0 and np.std(R) > 0:
-                stereo_corr = round(float(np.corrcoef(L, R)[0, 1]), 3)
+            left, right = y_stereo[0], y_stereo[1]
+            if np.std(left) > 0 and np.std(right) > 0:
+                stereo_corr = round(float(np.corrcoef(left, right)[0, 1]), 3)
             else:
                 stereo_corr = 1.0
         else:

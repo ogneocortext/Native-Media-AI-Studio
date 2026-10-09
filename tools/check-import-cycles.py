@@ -140,8 +140,7 @@ def main() -> int:
 
     if args.json:
         print(
-            '{"cycles": %d, "inversions": %d}'
-            % (len(cycles), len(inversions))
+            f'{{"cycles": {len(cycles):d}, "inversions": {len(inversions):d}}}'
         )
     else:
         print(f"modules: {len(known)}  internal-import edges: {sum(len(v) for v in edges.values())}")

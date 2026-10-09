@@ -17,9 +17,7 @@ Checks:
 Run:  python tools/check-repo-layout.py
 Exit 0 = clean, 1 = issues found.
 """
-from __future__ import print_function
 
-import io
 import os
 import re
 import sys
@@ -126,7 +124,7 @@ def main():
     for f in files:
         for pat, why in SHOULD_IGNORE:
             if re.search(pat, f):
-                errors.append("tracked but looks like %s: %s" % (why, f))
+                errors.append(f"tracked but looks like {why}: {f}")
                 break
 
     # 2. byte-identical duplicates outside vendored/generated trees
@@ -142,41 +140,39 @@ def main():
         if path.endswith((".meta", ".sum", ".lock", ".json")):
             continue
         index.setdefault(sha, []).append(path)
-    for sha, paths in sorted(index.items()):
+    for _sha, paths in sorted(index.items()):
         if len(paths) > 1:
             # Two Unity projects sharing ProjectSettings is expected, not drift.
             if all("ProjectSettings/" in p for p in paths) and \
                len({p.split("/")[0] for p in paths}) > 1:
                 continue
-            notes.append("identical content in %d places: %s"
-                         % (len(paths), "  ==  ".join(paths)))
+            notes.append(f"identical content in {len(paths):d} places: {'  ==  '.join(paths)}")
 
     # 3. case-insensitive collisions
     lower = {}
     for f in files:
         lower.setdefault(f.lower(), []).append(f)
-    for key, group in sorted(lower.items()):
+    for _key, group in sorted(lower.items()):
         if len(group) > 1:
-            errors.append("case collision: %s" % ", ".join(sorted(group)))
+            errors.append("case collision: {}".format(", ".join(sorted(group))))
 
     # 4. large build output
     for f in files:
         n = size_of(f)
         if n >= LARGE_BYTES and LARGE_BUILD_OUTPUT.search(f):
-            errors.append("large build output tracked (%.1f MB): %s" % (n / 1048576.0, f))
+            errors.append(f"large build output tracked ({n / 1048576.0:.1f} MB): {f}")
 
     # 5. docs claiming something is ignored when it is not
     agents = os.path.join(ROOT, "AGENTS.md")
     if os.path.exists(agents):
-        with io.open(agents, encoding="utf-8") as f:
+        with open(agents, encoding="utf-8") as f:
             text = f.read()
         probe = "packages/frontend/tests/browser/out"
         if re.search(r"tests/browser/out.*gitignored", text, re.I | re.S):
             tracked_here = [x for x in files if x.startswith(probe + "/")]
             if tracked_here:
                 errors.append(
-                    "AGENTS.md says %s is gitignored, but %d file(s) there are "
-                    "tracked (e.g. %s)" % (probe, len(tracked_here), tracked_here[0]))
+                    f"AGENTS.md says {probe} is gitignored, but {len(tracked_here):d} file(s) there are tracked (e.g. {tracked_here[0]})")
 
     # 6. scripts that the docs tell you to run, but that .gitignore excludes.
     # A documented command that only exists because someone ran it by hand on
@@ -188,13 +184,13 @@ def main():
             continue
         if git_check_ignore(rel):
             errors.append(
-                "AGENTS.md documents `%s` but .gitignore excludes it, so it is "
-                "absent from a fresh clone. Add a `!%s` re-include if it is real "
-                "source." % (rel, rel))
+                f"AGENTS.md documents `{rel}` but .gitignore excludes it, so it is "
+                f"absent from a fresh clone. Add a `!{rel}` re-include if it is real "
+                "source.")
         elif os.path.exists(os.path.join(ROOT, rel.replace("/", os.sep))):
             errors.append(
-                "AGENTS.md documents `%s` but it is neither tracked nor ignored "
-                "(it will be lost). Add it or remove the doc reference." % rel)
+                f"AGENTS.md documents `{rel}` but it is neither tracked nor ignored "
+                "(it will be lost). Add it or remove the doc reference.")
 
     # 7. tracked scripts that dot-source a PowerShell file .gitignore excludes.
     # This is not hypothetical: scripts/manage-servers.ps1 and start-studio.ps1
@@ -211,9 +207,9 @@ def main():
             continue
         path = os.path.join(ROOT, f.replace("/", os.sep))
         try:
-            with io.open(path, encoding="utf-8", errors="replace") as fh:
+            with open(path, encoding="utf-8", errors="replace") as fh:
                 body = fh.read()
-        except (IOError, OSError):
+        except OSError:
             continue
         for line in body.splitlines():
             m = sourced.match(line)
@@ -244,9 +240,9 @@ def main():
                 continue
             if git_check_ignore(rel):
                 errors.append(
-                    "%s dot-sources `%s`, which .gitignore excludes — it is "
+                    f"{f} dot-sources `{rel}`, which .gitignore excludes — it is "
                     "absent from a fresh clone and the script will fail at "
-                    "runtime. Add a `!%s` re-include." % (f, rel, rel))
+                    f"runtime. Add a `!{rel}` re-include.")
 
     # 8. machine-generated identifiers baked into filenames
     for f in files:
@@ -259,19 +255,18 @@ def main():
         for pat, why in GENERATED_ID:
             if pat.search(stem):
                 errors.append(
-                    "filename carries a %s instead of describing its contents: "
-                    "%s  (rename it, or gitignore it if it is generated data)"
-                    % (why, f))
+                    f"filename carries a {why} instead of describing its contents: "
+                    f"{f}  (rename it, or gitignore it if it is generated data)")
                 break
 
     for n in notes:
-        print("  note: %s" % n)
+        print(f"  note: {n}")
     if errors:
-        print("ISSUES (%d):" % len(errors))
+        print(f"ISSUES ({len(errors):d}):")
         for e in errors:
-            print("  - %s" % e)
+            print(f"  - {e}")
         return 1
-    print("repository layout is clean (%d tracked files)" % len(files))
+    print(f"repository layout is clean ({len(files):d} tracked files)")
     return 0
 
 

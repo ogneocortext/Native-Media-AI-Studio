@@ -84,7 +84,7 @@ def main():
                 if outputs:
                     log("\nGeneration complete!")
                     log(f"Output nodes: {list(outputs.keys())}")
-                    for node_id, output in outputs.items():
+                    for _node_id, output in outputs.items():
                         if "images" in output:
                             for img in output["images"]:
                                 log(f"  Image: {img.get('filename', 'unknown')}")

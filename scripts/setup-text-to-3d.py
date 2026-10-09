@@ -5,7 +5,6 @@ Creates workflow JSONs and updates knowledge library references.
 """
 
 import json
-import os
 from pathlib import Path
 
 WORKFLOWS_DIR = Path("docs/comfyui-workflows")

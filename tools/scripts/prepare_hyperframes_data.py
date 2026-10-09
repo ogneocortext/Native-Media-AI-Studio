@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Prepare HyperFrames data for Built This From A Dream."""
-import json, re, math
+import json
+import math
+import re
 from pathlib import Path
 
 ROOT = Path("tools/hyperframes-built-this-from-a-dream")

@@ -178,7 +178,7 @@ def run_pytest_on_file(test_path: Path) -> bool:
 
 def validate_generated_test(code: str) -> bool:
     """Validate generated test code via AST and basic completeness checks.
-    
+
     Returns True if the code looks like a complete, parseable pytest file.
     Rejects truncated or syntactically invalid output before it is written.
     """

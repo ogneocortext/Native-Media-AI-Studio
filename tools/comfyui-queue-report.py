@@ -125,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
             print("  none exceeded 300s, so a 'timed out after 300s' error means "
                   "the client gave up early, not that ComfyUI was slow")
     else:
-        print("\ncompleted prompts : %d (no timing in history)" % len(history))
+        print(f"\ncompleted prompts : {len(history):d} (no timing in history)")
 
     # 2. Live queue.
     try:

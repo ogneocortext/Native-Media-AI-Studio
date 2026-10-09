@@ -36,7 +36,7 @@ def fix_database():
     # 3. Fix orphaned foreign keys
     print("\n3. Fixing orphaned foreign keys...")
     cursor.execute("""
-        UPDATE jobs SET params = '{}' 
+        UPDATE jobs SET params = '{}'
         WHERE params LIKE '%audio_id%' AND params NOT IN (
             SELECT id FROM audio_files
         )

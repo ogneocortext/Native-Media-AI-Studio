@@ -8,7 +8,7 @@ V3_BASE = os.path.join(BASE, "v3")
 
 # Read DATA from original files
 def extract_data(path):
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return f.read().strip()
 
 root_data = extract_data(os.path.join(BASE, "compositions", "data.json"))

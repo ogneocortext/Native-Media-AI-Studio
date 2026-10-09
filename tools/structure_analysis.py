@@ -23,7 +23,7 @@ STRUCTURE_DIR.mkdir(parents=True, exist_ok=True)
 if str(Path(__file__).resolve().parent.parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from tools.lib.audio import load_audio, analyze_beats  # type: ignore[import]
+from tools.lib.audio import analyze_beats, load_audio  # type: ignore[import]  # noqa: E402
 
 
 @dataclass
@@ -98,7 +98,6 @@ class StructureAnalyzer:
             # Tempo and beat times from shared core
             beat_result = analyze_beats(y, sr, use_gpu=False)
             tempo_val = beat_result["tempo"]
-            beat_times = beat_result["beat_times"]
 
             # Harmonic-percussive separation
             import librosa
@@ -188,8 +187,8 @@ class StructureAnalyzer:
         import numpy as np
 
         mfcc = librosa.feature.mfcc(y=y, sr=sr, hop_length=512, n_mfcc=13)
-        R = librosa.segment.recurrence_matrix(mfcc, mode="affinity", k=30)
-        boundaries = librosa.segment.agglomerative(R, min_segments=4)
+        recurrence = librosa.segment.recurrence_matrix(mfcc, mode="affinity", k=30)
+        boundaries = librosa.segment.agglomerative(recurrence, min_segments=4)
         boundary_times = librosa.frames_to_time(boundaries, sr=sr, hop_length=512)
         boundary_times = np.concatenate([[0], boundary_times, [len(y) / sr]])
 

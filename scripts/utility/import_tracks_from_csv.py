@@ -7,10 +7,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from tools.lib.paths import backend_dir
+from tools.lib.paths import backend_dir  # noqa: E402
 
 sys.path.insert(0, str(backend_dir()))
-from app.core.database import delete_track, get_tracks, init_db, save_track
+from app.core.database import delete_track, get_tracks, init_db, save_track  # noqa: E402
 
 CSV_PATH = (
     Path(__file__).resolve().parent.parent
