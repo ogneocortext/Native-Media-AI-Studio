@@ -713,8 +713,3 @@ async def _apply_llm_sections(analysis_result: dict, result, rms_energy: list[fl
         # Best-effort: keep the fallback sections on any failure, but surface
         # the reason so silent LLM degradations remain debuggable.
         logger.debug("LLM section refinement failed, using fallback sections: %s", e, exc_info=True)
-
-
-def _generate_sections(duration: float, tempo: float, beat_count: int) -> list[dict]:
-    """Legacy fallback — uniform slicing (kept for queue path)."""
-    return _generate_sections_from_analysis(duration, tempo, [], [], [], 512, 22050)

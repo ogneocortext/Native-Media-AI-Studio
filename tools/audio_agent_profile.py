@@ -44,10 +44,6 @@ def _mean(vals):
     return round(sum(vals) / len(vals), 3) if vals else None
 
 
-def _clamp01(v: float) -> float:
-    return max(0.0, min(1.0, float(v)))
-
-
 def _load_mono(path: str | Path, sr: int | None = 22050) -> tuple[np.ndarray, int]:
     """Load mono audio, with an ffmpeg fallback for formats soundfile misses."""
     p = Path(path)

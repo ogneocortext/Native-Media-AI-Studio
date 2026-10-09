@@ -129,11 +129,6 @@ def _normalise_js(code: str) -> str:
     return re.sub(r"\s+", " ", code).strip()
 
 
-def _strip_python_comments_and_strings(path: Path) -> None:
-    """No-op hook kept so the normalisation story stays in one place."""
-    return None
-
-
 def _tracked_files() -> list[Path]:
     """Only files git tracks.
 

@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import math
 import shutil
 import struct
 import subprocess
@@ -251,29 +250,6 @@ async def extract_waveform(
     except Exception as exc:
         logger.debug("extract_waveform failed for %s: %s", path, exc)
         return {"error": str(exc), "peaks": []}
-
-
-def _parse_astats(text: str, max_points: int = 240) -> list[float]:
-    """Best-effort RMS peak extraction from astats verbose log output."""
-    import re
-
-    vals: list[float] = []
-    for m in re.finditer(r"RMS level dB:\s*([+-]?\d+(?:\.\d+)?)", text):
-        vals.append(float(m.group(1)))
-    if not vals:
-        return []
-    # Convert dB -> linear 0..1-ish normalized by max absolute value
-    peak = max(abs(v) for v in vals) or 1.0
-    linear = [max(0.0, min(1.0, (v + peak) / (2 * peak))) for v in vals]
-    # Downsample to max_points with simple min/max bucketing to preserve shape.
-    if len(linear) <= max_points:
-        return linear
-    bucket = max(1, math.floor(len(linear) / max_points))
-    out: list[float] = []
-    for i in range(0, len(linear), bucket):
-        chunk = linear[i : i + bucket]
-        out.append(max(chunk))
-    return out[:max_points]
 
 
 # =============================================================================
